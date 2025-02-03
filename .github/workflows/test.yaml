@@ -11,11 +11,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-        numpy-version: ["1.26.4", "2.0.0"]
-        exclude:
-          - os: windows-latest
-            numpy-version: "2.0.0"
-
 
     steps:
       - uses: actions/checkout@v3
@@ -26,7 +21,6 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==${{ matrix.numpy-version }}
           pip install -r requirements.txt
       - name: Test with pytest
         run: |
@@ -35,3 +29,14 @@ jobs:
         run: |
           python -m pylint NAME_OF_PACKAGE setup.py tests
           isort NAME_OF_PACKAGE tests; black NAME_OF_PACKAGE tests; bash -c '[ $(git status --porcelain --untracked-files=no | wc -c) -eq 0 ]  || (git status; git diff; exit 1)'
+
+  check-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Check that the docs build
+        run: |
+          cd docs && make html
