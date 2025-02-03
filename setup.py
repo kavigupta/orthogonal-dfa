@@ -9,7 +9,7 @@ setuptools.setup(
     description="DESCRIPTION_OF_PACKAGE",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/kavigupta/NAME_OF_PACKAGE",
+    url="https://github.com/GITHUB_NAME_OF_AUTHOR_OF_PACKAGE/NAME_OF_PACKAGE",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3.9",
