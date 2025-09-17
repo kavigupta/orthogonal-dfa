@@ -1,4 +1,4 @@
 
-# NAME_OF_PACKAGE
+# Orthogonal DFA
 
-This is a template for creating a Python package. It includes a setup.py file, tests, docs, etc.
+This package allows for learning a set of orthogonal DFAs to try to cover the behavior of a neural model.

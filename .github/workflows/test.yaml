@@ -27,8 +27,8 @@ jobs:
           python -m pytest tests
       - name: Lint with pylint
         run: |
-          python -m pylint NAME_OF_PACKAGE setup.py tests
-          isort NAME_OF_PACKAGE tests; black NAME_OF_PACKAGE tests; bash -c '[ $(git status --porcelain --untracked-files=no | wc -c) -eq 0 ]  || (git status; git diff; exit 1)'
+          python -m pylint orthogonal_dfa setup.py tests
+          isort orthogonal_dfa tests; black orthogonal_dfa tests; bash -c '[ $(git status --porcelain --untracked-files=no | wc -c) -eq 0 ]  || (git status; git diff; exit 1)'
 
   check-docs:
     runs-on: ubuntu-latest
