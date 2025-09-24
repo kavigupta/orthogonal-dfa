@@ -44,4 +44,4 @@ def stop_codon_dfa():
         initial_state=initial_state,
         accepting_states=accepting_states,
     )
-    return dfa
+    return dfa.minimize()
