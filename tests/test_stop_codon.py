@@ -1,7 +1,6 @@
 import unittest
 
 import frame_alignment_checks as fac
-
 import numpy as np
 
 from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_dfa
