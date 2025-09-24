@@ -21,7 +21,7 @@ setuptools.setup(
     install_requires=[
         "torch==2.7.1",
         "dconstruct==1.0.0",
-        "numpy==1.23.3",
+        "numpy==2.3.3",
         "pythomata==0.3.2",
         "frame-alignment-checks>=0.0.73",
     ],
