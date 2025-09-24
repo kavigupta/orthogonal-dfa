@@ -38,9 +38,12 @@ class remapping_pickle:
         return hasattr(pickle, name)
 
 
-def load_spliceai(path):
+def load_spliceai(size, seed):
+    assert size in (400, 10000, "10k")
+    if size == 10000:
+        size = "10k"
     return torch.load(
-        os.path.join(path, max(os.listdir(path), key=int)),
+        os.path.join("data/pretrained_models", f"spliceai-{size}-{seed}.pt"),
         weights_only=False,
         pickle_module=remapping_pickle(),
     )
