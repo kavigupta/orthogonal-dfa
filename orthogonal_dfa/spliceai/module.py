@@ -172,7 +172,7 @@ def get_hparams(window, CL_max):
         AR = np.asarray([1, 1, 1, 1, 4, 4, 4, 4, 10, 10, 10, 10, 25, 25, 25, 25])
         BATCH_SIZE = 6
     else:
-        raise AssertionError(f"Invalid window: {window})
+        raise AssertionError(f"Invalid window: {window}")
 
     # Hyper-parameters:
     # L: Number of convolution kernels
