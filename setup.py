@@ -11,13 +11,11 @@ setuptools.setup(
     url="https://github.com/kavigupta/orthogonal-dfa",
     packages=setuptools.find_packages(),
     classifiers=[
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.11",
     install_requires=[
         "torch==2.7.1",
         "dconstruct==1.0.0",
