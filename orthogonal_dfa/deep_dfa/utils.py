@@ -1,13 +1,14 @@
 # copied from https://github.com/whitemech/DeepDFA
 
 
-import torch
-import random
-from numpy.random import RandomState
 import os
-import numpy as np
-from pythomata import SymbolicAutomaton, SimpleDFA
 import pickle
+import random
+
+import numpy as np
+import torch
+from numpy.random import RandomState
+from pythomata import SimpleDFA, SymbolicAutomaton
 
 if torch.cuda.is_available():
     device = "cuda:0"
@@ -41,7 +42,6 @@ def set_seed(seed: int) -> RandomState:
 def eval_learnt_DFA_acceptance_no_batch(
     automa, dataset, automa_implementation="logic_circuit", temp=1.0, alphabet=None
 ):
-
     # automa implementation =
     #   - 'dfa' use the discretized probabilistic automaton #TODO
     #   - 'logic_circuit'
@@ -83,7 +83,6 @@ def eval_learnt_DFA_acceptance_no_batch(
 def eval_learnt_DFA_acceptance(
     automa, dataset, automa_implementation="logic_circuit", temp=1.0, alphabet=None
 ):
-
     # automa implementation =
     #   - 'dfa' use the discretized probabilistic automaton #TODO
     #   - 'logic_circuit'
@@ -110,11 +109,9 @@ def eval_learnt_DFA_acceptance(
                 pred_acceptace = automa(sym, temp)
                 output = torch.argmax(pred_acceptace, dim=1)
             elif automa_implementation == "dfa":
-
                 output = torch.zeros((sym.size()[0]), dtype=torch.int)
                 # print("sym_size:", sym.size())
                 for k in range(sym.size()[0]):
-
                     sym_trace = tensor2string(sym[k])
                     # print("sym_trace", sym_trace)
                     output[k] = int(automa.accepts(sym_trace))
@@ -162,7 +159,6 @@ def tensor2string(tensor):
 
 # questo è fatto ad hoc per i dfa fatti con mona
 def dot2pythomata(dot_file_name, action_alphabet):  # , dfa_file_name):
-
     fake_action = "(~" + action_alphabet[0]
     for sym in action_alphabet[1:]:
         fake_action += " & ~" + sym

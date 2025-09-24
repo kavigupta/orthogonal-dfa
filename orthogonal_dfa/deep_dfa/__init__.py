@@ -3,6 +3,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from .utils import transacc2pythomata
 
 if torch.cuda.is_available():
@@ -12,7 +13,6 @@ else:
 
 
 class LSTMAutoma(nn.Module):
-
     def __init__(self, hidden_dim, vocab_size, tagset_size):
         super(LSTMAutoma, self).__init__()
         self.hidden_dim = hidden_dim
@@ -23,7 +23,6 @@ class LSTMAutoma(nn.Module):
         self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
 
     def forward(self, sentence):
-
         lstm_out, _ = self.lstm(sentence.view(len(sentence), 1, -1))
         tag_space = self.hidden2tag(lstm_out.view(len(sentence), -1))
 
@@ -100,7 +99,6 @@ class ProbabilisticAutoma(nn.Module):
         return next_state, next_output
 
     def net2dfa(self, min_temp):
-
         trans_prob = self.activation(self.trans_prob, min_temp)
         fin_matrix = self.activation(self.fin_matrix, min_temp)
 
