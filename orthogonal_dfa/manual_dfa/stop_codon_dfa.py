@@ -1,3 +1,4 @@
+from functools import lru_cache
 import itertools
 
 import pythomata
@@ -21,6 +22,7 @@ def evolve_state(state, symbol):
     return new_state
 
 
+@lru_cache(None)
 def stop_codon_dfa():
     states = {
         (done_mask, current_phase, codon_start)
