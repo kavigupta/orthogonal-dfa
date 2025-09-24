@@ -51,19 +51,23 @@ class ProbabilisticAutoma(nn.Module):
         self.numb_of_outputs = numb_of_output
         self.output_values = torch.Tensor(list(range(numb_of_output)))
         self.activation = sftmx_with_temp
-        self.trans_prob = torch.normal(
-            0,
-            0.1,
-            size=(numb_of_actions, numb_of_states, numb_of_states),
-            requires_grad=True,
-            device=device,
+        self.trans_prob = nn.Parameter(
+            torch.normal(
+                0,
+                0.1,
+                size=(numb_of_actions, numb_of_states, numb_of_states),
+                requires_grad=True,
+                device=device,
+            )
         )
-        self.fin_matrix = torch.normal(
-            0,
-            0.1,
-            size=(numb_of_states, numb_of_output),
-            requires_grad=True,
-            device=device,
+        self.fin_matrix = nn.Parameter(
+            torch.normal(
+                0,
+                0.1,
+                size=(numb_of_states, numb_of_output),
+                requires_grad=True,
+                device=device,
+            )
         )
 
     # input: sequence of actions (batch, length_seq)
