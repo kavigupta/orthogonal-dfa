@@ -1,4 +1,5 @@
 # Copied from https://github.com/whitemech/DeepDFA
+# pylint: disable=all
 
 import torch
 import torch.nn as nn

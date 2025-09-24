@@ -13,11 +13,10 @@ class renamed_symbol_unpickler(pickle.Unpickler):
     """
 
     def find_class(self, module, name):
-        if module in MODULE_RENAME_MAP:
-            module = MODULE_RENAME_MAP[module]
+        module = MODULE_RENAME_MAP.get(module, module)
 
         try:
-            return super(renamed_symbol_unpickler, self).find_class(module, name)
+            return super().find_class(module, name)
         except:
             print("Could not find", (module, name))
             raise

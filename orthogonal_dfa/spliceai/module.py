@@ -1,5 +1,7 @@
+from frozendict import frozendict
+
 import numpy as np
-import torch.nn as nn
+from torch import nn
 from dconstruct import construct
 
 
@@ -47,6 +49,7 @@ class SpliceAI(nn.Module):
         code.
     """
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         l,
@@ -56,7 +59,7 @@ class SpliceAI(nn.Module):
         starting_channels=4,
         output_size=3,
         *,
-        module_spec=dict(type="ResidualUnit"),
+        module_spec=frozendict(type="ResidualUnit"),
     ):
         super().__init__()
         assert len(w) == len(ar)
@@ -84,20 +87,15 @@ class SpliceAI(nn.Module):
 
         self.hooks_handles = []
 
-    def forward(self, x, collect_intermediates=False, collect_gradients=False):
+    def forward(self, x):
         if isinstance(x, dict):
             x = x["x"]
-        collect = lambda x: x if collect_intermediates else None
         x = x.transpose(1, 2)
-        intermediates = {}
         if hasattr(self, "preprocess"):
-            x, extras = self.preprocess(x)
-            intermediates.update(extras.items())
+            x, _ = self.preprocess(x)
 
         conv = self.conv1(x)
         skip = self.conv2(conv)
-
-        intermediates["skips"] = [collect(skip)]
 
         for i in range(len(self.w)):
             conv = self.convstack[i](conv)
@@ -105,19 +103,12 @@ class SpliceAI(nn.Module):
             if self._skip_connection(i):
                 # Skip connections to the output after every 4 residual units
                 skip = skip + self.skipconv[i](conv)
-                intermediates["skips"].append(collect(skip))
 
         skip = skip[:, :, self.cl // 2 : -self.cl // 2]
 
         y = self.output(skip)
 
         y = y.transpose(1, 2)
-        if collect_gradients:
-            [s.retain_grad() for s in intermediates["skips"]]
-
-        if collect_intermediates:
-            intermediates["output"] = y
-            return intermediates
         return y
 
     def _skip_connection(self, i):
@@ -140,7 +131,7 @@ class SpliceAIModule(nn.Module):
         CL_max=10_000,
         input_size=4,
         output_size=3,
-        spliceai_spec=dict(type="SpliceAI"),
+        spliceai_spec=frozendict(type="SpliceAI"),
     ):
         super().__init__()
         W, AR, _, _ = get_hparams(window, CL_max=CL_max)
@@ -181,7 +172,7 @@ def get_hparams(window, CL_max):
         AR = np.asarray([1, 1, 1, 1, 4, 4, 4, 4, 10, 10, 10, 10, 25, 25, 25, 25])
         BATCH_SIZE = 6
     else:
-        raise AssertionError("Invalid window: {}".format(window))
+        raise AssertionError(f"Invalid window: {window})
 
     # Hyper-parameters:
     # L: Number of convolution kernels

@@ -1,5 +1,5 @@
 # copied from https://github.com/whitemech/DeepDFA
-
+# pylint: disable=all
 
 import os
 import pickle
