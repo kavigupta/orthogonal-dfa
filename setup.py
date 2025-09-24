@@ -18,7 +18,12 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.9",
-    install_requires=["torch==2.7.1", "dconstruct==1.0.0", "numpy==1.23.3"],
+    install_requires=[
+        "torch==2.7.1",
+        "dconstruct==1.0.0",
+        "numpy==1.23.3",
+        "pythomata==0.3.2",
+    ],
     # documentation
     project_urls={
         "Documentation": "https://orthogonal-dfa.readthedocs.io/en/latest/#",
