@@ -23,6 +23,7 @@ setuptools.setup(
         "dconstruct==1.0.0",
         "numpy==1.23.3",
         "pythomata==0.3.2",
+        "frame-alignment-checks>=0.0.73",
     ],
     # documentation
     project_urls={
