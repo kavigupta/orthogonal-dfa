@@ -1,5 +1,5 @@
-from functools import lru_cache
 import itertools
+from functools import lru_cache
 
 import pythomata
 
