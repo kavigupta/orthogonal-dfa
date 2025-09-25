@@ -7,11 +7,15 @@ from orthogonal_dfa.data.sample_text import sample_text
 from orthogonal_dfa.oracle.run_model import run_model
 from orthogonal_dfa.utils.dfa import hash_dfa
 
+TEST_SEED = int(stable_hash("testing"), 16)
+
 
 @permacache(
     "orthogonal_dfa/oracle/evaluate/evaluate_hard_dfa", key_function=dict(dfa=hash_dfa)
 )
-def evaluate_hard_dfa(exon: RawExon, dfa: pythomata.SimpleDFA, model, seed, count):
+def evaluate_hard_dfa(
+    exon: RawExon, dfa: pythomata.SimpleDFA, model, count=100_000, seed=TEST_SEED
+):
     """
     Returns confusion matrix indexed as
         confusion[predicted][actual]
@@ -73,3 +77,21 @@ def simulate_bootstrap_confusion(fn, confusion, *, interval_pct=95, n=10000):
     sims = sims.reshape((n, 2, 2))
     tail = (100 - interval_pct) / 2
     return np.percentile(fn(sims), [tail, 100 - tail])
+
+
+def print_with_uncertainty(confusion, fn, name, fmt):
+    mi = fn(confusion)
+    lb, ub = simulate_bootstrap_confusion(fn, confusion)
+    print(f"{name}:\n    {fmt(mi)} ({fmt(lb)}, {fmt(ub)})")
+
+
+def print_metrics(confusion):
+    print_with_uncertainty(
+        confusion, mutual_information, "Mutual Information", "{:.4f}b".format
+    )
+    print_with_uncertainty(
+        confusion,
+        actual_pct_difference_by_prediction,
+        "Actual % Difference by Prediction",
+        "{:.2%}".format,
+    )
