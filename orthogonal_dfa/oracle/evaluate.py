@@ -86,6 +86,8 @@ def print_with_uncertainty(confusion, fn, name, fmt):
 
 
 def print_metrics(confusion):
+    # these are not f-stringable because there's no arguments.
+    # pylint: disable=consider-using-f-string
     print_with_uncertainty(
         confusion, mutual_information, "Mutual Information", "{:.4f}b".format
     )
