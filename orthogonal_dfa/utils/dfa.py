@@ -3,8 +3,8 @@ from permacache import stable_hash
 
 
 def rename_symbols(dfa: pythomata.SimpleDFA, mapping: dict) -> pythomata.SimpleDFA:
-    assert set(dfa.alphabet) == set(
-        mapping.keys()
+    assert set(dfa.alphabet).issubset(
+        set(mapping.keys())
     ), f"DFA alphabet is {set(dfa.alphabet)}; mapping keys are {set(mapping.keys())}"
     new_alphabet = set(mapping.values())
     return pythomata.SimpleDFA(
@@ -21,8 +21,10 @@ def rename_symbols(dfa: pythomata.SimpleDFA, mapping: dict) -> pythomata.SimpleD
     )
 
 
-def acgt_to_num(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
-    return rename_symbols(dfa, {"A": 0, "C": 1, "G": 2, "T": 3})
+def dfa_symbols_to_num(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
+    return rename_symbols(
+        dfa, {"A": 0, "C": 1, "G": 2, "T": 3, "0": 0, "1": 1, "2": 2, "3": 3}
+    )
 
 
 def hash_dfa(dfa: pythomata.SimpleDFA) -> str:
