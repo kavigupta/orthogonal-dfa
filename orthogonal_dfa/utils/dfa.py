@@ -1,5 +1,117 @@
 import pythomata
+import torch
 from permacache import stable_hash
+from torch import nn
+
+
+class TorchDFA(nn.Module):
+    def __init__(
+        self,
+        initial_state: int,
+        accepting_states: torch.tensor,
+        transition_function: torch.tensor,
+    ):
+        """
+
+        :param initial_state: tensor, shape (num_dfas,)
+        :param accepting_states: bool tensor, shape (num_dfas, num_states)
+        :param transition_function: int tensor, shape (num_dfas, num_states, alphabet_size)
+        """
+        n_dfas, n_states, _ = transition_function.shape
+        assert initial_state.shape == (n_dfas,)
+        assert accepting_states.shape == (n_dfas, n_states)
+        super().__init__()
+        self.initial_state = nn.Parameter(initial_state, requires_grad=False)
+        self.accepting_states = nn.Parameter(accepting_states, requires_grad=False)
+        self.transition_function = nn.Parameter(
+            transition_function, requires_grad=False
+        )
+
+    def __len__(self):
+        return self.transition_function.shape[0]
+
+    @classmethod
+    def none(cls, num_symbols):
+        return cls.concat(num_symbols=num_symbols)
+
+    @classmethod
+    def concat(cls, *dfas: "TorchDFA", num_symbols=None) -> "TorchDFA":
+        if not dfas:
+            assert num_symbols is not None
+            return cls(
+                initial_state=torch.zeros((0,), dtype=torch.long),
+                accepting_states=torch.zeros((0, 0), dtype=torch.bool),
+                transition_function=torch.zeros((0, 0, num_symbols), dtype=torch.long),
+            )
+
+        max_states = max((dfa.transition_function.shape[1] for dfa in dfas))
+        transition_functions = []
+        accepting_statess = []
+        initial_states = []
+        for dfa in dfas:
+            additional_states = max_states - dfa.transition_function.shape[1]
+            transition_function = torch.nn.functional.pad(
+                dfa.transition_function, (0, 0, 0, additional_states), value=-1
+            )
+            accepting_states = torch.nn.functional.pad(
+                dfa.accepting_states, (0, additional_states), value=False
+            )
+            transition_functions.append(transition_function)
+            accepting_statess.append(accepting_states)
+            initial_states.append(dfa.initial_state)
+        transition_function = torch.cat(transition_functions, dim=0)
+        accepting_states = torch.cat(accepting_statess, dim=0)
+        initial_state = torch.cat(initial_states, dim=0)
+        return cls(
+            initial_state=initial_state,
+            accepting_states=accepting_states,
+            transition_function=transition_function,
+        )
+
+    @classmethod
+    def from_pythomata(cls, dfa: pythomata.SimpleDFA):
+        transition_function, accepting_states, initial_state = cls._to_tensor(dfa)
+
+        return cls(
+            initial_state=initial_state[None],
+            accepting_states=accepting_states[None],
+            transition_function=transition_function[None],
+        )
+
+    @classmethod
+    def _to_tensor(cls, dfa):
+        state_to_idx = {state: i for i, state in enumerate(sorted(dfa.states))}
+        alphabet = sorted(dfa.alphabet)
+        transition_function = torch.tensor(
+            [
+                [
+                    state_to_idx[dfa.transition_function[state][symbol]]
+                    for symbol in alphabet
+                ]
+                for state in sorted(dfa.states)
+            ],
+            dtype=torch.long,
+        )
+        accepting_states = torch.tensor(
+            [state in dfa.accepting_states for state in sorted(dfa.states)],
+            dtype=torch.bool,
+        )
+        initial_state = torch.tensor(state_to_idx[dfa.initial_state])
+        return transition_function, accepting_states, initial_state
+
+    def forward(self, x: torch.tensor) -> torch.tensor:
+        """
+        :param x: LongTensor of shape (batch_size, seq_len) with symbols as integers
+        :return: BoolTensor of shape (batch_size,) indicating acceptance
+        """
+        batch_size, seq_len = x.shape
+        states = self.initial_state[:, None].repeat(1, batch_size)
+        for t in range(seq_len):
+            symbols = x[:, t]
+            states = self.transition_function[
+                torch.arange(states.shape[0])[:, None], states, symbols
+            ]
+        return self.accepting_states[torch.arange(states.shape[0])[:, None], states]
 
 
 def rename_symbols(dfa: pythomata.SimpleDFA, mapping: dict) -> pythomata.SimpleDFA:
