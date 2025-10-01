@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 import pythomata
-from permacache import stable_hash
 import torch
+from permacache import stable_hash
 from torch import nn
 
 

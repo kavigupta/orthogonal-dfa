@@ -1,7 +1,6 @@
-from typing import List
 import numpy as np
-from permacache import stable_hash
 import torch
+from permacache import stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
