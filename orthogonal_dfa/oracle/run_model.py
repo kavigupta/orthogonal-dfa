@@ -1,10 +1,8 @@
 import torch
-
 from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
-from orthogonal_dfa.math import corr
 
 
 def batched_run(model, arr, batch_size=1024):
