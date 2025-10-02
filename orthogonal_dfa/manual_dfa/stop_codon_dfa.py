@@ -4,17 +4,17 @@ from functools import lru_cache
 import pythomata
 
 
-def evolve_state(state, symbol):
+def evolve_state(state, symbol, stops, prefixes):
     done_mask, current_phase, codon_start = state
 
     done_mask = list(done_mask)
     current_phase = (current_phase + 1) % 3
     new_codon_start = codon_start + symbol
 
-    if new_codon_start in ["TAA", "TAG", "TGA"]:
+    if new_codon_start in stops:
         done_mask[(current_phase + 1) % 3] = 1
         new_codon_start = ""
-    while new_codon_start not in ["", "T", "TA", "TG"]:
+    while new_codon_start not in prefixes:
         new_codon_start = new_codon_start[1:]
 
     done_mask = tuple(done_mask)
@@ -23,12 +23,13 @@ def evolve_state(state, symbol):
 
 
 @lru_cache(None)
-def stop_codon_dfa():
+def stop_codon_dfa(stops=("TAG", "TAA", "TGA")):
+    prefixes = sorted(set(s[:i] for s in stops for i in range(len(s))))
     states = {
         (done_mask, current_phase, codon_start)
         for done_mask in itertools.product([0, 1], repeat=3)
         for current_phase in range(3)
-        for codon_start in ["", "T", "TA", "TG"]
+        for codon_start in prefixes
     }
     alphabet = ["A", "C", "G", "T"]
     initial_state = ((0, 0, 0), 0, "")
@@ -37,7 +38,7 @@ def stop_codon_dfa():
     for state in states:
         transitions[state] = {}
         for symbol in alphabet:
-            new_state = evolve_state(state, symbol)
+            new_state = evolve_state(state, symbol, stops, prefixes)
             assert new_state in states, f"{new_state} not in {states}"
             transitions[state][symbol] = new_state
     dfa = pythomata.SimpleDFA(
