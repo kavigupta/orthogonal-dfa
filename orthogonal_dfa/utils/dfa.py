@@ -1,3 +1,4 @@
+from automata.fa.dfa import DFA
 import pythomata
 import torch
 from permacache import stable_hash

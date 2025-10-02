@@ -21,7 +21,9 @@ setuptools.setup(
         "dconstruct==1.0.0",
         "numpy==2.3.3",
         "pythomata==0.3.2",
+        "automata-lib==8.3.0",
         "frame-alignment-checks>=0.0.73",
+        "coloraide",
     ],
     # documentation
     project_urls={
