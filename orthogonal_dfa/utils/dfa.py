@@ -156,3 +156,14 @@ def hash_dfa(dfa: pythomata.SimpleDFA) -> str:
             )
         )
     )
+
+
+def p_to_al(dfa: pythomata.SimpleDFA) -> DFA:
+    """Convert a pythomata DFA to an automata-lib DFA."""
+    return DFA(
+        states=dfa.states,
+        input_symbols=dfa.alphabet,
+        transitions=dfa.transition_function,
+        initial_state=dfa.initial_state,
+        final_states=dfa.accepting_states,
+    )
