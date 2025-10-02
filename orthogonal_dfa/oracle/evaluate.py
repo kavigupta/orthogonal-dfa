@@ -61,7 +61,7 @@ def pack_as_uint32(values):
 
 def run_model_and_dfas(exon, dfas, model, count, seed):
     random, arr = sample_text(exon, seed, count)
-    _, hard_target = run_model(model, arr)
+    _, hard_target = run_model(exon, model, arr)
     hard_target = hard_target.cpu().numpy()
     hard_pred = dfas.cuda()(torch.tensor(random).cuda()).cpu().numpy()
     return hard_target, hard_pred
