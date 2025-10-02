@@ -1,6 +1,6 @@
-from automata.fa.dfa import DFA
 import pythomata
 import torch
+from automata.fa.dfa import DFA
 from permacache import stable_hash
 from torch import nn
 
