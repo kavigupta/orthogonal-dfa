@@ -170,6 +170,22 @@ def rename_symbols(dfa: pythomata.SimpleDFA, mapping: dict) -> pythomata.SimpleD
     )
 
 
+def rename_states(dfa, state_mapping):
+    return pythomata.SimpleDFA(
+        states=set(state_mapping.values()),
+        alphabet=dfa.alphabet,
+        transition_function={
+            state_mapping[state]: {
+                symbol: state_mapping[next_state]
+                for symbol, next_state in transitions.items()
+            }
+            for state, transitions in dfa.transition_function.items()
+        },
+        initial_state=state_mapping[dfa.initial_state],
+        accepting_states={state_mapping[s] for s in dfa.accepting_states},
+    )
+
+
 def dfa_symbols_to_num(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
     return rename_symbols(
         dfa, {"A": 0, "C": 1, "G": 2, "T": 3, "0": 0, "1": 1, "2": 2, "3": 3}
@@ -178,6 +194,24 @@ def dfa_symbols_to_num(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
 
 def dfa_symbols_to_acgt(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
     return rename_symbols(dfa, {0: "A", 1: "C", 2: "G", 3: "T"})
+
+
+def canonicalize_states(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
+    states_in_order = []
+    visited = set()
+    queue = [dfa.initial_state]
+    while queue:
+        state = queue.pop(0)
+        if state in visited:
+            continue
+        visited.add(state)
+        states_in_order.append(state)
+        for symbol in sorted(dfa.alphabet):
+            next_state = dfa.transition_function[state][symbol]
+            if next_state not in visited:
+                queue.append(next_state)
+    state_mapping = {old: new for new, old in enumerate(states_in_order)}
+    return rename_states(dfa, state_mapping)
 
 
 def hash_dfa(dfa: pythomata.SimpleDFA) -> str:
