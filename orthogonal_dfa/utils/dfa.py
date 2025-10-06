@@ -31,9 +31,21 @@ class TorchDFA(nn.Module):
     def __len__(self):
         return self.transition_function.shape[0]
 
+    @property
+    def alphabet_size(self):
+        return self.transition_function.shape[2]
+
     @classmethod
     def none(cls, num_symbols):
         return cls.concat(num_symbols=num_symbols)
+
+    def __getitem__(self, idx):
+        assert isinstance(idx, slice)
+        return TorchDFA(
+            initial_state=self.initial_state[idx],
+            accepting_states=self.accepting_states[idx],
+            transition_function=self.transition_function[idx],
+        )
 
     @classmethod
     def concat(cls, *dfas: "TorchDFA", num_symbols=None) -> "TorchDFA":
@@ -114,6 +126,30 @@ class TorchDFA(nn.Module):
             ]
         return self.accepting_states[torch.arange(states.shape[0])[:, None], states]
 
+    def extract_dfa(self, idx) -> pythomata.SimpleDFA:
+        assert 0 <= idx < len(self)
+        transition_function = {
+            state: {
+                symbol: int(new_state)
+                for symbol, new_state in zip(
+                    range(self.transition_function.shape[2]),
+                    self.transition_function[idx, state].tolist(),
+                )
+            }
+            for state in range(self.transition_function.shape[1])
+        }
+        return pythomata.SimpleDFA(
+            states=set(range(self.transition_function.shape[1])),
+            alphabet=set(range(self.transition_function.shape[2])),
+            transition_function=transition_function,
+            initial_state=int(self.initial_state[idx]),
+            accepting_states={
+                state
+                for state in range(self.transition_function.shape[1])
+                if self.accepting_states[idx, state]
+            },
+        )
+
 
 def rename_symbols(dfa: pythomata.SimpleDFA, mapping: dict) -> pythomata.SimpleDFA:
     assert set(dfa.alphabet).issubset(
@@ -138,6 +174,10 @@ def dfa_symbols_to_num(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
     return rename_symbols(
         dfa, {"A": 0, "C": 1, "G": 2, "T": 3, "0": 0, "1": 1, "2": 2, "3": 3}
     )
+
+
+def dfa_symbols_to_acgt(dfa: pythomata.SimpleDFA) -> pythomata.SimpleDFA:
+    return rename_symbols(dfa, {0: "A", 1: "C", 2: "G", 3: "T"})
 
 
 def hash_dfa(dfa: pythomata.SimpleDFA) -> str:
