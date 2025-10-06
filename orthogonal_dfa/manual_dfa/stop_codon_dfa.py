@@ -3,6 +3,8 @@ from functools import lru_cache
 
 import pythomata
 
+from orthogonal_dfa.utils.dfa import canonicalize_states
+
 
 def evolve_state(state, symbol, stops, prefixes):
     done_mask, current_phase, codon_start = state
@@ -48,4 +50,4 @@ def stop_codon_dfa(stops=("TAG", "TAA", "TGA")):
         initial_state=initial_state,
         accepting_states=accepting_states,
     )
-    return dfa.minimize()
+    return canonicalize_states(dfa.minimize())
