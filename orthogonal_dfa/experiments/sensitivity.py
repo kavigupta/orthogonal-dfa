@@ -1,10 +1,10 @@
 from typing import Dict, Tuple, Union
 
-from matplotlib import pyplot as plt
+import frame_alignment_checks as fac
 import numpy as np
 import pythomata
+from matplotlib import pyplot as plt
 from permacache import permacache
-import frame_alignment_checks as fac
 
 from orthogonal_dfa.mutation.mutation import Mutation, RandomSingleMutation
 from orthogonal_dfa.oracle.evaluate import (
@@ -95,4 +95,11 @@ def plot_sensitivity(
     }
     for x, ((name, _), orig) in enumerate(results.items()):
         many = len(orig) > 10
-        plot_vertical_histogram(x, orig, ax=ax, color=name_to_color[name], alpha=0.3 if many else 1, marker="." if many else None)
+        plot_vertical_histogram(
+            x,
+            orig,
+            ax=ax,
+            color=name_to_color[name],
+            alpha=0.3 if many else 1,
+            marker="." if many else None,
+        )
