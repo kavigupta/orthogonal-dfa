@@ -145,6 +145,7 @@ class RandomSingleMutation(Mutation):
             device=dfas.transition_function.device,
         )
 
+
 @dataclass
 class RepeatedMutations(Mutation):
     base_mutation: Mutation
