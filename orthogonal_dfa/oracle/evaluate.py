@@ -105,12 +105,14 @@ def actual_pct_difference_by_prediction(confusion):
     # confusion[batch][phi_i_val][control_val][actual_val]
     # we are computing E[|P(actual=1 | phi_i=1, control) - P(actual=1 | phi_i=0, control)|]
     p_control = confusion.sum(axis=(-2, -1))  # [batch][control_val]
-    p_control = p_control / p_control.sum(axis=1, keepdims=True)  # [batch][control_val]
+    p_control = p_control / (
+        1e-100 + p_control.sum(axis=1, keepdims=True)
+    )  # [batch][control_val]
     confusion = confusion.transpose(
         0, 2, 1, 3
     )  # [batch][control_val][phi_i_val][actual_val]
-    p_actual_given_phi_and_control = confusion[..., 1] / confusion.sum(
-        axis=-1
+    p_actual_given_phi_and_control = confusion[..., 1] / (
+        1e-100 + confusion.sum(axis=-1)
     )  # [batch][control_val][phi_i_val]
     pct_diffs = (
         p_actual_given_phi_and_control[..., 1] - p_actual_given_phi_and_control[..., 0]
