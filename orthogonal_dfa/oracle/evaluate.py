@@ -95,7 +95,9 @@ def mutual_information(confusion):
     p_x = p_xy.sum(axis=-1, keepdims=True)
     p_y = p_xy.sum(axis=-2, keepdims=True)
     log_pxy = np.log2(np.clip(p_xy, 1e-100, None))
-    mi = (p_xy * (log_pxy - np.log2(p_x) - np.log2(p_y))).sum(axis=(-2, -1))
+    log_px = np.log2(np.clip(p_x, 1e-100, None))
+    log_py = np.log2(np.clip(p_y, 1e-100, None))
+    mi = (p_xy * (log_pxy - log_px - log_py)).sum(axis=(-2, -1))
     return mi
 
 
