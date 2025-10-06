@@ -79,8 +79,9 @@ def plot_sensitivity(
     model,
     exon,
     num_samples: int,
-    seed: int,
     metric: Metric,
+    *,
+    seed: int = 0,
     ax=None,
 ):
     if ax is None:
