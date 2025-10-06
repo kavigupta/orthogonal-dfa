@@ -200,3 +200,7 @@ class Metric(ABC):
 class ConditionalMutualInformation(Metric):
     def __call__(self, confusion: np.ndarray) -> np.ndarray:
         return conditional_mutual_information(confusion)
+
+    @property
+    def name(self):
+        return "Conditional Mutual Information [b]"

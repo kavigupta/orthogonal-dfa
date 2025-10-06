@@ -144,3 +144,34 @@ class RandomSingleMutation(Mutation):
             dtype=dfas.transition_function.dtype,
             device=dfas.transition_function.device,
         )
+
+
+@dataclass
+class RepeatedMutations(Mutation):
+    base_mutation: Mutation
+    num_serial: int
+
+    def sample_mutations(
+        self,
+        dfas: TorchDFA,
+        num_mutations: int,
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        return np.concatenate(
+            [
+                self.base_mutation.sample_mutations(dfas, num_mutations, rng)[..., None]
+                for _ in range(self.num_serial)
+            ],
+            axis=-1,
+        )
+
+    def all_mutations(self, dfas: TorchDFA) -> np.ndarray:
+        raise NotImplementedError(
+            "Cannot enumerate all mutations when using RepeatedMutations"
+        )
+
+    def apply_mutations_in_place(self, dfas: TorchDFA, mutations: np.ndarray):
+        assert mutations.shape[-1] == self.num_serial
+        for i in range(self.num_serial):
+            self.base_mutation.apply_mutations_in_place(dfas, mutations[..., i])
+        return dfas
