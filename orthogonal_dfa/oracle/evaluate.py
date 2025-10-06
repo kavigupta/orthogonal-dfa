@@ -1,11 +1,16 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import List
+
 import numpy as np
+import pythomata
 import torch
-from permacache import stable_hash
+from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
 from orthogonal_dfa.oracle.run_model import run_model
-from orthogonal_dfa.utils.dfa import TorchDFA
+from orthogonal_dfa.utils.dfa import TorchDFA, hash_dfa
 
 TEST_SEED = int(stable_hash("testing"), 16)
 DEMO_SEED = int(stable_hash("demo"), 16)
@@ -50,6 +55,40 @@ def multidimensional_confusion(
         1,
     )
     return confusion
+
+
+@permacache(
+    "orthogonal_dfa/oracle/evaluate/evaluate_dfas",
+    key_function=dict(
+        dfas_to_test=hash_dfa, dfas_control=lambda x: tuple(hash_dfa(d) for d in x)
+    ),
+    parallel=["dfas_to_test"],
+)
+def evaluate_dfas(
+    exon: RawExon,
+    dfas_to_test: List[pythomata.SimpleDFA],
+    dfas_control: List[pythomata.SimpleDFA],
+    model,
+    count=100_000,
+    *,
+    seed,
+):
+    dfas_to_test = TorchDFA.concat(
+        *[TorchDFA.from_pythomata(d) for d in dfas_to_test],
+    )
+    dfas_control = TorchDFA.concat(
+        *[TorchDFA.from_pythomata(d) for d in dfas_control],
+        num_symbols=dfas_to_test.alphabet_size,
+    )
+    results = multidimensional_confusion(
+        exon,
+        dfas_to_test,
+        dfas_control,
+        model,
+        count=count,
+        seed=seed,
+    )
+    return list(results)
 
 
 def pack_as_uint32(values):
@@ -150,3 +189,14 @@ def print_metrics(confusion):
         "Actual % Difference by Prediction",
         "{:.2%}".format,
     )
+
+
+class Metric(ABC):
+    @abstractmethod
+    def __call__(self, confusion: np.ndarray) -> np.ndarray: ...
+
+
+@dataclass
+class ConditionalMutualInformation(Metric):
+    def __call__(self, confusion: np.ndarray) -> np.ndarray:
+        return conditional_mutual_information(confusion)
