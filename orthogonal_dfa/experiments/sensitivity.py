@@ -105,7 +105,7 @@ def plot_sensitivity(
     ax.set_xticklabels(xticks, rotation=90, ha="right")
     ax.set_ylabel(metric.name)
     name_to_color = {
-        name: fac.plotting.line_color(i) for i, name in enumerate(settings)
+        name: fac.plotting.line_color(i % 6) for i, name in enumerate(settings)
     }
     for x, ((name, _), orig) in zip(xlocs, results.items()):
         if orig.shape[0] == 1:
