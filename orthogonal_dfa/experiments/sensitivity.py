@@ -97,7 +97,7 @@ def plot_sensitivity(
     if ax is None:
         ax = plt.gca()
     results = sensitivities_to_plot(settings, model, exon, num_samples, seed)
-    xticks = [f"[{count} mut]" if count > 0 else name for name, count in results.keys()]
+    xticks = [f"[{count} mut]" if count > 0 else name for name, count in results]
     gaps = np.ones((len(settings), len(results) // len(settings)), dtype=int)
     gaps[:, 0] = 2
     xlocs = np.cumsum(gaps.flatten())
