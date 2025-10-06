@@ -21,6 +21,7 @@ def sensitivity_analysis(
     model,
     exon,
     mutation: Mutation,
+    *,
     num_samples: Union[int, "all"],
     seed: int,
 ):
