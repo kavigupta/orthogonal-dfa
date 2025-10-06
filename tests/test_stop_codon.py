@@ -35,3 +35,15 @@ class TestStopCodonDFA(unittest.TestCase):
             hash_dfa(stop_codon_dfa(("TAA", "TGA"))),
             "98f344f8393d34154ada1870e27dda379401329ce02fe79da7dd3e698f82f65a",
         )
+
+    def test_hash_regression_no_orf_phase_agnostic(self):
+        self.assertEqual(
+            hash_dfa(stop_codon_dfa(phase_agnostic=True)),
+            "12263525fdd404c9fdb3b61446d9a2e7747b518e7294fe65562c6b7382f5f05d",
+        )
+
+    def test_hash_regression_no_orf_ta_phase_agnostic(self):
+        self.assertEqual(
+            hash_dfa(stop_codon_dfa(("TAA", "TGA"), phase_agnostic=True)),
+            "03e6b9c5e915895975cb706b33ef258ce1d7c0bc75ff20c83eac18554170df68",
+        )
