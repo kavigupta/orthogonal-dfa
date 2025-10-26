@@ -38,6 +38,7 @@ class SplicePointIdentifier(nn.Module):
         cl,
         asymmetric_cl,
         hidden_size,
+        *,
         n_layers=3,
         starting_channels=4,
         input_size=4,
@@ -84,7 +85,7 @@ class AsymmetricConv(nn.Module):
 
     clipping = "cl-based"
 
-    def __init__(self, in_channels, out_channels, cl, left, right):
+    def __init__(self, *, in_channels, out_channels, cl, left, right):
         super().__init__()
         assert cl % 2 == 0
         assert max(left, right) <= cl // 2
