@@ -42,12 +42,26 @@ def multidimensional_confusion(
     )
     dfa_to_test_res = dfa_res[: len(dfas_to_test)]
     dfa_prev_res = dfa_res[len(dfas_to_test) :]
+    return multidimensional_confusion_from_results(
+        model_res, dfa_to_test_res, dfa_prev_res
+    )
+
+
+def multidimensional_confusion_from_results(model_res, dfa_to_test_res, dfa_prev_res):
+    """
+    :param model_res: np.ndarray of shape (num_samples,) with model results
+    :param dfa_to_test_res: np.ndarray of shape (num_dfas_to_test, num_samples) with DFA results
+    :param dfa_prev_res: np.ndarray of shape (num_dfas_prev, num_samples) with DFA results
+    :return: np.ndarray of shape (num_dfas_to_test, 2, 2**num_dfas_prev, 2) with confusion matrix
+    """
+    num_dfas_test = dfa_to_test_res.shape[0]
+    num_dfas_prev = dfa_prev_res.shape[0]
     dfa_prev_res = pack_as_uint32(dfa_prev_res)
-    confusion = np.zeros((len(dfas_to_test), 2, 2 ** len(dfas_prev), 2), dtype=np.int64)
+    confusion = np.zeros((num_dfas_test, 2, 2**num_dfas_prev, 2), dtype=np.int64)
     np.add.at(
         confusion,
         (
-            np.arange(len(dfas_to_test))[:, None],
+            np.arange(num_dfas_test)[:, None],
             dfa_to_test_res.astype(np.uint8),
             dfa_prev_res[None, :],
             model_res.astype(np.uint8)[None, :],
