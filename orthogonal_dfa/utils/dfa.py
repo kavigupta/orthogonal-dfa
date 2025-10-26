@@ -1,3 +1,4 @@
+import numpy as np
 import pythomata
 import torch
 from automata.fa.dfa import DFA
@@ -39,8 +40,23 @@ class TorchDFA(nn.Module):
     def none(cls, num_symbols):
         return cls.concat(num_symbols=num_symbols)
 
+    @classmethod
+    def random(cls, num_dfas, num_states, num_symbols, *, rng):
+        transition_function = rng.integers(
+            0, num_states, size=(num_dfas, num_states, num_symbols)
+        )
+        accepting_states = rng.random((num_dfas, num_states)) < 0.5
+        initial_state = np.zeros((num_dfas,), dtype=np.int64)
+        return cls(
+            initial_state=torch.tensor(initial_state, dtype=torch.long),
+            accepting_states=torch.tensor(accepting_states, dtype=torch.bool),
+            transition_function=torch.tensor(transition_function, dtype=torch.long),
+        )
+
     def __getitem__(self, idx):
-        assert isinstance(idx, slice)
+        assert isinstance(idx, slice) or (
+            isinstance(idx, np.ndarray) and idx.dtype == np.long
+        )
         return TorchDFA(
             initial_state=self.initial_state[idx],
             accepting_states=self.accepting_states[idx],
@@ -112,11 +128,17 @@ class TorchDFA(nn.Module):
         initial_state = torch.tensor(state_to_idx[dfa.initial_state])
         return transition_function, accepting_states, initial_state
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.tensor, batch_size=100_000) -> torch.tensor:
         """
         :param x: LongTensor of shape (batch_size, seq_len) with symbols as integers
-        :return: BoolTensor of shape (batch_size,) indicating acceptance
+        :return: BoolTensor of shape (num_dfas, batch_size) indicating acceptance
         """
+        results = []
+        for i in range(0, x.shape[0], batch_size):
+            results.append(self._forward_on_batch(x[i : i + batch_size]))
+        return torch.cat(results, dim=1)
+
+    def _forward_on_batch(self, x):
         batch_size, seq_len = x.shape
         states = self.initial_state[:, None].repeat(1, batch_size)
         for t in range(seq_len):
