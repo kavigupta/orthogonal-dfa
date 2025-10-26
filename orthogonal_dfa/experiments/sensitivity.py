@@ -4,7 +4,7 @@ import frame_alignment_checks as fac
 import numpy as np
 import pythomata
 from matplotlib import pyplot as plt
-from permacache import permacache
+from permacache import permacache, drop_if_equal
 
 from orthogonal_dfa.mutation.mutation import (
     Mutation,
@@ -24,7 +24,9 @@ from orthogonal_dfa.utils.plotting import plot_vertical_histogram
 @permacache(
     "orthogonal_dfa/experiments/sensitivity/sensitivity_analysis",
     key_function=dict(
-        dfa=hash_dfa, control_dfas=lambda x: tuple(hash_dfa(d) for d in x)
+        dfa=hash_dfa,
+        control_dfas=lambda x: tuple(hash_dfa(d) for d in x),
+        count=drop_if_equal(100_000),
     ),
 )
 def sensitivity_analysis(
@@ -36,6 +38,7 @@ def sensitivity_analysis(
     *,
     num_samples: Union[int, "all"],
     seed: int,
+    count: int = 100_000,
 ):
     print(
         f"Running sensitivity analysis on {hash_dfa(dfa)} "
@@ -58,17 +61,17 @@ def sensitivity_analysis(
         dfas,
         control_dfas,
         model,
-        count=100_000,
+        count=count,
         seed=rng.integers(1 << 32),
     )
     return confs, mut_desc
 
 
-def sensitivities_to_plot(settings, model, exon, num_samples, seed):
+def sensitivities_to_plot(settings, model, exon, num_samples, seed, *, count):
     results = {}
     for name, (d, *controls) in settings.items():
         results[name, 0] = np.array(
-            evaluate_dfas(exon, [d], controls, model, count=100_000, seed=seed)
+            evaluate_dfas(exon, [d], controls, model, count=count, seed=seed)
         )
         for num_sample in (1, 2, 3):
             results[name, num_sample] = sensitivity_analysis(
@@ -79,6 +82,7 @@ def sensitivities_to_plot(settings, model, exon, num_samples, seed):
                 RepeatedMutations(RandomSingleMutation(), num_sample),
                 num_samples=num_samples,
                 seed=seed,
+                count=count,
             )[0]
 
     return results
@@ -93,10 +97,13 @@ def plot_sensitivity(
     *,
     seed: int = 0,
     ax=None,
+    count: int = 100_000,
 ):
     if ax is None:
         ax = plt.gca()
-    results = sensitivities_to_plot(settings, model, exon, num_samples, seed)
+    results = sensitivities_to_plot(
+        settings, model, exon, num_samples, seed, count=count
+    )
     xticks = [f"[{count} mut]" if count > 0 else name for name, count in results]
     gaps = np.ones((len(settings), len(results) // len(settings)), dtype=int)
     gaps[:, 0] = 2
