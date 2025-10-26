@@ -19,6 +19,8 @@ def evaluate_lssi(model, padding, which_channel):
         yps, targets = [], []
         for i in tqdm.trange(len(f) // 2):
             x, [y] = f[f"X{i}"][:], f[f"Y{i}"][:]
+            # pylint: disable=no-member
+            # for some reason [:] doesn't convince pylint that these are numpy arrays
             x[x.sum(-1) == 0] = 1  # make the PSAMs negative
             for i in range(0, x.shape[0], batch_size):
                 yp, target = compute_yp_and_target(
