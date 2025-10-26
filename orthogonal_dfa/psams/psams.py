@@ -33,6 +33,7 @@ class TorchPSAMs(nn.Module):
         # x: (batch_size, length, channels)
         assert torch.isfinite(self.conv_logit).all()
         assert torch.isfinite(self.conv_logprob).all()
+        # pylint: disable=not-callable
         return nn.functional.conv1d(
             x.permute(0, 2, 1),  # (batch_size, channels, length)
             self.conv_logprob,  # (num_psams, channels, two_r + 1)

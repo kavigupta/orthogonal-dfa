@@ -24,6 +24,7 @@ setuptools.setup(
         "automata-lib==8.3.0",
         "frame-alignment-checks>=0.0.73",
         "coloraide",
+        "h5py==3.15.1",
     ],
     # documentation
     project_urls={
