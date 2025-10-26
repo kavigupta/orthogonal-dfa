@@ -4,7 +4,7 @@ import frame_alignment_checks as fac
 import numpy as np
 import pythomata
 from matplotlib import pyplot as plt
-from permacache import permacache, drop_if_equal
+from permacache import drop_if_equal, permacache
 
 from orthogonal_dfa.mutation.mutation import (
     Mutation,

@@ -3,7 +3,10 @@ import pickle
 
 import torch
 
-MODULE_RENAME_MAP = {"spliceai_torch": "orthogonal_dfa.spliceai.module"}
+MODULE_RENAME_MAP = {
+    "spliceai_torch": "orthogonal_dfa.spliceai.module",
+    "splice_point_identifier": "orthogonal_dfa.spliceai.lssi",
+}
 
 
 class renamed_symbol_unpickler(pickle.Unpickler):
@@ -45,6 +48,19 @@ def load_spliceai(size, seed):
     return (
         torch.load(
             os.path.join("data/pretrained_models", f"spliceai-{size}-{seed}.pt"),
+            weights_only=False,
+            pickle_module=remapping_pickle(),
+        )
+        .eval()
+        .cuda()
+    )
+
+
+def load_lssi(which, seed):
+    assert which in ("donor", "acceptor")
+    return (
+        torch.load(
+            os.path.join("data/pretrained_models", f"{which}-{seed}.pt"),
             weights_only=False,
             pickle_module=remapping_pickle(),
         )
