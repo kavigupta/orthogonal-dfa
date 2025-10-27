@@ -73,6 +73,22 @@ def flip_log_probs(x):
     return y
 
 
+def conditional_cascade_log_probs(x, axis):
+    """
+    Given a list of probabilities `x`, treats each element along axis as a step in a cascade, where the
+    probability of reaching the end is the product of the probabilities at each step.
+
+    i.e., q_i = p_i * prod_{j < i} (1 - p_j)
+    """
+    assert torch.isfinite(x).all()
+    cascaded_product_flip = torch.cumsum(flip_log_probs(x), axis)
+    cascaded_product_flip_shift = torch.roll(cascaded_product_flip, 1, axis)
+    cascaded_product_flip_shift.index_fill_(axis, torch.tensor(0, device=x.device), 0.0)
+    y = x + cascaded_product_flip_shift
+    assert torch.isfinite(y).all()
+    return y
+
+
 class UnionedPSAMs(nn.Module):
     """
     Represents a union of multiple PSAMs by combining their log probabilities.
