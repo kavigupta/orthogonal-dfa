@@ -6,20 +6,32 @@ class TorchPSAMs(nn.Module):
     """
     Represents a set of Position-Specific Affinity Matrices (PSAMs) using convolutional layers.
 
-    :param two_r: int, the radius of the PSAM (the PSAM will have size (two_r + 1) x (two_r + 1)).
-        This can be any positive integer, even an odd one.
-    :param channels: int, the number of channels in the input data.
-    :param num_psams: int, the number of PSAMs to represent.
-
-    :field conv_logit: nn.Parameter of shape (num_psams, channels, two_r + 1, two_r + 1),
+    :param conv_logit: nn.Parameter of shape (num_psams, channels, two_r + 1, two_r + 1),
         which represents log(sigmoid(probabilities)) for each PSAM.s
     """
 
-    def __init__(self, two_r, channels, num_psams):
+    @classmethod
+    def create(cls, two_r, channels, num_psams):
+        """
+        Creates a TorchPSAMs instance with randomly initialized parameters.
+
+        :param two_r: int, the radius of the PSAM (the PSAM will have size (two_r + 1) x (two_r + 1)).
+            This can be any positive integer, even an odd one.
+        :param channels: int, the number of channels in the input data.
+        :param num_psams: int, the number of PSAMs to represent.
+        :return: TorchPSAMs instance with randomly initialized parameters.
+        """
+        conv_logit = nn.Parameter(
+            torch.randn((num_psams, channels, two_r + 1, two_r + 1))
+        )
+        return cls(conv_logit)
+
+    def __init__(self, conv_logit):
         super().__init__()
-        self.two_r = two_r
-        self.channels = channels
-        self.conv_logit = nn.Parameter(torch.randn((num_psams, channels, two_r + 1)))
+
+        self.two_r = conv_logit.shape[2] - 1
+        self.channels = conv_logit.shape[1]
+        self.conv_logit = conv_logit
         self.log_sigoid = nn.LogSigmoid()
 
     @property

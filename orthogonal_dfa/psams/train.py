@@ -25,7 +25,7 @@ def cross_entropy_loss(psams_output, target):
 def train_psams(*, two_r, num_psams, seed, data_loader, num_batches, lr=3e-3):
     print(f"Train {num_psams=} {two_r=} {seed=}")
     torch.manual_seed(seed)
-    psams = UnionedPSAMs(TorchPSAMs(two_r, 4, num_psams)).cuda()
+    psams = UnionedPSAMs(TorchPSAMs.create(two_r, 4, num_psams)).cuda()
 
     optim = torch.optim.Adam(psams.parameters(), lr=lr)
     losses = []
