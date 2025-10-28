@@ -87,9 +87,7 @@ def conditional_cascade_log_probs(x, axis):
     cascaded_product_flip_shift = torch.roll(cascaded_product_flip, 1, axis)
     cascaded_product_flip_shift.index_fill_(axis, torch.tensor(0, device=x.device), 0.0)
     y = x + cascaded_product_flip_shift
-    y = torch.cat(
-        [y, cascaded_product_flip.select(axis, -1).unsqueeze(axis)], dim=axis
-    )
+    y = torch.cat([y, cascaded_product_flip.select(axis, -1).unsqueeze(axis)], dim=axis)
     assert torch.isfinite(y).all()
     return y
 
