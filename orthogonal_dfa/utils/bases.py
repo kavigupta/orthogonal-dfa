@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 from orthogonal_dfa.utils.probability import ZeroProbability
