@@ -9,7 +9,9 @@ from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
-from orthogonal_dfa.oracle.run_model import run_model
+from orthogonal_dfa.oracle.run_model import create_dataset, run_model
+from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
+from orthogonal_dfa.psams.psams import flip_log_probs
 from orthogonal_dfa.utils.dfa import TorchDFA, hash_dfa
 
 TEST_SEED = int(stable_hash("testing"), 16)
@@ -69,6 +71,123 @@ def multidimensional_confusion_from_results(model_res, dfa_to_test_res, dfa_prev
         1,
     )
     return confusion
+
+
+def multidimensional_confusion_from_proabilistic_results(
+    model_res, dfa_to_test_res, dfa_prev_res
+):
+    """
+    Like multidimensional_confusion_from_results but where `model_res`, `dfa_to_test_res`, and `dfa_prev_res`
+        all contain log probabilities of acceptance rather than hard 0/1 values. Also, operates over torch
+        tensors rather than numpy arrays.
+
+    The output confusion matrix contains log probabilities rather than counts.
+
+    Unfortunately, this is somewhat memory inefficient, as it constructs the entire sub-confusion log-matrix for
+    each sample, so might need to be batched in the future.
+
+    :param model_res: (N,) tensor of log-probabilities of acceptance from the model
+    :param dfa_to_test_res: (num_dfas_to_test, N) tensor of log-probabilities of acceptance from the DFAs to test
+    :param dfa_prev_res: list of (N,) tensors of log-probabilities of acceptance from the previous DFAs
+    :return: (num_dfas_to_test, 2, *[2, 2, ..., 2], 2) tensor of log-probabilities in the confusion matrix
+    """
+    num_samples = model_res.shape[0]
+
+    # At the end, we should have
+    # confusion_each[sample, dfa_to_test_idx, dfa_to_test_val, *dfa_prev_val, actual_val]
+    confusion_each = torch.stack(
+        [flip_log_probs(dfa_to_test_res).T, dfa_to_test_res.T], dim=2
+    )
+
+    def add_confusion(data):
+        nonlocal confusion_each
+        assert data.shape == (num_samples,)
+        data = torch.stack([flip_log_probs(data), data], dim=1)
+        for _ in range(len(confusion_each.shape) - 1):
+            data = data[:, None, :]
+        confusion_each = confusion_each[..., None]
+        assert len(data.shape) == len(confusion_each.shape)
+        confusion_each = confusion_each + data
+
+    for res in dfa_prev_res:
+        add_confusion(res)
+    add_confusion(model_res)
+    return torch.logsumexp(confusion_each, dim=0) - np.log(num_samples)
+
+
+def mutual_information_from_log_confusion(log_confusion):
+    """
+    Like mutual_information but where `log_confusion` contains log-probabilities rather than counts.
+
+    :param log_confusion: torch.tensor of shape (..., 2, 2) with log-probabilities
+    :return: torch.tensor of shape (...) with mutual information in bits
+    """
+    total = torch.logsumexp(log_confusion, dim=(-2, -1), keepdim=True)
+    log_p_xy = log_confusion - total
+    log_p_x = torch.logsumexp(log_p_xy, dim=-1, keepdim=True)
+    log_p_y = torch.logsumexp(log_p_xy, dim=-2, keepdim=True)
+    mi = torch.exp(log_p_xy) * (log_p_xy - log_p_x - log_p_y)
+    mi = mi.sum(dim=(-2, -1)) / np.log(2)
+    return mi
+
+
+def conditional_mutual_information_from_log_confusion(log_confusion):
+    """
+    :param log_confusion: torch.tensor of shape (batch, control_val, ...phi_i_val, actual_val) with log-probabilities
+    :return: torch.tensor of shape (batch,) with conditional mutual information in bits
+    """
+    is_numpy = isinstance(log_confusion, np.ndarray)
+    if is_numpy:
+        log_confusion = torch.tensor(log_confusion)
+    # flatten all phi_i_val dimensions into one
+    batch_size, control_size = log_confusion.shape[:2]
+    phi_dims = log_confusion.shape[2:-1]
+    log_confusion = log_confusion.reshape(
+        batch_size, control_size, np.prod(phi_dims, dtype=int), 2
+    )
+    # move control dimension to the end for easier processing
+    log_confusion = log_confusion.permute(
+        0, 2, 1, 3
+    )  # [batch, phi_i_val, control_val, actual_val]
+    mi = mutual_information_from_log_confusion(log_confusion)
+    probs_each = torch.logsumexp(log_confusion, dim=(-2, -1))  # [batch, phi_i_val]
+    result = (mi * torch.exp(probs_each)).sum(-1)  # [batch]
+    if is_numpy:
+        result = result.numpy()
+    return result
+
+
+@permacache(
+    "orthogonal_dfa/oracle/evaluate/evaluate_pdfas_2",
+    key_function=dict(pdfas_to_test=stable_hash, pdfas_control=stable_hash),
+)
+def evaluate_pdfas(
+    exon: RawExon,
+    dfas_to_test: PSAMPDFA,
+    dfas_control: List[PSAMPDFA],
+    model,
+    count=100_000,
+    *,
+    seed,
+):
+    assert len(dfas_control) in {
+        0,
+        1,
+    }, "Can only handle 0 or 1 control PSAM DFAs currently"
+    random, hard_target = create_dataset(exon, model, count=count, seed=seed)
+    random = torch.eye(4)[random].cuda()
+    with torch.no_grad():
+        predictions_to_test = dfas_to_test(random)
+    with torch.no_grad():
+        predictions_control = [dfa(random) for dfa in dfas_control]
+        assert all(len(x) == 1 for x in predictions_control)
+        predictions_control = [x[0] for x in predictions_control]
+    result = multidimensional_confusion_from_proabilistic_results(
+        torch.clamp(hard_target.float(), min=1e-7).log().cuda(),
+        predictions_to_test,
+        predictions_control,
+    )
+    return result.cpu().numpy()
 
 
 @permacache(
