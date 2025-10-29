@@ -3,6 +3,7 @@ import unittest
 import frame_alignment_checks as fac
 import numpy as np
 import torch
+from permacache import stable_hash
 
 from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_psamdfa
 from orthogonal_dfa.psams.psams import TorchPSAMs
@@ -125,3 +126,69 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
         result_pred = (result_pred.detach().numpy() > 0.5).astype(int).squeeze()
         bad = result_pred != is_stop_actual
         self.assertTrue(not any(bad))
+
+    def test_hash_psams_1(self):
+        self.assertEqual(
+            stable_hash(
+                TorchPSAMs.from_literal_strings(
+                    "TAG", "TAA", "TGA", zero_prob=ZeroProbability(1e-7)
+                )
+            ),
+            "5508bf90427b797de11e1924880d3d9f5001c8a30c43085d32f449c49bf5d87b",
+        )
+
+    def test_hash_psams_2(self):
+        self.assertEqual(
+            stable_hash(
+                TorchPSAMs.from_literal_strings(
+                    "TAG", "TAA", zero_prob=ZeroProbability(1e-7)
+                )
+            ),
+            "8bb1091b617dbbf2162d2e08e7110ea8e6ce656474644e80127cb732e2792161",
+        )
+
+    def test_hash_psams_3(self):
+        self.assertEqual(
+            stable_hash(
+                TorchPSAMs.from_literal_strings(
+                    "TAG", "TAA", zero_prob=ZeroProbability(1e-3)
+                )
+            ),
+            "a79563cd7be29cf9089dbfa7d77fc092c9198891c0b7e7cedb75017dd793930a",
+        )
+
+    def test_hash_psam_pdfa_1(self):
+        self.assertEqual(
+            stable_hash(
+                stop_codon_psamdfa("TAG", "TAA", "TGA", zero_prob=ZeroProbability(1e-7))
+            ),
+            "52d4385405c43e920648e152f98cc9fcd3d91de9cf9f12e432c94383f7804a3b",
+        )
+
+    def test_hash_psam_pdfa_2(self):
+        self.assertEqual(
+            stable_hash(
+                stop_codon_psamdfa(
+                    "TAG",
+                    "TAA",
+                    "TGA",
+                    zero_prob=ZeroProbability(1e-7),
+                    phase_agnostic=True,
+                )
+            ),
+            "d7b25e324e771ca212271915a4dbdb1081e8ed1e5ea9502326a78b7f807e8853",
+        )
+
+    def test_hash_psam_pdfa_3(self):
+        self.assertEqual(
+            stable_hash(
+                stop_codon_psamdfa(
+                    "TAG",
+                    "TAA",
+                    "TGA",
+                    zero_prob=ZeroProbability(1e-3),
+                    phase_agnostic=True,
+                )
+            ),
+            "9c8000a2e631e0e7f477d49e06d6738cd468bec92a64fa44a2d4aeea01487da1",
+        )
