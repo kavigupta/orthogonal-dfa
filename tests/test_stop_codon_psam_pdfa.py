@@ -4,10 +4,9 @@ import frame_alignment_checks as fac
 import numpy as np
 import torch
 
-from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_dfa, stop_codon_psamdfa
+from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_psamdfa
 from orthogonal_dfa.psams.psams import TorchPSAMs
 from orthogonal_dfa.utils.bases import parse_nucleotides_as_one_hot
-from orthogonal_dfa.utils.dfa import hash_dfa
 from orthogonal_dfa.utils.probability import ZeroProbability
 
 

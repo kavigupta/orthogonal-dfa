@@ -1,6 +1,6 @@
 import pythomata
 import torch
-import torch.nn as nn
+from torch import nn
 
 from orthogonal_dfa.utils.probability import ZeroProbability
 
@@ -18,7 +18,8 @@ def pdfa(
     :param logit_initial_state_probs: (S,) tensor of logits for the initial state probabilities.
     :param logit_transition_probs: (S, C, S) tensor of logits for the transition probabilities.
     :param logit_accepting_state_probs: (S,) tensor of logits for the accepting state probabilities.
-    :param log_input_probs: (N, L, C) tensor of log-probabilities of each input transition. Must logsumexp to < 0 along the C dimension.
+    :param log_input_probs: (N, L, C) tensor of log-probabilities of each input transition.
+        Must logsumexp to < 0 along the C dimension.
     :return: (N,) tensor of log-probabilities of acceptance for each input sequence.
     """
     N, L, C = log_input_probs.shape
