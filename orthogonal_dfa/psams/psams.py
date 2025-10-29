@@ -15,23 +15,25 @@ class TorchPSAMs(nn.Module):
         """
         Creates a TorchPSAMs instance with randomly initialized parameters.
 
-        :param two_r: int, the radius of the PSAM (the PSAM will have size (two_r + 1) x (two_r + 1)).
+        :param two_r: int, the radius of the PSAM (the PSAM will have size two_r + 1).
             This can be any positive integer, even an odd one.
         :param channels: int, the number of channels in the input data.
         :param num_psams: int, the number of PSAMs to represent.
         :return: TorchPSAMs instance with randomly initialized parameters.
         """
-        conv_logit = nn.Parameter(
-            torch.randn((num_psams, channels, two_r + 1, two_r + 1))
-        )
+        conv_logit = torch.randn((num_psams, channels, two_r + 1))
         return cls(conv_logit)
 
     def __init__(self, conv_logit):
         super().__init__()
 
+        assert (
+            len(conv_logit.shape) == 3
+        ), f"Expected conv_logit to have 3 dimensions, got {conv_logit.shape}"
+
         self.two_r = conv_logit.shape[2] - 1
         self.channels = conv_logit.shape[1]
-        self.conv_logit = conv_logit
+        self.conv_logit = nn.Parameter(conv_logit)
         self.log_sigoid = nn.LogSigmoid()
 
     @property
@@ -42,8 +44,8 @@ class TorchPSAMs(nn.Module):
         return self.log_sigoid(self.conv_logit)
 
     def forward(self, x):
+        assert len(x.shape) == 3
         # x: (batch_size, length, channels)
-        assert torch.isfinite(self.conv_logit).all()
         assert torch.isfinite(self.conv_logprob).all()
         # pylint: disable=not-callable
         return nn.functional.conv1d(
