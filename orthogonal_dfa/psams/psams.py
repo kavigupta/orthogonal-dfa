@@ -89,17 +89,18 @@ def conditional_cascade_log_probs(x, axis):
     """
     Given a list of probabilities `x`, treats each element along axis as a step in a cascade, where the
     probability of reaching the end is the product of the probabilities at each step. Add an additional
-    element to the very end representing the probability of not having stopped at any previous step.
+    element to the front representing the probability of not having stopped at any previous step.
 
-    i.e., q_i = p_i * prod_{j < i} (1 - p_j)
-          q_n = prod_{j < n} (1 - p_j)
+    i.e., computes
+          q_0 = prod_{j < n} (1 - p_j)
+          q_{i+1} = p_i * prod_{j < i} (1 - p_j)
     """
     assert torch.isfinite(x).all()
     cascaded_product_flip = torch.cumsum(flip_log_probs(x), axis)
     cascaded_product_flip_shift = torch.roll(cascaded_product_flip, 1, axis)
     cascaded_product_flip_shift.index_fill_(axis, torch.tensor(0, device=x.device), 0.0)
     y = x + cascaded_product_flip_shift
-    y = torch.cat([y, cascaded_product_flip.select(axis, -1).unsqueeze(axis)], dim=axis)
+    y = torch.cat([cascaded_product_flip.select(axis, -1).unsqueeze(axis), y], dim=axis)
     assert torch.isfinite(y).all()
     return y
 
