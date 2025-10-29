@@ -3,7 +3,11 @@ from functools import lru_cache
 
 import pythomata
 
+from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
+from orthogonal_dfa.psams.psams import TorchPSAMs
 from orthogonal_dfa.utils.dfa import canonicalize_states
+from orthogonal_dfa.utils.pdfa import PDFA
+from orthogonal_dfa.utils.probability import ZeroProbability
 
 
 def mark_phase(done_mask, current_phase, *, phase_agnostic):
@@ -66,3 +70,45 @@ def stop_codon_dfa(stops=("TAG", "TAA", "TGA"), *, phase_agnostic=False):
         accepting_states=accepting_states,
     )
     return canonicalize_states(dfa.minimize())
+
+
+def stop_codon_from_psams(num_stops, phase_agnostic=False):
+    start_state = ((0, 0, 0) if not phase_agnostic else (), 0)
+    states = set()
+    fringe = [start_state]
+    accepting_states = {((1, 1, 1), 0), ((1, 1, 1), 1), ((1, 1, 1), 2)}
+    transitions = {}
+    while fringe:
+        state = fringe.pop()
+        if state in states:
+            continue
+        states.add(state)
+        transitions[state] = {}
+        done_mask, phase = state
+        for symbol in range(1 + num_stops):
+            new_phase = (phase + 1) % 3
+            new_done_mask = list(done_mask)
+            if symbol != 0:
+                mark_phase(new_done_mask, phase, phase_agnostic=phase_agnostic)
+            new_state = (tuple(new_done_mask), new_phase)
+            transitions[state][symbol] = new_state
+            fringe.append(new_state)
+    dfa = pythomata.SimpleDFA(
+        states=states,
+        alphabet=list(range(1 + num_stops)),
+        transition_function=transitions,
+        initial_state=start_state,
+        accepting_states=accepting_states,
+    )
+    return canonicalize_states(dfa.minimize())
+
+
+def stop_codon_psamdfa(*stops, zero_prob: ZeroProbability, phase_agnostic=False):
+    model = PSAMPDFA(
+        TorchPSAMs.from_literal_strings(*stops, zero_prob=zero_prob),
+        PDFA.from_dfa(
+            stop_codon_from_psams(len(stops), phase_agnostic=phase_agnostic),
+            zero_prob=zero_prob,
+        ),
+    )
+    return model
