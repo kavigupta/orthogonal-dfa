@@ -1,6 +1,9 @@
 import torch
 from torch import nn
 
+from orthogonal_dfa.utils.bases import parse_nucleotides_as_one_hot_logit
+from orthogonal_dfa.utils.probability import ZeroProbability
+
 
 class TorchPSAMs(nn.Module):
     """
@@ -9,6 +12,23 @@ class TorchPSAMs(nn.Module):
     :param conv_logit: nn.Parameter of shape (num_psams, channels, two_r + 1, two_r + 1),
         which represents log(sigmoid(probabilities)) for each PSAM.s
     """
+
+    @classmethod
+    def from_literal_strings(cls, *psam_strings, zero_prob: ZeroProbability):
+        """
+        Creates a TorchPSAMs instance that matches the precise patterns defined in the given literal strings.
+        """
+        return cls(
+            conv_logit=torch.stack(
+                [
+                    parse_nucleotides_as_one_hot_logit(psam_string, zero_prob).permute(
+                        1, 0
+                    )
+                    for psam_string in psam_strings
+                ],
+                dim=0,
+            )
+        )
 
     @classmethod
     def create(cls, two_r, channels, num_psams):
