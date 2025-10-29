@@ -31,6 +31,13 @@ def run_model(exon, model, arr):
     return normalized_target, hard_target
 
 
+@permacache("orthogonal_dfa/oracle/run_model/create_dataset")
+def create_dataset(exon, model, *, count, seed):
+    random, arr = sample_text(exon, seed, count)
+    _, hard_targets = run_model(exon, model, arr)
+    return random, hard_targets
+
+
 @permacache("orthogonal_dfa/oracle/evaluate/calibrate")
 def calibrate(exon: RawExon, model, count=100_000):
     """
