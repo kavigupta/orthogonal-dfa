@@ -63,6 +63,18 @@ class TorchPSAMs(nn.Module):
         """
         return self.log_sigoid(self.conv_logit)
 
+    @property
+    def sequence_logos(self):
+        """
+        Computes the sequence logos for the PSAMs. These are normalized log probabilities, i.e.,
+            the log probability for each base above or below the mean probability at that position.
+
+        :return: numpy array of shape (num_psams, channels, two_r + 1) representing the sequence logos.
+        """
+        actual_psams = self.conv_logprob.transpose(1, 2).detach().cpu().numpy()
+        logo = actual_psams - actual_psams.mean(-1, keepdims=True)
+        return logo
+
     def forward(self, x):
         assert len(x.shape) == 3
         # x: (batch_size, length, channels)
