@@ -9,28 +9,36 @@ from orthogonal_dfa.spliceai.evaluate_lssi import (
 
 
 def train_and_evaluate_lssi_psams(which, *, num_batches, **kwargs):
-    two_r = {"donor": 8, "acceptor": 22}[which]
-    evaluate = {"donor": evaluate_5prime_psams, "acceptor": evaluate_3prime_psams}[
-        which
-    ]
-    datum = SpliceDataLoader(which, 1, 10_000, two_r + 1)
     accuracies = {}
     losses = {}
     for num_psams in 1, 2, 4, 8, 16, 32, 64, 128:
         accuracies[num_psams] = []
         losses[num_psams] = []
         for seed in range(10):
-            psams, loss = train_psams(
-                two_r=two_r,
-                num_psams=num_psams,
-                seed=seed,
-                data_loader=datum,
-                num_batches=num_batches,
-                **kwargs,
+            evaluate = {
+                "donor": evaluate_5prime_psams,
+                "acceptor": evaluate_3prime_psams,
+            }[which]
+            psams, loss = train_psams_for_splice_site(
+                which, num_psams, num_batches=num_batches, seed=seed, **kwargs
             )
             accuracies[num_psams].append(100 * evaluate(psams.eval()))
             losses[num_psams].append(loss)
     return dict(accuracies=accuracies, losses=losses)
+
+
+def train_psams_for_splice_site(which, num_psams, *, num_batches, seed, **kwargs):
+    two_r = {"donor": 8, "acceptor": 22}[which]
+    psams, loss = train_psams(
+        two_r=two_r,
+        num_psams=num_psams,
+        seed=seed,
+        data_loader=SpliceDataLoader(which, 1, 10_000, two_r + 1),
+        num_batches=num_batches,
+        **kwargs,
+    )
+
+    return psams, loss
 
 
 def plot_accuracies(result, lssi_perf, maxent_perf, label, *, ax=None):
