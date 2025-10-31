@@ -31,7 +31,10 @@ def run_model(exon, model, arr):
     return normalized_target, hard_target
 
 
-@permacache("orthogonal_dfa/oracle/run_model/create_dataset")
+@permacache(
+    "orthogonal_dfa/oracle/run_model/create_dataset_2",
+    key_function=dict(model=stable_hash),
+)
 def create_dataset(exon, model, *, count, seed):
     random, arr = sample_text(exon, seed, count)
     _, hard_targets = run_model(exon, model, arr)
