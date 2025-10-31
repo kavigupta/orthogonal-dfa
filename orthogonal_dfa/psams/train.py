@@ -124,7 +124,8 @@ def train_psam_pdfa_full_learning_curve(
             )
         )[0]
         print(
-            f"{datetime.now()} Epoch {epoch_start + num_epochs_each}, CMI: {epoch_loss[-1]:.4f}; Val CMI: {validation_loss:.4f}"
+            f"{datetime.now()} Epoch {epoch_start + num_epochs_each},"
+            f" CMI: {epoch_loss[-1]:.4f}; Val CMI: {validation_loss:.4f}"
         )
         val_loss_epochs.append(epoch_start + num_epochs_each)
         val_loss.append(validation_loss)
