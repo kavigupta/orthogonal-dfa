@@ -218,9 +218,7 @@ class PDFA(nn.Module):
                         trans_this[label].add(states[s_to])
         dfa = NFA(
             states=set(states),
-            input_symbols={
-                t for from_state in transitions for t in transitions[from_state]
-            },
+            input_symbols={t for ts in transitions.values() for t in ts},
             transitions=transitions,
             initial_state=states[np.argmax(prob_initial)],
             final_states=set(
