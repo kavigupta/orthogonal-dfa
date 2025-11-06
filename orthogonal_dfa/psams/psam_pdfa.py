@@ -61,5 +61,6 @@ class PSAMPDFAWithTemperature(nn.Module):
         log_probs = self.psam_pdfa(x)
         logit = log_probs - flip_log_probs(log_probs)
         scaled_logit = logit / self.temperature
+        # pylint: disable=not-callable
         scaled_log_probs = nn.functional.logsigmoid(scaled_logit)
         return scaled_log_probs
