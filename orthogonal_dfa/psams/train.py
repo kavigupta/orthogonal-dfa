@@ -1,5 +1,6 @@
 import copy
 from datetime import datetime
+import io
 
 import numpy as np
 import torch
@@ -67,13 +68,34 @@ def identify_first_best_by_validation(rewards, tolerance):
     return len(rewards) - 1  # Fallback to last epoch if none found
 
 
+def create_training_dataset(
+    exon, oracle, baseline_psam_pdfas, train_dataset_size, seed
+):
+    random, hard_target = create_dataset(
+        exon,
+        oracle,
+        count=train_dataset_size,
+        seed=int(stable_hash(("train-psam-pdfas", seed)), 16),
+    )
+    x = torch.eye(4)[random].cuda()
+    with torch.no_grad():
+        baseline_psam_pdfas = [bp.cuda().eval()(x) for bp in baseline_psam_pdfas]
+        assert all(bp.shape[0] == 1 for bp in baseline_psam_pdfas)
+        baseline_psam_pdfas = [bp.squeeze(0) for bp in baseline_psam_pdfas]
+    y = hard_target.float().cuda()
+    y = torch.clamp(y, min=1e-7).log()
+    return x, y, baseline_psam_pdfas
+
+
 @permacache(
-    "orthogonal_dfa/psams/train/train_psam_pdfa_full_learning_curve_2",
+    "orthogonal_dfa/psams/train/train_psam_pdfa_full_learning_curve_6",
     key_function=dict(
         exon=stable_hash,
         oracle=stable_hash,
         starting_psam_pdfa=stable_hash,
         baseline_psam_pdfas=stable_hash,
+        val_every=drop_if_equal(100),
+        train_dataset_size=drop_if_equal(10_000),
     ),
 )
 def train_psam_pdfa_full_learning_curve(
@@ -84,51 +106,44 @@ def train_psam_pdfa_full_learning_curve(
     *,
     seed,
     epochs=1000,
-    sgd_subsample=None,
+    val_every=100,
+    train_dataset_size=10_000,
     lr=1e-2,
+    batch_size,
 ):
-    random, hard_target = create_dataset(
-        exon,
-        oracle,
-        count=10_000,
-        seed=int(stable_hash(("train-psam-pdfas", seed)), 16),
-    )
-    x = torch.eye(4)[random].cuda()
-    with torch.no_grad():
-        baseline_psam_pdfas = [bp.cuda().eval()(x) for bp in baseline_psam_pdfas]
-        assert all(bp.shape[0] == 1 for bp in baseline_psam_pdfas)
-        baseline_psam_pdfas = [bp.squeeze(0) for bp in baseline_psam_pdfas]
-    y = hard_target.float().cuda()
-    y = torch.clamp(y, min=1e-7).log()
     m = copy.deepcopy(starting_psam_pdfa).cuda().train()
     opt = torch.optim.Adam(m.parameters(), lr)
     loss = []
     val_loss_epochs = []
     val_loss = []
     models = []
-    for epoch_start in range(0, epochs, 100):
-        num_epochs_each = min(100, epochs - epoch_start)
-        epoch_loss, m, opt = train_for_epochs(
-            x,
-            y,
-            baseline_psam_pdfas,
-            opt,
-            m,
-            sgd_subsample=sgd_subsample,
-            num_epochs=num_epochs_each,
-            starting_epoch=epoch_start,
+    for epoch in range(0, epochs):
+        x, y, baseline_psam_pdfas = create_training_dataset(
+            exon, oracle, baseline_psam_pdfas, train_dataset_size, (seed, epoch)
         )
-        validation_loss = conditional_mutual_information_from_log_confusion(
-            evaluate_pdfas(
-                exon, m, [], oracle, seed=int(stable_hash(("val-psam-pdfa", seed)), 16)
-            )
-        )[0]
+        epoch_loss, m, opt = train_for_epoch(
+            x, y, baseline_psam_pdfas, opt, m, batch_size=batch_size
+        )
+        m, opt = serialize_and_deserialize(m, opt)
+        if (epoch + 1) % val_every == 0 or (epoch + 1 == epochs):
+            validation_loss = conditional_mutual_information_from_log_confusion(
+                evaluate_pdfas(
+                    exon,
+                    m,
+                    [],
+                    oracle,
+                    seed=int(stable_hash(("val-psam-pdfa", seed)), 16),
+                )
+            )[0]
+            val = f"; Val CMI: {validation_loss:.4f}"
+            val_loss_epochs.append((epoch + 1) * train_dataset_size // batch_size)
+            val_loss.append(validation_loss)
+        else:
+            val = ""
         print(
-            f"{datetime.now()} Epoch {epoch_start + num_epochs_each},"
-            f" CMI: {epoch_loss[-1]:.4f}; Val CMI: {validation_loss:.4f}"
+            f"{datetime.now()} Epoch {epoch + 1},"
+            f" CMI: {np.mean(epoch_loss):.4f}" + val
         )
-        val_loss_epochs.append(epoch_start + num_epochs_each)
-        val_loss.append(validation_loss)
 
         loss.extend(epoch_loss)
         models.append(copy.deepcopy(m).eval().cpu())
@@ -138,8 +153,19 @@ def train_psam_pdfa_full_learning_curve(
     )
 
 
+def serialize_and_deserialize(model, opt):
+    buffer = io.BytesIO()
+    torch.save((model.state_dict(), opt.state_dict()), buffer)
+    buffer.seek(0)
+    model_sd, opt_sd = torch.load(buffer)
+    model, opt = copy.deepcopy((model, opt))
+    model.load_state_dict(model_sd)
+    opt.load_state_dict(opt_sd)
+    return model, opt
+
+
 @permacache(
-    "orthogonal_dfa/psams/train/train_for_epochs",
+    "orthogonal_dfa/psams/train/train_for_epoch",
     key_function=dict(
         x=stable_hash,
         y=stable_hash,
@@ -148,30 +174,27 @@ def train_psam_pdfa_full_learning_curve(
         m=stable_hash,
     ),
 )
-def train_for_epochs(
+def train_for_epoch(
     x,
     y,
     baseline_psam_pdfa_val,
     opt,
     m,
     *,
-    sgd_subsample=None,
-    num_epochs,
-    starting_epoch,
+    batch_size,
 ):
     loss = []
-    for it in range(num_epochs):
+    for start in range(0, len(x), batch_size):
         opt.zero_grad()
-        if sgd_subsample is None:
-            batch_y, batch_x = y, x
-        else:
-            rng = np.random.default_rng(seed=starting_epoch + it)
-            indices = rng.choice(len(x), size=sgd_subsample, replace=False)
-            batch_y, batch_x = y[indices], x[indices]
+        batch_x = x[start : start + batch_size]
+        batch_y = y[start : start + batch_size]
+        batch_baseline_psam_pdfa_val = [
+            bp[start : start + batch_size] for bp in baseline_psam_pdfa_val
+        ]
         batch_yp = m(batch_x)
         mi = conditional_mutual_information_from_log_confusion(
             multidimensional_confusion_from_proabilistic_results(
-                batch_y, batch_yp, baseline_psam_pdfa_val
+                batch_y, batch_yp, batch_baseline_psam_pdfa_val
             )
         )
         (-mi).backward()
