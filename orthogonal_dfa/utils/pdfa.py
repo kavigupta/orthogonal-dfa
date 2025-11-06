@@ -1,5 +1,8 @@
+import numpy as np
 import pythomata
 import torch
+from automata.fa.dfa import DFA
+from automata.fa.nfa import NFA
 from torch import nn
 
 from orthogonal_dfa.utils.probability import ZeroProbability
@@ -162,6 +165,69 @@ class PDFA(nn.Module):
             self.logit_accepting_state_probs,
             log_input_probs,
         )[None]
+
+    def to_dfa_for_viz(self, noise_floor: float) -> DFA:
+        """
+        Does not create an actual DFA, instead creates a DFA where certain transitions are labeled with e.g.,
+            2@76% to indicate that the transition goes to state 2 with 76% probability.
+
+        :param noise_floor: float, the minimum probability to consider a transition as existing, also the threshold
+            for accepting states and 1 - noise_floor for the probability that a transition does not need to be
+            annotated at.
+        """
+        prob_initial = (
+            nn.functional.softmax(self.logit_initial_state_probs, dim=0)
+            .detach()
+            .cpu()
+            .numpy()
+        )
+        prob_transition = (
+            nn.functional.softmax(self.logit_transition_probs, dim=2)
+            .detach()
+            .cpu()
+            .numpy()
+        )
+        prob_accepting = (
+            torch.sigmoid(self.logit_accepting_state_probs).detach().cpu().numpy()
+        )
+
+        def state_label(i):
+            result = f"S{i}"
+            if prob_initial[i] >= noise_floor:
+                result += f"\nInit@{prob_initial[i]*100:.0f}%"
+            if prob_accepting[i] >= noise_floor:
+                result += f"\nAcc@{prob_accepting[i]*100:.0f}%"
+            return result
+
+        states = [state_label(i) for i in range(len(prob_initial))]
+        transitions = {}
+        for s_from in range(prob_transition.shape[0]):
+            for s_to in range(prob_transition.shape[2]):
+                for c in range(prob_transition.shape[1]):
+                    p = prob_transition[s_from, c, s_to]
+                    if p >= noise_floor:
+                        if p < 1 - noise_floor:
+                            label = f"{c}@{p*100:.0f}%"
+                        else:
+                            label = f"{c}"
+                        if s_from == 2 and c == 4:
+                            print(s_to, p, label)
+                        trans_this = transitions.setdefault(states[s_from], {})
+                        if label not in trans_this:
+                            trans_this[label] = set()
+                        trans_this[label].add(states[s_to])
+        dfa = NFA(
+            states=set(states),
+            input_symbols={
+                t for from_state in transitions for t in transitions[from_state]
+            },
+            transitions=transitions,
+            initial_state=states[np.argmax(prob_initial)],
+            final_states=set(
+                s for i, s in enumerate(states) if prob_accepting[i] >= noise_floor
+            ),
+        )
+        return dfa
 
 
 def entropy_of_logits(logits, dim=0):
