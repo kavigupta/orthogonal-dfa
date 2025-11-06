@@ -22,6 +22,7 @@ def trained_splice_site(which, num_epochs):
         seed=1,
         epochs=num_epochs,
         lr=1e-3,
+        batch_size=10000,
     )
     m = ms[identify_first_best_by_validation(meta["val_loss"], tolerance=tolerance)]
     return m, meta
