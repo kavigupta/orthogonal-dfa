@@ -179,9 +179,9 @@ def evaluate_pdfas(
     random, hard_target = create_dataset(exon, model, count=count, seed=seed)
     random = torch.eye(4)[random].cuda()
     with torch.no_grad():
-        predictions_to_test = dfas_to_test(random)
+        predictions_to_test = batch_run(dfas_to_test, random)
     with torch.no_grad():
-        predictions_control = [dfa(random) for dfa in dfas_control]
+        predictions_control = [batch_run(dfa, random) for dfa in dfas_control]
         assert all(len(x) == 1 for x in predictions_control)
         predictions_control = [x[0] for x in predictions_control]
     result = multidimensional_confusion_from_proabilistic_results(
@@ -190,6 +190,12 @@ def evaluate_pdfas(
         predictions_control,
     )
     return result.cpu().numpy()
+
+
+def batch_run(m, x, batch_size=1_000):
+    return torch.cat(
+        [m(x[i : i + batch_size]) for i in range(0, x.shape[0], batch_size)], dim=1
+    )
 
 
 @permacache(
