@@ -10,6 +10,10 @@ class RawExon:
     def of(cls, cl, *text):
         return cls(cl, ["ACGT".index(x) for x in "".join(text)])
 
+    @property
+    def random_text_length(self):
+        return len(self.text) - (self.cl + 4)
+
 
 # dataset_test/X8/361
 default_exon = RawExon.of(
