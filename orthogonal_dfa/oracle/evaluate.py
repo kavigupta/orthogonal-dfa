@@ -172,10 +172,6 @@ def evaluate_pdfas(
     *,
     seed,
 ):
-    assert len(dfas_control) in {
-        0,
-        1,
-    }, "Can only handle 0 or 1 control PSAM DFAs currently"
     random, hard_target = create_dataset(exon, model, count=count, seed=seed)
     random = torch.eye(4)[random].cuda()
     with torch.no_grad():
