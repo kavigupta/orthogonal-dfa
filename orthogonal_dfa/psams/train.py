@@ -7,6 +7,7 @@ import torch
 from permacache import drop_if_equal, permacache, stable_hash
 
 from orthogonal_dfa.oracle.evaluate import (
+    batch_run,
     conditional_mutual_information_from_log_confusion,
     evaluate_pdfas,
     multidimensional_confusion_from_proabilistic_results,
@@ -79,7 +80,7 @@ def create_training_dataset(
     )
     x = torch.eye(4)[random].cuda()
     with torch.no_grad():
-        baseline_psam_pdfas = [bp.cuda().eval()(x) for bp in baseline_psam_pdfas]
+        baseline_psam_pdfas = [batch_run(bp.cuda().eval(), x) for bp in baseline_psam_pdfas]
         assert all(bp.shape[0] == 1 for bp in baseline_psam_pdfas)
         baseline_psam_pdfas = [bp.squeeze(0) for bp in baseline_psam_pdfas]
     y = hard_target.float().cuda()
@@ -118,11 +119,11 @@ def train_psam_pdfa_full_learning_curve(
     val_loss = []
     models = []
     for epoch in range(0, epochs):
-        x, y, baseline_psam_pdfas = create_training_dataset(
+        x, y, bpp = create_training_dataset(
             exon, oracle, baseline_psam_pdfas, train_dataset_size, (seed, epoch)
         )
         epoch_loss, m, opt = train_for_epoch(
-            x, y, baseline_psam_pdfas, opt, m, batch_size=batch_size
+            x, y, bpp, opt, m, batch_size=batch_size
         )
         m, opt = serialize_and_deserialize(m, opt)
         if (epoch + 1) % val_every == 0 or (epoch + 1 == epochs):
@@ -130,7 +131,7 @@ def train_psam_pdfa_full_learning_curve(
                 evaluate_pdfas(
                     exon,
                     m,
-                    [],
+                    baseline_psam_pdfas,
                     oracle,
                     seed=int(stable_hash(("val-psam-pdfa", seed)), 16),
                 )
