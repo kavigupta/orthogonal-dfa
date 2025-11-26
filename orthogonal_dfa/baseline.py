@@ -24,6 +24,8 @@ class MonolithicLinearLayer(nn.Module):
     @property
     def weight_arr(self) -> np.ndarray:
         return (
+            # this is callable. pylint is just confused.
+            # pylint: disable=not-callable
             self.linear.weight.detach()
             .cpu()
             .numpy()

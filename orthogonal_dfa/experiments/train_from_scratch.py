@@ -21,7 +21,7 @@ def oracle():
 
 
 def train_model_from_spec(
-    seed, lr, construct_model, epochs=100, baselines=(), batch_size=1000
+    seed, lr, construct_model, *, epochs=100, baselines=(), batch_size=1000
 ):
     # print(seed, lr, construct_model)
     torch.random.manual_seed(seed)
