@@ -1,6 +1,6 @@
 import numpy as np
-from torch import nn
 import torch
+from torch import nn
 
 from orthogonal_dfa.psams.psams import TorchPSAMs
 
@@ -23,8 +23,11 @@ class MonolithicLinearLayer(nn.Module):
 
     @property
     def weight_arr(self) -> np.ndarray:
-        return self.linear.weight.detach().cpu().numpy().reshape(
-            self.input_length, self.num_input_channels
+        return (
+            self.linear.weight.detach()
+            .cpu()
+            .numpy()
+            .reshape(self.input_length, self.num_input_channels)
         )
 
 
