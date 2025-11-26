@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+
 class Monotonic1DFixedRange(nn.Module):
     """
     Represents a 1D monotonic function using a piecewise linear approximation.
