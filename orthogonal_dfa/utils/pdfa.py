@@ -240,3 +240,17 @@ def entropy_of_logits(logits, dim=0):
     log_probs = nn.functional.log_softmax(logits, dim=dim)
     entropy = -torch.sum(probs * log_probs, dim=dim)
     return entropy
+
+
+class PDFAOutputtingProbabilities(nn.Module):
+
+    def __init__(self, pdfa: PDFA):
+        """
+        A wrapper around PDFA that outputs probabilities instead of log-probabilities.
+        """
+        super().__init__()
+        self.pdfa = pdfa
+
+    def forward(self, log_input_probs):
+        log_probs = self.pdfa(log_input_probs)
+        return torch.exp(log_probs)
