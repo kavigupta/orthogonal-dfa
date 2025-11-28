@@ -132,16 +132,14 @@ class Monotonic2DFixedRange(nn.Module):
     """
     Represents a 2D monotonic function as the double integral of a piecewise step function.
 
-    The function is defined as F(x, y) = ∫_{-input_range}^{y} ∫_{-input_range}^{x} g(s, t) ds dt,
-    where g(s, t) is a piecewise step function that's constant on each grid square.
+    The integral is computed by a double cumulative sum of the step function values for each
+    of the grid squares, and then the result is normalized to ensure that F(input_range, input_range) = input_range.
 
-    The grid is uniform from -input_range to +input_range in both dimensions, with
-    num_input_breaks specifying the number of breaks in each dimension.
+    Bilinear interpolation is used to compute the function value at non-grid points, with extrapolation
+    of the nearest grid square for points outside the grid.
 
-    This ensures the function is monotonic in both x and y directions.
-
-    :param input_range: float, the range of the input and output values.
-    :param num_input_breaks: int, the number of breaks to use in each dimension.
+    This is different from how the 1D monotonic function is defined and has slightly fewer parameters,
+    but is the same general concept.
     """
 
     def __init__(self, input_range: float, num_input_breaks: int):
