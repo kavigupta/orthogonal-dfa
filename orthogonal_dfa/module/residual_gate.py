@@ -22,7 +22,6 @@ class ResidualGate(ABC):
         """
         Given input x and previous residual, computes the next residual.
         """
-        pass
 
     @abstractmethod
     def compute_input(
@@ -34,7 +33,6 @@ class ResidualGate(ABC):
         """
         Given input x and next residual, computes the previous residual.
         """
-        pass
 
 
 class InputMonotonicModelingGate(ResidualGate, nn.Module):

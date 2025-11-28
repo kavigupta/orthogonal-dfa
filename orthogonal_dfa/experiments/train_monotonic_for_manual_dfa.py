@@ -12,6 +12,7 @@ def train_monotonic_for_manual_dfa(
     test_dfa,
     control_dfas,
     oracle,
+    *,
     seed=0,
     max_z_score=4.0,
     num_input_breaks=1000,
@@ -25,9 +26,9 @@ def train_monotonic_for_manual_dfa(
             last,
             earlier,
             oracle,
-            seed,
-            max_z_score,
-            num_input_breaks,
+            seed=seed,
+            max_z_score=max_z_score,
+            num_input_breaks=num_input_breaks,
             exp_probs=exp_probs,
         )
         control_gates = [*earlier, last.eval()]

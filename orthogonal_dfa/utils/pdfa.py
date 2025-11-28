@@ -244,12 +244,12 @@ def entropy_of_logits(logits, dim=0):
 
 class PDFAOutputtingProbabilities(nn.Module):
 
-    def __init__(self, pdfa: PDFA):
+    def __init__(self, pdfa_module: PDFA):
         """
         A wrapper around PDFA that outputs probabilities instead of log-probabilities.
         """
         super().__init__()
-        self.pdfa = pdfa
+        self.pdfa = pdfa_module
 
     def forward(self, log_input_probs):
         log_probs = self.pdfa(log_input_probs)

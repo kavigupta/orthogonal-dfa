@@ -80,12 +80,15 @@ def train(
 
     results = []
 
+    x, y, y_targ = td(0)
     for epoch in range(epochs):
-        if epoch == 0 or (
-            new_data_every_epoch is not None and epoch % new_data_every_epoch == 0
+        if (
+            epoch != 0
+            and new_data_every_epoch is not None
+            and epoch % new_data_every_epoch == 0
         ):
             x, y, y_targ = td(epoch)
-        loss = train_for_an_epoch(
+        epoch_loss = train_for_an_epoch(
             gate,
             optimizer,
             data=(x, y, y_targ),
@@ -93,9 +96,9 @@ def train(
             do_not_train_phi=do_not_train_phi,
         )
         print(
-            f"{datetime.now().isoformat()} Epoch {epoch+1}/{epochs}, Loss: {np.mean(loss):.4f}"
+            f"{datetime.now().isoformat()} Epoch {epoch+1}/{epochs}, Loss: {np.mean(epoch_loss):.4f}"
         )
-        results.append(loss)
+        results.append(epoch_loss)
     return gate, results
 
 
