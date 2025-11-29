@@ -178,7 +178,10 @@ class Monotonic2DFixedRange(nn.Module):
         cumsum_xy = torch.cumsum(cumsum_x, dim=0)
 
         range_total = cumsum_xy[-1, -1] - cumsum_xy[0, 0]
-        cumsum_xy = -self.input_range + (cumsum_xy - cumsum_xy[0, 0]) * (2.0 * self.input_range) / range_total
+        cumsum_xy = (
+            -self.input_range
+            + (cumsum_xy - cumsum_xy[0, 0]) * (2.0 * self.input_range) / range_total
+        )
 
         return cumsum_xy
 
@@ -190,19 +193,18 @@ class Monotonic2DFixedRange(nn.Module):
         :param y: torch.Tensor of the same shape as x, the y input values.
         :return: torch.Tensor of the same shape as x and y, the transformed values.
         """
-        # idx of the bottom left of the grid square containing the point. is 0 if you are left of the first break,
-        # and num_input_breaks - 2 if you are right of the last break (because we need to move one to the left so
-        # we have a grid square to base the interpolation on)
+        # pick the relevant grid squares. -1 and num_input_breaks -1 are allowed for the
+        # lower left because we just clip to the grid for stuff beyond it.
         low_x_idx = torch.clamp(
             ((x + self.input_range) / self.dx).floor().long(),
-            min=0,
-            max=self.num_input_breaks - 2,
+            min=-1,
+            max=self.num_input_breaks - 1,
         )
         # analogous for y
         low_y_idx = torch.clamp(
             ((y + self.input_range) / self.dx).floor().long(),
-            min=0,
-            max=self.num_input_breaks - 2,
+            min=-1,
+            max=self.num_input_breaks - 1,
         )
 
         low_x = -self.input_range + low_x_idx.float() * self.dx
@@ -212,14 +214,36 @@ class Monotonic2DFixedRange(nn.Module):
         high_y = low_y + self.dx
 
         cint = self.cumulative_integral()
-        z_at_grid = cint[low_y_idx, low_x_idx]
-        z_at_grid_right = cint[low_y_idx, low_x_idx + 1]
-        z_at_grid_bottom = cint[low_y_idx + 1, low_x_idx]
-        z_at_grid_bottom_right = cint[low_y_idx + 1, low_x_idx + 1]
+        z_at_grid = cint[
+            torch.clamp(low_y_idx, min=0, max=self.num_input_breaks - 1),
+            torch.clamp(low_x_idx, min=0, max=self.num_input_breaks - 1),
+        ]
+        z_at_grid_right = cint[
+            torch.clamp(low_y_idx, min=0, max=self.num_input_breaks - 1),
+            torch.clamp(low_x_idx + 1, min=0, max=self.num_input_breaks - 1),
+        ]
+        z_at_grid_bottom = cint[
+            torch.clamp(low_y_idx + 1, min=0, max=self.num_input_breaks - 1),
+            torch.clamp(low_x_idx, min=0, max=self.num_input_breaks - 1),
+        ]
+        z_at_grid_bottom_right = cint[
+            torch.clamp(low_y_idx + 1, min=0, max=self.num_input_breaks - 1),
+            torch.clamp(low_x_idx + 1, min=0, max=self.num_input_breaks - 1),
+        ]
+
+        frac_bottom_left = (high_x - x) * (high_y - y)
+        frac_bottom_right = (x - low_x) * (high_y - y)
+        frac_top_left = (high_x - x) * (y - low_y)
+        frac_top_right = (x - low_x) * (y - low_y)
 
         # bilinear interpolation
-        result = (high_x - x) * (high_y - y) * z_at_grid + (x - low_x) * (high_y - y) * z_at_grid_right + (high_x - x) * (y - low_y) * z_at_grid_bottom + (x - low_x) * (y - low_y) * z_at_grid_bottom_right
-        return result / (self.dx ** 2)
+        result = (
+            frac_bottom_left * z_at_grid
+            + frac_bottom_right * z_at_grid_right
+            + frac_top_left * z_at_grid_bottom
+            + frac_top_right * z_at_grid_bottom_right
+        )
+        return result / (self.dx**2)
 
 
 class Monotonic2D(nn.Module):

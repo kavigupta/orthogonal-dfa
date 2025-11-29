@@ -85,9 +85,14 @@ class TestMonotonic2D(unittest.TestCase):
     def checkCumulativeIntegralMeetsReqs(self, monotonic: Monotonic2DFixedRange):
         cumulative_integral = monotonic.cumulative_integral()
         print(cumulative_integral)
-        self.assertEqual(cumulative_integral.shape, (monotonic.num_input_breaks, monotonic.num_input_breaks))
+        self.assertEqual(
+            cumulative_integral.shape,
+            (monotonic.num_input_breaks, monotonic.num_input_breaks),
+        )
         self.assertTrue((cumulative_integral[1:] > cumulative_integral[:-1]).all())
-        self.assertTrue((cumulative_integral[:, 1:] > cumulative_integral[:, :-1]).all())
+        self.assertTrue(
+            (cumulative_integral[:, 1:] > cumulative_integral[:, :-1]).all()
+        )
         self.assertEqual(cumulative_integral[0, 0], -monotonic.input_range)
         self.assertEqual(cumulative_integral[-1, -1], monotonic.input_range)
 
@@ -143,12 +148,9 @@ class TestMonotonic2D(unittest.TestCase):
         for _ in range(50):
             y_fixed = rng.standard_normal() * monotonic.input_range / 2
             # Clamp to valid range to avoid boundary issues
-            y_fixed = np.clip(y_fixed, -monotonic.input_range, monotonic.input_range)
             x1, x2 = rng.standard_normal(2) * monotonic.input_range / 2
             x1, x2 = sorted([x1, x2])
             # Clamp to valid range
-            x1 = np.clip(x1, -monotonic.input_range, monotonic.input_range)
-            x2 = np.clip(x2, -monotonic.input_range, monotonic.input_range)
             if abs(x2 - x1) < eps:
                 continue
             y1 = monotonic(torch.tensor(x1), torch.tensor(y_fixed)).item()
@@ -164,12 +166,9 @@ class TestMonotonic2D(unittest.TestCase):
         for _ in range(50):
             x_fixed = rng.standard_normal() * monotonic.input_range / 2
             # Clamp to valid range
-            x_fixed = np.clip(x_fixed, -monotonic.input_range, monotonic.input_range)
             y1, y2 = rng.standard_normal(2) * monotonic.input_range / 2
             y1, y2 = sorted([y1, y2])
             # Clamp to valid range
-            y1 = np.clip(y1, -monotonic.input_range, monotonic.input_range)
-            y2 = np.clip(y2, -monotonic.input_range, monotonic.input_range)
             if abs(y2 - y1) < eps:
                 continue
             z1 = monotonic(torch.tensor(x_fixed), torch.tensor(y1)).item()
@@ -216,10 +215,22 @@ class TestMonotonic2D(unittest.TestCase):
         # We skip this test as it's not a requirement for the monotonic function.
 
     def test_very_basic(self):
-        monotonic = Monotonic2DFixedRange(
-            input_range=2.0, num_input_breaks=3
-        )
+        torch.manual_seed(0)
+        monotonic = Monotonic2DFixedRange(input_range=2.0, num_input_breaks=3)
         self.checkMeetsReqs(monotonic, np.random.default_rng(0))
+
+    def test_outside_monotonicity(self):
+        torch.manual_seed(0)
+        rng = np.random.default_rng(0)
+        monotonic = Monotonic2DFixedRange(
+            input_range=2.0, num_input_breaks=rng.choice([5, 10, 15, 20])
+        )
+        x = -3.1063368012832915
+        y1 = -1.1422789566319196
+        y2 = y1 + 0.01
+        z1 = monotonic(torch.tensor(x), torch.tensor(y1)).item()
+        z2 = monotonic(torch.tensor(x), torch.tensor(y2)).item()
+        self.assertGreater(z2, z1)
 
     @parameterized.expand([(i,) for i in range(50)])
     def test_monotonic_2d_basic(self, i):
