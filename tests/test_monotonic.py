@@ -81,7 +81,18 @@ class TestTorchProbabilityFns(unittest.TestCase):
 
 
 class TestMonotonic2D(unittest.TestCase):
+
+    def checkCumulativeIntegralMeetsReqs(self, monotonic: Monotonic2DFixedRange):
+        cumulative_integral = monotonic.cumulative_integral()
+        print(cumulative_integral)
+        self.assertEqual(cumulative_integral.shape, (monotonic.num_input_breaks, monotonic.num_input_breaks))
+        self.assertTrue((cumulative_integral[1:] > cumulative_integral[:-1]).all())
+        self.assertTrue((cumulative_integral[:, 1:] > cumulative_integral[:, :-1]).all())
+        self.assertEqual(cumulative_integral[0, 0], -monotonic.input_range)
+        self.assertEqual(cumulative_integral[-1, -1], monotonic.input_range)
+
     def checkMeetsReqs(self, monotonic: Monotonic2DFixedRange, rng):
+        self.checkCumulativeIntegralMeetsReqs(monotonic)
         # Check boundary values at corners
         self.assertAlmostEqual(
             monotonic(
@@ -176,7 +187,7 @@ class TestMonotonic2D(unittest.TestCase):
             monotonic.input_range,
             steps=monotonic.num_input_breaks,
         )
-        cum_int = monotonic.cumulative_integral
+        cum_int = monotonic.cumulative_integral()
         # Check that computed values match cumulative integral at grid points
         for i in range(len(breaks)):
             for j in range(len(breaks)):
@@ -203,6 +214,12 @@ class TestMonotonic2D(unittest.TestCase):
         # The double integral of a step function gives a piecewise bilinear function where
         # partial derivatives may have discontinuities at cell boundaries.
         # We skip this test as it's not a requirement for the monotonic function.
+
+    def test_very_basic(self):
+        monotonic = Monotonic2DFixedRange(
+            input_range=2.0, num_input_breaks=3
+        )
+        self.checkMeetsReqs(monotonic, np.random.default_rng(0))
 
     @parameterized.expand([(i,) for i in range(50)])
     def test_monotonic_2d_basic(self, i):

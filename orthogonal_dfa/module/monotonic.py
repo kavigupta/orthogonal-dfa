@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+from torch._refs import cumsum_
 
 
 class Monotonic1DFixedRange(nn.Module):
@@ -149,7 +150,8 @@ class Monotonic2DFixedRange(nn.Module):
 
         # Step function values for each grid square (all must be positive)
         # Shape: (num_input_breaks, num_input_breaks)
-        # We use num_input_breaks x num_input_breaks because we have that many grid squares
+        # We use (num_input_breaks) * (num_input_breaks) because we have (num_input_breaks + 1) * (num_input_breaks + 1) grid squares
+        # and we also add a bit of padding to the left and bottom to ensure that the cumulative integral is not exactly 0 at the edges
         self.inv_softplus_step_values = nn.Parameter(
             torch.randn(num_input_breaks, num_input_breaks)
         )
@@ -162,23 +164,11 @@ class Monotonic2DFixedRange(nn.Module):
         """
         return (2.0 * self.input_range) / (self.num_input_breaks - 1)
 
-    @property
-    def step_values(self):
-        """
-        Computes the step function values by applying softplus to ensure positivity.
-        These represent the constant value of g(x, y) in each grid square.
-        No normalization here - normalization happens in cumulative_integral.
-        """
-        return self.softplus(self.inv_softplus_step_values)
-
-    @property
     def cumulative_integral(self):
         """
         Computes the cumulative double integral at each grid point.
-        This is F(x_i, y_j) = ∫_{-input_range}^{y_j} ∫_{-input_range}^{x_i} g(s, t) ds dt
-        where (x_i, y_j) are the grid break points.
         """
-        step_vals = self.step_values
+        step_vals = self.softplus(self.inv_softplus_step_values)
         # Each cell [i, i+1] x [j, j+1] contributes g[i, j] * dx * dx to the integral
         cell_integrals = step_vals * self.dx * self.dx
 
@@ -187,58 +177,10 @@ class Monotonic2DFixedRange(nn.Module):
         cumsum_x = torch.cumsum(cell_integrals, dim=1)
         cumsum_xy = torch.cumsum(cumsum_x, dim=0)
 
-        # Create result array with shape (num_input_breaks, num_input_breaks)
-        # result[i, j] = F(breaks[i], breaks[j]) where breaks are the grid break points
-        result = torch.zeros(
-            self.num_input_breaks,
-            self.num_input_breaks,
-            device=step_vals.device,
-        )
+        range_total = cumsum_xy[-1, -1] - cumsum_xy[0, 0]
+        cumsum_xy = -self.input_range + (cumsum_xy - cumsum_xy[0, 0]) * (2.0 * self.input_range) / range_total
 
-        # Fill interior: result[i, j] = cumulative integral up to break point (i, j)
-        # cumsum_xy[i, j] is the integral up to cell [i, j], which corresponds to break point [i+1, j+1]
-        # So result[i, j] = cumsum_xy[i-1, j-1] for i, j > 0
-        result[1:, 1:] = -self.input_range + cumsum_xy[:-1, :-1]
-
-        # Set boundary values
-        result[0, 0] = -self.input_range
-
-        # Fill first row and column from step values (before normalization)
-        # These must be computed to ensure monotonicity
-        if self.num_input_breaks > 1:
-            # First row (y = breaks[0] = -input_range): integrate step values along x only
-            # At y = -input_range, we integrate only in x direction
-            x_cumsum = torch.cumsum(step_vals[0, :] * self.dx, dim=0)
-            result[0, 1:] = result[0, 0] + x_cumsum[:-1]
-
-            # First column (x = breaks[0] = -input_range): integrate step values along y only
-            # At x = -input_range, we integrate only in y direction
-            y_cumsum = torch.cumsum(step_vals[:, 0] * self.dx, dim=0)
-            result[1:, 0] = result[0, 0] + y_cumsum[:-1]
-
-        # Normalize so F(breaks[-1], breaks[-1]) = input_range
-        # Normalize everything together to preserve relationships and monotonicity
-        total_range = result[-1, -1] - result[0, 0]
-        if total_range > 1e-10:
-            scale = (2.0 * self.input_range) / total_range
-            result = result[0, 0] + (result - result[0, 0]) * scale
-
-        # Verify and fix monotonicity: ensure result[i+1, j] >= result[i, j] for all i, j
-        # This ensures the function is monotonic in y
-        for j in range(self.num_input_breaks):
-            for i in range(self.num_input_breaks - 1):
-                if result[i + 1, j] < result[i, j]:
-                    # Force monotonicity by setting to previous value
-                    result[i + 1, j] = result[i, j]
-
-        # Ensure result[i, j+1] >= result[i, j] for all i, j (monotonic in x)
-        for i in range(self.num_input_breaks):
-            for j in range(self.num_input_breaks - 1):
-                if result[i, j + 1] < result[i, j]:
-                    # Force monotonicity by setting to previous value
-                    result[i, j + 1] = result[i, j]
-
-        return result
+        return cumsum_xy
 
     def forward(self, x, y):
         """
@@ -248,68 +190,36 @@ class Monotonic2DFixedRange(nn.Module):
         :param y: torch.Tensor of the same shape as x, the y input values.
         :return: torch.Tensor of the same shape as x and y, the transformed values.
         """
-        original_shape = x.shape
-        x_flat = x.flatten()
-        y_flat = y.flatten()
-
-        # Find which grid cell each point belongs to
-        # Grid points are at: -input_range + i * dx for i = 0, 1, ..., num_input_breaks
-        x_normalized = (x_flat + self.input_range) / self.dx
-        y_normalized = (y_flat + self.input_range) / self.dx
-
-        # Check if we're exactly at grid points (within numerical tolerance)
-        x_is_grid = torch.abs(x_normalized - x_normalized.round()) < 1e-6
-        y_is_grid = torch.abs(y_normalized - y_normalized.round()) < 1e-6
-
-        # Get cumulative integral
-        cum_int = self.cumulative_integral
-
-        which_x = torch.clamp(
-            x_normalized.floor().long(),
-            min=-1,
-            max=self.num_input_breaks - 1,
+        # idx of the bottom left of the grid square containing the point. is 0 if you are left of the first break,
+        # and num_input_breaks - 2 if you are right of the last break (because we need to move one to the left so
+        # we have a grid square to base the interpolation on)
+        low_x_idx = torch.clamp(
+            ((x + self.input_range) / self.dx).floor().long(),
+            min=0,
+            max=self.num_input_breaks - 2,
         )
-        which_y = torch.clamp(
-            y_normalized.floor().long(),
-            min=-1,
-            max=self.num_input_breaks - 1,
+        # analogous for y
+        low_y_idx = torch.clamp(
+            ((y + self.input_range) / self.dx).floor().long(),
+            min=0,
+            max=self.num_input_breaks - 2,
         )
 
-        # Get the grid cell indices (clamped to valid range for step function)
-        idx_x_cell = torch.clamp(which_x, min=0, max=self.num_input_breaks - 1)
-        idx_y_cell = torch.clamp(which_y, min=0, max=self.num_input_breaks - 1)
+        low_x = -self.input_range + low_x_idx.float() * self.dx
+        low_y = -self.input_range + low_y_idx.float() * self.dx
 
-        # Get grid indices for the four corners of the cell
-        idx_x_grid = torch.clamp(which_x, min=0, max=self.num_input_breaks - 1)
-        idx_y_grid = torch.clamp(which_y, min=0, max=self.num_input_breaks - 1)
-        idx_x_next = torch.clamp(idx_x_grid + 1, min=0, max=self.num_input_breaks - 1)
-        idx_y_next = torch.clamp(idx_y_grid + 1, min=0, max=self.num_input_breaks - 1)
+        high_x = low_x + self.dx
+        high_y = low_y + self.dx
 
-        f_00 = cum_int[idx_y_grid, idx_x_grid]  # bottom-left
-        f_10 = cum_int[idx_y_next, idx_x_grid]  # top-left
-        f_01 = cum_int[idx_y_grid, idx_x_next]  # bottom-right
-        f_11 = cum_int[idx_y_next, idx_x_next]  # top-right
+        cint = self.cumulative_integral()
+        z_at_grid = cint[low_y_idx, low_x_idx]
+        z_at_grid_right = cint[low_y_idx, low_x_idx + 1]
+        z_at_grid_bottom = cint[low_y_idx + 1, low_x_idx]
+        z_at_grid_bottom_right = cint[low_y_idx + 1, low_x_idx + 1]
 
-        # Get the anchor point (bottom-left corner of the grid cell)
-        x_anchor = -self.input_range + idx_x_cell.float() * self.dx
-        y_anchor = -self.input_range + idx_y_cell.float() * self.dx
-
-        # Compute normalized coordinates within the cell [0, 1]
-        alpha = (x_flat - x_anchor) / self.dx
-        beta = (y_flat - y_anchor) / self.dx
-        alpha = torch.clamp(alpha, min=0.0, max=1.0)
-        beta = torch.clamp(beta, min=0.0, max=1.0)
-
-        # Use bilinear interpolation from corner values
-        # This ensures consistency with grid points and maintains monotonicity
-        result_local = (
-            f_00 * (1 - alpha) * (1 - beta)
-            + f_01 * alpha * (1 - beta)
-            + f_10 * (1 - alpha) * beta
-            + f_11 * alpha * beta
-        )
-
-        return result_local.view(original_shape)
+        # bilinear interpolation
+        result = (high_x - x) * (high_y - y) * z_at_grid + (x - low_x) * (high_y - y) * z_at_grid_right + (high_x - x) * (y - low_y) * z_at_grid_bottom + (x - low_x) * (y - low_y) * z_at_grid_bottom_right
+        return result / (self.dx ** 2)
 
 
 class Monotonic2D(nn.Module):
