@@ -126,3 +126,38 @@ class Monotonic1D(nn.Module):
         x = x * self.output_m + self.output_b
         x = x.view(original_shape)
         return x
+
+    def plot_function(self, num_points: int = 1000, extra_range: float = 0.1):
+        """
+        Plots the monotonic function by evaluating it at evenly spaced points in the input range.
+
+        :param num_points: int, the number of points to evaluate.
+        :return: (torch.Tensor, torch.Tensor), the input points and their corresponding output values.
+        """
+        with torch.no_grad():
+            z_range = self.max_z_abs * (1.0 + extra_range)
+            input_to_underlying = torch.linspace(
+                -z_range, z_range, num_points, device=self.output_m.device
+            )
+            input_overall = inv_batch_norm(
+                input_to_underlying.unsqueeze(1), self.batch_norm
+            ).squeeze(1)
+            output_underlying = self(input_overall.unsqueeze(1)).squeeze(1)
+        return input_overall.cpu().numpy(), output_underlying.cpu().numpy()
+
+
+def inv_batch_norm(x: torch.Tensor, batch_norm: nn.BatchNorm1d) -> torch.Tensor:
+    """
+    Inverts the batch normalization on the input tensor x.
+
+    :param x: the normalized input values.
+    :param batch_norm: nn.BatchNorm1d, the batch normalization layer used for normalization.
+    :return: torch.Tensor of the same shape as x, the unnormalized values.
+    """
+    assert not batch_norm.affine, "Only supports non-affine batch norm inversion"
+    assert not batch_norm.training, "Batch norm must be in eval mode to invert"
+
+    mu, var = batch_norm.running_mean, batch_norm.running_var
+    std = torch.sqrt(var + batch_norm.eps)
+    x_unnormalized = x * std.unsqueeze(0) + mu.unsqueeze(0)
+    return x_unnormalized
