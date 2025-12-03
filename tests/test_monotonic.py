@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from parameterized import parameterized
 
-from orthogonal_dfa.module.monotonic import Monotonic1DFixedRange
+from orthogonal_dfa.module.monotonic import Monotonic1DFixedRange, inv_batch_norm
 
 eps = 1e-3
 
@@ -78,3 +78,38 @@ class TestTorchProbabilityFns(unittest.TestCase):
             input_range=2.0, num_input_breaks=rng.choice([5, 10, 15, 20])
         )
         self.checkMeetsReqs(monotonic, rng)
+
+
+class InvBatchnormTest(unittest.TestCase):
+    def create_batchnorm(self, seed, dim):
+        torch.manual_seed(seed)
+        batchnorm = torch.nn.BatchNorm1d(dim, affine=False)
+        batchnorm.train()
+        sigma, mu = torch.randn(dim).abs() + 0.5, torch.randn(dim) * 5.0
+        for _ in range(10):
+            data = torch.randn(1000, dim) * sigma + mu
+            _ = batchnorm(data)
+        batchnorm.eval()
+        return batchnorm
+
+    def random_batchnorm(self, i):
+        dim = np.random.default_rng(i).choice([1, 5, 10, 20])
+        batchnorm = self.create_batchnorm(i, dim)
+        return dim, batchnorm
+
+    @parameterized.expand([(i,) for i in range(100)])
+    def test_inv_batchnorm(self, i):
+        dim, batchnorm = self.random_batchnorm(i)
+        x = torch.randn(10, dim) * 5.0
+        self.assertTrue(
+            torch.allclose(x, inv_batch_norm(batchnorm(x), batchnorm), atol=1e-5),
+            "Batchnorm inversion failed (forward/back)",
+        )
+        self.assertTrue(
+            torch.allclose(
+                x,
+                batchnorm(inv_batch_norm(x, batchnorm)),
+                atol=1e-5,
+            ),
+            "Batchnorm inversion failed (back/forward)",
+        )
