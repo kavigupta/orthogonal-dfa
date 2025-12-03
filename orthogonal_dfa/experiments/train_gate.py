@@ -6,11 +6,9 @@ from typing import List
 
 import numpy as np
 import torch
-from automata.fa.nfa import NFA
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
 from permacache import drop_if_equal, permacache, stable_hash
-from pygraphviz import AGraph
 from render_psam import render_psam
 from torch import nn
 
