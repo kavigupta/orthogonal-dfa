@@ -2,8 +2,8 @@ import unittest
 
 import numpy as np
 import torch
-import torch.nn as nn
 from parameterized import parameterized
+from torch import nn
 
 from orthogonal_dfa.utils.pdfa import pdfa_forward_fast, pdfa_forward_slow
 
