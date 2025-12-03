@@ -65,7 +65,7 @@ def train_psamdfa(starting_gates, *, seed=0):
         1,
         seed=seed,
         starting_gates=starting_gates,
-        epochs=4000,
+        epochs=2000,
     )
 
 
