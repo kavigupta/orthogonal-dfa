@@ -1,16 +1,17 @@
 import copy
-from datetime import datetime
 import io
 import math
+from datetime import datetime
 from typing import List
 
-from automata.fa.nfa import NFA
-from matplotlib import gridspec, pyplot as plt
 import numpy as np
+import torch
+from automata.fa.nfa import NFA
+from matplotlib import gridspec
+from matplotlib import pyplot as plt
+from permacache import drop_if_equal, permacache, stable_hash
 from pygraphviz import AGraph
 from render_psam import render_psam
-import torch
-from permacache import permacache, stable_hash, drop_if_equal
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
