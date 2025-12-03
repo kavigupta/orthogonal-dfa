@@ -134,6 +134,7 @@ class Monotonic1D(nn.Module):
         :param num_points: int, the number of points to evaluate.
         :return: (torch.Tensor, torch.Tensor), the input points and their corresponding output values.
         """
+        assert not self.training
         with torch.no_grad():
             z_range = self.max_z_abs * (1.0 + extra_range)
             input_to_underlying = torch.linspace(

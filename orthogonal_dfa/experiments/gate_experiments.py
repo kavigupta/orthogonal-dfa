@@ -1,3 +1,4 @@
+import gc
 import torch
 
 from orthogonal_dfa.baseline import MonolithicLinearLayer, PSAMsFollowedByLinear
@@ -5,10 +6,16 @@ from orthogonal_dfa.experiments.train_from_scratch import oracle
 from orthogonal_dfa.experiments.train_gate import evaluate_multiple, train_multiple
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
 from orthogonal_dfa.data.exon import default_exon
+from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 
 
-def train_many(constructor, count):
-    torch.manual_seed(0)
+def _clear_tensors():
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
+def train_many(constructor, count, *, seed=0, starting_gates=(), epochs=500):
+    torch.manual_seed(seed)
     gates = [
         InputMonotonicModelingGate(
             # MonolithicLinearLayer(
@@ -25,12 +32,16 @@ def train_many(constructor, count):
         1e-4,
         default_exon,
         oracle(),
-        epochs=500,
+        epochs=epochs,
         batch_size=1000,
         train_count=100_000,
-        seed=0,
+        seed=seed,
         do_not_train_phi=False,
+        starting_gates=starting_gates,
     )
+
+    _clear_tensors()
+
     results = evaluate_multiple(
         default_exon, oracle(), gates_trained, count=100_000, seed=0
     )
@@ -42,13 +53,28 @@ def train_mll(count=5):
     return train_many(lambda length: MonolithicLinearLayer(4, length), count)
 
 
-def train_psam_linear(count=100):
+def train_psam_linear(count=11):
     return train_many(lambda length: PSAMsFollowedByLinear(4, 1, 9, length), count)
+
+
+def train_psamdfa(starting_gates, *, seed=0):
+    return train_many(
+        lambda length: PSAMPDFA.create(
+            num_input_channels=4, num_psams=4, two_r=8, num_states=4
+        ),
+        1,
+        seed=seed,
+        starting_gates=starting_gates,
+        epochs=4000,
+    )
 
 
 def main():
     train_mll()
-    train_psam_linear()
+    pl, _, _ = train_psam_linear()
+    for seed in range(10):
+        train_psamdfa([], seed=seed)
+        train_psamdfa(pl, seed=seed)
 
 
 if __name__ == "__main__":
