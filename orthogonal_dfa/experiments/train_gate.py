@@ -5,6 +5,7 @@ from typing import List
 import numpy as np
 import torch
 from permacache import permacache, stable_hash
+from render_psam import render_psam
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
@@ -167,3 +168,65 @@ def evaluate(
         if is_training:
             gate.train()
     return eval_loss, eval_loss_control
+
+
+def train_multiple(
+    gates: List[ResidualGate],
+    lr: float,
+    exon: RawExon,
+    oracle,
+    *,
+    seed,
+    **kwargs,
+):
+    trained_gates = []
+    all_losses = []
+    for i, gate in enumerate(gates):
+        print(f"Training gate {i+1}/{len(gates)}")
+        gate, losses = train(
+            gate,
+            lr,
+            exon,
+            oracle,
+            trained_gates,
+            **kwargs,
+            seed=int(stable_hash((seed, i)), 16) % (2**32 - 1),
+        )
+        trained_gates.append(gate.eval())
+        all_losses.append(losses)
+    return trained_gates, all_losses
+
+
+def evaluate_multiple(
+    exon: RawExon,
+    oracle,
+    gates: List[ResidualGate],
+    *,
+    seed,
+    **kwargs,
+):
+    eval_losses = []
+    for i, gate in enumerate(gates):
+        eval_loss, eval_loss_control = evaluate(
+            exon,
+            oracle,
+            gates[:i],
+            gate,
+            **kwargs,
+            seed=int(stable_hash((seed, i)), 16) % (2**32 - 1),
+        )
+        eval_losses.append((eval_loss, eval_loss_control))
+    return np.array(eval_losses)
+
+
+def plot_linear_psam_gate(gate, *axs):
+    ax_psam, ax_response, ax_monotonic = axs
+
+    render_psam(gate.phi.psams.sequence_logos[0], psam_mode="raw", ax=ax_psam)
+    ax_psam.set_xticks([])
+    ax_response.plot(gate.phi.linear.linear.weight[0].detach().cpu().numpy())
+    ax_response.set_xlabel("Position in exon")
+    ax_response.set_ylabel("Internal response level")
+    ax_monotonic.plot(*gate.monotonic.plot_function(extra_range=0.5))
+    ax_monotonic.set_xlabel("Internal response")
+    ax_monotonic.set_ylabel("log-Bayes Odds")
