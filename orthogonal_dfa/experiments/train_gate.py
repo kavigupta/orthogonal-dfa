@@ -3,9 +3,9 @@ from datetime import datetime
 from typing import List
 
 import numpy as np
-from render_psam import render_psam
 import torch
 from permacache import permacache, stable_hash
+from render_psam import render_psam
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
