@@ -25,15 +25,23 @@ def pdfa(
         Must logsumexp to < 0 along the C dimension.
     :return: (N,) tensor of log-probabilities of acceptance for each input sequence.
     """
-    N, L, C = log_input_probs.shape
-    [S] = logit_initial_state_probs.shape
-    assert logit_transition_probs.shape == (S, C, S)
-    assert logit_accepting_state_probs.shape == (S,)
-
     initial_state_probs = nn.functional.softmax(logit_initial_state_probs, dim=0)
     transition_probs = nn.functional.softmax(logit_transition_probs, dim=2)
     accepting_state_probs = nn.LogSigmoid()(logit_accepting_state_probs)
     input_probs = torch.exp(log_input_probs)
+
+    return pdfa_forward_fast(
+        initial_state_probs, transition_probs, accepting_state_probs, input_probs
+    )
+
+
+def pdfa_forward_slow(
+    initial_state_probs, transition_probs, accepting_state_logprobs, input_probs
+):
+    N, L, C = input_probs.shape
+    [S] = initial_state_probs.shape
+    assert transition_probs.shape == (S, C, S)
+    assert accepting_state_logprobs.shape == (S,)
 
     p_state = initial_state_probs.unsqueeze(0).expand(N, -1)  # (N, num_states)
     for i in range(L):
@@ -47,7 +55,51 @@ def pdfa(
         )
     log_p_state = torch.log(p_state + 1e-20)  # (N, S)
     log_acceptance = torch.logsumexp(
-        log_p_state + accepting_state_probs.unsqueeze(0), dim=1
+        log_p_state + accepting_state_logprobs.unsqueeze(0), dim=1
+    )  # (N,)
+    return log_acceptance
+
+
+def batched_iterated_matrix_multiply(matrices):
+    """
+    Performs batched iterated matrix multiplication.
+
+    :param matrices: (N, L, M, M) tensor of N batches of L matrices of size MxM.
+    :return: (N, M, M) tensor of the result of multiplying the L matrices for each batch.
+    """
+    N, L, M, _ = matrices.shape
+    if L == 1:
+        return matrices[:, 0, :, :]
+    if L % 2 == 1:
+        first = matrices[:, 0, :, :]
+        rest = batched_iterated_matrix_multiply(matrices[:, 1:, :, :])
+        return torch.bmm(first, rest)
+    multiplied = torch.bmm(
+        matrices[:, 0::2, :, :].contiguous().view(-1, M, M),
+        matrices[:, 1::2, :, :].contiguous().view(-1, M, M),
+    ).view(N, L // 2, M, M)
+    return batched_iterated_matrix_multiply(multiplied)
+
+
+def pdfa_forward_fast(
+    initial_state_probs, transition_probs, accepting_state_logprobs, input_probs
+):
+    _, _, C = input_probs.shape
+    [S] = initial_state_probs.shape
+    assert transition_probs.shape == (S, C, S)
+    assert accepting_state_logprobs.shape == (S,)
+
+    transition_probs_each = torch.einsum(
+        "pcn,blc->blpn", transition_probs, input_probs
+    )  # (N, L, S, S)
+
+    transition_overall = batched_iterated_matrix_multiply(transition_probs_each)
+    p_state = torch.matmul(
+        transition_overall.permute(0, 2, 1), initial_state_probs
+    )  # (N, S)
+    log_p_state = torch.log(p_state + 1e-20)  # (N, S)
+    log_acceptance = torch.logsumexp(
+        log_p_state + accepting_state_logprobs.unsqueeze(0), dim=1
     )  # (N,)
     return log_acceptance
 
