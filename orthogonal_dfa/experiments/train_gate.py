@@ -1,10 +1,14 @@
 import copy
+import io
+import math
 from datetime import datetime
 from typing import List
 
 import numpy as np
 import torch
-from permacache import permacache, stable_hash
+from matplotlib import gridspec
+from matplotlib import pyplot as plt
+from permacache import drop_if_equal, permacache, stable_hash
 from render_psam import render_psam
 from torch import nn
 
@@ -48,9 +52,11 @@ def loss(y, y_targ):
         exon=stable_hash,
         oracle=stable_hash,
         prev_gates=lambda x: tuple(stable_hash(g) for g in x),
+        start_epoch=drop_if_equal(0),
     ),
+    multiprocess_safe=True,
 )
-def train(
+def train_direct(
     gate: ResidualGate,
     lr: float,
     exon: RawExon,
@@ -63,6 +69,7 @@ def train(
     new_data_every_epoch: int = 5,
     seed: int,
     do_not_train_phi: bool,
+    start_epoch: int = 0,
 ):
     gate = copy.deepcopy(gate)
     gate.train()
@@ -75,7 +82,8 @@ def train(
             oracle,
             prev_gates,
             count=train_count,
-            seed=int(stable_hash(("train", seed, epoch)), 16) % (2**32 - 1),
+            seed=int(stable_hash(("train", seed, epoch + start_epoch)), 16)
+            % (2**32 - 1),
             device=next(gate.parameters()).device,
         )
 
@@ -101,6 +109,25 @@ def train(
         )
         results.append(epoch_loss)
     return gate, results
+
+
+def train(
+    gate: ResidualGate,
+    *args,
+    epochs,
+    **kwargs,
+):
+    all_losses = []
+    for epoch_chunk in range(0, epochs, 500):
+        gate, losses = train_direct(
+            gate,
+            *args,
+            epochs=min(500, epochs - epoch_chunk),
+            start_epoch=epoch_chunk,
+            **kwargs,
+        )
+        all_losses.extend(losses)
+    return gate, all_losses
 
 
 def train_for_an_epoch(
@@ -176,10 +203,11 @@ def train_multiple(
     exon: RawExon,
     oracle,
     *,
+    starting_gates=(),
     seed,
     **kwargs,
 ):
-    trained_gates = []
+    trained_gates = [*starting_gates]
     all_losses = []
     for i, gate in enumerate(gates):
         print(f"Training gate {i+1}/{len(gates)}")
@@ -227,6 +255,52 @@ def plot_linear_psam_gate(gate, *axs):
     ax_response.plot(gate.phi.linear.linear.weight[0].detach().cpu().numpy())
     ax_response.set_xlabel("Position in exon")
     ax_response.set_ylabel("Internal response level")
-    ax_monotonic.plot(*gate.monotonic.plot_function(extra_range=0.5))
-    ax_monotonic.set_xlabel("Internal response")
+    plot_monotonicity(gate.monotonic, ax_monotonic)
+
+
+def plot_monotonicity(monotonic, ax_monotonic):
+    xmon, ymon = monotonic.plot_function(extra_range=0.5)
+    ax_monotonic.plot(xmon, ymon)
+    ax_monotonic.set_xlabel("Model log-probability")
     ax_monotonic.set_ylabel("log-Bayes Odds")
+
+
+def plot_pdfa(gate):
+    p = gate.phi.psam
+    size = 3
+    num_psams = len(p.sequence_logos)
+
+    # Calculate grid dimensions for PSAMs (arrange side by side)
+    psam_cols = min(num_psams, 4)  # Max 4 columns, adjust as needed
+    psam_rows = math.ceil(num_psams / psam_cols)
+
+    height_ratios = [1] * psam_rows + [5, 1]
+    fig = plt.figure(figsize=(size * 2 * psam_cols, (psam_rows + 3) * size))
+    gs = gridspec.GridSpec(
+        psam_rows + 2,
+        psam_cols,
+        figure=fig,
+        hspace=0.3,
+        wspace=0.3,
+        height_ratios=height_ratios,
+    )
+
+    # Plot PSAMs in grid at the top
+    for i in range(num_psams):
+        row = i // psam_cols
+        col = i % psam_cols
+        ax_psam = fig.add_subplot(gs[row, col])
+        render_psam(p.sequence_logos[i], psam_mode="raw", ax=ax_psam)
+        ax_psam.set_xticks([])
+
+    # PDFA diagram - full width below PSAMs
+    pdfa = gate.phi.pdfa.to_dfa_for_viz(0.1)
+    graph = pdfa.show_diagram()
+    ax_pdfa = fig.add_subplot(gs[psam_rows, :])
+    ax_pdfa.imshow(plt.imread(io.BytesIO(graph.draw(format="png"))))
+    ax_pdfa.axis("off")
+    ax_pdfa.set_title("PDFA Diagram")
+
+    # Monotonicity plot - full width at the bottom
+    ax_monotonic = fig.add_subplot(gs[psam_rows + 1, :])
+    plot_monotonicity(gate.monotonic, ax_monotonic)
