@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from permacache import permacache, stable_hash
 
@@ -32,12 +33,22 @@ def run_model(exon, model, arr):
 
 
 @permacache(
-    "orthogonal_dfa/oracle/run_model/create_dataset_2",
+    "orthogonal_dfa/oracle/run_model/create_dataset_just_output_2",
     key_function=dict(model=stable_hash),
+    multiprocess_safe=True,
 )
+def create_dataset_just_output(exon, model, *, count, seed):
+    _, arr = sample_text(exon, seed, count)
+    _, hard_targets = run_model(exon, model, arr)
+    arr = hard_targets.cpu().numpy()
+    arr = np.packbits(arr)
+    return arr
+
+
 def create_dataset(exon, model, *, count, seed):
     random, arr = sample_text(exon, seed, count)
-    _, hard_targets = run_model(exon, model, arr)
+    arr = create_dataset_just_output(exon, model, count=count, seed=seed)
+    hard_targets = torch.tensor(np.unpackbits(arr).astype(bool), device=random.device)
     return random, hard_targets
 
 
