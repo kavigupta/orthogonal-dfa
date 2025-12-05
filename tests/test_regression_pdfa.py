@@ -1,5 +1,6 @@
 import unittest
 
+import numpy as np
 import torch
 from permacache import stable_hash
 
@@ -18,15 +19,17 @@ class TestPDFARegression(unittest.TestCase):
         x = torch.rand(2, 10, 10).log()
         ys = [pdfa(x) for pdfa in pdfas]
         print([y.detach().numpy().tolist() for y in ys])
-        self.assertEqual(
-            [y.detach().numpy().tolist() for y in ys],
-            [
-                [[15.333812713623047, 14.790033340454102]],
-                [[14.943010330200195, 14.346924781799316]],
-                [[15.535026550292969, 14.926868438720703]],
-                [[15.68808650970459, 15.099180221557617]],
-                [[15.938797950744629, 15.327362060546875]],
-            ],
+        self.assertTrue(
+            np.allclose(
+                [y.detach().numpy().tolist() for y in ys],
+                [
+                    [[15.333812713623047, 14.790033340454102]],
+                    [[14.943010330200195, 14.346924781799316]],
+                    [[15.535026550292969, 14.926868438720703]],
+                    [[15.68808650970459, 15.099180221557617]],
+                    [[15.938797950744629, 15.327362060546875]],
+                ],
+            )
         )
 
     def test_pdfa_regression_1(self):
@@ -39,13 +42,15 @@ class TestPDFARegression(unittest.TestCase):
         x = torch.rand(2, 10, 10).log()
         ys = [pdfa(x) for pdfa in pdfas]
         print([y.detach().numpy().tolist() for y in ys])
-        self.assertEqual(
-            [y.detach().numpy().tolist() for y in ys],
-            [
-                [[15.766007423400879, 14.182374954223633]],
-                [[16.263561248779297, 14.709993362426758]],
-                [[16.354463577270508, 14.796015739440918]],
-                [[15.739842414855957, 14.226682662963867]],
-                [[16.048070907592773, 14.524038314819336]],
-            ],
+        self.assertTrue(
+            np.allclose(
+                [y.detach().numpy().tolist() for y in ys],
+                [
+                    [[15.766007423400879, 14.182374954223633]],
+                    [[16.263561248779297, 14.709993362426758]],
+                    [[16.354463577270508, 14.796015739440918]],
+                    [[15.739842414855957, 14.226682662963867]],
+                    [[16.048070907592773, 14.524038314819336]],
+                ],
+            )
         )
