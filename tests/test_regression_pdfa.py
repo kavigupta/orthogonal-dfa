@@ -18,7 +18,6 @@ class TestPDFARegression(unittest.TestCase):
         )
         x = torch.rand(2, 10, 10).log()
         ys = [pdfa(x) for pdfa in pdfas]
-        print([y.detach().numpy().tolist() for y in ys])
         self.assertTrue(
             np.allclose(
                 [y.detach().numpy().tolist() for y in ys],
@@ -41,7 +40,6 @@ class TestPDFARegression(unittest.TestCase):
         )
         x = torch.rand(2, 10, 10).log()
         ys = [pdfa(x) for pdfa in pdfas]
-        print([y.detach().numpy().tolist() for y in ys])
         self.assertTrue(
             np.allclose(
                 [y.detach().numpy().tolist() for y in ys],
