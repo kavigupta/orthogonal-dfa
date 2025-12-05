@@ -8,6 +8,7 @@ from orthogonal_dfa.experiments.train_from_scratch import oracle
 from orthogonal_dfa.experiments.train_gate import evaluate_multiple, train_multiple
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
+from orthogonal_dfa.utils.pdfa import PDFA
 
 
 def _clear_tensors():
@@ -58,10 +59,14 @@ def train_psam_linear(count=11):
     return train_many(lambda length: PSAMsFollowedByLinear(4, 1, 9, length), count)
 
 
-def train_psamdfa(starting_gates, *, seed=0, count=1, num_states=4):
+def train_psamdfa(starting_gates, *, seed=0, count=1, num_states=4, pdfa_typ=PDFA):
     return train_many(
         lambda length: PSAMPDFA.create(
-            num_input_channels=4, num_psams=4, two_r=8, num_states=num_states
+            num_input_channels=4,
+            num_psams=4,
+            two_r=8,
+            num_states=num_states,
+            pdfa_typ=pdfa_typ,
         ),
         count,
         seed=seed,

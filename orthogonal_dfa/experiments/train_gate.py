@@ -15,6 +15,7 @@ from torch import nn
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.module.residual_gate import ResidualGate
 from orthogonal_dfa.oracle.run_model import create_dataset
+from orthogonal_dfa.utils.pdfa import to_dfa_for_viz
 
 
 def training_data(
@@ -310,7 +311,7 @@ def plot_pdfa(gate):
         ax_psam.set_xticks([])
 
     # PDFA diagram - full width below PSAMs
-    pdfa = gate.phi.pdfa.to_dfa_for_viz(0.1)
+    pdfa = to_dfa_for_viz(gate.phi.pdfa.initialized, 0.1)
     graph = pdfa.show_diagram()
     ax_pdfa = fig.add_subplot(gs[psam_rows, :])
     ax_pdfa.imshow(plt.imread(io.BytesIO(graph.draw(format="png"))))
