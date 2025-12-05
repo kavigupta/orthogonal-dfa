@@ -188,13 +188,29 @@ def evaluate(
             device=next(gate.parameters()).device,
         )
         with torch.no_grad():
-            y_pred = gate.compute_input(x, y_targ)
+            y_pred = compute_input_batched(gate, x, y_targ, batch_size=1000)
             eval_loss_control = loss(y, y_targ).item()
             eval_loss = loss(y, y_pred).item()
     finally:
         if is_training:
             gate.train()
     return eval_loss, eval_loss_control
+
+
+def compute_input_batched(
+    gate: ResidualGate,
+    x: torch.Tensor,
+    y_targ: torch.Tensor,
+    batch_size: int,
+):
+    assert not gate.training, "Gate must be in eval mode"
+    with torch.no_grad():
+        assert x.shape[0] == y_targ.shape[0]
+        results = [
+            gate.compute_input(x[i : i + batch_size], y_targ[i : i + batch_size])
+            for i in range(0, x.shape[0], batch_size)
+        ]
+    return torch.cat(results, dim=0)
 
 
 def train_multiple(
