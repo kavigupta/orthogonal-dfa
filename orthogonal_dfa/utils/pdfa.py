@@ -208,26 +208,44 @@ def hyperbolic_softmax(logits, dim=0):
     return x / x_sum
 
 
-class PDFAHyberbolicParameterization(PDFA):
+class PDFAHyberbolicParameterization(nn.Module):
 
-    def __init__(self, *args, **kwargs):
+    @classmethod
+    def create(cls, input_channels, num_states):
+        return cls(
+            torch.randn((num_states,)),
+            torch.randn((num_states, input_channels, num_states)),
+            torch.randn((num_states,)),
+        )
+
+    def __init__(
+        self,
+        invh_initial_state_probs,
+        invh_transition_probs,
+        invh_accepting_state_probs,
+    ):
         """
-        A PDFA with hyperbolic parameterization to encourage sparsity in the transition probabilities.
+        A probabilistic DFA with uniform initial state distribution and uniform transition probabilities.
         """
-        super().__init__(*args, **kwargs)
-        self.type = "PDFAHyberbolicParameterization"
+        super().__init__()
+        self.invh_initial_state_probs = nn.Parameter(invh_initial_state_probs)
+        self.invh_transition_probs = nn.Parameter(invh_transition_probs)
+        self.invh_accepting_state_probs = nn.Parameter(invh_accepting_state_probs)
 
     @property
     def initialized(self) -> InitializedPDFA:
         return InitializedPDFA(
             initial_state_probs=hyperbolic_softmax(
-                self.logit_initial_state_probs, dim=0
+                self.invh_initial_state_probs, dim=0
             ),
-            transition_probs=hyperbolic_softmax(self.logit_transition_probs, dim=2),
+            transition_probs=hyperbolic_softmax(self.invh_transition_probs, dim=2),
             accepting_state_logprobs=torch.log(
-                hyperbolic_sigmoid(self.logit_accepting_state_probs)
+                hyperbolic_sigmoid(self.invh_accepting_state_probs)
             ),
         )
+
+    def forward(self, log_input_probs):
+        return pdfa_forward(self.initialized, torch.exp(log_input_probs))[None]
 
 
 def to_dfa_for_viz(ipdfa: InitializedPDFA, noise_floor: float) -> DFA:

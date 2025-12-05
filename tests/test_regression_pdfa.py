@@ -3,6 +3,7 @@ import unittest
 import torch
 from permacache import stable_hash
 
+from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 from orthogonal_dfa.utils.pdfa import PDFA, PDFAHyberbolicParameterization
 
 
@@ -43,4 +44,20 @@ class TestPDFARegression(unittest.TestCase):
         pdfa1 = PDFA.create(10, 4)
         torch.manual_seed(0)
         pdfa2 = PDFAHyberbolicParameterization.create(10, 4)
+        self.assertNotEqual(
+            stable_hash(pdfa1.initialized), stable_hash(pdfa2.initialized)
+        )
+        self.assertNotEqual(stable_hash(pdfa1), stable_hash(pdfa2))
+        x = torch.rand(3, 10, 10)
+        y1 = pdfa1(x)
+        y2 = pdfa2(x)
+        self.assertTrue(y1.isfinite().all())
+        self.assertTrue(y2.isfinite().all())
+        self.assertNotEqual(stable_hash(y1), stable_hash(y2))
+
+    def test_different_hashes_psampdfa(self):
+        torch.manual_seed(0)
+        pdfa1 = PSAMPDFA.create(10, 4, 10, 4)
+        torch.manual_seed(0)
+        pdfa2 = PSAMPDFA.create(10, 4, 10, 4, pdfa_typ=PDFAHyberbolicParameterization)
         self.assertNotEqual(stable_hash(pdfa1), stable_hash(pdfa2))
