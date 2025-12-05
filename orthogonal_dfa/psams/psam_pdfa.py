@@ -12,7 +12,7 @@ from orthogonal_dfa.utils.pdfa import PDFA
 class PSAMPDFA(nn.Module):
 
     @classmethod
-    def create(cls, num_input_channels, num_psams, two_r, num_states):
+    def create(cls, num_input_channels, num_psams, two_r, num_states, *, pdfa_typ=PDFA):
         """
         Creates a PSAM-PDFA model with randomly initialized parameters.
 
@@ -25,7 +25,7 @@ class PSAMPDFA(nn.Module):
         psam = TorchPSAMs.create(
             two_r=two_r, channels=num_input_channels, num_psams=num_psams
         )
-        pdfa = PDFA.create(input_channels=num_psams + 1, num_states=num_states)
+        pdfa = pdfa_typ.create(input_channels=num_psams + 1, num_states=num_states)
         return cls(psam, pdfa)
 
     def __init__(self, psam: nn.Module, pdfa: nn.Module):

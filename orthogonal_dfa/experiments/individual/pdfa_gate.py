@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 
 from orthogonal_dfa.experiments.gate_experiments import train_psam_linear, train_psamdfa
+from orthogonal_dfa.utils.pdfa import PDFA, PDFAHyberbolicParameterization
 
 
 def main():
@@ -31,6 +32,13 @@ def main():
         help="Number of states for the PDFA.",
     )
 
+    parser.add_argument(
+        "--pdfa-typ",
+        choices=["PDFA", "PDFAHyberbolicParameterization"],
+        default="PDFA",
+        help="Type of PDFA to use.",
+    )
+
     args = parser.parse_args()
     seed = args.seed
 
@@ -42,7 +50,18 @@ def main():
     else:
         raise ValueError("Must specify --build-on")
 
-    train_psamdfa(baselines, seed=seed, count=args.count, num_states=args.num_states)
+    pdfa_typ = {
+        "PDFA": PDFA,
+        "PDFAHyberbolicParameterization": PDFAHyberbolicParameterization,
+    }[args.pdfa_typ]
+
+    train_psamdfa(
+        baselines,
+        seed=seed,
+        count=args.count,
+        num_states=args.num_states,
+        pdfa_typ=pdfa_typ,
+    )
 
 
 if __name__ == "__main__":
