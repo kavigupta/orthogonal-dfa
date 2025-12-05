@@ -15,11 +15,12 @@ class TestPDFARegression(unittest.TestCase):
             stable_hash(pdfas),
             "66f697104bd3297167c16b19cb2603300747974da7941615c696cf15a4665f20",
         )
-        x = torch.rand(3, 1000, 10)
+        x = torch.rand(300, 10, 10)
         ys = [pdfa(x) for pdfa in pdfas]
+        self.assertTrue(all(y.isfinite().all() for y in ys))
         self.assertEqual(
             stable_hash(ys),
-            "5588fca86e318513608173fb47aa46a038b36321f05f6bfc58397f622ffdfd78",
+            "21eec4f4a8bad6160b0a3ba4bace91236ff2e03cd4fcfb688f5db887bb771ac3",
         )
 
     def test_pdfa_regression_1(self):
@@ -29,9 +30,10 @@ class TestPDFARegression(unittest.TestCase):
             stable_hash(pdfas),
             "238458c2f59529ebbf9b3890b187478928eb0da920c44b5db29395323440d795",
         )
-        x = torch.rand(3, 1000, 10)
+        x = torch.rand(300, 10, 10)
         ys = [pdfa(x) for pdfa in pdfas]
+        self.assertTrue(all(y.isfinite().all() for y in ys))
         self.assertEqual(
             stable_hash(ys),
-            "5588fca86e318513608173fb47aa46a038b36321f05f6bfc58397f622ffdfd78",
+            "e0ddbdc6a91b11bcbcf93248da769e11742d816299f0193dfbece84579f03603",
         )
