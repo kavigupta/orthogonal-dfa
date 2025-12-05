@@ -3,8 +3,6 @@ import unittest
 import torch
 from permacache import stable_hash
 
-from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_dfa
-from orthogonal_dfa.utils.dfa import hash_dfa
 from orthogonal_dfa.utils.pdfa import PDFA
 
 
