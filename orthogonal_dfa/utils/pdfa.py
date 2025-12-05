@@ -171,26 +171,6 @@ class PDFA(nn.Module):
             logit_accepting_state_probs,
         )
 
-    def entropy(self, weight_initial=1.0, weight_transition=5.0, weight_accepting=1.0):
-        """
-        Computes the entropy of the PDFA's parameters.
-
-        :param weight_initial: float, weight for the initial state probabilities entropy.
-        :param weight_transition: float, weight for the transition probabilities entropy.
-        :param weight_accepting: float, weight for the accepting state probabilities entropy.
-        :return: float, weighted sum of entropies of the PDFA's parameters.
-        """
-        log_initial_probs = entropy_of_logits(self.logit_initial_state_probs)
-        log_transition_probs = entropy_of_logits(
-            self.logit_transition_probs, dim=2
-        ).mean()
-        log_accepting_probs = entropy_of_logits(self.logit_accepting_state_probs)
-        return (
-            weight_initial * log_initial_probs
-            + weight_transition * log_transition_probs
-            + weight_accepting * log_accepting_probs
-        ) / (weight_initial + weight_transition + weight_accepting)
-
     def __init__(
         self,
         logit_initial_state_probs,
