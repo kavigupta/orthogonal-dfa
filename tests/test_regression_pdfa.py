@@ -19,8 +19,8 @@ class TestPDFARegression(unittest.TestCase):
         ys = [pdfa(x) for pdfa in pdfas]
         self.assertTrue(all(y.isfinite().all() for y in ys))
         self.assertEqual(
-            stable_hash(ys),
-            "21eec4f4a8bad6160b0a3ba4bace91236ff2e03cd4fcfb688f5db887bb771ac3",
+            stable_hash([y.detach().numpy().tolist() for y in ys]),
+            "83eba1743552ef9e745ba14236085b47094676165c57e95585057051da892ed5",
         )
 
     def test_pdfa_regression_1(self):
@@ -34,6 +34,6 @@ class TestPDFARegression(unittest.TestCase):
         ys = [pdfa(x) for pdfa in pdfas]
         self.assertTrue(all(y.isfinite().all() for y in ys))
         self.assertEqual(
-            stable_hash(ys),
-            "e0ddbdc6a91b11bcbcf93248da769e11742d816299f0193dfbece84579f03603",
+            stable_hash([y.detach().numpy().tolist() for y in ys]),
+            "4c427cf4337a1f3fdf6eeae6bfe0f39e370dd5de090b7f8badfabd67cf0af2a0",
         )
