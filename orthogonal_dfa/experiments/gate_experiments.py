@@ -59,7 +59,11 @@ def train_psam_linear(count=11):
     return train_many(lambda length: PSAMsFollowedByLinear(4, 1, 9, length), count)
 
 
-def train_psamdfa(starting_gates, *, seed=0, count=1, num_states=4, pdfa_typ=PDFA):
+def train_psamdfa(
+    starting_gates, *, seed=0, count=1, num_states=4, pdfa_typ=PDFA, epochs=None
+):
+    if epochs is None:
+        epochs = 2000 if not starting_gates else 4000
     return train_many(
         lambda length: PSAMPDFA.create(
             num_input_channels=4,
@@ -71,7 +75,7 @@ def train_psamdfa(starting_gates, *, seed=0, count=1, num_states=4, pdfa_typ=PDF
         count,
         seed=seed,
         starting_gates=starting_gates,
-        epochs=2000 if not starting_gates else 4000,
+        epochs=epochs,
     )
 
 

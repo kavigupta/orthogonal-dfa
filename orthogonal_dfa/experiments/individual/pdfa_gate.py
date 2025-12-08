@@ -39,6 +39,13 @@ def main():
         help="Type of PDFA to use.",
     )
 
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Number of epochs to train each PDFA for.",
+    )
+
     args = parser.parse_args()
     seed = args.seed
 
@@ -61,6 +68,7 @@ def main():
         count=args.count,
         num_states=args.num_states,
         pdfa_typ=pdfa_typ,
+        epochs=args.epochs,
     )
 
 
