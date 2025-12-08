@@ -36,7 +36,7 @@ def training_data(
             not gate.training
         ), "Prior gates must be in eval mode during data generation"
         with torch.no_grad():
-            y_targ = gate.compute_input(x, y_targ)
+            y_targ = compute_input_batched(gate, x, y_targ, batch_size=1000)
     return x, y, y_targ
 
 
