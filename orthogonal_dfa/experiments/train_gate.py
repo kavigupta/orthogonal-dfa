@@ -6,6 +6,7 @@ from typing import List
 
 import numpy as np
 import torch
+import tqdm.auto as tqdm
 from matplotlib import gridspec
 from matplotlib import pyplot as plt
 from permacache import drop_if_equal, permacache, stable_hash
@@ -167,6 +168,7 @@ def train_for_an_epoch(
         prev_gates=lambda x: tuple(stable_hash(g) for g in x),
         gate=stable_hash,
     ),
+    multiprocess_safe=True,
 )
 def evaluate(
     exon: RawExon,
@@ -226,8 +228,7 @@ def train_multiple(
 ):
     trained_gates = [*starting_gates]
     all_losses = []
-    for i, gate in enumerate(gates):
-        print(f"Training gate {i+1}/{len(gates)}")
+    for i, gate in enumerate(tqdm.tqdm(gates, desc="Training Gates", delay=10)):
         gate, losses = train(
             gate,
             lr,
