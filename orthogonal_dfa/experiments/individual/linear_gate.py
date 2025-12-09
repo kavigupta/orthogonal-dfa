@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 
 from orthogonal_dfa.experiments.gate_experiments import train_psam_linear_on_others
-from orthogonal_dfa.utils.pdfa import PDFA, PDFAHyberbolicParameterization
 
 
 def main():
