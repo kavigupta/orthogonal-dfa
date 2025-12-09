@@ -5,7 +5,11 @@ import torch
 from orthogonal_dfa.baseline import MonolithicLinearLayer, PSAMsFollowedByLinear
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.experiments.train_from_scratch import oracle
-from orthogonal_dfa.experiments.train_gate import evaluate_multiple, train_multiple
+from orthogonal_dfa.experiments.train_gate import (
+    evaluate_multiple,
+    train_multiple,
+    train_multiple_with_alternates,
+)
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 from orthogonal_dfa.utils.pdfa import PDFA
@@ -16,7 +20,9 @@ def _clear_tensors():
     torch.cuda.empty_cache()
 
 
-def train_many(constructor, count, *, seed=0, starting_gates=(), epochs=500):
+def train_many(
+    constructor, count, *, seed=0, starting_gates=(), epochs=500, num_alternates=None
+):
     torch.manual_seed(seed)
     gates = [
         InputMonotonicModelingGate(
@@ -29,7 +35,10 @@ def train_many(constructor, count, *, seed=0, starting_gates=(), epochs=500):
         ).cuda()
         for _ in range(count)
     ]
-    gates_trained, loss = train_multiple(
+    kwargs = {"num_alternates": num_alternates} if num_alternates is not None else {}
+    gates_trained, loss = (
+        train_multiple_with_alternates if num_alternates is not None else train_multiple
+    )(
         gates,
         1e-4,
         default_exon,
@@ -40,6 +49,7 @@ def train_many(constructor, count, *, seed=0, starting_gates=(), epochs=500):
         seed=seed,
         do_not_train_phi=False,
         starting_gates=starting_gates,
+        **kwargs,
     )
 
     _clear_tensors()
@@ -55,8 +65,27 @@ def train_mll(count=5):
     return train_many(lambda length: MonolithicLinearLayer(4, length), count)
 
 
+def train_psam_linear_with_alternates(length):
+    return train_many(
+        lambda l: PSAMsFollowedByLinear(4, 1, 9, l),
+        length,
+        num_alternates=3,
+        epochs=2000,
+    )
+
+
 def train_psam_linear(count=11):
     return train_many(lambda length: PSAMsFollowedByLinear(4, 1, 9, length), count)
+
+
+def train_psam_linear_on_others(prev_count, seed):
+    return train_many(
+        lambda length: PSAMsFollowedByLinear(4, 1, 9, length),
+        1,
+        seed=seed,
+        starting_gates=train_psam_linear(prev_count)[0],
+        epochs=2000,
+    )
 
 
 def train_psamdfa(
