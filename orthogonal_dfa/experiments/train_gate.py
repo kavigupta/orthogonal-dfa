@@ -107,7 +107,7 @@ def train_direct(
             do_not_train_phi=do_not_train_phi,
         )
         print(
-            f"{datetime.now().isoformat()} Epoch {epoch+1}/{epochs}, Loss: {np.mean(epoch_loss):.4f}"
+            f"{datetime.now().isoformat()} Epoch {epoch + start_epoch+1}/{epochs}, Loss: {np.mean(epoch_loss):.4f}"
         )
         results.append(epoch_loss)
     return gate, results
@@ -240,6 +240,55 @@ def train_multiple(
         )
         trained_gates.append(gate.eval())
         all_losses.append(losses)
+    return trained_gates, all_losses
+
+
+def train_multiple_with_alternates(
+    gates: List[ResidualGate],
+    lr: float,
+    exon: RawExon,
+    oracle,
+    *,
+    num_alternates,
+    starting_gates=(),
+    seed,
+    **kwargs,
+):
+    trained_gates = [*starting_gates]
+    all_losses = []
+    for i, gate in enumerate(tqdm.tqdm(gates, desc="Training Gates", delay=10)):
+        alternates = []
+        alternates_losses = []
+        for alt in range(num_alternates):
+            gate_alt, losses = train(
+                gate,
+                lr,
+                exon,
+                oracle,
+                trained_gates,
+                **kwargs,
+                seed=int(stable_hash((seed, i, "alt", alt)), 16) % (2**32 - 1),
+            )
+            alternates.append(gate_alt.eval())
+            alternates_losses.append(losses)
+        results_each = np.array(
+            [
+                evaluate(
+                    exon,
+                    oracle,
+                    trained_gates,
+                    alt_gate,
+                    count=100_000,
+                    seed=int(stable_hash((seed, i, "alt", alt, "eval")), 16)
+                    % (2**32 - 1),
+                )
+                for alt, alt_gate in enumerate(alternates)
+            ]
+        )
+        results_each = results_each[:, 1] - results_each[:, 0]
+        best_index = np.argmax(results_each)
+        trained_gates.append(alternates[best_index])
+        all_losses.append(alternates_losses[best_index])
     return trained_gates, all_losses
 
 
