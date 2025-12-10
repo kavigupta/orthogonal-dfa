@@ -1,3 +1,4 @@
+# pylint: disable=duplicated-code
 import argparse
 
 from orthogonal_dfa.experiments.gate_experiments import train_rnn_direct
