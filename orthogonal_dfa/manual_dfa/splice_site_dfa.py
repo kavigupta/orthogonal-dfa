@@ -1,12 +1,7 @@
 import copy
 
 import torch
-from permacache import stable_hash
 
-from orthogonal_dfa.oracle.evaluate import (
-    conditional_mutual_information_from_log_confusion,
-    evaluate_pdfas,
-)
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 from orthogonal_dfa.spliceai.best_psams_for_lssi import train_psams_for_splice_site
 from orthogonal_dfa.utils.pdfa import PDFA
@@ -55,11 +50,3 @@ def splice_site_psam_pdfa(which, logit_p_t):
         psams,
         splice_site_pdfa(4, p_t, ZeroProbability(1e-7)),
     ).cuda()
-
-
-def evaluate(exon, oracle, model):
-    return conditional_mutual_information_from_log_confusion(
-        evaluate_pdfas(
-            exon, model, [], oracle, seed=int(stable_hash("evaluate-psam-pdfa"), 16)
-        )
-    )[0]
