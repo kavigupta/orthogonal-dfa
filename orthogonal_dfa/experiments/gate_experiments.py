@@ -23,7 +23,14 @@ def _clear_tensors():
 
 
 def train_many(
-    constructor, count, *, seed=0, starting_gates=(), epochs=500, num_alternates=None
+    constructor,
+    count,
+    *,
+    seed=0,
+    starting_gates=(),
+    epochs=500,
+    num_alternates=None,
+    lr=1e-4,
 ):
     torch.manual_seed(seed)
     gates = [
@@ -42,7 +49,7 @@ def train_many(
         train_multiple_with_alternates if num_alternates is not None else train_multiple
     )(
         gates,
-        1e-4,
+        lr,
         default_exon,
         oracle(),
         epochs=epochs,
@@ -116,6 +123,7 @@ def train_rnn_direct(seed):
         1,
         seed=seed,
         epochs=2000,
+        lr=1e-5,
     )
 
 
@@ -129,6 +137,7 @@ def train_rnn_psams(seed, neg_log_noise_level):
         1,
         seed=seed,
         epochs=2000,
+        lr=1e-5,
     )
 
 

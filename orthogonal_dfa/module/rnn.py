@@ -1,4 +1,5 @@
 import torch
+from permacache import stable_hash
 from torch import nn
 
 
@@ -28,6 +29,11 @@ class RNNProcessor(nn.Module):
         output = self.linear_out(rnn_out)
         output = output.T
         return output
+
+    def __permacache_hash__(self):
+        return stable_hash(
+            ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
+        )
 
 
 class RNNPSAMProcessorNoise(nn.Module):
