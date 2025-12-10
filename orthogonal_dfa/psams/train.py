@@ -91,12 +91,12 @@ def create_training_dataset(
 
 
 @permacache(
-    "orthogonal_dfa/psams/train/train_psam_pdfa_full_learning_curve_6",
+    "orthogonal_dfa/psams/train/train_psam_pdfa_full_learning_curve_8",
     key_function=dict(
         exon=stable_hash,
-        oracle=stable_hash,
-        starting_psam_pdfa=stable_hash,
-        baseline_psam_pdfas=stable_hash,
+        oracle=lambda o: stable_hash(o, version=2),
+        starting_psam_pdfa=lambda o: stable_hash(o, version=2),
+        baseline_psam_pdfas=lambda o: stable_hash(o, version=2),
         val_every=drop_if_equal(100),
         train_dataset_size=drop_if_equal(10_000),
     ),

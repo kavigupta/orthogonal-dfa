@@ -6,8 +6,8 @@ from permacache import permacache, stable_hash
 
 
 @permacache(
-    "orthogonal_dfa/spliceai/evaluate_lssi/evaluate_lssi",
-    key_function=dict(model=stable_hash),
+    "orthogonal_dfa/spliceai/evaluate_lssi/evaluate_lssi_4",
+    key_function=dict(model=lambda x: stable_hash(x, version=2)),
 )
 def evaluate_lssi(model, padding, which_channel):
     batch_size = 128

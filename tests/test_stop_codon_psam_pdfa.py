@@ -132,9 +132,10 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
             stable_hash(
                 TorchPSAMs.from_literal_strings(
                     "TAG", "TAA", "TGA", zero_prob=ZeroProbability(1e-7)
-                )
+                ),
+                version=2,
             ),
-            "5508bf90427b797de11e1924880d3d9f5001c8a30c43085d32f449c49bf5d87b",
+            "52c20bff54dba5435c318df281ef99c5e4a10939740af1e1a33875bdff4cd8f3",
         )
 
     def test_hash_psams_2(self):
@@ -142,9 +143,10 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
             stable_hash(
                 TorchPSAMs.from_literal_strings(
                     "TAG", "TAA", zero_prob=ZeroProbability(1e-7)
-                )
+                ),
+                version=2,
             ),
-            "8bb1091b617dbbf2162d2e08e7110ea8e6ce656474644e80127cb732e2792161",
+            "546d7580166e97bda3dbc1ffd64ae8ea1c00f918a4d69593dcc9ae97fa4eb778",
         )
 
     def test_hash_psams_3(self):
@@ -152,17 +154,21 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
             stable_hash(
                 TorchPSAMs.from_literal_strings(
                     "TAG", "TAA", zero_prob=ZeroProbability(1e-3)
-                )
+                ),
+                version=2,
             ),
-            "a79563cd7be29cf9089dbfa7d77fc092c9198891c0b7e7cedb75017dd793930a",
+            "de160938689ba94bca440ffc6f48f50d69024305c964814d4a8dae20076bddb1",
         )
 
     def test_hash_psam_pdfa_1(self):
         self.assertEqual(
             stable_hash(
-                stop_codon_psamdfa("TAG", "TAA", "TGA", zero_prob=ZeroProbability(1e-7))
+                stop_codon_psamdfa(
+                    "TAG", "TAA", "TGA", zero_prob=ZeroProbability(1e-7)
+                ),
+                version=2,
             ),
-            "52d4385405c43e920648e152f98cc9fcd3d91de9cf9f12e432c94383f7804a3b",
+            "ff4e33fb631d0559293adfc1c366d203db9440f951c6f3b85a48c1d2ce905e9c",
         )
 
     def test_hash_psam_pdfa_2(self):
@@ -174,9 +180,10 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
                     "TGA",
                     zero_prob=ZeroProbability(1e-7),
                     phase_agnostic=True,
-                )
+                ),
+                version=2,
             ),
-            "d7b25e324e771ca212271915a4dbdb1081e8ed1e5ea9502326a78b7f807e8853",
+            "02ccb1c9225ce96615f3b5e5ae738cc893a9a7efbd96deec14292745f8e73581",
         )
 
     def test_hash_psam_pdfa_3(self):
@@ -188,7 +195,8 @@ class TestStopCodonPSAMPDFA(unittest.TestCase):
                     "TGA",
                     zero_prob=ZeroProbability(1e-3),
                     phase_agnostic=True,
-                )
+                ),
+                version=2,
             ),
-            "9c8000a2e631e0e7f477d49e06d6738cd468bec92a64fa44a2d4aeea01487da1",
+            "2ae5638e5f5a2cbc465637c500e93d9ab558c8eb0aa6b10c3bf798fc30759d9f",
         )
