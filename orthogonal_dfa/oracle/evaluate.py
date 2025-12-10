@@ -158,9 +158,11 @@ def conditional_mutual_information_from_log_confusion(log_confusion):
 
 
 @permacache(
-    "orthogonal_dfa/oracle/evaluate/evaluate_pdfas_3",
+    "orthogonal_dfa/oracle/evaluate/evaluate_pdfas_5",
     key_function=dict(
-        dfas_to_test=stable_hash, dfas_control=stable_hash, model=stable_hash
+        dfas_to_test=lambda x: stable_hash(x, version=2),
+        dfas_control=lambda x: stable_hash(x, version=2),
+        model=lambda x: stable_hash(x, version=2),
     ),
 )
 def evaluate_pdfas(

@@ -48,12 +48,12 @@ def loss(y, y_targ):
 
 
 @permacache(
-    "orthogonal_dfa/expriments/train_gate/train_2",
+    "orthogonal_dfa/expriments/train_gate/train_4",
     key_function=dict(
-        gate=stable_hash,
+        gate=lambda x: stable_hash(x, version=2),
         exon=stable_hash,
-        oracle=stable_hash,
-        prev_gates=lambda x: tuple(stable_hash(g) for g in x),
+        oracle=lambda x: stable_hash(x, version=2),
+        prev_gates=lambda x: tuple(stable_hash(g, version=2) for g in x),
         start_epoch=drop_if_equal(0),
     ),
     multiprocess_safe=True,
@@ -161,12 +161,12 @@ def train_for_an_epoch(
 
 
 @permacache(
-    "orthogonal_dfa/experiments/train_gate/evaluate_2",
+    "orthogonal_dfa/experiments/train_gate/evaluate_4",
     key_function=dict(
         exon=stable_hash,
-        oracle=stable_hash,
-        prev_gates=lambda x: tuple(stable_hash(g) for g in x),
-        gate=stable_hash,
+        oracle=lambda x: stable_hash(x, version=2),
+        prev_gates=lambda x: tuple(stable_hash(g, version=2) for g in x),
+        gate=lambda x: stable_hash(x, version=2),
     ),
     multiprocess_safe=True,
 )

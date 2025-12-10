@@ -34,7 +34,8 @@ def run_model(exon, model, arr):
 
 @permacache(
     "orthogonal_dfa/oracle/run_model/create_dataset_just_output_2",
-    key_function=dict(model=stable_hash),
+    # using legacy hashing here because this is just for the spliceai models
+    key_function=dict(model=lambda model: stable_hash(model, version=1)),
     multiprocess_safe=True,
 )
 def create_dataset_just_output(exon, model, *, count, seed):
