@@ -26,7 +26,7 @@ setuptools.setup(
         "coloraide",
         "h5py==3.15.1",
         "scikit-learn==1.5.1",
-        "permacache==5.0.0",
+        "permacache==5.0.1",
     ],
     # documentation
     project_urls={
