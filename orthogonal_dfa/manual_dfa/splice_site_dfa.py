@@ -50,4 +50,3 @@ def splice_site_psam_pdfa(which, logit_p_t):
         psams,
         splice_site_pdfa(4, p_t, ZeroProbability(1e-7)),
     ).cuda()
-
