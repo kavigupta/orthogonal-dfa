@@ -63,7 +63,9 @@ class TestPDFARegression(unittest.TestCase):
             stable_hash(pdfa1.initialized, version=2),
             stable_hash(pdfa2.initialized, version=2),
         )
-        self.assertNotEqual(stable_hash(pdfa1, version=2), stable_hash(pdfa2, version=2))
+        self.assertNotEqual(
+            stable_hash(pdfa1, version=2), stable_hash(pdfa2, version=2)
+        )
         x = torch.rand(3, 10, 10)
         y1 = pdfa1(x)
         y2 = pdfa2(x)
