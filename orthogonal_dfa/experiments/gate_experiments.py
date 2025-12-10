@@ -11,7 +11,9 @@ from orthogonal_dfa.experiments.train_gate import (
     train_multiple_with_alternates,
 )
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
+from orthogonal_dfa.module.rnn import RNNProcessor, RNNPSAMProcessorNoise
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
+from orthogonal_dfa.psams.psams import TorchPSAMs
 from orthogonal_dfa.utils.pdfa import PDFA
 
 
@@ -105,6 +107,28 @@ def train_psamdfa(
         seed=seed,
         starting_gates=starting_gates,
         epochs=epochs,
+    )
+
+
+def train_rnn_direct(seed):
+    return train_many(
+        lambda length: RNNProcessor(num_inputs=4, hidden_size=100, num_layers=2).cuda(),
+        1,
+        seed=seed,
+        epochs=2000,
+    )
+
+
+def train_rnn_psams(seed, neg_log_noise_level):
+    return train_many(
+        lambda length: RNNPSAMProcessorNoise(
+            TorchPSAMs.create(two_r=8, channels=4, num_psams=4),
+            RNNProcessor(num_inputs=4, hidden_size=100, num_layers=2).cuda(),
+            noise_level=10 ** (-neg_log_noise_level),
+        ),
+        1,
+        seed=seed,
+        epochs=2000,
     )
 
 
