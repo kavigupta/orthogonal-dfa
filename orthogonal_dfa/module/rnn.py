@@ -36,6 +36,35 @@ class RNNProcessor(nn.Module):
         )
 
 
+class LSTMProcessor(nn.Module):
+    def __init__(self, num_inputs, hidden_size, num_layers=1, use_last_state=True):
+        super().__init__()
+        self.rnn = nn.LSTM(
+            input_size=num_inputs,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            bidirectional=False,
+            batch_first=True,
+        )
+        self.linear_out = nn.Linear(hidden_size * (2 if use_last_state else 1), 1)
+        self.use_last_state = use_last_state
+
+    def forward(self, x):
+        rnn_out, (h, c) = self.rnn(x)
+        if self.use_last_state:
+            rnn_out = torch.cat([h, c], dim=2)[-1]
+        else:
+            rnn_out = rnn_out[:, -1, :]
+        output = self.linear_out(rnn_out)
+        output = output.T
+        return output
+
+    def __permacache_hash__(self):
+        return stable_hash(
+            ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
+        )
+
+
 class RNNPSAMProcessorNoise(nn.Module):
     def __init__(self, psams, rnn, *, noise_level):
         """
