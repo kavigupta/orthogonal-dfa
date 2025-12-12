@@ -102,13 +102,15 @@ class Monotonic1D(nn.Module):
     :param num_input_breaks: int, the number of breaks to use in the piecewise linear function.
     """
 
-    def __init__(self, max_z_abs: float, num_input_breaks: int):
+    def __init__(self, max_z_abs: float, num_input_breaks: int, batch_norm=True):
         super().__init__()
         self.max_z_abs = max_z_abs
         self.monotonic_fixed = Monotonic1DFixedRange(
             input_range=max_z_abs, num_input_breaks=num_input_breaks
         )
-        self.batch_norm = nn.BatchNorm1d(1, affine=False)
+        self.batch_norm = (
+            nn.BatchNorm1d(1, affine=False) if batch_norm else nn.Identity()
+        )
         self.output_m = nn.Parameter(torch.tensor(1.0))
         self.output_b = nn.Parameter(torch.tensor(0.0))
 
