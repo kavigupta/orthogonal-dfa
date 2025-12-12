@@ -31,6 +31,8 @@ def train_many(
     epochs=500,
     num_alternates=None,
     lr=1e-4,
+    batch_norm=True,
+    **kwargs,
 ):
     torch.manual_seed(seed)
     gates = [
@@ -41,10 +43,12 @@ def train_many(
             constructor(default_exon.random_text_length),
             5,
             100,
+            batch_norm=batch_norm,
         ).cuda()
         for _ in range(count)
     ]
-    kwargs = {"num_alternates": num_alternates} if num_alternates is not None else {}
+    if num_alternates is not None:
+        kwargs["num_alternates"] = num_alternates
     gates_trained, loss = (
         train_multiple_with_alternates if num_alternates is not None else train_multiple
     )(

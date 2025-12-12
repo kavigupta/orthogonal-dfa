@@ -43,11 +43,14 @@ class InputMonotonicModelingGate(ResidualGate, nn.Module):
     I.e., r_next = r_prev + monotonic(phi)
     """
 
-    def __init__(self, phi: nn.Module, max_z_abs: float, num_input_breaks: int):
+    def __init__(
+        self, phi: nn.Module, max_z_abs: float, num_input_breaks: int, batch_norm=True
+    ):
         super().__init__()
         self.monotonic = Monotonic1D(
             max_z_abs=max_z_abs,
             num_input_breaks=num_input_breaks,
+            batch_norm=batch_norm,
         )
         self.phi = phi
 
