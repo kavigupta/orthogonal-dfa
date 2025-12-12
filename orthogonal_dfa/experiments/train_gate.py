@@ -216,6 +216,49 @@ def compute_input_batched(
     return torch.cat(results, dim=0)
 
 
+def train_with_possible_finetuning(
+    gate: ResidualGate,
+    lr: float,
+    exon: RawExon,
+    oracle,
+    prev_gates: List[ResidualGate],
+    *,
+    finetune_epochs: int = 0,
+    finetune_lr_multiplier: float = 1,
+    train_count,
+    batch_size,
+    **kwargs,
+):
+    gate_trained, losses = train(
+        gate,
+        lr,
+        exon,
+        oracle,
+        prev_gates,
+        train_count=train_count,
+        batch_size=batch_size,
+        **kwargs,
+    )
+    if finetune_epochs == 0:
+        return gate_trained, losses
+    gate_trained_finetuned, finetune_losses = train(
+        gate_trained,
+        finetune_lr_multiplier * lr,
+        exon,
+        oracle,
+        prev_gates,
+        epochs=finetune_epochs,
+        train_count=train_count,
+        batch_size=batch_size,
+        new_data_every_epoch=None,
+        seed=int(stable_hash(("finetune", stable_hash(gate_trained, version=2))), 16)
+        % (2**32 - 1),
+        do_not_train_phi=True,
+    )
+    losses.extend(finetune_losses)
+    return gate_trained_finetuned, losses
+
+
 def train_multiple(
     gates: List[ResidualGate],
     lr: float,
@@ -229,7 +272,7 @@ def train_multiple(
     trained_gates = [*starting_gates]
     all_losses = []
     for i, gate in enumerate(tqdm.tqdm(gates, desc="Training Gates", delay=10)):
-        gate, losses = train(
+        gate, losses = train_with_possible_finetuning(
             gate,
             lr,
             exon,

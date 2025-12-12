@@ -128,6 +128,7 @@ def train_rnn_direct(seed):
         seed=seed,
         epochs=2000,
         lr=1e-5,
+        finetune_epochs=50,
     )
 
 
@@ -142,6 +143,7 @@ def train_rnn_psams(seed, neg_log_noise_level):
         seed=seed,
         epochs=2000,
         lr=1e-5,
+        finetune_epochs=50,
     )
 
 
