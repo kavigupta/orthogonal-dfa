@@ -53,7 +53,10 @@ def create_dataset(exon, model, *, count, seed):
     return random, hard_targets
 
 
-@permacache("orthogonal_dfa/oracle/evaluate/calibrate")
+@permacache(
+    "orthogonal_dfa/oracle/evaluate/calibrate",
+    key_function=dict(exon=stable_hash, model=lambda m: stable_hash(m, version=2)),
+)
 def calibrate(exon: RawExon, model, count=100_000):
     """
     Returns the fraction of positive predictions on random data.
