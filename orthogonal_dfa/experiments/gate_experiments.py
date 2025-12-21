@@ -121,9 +121,11 @@ def train_psamdfa(
     )
 
 
-def train_rnn_direct(seed):
+def train_rnn_direct(seed, constructor=RNNProcessor, hidden_size=100, layers=2):
     return train_many(
-        lambda length: RNNProcessor(num_inputs=4, hidden_size=100, num_layers=2).cuda(),
+        lambda length: constructor(
+            num_inputs=4, hidden_size=hidden_size, num_layers=layers
+        ).cuda(),
         1,
         seed=seed,
         epochs=2000,
