@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 from permacache import stable_hash
 
@@ -15,9 +15,10 @@ class BernoulliParityOracle(Oracle):
     p_correct: float
     seed: int
     modulo: int = 2
+    allowed_moduluses: Tuple[int] = (0,)
 
     def membership_query(self, string: List[int]) -> bool:
-        correct = sum(string) % self.modulo == 0
+        correct = sum(string) % self.modulo in self.allowed_moduluses
         hash_input = uniform_random((string, self.seed))
         if hash_input < self.p_correct:
             return correct
