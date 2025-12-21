@@ -134,11 +134,13 @@ def train_rnn_direct(seed, constructor=RNNProcessor, hidden_size=100, layers=2):
     )
 
 
-def train_rnn_psams(seed, neg_log_noise_level):
+def train_rnn_psams(seed, neg_log_noise_level, *, hidden_size=100, layers=2):
     return train_many(
         lambda length: RNNPSAMProcessorNoise(
             TorchPSAMs.create(two_r=8, channels=4, num_psams=4),
-            RNNProcessor(num_inputs=4, hidden_size=100, num_layers=2).cuda(),
+            RNNProcessor(
+                num_inputs=4, hidden_size=hidden_size, num_layers=layers
+            ).cuda(),
             noise_level=10 ** (-neg_log_noise_level),
         ),
         1,
