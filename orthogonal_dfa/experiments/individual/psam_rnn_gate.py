@@ -16,8 +16,25 @@ def main():
         type=float,
         help="Negative log noise level for RNNPSAMProcessorNoise.",
     )
+    parser.add_argument(
+        "--hidden-size",
+        type=int,
+        default=100,
+        help="Hidden size of the RNN.",
+    )
+    parser.add_argument(
+        "--layers",
+        type=int,
+        default=2,
+        help="Number of layers in the RNN.",
+    )
     args = parser.parse_args()
-    train_rnn_psams(args.seed, args.neg_log_noise_level)
+    train_rnn_psams(
+        args.seed,
+        args.neg_log_noise_level,
+        hidden_size=args.hidden_size,
+        layers=args.layers,
+    )
 
 
 if __name__ == "__main__":
