@@ -29,11 +29,24 @@ def pdfa_forward(ipdfa: InitializedPDFA, input_probs: torch.Tensor):
 def pdfa_forward_slow(
     initial_state_probs, transition_probs, accepting_state_logprobs, input_probs
 ):
+    return pdfa_forward_slow_get_states(
+        initial_state_probs, transition_probs, accepting_state_logprobs, input_probs
+    )[0]
+
+
+def pdfa_forward_slow_get_states(
+    initial_state_probs,
+    transition_probs,
+    accepting_state_logprobs,
+    input_probs,
+    get_states=False,
+):
     N, L, C = input_probs.shape
     [S] = initial_state_probs.shape
     assert transition_probs.shape == (S, C, S)
     assert accepting_state_logprobs.shape == (S,)
 
+    p_state_each = []
     p_state = initial_state_probs.unsqueeze(0).expand(N, -1)  # (N, num_states)
     for i in range(L):
         # b = batch
@@ -44,11 +57,15 @@ def pdfa_forward_slow(
         p_state = torch.einsum(
             "bp,bc,pcn->bn", p_state, input_probs[:, i, :], transition_probs
         )
+        if get_states:
+            p_state_each.append(p_state)
     log_p_state = torch.log(p_state + 1e-20)  # (N, S)
     log_acceptance = torch.logsumexp(
         log_p_state + accepting_state_logprobs.unsqueeze(0), dim=1
     )  # (N,)
-    return log_acceptance
+    if get_states:
+        return log_acceptance, torch.stack(p_state_each, dim=1)
+    return log_acceptance, p_state_each
 
 
 def batched_iterated_matrix_multiply(matrices):
@@ -196,6 +213,20 @@ class PDFA(nn.Module):
         """
 
         return pdfa_forward(self.initialized, torch.exp(log_input_probs))[None]
+
+    def intermediate_states(self, log_input_probs):
+        """
+        Outputs a list of (N, num_states) tensors of the state distributions after each input symbol.
+        """
+        initialized = self.initialized
+        _, state_distributions = pdfa_forward_slow_get_states(
+            initialized.initial_state_probs,
+            initialized.transition_probs,
+            initialized.accepting_state_logprobs,
+            torch.exp(log_input_probs),
+            get_states=True,
+        )
+        return state_distributions
 
 
 def hyperbolic_sigmoid(x):
