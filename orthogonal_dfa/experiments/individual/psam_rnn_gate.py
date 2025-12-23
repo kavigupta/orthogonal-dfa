@@ -1,6 +1,9 @@
 import argparse
 
-from orthogonal_dfa.experiments.gate_experiments import train_rnn_psams
+from orthogonal_dfa.experiments.gate_experiments import (
+    get_starting_gates,
+    train_rnn_psams,
+)
 
 
 def main():
@@ -28,12 +31,19 @@ def main():
         default=2,
         help="Number of layers in the RNN.",
     )
+    parser.add_argument(
+        "--build-on",
+        choices=["nothing", "psam-linear-alt"],
+        default="nothing",
+        help="What to build the RNNPSAMProcessorNoise on top of.",
+    )
     args = parser.parse_args()
     train_rnn_psams(
         args.seed,
         args.neg_log_noise_level,
         hidden_size=args.hidden_size,
         layers=args.layers,
+        starting_gates=get_starting_gates(args.build_on),
     )
 
 
