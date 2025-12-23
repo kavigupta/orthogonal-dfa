@@ -77,7 +77,7 @@ def train_many(
 def get_starting_gates(which):
     if which == "nothing":
         return []
-    elif which == "psam-linear-alt":
+    if which == "psam-linear-alt":
         pl, _, _ = train_psam_linear_with_alternates(length=10)
         return pl
     raise ValueError(f"Unknown base gates: {which}")
