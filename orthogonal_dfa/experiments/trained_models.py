@@ -25,8 +25,8 @@ class TrainedModels:
 
 @lru_cache(None)
 def gates_psams_orig():
-    gates_psams_orig, _, _ = train_psam_linear(11)
-    return gates_psams_orig
+    gates, _, _ = train_psam_linear(11)
+    return gates
 
 
 r_pdfa = TrainedModels("PDFA", lambda: pdfa_results(10, []))

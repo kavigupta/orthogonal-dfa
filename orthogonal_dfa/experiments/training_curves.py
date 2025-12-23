@@ -37,9 +37,7 @@ def plot_training_curves(results, labels):
         results,
         labels,
     ):
-        for seed, (gate, x, result) in enumerate(
-            zip(r["last_gates"], r["curves"], r["eva"])
-        ):
+        for seed, (x, result) in enumerate(zip(r["curves"], r["eva"])):
             ax.plot(
                 x * 1000,
                 label=f"Seed={seed}: eval={1000 * result:.0f}mb",
