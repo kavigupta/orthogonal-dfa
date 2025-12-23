@@ -39,10 +39,16 @@ class PSAMPDFA(nn.Module):
         self.psam = psam
         self.pdfa = pdfa
 
-    def forward(self, x):
+    def log_input_probs(self, x):
         log_input_probs = self.psam(x)
         log_input_probs = conditional_cascade_log_probs(log_input_probs, axis=-1)
-        return self.pdfa(log_input_probs)
+        return log_input_probs
+
+    def forward(self, x):
+        return self.pdfa(self.log_input_probs(x))
+
+    def intermediate_states(self, x):
+        return self.pdfa.intermediate_states(self.log_input_probs(x))
 
 
 class PSAMPDFAWithTemperature(nn.Module):
