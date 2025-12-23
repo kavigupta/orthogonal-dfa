@@ -74,6 +74,15 @@ def train_many(
     return gates_trained, loss, results
 
 
+def get_starting_gates(which):
+    if which == "nothing":
+        return []
+    elif which == "psam-linear-alt":
+        pl, _, _ = train_psam_linear_with_alternates(length=10)
+        return pl
+    raise ValueError(f"Unknown base gates: {which}")
+
+
 def train_mll(count=5):
     return train_many(lambda length: MonolithicLinearLayer(4, length), count)
 
@@ -121,7 +130,9 @@ def train_psamdfa(
     )
 
 
-def train_rnn_direct(seed, constructor=RNNProcessor, hidden_size=100, layers=2):
+def train_rnn_direct(
+    seed, constructor=RNNProcessor, hidden_size=100, layers=2, starting_gates=()
+):
     return train_many(
         lambda length: constructor(
             num_inputs=4, hidden_size=hidden_size, num_layers=layers
@@ -131,10 +142,13 @@ def train_rnn_direct(seed, constructor=RNNProcessor, hidden_size=100, layers=2):
         epochs=2000,
         lr=1e-5,
         finetune_epochs=50,
+        starting_gates=starting_gates,
     )
 
 
-def train_rnn_psams(seed, neg_log_noise_level, *, hidden_size=100, layers=2):
+def train_rnn_psams(
+    seed, neg_log_noise_level, *, hidden_size=100, layers=2, starting_gates=()
+):
     return train_many(
         lambda length: RNNPSAMProcessorNoise(
             TorchPSAMs.create(two_r=8, channels=4, num_psams=4),
@@ -148,6 +162,7 @@ def train_rnn_psams(seed, neg_log_noise_level, *, hidden_size=100, layers=2):
         epochs=2000,
         lr=1e-5,
         finetune_epochs=50,
+        starting_gates=starting_gates,
     )
 
 

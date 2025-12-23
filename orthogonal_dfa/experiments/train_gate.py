@@ -259,6 +259,17 @@ def train_with_possible_finetuning(
     return gate_trained_finetuned, losses
 
 
+@permacache(
+    "orthogonal_dfa/experiments/train_gate/train_multiple_4",
+    key_function=dict(
+        gates=lambda x: tuple(stable_hash(g, version=2) for g in x),
+        exon=stable_hash,
+        oracle=lambda x: stable_hash(x, version=2),
+        starting_gates=lambda x: tuple(stable_hash(g, version=2) for g in x),
+        start_epoch=drop_if_equal(0),
+    ),
+    multiprocess_safe=True,
+)
 def train_multiple(
     gates: List[ResidualGate],
     lr: float,
