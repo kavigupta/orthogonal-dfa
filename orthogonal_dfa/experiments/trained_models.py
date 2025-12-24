@@ -5,6 +5,7 @@ from typing import Callable, Tuple
 from orthogonal_dfa.experiments.gate_experiments import (
     train_psam_linear,
     train_psam_linear_on_others,
+    train_psam_linear_with_alternates,
     train_rnn_direct,
     train_rnn_psams,
 )
@@ -26,6 +27,12 @@ class TrainedModels:
 @lru_cache(None)
 def gates_psams_orig():
     gates, _, _ = train_psam_linear(11)
+    return gates
+
+
+@lru_cache(None)
+def gates_psams():
+    gates, _, _ = train_psam_linear_with_alternates(10)
     return gates
 
 
@@ -71,6 +78,17 @@ r_rnn_500_1l = TrainedModels(
         [train_rnn_direct(seed, hidden_size=500, layers=1) for seed in range(10)]
     ),
 )
+r_rnn_500_1l_cp = TrainedModels(
+    "RNN Direct [500, 1 layer] | PSAMs",
+    lambda: process_results(
+        [
+            train_rnn_direct(
+                seed, hidden_size=500, layers=1, starting_gates=gates_psams()
+            )
+            for seed in range(4)
+        ]
+    ),
+)
 r_rnn_psams_3 = TrainedModels(
     "RNN PSAMs [noise=3]",
     lambda: process_results([train_rnn_psams(seed, 3) for seed in range(10)]),
@@ -89,6 +107,28 @@ r_rnn_500_1l_psams_4 = TrainedModels(
     "RNN PSAMs [noise=4] [500, 1 layer]",
     lambda: process_results(
         [train_rnn_psams(seed, 4, hidden_size=500, layers=1) for seed in range(10)]
+    ),
+)
+r_rnn_500_1l_psams_3_cp = TrainedModels(
+    "RNN PSAMs [noise=3] [500, 1 layer] | PSAMs",
+    lambda: process_results(
+        [
+            train_rnn_psams(
+                seed, 3, hidden_size=500, layers=1, starting_gates=gates_psams()
+            )
+            for seed in range(5)
+        ]
+    ),
+)
+r_rnn_500_1l_psams_4_cp = TrainedModels(
+    "RNN PSAMs [noise=4] [500, 1 layer] | PSAMs",
+    lambda: process_results(
+        [
+            train_rnn_psams(
+                seed, 4, hidden_size=500, layers=1, starting_gates=gates_psams()
+            )
+            for seed in range(5)
+        ]
     ),
 )
 r_lstm = TrainedModels(
@@ -127,6 +167,9 @@ rnn_models_main = [
     r_rnn_500_1l,
     r_rnn_500_1l_psams_3,
     r_rnn_500_1l_psams_4,
+    r_rnn_500_1l_cp,
+    r_rnn_500_1l_psams_3_cp,
+    r_rnn_500_1l_psams_4_cp,
 ]
 
 all_models = pdfa_models + psam_models + rnn_models_hyperparam_search + rnn_models_main
