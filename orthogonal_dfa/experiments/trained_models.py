@@ -81,7 +81,12 @@ r_rnn_500_1l = TrainedModels(
 r_rnn_500_1l_cp = TrainedModels(
     "RNN Direct [500, 1 layer] | PSAMs",
     lambda: process_results(
-        [train_rnn_direct(seed, hidden_size=500, layers=1, starting_gates=gates_psams()) for seed in range(4)]
+        [
+            train_rnn_direct(
+                seed, hidden_size=500, layers=1, starting_gates=gates_psams()
+            )
+            for seed in range(4)
+        ]
     ),
 )
 r_rnn_psams_3 = TrainedModels(
