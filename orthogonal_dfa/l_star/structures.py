@@ -88,6 +88,20 @@ class DecisionTree(ABC):
         new_state = self.num_states
         return self.split_state(to_split, new_state, predicate)
 
+    @abstractmethod
+    def render(self, render_predicate, indent=0) -> List[str]:
+        pass
+
+    @abstractmethod
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        pass
+
 
 @dataclass(frozen=True)
 class DecisionTreeInternalNode(DecisionTree):
@@ -119,6 +133,28 @@ class DecisionTreeInternalNode(DecisionTree):
             ),
         )
 
+    def render(self, render_predicate, indent=0) -> List[str]:
+        lines = []
+        indent_str = " " * indent
+        lines.append(f"{indent_str}{render_predicate(self.predicate)}:")
+        lines += self.by_rejection[0].render(render_predicate, indent + 4)
+        lines += self.by_rejection[1].render(render_predicate, indent + 4)
+        return lines
+
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        return DecisionTreeInternalNode(
+            predicate=map_fn(self.predicate),
+            by_rejection=tuple(
+                child.map_over_predicates(map_fn) for child in self.by_rejection
+            ),
+        )
+
 
 @dataclass(frozen=True)
 class DecisionTreeLeafNode(DecisionTree):
@@ -146,6 +182,19 @@ class DecisionTreeLeafNode(DecisionTree):
                 DecisionTreeLeafNode(state_idx=new_state),
             ),
         )
+
+    def render(self, render_predicate, indent=0) -> List[str]:
+        indent_str = " " * indent
+        return [f"{indent_str}State {self.state_idx}"]
+
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        return self
 
 
 @dataclass(frozen=True)

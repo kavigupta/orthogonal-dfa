@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 from collections import defaultdict
 from dataclasses import dataclass
+import itertools
 from typing import Callable, Dict, List, Optional, Tuple, Iterator, Union
 from automata.fa.dfa import DFA
 import numpy as np
@@ -84,27 +85,14 @@ def decision_tree_to_dfa(
     *,
     seed: int,
 ) -> DFA:
-    num_states = dt.num_states
-    strings_each = {state: [] for state in range(num_states)}
-    counts = np.zeros(num_states, dtype=int)
-    transitions = np.zeros((num_states, alphabet_size, num_states), dtype=int)
-    accepts = np.zeros(num_states, dtype=int)
-    rng = np.random.default_rng(seed)
-    while np.any(counts < min_samples_per_state):
-        string = sampler.sample(rng, alphabet_size)
-        state = dt.classify(string, oracle)
-        if state is None:
-            continue
-        strings_each[state].append(string)
-        counts[state] += 1
-        if oracle.membership_query(string):
-            accepts[state] += 1
-        for symbol in range(alphabet_size):
-            extended_string = string + [symbol]
-            next_state = dt.classify(extended_string, oracle)
-            transitions[state, symbol, next_state] += 1
+    num_states, strings_each, transitions, accepts, counts = (
+        compute_decision_tree_stats(
+            alphabet_size, dt, oracle, sampler, min_samples_per_state, seed=seed
+        )
+    )
     transitions = transitions / counts[:, None, None]
     accepts = accepts / counts
+
     # return transitions, accepts, strings_each
     print(transitions)
     print(accepts)
@@ -124,6 +112,32 @@ def decision_tree_to_dfa(
         for initial_state in range(num_states)
     ]
     return max(possible_dfas, key=lambda dfa: consistentcy_score(dfa, strings_each))
+
+
+def compute_decision_tree_stats(
+    alphabet_size, dt, oracle, sampler, min_samples_per_state, *, seed
+):
+    num_states = dt.num_states
+    strings_each = {state: [] for state in range(num_states)}
+    counts = np.zeros(num_states, dtype=int)
+    transitions = np.zeros((num_states, alphabet_size, num_states), dtype=int)
+    accepts = np.zeros(num_states, dtype=int)
+    rng = np.random.default_rng(seed)
+    while np.any(counts < min_samples_per_state):
+        string = sampler.sample(rng, alphabet_size)
+        state = dt.classify(string, oracle)
+        if state is None:
+            continue
+        strings_each[state].append(string)
+        counts[state] += 1
+        if oracle.membership_query(string):
+            accepts[state] += 1
+        for symbol in range(alphabet_size):
+            extended_string = string + [symbol]
+            next_state = dt.classify(extended_string, oracle)
+            if next_state is not None:
+                transitions[state, symbol, next_state] += 1
+    return num_states, strings_each, transitions, accepts, counts
 
 
 def consistentcy_score(dfa: DFA, strings_each: Dict[int, List[List[int]]]) -> int:
@@ -250,7 +264,7 @@ class PrefixSuffixTracker:
     suffix_prevalence: float
     evidence_thresh: float
     prefixes: List[List[int]]
-    suffixes_seen: set
+    suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
 
@@ -282,7 +296,7 @@ class PrefixSuffixTracker:
             suffix_prevalence=suffix_prevalence,
             evidence_thresh=evidence_thresh,
             prefixes=prefixes,
-            suffixes_seen=set(),
+            suffixes_seen={},
             suffix_bank=[],
             corresponding_masks=[],
         )
@@ -292,17 +306,22 @@ class PrefixSuffixTracker:
             v = self.sampler.sample(rng=self.rng, alphabet_size=2)
             if tuple(v) in self.suffixes_seen:
                 continue
-            self.suffixes_seen.add(tuple(v))
-            self.suffix_bank.append(v)
-            mask = compute_mask(self.prefixes, self.oracle, v)
-            self.corresponding_masks.append(mask)
-            return v, mask, len(self.suffix_bank) - 1
+            return self.record_suffix(v)
+
+    def record_suffix(self, v: List[int]) -> Tuple[List[int], np.ndarray, int]:
+        if tuple(v) in self.suffixes_seen:
+            return self.suffixes_seen[tuple(v)]
+        self.suffix_bank.append(v)
+        mask = compute_mask(self.prefixes, self.oracle, v)
+        self.corresponding_masks.append(mask)
+        self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
+        return v, mask, len(self.suffix_bank) - 1
 
     def sample_suffixes(self, num_suffixes: int):
         for _ in tqdm.trange(num_suffixes, desc="Sampling suffixes", delay=1):
             self.sample_suffix()
 
-    def finish_populating_suffix_family(self, vs):
+    def finish_populating_suffix_family(self, vs, limit=None):
         if len(vs) >= self.suffix_family_size:
             return
         pbar = tqdm.tqdm(
@@ -310,7 +329,10 @@ class PrefixSuffixTracker:
             delay=1,
             total=self.suffix_family_size - len(vs),
         )
-        while True:
+        for i in itertools.count():
+            if limit is not None and i >= limit:
+                pbar.close()
+                return
             _, mask, idx = self.sample_suffix()
             if (
                 chi_squared_p(self.corresponding_masks[vs[0]], mask)
@@ -377,6 +399,25 @@ class PrefixSuffixTracker:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
         return selected_masks.mean(0)
 
+    def split_states(
+        self,
+        vs: List[int],
+        path: List[Tuple[TriPredicate, bool]],
+        subset_mask: Optional[np.ndarray],
+    ) -> list:
+        decision = self.compute_decision(vs, subset_mask)
+        vs_actual = [self.suffix_bank[v] for v in vs]
+        return [
+            (
+                path + [(TriPredicate(vs_actual, self.evidence_thresh), True)],
+                cascade(subset_mask, decision >= self.evidence_thresh),
+            ),
+            (
+                path + [(TriPredicate(vs_actual, self.evidence_thresh), False)],
+                cascade(subset_mask, decision < 1 - self.evidence_thresh),
+            ),
+        ]
+
     def extract_decision_tree(self):
         completed_states = []
         states_fringe = [([], None)]
@@ -391,21 +432,98 @@ class PrefixSuffixTracker:
             if vs is None:
                 completed_states.append(path)
             else:
-                vs_actual = [self.suffix_bank[v] for v in vs]
-                decision = self.compute_decision(vs, subset_mask)
-                states_fringe.append(
-                    (
-                        path + [(TriPredicate(vs_actual, self.evidence_thresh), True)],
-                        cascade(subset_mask, decision > self.evidence_thresh),
-                    )
-                )
-                states_fringe.append(
-                    (
-                        path + [(TriPredicate(vs_actual, self.evidence_thresh), False)],
-                        cascade(subset_mask, decision < 1 - self.evidence_thresh),
-                    )
-                )
+                states_fringe.extend(self.split_states(vs, path, subset_mask))
         return flat_decision_tree_to_decision_tree(completed_states)
+
+    def prepend_to_all(self, vs: List[int], prefix: int):
+        vs_new = []
+        for v in tqdm.tqdm(vs, desc="Prepending to all suffixes", delay=1):
+            _, _, v_new = self.record_suffix([prefix] + self.suffix_bank[v])
+            vs_new.append(v_new)
+        return vs_new
+
+    def execute_path(
+        self, path: List[Tuple[TriPredicate, bool]], prepend=()
+    ) -> np.ndarray:
+        mask = np.ones(len(self.prefixes), dtype=bool)
+        for predicate, decision in path:
+            vs_idxs = [self.record_suffix([*prepend, *v])[2] for v in predicate.vs]
+            decision_mask = self.compute_decision(vs_idxs, subset_prefixes=mask)
+            if decision:
+                decision_mask = decision_mask >= self.evidence_thresh
+            else:
+                decision_mask = decision_mask < 1 - self.evidence_thresh
+            mask = cascade(mask, decision_mask)
+        return mask
+
+    def compute_transition_matrix(
+        self, paths: List[List[Tuple[TriPredicate, bool]]]
+    ) -> np.ndarray:
+        state_map = np.array([self.execute_path(path) for path in paths]).astype(int)
+        transitions = []
+        for symbol in range(self.alphabet_size):
+            pre = np.array(
+                [self.execute_path(path, [symbol]) for path in paths]
+            ).astype(int)
+            transitions.append((pre @ state_map.T).argmax(0))
+        transitions = np.array(transitions)
+        return transitions.T
+
+    def compute_accepts_vector(
+        self, paths: List[List[Tuple[TriPredicate, bool]]]
+    ) -> np.ndarray:
+        accepts = []
+        for ((pred, decision), *_) in paths:
+            assert [] in pred.vs
+            accepts.append(decision)
+        return np.array(accepts)
+
+    def possible_dfas(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> List[DFA]:
+        transitions = self.compute_transition_matrix(paths)
+        accepts = self.compute_accepts_vector(paths)
+        num_states = len(paths)
+        possible_dfas = [
+            DFA(
+                states=set(range(num_states)),
+                input_symbols=set(range(self.alphabet_size)),
+                transitions={
+                    s: {sym: transitions[s, sym] for sym in range(self.alphabet_size)}
+                    for s in range(num_states)
+                },
+                initial_state=initial_state,
+                final_states={s for s in range(num_states) if accepts[s]},
+            )
+            for initial_state in range(num_states)
+        ]
+        return possible_dfas
+
+    def dfa_success_rates(
+        self, dfas: List[DFA], paths: List[List[Tuple[TriPredicate, bool]]]
+    ) -> List[float]:
+        dt = flat_decision_tree_to_decision_tree(paths)
+        odfa = [[dfa.accepts_input(string) for string in self.prefixes] for dfa in dfas]
+        odfa = np.array(odfa)
+        assert (
+            [] in dt.predicate.vs
+        ), "The root predicate must include the empty string as an exemplar"
+        decision = self.compute_decision(
+            [self.record_suffix(v)[2] for v in dt.predicate.vs]
+        )
+        decision_arr = np.array(
+            [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
+        )
+        mask = decision_arr.any(0)
+        odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
+
+        odfa = np.stack([~odfa, odfa], axis=1)
+        return ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
+
+    def optimal_dfa(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> DFA:
+        possible_dfas = self.possible_dfas(paths)
+        success_rates = self.dfa_success_rates(possible_dfas, paths)
+        best_idx = np.argmax(success_rates)
+        print(f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}")
+        return possible_dfas[best_idx]
 
 
 def cascade(mask_1, mask_2):
@@ -467,3 +585,17 @@ def locate_mergeable_paths(
     assert first[-1][0] == second[-1][0]
     assert {first[-1][1], second[-1][1]} == {True, False}
     return first, second
+
+
+def overlaps(pst, states, vs, *, min_state_size):
+    masks = np.array(
+        [
+            pst.compute_decision(vs) > pst.evidence_thresh,
+            pst.compute_decision(vs) < 1 - pst.evidence_thresh,
+        ]
+    )
+    existing_states = np.array([m for _, m in states])
+    valid = np.any(masks, 0) & np.any(existing_states, 0)
+    masks, existing_states = masks[:, valid], existing_states[:, valid]
+    freqs = (masks[:, None] & existing_states[None]).mean(-1)
+    return np.where((freqs > min_state_size).all(0))[0].tolist()
