@@ -25,7 +25,12 @@ import scipy
 import tqdm.auto as tqdm
 
 from .sampler import Sampler
-from .structures import DecisionTree, Oracle, DecisionTreeInternalNode, DecisionTreeLeafNode
+from .structures import (
+    DecisionTree,
+    Oracle,
+    DecisionTreeInternalNode,
+    DecisionTreeLeafNode,
+)
 
 
 @dataclass
@@ -55,7 +60,7 @@ def compute_strings_by_state(
     sampler: Sampler,
     min_samples_per_state: int,
     *,
-    seed: int
+    seed: int,
 ) -> Dict[int, List[List[int]]]:
     strings_each = {state: [] for state in range(dt.num_states)}
     rng = np.random.default_rng(seed)
@@ -77,7 +82,7 @@ def decision_tree_to_dfa(
     sampler: Sampler,
     min_samples_per_state: int,
     *,
-    seed: int
+    seed: int,
 ) -> DFA:
     num_states = dt.num_states
     strings_each = {state: [] for state in range(num_states)}
@@ -242,6 +247,8 @@ class PrefixSuffixTracker:
     alphabet_size: int
     suffix_family_size: int
     chi_squared_p_min: float
+    suffix_prevalence: float
+    evidence_thresh: float
     prefixes: List[List[int]]
     suffixes_seen: set
     suffix_bank: List[List[int]]
@@ -257,7 +264,9 @@ class PrefixSuffixTracker:
         alphabet_size: int,
         num_prefixes: int,
         suffix_family_size: int,
-        chi_squared_p_min: float
+        chi_squared_p_min: float,
+        suffix_prevalence: float,
+        evidence_thresh: float,
     ) -> "PrefixSuffixTracker":
         prefixes = [
             sampler.sample(rng, alphabet_size=alphabet_size)
@@ -270,6 +279,8 @@ class PrefixSuffixTracker:
             alphabet_size=alphabet_size,
             suffix_family_size=suffix_family_size,
             chi_squared_p_min=chi_squared_p_min,
+            suffix_prevalence=suffix_prevalence,
+            evidence_thresh=evidence_thresh,
             prefixes=prefixes,
             suffixes_seen=set(),
             suffix_bank=[],
@@ -333,7 +344,9 @@ class PrefixSuffixTracker:
         required_suffix_availability = int(np.ceil(10 / suffix_prevalence_requirement))
         if len(self.suffix_bank) < required_suffix_availability:
             for _ in tqdm.trange(
-                required_suffix_availability - len(self.suffix_bank), desc="Sampling initial suffixes", delay=1
+                required_suffix_availability - len(self.suffix_bank),
+                desc="Sampling initial suffixes",
+                delay=1,
             ):
                 self.sample_suffix()
         best_pair = self.best_correlation_in_bank(subset_prefixes)
@@ -363,6 +376,44 @@ class PrefixSuffixTracker:
     def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
         return selected_masks.mean(0)
+
+    def extract_decision_tree(self):
+        completed_states = []
+        states_fringe = [([], None)]
+        while states_fringe:
+            print(
+                f"Expanding: there are {len(states_fringe)} states to expand and {len(completed_states)} completed states"
+            )
+            path, subset_mask = states_fringe.pop()
+            if subset_mask is not None:
+                print(f"Expanding mask with {subset_mask.sum()} prefixes")
+            vs = self.find_suffix_family(self.suffix_prevalence, subset_mask)
+            if vs is None:
+                completed_states.append(path)
+            else:
+                vs_actual = [self.suffix_bank[v] for v in vs]
+                decision = self.compute_decision(vs, subset_mask)
+                states_fringe.append(
+                    (
+                        path + [(TriPredicate(vs_actual, self.evidence_thresh), True)],
+                        cascade(subset_mask, decision > self.evidence_thresh),
+                    )
+                )
+                states_fringe.append(
+                    (
+                        path + [(TriPredicate(vs_actual, self.evidence_thresh), False)],
+                        cascade(subset_mask, decision < 1 - self.evidence_thresh),
+                    )
+                )
+        return flat_decision_tree_to_decision_tree(completed_states)
+
+
+def cascade(mask_1, mask_2):
+    if mask_1 is None:
+        return mask_2
+    mask_1 = mask_1.copy()
+    mask_1[mask_1] = mask_2
+    return mask_1
 
 
 def flat_decision_tree_to_decision_tree(
