@@ -24,9 +24,11 @@ setuptools.setup(
         "automata-lib==8.3.0",
         "frame-alignment-checks>=0.0.73",
         "coloraide",
+        "pygraphviz",
         "h5py==3.15.1",
         "scikit-learn==1.5.1",
         "permacache==5.0.1",
+        "frozendict==2.4.6",
     ],
     # documentation
     project_urls={
