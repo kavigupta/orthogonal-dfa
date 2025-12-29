@@ -323,14 +323,18 @@ class PrefixSuffixTracker:
         for _ in tqdm.trange(num_suffixes, desc="Sampling suffixes", delay=1):
             self.sample_suffix()
 
-    def finish_populating_suffix_family_without_sampling(self, vs: List[int]) -> List[int]:
+    def finish_populating_suffix_family_without_sampling(
+        self, vs: List[int]
+    ) -> List[int]:
         mean_corresponding_masks = np.mean(
             [self.corresponding_masks[v] for v in vs], axis=0
         )
-        correlations_each = np.array([
-            np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
-            for i in range(len(self.suffix_bank))
-        ])
+        correlations_each = np.array(
+            [
+                np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
+                for i in range(len(self.suffix_bank))
+            ]
+        )
         sorted_idxs = np.argsort(-correlations_each)
         for idx in sorted_idxs:
             if idx in vs:
@@ -425,7 +429,11 @@ class PrefixSuffixTracker:
 
     def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
-        assert selected_masks.shape[1] == self.num_prefixes if subset_prefixes is None else sum(subset_prefixes)
+        assert (
+            selected_masks.shape[1] == self.num_prefixes
+            if subset_prefixes is None
+            else sum(subset_prefixes)
+        )
         return selected_masks.mean(0)
 
     def split_states(
@@ -554,20 +562,21 @@ class PrefixSuffixTracker:
         print(
             f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
         )
-        return possible_dfas[best_idx]
+        return success_rates[best_idx], possible_dfas[best_idx]
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
         additional_prefixes = []
         additional_masks = []
-        for prefix in tqdm.tqdm(
-            new_prefixes, desc="Adding new prefixes", delay=1
-        ):
+        for prefix in tqdm.tqdm(new_prefixes, desc="Adding new prefixes", delay=1):
             if prefix not in self.prefixes:
                 additional_prefixes.append(prefix)
                 additional_masks.append(
                     np.array(
-                        [self.oracle.membership_query(prefix + v) for v in self.suffix_bank],
+                        [
+                            self.oracle.membership_query(prefix + v)
+                            for v in self.suffix_bank
+                        ],
                         np.float32,
                     )
                 )
@@ -577,9 +586,7 @@ class PrefixSuffixTracker:
 
             assert len(self.corresponding_masks) == len(additional_masks)
             self.corresponding_masks = [
-                np.concatenate(
-                    [self.corresponding_masks[i], additional_masks[i]]
-                )
+                np.concatenate([self.corresponding_masks[i], additional_masks[i]])
                 for i in range(len(self.suffix_bank))
             ]
 
@@ -588,9 +595,12 @@ class PrefixSuffixTracker:
         return len(self.prefixes)
 
     def add_counterexample_prefixes(self, dt, dfa, count):
-        results = generate_counterexamples(self, self.sampler, self.oracle, dt, dfa, count=count)
+        results = generate_counterexamples(
+            self, self.sampler, self.oracle, dt, dfa, count=count
+        )
         self.add_prefixes([prefix for prefix, _ in results])
         return results
+
 
 def cascade(mask_1, mask_2):
     if mask_1 is None:
@@ -661,8 +671,12 @@ def overlaps(pst, states, vs, *, min_state_size):
         ]
     )
     existing_states = np.array([m for _, m in states])
-    assert existing_states.shape[1] == pst.num_prefixes, f"[existing states] Expected {pst.num_prefixes}, got {existing_states.shape[1]}"
-    assert masks.shape[1] == pst.num_prefixes, f"[masks] Expected {pst.num_prefixes}, got {masks.shape[1]}"
+    assert (
+        existing_states.shape[1] == pst.num_prefixes
+    ), f"[existing states] Expected {pst.num_prefixes}, got {existing_states.shape[1]}"
+    assert (
+        masks.shape[1] == pst.num_prefixes
+    ), f"[masks] Expected {pst.num_prefixes}, got {masks.shape[1]}"
     valid = np.any(masks, 0) & np.any(existing_states, 0)
     masks, existing_states = masks[:, valid], existing_states[:, valid]
     freqs = (masks[:, None] & existing_states[None]).mean(-1)
@@ -721,7 +735,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     while correct_idx < incorrect_idx - 1:
         # print(correct_idx, incorrect_idx)
         mid_idx = (correct_idx + incorrect_idx) // 2
-        dt_state = dt.classify(x + y[:mid_idx + 1], oracle)
+        dt_state = dt.classify(x + y[: mid_idx + 1], oracle)
         # print(
         #     f"Testing up to index {mid_idx}: DT state {dt_state}, DFA state {dfa_states_each[mid_idx + 1]}"
         # )
@@ -742,7 +756,9 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     while True:
         x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
-        prefix = locate_incorrect_point(oracle, dt.map_over_predicates(lambda p: TriPredicate(p.vs, 0.5)), dfa, x, y)
+        prefix = locate_incorrect_point(
+            oracle, dt.map_over_predicates(lambda p: TriPredicate(p.vs, 0.5)), dfa, x, y
+        )
         if prefix is None:
             continue
         additional_prefixes.append(prefix)
@@ -757,3 +773,26 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
         #     if prefix_classes[i] != None and prefix_classes[i + 1] != None:
         #         if dfa.transitions[prefix_classes[i]][x[i]] != prefix_classes[i + 1]:
         #             print(x[:i])
+
+
+def counterexample_driven_synthesis(
+    pst, *, min_state_size: float, additional_counterexamples: int, acc_threshold: float
+):
+    prev_num_states = 0
+    while True:
+        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+        fdt = abstract_interpretation_algorithm(pst, min_state_size=min_state_size)
+        print(f"Extracted flat decision tree with {len(fdt)} states")
+        if len(fdt) == prev_num_states:
+            print("No change in number of states; stopping synthesis")
+            break
+        dt = flat_decision_tree_to_decision_tree(fdt)
+        acc, dfa = pst.optimal_dfa(fdt)
+        if acc >= acc_threshold:
+            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            yield dfa, None
+            return
+        results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
+        yield dfa, results
+        prev_num_states = len(fdt)
+    
