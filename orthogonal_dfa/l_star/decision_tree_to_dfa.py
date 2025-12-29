@@ -40,6 +40,8 @@ class TriPredicate:
     evidence_threshold: float
 
     def predict(self, x: List[int], oracle: Oracle) -> float:
+        # for v in self.vs:
+        #     print(v, oracle.membership_query(x + v), [1] * 6 in x + v)
         return np.mean([oracle.membership_query(x + v) for v in self.vs])
 
     def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
@@ -321,7 +323,33 @@ class PrefixSuffixTracker:
         for _ in tqdm.trange(num_suffixes, desc="Sampling suffixes", delay=1):
             self.sample_suffix()
 
+    def finish_populating_suffix_family_without_sampling(self, vs: List[int]) -> List[int]:
+        mean_corresponding_masks = np.mean(
+            [self.corresponding_masks[v] for v in vs], axis=0
+        )
+        correlations_each = np.array([
+            np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
+            for i in range(len(self.suffix_bank))
+        ])
+        sorted_idxs = np.argsort(-correlations_each)
+        for idx in sorted_idxs:
+            if idx in vs:
+                continue
+            if (
+                chi_squared_p(
+                    mean_corresponding_masks,
+                    self.corresponding_masks[idx],
+                )
+                < self.chi_squared_p_min
+            ):
+                vs.append(idx)
+            if len(vs) >= self.suffix_family_size:
+                return vs
+
     def finish_populating_suffix_family(self, vs, limit=None):
+        if len(vs) >= self.suffix_family_size:
+            return
+        self.finish_populating_suffix_family_without_sampling(vs)
         if len(vs) >= self.suffix_family_size:
             return
         pbar = tqdm.tqdm(
@@ -397,6 +425,7 @@ class PrefixSuffixTracker:
 
     def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
+        assert selected_masks.shape[1] == self.num_prefixes if subset_prefixes is None else sum(subset_prefixes)
         return selected_masks.mean(0)
 
     def split_states(
@@ -522,9 +551,46 @@ class PrefixSuffixTracker:
         possible_dfas = self.possible_dfas(paths)
         success_rates = self.dfa_success_rates(possible_dfas, paths)
         best_idx = np.argmax(success_rates)
-        print(f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}")
+        print(
+            f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
+        )
         return possible_dfas[best_idx]
 
+    def add_prefixes(self, new_prefixes: List[List[int]]):
+
+        additional_prefixes = []
+        additional_masks = []
+        for prefix in tqdm.tqdm(
+            new_prefixes, desc="Adding new prefixes", delay=1
+        ):
+            if prefix not in self.prefixes:
+                additional_prefixes.append(prefix)
+                additional_masks.append(
+                    np.array(
+                        [self.oracle.membership_query(prefix + v) for v in self.suffix_bank],
+                        np.float32,
+                    )
+                )
+        if additional_masks:
+            additional_masks = np.array(additional_masks).T
+            self.prefixes.extend(additional_prefixes)
+
+            assert len(self.corresponding_masks) == len(additional_masks)
+            self.corresponding_masks = [
+                np.concatenate(
+                    [self.corresponding_masks[i], additional_masks[i]]
+                )
+                for i in range(len(self.suffix_bank))
+            ]
+
+    @property
+    def num_prefixes(self) -> int:
+        return len(self.prefixes)
+
+    def add_counterexample_prefixes(self, dt, dfa, count):
+        results = generate_counterexamples(self, self.sampler, self.oracle, dt, dfa, count=count)
+        self.add_prefixes([prefix for prefix, _ in results])
+        return results
 
 def cascade(mask_1, mask_2):
     if mask_1 is None:
@@ -595,10 +661,13 @@ def overlaps(pst, states, vs, *, min_state_size):
         ]
     )
     existing_states = np.array([m for _, m in states])
+    assert existing_states.shape[1] == pst.num_prefixes, f"[existing states] Expected {pst.num_prefixes}, got {existing_states.shape[1]}"
+    assert masks.shape[1] == pst.num_prefixes, f"[masks] Expected {pst.num_prefixes}, got {masks.shape[1]}"
     valid = np.any(masks, 0) & np.any(existing_states, 0)
     masks, existing_states = masks[:, valid], existing_states[:, valid]
     freqs = (masks[:, None] & existing_states[None]).mean(-1)
     return np.where((freqs > min_state_size).all(0))[0].tolist()
+
 
 def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[DecisionTree]:
     _, _, v_idx = pst.record_suffix([])
@@ -629,3 +698,62 @@ def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[Decisi
     # split_with([0, 1], vs_with_1)
     fdt = [x for x, _ in states]
     return fdt
+
+
+def states_intermediate(s0, y, dfa):
+    states = [s0]
+    for symbol in y:
+        s_next = dfa.transitions[states[-1]][symbol]
+        states.append(s_next)
+    return states
+
+
+def locate_incorrect_point(oracle, dt, dfa, x, y):
+    s0 = dt.classify(x, oracle)
+    if s0 is None:
+        return None
+    dfa_states_each = states_intermediate(s0, y, dfa)
+    if dt.classify(x + y, oracle) == dfa_states_each[-1]:
+        return None
+    correct_idx = 0
+    incorrect_idx = len(x)
+    # binary search for first incorrect index
+    while correct_idx < incorrect_idx - 1:
+        # print(correct_idx, incorrect_idx)
+        mid_idx = (correct_idx + incorrect_idx) // 2
+        dt_state = dt.classify(x + y[:mid_idx + 1], oracle)
+        # print(
+        #     f"Testing up to index {mid_idx}: DT state {dt_state}, DFA state {dfa_states_each[mid_idx + 1]}"
+        # )
+        if dt_state is None:
+            return None
+        if dt_state == dfa_states_each[mid_idx + 1]:
+            correct_idx = mid_idx
+        else:
+            incorrect_idx = mid_idx
+    # print("Correct idx found:", correct_idx)
+    # print(x + y[: correct_idx + 1], y[correct_idx + 1])
+    return x + y[: correct_idx + 1], y[correct_idx + 1]
+
+
+def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
+    pbar = tqdm.tqdm(total=count)
+    additional_prefixes = []
+    while True:
+        x = us.sample(pst.rng, pst.alphabet_size)
+        y = us.sample(pst.rng, pst.alphabet_size)
+        prefix = locate_incorrect_point(oracle, dt.map_over_predicates(lambda p: TriPredicate(p.vs, 0.5)), dfa, x, y)
+        if prefix is None:
+            continue
+        additional_prefixes.append(prefix)
+        pbar.update()
+        if len(additional_prefixes) >= count:
+            pbar.close()
+            return additional_prefixes
+        # if dfa.read_input(x) == dt.classify(x, oracle):
+        #     continue
+        # prefix_classes = [dt.classify(x[:i], oracle) for i in range(1 + len(x))]
+        # for i in range(len(x)):
+        #     if prefix_classes[i] != None and prefix_classes[i + 1] != None:
+        #         if dfa.transitions[prefix_classes[i]][x[i]] != prefix_classes[i + 1]:
+        #             print(x[:i])
