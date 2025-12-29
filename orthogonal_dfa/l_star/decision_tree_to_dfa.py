@@ -327,22 +327,22 @@ class PrefixSuffixTracker:
     def finish_populating_suffix_family_without_sampling(
         self, vs: List[int]
     ) -> List[int]:
-        mean_corresponding_masks = np.mean(
-            [self.corresponding_masks[v] for v in vs], axis=0
-        )
-        correlations_each = np.array(
-            [
-                np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
-                for i in range(len(self.suffix_bank))
-            ]
-        )
-        sorted_idxs = np.argsort(-correlations_each)
-        for idx in sorted_idxs:
+        # mean_corresponding_masks = np.mean(
+        #     [self.corresponding_masks[v] for v in vs], axis=0
+        # )
+        # correlations_each = np.array(
+        #     [
+        #         np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
+        #         for i in range(len(self.suffix_bank))
+        #     ]
+        # )
+        # sorted_idxs = np.argsort(-correlations_each)
+        for idx in range(len(self.suffix_bank)):
             if idx in vs:
                 continue
             if (
                 chi_squared_p(
-                    mean_corresponding_masks,
+                    self.corresponding_masks[vs[0]],
                     self.corresponding_masks[idx],
                 )
                 < self.chi_squared_p_min
