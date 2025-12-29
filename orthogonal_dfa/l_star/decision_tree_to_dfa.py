@@ -599,3 +599,33 @@ def overlaps(pst, states, vs, *, min_state_size):
     masks, existing_states = masks[:, valid], existing_states[:, valid]
     freqs = (masks[:, None] & existing_states[None]).mean(-1)
     return np.where((freqs > min_state_size).all(0))[0].tolist()
+
+def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[DecisionTree]:
+    _, _, v_idx = pst.record_suffix([])
+    vs = [v_idx]
+    pst.finish_populating_suffix_family(vs)
+    vs_queue = [([], vs)]
+    states = [([], np.ones(len(pst.prefixes), bool))]
+
+    def split_with(state_indices, vs):
+        states_to_split = [states.pop(i) for i in reversed(sorted(state_indices))]
+        for decision, m2 in states_to_split:
+            states.extend(pst.split_states(vs, decision, m2))
+
+    while vs_queue:
+        path, vs_current = vs_queue.pop()
+        print(f"Num states: {len(states)}; processing {path}")
+        ol = overlaps(pst, states, vs_current, min_state_size=min_state_size)
+        if not ol:
+            print("Done")
+            continue
+        split_with(ol, vs_current)
+        vs_queue.extend(
+            ([c] + path, pst.prepend_to_all(vs_current, c))
+            for c in range(pst.alphabet_size)
+        )
+
+    # split_with([0], vs)
+    # split_with([0, 1], vs_with_1)
+    fdt = [x for x, _ in states]
+    return fdt
