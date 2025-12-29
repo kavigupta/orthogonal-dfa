@@ -16,21 +16,22 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 """
 
+import itertools
 from collections import defaultdict
 from dataclasses import dataclass
-import itertools
-from typing import Callable, Dict, List, Optional, Tuple, Iterator, Union
-from automata.fa.dfa import DFA
+from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
+
 import numpy as np
 import scipy
 import tqdm.auto as tqdm
+from automata.fa.dfa import DFA
 
 from .sampler import Sampler
 from .structures import (
     DecisionTree,
-    Oracle,
     DecisionTreeInternalNode,
     DecisionTreeLeafNode,
+    Oracle,
 )
 
 
@@ -510,7 +511,7 @@ class PrefixSuffixTracker:
         self, paths: List[List[Tuple[TriPredicate, bool]]]
     ) -> np.ndarray:
         accepts = []
-        for ((pred, decision), *_) in paths:
+        for (pred, decision), *_ in paths:
             assert [] in pred.vs
             accepts.append(decision)
         return np.array(accepts)
@@ -795,4 +796,3 @@ def counterexample_driven_synthesis(
         results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, results
         prev_num_states = len(fdt)
-    

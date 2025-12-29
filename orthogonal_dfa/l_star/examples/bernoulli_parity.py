@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import List, Tuple
 
 from permacache import stable_hash
