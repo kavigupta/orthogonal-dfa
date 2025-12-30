@@ -85,7 +85,7 @@ r_rnn_500_1l_cp = TrainedModels(
             train_rnn_direct(
                 seed, hidden_size=500, layers=1, starting_gates=gates_psams()
             )
-            for seed in range(4)
+            for seed in range(8)
         ]
     ),
 )
@@ -116,7 +116,7 @@ r_rnn_500_1l_psams_3_cp = TrainedModels(
             train_rnn_psams(
                 seed, 3, hidden_size=500, layers=1, starting_gates=gates_psams()
             )
-            for seed in range(5)
+            for seed in range(10)
         ]
     ),
 )
@@ -127,7 +127,7 @@ r_rnn_500_1l_psams_4_cp = TrainedModels(
             train_rnn_psams(
                 seed, 4, hidden_size=500, layers=1, starting_gates=gates_psams()
             )
-            for seed in range(5)
+            for seed in range(10)
         ]
     ),
 )
