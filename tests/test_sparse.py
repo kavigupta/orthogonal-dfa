@@ -1,9 +1,9 @@
 # pylint: disable=duplicate-code
 import unittest
 
-from dconstruct import construct
 import numpy as np
 import torch
+from dconstruct import construct
 from parameterized import parameterized
 
 from orthogonal_dfa.module.sparsity.sparsity_layer import sparsity_types
