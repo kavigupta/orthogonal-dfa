@@ -1,6 +1,5 @@
-from abc import ABC
-
 from dconstruct import construct
+from frozendict import frozendict
 from torch import nn
 
 from .enforcer import Sparsity, enforce_sparsity_per_channel_types
@@ -11,6 +10,7 @@ class SparseLayerWithBatchNorm(Sparsity):
     Wraps a sparsity enforcer, adding a batch norm layer before it.
     """
 
+    # pylint: disable=too-many-positional-arguments
     def __init__(
         self,
         underlying_sparsity_spec,
@@ -56,7 +56,7 @@ class EnforceSparsityPerChannel2D(Sparsity):
         channels,
         momentum=0.1,
         *,
-        enforce_sparsity_per_channel_spec=dict(type="EnforceSparsityPerChannel"),
+        enforce_sparsity_per_channel_spec=frozendict(type="EnforceSparsityPerChannel"),
     ):
         super().__init__(starting_sparsity, channels)
         self.channels = channels
@@ -92,9 +92,9 @@ class EnforceSparsityPerChannel2D(Sparsity):
 
 
 class EnforceSparsityPerChannel1D(EnforceSparsityPerChannel2D):
-    def forward(self, x, **kwargs):
+    def forward(self, x, disable_relu=False):
         x = x.unsqueeze(2)
-        x = super().forward(x, **kwargs)
+        x = super().forward(x, disable_relu=disable_relu)
         x = x.squeeze(2)
         return x
 

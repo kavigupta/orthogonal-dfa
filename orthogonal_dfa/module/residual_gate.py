@@ -1,13 +1,14 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Union
 
 import torch
 from torch import nn
 
 from orthogonal_dfa.module.monotonic import Monotonic1D
+from orthogonal_dfa.module.sparsity.notifiable import NotifiableByLoss
 
 
-class ResidualGate(ABC):
+class ResidualGate(NotifiableByLoss):
     """
     Abstract base class for residual gates.
     """

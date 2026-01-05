@@ -2,8 +2,10 @@ import torch
 from permacache import stable_hash
 from torch import nn
 
+from orthogonal_dfa.module.sparsity.notifiable import NotifiableByLoss
 
-class RNNProcessor(nn.Module):
+
+class RNNProcessor(nn.Module, NotifiableByLoss):
     def __init__(self, num_inputs, hidden_size, num_layers=1):
         """
         An RNN-based processor for sequential data. Produces only the last output.
@@ -40,7 +42,7 @@ class RNNProcessor(nn.Module):
         return None
 
 
-class LSTMProcessor(nn.Module):
+class LSTMProcessor(nn.Module, NotifiableByLoss):
     def __init__(self, num_inputs, hidden_size, num_layers=1, use_last_state=True):
         super().__init__()
         self.rnn = nn.LSTM(
@@ -73,7 +75,7 @@ class LSTMProcessor(nn.Module):
         return None
 
 
-class RNNPSAMProcessorNoise(nn.Module):
+class RNNPSAMProcessorNoise(nn.Module, NotifiableByLoss):
     def __init__(self, psams, rnn, *, noise_level):
         """
         An RNN-based processor for PSAM outputs, the PSAM outputs are noised to ensure
@@ -96,7 +98,7 @@ class RNNPSAMProcessorNoise(nn.Module):
         return None
 
 
-class RNNPSAMProcessorSparse(nn.Module):
+class RNNPSAMProcessorSparse(nn.Module, NotifiableByLoss):
     def __init__(self, psams, rnn, *, asl):
         super().__init__()
         self.psams = psams

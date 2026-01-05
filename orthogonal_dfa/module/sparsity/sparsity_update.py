@@ -15,7 +15,6 @@ class SparsityUpdateOptimizer(ABC):
         """
         Updates the model's sparsity given the current step and accuracy information
         """
-        pass
 
 
 class NoopSUO(SparsityUpdateOptimizer):
@@ -24,7 +23,6 @@ class NoopSUO(SparsityUpdateOptimizer):
         """
         Does nothing
         """
-        pass
 
 
 @dataclass
@@ -38,6 +36,7 @@ class LinearThresholdAdaptiveSUO(SparsityUpdateOptimizer):
     information_multiplier: float
 
     @classmethod
+    # pylint: disable=too-many-positional-arguments
     def of(
         cls,
         initial_threshold,
@@ -75,7 +74,7 @@ class LinearThresholdAdaptiveSUO(SparsityUpdateOptimizer):
         time_since_last = step - self.step
         assert time_since_last >= 0
         if time_since_last < self.minimal_update_frequency:
-            return
+            return sparsity_value
         self.step = step
         self.threshold -= self.threshold_decrease_per_iter * time_since_last
         self.threshold = max(self.threshold, self.minimal_threshold)
