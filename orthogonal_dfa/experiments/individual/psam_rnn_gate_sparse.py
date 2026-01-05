@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 import argparse
 
 from orthogonal_dfa.experiments.gate_experiments import (
