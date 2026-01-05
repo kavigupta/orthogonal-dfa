@@ -50,6 +50,9 @@ class PSAMPDFA(nn.Module):
     def intermediate_states(self, x):
         return self.pdfa.intermediate_states(self.log_input_probs(x))
 
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
 
 class PSAMPDFAWithTemperature(nn.Module):
     def __init__(self, psam_pdfa: PSAMPDFA, temperature: float):
@@ -70,3 +73,7 @@ class PSAMPDFAWithTemperature(nn.Module):
         # pylint: disable=not-callable
         scaled_log_probs = nn.functional.logsigmoid(scaled_logit)
         return scaled_log_probs
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None

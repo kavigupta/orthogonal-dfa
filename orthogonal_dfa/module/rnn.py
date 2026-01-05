@@ -35,6 +35,10 @@ class RNNProcessor(nn.Module):
             ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
         )
 
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
+
 
 class LSTMProcessor(nn.Module):
     def __init__(self, num_inputs, hidden_size, num_layers=1, use_last_state=True):
@@ -64,6 +68,10 @@ class LSTMProcessor(nn.Module):
             ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
         )
 
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
+
 
 class RNNPSAMProcessorNoise(nn.Module):
     def __init__(self, psams, rnn, *, noise_level):
@@ -82,3 +90,24 @@ class RNNPSAMProcessorNoise(nn.Module):
             psam_out = psam_out + torch.randn_like(psam_out) * self.noise_level
         rnn_out = self.rnn(psam_out)
         return rnn_out
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
+
+
+class RNNPSAMProcessorSparse(nn.Module):
+    def __init__(self, psams, rnn, *, asl):
+        super().__init__()
+        self.psams = psams
+        self.rnn = rnn
+        self.asl = asl
+
+    def forward(self, x):
+        psam_out = self.psams(x)
+        psam_out = self.asl(psam_out)
+        rnn_out = self.rnn(psam_out)
+        return rnn_out
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        return self.asl.notify_epoch_loss(epoch_idx, epoch_loss)

@@ -100,3 +100,6 @@ class InputMonotonicModelingGate(ResidualGate, nn.Module):
         phi_output = self.run_phi(x, do_not_train_phi)
         monotonic_output = self.monotonic(phi_output)
         return residual_next - monotonic_output
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        return self.phi.notify_epoch_loss(epoch_idx, epoch_loss)

@@ -106,10 +106,15 @@ def train_direct(
             batch_size=batch_size,
             do_not_train_phi=do_not_train_phi,
         )
+        epoch_full = epoch + start_epoch + 1
         print(
-            f"{datetime.now().isoformat()} Epoch {epoch + start_epoch+1}/{epochs}, Loss: {np.mean(epoch_loss):.4f}"
+            f"{datetime.now().isoformat()} Epoch {epoch_full}/{epochs}, Loss: {np.mean(epoch_loss):.4f}"
         )
-        results.append(epoch_loss)
+        sparse_info = None
+        # do not update sparsity right before the end; ensure that we always recalibrate the sparsity
+        if epoch != epochs - 1:
+            sparse_info = gate.notify_epoch_loss(epoch_full, epoch_loss)
+        results.append(epoch_loss if sparse_info is None else [epoch_loss, sparse_info])
     return gate, results
 
 
