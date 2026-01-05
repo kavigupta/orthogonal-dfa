@@ -2,8 +2,10 @@ import torch
 from permacache import stable_hash
 from torch import nn
 
+from orthogonal_dfa.module.sparsity.notifiable import NotifiableByLoss
 
-class RNNProcessor(nn.Module):
+
+class RNNProcessor(nn.Module, NotifiableByLoss):
     def __init__(self, num_inputs, hidden_size, num_layers=1):
         """
         An RNN-based processor for sequential data. Produces only the last output.
@@ -35,8 +37,12 @@ class RNNProcessor(nn.Module):
             ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
         )
 
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
 
-class LSTMProcessor(nn.Module):
+
+class LSTMProcessor(nn.Module, NotifiableByLoss):
     def __init__(self, num_inputs, hidden_size, num_layers=1, use_last_state=True):
         super().__init__()
         self.rnn = nn.LSTM(
@@ -64,8 +70,12 @@ class LSTMProcessor(nn.Module):
             ("RNNProcessor", self.rnn.state_dict(), self.linear_out.state_dict())
         )
 
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
 
-class RNNPSAMProcessorNoise(nn.Module):
+
+class RNNPSAMProcessorNoise(nn.Module, NotifiableByLoss):
     def __init__(self, psams, rnn, *, noise_level):
         """
         An RNN-based processor for PSAM outputs, the PSAM outputs are noised to ensure
@@ -82,3 +92,24 @@ class RNNPSAMProcessorNoise(nn.Module):
             psam_out = psam_out + torch.randn_like(psam_out) * self.noise_level
         rnn_out = self.rnn(psam_out)
         return rnn_out
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
+
+
+class RNNPSAMProcessorSparse(nn.Module, NotifiableByLoss):
+    def __init__(self, psams, rnn, *, asl):
+        super().__init__()
+        self.psams = psams
+        self.rnn = rnn
+        self.asl = asl
+
+    def forward(self, x):
+        psam_out = self.psams(x)
+        psam_out = self.asl(psam_out)
+        rnn_out = self.rnn(psam_out)
+        return rnn_out
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        return self.asl.notify_epoch_loss(epoch_idx, epoch_loss)

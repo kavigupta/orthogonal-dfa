@@ -11,7 +11,12 @@ from orthogonal_dfa.experiments.train_gate import (
     train_multiple_with_alternates,
 )
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
-from orthogonal_dfa.module.rnn import RNNProcessor, RNNPSAMProcessorNoise
+from orthogonal_dfa.module.rnn import (
+    RNNProcessor,
+    RNNPSAMProcessorNoise,
+    RNNPSAMProcessorSparse,
+)
+from orthogonal_dfa.module.sparsity.automatic_sparsity import AutomaticSparseLayer
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 from orthogonal_dfa.psams.psams import TorchPSAMs
 from orthogonal_dfa.utils.pdfa import PDFA
@@ -166,12 +171,59 @@ def train_rnn_psams(
     )
 
 
+def get_asl(num_psams, *, threshold_decrease_per_iter=1e-5, initial_threshold=0.35):
+    return AutomaticSparseLayer(
+        sparse_spec=dict(
+            type="SparseLayerWithBatchNorm",
+            underlying_sparsity_spec=dict(
+                type="EnforceSparsityPerChannel1D",
+                enforce_sparsity_per_channel_spec=dict(
+                    type="EnforceSparsityPerChannelAccumulated",
+                    accumulation_stop_strategy=dict(
+                        type="StopAtFixedNumberMotifs", num_motifs=10
+                    ),
+                ),
+            ),
+            affine=False,
+            starting_sparsity=0.5,
+            channels=num_psams,
+            input_dimensions=1,
+        ),
+        suo_spec=dict(
+            type="LinearThresholdAdaptiveSUO",
+            initial_threshold=initial_threshold,
+            minimal_threshold=-1,
+            maximal_threshold=10,
+            threshold_decrease_per_iter=threshold_decrease_per_iter,
+            minimal_update_frequency=0,
+            information_multiplier=0.75,
+        ),
+    )
+
+
+def train_rnn_psams_sparse(
+    seed, *, hidden_size, layers, initial_threshold, starting_gates=()
+):
+    num_psams = 4
+    return train_many(
+        lambda length: RNNPSAMProcessorSparse(
+            TorchPSAMs.create(two_r=8, channels=4, num_psams=num_psams),
+            RNNProcessor(
+                num_inputs=4, hidden_size=hidden_size, num_layers=layers
+            ).cuda(),
+            asl=get_asl(num_psams, initial_threshold=initial_threshold),
+        ),
+        1,
+        seed=seed,
+        epochs=4000,
+        lr=1e-5,
+        finetune_epochs=50,
+        starting_gates=starting_gates,
+    )
+
+
 def main():
-    train_mll()
-    pl, _, _ = train_psam_linear()
-    for seed in range(10):
-        train_psamdfa([], seed=seed)
-        train_psamdfa(pl, seed=seed)
+    train_rnn_psams_sparse(0, hidden_size=500, layers=1, initial_threshold=0.35)
 
 
 if __name__ == "__main__":

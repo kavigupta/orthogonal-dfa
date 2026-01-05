@@ -3,7 +3,7 @@ import argparse
 
 from orthogonal_dfa.experiments.gate_experiments import (
     get_starting_gates,
-    train_rnn_psams,
+    train_rnn_psams_sparse,
 )
 
 
@@ -16,9 +16,9 @@ def main():
         help="Random seed for training.",
     )
     parser.add_argument(
-        "--neg-log-noise-level",
+        "--initial-threshold",
         type=float,
-        help="Negative log noise level for RNNPSAMProcessorNoise.",
+        help="Initial threshold.",
     )
     parser.add_argument(
         "--hidden-size",
@@ -39,11 +39,11 @@ def main():
         help="What to build the RNNPSAMProcessorNoise on top of.",
     )
     args = parser.parse_args()
-    train_rnn_psams(
+    train_rnn_psams_sparse(
         args.seed,
-        args.neg_log_noise_level,
         hidden_size=args.hidden_size,
         layers=args.layers,
+        initial_threshold=args.initial_threshold,
         starting_gates=get_starting_gates(args.build_on),
     )
 
