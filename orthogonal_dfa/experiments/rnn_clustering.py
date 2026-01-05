@@ -1,8 +1,8 @@
-from matplotlib import pyplot as plt
 import numpy as np
+import sklearn.cluster
 import torch
 import tqdm.auto as tqdm
-import sklearn.cluster
+from matplotlib import pyplot as plt
 
 
 def get_data(count, length, seed=0):
