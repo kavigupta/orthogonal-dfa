@@ -54,6 +54,7 @@ class PSAMPDFA(nn.Module):
         # no sparsity here
         return None
 
+
 class PSAMPDFAWithTemperature(nn.Module):
     def __init__(self, psam_pdfa: PSAMPDFA, temperature: float):
         """

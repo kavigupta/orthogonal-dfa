@@ -12,9 +12,9 @@ from orthogonal_dfa.experiments.train_gate import (
 )
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
 from orthogonal_dfa.module.rnn import (
-    RNNPSAMProcessorSparse,
     RNNProcessor,
     RNNPSAMProcessorNoise,
+    RNNPSAMProcessorSparse,
 )
 from orthogonal_dfa.module.sparsity.automatic_sparsity import AutomaticSparseLayer
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA

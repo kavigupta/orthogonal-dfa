@@ -1,7 +1,6 @@
-from torch import nn
 import numpy as np
-
 from dconstruct import construct
+from torch import nn
 
 from orthogonal_dfa.module.sparsity.sparsity_layer import sparsity_types
 from orthogonal_dfa.module.sparsity.sparsity_update import suo_types

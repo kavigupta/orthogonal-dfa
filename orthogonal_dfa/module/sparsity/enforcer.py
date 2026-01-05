@@ -1,9 +1,9 @@
 from abc import ABC
 from dataclasses import dataclass
-import torch
-from torch import nn
 
+import torch
 from dconstruct import construct
+from torch import nn
 
 
 class Sparsity(ABC, nn.Module):

@@ -1,10 +1,10 @@
 from abc import ABC
 
+from dconstruct import construct
 from torch import nn
 
-from dconstruct import construct
-
 from .enforcer import Sparsity, enforce_sparsity_per_channel_types
+
 
 class SparseLayerWithBatchNorm(Sparsity):
     """
