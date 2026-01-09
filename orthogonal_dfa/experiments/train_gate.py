@@ -73,7 +73,7 @@ def train_direct(
     seed: int,
     do_not_train_phi: bool,
     start_epoch: int = 0,
-    notify_epoch_loss: bool=True,
+    notify_epoch_loss: bool = True,
 ):
     gate = copy.deepcopy(gate)
     gate.train()
