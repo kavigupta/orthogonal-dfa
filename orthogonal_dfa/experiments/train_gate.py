@@ -55,6 +55,7 @@ def loss(y, y_targ):
         oracle=lambda x: stable_hash(x, version=2),
         prev_gates=lambda x: tuple(stable_hash(g, version=2) for g in x),
         start_epoch=drop_if_equal(0),
+        notify_epoch_loss=drop_if_equal(True),
     ),
     multiprocess_safe=True,
 )
@@ -72,6 +73,7 @@ def train_direct(
     seed: int,
     do_not_train_phi: bool,
     start_epoch: int = 0,
+    notify_epoch_loss: bool = True,
 ):
     gate = copy.deepcopy(gate)
     gate.train()
@@ -112,7 +114,7 @@ def train_direct(
         )
         sparse_info = None
         # do not update sparsity right before the end; ensure that we always recalibrate the sparsity
-        if epoch != epochs - 1:
+        if epoch != epochs - 1 and notify_epoch_loss:
             sparse_info = gate.notify_epoch_loss(epoch_full, epoch_loss)
         results.append(epoch_loss if sparse_info is None else [epoch_loss, sparse_info])
     return gate, results
@@ -259,6 +261,7 @@ def train_with_possible_finetuning(
         seed=int(stable_hash(("finetune", stable_hash(gate_trained, version=2))), 16)
         % (2**32 - 1),
         do_not_train_phi=True,
+        notify_epoch_loss=False,
     )
     losses.extend(finetune_losses)
     return gate_trained_finetuned, losses
