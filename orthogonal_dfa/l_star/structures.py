@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Dict, Iterable, List, Tuple, Union
 
-from automata.fa.dfa import DFA
 from frozendict import frozendict
 
 
@@ -195,61 +194,3 @@ class DecisionTreeLeafNode(DecisionTree):
         ],
     ) -> "DecisionTree":
         return self
-
-
-@dataclass(frozen=True)
-class LStarDFA:
-    pt: PrefixTreeNode
-    dt: DecisionTree
-
-    def to_dfa(self, oracle, all_symbols: List[str]) -> DFA:
-        prefix_tree = self.pt.all_transitions()
-        exemplar_map = self.pt.exemplars()
-
-        states_visited = set()
-        states_fringe = [self.pt.state_idx]
-        transitions = {}
-        while states_fringe:
-            state = states_fringe.pop()
-            exemplar = exemplar_map[state]
-            if state in states_visited:
-                continue
-            states_visited.add(state)
-
-            for symbol in all_symbols:
-                if (state, symbol) in prefix_tree:
-                    dest = prefix_tree[(state, symbol)]
-                else:
-                    dest = self.dt.classify(exemplar + symbol, oracle)
-                transitions[(state, symbol)] = dest
-                states_fringe.append(dest)
-                states_visited.add(dest)
-        return DFA(
-            states=states_visited,
-            input_symbols=set(all_symbols),
-            transitions={(s, sym): d for (s, sym), d in transitions.items()},
-            initial_state=str(self.pt.state_idx),
-            final_states={
-                s for s in states_visited if oracle.membership_query(exemplar_map[s])
-            },
-        )
-
-    def split_state(
-        self,
-        parent_state_idx: int,
-        action: str,
-        distinguishing_string: str,
-        oracle: Oracle,
-    ) -> "LStarDFA":
-        new_state_idx = len(self.pt.exemplars())  # increment the state counter
-        pt = self.pt.split_state(parent_state_idx, action, new_state_idx)
-        new_state_exemplar = pt.exemplars()[new_state_idx]
-        return LStarDFA(
-            pt=pt,
-            dt=self.dt.split_state(
-                new_state_idx,
-                distinguishing_string,
-                new_state_idx,
-                oracle,
-            ),
-        )

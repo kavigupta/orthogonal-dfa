@@ -19,7 +19,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy
@@ -165,7 +165,7 @@ def normalize(a):
     a = a / np.linalg.norm(a)
     return a
 
-
+# pylint: disable=too-many-positional-arguments
 def find_correlated_strings(
     for_state: List[List[int]],
     oracle: Oracle,
@@ -252,6 +252,7 @@ def best_correlation(m) -> Tuple[int, int, float]:
     m = np.array(m)
     corrs = all_correlations(m)
     np.fill_diagonal(corrs, -1)
+    # pylint: disable=unbalanced-tuple-unpacking
     i, j = np.unravel_index(np.argmax(corrs), corrs.shape)
     return i, j, corrs[i, j]
 
@@ -350,6 +351,7 @@ class PrefixSuffixTracker:
                 vs.append(idx)
             if len(vs) >= self.suffix_family_size:
                 return vs
+        return None
 
     def finish_populating_suffix_family(self, vs, limit=None):
         if len(vs) >= self.suffix_family_size:
@@ -461,7 +463,8 @@ class PrefixSuffixTracker:
         states_fringe = [([], None)]
         while states_fringe:
             print(
-                f"Expanding: there are {len(states_fringe)} states to expand and {len(completed_states)} completed states"
+                f"Expanding: there are {len(states_fringe)} states"
+                f" to expand and {len(completed_states)} completed states"
             )
             path, subset_mask = states_fringe.pop()
             if subset_mask is not None:
@@ -616,7 +619,8 @@ def flat_decision_tree_to_decision_tree(
 ) -> DecisionTree:
     """
     Takes a flat decision tree (fdt), which is represented as a list of descriptors of leaves, each
-    being a list of decisions made along the path from the root to the leaf (represented as a tuple (predicate, decision))),
+    being a list of decisions made along the path from the root to the leaf
+    (represented as a tuple (predicate, decision))),
     and converts it into a hierarchical DecisionTree structure.
     """
     if not fdt:
@@ -796,3 +800,17 @@ def counterexample_driven_synthesis(
         results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, results
         prev_num_states = len(fdt)
+
+
+def do_counterexample_driven_synthesis(
+    pst, *, min_state_size: float, additional_counterexamples: int, acc_threshold: float
+) -> DFA:
+    dfa = None
+    for dfa, _ in counterexample_driven_synthesis(
+        pst,
+        min_state_size=min_state_size,
+        additional_counterexamples=additional_counterexamples,
+        acc_threshold=acc_threshold,
+    ):
+        pass
+    return dfa

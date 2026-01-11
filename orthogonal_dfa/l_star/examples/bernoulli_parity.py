@@ -25,8 +25,7 @@ class BernoulliParityOracle(Oracle):
         hash_input = uniform_random((string, self.seed))
         if hash_input < self.p_correct:
             return correct
-        else:
-            return not correct
+        return not correct
 
 
 @dataclass(frozen=True)
@@ -42,5 +41,4 @@ class BernoulliRegex(Oracle):
         hash_input = uniform_random((string, self.seed))
         if hash_input < self.p_correct:
             return correct
-        else:
-            return not correct
+        return not correct
