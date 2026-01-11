@@ -165,6 +165,7 @@ def normalize(a):
     a = a / np.linalg.norm(a)
     return a
 
+
 # pylint: disable=too-many-positional-arguments
 def find_correlated_strings(
     for_state: List[List[int]],
