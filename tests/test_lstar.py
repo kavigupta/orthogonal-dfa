@@ -6,7 +6,10 @@ from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
     do_counterexample_driven_synthesis,
 )
-from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
+from orthogonal_dfa.l_star.examples.bernoulli_parity import (
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 us = UniformSampler(40)
@@ -56,6 +59,13 @@ class TestLStar(unittest.TestCase):
     def test_modulo(self):
         oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
             accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
+        assertDFA(self, dfa, oracle_creator)
+
+    def test_specific_subsequence(self):
+        oracle_creator = lambda accuracy, seed: BernoulliRegex(
+            accuracy, seed, regex=r".*1010101.*"
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)

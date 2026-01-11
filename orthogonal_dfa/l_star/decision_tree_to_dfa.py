@@ -567,7 +567,23 @@ class PrefixSuffixTracker:
         print(
             f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
         )
-        return success_rates[best_idx], possible_dfas[best_idx]
+        return success_rates[best_idx], self.fix_accept_states(possible_dfas[best_idx])
+
+    def fix_accept_states(self, dfa):
+        fs_count = np.zeros(len(dfa.states))
+        fs_acc = np.zeros(len(dfa.states))
+        for x, is_acc in zip(self.prefixes, self.record_suffix([])[1]):
+            final_state = list(dfa.read_input_stepwise(x, ignore_rejection=True))[-1]
+            fs_count[final_state] += 1
+            fs_acc[final_state] += is_acc
+        is_accept = fs_acc / fs_count > 0.5
+        return DFA(
+            states=dfa.states,
+            input_symbols=dfa.input_symbols,
+            transitions=dfa.transitions,
+            initial_state=dfa.initial_state,
+            final_states={s for s in dfa.states if is_accept[s]},
+        )
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
