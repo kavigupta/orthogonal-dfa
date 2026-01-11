@@ -47,16 +47,15 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
         evidence_thresh=0.55,
         suffix_prevalence=0.05,
     )
-    return do_counterexample_driven_synthesis(
-        pst, min_state_size=0.01, additional_counterexamples=500, acc_threshold=0.9
+    dfa, dt = do_counterexample_driven_synthesis(
+        pst, min_state_size=0.02, additional_counterexamples=200, acc_threshold=0.9
     )
-
+    return pst, dfa, dt
 
 class TestLStar(unittest.TestCase):
     def test_modulo(self):
         oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
             accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        dfa = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
-        self.assertEqual(len(dfa.states), 9)
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)

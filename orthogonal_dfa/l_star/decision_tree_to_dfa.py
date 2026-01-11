@@ -796,22 +796,22 @@ def counterexample_driven_synthesis(
         acc, dfa = pst.optimal_dfa(fdt)
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, None
+            yield dfa, dt, None
             return
         results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
-        yield dfa, results
+        yield dfa, dt, results
         prev_num_states = len(fdt)
 
 
 def do_counterexample_driven_synthesis(
     pst, *, min_state_size: float, additional_counterexamples: int, acc_threshold: float
 ) -> DFA:
-    dfa = None
-    for dfa, _ in counterexample_driven_synthesis(
+    dfa = dt = None
+    for dfa, dt, _ in counterexample_driven_synthesis(
         pst,
         min_state_size=min_state_size,
         additional_counterexamples=additional_counterexamples,
         acc_threshold=acc_threshold,
     ):
         pass
-    return dfa
+    return dfa, dt
