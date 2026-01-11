@@ -55,6 +55,7 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
     )
     return pst, dfa, dt
 
+
 class TestLStar(unittest.TestCase):
     def test_modulo(self):
         oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
