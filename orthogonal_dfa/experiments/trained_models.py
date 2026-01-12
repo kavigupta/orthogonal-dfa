@@ -8,6 +8,7 @@ from orthogonal_dfa.experiments.gate_experiments import (
     train_psam_linear_with_alternates,
     train_rnn_direct,
     train_rnn_psams,
+    train_rnn_psams_sparse,
 )
 from orthogonal_dfa.experiments.training_curves import pdfa_results, process_results
 from orthogonal_dfa.module.rnn import LSTMProcessor
@@ -147,6 +148,16 @@ r_lstm_500 = TrainedModels(
     ),
 )
 
+r_rnn_500_1l_sparse = TrainedModels(
+    "RNN PSAMs Sparse [500, 1 layer]",
+    lambda: process_results(
+        [
+            train_rnn_psams_sparse(seed, hidden_size=500, layers=1, starting_gates=[], initial_threshold=0.35)
+            for seed in range(10)
+        ]
+    ),
+)
+
 pdfa_models_basic = [r_pdfa, r_pdfa_cp, r_pdfa_10s]
 pdfa_models_rest = [r_pdfa_cp_10s, r_pdfa_hyp, r_pdfa_cp_hyp]
 
@@ -170,6 +181,7 @@ rnn_models_main = [
     r_rnn_500_1l_cp,
     r_rnn_500_1l_psams_3_cp,
     r_rnn_500_1l_psams_4_cp,
+    r_rnn_500_1l_sparse,
 ]
 
 all_models = pdfa_models + psam_models + rnn_models_hyperparam_search + rnn_models_main
