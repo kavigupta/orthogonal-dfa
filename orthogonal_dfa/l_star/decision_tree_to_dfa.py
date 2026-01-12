@@ -539,6 +539,16 @@ class PrefixSuffixTracker:
         ]
         return possible_dfas
 
+    def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
+        vs_idxs = [self.record_suffix(v)[2] for v in vs]
+        return self.compute_decision(vs_idxs)
+
+    def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
+        decision = self.compute_decision_from_strings(vs)
+        return np.array(
+            [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
+        )
+
     def dfa_success_rates(
         self, dfas: List[DFA], paths: List[List[Tuple[TriPredicate, bool]]]
     ) -> List[float]:
@@ -548,12 +558,7 @@ class PrefixSuffixTracker:
         assert (
             [] in dt.predicate.vs
         ), "The root predicate must include the empty string as an exemplar"
-        decision = self.compute_decision(
-            [self.record_suffix(v)[2] for v in dt.predicate.vs]
-        )
-        decision_arr = np.array(
-            [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
-        )
+        decision_arr = self.compute_decision_array_from_strings(dt.predicate.vs)
         mask = decision_arr.any(0)
         odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
 
