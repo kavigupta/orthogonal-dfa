@@ -152,7 +152,13 @@ r_rnn_500_1l_sparse = TrainedModels(
     "RNN PSAMs Sparse [500, 1 layer]",
     lambda: process_results(
         [
-            train_rnn_psams_sparse(seed, hidden_size=500, layers=1, starting_gates=[], initial_threshold=0.35)
+            train_rnn_psams_sparse(
+                seed,
+                hidden_size=500,
+                layers=1,
+                starting_gates=[],
+                initial_threshold=0.35,
+            )
             for seed in range(10)
         ]
     ),
