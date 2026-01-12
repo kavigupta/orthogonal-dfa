@@ -327,7 +327,7 @@ class PrefixSuffixTracker:
             self.sample_suffix()
 
     def finish_populating_suffix_family_without_sampling(
-        self, vs: List[int]
+        self, vs: List[int], suffix_family_size: int
     ) -> List[int]:
         # mean_corresponding_masks = np.mean(
         #     [self.corresponding_masks[v] for v in vs], axis=0
@@ -350,35 +350,51 @@ class PrefixSuffixTracker:
                 < self.chi_squared_p_min
             ):
                 vs.append(idx)
-            if len(vs) >= self.suffix_family_size:
+            if len(vs) >= suffix_family_size:
                 return vs
         return None
 
-    def finish_populating_suffix_family(self, vs, limit=None):
-        if len(vs) >= self.suffix_family_size:
+    def finish_populating_suffix_family(
+        self, vs, *, limit=None, suffix_family_size=None
+    ):
+        if suffix_family_size is None:
+            suffix_family_size = self.suffix_family_size
+        if len(vs) >= suffix_family_size:
             return
-        self.finish_populating_suffix_family_without_sampling(vs)
-        if len(vs) >= self.suffix_family_size:
+        self.finish_populating_suffix_family_without_sampling(
+            vs, suffix_family_size=suffix_family_size
+        )
+        if len(vs) >= suffix_family_size:
             return
+
+        new_vs, _ = self.sample_more_suffixes(
+            vs[0], amount=suffix_family_size - len(vs), limit=limit
+        )
+
+        vs += new_vs
+
+    def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
+        new_vs = []
         pbar = tqdm.tqdm(
             desc="Completing suffix family",
             delay=1,
-            total=self.suffix_family_size - len(vs),
+            total=amount,
         )
         for i in itertools.count():
             if limit is not None and i >= limit:
                 pbar.close()
-                return
+                return None, 0
             _, mask, idx = self.sample_suffix()
             if (
-                chi_squared_p(self.corresponding_masks[vs[0]], mask)
+                chi_squared_p(self.corresponding_masks[v], mask)
                 < self.chi_squared_p_min
             ):
                 pbar.update()
-                vs.append(idx)
-                if len(vs) >= self.suffix_family_size:
+                new_vs.append(idx)
+                if len(new_vs) >= amount:
                     pbar.close()
-                    return
+                    remainder = limit - i - 1 if limit is not None else None
+                    return new_vs, remainder
 
     def corresponding_masks_for_subset(self, subset_prefixes=None) -> List[np.ndarray]:
         corresponding_masks = np.array(self.corresponding_masks)
