@@ -374,10 +374,25 @@ class PrefixSuffixTracker:
         vs += new_vs
         return limit
 
-    def sample_suffix_family(self, v: int, *, limit=None) -> List[int]:
-        vs = [v]
-        self.finish_populating_suffix_family(vs, limit=limit)
-        return vs
+    def sample_suffix_family(self, v: int, *, limit=None, fnr_limit=0.05) -> List[int]:
+        while True:
+            vs = [v]
+            limit = self.finish_populating_suffix_family(vs, limit=limit)
+            fnr = (
+                1
+                - self.compute_decision_array_from_strings(
+                    [self.suffix_bank[v] for v in vs]
+                )
+                .sum(0)
+                .mean()
+            )
+            if fnr <= fnr_limit:
+                print("FNR limit reached")
+                return vs
+            print(f"FNR {fnr:.4f} too high, sampling more suffixes")
+            _, limit = self.sample_more_suffixes(
+                v, amount=1 + self.suffix_family_size // 10, limit=limit
+            )
 
     def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
         new_vs = []
