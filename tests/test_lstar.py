@@ -5,6 +5,7 @@ import numpy as np
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
     do_counterexample_driven_synthesis,
+    population_size_and_evidence_thresh,
 )
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
@@ -39,19 +40,23 @@ def assertDFA(testcase, dfa, oracle_creator):
 
 def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
     oracle = oracle_creator(accuracy, seed)
+    n, eps = population_size_and_evidence_thresh(
+        p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
+    )
+    print(f"Using suffix population size {n} and eps {eps}")
     pst = PrefixSuffixTracker.create(
         us,
         np.random.default_rng(0),
         oracle,
         alphabet_size=2,
         num_prefixes=1_000,
-        suffix_family_size=100,
+        suffix_family_size=n,
         chi_squared_p_min=0.005,
-        evidence_thresh=0.55,
+        evidence_thresh=0.50 + eps,
         suffix_prevalence=0.05,
     )
     dfa, dt = do_counterexample_driven_synthesis(
-        pst, min_state_size=0.02, additional_counterexamples=200, acc_threshold=0.9
+        pst, min_state_size=0.02, additional_counterexamples=200, acc_threshold=0.98
     )
     return pst, dfa, dt
 
