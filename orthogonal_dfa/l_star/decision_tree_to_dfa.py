@@ -402,6 +402,8 @@ class PrefixSuffixTracker:
                     remainder = limit - i - 1 if limit is not None else None
                     return new_vs, remainder
 
+        raise RuntimeError("Unreachable")
+
     def corresponding_masks_for_subset(self, subset_prefixes=None) -> List[np.ndarray]:
         corresponding_masks = np.array(self.corresponding_masks)
         if subset_prefixes is not None:
