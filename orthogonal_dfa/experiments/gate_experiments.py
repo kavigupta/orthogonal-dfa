@@ -202,20 +202,19 @@ def get_asl(num_psams, *, threshold_decrease_per_iter=1e-5, initial_threshold=0.
 
 
 def train_rnn_psams_sparse(
-    seed, *, hidden_size, layers, initial_threshold, starting_gates=()
+    seed, *, hidden_size, layers, initial_threshold, starting_gates=(), num_psams=4
 ):
-    num_psams = 4
     return train_many(
         lambda length: RNNPSAMProcessorSparse(
             TorchPSAMs.create(two_r=8, channels=4, num_psams=num_psams),
             RNNProcessor(
-                num_inputs=4, hidden_size=hidden_size, num_layers=layers
+                num_inputs=num_psams, hidden_size=hidden_size, num_layers=layers
             ).cuda(),
             asl=get_asl(num_psams, initial_threshold=initial_threshold),
         ),
         1,
         seed=seed,
-        epochs=4000,
+        epochs=10_000,
         lr=1e-5,
         finetune_epochs=50,
         starting_gates=starting_gates,

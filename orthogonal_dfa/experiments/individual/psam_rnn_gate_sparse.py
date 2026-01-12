@@ -33,6 +33,12 @@ def main():
         help="Number of layers in the RNN.",
     )
     parser.add_argument(
+        "--num-psams",
+        type=int,
+        default=4,
+        help="Number of PSAMs.",
+    )
+    parser.add_argument(
         "--build-on",
         choices=["nothing", "psam-linear-alt"],
         default="nothing",
@@ -45,6 +51,7 @@ def main():
         layers=args.layers,
         initial_threshold=args.initial_threshold,
         starting_gates=get_starting_gates(args.build_on),
+        num_psams=args.num_psams,
     )
 
 

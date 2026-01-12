@@ -114,9 +114,18 @@ def train_direct(
         )
         sparse_info = None
         # do not update sparsity right before the end; ensure that we always recalibrate the sparsity
+        to_save = epoch_loss
         if epoch != epochs - 1 and notify_epoch_loss:
+            gate_backup = copy.deepcopy(gate)
             sparse_info = gate.notify_epoch_loss(epoch_full, epoch_loss)
-        results.append(epoch_loss if sparse_info is None else [epoch_loss, sparse_info])
+            if sparse_info is not None:
+                to_save = dict(
+                    loss=epoch_loss,
+                    sparse_info=sparse_info,
+                )
+                if sparse_info["keep_old_model"]:
+                    to_save["gate_before_update"] = gate_backup
+        results.append(to_save)
     return gate, results
 
 

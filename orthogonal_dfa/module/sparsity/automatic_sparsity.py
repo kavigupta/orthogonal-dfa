@@ -18,8 +18,14 @@ class AutomaticSparseLayer(nn.Module):
     def notify_epoch_loss(self, epoch_idx, epoch_loss):
         epoch_loss = np.mean(epoch_loss)
         epoch_reward = -epoch_loss
-        return self.suo.update_sparsity(
+        original_sparsity = self.sparsity.sparsity
+        new_sparsity = self.suo.update_sparsity(
             self.sparsity.sparsity, self.update_sparsity, epoch_idx, epoch_reward
+        )
+        return dict(
+            original_sparsity=original_sparsity,
+            new_sparsity=new_sparsity,
+            keep_old_model=original_sparsity != new_sparsity,
         )
 
     def update_sparsity(self, new_sparsity):
