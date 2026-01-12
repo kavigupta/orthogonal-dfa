@@ -360,18 +360,24 @@ class PrefixSuffixTracker:
         if suffix_family_size is None:
             suffix_family_size = self.suffix_family_size
         if len(vs) >= suffix_family_size:
-            return
+            return limit
         self.finish_populating_suffix_family_without_sampling(
             vs, suffix_family_size=suffix_family_size
         )
         if len(vs) >= suffix_family_size:
-            return
+            return limit
 
-        new_vs, _ = self.sample_more_suffixes(
+        new_vs, limit = self.sample_more_suffixes(
             vs[0], amount=suffix_family_size - len(vs), limit=limit
         )
 
         vs += new_vs
+        return limit
+
+    def sample_suffix_family(self, v: int, *, limit=None) -> List[int]:
+        vs = [v]
+        self.finish_populating_suffix_family(vs, limit=limit)
+        return vs
 
     def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
         new_vs = []
@@ -728,8 +734,7 @@ def overlaps(pst, states, vs, *, min_state_size):
 
 def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[DecisionTree]:
     _, _, v_idx = pst.record_suffix([])
-    vs = [v_idx]
-    pst.finish_populating_suffix_family(vs)
+    vs = pst.sample_suffix_family(v_idx)
     vs_queue = [([], vs)]
     states = [([], np.ones(len(pst.prefixes), bool))]
 
