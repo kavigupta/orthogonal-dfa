@@ -16,12 +16,20 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 us = UniformSampler(40)
 
 
-def assertDFA(testcase, dfa, oracle_creator):
-    oracle = oracle_creator(1.0, 0)
+def sample_with_exclusion(exclude_pattern):
     rng = np.random.default_rng(0x1234)
-    false_positives, false_negatives = [], []
-    for _ in range(1000):
+    results = []
+    while len(results) < 10000:
         s = us.sample(rng, 2)
+        if exclude_pattern is None or not exclude_pattern(s):
+            results.append(s)
+    return results
+
+
+def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None):
+    oracle = oracle_creator(1.0, 0)
+    false_positives, false_negatives = [], []
+    for s in sample_with_exclusion(exclude_pattern):
         expected = oracle.membership_query(s)
         actual = dfa.accepts_input(s)
         if expected and not actual:
