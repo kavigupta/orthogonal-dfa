@@ -881,12 +881,14 @@ def do_counterexample_driven_synthesis(
 
 def population_size_and_evidence_thresh(
     p_acc, acceptable_fpr, acceptable_fnr, *, relative_eps=0.5
-):
+) -> Tuple[int, float]:
     """
-    Decisions will be made by taking N samples and seeing if the proportion is outside (0.5 - epsilon, 0.5 + epsilon).
-    The true distribution is assumed to be B(p_acc) when the underlying value is 1 and B(1 - p_acc) when it is 0. We would
-    like it to be the case that when samples are drawn from the null distribution B(0.5), we have a false positive rate of at most
-    acceptable_fpr, and when samples are drawn from the true distribution we have a false negative rate of at most acceptable_fnr.
+    Decisions will be made by taking N samples and seeing if the proportion is outside
+    (0.5 - epsilon, 0.5 + epsilon). The true distribution is assumed to be B(p_acc) when
+    the underlying value is 1 and B(1 - p_acc) when it is 0. We would like it to be the
+    case that when samples are drawn from the null distribution B(0.5), we have a false
+    positive rate of at most acceptable_fpr, and when samples are drawn from the true
+    distribution we have a false negative rate of at most acceptable_fnr.
 
     In other words, the conditions are
 
@@ -911,12 +913,13 @@ def population_size_and_evidence_thresh(
     res = evidence_thresh_for_population_size(
         p_acc, acceptable_fpr, acceptable_fnr, N_high, relative_eps=relative_eps
     )
+    assert res is not None
     return res
 
 
 def evidence_thresh_for_population_size(
     p_acc, acceptable_fpr, acceptable_fnr, N, *, relative_eps
-):
+) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_thresh for context.
     """
@@ -931,3 +934,4 @@ def evidence_thresh_for_population_size(
         ) - scipy.stats.binom.cdf(k_low, N, p_acc)
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
+    return None
