@@ -472,11 +472,14 @@ class PrefixSuffixTracker:
 
     def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
-        assert (
-            selected_masks.shape[1] == self.num_prefixes
-            if subset_prefixes is None
-            else sum(subset_prefixes)
-        )
+        if subset_prefixes is None:
+            assert (
+                selected_masks.shape[1] == self.num_prefixes
+            ), f"Expected {self.num_prefixes}, got {selected_masks.shape[1]}"
+        else:
+            assert selected_masks.shape[1] == sum(
+                subset_prefixes
+            ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
         return selected_masks.mean(0)
 
     def split_states(
