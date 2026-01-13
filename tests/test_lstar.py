@@ -57,7 +57,7 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
         np.random.default_rng(0),
         oracle,
         alphabet_size=2,
-        num_prefixes=1_000,
+        num_prefixes=2_000,
         suffix_family_size=n,
         chi_squared_p_min=0.005,
         evidence_thresh=0.50 + eps,

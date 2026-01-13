@@ -272,6 +272,7 @@ class PrefixSuffixTracker:
     suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
+    fnr_limit: float = 0.02
 
     @classmethod
     def create(
@@ -374,25 +375,30 @@ class PrefixSuffixTracker:
         vs += new_vs
         return limit
 
-    def sample_suffix_family(self, v: int, *, limit=None, fnr_limit=0.05) -> List[int]:
+    def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
         while True:
             vs = [v]
             limit = self.finish_populating_suffix_family(vs, limit=limit)
-            fnr = (
-                1
-                - self.compute_decision_array_from_strings(
-                    [self.suffix_bank[v] for v in vs]
-                )
-                .sum(0)
-                .mean()
-            )
-            if fnr <= fnr_limit:
+            if limit == 0:
+                return None
+
+            fnr = self.compute_fnr(vs)
+            if fnr <= self.fnr_limit:
                 print("FNR limit reached")
                 return vs
-            print(f"FNR {fnr:.4f} too high, sampling more suffixes")
+            print(f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}")
             _, limit = self.sample_more_suffixes(
-                v, amount=1 + self.suffix_family_size // 10, limit=limit
+                v, amount=1 + self.suffix_family_size, limit=limit
             )
+    def compute_fnr(self, vs):
+        return (
+            1
+            - self.compute_decision_array_from_strings(
+                [self.suffix_bank[v] for v in vs]
+            )
+            .sum(0)
+            .mean()
+        )
 
     def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
         new_vs = []
@@ -404,7 +410,7 @@ class PrefixSuffixTracker:
         for i in itertools.count():
             if limit is not None and i >= limit:
                 pbar.close()
-                return None, 0
+                return new_vs, 0
             _, mask, idx = self.sample_suffix()
             if (
                 chi_squared_p(self.corresponding_masks[v], mask)
@@ -749,6 +755,7 @@ def overlaps(pst, states, vs, *, min_state_size):
     valid = np.any(masks, 0) & np.any(existing_states, 0)
     masks, existing_states = masks[:, valid], existing_states[:, valid]
     freqs = (masks[:, None] & existing_states[None]).mean(-1)
+    print(freqs)
     return np.where((freqs > min_state_size).all(0))[0].tolist()
 
 
@@ -771,10 +778,19 @@ def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[Decisi
             print("Done")
             continue
         split_with(ol, vs_current)
-        vs_queue.extend(
-            ([c] + path, pst.prepend_to_all(vs_current, c))
-            for c in range(pst.alphabet_size)
-        )
+        for c in range(pst.alphabet_size):
+            # hot start, but we only use the first one
+            vs_new = pst.prepend_to_all(vs_current, c)
+            if pst.compute_fnr(vs_new) > pst.fnr_limit:
+                print("FNR invalid")
+                vs_new = pst.sample_suffix_family(
+                    vs_new[0], limit=pst.suffix_family_size * 2
+                )
+                if vs_new is None:
+                    print("Could not find valid suffix family; continuing")
+                    continue
+
+            vs_queue.append(([c] + path, vs_new))
 
     # split_with([0], vs)
     # split_with([0, 1], vs_with_1)
