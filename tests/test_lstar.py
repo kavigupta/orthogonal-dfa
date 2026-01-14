@@ -127,8 +127,7 @@ class TestLStar(unittest.TestCase):
         def counterexample_generator(suffix):
             if suffix[0] == 1:
                 return [1, 1, 1, 1]
-            else:
-                return [0, 0, 0, 0]
+            return [0, 0, 0, 0]
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
@@ -140,7 +139,6 @@ class TestLStar(unittest.TestCase):
         def counterexample_generator(suffix):
             if suffix[0] == 1:
                 return [1, 1, 1, 1, 1]
-            else:
-                return [0, 0, 0, 0]
+            return [0, 0, 0, 0]
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
