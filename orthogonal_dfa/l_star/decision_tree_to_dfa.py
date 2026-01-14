@@ -899,7 +899,9 @@ def counterexample_driven_synthesis(
         acc, dfa = pst.optimal_dfa(fdt)
         print("DFA found!")
         print(dfa)
-        if any(dfa.issubset(prev_dfa) and prev_dfa.issubset(dfa) for prev_dfa in prev_dfas):
+        if any(
+            dfa.issubset(prev_dfa) and prev_dfa.issubset(dfa) for prev_dfa in prev_dfas
+        ):
             print("Same DFA twice; stopping synthesis")
             yield dfa, dt, None
             return
