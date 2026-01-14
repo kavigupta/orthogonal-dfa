@@ -99,6 +99,13 @@ class TestLStar(unittest.TestCase):
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
+    def test_modulo_harder(self):
+        oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
+            accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.65, seed=0)
+        assertDFA(self, dfa, oracle_creator)
+
     def test_specific_subsequence(self):
         oracle_creator = lambda accuracy, seed: BernoulliRegex(
             accuracy, seed, regex=r".*1010101.*"
