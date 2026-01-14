@@ -103,7 +103,7 @@ class TestLStar(unittest.TestCase):
         oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
             accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.65, seed=0)
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.7, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_subsequence(self):
