@@ -42,7 +42,7 @@ def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None):
         print(f"False positives: {false_positives}")
         print(f"False negatives: {false_negatives}")
         testcase.fail(
-            f"DFA incorrect. False positives: {false_positives}, False negatives: {false_negatives}"
+            f"DFA incorrect. False positives: {len(false_positives)}, False negatives: {len(false_negatives)}"
         )
 
 
