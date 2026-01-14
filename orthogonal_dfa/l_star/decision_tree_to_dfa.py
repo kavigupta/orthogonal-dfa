@@ -549,18 +549,28 @@ class PrefixSuffixTracker:
             mask = cascade(mask, decision_mask)
         return mask
 
-    def compute_transition_matrix(
-        self, paths: List[List[Tuple[TriPredicate, bool]]]
-    ) -> np.ndarray:
-        state_map = np.array([self.execute_path(path) for path in paths]).astype(int)
-        transitions = []
-        for symbol in range(self.alphabet_size):
-            pre = np.array(
-                [self.execute_path(path, [symbol]) for path in paths]
-            ).astype(int)
-            transitions.append((pre @ state_map.T).argmax(0))
-        transitions = np.array(transitions)
-        return transitions.T
+    def compute_transition_matrix(self, dt: DecisionTree) -> np.ndarray:
+        states = self.classify_states_with_decision_tree(dt)
+        states_after_c = [
+            self.classify_states_with_decision_tree(
+                dt.map_over_predicates(
+                    lambda p: TriPredicate(
+                        [[c] + x for x in p.vs], p.evidence_threshold
+                    )
+                )
+            )
+            for c in range(self.alphabet_size)
+        ]
+        num_states = dt.num_states
+        transitions = np.zeros((num_states, self.alphabet_size, num_states), dtype=int)
+        for c, states_c in enumerate(states_after_c):
+            valid = states_c >= 0
+            np.add.at(
+                transitions,
+                (states[valid], c, states_c[valid]),
+                1,
+            )
+        return transitions.argmax(-1)
 
     def compute_accepts_vector(
         self, paths: List[List[Tuple[TriPredicate, bool]]]
@@ -572,7 +582,8 @@ class PrefixSuffixTracker:
         return np.array(accepts)
 
     def possible_dfas(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> List[DFA]:
-        transitions = self.compute_transition_matrix(paths)
+        dt = flat_decision_tree_to_decision_tree(paths)
+        transitions = self.compute_transition_matrix(dt)
         accepts = self.compute_accepts_vector(paths)
         num_states = len(paths)
         possible_dfas = [
@@ -599,6 +610,15 @@ class PrefixSuffixTracker:
         return np.array(
             [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
         )
+
+    def classify_states_with_decision_tree(self, dt: DecisionTree):
+        if isinstance(dt, DecisionTreeLeafNode):
+            return np.full(len(self.prefixes), dt.state_idx)
+        results = np.full(len(self.prefixes), -1)
+        rej, acc = self.compute_decision_array_from_strings(dt.predicate.vs)
+        results[rej] = self.classify_states_with_decision_tree(dt.by_rejection[0])[rej]
+        results[acc] = self.classify_states_with_decision_tree(dt.by_rejection[1])[acc]
+        return results
 
     def dfa_success_rates(
         self, dfas: List[DFA], paths: List[List[Tuple[TriPredicate, bool]]]
