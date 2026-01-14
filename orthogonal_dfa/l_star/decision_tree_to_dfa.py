@@ -386,10 +386,13 @@ class PrefixSuffixTracker:
             if fnr <= self.fnr_limit:
                 print("FNR limit reached")
                 return vs
-            print(f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}")
+            print(
+                f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}"
+            )
             _, limit = self.sample_more_suffixes(
                 v, amount=1 + self.suffix_family_size, limit=limit
             )
+
     def compute_fnr(self, vs):
         return (
             1
