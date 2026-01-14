@@ -778,19 +778,10 @@ def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[Decisi
             print("Done")
             continue
         split_with(ol, vs_current)
-        for c in range(pst.alphabet_size):
-            # hot start, but we only use the first one
-            vs_new = pst.prepend_to_all(vs_current, c)
-            if pst.compute_fnr(vs_new) > pst.fnr_limit:
-                print("FNR invalid")
-                vs_new = pst.sample_suffix_family(
-                    vs_new[0], limit=pst.suffix_family_size * 2
-                )
-                if vs_new is None:
-                    print("Could not find valid suffix family; continuing")
-                    continue
-
-            vs_queue.append(([c] + path, vs_new))
+        vs_queue.extend(
+            ([c] + path, pst.prepend_to_all(vs_current, c))
+            for c in range(pst.alphabet_size)
+        )
 
     # split_with([0], vs)
     # split_with([0, 1], vs_with_1)
