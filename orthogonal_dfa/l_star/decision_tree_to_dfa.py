@@ -554,7 +554,7 @@ class PrefixSuffixTracker:
         states_after_c = [
             self.classify_states_with_decision_tree(
                 dt.map_over_predicates(
-                    lambda p: TriPredicate(
+                    lambda p, c=c: TriPredicate(
                         [[c] + x for x in p.vs], p.evidence_threshold
                     )
                 )
