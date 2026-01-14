@@ -347,7 +347,7 @@ class PrefixSuffixTracker:
         for idx in sorted_idxs:
             if idx in vs:
                 continue
-            if (
+            if self.chi_squared_p_min is None or (
                 chi_squared_p(
                     self.corresponding_masks[vs[0]],
                     self.corresponding_masks[idx],
@@ -419,7 +419,7 @@ class PrefixSuffixTracker:
                 pbar.close()
                 return new_vs, 0
             _, mask, idx = self.sample_suffix()
-            if (
+            if self.chi_squared_p_min is None or (
                 chi_squared_p(self.corresponding_masks[v], mask)
                 < self.chi_squared_p_min
             ):
@@ -441,7 +441,7 @@ class PrefixSuffixTracker:
     def best_correlation_in_bank(self, subset_prefixes=None) -> Tuple[int, int, float]:
         corresponding_masks = self.corresponding_masks_for_subset(subset_prefixes)
         idx_1, idx_2, _ = best_correlation(corresponding_masks)
-        if (
+        if self.chi_squared_p_min is None or (
             chi_squared_p(corresponding_masks[idx_1], corresponding_masks[idx_2])
             < self.chi_squared_p_min
         ):
