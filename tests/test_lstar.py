@@ -113,6 +113,13 @@ class TestLStar(unittest.TestCase):
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
+    def test_two_subsequences_with_alternation(self):
+        oracle_creator = lambda accuracy, seed: BernoulliRegex(
+            accuracy, seed, regex=r".*1111.*(1111|0000)11.*"
+        )
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
+        assertDFA(self, dfa, oracle_creator)
+
     def test_specific_alternation(self):
         oracle_creator = lambda accuracy, seed: BernoulliRegex(
             accuracy, seed, regex=r".*(1111|0000)11.*"
