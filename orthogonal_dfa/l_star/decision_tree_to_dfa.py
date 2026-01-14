@@ -890,15 +890,17 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
-    prev_num_states = 0
+    prev_dfas = []
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         fdt = abstract_interpretation_algorithm(pst)
         print(f"Extracted flat decision tree with {len(fdt)} states")
         dt = flat_decision_tree_to_decision_tree(fdt)
         acc, dfa = pst.optimal_dfa(fdt)
-        if len(fdt) == prev_num_states:
-            print("No change in number of states; stopping synthesis")
+        print("DFA found!")
+        print(dfa)
+        if any(dfa.issubset(prev_dfa) and prev_dfa.issubset(dfa) for prev_dfa in prev_dfas):
+            print("Same DFA twice; stopping synthesis")
             yield dfa, dt, None
             return
         if acc >= acc_threshold:
@@ -907,7 +909,6 @@ def counterexample_driven_synthesis(
             return
         results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, dt, results
-        prev_num_states = len(fdt)
 
 
 def do_counterexample_driven_synthesis(
