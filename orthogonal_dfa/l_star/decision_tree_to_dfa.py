@@ -272,7 +272,9 @@ class PrefixSuffixTracker:
     suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
+    decision_rule_fpr: float
     fnr_limit: float = 0.02
+    split_pval: float = 0.001
 
     @classmethod
     def create(
@@ -287,6 +289,7 @@ class PrefixSuffixTracker:
         chi_squared_p_min: float,
         suffix_prevalence: float,
         evidence_thresh: float,
+        decision_rule_fpr: float,
     ) -> "PrefixSuffixTracker":
         prefixes = [
             sampler.sample(rng, alphabet_size=alphabet_size)
@@ -305,6 +308,7 @@ class PrefixSuffixTracker:
             suffixes_seen={},
             suffix_bank=[],
             corresponding_masks=[],
+            decision_rule_fpr=decision_rule_fpr,
         )
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
@@ -761,7 +765,7 @@ def locate_mergeable_paths(
     return first, second
 
 
-def overlaps(pst, states, vs, *, min_state_size):
+def overlaps(pst, states, vs):
     masks = np.array(
         [
             pst.compute_decision(vs) > pst.evidence_thresh,
@@ -777,12 +781,22 @@ def overlaps(pst, states, vs, *, min_state_size):
     ), f"[masks] Expected {pst.num_prefixes}, got {masks.shape[1]}"
     valid = np.any(masks, 0) & np.any(existing_states, 0)
     masks, existing_states = masks[:, valid], existing_states[:, valid]
-    freqs = (masks[:, None] & existing_states[None]).mean(-1)
+    freqs = (masks[:, None] & existing_states[None]).sum(-1).T
+    denominators = freqs.sum(-1)
     print(freqs)
-    return np.where((freqs > min_state_size).all(0))[0].tolist()
+    split_idxs = []
+    for i, (denom, (n1, n2)) in enumerate(zip(denominators, freqs)):
+        pvals = [
+            1 - scipy.stats.binom.cdf(n1, denom, pst.decision_rule_fpr),
+            1 - scipy.stats.binom.cdf(n2, denom, pst.decision_rule_fpr),
+        ]
+        pval = max(pvals)
+        if pval < pst.split_pval:
+            split_idxs.append(i)
+    return split_idxs
 
 
-def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[DecisionTree]:
+def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
     _, _, v_idx = pst.record_suffix([])
     vs = pst.sample_suffix_family(v_idx)
     vs_queue = [([], vs)]
@@ -796,7 +810,7 @@ def abstract_interpretation_algorithm(pst, min_state_size: float) -> List[Decisi
     while vs_queue:
         path, vs_current = vs_queue.pop()
         print(f"Num states: {len(states)}; processing {path}")
-        ol = overlaps(pst, states, vs_current, min_state_size=min_state_size)
+        ol = overlaps(pst, states, vs_current)
         if not ol:
             print("Done")
             continue
@@ -874,12 +888,12 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
 
 
 def counterexample_driven_synthesis(
-    pst, *, min_state_size: float, additional_counterexamples: int, acc_threshold: float
+    pst, *, additional_counterexamples: int, acc_threshold: float
 ):
     prev_num_states = 0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        fdt = abstract_interpretation_algorithm(pst, min_state_size=min_state_size)
+        fdt = abstract_interpretation_algorithm(pst)
         print(f"Extracted flat decision tree with {len(fdt)} states")
         dt = flat_decision_tree_to_decision_tree(fdt)
         acc, dfa = pst.optimal_dfa(fdt)
@@ -897,12 +911,11 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, min_state_size: float, additional_counterexamples: int, acc_threshold: float
+    pst, *, additional_counterexamples: int, acc_threshold: float
 ) -> DFA:
     dfa = dt = None
     for dfa, dt, _ in counterexample_driven_synthesis(
         pst,
-        min_state_size=min_state_size,
         additional_counterexamples=additional_counterexamples,
         acc_threshold=acc_threshold,
     ):
