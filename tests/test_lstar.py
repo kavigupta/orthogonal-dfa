@@ -69,6 +69,27 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
     return pst, dfa, dt
 
 
+def assertDoesNotMeetProperty(
+    testcase, oracle_creator, counterexample_generator, count=10_000
+):
+    rng = np.random.default_rng(0)
+    oracle = oracle_creator(1.0, 0)
+    valid = []
+    for _ in range(count):
+        suffix = us.sample(rng, 2)
+        prefix = counterexample_generator(suffix)
+        s = prefix + suffix
+        if oracle.membership_query(s) == oracle.membership_query(prefix):
+            valid.append((suffix, prefix))
+    if len(valid) / count < 0.001:
+        return
+    for suffix, prefix in valid[:10]:
+        print(f"Counterexample: prefix={prefix}, suffix={suffix}")
+    testcase.fail(
+        f"Oracle meets property; found {len(valid)} / {count} counterexamples."
+    )
+
+
 class TestLStar(unittest.TestCase):
     def test_modulo(self):
         oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
@@ -97,3 +118,29 @@ class TestLStar(unittest.TestCase):
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
+
+    def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
+        oracle_creator = lambda accuracy, seed: BernoulliRegex(
+            accuracy, seed, regex=r".*(11111|00000).*"
+        )
+
+        def counterexample_generator(suffix):
+            if suffix[0] == 1:
+                return [1, 1, 1, 1]
+            else:
+                return [0, 0, 0, 0]
+
+        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
+
+    def test_specific_alternation_with_only_one_at_end_does_not_meet_property(self):
+        oracle_creator = lambda accuracy, seed: BernoulliRegex(
+            accuracy, seed, regex=r".*(11111|00000)1.*"
+        )
+
+        def counterexample_generator(suffix):
+            if suffix[0] == 1:
+                return [1, 1, 1, 1, 1]
+            else:
+                return [0, 0, 0, 0]
+
+        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
