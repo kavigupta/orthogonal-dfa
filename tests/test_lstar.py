@@ -64,7 +64,7 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
         suffix_prevalence=0.05,
     )
     dfa, dt = do_counterexample_driven_synthesis(
-        pst, min_state_size=0.02, additional_counterexamples=200, acc_threshold=0.98
+        pst, min_state_size=0.01, additional_counterexamples=200, acc_threshold=0.98
     )
     return pst, dfa, dt
 
