@@ -861,11 +861,12 @@ def counterexample_driven_synthesis(
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         fdt = abstract_interpretation_algorithm(pst, min_state_size=min_state_size)
         print(f"Extracted flat decision tree with {len(fdt)} states")
-        if len(fdt) == prev_num_states:
-            print("No change in number of states; stopping synthesis")
-            break
         dt = flat_decision_tree_to_decision_tree(fdt)
         acc, dfa = pst.optimal_dfa(fdt)
+        if len(fdt) == prev_num_states:
+            print("No change in number of states; stopping synthesis")
+            yield dfa, dt, None
+            return
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
