@@ -62,9 +62,10 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
         chi_squared_p_min=0.005,
         evidence_thresh=0.50 + eps,
         suffix_prevalence=0.05,
+        decision_rule_fpr=0.01,
     )
     dfa, dt = do_counterexample_driven_synthesis(
-        pst, min_state_size=0.01, additional_counterexamples=200, acc_threshold=0.98
+        pst, additional_counterexamples=200, acc_threshold=0.98
     )
     return pst, dfa, dt
 
