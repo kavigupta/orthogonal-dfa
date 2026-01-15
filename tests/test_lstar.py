@@ -60,7 +60,7 @@ def compute_pst(oracle_creator, accuracy, seed):
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
-    k = compute_prefix_set_size(0.05, 0.8, 0.05)
+    k = compute_prefix_set_size(0.05, accuracy, 0.05)
     print(f"Using suffix population size {n}, eps {eps}, and {k} prefixes.")
     pst = PrefixSuffixTracker.create(
         us,
