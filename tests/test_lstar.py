@@ -4,6 +4,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
+    compute_prefix_set_size,
     do_counterexample_driven_synthesis,
     population_size_and_evidence_thresh,
 )
@@ -47,27 +48,34 @@ def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None):
 
 
 def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
+    pst = compute_pst(oracle_creator, accuracy, seed)
+    dfa, dt = do_counterexample_driven_synthesis(
+        pst, additional_counterexamples=200, acc_threshold=0.98
+    )
+    return pst, dfa, dt
+
+
+def compute_pst(oracle_creator, accuracy, seed):
     oracle = oracle_creator(accuracy, seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
-    print(f"Using suffix population size {n} and eps {eps}")
+    k = compute_prefix_set_size(0.05, 0.8, 0.05)
+    print(f"Using suffix population size {n}, eps {eps}, and {k} prefixes.")
     pst = PrefixSuffixTracker.create(
         us,
         np.random.default_rng(0),
         oracle,
         alphabet_size=2,
-        num_prefixes=2_000,
+        num_prefixes=k,
         suffix_family_size=n,
         chi_squared_p_min=None,
         evidence_thresh=0.50 + eps,
         suffix_prevalence=0.05,
         decision_rule_fpr=0.01,
     )
-    dfa, dt = do_counterexample_driven_synthesis(
-        pst, additional_counterexamples=200, acc_threshold=0.98
-    )
-    return pst, dfa, dt
+
+    return pst
 
 
 def assertDoesNotMeetProperty(
