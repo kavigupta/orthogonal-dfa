@@ -1024,42 +1024,66 @@ def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
         = A + Normal((B - A) * r, (A + B) * r * (1 - r))
         = A + Normal((k - 2A) * r, k * r * (1 - r))
 
-    We want to bound the probability that d(v', v_0) > d(v'', v_0) for v' ~ P(v | x = x_0) and v'' ~ P(v | x ≠ x_0).
-        To do so, we consider a bound delta < A/k for all x ≠ x_0.
+    Let delta = A/k. Then, we have
+    d(v, v_0)/k = delta + Normal((1 - 2 delta) * r, r * (1 - r) / k)
+                = delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
 
-    We then have to bound
+    We want to bound the probability that d(v', v_0)/k < d(v'', v_0)/k for v' ~ P(v | x = x_0) and v'' ~ P(v | x ≠ x_0).
 
-    P(
-        d(v', v_0) > d(v'', v_0)
-    )
-    <=
-    P(
-        Normal(k * r, k * r * (1 - r)) > A + Normal((k - 2A) * r, k * r * (1 - r))
-    )
-    =
-    P(
-        Normal(k * r - (k - 2A) * r, 2 * k * r * (1 - r)) > A
-    )
-    =
-    P(
-        Normal(2A * r, 2 * k * r * (1 - r)) > A
-    )
-    =
-    P(
-        Normal(0, 1) > (A - 2A * r) / sqrt(2 * k * r * (1 - r))
-    )
+    d(v', v_0)/k > d(v'', v_0)/k
+    r + Normal(0, r * (1 - r) / k) > delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
+    Normal(0, r * (1 - r) / k) > delta - 2 * delta * r + Normal(0, r * (1 - r) / k)
+    Normal(0, r * (1 - r) / k) > delta * (1 - 2 * r) + Normal(0, r * (1 - r) / k)
+    Normal(0, 2 * r * (1 - r) / k) > delta * (1 - 2 * r)
+    Normal(0, 1) > delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k)
 
     Letting z = Φ^{-1}(1 - acceptable_misclassification), we want
 
-    (A - 2A * r) / sqrt(2 * k * r * (1 - r)) >= z
-
-    delta sqrt(k) * (1 - 2r) / sqrt(2 * r * (1 - r)) >= z
-
-    k >= (z * sqrt(2 * r * (1 - r)) / (delta * (1 - 2r)))^2
-      = (z^2 * 2 * r * (1 - r)) / (delta^2 * (1 - 2r)^2)
-
+    delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k) = z
+    delta^2 * (1 - 2 * r)^2 k / (2 * r * (1 - r)) = z^2
+    k  = z^2 (2 * r * (1 - r))  / (delta^2 * (1 - 2 * r)^2)
     """
     r = 2 * noise_level * (1 - noise_level)
     z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
     k = (z**2 * 2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
+    return int(np.ceil(k))
+
+
+def compute_prefix_set_size_top_percentage(
+    delta, top_percentage, noise_level, acceptable_misclassification
+):
+    """
+    We assume we take the top P%ile of the strings, and want to bound what % of the other
+    strings are being caught up in this top %ile.
+
+    Let z_target be the z-score that corresponds to the bottom P%ile in the distribution
+    corresponding to x_0. We then have that this will have a distance of
+
+    d_target/k = r + sqrt(r * (1 - r)/k) * z_target
+
+    Then, we want to bound the probability that d(v, v_0)/k < d_target/k for v ~ P(v | x ≠ x_0).
+
+    We can do this via
+
+        delta + Normal((1 - 2 delta) * r, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target
+        Normal(0, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target - delta - (1 - 2 delta) * r
+        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta - 2 * delta * r
+        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta * (1 + 2 * r)
+        Normal(0, 1) < z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
+
+    This has the correct probability so long as
+
+        z = z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
+
+    which we can solve for k as
+
+        (z_target - z)^2 (2 * r * (1 - r)) / (delta^2 * (1 - 2 * r)^2)
+
+    In practice this is almost never better enough to be worth it.
+    """
+
+    r = 2 * noise_level * (1 - noise_level)
+    z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
+    z_target = scipy.stats.norm.ppf(top_percentage)
+    k = (z_target + z) ** 2 * (2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
     return int(np.ceil(k))
