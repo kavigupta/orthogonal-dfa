@@ -313,7 +313,7 @@ class PrefixSuffixTracker:
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
         while True:
-            v = self.sampler.sample(rng=self.rng, alphabet_size=2)
+            v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if tuple(v) in self.suffixes_seen:
                 continue
             return self.record_suffix(v)

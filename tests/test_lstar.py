@@ -17,20 +17,20 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 us = UniformSampler(40)
 
 
-def sample_with_exclusion(exclude_pattern):
+def sample_with_exclusion(exclude_pattern, *, symbols):
     rng = np.random.default_rng(0x1234)
     results = []
     while len(results) < 10000:
-        s = us.sample(rng, 2)
+        s = us.sample(rng, symbols)
         if exclude_pattern is None or not exclude_pattern(s):
             results.append(s)
     return results
 
 
-def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None):
+def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2):
     oracle = oracle_creator(1.0, 0)
     false_positives, false_negatives = [], []
-    for s in sample_with_exclusion(exclude_pattern):
+    for s in sample_with_exclusion(exclude_pattern, symbols=symbols):
         expected = oracle.membership_query(s)
         actual = dfa.accepts_input(s)
         if expected and not actual:
@@ -47,15 +47,15 @@ def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None):
         )
 
 
-def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
-    pst = compute_pst(oracle_creator, accuracy, seed)
+def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, symbols=2):
+    pst = compute_pst(oracle_creator, accuracy, seed, symbols=symbols)
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=0.98
     )
     return pst, dfa, dt
 
 
-def compute_pst(oracle_creator, accuracy, seed):
+def compute_pst(oracle_creator, accuracy, seed, *, symbols):
     oracle = oracle_creator(accuracy, seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
@@ -66,7 +66,7 @@ def compute_pst(oracle_creator, accuracy, seed):
         us,
         np.random.default_rng(0),
         oracle,
-        alphabet_size=2,
+        alphabet_size=symbols,
         num_prefixes=k,
         suffix_family_size=n,
         chi_squared_p_min=None,
@@ -141,6 +141,15 @@ class TestLStar(unittest.TestCase):
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
+
+    def test_specific_alternation_with_nothing_at_end_3_syms(self):
+        oracle_creator = lambda accuracy, seed: BernoulliRegex(
+            accuracy, seed, regex=r".*(111|000).*"
+        )
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, accuracy=0.8, seed=0, symbols=3
+        )
+        assertDFA(self, dfa, oracle_creator, symbols=3)
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
         oracle_creator = lambda accuracy, seed: BernoulliRegex(
