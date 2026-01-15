@@ -339,11 +339,11 @@ class PrefixSuffixTracker:
         )
         correlations_each = np.array(
             [
-                np.corrcoef(mean_corresponding_masks, self.corresponding_masks[i])[0, 1]
+                np.mean((mean_corresponding_masks - self.corresponding_masks[i]) ** 2)
                 for i in range(len(self.suffix_bank))
             ]
         )
-        sorted_idxs = np.argsort(-correlations_each)
+        sorted_idxs = np.argsort(correlations_each)
         for idx in sorted_idxs:
             if idx in vs:
                 continue
@@ -354,7 +354,7 @@ class PrefixSuffixTracker:
                 )
                 < self.chi_squared_p_min
             ):
-                vs.append(idx)
+                vs.append(int(idx))
             if len(vs) >= suffix_family_size:
                 return vs
         return None
