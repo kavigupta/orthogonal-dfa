@@ -44,6 +44,12 @@ def main():
         default="nothing",
         help="What to build the RNNPSAMProcessorNoise on top of.",
     )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=4000,
+        help="Number of training epochs.",
+    )
     args = parser.parse_args()
     train_rnn_psams_sparse(
         args.seed,
@@ -52,6 +58,7 @@ def main():
         initial_threshold=args.initial_threshold,
         starting_gates=get_starting_gates(args.build_on),
         num_psams=args.num_psams,
+        epochs=args.epochs,
     )
 
 
