@@ -202,7 +202,14 @@ def get_asl(num_psams, *, threshold_decrease_per_iter=1e-5, initial_threshold=0.
 
 
 def train_rnn_psams_sparse(
-    seed, *, hidden_size, layers, initial_threshold, starting_gates=(), num_psams=4, epochs
+    seed,
+    *,
+    hidden_size,
+    layers,
+    initial_threshold,
+    starting_gates=(),
+    num_psams=4,
+    epochs,
 ):
     return train_many(
         lambda length: RNNPSAMProcessorSparse(
@@ -219,11 +226,3 @@ def train_rnn_psams_sparse(
         finetune_epochs=50,
         starting_gates=starting_gates,
     )
-
-
-def main():
-    train_rnn_psams_sparse(0, hidden_size=500, layers=1, initial_threshold=0.35)
-
-
-if __name__ == "__main__":
-    main()
