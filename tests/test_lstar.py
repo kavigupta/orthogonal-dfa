@@ -55,19 +55,24 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, symbols=2):
     return pst, dfa, dt
 
 
-def compute_pst(oracle_creator, accuracy, seed, *, symbols):
+def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
     oracle = oracle_creator(accuracy, seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
     k = compute_prefix_set_size(0.05, accuracy, 0.05)
+    kwargs = (
+        dict(num_prefixes=200, suffix_try_epochs=10, num_addtl_prefixes=200)
+        if use_dynamic
+        else dict(num_prefixes=k)
+    )
     print(f"Using suffix population size {n}, eps {eps}, and {k} prefixes.")
     pst = PrefixSuffixTracker.create(
         us,
         np.random.default_rng(0),
         oracle,
         alphabet_size=symbols,
-        num_prefixes=k,
+        **kwargs,
         suffix_family_size=n,
         chi_squared_p_min=None,
         evidence_thresh=0.50 + eps,

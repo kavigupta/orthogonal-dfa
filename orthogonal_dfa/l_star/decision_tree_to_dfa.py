@@ -275,6 +275,8 @@ class PrefixSuffixTracker:
     decision_rule_fpr: float
     fnr_limit: float = 0.02
     split_pval: float = 0.001
+    suffix_try_epochs: Optional[int] = None
+    num_addtl_prefixes: Optional[int] = None
 
     @classmethod
     def create(
@@ -290,6 +292,8 @@ class PrefixSuffixTracker:
         suffix_prevalence: float,
         evidence_thresh: float,
         decision_rule_fpr: float,
+        suffix_try_epochs: Optional[int] = None,
+        num_addtl_prefixes: Optional[int] = None,
     ) -> "PrefixSuffixTracker":
         prefixes = [
             sampler.sample(rng, alphabet_size=alphabet_size)
@@ -309,6 +313,8 @@ class PrefixSuffixTracker:
             suffix_bank=[],
             corresponding_masks=[],
             decision_rule_fpr=decision_rule_fpr,
+            suffix_try_epochs=suffix_try_epochs,
+            num_addtl_prefixes=num_addtl_prefixes,
         )
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
@@ -380,7 +386,26 @@ class PrefixSuffixTracker:
         return limit
 
     def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
+        suffix_finding_iterations = 0
         while True:
+            # Increment iteration counter and check if we should add random prefixes
+            suffix_finding_iterations += 1
+            if (
+                self.suffix_try_epochs is not None
+                and self.num_addtl_prefixes is not None
+                and suffix_finding_iterations % self.suffix_try_epochs == 0
+            ):
+                # Sample random prefixes and add them
+                new_prefixes = [
+                    self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+                    for _ in range(self.num_addtl_prefixes)
+                ]
+                self.add_prefixes(new_prefixes)
+                print(
+                    f"Added {self.num_addtl_prefixes} random prefixes "
+                    f"(iteration {suffix_finding_iterations})"
+                )
+
             vs = [v]
             limit = self.finish_populating_suffix_family(vs, limit=limit)
             if limit == 0:
