@@ -52,6 +52,12 @@ def plot_training_curves(results, labels):
 
 
 def extract_train_metadata(train_tuple):
+    if isinstance(train_tuple, dict):
+        train, meta = train_tuple["loss"], train_tuple["sparse_info"]
+        return train, dict(
+            sparsity=meta["original_sparsity"],
+            gate_before_update=train_tuple.get("gate_before_update", None),
+        )
     if isinstance(train_tuple[0], float):
         return train_tuple, None
     train, meta = train_tuple
