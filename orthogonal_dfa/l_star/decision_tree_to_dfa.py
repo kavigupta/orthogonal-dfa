@@ -656,10 +656,7 @@ class PrefixSuffixTracker:
         results[acc] = self.classify_states_with_decision_tree(dt.by_rejection[1])[acc]
         return results
 
-    def dfa_success_rates(
-        self, dfas: List[DFA], paths: List[List[Tuple[TriPredicate, bool]]]
-    ) -> List[float]:
-        dt = flat_decision_tree_to_decision_tree(paths)
+    def dfa_success_rates(self, dfas: List[DFA], dt: DecisionTree) -> List[float]:
         odfa = [[dfa.accepts_input(string) for string in self.prefixes] for dfa in dfas]
         odfa = np.array(odfa)
         assert (
@@ -674,7 +671,9 @@ class PrefixSuffixTracker:
 
     def optimal_dfa(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> DFA:
         possible_dfas = self.possible_dfas(paths)
-        success_rates = self.dfa_success_rates(possible_dfas, paths)
+        success_rates = self.dfa_success_rates(
+            possible_dfas, flat_decision_tree_to_decision_tree(paths)
+        )
         best_idx = np.argmax(success_rates)
         print(
             f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
