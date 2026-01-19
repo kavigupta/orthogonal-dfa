@@ -66,7 +66,7 @@ def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
     )
     k = compute_prefix_set_size(0.05, accuracy, 0.05)
     kwargs = (
-        dict(num_prefixes=200, suffix_try_epochs=10, num_addtl_prefixes=200)
+        dict(num_prefixes=200, num_addtl_prefixes=200)
         if use_dynamic
         else dict(num_prefixes=k)
     )

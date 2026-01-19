@@ -276,7 +276,6 @@ class PrefixSuffixTracker:
     fnr_limit: float = 0.02
     split_pval: float = 0.001
     p_value_accept: float = 0.01
-    suffix_try_epochs: Optional[int] = None
     num_addtl_prefixes: Optional[int] = None
 
     @classmethod
@@ -293,7 +292,6 @@ class PrefixSuffixTracker:
         suffix_prevalence: float,
         evidence_thresh: float,
         decision_rule_fpr: float,
-        suffix_try_epochs: Optional[int] = None,
         num_addtl_prefixes: Optional[int] = None,
     ) -> "PrefixSuffixTracker":
         prefixes = [
@@ -314,7 +312,6 @@ class PrefixSuffixTracker:
             suffix_bank=[],
             corresponding_masks=[],
             decision_rule_fpr=decision_rule_fpr,
-            suffix_try_epochs=suffix_try_epochs,
             num_addtl_prefixes=num_addtl_prefixes,
         )
 
@@ -341,30 +338,18 @@ class PrefixSuffixTracker:
     def finish_populating_suffix_family_without_sampling(
         self, vs: List[int], suffix_family_size: int
     ) -> List[int]:
-        mean_corresponding_masks = np.mean(
-            [self.corresponding_masks[v] for v in vs], axis=0
-        )
-        correlations_each = np.array(
-            [
-                np.mean((mean_corresponding_masks - self.corresponding_masks[i]) ** 2)
-                for i in range(len(self.suffix_bank))
-            ]
-        )
-        sorted_idxs = np.argsort(correlations_each)
-        for idx in sorted_idxs:
-            if idx in vs:
-                continue
-            if self.chi_squared_p_min is None or (
-                chi_squared_p(
-                    self.corresponding_masks[vs[0]],
-                    self.corresponding_masks[idx],
-                )
-                < self.chi_squared_p_min
-            ):
-                vs.append(int(idx))
-            if len(vs) >= suffix_family_size:
-                return vs
-        return None
+        masks = np.array(self.corresponding_masks)
+        cluster = vs
+        loss = float("inf")
+        while True:
+            cluster_center = masks[cluster].mean(0) > 0.5
+            losses = np.abs(masks - cluster_center).sum(1)
+            cluster = losses.argsort()[: suffix_family_size - len(vs)]
+            new_loss = losses[cluster].sum()
+            if new_loss >= loss:
+                break
+            loss = new_loss
+        vs += cluster.tolist()
 
     def finish_populating_suffix_family(
         self, vs, *, limit=None, suffix_family_size=None
@@ -387,25 +372,9 @@ class PrefixSuffixTracker:
         return limit
 
     def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
-        suffix_finding_iterations = 0
+        prev_fnr = 1.0  # default start with a large value
+        strategy = "suffix"
         while True:
-            # Increment iteration counter and check if we should add random prefixes
-            suffix_finding_iterations += 1
-            if (
-                self.suffix_try_epochs is not None
-                and self.num_addtl_prefixes is not None
-                and suffix_finding_iterations % self.suffix_try_epochs == 0
-            ):
-                # Sample random prefixes and add them
-                new_prefixes = [
-                    self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-                    for _ in range(self.num_addtl_prefixes)
-                ]
-                self.add_prefixes(new_prefixes)
-                print(
-                    f"Added {self.num_addtl_prefixes} random prefixes "
-                    f"(iteration {suffix_finding_iterations})"
-                )
 
             vs = [v]
             limit = self.finish_populating_suffix_family(vs, limit=limit)
@@ -416,12 +385,29 @@ class PrefixSuffixTracker:
             if fnr <= self.fnr_limit:
                 print("FNR limit reached")
                 return vs
+
+            # always switch strategies if on prefix mode, because it is way slower, so we should give
+            # suffixes a chance.
+            if fnr >= prev_fnr or strategy == "prefix":  # switch strategy
+                strategy = "prefix" if strategy == "suffix" else "suffix"
+
+            prev_fnr = fnr
+
             print(
                 f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}"
             )
-            _, limit = self.sample_more_suffixes(
-                v, amount=1 + self.suffix_family_size, limit=limit
-            )
+
+            if strategy == "suffix":
+                _, limit = self.sample_more_suffixes(
+                    v, amount=1 + self.suffix_family_size, limit=limit
+                )
+            else:
+                # Sample random prefixes and add them
+                new_prefixes = [
+                    self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+                    for _ in range(self.num_addtl_prefixes)
+                ]
+                self.add_prefixes(new_prefixes)
 
     def compute_fnr(self, vs):
         """
