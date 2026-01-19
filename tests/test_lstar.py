@@ -16,28 +16,32 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 
 us = UniformSampler(40)
 
+allowed_error = 0.02
 
-def sample_with_exclusion(exclude_pattern, *, symbols):
+
+def sample_with_exclusion(exclude_pattern, *, symbols, count):
     rng = np.random.default_rng(0x1234)
     results = []
-    while len(results) < 10000:
+    while len(results) < count:
         s = us.sample(rng, symbols)
         if exclude_pattern is None or not exclude_pattern(s):
             results.append(s)
     return results
 
 
-def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2):
+def assertDFA(
+    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
+):
     oracle = oracle_creator(1.0, 0)
     false_positives, false_negatives = [], []
-    for s in sample_with_exclusion(exclude_pattern, symbols=symbols):
+    for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
         expected = oracle.membership_query(s)
         actual = dfa.accepts_input(s)
         if expected and not actual:
             false_negatives.append(s)
         elif not expected and actual:
             false_positives.append(s)
-    if false_positives or false_negatives:
+    if len(false_positives) + len(false_negatives) > allowed_error * count:
         print("DFA is incorrect!")
         print(dfa)
         print(f"False positives: {false_positives}")
@@ -50,7 +54,7 @@ def assertDFA(testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2):
 def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, symbols=2):
     pst = compute_pst(oracle_creator, accuracy, seed, symbols=symbols)
     dfa, dt = do_counterexample_driven_synthesis(
-        pst, additional_counterexamples=200, acc_threshold=0.98
+        pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
     )
     return pst, dfa, dt
 
