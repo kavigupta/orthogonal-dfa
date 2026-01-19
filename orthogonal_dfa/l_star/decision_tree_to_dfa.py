@@ -275,6 +275,7 @@ class PrefixSuffixTracker:
     decision_rule_fpr: float
     fnr_limit: float = 0.02
     split_pval: float = 0.001
+    p_value_accept: float = 0.01
     suffix_try_epochs: Optional[int] = None
     num_addtl_prefixes: Optional[int] = None
 
@@ -680,21 +681,45 @@ class PrefixSuffixTracker:
         )
         return success_rates[best_idx], self.fix_accept_states(possible_dfas[best_idx])
 
-    def fix_accept_states(self, dfa):
+    def fix_accept_states(self, dfa, *, force_correct=False):
         fs_count = np.zeros(len(dfa.states))
         fs_acc = np.zeros(len(dfa.states))
-        for x, is_acc in zip(self.prefixes, self.record_suffix([])[1]):
+
+        def record(x, is_acc):
             final_state = list(dfa.read_input_stepwise(x, ignore_rejection=True))[-1]
             fs_count[final_state] += 1
             fs_acc[final_state] += is_acc
+
+        def with_accept(final_states):
+            return DFA(
+                states=dfa.states,
+                input_symbols=dfa.input_symbols,
+                transitions=dfa.transitions,
+                initial_state=dfa.initial_state,
+                final_states=final_states,
+            )
+
+        for x, is_acc in zip(self.prefixes, self.record_suffix([])[1]):
+            record(x, is_acc)
+        if force_correct:
+            # pylint: disable=consider-using-enumerate
+            for state in range(len(fs_acc)):
+                while True:
+                    p = scipy.stats.binom.cdf(
+                        n=fs_count[state],
+                        k=min(fs_count[state] - fs_acc[state], fs_acc[state]),
+                        p=0.5,
+                    )
+                    if p < self.p_value_accept:
+                        break
+                    dfa_for_state = with_accept({state})
+                    dfa_str = random_word(
+                        dfa_for_state, len(self.prefixes[0]), self.rng
+                    )
+                    record(dfa_str, self.oracle.membership_query(dfa_str))
+
         is_accept = fs_acc / fs_count > 0.5
-        return DFA(
-            states=dfa.states,
-            input_symbols=dfa.input_symbols,
-            transitions=dfa.transitions,
-            initial_state=dfa.initial_state,
-            final_states={s for s in dfa.states if is_accept[s]},
-        )
+        return with_accept({s for s in dfa.states if is_accept[s]})
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
@@ -938,7 +963,7 @@ def counterexample_driven_synthesis(
             return
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, None
+            yield pst.fix_accept_states(dfa, force_correct=True), dt, None
             return
         results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, dt, results
@@ -1118,3 +1143,21 @@ def compute_prefix_set_size_top_percentage(
     z_target = scipy.stats.norm.ppf(top_percentage)
     k = (z_target + z) ** 2 * (2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
     return int(np.ceil(k))
+
+
+def random_word(dfa, size, rng):
+    def to_str(digit):
+        assert 0 <= digit <= 9
+        return str(digit)
+
+    dfa = DFA(
+        states=dfa.states,
+        initial_state=dfa.initial_state,
+        input_symbols={to_str(x) for x in dfa.input_symbols},
+        transitions={
+            s1: {to_str(sym): s2 for sym, s2 in trans.items()}
+            for s1, trans in dfa.transitions.items()
+        },
+        final_states=dfa.final_states,
+    )
+    return [int(x) for x in dfa.random_word(size, seed=int(rng.integers(0, 2**32 - 1)))]
