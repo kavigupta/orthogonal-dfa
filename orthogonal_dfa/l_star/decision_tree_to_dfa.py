@@ -423,14 +423,21 @@ class PrefixSuffixTracker:
             )
 
     def compute_fnr(self, vs):
-        return (
-            1
-            - self.compute_decision_array_from_strings(
-                [self.suffix_bank[v] for v in vs]
-            )
-            .sum(0)
-            .mean()
-        )
+        """
+        Compute the false negative rate for the given suffix family vs.
+
+        This is the % of prefixes that are neither classified as positive nor negative by the
+        given suffix family.
+
+        A special case is that if the family classifies all prefixes as positive or negative,
+        then the FNR is 1 rather than 0 (since the prediction is uninformative).
+        """
+        arr = self.compute_decision_array_from_strings(
+            [self.suffix_bank[v] for v in vs]
+        ).mean(1)
+        if arr.min() == 0:
+            return 1
+        return 1 - arr.sum(0)
 
     def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
         new_vs = []
