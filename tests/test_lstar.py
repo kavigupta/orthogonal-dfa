@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from parameterized import parameterized
 
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
@@ -9,6 +10,7 @@ from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     population_size_and_evidence_thresh,
 )
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
+    AllFramesClosedOracle,
     BernoulliParityOracle,
     BernoulliRegex,
 )
@@ -190,3 +192,13 @@ class TestLStar(unittest.TestCase):
             return [0, 0, 0, 0]
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
+
+
+class TestLStarORF(unittest.TestCase):
+    @parameterized.expand([(accuracy,) for accuracy in (0.8, 0.7)])
+    def test_no_orf(self, accuracy):
+        oracle_creator = AllFramesClosedOracle
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, accuracy=accuracy, seed=0, symbols=4
+        )
+        assertDFA(self, dfa, oracle_creator, symbols=4)

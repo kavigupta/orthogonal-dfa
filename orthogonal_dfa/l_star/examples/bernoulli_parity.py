@@ -42,3 +42,26 @@ class BernoulliRegex(Oracle):
         if hash_input < self.p_correct:
             return correct
         return not correct
+
+
+@dataclass(frozen=True)
+class AllFramesClosedOracle(Oracle):
+    p_correct: float
+    seed: int
+    stops: Tuple[int] = ("TAG", "TGA", "TAA")
+
+    def membership_query(self, string: List[int]) -> bool:
+        string_str = "".join("ACGT"[i] for i in string)
+        correct = all(self.phase_closed(string_str, phase) for phase in range(3))
+        hash_input = uniform_random((string, self.seed))
+        if hash_input < self.p_correct:
+            return correct
+        return not correct
+
+    def phase_closed(self, string: str, phase: int) -> bool:
+        string = string[phase:]
+        for i in range(0, len(string), 3):
+            codon = string[i : i + 3]
+            if codon in self.stops:
+                return True
+        return False
