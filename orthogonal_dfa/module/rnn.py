@@ -105,9 +105,13 @@ class RNNPSAMProcessorSparse(nn.Module, NotifiableByLoss):
         self.rnn = rnn
         self.asl = asl
 
-    def forward(self, x):
+    def psams_forward(self, x):
         psam_out = self.psams(x)
         psam_out = self.asl(psam_out)
+        return psam_out
+
+    def forward(self, x):
+        psam_out = self.psams_forward(x)
         rnn_out = self.rnn(psam_out)
         return rnn_out
 
