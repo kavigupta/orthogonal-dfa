@@ -952,7 +952,7 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield pst.fix_accept_states(dfa, force_correct=True), dt, None
             return
-        results = pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
+        pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, dt, copy.deepcopy(pst)
 
 
