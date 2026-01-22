@@ -6,6 +6,7 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
     compute_prefix_set_size,
+    compute_suffix_size_counterexample_gen,
     do_counterexample_driven_synthesis,
     population_size_and_evidence_thresh,
 )
@@ -67,10 +68,15 @@ def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
     k = compute_prefix_set_size(0.05, accuracy, 0.05)
+    suffix_size = compute_suffix_size_counterexample_gen(0.01, accuracy)
     kwargs = (
-        dict(num_prefixes=200, num_addtl_prefixes=200)
+        dict(
+            num_prefixes=200,
+            num_addtl_prefixes=200,
+            suffix_size_counterexample_gen=suffix_size,
+        )
         if use_dynamic
-        else dict(num_prefixes=k)
+        else dict(num_prefixes=k, suffix_size_counterexample_gen=suffix_size)
     )
     print(f"Using suffix population size {n}, eps {eps}, and {k} prefixes.")
     pst = PrefixSuffixTracker.create(

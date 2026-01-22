@@ -273,6 +273,7 @@ class PrefixSuffixTracker:
     suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
+    suffix_size_counterexample_gen: int
     decision_rule_fpr: float
     fnr_limit: float = 0.02
     split_pval: float = 0.001
@@ -293,6 +294,7 @@ class PrefixSuffixTracker:
         suffix_prevalence: float,
         evidence_thresh: float,
         decision_rule_fpr: float,
+        suffix_size_counterexample_gen,
         num_addtl_prefixes: Optional[int] = None,
     ) -> "PrefixSuffixTracker":
         prefixes = [
@@ -314,6 +316,7 @@ class PrefixSuffixTracker:
             corresponding_masks=[],
             decision_rule_fpr=decision_rule_fpr,
             num_addtl_prefixes=num_addtl_prefixes,
+            suffix_size_counterexample_gen=suffix_size_counterexample_gen,
         )
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
@@ -740,7 +743,13 @@ class PrefixSuffixTracker:
 
     def add_counterexample_prefixes(self, dt, dfa, count):
         results = generate_counterexamples(
-            self, self.sampler, self.oracle, dt, dfa, count=count
+            self,
+            self.sampler,
+            self.oracle,
+            dt,
+            dfa,
+            count=count,
+            suffix_size_counterexample_gen=self.suffix_size_counterexample_gen,
         )
         self.add_prefixes([prefix for prefix, _ in results])
         return results
@@ -905,18 +914,35 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
+def generate_counterexamples(
+    pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
+):
+    dt_with_reduced_predicates = dt.map_over_predicates(
+        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5)
+    )
+    dt_with_decisive_predicates = dt.map_over_predicates(
+        lambda p: TriPredicate(p.vs, 0.5)
+    )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     while True:
         x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
-        prefix = locate_incorrect_point(
-            oracle, dt.map_over_predicates(lambda p: TriPredicate(p.vs, 0.5)), dfa, x, y
+        prefix_and_sym = locate_incorrect_point(
+            oracle,
+            dt_with_reduced_predicates,
+            dfa,
+            x,
+            y,
         )
-        if prefix is None:
+        if prefix_and_sym is None:
             continue
-        additional_prefixes.append(prefix)
+        prefix, sym = prefix_and_sym
+        state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
+        state_2 = dfa.transitions[state_1][sym]
+        if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
+            continue
+        additional_prefixes.append(prefix_and_sym)
         pbar.update()
         if len(additional_prefixes) >= count:
             pbar.close()
@@ -1148,3 +1174,23 @@ def random_word(dfa, size, rng):
         final_states=dfa.final_states,
     )
     return [int(x) for x in dfa.random_word(size, seed=int(rng.integers(0, 2**32 - 1)))]
+
+
+def compute_suffix_size_for_counterexample_generation(
+    acceptable_misclassification, noise_level
+):
+    for n in itertools.count(start=1):
+        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
+            return n
+    raise ValueError("not reachable")
+
+
+def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
+    """
+    Computes the suffix size to use for counterexample generation.
+    This is an alias for compute_suffix_size_for_counterexample_generation
+    to match the naming convention of other hyperparameter generators.
+    """
+    return compute_suffix_size_for_counterexample_generation(
+        acceptable_misclassification, noise_level
+    )
