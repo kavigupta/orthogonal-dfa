@@ -16,6 +16,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 """
 
+import copy
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass
