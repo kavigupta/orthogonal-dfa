@@ -1,0 +1,266 @@
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterable, List, Tuple, Union
+
+from frozendict import frozendict
+
+
+class NoiseModel(ABC):
+    """Base class for noise models that add noise to oracle queries."""
+
+    @abstractmethod
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        """
+        Apply noise to a correct oracle value.
+
+        Args:
+            correct_value: The correct boolean value
+            string: The input string being queried
+            seed: Random seed for deterministic noise
+
+        Returns:
+            The noisy boolean value
+        """
+
+
+@dataclass(frozen=True)
+class AsymmetricBernoulli(NoiseModel):
+    """
+    Asymmetric Bernoulli noise model.
+
+    p_0: Probability of returning 1 (True) when the model output is 0 (False).
+    p_1: Probability of returning 1 (True) when the model output is 1 (True).
+
+    When correct_value is False: returns True with probability p_0, False with probability 1 - p_0.
+    When correct_value is True: returns True with probability p_1, False with probability 1 - p_1.
+    """
+
+    p_0: float  # Probability of returning 1 when model output is 0
+    p_1: float  # Probability of returning 1 when model output is 1
+
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        from permacache import stable_hash
+
+        def uniform_random(seed_obj: object) -> float:
+            hash_value = stable_hash(seed_obj)
+            hash_value = (int(hash_value, 16) % 100) / 100
+            return hash_value
+
+        hash_input = uniform_random((string, seed))
+        if correct_value:
+            # When model output is 1, return 1 with probability p_1
+            return hash_input < self.p_1
+        # When model output is 0, return 1 with probability p_0
+        return hash_input < self.p_0
+
+
+@dataclass(frozen=True)
+class SymmetricBernoulli(NoiseModel):
+    """
+    Symmetric Bernoulli noise model.
+
+    With probability p_correct, returns the correct value.
+    With probability 1 - p_correct, returns the flipped value.
+
+    Implemented in terms of AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct.
+    This satisfies: accuracy = p_1 = 1 - p_0 = p_correct.
+    """
+
+    p_correct: float
+
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        # Use AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct
+        # This satisfies: accuracy = p_1 = 1 - p_0 = p_correct
+        asymmetric = AsymmetricBernoulli(p_0=1 - self.p_correct, p_1=self.p_correct)
+        return asymmetric.apply_noise(correct_value, string, seed)
+
+
+class Oracle(ABC):
+    @abstractmethod
+    def membership_query(self, string: List[int]) -> bool:
+        pass
+
+
+@dataclass(frozen=True)
+class PrefixTreeNode:
+    state_idx: int
+    children: frozendict[str, "PrefixTreeNode"]
+
+    def all_transitions_iterable(self) -> Iterable[Tuple[str, str, str]]:
+        for symbol, child in self.children.items():
+            yield (self.state_idx, symbol, child.state_idx)
+            yield from child.all_transitions_iterable()
+
+    def all_transitions(self) -> Dict[Tuple[str, str], str]:
+        return {
+            (state, symbol): dest
+            for state, symbol, dest in self.all_transitions_iterable()
+        }
+
+    def exemplars(self) -> Dict[int, str]:
+        exemplars = {self.state_idx: ""}
+        for symbol, child in self.children.items():
+            for state_idx, exemplar in child.exemplars().items():
+                exemplars[state_idx] = symbol + exemplar
+        return exemplars
+
+    def split_state(
+        self, parent_state_idx: int, action: str, new_state_idx: int
+    ) -> "PrefixTreeNode":
+        if self.state_idx == parent_state_idx:
+            assert action not in self.children, "Action already exists in children"
+            new_child = PrefixTreeNode(
+                state_idx=new_state_idx,
+                children=frozendict(),
+            )
+            return PrefixTreeNode(
+                state_idx=self.state_idx,
+                children=frozendict({**self.children, action: new_child}),
+            )
+        new_children = {
+            symbol: child.split_state(parent_state_idx, action, new_state_idx)
+            for symbol, child in self.children.items()
+        }
+        return PrefixTreeNode(
+            state_idx=self.state_idx,
+            children=frozendict(new_children),
+        )
+
+
+class DecisionTree(ABC):
+    @abstractmethod
+    def classify(self, string: str, oracle: Oracle) -> int:
+        pass
+
+    @property
+    def num_states(self) -> int:
+        states = list(self.collect_states())
+        assert set(states) == set(range(len(states)))
+        return len(states)
+
+    @abstractmethod
+    def collect_states(self) -> Iterable[int]:
+        pass
+
+    @abstractmethod
+    def split_state(
+        self,
+        current_state: int,
+        new_state: int,
+        predicate: Callable[[str, Oracle], Union[bool, None]],
+    ) -> "DecisionTree":
+        pass
+
+    def add_state(
+        self, to_split: int, predicate: Callable[[str, Oracle], bool]
+    ) -> "DecisionTree":
+        new_state = self.num_states
+        return self.split_state(to_split, new_state, predicate)
+
+    @abstractmethod
+    def render(self, render_predicate, indent=0) -> List[str]:
+        pass
+
+    @abstractmethod
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        pass
+
+
+@dataclass(frozen=True)
+class DecisionTreeInternalNode(DecisionTree):
+    predicate: Callable[[str, Oracle], Union[bool, None]]
+    by_rejection: Tuple[DecisionTree, DecisionTree]  # (if rejected, if accepted)
+
+    def classify(self, string: str, oracle: Oracle) -> int:
+        decision = self.predicate(string, oracle)
+        if decision is None:
+            return None
+        decision = int(decision)
+        return self.by_rejection[decision].classify(string, oracle)
+
+    def collect_states(self) -> Iterable[int]:
+        for child in self.by_rejection:
+            yield from child.collect_states()
+
+    def split_state(
+        self,
+        current_state: int,
+        new_state,
+        predicate: Callable[[str, Oracle], bool],
+    ) -> "DecisionTree":
+        return DecisionTreeInternalNode(
+            predicate=self.predicate,
+            by_rejection=tuple(
+                child.split_state(current_state, new_state, predicate)
+                for child in self.by_rejection
+            ),
+        )
+
+    def render(self, render_predicate, indent=0) -> List[str]:
+        lines = []
+        indent_str = " " * indent
+        lines.append(f"{indent_str}{render_predicate(self.predicate)}:")
+        lines += self.by_rejection[0].render(render_predicate, indent + 4)
+        lines += self.by_rejection[1].render(render_predicate, indent + 4)
+        return lines
+
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        return DecisionTreeInternalNode(
+            predicate=map_fn(self.predicate),
+            by_rejection=tuple(
+                child.map_over_predicates(map_fn) for child in self.by_rejection
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class DecisionTreeLeafNode(DecisionTree):
+    state_idx: int
+
+    def classify(self, string: str, oracle: Oracle) -> int:
+        del string, oracle  # unused
+        return self.state_idx
+
+    def collect_states(self) -> Iterable[int]:
+        yield self.state_idx
+
+    def split_state(
+        self,
+        current_state: int,
+        new_state: int,
+        predicate: Callable[[str, Oracle], bool],
+    ) -> "DecisionTree":
+        if self.state_idx != current_state:
+            return self
+        return DecisionTreeInternalNode(
+            predicate=predicate,
+            by_rejection=(
+                DecisionTreeLeafNode(state_idx=current_state),
+                DecisionTreeLeafNode(state_idx=new_state),
+            ),
+        )
+
+    def render(self, render_predicate, indent=0) -> List[str]:
+        indent_str = " " * indent
+        return [f"{indent_str}State {self.state_idx}"]
+
+    def map_over_predicates(
+        self,
+        map_fn: Callable[
+            [Callable[[str, Oracle], Union[bool, None]]],
+            Callable[[str, Oracle], Union[bool, None]],
+        ],
+    ) -> "DecisionTree":
+        return self

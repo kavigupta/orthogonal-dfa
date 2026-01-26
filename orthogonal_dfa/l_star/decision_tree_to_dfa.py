@@ -1,0 +1,1196 @@
+"""
+Key Challenges:
+
+Splitting on a criterion does not exclude the possibility that the same criterion could come up again. We need
+a way to ensure that if a decision is made, the same decision will not be made later. Possible fix: require
+a full set of classifier strings. Not sure why this would work, but maybe it will.
+
+Maybe one thing we could do is have "confident" classifications during the creation, like just drop everything
+in the classification between 40% and 60%. This way, we have much greater confidence that we won't find the same
+thing twice, and therefore have lower thresholds otherwise.
+
+Things to work on:
+
+Evidence thresholds need some work. Currently there's the possibiliy of p-hacking. We need to do multiple comparisons.
+
+
+"""
+
+import copy
+import itertools
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, Iterator, List, Optional, Tuple, Union
+
+import numpy as np
+import scipy
+import tqdm.auto as tqdm
+from automata.fa.dfa import DFA
+
+from .sampler import Sampler
+from .structures import (
+    DecisionTree,
+    DecisionTreeInternalNode,
+    DecisionTreeLeafNode,
+    Oracle,
+)
+
+
+@dataclass
+class TriPredicate:
+    vs: List[List[int]]
+    evidence_threshold: float
+
+    def predict(self, x: List[int], oracle: Oracle) -> float:
+        # for v in self.vs:
+        #     print(v, oracle.membership_query(x + v), [1] * 6 in x + v)
+        return np.mean([oracle.membership_query(x + v) for v in self.vs])
+
+    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
+        f = self.predict(x, oracle)
+        if f > self.evidence_threshold:
+            return True
+        if f < 1 - self.evidence_threshold:
+            return False
+        return None
+
+    def __hash__(self):
+        return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
+
+
+def compute_strings_by_state(
+    alphabet_size: int,
+    dt: DecisionTree,
+    oracle: Oracle,
+    sampler: Sampler,
+    min_samples_per_state: int,
+    *,
+    seed: int,
+) -> Dict[int, List[List[int]]]:
+    strings_each = {state: [] for state in range(dt.num_states)}
+    rng = np.random.default_rng(seed)
+    counts = np.zeros(dt.num_states, dtype=int)
+    while np.any(counts < min_samples_per_state):
+        string = sampler.sample(rng, alphabet_size)
+        state = dt.classify(string, oracle)
+        if state is None:
+            continue
+        strings_each[state].append(string)
+        counts[state] += 1
+    return strings_each
+
+
+def decision_tree_to_dfa(
+    alphabet_size: int,
+    dt: DecisionTree,
+    oracle: Oracle,
+    sampler: Sampler,
+    min_samples_per_state: int,
+    *,
+    seed: int,
+) -> DFA:
+    num_states, strings_each, transitions, accepts, counts = (
+        compute_decision_tree_stats(
+            alphabet_size, dt, oracle, sampler, min_samples_per_state, seed=seed
+        )
+    )
+    transitions = transitions / counts[:, None, None]
+    accepts = accepts / counts
+
+    # return transitions, accepts, strings_each
+    print(transitions)
+    print(accepts)
+    transitions = transitions.argmax(axis=2)
+    accepts = accepts > 0.5
+    possible_dfas = [
+        DFA(
+            states=set(range(num_states)),
+            input_symbols=set(range(alphabet_size)),
+            transitions={
+                s: {sym: transitions[s, sym] for sym in range(alphabet_size)}
+                for s in range(num_states)
+            },
+            initial_state=initial_state,
+            final_states={s for s in range(num_states) if accepts[s]},
+        )
+        for initial_state in range(num_states)
+    ]
+    return max(possible_dfas, key=lambda dfa: consistentcy_score(dfa, strings_each))
+
+
+def compute_decision_tree_stats(
+    alphabet_size, dt, oracle, sampler, min_samples_per_state, *, seed
+):
+    num_states = dt.num_states
+    strings_each = {state: [] for state in range(num_states)}
+    counts = np.zeros(num_states, dtype=int)
+    transitions = np.zeros((num_states, alphabet_size, num_states), dtype=int)
+    accepts = np.zeros(num_states, dtype=int)
+    rng = np.random.default_rng(seed)
+    while np.any(counts < min_samples_per_state):
+        string = sampler.sample(rng, alphabet_size)
+        state = dt.classify(string, oracle)
+        if state is None:
+            continue
+        strings_each[state].append(string)
+        counts[state] += 1
+        if oracle.membership_query(string):
+            accepts[state] += 1
+        for symbol in range(alphabet_size):
+            extended_string = string + [symbol]
+            next_state = dt.classify(extended_string, oracle)
+            if next_state is not None:
+                transitions[state, symbol, next_state] += 1
+    return num_states, strings_each, transitions, accepts, counts
+
+
+def consistentcy_score(dfa: DFA, strings_each: Dict[int, List[List[int]]]) -> int:
+    score = 0
+    for state, strings in strings_each.items():
+        for string in strings:
+            current_state = dfa.initial_state
+            for symbol in string:
+                current_state = dfa.transitions[current_state][symbol]
+            if current_state == state:
+                score += 1
+    return score
+
+
+def compute_corr(a):
+    corr = a @ a.T
+    return corr
+
+
+def normalize(a):
+    a = a - a.mean()
+    a = a / np.linalg.norm(a)
+    return a
+
+
+# pylint: disable=too-many-positional-arguments
+def find_correlated_strings(
+    for_state: List[List[int]],
+    oracle: Oracle,
+    sampler: Sampler,
+    p_requirement: float,
+    attempt_samples_pairs: int,
+    attempt_samples: int,
+    num_strings: int,
+) -> Optional[List[List[int]]]:
+    rng = np.random.default_rng(0)
+    for first, second, _, mask, mask_second in find_pair_of_correlated_strings(
+        for_state, oracle, sampler, p_requirement, attempt_samples_pairs, rng
+    ):
+        print(mask.mean())
+        print("sampled", sum(first), sum(second))
+        vs = [first, second]
+        masks = [mask, mask_second]
+        for _ in tqdm.trange(attempt_samples, desc="Finding more elements", delay=1):
+            v = sampler.sample(alphabet_size=2, rng=rng)
+            if v in vs:
+                continue
+            mask_v = compute_mask(for_state, oracle, v)
+            p = chi_squared_p(mask_v, mask)
+            # print(sum(v), corr)
+            if p < p_requirement:
+                vs.append(v)
+                masks.append(mask_v)
+            if len(vs) >= num_strings:
+                return vs, masks
+    return None
+
+
+def find_pair_of_correlated_strings(
+    for_state: List[List[int]],
+    oracle: Oracle,
+    sampler: Sampler,
+    p_requirement: float,
+    attempt_samples: int,
+    rng: np.random.Generator,
+) -> Iterator[Tuple[List[int], List[int], float, np.ndarray]]:
+    vs = []
+    masks = []
+    for _ in tqdm.trange(attempt_samples, desc="Attempting to find pair", delay=1):
+        v = sampler.sample(alphabet_size=2, rng=rng)
+        if v in vs:
+            continue
+        mask = compute_mask(for_state, oracle, v)
+        for j, prev_mask in enumerate(masks):
+            p = chi_squared_p(prev_mask, mask)
+            if p < p_requirement:
+                print("correlation", np.corrcoef(prev_mask, mask)[0, 1])
+                yield v, vs[j], p, prev_mask, mask
+        masks.append(mask)
+        vs.append(v)
+
+
+def compute_mask(for_state, oracle, v):
+    mask = np.array([oracle.membership_query(x + v) for x in for_state], np.float32)
+
+    return mask
+
+
+def chi_squared_p(x, y):
+    if np.corrcoef(x, y)[0, 1] < 0:
+        return 1
+    matr = np.zeros((2, 2), dtype=np.int64)
+    np.add.at(matr, (x.astype(int), y.astype(int)), 1)
+    freqs = matr / matr.sum()
+    freqs_x = freqs.sum(0, keepdims=True)
+    freqs_y = freqs.sum(1, keepdims=True)
+    freqs_expected = freqs_x * freqs_y
+    return scipy.stats.chisquare(
+        matr.flatten(), freqs_expected.flatten() * matr.sum()
+    ).pvalue
+
+
+def all_correlations(m):
+    m -= m.mean(1, keepdims=True)
+    m /= np.linalg.norm(m, axis=1, keepdims=True)
+    return m @ m.T
+
+
+def best_correlation(m) -> Tuple[int, int, float]:
+    m = np.array(m)
+    corrs = all_correlations(m)
+    np.fill_diagonal(corrs, -1)
+    # pylint: disable=unbalanced-tuple-unpacking
+    i, j = np.unravel_index(np.argmax(corrs), corrs.shape)
+    return i, j, corrs[i, j]
+
+
+@dataclass
+class PrefixSuffixTracker:
+    sampler: Sampler
+    rng: np.random.Generator
+    oracle: Oracle
+    alphabet_size: int
+    suffix_family_size: int
+    chi_squared_p_min: float
+    suffix_prevalence: float
+    evidence_thresh: float
+    prefixes: List[List[int]]
+    suffixes_seen: dict
+    suffix_bank: List[List[int]]
+    corresponding_masks: List[np.ndarray]
+    suffix_size_counterexample_gen: int
+    decision_rule_fpr: float
+    fnr_limit: float = 0.02
+    split_pval: float = 0.001
+    p_value_accept: float = 0.01
+    num_addtl_prefixes: Optional[int] = None
+
+    @classmethod
+    def create(
+        cls,
+        sampler,
+        rng,
+        oracle,
+        *,
+        alphabet_size: int,
+        num_prefixes: int,
+        suffix_family_size: int,
+        chi_squared_p_min: float,
+        suffix_prevalence: float,
+        evidence_thresh: float,
+        decision_rule_fpr: float,
+        suffix_size_counterexample_gen,
+        num_addtl_prefixes: Optional[int] = None,
+    ) -> "PrefixSuffixTracker":
+        prefixes = [
+            sampler.sample(rng, alphabet_size=alphabet_size)
+            for _ in range(num_prefixes)
+        ]
+        return cls(
+            sampler=sampler,
+            rng=rng,
+            oracle=oracle,
+            alphabet_size=alphabet_size,
+            suffix_family_size=suffix_family_size,
+            chi_squared_p_min=chi_squared_p_min,
+            suffix_prevalence=suffix_prevalence,
+            evidence_thresh=evidence_thresh,
+            prefixes=prefixes,
+            suffixes_seen={},
+            suffix_bank=[],
+            corresponding_masks=[],
+            decision_rule_fpr=decision_rule_fpr,
+            num_addtl_prefixes=num_addtl_prefixes,
+            suffix_size_counterexample_gen=suffix_size_counterexample_gen,
+        )
+
+    def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
+        while True:
+            v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
+            if tuple(v) in self.suffixes_seen:
+                continue
+            return self.record_suffix(v)
+
+    def record_suffix(self, v: List[int]) -> Tuple[List[int], np.ndarray, int]:
+        if tuple(v) in self.suffixes_seen:
+            return self.suffixes_seen[tuple(v)]
+        self.suffix_bank.append(v)
+        mask = compute_mask(self.prefixes, self.oracle, v)
+        self.corresponding_masks.append(mask)
+        self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
+        return v, mask, len(self.suffix_bank) - 1
+
+    def sample_suffixes(self, num_suffixes: int):
+        for _ in tqdm.trange(num_suffixes, desc="Sampling suffixes", delay=1):
+            self.sample_suffix()
+
+    def finish_populating_suffix_family_without_sampling(
+        self, vs: List[int], suffix_family_size: int
+    ) -> List[int]:
+        masks = np.array(self.corresponding_masks)
+        cluster = vs
+        loss = float("inf")
+        while True:
+            cluster_center = masks[cluster].mean(0) > 0.5
+            losses = np.abs(masks - cluster_center).sum(1)
+            cluster = losses.argsort()[: suffix_family_size - len(vs)]
+            new_loss = losses[cluster].sum()
+            if new_loss >= loss:
+                break
+            loss = new_loss
+        vs += cluster.tolist()
+
+    def finish_populating_suffix_family(
+        self, vs, *, limit=None, suffix_family_size=None
+    ):
+        if suffix_family_size is None:
+            suffix_family_size = self.suffix_family_size
+        if len(vs) >= suffix_family_size:
+            return limit
+        self.finish_populating_suffix_family_without_sampling(
+            vs, suffix_family_size=suffix_family_size
+        )
+        if len(vs) >= suffix_family_size:
+            return limit
+
+        new_vs, limit = self.sample_more_suffixes(
+            vs[0], amount=suffix_family_size - len(vs), limit=limit
+        )
+
+        vs += new_vs
+        return limit
+
+    def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
+        prev_fnr = 1.0  # default start with a large value
+        strategy = "suffix"
+        while True:
+
+            vs = [v]
+            limit = self.finish_populating_suffix_family(vs, limit=limit)
+            if limit == 0:
+                return None
+
+            fnr = self.compute_fnr(vs)
+            if fnr <= self.fnr_limit:
+                print("FNR limit reached")
+                return vs
+
+            # always switch strategies if on prefix mode, because it is way slower, so we should give
+            # suffixes a chance.
+            if fnr >= prev_fnr or strategy == "prefix":  # switch strategy
+                strategy = "prefix" if strategy == "suffix" else "suffix"
+
+            prev_fnr = fnr
+
+            print(
+                f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}"
+            )
+
+            if strategy == "suffix":
+                _, limit = self.sample_more_suffixes(
+                    v, amount=1 + self.suffix_family_size, limit=limit
+                )
+            else:
+                # Sample random prefixes and add them
+                new_prefixes = [
+                    self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+                    for _ in range(self.num_addtl_prefixes)
+                ]
+                self.add_prefixes(new_prefixes)
+
+    def compute_fnr(self, vs):
+        """
+        Compute the false negative rate for the given suffix family vs.
+
+        This is the % of prefixes that are neither classified as positive nor negative by the
+        given suffix family.
+
+        A special case is that if the family classifies all prefixes as positive or negative,
+        then the FNR is 1 rather than 0 (since the prediction is uninformative).
+        """
+        arr = self.compute_decision_array_from_strings(
+            [self.suffix_bank[v] for v in vs]
+        ).mean(1)
+        if arr.min() == 0:
+            return 1
+        return 1 - arr.sum(0)
+
+    def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
+        new_vs = []
+        pbar = tqdm.tqdm(
+            desc="Completing suffix family",
+            delay=1,
+            total=amount,
+        )
+        for i in itertools.count():
+            if limit is not None and i >= limit:
+                pbar.close()
+                return new_vs, 0
+            _, mask, idx = self.sample_suffix()
+            if self.chi_squared_p_min is None or (
+                chi_squared_p(self.corresponding_masks[v], mask)
+                < self.chi_squared_p_min
+            ):
+                pbar.update()
+                new_vs.append(idx)
+                if len(new_vs) >= amount:
+                    pbar.close()
+                    remainder = limit - i - 1 if limit is not None else None
+                    return new_vs, remainder
+
+        raise RuntimeError("Unreachable")
+
+    def corresponding_masks_for_subset(self, subset_prefixes=None) -> List[np.ndarray]:
+        corresponding_masks = np.array(self.corresponding_masks)
+        if subset_prefixes is not None:
+            corresponding_masks = corresponding_masks[:, subset_prefixes]
+        return corresponding_masks
+
+    def best_correlation_in_bank(self, subset_prefixes=None) -> Tuple[int, int, float]:
+        corresponding_masks = self.corresponding_masks_for_subset(subset_prefixes)
+        idx_1, idx_2, _ = best_correlation(corresponding_masks)
+        if self.chi_squared_p_min is None or (
+            chi_squared_p(corresponding_masks[idx_1], corresponding_masks[idx_2])
+            < self.chi_squared_p_min
+        ):
+            return (idx_1, idx_2)
+        return None
+
+    def find_suffix_family(
+        self, suffix_prevalence_requirement: float, subset_prefixes=None
+    ) -> List[int]:
+        required_suffix_availability = int(np.ceil(10 / suffix_prevalence_requirement))
+        if len(self.suffix_bank) < required_suffix_availability:
+            for _ in tqdm.trange(
+                required_suffix_availability - len(self.suffix_bank),
+                desc="Sampling initial suffixes",
+                delay=1,
+            ):
+                self.sample_suffix()
+        best_pair = self.best_correlation_in_bank(subset_prefixes)
+        if best_pair is None:
+            return None
+        vs = self.query_for_mask(
+            self.corresponding_masks[best_pair[0]], subset_prefixes
+        )
+        if len(vs) < suffix_prevalence_requirement * len(self.suffix_bank):
+            return None
+        self.finish_populating_suffix_family(vs)
+        return vs
+
+    def query_for_mask(self, test_mask: np.ndarray, subset_prefixes=None) -> List[int]:
+        if subset_prefixes is not None:
+            test_mask = test_mask[subset_prefixes]
+
+        corresponding_masks = self.corresponding_masks_for_subset(subset_prefixes)
+
+        return np.where(
+            [
+                chi_squared_p(test_mask, mask) < self.chi_squared_p_min
+                for mask in corresponding_masks
+            ]
+        )[0].tolist()
+
+    def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
+        selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
+        if subset_prefixes is None:
+            assert (
+                selected_masks.shape[1] == self.num_prefixes
+            ), f"Expected {self.num_prefixes}, got {selected_masks.shape[1]}"
+        else:
+            assert selected_masks.shape[1] == sum(
+                subset_prefixes
+            ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
+        return selected_masks.mean(0)
+
+    def split_states(
+        self,
+        vs: List[int],
+        path: List[Tuple[TriPredicate, bool]],
+        subset_mask: Optional[np.ndarray],
+    ) -> list:
+        decision = self.compute_decision(vs, subset_mask)
+        vs_actual = [self.suffix_bank[v] for v in vs]
+        return [
+            (
+                path + [(TriPredicate(vs_actual, self.evidence_thresh), True)],
+                cascade(subset_mask, decision >= self.evidence_thresh),
+            ),
+            (
+                path + [(TriPredicate(vs_actual, self.evidence_thresh), False)],
+                cascade(subset_mask, decision < 1 - self.evidence_thresh),
+            ),
+        ]
+
+    def extract_decision_tree(self):
+        completed_states = []
+        states_fringe = [([], None)]
+        while states_fringe:
+            print(
+                f"Expanding: there are {len(states_fringe)} states"
+                f" to expand and {len(completed_states)} completed states"
+            )
+            path, subset_mask = states_fringe.pop()
+            if subset_mask is not None:
+                print(f"Expanding mask with {subset_mask.sum()} prefixes")
+            vs = self.find_suffix_family(self.suffix_prevalence, subset_mask)
+            if vs is None:
+                completed_states.append(path)
+            else:
+                states_fringe.extend(self.split_states(vs, path, subset_mask))
+        return flat_decision_tree_to_decision_tree(completed_states)
+
+    def prepend_to_all(self, vs: List[int], prefix: int):
+        vs_new = []
+        for v in tqdm.tqdm(vs, desc="Prepending to all suffixes", delay=1):
+            _, _, v_new = self.record_suffix([prefix] + self.suffix_bank[v])
+            vs_new.append(v_new)
+        return vs_new
+
+    def execute_path(
+        self, path: List[Tuple[TriPredicate, bool]], prepend=()
+    ) -> np.ndarray:
+        mask = np.ones(len(self.prefixes), dtype=bool)
+        for predicate, decision in path:
+            vs_idxs = [self.record_suffix([*prepend, *v])[2] for v in predicate.vs]
+            decision_mask = self.compute_decision(vs_idxs, subset_prefixes=mask)
+            if decision:
+                decision_mask = decision_mask >= self.evidence_thresh
+            else:
+                decision_mask = decision_mask < 1 - self.evidence_thresh
+            mask = cascade(mask, decision_mask)
+        return mask
+
+    def compute_transition_matrix(self, dt: DecisionTree) -> np.ndarray:
+        states = self.classify_states_with_decision_tree(dt)
+        states_after_c = [
+            self.classify_states_with_decision_tree(
+                dt.map_over_predicates(
+                    lambda p, c=c: TriPredicate(
+                        [[c] + x for x in p.vs], p.evidence_threshold
+                    )
+                )
+            )
+            for c in range(self.alphabet_size)
+        ]
+        num_states = dt.num_states
+        transitions = np.zeros((num_states, self.alphabet_size, num_states), dtype=int)
+        for c, states_c in enumerate(states_after_c):
+            valid = states_c >= 0
+            np.add.at(
+                transitions,
+                (states[valid], c, states_c[valid]),
+                1,
+            )
+        return transitions.argmax(-1)
+
+    def compute_accepts_vector(
+        self, paths: List[List[Tuple[TriPredicate, bool]]]
+    ) -> np.ndarray:
+        accepts = []
+        for (pred, decision), *_ in paths:
+            assert [] in pred.vs
+            accepts.append(decision)
+        return np.array(accepts)
+
+    def possible_dfas(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> List[DFA]:
+        dt = flat_decision_tree_to_decision_tree(paths)
+        transitions = self.compute_transition_matrix(dt)
+        accepts = self.compute_accepts_vector(paths)
+        num_states = len(paths)
+        possible_dfas = [
+            DFA(
+                states=set(range(num_states)),
+                input_symbols=set(range(self.alphabet_size)),
+                transitions={
+                    s: {sym: transitions[s, sym] for sym in range(self.alphabet_size)}
+                    for s in range(num_states)
+                },
+                initial_state=initial_state,
+                final_states={s for s in range(num_states) if accepts[s]},
+            )
+            for initial_state in range(num_states)
+        ]
+        return possible_dfas
+
+    def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
+        vs_idxs = [self.record_suffix(v)[2] for v in vs]
+        return self.compute_decision(vs_idxs)
+
+    def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
+        decision = self.compute_decision_from_strings(vs)
+        return np.array(
+            [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
+        )
+
+    def classify_states_with_decision_tree(self, dt: DecisionTree):
+        if isinstance(dt, DecisionTreeLeafNode):
+            return np.full(len(self.prefixes), dt.state_idx)
+        results = np.full(len(self.prefixes), -1)
+        rej, acc = self.compute_decision_array_from_strings(dt.predicate.vs)
+        results[rej] = self.classify_states_with_decision_tree(dt.by_rejection[0])[rej]
+        results[acc] = self.classify_states_with_decision_tree(dt.by_rejection[1])[acc]
+        return results
+
+    def dfa_success_rates(self, dfas: List[DFA], dt: DecisionTree) -> List[float]:
+        odfa = [[dfa.accepts_input(string) for string in self.prefixes] for dfa in dfas]
+        odfa = np.array(odfa)
+        assert (
+            [] in dt.predicate.vs
+        ), "The root predicate must include the empty string as an exemplar"
+        decision_arr = self.compute_decision_array_from_strings(dt.predicate.vs)
+        mask = decision_arr.any(0)
+        odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
+
+        odfa = np.stack([~odfa, odfa], axis=1)
+        return ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
+
+    def optimal_dfa(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> DFA:
+        possible_dfas = self.possible_dfas(paths)
+        success_rates = self.dfa_success_rates(
+            possible_dfas, flat_decision_tree_to_decision_tree(paths)
+        )
+        best_idx = np.argmax(success_rates)
+        print(
+            f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
+        )
+        return success_rates[best_idx], self.fix_accept_states(possible_dfas[best_idx])
+
+    def fix_accept_states(self, dfa, *, force_correct=False):
+        fs_count = np.zeros(len(dfa.states))
+        fs_acc = np.zeros(len(dfa.states))
+
+        def record(x, is_acc):
+            final_state = list(dfa.read_input_stepwise(x, ignore_rejection=True))[-1]
+            fs_count[final_state] += 1
+            fs_acc[final_state] += is_acc
+
+        def with_accept(final_states):
+            return DFA(
+                states=dfa.states,
+                input_symbols=dfa.input_symbols,
+                transitions=dfa.transitions,
+                initial_state=dfa.initial_state,
+                final_states=final_states,
+            )
+
+        for x, is_acc in zip(self.prefixes, self.record_suffix([])[1]):
+            record(x, is_acc)
+        if force_correct:
+            # pylint: disable=consider-using-enumerate
+            for state in range(len(fs_acc)):
+                while True:
+                    p = scipy.stats.binom.cdf(
+                        n=fs_count[state],
+                        k=min(fs_count[state] - fs_acc[state], fs_acc[state]),
+                        p=0.5,
+                    )
+                    if p < self.p_value_accept:
+                        break
+                    dfa_for_state = with_accept({state})
+                    dfa_str = random_word(
+                        dfa_for_state, len(self.prefixes[0]), self.rng
+                    )
+                    record(dfa_str, self.oracle.membership_query(dfa_str))
+
+        is_accept = fs_acc / fs_count > 0.5
+        return with_accept({s for s in dfa.states if is_accept[s]})
+
+    def add_prefixes(self, new_prefixes: List[List[int]]):
+
+        additional_prefixes = []
+        additional_masks = []
+        for prefix in tqdm.tqdm(new_prefixes, desc="Adding new prefixes", delay=1):
+            if prefix not in self.prefixes:
+                additional_prefixes.append(prefix)
+                additional_masks.append(
+                    np.array(
+                        [
+                            self.oracle.membership_query(prefix + v)
+                            for v in self.suffix_bank
+                        ],
+                        np.float32,
+                    )
+                )
+        if additional_masks:
+            additional_masks = np.array(additional_masks).T
+            self.prefixes.extend(additional_prefixes)
+
+            assert len(self.corresponding_masks) == len(additional_masks)
+            self.corresponding_masks = [
+                np.concatenate([self.corresponding_masks[i], additional_masks[i]])
+                for i in range(len(self.suffix_bank))
+            ]
+
+    @property
+    def num_prefixes(self) -> int:
+        return len(self.prefixes)
+
+    def add_counterexample_prefixes(self, dt, dfa, count):
+        results = generate_counterexamples(
+            self,
+            self.sampler,
+            self.oracle,
+            dt,
+            dfa,
+            count=count,
+            suffix_size_counterexample_gen=self.suffix_size_counterexample_gen,
+        )
+        self.add_prefixes([prefix for prefix, _ in results])
+        return results
+
+
+def cascade(mask_1, mask_2):
+    if mask_1 is None:
+        return mask_2
+    mask_1 = mask_1.copy()
+    mask_1[mask_1] = mask_2
+    return mask_1
+
+
+def flat_decision_tree_to_decision_tree(
+    fdt: List[List[Tuple[TriPredicate, bool]]],
+) -> DecisionTree:
+    """
+    Takes a flat decision tree (fdt), which is represented as a list of descriptors of leaves, each
+    being a list of decisions made along the path from the root to the leaf
+    (represented as a tuple (predicate, decision))),
+    and converts it into a hierarchical DecisionTree structure.
+    """
+    if not fdt:
+        raise ValueError("Flat decision tree cannot be empty")
+
+    # let partial_tree be a dictionary mapping from paths to DecisionTree nodes
+    partial_tree: Dict[Tuple[Tuple[TriPredicate, bool], ...], DecisionTree] = {
+        tuple(path): DecisionTreeLeafNode(i) for i, path in enumerate(fdt)
+    }
+    while len(partial_tree) > 1:
+        # attempt to merge nodes that are the same except for the last decision
+        path_1, path_2 = locate_mergeable_paths(partial_tree)
+        # print(path_1)
+        # print(path_2)
+        (*prefix, (predicate, is_accepting)) = path_1
+        if is_accepting:
+            path_1, path_2 = path_2, path_1
+        node = DecisionTreeInternalNode(
+            predicate=predicate,
+            by_rejection=(
+                partial_tree[path_1],
+                partial_tree[path_2],
+            ),
+        )
+        del partial_tree[path_1]
+        del partial_tree[path_2]
+        partial_tree[tuple(prefix)] = node
+    return partial_tree[()]
+
+
+def locate_mergeable_paths(
+    partial_tree: Dict[Tuple[Tuple[TriPredicate, bool], ...], DecisionTree],
+) -> Tuple[
+    Tuple[Tuple[TriPredicate, bool], ...], Tuple[Tuple[TriPredicate, bool], ...]
+]:
+    by_everything_but_last = defaultdict(list)
+    for path in partial_tree.keys():
+        by_everything_but_last[path[:-1]].append(path)
+    assert any(len(v) >= 2 for v in by_everything_but_last.values())
+    prefix = next(p for p, v in by_everything_but_last.items() if len(v) >= 2)
+    assert len(by_everything_but_last[prefix]) == 2
+    first, second = by_everything_but_last[prefix]
+    assert first[-1][0] == second[-1][0]
+    assert {first[-1][1], second[-1][1]} == {True, False}
+    return first, second
+
+
+def overlaps(pst, states, vs):
+    masks = np.array(
+        [
+            pst.compute_decision(vs) > pst.evidence_thresh,
+            pst.compute_decision(vs) < 1 - pst.evidence_thresh,
+        ]
+    )
+    existing_states = np.array([m for _, m in states])
+    assert (
+        existing_states.shape[1] == pst.num_prefixes
+    ), f"[existing states] Expected {pst.num_prefixes}, got {existing_states.shape[1]}"
+    assert (
+        masks.shape[1] == pst.num_prefixes
+    ), f"[masks] Expected {pst.num_prefixes}, got {masks.shape[1]}"
+    valid = np.any(masks, 0) & np.any(existing_states, 0)
+    masks, existing_states = masks[:, valid], existing_states[:, valid]
+    freqs = (masks[:, None] & existing_states[None]).sum(-1).T
+    denominators = freqs.sum(-1)
+    print(freqs)
+    split_idxs = []
+    for i, (denom, (n1, n2)) in enumerate(zip(denominators, freqs)):
+        pvals = [
+            1 - scipy.stats.binom.cdf(n1, denom, pst.decision_rule_fpr),
+            1 - scipy.stats.binom.cdf(n2, denom, pst.decision_rule_fpr),
+        ]
+        pval = max(pvals)
+        if pval < pst.split_pval:
+            split_idxs.append(i)
+    return split_idxs
+
+
+def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
+    _, _, v_idx = pst.record_suffix([])
+    vs = pst.sample_suffix_family(v_idx)
+    vs_queue = [([], vs)]
+    states = [([], np.ones(len(pst.prefixes), bool))]
+
+    def split_with(state_indices, vs):
+        states_to_split = [states.pop(i) for i in reversed(sorted(state_indices))]
+        for decision, m2 in states_to_split:
+            states.extend(pst.split_states(vs, decision, m2))
+
+    while vs_queue:
+        path, vs_current = vs_queue.pop()
+        print(f"Num states: {len(states)}; processing {path}")
+        ol = overlaps(pst, states, vs_current)
+        if not ol:
+            print("Done")
+            continue
+        split_with(ol, vs_current)
+        vs_queue.extend(
+            ([c] + path, pst.prepend_to_all(vs_current, c))
+            for c in range(pst.alphabet_size)
+        )
+
+    # split_with([0], vs)
+    # split_with([0, 1], vs_with_1)
+    fdt = [x for x, _ in states]
+    return fdt
+
+
+def states_intermediate(s0, y, dfa):
+    states = [s0]
+    for symbol in y:
+        s_next = dfa.transitions[states[-1]][symbol]
+        states.append(s_next)
+    return states
+
+
+def locate_incorrect_point(oracle, dt, dfa, x, y):
+    s0 = dt.classify(x, oracle)
+    if s0 is None:
+        return None
+    dfa_states_each = states_intermediate(s0, y, dfa)
+    if dt.classify(x + y, oracle) == dfa_states_each[-1]:
+        return None
+    correct_idx = 0
+    incorrect_idx = len(x)
+    # binary search for first incorrect index
+    while correct_idx < incorrect_idx - 1:
+        # print(correct_idx, incorrect_idx)
+        mid_idx = (correct_idx + incorrect_idx) // 2
+        dt_state = dt.classify(x + y[: mid_idx + 1], oracle)
+        # print(
+        #     f"Testing up to index {mid_idx}: DT state {dt_state}, DFA state {dfa_states_each[mid_idx + 1]}"
+        # )
+        if dt_state is None:
+            return None
+        if dt_state == dfa_states_each[mid_idx + 1]:
+            correct_idx = mid_idx
+        else:
+            incorrect_idx = mid_idx
+    # print("Correct idx found:", correct_idx)
+    # print(x + y[: correct_idx + 1], y[correct_idx + 1])
+    return x + y[: correct_idx + 1], y[correct_idx + 1]
+
+
+def generate_counterexamples(
+    pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
+):
+    dt_with_reduced_predicates = dt.map_over_predicates(
+        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5)
+    )
+    dt_with_decisive_predicates = dt.map_over_predicates(
+        lambda p: TriPredicate(p.vs, 0.5)
+    )
+    pbar = tqdm.tqdm(total=count)
+    additional_prefixes = []
+    while True:
+        x = us.sample(pst.rng, pst.alphabet_size)
+        y = us.sample(pst.rng, pst.alphabet_size)
+        prefix_and_sym = locate_incorrect_point(
+            oracle,
+            dt_with_reduced_predicates,
+            dfa,
+            x,
+            y,
+        )
+        if prefix_and_sym is None:
+            continue
+        prefix, sym = prefix_and_sym
+        state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
+        state_2 = dfa.transitions[state_1][sym]
+        if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
+            continue
+        additional_prefixes.append(prefix_and_sym)
+        pbar.update()
+        if len(additional_prefixes) >= count:
+            pbar.close()
+            return additional_prefixes
+        # if dfa.read_input(x) == dt.classify(x, oracle):
+        #     continue
+        # prefix_classes = [dt.classify(x[:i], oracle) for i in range(1 + len(x))]
+        # for i in range(len(x)):
+        #     if prefix_classes[i] != None and prefix_classes[i + 1] != None:
+        #         if dfa.transitions[prefix_classes[i]][x[i]] != prefix_classes[i + 1]:
+        #             print(x[:i])
+
+
+def counterexample_driven_synthesis(
+    pst, *, additional_counterexamples: int, acc_threshold: float
+):
+    prev_dfas = []
+    while True:
+        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+        fdt = abstract_interpretation_algorithm(pst)
+        print(f"Extracted flat decision tree with {len(fdt)} states")
+        dt = flat_decision_tree_to_decision_tree(fdt)
+        acc, dfa = pst.optimal_dfa(fdt)
+        print("DFA found!")
+        print(dfa)
+        if any(
+            dfa.issubset(prev_dfa) and prev_dfa.issubset(dfa) for prev_dfa in prev_dfas
+        ):
+            print("Same DFA twice; stopping synthesis")
+            yield dfa, dt, None
+            return
+        if acc >= acc_threshold:
+            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            yield pst.fix_accept_states(dfa, force_correct=True), dt, None
+            return
+        pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
+        yield dfa, dt, copy.deepcopy(pst)
+
+
+def do_counterexample_driven_synthesis(
+    pst, *, additional_counterexamples: int, acc_threshold: float
+) -> DFA:
+    dfa = dt = None
+    for dfa, dt, _ in counterexample_driven_synthesis(
+        pst,
+        additional_counterexamples=additional_counterexamples,
+        acc_threshold=acc_threshold,
+    ):
+        pass
+    return dfa, dt
+
+
+def population_size_and_evidence_thresh(
+    p_acc, acceptable_fpr, acceptable_fnr, *, relative_eps=0.5
+) -> Tuple[int, float]:
+    """
+    Decisions will be made by taking N samples and seeing if the proportion is outside
+    (0.5 - epsilon, 0.5 + epsilon). The true distribution is assumed to be B(p_acc) when
+    the underlying value is 1 and B(1 - p_acc) when it is 0. We would like it to be the
+    case that when samples are drawn from the null distribution B(0.5), we have a false
+    positive rate of at most acceptable_fpr, and when samples are drawn from the true
+    distribution we have a false negative rate of at most acceptable_fnr.
+
+    In other words, the conditions are
+
+    - BinomCDF(N, N(0.5 - eps), 0.5) <= acceptable_fpr/2
+    - BinomCDF(N, N(0.5 + eps), p_acc) <= acceptable_fnr
+    """
+    assert 0.5 < p_acc < 1.0
+    N_low = 1
+    N_high = None
+    while N_high is None or N_low < N_high:
+        if N_high is None:
+            N_try = N_low * 2
+        else:
+            N_try = (N_low + N_high) // 2
+        result = evidence_thresh_for_population_size(
+            p_acc, acceptable_fpr, acceptable_fnr, N_try, relative_eps=relative_eps
+        )
+        if result is None:
+            N_low = N_try + 1
+        else:
+            N_high = N_try
+    res = evidence_thresh_for_population_size(
+        p_acc, acceptable_fpr, acceptable_fnr, N_high, relative_eps=relative_eps
+    )
+    assert res is not None
+    return res
+
+
+def evidence_thresh_for_population_size(
+    p_acc, acceptable_fpr, acceptable_fnr, N, *, relative_eps
+) -> Optional[Tuple[int, float]]:
+    """
+    See population_size_and_evidence_thresh for context.
+    """
+    for eps in np.linspace(0.01, p_acc - 0.5, 100):
+        k_low = int(np.floor(N * (0.5 - eps)))
+        k_high = int(np.ceil(N * (0.5 + eps)))
+        fpr = scipy.stats.binom.cdf(k_low, N, 0.5) + (
+            1 - scipy.stats.binom.cdf(k_high - 1, N, 0.5)
+        )
+        fnr = scipy.stats.binom.cdf(
+            k_high - 1, N, 0.5 + (p_acc - 0.5) * relative_eps
+        ) - scipy.stats.binom.cdf(k_low, N, p_acc)
+        if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
+            return N, eps
+    return None
+
+
+def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
+    r"""
+    Computes the required number of prefixes to achieve a desired misclassification rate
+    when finding suffixes.
+
+    We conceptualize the process of finding suffixes as follows:
+
+        We have a distribution V over binary strings $2^k$ defined as
+
+        x <- X; v_i <- x_i \oplus B(p)
+
+        We have access to one
+
+        v_0 ~ P(v | x = x_0)
+
+        I want to find a set of elements from P(v | x = x_0) but can only sample from V
+
+    where p is the noise level, and k is the quantity we want to find.
+
+    If we look at hamming distance, we have if v ~ P(v | X=x) that, letting n be the noise vector XORd with the x,
+    we have
+
+    d(v, v_0)
+        := sum_j 1(v[j] ≠ v_0[j])
+        := sum_j 1(x[j] ⊕ n[j] ≠ x_0[j] ⊕ n_0[j])
+        := sum_j 1(x[j] ≠ x_0[j]) ⊕ 1(n[j] ≠ n_0[j])
+
+    The distribution (n_0[j] ≠ n[j]) is Bernoulli with parameter 2p(1-p). Let r = 2p(1-p).
+
+    Let A = d(x, x_0) and B = k - A
+
+    Then, we can split
+
+    d(v, v_0)
+        = sum_{j: x[j] = x_0[j]} 1(n[j] ≠ n_0[j]) + sum_{j: x[j] ≠ x_0[j]} 1(n[j] = n_0[j])
+        = Binomial(B, r) + A - Binomial(A, r)
+        ~= A + Normal(B * r, B * r * (1 - r)) - Normal(A * r, A * r * (1 - r))
+        = A + Normal((B - A) * r, (A + B) * r * (1 - r))
+        = A + Normal((k - 2A) * r, k * r * (1 - r))
+
+    Let delta = A/k. Then, we have
+    d(v, v_0)/k = delta + Normal((1 - 2 delta) * r, r * (1 - r) / k)
+                = delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
+
+    We want to bound the probability that d(v', v_0)/k < d(v'', v_0)/k for v' ~ P(v | x = x_0) and v'' ~ P(v | x ≠ x_0).
+
+    d(v', v_0)/k > d(v'', v_0)/k
+    r + Normal(0, r * (1 - r) / k) > delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
+    Normal(0, r * (1 - r) / k) > delta - 2 * delta * r + Normal(0, r * (1 - r) / k)
+    Normal(0, r * (1 - r) / k) > delta * (1 - 2 * r) + Normal(0, r * (1 - r) / k)
+    Normal(0, 2 * r * (1 - r) / k) > delta * (1 - 2 * r)
+    Normal(0, 1) > delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k)
+
+    Letting z = Φ^{-1}(1 - acceptable_misclassification), we want
+
+    delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k) = z
+    delta^2 * (1 - 2 * r)^2 k / (2 * r * (1 - r)) = z^2
+    k  = z^2 (2 * r * (1 - r))  / (delta^2 * (1 - 2 * r)^2)
+    """
+    r = 2 * noise_level * (1 - noise_level)
+    z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
+    k = (z**2 * 2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
+    return int(np.ceil(k))
+
+
+def compute_prefix_set_size_top_percentage(
+    delta, top_percentage, noise_level, acceptable_misclassification
+):
+    """
+    We assume we take the top P%ile of the strings, and want to bound what % of the other
+    strings are being caught up in this top %ile.
+
+    Let z_target be the z-score that corresponds to the bottom P%ile in the distribution
+    corresponding to x_0. We then have that this will have a distance of
+
+    d_target/k = r + sqrt(r * (1 - r)/k) * z_target
+
+    Then, we want to bound the probability that d(v, v_0)/k < d_target/k for v ~ P(v | x ≠ x_0).
+
+    We can do this via
+
+        delta + Normal((1 - 2 delta) * r, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target
+        Normal(0, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target - delta - (1 - 2 delta) * r
+        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta - 2 * delta * r
+        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta * (1 + 2 * r)
+        Normal(0, 1) < z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
+
+    This has the correct probability so long as
+
+        z = z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
+
+    which we can solve for k as
+
+        (z_target - z)^2 (2 * r * (1 - r)) / (delta^2 * (1 - 2 * r)^2)
+
+    In practice this is almost never better enough to be worth it.
+    """
+
+    r = 2 * noise_level * (1 - noise_level)
+    z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
+    z_target = scipy.stats.norm.ppf(top_percentage)
+    k = (z_target + z) ** 2 * (2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
+    return int(np.ceil(k))
+
+
+def random_word(dfa, size, rng):
+    def to_str(digit):
+        assert 0 <= digit <= 9
+        return str(digit)
+
+    dfa = DFA(
+        states=dfa.states,
+        initial_state=dfa.initial_state,
+        input_symbols={to_str(x) for x in dfa.input_symbols},
+        transitions={
+            s1: {to_str(sym): s2 for sym, s2 in trans.items()}
+            for s1, trans in dfa.transitions.items()
+        },
+        final_states=dfa.final_states,
+    )
+    return [int(x) for x in dfa.random_word(size, seed=int(rng.integers(0, 2**32 - 1)))]
+
+
+def compute_suffix_size_for_counterexample_generation(
+    acceptable_misclassification, noise_level
+):
+    for n in itertools.count(start=1):
+        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
+            return n
+    raise ValueError("not reachable")
+
+
+def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
+    """
+    Computes the suffix size to use for counterexample generation.
+    This is an alias for compute_suffix_size_for_counterexample_generation
+    to match the naming convention of other hyperparameter generators.
+    """
+    return compute_suffix_size_for_counterexample_generation(
+        acceptable_misclassification, noise_level
+    )
