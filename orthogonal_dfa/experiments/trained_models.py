@@ -201,6 +201,24 @@ r_rnn_500_1l_sparse_10_psams = TrainedModels(
     ),
 )
 
+r_rnn_500_1l_sparse_10_psams_more_epochs = TrainedModels(
+    "RNN PSAMs Sparse [500, 1 layer, 10 psams, 20k epochs]",
+    lambda: process_results(
+        [
+            train_rnn_psams_sparse(
+                seed,
+                hidden_size=500,
+                layers=1,
+                starting_gates=[],
+                initial_threshold=0.60,
+                num_psams=10,
+                epochs=50_000,
+            )
+            for seed in range(8)
+        ]
+    ),
+)
+
 pdfa_models_basic = [r_pdfa, r_pdfa_cp, r_pdfa_10s]
 pdfa_models_rest = [r_pdfa_cp_10s, r_pdfa_hyp, r_pdfa_cp_hyp]
 
@@ -224,6 +242,7 @@ rnn_models_main = [
     r_rnn_500_1l_sparse,
     r_rnn_500_1l_sparse_10_psams_less_epochs,
     r_rnn_500_1l_sparse_10_psams,
+    r_rnn_500_1l_sparse_10_psams_more_epochs,
 ]
 
 rnn_models_other = [

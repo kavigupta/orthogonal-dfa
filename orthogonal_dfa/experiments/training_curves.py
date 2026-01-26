@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -139,6 +141,17 @@ def plot_sparsity_curves(models):
         setup_yticks_as_log(ax)
         ax.set_title(model.name)
         ax.legend()
+
+
+def models_by_sparsity(results):
+    by_sparsity = defaultdict(list)
+
+    for points in results["metadata"]:
+        for point in points:
+            if point["gate_before_update"] is None:
+                continue
+            by_sparsity[point["sparsity"]].append(point["gate_before_update"])
+    return by_sparsity
 
 
 def setup_yticks_as_log(ax):
