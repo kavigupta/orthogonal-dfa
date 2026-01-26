@@ -146,12 +146,13 @@ def compute_all_original_and_residual_by_sparsity(results):
 def plot_residual_results_by_sparsity(original_and_residual_by_sparsity):
     plt.figure(dpi=200, figsize=(10, 10))
     means = []
-    for k, vs in original_and_residual_by_sparsity.items():
+    for i, (k, vs) in enumerate(original_and_residual_by_sparsity.items()):
+        color = f"C{i}"
         vs = 1000 * vs
         y, x = vs.mean(0)
         means.append((x, y))
-        pts = plt.scatter(vs[:, 1], vs[:, 0], marker=".")
-        plt.text(x=x, y=y, s=f"{1-k:.2%}", color=pts._facecolors[0])
+        plt.scatter(vs[:, 1], vs[:, 0], marker=".", color=color)
+        plt.text(x=x, y=y, s=f"{1-k:.2%}", color=color)
     means = np.array(means)
     plt.plot(means[:, 0], means[:, 1], color="black")
     plt.xlabel("Remaining signal in no-ORF | RNN")
