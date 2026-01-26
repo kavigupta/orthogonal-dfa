@@ -5,6 +5,49 @@ from typing import Callable, Dict, Iterable, List, Tuple, Union
 from frozendict import frozendict
 
 
+class NoiseModel(ABC):
+    """Base class for noise models that add noise to oracle queries."""
+
+    @abstractmethod
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        """
+        Apply noise to a correct oracle value.
+
+        Args:
+            correct_value: The correct boolean value
+            string: The input string being queried
+            seed: Random seed for deterministic noise
+
+        Returns:
+            The noisy boolean value
+        """
+
+
+@dataclass(frozen=True)
+class SymmetricBernoulli(NoiseModel):
+    """
+    Symmetric Bernoulli noise model.
+
+    With probability p_correct, returns the correct value.
+    With probability 1 - p_correct, returns the flipped value.
+    """
+
+    p_correct: float
+
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        from permacache import stable_hash
+
+        def uniform_random(seed_obj: object) -> float:
+            hash_value = stable_hash(seed_obj)
+            hash_value = (int(hash_value, 16) % 100) / 100
+            return hash_value
+
+        hash_input = uniform_random((string, seed))
+        if hash_input < self.p_correct:
+            return correct_value
+        return not correct_value
+
+
 class Oracle(ABC):
     @abstractmethod
     def membership_query(self, string: List[int]) -> bool:

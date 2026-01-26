@@ -16,6 +16,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
+from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
 us = UniformSampler(40)
 
@@ -35,7 +36,7 @@ def sample_with_exclusion(exclude_pattern, *, symbols, count):
 def assertDFA(
     testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
 ):
-    oracle = oracle_creator(1.0, 0)
+    oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     false_positives, false_negatives = [], []
     for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
         expected = oracle.membership_query(s)
@@ -63,7 +64,7 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, symbols=2):
 
 
 def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
-    oracle = oracle_creator(accuracy, seed)
+    oracle = oracle_creator(SymmetricBernoulli(p_correct=accuracy), seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
@@ -99,7 +100,7 @@ def assertDoesNotMeetProperty(
     testcase, oracle_creator, counterexample_generator, count=10_000
 ):
     rng = np.random.default_rng(0)
-    oracle = oracle_creator(1.0, 0)
+    oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     valid = []
     for _ in range(count):
         suffix = us.sample(rng, 2)
@@ -118,57 +119,57 @@ def assertDoesNotMeetProperty(
 
 class TestLStar(unittest.TestCase):
     def test_modulo(self):
-        oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
-            accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_harder(self):
-        oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
-            accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.7, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_even_harder(self):
-        oracle_creator = lambda accuracy, seed: BernoulliParityOracle(
-            accuracy, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.6, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_subsequence(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*1010101.*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*1010101.*"
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*1111.*1111.*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*1111.*1111.*"
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences_with_alternation(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*1111.*(1111|0000)11.*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*1111.*(1111|0000)11.*"
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_alternation(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*(1111|0000)11.*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*(1111|0000)11.*"
         )
         _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
 
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*(111|000).*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*(111|000).*"
         )
         _, dfa, _ = compute_dfa_for_oracle(
             oracle_creator, accuracy=0.8, seed=0, symbols=3
@@ -176,8 +177,8 @@ class TestLStar(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, symbols=3)
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*(11111|00000).*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*(11111|00000).*"
         )
 
         def counterexample_generator(suffix):
@@ -188,8 +189,8 @@ class TestLStar(unittest.TestCase):
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
     def test_specific_alternation_with_only_one_at_end_does_not_meet_property(self):
-        oracle_creator = lambda accuracy, seed: BernoulliRegex(
-            accuracy, seed, regex=r".*(11111|00000)1.*"
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*(11111|00000)1.*"
         )
 
         def counterexample_generator(suffix):
