@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+from orthogonal_dfa.module.sparsity.notifiable import NotifiableByLoss
 from orthogonal_dfa.psams.psams import (
     TorchPSAMs,
     conditional_cascade_log_probs,
@@ -9,7 +10,7 @@ from orthogonal_dfa.psams.psams import (
 from orthogonal_dfa.utils.pdfa import PDFA
 
 
-class PSAMPDFA(nn.Module):
+class PSAMPDFA(nn.Module, NotifiableByLoss):
 
     @classmethod
     def create(cls, num_input_channels, num_psams, two_r, num_states, *, pdfa_typ=PDFA):
@@ -39,13 +40,23 @@ class PSAMPDFA(nn.Module):
         self.psam = psam
         self.pdfa = pdfa
 
-    def forward(self, x):
+    def log_input_probs(self, x):
         log_input_probs = self.psam(x)
         log_input_probs = conditional_cascade_log_probs(log_input_probs, axis=-1)
-        return self.pdfa(log_input_probs)
+        return log_input_probs
+
+    def forward(self, x):
+        return self.pdfa(self.log_input_probs(x))
+
+    def intermediate_states(self, x):
+        return self.pdfa.intermediate_states(self.log_input_probs(x))
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
 
 
-class PSAMPDFAWithTemperature(nn.Module):
+class PSAMPDFAWithTemperature(nn.Module, NotifiableByLoss):
     def __init__(self, psam_pdfa: PSAMPDFA, temperature: float):
         """
         A PSAM-PDFA model with an adjustable temperature parameter.
@@ -64,3 +75,7 @@ class PSAMPDFAWithTemperature(nn.Module):
         # pylint: disable=not-callable
         scaled_log_probs = nn.functional.logsigmoid(scaled_logit)
         return scaled_log_probs
+
+    def notify_epoch_loss(self, epoch_idx, epoch_loss):
+        # no sparsity here
+        return None
