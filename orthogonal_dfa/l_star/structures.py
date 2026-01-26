@@ -24,15 +24,19 @@ class NoiseModel(ABC):
 
 
 @dataclass(frozen=True)
-class SymmetricBernoulli(NoiseModel):
+class AsymmetricBernoulli(NoiseModel):
     """
-    Symmetric Bernoulli noise model.
+    Asymmetric Bernoulli noise model.
 
-    With probability p_correct, returns the correct value.
-    With probability 1 - p_correct, returns the flipped value.
+    p_0: Probability of returning 1 (True) when the model output is 0 (False).
+    p_1: Probability of returning 1 (True) when the model output is 1 (True).
+
+    When correct_value is False: returns True with probability p_0, False with probability 1 - p_0.
+    When correct_value is True: returns True with probability p_1, False with probability 1 - p_1.
     """
 
-    p_correct: float
+    p_0: float  # Probability of returning 1 when model output is 0
+    p_1: float  # Probability of returning 1 when model output is 1
 
     def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
         from permacache import stable_hash
@@ -43,9 +47,32 @@ class SymmetricBernoulli(NoiseModel):
             return hash_value
 
         hash_input = uniform_random((string, seed))
-        if hash_input < self.p_correct:
-            return correct_value
-        return not correct_value
+        if correct_value:
+            # When model output is 1, return 1 with probability p_1
+            return hash_input < self.p_1
+        # When model output is 0, return 1 with probability p_0
+        return hash_input < self.p_0
+
+
+@dataclass(frozen=True)
+class SymmetricBernoulli(NoiseModel):
+    """
+    Symmetric Bernoulli noise model.
+
+    With probability p_correct, returns the correct value.
+    With probability 1 - p_correct, returns the flipped value.
+
+    Implemented in terms of AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct.
+    This satisfies: accuracy = p_1 = 1 - p_0 = p_correct.
+    """
+
+    p_correct: float
+
+    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+        # Use AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct
+        # This satisfies: accuracy = p_1 = 1 - p_0 = p_correct
+        asymmetric = AsymmetricBernoulli(p_0=1 - self.p_correct, p_1=self.p_correct)
+        return asymmetric.apply_noise(correct_value, string, seed)
 
 
 class Oracle(ABC):
