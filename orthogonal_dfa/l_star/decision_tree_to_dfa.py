@@ -57,6 +57,7 @@ class TriPredicate:
     def __hash__(self):
         return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
 
+
 def decision_tree_to_dfa(
     alphabet_size: int,
     dt: DecisionTree,
@@ -244,10 +245,6 @@ class PrefixSuffixTracker:
         self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
         return v, mask, len(self.suffix_bank) - 1
 
-    def sample_suffixes(self, num_suffixes: int):
-        for _ in tqdm.trange(num_suffixes, desc="Sampling suffixes", delay=1):
-            self.sample_suffix()
-
     def finish_populating_suffix_family_without_sampling(
         self, vs: List[int], suffix_family_size: int
     ) -> List[int]:
@@ -407,20 +404,6 @@ class PrefixSuffixTracker:
             _, _, v_new = self.record_suffix([prefix] + self.suffix_bank[v])
             vs_new.append(v_new)
         return vs_new
-
-    def execute_path(
-        self, path: List[Tuple[TriPredicate, bool]], prepend=()
-    ) -> np.ndarray:
-        mask = np.ones(len(self.prefixes), dtype=bool)
-        for predicate, decision in path:
-            vs_idxs = [self.record_suffix([*prepend, *v])[2] for v in predicate.vs]
-            decision_mask = self.compute_decision(vs_idxs, subset_prefixes=mask)
-            if decision:
-                decision_mask = decision_mask >= self.evidence_thresh
-            else:
-                decision_mask = decision_mask < 1 - self.evidence_thresh
-            mask = cascade(mask, decision_mask)
-        return mask
 
     def compute_transition_matrix(self, dt: DecisionTree) -> np.ndarray:
         states = self.classify_states_with_decision_tree(dt)
@@ -962,6 +945,7 @@ def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
     z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
     k = (z**2 * 2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
     return int(np.ceil(k))
+
 
 def random_word(dfa, size, rng):
     def to_str(digit):
