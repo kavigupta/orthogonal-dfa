@@ -150,7 +150,7 @@ class PrefixSuffixTracker:
             loss = new_loss
         vs += cluster.tolist()
 
-    def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
+    def sample_suffix_family(self, v: int) -> List[int]:
         prev_fnr = 1.0  # default start with a large value
         strategy = "suffix"
         while True:
@@ -172,14 +172,10 @@ class PrefixSuffixTracker:
 
             prev_fnr = fnr
 
-            print(
-                f"FNR {fnr:.4f} too high, sampling more suffixes; remaining limit {limit}"
-            )
+            print(f"FNR {fnr:.4f} too high, sampling more suffixes")
 
             if strategy == "suffix":
-                _, limit = self.sample_more_suffixes(
-                    amount=1 + self.suffix_family_size, limit=limit
-                )
+                self.sample_more_suffixes(amount=self.suffix_family_size)
             else:
                 # Sample random prefixes and add them
                 new_prefixes = [
@@ -205,26 +201,9 @@ class PrefixSuffixTracker:
             return 1
         return 1 - arr.sum(0)
 
-    def sample_more_suffixes(self, *, amount: int, limit=None):
-        new_vs = []
-        pbar = tqdm.tqdm(
-            desc="Completing suffix family",
-            delay=1,
-            total=amount,
-        )
-        for i in itertools.count():
-            if limit is not None and i >= limit:
-                pbar.close()
-                return new_vs, 0
-            _, _, idx = self.sample_suffix()
-            pbar.update()
-            new_vs.append(idx)
-            if len(new_vs) >= amount:
-                pbar.close()
-                remainder = limit - i - 1 if limit is not None else None
-                return new_vs, remainder
-
-        raise RuntimeError("Unreachable")
+    def sample_more_suffixes(self, *, amount: int):
+        for _ in tqdm.trange(amount, desc="Completing suffix family", delay=1):
+            self.sample_suffix()
 
     def corresponding_masks_for_subset(self, subset_prefixes=None) -> List[np.ndarray]:
         corresponding_masks = np.array(self.corresponding_masks)
