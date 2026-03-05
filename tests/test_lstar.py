@@ -88,7 +88,6 @@ def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
         **kwargs,
         suffix_family_size=n,
         evidence_thresh=0.50 + eps,
-        suffix_prevalence=0.05,
         decision_rule_fpr=0.01,
     )
 

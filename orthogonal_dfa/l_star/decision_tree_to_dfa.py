@@ -64,21 +64,6 @@ def compute_mask(for_state, oracle, v):
     return mask
 
 
-def all_correlations(m):
-    m -= m.mean(1, keepdims=True)
-    m /= np.linalg.norm(m, axis=1, keepdims=True)
-    return m @ m.T
-
-
-def best_correlation(m) -> Tuple[int, int, float]:
-    m = np.array(m)
-    corrs = all_correlations(m)
-    np.fill_diagonal(corrs, -1)
-    # pylint: disable=unbalanced-tuple-unpacking
-    i, j = np.unravel_index(np.argmax(corrs), corrs.shape)
-    return i, j, corrs[i, j]
-
-
 @dataclass
 class PrefixSuffixTracker:
     sampler: Sampler
@@ -86,7 +71,6 @@ class PrefixSuffixTracker:
     oracle: Oracle
     alphabet_size: int
     suffix_family_size: int
-    suffix_prevalence: float
     evidence_thresh: float
     prefixes: List[List[int]]
     suffixes_seen: dict
@@ -109,7 +93,6 @@ class PrefixSuffixTracker:
         alphabet_size: int,
         num_prefixes: int,
         suffix_family_size: int,
-        suffix_prevalence: float,
         evidence_thresh: float,
         decision_rule_fpr: float,
         suffix_size_counterexample_gen,
@@ -125,7 +108,6 @@ class PrefixSuffixTracker:
             oracle=oracle,
             alphabet_size=alphabet_size,
             suffix_family_size=suffix_family_size,
-            suffix_prevalence=suffix_prevalence,
             evidence_thresh=evidence_thresh,
             prefixes=prefixes,
             suffixes_seen={},
@@ -848,21 +830,13 @@ def random_word(dfa, size, rng):
     return [int(x) for x in dfa.random_word(size, seed=int(rng.integers(0, 2**32 - 1)))]
 
 
-def compute_suffix_size_for_counterexample_generation(
-    acceptable_misclassification, noise_level
-):
-    for n in itertools.count(start=1):
-        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
-            return n
-    raise ValueError("not reachable")
-
-
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
     """
     Computes the suffix size to use for counterexample generation.
     This is an alias for compute_suffix_size_for_counterexample_generation
     to match the naming convention of other hyperparameter generators.
     """
-    return compute_suffix_size_for_counterexample_generation(
-        acceptable_misclassification, noise_level
-    )
+    for n in itertools.count(start=1):
+        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
+            return n
+    raise ValueError("not reachable")
