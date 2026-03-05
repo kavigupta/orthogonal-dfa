@@ -20,7 +20,7 @@ import copy
 import itertools
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import scipy
@@ -57,24 +57,11 @@ class TriPredicate:
     def __hash__(self):
         return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
 
+
 def compute_mask(for_state, oracle, v):
     mask = np.array([oracle.membership_query(x + v) for x in for_state], np.float32)
 
     return mask
-
-
-def chi_squared_p(x, y):
-    if np.corrcoef(x, y)[0, 1] < 0:
-        return 1
-    matr = np.zeros((2, 2), dtype=np.int64)
-    np.add.at(matr, (x.astype(int), y.astype(int)), 1)
-    freqs = matr / matr.sum()
-    freqs_x = freqs.sum(0, keepdims=True)
-    freqs_y = freqs.sum(1, keepdims=True)
-    freqs_expected = freqs_x * freqs_y
-    return scipy.stats.chisquare(
-        matr.flatten(), freqs_expected.flatten() * matr.sum()
-    ).pvalue
 
 
 def all_correlations(m):
@@ -99,7 +86,6 @@ class PrefixSuffixTracker:
     oracle: Oracle
     alphabet_size: int
     suffix_family_size: int
-    chi_squared_p_min: float
     suffix_prevalence: float
     evidence_thresh: float
     prefixes: List[List[int]]
@@ -123,7 +109,6 @@ class PrefixSuffixTracker:
         alphabet_size: int,
         num_prefixes: int,
         suffix_family_size: int,
-        chi_squared_p_min: float,
         suffix_prevalence: float,
         evidence_thresh: float,
         decision_rule_fpr: float,
@@ -140,7 +125,6 @@ class PrefixSuffixTracker:
             oracle=oracle,
             alphabet_size=alphabet_size,
             suffix_family_size=suffix_family_size,
-            chi_squared_p_min=chi_squared_p_min,
             suffix_prevalence=suffix_prevalence,
             evidence_thresh=evidence_thresh,
             prefixes=prefixes,
@@ -184,37 +168,17 @@ class PrefixSuffixTracker:
             loss = new_loss
         vs += cluster.tolist()
 
-    def finish_populating_suffix_family(
-        self, vs, *, limit=None, suffix_family_size=None
-    ):
-        if suffix_family_size is None:
-            suffix_family_size = self.suffix_family_size
-        if len(vs) >= suffix_family_size:
-            return limit
-        self.finish_populating_suffix_family_without_sampling(
-            vs, suffix_family_size=suffix_family_size
-        )
-        if len(vs) >= suffix_family_size:
-            return limit
-
-        new_vs, limit = self.sample_more_suffixes(
-            vs[0], amount=suffix_family_size - len(vs), limit=limit
-        )
-
-        vs += new_vs
-        return limit
-
     def sample_suffix_family(self, v: int, *, limit=None) -> Optional[List[int]]:
         prev_fnr = 1.0  # default start with a large value
         strategy = "suffix"
         while True:
 
             vs = [v]
-            limit = self.finish_populating_suffix_family(vs, limit=limit)
-            if limit == 0:
-                return None
+            self.finish_populating_suffix_family_without_sampling(
+                vs, self.suffix_family_size
+            )
 
-            fnr = self.compute_fnr(vs)
+            fnr = 1 if len(vs) < self.suffix_family_size else self.compute_fnr(vs)
             if fnr <= self.fnr_limit:
                 print("FNR limit reached")
                 return vs
@@ -232,7 +196,7 @@ class PrefixSuffixTracker:
 
             if strategy == "suffix":
                 _, limit = self.sample_more_suffixes(
-                    v, amount=1 + self.suffix_family_size, limit=limit
+                    amount=1 + self.suffix_family_size, limit=limit
                 )
             else:
                 # Sample random prefixes and add them
@@ -259,7 +223,7 @@ class PrefixSuffixTracker:
             return 1
         return 1 - arr.sum(0)
 
-    def sample_more_suffixes(self, v: int, *, amount: int, limit=None):
+    def sample_more_suffixes(self, *, amount: int, limit=None):
         new_vs = []
         pbar = tqdm.tqdm(
             desc="Completing suffix family",
@@ -270,17 +234,13 @@ class PrefixSuffixTracker:
             if limit is not None and i >= limit:
                 pbar.close()
                 return new_vs, 0
-            _, mask, idx = self.sample_suffix()
-            if self.chi_squared_p_min is None or (
-                chi_squared_p(self.corresponding_masks[v], mask)
-                < self.chi_squared_p_min
-            ):
-                pbar.update()
-                new_vs.append(idx)
-                if len(new_vs) >= amount:
-                    pbar.close()
-                    remainder = limit - i - 1 if limit is not None else None
-                    return new_vs, remainder
+            _, _, idx = self.sample_suffix()
+            pbar.update()
+            new_vs.append(idx)
+            if len(new_vs) >= amount:
+                pbar.close()
+                remainder = limit - i - 1 if limit is not None else None
+                return new_vs, remainder
 
         raise RuntimeError("Unreachable")
 
