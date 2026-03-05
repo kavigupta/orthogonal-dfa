@@ -57,29 +57,6 @@ class TriPredicate:
     def __hash__(self):
         return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
 
-
-def compute_strings_by_state(
-    alphabet_size: int,
-    dt: DecisionTree,
-    oracle: Oracle,
-    sampler: Sampler,
-    min_samples_per_state: int,
-    *,
-    seed: int,
-) -> Dict[int, List[List[int]]]:
-    strings_each = {state: [] for state in range(dt.num_states)}
-    rng = np.random.default_rng(seed)
-    counts = np.zeros(dt.num_states, dtype=int)
-    while np.any(counts < min_samples_per_state):
-        string = sampler.sample(rng, alphabet_size)
-        state = dt.classify(string, oracle)
-        if state is None:
-            continue
-        strings_each[state].append(string)
-        counts[state] += 1
-    return strings_each
-
-
 def decision_tree_to_dfa(
     alphabet_size: int,
     dt: DecisionTree,
@@ -154,74 +131,6 @@ def consistentcy_score(dfa: DFA, strings_each: Dict[int, List[List[int]]]) -> in
             if current_state == state:
                 score += 1
     return score
-
-
-def compute_corr(a):
-    corr = a @ a.T
-    return corr
-
-
-def normalize(a):
-    a = a - a.mean()
-    a = a / np.linalg.norm(a)
-    return a
-
-
-# pylint: disable=too-many-positional-arguments
-def find_correlated_strings(
-    for_state: List[List[int]],
-    oracle: Oracle,
-    sampler: Sampler,
-    p_requirement: float,
-    attempt_samples_pairs: int,
-    attempt_samples: int,
-    num_strings: int,
-) -> Optional[List[List[int]]]:
-    rng = np.random.default_rng(0)
-    for first, second, _, mask, mask_second in find_pair_of_correlated_strings(
-        for_state, oracle, sampler, p_requirement, attempt_samples_pairs, rng
-    ):
-        print(mask.mean())
-        print("sampled", sum(first), sum(second))
-        vs = [first, second]
-        masks = [mask, mask_second]
-        for _ in tqdm.trange(attempt_samples, desc="Finding more elements", delay=1):
-            v = sampler.sample(alphabet_size=2, rng=rng)
-            if v in vs:
-                continue
-            mask_v = compute_mask(for_state, oracle, v)
-            p = chi_squared_p(mask_v, mask)
-            # print(sum(v), corr)
-            if p < p_requirement:
-                vs.append(v)
-                masks.append(mask_v)
-            if len(vs) >= num_strings:
-                return vs, masks
-    return None
-
-
-def find_pair_of_correlated_strings(
-    for_state: List[List[int]],
-    oracle: Oracle,
-    sampler: Sampler,
-    p_requirement: float,
-    attempt_samples: int,
-    rng: np.random.Generator,
-) -> Iterator[Tuple[List[int], List[int], float, np.ndarray]]:
-    vs = []
-    masks = []
-    for _ in tqdm.trange(attempt_samples, desc="Attempting to find pair", delay=1):
-        v = sampler.sample(alphabet_size=2, rng=rng)
-        if v in vs:
-            continue
-        mask = compute_mask(for_state, oracle, v)
-        for j, prev_mask in enumerate(masks):
-            p = chi_squared_p(prev_mask, mask)
-            if p < p_requirement:
-                print("correlation", np.corrcoef(prev_mask, mask)[0, 1])
-                yield v, vs[j], p, prev_mask, mask
-        masks.append(mask)
-        vs.append(v)
 
 
 def compute_mask(for_state, oracle, v):
@@ -461,51 +370,6 @@ class PrefixSuffixTracker:
             corresponding_masks = corresponding_masks[:, subset_prefixes]
         return corresponding_masks
 
-    def best_correlation_in_bank(self, subset_prefixes=None) -> Tuple[int, int, float]:
-        corresponding_masks = self.corresponding_masks_for_subset(subset_prefixes)
-        idx_1, idx_2, _ = best_correlation(corresponding_masks)
-        if self.chi_squared_p_min is None or (
-            chi_squared_p(corresponding_masks[idx_1], corresponding_masks[idx_2])
-            < self.chi_squared_p_min
-        ):
-            return (idx_1, idx_2)
-        return None
-
-    def find_suffix_family(
-        self, suffix_prevalence_requirement: float, subset_prefixes=None
-    ) -> List[int]:
-        required_suffix_availability = int(np.ceil(10 / suffix_prevalence_requirement))
-        if len(self.suffix_bank) < required_suffix_availability:
-            for _ in tqdm.trange(
-                required_suffix_availability - len(self.suffix_bank),
-                desc="Sampling initial suffixes",
-                delay=1,
-            ):
-                self.sample_suffix()
-        best_pair = self.best_correlation_in_bank(subset_prefixes)
-        if best_pair is None:
-            return None
-        vs = self.query_for_mask(
-            self.corresponding_masks[best_pair[0]], subset_prefixes
-        )
-        if len(vs) < suffix_prevalence_requirement * len(self.suffix_bank):
-            return None
-        self.finish_populating_suffix_family(vs)
-        return vs
-
-    def query_for_mask(self, test_mask: np.ndarray, subset_prefixes=None) -> List[int]:
-        if subset_prefixes is not None:
-            test_mask = test_mask[subset_prefixes]
-
-        corresponding_masks = self.corresponding_masks_for_subset(subset_prefixes)
-
-        return np.where(
-            [
-                chi_squared_p(test_mask, mask) < self.chi_squared_p_min
-                for mask in corresponding_masks
-            ]
-        )[0].tolist()
-
     def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
         if subset_prefixes is None:
@@ -536,24 +400,6 @@ class PrefixSuffixTracker:
                 cascade(subset_mask, decision < 1 - self.evidence_thresh),
             ),
         ]
-
-    def extract_decision_tree(self):
-        completed_states = []
-        states_fringe = [([], None)]
-        while states_fringe:
-            print(
-                f"Expanding: there are {len(states_fringe)} states"
-                f" to expand and {len(completed_states)} completed states"
-            )
-            path, subset_mask = states_fringe.pop()
-            if subset_mask is not None:
-                print(f"Expanding mask with {subset_mask.sum()} prefixes")
-            vs = self.find_suffix_family(self.suffix_prevalence, subset_mask)
-            if vs is None:
-                completed_states.append(path)
-            else:
-                states_fringe.extend(self.split_states(vs, path, subset_mask))
-        return flat_decision_tree_to_decision_tree(completed_states)
 
     def prepend_to_all(self, vs: List[int], prefix: int):
         vs_new = []
@@ -1116,47 +962,6 @@ def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
     z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
     k = (z**2 * 2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
     return int(np.ceil(k))
-
-
-def compute_prefix_set_size_top_percentage(
-    delta, top_percentage, noise_level, acceptable_misclassification
-):
-    """
-    We assume we take the top P%ile of the strings, and want to bound what % of the other
-    strings are being caught up in this top %ile.
-
-    Let z_target be the z-score that corresponds to the bottom P%ile in the distribution
-    corresponding to x_0. We then have that this will have a distance of
-
-    d_target/k = r + sqrt(r * (1 - r)/k) * z_target
-
-    Then, we want to bound the probability that d(v, v_0)/k < d_target/k for v ~ P(v | x ≠ x_0).
-
-    We can do this via
-
-        delta + Normal((1 - 2 delta) * r, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target
-        Normal(0, r * (1 - r) / k) < r + sqrt(r * (1 - r)/k) * z_target - delta - (1 - 2 delta) * r
-        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta - 2 * delta * r
-        Normal(0, r * (1 - r) / k) < sqrt(r * (1 - r)/k) * z_target - delta * (1 + 2 * r)
-        Normal(0, 1) < z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
-
-    This has the correct probability so long as
-
-        z = z_target - delta * (1 + 2 * r) / sqrt(r * (1 - r)/k)
-
-    which we can solve for k as
-
-        (z_target - z)^2 (2 * r * (1 - r)) / (delta^2 * (1 - 2 * r)^2)
-
-    In practice this is almost never better enough to be worth it.
-    """
-
-    r = 2 * noise_level * (1 - noise_level)
-    z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
-    z_target = scipy.stats.norm.ppf(top_percentage)
-    k = (z_target + z) ** 2 * (2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
-    return int(np.ceil(k))
-
 
 def random_word(dfa, size, rng):
     def to_str(digit):
