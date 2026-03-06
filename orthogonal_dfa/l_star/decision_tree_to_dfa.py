@@ -177,12 +177,15 @@ class PrefixSuffixTracker:
             if strategy == "suffix":
                 self.sample_more_suffixes(amount=self.suffix_family_size)
             else:
-                # Sample random prefixes and add them
-                new_prefixes = [
-                    self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-                    for _ in range(self.num_addtl_prefixes)
-                ]
-                self.add_prefixes(new_prefixes)
+                self.sample_more_prefixes()
+
+    def sample_more_prefixes(self):
+        # Sample random prefixes and add them
+        new_prefixes = [
+            self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+            for _ in range(self.num_addtl_prefixes)
+        ]
+        self.add_prefixes(new_prefixes)
 
     def compute_fnr(self, vs):
         """
@@ -635,8 +638,12 @@ def counterexample_driven_synthesis(
     prev_dfas = []
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        fdt = abstract_interpretation_algorithm(pst)
-        print(f"Extracted flat decision tree with {len(fdt)} states")
+        while True:
+            fdt = abstract_interpretation_algorithm(pst)
+            print(f"Extracted flat decision tree with {len(fdt)} states")
+            if len(fdt) > 1:
+                break
+            pst.sample_more_prefixes()
         dt = flat_decision_tree_to_decision_tree(fdt)
         acc, dfa = pst.optimal_dfa(fdt)
         print("DFA found!")
