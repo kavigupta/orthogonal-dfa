@@ -1,8 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Dict, Iterable, List, Tuple, Union
-
-from frozendict import frozendict
+from typing import Callable, Iterable, List, Tuple, Union
 
 
 class NoiseModel(ABC):
