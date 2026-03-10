@@ -323,47 +323,7 @@ class PrefixSuffixTracker:
         print(
             f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
         )
-        return success_rates[best_idx], self.fix_accept_states(possible_dfas[best_idx])
-
-    def fix_accept_states(self, dfa, *, force_correct=False):
-        fs_count = np.zeros(len(dfa.states))
-        fs_acc = np.zeros(len(dfa.states))
-
-        def record(x, is_acc):
-            final_state = list(dfa.read_input_stepwise(x, ignore_rejection=True))[-1]
-            fs_count[final_state] += 1
-            fs_acc[final_state] += is_acc
-
-        def with_accept(final_states):
-            return DFA(
-                states=dfa.states,
-                input_symbols=dfa.input_symbols,
-                transitions=dfa.transitions,
-                initial_state=dfa.initial_state,
-                final_states=final_states,
-            )
-
-        for x, is_acc in zip(self.prefixes, self.record_suffix([])[1]):
-            record(x, is_acc)
-        if force_correct:
-            # pylint: disable=consider-using-enumerate
-            for state in range(len(fs_acc)):
-                while True:
-                    p = scipy.stats.binom.cdf(
-                        n=fs_count[state],
-                        k=min(fs_count[state] - fs_acc[state], fs_acc[state]),
-                        p=0.5,
-                    )
-                    if p < self.p_value_accept:
-                        break
-                    dfa_for_state = with_accept({state})
-                    dfa_str = random_word(
-                        dfa_for_state, len(self.prefixes[0]), self.rng
-                    )
-                    record(dfa_str, self.oracle.membership_query(dfa_str))
-
-        is_accept = fs_acc / fs_count > 0.5
-        return with_accept({s for s in dfa.states if is_accept[s]})
+        return success_rates[best_idx], possible_dfas[best_idx]
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
@@ -559,7 +519,7 @@ def counterexample_driven_synthesis(
             return
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield pst.fix_accept_states(dfa, force_correct=True), dt, None
+            yield dfa, dt, None
             return
         pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
         yield dfa, dt, copy.deepcopy(pst)
