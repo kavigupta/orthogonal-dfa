@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Callable, Iterable, List, Tuple, Union
+from typing import Callable, Dict, Iterable, List, Tuple, Union
+
+import numpy as np
 
 
 class NoiseModel(ABC):
@@ -171,3 +174,75 @@ class DecisionTreeLeafNode(DecisionTree):
         ],
     ) -> "DecisionTree":
         return self
+
+
+@dataclass
+class TriPredicate:
+    vs: List[List[int]]
+    evidence_threshold: float
+
+    def predict(self, x: List[int], oracle: Oracle) -> float:
+        return np.mean([oracle.membership_query(x + v) for v in self.vs])
+
+    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
+        f = self.predict(x, oracle)
+        if f > self.evidence_threshold:
+            return True
+        if f < 1 - self.evidence_threshold:
+            return False
+        return None
+
+    def __hash__(self):
+        return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
+
+
+def flat_decision_tree_to_decision_tree(
+    fdt: List[List[Tuple["TriPredicate", bool]]],
+) -> DecisionTree:
+    """
+    Takes a flat decision tree (fdt), which is represented as a list of descriptors of leaves, each
+    being a list of decisions made along the path from the root to the leaf
+    (represented as a tuple (predicate, decision))),
+    and converts it into a hierarchical DecisionTree structure.
+    """
+    if not fdt:
+        raise ValueError("Flat decision tree cannot be empty")
+
+    # let partial_tree be a dictionary mapping from paths to DecisionTree nodes
+    partial_tree: Dict[Tuple[Tuple["TriPredicate", bool], ...], DecisionTree] = {
+        tuple(path): DecisionTreeLeafNode(i) for i, path in enumerate(fdt)
+    }
+    while len(partial_tree) > 1:
+        # attempt to merge nodes that are the same except for the last decision
+        path_1, path_2 = _locate_mergeable_paths(partial_tree)
+        (*prefix, (predicate, is_accepting)) = path_1
+        if is_accepting:
+            path_1, path_2 = path_2, path_1
+        node = DecisionTreeInternalNode(
+            predicate=predicate,
+            by_rejection=(
+                partial_tree[path_1],
+                partial_tree[path_2],
+            ),
+        )
+        del partial_tree[path_1]
+        del partial_tree[path_2]
+        partial_tree[tuple(prefix)] = node
+    return partial_tree[()]
+
+
+def _locate_mergeable_paths(
+    partial_tree: Dict[Tuple[Tuple["TriPredicate", bool], ...], DecisionTree],
+) -> Tuple[
+    Tuple[Tuple["TriPredicate", bool], ...], Tuple[Tuple["TriPredicate", bool], ...]
+]:
+    by_everything_but_last = defaultdict(list)
+    for path in partial_tree.keys():
+        by_everything_but_last[path[:-1]].append(path)
+    assert any(len(v) >= 2 for v in by_everything_but_last.values())
+    prefix = next(p for p, v in by_everything_but_last.items() if len(v) >= 2)
+    assert len(by_everything_but_last[prefix]) == 2
+    first, second = by_everything_but_last[prefix]
+    assert first[-1][0] == second[-1][0]
+    assert {first[-1][1], second[-1][1]} == {True, False}
+    return first, second

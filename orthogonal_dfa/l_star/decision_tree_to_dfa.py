@@ -17,45 +17,28 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 """
 
 import copy
-import itertools
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
+from .dfa_utils import random_word, states_intermediate
 from .sampler import Sampler
+from .statistics import (
+    compute_prefix_set_size,
+    compute_suffix_size_counterexample_gen,
+    population_size_and_evidence_thresh,
+)
 from .structures import (
     DecisionTree,
-    DecisionTreeInternalNode,
     DecisionTreeLeafNode,
     Oracle,
+    TriPredicate,
+    flat_decision_tree_to_decision_tree,
 )
-
-
-@dataclass
-class TriPredicate:
-    vs: List[List[int]]
-    evidence_threshold: float
-
-    def predict(self, x: List[int], oracle: Oracle) -> float:
-        # for v in self.vs:
-        #     print(v, oracle.membership_query(x + v), [1] * 6 in x + v)
-        return np.mean([oracle.membership_query(x + v) for v in self.vs])
-
-    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
-        f = self.predict(x, oracle)
-        if f > self.evidence_threshold:
-            return True
-        if f < 1 - self.evidence_threshold:
-            return False
-        return None
-
-    def __hash__(self):
-        return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
 
 
 def compute_mask(for_state, oracle, v):
@@ -439,60 +422,6 @@ def cascade(mask_1, mask_2):
     return mask_1
 
 
-def flat_decision_tree_to_decision_tree(
-    fdt: List[List[Tuple[TriPredicate, bool]]],
-) -> DecisionTree:
-    """
-    Takes a flat decision tree (fdt), which is represented as a list of descriptors of leaves, each
-    being a list of decisions made along the path from the root to the leaf
-    (represented as a tuple (predicate, decision))),
-    and converts it into a hierarchical DecisionTree structure.
-    """
-    if not fdt:
-        raise ValueError("Flat decision tree cannot be empty")
-
-    # let partial_tree be a dictionary mapping from paths to DecisionTree nodes
-    partial_tree: Dict[Tuple[Tuple[TriPredicate, bool], ...], DecisionTree] = {
-        tuple(path): DecisionTreeLeafNode(i) for i, path in enumerate(fdt)
-    }
-    while len(partial_tree) > 1:
-        # attempt to merge nodes that are the same except for the last decision
-        path_1, path_2 = locate_mergeable_paths(partial_tree)
-        # print(path_1)
-        # print(path_2)
-        (*prefix, (predicate, is_accepting)) = path_1
-        if is_accepting:
-            path_1, path_2 = path_2, path_1
-        node = DecisionTreeInternalNode(
-            predicate=predicate,
-            by_rejection=(
-                partial_tree[path_1],
-                partial_tree[path_2],
-            ),
-        )
-        del partial_tree[path_1]
-        del partial_tree[path_2]
-        partial_tree[tuple(prefix)] = node
-    return partial_tree[()]
-
-
-def locate_mergeable_paths(
-    partial_tree: Dict[Tuple[Tuple[TriPredicate, bool], ...], DecisionTree],
-) -> Tuple[
-    Tuple[Tuple[TriPredicate, bool], ...], Tuple[Tuple[TriPredicate, bool], ...]
-]:
-    by_everything_but_last = defaultdict(list)
-    for path in partial_tree.keys():
-        by_everything_but_last[path[:-1]].append(path)
-    assert any(len(v) >= 2 for v in by_everything_but_last.values())
-    prefix = next(p for p, v in by_everything_but_last.items() if len(v) >= 2)
-    assert len(by_everything_but_last[prefix]) == 2
-    first, second = by_everything_but_last[prefix]
-    assert first[-1][0] == second[-1][0]
-    assert {first[-1][1], second[-1][1]} == {True, False}
-    return first, second
-
-
 def overlaps(pst, states, vs):
     masks = np.array(
         [
@@ -554,14 +483,6 @@ def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
     return fdt
 
 
-def states_intermediate(s0, y, dfa):
-    states = [s0]
-    for symbol in y:
-        s_next = dfa.transitions[states[-1]][symbol]
-        states.append(s_next)
-    return states
-
-
 def locate_incorrect_point(oracle, dt, dfa, x, y):
     s0 = dt.classify(x, oracle)
     if s0 is None:
@@ -573,20 +494,14 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     incorrect_idx = len(x)
     # binary search for first incorrect index
     while correct_idx < incorrect_idx - 1:
-        # print(correct_idx, incorrect_idx)
         mid_idx = (correct_idx + incorrect_idx) // 2
         dt_state = dt.classify(x + y[: mid_idx + 1], oracle)
-        # print(
-        #     f"Testing up to index {mid_idx}: DT state {dt_state}, DFA state {dfa_states_each[mid_idx + 1]}"
-        # )
         if dt_state is None:
             return None
         if dt_state == dfa_states_each[mid_idx + 1]:
             correct_idx = mid_idx
         else:
             incorrect_idx = mid_idx
-    # print("Correct idx found:", correct_idx)
-    # print(x + y[: correct_idx + 1], y[correct_idx + 1])
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
@@ -623,13 +538,6 @@ def generate_counterexamples(
         if len(additional_prefixes) >= count:
             pbar.close()
             return additional_prefixes
-        # if dfa.read_input(x) == dt.classify(x, oracle):
-        #     continue
-        # prefix_classes = [dt.classify(x[:i], oracle) for i in range(1 + len(x))]
-        # for i in range(len(x)):
-        #     if prefix_classes[i] != None and prefix_classes[i + 1] != None:
-        #         if dfa.transitions[prefix_classes[i]][x[i]] != prefix_classes[i + 1]:
-        #             print(x[:i])
 
 
 def counterexample_driven_synthesis(
@@ -673,156 +581,3 @@ def do_counterexample_driven_synthesis(
     ):
         pass
     return dfa, dt
-
-
-def population_size_and_evidence_thresh(
-    p_acc, acceptable_fpr, acceptable_fnr, *, relative_eps=0.5
-) -> Tuple[int, float]:
-    """
-    Decisions will be made by taking N samples and seeing if the proportion is outside
-    (0.5 - epsilon, 0.5 + epsilon). The true distribution is assumed to be B(p_acc) when
-    the underlying value is 1 and B(1 - p_acc) when it is 0. We would like it to be the
-    case that when samples are drawn from the null distribution B(0.5), we have a false
-    positive rate of at most acceptable_fpr, and when samples are drawn from the true
-    distribution we have a false negative rate of at most acceptable_fnr.
-
-    In other words, the conditions are
-
-    - BinomCDF(N, N(0.5 - eps), 0.5) <= acceptable_fpr/2
-    - BinomCDF(N, N(0.5 + eps), p_acc) <= acceptable_fnr
-    """
-    assert 0.5 < p_acc < 1.0
-    N_low = 1
-    N_high = None
-    while N_high is None or N_low < N_high:
-        if N_high is None:
-            N_try = N_low * 2
-        else:
-            N_try = (N_low + N_high) // 2
-        result = evidence_thresh_for_population_size(
-            p_acc, acceptable_fpr, acceptable_fnr, N_try, relative_eps=relative_eps
-        )
-        if result is None:
-            N_low = N_try + 1
-        else:
-            N_high = N_try
-    res = evidence_thresh_for_population_size(
-        p_acc, acceptable_fpr, acceptable_fnr, N_high, relative_eps=relative_eps
-    )
-    assert res is not None
-    return res
-
-
-def evidence_thresh_for_population_size(
-    p_acc, acceptable_fpr, acceptable_fnr, N, *, relative_eps
-) -> Optional[Tuple[int, float]]:
-    """
-    See population_size_and_evidence_thresh for context.
-    """
-    for eps in np.linspace(0.01, p_acc - 0.5, 100):
-        k_low = int(np.floor(N * (0.5 - eps)))
-        k_high = int(np.ceil(N * (0.5 + eps)))
-        fpr = scipy.stats.binom.cdf(k_low, N, 0.5) + (
-            1 - scipy.stats.binom.cdf(k_high - 1, N, 0.5)
-        )
-        fnr = scipy.stats.binom.cdf(
-            k_high - 1, N, 0.5 + (p_acc - 0.5) * relative_eps
-        ) - scipy.stats.binom.cdf(k_low, N, p_acc)
-        if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
-            return N, eps
-    return None
-
-
-def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
-    r"""
-    Computes the required number of prefixes to achieve a desired misclassification rate
-    when finding suffixes.
-
-    We conceptualize the process of finding suffixes as follows:
-
-        We have a distribution V over binary strings $2^k$ defined as
-
-        x <- X; v_i <- x_i \oplus B(p)
-
-        We have access to one
-
-        v_0 ~ P(v | x = x_0)
-
-        I want to find a set of elements from P(v | x = x_0) but can only sample from V
-
-    where p is the noise level, and k is the quantity we want to find.
-
-    If we look at hamming distance, we have if v ~ P(v | X=x) that, letting n be the noise vector XORd with the x,
-    we have
-
-    d(v, v_0)
-        := sum_j 1(v[j] ≠ v_0[j])
-        := sum_j 1(x[j] ⊕ n[j] ≠ x_0[j] ⊕ n_0[j])
-        := sum_j 1(x[j] ≠ x_0[j]) ⊕ 1(n[j] ≠ n_0[j])
-
-    The distribution (n_0[j] ≠ n[j]) is Bernoulli with parameter 2p(1-p). Let r = 2p(1-p).
-
-    Let A = d(x, x_0) and B = k - A
-
-    Then, we can split
-
-    d(v, v_0)
-        = sum_{j: x[j] = x_0[j]} 1(n[j] ≠ n_0[j]) + sum_{j: x[j] ≠ x_0[j]} 1(n[j] = n_0[j])
-        = Binomial(B, r) + A - Binomial(A, r)
-        ~= A + Normal(B * r, B * r * (1 - r)) - Normal(A * r, A * r * (1 - r))
-        = A + Normal((B - A) * r, (A + B) * r * (1 - r))
-        = A + Normal((k - 2A) * r, k * r * (1 - r))
-
-    Let delta = A/k. Then, we have
-    d(v, v_0)/k = delta + Normal((1 - 2 delta) * r, r * (1 - r) / k)
-                = delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
-
-    We want to bound the probability that d(v', v_0)/k < d(v'', v_0)/k for v' ~ P(v | x = x_0) and v'' ~ P(v | x ≠ x_0).
-
-    d(v', v_0)/k > d(v'', v_0)/k
-    r + Normal(0, r * (1 - r) / k) > delta + r - 2 * delta * r + Normal(0, r * (1 - r) / k)
-    Normal(0, r * (1 - r) / k) > delta - 2 * delta * r + Normal(0, r * (1 - r) / k)
-    Normal(0, r * (1 - r) / k) > delta * (1 - 2 * r) + Normal(0, r * (1 - r) / k)
-    Normal(0, 2 * r * (1 - r) / k) > delta * (1 - 2 * r)
-    Normal(0, 1) > delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k)
-
-    Letting z = Φ^{-1}(1 - acceptable_misclassification), we want
-
-    delta * (1 - 2 * r) / sqrt(2 * r * (1 - r) / k) = z
-    delta^2 * (1 - 2 * r)^2 k / (2 * r * (1 - r)) = z^2
-    k  = z^2 (2 * r * (1 - r))  / (delta^2 * (1 - 2 * r)^2)
-    """
-    r = 2 * noise_level * (1 - noise_level)
-    z = scipy.stats.norm.ppf(1 - acceptable_misclassification)
-    k = (z**2 * 2 * r * (1 - r)) / (delta**2 * (1 - 2 * r) ** 2)
-    return int(np.ceil(k))
-
-
-def random_word(dfa, size, rng):
-    def to_str(digit):
-        assert 0 <= digit <= 9
-        return str(digit)
-
-    dfa = DFA(
-        states=dfa.states,
-        initial_state=dfa.initial_state,
-        input_symbols={to_str(x) for x in dfa.input_symbols},
-        transitions={
-            s1: {to_str(sym): s2 for sym, s2 in trans.items()}
-            for s1, trans in dfa.transitions.items()
-        },
-        final_states=dfa.final_states,
-    )
-    return [int(x) for x in dfa.random_word(size, seed=int(rng.integers(0, 2**32 - 1)))]
-
-
-def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
-    """
-    Computes the suffix size to use for counterexample generation.
-    This is an alias for compute_suffix_size_for_counterexample_generation
-    to match the naming convention of other hyperparameter generators.
-    """
-    for n in itertools.count(start=1):
-        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
-            return n
-    raise ValueError("not reachable")

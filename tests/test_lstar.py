@@ -5,10 +5,7 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
-    compute_prefix_set_size,
-    compute_suffix_size_counterexample_gen,
     do_counterexample_driven_synthesis,
-    population_size_and_evidence_thresh,
 )
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
@@ -16,6 +13,11 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
+from orthogonal_dfa.l_star.statistics import (
+    compute_prefix_set_size,
+    compute_suffix_size_counterexample_gen,
+    population_size_and_evidence_thresh,
+)
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
 us = UniformSampler(40)
