@@ -27,11 +27,6 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import random_word, states_intermediate
 from .sampler import Sampler
-from .statistics import (
-    compute_prefix_set_size,
-    compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_thresh,
-)
 from .structures import (
     DecisionTree,
     DecisionTreeLeafNode,
