@@ -25,7 +25,7 @@ import scipy
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import random_word, states_intermediate
+from .dfa_utils import states_intermediate
 from .sampler import Sampler
 from .structures import (
     DecisionTree,
