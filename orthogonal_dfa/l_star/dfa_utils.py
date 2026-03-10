@@ -1,6 +1,3 @@
-from automata.fa.dfa import DFA
-
-
 def states_intermediate(s0, y, dfa):
     states = [s0]
     for symbol in y:
