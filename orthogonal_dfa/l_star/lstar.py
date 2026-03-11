@@ -17,12 +17,13 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 """
 
 import copy
+
 import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .state_discovery import discover_states
 from .dfa_utils import final_states_all_initial, states_intermediate
+from .state_discovery import discover_states
 from .structures import (
     DecisionTree,
     DecisionTreeLeafNode,
