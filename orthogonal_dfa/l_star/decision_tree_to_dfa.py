@@ -398,6 +398,8 @@ def overlaps(pst, states, vs):
     print(freqs)
     split_idxs = []
     for i, (denom, (n1, n2)) in enumerate(zip(denominators, freqs)):
+        if denom == 0:
+            continue
         pvals = [
             1 - scipy.stats.binom.cdf(n1, denom, pst.decision_rule_fpr),
             1 - scipy.stats.binom.cdf(n2, denom, pst.decision_rule_fpr),
@@ -427,10 +429,6 @@ def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
             print("Done")
             continue
         split_with(ol, vs_current)
-        if len(states) > 1000:
-            raise RuntimeError(
-                f"abstract_interpretation_algorithm: state count exploded to {len(states)}"
-            )
         vs_queue.extend(
             ([c] + path, pst.prepend_to_all(vs_current, c))
             for c in range(pst.alphabet_size)
