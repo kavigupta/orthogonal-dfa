@@ -58,7 +58,7 @@ class PrefixSuffixTracker:
     decision_rule_fpr: float
     fnr_limit: float = 0.02
     split_pval: float = 0.001
-    p_value_accept: float = 0.01
+
     num_addtl_prefixes: Optional[int] = None
 
     @classmethod
@@ -112,31 +112,26 @@ class PrefixSuffixTracker:
         self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
         return v, mask, len(self.suffix_bank) - 1
 
-    def finish_populating_suffix_family_without_sampling(
-        self, vs: List[int], suffix_family_size: int
-    ) -> List[int]:
+    def identify_cluster_around(self, seed: int, count: int) -> List[int]:
         masks = np.array(self.corresponding_masks)
-        cluster = vs
+        cluster = [seed]
         loss = float("inf")
         while True:
             cluster_center = masks[cluster].mean(0) > 0.5
-            losses = np.abs(masks - cluster_center).sum(1)
-            cluster = losses.argsort()[: suffix_family_size - len(vs)]
+            losses = (masks != cluster_center).sum(1)
+            cluster = losses.argsort()[:count]
             new_loss = losses[cluster].sum()
             if new_loss >= loss:
                 break
             loss = new_loss
-        vs += cluster.tolist()
+        return cluster.tolist()
 
     def sample_suffix_family(self, v: int) -> List[int]:
         prev_fnr = 1.0  # default start with a large value
         strategy = "suffix"
         while True:
 
-            vs = [v]
-            self.finish_populating_suffix_family_without_sampling(
-                vs, self.suffix_family_size
-            )
+            vs = self.identify_cluster_around(v, self.suffix_family_size)
 
             fnr = 1 if len(vs) < self.suffix_family_size else self.compute_fnr(vs)
             if fnr <= self.fnr_limit:
@@ -434,8 +429,6 @@ def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
             for c in range(pst.alphabet_size)
         )
 
-    # split_with([0], vs)
-    # split_with([0, 1], vs_with_1)
     fdt = [x for x, _ in states]
     return fdt
 
