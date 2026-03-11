@@ -25,7 +25,7 @@ import scipy
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import states_intermediate
+from .dfa_utils import final_states_all_initial, states_intermediate
 from .sampler import Sampler
 from .structures import (
     DecisionTree,
@@ -317,14 +317,15 @@ def optimal_dfa(pst, paths):
         for initial_state in range(num_states)
     ]
 
-    odfa = np.array(
-        [[dfa.accepts_input(string) for string in pst.prefixes] for dfa in dfas]
+    # Compare DFA state assignments against decision tree state assignments
+    dt_states = classify_states_with_decision_tree(pst, dt)
+    confident = dt_states >= 0
+    dt_states = dt_states[confident]
+
+    dfa_states = final_states_all_initial(
+        transitions, [pre for pre, is_conf in zip(pst.prefixes, confident) if is_conf]
     )
-    decision_arr = pst.compute_decision_array_from_strings(dt.predicate.vs)
-    confident = decision_arr.any(0)
-    odfa, decision_arr = odfa[:, confident], decision_arr[:, confident]
-    odfa = np.stack([~odfa, odfa], axis=1)
-    success_rates = ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
+    success_rates = (dfa_states == dt_states).mean(1)
 
     best_idx = np.argmax(success_rates)
     print(
