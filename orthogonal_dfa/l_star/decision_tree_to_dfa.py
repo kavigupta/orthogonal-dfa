@@ -398,6 +398,8 @@ def overlaps(pst, states, vs):
     print(freqs)
     split_idxs = []
     for i, (denom, (n1, n2)) in enumerate(zip(denominators, freqs)):
+        if denom == 0:
+            continue
         pvals = [
             1 - scipy.stats.binom.cdf(n1, denom, pst.decision_rule_fpr),
             1 - scipy.stats.binom.cdf(n2, denom, pst.decision_rule_fpr),
