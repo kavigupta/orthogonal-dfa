@@ -216,6 +216,8 @@ def identify_cluster_around(pst, seed: int, count: int) -> List[int]:
         cluster_center = masks[cluster].mean(0) > 0.5
         losses = (masks != cluster_center).sum(1)
         cluster = losses.argsort()[:count]
+        if seed not in cluster:
+            cluster = np.concatenate([[seed], cluster[: count - 1]])
         new_loss = losses[cluster].sum()
         if new_loss >= loss:
             break
