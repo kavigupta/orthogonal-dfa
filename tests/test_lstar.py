@@ -3,11 +3,8 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.decision_tree_to_dfa import (
-    PrefixSuffixTracker,
-    SearchConfig,
-    do_counterexample_driven_synthesis,
-)
+from orthogonal_dfa.l_star.decision_tree_to_dfa import do_counterexample_driven_synthesis
+from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
