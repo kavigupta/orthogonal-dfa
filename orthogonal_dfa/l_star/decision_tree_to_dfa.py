@@ -112,54 +112,6 @@ class PrefixSuffixTracker:
         self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
         return v, mask, len(self.suffix_bank) - 1
 
-    def identify_cluster_around(self, seed: int, count: int) -> List[int]:
-        masks = np.array(self.corresponding_masks)
-        cluster = [seed]
-        loss = float("inf")
-        while True:
-            cluster_center = masks[cluster].mean(0) > 0.5
-            losses = (masks != cluster_center).sum(1)
-            cluster = losses.argsort()[:count]
-            new_loss = losses[cluster].sum()
-            if new_loss >= loss:
-                break
-            loss = new_loss
-        return cluster.tolist()
-
-    def sample_suffix_family(self, v: int) -> List[int]:
-        prev_fnr = 1.0  # default start with a large value
-        strategy = "suffix"
-        while True:
-
-            vs = self.identify_cluster_around(v, self.suffix_family_size)
-
-            fnr = 1 if len(vs) < self.suffix_family_size else self.compute_fnr(vs)
-            if fnr <= self.fnr_limit:
-                print("FNR limit reached")
-                return vs
-
-            # always switch strategies if on prefix mode, because it is way slower, so we should give
-            # suffixes a chance.
-            if fnr >= prev_fnr or strategy == "prefix":  # switch strategy
-                strategy = "prefix" if strategy == "suffix" else "suffix"
-
-            prev_fnr = fnr
-
-            print(f"FNR {fnr:.4f} too high, sampling more suffixes")
-
-            if strategy == "suffix":
-                self.sample_more_suffixes(amount=self.suffix_family_size)
-            else:
-                self.sample_more_prefixes()
-
-    def sample_more_prefixes(self):
-        # Sample random prefixes and add them
-        new_prefixes = [
-            self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-            for _ in range(self.num_addtl_prefixes)
-        ]
-        self.add_prefixes(new_prefixes)
-
     def compute_fnr(self, vs):
         """
         Compute the false negative rate for the given suffix family vs.
@@ -176,6 +128,14 @@ class PrefixSuffixTracker:
         if arr.min() == 0:
             return 1
         return 1 - arr.sum(0)
+
+    def sample_more_prefixes(self):
+        # Sample random prefixes and add them
+        new_prefixes = [
+            self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+            for _ in range(self.num_addtl_prefixes)
+        ]
+        self.add_prefixes(new_prefixes)
 
     def sample_more_suffixes(self, *, amount: int):
         for _ in tqdm.trange(amount, desc="Completing suffix family", delay=1):
@@ -199,84 +159,6 @@ class PrefixSuffixTracker:
             ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
         return selected_masks.mean(0)
 
-    def split_states(
-        self,
-        vs: List[int],
-        path: List[Tuple[TriPredicate, bool]],
-        subset_mask: Optional[np.ndarray],
-    ) -> list:
-        decision = self.compute_decision(vs, subset_mask)
-        vs_actual = [self.suffix_bank[v] for v in vs]
-        return [
-            (
-                path + [(TriPredicate(vs_actual, self.evidence_thresh), True)],
-                cascade(subset_mask, decision >= self.evidence_thresh),
-            ),
-            (
-                path + [(TriPredicate(vs_actual, self.evidence_thresh), False)],
-                cascade(subset_mask, decision < 1 - self.evidence_thresh),
-            ),
-        ]
-
-    def prepend_to_all(self, vs: List[int], prefix: int):
-        vs_new = []
-        for v in tqdm.tqdm(vs, desc="Prepending to all suffixes", delay=1):
-            _, _, v_new = self.record_suffix([prefix] + self.suffix_bank[v])
-            vs_new.append(v_new)
-        return vs_new
-
-    def compute_transition_matrix(self, dt: DecisionTree) -> np.ndarray:
-        states = self.classify_states_with_decision_tree(dt)
-        states_after_c = [
-            self.classify_states_with_decision_tree(
-                dt.map_over_predicates(
-                    lambda p, c=c: TriPredicate(
-                        [[c] + x for x in p.vs], p.evidence_threshold
-                    )
-                )
-            )
-            for c in range(self.alphabet_size)
-        ]
-        num_states = dt.num_states
-        transitions = np.zeros((num_states, self.alphabet_size, num_states), dtype=int)
-        for c, states_c in enumerate(states_after_c):
-            valid = states_c >= 0
-            np.add.at(
-                transitions,
-                (states[valid], c, states_c[valid]),
-                1,
-            )
-        return transitions.argmax(-1)
-
-    def compute_accepts_vector(
-        self, paths: List[List[Tuple[TriPredicate, bool]]]
-    ) -> np.ndarray:
-        accepts = []
-        for (pred, decision), *_ in paths:
-            assert [] in pred.vs
-            accepts.append(decision)
-        return np.array(accepts)
-
-    def possible_dfas(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> List[DFA]:
-        dt = flat_decision_tree_to_decision_tree(paths)
-        transitions = self.compute_transition_matrix(dt)
-        accepts = self.compute_accepts_vector(paths)
-        num_states = len(paths)
-        possible_dfas = [
-            DFA(
-                states=set(range(num_states)),
-                input_symbols=set(range(self.alphabet_size)),
-                transitions={
-                    s: {sym: transitions[s, sym] for sym in range(self.alphabet_size)}
-                    for s in range(num_states)
-                },
-                initial_state=initial_state,
-                final_states={s for s in range(num_states) if accepts[s]},
-            )
-            for initial_state in range(num_states)
-        ]
-        return possible_dfas
-
     def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
         vs_idxs = [self.record_suffix(v)[2] for v in vs]
         return self.compute_decision(vs_idxs)
@@ -286,39 +168,6 @@ class PrefixSuffixTracker:
         return np.array(
             [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
         )
-
-    def classify_states_with_decision_tree(self, dt: DecisionTree):
-        if isinstance(dt, DecisionTreeLeafNode):
-            return np.full(len(self.prefixes), dt.state_idx)
-        results = np.full(len(self.prefixes), -1)
-        rej, acc = self.compute_decision_array_from_strings(dt.predicate.vs)
-        results[rej] = self.classify_states_with_decision_tree(dt.by_rejection[0])[rej]
-        results[acc] = self.classify_states_with_decision_tree(dt.by_rejection[1])[acc]
-        return results
-
-    def dfa_success_rates(self, dfas: List[DFA], dt: DecisionTree) -> List[float]:
-        odfa = [[dfa.accepts_input(string) for string in self.prefixes] for dfa in dfas]
-        odfa = np.array(odfa)
-        assert (
-            [] in dt.predicate.vs
-        ), "The root predicate must include the empty string as an exemplar"
-        decision_arr = self.compute_decision_array_from_strings(dt.predicate.vs)
-        mask = decision_arr.any(0)
-        odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
-
-        odfa = np.stack([~odfa, odfa], axis=1)
-        return ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
-
-    def optimal_dfa(self, paths: List[List[Tuple[TriPredicate, bool]]]) -> DFA:
-        possible_dfas = self.possible_dfas(paths)
-        success_rates = self.dfa_success_rates(
-            possible_dfas, flat_decision_tree_to_decision_tree(paths)
-        )
-        best_idx = np.argmax(success_rates)
-        print(
-            f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
-        )
-        return success_rates[best_idx], possible_dfas[best_idx]
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
@@ -350,19 +199,6 @@ class PrefixSuffixTracker:
     def num_prefixes(self) -> int:
         return len(self.prefixes)
 
-    def add_counterexample_prefixes(self, dt, dfa, count):
-        results = generate_counterexamples(
-            self,
-            self.sampler,
-            self.oracle,
-            dt,
-            dfa,
-            count=count,
-            suffix_size_counterexample_gen=self.suffix_size_counterexample_gen,
-        )
-        self.add_prefixes([prefix for prefix, _ in results])
-        return results
-
 
 def cascade(mask_1, mask_2):
     if mask_1 is None:
@@ -370,6 +206,171 @@ def cascade(mask_1, mask_2):
     mask_1 = mask_1.copy()
     mask_1[mask_1] = mask_2
     return mask_1
+
+
+def identify_cluster_around(pst, seed: int, count: int) -> List[int]:
+    masks = np.array(pst.corresponding_masks)
+    cluster = [seed]
+    loss = float("inf")
+    while True:
+        cluster_center = masks[cluster].mean(0) > 0.5
+        losses = (masks != cluster_center).sum(1)
+        cluster = losses.argsort()[:count]
+        new_loss = losses[cluster].sum()
+        if new_loss >= loss:
+            break
+        loss = new_loss
+    return cluster.tolist()
+
+
+def sample_suffix_family(pst, v: int) -> List[int]:
+    prev_fnr = 1.0
+    strategy = "suffix"
+    while True:
+        vs = identify_cluster_around(pst, v, pst.suffix_family_size)
+
+        fnr = 1 if len(vs) < pst.suffix_family_size else pst.compute_fnr(vs)
+        if fnr <= pst.fnr_limit:
+            print("FNR limit reached")
+            return vs
+
+        if fnr >= prev_fnr or strategy == "prefix":
+            strategy = "prefix" if strategy == "suffix" else "suffix"
+
+        prev_fnr = fnr
+
+        print(f"FNR {fnr:.4f} too high, sampling more suffixes")
+
+        if strategy == "suffix":
+            pst.sample_more_suffixes(amount=pst.suffix_family_size)
+        else:
+            pst.sample_more_prefixes()
+
+
+def split_states(pst, vs, path, subset_mask):
+    decision = pst.compute_decision(vs, subset_mask)
+    vs_actual = [pst.suffix_bank[v] for v in vs]
+    return [
+        (
+            path + [(TriPredicate(vs_actual, pst.evidence_thresh), True)],
+            cascade(subset_mask, decision >= pst.evidence_thresh),
+        ),
+        (
+            path + [(TriPredicate(vs_actual, pst.evidence_thresh), False)],
+            cascade(subset_mask, decision < 1 - pst.evidence_thresh),
+        ),
+    ]
+
+
+def prepend_to_all(pst, vs: List[int], prefix: int):
+    vs_new = []
+    for v in tqdm.tqdm(vs, desc="Prepending to all suffixes", delay=1):
+        _, _, v_new = pst.record_suffix([prefix] + pst.suffix_bank[v])
+        vs_new.append(v_new)
+    return vs_new
+
+
+def classify_states_with_decision_tree(pst, dt: DecisionTree):
+    if isinstance(dt, DecisionTreeLeafNode):
+        return np.full(len(pst.prefixes), dt.state_idx)
+    results = np.full(len(pst.prefixes), -1)
+    rej, acc = pst.compute_decision_array_from_strings(dt.predicate.vs)
+    results[rej] = classify_states_with_decision_tree(pst, dt.by_rejection[0])[rej]
+    results[acc] = classify_states_with_decision_tree(pst, dt.by_rejection[1])[acc]
+    return results
+
+
+def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
+    states = classify_states_with_decision_tree(pst, dt)
+    states_after_c = [
+        classify_states_with_decision_tree(
+            pst,
+            dt.map_over_predicates(
+                lambda p, c=c: TriPredicate(
+                    [[c] + x for x in p.vs], p.evidence_threshold
+                )
+            ),
+        )
+        for c in range(pst.alphabet_size)
+    ]
+    num_states = dt.num_states
+    transitions = np.zeros((num_states, pst.alphabet_size, num_states), dtype=int)
+    for c, states_c in enumerate(states_after_c):
+        valid = states_c >= 0
+        np.add.at(
+            transitions,
+            (states[valid], c, states_c[valid]),
+            1,
+        )
+    return transitions.argmax(-1)
+
+
+def compute_accepts_vector(paths):
+    accepts = []
+    for (pred, decision), *_ in paths:
+        assert [] in pred.vs
+        accepts.append(decision)
+    return np.array(accepts)
+
+
+def possible_dfas(pst, paths):
+    dt = flat_decision_tree_to_decision_tree(paths)
+    transitions = compute_transition_matrix(pst, dt)
+    accepts = compute_accepts_vector(paths)
+    num_states = len(paths)
+    return [
+        DFA(
+            states=set(range(num_states)),
+            input_symbols=set(range(pst.alphabet_size)),
+            transitions={
+                s: {sym: transitions[s, sym] for sym in range(pst.alphabet_size)}
+                for s in range(num_states)
+            },
+            initial_state=initial_state,
+            final_states={s for s in range(num_states) if accepts[s]},
+        )
+        for initial_state in range(num_states)
+    ]
+
+
+def dfa_success_rates(pst, dfas, dt):
+    odfa = [[dfa.accepts_input(string) for string in pst.prefixes] for dfa in dfas]
+    odfa = np.array(odfa)
+    assert (
+        [] in dt.predicate.vs
+    ), "The root predicate must include the empty string as an exemplar"
+    decision_arr = pst.compute_decision_array_from_strings(dt.predicate.vs)
+    mask = decision_arr.any(0)
+    odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
+
+    odfa = np.stack([~odfa, odfa], axis=1)
+    return ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
+
+
+def optimal_dfa(pst, paths):
+    dfas = possible_dfas(pst, paths)
+    success_rates = dfa_success_rates(
+        pst, dfas, flat_decision_tree_to_decision_tree(paths)
+    )
+    best_idx = np.argmax(success_rates)
+    print(
+        f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
+    )
+    return success_rates[best_idx], dfas[best_idx]
+
+
+def add_counterexample_prefixes(pst, dt, dfa, count):
+    results = generate_counterexamples(
+        pst,
+        pst.sampler,
+        pst.oracle,
+        dt,
+        dfa,
+        count=count,
+        suffix_size_counterexample_gen=pst.suffix_size_counterexample_gen,
+    )
+    pst.add_prefixes([prefix for prefix, _ in results])
+    return results
 
 
 def overlaps(pst, states, vs):
@@ -407,14 +408,14 @@ def overlaps(pst, states, vs):
 
 def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
     _, _, v_idx = pst.record_suffix([])
-    vs = pst.sample_suffix_family(v_idx)
+    vs = sample_suffix_family(pst, v_idx)
     vs_queue = [([], vs)]
     states = [([], np.ones(len(pst.prefixes), bool))]
 
     def split_with(state_indices, vs):
         states_to_split = [states.pop(i) for i in reversed(sorted(state_indices))]
         for decision, m2 in states_to_split:
-            states.extend(pst.split_states(vs, decision, m2))
+            states.extend(split_states(pst, vs, decision, m2))
 
     while vs_queue:
         path, vs_current = vs_queue.pop()
@@ -425,7 +426,7 @@ def abstract_interpretation_algorithm(pst) -> List[DecisionTree]:
             continue
         split_with(ol, vs_current)
         vs_queue.extend(
-            ([c] + path, pst.prepend_to_all(vs_current, c))
+            ([c] + path, prepend_to_all(pst, vs_current, c))
             for c in range(pst.alphabet_size)
         )
 
@@ -503,7 +504,7 @@ def counterexample_driven_synthesis(
                 break
             pst.sample_more_prefixes()
         dt = flat_decision_tree_to_decision_tree(fdt)
-        acc, dfa = pst.optimal_dfa(fdt)
+        acc, dfa = optimal_dfa(pst, fdt)
         print("DFA found!")
         print(dfa)
         if any(
@@ -516,7 +517,7 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
             return
-        pst.add_counterexample_prefixes(dt, dfa, additional_counterexamples)
+        add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
         yield dfa, dt, copy.deepcopy(pst)
 
 
