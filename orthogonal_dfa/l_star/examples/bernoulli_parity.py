@@ -11,6 +11,7 @@ class BernoulliParityOracle(Oracle):
     seed: int
     modulo: int = 2
     allowed_moduluses: Tuple[int] = (0,)
+    alphabet_size: int = 2
 
     def membership_query(self, string: List[int]) -> bool:
         correct = sum(string) % self.modulo in self.allowed_moduluses
@@ -22,6 +23,7 @@ class BernoulliRegex(Oracle):
     noise_model: NoiseModel
     seed: int
     regex: str
+    alphabet_size: int = 2
 
     def membership_query(self, string: List[int]) -> bool:
         string_str = "".join(map(str, string))
@@ -35,6 +37,7 @@ class AllFramesClosedOracle(Oracle):
     noise_model: NoiseModel
     seed: int
     stops: Tuple[int] = ("TAG", "TGA", "TAA")
+    alphabet_size: int = 4
 
     def membership_query(self, string: List[int]) -> bool:
         string_str = "".join("ACGT"[i] for i in string)

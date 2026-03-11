@@ -77,6 +77,11 @@ class SymmetricBernoulli(NoiseModel):
 
 
 class Oracle(ABC):
+    @property
+    @abstractmethod
+    def alphabet_size(self) -> int:
+        pass
+
     @abstractmethod
     def membership_query(self, string: List[int]) -> bool:
         pass

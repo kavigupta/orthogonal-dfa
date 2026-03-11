@@ -43,23 +43,30 @@ def compute_mask(for_state, oracle, v):
 
 
 @dataclass
+class SearchConfig:
+    suffix_family_size: int
+    evidence_thresh: float
+    decision_rule_fpr: float
+    suffix_size_counterexample_gen: int
+    num_addtl_prefixes: Optional[int] = None
+    fnr_limit: float = 0.02
+    split_pval: float = 0.001
+
+
+@dataclass
 class PrefixSuffixTracker:
     sampler: Sampler
     rng: np.random.Generator
     oracle: Oracle
-    alphabet_size: int
-    suffix_family_size: int
-    evidence_thresh: float
+    config: SearchConfig
     prefixes: List[List[int]]
     suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
-    suffix_size_counterexample_gen: int
-    decision_rule_fpr: float
-    fnr_limit: float = 0.02
-    split_pval: float = 0.001
 
-    num_addtl_prefixes: Optional[int] = None
+    @property
+    def alphabet_size(self) -> int:
+        return self.oracle.alphabet_size
 
     @classmethod
     def create(
@@ -67,33 +74,23 @@ class PrefixSuffixTracker:
         sampler,
         rng,
         oracle,
+        config: "SearchConfig",
         *,
-        alphabet_size: int,
         num_prefixes: int,
-        suffix_family_size: int,
-        evidence_thresh: float,
-        decision_rule_fpr: float,
-        suffix_size_counterexample_gen,
-        num_addtl_prefixes: Optional[int] = None,
     ) -> "PrefixSuffixTracker":
         prefixes = [
-            sampler.sample(rng, alphabet_size=alphabet_size)
+            sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
         ]
         return cls(
             sampler=sampler,
             rng=rng,
             oracle=oracle,
-            alphabet_size=alphabet_size,
-            suffix_family_size=suffix_family_size,
-            evidence_thresh=evidence_thresh,
+            config=config,
             prefixes=prefixes,
             suffixes_seen={},
             suffix_bank=[],
             corresponding_masks=[],
-            decision_rule_fpr=decision_rule_fpr,
-            num_addtl_prefixes=num_addtl_prefixes,
-            suffix_size_counterexample_gen=suffix_size_counterexample_gen,
         )
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
@@ -133,7 +130,7 @@ class PrefixSuffixTracker:
         # Sample random prefixes and add them
         new_prefixes = [
             self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-            for _ in range(self.num_addtl_prefixes)
+            for _ in range(self.config.num_addtl_prefixes)
         ]
         self.add_prefixes(new_prefixes)
 
@@ -166,10 +163,15 @@ class PrefixSuffixTracker:
     def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
         decision = self.compute_decision_from_strings(vs)
         return np.array(
-            [decision < 1 - self.evidence_thresh, decision >= self.evidence_thresh]
+            [
+                decision < 1 - self.config.evidence_thresh,
+                decision >= self.config.evidence_thresh,
+            ]
         )
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
+
+        assert new_prefixes, "No new prefixes to add"
 
         additional_prefixes = []
         additional_masks = []
@@ -185,15 +187,14 @@ class PrefixSuffixTracker:
                         np.float32,
                     )
                 )
-        if additional_masks:
-            additional_masks = np.array(additional_masks).T
-            self.prefixes.extend(additional_prefixes)
+        additional_masks = np.array(additional_masks).T
+        self.prefixes.extend(additional_prefixes)
 
-            assert len(self.corresponding_masks) == len(additional_masks)
-            self.corresponding_masks = [
-                np.concatenate([self.corresponding_masks[i], additional_masks[i]])
-                for i in range(len(self.suffix_bank))
-            ]
+        assert len(self.corresponding_masks) == len(additional_masks)
+        self.corresponding_masks = [
+            np.concatenate([self.corresponding_masks[i], additional_masks[i]])
+            for i in range(len(self.suffix_bank))
+        ]
 
     @property
     def num_prefixes(self) -> int:
@@ -229,10 +230,10 @@ def sample_suffix_family(pst, v: int) -> List[int]:
     prev_fnr = 1.0
     strategy = "suffix"
     while True:
-        vs = identify_cluster_around(pst, v, pst.suffix_family_size)
+        vs = identify_cluster_around(pst, v, pst.config.suffix_family_size)
 
-        fnr = 1 if len(vs) < pst.suffix_family_size else pst.compute_fnr(vs)
-        if fnr <= pst.fnr_limit:
+        fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
+        if fnr <= pst.config.fnr_limit:
             print("FNR limit reached")
             return vs
 
@@ -244,7 +245,7 @@ def sample_suffix_family(pst, v: int) -> List[int]:
         print(f"FNR {fnr:.4f} too high, sampling more suffixes")
 
         if strategy == "suffix":
-            pst.sample_more_suffixes(amount=pst.suffix_family_size)
+            pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
         else:
             pst.sample_more_prefixes()
 
@@ -254,12 +255,12 @@ def split_states(pst, vs, path, subset_mask):
     vs_actual = [pst.suffix_bank[v] for v in vs]
     return [
         (
-            path + [(TriPredicate(vs_actual, pst.evidence_thresh), True)],
-            cascade(subset_mask, decision >= pst.evidence_thresh),
+            path + [(TriPredicate(vs_actual, pst.config.evidence_thresh), True)],
+            cascade(subset_mask, decision >= pst.config.evidence_thresh),
         ),
         (
-            path + [(TriPredicate(vs_actual, pst.evidence_thresh), False)],
-            cascade(subset_mask, decision < 1 - pst.evidence_thresh),
+            path + [(TriPredicate(vs_actual, pst.config.evidence_thresh), False)],
+            cascade(subset_mask, decision < 1 - pst.config.evidence_thresh),
         ),
     ]
 
@@ -369,7 +370,7 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         dt,
         dfa,
         count=count,
-        suffix_size_counterexample_gen=pst.suffix_size_counterexample_gen,
+        suffix_size_counterexample_gen=pst.config.suffix_size_counterexample_gen,
     )
     pst.add_prefixes([prefix for prefix, _ in results])
     return results
@@ -378,8 +379,8 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
 def overlaps(pst, states, vs):
     masks = np.array(
         [
-            pst.compute_decision(vs) > pst.evidence_thresh,
-            pst.compute_decision(vs) < 1 - pst.evidence_thresh,
+            pst.compute_decision(vs) > pst.config.evidence_thresh,
+            pst.compute_decision(vs) < 1 - pst.config.evidence_thresh,
         ]
     )
     existing_states = np.array([m for _, m in states])
@@ -399,11 +400,11 @@ def overlaps(pst, states, vs):
         if denom == 0:
             continue
         pvals = [
-            1 - scipy.stats.binom.cdf(n1, denom, pst.decision_rule_fpr),
-            1 - scipy.stats.binom.cdf(n2, denom, pst.decision_rule_fpr),
+            1 - scipy.stats.binom.cdf(n1, denom, pst.config.decision_rule_fpr),
+            1 - scipy.stats.binom.cdf(n2, denom, pst.config.decision_rule_fpr),
         ]
         pval = max(pvals)
-        if pval < pst.split_pval:
+        if pval < pst.config.split_pval:
             split_idxs.append(i)
     return split_idxs
 

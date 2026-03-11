@@ -5,6 +5,7 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star.decision_tree_to_dfa import (
     PrefixSuffixTracker,
+    SearchConfig,
     do_counterexample_driven_synthesis,
 )
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
@@ -57,40 +58,36 @@ def assertDFA(
         )
 
 
-def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, symbols=2):
-    pst = compute_pst(oracle_creator, accuracy, seed, symbols=symbols)
+def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
+    pst = compute_pst(oracle_creator, accuracy, seed)
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
     )
     return pst, dfa, dt
 
 
-def compute_pst(oracle_creator, accuracy, seed, *, symbols, use_dynamic=True):
+def compute_pst(oracle_creator, accuracy, seed, *, use_dynamic=True):
     oracle = oracle_creator(SymmetricBernoulli(p_correct=accuracy), seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
     k = compute_prefix_set_size(0.05, accuracy, 0.05)
     suffix_size = compute_suffix_size_counterexample_gen(0.01, accuracy)
-    kwargs = (
-        dict(
-            num_prefixes=200,
-            num_addtl_prefixes=200,
-            suffix_size_counterexample_gen=suffix_size,
-        )
-        if use_dynamic
-        else dict(num_prefixes=k, suffix_size_counterexample_gen=suffix_size)
+    num_prefixes = 200 if use_dynamic else k
+    config = SearchConfig(
+        suffix_family_size=n,
+        evidence_thresh=0.50 + eps,
+        decision_rule_fpr=0.01,
+        suffix_size_counterexample_gen=suffix_size,
+        num_addtl_prefixes=200 if use_dynamic else None,
     )
     print(f"Using suffix population size {n}, eps {eps}, and {k} prefixes.")
     pst = PrefixSuffixTracker.create(
         us,
         np.random.default_rng(0),
         oracle,
-        alphabet_size=symbols,
-        **kwargs,
-        suffix_family_size=n,
-        evidence_thresh=0.50 + eps,
-        decision_rule_fpr=0.01,
+        config,
+        num_prefixes=num_prefixes,
     )
 
     return pst
@@ -169,11 +166,9 @@ class TestLStar(unittest.TestCase):
 
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(111|000).*"
+            noise_model, seed, regex=r".*(111|000).*", alphabet_size=3
         )
-        _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, accuracy=0.8, seed=0, symbols=3
-        )
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=0.8, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3)
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
@@ -205,7 +200,5 @@ class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(accuracy,) for accuracy in (0.8, 0.7)])
     def test_no_orf(self, accuracy):
         oracle_creator = AllFramesClosedOracle
-        _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, accuracy=accuracy, seed=0, symbols=4
-        )
+        _, dfa, _ = compute_dfa_for_oracle(oracle_creator, accuracy=accuracy, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=4)
