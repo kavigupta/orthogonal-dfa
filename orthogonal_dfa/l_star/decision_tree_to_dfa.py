@@ -363,7 +363,7 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         count=count,
         suffix_size_counterexample_gen=pst.config.suffix_size_counterexample_gen,
     )
-    pst.add_prefixes([prefix for prefix, _ in results])
+    pst.add_prefixes(results)
     return results
 
 
@@ -479,7 +479,7 @@ def generate_counterexamples(
         state_2 = dfa.transitions[state_1][sym]
         if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
             continue
-        additional_prefixes.append(prefix_and_sym)
+        additional_prefixes.append(prefix)
         pbar.update()
         if len(additional_prefixes) >= count:
             pbar.close()
