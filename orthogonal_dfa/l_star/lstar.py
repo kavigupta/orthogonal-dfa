@@ -24,12 +24,7 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import final_states_all_initial, states_intermediate
 from .state_discovery import discover_states
-from .structures import (
-    DecisionTree,
-    DecisionTreeLeafNode,
-    TriPredicate,
-    flat_decision_tree_to_decision_tree,
-)
+from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
 def classify_states_with_decision_tree(pst, dt: DecisionTree):
@@ -67,10 +62,9 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     return transitions.argmax(-1)
 
 
-def optimal_dfa(pst, paths):
-    dt = flat_decision_tree_to_decision_tree(paths)
+def optimal_dfa(pst, dt: DecisionTree):
     transitions = compute_transition_matrix(pst, dt)
-    num_states = len(paths)
+    num_states = dt.num_states
 
     accepting_states = set(dt.by_rejection[1].collect_states())
 
@@ -183,13 +177,12 @@ def counterexample_driven_synthesis(
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            fdt = discover_states(pst)
-            print(f"Extracted flat decision tree with {len(fdt)} states")
-            if len(fdt) > 1:
+            dt = discover_states(pst)
+            print(f"Extracted flat decision tree with {dt.num_states} states")
+            if dt.num_states > 1:
                 break
             pst.sample_more_prefixes()
-        dt = flat_decision_tree_to_decision_tree(fdt)
-        acc, dfa = optimal_dfa(pst, fdt)
+        acc, dfa = optimal_dfa(pst, dt)
         print("DFA found!")
         print(dfa)
         if any(
