@@ -138,27 +138,20 @@ class PrefixSuffixTracker:
         for _ in tqdm.trange(amount, desc="Completing suffix family", delay=1):
             self.sample_suffix()
 
-    def corresponding_masks_for_subset(self, subset_prefixes=None) -> List[np.ndarray]:
+    def corresponding_masks_for_subset(self, subset_prefixes) -> List[np.ndarray]:
         corresponding_masks = np.array(self.corresponding_masks)
-        if subset_prefixes is not None:
-            corresponding_masks = corresponding_masks[:, subset_prefixes]
-        return corresponding_masks
+        return corresponding_masks[:, subset_prefixes]
 
-    def compute_decision(self, vs, subset_prefixes=None) -> np.ndarray:
+    def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
-        if subset_prefixes is None:
-            assert (
-                selected_masks.shape[1] == self.num_prefixes
-            ), f"Expected {self.num_prefixes}, got {selected_masks.shape[1]}"
-        else:
-            assert selected_masks.shape[1] == sum(
-                subset_prefixes
-            ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
+        assert selected_masks.shape[1] == sum(
+            subset_prefixes
+        ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
         return selected_masks.mean(0)
 
     def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
         vs_idxs = [self.record_suffix(v)[2] for v in vs]
-        return self.compute_decision(vs_idxs)
+        return self.compute_decision(vs_idxs, np.ones(self.num_prefixes, dtype=bool))
 
     def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
         decision = self.compute_decision_from_strings(vs)
@@ -202,8 +195,6 @@ class PrefixSuffixTracker:
 
 
 def cascade(mask_1, mask_2):
-    if mask_1 is None:
-        return mask_2
     mask_1 = mask_1.copy()
     mask_1[mask_1] = mask_2
     return mask_1
@@ -377,10 +368,11 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
 
 
 def overlaps(pst, states, vs):
+    decision = pst.compute_decision(vs, np.ones(pst.num_prefixes, dtype=bool))
     masks = np.array(
         [
-            pst.compute_decision(vs) > pst.config.evidence_thresh,
-            pst.compute_decision(vs) < 1 - pst.config.evidence_thresh,
+            decision > pst.config.evidence_thresh,
+            decision < 1 - pst.config.evidence_thresh,
         ]
     )
     existing_states = np.array([m for _, m in states])
