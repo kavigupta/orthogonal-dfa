@@ -144,9 +144,6 @@ class PrefixSuffixTracker:
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
-        assert selected_masks.shape[1] == sum(
-            subset_prefixes
-        ), f"Expected {sum(subset_prefixes)}, got {selected_masks.shape[1]}"
         return selected_masks.mean(0)
 
     def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
@@ -299,20 +296,14 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     return transitions.argmax(-1)
 
 
-def compute_accepts_vector(paths):
-    accepts = []
-    for (pred, decision), *_ in paths:
-        assert [] in pred.vs
-        accepts.append(decision)
-    return np.array(accepts)
-
-
-def possible_dfas(pst, paths):
+def optimal_dfa(pst, paths):
     dt = flat_decision_tree_to_decision_tree(paths)
     transitions = compute_transition_matrix(pst, dt)
-    accepts = compute_accepts_vector(paths)
     num_states = len(paths)
-    return [
+
+    accepting_states = set(dt.by_rejection[1].collect_states())
+
+    dfas = [
         DFA(
             states=set(range(num_states)),
             input_symbols=set(range(pst.alphabet_size)),
@@ -321,31 +312,20 @@ def possible_dfas(pst, paths):
                 for s in range(num_states)
             },
             initial_state=initial_state,
-            final_states={s for s in range(num_states) if accepts[s]},
+            final_states=accepting_states,
         )
         for initial_state in range(num_states)
     ]
 
-
-def dfa_success_rates(pst, dfas, dt):
-    odfa = [[dfa.accepts_input(string) for string in pst.prefixes] for dfa in dfas]
-    odfa = np.array(odfa)
-    assert (
-        [] in dt.predicate.vs
-    ), "The root predicate must include the empty string as an exemplar"
-    decision_arr = pst.compute_decision_array_from_strings(dt.predicate.vs)
-    mask = decision_arr.any(0)
-    odfa, decision_arr = odfa[:, mask], decision_arr[:, mask]
-
-    odfa = np.stack([~odfa, odfa], axis=1)
-    return ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
-
-
-def optimal_dfa(pst, paths):
-    dfas = possible_dfas(pst, paths)
-    success_rates = dfa_success_rates(
-        pst, dfas, flat_decision_tree_to_decision_tree(paths)
+    odfa = np.array(
+        [[dfa.accepts_input(string) for string in pst.prefixes] for dfa in dfas]
     )
+    decision_arr = pst.compute_decision_array_from_strings(dt.predicate.vs)
+    confident = decision_arr.any(0)
+    odfa, decision_arr = odfa[:, confident], decision_arr[:, confident]
+    odfa = np.stack([~odfa, odfa], axis=1)
+    success_rates = ((odfa & decision_arr).sum(-1) / decision_arr.sum(-1)).mean(1)
+
     best_idx = np.argmax(success_rates)
     print(
         f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
