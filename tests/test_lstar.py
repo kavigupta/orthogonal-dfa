@@ -58,7 +58,9 @@ def assertDFA(
         )
 
 
-def compute_dfa_for_oracle(oracle_creator, *, min_signal_strength, seed, noise_model=None):
+def compute_dfa_for_oracle(
+    oracle_creator, *, min_signal_strength, seed, noise_model=None
+):
     pst = compute_pst(
         oracle_creator, min_signal_strength, seed, noise_model=noise_model
     )
