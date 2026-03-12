@@ -46,7 +46,7 @@ def recompute_evidence_margin(
     min_signal_strength, suffix_family_size, decision_boundary
 ):
     result = evidence_thresh_for_population_size(
-        min_signal_strength, 0.01, 0.01, suffix_family_size, relative_eps=1, center=decision_boundary
+        min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
     )
     if result is None:
         return min_signal_strength * 0.5

@@ -6,7 +6,7 @@ import scipy
 
 
 def population_size_and_evidence_thresh(
-    signal_strength, acceptable_fpr, acceptable_fnr, *, relative_eps=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -25,21 +25,21 @@ def population_size_and_evidence_thresh(
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_thresh_for_population_size(
-            p_acc, acceptable_fpr, acceptable_fnr, N_try, relative_eps=relative_eps
+            signal_strength, acceptable_fpr, acceptable_fnr, N_try
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
     res = evidence_thresh_for_population_size(
-        p_acc, acceptable_fpr, acceptable_fnr, N_high, relative_eps=relative_eps
+        signal_strength, acceptable_fpr, acceptable_fnr, N_high
     )
     assert res is not None
     return res
 
 
 def evidence_thresh_for_population_size(
-    signal_strength, acceptable_fpr, acceptable_fnr, N, *, relative_eps, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_thresh for context.
@@ -54,10 +54,10 @@ def evidence_thresh_for_population_size(
         fpr = scipy.stats.binom.cdf(k_low, N, center) + (
             1 - scipy.stats.binom.cdf(k_high - 1, N, center)
         )
-        fnr_acc = scipy.stats.binom.cdf(
-            k_high - 1, N, center + signal_strength * relative_eps
+        fnr = scipy.stats.binom.cdf(
+            k_high - 1, N, p_acc
         ) - scipy.stats.binom.cdf(k_low, N, p_acc)
-        if fpr <= acceptable_fpr and fnr_acc <= acceptable_fnr:
+        if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
     return None
 
