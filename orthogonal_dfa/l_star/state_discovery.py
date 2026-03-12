@@ -40,24 +40,31 @@ class StateTracker:
         return [path for path, _ in self.states]
 
     @staticmethod
-    def _extend_path(path, vs_actual, evidence_thresh, accepted):
-        return path + [(TriPredicate(vs_actual, evidence_thresh), accepted)]
+    def _extend_path(path, vs_actual, accept_thresh, reject_thresh, accepted):
+        return path + [
+            (TriPredicate(vs_actual, accept_thresh, reject_thresh), accepted)
+        ]
 
     def split(self, pst, state_indices, vs):
         states_to_split = [self.states.pop(i) for i in reversed(sorted(state_indices))]
         for path, mask in states_to_split:
             decision = pst.compute_decision(vs, mask)
             vs_actual = [pst.suffix_bank[v] for v in vs]
-            thresh = pst.config.evidence_thresh
+            accept_thresh = pst.accept_thresh
+            reject_thresh = pst.reject_thresh
             self.states.extend(
                 [
                     (
-                        self._extend_path(path, vs_actual, thresh, True),
-                        cascade(mask, decision >= thresh),
+                        self._extend_path(
+                            path, vs_actual, accept_thresh, reject_thresh, True
+                        ),
+                        cascade(mask, decision >= accept_thresh),
                     ),
                     (
-                        self._extend_path(path, vs_actual, thresh, False),
-                        cascade(mask, decision < 1 - thresh),
+                        self._extend_path(
+                            path, vs_actual, accept_thresh, reject_thresh, False
+                        ),
+                        cascade(mask, decision < reject_thresh),
                     ),
                 ]
             )
@@ -109,8 +116,8 @@ def overlapping_states(pst, tracker, vs):
     decision = pst.compute_decision(vs, np.ones(pst.num_prefixes, dtype=bool))
     masks = np.array(
         [
-            decision > pst.config.evidence_thresh,
-            decision < 1 - pst.config.evidence_thresh,
+            decision >= pst.accept_thresh,
+            decision < pst.reject_thresh,
         ]
     )
     existing_states = tracker.state_masks
@@ -141,7 +148,8 @@ def overlapping_states(pst, tracker, vs):
 
 def discover_states(pst) -> DecisionTree:
     _, _, v_idx = pst.record_suffix([])
-    vs = sample_suffix_family(pst, v_idx)
+    vs, decision_boundary = sample_suffix_family(pst, v_idx)
+    pst.decision_boundary = decision_boundary
     vs_queue = [([], vs)]
     tracker = StateTracker(len(pst.prefixes))
 
