@@ -7,7 +7,7 @@ from .statistics import evidence_thresh_for_population_size
 
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
-) -> Tuple[List[int], float, float, float]:
+) -> Tuple[List[int], float]:
     masks = np.array(pst.corresponding_masks)
     cluster = [seed]
     loss = float("inf")
@@ -39,19 +39,17 @@ def identify_cluster_around(
     elif len(reject_prefixes) > 0:
         decision_boundary = reject_mean / 2
 
-    return cluster.tolist(), decision_boundary, accept_mean, reject_mean
+    return cluster.tolist(), decision_boundary
 
 
-def recompute_evidence_margin(accept_mean, reject_mean, suffix_family_size):
-    signal_strength = (accept_mean - reject_mean) / 2
-    if signal_strength <= 0:
-        return 0.0
-    effective_p_acc = 0.5 + signal_strength
+def recompute_evidence_margin(
+    min_signal_strength, suffix_family_size, decision_boundary
+):
     result = evidence_thresh_for_population_size(
-        effective_p_acc, 0.01, 0.01, suffix_family_size, relative_eps=1
+        min_signal_strength, 0.01, 0.01, suffix_family_size, relative_eps=1, center=decision_boundary
     )
     if result is None:
-        return signal_strength * 0.5
+        return min_signal_strength * 0.5
     _, eps = result
     return eps
 
@@ -61,12 +59,14 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     while True:
-        vs, decision_boundary, accept_mean, reject_mean = identify_cluster_around(
+        vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
         pst.decision_boundary = decision_boundary
         pst.evidence_margin = recompute_evidence_margin(
-            accept_mean, reject_mean, pst.config.suffix_family_size
+            pst.config.min_signal_strength,
+            pst.config.suffix_family_size,
+            decision_boundary,
         )
 
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)

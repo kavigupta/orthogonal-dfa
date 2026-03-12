@@ -78,7 +78,7 @@ def compute_pst(
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
     n, eps = population_size_and_evidence_thresh(
-        p_acc=effective_p_acc, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
+        signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
     k = compute_prefix_set_size(0.05, effective_p_acc, 0.05)
     suffix_size = compute_suffix_size_counterexample_gen(0.01, effective_p_acc)
@@ -88,6 +88,7 @@ def compute_pst(
         evidence_margin=eps,
         decision_rule_fpr=0.01,
         suffix_size_counterexample_gen=suffix_size,
+        min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
     )
     print(

@@ -20,6 +20,7 @@ class SearchConfig:
     evidence_margin: float
     decision_rule_fpr: float
     suffix_size_counterexample_gen: int
+    min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
     split_pval: float = 0.001
