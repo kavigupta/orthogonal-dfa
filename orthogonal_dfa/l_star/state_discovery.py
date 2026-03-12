@@ -40,24 +40,31 @@ class StateTracker:
         return [path for path, _ in self.states]
 
     @staticmethod
-    def _extend_path(path, vs_actual, evidence_margin, accepted):
-        return path + [(TriPredicate(vs_actual, evidence_margin), accepted)]
+    def _extend_path(path, vs_actual, accept_thresh, reject_thresh, accepted):
+        return path + [
+            (TriPredicate(vs_actual, accept_thresh, reject_thresh), accepted)
+        ]
 
     def split(self, pst, state_indices, vs):
         states_to_split = [self.states.pop(i) for i in reversed(sorted(state_indices))]
         for path, mask in states_to_split:
             decision = pst.compute_decision(vs, mask)
             vs_actual = [pst.suffix_bank[v] for v in vs]
-            margin = pst.config.evidence_margin
+            accept_thresh = 0.5 + pst.config.evidence_margin
+            reject_thresh = 0.5 - pst.config.evidence_margin
             self.states.extend(
                 [
                     (
-                        self._extend_path(path, vs_actual, margin, True),
-                        cascade(mask, decision >= 0.5 + margin),
+                        self._extend_path(
+                            path, vs_actual, accept_thresh, reject_thresh, True
+                        ),
+                        cascade(mask, decision >= accept_thresh),
                     ),
                     (
-                        self._extend_path(path, vs_actual, margin, False),
-                        cascade(mask, decision < 0.5 - margin),
+                        self._extend_path(
+                            path, vs_actual, accept_thresh, reject_thresh, False
+                        ),
+                        cascade(mask, decision < reject_thresh),
                     ),
                 ]
             )
