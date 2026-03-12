@@ -230,9 +230,9 @@ class TestLStarAsymmetric(unittest.TestCase):
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         noise_model = AsymmetricBernoulli(p_0=0.05, p_1=0.85)
-        # signal = (0.85 - 0.05) / 2 = 0.4
+        # signal = (0.85 - 0.05) / 2 = 0.4, but for now we're using 0.35 to be safe.
         _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.4, seed=0, noise_model=noise_model
+            oracle_creator, min_signal_strength=0.35, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
 
@@ -241,9 +241,9 @@ class TestLStarAsymmetric(unittest.TestCase):
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
-        # signal = (0.95 - 0.25) / 2 = 0.35
+        # signal = (0.95 - 0.25) / 2 = 0.35, but for now we're using 0.25 to be safe.
         _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.35, seed=0, noise_model=noise_model
+            oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
 

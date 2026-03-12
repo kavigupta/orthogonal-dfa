@@ -137,10 +137,10 @@ def generate_counterexamples(
     pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
 ):
     dt_with_reduced_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5)
+        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0)
     )
     dt_with_decisive_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs, 0.5)
+        lambda p: TriPredicate(p.vs, 0)
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
