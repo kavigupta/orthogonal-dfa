@@ -96,7 +96,7 @@ class PrefixSuffixTracker:
         ).mean(1)
         if arr.min() == 0:
             return 1
-        return 1 - arr.sum(0)
+        return 1 - arr.sum()
 
     def sample_more_prefixes(self):
         # Sample random prefixes and add them
