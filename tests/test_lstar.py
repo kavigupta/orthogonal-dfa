@@ -69,7 +69,7 @@ def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
 def compute_pst(oracle_creator, accuracy, seed, *, use_dynamic=True):
     oracle = oracle_creator(SymmetricBernoulli(p_correct=accuracy), seed)
     n, eps = population_size_and_evidence_thresh(
-        p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
+        p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01
     )
     k = compute_prefix_set_size(0.05, accuracy, 0.05)
     suffix_size = compute_suffix_size_counterexample_gen(0.01, accuracy)
