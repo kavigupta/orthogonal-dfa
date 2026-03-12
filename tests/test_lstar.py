@@ -19,7 +19,7 @@ from orthogonal_dfa.l_star.statistics import (
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_thresh,
 )
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
 us = UniformSampler(40)
 
@@ -58,16 +58,18 @@ def assertDFA(
         )
 
 
-def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed):
-    pst = compute_pst(oracle_creator, accuracy, seed)
+def compute_dfa_for_oracle(oracle_creator, *, accuracy, seed, noise_model=None):
+    pst = compute_pst(oracle_creator, accuracy, seed, noise_model=noise_model)
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
     )
     return pst, dfa, dt
 
 
-def compute_pst(oracle_creator, accuracy, seed, *, use_dynamic=True):
-    oracle = oracle_creator(SymmetricBernoulli(p_correct=accuracy), seed)
+def compute_pst(oracle_creator, accuracy, seed, *, use_dynamic=True, noise_model):
+    if noise_model is None:
+        noise_model = SymmetricBernoulli(p_correct=accuracy)
+    oracle = oracle_creator(noise_model, seed)
     n, eps = population_size_and_evidence_thresh(
         p_acc=accuracy, acceptable_fpr=0.01, acceptable_fnr=0.01, relative_eps=1
     )
@@ -194,6 +196,41 @@ class TestLStar(unittest.TestCase):
             return [0, 0, 0, 0]
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
+
+
+class TestLStarAsymmetric(unittest.TestCase):
+    def test_modulo_asymmetric(self):
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        # effective accuracy ~ min(1 - 0.05, 0.85) = 0.85
+        noise_model = AsymmetricBernoulli(p_0=0.05, p_1=0.85)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, accuracy=0.85, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    def test_modulo_asymmetric_skewed(self):
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        # effective accuracy ~ min(1 - 0.25, 0.95) = 0.95
+        noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, accuracy=0.75, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    def test_regex_asymmetric(self):
+        oracle_creator = lambda noise_model, seed: BernoulliRegex(
+            noise_model, seed, regex=r".*1010101.*"
+        )
+        # effective accuracy ~ min(1 - 0.15, 0.7) = 0.7
+        noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.7)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, accuracy=0.7, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
 
 
 class TestLStarORF(unittest.TestCase):
