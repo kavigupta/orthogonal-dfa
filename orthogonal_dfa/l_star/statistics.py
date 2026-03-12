@@ -39,24 +39,20 @@ def population_size_and_evidence_thresh(
 
 
 def evidence_thresh_for_population_size(
-    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr, N
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_thresh for context.
-
-    signal_strength: half the gap between accept and reject rates.
-    center: the decision boundary (null hypothesis center). Defaults to 0.5.
     """
-    p_acc = center + signal_strength
     for eps in np.linspace(0.01, signal_strength, 100):
-        k_low = int(np.floor(N * (center - eps)))
-        k_high = int(np.ceil(N * (center + eps)))
-        fpr = scipy.stats.binom.cdf(k_low, N, center) + (
-            1 - scipy.stats.binom.cdf(k_high - 1, N, center)
+        k_low = int(np.floor(N * (0.5 - eps)))
+        k_high = int(np.ceil(N * (0.5 + eps)))
+        fpr = scipy.stats.binom.cdf(k_low, N, 0.5) + (
+            1 - scipy.stats.binom.cdf(k_high - 1, N, 0.5)
         )
-        fnr = scipy.stats.binom.cdf(k_high - 1, N, p_acc) - scipy.stats.binom.cdf(
-            k_low, N, p_acc
-        )
+        fnr = scipy.stats.binom.cdf(
+            k_high - 1, N, signal_strength + 0.5
+        ) - scipy.stats.binom.cdf(k_low, N, signal_strength + 0.5)
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
     return None

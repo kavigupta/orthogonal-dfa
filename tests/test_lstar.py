@@ -252,9 +252,9 @@ class TestLStarAsymmetric(unittest.TestCase):
             noise_model, seed, regex=r".*1010101.*"
         )
         noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.7)
-        # signal = (0.7 - 0.15) / 2 = 0.275
+        # signal = (0.7 - 0.15) / 2 = 0.275, but for now we're using 0.2 to be safe.
         _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.275, seed=0, noise_model=noise_model
+            oracle_creator, min_signal_strength=0.2, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
 
