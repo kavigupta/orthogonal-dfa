@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import evidence_thresh_for_population_size
+from .statistics import evidence_margin_for_population_size
 
 
 def identify_cluster_around(
@@ -45,7 +45,7 @@ def identify_cluster_around(
 def recompute_evidence_margin(
     min_signal_strength, suffix_family_size, decision_boundary
 ):
-    result = evidence_thresh_for_population_size(
+    result = evidence_margin_for_population_size(
         min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
     )
     if result is None:
