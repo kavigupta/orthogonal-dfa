@@ -23,12 +23,55 @@ jobs:
           uv venv --python ${{ matrix.python-version }}
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Test with pytest
-        run: uv run python -m pytest tests
+      - name: Test with pytest (excluding lstar)
+        run: uv run python -m pytest tests --ignore=tests/test_lstar.py
       - name: Lint with pylint
         run: |
           uv run python -m pylint orthogonal_dfa setup.py tests
           uv run isort orthogonal_dfa tests; uv run black orthogonal_dfa tests; bash -c '[ $(git status --porcelain --untracked-files=no | wc -c) -eq 0 ]  || (git status; git diff; exit 1)'
+
+  discover-lstar-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      tests: ${{ steps.discover.outputs.tests }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "setuptools>=68.0" "wheel>=0.41"
+          pip install -r requirements.txt
+      - name: Discover lstar tests
+        id: discover
+        run: |
+          tests=$(python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+
+  lstar-test:
+    needs: discover-lstar-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test: ${{ fromJson(needs.discover-lstar-tests.outputs.tests) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "setuptools>=68.0" "wheel>=0.41"
+          pip install -r requirements.txt
+      - name: Run ${{ matrix.test }}
+        run: |
+          python -m pytest "${{ matrix.test }}" -sv
 
   check-docs:
     runs-on: ubuntu-latest
