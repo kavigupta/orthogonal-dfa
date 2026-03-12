@@ -54,9 +54,9 @@ def evidence_thresh_for_population_size(
         fpr = scipy.stats.binom.cdf(k_low, N, center) + (
             1 - scipy.stats.binom.cdf(k_high - 1, N, center)
         )
-        fnr = scipy.stats.binom.cdf(
-            k_high - 1, N, p_acc
-        ) - scipy.stats.binom.cdf(k_low, N, p_acc)
+        fnr = scipy.stats.binom.cdf(k_high - 1, N, p_acc) - scipy.stats.binom.cdf(
+            k_low, N, p_acc
+        )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
     return None
