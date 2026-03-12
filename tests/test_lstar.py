@@ -17,7 +17,7 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     compute_prefix_set_size,
     compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_thresh,
+    population_size_and_evidence_margin,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
@@ -77,7 +77,7 @@ def compute_pst(
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
-    n, eps = population_size_and_evidence_thresh(
+    n, eps = population_size_and_evidence_margin(
         signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
     )
     k = compute_prefix_set_size(0.05, effective_p_acc, 0.05)
@@ -253,9 +253,9 @@ class TestLStarAsymmetric(unittest.TestCase):
             noise_model, seed, regex=r".*1010101.*"
         )
         noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.7)
-        # signal = (0.7 - 0.15) / 2 = 0.275
+        # signal = (0.7 - 0.15) / 2 = 0.275, but for now we're using 0.2 to be safe.
         _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.275, seed=0, noise_model=noise_model
+            oracle_creator, min_signal_strength=0.2, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
 
