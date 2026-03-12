@@ -17,7 +17,7 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     compute_prefix_set_size,
     compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_thresh,
+    population_size_and_evidence_margin,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
@@ -77,7 +77,7 @@ def compute_pst(
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
-    n, eps = population_size_and_evidence_thresh(
+    n, eps = population_size_and_evidence_margin(
         signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
     )
     k = compute_prefix_set_size(0.05, effective_p_acc, 0.05)
@@ -85,7 +85,7 @@ def compute_pst(
     num_prefixes = 200 if use_dynamic else k
     config = SearchConfig(
         suffix_family_size=n,
-        evidence_thresh=0.50 + eps,
+        evidence_margin=eps,
         decision_rule_fpr=0.01,
         suffix_size_counterexample_gen=suffix_size,
         num_addtl_prefixes=200 if use_dynamic else None,

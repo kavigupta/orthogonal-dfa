@@ -5,7 +5,7 @@ import numpy as np
 import scipy
 
 
-def population_size_and_evidence_thresh(
+def population_size_and_evidence_margin(
     signal_strength, acceptable_fpr, acceptable_fnr
 ) -> Tuple[int, float]:
     """
@@ -24,25 +24,25 @@ def population_size_and_evidence_thresh(
             N_try = N_low * 2
         else:
             N_try = (N_low + N_high) // 2
-        result = evidence_thresh_for_population_size(
+        result = evidence_margin_for_population_size(
             signal_strength, acceptable_fpr, acceptable_fnr, N_try
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
-    res = evidence_thresh_for_population_size(
+    res = evidence_margin_for_population_size(
         signal_strength, acceptable_fpr, acceptable_fnr, N_high
     )
     assert res is not None
     return res
 
 
-def evidence_thresh_for_population_size(
+def evidence_margin_for_population_size(
     signal_strength, acceptable_fpr, acceptable_fnr, N
 ) -> Optional[Tuple[int, float]]:
     """
-    See population_size_and_evidence_thresh for context.
+    See population_size_and_evidence_margin for context.
     """
     for eps in np.linspace(0.01, signal_strength, 100):
         k_low = int(np.floor(N * (0.5 - eps)))

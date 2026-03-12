@@ -183,18 +183,18 @@ class DecisionTreeLeafNode(DecisionTree):
 @dataclass
 class TriPredicate:
     vs: List[List[int]]
-    evidence_threshold: float
+    evidence_margin: float
 
     def predict(self, x: List[int], oracle: Oracle) -> float:
         return np.mean([oracle.membership_query(x + v) for v in self.vs])
 
     def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
         f = self.predict(x, oracle)
-        if f > self.evidence_threshold:
+        if f > 0.5 + self.evidence_margin:
             return True
-        if f < 1 - self.evidence_threshold:
+        if f < 0.5 - self.evidence_margin:
             return False
         return None
 
     def __hash__(self):
-        return hash((tuple(tuple(v) for v in self.vs), self.evidence_threshold))
+        return hash((tuple(tuple(v) for v in self.vs), self.evidence_margin))

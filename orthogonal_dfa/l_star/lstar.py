@@ -43,9 +43,7 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
         classify_states_with_decision_tree(
             pst,
             dt.map_over_predicates(
-                lambda p, c=c: TriPredicate(
-                    [[c] + x for x in p.vs], p.evidence_threshold
-                )
+                lambda p, c=c: TriPredicate([[c] + x for x in p.vs], p.evidence_margin)
             ),
         )
         for c in range(pst.alphabet_size)
