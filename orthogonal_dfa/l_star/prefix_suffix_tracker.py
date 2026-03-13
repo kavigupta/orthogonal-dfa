@@ -40,6 +40,14 @@ class PrefixSuffixTracker:
     def alphabet_size(self) -> int:
         return self.oracle.alphabet_size
 
+    @property
+    def accept_thresh(self) -> float:
+        return 0.5 + self.config.evidence_margin
+
+    @property
+    def reject_thresh(self) -> float:
+        return 0.5 - self.config.evidence_margin
+
     @classmethod
     def create(
         cls,
@@ -126,8 +134,8 @@ class PrefixSuffixTracker:
         decision = self.compute_decision_from_strings(vs)
         return np.array(
             [
-                decision < 0.5 - self.config.evidence_margin,
-                decision >= 0.5 + self.config.evidence_margin,
+                decision < self.reject_thresh,
+                decision >= self.accept_thresh,
             ]
         )
 
