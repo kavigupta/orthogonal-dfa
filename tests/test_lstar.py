@@ -88,6 +88,7 @@ def compute_pst(
         evidence_margin=eps,
         decision_rule_fpr=0.01,
         suffix_size_counterexample_gen=suffix_size,
+        min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
     )
     print(
@@ -255,6 +256,17 @@ class TestLStarAsymmetric(unittest.TestCase):
         # signal = (0.7 - 0.15) / 2 = 0.275, but for now we're using 0.2 to be safe.
         _, dfa, _ = compute_dfa_for_oracle(
             oracle_creator, min_signal_strength=0.2, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    def test_modulo_asymmetric_non_straddling(self):
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.10, p_1=0.40)
+        # signal = (0.40 - 0.10) / 2 = 0.15
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
 

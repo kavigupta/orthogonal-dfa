@@ -20,6 +20,7 @@ class SearchConfig:
     evidence_margin: float
     decision_rule_fpr: float
     suffix_size_counterexample_gen: int
+    min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
     split_pval: float = 0.001
@@ -35,6 +36,12 @@ class PrefixSuffixTracker:
     suffixes_seen: dict
     suffix_bank: List[List[int]]
     corresponding_masks: List[np.ndarray]
+    decision_boundary: float = 0.5
+    evidence_margin: float = 0.0
+
+    def __post_init__(self):
+        if self.evidence_margin == 0.0:
+            self.evidence_margin = self.config.evidence_margin
 
     @property
     def alphabet_size(self) -> int:
@@ -42,11 +49,11 @@ class PrefixSuffixTracker:
 
     @property
     def accept_thresh(self) -> float:
-        return 0.5 + self.config.evidence_margin
+        return self.decision_boundary + self.evidence_margin
 
     @property
     def reject_thresh(self) -> float:
-        return 0.5 - self.config.evidence_margin
+        return self.decision_boundary - self.evidence_margin
 
     @classmethod
     def create(
