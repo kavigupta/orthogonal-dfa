@@ -17,7 +17,7 @@ def compute_mask(for_state, oracle, v):
 @dataclass
 class SearchConfig:
     suffix_family_size: int
-    evidence_thresh: float
+    evidence_margin: float
     decision_rule_fpr: float
     suffix_size_counterexample_gen: int
     num_addtl_prefixes: Optional[int] = None
@@ -39,6 +39,14 @@ class PrefixSuffixTracker:
     @property
     def alphabet_size(self) -> int:
         return self.oracle.alphabet_size
+
+    @property
+    def accept_thresh(self) -> float:
+        return 0.5 + self.config.evidence_margin
+
+    @property
+    def reject_thresh(self) -> float:
+        return 0.5 - self.config.evidence_margin
 
     @classmethod
     def create(
@@ -126,8 +134,8 @@ class PrefixSuffixTracker:
         decision = self.compute_decision_from_strings(vs)
         return np.array(
             [
-                decision < 1 - self.config.evidence_thresh,
-                decision >= self.config.evidence_thresh,
+                decision < self.reject_thresh,
+                decision >= self.accept_thresh,
             ]
         )
 

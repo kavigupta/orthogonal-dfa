@@ -44,7 +44,7 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
             pst,
             dt.map_over_predicates(
                 lambda p, c=c: TriPredicate(
-                    [[c] + x for x in p.vs], p.evidence_threshold
+                    [[c] + x for x in p.vs], p.accept_threshold, p.reject_threshold
                 )
             ),
         )
@@ -139,10 +139,10 @@ def generate_counterexamples(
     pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
 ):
     dt_with_reduced_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5)
+        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5, 0.5)
     )
     dt_with_decisive_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs, 0.5)
+        lambda p: TriPredicate(p.vs, 0.5, 0.5)
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []

@@ -5,23 +5,18 @@ import numpy as np
 import scipy
 
 
-def population_size_and_evidence_thresh(
-    p_acc, acceptable_fpr, acceptable_fnr
+def population_size_and_evidence_margin(
+    signal_strength, acceptable_fpr, acceptable_fnr
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
-    (0.5 - epsilon, 0.5 + epsilon). The true distribution is assumed to be B(p_acc) when
-    the underlying value is 1 and B(1 - p_acc) when it is 0. We would like it to be the
-    case that when samples are drawn from the null distribution B(0.5), we have a false
-    positive rate of at most acceptable_fpr, and when samples are drawn from the true
-    distribution we have a false negative rate of at most acceptable_fnr.
+    (center - epsilon, center + epsilon). The true distribution has accept rate
+    center + signal_strength and reject rate center - signal_strength.
 
-    In other words, the conditions are
-
-    - BinomCDF(N, N(0.5 - eps), 0.5) <= acceptable_fpr/2
-    - BinomCDF(N, N(0.5 + eps), p_acc) <= acceptable_fnr
+    We want FPR (under the null B(center)) at most acceptable_fpr, and FNR (under
+    the true distribution) at most acceptable_fnr.
     """
-    assert 0.5 < p_acc < 1.0
+    assert signal_strength > 0
     N_low = 1
     N_high = None
     while N_high is None or N_low < N_high:
@@ -29,35 +24,35 @@ def population_size_and_evidence_thresh(
             N_try = N_low * 2
         else:
             N_try = (N_low + N_high) // 2
-        result = evidence_thresh_for_population_size(
-            p_acc, acceptable_fpr, acceptable_fnr, N_try
+        result = evidence_margin_for_population_size(
+            signal_strength, acceptable_fpr, acceptable_fnr, N_try
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
-    res = evidence_thresh_for_population_size(
-        p_acc, acceptable_fpr, acceptable_fnr, N_high
+    res = evidence_margin_for_population_size(
+        signal_strength, acceptable_fpr, acceptable_fnr, N_high
     )
     assert res is not None
     return res
 
 
-def evidence_thresh_for_population_size(
-    p_acc, acceptable_fpr, acceptable_fnr, N
+def evidence_margin_for_population_size(
+    signal_strength, acceptable_fpr, acceptable_fnr, N
 ) -> Optional[Tuple[int, float]]:
     """
-    See population_size_and_evidence_thresh for context.
+    See population_size_and_evidence_margin for context.
     """
-    for eps in np.linspace(0.01, p_acc - 0.5, 100):
+    for eps in np.linspace(0.01, signal_strength, 100):
         k_low = int(np.floor(N * (0.5 - eps)))
         k_high = int(np.ceil(N * (0.5 + eps)))
         fpr = scipy.stats.binom.cdf(k_low, N, 0.5) + (
             1 - scipy.stats.binom.cdf(k_high - 1, N, 0.5)
         )
-        fnr = scipy.stats.binom.cdf(k_high - 1, N, p_acc) - scipy.stats.binom.cdf(
-            k_low, N, p_acc
-        )
+        fnr = scipy.stats.binom.cdf(
+            k_high - 1, N, signal_strength + 0.5
+        ) - scipy.stats.binom.cdf(k_low, N, signal_strength + 0.5)
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
     return None
