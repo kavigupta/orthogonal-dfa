@@ -271,6 +271,47 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
+    def test_one_sided_noise(self):
+        """One class is pure coin-flip (p_0=0.50), only the other carries signal."""
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.50, p_1=0.80)
+        # signal = 0.15, boundary = 0.65
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    def test_rare_accept_class(self):
+        """Only 1 of 7 states is accepting, so boundary estimation sees mostly rejects."""
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=7, allowed_moduluses=(3,)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.75)
+        # signal = 0.30, boundary = 0.45
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    @unittest.expectedFailure
+    def test_boundary_near_zero(self):
+        """Both noise rates near 0, boundary far from 0.5.
+        Fails: finds only 3 states instead of 9. With the true boundary at
+        0.22, the clustering threshold is so low that true-reject prefixes
+        (mean ~0.02) get mixed into the "accept" group on noisy suffix
+        samples, contaminating the boundary estimate downward to ~0.11."""
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.02, p_1=0.42)
+        # signal = 0.20, boundary = 0.22
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator)
+
 
 class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
