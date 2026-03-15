@@ -259,12 +259,13 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    def test_modulo_asymmetric_non_straddling(self):
+    @parameterized.expand([(0.10, 0.40), (0.60, 0.90)])
+    def test_modulo_asymmetric_non_straddling(self, p_0, p_1):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        noise_model = AsymmetricBernoulli(p_0=0.10, p_1=0.40)
-        # signal = (0.40 - 0.10) / 2 = 0.15
+        noise_model = AsymmetricBernoulli(p_0=p_0, p_1=p_1)
+        # signal = (p_1 - p_0) / 2, so 0.15 in both cases.
         _, dfa, _ = compute_dfa_for_oracle(
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )

@@ -35,9 +35,11 @@ def identify_cluster_around(
     if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
         decision_boundary = (accept_mean + reject_mean) / 2
     elif len(accept_prefixes) > 0:
-        decision_boundary = accept_mean / 2
+        # didn't find any rejects, so just put the boundary in the middle of the accepts
+        decision_boundary = accept_mean
     elif len(reject_prefixes) > 0:
-        decision_boundary = reject_mean / 2
+        # symmetric to above
+        decision_boundary = reject_mean
 
     return cluster.tolist(), decision_boundary
 
