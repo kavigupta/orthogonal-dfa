@@ -42,7 +42,7 @@ def evidence_margin_for_population_size(
     signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
 ) -> Optional[Tuple[int, float]]:
     """
-    See population_size_and_evidence_thresh for context.
+    See population_size_and_evidence_margin for context.
     """
     for eps in np.linspace(0.01, signal_strength, 100):
         k_low = int(np.floor(N * (center - eps)))
