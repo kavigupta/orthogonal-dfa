@@ -138,11 +138,14 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
 def generate_counterexamples(
     pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
 ):
+    boundary = pst.decision_boundary
     dt_with_reduced_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs[:suffix_size_counterexample_gen], 0.5, 0.5)
+        lambda p: TriPredicate(
+            p.vs[:suffix_size_counterexample_gen], boundary, boundary
+        )
     )
     dt_with_decisive_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs, 0.5, 0.5)
+        lambda p: TriPredicate(p.vs, boundary, boundary)
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []

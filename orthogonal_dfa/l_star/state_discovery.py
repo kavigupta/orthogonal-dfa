@@ -148,7 +148,8 @@ def overlapping_states(pst, tracker, vs):
 
 def discover_states(pst) -> DecisionTree:
     _, _, v_idx = pst.record_suffix([])
-    vs = sample_suffix_family(pst, v_idx)
+    vs, decision_boundary = sample_suffix_family(pst, v_idx)
+    pst.decision_boundary = decision_boundary
     vs_queue = [([], vs)]
     tracker = StateTracker(len(pst.prefixes))
 
