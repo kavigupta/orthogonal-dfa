@@ -2,7 +2,10 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import evidence_margin_for_population_size
+from .statistics import (
+    evidence_margin_for_population_size,
+    max_suffixes_before_giving_up,
+)
 
 
 def identify_cluster_around(
@@ -56,11 +59,40 @@ def recompute_evidence_margin(
     return eps
 
 
+class GaveUpOnSuffixSearch(Exception):
+    """Raised when the suffix search exceeds the give-up threshold."""
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
+
+    config = pst.config
+    max_suffixes = None
+    agreement_threshold = None
+    exceedance_count_threshold = None
+    if config.min_suffix_frequency is not None:
+        max_suffixes, agreement_threshold, exceedance_count_threshold = (
+            max_suffixes_before_giving_up(
+                config.min_signal_strength,
+                len(pst.prefixes),
+                config.min_suffix_frequency,
+            )
+        )
+
     while True:
+        if max_suffixes is not None and len(pst.suffix_bank) >= max_suffixes:
+            seed_mask = np.array(pst.corresponding_masks[v])
+            masks = np.array(pst.corresponding_masks)
+            agreements = (masks == seed_mask).sum(axis=1)
+            exceeding = int((agreements > agreement_threshold).sum())
+            if exceeding <= exceedance_count_threshold:
+                raise GaveUpOnSuffixSearch(
+                    f"Sampled {len(pst.suffix_bank)} suffixes (limit {max_suffixes}). "
+                    f"Exceedances: {exceeding} <= {exceedance_count_threshold} "
+                    f"(agreement threshold: {agreement_threshold})"
+                )
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )

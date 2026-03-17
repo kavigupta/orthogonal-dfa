@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     compute_prefix_set_size,
     compute_suffix_size_counterexample_gen,
+    max_suffixes_before_giving_up,
     population_size_and_evidence_margin,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
@@ -311,6 +312,75 @@ class TestLStarAsymmetric(unittest.TestCase):
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
+
+
+class TestGiveUpThreshold(unittest.TestCase):
+    @parameterized.expand(
+        [
+            (0.15, 200, 0.10),
+            (0.25, 100, 0.10),
+            (0.15, 500, 0.05),
+        ]
+    )
+    def test_max_suffixes_rarely_gives_up_when_evidence_present(
+        self, signal_strength, num_prefixes, r
+    ):
+        """Empirically validate that the give-up threshold matches its
+        claimed failure probability by simulating noisy oracle observations.
+
+        Under H1 (signal present): generate P prefixes with true labels,
+        generate T suffixes (fraction r idempotent), compute agreements with
+        seed, count how many exceed threshold. Give up if count <= exceedance
+        threshold. Verify failure rate ≈ failure_prob.
+        """
+        failure_prob = 0.05
+        T, agreement_threshold, exceedance_threshold = max_suffixes_before_giving_up(
+            signal_strength, num_prefixes, r, failure_prob=failure_prob
+        )
+
+        # Conservative model: center=0.5, p_accept = 0.5+s, p_reject = 0.5-s
+        p_accept = 0.5 + signal_strength
+        p_reject = 0.5 - signal_strength
+
+        num_trials = 2_000
+        rng = np.random.default_rng(42)
+        failures = 0
+
+        for _ in range(num_trials):
+            # 50/50 accept/reject prefixes (worst case for center=0.5)
+            true_labels = rng.random(num_prefixes) < 0.5
+            p_per_prefix = np.where(true_labels, p_accept, p_reject)
+
+            # Seed suffix (idempotent): noisy observation of true labels
+            seed_obs = rng.random(num_prefixes) < p_per_prefix
+
+            # Vectorized: generate all T suffixes at once
+            is_idempotent = rng.random(T) < r
+            # Generate observations for all T suffixes in batch
+            all_obs = rng.random((T, num_prefixes))
+            # Idempotent suffixes use p_per_prefix, others use mean of p_accept and p_reject
+            thresholds = np.where(
+                is_idempotent[:, None], p_per_prefix[None, :], (p_accept + p_reject) / 2
+            )
+            suffix_obs = all_obs < thresholds
+            agreements = (suffix_obs == seed_obs[None, :]).sum(axis=1)
+            exceeding = int((agreements > agreement_threshold).sum())
+
+            if exceeding <= exceedance_threshold:
+                failures += 1
+
+        empirical_failure_rate = failures / num_trials
+        print(
+            f"s={signal_strength}, P={num_prefixes}, r={r}: "
+            f"T={T}, agreement_thresh={agreement_threshold}, "
+            f"exceedance_thresh={exceedance_threshold}, "
+            f"empirical_failure={empirical_failure_rate:.4f}, target={failure_prob}"
+        )
+
+        # The bound should be valid (empirical failure <= claimed)
+        self.assertLess(empirical_failure_rate, failure_prob + 0.02)
+        # And not too conservative (within 5x)
+        self.assertGreater(empirical_failure_rate, failure_prob / 5)
 
 
 class TestLStarORF(unittest.TestCase):

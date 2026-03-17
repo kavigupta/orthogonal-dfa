@@ -58,6 +58,100 @@ def evidence_margin_for_population_size(
     return None
 
 
+def max_suffixes_before_giving_up(
+    signal_strength,
+    num_prefixes,
+    min_suffix_frequency,
+    failure_prob=0.01,
+):
+    """
+    Compute when to give up searching for idempotent suffixes using a
+    one-proportion test against the null hypothesis (no signal, all oracle
+    outputs independent).
+
+    Under null: agreement between any two suffixes ~ Binomial(P, 0.5).
+    Under signal: idempotent suffix agreement ~ Binomial(P, 0.5 + 2s²).
+
+    We set an agreement threshold t and count how many of T suffixes exceed it.
+    Under null, this count ~ Binomial(T, p_null). Under signal,
+    ~ Binomial(T, p_signal) where p_signal > p_null.
+
+    Args:
+        signal_strength: minimum signal strength s
+        num_prefixes: number of prefixes P
+        min_suffix_frequency: lower bound on fraction of idempotent suffixes (r)
+        failure_prob: acceptable probability of false give-up
+
+    Returns:
+        (max_suffixes, agreement_threshold, exceedance_count_threshold):
+        - max_suffixes: sample this many suffixes before checking
+        - agreement_threshold: per-suffix agreement count (out of P) above
+          which a suffix is considered signal-like
+        - exceedance_count_threshold: give up if the number of suffixes
+          exceeding agreement_threshold is <= this value after max_suffixes
+    """
+    r = min_suffix_frequency
+    s = signal_strength
+    P = num_prefixes
+    assert 0 < r <= 1
+    assert s > 0
+
+    # Agreement threshold: 95th percentile of null Binomial(P, 0.5)
+    t = int(scipy.stats.binom.ppf(0.95, P, 0.5))
+    p_null = 1 - scipy.stats.binom.cdf(t, P, 0.5)
+
+    # Conditional on seed, each prefix's agreement prob for an idempotent
+    # suffix is either q_high=0.5+s or q_low=0.5-s. The count of
+    # high-agreement prefixes N_high ~ Binom(P, q_high). This creates
+    # per-trial variance in the exceedance rate that we must integrate over.
+    q_high = min(0.5 + s, 1.0)
+    q_low = max(0.5 - s, 0.0)
+    sigma_agree = np.sqrt(P * q_high * q_low)
+
+    # Precompute p_good_exceed(n) for each possible N_high = n
+    n_values = np.arange(P + 1)
+    n_weights = scipy.stats.binom.pmf(n_values, P, q_high)
+    mu_agree = P * q_low + n_values * (q_high - q_low)
+    p_good_exceed_n = scipy.stats.norm.sf((t + 0.5 - mu_agree) / sigma_agree)
+
+    # Per-suffix exceedance probability conditional on seed quality n
+    p_signal_n = p_null + r * (p_good_exceed_n - p_null)
+    p_signal_n = np.clip(p_signal_n, 1e-15, 1 - 1e-15)
+
+    p_signal_avg = float(np.sum(n_weights * p_signal_n))
+    if p_signal_avg <= p_null * 1.01:
+        return int(1e9), t, 0
+
+    def compute_fail_prob(T):
+        c = int(scipy.stats.binom.ppf(0.95, T, p_null))
+        # P(fail) = E_n[P(Binom(T, p_signal(n)) <= c)]
+        fail_probs = scipy.stats.binom.cdf(c, T, p_signal_n)
+        return float(np.sum(n_weights * fail_probs)), c
+
+    # Binary search for minimum T
+    T_high = 1
+    while True:
+        fp, _ = compute_fail_prob(T_high)
+        if fp <= failure_prob:
+            break
+        T_high *= 2
+        if T_high > 10_000_000:
+            return int(1e9), t, 0
+
+    T_low = max(1, T_high // 2)
+    while T_low < T_high:
+        T_mid = (T_low + T_high) // 2
+        fp, _ = compute_fail_prob(T_mid)
+        if fp <= failure_prob:
+            T_high = T_mid
+        else:
+            T_low = T_mid + 1
+
+    T = T_high
+    _, c = compute_fail_prob(T)
+    return T, t, c
+
+
 def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
     r"""
     Computes the required number of prefixes to achieve a desired misclassification rate
