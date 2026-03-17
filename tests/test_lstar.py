@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch, sample_suffix_family
+from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
@@ -61,10 +61,19 @@ def assertDFA(
 
 
 def compute_dfa_for_oracle(
-    oracle_creator, *, min_signal_strength, seed, noise_model=None
+    oracle_creator,
+    *,
+    min_signal_strength,
+    seed,
+    noise_model=None,
+    min_suffix_frequency=0.05,
 ):
     pst = compute_pst(
-        oracle_creator, min_signal_strength, seed, noise_model=noise_model
+        oracle_creator,
+        min_signal_strength,
+        seed,
+        noise_model=noise_model,
+        min_suffix_frequency=min_suffix_frequency,
     )
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
@@ -73,7 +82,13 @@ def compute_dfa_for_oracle(
 
 
 def compute_pst(
-    oracle_creator, min_signal_strength, seed, *, use_dynamic=True, noise_model=None
+    oracle_creator,
+    min_signal_strength,
+    seed,
+    *,
+    use_dynamic=True,
+    noise_model=None,
+    min_suffix_frequency=0.05,
 ):
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
@@ -92,6 +107,7 @@ def compute_pst(
         suffix_size_counterexample_gen=suffix_size,
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
+        min_suffix_frequency=min_suffix_frequency,
     )
     print(
         f"Using suffix population size {n}, eps {eps}, and {k} prefixes "
@@ -390,15 +406,13 @@ class TestGiveUpThreshold(unittest.TestCase):
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
         noise_model = AsymmetricBernoulli(p_0=0.5, p_1=0.5)
-        pst = compute_pst(oracle_creator, 0.3, 0, noise_model=noise_model)
-        pst.config.min_suffix_frequency = 0.05
-
-        # Sample initial suffixes so there's something to cluster
-        pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
-        v = 0  # seed suffix index
-
         with self.assertRaises(GaveUpOnSuffixSearch):
-            sample_suffix_family(pst, v)
+            compute_dfa_for_oracle(
+                oracle_creator,
+                min_signal_strength=0.3,
+                seed=0,
+                noise_model=noise_model,
+            )
 
 
 class TestLStarORF(unittest.TestCase):

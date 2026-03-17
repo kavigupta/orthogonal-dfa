@@ -24,7 +24,7 @@ class SearchConfig:
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
     split_pval: float = 0.001
-    min_suffix_frequency: Optional[float] = None
+    min_suffix_frequency: float = 0.05
 
 
 @dataclass
