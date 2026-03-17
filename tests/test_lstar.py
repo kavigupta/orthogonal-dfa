@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
+from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch, sample_suffix_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
@@ -381,6 +382,23 @@ class TestGiveUpThreshold(unittest.TestCase):
         self.assertLess(empirical_failure_rate, failure_prob + 0.02)
         # And not too conservative (within 5x)
         self.assertGreater(empirical_failure_rate, failure_prob / 5)
+
+    def test_gives_up_with_no_signal(self):
+        """With p_0 = p_1 = 0.5 (pure coin-flip), the oracle has no signal.
+        The give-up mechanism should detect this and raise GaveUpOnSuffixSearch."""
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.5, p_1=0.5)
+        pst = compute_pst(oracle_creator, 0.3, 0, noise_model=noise_model)
+        pst.config.min_suffix_frequency = 0.05
+
+        # Sample initial suffixes so there's something to cluster
+        pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
+        v = 0  # seed suffix index
+
+        with self.assertRaises(GaveUpOnSuffixSearch):
+            sample_suffix_family(pst, v)
 
 
 class TestLStarORF(unittest.TestCase):

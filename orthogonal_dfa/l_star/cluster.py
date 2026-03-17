@@ -72,16 +72,20 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     max_suffixes = None
     agreement_threshold = None
     exceedance_count_threshold = None
-    if config.min_suffix_frequency is not None:
-        max_suffixes, agreement_threshold, exceedance_count_threshold = (
-            max_suffixes_before_giving_up(
-                config.min_signal_strength,
-                len(pst.prefixes),
-                config.min_suffix_frequency,
-            )
-        )
 
     while True:
+        if config.min_suffix_frequency is not None:
+            max_suffixes, agreement_threshold, exceedance_count_threshold = (
+                max_suffixes_before_giving_up(
+                    config.min_signal_strength,
+                    len(pst.prefixes),
+                    config.min_suffix_frequency,
+                )
+            )
+            print(
+                f"Max suffixes before giving up: {max_suffixes}, "
+                f"agreement threshold: {agreement_threshold}/{len(pst.prefixes)}, "
+            )
         if max_suffixes is not None and len(pst.suffix_bank) >= max_suffixes:
             seed_mask = np.array(pst.corresponding_masks[v])
             masks = np.array(pst.corresponding_masks)
