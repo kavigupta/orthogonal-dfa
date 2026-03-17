@@ -2,10 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import (
-    evidence_margin_for_population_size,
-    max_suffixes_before_giving_up,
-)
+from .statistics import evidence_margin_for_population_size, give_up_check
 
 
 def identify_cluster_around(
@@ -71,27 +68,22 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     config = pst.config
 
     while True:
-        max_suffixes, agreement_threshold, exceedance_count_threshold = (
-            max_suffixes_before_giving_up(
-                config.min_signal_strength,
-                len(pst.prefixes),
-                config.min_suffix_frequency,
-            )
+        result = give_up_check(
+            config.min_signal_strength,
+            len(pst.prefixes),
+            len(pst.suffix_bank),
+            config.min_suffix_frequency,
         )
-        print(
-            f"Max suffixes before giving up: {max_suffixes}, "
-            f"agreement threshold: {agreement_threshold}/{len(pst.prefixes)}, "
-        )
-        if len(pst.suffix_bank) >= max_suffixes:
+        if result is not None:
+            k, threshold = result
             seed_mask = np.array(pst.corresponding_masks[v])
             masks = np.array(pst.corresponding_masks)
             agreements = (masks == seed_mask).sum(axis=1)
-            exceeding = int((agreements > agreement_threshold).sum())
-            if exceeding <= exceedance_count_threshold:
+            top_k_mean = float(np.sort(agreements)[-k:].mean())
+            if top_k_mean <= threshold:
                 raise GaveUpOnSuffixSearch(
-                    f"Sampled {len(pst.suffix_bank)} suffixes (limit {max_suffixes}). "
-                    f"Exceedances: {exceeding} <= {exceedance_count_threshold} "
-                    f"(agreement threshold: {agreement_threshold})"
+                    f"Sampled {len(pst.suffix_bank)} suffixes. "
+                    f"Top-{k} mean agreement {top_k_mean:.1f} <= {threshold:.1f}"
                 )
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary

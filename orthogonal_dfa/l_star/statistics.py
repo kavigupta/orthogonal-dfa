@@ -58,98 +58,75 @@ def evidence_margin_for_population_size(
     return None
 
 
-def max_suffixes_before_giving_up(
+def give_up_check(
     signal_strength,
     num_prefixes,
+    num_suffixes,
     min_suffix_frequency,
     failure_prob=0.01,
 ):
     """
-    Compute when to give up searching for idempotent suffixes using a
-    one-proportion test against the null hypothesis (no signal, all oracle
-    outputs independent).
+    Compute decision parameters for whether to give up suffix search,
+    using a top-k average agreement test.
 
-    Under null: agreement between any two suffixes ~ Binomial(P, 0.5).
-    Under signal: idempotent suffix agreement ~ Binomial(P, 0.5 + 2s²).
+    Split failure_prob into two halves:
+    1. fp/2 to bound k: the minimum number of idempotent suffixes present
+       among num_suffixes, via a Binomial lower bound.
+    2. fp/2 for the agreement threshold: a lower confidence bound on the
+       average agreement of k random idempotent suffixes.
 
-    We set an agreement threshold t and count how many of T suffixes exceed it.
-    Under null, this count ~ Binomial(T, p_null). Under signal,
-    ~ Binomial(T, p_signal) where p_signal > p_null.
+    The top-k suffixes by agreement always have mean >= k random idempotent
+    suffixes (since the top-k from the full set dominates any size-k subset),
+    so using the random-idempotent threshold is conservative.
 
     Args:
         signal_strength: minimum signal strength s
         num_prefixes: number of prefixes P
+        num_suffixes: current number of suffixes T
         min_suffix_frequency: lower bound on fraction of idempotent suffixes (r)
         failure_prob: acceptable probability of false give-up
 
     Returns:
-        (max_suffixes, agreement_threshold, exceedance_count_threshold):
-        - max_suffixes: sample this many suffixes before checking
-        - agreement_threshold: per-suffix agreement count (out of P) above
-          which a suffix is considered signal-like
-        - exceedance_count_threshold: give up if the number of suffixes
-          exceeding agreement_threshold is <= this value after max_suffixes
+        (k, agreement_threshold) or None if insufficient suffixes.
+        - k: number of top suffixes to examine (by agreement with seed)
+        - agreement_threshold: give up if mean agreement of top-k <= this
     """
     r = min_suffix_frequency
     s = signal_strength
     P = num_prefixes
+    T = num_suffixes
     assert 0 < r <= 1
     assert s > 0
 
-    # Agreement threshold: 95th percentile of null Binomial(P, 0.5)
-    t = int(scipy.stats.binom.ppf(0.95, P, 0.5))
-    p_null = 1 - scipy.stats.binom.cdf(t, P, 0.5)
+    # k = lower bound on idempotent suffix count with confidence 1 - fp/2
+    k = int(scipy.stats.binom.ppf(failure_prob / 2, T, r))
+    if k < 2:
+        return None
 
-    # Conditional on seed, each prefix's agreement prob for an idempotent
-    # suffix is either q_high=0.5+s or q_low=0.5-s. The count of
-    # high-agreement prefixes N_high ~ Binom(P, q_high). This creates
-    # per-trial variance in the exceedance rate that we must integrate over.
+    # Under signal, conditional on seed quality N_high ~ Binom(P, q_high):
+    #   each idempotent suffix agreement has mean = P*q_low + N_high*(q_high-q_low)
+    #   and std = sqrt(P * q_high * q_low), independent of seed.
+    # Average of k such suffixes has same conditional mean, std / sqrt(k).
     q_high = min(0.5 + s, 1.0)
     q_low = max(0.5 - s, 0.0)
-    sigma_agree = np.sqrt(P * q_high * q_low)
+    sigma_avg = np.sqrt(P * q_high * q_low / k)
 
-    # Precompute p_good_exceed(n) for each possible N_high = n
+    # Find threshold where P(avg_idempotent < threshold | signal) = fp/2,
+    # integrating over seed quality.
     n_values = np.arange(P + 1)
     n_weights = scipy.stats.binom.pmf(n_values, P, q_high)
-    mu_agree = P * q_low + n_values * (q_high - q_low)
-    p_good_exceed_n = scipy.stats.norm.sf((t + 0.5 - mu_agree) / sigma_agree)
+    mu_n = P * q_low + n_values * (q_high - q_low)
 
-    # Per-suffix exceedance probability conditional on seed quality n
-    p_signal_n = p_null + r * (p_good_exceed_n - p_null)
-    p_signal_n = np.clip(p_signal_n, 1e-15, 1 - 1e-15)
-
-    p_signal_avg = float(np.sum(n_weights * p_signal_n))
-    if p_signal_avg <= p_null * 1.01:
-        return int(1e9), t, 0
-
-    def compute_fail_prob(T):
-        c = int(scipy.stats.binom.ppf(0.95, T, p_null))
-        # P(fail) = E_n[P(Binom(T, p_signal(n)) <= c)]
-        fail_probs = scipy.stats.binom.cdf(c, T, p_signal_n)
-        return float(np.sum(n_weights * fail_probs)), c
-
-    # Binary search for minimum T
-    T_high = 1
-    while True:
-        fp, _ = compute_fail_prob(T_high)
-        if fp <= failure_prob:
-            break
-        T_high *= 2
-        if T_high > 10_000_000:
-            return int(1e9), t, 0
-
-    T_low = max(1, T_high // 2)
-    while T_low < T_high:
-        T_mid = (T_low + T_high) // 2
-        fp, _ = compute_fail_prob(T_mid)
-        if fp <= failure_prob:
-            T_high = T_mid
+    lo, hi = 0.0, float(P)
+    for _ in range(100):
+        mid = (lo + hi) / 2
+        fail = float(np.sum(n_weights * scipy.stats.norm.cdf((mid - mu_n) / sigma_avg)))
+        if fail < failure_prob / 2:
+            lo = mid
         else:
-            T_low = T_mid + 1
+            hi = mid
 
-    T = T_high
-    _, c = compute_fail_prob(T)
-    return T, t, c
+    return k, lo
 
 
 def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
