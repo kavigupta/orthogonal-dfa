@@ -194,6 +194,7 @@ def counterexample_driven_synthesis(
             print("Same DFA twice; stopping synthesis")
             yield dfa, dt, None
             return
+        prev_dfas.append(dfa)
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
