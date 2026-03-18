@@ -180,7 +180,7 @@ def counterexample_driven_synthesis(
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            dt = discover_states(pst)
+            dt = discover_states(pst, first_round=not prev_dfas)
             print(f"Extracted flat decision tree with {dt.num_states} states")
             if dt.num_states > 1:
                 break

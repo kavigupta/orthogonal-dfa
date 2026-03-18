@@ -60,7 +60,7 @@ class GaveUpOnSuffixSearch(Exception):
     """Raised when the suffix search exceeds the give-up threshold."""
 
 
-def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
@@ -70,24 +70,8 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     while True:
         seed_mask = np.array(pst.corresponding_masks[v])
         empirical_pos = float(seed_mask.mean())
-        result = give_up_check(
-            config.min_signal_strength,
-            len(pst.prefixes),
-            len(pst.suffix_bank),
-            config.min_suffix_frequency,
-            config.min_acc_rej,
-            empirical_pos,
-        )
-        if result is not None:
-            k, threshold = result
-            masks = np.array(pst.corresponding_masks)
-            agreements = (masks == seed_mask).mean(axis=1)
-            top_k_mean = float(np.sort(agreements)[-k:].mean())
-            if top_k_mean <= threshold:
-                raise GaveUpOnSuffixSearch(
-                    f"Sampled {len(pst.suffix_bank)} suffixes. "
-                    f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
-                )
+        if first_round:
+            _give_up_check(pst, config, seed_mask, empirical_pos)
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
@@ -120,3 +104,24 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
         else:
             pst.sample_more_prefixes()
+
+
+def _give_up_check(pst, config, seed_mask, empirical_pos):
+    result = give_up_check(
+        config.min_signal_strength,
+        len(pst.prefixes),
+        len(pst.suffix_bank),
+        config.min_suffix_frequency,
+        config.min_acc_rej,
+        empirical_pos,
+    )
+    if result is not None:
+        k, threshold = result
+        masks = np.array(pst.corresponding_masks)
+        agreements = (masks == seed_mask).mean(axis=1)
+        top_k_mean = float(np.sort(agreements)[-k:].mean())
+        if top_k_mean <= threshold:
+            raise GaveUpOnSuffixSearch(
+                f"Sampled {len(pst.suffix_bank)} suffixes. "
+                f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
+            )
