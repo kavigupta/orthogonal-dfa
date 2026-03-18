@@ -176,11 +176,12 @@ def generate_counterexamples(
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
-    prev_dfas = []
+    first_round = True
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            dt = discover_states(pst, first_round=not prev_dfas)
+            dt = discover_states(pst, first_round=first_round)
+            first_round = False
             print(f"Extracted flat decision tree with {dt.num_states} states")
             if dt.num_states > 1:
                 break
@@ -188,13 +189,6 @@ def counterexample_driven_synthesis(
         acc, dfa = optimal_dfa(pst, dt)
         print("DFA found!")
         print(dfa)
-        if any(
-            dfa.issubset(prev_dfa) and prev_dfa.issubset(dfa) for prev_dfa in prev_dfas
-        ):
-            print("Same DFA twice; stopping synthesis")
-            yield dfa, dt, None
-            return
-        prev_dfas.append(dfa)
         if acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
