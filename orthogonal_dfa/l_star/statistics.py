@@ -63,33 +63,21 @@ def give_up_check(
     num_prefixes,
     num_suffixes,
     min_suffix_frequency,
+    min_acc_rej,
+    empirical_pos,
     failure_prob=0.01,
 ):
     """
-    Compute decision parameters for whether to give up suffix search,
-    using a top-k average agreement test.
+    Checks whether we should give up on finding suffixes based on the parameters of the problem and the empirical agreement with the seed.
 
-    Split failure_prob into two halves:
-    1. fp/2 to bound k: the minimum number of idempotent suffixes present
-       among num_suffixes, via a Binomial lower bound.
-    2. fp/2 for the agreement threshold: a lower confidence bound on the
-       average agreement of k random idempotent suffixes.
-
-    The top-k suffixes by agreement always have mean >= k random idempotent
-    suffixes (since the top-k from the full set dominates any size-k subset),
-    so using the random-idempotent threshold is conservative.
-
-    Args:
-        signal_strength: minimum signal strength s
-        num_prefixes: number of prefixes P
-        num_suffixes: current number of suffixes T
-        min_suffix_frequency: lower bound on fraction of idempotent suffixes (r)
-        failure_prob: acceptable probability of false give-up
-
-    Returns:
-        (k, agreement_threshold) or None if insufficient suffixes.
-        - k: number of top suffixes to examine (by agreement with seed)
-        - agreement_threshold: give up if mean agreement of top-k <= this
+    :param signal_strength: The minimum signal strength we are trying to detect.
+    :param num_prefixes: The number of prefixes we have.
+    :param num_suffixes: The number of suffixes we have sampled so far.
+    :param min_suffix_frequency: The minimum frequency of suffixes we are trying to find.
+    :param min_acc_rej: The minimum of the accept and reject rates of the prefixes.
+    :param empirical_pos: The empirical positive rate of the prefixes.
+    :param failure_prob: The probability with which we are willing to fail to find a good suffix.
+    :return: A tuple of (k, agreement_threshold). We should give up if ``mean([mask[i] == mask[0] for i in top_k]) < agreement_threshold``.
     """
     r = min_suffix_frequency
     s = signal_strength
@@ -98,35 +86,64 @@ def give_up_check(
     assert 0 < r <= 1
     assert s > 0
 
-    # k = lower bound on idempotent suffix count with confidence 1 - fp/2
-    k = int(scipy.stats.binom.ppf(failure_prob / 2, T, r))
+    # k = lower bound on number of idempotent suffixes.
+    # We can assume that the top k are idempotent, because the ones
+    # that aren't are better than a random idempotent suffix anyway,
+    # so this is a conservative threshold.
+    k = int(scipy.stats.binom.ppf(failure_prob / 3, T, r))
     if k < 2:
         return None
 
-    # Under signal, conditional on seed quality N_high ~ Binom(P, q_high):
-    #   each idempotent suffix agreement has mean = P*q_low + N_high*(q_high-q_low)
-    #   and std = sqrt(P * q_high * q_low), independent of seed.
-    # Average of k such suffixes has same conditional mean, std / sqrt(k).
-    q_high = min(0.5 + s, 1.0)
-    q_low = max(0.5 - s, 0.0)
-    sigma_avg = np.sqrt(P * q_high * q_low / k)
+    # We now know we have at least k idempotent suffixes, but these are noisy.
+    # Specifically, each has v_{ij} ~ B(center + s) if prefix i is accept, and v_{ij} ~ B(center - s) if prefix i is reject.
+    # This means if we let w_{ij} = v_{ij} == v_{0j} (agreement with seed),
+    #    we have that w_{ij} = 1 iff either
+    #        - prefix i is accept and two samples from B(center + s) agree
+    #        - prefix i is reject and two samples from B(center - s) agree
+    # The probability that two samples from B(p) agree is a(p) = p^2 + (1-p)^2 = 2p^2 - 2p + 1 = 1 - 2p(1-p).
+    # This is a quadratic with minimum at p=0.5, where it equals 0.5, and it increases as p goes to 0 or 1.
+    # As such, we have that w_{ij} = 1 with probability
+    #       p_same
+    #           = p_acc * a(c + s) + (1 - p_acc) * a(c - s)
+    #           = p_acc * (1 - 2(c + s)(1 - (c + s))) + (1 - p_acc) * (1 - 2(c - s)(1 - (c - s)))
+    #           = 1 - 2 * p_acc * ((c + s)(1 - (c + s)) - (c - s)(1 - (c - s)))
+    # One thing is that we know the quantity of empriical positives the oracle on the prefixes:
+    #       empirical_pos = p_acc * (c + s) + (1 - p_acc) * (c - s)
+    # So if we subtract out the expected agreement based on the empirical positive rate, we get
+    #       p_same - a(empirical_pos)
+    # Which we can simplify (see _give_up_check_sym) to
+    #       8*p_acc (1 - p_acc) s^2
+    # This is minimized when p_acc is minimized
+    # We can thus compute
+    def a(p):
+        return 1 - 2 * p * (1 - p)
 
-    # Find threshold where P(avg_idempotent < threshold | signal) = fp/2,
-    # integrating over seed quality.
-    n_values = np.arange(P + 1)
-    n_weights = scipy.stats.binom.pmf(n_values, P, q_high)
-    mu_n = P * q_low + n_values * (q_high - q_low)
+    p_same = 8 * min_acc_rej * (1 - min_acc_rej) * s**2 + a(empirical_pos)
 
-    lo, hi = 0.0, float(P)
-    for _ in range(100):
-        mid = (lo + hi) / 2
-        fail = float(np.sum(n_weights * scipy.stats.norm.cdf((mid - mu_n) / sigma_avg)))
-        if fail < failure_prob / 2:
-            lo = mid
-        else:
-            hi = mid
+    # We want to give up if the top-k mean agreement is less than p_same, which is the expected agreement of a random idempotent suffix.
+    # The top-k mean agreement can be computed as
+    # sum_ij w_{ij} / (kP)
+    # Which is just a binomial distribution with kP trials and probability p_same, divided by kP.
+    agreement_threshold = scipy.stats.binom.ppf(1 - failure_prob / 3, k * P, p_same) / (
+        k * P
+    )
+    return k, agreement_threshold
 
-    return k, lo
+
+def _give_up_check_sym():
+    import sympy
+
+    center = sympy.Symbol("center")
+    s = sympy.Symbol("s")
+    p_acc = sympy.Symbol("p_acc")
+    a = lambda p: 1 - 2 * p * (1 - p)
+    expr = p_acc * a(center + s) + (1 - p_acc) * a(center - s)
+    print("correlation", sympy.simplify(expr))
+    empirical_pos = p_acc * (center + s) + (1 - p_acc) * (center - s)
+    expected = a(empirical_pos)
+    print("expected", sympy.simplify(expected))
+    delta = sympy.simplify(expr - expected)
+    print("delta", delta)
 
 
 def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
