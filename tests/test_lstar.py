@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from parameterized import parameterized
 
+from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
@@ -17,6 +18,7 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     compute_prefix_set_size,
     compute_suffix_size_counterexample_gen,
+    give_up_check,
     population_size_and_evidence_margin,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
@@ -59,10 +61,19 @@ def assertDFA(
 
 
 def compute_dfa_for_oracle(
-    oracle_creator, *, min_signal_strength, seed, noise_model=None
+    oracle_creator,
+    *,
+    min_signal_strength,
+    seed,
+    noise_model=None,
+    min_suffix_frequency=0.05,
 ):
     pst = compute_pst(
-        oracle_creator, min_signal_strength, seed, noise_model=noise_model
+        oracle_creator,
+        min_signal_strength,
+        seed,
+        noise_model=noise_model,
+        min_suffix_frequency=min_suffix_frequency,
     )
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
@@ -71,7 +82,13 @@ def compute_dfa_for_oracle(
 
 
 def compute_pst(
-    oracle_creator, min_signal_strength, seed, *, use_dynamic=True, noise_model=None
+    oracle_creator,
+    min_signal_strength,
+    seed,
+    *,
+    use_dynamic=True,
+    noise_model=None,
+    min_suffix_frequency=0.05,
 ):
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
@@ -90,6 +107,7 @@ def compute_pst(
         suffix_size_counterexample_gen=suffix_size,
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
+        min_suffix_frequency=min_suffix_frequency,
     )
     print(
         f"Using suffix population size {n}, eps {eps}, and {k} prefixes "
@@ -311,6 +329,94 @@ class TestLStarAsymmetric(unittest.TestCase):
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
+
+
+class TestGiveUpThreshold(unittest.TestCase):
+
+    @parameterized.expand(
+        [
+            # (signal, P, r, min_acc_rej, center)
+            (0.25, 200, 0.10, 0.5, 0.5),
+            (0.30, 200, 0.10, 0.5, 0.5),
+            (0.30, 100, 0.10, 0.5, 0.5),
+            # Asymmetric: center=0.65, min_acc_rej=0.2
+            (0.30, 200, 0.10, 0.2, 0.65),
+        ]
+    )
+    def test_rarely_gives_up_when_evidence_present(  # pylint: disable=too-many-positional-arguments
+        self, signal_strength, num_prefixes, r, min_acc_rej, center
+    ):
+        """Empirically validate that the give-up check matches its claimed
+        failure probability. Under signal, the top-k mean agreement should
+        almost always exceed the threshold."""
+        failure_prob = 0.05
+        num_suffixes = 200
+        p_accept = center + signal_strength
+        p_reject = center - signal_strength
+        empirical_pos = min_acc_rej * p_accept + (1 - min_acc_rej) * p_reject
+
+        result = give_up_check(
+            signal_strength,
+            num_prefixes,
+            num_suffixes,
+            r,
+            min_acc_rej,
+            empirical_pos,
+            failure_prob=failure_prob,
+        )
+        self.assertIsNotNone(result, "k too small")
+        k, threshold = result
+
+        num_trials = 5_000
+        rng = np.random.default_rng(42)
+        failures = 0
+
+        for _ in range(num_trials):
+            true_labels = rng.random(num_prefixes) < min_acc_rej
+            p_per_prefix = np.where(true_labels, p_accept, p_reject)
+            seed_obs = rng.random(num_prefixes) < p_per_prefix
+
+            is_idempotent = rng.random(num_suffixes) < r
+            all_obs = rng.random((num_suffixes, num_prefixes))
+            thresh = np.where(
+                is_idempotent[:, None],
+                p_per_prefix[None, :],
+                empirical_pos,
+            )
+            suffix_obs = all_obs < thresh
+            agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
+            top_k_mean = np.sort(agreements)[-k:].mean()
+
+            if top_k_mean <= threshold:
+                failures += 1
+
+        empirical_failure_rate = failures / num_trials
+        print(
+            f"s={signal_strength}, P={num_prefixes}, r={r}, "
+            f"min_acc_rej={min_acc_rej}, T={num_suffixes}: "
+            f"k={k}, threshold={threshold:.4f}, "
+            f"empirical_failure={empirical_failure_rate:.4f}, "
+            f"target={failure_prob}"
+        )
+
+        # The bound is conservative (top-k >= random idempotent
+        # suffixes), so we only check the upper bound.
+        self.assertLess(empirical_failure_rate, failure_prob + 0.02)
+
+    def test_gives_up_with_no_signal(self):
+        """With p_0 = p_1 = 0.5 (pure coin-flip), the oracle has no signal.
+        The give-up mechanism should detect this and raise GaveUpOnSuffixSearch."""
+        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
+            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.5, p_1=0.5)
+        with self.assertRaises(GaveUpOnSuffixSearch):
+            compute_dfa_for_oracle(
+                oracle_creator,
+                min_signal_strength=0.3,
+                seed=0,
+                noise_model=noise_model,
+            )
 
 
 class TestLStarORF(unittest.TestCase):
