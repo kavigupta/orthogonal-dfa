@@ -58,26 +58,34 @@ def evidence_margin_for_population_size(
     return None
 
 
-def give_up_check(
+def give_up_check(  # pylint: disable=too-many-positional-arguments
     signal_strength,
     num_prefixes,
     num_suffixes,
     min_suffix_frequency,
     min_acc_rej,
     empirical_pos,
+    *,
     failure_prob=0.01,
 ):
     """
-    Checks whether we should give up on finding suffixes based on the parameters of the problem and the empirical agreement with the seed.
+    Checks whether we should give up on finding suffixes based on the
+    parameters of the problem and the empirical agreement with the seed.
 
-    :param signal_strength: The minimum signal strength we are trying to detect.
+    :param signal_strength: The minimum signal strength we are trying
+        to detect.
     :param num_prefixes: The number of prefixes we have.
     :param num_suffixes: The number of suffixes we have sampled so far.
-    :param min_suffix_frequency: The minimum frequency of suffixes we are trying to find.
-    :param min_acc_rej: The minimum of the accept and reject rates of the prefixes.
+    :param min_suffix_frequency: The minimum frequency of suffixes we
+        are trying to find.
+    :param min_acc_rej: The minimum of the accept and reject rates of
+        the prefixes.
     :param empirical_pos: The empirical positive rate of the prefixes.
-    :param failure_prob: The probability with which we are willing to fail to find a good suffix.
-    :return: A tuple of (k, agreement_threshold). We should give up if ``mean([mask[i] == mask[0] for i in top_k]) < agreement_threshold``.
+    :param failure_prob: The probability with which we are willing to
+        fail to find a good suffix.
+    :return: A tuple of (k, agreement_threshold). We should give up if
+        ``mean([mask[i] == mask[0] for i in top_k])
+        < agreement_threshold``.
     """
     r = min_suffix_frequency
     s = signal_strength
@@ -94,40 +102,43 @@ def give_up_check(
     if k < 2:
         return None
 
-    # We now know we have at least k idempotent suffixes, but these are noisy.
-    # Specifically, each has v_{ij} ~ B(center + s) if prefix i is accept, and v_{ij} ~ B(center - s) if prefix i is reject.
-    # This means if we let w_{ij} = v_{ij} == v_{0j} (agreement with seed),
-    #    we have that w_{ij} = 1 iff either
-    #        - prefix i is accept and two samples from B(center + s) agree
-    #        - prefix i is reject and two samples from B(center - s) agree
-    # The probability that two samples from B(p) agree is a(p) = p^2 + (1-p)^2 = 2p^2 - 2p + 1 = 1 - 2p(1-p).
-    # This is a quadratic with minimum at p=0.5, where it equals 0.5, and it increases as p goes to 0 or 1.
+    # We now know we have at least k idempotent suffixes, but these
+    # are noisy.  Specifically, each has v_{ij} ~ B(center + s) if
+    # prefix i is accept, and v_{ij} ~ B(center - s) if prefix i is
+    # reject.  This means if we let w_{ij} = v_{ij} == v_{0j}
+    # (agreement with seed), we have that w_{ij} = 1 iff either
+    #   - prefix i is accept and two samples from B(center + s) agree
+    #   - prefix i is reject and two samples from B(center - s) agree
+    # The probability that two samples from B(p) agree is
+    #   a(p) = p^2 + (1-p)^2 = 2p^2 - 2p + 1 = 1 - 2p(1-p).
+    # This is a quadratic with minimum at p=0.5, where it equals 0.5,
+    # and it increases as p goes to 0 or 1.
     # As such, we have that w_{ij} = 1 with probability
-    #       p_same
-    #           = p_acc * a(c + s) + (1 - p_acc) * a(c - s)
-    #           = p_acc * (1 - 2(c + s)(1 - (c + s))) + (1 - p_acc) * (1 - 2(c - s)(1 - (c - s)))
-    #           = 1 - 2 * p_acc * ((c + s)(1 - (c + s)) - (c - s)(1 - (c - s)))
-    # One thing is that we know the quantity of empriical positives the oracle on the prefixes:
-    #       empirical_pos = p_acc * (c + s) + (1 - p_acc) * (c - s)
-    # So if we subtract out the expected agreement based on the empirical positive rate, we get
-    #       p_same - a(empirical_pos)
+    #   p_same
+    #     = p_acc * a(c + s) + (1 - p_acc) * a(c - s)
+    # One thing is that we know the empirical positives the oracle
+    # produces on the prefixes:
+    #   empirical_pos = p_acc * (c + s) + (1 - p_acc) * (c - s)
+    # So if we subtract out the expected agreement based on the
+    # empirical positive rate, we get
+    #   p_same - a(empirical_pos)
     # Which we can simplify (see _give_up_check_sym) to
-    #       8*p_acc (1 - p_acc) s^2
-    # This is minimized when p_acc is minimized
+    #   8*p_acc (1 - p_acc) s^2
+    # This is minimized when p_acc is minimized.
     # We can thus compute
     def a(p):
         return 1 - 2 * p * (1 - p)
 
     p_same = 8 * min_acc_rej * (1 - min_acc_rej) * s**2 + a(empirical_pos)
 
-    # We want to give up if the top-k mean agreement is less than p_same, which is the expected agreement of a random idempotent suffix.
-    # The top-k mean agreement can be computed as
+    # We want to give up if the top-k mean agreement is less than
+    # p_same, which is the expected agreement of a random idempotent
+    # suffix.  The top-k mean agreement can be computed as
     # sum_ij w_{ij} / (kP)
-    # Which is just a binomial distribution with kP trials and probability p_same, divided by kP.
-    agreement_threshold = scipy.stats.binom.ppf(1 - failure_prob / 3, k * P, p_same) / (
-        k * P
-    )
-    return k, agreement_threshold
+    # Which is just a binomial distribution with kP trials and
+    # probability p_same, divided by kP.
+    threshold = scipy.stats.binom.ppf(failure_prob / 3, k * P, p_same) / (k * P)
+    return k, threshold
 
 
 def _give_up_check_sym():

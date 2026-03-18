@@ -68,22 +68,25 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     config = pst.config
 
     while True:
+        seed_mask = np.array(pst.corresponding_masks[v])
+        empirical_pos = float(seed_mask.mean())
         result = give_up_check(
             config.min_signal_strength,
             len(pst.prefixes),
             len(pst.suffix_bank),
             config.min_suffix_frequency,
+            config.min_acc_rej,
+            empirical_pos,
         )
         if result is not None:
             k, threshold = result
-            seed_mask = np.array(pst.corresponding_masks[v])
             masks = np.array(pst.corresponding_masks)
-            agreements = (masks == seed_mask).sum(axis=1)
+            agreements = (masks == seed_mask).mean(axis=1)
             top_k_mean = float(np.sort(agreements)[-k:].mean())
             if top_k_mean <= threshold:
                 raise GaveUpOnSuffixSearch(
                     f"Sampled {len(pst.suffix_bank)} suffixes. "
-                    f"Top-{k} mean agreement {top_k_mean:.1f} <= {threshold:.1f}"
+                    f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
                 )
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary

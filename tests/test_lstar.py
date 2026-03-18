@@ -332,35 +332,47 @@ class TestLStarAsymmetric(unittest.TestCase):
 
 
 class TestGiveUpThreshold(unittest.TestCase):
+
     @parameterized.expand(
         [
-            (0.25, 200, 0.10, 200),
-            (0.30, 200, 0.10, 200),
-            (0.30, 100, 0.10, 200),
+            # (signal, P, r, min_acc_rej, center)
+            (0.25, 200, 0.10, 0.5, 0.5),
+            (0.30, 200, 0.10, 0.5, 0.5),
+            (0.30, 100, 0.10, 0.5, 0.5),
+            # Asymmetric: center=0.65, min_acc_rej=0.2
+            (0.30, 200, 0.10, 0.2, 0.65),
         ]
     )
-    def test_rarely_gives_up_when_evidence_present(
-        self, signal_strength, num_prefixes, r, num_suffixes
+    def test_rarely_gives_up_when_evidence_present(  # pylint: disable=too-many-positional-arguments
+        self, signal_strength, num_prefixes, r, min_acc_rej, center
     ):
         """Empirically validate that the give-up check matches its claimed
         failure probability. Under signal, the top-k mean agreement should
         almost always exceed the threshold."""
         failure_prob = 0.05
-        result = give_up_check(
-            signal_strength, num_prefixes, num_suffixes, r, failure_prob=failure_prob
-        )
-        self.assertIsNotNone(result, "k too small — need more suffixes for test")
-        k, threshold = result
+        num_suffixes = 200
+        p_accept = center + signal_strength
+        p_reject = center - signal_strength
+        empirical_pos = min_acc_rej * p_accept + (1 - min_acc_rej) * p_reject
 
-        p_accept = 0.5 + signal_strength
-        p_reject = 0.5 - signal_strength
+        result = give_up_check(
+            signal_strength,
+            num_prefixes,
+            num_suffixes,
+            r,
+            min_acc_rej,
+            empirical_pos,
+            failure_prob=failure_prob,
+        )
+        self.assertIsNotNone(result, "k too small")
+        k, threshold = result
 
         num_trials = 5_000
         rng = np.random.default_rng(42)
         failures = 0
 
         for _ in range(num_trials):
-            true_labels = rng.random(num_prefixes) < 0.5
+            true_labels = rng.random(num_prefixes) < min_acc_rej
             p_per_prefix = np.where(true_labels, p_accept, p_reject)
             seed_obs = rng.random(num_prefixes) < p_per_prefix
 
@@ -369,10 +381,10 @@ class TestGiveUpThreshold(unittest.TestCase):
             thresh = np.where(
                 is_idempotent[:, None],
                 p_per_prefix[None, :],
-                (p_accept + p_reject) / 2,
+                empirical_pos,
             )
             suffix_obs = all_obs < thresh
-            agreements = (suffix_obs == seed_obs[None, :]).sum(axis=1)
+            agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
             top_k_mean = np.sort(agreements)[-k:].mean()
 
             if top_k_mean <= threshold:
@@ -380,13 +392,15 @@ class TestGiveUpThreshold(unittest.TestCase):
 
         empirical_failure_rate = failures / num_trials
         print(
-            f"s={signal_strength}, P={num_prefixes}, r={r}, T={num_suffixes}: "
-            f"k={k}, threshold={threshold:.1f}, "
-            f"empirical_failure={empirical_failure_rate:.4f}, target={failure_prob}"
+            f"s={signal_strength}, P={num_prefixes}, r={r}, "
+            f"min_acc_rej={min_acc_rej}, T={num_suffixes}: "
+            f"k={k}, threshold={threshold:.4f}, "
+            f"empirical_failure={empirical_failure_rate:.4f}, "
+            f"target={failure_prob}"
         )
 
-        # The bound is conservative (top-k >= random idempotent suffixes),
-        # so we only check the upper bound.
+        # The bound is conservative (top-k >= random idempotent
+        # suffixes), so we only check the upper bound.
         self.assertLess(empirical_failure_rate, failure_prob + 0.02)
 
     def test_gives_up_with_no_signal(self):
