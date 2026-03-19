@@ -6,6 +6,7 @@ standard L* to learn a DFA. This serves as a baseline comparison
 against the orthonormal L* approach.
 """
 
+import random
 from typing import List
 
 from aalpy.base import SUL
@@ -46,6 +47,7 @@ def run_baseline_lstar(oracle: Oracle, *, max_states=None):
             When hit, the table is treated as closed and a hypothesis is built
             with unclosed rows mapped to the nearest S-row by suffix signature.
     """
+    random.seed(0)
     alphabet = list(range(oracle.alphabet_size))
     sul = OracleSUL(oracle)
     eq_oracle = RandomWordEqOracle(
