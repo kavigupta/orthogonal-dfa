@@ -38,9 +38,10 @@ def sample_with_exclusion(exclude_pattern, *, symbols, count):
     return results
 
 
-def assertDFA(
-    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
+def evaluate_accuracy(
+    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
 ):
+    """Return accuracy of dfa against a noiseless oracle."""
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     false_positives, false_negatives = [], []
     for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
@@ -50,13 +51,22 @@ def assertDFA(
             false_negatives.append(s)
         elif not expected and actual:
             false_positives.append(s)
-    if len(false_positives) + len(false_negatives) > allowed_error * count:
-        print("DFA is incorrect!")
-        print(dfa)
-        print(f"False positives: {false_positives}")
-        print(f"False negatives: {false_negatives}")
+    return 1 - (len(false_positives) + len(false_negatives)) / count
+
+
+def assertDFA(
+    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
+):
+    accuracy = evaluate_accuracy(
+        dfa,
+        oracle_creator,
+        exclude_pattern=exclude_pattern,
+        symbols=symbols,
+        count=count,
+    )
+    if accuracy < 1 - allowed_error:
         testcase.fail(
-            f"DFA incorrect. False positives: {len(false_positives)}, False negatives: {len(false_negatives)}"
+            f"DFA incorrect. Accuracy: {accuracy:.4f} (threshold: {1 - allowed_error})"
         )
 
 
