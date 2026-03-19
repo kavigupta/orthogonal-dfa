@@ -10,9 +10,7 @@ from aalpy.automata import Dfa, DfaState
 from aalpy.base import SUL
 from aalpy.base.Oracle import Oracle
 from aalpy.base.SUL import CacheSUL
-from aalpy.learning_algs.deterministic.CounterExampleProcessing import (
-    rs_cex_processing,
-)
+from aalpy.learning_algs.deterministic.CounterExampleProcessing import rs_cex_processing
 from aalpy.learning_algs.deterministic.ObservationTable import ObservationTable
 from aalpy.utils.HelperFunctions import extend_set
 

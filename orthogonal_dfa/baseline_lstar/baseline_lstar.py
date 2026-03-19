@@ -12,8 +12,9 @@ from aalpy.base import SUL
 from aalpy.oracles import RandomWordEqOracle
 from automata.fa.dfa import DFA
 
-from .baseline_lstar_loop import run_lstar_with_max_states
 from orthogonal_dfa.l_star.structures import Oracle
+
+from .baseline_lstar_loop import run_lstar_with_max_states
 
 
 class OracleSUL(SUL):
@@ -48,11 +49,18 @@ def run_baseline_lstar(oracle: Oracle, *, max_states=None):
     alphabet = list(range(oracle.alphabet_size))
     sul = OracleSUL(oracle)
     eq_oracle = RandomWordEqOracle(
-        alphabet, sul, num_walks=5000, min_walk_len=5, max_walk_len=50,
+        alphabet,
+        sul,
+        num_walks=5000,
+        min_walk_len=5,
+        max_walk_len=50,
     )
 
     learned = run_lstar_with_max_states(
-        alphabet, sul, eq_oracle, max_states=max_states,
+        alphabet,
+        sul,
+        eq_oracle,
+        max_states=max_states,
     )
 
     return aalpy_dfa_to_automata_lib(learned, alphabet)

@@ -19,7 +19,6 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
-
 from tests.test_lstar import assertDFA, evaluate_accuracy
 
 us = UniformSampler(40)
