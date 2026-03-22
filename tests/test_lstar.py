@@ -38,10 +38,10 @@ def sample_with_exclusion(exclude_pattern, *, symbols, count):
     return results
 
 
-def evaluate_accuracy(
+def compute_dfa_accuracy(
     dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
 ):
-    """Return accuracy of dfa against a noiseless oracle."""
+    """Evaluate dfa against a noiseless oracle. Returns (accuracy, false_positives, false_negatives)."""
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     false_positives, false_negatives = [], []
     for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
@@ -51,22 +51,33 @@ def evaluate_accuracy(
             false_negatives.append(s)
         elif not expected and actual:
             false_positives.append(s)
-    return 1 - (len(false_positives) + len(false_negatives)) / count
+    accuracy = 1 - (len(false_positives) + len(false_negatives)) / count
+    return accuracy, false_positives, false_negatives
+
+
+def evaluate_accuracy(
+    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
+):
+    """Return accuracy of dfa against a noiseless oracle."""
+    accuracy, _, _ = compute_dfa_accuracy(
+        dfa, oracle_creator, exclude_pattern, symbols, count
+    )
+    return accuracy
 
 
 def assertDFA(
     testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
 ):
-    accuracy = evaluate_accuracy(
-        dfa,
-        oracle_creator,
-        exclude_pattern=exclude_pattern,
-        symbols=symbols,
-        count=count,
+    accuracy, false_positives, false_negatives = compute_dfa_accuracy(
+        dfa, oracle_creator, exclude_pattern, symbols, count
     )
     if accuracy < 1 - allowed_error:
+        print("DFA is incorrect!")
+        print(dfa)
+        print(f"False positives: {false_positives}")
+        print(f"False negatives: {false_negatives}")
         testcase.fail(
-            f"DFA incorrect. Accuracy: {accuracy:.4f} (threshold: {1 - allowed_error})"
+            f"DFA incorrect. False positives: {len(false_positives)}, False negatives: {len(false_negatives)}"
         )
 
 
