@@ -28,6 +28,7 @@ setuptools.setup(
         "scikit-learn==1.5.1",
         "permacache==5.0.1",
         "frozendict==2.4.6",
+        "aalpy==1.5.3",
     ],
     # documentation
     project_urls={
