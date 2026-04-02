@@ -13,6 +13,7 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
+        print("Cluster center mean:", cluster_center.mean())
         losses = (masks != cluster_center).sum(1)
         cluster = losses.argsort()[:count]
         if seed not in cluster:
@@ -22,24 +23,24 @@ def identify_cluster_around(
             break
         loss = new_loss
 
-    # Estimate decision boundary from the prefix separation
-    prefix_means = masks[cluster].mean(0)
-    accept_prefixes = prefix_means[cluster_center]
-    reject_prefixes = prefix_means[~cluster_center]
-    accept_mean = (
-        accept_prefixes.mean() if len(accept_prefixes) > 0 else decision_boundary
-    )
-    reject_mean = (
-        reject_prefixes.mean() if len(reject_prefixes) > 0 else decision_boundary
-    )
-    if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
-        decision_boundary = (accept_mean + reject_mean) / 2
-    elif len(accept_prefixes) > 0:
-        # didn't find any rejects, so just put the boundary in the middle of the accepts
-        decision_boundary = accept_mean
-    elif len(reject_prefixes) > 0:
-        # symmetric to above
-        decision_boundary = reject_mean
+        # Estimate decision boundary from the prefix separation
+        prefix_means = masks[cluster].mean(0)
+        accept_prefixes = prefix_means[cluster_center]
+        reject_prefixes = prefix_means[~cluster_center]
+        accept_mean = (
+            accept_prefixes.mean() if len(accept_prefixes) > 0 else decision_boundary
+        )
+        reject_mean = (
+            reject_prefixes.mean() if len(reject_prefixes) > 0 else decision_boundary
+        )
+        if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
+            decision_boundary = (accept_mean + reject_mean) / 2
+        elif len(accept_prefixes) > 0:
+            # didn't find any rejects, so just put the boundary in the middle of the accepts
+            decision_boundary = accept_mean
+        elif len(reject_prefixes) > 0:
+            # symmetric to above
+            decision_boundary = reject_mean
 
     return cluster.tolist(), decision_boundary
 
@@ -82,7 +83,7 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
             decision_boundary,
         )
 
-        fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
+        fnr = 1.01 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
         if fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
