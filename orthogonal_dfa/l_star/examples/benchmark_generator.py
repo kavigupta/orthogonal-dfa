@@ -146,17 +146,16 @@ def sample_balanced_benchmark(
     *,
     alphabet_size: int,
     num_inner_states: int,
-    num_accepting: int,
-    max_outer_states: int,
+    num_outer_states: int,
     probe_length: int,
     min_accept_or_reject: float,
     num_probe_samples: int = 200,
     max_attempts: int = 10_000,
 ) -> Tuple[DFA, DFA, int]:
-    """Sample a ``Σ*LΣ*`` benchmark whose outer DFA passes the given filters.
+    """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
     Tries successive sub-seeds derived from *seed* until one produces a DFA
-    whose state count and accept rate fall within the requested bounds.
+    with exactly ``num_outer_states`` states and a balanced accept rate.
 
     Each candidate gets a fresh RNG so that the filtering process does not
     contaminate the randomness of the chosen benchmark.
@@ -166,9 +165,7 @@ def sample_balanced_benchmark(
     seed : top-level seed; the i-th candidate uses ``np.random.default_rng((seed, i))``.
     alphabet_size : |Σ| of the inner / outer DFAs.
     num_inner_states : pre-minimisation state count for the inner DFA.
-    num_accepting : number of accepting states in the inner DFA.
-    max_outer_states : inclusive upper bound on the size of the minimised
-        ``Σ*LΣ*`` DFA.
+    num_outer_states : exact number of states in the minimised ``Σ*LΣ*`` DFA.
     probe_length : length of random strings used to estimate the accept rate.
     min_accept_or_reject : minimum fraction of probe strings that must be in
         each class — i.e. the empirical accept rate must lie in
@@ -180,9 +177,6 @@ def sample_balanced_benchmark(
     ------
     RuntimeError if no candidate passes the filters within ``max_attempts``.
     """
-    # Hardcode the lower bound on outer DFA size — anything smaller is trivial
-    # (1 state = constant function, 2 states = depends on a single character).
-    min_outer_states = 3
     sampler = UniformSampler(probe_length)
     probe_rng = np.random.default_rng(seed)
     for sub in range(max_attempts):
@@ -191,9 +185,8 @@ def sample_balanced_benchmark(
             rng,
             num_inner_states=num_inner_states,
             alphabet_size=alphabet_size,
-            num_accepting=num_accepting,
         )
-        if not min_outer_states <= len(outer.states) <= max_outer_states:
+        if len(outer.states) != num_outer_states:
             continue
         rate = (
             sum(
