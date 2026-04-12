@@ -11,9 +11,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     sample_star_l_star,
 )
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
-
-from tests.test_lstar import assertDFA, compute_dfa_accuracy, compute_dfa_for_oracle
-
+from tests.test_lstar import compute_dfa_accuracy, compute_dfa_for_oracle
 
 # ===================================================================
 # Inner DFA sampling
@@ -42,7 +40,8 @@ class TestSampleInnerDFA(unittest.TestCase):
             )
             for q in dfa.states:
                 self.assertNotIn(
-                    dfa.transitions[q][sep_char], dfa.final_states,
+                    dfa.transitions[q][sep_char],
+                    dfa.final_states,
                     f"δ({q}, {sep_char}) ∈ F",
                 )
             self.assertNotIn(dfa.initial_state, dfa.final_states)
@@ -76,9 +75,7 @@ class TestBuildStarLStarDFA(unittest.TestCase):
     @parameterized.expand([(seed,) for seed in range(20)])
     def test_matches_brute_force(self, seed):
         rng = np.random.default_rng(seed)
-        inner = sample_inner_dfa(
-            rng, num_states=4, alphabet_size=2, separator_char=0
-        )
+        inner = sample_inner_dfa(rng, num_states=4, alphabet_size=2, separator_char=0)
         outer = build_star_l_star_dfa(inner)
         test_rng = np.random.default_rng(seed + 1000)
         for _ in range(500):
@@ -164,10 +161,13 @@ def _sample_balanced_benchmark(seed, *, alphabet_size=2):
             alphabet_size=alphabet_size,
             num_accepting=1,
         )
-        if not (3 <= len(outer.states) <= 9):
+        if not 3 <= len(outer.states) <= 9:
             continue
         rate = (
-            sum(outer.accepts_input(us.sample(probe_rng, alphabet_size)) for _ in range(200))
+            sum(
+                outer.accepts_input(us.sample(probe_rng, alphabet_size))
+                for _ in range(200)
+            )
             / 200
         )
         if 0.15 < rate < 0.85:
