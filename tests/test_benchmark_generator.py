@@ -7,6 +7,7 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     build_star_l_star_dfa,
+    sample_balanced_benchmark,
     sample_inner_dfa,
     sample_star_l_star,
 )
@@ -142,46 +143,21 @@ class TestDFAOracle(unittest.TestCase):
 # ===================================================================
 
 
-def _sample_balanced_benchmark(seed, *, alphabet_size=2):
-    """Find a benchmark by trying successive sub-seeds until one has a
-    balanced accept rate and tractable state count.
-
-    Each candidate gets its own fresh RNG so the filtering process doesn't
-    contaminate the randomness of the chosen benchmark.
-    """
-    from orthogonal_dfa.l_star.sampler import UniformSampler
-
-    us = UniformSampler(40)
-    probe_rng = np.random.default_rng(seed)
-    for sub in range(10_000):
-        rng = np.random.default_rng((seed, sub))
-        outer, inner, sep = sample_star_l_star(
-            rng,
-            num_inner_states=12,
-            alphabet_size=alphabet_size,
-            num_accepting=1,
-        )
-        if not 3 <= len(outer.states) <= 9:
-            continue
-        rate = (
-            sum(
-                outer.accepts_input(us.sample(probe_rng, alphabet_size))
-                for _ in range(200)
-            )
-            / 200
-        )
-        if 0.15 < rate < 0.85:
-            return outer, inner, sep
-    raise RuntimeError("Could not find a balanced benchmark")
-
-
 benchmark_allowed_error = 0.05
 
 
 class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
     @parameterized.expand([(seed,) for seed in range(3)])
     def test_generated_benchmark(self, seed):
-        outer, _, _ = _sample_balanced_benchmark(seed)
+        outer, _, _ = sample_balanced_benchmark(
+            seed,
+            alphabet_size=2,
+            num_inner_states=12,
+            num_accepting=1,
+            max_outer_states=9,
+            probe_length=40,
+            min_accept_or_reject=0.15,
+        )
         oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
         _, dfa, _ = compute_dfa_for_oracle(
             oracle_creator, min_signal_strength=0.3, seed=0

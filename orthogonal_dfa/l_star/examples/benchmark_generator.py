@@ -29,6 +29,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
+from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
@@ -138,6 +139,74 @@ def sample_star_l_star(
     )
     outer = build_star_l_star_dfa(inner)
     return outer, inner, separator_char
+
+
+def sample_balanced_benchmark(
+    seed: int,
+    *,
+    alphabet_size: int,
+    num_inner_states: int,
+    num_accepting: int,
+    max_outer_states: int,
+    probe_length: int,
+    min_accept_or_reject: float,
+    num_probe_samples: int = 200,
+    max_attempts: int = 10_000,
+) -> Tuple[DFA, DFA, int]:
+    """Sample a ``Σ*LΣ*`` benchmark whose outer DFA passes the given filters.
+
+    Tries successive sub-seeds derived from *seed* until one produces a DFA
+    whose state count and accept rate fall within the requested bounds.
+
+    Each candidate gets a fresh RNG so that the filtering process does not
+    contaminate the randomness of the chosen benchmark.
+
+    Parameters
+    ----------
+    seed : top-level seed; the i-th candidate uses ``np.random.default_rng((seed, i))``.
+    alphabet_size : |Σ| of the inner / outer DFAs.
+    num_inner_states : pre-minimisation state count for the inner DFA.
+    num_accepting : number of accepting states in the inner DFA.
+    max_outer_states : inclusive upper bound on the size of the minimised
+        ``Σ*LΣ*`` DFA.
+    probe_length : length of random strings used to estimate the accept rate.
+    min_accept_or_reject : minimum fraction of probe strings that must be in
+        each class — i.e. the empirical accept rate must lie in
+        ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
+    num_probe_samples : how many strings to sample when estimating the rate.
+    max_attempts : maximum number of candidate benchmarks to try.
+
+    Raises
+    ------
+    RuntimeError if no candidate passes the filters within ``max_attempts``.
+    """
+    # Hardcode the lower bound on outer DFA size — anything smaller is trivial
+    # (1 state = constant function, 2 states = depends on a single character).
+    min_outer_states = 3
+    sampler = UniformSampler(probe_length)
+    probe_rng = np.random.default_rng(seed)
+    for sub in range(max_attempts):
+        rng = np.random.default_rng((seed, sub))
+        outer, inner, sep = sample_star_l_star(
+            rng,
+            num_inner_states=num_inner_states,
+            alphabet_size=alphabet_size,
+            num_accepting=num_accepting,
+        )
+        if not min_outer_states <= len(outer.states) <= max_outer_states:
+            continue
+        rate = (
+            sum(
+                outer.accepts_input(sampler.sample(probe_rng, alphabet_size))
+                for _ in range(num_probe_samples)
+            )
+            / num_probe_samples
+        )
+        if min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
+            return outer, inner, sep
+    raise RuntimeError(
+        f"Could not find a balanced benchmark in {max_attempts} attempts"
+    )
 
 
 class DFAOracle(Oracle):
