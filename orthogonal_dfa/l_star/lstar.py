@@ -107,7 +107,6 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         dt,
         dfa,
         count=count,
-        suffix_size_counterexample_gen=pst.config.suffix_size_counterexample_gen,
     )
     pst.add_prefixes(results)
     return results
@@ -135,14 +134,25 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-def generate_counterexamples(
-    pst, us, oracle, dt, dfa, *, count, suffix_size_counterexample_gen
-):
+def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     boundary = pst.decision_boundary
+    # The counterexample pipeline classifies strings many times: ~log2(string_len)
+    # binary search steps + 2 decisive checks, each traversing the full DT.  A
+    # false positive just adds an uninformative prefix (harmless), so we can
+    # tolerate a much higher overall error rate than state discovery (which uses
+    # decision_rule_fpr).  We use 0.2 as the whole-pipeline budget and union-bound
+    # over all node-level decisions.
+    from .statistics import compute_suffix_size_counterexample_gen as _compute_sfx
+
+    counterexample_fpr = 0.2
+    string_len = pst.sampler.length
+    num_classifications = 2 + int(np.ceil(np.log2(string_len)))
+    num_node_decisions = num_classifications * dt.depth
+    effective_p = 0.5 + pst.config.min_signal_strength
+    per_node_budget = counterexample_fpr / max(num_node_decisions, 1)
+    scaled_suffix_size = _compute_sfx(per_node_budget, effective_p)
     dt_with_reduced_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(
-            p.vs[:suffix_size_counterexample_gen], boundary, boundary
-        )
+        lambda p: TriPredicate(p.vs[:scaled_suffix_size], boundary, boundary)
     )
     dt_with_decisive_predicates = dt.map_over_predicates(
         lambda p: TriPredicate(p.vs, boundary, boundary)
