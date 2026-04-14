@@ -97,77 +97,92 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     return result
 
 
-def _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
-    """Check if any state has insufficient confident votes for its transitions.
+def _bfs_path(transitions, start, target, alphabet_size):
+    """Return shortest symbol sequence from start to target state, or None if unreachable."""
+    from collections import deque
 
-    If a state has too few observations, sample more prefixes and add them to the PST.
+    if start == target:
+        return []
+    visited = {start}
+    queue = deque([(start, [])])
+    while queue:
+        state, path = queue.popleft()
+        for sym in range(alphabet_size):
+            nxt = int(transitions[state, sym])
+            new_path = path + [sym]
+            if nxt == target:
+                return new_path
+            if nxt not in visited:
+                visited.add(nxt)
+                queue.append((nxt, new_path))
+    return None
 
-    Args:
-        pst: PrefixSuffixTracker
-        dt: DecisionTree
-        min_prefixes: Minimum number of prefixes per state (default 30)
 
-    Returns:
-        bool: True if enrichment was needed and performed, False otherwise
+def _enrich_sparse_states_via_paths(pst, dt, transitions, min_prefixes=30):
+    """Enrich PST for states with too few prefixes by following DFA paths.
+
+    For each sparse state, BFS the current transition matrix to find a path
+    from the initial state to that target, then add the path prefix plus
+    random extensions so we get diverse observations from that state.
+    If a state is unreachable in the DFA or the path would exceed the sampler
+    length, skip it (the caller can bail to the standard counterexample loop).
+
+    Returns True if any prefixes were added, False otherwise.
     """
-    # Count how many confident prefixes reach each state
     dt_states = classify_states_with_decision_tree(pst, dt)
     confident = dt_states >= 0
+    state_counts = np.bincount(dt_states[confident], minlength=dt.num_states)
 
-    state_counts = np.bincount(
-        dt_states[confident], minlength=dt.num_states
-    )
-
-    # Find states with insufficient prefixes
     insufficient = state_counts < min_prefixes
-    insufficient_states = np.where(insufficient)[0]
-
-    if len(insufficient_states) == 0:
+    if not insufficient.any():
         return False
 
-    print(
-        f"State enrichment: states {insufficient_states.tolist()} have "
-        f"<{min_prefixes} prefixes. Sampling more..."
-    )
+    # Determine initial state from the empty prefix
+    try:
+        empty_idx = pst.prefixes.index([])
+        initial_state = int(dt_states[empty_idx])
+        initial_state = max(initial_state, 0)
+    except ValueError:
+        initial_state = 0
 
-    # Sample random prefixes and add those that reach insufficient states
+    max_len = pst.sampler.length
     new_prefixes = []
-    us = pst.sampler
-    oracle = pst.oracle
-    total_needed = (min_prefixes - state_counts[insufficient_states]).sum()
-    found = 0
+    for target in np.where(insufficient)[0]:
+        needed = int(min_prefixes - state_counts[target])
+        path = _bfs_path(transitions, initial_state, int(target), pst.alphabet_size)
+        if path is None or len(path) > max_len:
+            continue
+        max_ext = max_len - len(path)
+        # Add the path itself, then random extensions of varying length
+        candidates = [path] if path not in pst.prefixes else []
+        for _ in range(needed * 3):
+            ext_len = int(pst.rng.integers(0, max_ext + 1))
+            ext = [int(pst.rng.integers(0, pst.alphabet_size)) for _ in range(ext_len)]
+            candidate = path + ext
+            if candidate not in pst.prefixes:
+                candidates.append(candidate)
+        new_prefixes.extend(candidates)
 
-    # Try up to 10x the needed amount
-    for _ in range(total_needed * 10):
-        if found >= total_needed:
-            break
+    if not new_prefixes:
+        return False
 
-        # Sample a random prefix
-        prefix = us.sample(pst.rng, pst.alphabet_size)
-
-        if prefix not in pst.prefixes:
-            # Classify it through the DT
-            prefix_state = dt.classify(prefix, oracle)
-            if prefix_state in insufficient_states:
-                new_prefixes.append(prefix)
-                found += 1
-
-    if new_prefixes:
-        print(f"Found {len(new_prefixes)} new prefixes via sampling")
-        pst.add_prefixes(new_prefixes)
-        return True
-
-    return False
+    print(f"State enrichment via DFA paths: adding {len(new_prefixes)} prefixes")
+    pst.add_prefixes(new_prefixes)
+    return True
 
 
 def optimal_dfa(pst, dt: DecisionTree):
-    # Check if any state has insufficient data; if so, enrich and retry
+    # Compute an initial transition matrix, then enrich any sparse states by
+    # following DFA paths to them and adding the resulting prefixes.  After
+    # enrichment, recompute. If all states are already well-covered, or if some
+    # states are genuinely unreachable, bail out early and let the outer
+    # counterexample loop handle further refinement.
     max_enrichment_rounds = 3
     for _ in range(max_enrichment_rounds):
-        if not _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
+        transitions = compute_transition_matrix(pst, dt)
+        if not _enrich_sparse_states_via_paths(pst, dt, transitions):
             break
 
-    # Compute transition matrix with enriched data
     transitions = compute_transition_matrix(pst, dt)
 
     num_states = dt.num_states
