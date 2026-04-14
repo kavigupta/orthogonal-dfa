@@ -120,7 +120,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     if dt.classify(x + y, oracle) == dfa_states_each[-1]:
         return None
     correct_idx = 0
-    incorrect_idx = len(x)
+    incorrect_idx = len(y)
     # binary search for first incorrect index
     while correct_idx < incorrect_idx - 1:
         mid_idx = (correct_idx + incorrect_idx) // 2
@@ -160,13 +160,16 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     while True:
-        x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
+        # Start from the empty string so the DT and DFA agree on the
+        # initial state (both use dfa.initial_state).  Using a random x
+        # causes problems when the DT and DFA disagree on x's state,
+        # which corrupts the DFA path used for comparison.
         prefix_and_sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
-            x,
+            [],
             y,
         )
         if prefix_and_sym is None:
