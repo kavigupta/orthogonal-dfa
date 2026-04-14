@@ -39,7 +39,7 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
 
 def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     states = classify_states_with_decision_tree(pst, dt)
-    states_after_c = [
+    states_after_c_list = [
         classify_states_with_decision_tree(
             pst,
             dt.map_over_predicates(
@@ -52,18 +52,124 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     ]
     num_states = dt.num_states
     transitions = np.zeros((num_states, pst.alphabet_size, num_states), dtype=int)
-    for c, states_c in enumerate(states_after_c):
+
+    for c, states_c in enumerate(states_after_c_list):
         valid = states_c >= 0
         np.add.at(
             transitions,
             (states[valid], c, states_c[valid]),
             1,
         )
-    return transitions.argmax(-1)
+
+    # Pick the best target for each (source, symbol) pair
+    # If no confident votes, use unconfident votes as tiebreaker
+    result = np.zeros((num_states, pst.alphabet_size), dtype=int)
+    for src in range(num_states):
+        for sym in range(pst.alphabet_size):
+            confident_votes = transitions[src, sym, :]
+
+            if confident_votes.max() > 0:
+                # We have confident votes; use them
+                result[src, sym] = np.argmax(confident_votes)
+            else:
+                # No confident votes for this transition
+                # Count unconfident observations: where does (src, sym) go
+                # when the target state is unconfident?
+                states_c = states_after_c_list[sym]
+                mask = (states == src) & (states_c < 0)
+
+                if mask.any():
+                    # We have unconfident observations
+                    # Look at some heuristic: e.g., which state is reachable from src?
+                    # For now, pick the most common confident target from sym,
+                    # or the first state if all are unconfident
+                    # Actually, just pick argmax of all transitions for this symbol (best guess)
+                    all_targets_for_sym = transitions[src, sym, :]
+                    if all_targets_for_sym.max() > 0:
+                        result[src, sym] = np.argmax(all_targets_for_sym)
+                    else:
+                        # Truly no data; pick lowest index
+                        result[src, sym] = 0
+                else:
+                    # No observations at all for this transition
+                    result[src, sym] = 0
+
+    return result
+
+
+def _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
+    """Check if any state has insufficient confident votes for its transitions.
+
+    If a state has too few observations, sample more prefixes and add them to the PST.
+
+    Args:
+        pst: PrefixSuffixTracker
+        dt: DecisionTree
+        min_prefixes: Minimum number of prefixes per state (default 30)
+
+    Returns:
+        bool: True if enrichment was needed and performed, False otherwise
+    """
+    # Count how many confident prefixes reach each state
+    dt_states = classify_states_with_decision_tree(pst, dt)
+    confident = dt_states >= 0
+
+    state_counts = np.bincount(
+        dt_states[confident], minlength=dt.num_states
+    )
+
+    # Find states with insufficient prefixes
+    insufficient = state_counts < min_prefixes
+    insufficient_states = np.where(insufficient)[0]
+
+    if len(insufficient_states) == 0:
+        return False
+
+    print(
+        f"State enrichment: states {insufficient_states.tolist()} have "
+        f"<{min_prefixes} prefixes. Sampling more..."
+    )
+
+    # Sample random prefixes and add those that reach insufficient states
+    new_prefixes = []
+    us = pst.sampler
+    oracle = pst.oracle
+    total_needed = (min_prefixes - state_counts[insufficient_states]).sum()
+    found = 0
+
+    # Try up to 10x the needed amount
+    for trial in range(total_needed * 10):
+        if found >= total_needed:
+            break
+
+        # Sample a random prefix
+        prefix = us.sample(pst.rng, pst.alphabet_size)
+
+        if prefix not in pst.prefixes:
+            # Classify it through the DT
+            prefix_state = dt.classify(prefix, oracle)
+            if prefix_state in insufficient_states:
+                new_prefixes.append(prefix)
+                found += 1
+
+    if new_prefixes:
+        print(f"Found {len(new_prefixes)} new prefixes via sampling")
+        pst.add_prefixes(new_prefixes)
+        return True
+
+    return False
 
 
 def optimal_dfa(pst, dt: DecisionTree):
+    # Check if any state has insufficient data; if so, enrich and retry
+    max_enrichment_rounds = 3
+    for enrichment_round in range(max_enrichment_rounds):
+        if not _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
+            break
+
+    # Compute transition matrix with enriched data
     transitions = compute_transition_matrix(pst, dt)
+
     num_states = dt.num_states
 
     accepting_states = set(dt.by_rejection[1].collect_states())
@@ -120,7 +226,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     if dt.classify(x + y, oracle) == dfa_states_each[-1]:
         return None
     correct_idx = 0
-    incorrect_idx = len(x)
+    incorrect_idx = len(y)
     # binary search for first incorrect index
     while correct_idx < incorrect_idx - 1:
         mid_idx = (correct_idx + incorrect_idx) // 2
@@ -160,13 +266,16 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     while True:
-        x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
+        # Start from the empty string so the DT and DFA agree on the
+        # initial state (both use dfa.initial_state).  Using a random x
+        # causes problems when the DT and DFA disagree on x's state,
+        # which corrupts the DFA path used for comparison.
         prefix_and_sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
-            x,
+            [],
             y,
         )
         if prefix_and_sym is None:
