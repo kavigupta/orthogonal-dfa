@@ -62,8 +62,77 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     return transitions.argmax(-1)
 
 
+def _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
+    """Check if any state has insufficient confident votes for its transitions.
+
+    If a state has too few observations, sample more prefixes and add them to the PST.
+
+    Args:
+        pst: PrefixSuffixTracker
+        dt: DecisionTree
+        min_prefixes: Minimum number of prefixes per state (default 30)
+
+    Returns:
+        bool: True if enrichment was needed and performed, False otherwise
+    """
+    # Count how many confident prefixes reach each state
+    dt_states = classify_states_with_decision_tree(pst, dt)
+    confident = dt_states >= 0
+
+    state_counts = np.bincount(dt_states[confident], minlength=dt.num_states)
+
+    # Find states with insufficient prefixes
+    insufficient = state_counts < min_prefixes
+    insufficient_states = np.where(insufficient)[0]
+
+    if len(insufficient_states) == 0:
+        return False
+
+    print(
+        f"State enrichment: states {insufficient_states.tolist()} have "
+        f"<{min_prefixes} prefixes. Sampling more..."
+    )
+
+    # Sample random prefixes and add those that reach insufficient states
+    new_prefixes = []
+    us = pst.sampler
+    oracle = pst.oracle
+    total_needed = (min_prefixes - state_counts[insufficient_states]).sum()
+    found = 0
+
+    # Try up to 10x the needed amount
+    for trial in range(total_needed * 10):
+        if found >= total_needed:
+            break
+
+        # Sample a random prefix
+        prefix = us.sample(pst.rng, pst.alphabet_size)
+
+        if prefix not in pst.prefixes:
+            # Classify it through the DT
+            prefix_state = dt.classify(prefix, oracle)
+            if prefix_state in insufficient_states:
+                new_prefixes.append(prefix)
+                found += 1
+
+    if new_prefixes:
+        print(f"Found {len(new_prefixes)} new prefixes via sampling")
+        pst.add_prefixes(new_prefixes)
+        return True
+
+    return False
+
+
 def optimal_dfa(pst, dt: DecisionTree):
+    # Check if any state has insufficient data; if so, enrich and retry
+    max_enrichment_rounds = 3
+    for enrichment_round in range(max_enrichment_rounds):
+        if not _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
+            break
+
+    # Compute transition matrix with enriched data
     transitions = compute_transition_matrix(pst, dt)
+
     num_states = dt.num_states
 
     accepting_states = set(dt.by_rejection[1].collect_states())
@@ -120,7 +189,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     if dt.classify(x + y, oracle) == dfa_states_each[-1]:
         return None
     correct_idx = 0
-    incorrect_idx = len(x)
+    incorrect_idx = len(y)
     # binary search for first incorrect index
     while correct_idx < incorrect_idx - 1:
         mid_idx = (correct_idx + incorrect_idx) // 2
@@ -160,13 +229,16 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     while True:
-        x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
+        # Start from the empty string so the DT and DFA agree on the
+        # initial state (both use dfa.initial_state).  Using a random x
+        # causes problems when the DT and DFA disagree on x's state,
+        # which corrupts the DFA path used for comparison.
         prefix_and_sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
-            x,
+            [],
             y,
         )
         if prefix_and_sym is None:
