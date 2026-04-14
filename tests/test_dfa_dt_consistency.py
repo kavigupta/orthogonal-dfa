@@ -4,8 +4,11 @@ This catches bugs where the transition matrix estimation produces a DFA that
 disagrees with the DT on prefixes it was trained on.
 """
 
-import numpy as np
+# pylint: disable=duplicate-code
+
 import unittest
+
+import numpy as np
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
@@ -28,7 +31,7 @@ class TestDFADTConsistency(unittest.TestCase):
 
     def test_dfa_matches_dt_on_confident_prefixes(self):
         """After synthesis, DFA should agree with DT on all confident prefixes."""
-        outer, inner, sep = sample_balanced_benchmark(
+        outer, _, _ = sample_balanced_benchmark(
             seed=1,
             alphabet_size=2,
             num_inner_states=12,
@@ -44,7 +47,7 @@ class TestDFADTConsistency(unittest.TestCase):
         for round_num in range(3):
             # Discover states
             while True:
-                dt = discover_states(pst, first_round=(round_num == 0))
+                dt = discover_states(pst, first_round=round_num == 0)
                 if dt.num_states > 1:
                     break
                 pst.sample_more_prefixes()

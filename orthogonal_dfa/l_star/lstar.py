@@ -138,7 +138,7 @@ def _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
     found = 0
 
     # Try up to 10x the needed amount
-    for trial in range(total_needed * 10):
+    for _ in range(total_needed * 10):
         if found >= total_needed:
             break
 
@@ -163,7 +163,7 @@ def _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
 def optimal_dfa(pst, dt: DecisionTree):
     # Check if any state has insufficient data; if so, enrich and retry
     max_enrichment_rounds = 3
-    for enrichment_round in range(max_enrichment_rounds):
+    for _ in range(max_enrichment_rounds):
         if not _check_and_enrich_insufficient_states(pst, dt, min_prefixes=30):
             break
 
