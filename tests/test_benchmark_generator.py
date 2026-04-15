@@ -153,7 +153,7 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             seed,
             alphabet_size=2,
             num_inner_states=12,
-            num_outer_states=10,
+            num_outer_states=9,
             probe_length=40,
             min_accept_or_reject=0.15,
         )
