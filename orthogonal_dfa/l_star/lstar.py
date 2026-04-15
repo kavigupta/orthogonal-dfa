@@ -229,7 +229,8 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         dfa,
         count=count,
     )
-    pst.add_prefixes(results)
+    if results:
+        pst.add_prefixes(results)
     return results
 
 
@@ -280,7 +281,8 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
-    while True:
+    max_attempts = count * 200
+    for _ in range(max_attempts):
         y = us.sample(pst.rng, pst.alphabet_size)
         # Start from the empty string so the DT and DFA agree on the
         # initial state (both use dfa.initial_state).  Using a random x
@@ -303,8 +305,14 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
         additional_prefixes.append(prefix)
         pbar.update()
         if len(additional_prefixes) >= count:
-            pbar.close()
-            return additional_prefixes
+            break
+    pbar.close()
+    if len(additional_prefixes) < count:
+        print(
+            f"Counterexample search: found {len(additional_prefixes)}/{count} "
+            f"after {max_attempts} attempts"
+        )
+    return additional_prefixes
 
 
 def counterexample_driven_synthesis(
