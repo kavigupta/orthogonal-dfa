@@ -263,3 +263,29 @@ def p_to_al(dfa: pythomata.SimpleDFA) -> DFA:
         initial_state=dfa.initial_state,
         final_states=dfa.accepting_states,
     )
+
+
+def al_dfa_symbols_to_str(dfa: DFA) -> DFA:
+    """Convert an automata-lib DFA's input symbols from ints to their str form."""
+    return DFA(
+        states=dfa.states,
+        input_symbols={str(c) for c in dfa.input_symbols},
+        transitions={
+            s: {str(c): d for c, d in t.items()} for s, t in dfa.transitions.items()
+        },
+        initial_state=dfa.initial_state,
+        final_states=dfa.final_states,
+    )
+
+
+def al_dfa_symbols_to_int(dfa: DFA) -> DFA:
+    """Convert an automata-lib DFA's input symbols from strs to their int form."""
+    return DFA(
+        states=dfa.states,
+        input_symbols={int(c) for c in dfa.input_symbols},
+        transitions={
+            s: {int(c): d for c, d in t.items()} for s, t in dfa.transitions.items()
+        },
+        initial_state=dfa.initial_state,
+        final_states=dfa.final_states,
+    )
