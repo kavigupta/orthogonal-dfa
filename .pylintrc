@@ -427,7 +427,7 @@ disable=raw-checker-failed,
         missing-function-docstring,missing-class-docstring,missing-module-docstring,
         invalid-name,
         # these are all too strict
-        too-many-lines,too-many-branches,too-many-locals,too-many-return-statements,too-many-arguments,too-few-public-methods,too-many-instance-attributes,too-many-public-methods,too-many-ancestors,
+        too-many-lines,too-many-branches,too-many-locals,too-many-return-statements,too-many-arguments,too-few-public-methods,too-many-instance-attributes,too-many-public-methods,too-many-ancestors,too-many-statements,
         # these are annoying and not useful
         unspecified-encoding,use-dict-literal,import-outside-toplevel,unnecessary-lambda-assignment
 

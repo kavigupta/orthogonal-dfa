@@ -1,0 +1,1 @@
+- [Write to files](feedback_write_to_files.md) — Don't use inline python -c; write scripts to files first

@@ -39,7 +39,7 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
 
 def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     states = classify_states_with_decision_tree(pst, dt)
-    states_after_c = [
+    states_after_c_list = [
         classify_states_with_decision_tree(
             pst,
             dt.map_over_predicates(
@@ -52,18 +52,139 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
     ]
     num_states = dt.num_states
     transitions = np.zeros((num_states, pst.alphabet_size, num_states), dtype=int)
-    for c, states_c in enumerate(states_after_c):
+
+    for c, states_c in enumerate(states_after_c_list):
         valid = states_c >= 0
         np.add.at(
             transitions,
             (states[valid], c, states_c[valid]),
             1,
         )
-    return transitions.argmax(-1)
+
+    # Pick the best target for each (source, symbol) pair
+    # If no confident votes, use unconfident votes as tiebreaker
+    result = np.zeros((num_states, pst.alphabet_size), dtype=int)
+    for src in range(num_states):
+        for sym in range(pst.alphabet_size):
+            confident_votes = transitions[src, sym, :]
+
+            if confident_votes.max() > 0:
+                # We have confident votes; use them
+                result[src, sym] = np.argmax(confident_votes)
+            else:
+                # No confident votes for this transition
+                # Count unconfident observations: where does (src, sym) go
+                # when the target state is unconfident?
+                states_c = states_after_c_list[sym]
+                mask = (states == src) & (states_c < 0)
+
+                if mask.any():
+                    # We have unconfident observations
+                    # Look at some heuristic: e.g., which state is reachable from src?
+                    # For now, pick the most common confident target from sym,
+                    # or the first state if all are unconfident
+                    # Actually, just pick argmax of all transitions for this symbol (best guess)
+                    all_targets_for_sym = transitions[src, sym, :]
+                    if all_targets_for_sym.max() > 0:
+                        result[src, sym] = np.argmax(all_targets_for_sym)
+                    else:
+                        # Truly no data; pick lowest index
+                        result[src, sym] = 0
+                else:
+                    # No observations at all for this transition
+                    result[src, sym] = 0
+
+    return result
+
+
+def _bfs_path(transitions, start, target, alphabet_size):
+    """Return shortest symbol sequence from start to target state, or None if unreachable."""
+    from collections import deque
+
+    if start == target:
+        return []
+    visited = {start}
+    queue = deque([(start, [])])
+    while queue:
+        state, path = queue.popleft()
+        for sym in range(alphabet_size):
+            nxt = int(transitions[state, sym])
+            new_path = path + [sym]
+            if nxt == target:
+                return new_path
+            if nxt not in visited:
+                visited.add(nxt)
+                queue.append((nxt, new_path))
+    return None
+
+
+def _enrich_sparse_states_via_paths(pst, dt, transitions, min_prefixes=30):
+    """Enrich PST for states with too few prefixes by following DFA paths.
+
+    For each sparse state, BFS the current transition matrix to find a path
+    from the initial state to that target, then add the path prefix plus
+    random extensions so we get diverse observations from that state.
+    If a state is unreachable in the DFA or the path would exceed the sampler
+    length, skip it (the caller can bail to the standard counterexample loop).
+
+    Returns True if any prefixes were added, False otherwise.
+    """
+    dt_states = classify_states_with_decision_tree(pst, dt)
+    confident = dt_states >= 0
+    state_counts = np.bincount(dt_states[confident], minlength=dt.num_states)
+
+    insufficient = state_counts < min_prefixes
+    if not insufficient.any():
+        return False
+
+    # Determine initial state from the empty prefix
+    try:
+        empty_idx = pst.prefixes.index([])
+        initial_state = int(dt_states[empty_idx])
+        initial_state = max(initial_state, 0)
+    except ValueError:
+        initial_state = 0
+
+    max_len = pst.sampler.length
+    new_prefixes = []
+    for target in np.where(insufficient)[0]:
+        needed = int(min_prefixes - state_counts[target])
+        path = _bfs_path(transitions, initial_state, int(target), pst.alphabet_size)
+        if path is None or len(path) > max_len:
+            continue
+        max_ext = max_len - len(path)
+        # Add the path itself, then random extensions of varying length
+        candidates = [path] if path not in pst.prefixes else []
+        for _ in range(needed * 3):
+            ext_len = int(pst.rng.integers(0, max_ext + 1))
+            ext = [int(pst.rng.integers(0, pst.alphabet_size)) for _ in range(ext_len)]
+            candidate = path + ext
+            if candidate not in pst.prefixes:
+                candidates.append(candidate)
+        new_prefixes.extend(candidates)
+
+    if not new_prefixes:
+        return False
+
+    print(f"State enrichment via DFA paths: adding {len(new_prefixes)} prefixes")
+    pst.add_prefixes(new_prefixes)
+    return True
 
 
 def optimal_dfa(pst, dt: DecisionTree):
+    # Compute an initial transition matrix, then enrich any sparse states by
+    # following DFA paths to them and adding the resulting prefixes.  After
+    # enrichment, recompute. If all states are already well-covered, or if some
+    # states are genuinely unreachable, bail out early and let the outer
+    # counterexample loop handle further refinement.
+    max_enrichment_rounds = 3
+    for _ in range(max_enrichment_rounds):
+        transitions = compute_transition_matrix(pst, dt)
+        if not _enrich_sparse_states_via_paths(pst, dt, transitions):
+            break
+
     transitions = compute_transition_matrix(pst, dt)
+
     num_states = dt.num_states
 
     accepting_states = set(dt.by_rejection[1].collect_states())
@@ -108,7 +229,8 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         dfa,
         count=count,
     )
-    pst.add_prefixes(results)
+    if results:
+        pst.add_prefixes(results)
     return results
 
 
@@ -159,7 +281,8 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
-    while True:
+    max_attempts = count * 200
+    for _ in range(max_attempts):
         y = us.sample(pst.rng, pst.alphabet_size)
         # Start from the empty string so the DT and DFA agree on the
         # initial state (both use dfa.initial_state).  Using a random x
@@ -182,8 +305,14 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
         additional_prefixes.append(prefix)
         pbar.update()
         if len(additional_prefixes) >= count:
-            pbar.close()
-            return additional_prefixes
+            break
+    pbar.close()
+    if len(additional_prefixes) < count:
+        print(
+            f"Counterexample search: found {len(additional_prefixes)}/{count} "
+            f"after {max_attempts} attempts"
+        )
+    return additional_prefixes
 
 
 def counterexample_driven_synthesis(
