@@ -97,6 +97,11 @@ class DecisionTree(ABC):
         assert set(states) == set(range(len(states)))
         return len(states)
 
+    @property
+    @abstractmethod
+    def depth(self) -> int:
+        pass
+
     @abstractmethod
     def collect_states(self) -> Iterable[int]:
         pass
@@ -127,6 +132,10 @@ class DecisionTreeInternalNode(DecisionTree):
             return None
         decision = int(decision)
         return self.by_rejection[decision].classify(string, oracle)
+
+    @property
+    def depth(self) -> int:
+        return 1 + max(child.depth for child in self.by_rejection)
 
     def collect_states(self) -> Iterable[int]:
         for child in self.by_rejection:
@@ -162,6 +171,10 @@ class DecisionTreeLeafNode(DecisionTree):
     def classify(self, string: str, oracle: Oracle) -> int:
         del string, oracle  # unused
         return self.state_idx
+
+    @property
+    def depth(self) -> int:
+        return 0
 
     def collect_states(self) -> Iterable[int]:
         yield self.state_idx
