@@ -181,7 +181,8 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             num_agreements += sym == "no inconsistency"
             if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
                 raise AssertionError(
-                    f"Warning: observed {num_agreements} 'no inconsistency' results in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
+                    f"Warning: observed {num_agreements} 'no inconsistency' results"
+                    f" in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
                 )
             continue
         state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
