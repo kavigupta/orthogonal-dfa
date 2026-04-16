@@ -117,10 +117,15 @@ class PrefixSuffixTracker:
 
     def sample_more_prefixes(self):
         # Sample random prefixes and add them
-        new_prefixes = [
-            self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-            for _ in range(self.config.num_addtl_prefixes)
-        ]
+        new_prefixes = set()
+        while len(new_prefixes) < self.config.num_addtl_prefixes:
+            prefix = tuple(
+                self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+            )
+            if prefix in new_prefixes or prefix in self.prefixes:
+                continue
+            new_prefixes.add(prefix)
+        new_prefixes = sorted(list(x) for x in new_prefixes if x not in self.prefixes)
         self.add_prefixes(new_prefixes)
 
     def sample_more_suffixes(self, *, amount: int):
@@ -151,21 +156,23 @@ class PrefixSuffixTracker:
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
         assert new_prefixes, "No new prefixes to add"
+        assert len(new_prefixes + self.prefixes) == len(
+            set(tuple(p) for p in new_prefixes + self.prefixes)
+        ), "Prefixes must be unique"
 
         additional_prefixes = []
         additional_masks = []
         for prefix in tqdm.tqdm(new_prefixes, desc="Adding new prefixes", delay=1):
-            if prefix not in self.prefixes:
-                additional_prefixes.append(prefix)
-                additional_masks.append(
-                    np.array(
-                        [
-                            self.oracle.membership_query(prefix + v)
-                            for v in self.suffix_bank
-                        ],
-                        np.float32,
-                    )
+            additional_prefixes.append(prefix)
+            additional_masks.append(
+                np.array(
+                    [
+                        self.oracle.membership_query(prefix + v)
+                        for v in self.suffix_bank
+                    ],
+                    np.float32,
                 )
+            )
         additional_masks = np.array(additional_masks).T
         self.prefixes.extend(additional_prefixes)
 

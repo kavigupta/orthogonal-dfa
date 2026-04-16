@@ -185,6 +185,8 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                     f" in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
                 )
             continue
+        if prefix in additional_prefixes or prefix in pst.prefixes:
+            continue
         state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
         state_2 = dfa.transitions[state_1][sym]
         if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
