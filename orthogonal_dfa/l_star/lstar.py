@@ -164,7 +164,6 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     num_samples = 0
     num_agreements = 0
     while True:
-        num_samples += 1
         y = us.sample(pst.rng, pst.alphabet_size)
         # Start from the empty string so the DT and DFA agree on the
         # initial state (both use dfa.initial_state).  Using a random x
@@ -178,6 +177,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             y,
         )
         if prefix is None:
+            num_samples += 1
             num_agreements += sym == "no inconsistency"
             if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
                 raise AssertionError(
@@ -185,6 +185,9 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                     f" in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
                 )
             continue
+        if prefix in additional_prefixes or prefix in pst.prefixes:
+            continue
+        num_samples += 1
         state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
         state_2 = dfa.transitions[state_1][sym]
         if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
