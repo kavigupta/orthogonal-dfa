@@ -232,3 +232,11 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
         if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
             return n
     raise ValueError("not reachable")
+
+
+def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
+    """
+    Computes whether observing num_agreements or more agreements in num_samples samples is unlikely given expected_acc.
+    """
+    pval = 1 - scipy.stats.binom.cdf(num_agreements - 1, num_samples, expected_acc)
+    return pval < 1e-5

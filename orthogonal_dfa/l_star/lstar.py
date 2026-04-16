@@ -24,6 +24,7 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import final_states_all_initial, states_intermediate
 from .state_discovery import discover_states
+from .statistics import unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -99,7 +100,7 @@ def optimal_dfa(pst, dt: DecisionTree):
     return success_rates[best_idx], dfas[best_idx]
 
 
-def add_counterexample_prefixes(pst, dt, dfa, count):
+def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
     results = generate_counterexamples(
         pst,
         pst.sampler,
@@ -107,6 +108,7 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
         dt,
         dfa,
         count=count,
+        expected_acc=expected_acc,
     )
     pst.add_prefixes(results)
     return results
@@ -115,10 +117,10 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
 def locate_incorrect_point(oracle, dt, dfa, x, y):
     s0 = dt.classify(x, oracle)
     if s0 is None:
-        return None
+        return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
     if dt.classify(x + y, oracle) == dfa_states_each[-1]:
-        return None
+        return None, "no inconsistency"
     correct_idx = 0
     incorrect_idx = len(y)
     # binary search for first incorrect index
@@ -126,7 +128,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
         mid_idx = (correct_idx + incorrect_idx) // 2
         dt_state = dt.classify(x + y[: mid_idx + 1], oracle)
         if dt_state is None:
-            return None
+            return None, "could not classify state during binary search"
         if dt_state == dfa_states_each[mid_idx + 1]:
             correct_idx = mid_idx
         else:
@@ -134,7 +136,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
+def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     boundary = pst.decision_boundary
     # The counterexample pipeline classifies strings many times: ~log2(string_len)
     # binary search steps + 2 decisive checks, each traversing the full DT.  A
@@ -159,22 +161,30 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     )
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
+    num_samples = 0
+    num_agreements = 0
     while True:
+        num_samples += 1
         y = us.sample(pst.rng, pst.alphabet_size)
         # Start from the empty string so the DT and DFA agree on the
         # initial state (both use dfa.initial_state).  Using a random x
         # causes problems when the DT and DFA disagree on x's state,
         # which corrupts the DFA path used for comparison.
-        prefix_and_sym = locate_incorrect_point(
+        prefix, sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
             [],
             y,
         )
-        if prefix_and_sym is None:
+        if prefix is None:
+            num_agreements += sym == "no inconsistency"
+            if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
+                raise AssertionError(
+                    f"Warning: observed {num_agreements} 'no inconsistency' results"
+                    f" in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
+                )
             continue
-        prefix, sym = prefix_and_sym
         state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
         state_2 = dfa.transitions[state_1][sym]
         if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
@@ -206,7 +216,9 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
             return
-        add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
+        add_counterexample_prefixes(
+            pst, dt, dfa, additional_counterexamples, expected_acc=acc
+        )
         yield dfa, dt, copy.deepcopy(pst)
 
 
