@@ -153,10 +153,11 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             seed,
             alphabet_size=2,
             num_inner_states=12,
-            num_outer_states=9,
+            num_outer_states=10,
             probe_length=40,
             min_accept_or_reject=0.15,
         )
+        print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
         _, dfa, _ = compute_dfa_for_oracle(
             oracle_creator, min_signal_strength=0.3, seed=0

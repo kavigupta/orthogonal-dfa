@@ -60,6 +60,9 @@ def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
             (states[valid], c, states_c[valid]),
             1,
         )
+    print("Transition matrix:")
+    print(transitions)
+
     return transitions.argmax(-1)
 
 
@@ -92,11 +95,17 @@ def optimal_dfa(pst, dt: DecisionTree):
         transitions, [pre for pre, is_conf in zip(pst.prefixes, confident) if is_conf]
     )
     success_rates = (dfa_states == dt_states).mean(1)
-
     best_idx = np.argmax(success_rates)
     print(
         f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
     )
+    disagreements = np.where((dfa_states[best_idx] != dt_states))[0]
+    print(f"Disagreements on indices {disagreements} out of {len(dt_states)}")
+    for idx in disagreements:
+        print(idx)
+        print(
+            f"  prefix {pst.prefixes[idx]} classified as {dt_states[idx]} by DT, but DFA has final state {dfa_states[best_idx, idx]}"
+        )
     return success_rates[best_idx], dfas[best_idx]
 
 
