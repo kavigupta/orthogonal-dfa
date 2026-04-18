@@ -291,6 +291,32 @@ class TestLStar(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
+    def test_another_countexample_poor_case(self):
+        dfa = DFA(
+            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+            input_symbols={0, 1},
+            transitions={
+                0: {1: 8, 0: 0},
+                1: {1: 1, 0: 1},
+                2: {1: 1, 0: 6},
+                3: {1: 9, 0: 2},
+                4: {1: 3, 0: 8},
+                5: {1: 8, 0: 4},
+                6: {1: 3, 0: 9},
+                7: {1: 8, 0: 6},
+                8: {1: 8, 0: 5},
+                9: {1: 3, 0: 7},
+            },
+            initial_state=0,
+            final_states={1},
+            allow_partial=False,
+        )
+        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        assertDFA(self, dfa, oracle_creator)
+
 
 class TestLStarAsymmetric(unittest.TestCase):
     def test_modulo_asymmetric(self):
