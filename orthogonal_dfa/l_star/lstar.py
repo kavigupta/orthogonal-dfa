@@ -165,16 +165,13 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     num_agreements = 0
     while True:
         num_samples += 1
+        x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
-        # Start from the empty string so the DT and DFA agree on the
-        # initial state (both use dfa.initial_state).  Using a random x
-        # causes problems when the DT and DFA disagree on x's state,
-        # which corrupts the DFA path used for comparison.
         prefix, sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
-            [],
+            x,
             y,
         )
         if prefix is None:
