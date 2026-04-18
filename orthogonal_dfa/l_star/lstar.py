@@ -104,7 +104,8 @@ def optimal_dfa(pst, dt: DecisionTree):
     for idx in disagreements:
         print(idx)
         print(
-            f"  prefix {pst.prefixes[idx]} classified as {dt_states[idx]} by DT, but DFA has final state {dfa_states[best_idx, idx]}"
+            f"  prefix {pst.prefixes[idx]} classified as {dt_states[idx]} by DT, "
+            f"but DFA has final state {dfa_states[best_idx, idx]}"
         )
     return dfas[best_idx]
 
