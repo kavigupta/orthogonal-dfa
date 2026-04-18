@@ -106,7 +106,7 @@ def optimal_dfa(pst, dt: DecisionTree):
         print(
             f"  prefix {pst.prefixes[idx]} classified as {dt_states[idx]} by DT, but DFA has final state {dfa_states[best_idx, idx]}"
         )
-    return success_rates[best_idx], dfas[best_idx]
+    return dfas[best_idx]
 
 
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
@@ -174,24 +174,22 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     num_agreements = 0
     while True:
         num_samples += 1
+        x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
-        # Start from the empty string so the DT and DFA agree on the
-        # initial state (both use dfa.initial_state).  Using a random x
-        # causes problems when the DT and DFA disagree on x's state,
-        # which corrupts the DFA path used for comparison.
         prefix, sym = locate_incorrect_point(
             oracle,
             dt_with_reduced_predicates,
             dfa,
-            [],
+            x,
             y,
         )
         if prefix is None:
             num_agreements += sym == "no inconsistency"
             if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
                 raise AssertionError(
-                    f"Warning: observed {num_agreements} 'no inconsistency' results"
-                    f" in {num_samples} samples, which is unlikely given expected accuracy {expected_acc:.3f}"
+                    f"Observed {num_agreements} 'no inconsistency' results in"
+                    f" {num_samples} samples, which is unlikely given expected"
+                    f" accuracy {expected_acc:.3f}"
                 )
             continue
         if prefix in additional_prefixes or prefix in pst.prefixes:
@@ -207,6 +205,25 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             return additional_prefixes
 
 
+def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
+    """
+    Estimate the DFA's true agreement rate with the DT on fresh random strings,
+    starting from the empty prefix (so the DFA simulates from its actual
+    initial_state).  Classification failures are excluded from the denominator.
+    """
+    agreements = 0
+    valid = 0
+    for _ in range(num_samples):
+        y = us.sample(pst.rng, pst.alphabet_size)
+        prefix, reason = locate_incorrect_point(oracle, dt_decisive, dfa, [], y)
+        if prefix is None and reason == "no inconsistency":
+            agreements += 1
+            valid += 1
+        elif prefix is not None:
+            valid += 1
+    return agreements / valid if valid else 0.0
+
+
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
@@ -220,15 +237,23 @@ def counterexample_driven_synthesis(
             if dt.num_states > 1:
                 break
             pst.sample_more_prefixes()
-        acc, dfa = optimal_dfa(pst, dt)
+        dfa = optimal_dfa(pst, dt)
         print("DFA found!")
         print(dfa)
-        if acc >= acc_threshold:
+        boundary = pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p: TriPredicate(p.vs, boundary, boundary)
+        )
+        true_acc = estimate_agreement_rate(
+            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=500
+        )
+        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
+        if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
             return
         add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples, expected_acc=acc
+            pst, dt, dfa, additional_counterexamples, expected_acc=acc_threshold
         )
         yield dfa, dt, copy.deepcopy(pst)
 
