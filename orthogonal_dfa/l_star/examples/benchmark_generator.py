@@ -34,6 +34,29 @@ from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
 
+def _separator_states_forbidden(
+    transitions: dict, accepting: frozenset, separator_char: int, k: int
+) -> bool:
+    """Check the k-separator property: no accepted string has *separator_char*
+    in its last *k* positions.
+
+    Equivalently: states reachable from any q via a *separator_char* edge
+    followed by 0..k-1 arbitrary symbols are all non-accepting.
+    """
+    # frontier starts at states reachable via separator_char from any q.
+    # Each iteration expands by one arbitrary symbol, so after i iterations the
+    # frontier represents states reachable via "separator_char + i symbols".
+    # Checked at the end of each iter because the c-step frontier is already
+    # non-accepting by construction.
+    alphabet = set(transitions[next(iter(transitions))].keys())
+    frontier = {transitions[q][separator_char] for q in transitions}
+    for _ in range(k):
+        frontier = {transitions[s][c] for s in frontier for c in alphabet}
+        if frontier & accepting:
+            return False
+    return True
+
+
 def sample_inner_dfa(
     rng: np.random.Generator,
     *,
@@ -41,15 +64,18 @@ def sample_inner_dfa(
     alphabet_size: int,
     separator_char: int,
     num_accepting: int | None = None,
+    forbidden_end_length: int = 1,
 ) -> DFA:
     """Sample a random minimal DFA for *L* satisfying the separator property.
 
-    The constraint ``∀q: δ(q, separator_char) ∉ F`` is enforced by drawing
-    transitions on *separator_char* uniformly from *Q\\F*.  All other
-    transitions are uniform over *Q*.
+    The base constraint ``∀q: δ(q, separator_char) ∉ F`` (``forbidden_end_length=1``)
+    is enforced structurally by drawing separator transitions uniformly from
+    *Q\\F*.  For ``forbidden_end_length > 1`` the stronger rule "no accepted
+    string has *separator_char* in its last *k* characters" is enforced by
+    rejection sampling on the k-step forward frontier.
 
-    After construction the DFA is minimised; if the resulting language is
-    empty the draw is discarded and a new one is taken.
+    After construction the DFA is minimised; draws that produce an empty or
+    ε-accepting language are rejected.
 
     Parameters
     ----------
@@ -57,9 +83,13 @@ def sample_inner_dfa(
     alphabet_size : |Σ| (must be ≥ 2).
     separator_char : the forbidden final character.
     num_accepting : number of accepting states (default: random in 1..n−1).
+    forbidden_end_length : k; the last k characters of any accepted string
+        must not contain *separator_char*.
     """
     if num_states < 2:
         raise ValueError("Need num_states >= 2")
+    if forbidden_end_length < 1:
+        raise ValueError("forbidden_end_length must be >= 1")
 
     while True:
         n_acc = num_accepting
@@ -82,6 +112,11 @@ def sample_inner_dfa(
                     ]
                 else:
                     transitions[q][c] = int(rng.integers(num_states))
+
+        if forbidden_end_length > 1 and not _separator_states_forbidden(
+            transitions, accepting, separator_char, forbidden_end_length - 1
+        ):
+            continue
 
         dfa = DFA(
             states=set(range(num_states)),
@@ -120,6 +155,7 @@ def sample_star_l_star(
     num_inner_states: int | None = None,
     alphabet_size: int = 2,
     num_accepting: int | None = None,
+    forbidden_end_length: int = 1,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a random ``Σ*LΣ*`` benchmark.
 
@@ -136,6 +172,7 @@ def sample_star_l_star(
         alphabet_size=alphabet_size,
         separator_char=separator_char,
         num_accepting=num_accepting,
+        forbidden_end_length=forbidden_end_length,
     )
     outer = build_star_l_star_dfa(inner)
     return outer, inner, separator_char
@@ -151,6 +188,7 @@ def sample_balanced_benchmark(
     min_accept_or_reject: float,
     num_probe_samples: int = 200,
     max_attempts: int = 10_000,
+    forbidden_end_length: int = 1,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
@@ -185,6 +223,7 @@ def sample_balanced_benchmark(
             rng,
             num_inner_states=num_inner_states,
             alphabet_size=alphabet_size,
+            forbidden_end_length=forbidden_end_length,
         )
         if len(outer.states) != num_outer_states:
             continue
