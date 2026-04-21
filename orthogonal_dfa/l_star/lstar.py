@@ -17,6 +17,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 """
 
 import copy
+import warnings
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -120,7 +121,8 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
         count=count,
         expected_acc=expected_acc,
     )
-    pst.add_prefixes(results)
+    if results:
+        pst.add_prefixes(results)
     return results
 
 
@@ -187,11 +189,15 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
         if prefix is None:
             num_agreements += sym == "no inconsistency"
             if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
-                raise AssertionError(
+                warnings.warn(
                     f"Observed {num_agreements} 'no inconsistency' results in"
                     f" {num_samples} samples, which is unlikely given expected"
-                    f" accuracy {expected_acc:.3f}"
+                    f" accuracy {expected_acc:.3f}; stopping counterexample"
+                    f" search early with {len(additional_prefixes)}/{count}"
+                    f" prefixes"
                 )
+                pbar.close()
+                return additional_prefixes
             continue
         if prefix in additional_prefixes or prefix in pst.prefixes:
             continue
@@ -225,6 +231,58 @@ def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
     return agreements / valid if valid else 0.0
 
 
+def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
+    """
+    Sample random length-L prefixes routed (via the decisive DT) to leaves
+    whose current population is below the median.  This rebalances the PST
+    so that the next suffix-family clustering has enough signal to pick
+    suffixes that shatter under-represented leaves.
+
+    See docs/counterexample_poor_case_findings.md: the
+    `test_another_countexample_poor_case` failure was caused by a single
+    ground-truth state receiving only ~1.5% of uniform random prefixes,
+    which left the suffix-family clustering unable to find discriminating
+    suffixes for that state.
+    """
+    leaf_counts = {}
+    for pref in pst.prefixes:
+        leaf = dt_decisive.classify(pref, pst.oracle)
+        if leaf is None:
+            continue
+        leaf_counts[leaf] = leaf_counts.get(leaf, 0) + 1
+    if not leaf_counts:
+        return []
+    counts = sorted(leaf_counts.values())
+    median = counts[len(counts) // 2]
+    target_leaves = {leaf for leaf, c in leaf_counts.items() if c <= median}
+    print(
+        f"Leaf populations: {sorted(leaf_counts.items())}; enriching leaves"
+        f" {sorted(target_leaves)} (median={median})"
+    )
+
+    seen = {tuple(p) for p in pst.prefixes}
+    new_prefixes = []
+    max_attempts = count * 200
+    attempts = 0
+    pbar = tqdm.tqdm(total=count, desc="Enriching under-represented leaves")
+    while len(new_prefixes) < count and attempts < max_attempts:
+        attempts += 1
+        p = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        t = tuple(p)
+        if t in seen:
+            continue
+        leaf = dt_decisive.classify(p, pst.oracle)
+        if leaf is None or leaf not in target_leaves:
+            continue
+        new_prefixes.append(p)
+        seen.add(t)
+        pbar.update()
+    pbar.close()
+    if new_prefixes:
+        pst.add_prefixes(new_prefixes)
+    return new_prefixes
+
+
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
@@ -246,16 +304,26 @@ def counterexample_driven_synthesis(
             lambda p: TriPredicate(p.vs, boundary, boundary)
         )
         true_acc = estimate_agreement_rate(
-            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=500
+            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=2000
         )
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
             return
-        add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples, expected_acc=acc_threshold
+        ce = add_counterexample_prefixes(
+            pst, dt, dfa, additional_counterexamples, expected_acc=true_acc
         )
+        enriched = enrich_underrepresented_leaves(
+            pst, dt_decisive, count=additional_counterexamples
+        )
+        if not ce and not enriched:
+            print(
+                "Neither counterexample search nor leaf enrichment found"
+                " new prefixes; stopping synthesis"
+            )
+            yield dfa, dt, None
+            return
         yield dfa, dt, copy.deepcopy(pst)
 
 
