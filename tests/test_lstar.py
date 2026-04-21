@@ -512,7 +512,7 @@ class TestLStarORF(unittest.TestCase):
 
 
 class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
-    @parameterized.expand([(seed,) for seed in range(3)])
+    @parameterized.expand([(seed,) for seed in range(10)])
     def test_generated_benchmark(self, seed):
         outer, _, _ = sample_balanced_benchmark(
             seed,
