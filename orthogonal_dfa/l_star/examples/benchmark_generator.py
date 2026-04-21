@@ -16,11 +16,31 @@ For separator character *c* and inner DFA ``(Q, Σ, δ, q0, F)``:
 This single structural constraint is equivalent (after minimisation) to the
 language-level separator property.
 
+Why we extend it: the "reset-suffix" property
+---------------------------------------------
+For L* synthesis on ``Σ*LΣ*`` to be well-conditioned, we want the inner
+language to have a *reset suffix*: some string *s* ∈ Σ* such that for every
+state *q* ∈ *Q*, the state ``δ*(q, s)`` is sufficiently far from *F* that a
+random continuation from there has *strictly less than 50% chance* of ending
+in *F*.  Without such a suffix, the outer ``Σ*LΣ*`` DFA ends up with states
+whose random-continuation accept probabilities are all >50%, so a DT whose
+predicates threshold at 50% cannot discriminate them and the learned DFA
+over-merges non-accepting states into the accepting trap.
+
+A pure length-1 separator (``k=1``) is too weak to guarantee this: the
+c-step lands in *Q\\F* but a random continuation from there can still reach
+*F* with high probability.  We approximate the reset-suffix property by
+requiring *k* consecutive non-c characters at the end of any accepted
+string — equivalently, states reachable via *c* then up to *k-1* arbitrary
+symbols are all non-accepting.  At ``k ≈ num_states / 4`` the k-deep
+frontier from *c* typically covers enough of the state space that any
+random suffix containing *c* drops the acceptance probability below 0.5.
+
 Sampling the inner DFA
 -----------------------
 Transitions on *c* are drawn uniformly from *Q\\F*; all other transitions are
-drawn uniformly from *Q*.  This is uniform over the unconstrained degrees of
-freedom.
+drawn uniformly from *Q*.  For ``forbidden_end_length > 1`` the stronger
+rule is enforced by rejection sampling on the k-step forward frontier.
 """
 
 from typing import List, Tuple
@@ -57,6 +77,19 @@ def _separator_states_forbidden(
     return True
 
 
+def _default_forbidden_end_length(num_states: int) -> int:
+    """Heuristic default for ``forbidden_end_length``.
+
+    Chosen so that the k-deep c-frontier typically covers enough of the
+    state space to make random-continuation accept probability drop below
+    0.5 (see module docstring).  ``num_states // 4`` is small enough to
+    leave a non-trivial accepting region yet large enough to guarantee a
+    real reset suffix for state counts in the ~8–16 range this codebase
+    uses.
+    """
+    return max(1, num_states // 4)
+
+
 def sample_inner_dfa(
     rng: np.random.Generator,
     *,
@@ -64,7 +97,7 @@ def sample_inner_dfa(
     alphabet_size: int,
     separator_char: int,
     num_accepting: int | None = None,
-    forbidden_end_length: int = 1,
+    forbidden_end_length: int | None = None,
 ) -> DFA:
     """Sample a random minimal DFA for *L* satisfying the separator property.
 
@@ -88,6 +121,8 @@ def sample_inner_dfa(
     """
     if num_states < 2:
         raise ValueError("Need num_states >= 2")
+    if forbidden_end_length is None:
+        forbidden_end_length = _default_forbidden_end_length(num_states)
     if forbidden_end_length < 1:
         raise ValueError("forbidden_end_length must be >= 1")
 
@@ -155,7 +190,7 @@ def sample_star_l_star(
     num_inner_states: int | None = None,
     alphabet_size: int = 2,
     num_accepting: int | None = None,
-    forbidden_end_length: int = 1,
+    forbidden_end_length: int | None = None,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a random ``Σ*LΣ*`` benchmark.
 
@@ -178,6 +213,32 @@ def sample_star_l_star(
     return outer, inner, separator_char
 
 
+def _frac_class_preserving_strings(
+    dfa: DFA,
+    rng: np.random.Generator,
+    probe_length: int,
+    num_samples: int,
+    alphabet_size: int,
+) -> float:
+    """Fraction of random length-*probe_length* strings *s* for which every
+    state's accept/reject class is preserved under ``δ*(·, s)``."""
+    states = sorted(dfa.states)
+    ok = 0
+    for _ in range(num_samples):
+        s = rng.integers(0, alphabet_size, size=probe_length).tolist()
+        preserved = True
+        for q in states:
+            cur = q
+            for c in s:
+                cur = dfa.transitions[cur][c]
+            if (q in dfa.final_states) != (cur in dfa.final_states):
+                preserved = False
+                break
+        if preserved:
+            ok += 1
+    return ok / num_samples
+
+
 def sample_balanced_benchmark(
     seed: int,
     *,
@@ -188,7 +249,8 @@ def sample_balanced_benchmark(
     min_accept_or_reject: float,
     num_probe_samples: int = 200,
     max_attempts: int = 10_000,
-    forbidden_end_length: int = 1,
+    forbidden_end_length: int | None = None,
+    min_class_preserving_strings: float = 0.05,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
@@ -210,6 +272,11 @@ def sample_balanced_benchmark(
         ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
     num_probe_samples : how many strings to sample when estimating the rate.
     max_attempts : maximum number of candidate benchmarks to try.
+    min_class_preserving_strings : lower bound on the fraction of random
+        probe-length strings *s* for which ``f_s(q) = δ*(q, s)`` preserves
+        the accept/reject class of every outer state *q*.  Ensures the
+        outer DFA has enough "state-class-stable" walks that the learner
+        can detect disagreements between candidate DFAs and the oracle.
 
     Raises
     ------
@@ -234,8 +301,16 @@ def sample_balanced_benchmark(
             )
             / num_probe_samples
         )
-        if min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-            return outer, inner, sep
+        if not (min_accept_or_reject <= rate <= 1 - min_accept_or_reject):
+            continue
+        if (
+            _frac_class_preserving_strings(
+                outer, probe_rng, probe_length, num_probe_samples, alphabet_size
+            )
+            < min_class_preserving_strings
+        ):
+            continue
+        return outer, inner, sep
     raise RuntimeError(
         f"Could not find a balanced benchmark in {max_attempts} attempts"
     )
