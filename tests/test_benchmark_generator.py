@@ -138,37 +138,6 @@ class TestDFAOracle(unittest.TestCase):
             self.assertEqual(oracle.membership_query(s), outer.accepts_input(s))
 
 
-# ===================================================================
-# Noisy L* on generated benchmarks
-# ===================================================================
-
-
-benchmark_allowed_error = 0.05
-
-
-class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
-    @parameterized.expand([(seed,) for seed in range(3)])
-    def test_generated_benchmark(self, seed):
-        outer, _, _ = sample_balanced_benchmark(
-            seed,
-            alphabet_size=2,
-            num_inner_states=12,
-            num_outer_states=10,
-            probe_length=40,
-            min_accept_or_reject=0.15,
-        )
-        print(outer)
-        oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
-        _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
-        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
-        if accuracy < 1 - benchmark_allowed_error:
-            self.fail(
-                f"DFA incorrect (accuracy {accuracy:.3f}). "
-                f"FP: {len(fp)}, FN: {len(fn)}"
-            )
-
 
 # ===================================================================
 # Helpers

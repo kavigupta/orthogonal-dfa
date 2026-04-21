@@ -5,7 +5,7 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
-from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
+from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle, sample_balanced_benchmark
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     AllFramesClosedOracle,
     BernoulliParityOracle,
@@ -506,3 +506,27 @@ class TestLStarORF(unittest.TestCase):
             oracle_creator, min_signal_strength=signal, seed=0
         )
         assertDFA(self, dfa, oracle_creator, symbols=4)
+
+
+class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
+    @parameterized.expand([(seed,) for seed in range(3)])
+    def test_generated_benchmark(self, seed):
+        outer, _, _ = sample_balanced_benchmark(
+            seed,
+            alphabet_size=2,
+            num_inner_states=12,
+            num_outer_states=10,
+            probe_length=40,
+            min_accept_or_reject=0.15,
+        )
+        print(outer)
+        oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        if accuracy < 1 - assertion_allowed_error:
+            self.fail(
+                f"DFA incorrect (accuracy {accuracy:.3f}). "
+                f"FP: {len(fp)}, FN: {len(fn)}"
+            )
