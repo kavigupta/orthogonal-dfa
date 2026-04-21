@@ -7,12 +7,10 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     build_star_l_star_dfa,
-    sample_balanced_benchmark,
     sample_inner_dfa,
     sample_star_l_star,
 )
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
-from tests.test_lstar import compute_dfa_accuracy, compute_dfa_for_oracle
 
 # ===================================================================
 # Inner DFA sampling
@@ -136,7 +134,6 @@ class TestDFAOracle(unittest.TestCase):
         for _ in range(500):
             s = test_rng.integers(0, 2, size=int(test_rng.integers(0, 20))).tolist()
             self.assertEqual(oracle.membership_query(s), outer.accepts_input(s))
-
 
 
 # ===================================================================
