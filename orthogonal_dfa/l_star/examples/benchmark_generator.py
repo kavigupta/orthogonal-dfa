@@ -141,6 +141,34 @@ def sample_star_l_star(
     return outer, inner, separator_char
 
 
+def _frac_strings_preserving(
+    dfa: DFA, probe_len: int, num_strings: int, rng: np.random.Generator
+) -> float:
+    """Fraction of random length-*probe_len* strings s for which every state q
+    satisfies ``(q in F) == (δ*(q, s) in F)``. Low values indicate there is
+    essentially no suffix that acts as a "class-preserving reset" across the
+    whole state set — a regime that appears to confuse L* synthesis (see
+    `test_undersampled_transitions_poor_case`).
+    """
+    alphabet = sorted(dfa.input_symbols)
+    states = list(dfa.states)
+    finals = dfa.final_states
+    strings_ok = 0
+    for _ in range(num_strings):
+        s = rng.choice(alphabet, size=probe_len).tolist()
+        ok = True
+        for q in states:
+            cur = q
+            for c in s:
+                cur = dfa.transitions[cur][c]
+            if (q in finals) != (cur in finals):
+                ok = False
+                break
+        if ok:
+            strings_ok += 1
+    return strings_ok / num_strings
+
+
 def sample_balanced_benchmark(
     seed: int,
     *,
@@ -150,7 +178,9 @@ def sample_balanced_benchmark(
     probe_length: int,
     min_accept_or_reject: float,
     num_probe_samples: int = 200,
-    max_attempts: int = 10_000,
+    max_attempts: int = 100_000,
+    min_class_preserving_frac: float = 0.05,
+    num_class_preserving_samples: int = 2000,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
@@ -172,6 +202,11 @@ def sample_balanced_benchmark(
         ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
     num_probe_samples : how many strings to sample when estimating the rate.
     max_attempts : maximum number of candidate benchmarks to try.
+    min_class_preserving_frac : minimum fraction of random length-``probe_length``
+        suffixes that must map every DFA state to a state of the same
+        accept/reject class. Candidates below this threshold are rejected.
+    num_class_preserving_samples : number of random suffixes used to estimate
+        the class-preserving fraction.
 
     Raises
     ------
@@ -195,8 +230,17 @@ def sample_balanced_benchmark(
             )
             / num_probe_samples
         )
-        if min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-            return outer, inner, sep
+        if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
+            continue
+        cp_frac = _frac_strings_preserving(
+            outer,
+            probe_len=probe_length,
+            num_strings=num_class_preserving_samples,
+            rng=np.random.default_rng((seed, sub, 0xc7)),
+        )
+        if cp_frac < min_class_preserving_frac:
+            continue
+        return outer, inner, sep
     raise RuntimeError(
         f"Could not find a balanced benchmark in {max_attempts} attempts"
     )
