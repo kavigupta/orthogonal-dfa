@@ -236,7 +236,7 @@ def sample_balanced_benchmark(
             outer,
             probe_len=probe_length,
             num_strings=num_class_preserving_samples,
-            rng=np.random.default_rng((seed, sub, 0xc7)),
+            rng=np.random.default_rng((seed, sub)),
         )
         if cp_frac < min_class_preserving_frac:
             continue
