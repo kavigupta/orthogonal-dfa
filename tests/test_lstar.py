@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pytest
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
@@ -310,6 +311,42 @@ class TestLStar(unittest.TestCase):
                 7: {1: 8, 0: 6},
                 8: {1: 8, 0: 5},
                 9: {1: 3, 0: 7},
+            },
+            initial_state=0,
+            final_states={1},
+            allow_partial=False,
+        )
+        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        assertDFA(self, dfa, oracle_creator)
+
+    # Known-hard case: states 0 and 9 are transient (only reachable via the
+    # initial state, never returned to), so length-40 random prefixes never
+    # end at them and the L* DT physically cannot create a leaf for them.
+    # The benchmark generator now filters this out via
+    # `require_all_states_on_cycle`; this hand-coded reproducer is preserved
+    # as a regression target for any future algorithm work that aims to
+    # handle transient states directly. Marked xfail with a tight timeout
+    # so it documents the failure mode without hanging CI.
+    @pytest.mark.timeout(60)
+    @unittest.expectedFailure
+    def test_undersampled_transitions_poor_case(self):
+        dfa = DFA(
+            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+            input_symbols={0, 1},
+            transitions={
+                0: {0: 9, 1: 9},
+                1: {0: 1, 1: 1},
+                2: {0: 1, 1: 5},
+                3: {0: 2, 1: 5},
+                4: {0: 3, 1: 7},
+                5: {0: 8, 1: 4},
+                6: {0: 2, 1: 4},
+                7: {0: 6, 1: 7},
+                8: {0: 8, 1: 5},
+                9: {0: 9, 1: 8},
             },
             initial_state=0,
             final_states={1},

@@ -141,6 +141,85 @@ def sample_star_l_star(
     return outer, inner, separator_char
 
 
+def _every_reachable_state_on_a_cycle(dfa: DFA) -> bool:
+    """True iff every state reachable from the initial state lies on at least
+    one cycle. States not on any cycle are *transient*: a random walk visits
+    them at most a finite number of times, so length-*L* random prefixes
+    almost never end there for large L. The DT in L* state discovery cannot
+    create a leaf for a state that no prefix ends at, so transient states
+    cause an irrecoverable accuracy ceiling.
+    """
+    from collections import deque
+
+    reachable = {dfa.initial_state}
+    q = deque([dfa.initial_state])
+    while q:
+        s = q.popleft()
+        for c in dfa.input_symbols:
+            t = dfa.transitions[s][c]
+            if t not in reachable:
+                reachable.add(t)
+                q.append(t)
+
+    # Tarjan's SCC, restricted to reachable states.
+    index_of: dict = {}
+    lowlink: dict = {}
+    on_stack: set = set()
+    stack: list = []
+    counter = [0]
+    sccs: list = []
+
+    def strongconnect(v):
+        # iterative Tarjan to avoid recursion limits
+        work = [(v, iter(dfa.input_symbols))]
+        index_of[v] = lowlink[v] = counter[0]
+        counter[0] += 1
+        stack.append(v)
+        on_stack.add(v)
+        while work:
+            node, it = work[-1]
+            for c in it:
+                w = dfa.transitions[node][c]
+                if w not in reachable:
+                    continue
+                if w not in index_of:
+                    index_of[w] = lowlink[w] = counter[0]
+                    counter[0] += 1
+                    stack.append(w)
+                    on_stack.add(w)
+                    work.append((w, iter(dfa.input_symbols)))
+                    break
+                elif w in on_stack:
+                    lowlink[node] = min(lowlink[node], index_of[w])
+            else:
+                if lowlink[node] == index_of[node]:
+                    comp = set()
+                    while True:
+                        x = stack.pop()
+                        on_stack.discard(x)
+                        comp.add(x)
+                        if x == node:
+                            break
+                    sccs.append(comp)
+                work.pop()
+                if work:
+                    parent = work[-1][0]
+                    lowlink[parent] = min(lowlink[parent], lowlink[node])
+
+    for v in reachable:
+        if v not in index_of:
+            strongconnect(v)
+
+    # A state is on a cycle iff its SCC has size ≥ 2 or it has a self-loop.
+    for comp in sccs:
+        if len(comp) >= 2:
+            continue
+        (only,) = comp
+        if not any(dfa.transitions[only][c] == only for c in dfa.input_symbols):
+            return False
+    return True
+
+
 def sample_balanced_benchmark(
     seed: int,
     *,
@@ -151,6 +230,7 @@ def sample_balanced_benchmark(
     min_accept_or_reject: float,
     num_probe_samples: int = 200,
     max_attempts: int = 10_000,
+    require_all_states_on_cycle: bool = True,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
@@ -172,6 +252,10 @@ def sample_balanced_benchmark(
         ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
     num_probe_samples : how many strings to sample when estimating the rate.
     max_attempts : maximum number of candidate benchmarks to try.
+    require_all_states_on_cycle : if True, reject candidates where any
+        reachable-from-initial state is not on a cycle. Such transient states
+        cannot appear as endpoints of long random prefixes, so L* state
+        discovery has no way to create a leaf for them.
 
     Raises
     ------
@@ -195,8 +279,13 @@ def sample_balanced_benchmark(
             )
             / num_probe_samples
         )
-        if min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-            return outer, inner, sep
+        if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
+            continue
+        if require_all_states_on_cycle and not _every_reachable_state_on_a_cycle(
+            outer
+        ):
+            continue
+        return outer, inner, sep
     raise RuntimeError(
         f"Could not find a balanced benchmark in {max_attempts} attempts"
     )
