@@ -108,10 +108,12 @@ class PrefixSuffixTracker:
         A special case is that if the family classifies all prefixes as positive or negative,
         then the FNR is 1 rather than 0 (since the prediction is uninformative).
         """
+        print(vs)
         arr = self.compute_decision_array_from_strings(
             [self.suffix_bank[v] for v in vs]
         ).mean(1)
         if arr.min() == 0:
+            print("Warning: suffix family classifies all prefixes as positive or negative, FNR set to 1")
             return 1
         return 1 - arr.sum()
 
@@ -146,6 +148,8 @@ class PrefixSuffixTracker:
 
     def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
         decision = self.compute_decision_from_strings(vs)
+        print(decision)
+        print(self.reject_thresh, self.accept_thresh)
         return np.array(
             [
                 decision < self.reject_thresh,
