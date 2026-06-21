@@ -566,3 +566,77 @@ class TestLStarDeepCounter(unittest.TestCase):
             oracle_creator, min_signal_strength=0.3, seed=0
         )
         assertDFA(self, learned, oracle_creator)
+
+
+def _worst_pair_distinguishing_fraction(dfa, length=40):
+    """Min over state pairs of P[a uniform length-``length`` suffix distinguishes
+    them], computed exactly by propagating the joint distribution on the product
+    automaton. A tiny value means some pair is nearly indistinguishable at the
+    probe length."""
+    states = sorted(dfa.states, key=str)
+    idx = {s: i for i, s in enumerate(states)}
+    n = len(states)
+    syms = sorted(dfa.input_symbols)
+    finals = np.array([s in dfa.final_states for s in states])
+    delta = np.array([[idx[dfa.transitions[s][c]] for c in syms] for s in states])
+    diff = finals[:, None] != finals[None, :]
+    worst = 1.0
+    for i in range(n):
+        for j in range(i + 1, n):
+            m = np.zeros((n, n))
+            m[i, j] = 1.0
+            for _ in range(length):
+                nxt = np.zeros((n, n))
+                for c in range(len(syms)):
+                    np.add.at(
+                        nxt,
+                        (delta[:, c][:, None], delta[:, c][None, :]),
+                        m / len(syms),
+                    )
+                m = nxt
+            worst = min(worst, float(m[diff].sum()))
+    return worst
+
+
+class TestLStarIndistinguishablePair(unittest.TestCase):
+    """A balanced, class-preserving benchmark can still contain a state pair far
+    harder to separate at length 40 than any in the seed 0..9 suite, yet main
+    learns it.
+
+    The accuracy cost of merging a pair is bounded by its distinguishing
+    fraction, so a hard-to-separate pair is also a cheap-to-miss one —
+    ``min_class_preserving_frac`` (a global check) need not bound worst-case
+    *pairwise* distinguishability. A benchmark whose hardest pair is distinguished
+    by < ~0.3% of length-40 suffixes (vs ~0.96% for seed 5) is found by scanning,
+    and synthesis still clears the 0.97 bar on it.
+    """
+
+    # A pair distinguishable by less than this fraction of length-40 suffixes is
+    # far harder than anything in the seed 0..9 suite.
+    HARD_PAIR_FRACTION = 0.003
+
+    def test_extreme_worst_pair_still_learned(self):
+        # Don't hard-code a seed (fragile to generator changes): scan until a
+        # benchmark has a near-indistinguishable pair, and fail loudly if the
+        # generator no longer produces one.
+        for seed in range(10000):
+            outer, _, _ = sample_balanced_benchmark(
+                seed,
+                alphabet_size=2,
+                num_inner_states=12,
+                num_outer_states=10,
+                probe_length=40,
+                min_accept_or_reject=0.15,
+            )
+            if _worst_pair_distinguishing_fraction(outer) < self.HARD_PAIR_FRACTION:
+                break
+        else:
+            self.fail(
+                "no benchmark with a pair distinguishable by < "
+                f"{self.HARD_PAIR_FRACTION} of length-40 suffixes in 10000 seeds"
+            )
+        oracle_creator = lambda nm, s, _d=outer: DFAOracle(nm, s, _d)
+        _, learned, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        assertDFA(self, learned, oracle_creator)
