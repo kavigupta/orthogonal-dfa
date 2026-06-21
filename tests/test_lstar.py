@@ -533,3 +533,36 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
                 f"FP: {len(fp)}, FN: {len(fn)}"
             )
+
+
+class TestLStarDeepCounter(unittest.TestCase):
+    """``Sigma* 0^k Sigma*`` — "contains a run of k zeros".
+
+    State i counts i consecutive zeros, so its only access string is ``0^i``: for
+    k > 4 the deepest counter states sit *beyond* the short prefix-closed core and
+    are reached only via long, specific paths that random length-L probes almost
+    never hit. They are nonetheless recurrent and on the critical path to
+    acceptance. This guards that counterexample-driven discovery still finds and
+    enriches them — a misclassified ``0^k`` string yields a discriminating prefix
+    ending exactly at a deep state, which seeds it. (Regression guard for deep
+    recurrent-state learning; complements the prefix-closed core, which only
+    reaches shallow states.)
+    """
+
+    @parameterized.expand([(k,) for k in (6, 7)])
+    def test_contains_run_of_k_zeros(self, k):
+        transitions = {i: {0: i + 1, 1: 0} for i in range(k)}
+        transitions[k] = {0: k, 1: k}  # absorbing accept once k zeros are seen
+        dfa = DFA(
+            states=set(range(k + 1)),
+            input_symbols={0, 1},
+            transitions=transitions,
+            initial_state=0,
+            final_states={k},
+            allow_partial=False,
+        )
+        oracle_creator = lambda nm, s, _d=dfa: DFAOracle(nm, s, _d)
+        _, learned, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        assertDFA(self, learned, oracle_creator)
