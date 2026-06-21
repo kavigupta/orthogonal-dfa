@@ -535,6 +535,38 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             )
 
 
+class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
+    """Like ``TestLStarOnGeneratedBenchmarks`` but with larger 18-state outer
+    DFAs (vs 10). Balanced ``Sigma*LSigma*`` benchmarks of this size are rarer to
+    sample (hence the raised ``max_attempts``) and slower to synthesise (~2-5 min
+    each), yet still learn to >= 1 - assertion_allowed_error accuracy. Guards that
+    counterexample-driven synthesis scales past the 10-state benchmarks.
+    """
+
+    @parameterized.expand([(seed,) for seed in range(5)])
+    def test_large_generated_benchmark(self, seed):
+        outer, _, _ = sample_balanced_benchmark(
+            seed,
+            alphabet_size=2,
+            num_inner_states=20,
+            num_outer_states=18,
+            probe_length=40,
+            min_accept_or_reject=0.15,
+            max_attempts=50000,
+        )
+        print(outer)
+        oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        if accuracy < 1 - assertion_allowed_error:
+            self.fail(
+                f"DFA incorrect (accuracy {accuracy:.3f}). "
+                f"FP: {len(fp)}, FN: {len(fn)}"
+            )
+
+
 class TestLStarDeepCounter(unittest.TestCase):
     """``Sigma* 0^k Sigma*`` — "contains a run of k zeros".
 
