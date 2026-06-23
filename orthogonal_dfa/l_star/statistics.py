@@ -240,3 +240,22 @@ def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
     """
     pval = 1 - scipy.stats.binom.cdf(num_agreements - 1, num_samples, expected_acc)
     return pval < 1e-5
+
+
+def agreement_threshold_decided(num_agreements, num_samples, threshold, *, alpha=1e-5):
+    """Whether a one-sided binomial test is confident which side of *threshold*
+    the true agreement rate lies on, given *num_agreements* successes out of
+    *num_samples* trials.
+
+    Returns True once either tail falls below *alpha*: ``below`` is the chance of
+    seeing this few agreements if the true rate were >= threshold, ``above`` the
+    chance of seeing this many if it were <= threshold.  Used to early-stop
+    sequential agreement-rate estimation, whose only consumer is the
+    ``rate >= threshold`` decision — once that is statistically settled there is
+    no value in drawing more samples.
+    """
+    if num_samples == 0:
+        return False
+    below = scipy.stats.binom.cdf(num_agreements, num_samples, threshold)
+    above = 1 - scipy.stats.binom.cdf(num_agreements - 1, num_samples, threshold)
+    return below < alpha or above < alpha

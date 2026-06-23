@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -25,7 +26,7 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import final_states_all_initial, states_intermediate
 from .state_discovery import discover_states
-from .statistics import unlikely_this_many_agreements
+from .statistics import agreement_threshold_decided, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -109,6 +110,60 @@ def optimal_dfa(pst, dt: DecisionTree):
             f"but DFA has final state {dfa_states[best_idx, idx]}"
         )
     return dfas[best_idx]
+
+
+def denoise_accept_labels(pst, dfa, *, num_samples=20000, min_samples=40):
+    """Re-derive each state's accept/reject label by majority vote over many fresh
+    samples routed through *dfa*, replacing the label inferred during discovery.
+
+    Discovery labels a state accept/reject from the few, noisy prefixes that happen
+    to land in it.  A reject state sitting at the discovery threshold (support ~=
+    landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
+    noise; because it is then on the accept side, every string ending there is
+    silently accepted -- a ~2% false-positive leak (see
+    ``TestLStarBimodalReproducer``).  Routing many fresh strings to their end state
+    gives a low-variance estimate of each state's empirical accept rate under the
+    (possibly asymmetric) oracle.  A state's label is flipped only when that rate is
+    *confidently* on the wrong side of the calibrated decision band -- at or above
+    ``accept_thresh`` (relabel accept) or below ``reject_thresh`` (relabel reject);
+    a rate inside the undecided band, or a state reached by fewer than *min_samples*
+    strings, keeps its discovery label.  Because the true per-class rates sit
+    outside that band on their own side, a correct label is never flipped; only a
+    noise-flipped one is corrected.  This changes accept/reject labels only, never
+    states or transitions, so the state-agreement metric driving synthesis is
+    unaffected.
+    """
+    counts = defaultdict(int)
+    accepts = defaultdict(int)
+    for _ in range(num_samples):
+        s = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        state = dfa.initial_state
+        for c in s:
+            state = dfa.transitions[state][c]
+        counts[state] += 1
+        accepts[state] += int(pst.oracle.membership_query(s))
+    new_final = set(dfa.final_states)
+    for state in dfa.states:
+        n = counts[state]
+        if n < min_samples:
+            continue  # too few samples to override the discovery label
+        rate = accepts[state] / n
+        if rate >= pst.accept_thresh:
+            new_final.add(state)
+        elif rate < pst.reject_thresh:
+            new_final.discard(state)
+        # otherwise within the undecided band: keep the discovery label
+    if new_final == set(dfa.final_states):
+        return dfa
+    print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
+    return DFA(
+        states=set(dfa.states),
+        input_symbols=set(dfa.input_symbols),
+        transitions={s: dict(dfa.transitions[s]) for s in dfa.states},
+        initial_state=dfa.initial_state,
+        final_states=new_final,
+        allow_partial=False,
+    )
 
 
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
@@ -212,12 +267,28 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             return additional_prefixes
 
 
-def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
+def estimate_agreement_rate(
+    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold=None
+):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
     initial_state).  Classification failures are excluded from the denominator.
+
+    When *acc_threshold* is given, sampling stops early as soon as a one-sided
+    binomial test is confident which side of the threshold the true rate lies on.
+    The estimate is consumed only to decide ``true_acc >= acc_threshold`` (the
+    termination test) and as a loose ``expected_acc`` guard for counterexample
+    search, so settling that decision is all the precision required; the rate is
+    almost always far from the threshold (e.g. 0.2 or 0.8 vs 0.98), in which case
+    a few dozen samples suffice instead of the full budget.  Sampling is still
+    capped at *num_samples*, so this never costs more than the fixed-budget pass;
+    with *acc_threshold* None it always draws the full budget.
     """
+    # Minimum trials before the sequential test can fire: at acc_threshold near 1
+    # the "above" tail cannot clear alpha with only a handful of samples anyway,
+    # and this guards against an unlucky early run of (dis)agreements.
+    min_valid = 30
     agreements = 0
     valid = 0
     for _ in range(num_samples):
@@ -228,6 +299,15 @@ def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
             valid += 1
         elif prefix is not None:
             valid += 1
+        else:
+            # Could-not-classify samples leave the decision unchanged; don't test.
+            continue
+        if (
+            acc_threshold is not None
+            and valid >= min_valid
+            and agreement_threshold_decided(agreements, valid, acc_threshold)
+        ):
+            break
     return agreements / valid if valid else 0.0
 
 
@@ -304,7 +384,13 @@ def counterexample_driven_synthesis(
             lambda p: TriPredicate(p.vs, boundary, boundary)
         )
         true_acc = estimate_agreement_rate(
-            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=2000
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
         )
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
@@ -337,4 +423,6 @@ def do_counterexample_driven_synthesis(
         acc_threshold=acc_threshold,
     ):
         pass
+    if dfa is not None:
+        dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
