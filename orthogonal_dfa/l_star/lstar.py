@@ -122,11 +122,16 @@ def denoise_accept_labels(pst, dfa, *, num_samples=20000, min_samples=40):
     noise; because it is then on the accept side, every string ending there is
     silently accepted -- a ~2% false-positive leak (see
     ``TestLStarBimodalReproducer``).  Routing many fresh strings to their end state
-    and majority-voting the (noisy) oracle label denoises the decision: a state
-    reached by at least *min_samples* strings is relabelled by its empirical accept
-    rate, while rarely-visited states (whose label barely affects accuracy) keep the
-    discovery label.  This only changes accept/reject labels, never states or
-    transitions, so it does not affect the state-agreement metric driving synthesis.
+    gives a low-variance estimate of each state's empirical accept rate under the
+    (possibly asymmetric) oracle.  A state's label is flipped only when that rate is
+    *confidently* on the wrong side of the calibrated decision band -- at or above
+    ``accept_thresh`` (relabel accept) or below ``reject_thresh`` (relabel reject);
+    a rate inside the undecided band, or a state reached by fewer than *min_samples*
+    strings, keeps its discovery label.  Because the true per-class rates sit
+    outside that band on their own side, a correct label is never flipped; only a
+    noise-flipped one is corrected.  This changes accept/reject labels only, never
+    states or transitions, so the state-agreement metric driving synthesis is
+    unaffected.
     """
     counts = defaultdict(int)
     accepts = defaultdict(int)
@@ -140,11 +145,14 @@ def denoise_accept_labels(pst, dfa, *, num_samples=20000, min_samples=40):
     new_final = set(dfa.final_states)
     for state in dfa.states:
         n = counts[state]
-        if n >= min_samples:
-            if accepts[state] / n >= 0.5:
-                new_final.add(state)
-            else:
-                new_final.discard(state)
+        if n < min_samples:
+            continue  # too few samples to override the discovery label
+        rate = accepts[state] / n
+        if rate >= pst.accept_thresh:
+            new_final.add(state)
+        elif rate < pst.reject_thresh:
+            new_final.discard(state)
+        # otherwise within the undecided band: keep the discovery label
     if new_final == set(dfa.final_states):
         return dfa
     print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
