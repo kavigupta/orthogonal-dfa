@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -109,6 +110,98 @@ def optimal_dfa(pst, dt: DecisionTree):
             f"but DFA has final state {dfa_states[best_idx, idx]}"
         )
     return dfas[best_idx]
+
+
+def denoise_accept_labels(
+    pst, dfa, *, target_per_state=200, min_samples=40, max_routes=50000
+):
+    """Re-derive each state's accept/reject label by majority vote over fresh
+    samples routed through *dfa*, replacing the label inferred during discovery.
+
+    Discovery labels a state accept/reject from the few, noisy prefixes that happen
+    to land in it.  A reject state sitting at the discovery threshold (support ~=
+    landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
+    noise; because it is then on the accept side, every string ending there is
+    silently accepted -- a ~2% false-positive leak (see
+    ``TestLStarBimodalReproducer``).  Routing fresh strings to their end state gives
+    a low-variance estimate of each state's empirical accept rate under the
+    (possibly asymmetric) oracle.  A state's label is flipped only when that rate is
+    *confidently* on the wrong side of the calibrated decision band -- at or above
+    ``accept_thresh`` (relabel accept) or below ``reject_thresh`` (relabel reject);
+    a rate inside the undecided band, or a state with fewer than *min_samples*
+    samples, keeps its discovery label.  Because the true per-class rates sit
+    outside that band on their own side, a correct label is never flipped; only a
+    noise-flipped one is corrected.  This changes accept/reject labels only, never
+    states or transitions, so the state-agreement metric driving synthesis is
+    unaffected.
+
+    Efficiency: routing a string through the DFA is far cheaper than an oracle
+    query, so we route random strings (cheap) but query the oracle (slow) only for
+    a string whose end state is not yet decided.  A state stops being sampled as
+    soon as its rate is confidently outside the band (a few dozen samples for the
+    usual clearly-accept/clearly-reject state; only a state genuinely near the band
+    runs up to *target_per_state*).  A state reached by no discovery prefix is never
+    an end state in practice (its label cannot affect accuracy), so it is excluded,
+    which also stops the loop from chasing unreachable states up to *max_routes*.
+    Oracle queries are thus ~ min_samples x (reachable states) in the common case,
+    not one per routed string.
+    """
+
+    def end_state(string):
+        state = dfa.initial_state
+        for c in string:
+            state = dfa.transitions[state][c]
+        return state
+
+    def decided(state):
+        # Enough samples to place the rate confidently outside the decision band
+        # (the common case -- most states are clearly accept or reject), or we have
+        # hit the per-state cap and accept whatever the rate says.
+        n = counts[state]
+        if n < min_samples:
+            return False
+        rate = accepts[state] / n
+        return (
+            rate >= pst.accept_thresh
+            or rate < pst.reject_thresh
+            or n >= target_per_state
+        )
+
+    pending = {end_state(prefix) for prefix in pst.prefixes}
+    counts = defaultdict(int)
+    accepts = defaultdict(int)
+    routes = 0
+    while pending and routes < max_routes:
+        s = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        routes += 1
+        state = end_state(s)
+        if state not in pending:
+            continue  # decided / unreachable: routed for free, no oracle query
+        accepts[state] += int(pst.oracle.membership_query(s))
+        counts[state] += 1
+        if decided(state):
+            pending.discard(state)
+    new_final = set(dfa.final_states)
+    for state, n in counts.items():
+        if n < min_samples:
+            continue  # too few samples to override the discovery label
+        rate = accepts[state] / n
+        if rate >= pst.accept_thresh:
+            new_final.add(state)
+        elif rate < pst.reject_thresh:
+            new_final.discard(state)
+        # otherwise within the undecided band: keep the discovery label
+    if new_final == set(dfa.final_states):
+        return dfa
+    print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
+    return DFA(
+        states=set(dfa.states),
+        input_symbols=set(dfa.input_symbols),
+        transitions={s: dict(dfa.transitions[s]) for s in dfa.states},
+        initial_state=dfa.initial_state,
+        final_states=new_final,
+        allow_partial=False,
+    )
 
 
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
@@ -337,4 +430,6 @@ def do_counterexample_driven_synthesis(
         acc_threshold=acc_threshold,
     ):
         pass
+    if dfa is not None:
+        dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
