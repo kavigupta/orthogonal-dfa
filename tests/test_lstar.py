@@ -36,20 +36,6 @@ allowed_error = 0.02
 # tightening synthesis output.
 assertion_allowed_error = 0.03
 
-# Tolerance for the randomly-generated Sigma*LSigma* benchmarks.  On a minority of
-# these DFAs synthesis is *bimodal*: it always learns the same state count, but a
-# rare reject state that hangs off a recurrent confusable reject cluster (support
-# ~= landing-prob * num_prefixes ~= 4, i.e. right at the discovery threshold) gets
-# merged into the accept class on a fraction of trajectories, leaking ~2% false
-# positives (realized ~0.965 vs ~0.99 on the good branch).  Which branch is taken
-# depends on the synthesis RNG *and* the environment (numpy/scipy/BLAS), so the
-# realized accuracy of a fixed benchmark genuinely varies in a ~0.96-1.0 band that
-# straddles the 0.97 assertion floor.  See TestLStarBimodalReproducer for an
-# explicit DFA exhibiting this.  The floor here is widened to tolerate that
-# inherent band while still catching real breakage (synthesis genuinely failing
-# lands far below 0.94).
-benchmark_allowed_error = 0.06
-
 
 def sample_with_exclusion(exclude_pattern, *, symbols, count):
     rng = np.random.default_rng(0x1234)
@@ -542,7 +528,7 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             oracle_creator, min_signal_strength=0.3, seed=0
         )
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
-        if accuracy < 1 - benchmark_allowed_error:
+        if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
                 f"FP: {len(fp)}, FN: {len(fn)}"
@@ -550,9 +536,10 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
 
 
 class TestLStarBimodalReproducer(unittest.TestCase):
-    """A hand-constructed (not sampled) explicit DFA that reliably triggers the
-    bimodal synthesis failure underlying the rare flakes in
-    ``TestLStarOnGeneratedBenchmarks``.
+    """A hand-constructed (not sampled) explicit DFA that pins the spurious-accept
+    failure mode behind the rare flakes once seen in
+    ``TestLStarOnGeneratedBenchmarks``, and guards the fix for it
+    (``denoise_accept_labels``).
 
     Structure (alphabet {0,1}, init 0, single absorbing accept state 9):
 
@@ -569,14 +556,14 @@ class TestLStarBimodalReproducer(unittest.TestCase):
         resolved reliably (a clean "contains-pattern" chain is learned perfectly);
         it is what keeps the pocket's split marginal.
 
-    On a fraction of synthesis trajectories (varying with the synthesis RNG *and*
-    the environment) the pocket's ~4 noisy prefixes fail to clear the split
-    threshold and it is merged into the accept class, leaking ~2% false positives
-    (realized accuracy ~0.965 vs ~0.99 on the good branch -- a discrete coin-flip
-    straddling the 0.97 floor, not continuous noise).  Because that band genuinely
-    straddles 0.97, we assert only against the wider ``benchmark_allowed_error``
-    floor; the value of this test is the locked-in reproducer + mechanism, so a
-    future synthesis improvement can target it.
+    On a fraction of synthesis trajectories the pocket's ~4 noisy prefixes fail to
+    clear the split threshold and the (pure-reject) pocket state is mislabelled
+    accept, silently accepting every string ending there -- a ~2% false-positive
+    leak (realized ~0.965 vs ~0.99), bimodal across the synthesis RNG and the
+    environment.  ``denoise_accept_labels`` re-derives each state's label by a
+    majority vote over many fresh samples and corrects the mislabel, so synthesis
+    now clears the 0.97 floor here regardless of branch; if that pass regresses,
+    this test fails.
     """
 
     DFA = DFA(
@@ -605,7 +592,7 @@ class TestLStarBimodalReproducer(unittest.TestCase):
             oracle_creator, min_signal_strength=0.3, seed=0
         )
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
-        if accuracy < 1 - benchmark_allowed_error:
+        if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
                 f"FP: {len(fp)}, FN: {len(fn)}"

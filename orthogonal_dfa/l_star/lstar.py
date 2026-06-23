@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -109,6 +110,52 @@ def optimal_dfa(pst, dt: DecisionTree):
             f"but DFA has final state {dfa_states[best_idx, idx]}"
         )
     return dfas[best_idx]
+
+
+def denoise_accept_labels(pst, dfa, *, num_samples=20000, min_samples=40):
+    """Re-derive each state's accept/reject label by majority vote over many fresh
+    samples routed through *dfa*, replacing the label inferred during discovery.
+
+    Discovery labels a state accept/reject from the few, noisy prefixes that happen
+    to land in it.  A reject state sitting at the discovery threshold (support ~=
+    landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
+    noise; because it is then on the accept side, every string ending there is
+    silently accepted -- a ~2% false-positive leak (see
+    ``TestLStarBimodalReproducer``).  Routing many fresh strings to their end state
+    and majority-voting the (noisy) oracle label denoises the decision: a state
+    reached by at least *min_samples* strings is relabelled by its empirical accept
+    rate, while rarely-visited states (whose label barely affects accuracy) keep the
+    discovery label.  This only changes accept/reject labels, never states or
+    transitions, so it does not affect the state-agreement metric driving synthesis.
+    """
+    counts = defaultdict(int)
+    accepts = defaultdict(int)
+    for _ in range(num_samples):
+        s = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        state = dfa.initial_state
+        for c in s:
+            state = dfa.transitions[state][c]
+        counts[state] += 1
+        accepts[state] += int(pst.oracle.membership_query(s))
+    new_final = set(dfa.final_states)
+    for state in dfa.states:
+        n = counts[state]
+        if n >= min_samples:
+            if accepts[state] / n >= 0.5:
+                new_final.add(state)
+            else:
+                new_final.discard(state)
+    if new_final == set(dfa.final_states):
+        return dfa
+    print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
+    return DFA(
+        states=set(dfa.states),
+        input_symbols=set(dfa.input_symbols),
+        transitions={s: dict(dfa.transitions[s]) for s in dfa.states},
+        initial_state=dfa.initial_state,
+        final_states=new_final,
+        allow_partial=False,
+    )
 
 
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
@@ -368,4 +415,6 @@ def do_counterexample_driven_synthesis(
         acc_threshold=acc_threshold,
     ):
         pass
+    if dfa is not None:
+        dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
