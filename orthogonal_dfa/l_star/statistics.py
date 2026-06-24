@@ -243,18 +243,11 @@ def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
 
 
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
-    """Decide which side of ``boundary`` a state's true accept rate lies on.
+    """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
 
-    Treats the observed ``num_accepts`` out of ``num_samples`` as draws from a
-    Bernoulli and tests both tails against the null accept rate ``boundary``:
-
-    - returns ``True`` (accept) if the count is too high to come from ``boundary``,
-      i.e. the upper tail ``P(K >= num_accepts | boundary) < failure_prob``;
-    - returns ``False`` (reject) if it is symmetrically too low,
-      i.e. the lower tail ``P(K <= num_accepts | boundary) < failure_prob``;
-    - returns ``None`` when neither tail is significant, so the evidence does not
-      yet place the rate confidently on either side (this is also the case for very
-      small ``num_samples``, where no count is significant).
+    Returns True if the count is significantly above ``boundary``, False if
+    significantly below, and None if neither tail clears ``failure_prob`` (including
+    small ``num_samples``).
     """
     above = 1 - scipy.stats.binom.cdf(num_accepts - 1, num_samples, boundary)
     if above < failure_prob:

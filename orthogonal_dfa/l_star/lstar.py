@@ -113,32 +113,18 @@ def optimal_dfa(pst, dt: DecisionTree):
 
 
 def denoise_accept_labels(pst, dfa, *, max_samples=200, max_routes=50000):
-    """Re-derive each state's accept/reject label by a binomial test over fresh
-    samples routed through *dfa*, replacing the label inferred during discovery.
+    """Recompute each state's accept/reject label from fresh oracle samples.
 
-    Discovery labels a state accept/reject from the few, noisy prefixes that happen
-    to land in it.  A reject state sitting at the discovery threshold (support ~=
-    landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
-    noise; because it is then on the accept side, every string ending there is
-    silently accepted -- a ~2% false-positive leak (see
-    ``TestLStarBimodalReproducer``).  Routing fresh strings to their end state and
-    querying the oracle gives independent samples of each state's accept rate, which
-    ``binomial_side_of_boundary`` tests against the calibrated
-    ``pst.decision_boundary``: a state is relabelled only when the accept count is
-    too high (relabel accept) or too low (relabel reject) to have come from the
-    boundary rate.  Under the true per-class rates the count never reaches
-    significance on the wrong side, so a correct label is never flipped; only a
-    noise-flipped one is corrected.  Only labels change, never states or
-    transitions, so the state-agreement metric driving synthesis is unaffected.
+    Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
+    positives (see ``TestLStarBimodalReproducer``). We route fresh strings to their
+    end state and relabel a state only when a binomial test of its accept rate is
+    significantly on one side of ``pst.decision_boundary``; correct labels never
+    reach significance on the wrong side, so only noise-flips get corrected. Labels
+    change, transitions don't.
 
-    The same binomial test is the sequential stopping rule: a state stops being
-    sampled the moment its label is decided (a few dozen samples for a clearly
-    accept/reject state; up to *max_samples* only for a state genuinely near the
-    boundary).  Routing a string is far cheaper than an oracle query, so we route
-    random strings freely but query the oracle only for a string whose end state is
-    still undecided, and we never sample states no discovery prefix reaches (their
-    label cannot affect accuracy).  Oracle queries thus scale with the number of
-    reachable states, not the number of routed strings.
+    Routing is cheap, so we query the oracle only while a state is still undecided
+    and skip states no prefix reaches: queries scale with reachable states, not
+    routed strings.
     """
 
     def end_state(string):
