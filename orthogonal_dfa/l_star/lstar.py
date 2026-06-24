@@ -133,35 +133,35 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, max_routes=50000):
             state = dfa.transitions[state][symbol]
         return state
 
-    def relabel(state):
-        # accept / reject / None(undecided) for the samples gathered so far.
-        return binomial_side_of_boundary(
-            accepts[state], counts[state], pst.decision_boundary
-        )
-
-    reachable = {end_state(prefix) for prefix in pst.prefixes}
     accepts = defaultdict(int)
     counts = defaultdict(int)
-    undecided = set(reachable)
+    # True=accept, False=reject, None=undecided (keep the discovery label).
+    label = {end_state(prefix): None for prefix in pst.prefixes}
+
     routes = 0
-    while undecided and routes < max_routes:
+    while routes < max_routes and any(
+        label[s] is None and counts[s] < max_samples for s in label
+    ):
         string = pst.sampler.sample(pst.rng, pst.alphabet_size)
         routes += 1
         state = end_state(string)
-        if state not in undecided:
-            continue  # decided / unreachable: routed for free, no oracle query
+        if (
+            state not in label
+            or label[state] is not None
+            or counts[state] >= max_samples
+        ):
+            continue  # unreachable, decided, or capped: no oracle query
         accepts[state] += int(pst.oracle.membership_query(string))
         counts[state] += 1
-        if relabel(state) is not None or counts[state] >= max_samples:
-            undecided.discard(state)
+        label[state] = binomial_side_of_boundary(
+            accepts[state], counts[state], pst.decision_boundary
+        )
 
-    new_final = set(dfa.final_states)
-    for state in reachable:
-        decision = relabel(state)
-        if decision is True:
-            new_final.add(state)
-        elif decision is False:
-            new_final.discard(state)
+    def is_final(s):
+        # Decided states use the new label; the rest keep the discovery label.
+        return s in dfa.final_states if label.get(s) is None else label[s]
+
+    new_final = {s for s in dfa.states if is_final(s)}
     if new_final == set(dfa.final_states):
         return dfa
     print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
