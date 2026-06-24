@@ -26,7 +26,7 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import final_states_all_initial, states_intermediate
 from .state_discovery import discover_states
-from .statistics import unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -112,10 +112,8 @@ def optimal_dfa(pst, dt: DecisionTree):
     return dfas[best_idx]
 
 
-def denoise_accept_labels(
-    pst, dfa, *, target_per_state=200, min_samples=40, max_routes=50000
-):
-    """Re-derive each state's accept/reject label by majority vote over fresh
+def denoise_accept_labels(pst, dfa, *, max_samples=200, max_routes=50000):
+    """Re-derive each state's accept/reject label by a binomial test over fresh
     samples routed through *dfa*, replacing the label inferred during discovery.
 
     Discovery labels a state accept/reject from the few, noisy prefixes that happen
@@ -123,74 +121,61 @@ def denoise_accept_labels(
     landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
     noise; because it is then on the accept side, every string ending there is
     silently accepted -- a ~2% false-positive leak (see
-    ``TestLStarBimodalReproducer``).  Routing fresh strings to their end state gives
-    a low-variance estimate of each state's empirical accept rate under the
-    (possibly asymmetric) oracle.  A state's label is flipped only when that rate is
-    *confidently* on the wrong side of the calibrated decision band -- at or above
-    ``accept_thresh`` (relabel accept) or below ``reject_thresh`` (relabel reject);
-    a rate inside the undecided band, or a state with fewer than *min_samples*
-    samples, keeps its discovery label.  Because the true per-class rates sit
-    outside that band on their own side, a correct label is never flipped; only a
-    noise-flipped one is corrected.  This changes accept/reject labels only, never
-    states or transitions, so the state-agreement metric driving synthesis is
-    unaffected.
+    ``TestLStarBimodalReproducer``).  Routing fresh strings to their end state and
+    querying the oracle gives independent samples of each state's accept rate, which
+    ``binomial_side_of_boundary`` tests against the calibrated
+    ``pst.decision_boundary``: a state is relabelled only when the accept count is
+    too high (relabel accept) or too low (relabel reject) to have come from the
+    boundary rate.  Under the true per-class rates the count never reaches
+    significance on the wrong side, so a correct label is never flipped; only a
+    noise-flipped one is corrected.  Only labels change, never states or
+    transitions, so the state-agreement metric driving synthesis is unaffected.
 
-    Efficiency: routing a string through the DFA is far cheaper than an oracle
-    query, so we route random strings (cheap) but query the oracle (slow) only for
-    a string whose end state is not yet decided.  A state stops being sampled as
-    soon as its rate is confidently outside the band (a few dozen samples for the
-    usual clearly-accept/clearly-reject state; only a state genuinely near the band
-    runs up to *target_per_state*).  A state reached by no discovery prefix is never
-    an end state in practice (its label cannot affect accuracy), so it is excluded,
-    which also stops the loop from chasing unreachable states up to *max_routes*.
-    Oracle queries are thus ~ min_samples x (reachable states) in the common case,
-    not one per routed string.
+    The same binomial test is the sequential stopping rule: a state stops being
+    sampled the moment its label is decided (a few dozen samples for a clearly
+    accept/reject state; up to *max_samples* only for a state genuinely near the
+    boundary).  Routing a string is far cheaper than an oracle query, so we route
+    random strings freely but query the oracle only for a string whose end state is
+    still undecided, and we never sample states no discovery prefix reaches (their
+    label cannot affect accuracy).  Oracle queries thus scale with the number of
+    reachable states, not the number of routed strings.
     """
 
     def end_state(string):
         state = dfa.initial_state
-        for c in string:
-            state = dfa.transitions[state][c]
+        for symbol in string:
+            state = dfa.transitions[state][symbol]
         return state
 
-    def decided(state):
-        # Enough samples to place the rate confidently outside the decision band
-        # (the common case -- most states are clearly accept or reject), or we have
-        # hit the per-state cap and accept whatever the rate says.
-        n = counts[state]
-        if n < min_samples:
-            return False
-        rate = accepts[state] / n
-        return (
-            rate >= pst.accept_thresh
-            or rate < pst.reject_thresh
-            or n >= target_per_state
+    def relabel(state):
+        # accept / reject / None(undecided) for the samples gathered so far.
+        return binomial_side_of_boundary(
+            accepts[state], counts[state], pst.decision_boundary
         )
 
-    pending = {end_state(prefix) for prefix in pst.prefixes}
-    counts = defaultdict(int)
+    reachable = {end_state(prefix) for prefix in pst.prefixes}
     accepts = defaultdict(int)
+    counts = defaultdict(int)
+    undecided = set(reachable)
     routes = 0
-    while pending and routes < max_routes:
-        s = pst.sampler.sample(pst.rng, pst.alphabet_size)
+    while undecided and routes < max_routes:
+        string = pst.sampler.sample(pst.rng, pst.alphabet_size)
         routes += 1
-        state = end_state(s)
-        if state not in pending:
+        state = end_state(string)
+        if state not in undecided:
             continue  # decided / unreachable: routed for free, no oracle query
-        accepts[state] += int(pst.oracle.membership_query(s))
+        accepts[state] += int(pst.oracle.membership_query(string))
         counts[state] += 1
-        if decided(state):
-            pending.discard(state)
+        if relabel(state) is not None or counts[state] >= max_samples:
+            undecided.discard(state)
+
     new_final = set(dfa.final_states)
-    for state, n in counts.items():
-        if n < min_samples:
-            continue  # too few samples to override the discovery label
-        rate = accepts[state] / n
-        if rate >= pst.accept_thresh:
+    for state in reachable:
+        decision = relabel(state)
+        if decision is True:
             new_final.add(state)
-        elif rate < pst.reject_thresh:
+        elif decision is False:
             new_final.discard(state)
-        # otherwise within the undecided band: keep the discovery label
     if new_final == set(dfa.final_states):
         return dfa
     print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
