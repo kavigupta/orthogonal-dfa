@@ -18,13 +18,17 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
-from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import final_states_all_initial, states_intermediate
+from .dfa_utils import (
+    count_paths_to_state,
+    final_states_all_initial,
+    sample_string_reaching_state,
+    states_intermediate,
+)
 from .state_discovery import discover_states
 from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
@@ -112,50 +116,43 @@ def optimal_dfa(pst, dt: DecisionTree):
     return dfas[best_idx]
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200, max_routes=50000):
-    """Recompute each state's accept/reject label from fresh oracle samples.
+def denoise_accept_labels(pst, dfa, *, max_samples=200):
+    """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
-    positives (see ``TestLStarBimodalReproducer``). We route fresh strings to their
-    end state and relabel a state only when a binomial test of its accept rate is
-    significantly on one side of ``pst.decision_boundary``; correct labels never
-    reach significance on the wrong side, so only noise-flips get corrected. Labels
-    change, transitions don't.
-
-    Routing is cheap, so we query the oracle only while a state is still undecided
-    and skip states no prefix reaches: queries scale with reachable states, not
-    routed strings.
+    positives (see ``TestLStarBimodalReproducer``). For each state we sample distinct
+    length-``pst.sampler.length`` strings that reach it (the standard path-counting DFA
+    sampler) and query the oracle, flipping the label only when a binomial test of the
+    accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
+    labels never reach significance on the wrong side, so only noise-flips get corrected;
+    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
+    label. Labels change, transitions don't.
     """
+    length = pst.sampler.length
 
-    def end_state(string):
-        state = dfa.initial_state
-        for symbol in string:
-            state = dfa.transitions[state][symbol]
-        return state
+    def relabel(state):
+        # True=accept, False=reject, None=undecided (keep the discovery label).
+        counts = count_paths_to_state(dfa, state, length)
+        cap = min(max_samples, counts[length][dfa.initial_state])
+        seen, accepts = set(), 0
+        while len(seen) < cap:
+            string = sample_string_reaching_state(dfa, counts, pst.rng)
+            if tuple(string) in seen:
+                continue  # need distinct strings for independent oracle draws
+            seen.add(tuple(string))
+            accepts += int(pst.oracle.membership_query(string))
+            decision = binomial_side_of_boundary(
+                accepts, len(seen), pst.decision_boundary
+            )
+            if decision is not None:
+                return decision
+        return None
 
-    accepts = defaultdict(int)
-    counts = defaultdict(int)
-    # True=accept, False=reject, None=undecided (keep the discovery label).
-    label = {end_state(prefix): None for prefix in pst.prefixes}
-
-    routes = 0
-    while routes < max_routes and any(
-        label[s] is None and counts[s] < max_samples for s in label
-    ):
-        string = pst.sampler.sample(pst.rng, pst.alphabet_size)
-        routes += 1
-        state = end_state(string)
-        if (
-            state not in label
-            or label[state] is not None
-            or counts[state] >= max_samples
-        ):
-            continue  # unreachable, decided, or capped: no oracle query
-        accepts[state] += int(pst.oracle.membership_query(string))
-        counts[state] += 1
-        label[state] = binomial_side_of_boundary(
-            accepts[state], counts[state], pst.decision_boundary
-        )
+    label = {
+        states_intermediate(dfa.initial_state, prefix, dfa)[-1]: None
+        for prefix in pst.prefixes
+    }
+    label = {state: relabel(state) for state in label}
 
     def is_final(s):
         # Decided states use the new label; the rest keep the discovery label.
