@@ -23,9 +23,14 @@ import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import final_states_all_initial, states_intermediate
+from .dfa_utils import (
+    count_paths_to_state,
+    final_states_all_initial,
+    sample_string_reaching_state,
+    states_intermediate,
+)
 from .state_discovery import discover_states
-from .statistics import unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -109,6 +114,62 @@ def optimal_dfa(pst, dt: DecisionTree):
             f"but DFA has final state {dfa_states[best_idx, idx]}"
         )
     return dfas[best_idx]
+
+
+def denoise_accept_labels(pst, dfa, *, max_samples=200):
+    """Recompute each reachable state's accept/reject label from fresh oracle samples.
+
+    Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
+    positives (see ``TestLStarBimodalReproducer``). For each state we sample distinct
+    length-``pst.sampler.length`` strings that reach it (the standard path-counting DFA
+    sampler) and query the oracle, flipping the label only when a binomial test of the
+    accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
+    labels never reach significance on the wrong side, so only noise-flips get corrected;
+    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
+    label. Labels change, transitions don't.
+    """
+    length = pst.sampler.length
+
+    def relabel(state):
+        # True=accept, False=reject, None=undecided (keep the discovery label).
+        counts = count_paths_to_state(dfa, state, length)
+        cap = min(max_samples, counts[length][dfa.initial_state])
+        seen, accepts = set(), 0
+        while len(seen) < cap:
+            string = sample_string_reaching_state(dfa, counts, pst.rng)
+            if tuple(string) in seen:
+                continue  # need distinct strings for independent oracle draws
+            seen.add(tuple(string))
+            accepts += int(pst.oracle.membership_query(string))
+            decision = binomial_side_of_boundary(
+                accepts, len(seen), pst.decision_boundary
+            )
+            if decision is not None:
+                return decision
+        return None
+
+    label = {
+        states_intermediate(dfa.initial_state, prefix, dfa)[-1]: None
+        for prefix in pst.prefixes
+    }
+    label = {state: relabel(state) for state in label}
+
+    def is_final(s):
+        # Decided states use the new label; the rest keep the discovery label.
+        return s in dfa.final_states if label.get(s) is None else label[s]
+
+    new_final = {s for s in dfa.states if is_final(s)}
+    if new_final == set(dfa.final_states):
+        return dfa
+    print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
+    return DFA(
+        states=set(dfa.states),
+        input_symbols=set(dfa.input_symbols),
+        transitions={s: dict(dfa.transitions[s]) for s in dfa.states},
+        initial_state=dfa.initial_state,
+        final_states=new_final,
+        allow_partial=False,
+    )
 
 
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
@@ -337,4 +398,6 @@ def do_counterexample_driven_synthesis(
         acc_threshold=acc_threshold,
     ):
         pass
+    if dfa is not None:
+        dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
