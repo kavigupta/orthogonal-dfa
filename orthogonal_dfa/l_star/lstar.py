@@ -312,7 +312,9 @@ def estimate_agreement_rate(
         if (
             acc_threshold is not None
             and valid >= min_valid
-            and agreement_threshold_decided(agreements, valid, acc_threshold)
+            and (
+                binomial_side_of_boundary(agreements, valid, acc_threshold) is not None
+            )
         ):
             break
     return agreements / valid if valid else 0.0
