@@ -537,9 +537,8 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
 
 class TestLStarBimodalReproducer(unittest.TestCase):
     """A hand-constructed (not sampled) explicit DFA that pins the spurious-accept
-    failure mode behind the rare flakes once seen in
-    ``TestLStarOnGeneratedBenchmarks``, and guards the fix for it
-    (``denoise_accept_labels``).
+    failure mode behind the rare flakes in ``TestLStarOnGeneratedBenchmarks``, and
+    guards the fix for it (``denoise_accept_labels``).
 
     Structure (alphabet {0,1}, init 0, single absorbing accept state 9):
 

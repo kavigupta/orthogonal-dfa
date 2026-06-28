@@ -24,9 +24,14 @@ import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import final_states_all_initial, states_intermediate
+from .dfa_utils import (
+    count_paths_to_state,
+    final_states_all_initial,
+    sample_string_reaching_state,
+    states_intermediate,
+)
 from .state_discovery import discover_states
-from .statistics import agreement_threshold_decided, unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -112,47 +117,49 @@ def optimal_dfa(pst, dt: DecisionTree):
     return dfas[best_idx]
 
 
-def denoise_accept_labels(pst, dfa, *, num_samples=20000, min_samples=40):
-    """Re-derive each state's accept/reject label by majority vote over many fresh
-    samples routed through *dfa*, replacing the label inferred during discovery.
+def denoise_accept_labels(pst, dfa, *, max_samples=200):
+    """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
-    Discovery labels a state accept/reject from the few, noisy prefixes that happen
-    to land in it.  A reject state sitting at the discovery threshold (support ~=
-    landing-prob * num_prefixes ~= 4) can have that label flipped to accept by
-    noise; because it is then on the accept side, every string ending there is
-    silently accepted -- a ~2% false-positive leak (see
-    ``TestLStarBimodalReproducer``).  Routing many fresh strings to their end state
-    gives a low-variance estimate of each state's empirical accept rate under the
-    (possibly asymmetric) oracle.  A state's label is flipped only when that rate is
-    *confidently* on the wrong side of the calibrated decision band -- at or above
-    ``accept_thresh`` (relabel accept) or below ``reject_thresh`` (relabel reject);
-    a rate inside the undecided band, or a state reached by fewer than *min_samples*
-    strings, keeps its discovery label.  Because the true per-class rates sit
-    outside that band on their own side, a correct label is never flipped; only a
-    noise-flipped one is corrected.  This changes accept/reject labels only, never
-    states or transitions, so the state-agreement metric driving synthesis is
-    unaffected.
+    Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
+    positives (see ``TestLStarBimodalReproducer``). For each state we sample distinct
+    length-``pst.sampler.length`` strings that reach it (the standard path-counting DFA
+    sampler) and query the oracle, flipping the label only when a binomial test of the
+    accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
+    labels never reach significance on the wrong side, so only noise-flips get corrected;
+    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
+    label. Labels change, transitions don't.
     """
-    counts = defaultdict(int)
-    accepts = defaultdict(int)
-    for _ in range(num_samples):
-        s = pst.sampler.sample(pst.rng, pst.alphabet_size)
-        state = dfa.initial_state
-        for c in s:
-            state = dfa.transitions[state][c]
-        counts[state] += 1
-        accepts[state] += int(pst.oracle.membership_query(s))
-    new_final = set(dfa.final_states)
-    for state in dfa.states:
-        n = counts[state]
-        if n < min_samples:
-            continue  # too few samples to override the discovery label
-        rate = accepts[state] / n
-        if rate >= pst.accept_thresh:
-            new_final.add(state)
-        elif rate < pst.reject_thresh:
-            new_final.discard(state)
-        # otherwise within the undecided band: keep the discovery label
+    length = pst.sampler.length
+
+    def relabel(state):
+        # True=accept, False=reject, None=undecided (keep the discovery label).
+        counts = count_paths_to_state(dfa, state, length)
+        cap = min(max_samples, counts[length][dfa.initial_state])
+        seen, accepts = set(), 0
+        while len(seen) < cap:
+            string = sample_string_reaching_state(dfa, counts, pst.rng)
+            if tuple(string) in seen:
+                continue  # need distinct strings for independent oracle draws
+            seen.add(tuple(string))
+            accepts += int(pst.oracle.membership_query(string))
+            decision = binomial_side_of_boundary(
+                accepts, len(seen), pst.decision_boundary
+            )
+            if decision is not None:
+                return decision
+        return None
+
+    label = {
+        states_intermediate(dfa.initial_state, prefix, dfa)[-1]: None
+        for prefix in pst.prefixes
+    }
+    label = {state: relabel(state) for state in label}
+
+    def is_final(s):
+        # Decided states use the new label; the rest keep the discovery label.
+        return s in dfa.final_states if label.get(s) is None else label[s]
+
+    new_final = {s for s in dfa.states if is_final(s)}
     if new_final == set(dfa.final_states):
         return dfa
     print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
