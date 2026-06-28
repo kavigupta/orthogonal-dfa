@@ -274,22 +274,21 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
 
 
 def estimate_agreement_rate(
-    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold=None
+    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold
 ):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
     initial_state).  Classification failures are excluded from the denominator.
 
-    When *acc_threshold* is given, sampling stops early as soon as a one-sided
-    binomial test is confident which side of the threshold the true rate lies on.
-    The estimate is consumed only to decide ``true_acc >= acc_threshold`` (the
-    termination test) and as a loose ``expected_acc`` guard for counterexample
-    search, so settling that decision is all the precision required; the rate is
-    almost always far from the threshold (e.g. 0.2 or 0.8 vs 0.98), in which case
-    a few dozen samples suffice instead of the full budget.  Sampling is still
-    capped at *num_samples*, so this never costs more than the fixed-budget pass;
-    with *acc_threshold* None it always draws the full budget.
+    Sampling stops early as soon as a one-sided binomial test is confident which
+    side of *acc_threshold* the true rate lies on.  The estimate is consumed only
+    to decide ``true_acc >= acc_threshold`` (the termination test) and as a loose
+    ``expected_acc`` guard for counterexample search, so settling that decision is
+    all the precision required; the rate is almost always far from the threshold
+    (e.g. 0.2 or 0.8 vs 0.98), in which case a few dozen samples suffice instead
+    of the full budget.  Sampling is still capped at *num_samples*, so this never
+    costs more than the fixed-budget pass.
     """
     # Minimum trials before the sequential test can fire: at acc_threshold near 1
     # the "above" tail cannot clear alpha with only a handful of samples anyway,
@@ -309,11 +308,8 @@ def estimate_agreement_rate(
             # Could-not-classify samples leave the decision unchanged; don't test.
             continue
         if (
-            acc_threshold is not None
-            and valid >= min_valid
-            and (
-                binomial_side_of_boundary(agreements, valid, acc_threshold) is not None
-            )
+            valid >= min_valid
+            and binomial_side_of_boundary(agreements, valid, acc_threshold) is not None
         ):
             break
     return agreements / valid if valid else 0.0
