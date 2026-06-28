@@ -18,7 +18,6 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
-from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
