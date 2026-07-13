@@ -38,7 +38,15 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     if isinstance(dt, DecisionTreeLeafNode):
         return np.full(len(pst.prefixes), dt.state_idx)
     results = np.full(len(pst.prefixes), -1)
-    rej, acc = pst.compute_decision_array_from_strings(dt.predicate.vs)
+    # Classify straight from the cached prefix x suffix mask matrix
+    # (compute_decision_from_strings reads corresponding_masks), applying each node's
+    # OWN thresholds rather than the PST's current margins.  For a discovery-time tree
+    # the predicate thresholds equal the margins in effect here, so existing callers are
+    # unchanged; for a decisive tree (accept==reject==boundary) this reproduces
+    # dt.classify(prefix, oracle) for every prefix without re-querying the oracle.
+    decision = pst.compute_decision_from_strings(dt.predicate.vs)
+    rej = decision < dt.predicate.reject_threshold
+    acc = decision >= dt.predicate.accept_threshold
     results[rej] = classify_states_with_decision_tree(pst, dt.by_rejection[0])[rej]
     results[acc] = classify_states_with_decision_tree(pst, dt.by_rejection[1])[acc]
     return results
@@ -328,10 +336,13 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     which left the suffix-family clustering unable to find discriminating
     suffixes for that state.
     """
+    # Classify every existing prefix through the decisive tree directly from the cached
+    # mask matrix instead of re-querying the oracle once per prefix: all these
+    # prefix x suffix pairs are already in corresponding_masks.  -1 marks undecided.
+    leaves = classify_states_with_decision_tree(pst, dt_decisive)
     leaf_counts = {}
-    for pref in pst.prefixes:
-        leaf = dt_decisive.classify(pref, pst.oracle)
-        if leaf is None:
+    for leaf in leaves.tolist():
+        if leaf < 0:
             continue
         leaf_counts[leaf] = leaf_counts.get(leaf, 0) + 1
     if not leaf_counts:
