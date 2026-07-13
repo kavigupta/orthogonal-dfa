@@ -240,3 +240,19 @@ def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
     """
     pval = 1 - scipy.stats.binom.cdf(num_agreements - 1, num_samples, expected_acc)
     return pval < 1e-5
+
+
+def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
+    """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
+
+    Returns True if the count is significantly above ``boundary``, False if
+    significantly below, and None if neither tail clears ``failure_prob`` (including
+    small ``num_samples``).
+    """
+    above = 1 - scipy.stats.binom.cdf(num_accepts - 1, num_samples, boundary)
+    if above < failure_prob:
+        return True
+    below = scipy.stats.binom.cdf(num_accepts, num_samples, boundary)
+    if below < failure_prob:
+        return False
+    return None

@@ -567,6 +567,69 @@ class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
             )
 
 
+class TestLStarBimodalReproducer(unittest.TestCase):
+    """A hand-constructed (not sampled) explicit DFA that pins the spurious-accept
+    failure mode behind the rare flakes in ``TestLStarOnGeneratedBenchmarks``, and
+    guards the fix for it (``denoise_accept_labels``).
+
+    Structure (alphabet {0,1}, init 0, single absorbing accept state 9):
+
+      * entry funnel 0 -> 1 -> (cluster): skip to the first 1.
+      * recurrent confusable reject cluster {2,3,4,5}: "00" advances toward the
+        pocket, "11" launches into it; states share a continuation-accept rate
+        ~0.6, so they are hard to tell apart under noise.
+      * rare pocket state 6: REJECT, shortest path 6 (so the length<=4
+        prefix-closed core never reaches it) and landing probability ~0.022, i.e.
+        only ~4 of the ~200 random prefixes land in it -- right at the discovery
+        threshold.  It is accept-adjacent: ``6 --0--> 9`` (accept).
+      * feedback 6 --1--> 7 --*--> 8 --*--> 5: a clean linear return into the
+        cluster.  This recurrence is essential -- without it the pocket is
+        resolved reliably (a clean "contains-pattern" chain is learned perfectly);
+        it is what keeps the pocket's split marginal.
+
+    On a fraction of synthesis trajectories the pocket's ~4 noisy prefixes fail to
+    clear the split threshold and the (pure-reject) pocket state is mislabelled
+    accept, silently accepting every string ending there -- a ~2% false-positive
+    leak (realized ~0.965 vs ~0.99), bimodal across the synthesis RNG and the
+    environment.  ``denoise_accept_labels`` re-derives each state's label by a
+    majority vote over many fresh samples and corrects the mislabel, so synthesis
+    now clears the 0.97 floor here regardless of branch; if that pass regresses,
+    this test fails.
+    """
+
+    DFA = DFA(
+        states=set(range(10)),
+        input_symbols={0, 1},
+        transitions={
+            0: {0: 1, 1: 1},
+            1: {0: 1, 1: 2},
+            2: {0: 3, 1: 2},
+            3: {0: 4, 1: 2},
+            4: {0: 3, 1: 5},
+            5: {0: 3, 1: 6},
+            6: {0: 9, 1: 7},  # rare accept-adjacent reject pocket
+            7: {0: 8, 1: 8},
+            8: {0: 5, 1: 5},
+            9: {0: 9, 1: 9},  # absorbing accept
+        },
+        initial_state=0,
+        final_states={9},
+        allow_partial=False,
+    )
+
+    def test_bimodal_reproducer(self):
+        oracle_creator = lambda nm, s, _dfa=self.DFA: DFAOracle(nm, s, _dfa)
+        _, dfa, _ = compute_dfa_for_oracle(
+            oracle_creator, min_signal_strength=0.3, seed=0
+        )
+        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        if accuracy < 1 - assertion_allowed_error:
+            self.fail(
+                f"DFA incorrect (accuracy {accuracy:.3f}). "
+                f"FP: {len(fp)}, FN: {len(fn)}"
+            )
+
+
 class TestLStarDeepCounter(unittest.TestCase):
     """``Sigma* 0^k Sigma*`` — "contains a run of k zeros".
 
