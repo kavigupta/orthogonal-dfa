@@ -273,12 +273,27 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             return additional_prefixes
 
 
-def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
+def estimate_agreement_rate(
+    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold
+):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
     initial_state).  Classification failures are excluded from the denominator.
+
+    Sampling stops early as soon as a one-sided binomial test is confident which
+    side of *acc_threshold* the true rate lies on.  The estimate is consumed only
+    to decide ``true_acc >= acc_threshold`` (the termination test) and as a loose
+    ``expected_acc`` guard for counterexample search, so settling that decision is
+    all the precision required; the rate is almost always far from the threshold
+    (e.g. 0.2 or 0.8 vs 0.98), in which case a few dozen samples suffice instead
+    of the full budget.  Sampling is still capped at *num_samples*, so this never
+    costs more than the fixed-budget pass.
     """
+    # Minimum trials before the sequential test can fire: at acc_threshold near 1
+    # the "above" tail cannot clear alpha with only a handful of samples anyway,
+    # and this guards against an unlucky early run of (dis)agreements.
+    min_valid = 30
     agreements = 0
     valid = 0
     for _ in range(num_samples):
@@ -289,6 +304,14 @@ def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
             valid += 1
         elif prefix is not None:
             valid += 1
+        else:
+            # Could-not-classify samples leave the decision unchanged; don't test.
+            continue
+        if (
+            valid >= min_valid
+            and binomial_side_of_boundary(agreements, valid, acc_threshold) is not None
+        ):
+            break
     return agreements / valid if valid else 0.0
 
 
@@ -365,7 +388,13 @@ def counterexample_driven_synthesis(
             lambda p: TriPredicate(p.vs, boundary, boundary)
         )
         true_acc = estimate_agreement_rate(
-            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=2000
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
         )
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
