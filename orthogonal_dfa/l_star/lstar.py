@@ -195,15 +195,10 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
     return results
 
 
-_S0_UNSET = object()
-
-
-def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0=_S0_UNSET):
-    # ``s0`` is ``dt.classify(x)``; callers that hold ``x`` fixed across many calls
-    # (e.g. estimate_agreement_rate, where x is always the empty prefix) can compute
-    # it once and pass it in rather than re-querying the oracle on every call.
-    if s0 is _S0_UNSET:
-        s0 = dt.classify(x, oracle)
+def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0):
+    # ``s0`` is ``dt.classify(x, oracle)``, passed in by the caller: callers that hold
+    # ``x`` fixed across many calls (e.g. estimate_agreement_rate, where x is always
+    # the empty prefix) compute it once instead of re-querying the oracle every call.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -261,6 +256,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             dfa,
             x,
             y,
+            s0=dt_with_reduced_predicates.classify(x, oracle),
         )
         if prefix is None:
             num_agreements += sym == "no inconsistency"
