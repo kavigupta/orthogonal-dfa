@@ -302,40 +302,45 @@ the number of labels drawn.
 the query comparison on the *easy* cells and the sign flips — ortho-L\* is the
 profligate one everywhere. Distinct membership queries, ortho-L\* vs official
 CAPAL (default m=60, seed=0; same persistent-noise metric on both sides, and
-CAPAL here has a free `PerfectEQ` — see the caveat below):
+CAPAL here has a free `PerfectEQ` — see the caveat below). The `old→new` column
+brackets the recent ortho-L\* query-reduction work already on `main` (#110
+sequential accuracy early-stop, #112/#113 evidence-cache reuse):
 
 ```
-| cell                       | η    | ortho st | ortho MQ  | CAPAL st | acc   | conv | CAPAL MQ | ratio |
-| regex_alt_1111_or_0000_11  | 0.05 | 10       |   436 896 | 15       | 1.000 | Yes  |   17 483 |   25× |
-| regex_alt_1111_or_0000_11  | 0.10 | 10       | 1 604 785 | 29       | 1.000 | Yes  |   21 810 |   74× |
-| regex_subseq_1010101       | 0.05 |  8       |   887 885 |  8       | 0.911 | No   |    6 154 |  144× |
-| regex_subseq_1010101       | 0.10 |  8       |   891 078 |  7       | 0.911 | No   |    5 652 |  158× |
-| parity_mod9                | 0.05 |  9       |   501 944 | 23       | 0.901 | No   |   15 517 |   32× |
-| parity_mod9                | 0.10 |  9       |   715 766 | 18       | 0.866 | No   |    9 917 |   72× |
+| cell                       | η    | ortho MQ (old→new) | ortho st | CAPAL st | acc   | conv | CAPAL MQ | ratio |
+| regex_alt_1111_or_0000_11  | 0.05 |   436 896 → 447 259 | 10       | 15       | 1.000 | Yes  |   17 483 |   26× |
+| regex_alt_1111_or_0000_11  | 0.10 | 1 604 785 → 756 932 | 10       | 29       | 1.000 | Yes  |   21 810 |   35× |
+| regex_subseq_1010101       | 0.05 |   887 885 → 293 989 |  8       |  8       | 0.911 | No   |    6 154 |   48× |
+| regex_subseq_1010101       | 0.10 |   891 078 → 490 804 |  8       |  7       | 0.911 | No   |    5 652 |   87× |
+| parity_mod9                | 0.05 |   501 944 → 405 797 |  9       | 23       | 0.901 | No   |   15 517 |   26× |
+| parity_mod9                | 0.10 |   715 766 → 584 259 |  9       | 18       | 0.866 | No   |    9 917 |   59× |
 ```
 
-Ortho-L\* spends **0.4–1.6 M** distinct queries on every cell; CAPAL spends
-**6–22 k** — **25–158× fewer**. On `regex_alt`, where both hit 100%, CAPAL is
-*strictly* better: exact **and** ~25–74× cheaper. Ortho-L\*'s only edge is
-robustness (100% on every cell); it buys that with a 1–2 order-of-magnitude
-larger oracle budget.
+Even after `main`'s optimisations (which cut 0–67%, biggest on subseq), ortho-L\*
+spends **0.3–0.76 M** distinct queries per cell vs CAPAL's **6–22 k** —
+**26–87× more**. On `regex_alt`, where both hit 100%, CAPAL is *strictly*
+better: exact **and** ~26–35× cheaper. Ortho-L\*'s edge is robustness (100% on
+every cell); it buys that with a 1–2 order-of-magnitude larger oracle budget. Note
+distinct ≈ total oracle calls now (e.g. 447 k vs 461 k), so caching is nearly
+complete — the remaining cost is genuine *distinct* information, not redundant
+re-queries.
 
 **Where do ortho-L\*'s queries go?** Not into the table. Instrumenting the phases
-(regex_alt / parity, η=0.05):
+on the merged code (regex_alt / parity, η=0.05):
 
 ```
 | phase                                  | distinct MQ |
 | PrefixSuffixTracker.create (the table) |           0 |
-| counterexample-driven synthesis loop   | 436 896 / 501 944 |
+| counterexample-driven synthesis loop   |  all of them |
 ```
 
 The suffix population is tiny (`n=21`); building the evidence table costs **zero**
-new queries. **~100% of the spend is the synthesis loop** — specifically
-`generate_counterexamples` and `estimate_agreement_rate` (2000 samples/round),
-which draw *fresh* random words each iteration and run `locate_incorrect_point`,
-a per-sample binary search that classifies O(log len) prefixes, each querying the
-whole suffix family at every DT node. Fresh words → fresh (prefix+suffix) strings
-→ new distinct queries every time, with almost no reuse across rounds.
+new queries. **~100% of the spend is the synthesis loop** — `generate_counterexamples`
+and `estimate_agreement_rate`, which draw *fresh* random words each iteration and
+run `locate_incorrect_point`, a per-sample binary search that classifies O(log len)
+prefixes, each querying the whole suffix family at every DT node. Fresh words →
+fresh (prefix+suffix) strings → new distinct queries, with limited reuse across
+rounds.
 
 **Why CAPAL is cheaper — two causes, one of them not real:**
 
@@ -353,32 +358,32 @@ whole suffix family at every DT node. Fresh words → fresh (prefix+suffix) stri
    as prefixes accumulate. Ortho-L\*'s CE/verification sampling generates a fresh,
    never-reused word each time.
 
-**What to port into ortho-L\*** (all target the synthesis loop, the 100%-of-cost
-phase — none touches the noise-robust per-prefix test that makes ortho win §5):
+**Porting CAPAL's compactness into ortho-L\*.** Two of the four ideas below are
+already on `main` and account for the `old→new` reduction; two remain, and both
+target the synthesis loop (the 100%-of-cost phase) without touching the noise-robust
+per-prefix test that wins §5:
 
-- **A shared, cached probe pool.** Draw one fixed pool of counterexample/accuracy
-  words up front and reuse it across every synthesis round and accuracy estimate,
-  instead of `us.sample(...)` fresh each iteration. Under persistent noise, re-scoring
-  the same pool is free — this caps distinct queries at |pool| × (suffixes per
-  classification) regardless of round count. Refill the pool only when the
-  hypothesis changes enough to exhaust it.
-- **Memoize `locate_incorrect_point` classifications.** The same prefixes recur
-  across CE rounds; cache `(prefix → DT-classification)` so a repeated prefix costs
-  no new queries. (Persistent noise already fixes the label; we're paying only for
-  *distinct* strings, so dedup is pure win.)
-- **Structural counterexample generation, CAPAL-style.** Instead of blind random
+- ✅ **Sequential accuracy estimation** (`main` #110). Replaces the fixed
+  2000-sample estimate with an early-stopping sequential binomial test — the bulk
+  of the 0–67% reduction above.
+- ✅ **Evidence-cache reuse** (`main` #112/#113). Reuses the prefix×suffix mask
+  cache and the constant empty-prefix classification, driving total ≈ distinct.
+- ⬜ **A shared, cached probe pool.** Draw one fixed pool of counterexample/accuracy
+  words and reuse it across synthesis rounds, instead of `us.sample(...)` fresh each
+  iteration — caps distinct queries at |pool| × (suffixes per classification)
+  regardless of round count. Risk: a fixed pool may stop surfacing counterexamples
+  as the hypothesis sharpens (the reason CAPAL needs its `PerfectEQ`), so refill on
+  hypothesis change and **measure that accuracy holds**.
+- ⬜ **Structural counterexample generation, CAPAL-style.** Instead of blind random
   sampling, walk the current hypothesis DFA to synthesise *targeted* distinguishing
-  candidates (short words that reach under-tested transitions), then confirm each
-  against the noisy oracle with the per-prefix test. Fewer, higher-yield probes.
-- **Sequential accuracy estimation.** Replace the fixed 2000-sample estimate with a
-  sequential test (stop once the accuracy is provably above / below threshold),
-  which on easy cells terminates in far fewer samples.
+  candidates (short words reaching under-tested transitions), then confirm each with
+  the per-prefix test. Fewer, higher-yield probes — closest to CAPAL's real edge and
+  it preserves CE-finding power a fixed pool risks losing.
 
-Net: ortho-L\*'s noise robustness lives in the *table* (which is already free);
-its query blow-up lives entirely in *counterexample discovery and verification*.
-That is exactly where CAPAL is compact — so borrowing evidence-reuse and targeted
-CE generation there is orthogonal to, and should not weaken, the high-noise
-advantage.
+Net: ortho-L\*'s noise robustness lives in the *table* (already free); its query
+blow-up lives entirely in *counterexample discovery and verification*. That is
+exactly where CAPAL is compact — so the two remaining ports are orthogonal to, and
+should not weaken, the high-noise advantage.
 
 ## 12. Bottom line
 
@@ -402,11 +407,11 @@ advantage.
   budget — deep suffix enumeration pushes it to 3.3–4.9 M distinct queries (§10)
   — still fails and inflates state count to ~28. The bottleneck is the pairwise
   SAMESTATE test shape, not the number of labels.
-- On the *easy* cells the efficiency sign flips (§11): ortho-L\* spends 0.4–1.6 M
-  distinct queries vs CAPAL's 6–22 k (25–158× more), and on `regex_alt` CAPAL is
-  both exact and ~25–74× cheaper. ~100% of ortho-L\*'s spend is the
-  counterexample-discovery / accuracy-estimation loop (the table itself is free);
-  CAPAL's edge is partly a free `PerfectEQ` and partly genuine evidence reuse.
-  Porting a shared cached probe pool + targeted CE generation into ortho-L\*'s
-  synthesis loop is the concrete next step — it's orthogonal to the noise-robust
-  test that wins §5.
+- On the *easy* cells the efficiency sign flips (§11): even after `main`'s query
+  cuts, ortho-L\* spends 0.3–0.76 M distinct queries vs CAPAL's 6–22 k (26–87×
+  more), and on `regex_alt` CAPAL is both exact and ~26–35× cheaper. ~100% of
+  ortho-L\*'s spend is the counterexample-discovery / accuracy-estimation loop (the
+  table itself is free); CAPAL's edge is partly a free `PerfectEQ` and partly genuine
+  evidence reuse. Two of the four ports are already landed (#110, #112/#113); the
+  remaining two — a shared cached probe pool and targeted CE generation — are the
+  concrete next step, orthogonal to the noise-robust test that wins §5.
