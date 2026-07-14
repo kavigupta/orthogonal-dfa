@@ -96,25 +96,52 @@ for the harder cells.
 
 ## 5. Modulo η=0.30: the wall
 
-Even the resource-heavy configurations can't crack this cell:
+Even the resource-heavy configurations can't crack this cell. Re-measured on
+current upstream CAPAL (github.com/lkwargs/CAPAL @ 57d877f), modulo η=0.30,
+seed=0, K_pos=K_neg=10 (matching the repo adapter); every row non-converged.
+`distinct MQ` = `len(mq.cache)`, the number of *distinct* membership queries —
+the persistent MQ caches every string, so this is CAPAL's true oracle cost:
 
 ```
-| seed=0                      | states | acc   | conv | time  |
-| m=120                       | 11     | 0.642 | No   | 7s    |
-| m=240                       | 32     | 0.833 | No   | 102s  |
-| m=480                       | 24     | 0.874 | No   | 247s  |
-| m=1000, 50 iter (killed)    | ≥23    | ~0.91 | No   | ≥550s |
-| m=4000, 15 iter             | 11     | 0.771 | No   | 410s  |
-| m=4000 + pool_len_max=14    | 16     | 0.815 | No   | 673s  |
+| config (seed=0)          | states | acc   | conv | time | distinct MQ |
+| m=120,  50 iter          | 27     | 0.777 | No   |  11s |      38 618 |
+| m=240,  50 iter          | 30     | 0.690 | No   |  29s |      42 147 |
+| m=480,  50 iter          | 25     | 0.724 | No   |  96s |      37 845 |
+| m=1000, 50 iter          | 24     | 0.783 | No   | 654s |      24 671 |
+| m=4000, 15 iter          | 14     | 0.709 | No   | 456s |      11 798 |
+| m=4000 + pool_len_max=14 | 10     | 0.911 | No   | 704s |      16 989 |
 ```
 
-Inspection of the m=4000 hypothesis reveals **the structure is wrong, not
-just the acceptance bits**: on all-1s the target cycles 0→1→…→8→0 (period
-9), but the learned DFA either cycles at period 3 (states {1, 2, 5}) or —
-with the longer pool — has a period-3 tail (states {3, 5, 7}) after a short
-correct head. The algorithm is conflating states that differ by 3 modulo 9,
-because the SAMESTATE test can't separate their empirical disagreement rate
-from the noise floor.
+(Target is a 9-state DFA at 100% acc; no config reaches it. Harness validated
+against §2's m=60 cell — 20 states, 12 240 queries — an exact match. An earlier
+draft of this table reported lower state counts from an ad-hoc run whose
+iteration caps weren't recorded and which doesn't reproduce on current upstream;
+the numbers above are the reproducible ones.)
+
+Inspection of the learned hypotheses reveals **the structure is wrong, not just
+the acceptance bits**: on all-1s the target cycles 0→1→…→8→0 (period 9), but the
+learned DFA collapses this into a shorter period (typically 3), conflating states
+that differ by 3 modulo 9 — because the SAMESTATE test can't separate their
+empirical disagreement rate from the noise floor.
+
+**Oracle-query cost vs ortho-L\*.** Ortho-L\*'s noise is likewise persistent (a
+deterministic hash of the string), so distinct-query count is the fair metric on
+both sides. Ortho-L\* solves this exact cell with **2 934 112** distinct queries
+(9 states, 100% acc) — so CAPAL hits the wall while spending **~70–250× fewer**
+oracle labels than ortho-L\* spends to succeed. Two things stand out in the table:
+
+- **Raising `max_same_samples` doesn't add evidence.** Across the 50-iter rows,
+  bumping m from 120 → 1000 leaves the distinct-query count flat-to-declining
+  (39 k → 25 k), never rising. Under persistent noise, re-sampling the same short
+  suffix returns the *same cached* label — SAMESTATE saturates on the ≤511 binary
+  strings of length ≤8, so extra samples add **no new information**.
+- **Only the suffix *pool* length adds distinct evidence.** `pool_len_max=14`
+  lifts distinct queries 11 798 → 16 989 and drops the state count to 10 (closest
+  to the true 9) at the best accuracy in the table (0.911) — yet still no
+  convergence.
+
+That raises the obvious question — does simply letting CAPAL draw as many
+suffixes as ortho-L\* settle it? §10 tests exactly that; it does not.
 
 ## 6. Why the noise floor bites CAPAL more than ortho-L\*
 
@@ -220,7 +247,53 @@ LearnerConfig(
 
 Estimated cost per seed: ~1–2 hours wall. Ortho-L\* on the same cell: 80s.
 
-## 10. Bottom line
+## 10. Tested: matching ortho-L\*'s query budget doesn't break the wall
+
+§9 predicts a *bigger* `m` might reach the cell. We tested the underlying
+question directly — **is the wall just a suffix budget/length limit?** — by
+un-capping the two knobs `LearnerConfig` never exposes: `enum_depth`
+(systematic-enumeration depth, default 3) and `extra_len_max` (random-fill
+suffix length, default 8). With these raised, SAMESTATE probes thousands of
+*long* suffixes per pair instead of a handful of short ones.
+
+```
+| config (enum/extra/pool), m       | states | acc   | distinct MQ | conv |
+| baseline  3/ 8/ 8, m=500  (best)  | 15     | 0.90  |     ~20 000 | No   |
+| deep-enum 8/16/16, m=2000 seed 0  | 29     | 0.706 |   4 916 527 | No   |
+| deep-enum 8/16/16, m=2000 seed 1  | 27     | 0.879 |   3 257 673 | No   |
+| deep-enum 8/16/16, m=2000 seed 2  | 27     | 0.837 |   4 603 687 | No   |
+```
+
+Un-capping the suffix length did exactly what it should *mechanically*: the
+distinct-query count jumped from ~20 k to **3.3–4.9 M — as many as, or more
+than, ortho-L\*'s 2.93 M**. But the wall didn't move: accuracy stayed
+0.71–0.88 and the state count got **worse** (27–29 vs baseline's 15–17), still
+never converging to the true 9. A pool-length-only sweep (`pool_len_max`
+8→32, m=500) tells the same story: best-of-3-seeds accuracy peaks weakly at
+pool_len≈16 (0.91) then *declines* at 24–32, never converging.
+
+So short suffixes are **not** the fixable bottleneck. Two effects compound:
+
+1. **Longer suffixes are less discriminating for modulo counting.** For the
+   pairs CAPAL merges (states differing by ±3 mod 9), a suffix with `c` ones
+   separates them for only 2 of the 9 residues of `c mod 9` — so the *maximum*
+   true disagreement is `2/9 ≈ 0.22`, reached only when `c` is uniform (i.e.
+   long suffixes). At η=0.30 that gives observed `D = p₀ + (1−2p₀)·0.22 ≈
+   0.455`, only 0.035 above the p₀=0.42 noise floor. Short suffixes are worse
+   still: their `c` is concentrated near 0, so `true_D` sits below the 2/9
+   ceiling.
+2. **You can't tighten τ for the hard pair without over-splitting the easy
+   ones.** Resolving a 0.035 excess needs `τ < 0.035`, i.e. m ≳ 3 000 distinct
+   long suffixes per pair. But a τ that small drops the DIFFERENT threshold
+   toward p₀, so ordinary noise fluctuations on *already-correct* pairs also
+   cross it — the 27–29-state blow-up. The pairwise test has one global knob
+   (τ) and the hard and easy pairs want opposite settings.
+
+This makes §6/§7's thesis concrete: at a **matched** query budget CAPAL still
+fails, because the limiter is the *shape* of the pairwise SAMESTATE test, not
+the number of labels drawn.
+
+## 11. Bottom line
 
 - CAPAL as shipped works cleanly at η ≤ 0.10 on structurally simple
   regex-alternation DFAs. It's fast — up to 38× faster than ortho-L\* on
@@ -237,3 +310,8 @@ Estimated cost per seed: ~1–2 hours wall. Ortho-L\* on the same cell: 80s.
 - Modulo-9 at η=0.30 is not reachable with CAPAL at any tested (m, α,
   pool_len_max, seed) combination we tried; theory suggests m ≈ 16k would
   make it *possible* per-seed but at 100–1000× the ortho-L\* wall time.
+- The wall is not a query-budget limit. In the §5 configs CAPAL spends ~12–42k
+  distinct oracle labels vs ortho-L\*'s 2.93 M. But *forcing* CAPAL to a matched
+  budget — deep suffix enumeration pushes it to 3.3–4.9 M distinct queries (§10)
+  — still fails and inflates state count to ~28. The bottleneck is the pairwise
+  SAMESTATE test shape, not the number of labels.
