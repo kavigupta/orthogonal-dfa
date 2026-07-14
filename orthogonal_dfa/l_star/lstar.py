@@ -142,36 +142,42 @@ def discover_states_resplit(pst, first_round: bool) -> DecisionTree:
         # a split the restriction missed.
         states = classify_states_with_decision_tree(pst, dt)
         tensor = _transition_tensor(pst, dt, states, cap)
-        candidate = None
+        # A rejected candidate (a noise straddle that fails the split test) leaves the
+        # tree unchanged, so we keep scanning this one tensor and only recompute after an
+        # actual split -- otherwise every rejected candidate would pay for a full tensor.
+        split_happened = False
         for s in range(dt.num_states):
             key_prefixes = frozenset(np.flatnonzero(tracker.states[s][1]).tolist())
             for c in range(pst.alphabet_size):
+                if (key_prefixes, c) in tried:
+                    continue
                 row = tensor[s, c]
                 total = int(row.sum())
                 if total == 0:
                     continue
                 targets = set(np.flatnonzero(row >= max(2, min_share * total)).tolist())
-                if len(targets) < 2 or (key_prefixes, c) in tried:
+                if len(targets) < 2:
                     continue
                 vs_strings = lca_predicate_vs(dt, targets)
                 if vs_strings is None:
                     continue
-                candidate = (s, c, vs_strings, key_prefixes)
+                tried.add((key_prefixes, c))
+                # Un-restrict just this edge: query [c]+distinguisher over the straddling
+                # state's own prefixes, then split it if the family passes discovery's
+                # statistical test.
+                mask = tracker.states[s][1]
+                vs_new = [
+                    pst.record_suffix([c] + list(v), active=mask)[2] for v in vs_strings
+                ]
+                if s in overlapping_states(pst, tracker, vs_new):
+                    print(f"Re-split state {s} on symbol {c} (cross-branch split found)")
+                    tracker.split(pst, [s], vs_new)
+                    split_happened = True
+                    break
+            if split_happened:
                 break
-            if candidate is not None:
-                break
-        if candidate is None:
+        if not split_happened:
             break
-        s, c, vs_strings, key_prefixes = candidate
-        tried.add((key_prefixes, c))
-        # Un-restrict just this edge: query [c]+distinguisher over the straddling state's
-        # own prefixes, then split it if the family passes discovery's statistical test.
-        mask = tracker.states[s][1]
-        vs_new = [pst.record_suffix([c] + list(v), active=mask)[2] for v in vs_strings]
-        ol = overlapping_states(pst, tracker, vs_new)
-        if s in ol:
-            print(f"Re-split state {s} on symbol {c} (cross-branch split recovered)")
-            tracker.split(pst, [s], vs_new)
 
     return tracker.to_decision_tree()
 
