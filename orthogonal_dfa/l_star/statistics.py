@@ -234,6 +234,28 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
+def split_detection_population(
+    decision_rule_fpr, split_pval, min_minority_fraction, *, power=0.99
+):
+    """The per-state prefix population at which discovery's split test can still fire.
+
+    ``overlapping_states`` splits a state when a candidate family sends a fraction of
+    its prefixes to the minority side that clears the ``decision_rule_fpr`` null at
+    ``split_pval``.  This returns the smallest number of prefixes at which a genuine
+    ``min_minority_fraction`` sub-state clears that bar with probability at least
+    ``power``.  Past this point extra prefixes in a state change no discovery
+    decision, so it is the natural cap for pruning over-sampled leaves -- a function
+    of the search parameters, not of any particular problem instance.
+    """
+    for denom in itertools.count(start=2):
+        # Minority count that clears the fpr null at split_pval on ``denom`` prefixes.
+        kcrit = scipy.stats.binom.ppf(1 - split_pval, denom, decision_rule_fpr) + 1
+        detected = 1 - scipy.stats.binom.cdf(kcrit - 1, denom, min_minority_fraction)
+        if detected >= power:
+            return int(denom)
+    raise ValueError("not reachable")
+
+
 def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
     """
     Computes whether observing num_agreements or more agreements in num_samples samples is unlikely given expected_acc.

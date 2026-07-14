@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -30,7 +31,11 @@ from .dfa_utils import (
     states_intermediate,
 )
 from .state_discovery import discover_states
-from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
+from .statistics import (
+    binomial_side_of_boundary,
+    split_detection_population,
+    unlikely_this_many_agreements,
+)
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -331,6 +336,45 @@ def estimate_agreement_rate(
     return agreements / valid if valid else 0.0
 
 
+def prune_overrepresented_leaves(pst, dt_decisive):
+    """Drop excess prefixes from over-represented leaves so already-saturated states
+    stop accumulating redundant probes that every new suffix must be queried against.
+
+    Each state is capped at the per-state prefix population its split test actually
+    needs (:func:`split_detection_population`), derived from the search parameters --
+    the point past which more prefixes in a state change no discovery decision.
+    Leaves above the cap are trimmed to it by dropping a random subset.  Core
+    (non-representative) and undecided prefixes are never dropped.  Returns the number
+    of prefixes dropped.
+    """
+    cap = split_detection_population(
+        pst.config.decision_rule_fpr,
+        pst.config.split_pval,
+        pst.config.min_acc_rej,
+    )
+    leaves = classify_states_with_decision_tree(pst, dt_decisive)
+    rep = pst.representative
+    by_leaf = defaultdict(list)
+    for i, leaf in enumerate(leaves.tolist()):
+        if leaf >= 0 and rep[i]:
+            by_leaf[leaf].append(i)
+    drop = []
+    for idxs in by_leaf.values():
+        if len(idxs) > cap:
+            drop.extend(
+                pst.rng.choice(idxs, size=len(idxs) - cap, replace=False).tolist()
+            )
+    if not drop:
+        return 0
+    keep_mask = np.ones(len(pst.prefixes), dtype=bool)
+    keep_mask[drop] = False
+    print(
+        f"Pruning {len(drop)} prefixes; capping leaves at {cap} (per-state split population)"
+    )
+    pst.prune_prefixes(keep_mask)
+    return len(drop)
+
+
 def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     """
     Sample random length-L prefixes routed (via the decisive DT) to leaves
@@ -433,6 +477,8 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, None
             return
+        if pst.config.prune_saturated_leaves:
+            prune_overrepresented_leaves(pst, dt_decisive)
         yield dfa, dt, copy.deepcopy(pst)
 
 

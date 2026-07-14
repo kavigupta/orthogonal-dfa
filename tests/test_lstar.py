@@ -138,6 +138,7 @@ def compute_pst(
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
         min_suffix_frequency=min_suffix_frequency,
+        prune_saturated_leaves=True,
     )
     print(
         f"Using suffix population size {n}, eps {eps}, and {k} prefixes "
