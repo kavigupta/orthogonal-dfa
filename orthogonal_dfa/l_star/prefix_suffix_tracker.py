@@ -60,6 +60,12 @@ class SearchConfig:
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.05
     min_acc_rej: float = 0.1
+    # If True, after each round drop prefixes from leaves whose population exceeds the
+    # per-state split-detection population (see split_detection_population): the point
+    # past which extra prefixes in a state change no discovery decision but every new
+    # suffix must still be queried against them.  The cap is derived from the search
+    # parameters (decision_rule_fpr, split_pval, min_acc_rej), not tuned per problem.
+    prune_saturated_leaves: bool = False
 
 
 @dataclass
@@ -256,6 +262,20 @@ class PrefixSuffixTracker:
         self.corresponding_masks = [
             np.concatenate([self.corresponding_masks[i], additional_masks[i]])
             for i in range(len(self.suffix_bank))
+        ]
+
+    def prune_prefixes(self, keep_mask):
+        """Drop the prefixes (matrix columns) not selected by boolean ``keep_mask``.
+
+        Removes them from the prefix list, the representative flags, and every
+        suffix's mask row, so subsequently-recorded suffixes are queried against the
+        smaller prefix set.  Suffixes and their bank indices are untouched.
+        """
+        keep = np.flatnonzero(np.asarray(keep_mask, dtype=bool))
+        self.prefixes = [self.prefixes[i] for i in keep]
+        self.representative_prefixes = [self.representative_prefixes[i] for i in keep]
+        self.corresponding_masks = [
+            np.asarray(m)[keep] for m in self.corresponding_masks
         ]
 
     @property
