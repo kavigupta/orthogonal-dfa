@@ -8,9 +8,19 @@ from .sampler import Sampler
 from .structures import Oracle
 
 
-def compute_mask(for_state, oracle, v):
-    mask = np.array([oracle.membership_query(x + v) for x in for_state], np.float32)
+def compute_mask(for_state, oracle, v, active=None):
+    """Membership of ``x + v`` for each prefix ``x`` in ``for_state``.
 
+    When ``active`` (a boolean mask over ``for_state``) is given, only the active
+    prefixes are queried; the rest are left ``NaN`` ("not evaluated").  A ``NaN`` cell
+    fails both the accept and reject threshold comparisons, so it is naturally
+    excluded from the split test rather than counted as either class.
+    """
+    if active is None:
+        return np.array([oracle.membership_query(x + v) for x in for_state], np.float32)
+    mask = np.full(len(for_state), np.nan, np.float32)
+    for i in np.flatnonzero(active):
+        mask[i] = oracle.membership_query(for_state[i] + v)
     return mask
 
 
@@ -60,6 +70,23 @@ class SearchConfig:
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.05
     min_acc_rej: float = 0.1
+    # When True, a prepended family [c]+vs is queried only over the prefixes of the
+    # states its parent family split (which is where it can produce a split -- see
+    # the prepend-provenance analysis), instead of over all prefixes.  Un-evaluated
+    # cells are left NaN and excluded from the split test.  The transition matrix is
+    # then computed by classifying only a capped subsample of each state's prefixes'
+    # c-successors, rather than re-completing every [c]+predicate over all prefixes.
+    restrict_prepend_queries: bool = False
+    # Max prefixes per state whose c-successor is classified when estimating each
+    # transition (a per-(state, symbol) majority vote); None classifies all of them.
+    transition_sample_cap: Optional[int] = None
+    # After a restricted-prepend discovery, iteratively re-split states whose sampled
+    # c-successors straddle a real split (a cross-branch split the restriction missed),
+    # un-restricting only the offending [c]+distinguisher over that state's prefixes.
+    resplit_transitions: bool = False
+    # Min share of a state's sampled c-successors that must land on a second distinct
+    # successor before it's treated as a candidate cross-branch split.
+    resplit_min_share: float = 0.15
 
 
 @dataclass
@@ -152,11 +179,21 @@ class PrefixSuffixTracker:
                 continue
             return self.record_suffix(v)
 
-    def record_suffix(self, v: List[int]) -> Tuple[List[int], np.ndarray, int]:
+    def record_suffix(
+        self, v: List[int], active=None
+    ) -> Tuple[List[int], np.ndarray, int]:
         if tuple(v) in self.suffixes_seen:
+            _, _, idx = self.suffixes_seen[tuple(v)]
+            if active is not None:
+                # Grow the partial column over the requested prefixes; ``active=None``
+                # leaves it as-is (a partial predicate classifies its own state's
+                # prefixes; the rest fall to "unclassified" and are ignored).
+                live = self.corresponding_masks[idx]
+                for i in np.flatnonzero(active & np.isnan(live)):
+                    live[i] = self.oracle.membership_query(self.prefixes[i] + v)
             return self.suffixes_seen[tuple(v)]
         self.suffix_bank.append(v)
-        mask = compute_mask(self.prefixes, self.oracle, v)
+        mask = compute_mask(self.prefixes, self.oracle, v, active)
         self.corresponding_masks.append(mask)
         self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
         return v, mask, len(self.suffix_bank) - 1
@@ -219,12 +256,17 @@ class PrefixSuffixTracker:
         self, vs: List[List[int]], subset_prefixes=None
     ) -> np.ndarray:
         decision = self.compute_decision_from_strings(vs, subset_prefixes)
-        return np.array(
-            [
-                decision < self.reject_thresh,
-                decision >= self.accept_thresh,
-            ]
-        )
+        # NaN (un-evaluated) cells fail both comparisons -> classified as neither
+        # accept nor reject, so a partial column excludes those prefixes rather than
+        # miscounting them.  Such cells only occur for prefixes outside the predicate's
+        # state, which are routed away before the result is used.
+        with np.errstate(invalid="ignore"):
+            return np.array(
+                [
+                    decision < self.reject_thresh,
+                    decision >= self.accept_thresh,
+                ]
+            )
 
     def add_prefixes(self, new_prefixes: List[List[int]]):
 
@@ -233,6 +275,11 @@ class PrefixSuffixTracker:
             set(tuple(p) for p in new_prefixes + self.prefixes)
         ), "Prefixes must be unique"
 
+        # A partial suffix column (some cells NaN) stays partial for new prefixes:
+        # those prefixes lie outside the suffix's discovery state, so evaluating them
+        # would be exactly the wasted work partial columns exist to avoid.  They are
+        # filled lazily by record_suffix if a later round actually needs them.
+        partial = [bool(np.isnan(m).any()) for m in self.corresponding_masks]
         additional_prefixes = []
         additional_masks = []
         for prefix in tqdm.tqdm(new_prefixes, desc="Adding new prefixes", delay=1):
@@ -240,8 +287,12 @@ class PrefixSuffixTracker:
             additional_masks.append(
                 np.array(
                     [
-                        self.oracle.membership_query(prefix + v)
-                        for v in self.suffix_bank
+                        (
+                            np.nan
+                            if partial[i]
+                            else self.oracle.membership_query(prefix + v)
+                        )
+                        for i, v in enumerate(self.suffix_bank)
                     ],
                     np.float32,
                 )
