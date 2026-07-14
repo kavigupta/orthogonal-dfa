@@ -195,8 +195,10 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
     return results
 
 
-def locate_incorrect_point(oracle, dt, dfa, x, y):
-    s0 = dt.classify(x, oracle)
+def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0):
+    # ``s0`` is ``dt.classify(x, oracle)``, passed in by the caller: callers that hold
+    # ``x`` fixed across many calls (e.g. estimate_agreement_rate, where x is always
+    # the empty prefix) compute it once instead of re-querying the oracle every call.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -254,6 +256,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             dfa,
             x,
             y,
+            s0=dt_with_reduced_predicates.classify(x, oracle),
         )
         if prefix is None:
             num_agreements += sym == "no inconsistency"
@@ -304,9 +307,14 @@ def estimate_agreement_rate(
     min_valid = 30
     agreements = 0
     valid = 0
+    # Every sample classifies from the empty prefix, so dt_decisive.classify([]) is
+    # constant across the loop; compute it once instead of re-querying the oracle on
+    # each sample.  On multi-iteration benchmarks this empty-prefix reclassification
+    # was ~24% of all oracle queries (it recurs on up to num_samples draws per call).
+    s0 = dt_decisive.classify([], oracle)
     for _ in range(num_samples):
         y = us.sample(pst.rng, pst.alphabet_size)
-        prefix, reason = locate_incorrect_point(oracle, dt_decisive, dfa, [], y)
+        prefix, reason = locate_incorrect_point(oracle, dt_decisive, dfa, [], y, s0=s0)
         if prefix is None and reason == "no inconsistency":
             agreements += 1
             valid += 1
