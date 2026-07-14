@@ -14,6 +14,40 @@ def compute_mask(for_state, oracle, v):
     return mask
 
 
+def short_prefix_closure(
+    prefixes: List[List[int]], max_length: int, max_count: int
+) -> List[List[int]]:
+    """The ``max_count`` shortest distinct prefixes (including the empty string)
+    of length at most ``max_length`` of any string in ``prefixes``.
+
+    State discovery represents each state by the prefixes that *end* in it, and
+    denoises by aggregating over that population.  Random length-L probe strings
+    almost never end in a *transient* state (one only reachable near the start of
+    a string) — e.g. the initial state, reachable only by the empty string — so
+    such states get zero rows and are never discovered, capping synthesis below
+    the true state count.  Seeding the prefix set with this short prefix-closed
+    core gives those transient states access strings, using only short prefixes
+    (the membership queries themselves remain ``prefix + suffix``, i.e. full
+    length); the recurrent states are already covered by the probe strings.
+
+    The shortest ``max_count`` are kept: every core prefix is queried against
+    every suffix, so a large core multiplies synthesis cost, while transient
+    states are shallow (reachable in a few steps), so the short prefixes are both
+    the cheap and the useful ones.  Keeping the shortest prefixes preserves the
+    prefix-closure property (all shorter prefixes are retained).
+    """
+    closure = set()
+    for prefix in prefixes:
+        for k in range(min(len(prefix), max_length) + 1):
+            closure.add(tuple(prefix[:k]))
+    # Sort for a deterministic order: set-iteration order of tuples varies with
+    # the CPython version (tuple hashing changed across 3.x), which would make
+    # the prefix list — and the noisy statistics computed over it — depend on
+    # the interpreter.  Order by (length, contents) so the empty string is first.
+    ordered = sorted(closure, key=lambda p: (len(p), p))
+    return [list(p) for p in ordered[:max_count]]
+
+
 @dataclass
 class SearchConfig:
     suffix_family_size: int
@@ -40,10 +74,24 @@ class PrefixSuffixTracker:
     corresponding_masks: List[np.ndarray]
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
+    # Per-prefix flag: True for "representative" probe prefixes (drawn from the
+    # sampler), False for the short prefix-closed core.  Global calibration
+    # (decision boundary, FNR) is computed over representative prefixes only, so
+    # the statistically-unrepresentative core does not bias it; state discovery
+    # still uses every prefix so transient states are split out.  None => all
+    # prefixes are representative (the default with no core).
+    representative_prefixes: Optional[List[bool]] = None
 
     def __post_init__(self):
         if self.evidence_margin == 0.0:
             self.evidence_margin = self.config.evidence_margin
+        if self.representative_prefixes is None:
+            self.representative_prefixes = [True] * len(self.prefixes)
+
+    @property
+    def representative(self) -> np.ndarray:
+        """Boolean mask selecting the representative (non-core) prefixes."""
+        return np.array(self.representative_prefixes, dtype=bool)
 
     @property
     def alphabet_size(self) -> int:
@@ -66,11 +114,25 @@ class PrefixSuffixTracker:
         config: "SearchConfig",
         *,
         num_prefixes: int,
+        prefix_core_length: int = 4,
+        prefix_core_size: int = 32,
     ) -> "PrefixSuffixTracker":
         prefixes = [
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
         ]
+        representative = [True] * len(prefixes)
+        if prefix_core_length > 0 and prefix_core_size > 0:
+            existing = {tuple(p) for p in prefixes}
+            core = [
+                p
+                for p in short_prefix_closure(
+                    prefixes, prefix_core_length, prefix_core_size
+                )
+                if tuple(p) not in existing
+            ]
+            prefixes = prefixes + core
+            representative = representative + [False] * len(core)
         return cls(
             sampler=sampler,
             rng=rng,
@@ -80,6 +142,7 @@ class PrefixSuffixTracker:
             suffixes_seen={},
             suffix_bank=[],
             corresponding_masks=[],
+            representative_prefixes=representative,
         )
 
     def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
@@ -107,9 +170,13 @@ class PrefixSuffixTracker:
 
         A special case is that if the family classifies all prefixes as positive or negative,
         then the FNR is 1 rather than 0 (since the prediction is uninformative).
+
+        Computed over the representative prefixes only: the short prefix-closed
+        core exists to give transient states discovery rows, not to recalibrate
+        the family against an unrepresentative population.
         """
         arr = self.compute_decision_array_from_strings(
-            [self.suffix_bank[v] for v in vs]
+            [self.suffix_bank[v] for v in vs], self.representative
         ).mean(1)
         if arr.min() == 0:
             return 1
@@ -140,12 +207,18 @@ class PrefixSuffixTracker:
         selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
         return selected_masks.mean(0)
 
-    def compute_decision_from_strings(self, vs: List[List[int]]) -> np.ndarray:
+    def compute_decision_from_strings(
+        self, vs: List[List[int]], subset_prefixes=None
+    ) -> np.ndarray:
+        if subset_prefixes is None:
+            subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
         vs_idxs = [self.record_suffix(v)[2] for v in vs]
-        return self.compute_decision(vs_idxs, np.ones(self.num_prefixes, dtype=bool))
+        return self.compute_decision(vs_idxs, subset_prefixes)
 
-    def compute_decision_array_from_strings(self, vs: List[List[int]]) -> np.ndarray:
-        decision = self.compute_decision_from_strings(vs)
+    def compute_decision_array_from_strings(
+        self, vs: List[List[int]], subset_prefixes=None
+    ) -> np.ndarray:
+        decision = self.compute_decision_from_strings(vs, subset_prefixes)
         return np.array(
             [
                 decision < self.reject_thresh,
@@ -175,6 +248,9 @@ class PrefixSuffixTracker:
             )
         additional_masks = np.array(additional_masks).T
         self.prefixes.extend(additional_prefixes)
+        # Prefixes added after construction (counterexamples, leaf enrichment)
+        # are full-length probe prefixes, hence representative.
+        self.representative_prefixes.extend([True] * len(additional_prefixes))
 
         assert len(self.corresponding_masks) == len(additional_masks)
         self.corresponding_masks = [

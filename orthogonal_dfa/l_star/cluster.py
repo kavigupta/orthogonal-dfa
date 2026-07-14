@@ -8,7 +8,12 @@ from .statistics import evidence_margin_for_population_size, give_up_check
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
-    masks = np.array(pst.corresponding_masks)
+    # Restrict to representative (non-core) prefix columns: the suffix family and
+    # the decision boundary are global calibration and must not be biased by the
+    # statistically-unrepresentative short prefix-closed core.  Suffix (row)
+    # indices are unaffected by the column slice, so the returned cluster is
+    # still valid against the full prefix set used for state discovery.
+    masks = np.array(pst.corresponding_masks)[:, pst.representative]
     cluster = [seed]
     loss = float("inf")
     while True:
@@ -107,9 +112,16 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
 
 
 def _give_up_check(pst, config, seed_mask, empirical_pos):
+    # Judge whether the signal is too weak over the representative prefixes only:
+    # the short prefix-closed core explores a skewed region of the state space and
+    # is classified more confidently than the probe prefixes, so folding it in
+    # would distort the agreement estimate and could trigger a spurious give-up.
+    rep = pst.representative
+    seed_mask = seed_mask[rep]
+    empirical_pos = float(seed_mask.mean())
     result = give_up_check(
         config.min_signal_strength,
-        len(pst.prefixes),
+        int(rep.sum()),
         len(pst.suffix_bank),
         config.min_suffix_frequency,
         config.min_acc_rej,
@@ -117,7 +129,7 @@ def _give_up_check(pst, config, seed_mask, empirical_pos):
     )
     if result is not None:
         k, threshold = result
-        masks = np.array(pst.corresponding_masks)
+        masks = np.array(pst.corresponding_masks)[:, rep]
         agreements = (masks == seed_mask).mean(axis=1)
         top_k_mean = float(np.sort(agreements)[-k:].mean())
         if top_k_mean <= threshold:

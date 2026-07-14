@@ -23,9 +23,14 @@ import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .dfa_utils import final_states_all_initial, states_intermediate
+from .dfa_utils import (
+    count_paths_to_state,
+    final_states_all_initial,
+    sample_string_reaching_state,
+    states_intermediate,
+)
 from .state_discovery import discover_states
-from .statistics import unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
 
@@ -33,7 +38,15 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     if isinstance(dt, DecisionTreeLeafNode):
         return np.full(len(pst.prefixes), dt.state_idx)
     results = np.full(len(pst.prefixes), -1)
-    rej, acc = pst.compute_decision_array_from_strings(dt.predicate.vs)
+    # Classify straight from the cached prefix x suffix mask matrix
+    # (compute_decision_from_strings reads corresponding_masks), applying each node's
+    # OWN thresholds rather than the PST's current margins.  For a discovery-time tree
+    # the predicate thresholds equal the margins in effect here, so existing callers are
+    # unchanged; for a decisive tree (accept==reject==boundary) this reproduces
+    # dt.classify(prefix, oracle) for every prefix without re-querying the oracle.
+    decision = pst.compute_decision_from_strings(dt.predicate.vs)
+    rej = decision < dt.predicate.reject_threshold
+    acc = decision >= dt.predicate.accept_threshold
     results[rej] = classify_states_with_decision_tree(pst, dt.by_rejection[0])[rej]
     results[acc] = classify_states_with_decision_tree(pst, dt.by_rejection[1])[acc]
     return results
@@ -111,6 +124,62 @@ def optimal_dfa(pst, dt: DecisionTree):
     return dfas[best_idx]
 
 
+def denoise_accept_labels(pst, dfa, *, max_samples=200):
+    """Recompute each reachable state's accept/reject label from fresh oracle samples.
+
+    Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
+    positives (see ``TestLStarBimodalReproducer``). For each state we sample distinct
+    length-``pst.sampler.length`` strings that reach it (the standard path-counting DFA
+    sampler) and query the oracle, flipping the label only when a binomial test of the
+    accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
+    labels never reach significance on the wrong side, so only noise-flips get corrected;
+    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
+    label. Labels change, transitions don't.
+    """
+    length = pst.sampler.length
+
+    def relabel(state):
+        # True=accept, False=reject, None=undecided (keep the discovery label).
+        counts = count_paths_to_state(dfa, state, length)
+        cap = min(max_samples, counts[length][dfa.initial_state])
+        seen, accepts = set(), 0
+        while len(seen) < cap:
+            string = sample_string_reaching_state(dfa, counts, pst.rng)
+            if tuple(string) in seen:
+                continue  # need distinct strings for independent oracle draws
+            seen.add(tuple(string))
+            accepts += int(pst.oracle.membership_query(string))
+            decision = binomial_side_of_boundary(
+                accepts, len(seen), pst.decision_boundary
+            )
+            if decision is not None:
+                return decision
+        return None
+
+    label = {
+        states_intermediate(dfa.initial_state, prefix, dfa)[-1]: None
+        for prefix in pst.prefixes
+    }
+    label = {state: relabel(state) for state in label}
+
+    def is_final(s):
+        # Decided states use the new label; the rest keep the discovery label.
+        return s in dfa.final_states if label.get(s) is None else label[s]
+
+    new_final = {s for s in dfa.states if is_final(s)}
+    if new_final == set(dfa.final_states):
+        return dfa
+    print(f"Denoised accept labels: {sorted(dfa.final_states)} -> {sorted(new_final)}")
+    return DFA(
+        states=set(dfa.states),
+        input_symbols=set(dfa.input_symbols),
+        transitions={s: dict(dfa.transitions[s]) for s in dfa.states},
+        initial_state=dfa.initial_state,
+        final_states=new_final,
+        allow_partial=False,
+    )
+
+
 def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
     results = generate_counterexamples(
         pst,
@@ -126,8 +195,10 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
     return results
 
 
-def locate_incorrect_point(oracle, dt, dfa, x, y):
-    s0 = dt.classify(x, oracle)
+def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0):
+    # ``s0`` is ``dt.classify(x, oracle)``, passed in by the caller: callers that hold
+    # ``x`` fixed across many calls (e.g. estimate_agreement_rate, where x is always
+    # the empty prefix) compute it once instead of re-querying the oracle every call.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -185,6 +256,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             dfa,
             x,
             y,
+            s0=dt_with_reduced_predicates.classify(x, oracle),
         )
         if prefix is None:
             num_agreements += sym == "no inconsistency"
@@ -212,22 +284,50 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
             return additional_prefixes
 
 
-def estimate_agreement_rate(pst, us, oracle, dt_decisive, dfa, *, num_samples):
+def estimate_agreement_rate(
+    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold
+):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
     initial_state).  Classification failures are excluded from the denominator.
+
+    Sampling stops early as soon as a one-sided binomial test is confident which
+    side of *acc_threshold* the true rate lies on.  The estimate is consumed only
+    to decide ``true_acc >= acc_threshold`` (the termination test) and as a loose
+    ``expected_acc`` guard for counterexample search, so settling that decision is
+    all the precision required; the rate is almost always far from the threshold
+    (e.g. 0.2 or 0.8 vs 0.98), in which case a few dozen samples suffice instead
+    of the full budget.  Sampling is still capped at *num_samples*, so this never
+    costs more than the fixed-budget pass.
     """
+    # Minimum trials before the sequential test can fire: at acc_threshold near 1
+    # the "above" tail cannot clear alpha with only a handful of samples anyway,
+    # and this guards against an unlucky early run of (dis)agreements.
+    min_valid = 30
     agreements = 0
     valid = 0
+    # Every sample classifies from the empty prefix, so dt_decisive.classify([]) is
+    # constant across the loop; compute it once instead of re-querying the oracle on
+    # each sample.  On multi-iteration benchmarks this empty-prefix reclassification
+    # was ~24% of all oracle queries (it recurs on up to num_samples draws per call).
+    s0 = dt_decisive.classify([], oracle)
     for _ in range(num_samples):
         y = us.sample(pst.rng, pst.alphabet_size)
-        prefix, reason = locate_incorrect_point(oracle, dt_decisive, dfa, [], y)
+        prefix, reason = locate_incorrect_point(oracle, dt_decisive, dfa, [], y, s0=s0)
         if prefix is None and reason == "no inconsistency":
             agreements += 1
             valid += 1
         elif prefix is not None:
             valid += 1
+        else:
+            # Could-not-classify samples leave the decision unchanged; don't test.
+            continue
+        if (
+            valid >= min_valid
+            and binomial_side_of_boundary(agreements, valid, acc_threshold) is not None
+        ):
+            break
     return agreements / valid if valid else 0.0
 
 
@@ -244,10 +344,13 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     which left the suffix-family clustering unable to find discriminating
     suffixes for that state.
     """
+    # Classify every existing prefix through the decisive tree directly from the cached
+    # mask matrix instead of re-querying the oracle once per prefix: all these
+    # prefix x suffix pairs are already in corresponding_masks.  -1 marks undecided.
+    leaves = classify_states_with_decision_tree(pst, dt_decisive)
     leaf_counts = {}
-    for pref in pst.prefixes:
-        leaf = dt_decisive.classify(pref, pst.oracle)
-        if leaf is None:
+    for leaf in leaves.tolist():
+        if leaf < 0:
             continue
         leaf_counts[leaf] = leaf_counts.get(leaf, 0) + 1
     if not leaf_counts:
@@ -304,7 +407,13 @@ def counterexample_driven_synthesis(
             lambda p: TriPredicate(p.vs, boundary, boundary)
         )
         true_acc = estimate_agreement_rate(
-            pst, pst.sampler, pst.oracle, dt_decisive, dfa, num_samples=2000
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
         )
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
@@ -337,4 +446,6 @@ def do_counterexample_driven_synthesis(
         acc_threshold=acc_threshold,
     ):
         pass
+    if dfa is not None:
+        dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
