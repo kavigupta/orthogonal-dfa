@@ -8,6 +8,8 @@ Companion artifacts:
 - `data/capal_official_sweep.csv` — main noise-sweep numbers
 - `data/capal_noise_sweep_combined.csv` — CAPAL / aalpy-L* / ortho-L* head-to-head
 - `scripts/run_capal_official.py` — self-contained reproducer for the sweep
+- `scripts/capal_modulo_wall_queries.py` — reproducer for §5 (the modulo η=0.30
+  wall), reporting states/acc/converged/time/distinct-queries per config
 - `orthogonal_dfa/capal_official/` — adapter that runs upstream CAPAL on our
   oracle-creators
 
@@ -99,8 +101,9 @@ for the harder cells.
 Even the resource-heavy configurations can't crack this cell. Re-measured on
 current upstream CAPAL (github.com/lkwargs/CAPAL @ 57d877f), modulo η=0.30,
 seed=0, K_pos=K_neg=10 (matching the repo adapter); every row non-converged.
-`distinct MQ` = `len(mq.cache)`, the number of *distinct* membership queries —
-the persistent MQ caches every string, so this is CAPAL's true oracle cost:
+Reproduce with `scripts/capal_modulo_wall_queries.py`. `distinct MQ` =
+`len(mq.cache)`, the number of *distinct* membership queries — the persistent MQ
+caches every string, so this is CAPAL's true oracle cost:
 
 ```
 | config (seed=0)          | states | acc   | conv | time | distinct MQ |
