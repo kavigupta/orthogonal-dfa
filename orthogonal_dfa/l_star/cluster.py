@@ -13,7 +13,14 @@ def identify_cluster_around(
     # statistically-unrepresentative short prefix-closed core.  Suffix (row)
     # indices are unaffected by the column slice, so the returned cluster is
     # still valid against the full prefix set used for state discovery.
-    masks = np.array(pst.corresponding_masks)[:, pst.representative]
+    all_masks = np.array(pst.corresponding_masks)
+    # Exclude partial (NaN) suffix columns: those are prepend distinguishers evaluated
+    # over only part of the prefix set, so their loss against the seed is undefined.
+    # The empty-suffix seed is always full, so it survives the filter.  With no partial
+    # suffixes (the default), ``full`` is all-True and this is a no-op.
+    full_idx = np.flatnonzero(~np.isnan(all_masks).any(axis=1))
+    masks = all_masks[full_idx][:, pst.representative]
+    seed = int(np.searchsorted(full_idx, seed))
     cluster = [seed]
     loss = float("inf")
     while True:
@@ -46,7 +53,7 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
-    return cluster.tolist(), decision_boundary
+    return full_idx[cluster].tolist(), decision_boundary
 
 
 def recompute_evidence_margin(

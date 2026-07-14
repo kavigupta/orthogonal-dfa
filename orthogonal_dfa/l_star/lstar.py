@@ -18,6 +18,7 @@ Evidence thresholds need some work. Currently there's the possibiliy of p-hackin
 
 import copy
 import warnings
+from collections import defaultdict
 
 import numpy as np
 import tqdm.auto as tqdm
@@ -29,7 +30,12 @@ from .dfa_utils import (
     sample_string_reaching_state,
     states_intermediate,
 )
-from .state_discovery import discover_states
+from .state_discovery import (
+    discover_states,
+    discover_tracker,
+    lca_predicate_vs,
+    overlapping_states,
+)
 from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
 
@@ -52,32 +58,122 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     return results
 
 
-def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
-    states = classify_states_with_decision_tree(pst, dt)
-    states_after_c = [
-        classify_states_with_decision_tree(
-            pst,
-            dt.map_over_predicates(
-                lambda p, c=c: TriPredicate(
-                    [[c] + x for x in p.vs], p.accept_threshold, p.reject_threshold
-                )
-            ),
-        )
-        for c in range(pst.alphabet_size)
-    ]
+def _prepend_recorded(pst, dt_dec, c, active):
+    """Prepend symbol ``c`` to every predicate in the (decisive) tree, recording each
+    ``[c]+suffix`` into the mask matrix restricted to the ``active`` prefixes.  Returns a
+    tree whose predicates read those now-cached columns.  Because membership(x + [c]+v)
+    is exactly the [c]+v column at x, whoever needs a c-successor next -- the next
+    fixpoint round or the DFA build -- reads the cache instead of re-querying."""
+
+    def prep(p):
+        new_vs = []
+        for v in p.vs:
+            cv = [c] + list(v)
+            pst.record_suffix(cv, active=active)
+            new_vs.append(cv)
+        return TriPredicate(new_vs, p.accept_threshold, p.reject_threshold)
+
+    return dt_dec.map_over_predicates(prep)
+
+
+def _subsample_mask(pst, states, cap):
+    """Deterministic per-state subsample: the first ``cap`` classified prefixes of each
+    state (all of them when ``cap`` is None).  Deterministic so the fixpoint's detection
+    pass and the DFA build hit the *same* cached [c]+suffix cells instead of drawing
+    disjoint random subsamples that can't share."""
+    mask = np.zeros(pst.num_prefixes, dtype=bool)
+    by_state = defaultdict(list)
+    for i, s in enumerate(states.tolist()):
+        if s >= 0:
+            by_state[s].append(i)
+    for idxs in by_state.values():
+        mask[idxs if cap is None else idxs[:cap]] = True
+    return mask
+
+
+def _transition_tensor(pst, dt, states, cap):
+    """(source, symbol, target) vote tensor.  Each source prefix's c-successor is
+    classified *decisively* by reading the cached [c]+suffix columns (populated over the
+    subsample), never oracle-direct -- so the votes are computed once and every later
+    reader reuses them.  A capped subsample keeps only ``cap`` prefixes per state, so we
+    never complete a full [c]+predicate column over all prefixes."""
+    boundary = pst.decision_boundary
+    dt_dec = dt.map_over_predicates(lambda p: TriPredicate(p.vs, boundary, boundary))
+    sample = _subsample_mask(pst, states, cap)
     num_states = dt.num_states
     transitions = np.zeros((num_states, pst.alphabet_size, num_states), dtype=int)
-    for c, states_c in enumerate(states_after_c):
-        valid = states_c >= 0
-        np.add.at(
-            transitions,
-            (states[valid], c, states_c[valid]),
-            1,
-        )
+    for c in range(pst.alphabet_size):
+        prepended = _prepend_recorded(pst, dt_dec, c, sample)
+        succ = classify_states_with_decision_tree(pst, prepended)
+        valid = (succ >= 0) & sample
+        np.add.at(transitions, (states[valid], c, succ[valid]), 1)
+    return transitions
+
+
+def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
+    states = classify_states_with_decision_tree(pst, dt)
+    transitions = _transition_tensor(pst, dt, states, pst.config.transition_sample_cap)
     print("Transition matrix:")
     print(transitions)
-
     return transitions.argmax(-1)
+
+
+def discover_states_resplit(pst, first_round: bool) -> DecisionTree:
+    """Restricted-prepend discovery, then a transition-informed fixpoint that recovers
+    the cross-branch splits the restriction misses.
+
+    The restriction only queries ``[c]+F`` over the state its parent split, so a state
+    ``T`` whose c-successors actually straddle a split elsewhere in the tree is left
+    merged.  That shows up as ``T``'s sampled c-successors landing on two different
+    states: we take the distinguisher that separates those successors, prepend ``[c]``
+    to it, query it over ``T``'s prefixes only (un-restricting just that edge), and split
+    ``T`` if the family passes the same statistical test discovery uses.  Repeat until no
+    state has a straddling successor -- at which point every real split has been found.
+    """
+    tracker = discover_tracker(pst, first_round)
+    cap = pst.config.transition_sample_cap
+    min_share = pst.config.resplit_min_share
+    tried = set()
+
+    while len(tracker) > 1:
+        dt = tracker.to_decision_tree()
+        # The same cached, subsampled transition votes the DFA build reads: a state
+        # whose row for symbol c puts real mass on two distinct successors is straddling
+        # a split the restriction missed.
+        states = classify_states_with_decision_tree(pst, dt)
+        tensor = _transition_tensor(pst, dt, states, cap)
+        candidate = None
+        for s in range(dt.num_states):
+            key_prefixes = frozenset(np.flatnonzero(tracker.states[s][1]).tolist())
+            for c in range(pst.alphabet_size):
+                row = tensor[s, c]
+                total = int(row.sum())
+                if total == 0:
+                    continue
+                targets = set(np.flatnonzero(row >= max(2, min_share * total)).tolist())
+                if len(targets) < 2 or (key_prefixes, c) in tried:
+                    continue
+                vs_strings = lca_predicate_vs(dt, targets)
+                if vs_strings is None:
+                    continue
+                candidate = (s, c, vs_strings, key_prefixes)
+                break
+            if candidate is not None:
+                break
+        if candidate is None:
+            break
+        s, c, vs_strings, key_prefixes = candidate
+        tried.add((key_prefixes, c))
+        # Un-restrict just this edge: query [c]+distinguisher over the straddling state's
+        # own prefixes, then split it if the family passes discovery's statistical test.
+        mask = tracker.states[s][1]
+        vs_new = [pst.record_suffix([c] + list(v), active=mask)[2] for v in vs_strings]
+        ol = overlapping_states(pst, tracker, vs_new)
+        if s in ol:
+            print(f"Re-split state {s} on symbol {c} (cross-branch split recovered)")
+            tracker.split(pst, [s], vs_new)
+
+    return tracker.to_decision_tree()
 
 
 def optimal_dfa(pst, dt: DecisionTree):
@@ -392,8 +488,13 @@ def counterexample_driven_synthesis(
     first_round = True
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+        discover = (
+            discover_states_resplit
+            if pst.config.resplit_transitions
+            else discover_states
+        )
         while True:
-            dt = discover_states(pst, first_round=first_round)
+            dt = discover(pst, first_round=first_round)
             first_round = False
             print(f"Extracted flat decision tree with {dt.num_states} states")
             if dt.num_states > 1:

@@ -20,10 +20,10 @@ def cascade(mask_1, mask_2):
     return mask_1
 
 
-def prepend_to_all(pst, vs: List[int], prefix: int):
+def prepend_to_all(pst, vs: List[int], prefix: int, active=None):
     vs_new = []
     for v in tqdm.tqdm(vs, desc="Prepending to all suffixes", delay=1):
-        _, _, v_new = pst.record_suffix([prefix] + pst.suffix_bank[v])
+        _, _, v_new = pst.record_suffix([prefix] + pst.suffix_bank[v], active=active)
         vs_new.append(v_new)
     return vs_new
 
@@ -114,12 +114,15 @@ def _locate_mergeable_paths(partial_tree):
 
 def overlapping_states(pst, tracker, vs):
     decision = pst.compute_decision(vs, np.ones(pst.num_prefixes, dtype=bool))
-    masks = np.array(
-        [
-            decision >= pst.accept_thresh,
-            decision < pst.reject_thresh,
-        ]
-    )
+    # NaN (un-evaluated, for a partial prepend family) fails both comparisons, so
+    # such prefixes drop out of ``valid`` below instead of being miscounted.
+    with np.errstate(invalid="ignore"):
+        masks = np.array(
+            [
+                decision >= pst.accept_thresh,
+                decision < pst.reject_thresh,
+            ]
+        )
     existing_states = tracker.state_masks
     assert (
         existing_states.shape[1] == pst.num_prefixes
@@ -146,24 +149,56 @@ def overlapping_states(pst, tracker, vs):
     return split_idxs
 
 
-def discover_states(pst, first_round: bool) -> DecisionTree:
+def discover_tracker(pst, first_round: bool) -> StateTracker:
     _, _, v_idx = pst.record_suffix([])
     vs, decision_boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
     pst.decision_boundary = decision_boundary
-    vs_queue = [([], vs)]
+    restrict = pst.config.restrict_prepend_queries
+    # Each queue item carries the prefix mask the family is defined over.  A prepended
+    # family only ever splits its parent's children, so it is queried only over the
+    # prefixes of the states its parent split; the root family covers all prefixes.
+    all_prefixes = np.ones(len(pst.prefixes), dtype=bool)
+    vs_queue = [([], vs, all_prefixes)]
     tracker = StateTracker(len(pst.prefixes))
 
     while vs_queue:
-        path, vs_current = vs_queue.pop()
+        path, vs_current, _active = vs_queue.pop()
         print(f"Num states: {len(tracker)}; processing {path}")
         ol = overlapping_states(pst, tracker, vs_current)
         if not ol:
             print("Done")
             continue
+        # Prefixes of the states about to be split == the union of their masks; the
+        # children (and everything below them) live inside this set.
+        child_active = np.any(tracker.state_masks[ol], axis=0)
         tracker.split(pst, ol, vs_current)
         vs_queue.extend(
-            ([c] + path, prepend_to_all(pst, vs_current, c))
+            (
+                [c] + path,
+                prepend_to_all(pst, vs_current, c, child_active if restrict else None),
+                child_active,
+            )
             for c in range(pst.alphabet_size)
         )
 
-    return tracker.to_decision_tree()
+    return tracker
+
+
+def discover_states(pst, first_round: bool) -> DecisionTree:
+    return discover_tracker(pst, first_round).to_decision_tree()
+
+
+def lca_predicate_vs(dt: DecisionTree, targets):
+    """Suffix family (``vs`` strings) of the lowest common ancestor node that separates
+    the given leaf ``state_idx`` set.  This is the distinguisher that split those leaves
+    apart during discovery; returns ``None`` if they all fall under one leaf."""
+    node = dt
+    while isinstance(node, DecisionTreeInternalNode):
+        rej = set(node.by_rejection[0].collect_states())
+        if targets <= rej:
+            node = node.by_rejection[0]
+        elif targets <= set(node.by_rejection[1].collect_states()):
+            node = node.by_rejection[1]
+        else:
+            return node.predicate.vs
+    return None
