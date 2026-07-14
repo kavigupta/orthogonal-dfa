@@ -170,7 +170,9 @@ def discover_states_resplit(pst, first_round: bool) -> DecisionTree:
                     pst.record_suffix([c] + list(v), active=mask)[2] for v in vs_strings
                 ]
                 if s in overlapping_states(pst, tracker, vs_new):
-                    print(f"Re-split state {s} on symbol {c} (cross-branch split found)")
+                    print(
+                        f"Re-split state {s} on symbol {c} (cross-branch split found)"
+                    )
                     tracker.split(pst, [s], vs_new)
                     split_happened = True
                     break
