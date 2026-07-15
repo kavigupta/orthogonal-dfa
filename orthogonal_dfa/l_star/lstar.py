@@ -400,7 +400,12 @@ def discover_hypothesis(pst, first_round):
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float, build_hypothesis=None
 ):
-    build_hypothesis = build_hypothesis or discover_hypothesis
+    if build_hypothesis is None:
+        # The incremental transition resolver is the discovery algorithm; imported
+        # lazily to avoid an import cycle (it reuses this loop's helpers).
+        from .transition_resolver import resolve_hypothesis
+
+        build_hypothesis = resolve_hypothesis
     first_round = True
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")

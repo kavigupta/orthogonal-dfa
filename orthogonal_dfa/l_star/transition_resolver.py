@@ -236,24 +236,11 @@ def resolve_dfa(pst, *, first_round):
 
 
 def resolve_hypothesis(pst, first_round):
-    """Hypothesis builder for ``lstar.counterexample_driven_synthesis``: build the
-    (DFA, DecisionTree) via the resolver, or ``None`` if only one state is found."""
+    """The default hypothesis builder for ``lstar.counterexample_driven_synthesis``:
+    build the (DFA, DecisionTree) via the resolver, or ``None`` if only one state is
+    found (the loop then samples more prefixes and retries)."""
     dfa, dt = resolve_dfa(pst, first_round=first_round)
     print(f"Resolved DFA with {dt.num_states} states")
     if dt.num_states <= 1:
         return None
     return dfa, dt
-
-
-def do_resolver_driven_synthesis(pst, *, additional_counterexamples, acc_threshold):
-    """Run the standard counterexample loop with the resolver as the hypothesis
-    builder -- so the agreement test, counterexample search, enrichment and label
-    denoising are shared verbatim with the discovery-based path."""
-    from .lstar import do_counterexample_driven_synthesis
-
-    return do_counterexample_driven_synthesis(
-        pst,
-        additional_counterexamples=additional_counterexamples,
-        acc_threshold=acc_threshold,
-        build_hypothesis=resolve_hypothesis,
-    )
