@@ -13,7 +13,9 @@ def identify_cluster_around(
     # statistically-unrepresentative short prefix-closed core.  Suffix (row)
     # indices are unaffected by the column slice, so the returned cluster is
     # still valid against the full prefix set used for state discovery.
-    masks = np.array(pst.corresponding_masks)[:, pst.representative]
+    masks = pst.table.observed_masks(
+        range(pst.table.num_suffixes), pst.table.representative
+    )
     cluster = [seed]
     loss = float("inf")
     while True:
@@ -73,7 +75,7 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
     config = pst.config
 
     while True:
-        seed_mask = np.array(pst.corresponding_masks[v])
+        seed_mask = pst.table.column(v)
         empirical_pos = float(seed_mask.mean())
         if first_round:
             _give_up_check(pst, config, seed_mask, empirical_pos)
@@ -116,24 +118,24 @@ def _give_up_check(pst, config, seed_mask, empirical_pos):
     # the short prefix-closed core explores a skewed region of the state space and
     # is classified more confidently than the probe prefixes, so folding it in
     # would distort the agreement estimate and could trigger a spurious give-up.
-    rep = pst.representative
+    rep = pst.table.representative
     seed_mask = seed_mask[rep]
     empirical_pos = float(seed_mask.mean())
     result = give_up_check(
         config.min_signal_strength,
         int(rep.sum()),
-        len(pst.suffix_bank),
+        pst.table.num_suffixes,
         config.min_suffix_frequency,
         config.min_acc_rej,
         empirical_pos,
     )
     if result is not None:
         k, threshold = result
-        masks = np.array(pst.corresponding_masks)[:, rep]
+        masks = pst.table.observed_masks(range(pst.table.num_suffixes), rep)
         agreements = (masks == seed_mask).mean(axis=1)
         top_k_mean = float(np.sort(agreements)[-k:].mean())
         if top_k_mean <= threshold:
             raise GaveUpOnSuffixSearch(
-                f"Sampled {len(pst.suffix_bank)} suffixes. "
+                f"Sampled {pst.table.num_suffixes} suffixes. "
                 f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
             )
