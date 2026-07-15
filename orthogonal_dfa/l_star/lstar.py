@@ -386,20 +386,31 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     return new_prefixes
 
 
+def discover_hypothesis(pst, first_round):
+    """Default hypothesis builder: flat-tree discovery + majority-vote transitions.
+    Returns ``(dfa, dt)``, or ``None`` when discovery finds a single state (the
+    caller then samples more prefixes and retries)."""
+    dt = discover_states(pst, first_round=first_round)
+    print(f"Extracted flat decision tree with {dt.num_states} states")
+    if dt.num_states <= 1:
+        return None
+    return optimal_dfa(pst, dt), dt
+
+
 def counterexample_driven_synthesis(
-    pst, *, additional_counterexamples: int, acc_threshold: float
+    pst, *, additional_counterexamples: int, acc_threshold: float, build_hypothesis=None
 ):
+    build_hypothesis = build_hypothesis or discover_hypothesis
     first_round = True
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            dt = discover_states(pst, first_round=first_round)
+            hypothesis = build_hypothesis(pst, first_round)
             first_round = False
-            print(f"Extracted flat decision tree with {dt.num_states} states")
-            if dt.num_states > 1:
+            if hypothesis is not None:
+                dfa, dt = hypothesis
                 break
             pst.sample_more_prefixes()
-        dfa = optimal_dfa(pst, dt)
         print("DFA found!")
         print(dfa)
         boundary = pst.decision_boundary
@@ -437,13 +448,14 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, additional_counterexamples: int, acc_threshold: float
+    pst, *, additional_counterexamples: int, acc_threshold: float, build_hypothesis=None
 ) -> DFA:
     dfa = dt = None
     for dfa, dt, _ in counterexample_driven_synthesis(
         pst,
         additional_counterexamples=additional_counterexamples,
         acc_threshold=acc_threshold,
+        build_hypothesis=build_hypothesis,
     ):
         pass
     if dfa is not None:
