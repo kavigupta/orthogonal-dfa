@@ -1,26 +1,24 @@
 """Incremental, transition-driven DFA discovery.
 
-An alternative to ``state_discovery.discover_states`` + ``lstar.optimal_dfa`` that
-builds the discrimination tree (states) and the transition function *together*.
-
-See ``docs/incremental_transition_discovery_plan.md`` for the design.  In brief:
+Builds the discrimination tree (states) and the transition function *together*:
 
 * The tree starts as the initial distinguisher family ``v_eps`` with two leaves,
   ``s_acc`` / ``s_rej`` (the prefixes accepted / rejected by ``v_eps``).
 * We work a queue of unresolved ``(state, symbol)`` pairs.  Resolving ``(s, c)``
   sifts every prefix of ``s``, extended by ``c``, through the *current* tree.
   If they all land in one leaf ``t`` we record ``s -c-> t``; if they split
-  (with the same binomial evidence the discovery split test uses) we split ``s``
-  by ``[c]+w`` -- ``w`` being the distinguisher where the sift paths diverge --
-  enqueue the new children's edges, and re-open every edge that pointed at ``s``.
+  (with a binomial evidence test) we split ``s`` by ``[c]+w`` -- ``w`` being the
+  distinguisher where the sift paths diverge -- enqueue the new children's edges,
+  and re-open every edge that pointed at ``s``.
 
 Because the split distinguisher ``[c]+w`` is produced by resolving ``s``'s own
-``c``-transition and applied only to ``s``, it never touches an unrelated state:
-the cross-branch splits that make the prepend restriction unsound cannot arise.
+``c``-transition and applied only to ``s``, it never touches an unrelated state,
+so a state is only ever split by a distinguisher reachable from its own
+transitions -- there are no cross-branch splits.
 
 This first cut is deliberately un-optimised: no sequential early stop (every
 prefix of ``s`` is used at each node), and ``[c]+w`` is evaluated over all
-prefixes via the shared mask cache, exactly like ``compute_transition_matrix``.
+prefixes via the shared mask cache.
 """
 
 from collections import deque
@@ -51,8 +49,8 @@ class _Internal:
 
 
 def _splits(pst, n_acc, n_rej):
-    """Same binomial split test as ``state_discovery.overlapping_states``: both
-    sides must carry more mass than the decision-rule FPR could explain by noise."""
+    """Binomial split test: both sides must carry more mass than the decision-rule
+    FPR could explain by noise, at significance ``split_pval``."""
     denom = n_acc + n_rej
     if denom == 0:
         return False
@@ -233,14 +231,3 @@ class TransitionResolver:
 def resolve_dfa(pst, *, first_round):
     """Build the (DFA, DecisionTree) for the current prefix pool via the resolver."""
     return TransitionResolver(pst).build(first_round=first_round)
-
-
-def resolve_hypothesis(pst, first_round):
-    """The default hypothesis builder for ``lstar.counterexample_driven_synthesis``:
-    build the (DFA, DecisionTree) via the resolver, or ``None`` if only one state is
-    found (the loop then samples more prefixes and retries)."""
-    dfa, dt = resolve_dfa(pst, first_round=first_round)
-    print(f"Resolved DFA with {dt.num_states} states")
-    if dt.num_states <= 1:
-        return None
-    return dfa, dt
