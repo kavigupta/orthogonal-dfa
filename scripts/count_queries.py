@@ -166,13 +166,45 @@ def sh(cmd, **kw):
     return subprocess.run(cmd, check=True, cwd=ROOT, **kw)
 
 
-def preflight():
+def rev_parse(ref: str):
+    """Commit SHA ``ref`` resolves to, or None if it doesn't exist."""
+    res = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", ref],
+        cwd=ROOT, capture_output=True, text=True)
+    return res.stdout.strip() or None
+
+
+def preflight(base: str, *, allow_stale: bool):
+    """Abort unless the working tree is clean and (unless --allow-stale-base)
+    local ``base`` is current with ``origin/base``.
+
+    A dirty tree usually means the user is mid-edit (the worktree comparison uses
+    committed state, so uncommitted work would be silently ignored). A stale
+    ``base`` would compare against the wrong baseline — as the accidental
+    stale-main run during development showed.
+    """
     dirty = subprocess.check_output(
         ["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()
     if dirty:
         raise SystemExit(
             "count_queries: working tree is not clean — commit or stash before a "
             "base-vs-PR run (or use --local to measure the working tree).\n" + dirty)
+    if allow_stale:
+        return
+    if rev_parse(base) is None:
+        raise SystemExit(f"count_queries: baseline ref `{base}` does not exist locally")
+    fetch = subprocess.run(
+        ["git", "fetch", "origin", base], cwd=ROOT, capture_output=True, text=True)
+    if fetch.returncode != 0:
+        raise SystemExit(
+            f"count_queries: `git fetch origin {base}` failed (pass --allow-stale-base "
+            f"to skip this check when offline):\n{fetch.stderr.strip()}")
+    local, remote = rev_parse(base), rev_parse("FETCH_HEAD")
+    if local != remote:
+        raise SystemExit(
+            f"count_queries: local `{base}` ({local[:12]}) is behind "
+            f"`origin/{base}` ({(remote or '?')[:12]}); run `git pull` on `{base}` "
+            f"first, or pass --allow-stale-base")
 
 
 def setup_worktree(ref: str, wt_dir: Path):
@@ -285,6 +317,8 @@ def main():
                    help="measure the working tree only; print a table, no comparison")
     p.add_argument("--fast", action="store_true", help="skip the slow guard tasks")
     p.add_argument("--no-pr", action="store_true", help="compare but don't edit the PR body")
+    p.add_argument("--allow-stale-base", action="store_true",
+                   help="skip the 'base up to date with origin' check (e.g. offline)")
     p.add_argument("--emit-json", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--root", default=str(ROOT), help=argparse.SUPPRESS)
     p.add_argument("--tasks", nargs="*", default=None,
@@ -312,7 +346,7 @@ def main():
     base = a.base if a.base not in BENCHMARKS else "main"
     pr = a.pr if (a.pr and a.pr not in BENCHMARKS) else subprocess.check_output(
         ["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
-    preflight()
+    preflight(base, allow_stale=a.allow_stale_base)
     session = time.strftime("%Y-%m-%d_%H-%M-%S")
     wt_root = Path(f"/tmp/count_queries_{session}")
     wt_base, wt_pr = wt_root / "base", wt_root / "pr"
