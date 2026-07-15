@@ -43,16 +43,12 @@ from .structures import DecisionTreeInternalNode, DecisionTreeLeafNode, TriPredi
 
 
 class _Leaf:
-    __slots__ = ("state_id", "mask")
-
     def __init__(self, state_id, mask):
         self.state_id = state_id
         self.mask = mask
 
 
 class _Internal:
-    __slots__ = ("predicate", "rej", "acc")
-
     def __init__(self, predicate, rej, acc):
         self.predicate = predicate
         self.rej = rej
