@@ -25,13 +25,12 @@ from automata.fa.dfa import DFA
 
 from .dfa_utils import (
     count_paths_to_state,
-    final_states_all_initial,
     sample_string_reaching_state,
     states_intermediate,
 )
-from .state_discovery import discover_states
 from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate
+from .transition_resolver import resolve_dfa
 
 
 def classify_states_with_decision_tree(pst, dt: DecisionTree):
@@ -50,78 +49,6 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     results[rej] = classify_states_with_decision_tree(pst, dt.by_rejection[0])[rej]
     results[acc] = classify_states_with_decision_tree(pst, dt.by_rejection[1])[acc]
     return results
-
-
-def compute_transition_matrix(pst, dt: DecisionTree) -> np.ndarray:
-    states = classify_states_with_decision_tree(pst, dt)
-    states_after_c = [
-        classify_states_with_decision_tree(
-            pst,
-            dt.map_over_predicates(
-                lambda p, c=c: TriPredicate(
-                    [[c] + x for x in p.vs], p.accept_threshold, p.reject_threshold
-                )
-            ),
-        )
-        for c in range(pst.alphabet_size)
-    ]
-    num_states = dt.num_states
-    transitions = np.zeros((num_states, pst.alphabet_size, num_states), dtype=int)
-    for c, states_c in enumerate(states_after_c):
-        valid = states_c >= 0
-        np.add.at(
-            transitions,
-            (states[valid], c, states_c[valid]),
-            1,
-        )
-    print("Transition matrix:")
-    print(transitions)
-
-    return transitions.argmax(-1)
-
-
-def optimal_dfa(pst, dt: DecisionTree):
-    transitions = compute_transition_matrix(pst, dt)
-    num_states = dt.num_states
-
-    accepting_states = set(dt.by_rejection[1].collect_states())
-
-    dfas = [
-        DFA(
-            states=set(range(num_states)),
-            input_symbols=set(range(pst.alphabet_size)),
-            transitions={
-                s: {sym: transitions[s, sym] for sym in range(pst.alphabet_size)}
-                for s in range(num_states)
-            },
-            initial_state=initial_state,
-            final_states=accepting_states,
-        )
-        for initial_state in range(num_states)
-    ]
-
-    # Compare DFA state assignments against decision tree state assignments
-    dt_states = classify_states_with_decision_tree(pst, dt)
-    confident = dt_states >= 0
-    dt_states = dt_states[confident]
-
-    dfa_states = final_states_all_initial(
-        transitions, [pre for pre, is_conf in zip(pst.prefixes, confident) if is_conf]
-    )
-    success_rates = (dfa_states == dt_states).mean(1)
-    best_idx = np.argmax(success_rates)
-    print(
-        f"Best DFA has success rate on 'correct' states {success_rates[best_idx]:.4f}"
-    )
-    disagreements = np.where((dfa_states[best_idx] != dt_states))[0]
-    print(f"Disagreements on indices {disagreements} out of {len(dt_states)}")
-    for idx in disagreements:
-        print(idx)
-        print(
-            f"  prefix {pst.prefixes[idx]} classified as {dt_states[idx]} by DT, "
-            f"but DFA has final state {dfa_states[best_idx, idx]}"
-        )
-    return dfas[best_idx]
 
 
 def denoise_accept_labels(pst, dfa, *, max_samples=200):
@@ -393,14 +320,12 @@ def counterexample_driven_synthesis(
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            dt = discover_states(pst, first_round=first_round)
+            dfa, dt = resolve_dfa(pst, first_round=first_round)
             first_round = False
-            print(f"Extracted flat decision tree with {dt.num_states} states")
+            print(f"Resolved DFA with {dt.num_states} states")
             if dt.num_states > 1:
                 break
             pst.sample_more_prefixes()
-        dfa = optimal_dfa(pst, dt)
-        print("DFA found!")
         print(dfa)
         boundary = pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
