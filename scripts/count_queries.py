@@ -221,7 +221,7 @@ def measure_worktree(root: Path, names: list[str]) -> dict:
     """Run this script as an in-worktree measurer; parse the JSON it prints."""
     out = subprocess.run(
         [sys.executable, str(Path(__file__).resolve()), "--emit-json",
-         "--root", str(root), *names],
+         "--root", str(root), "--tasks", *names],
         cwd=root, text=True, capture_output=True)
     if out.returncode != 0:
         raise SystemExit(f"count_queries: measurer failed in {root}:\n{out.stderr}")
