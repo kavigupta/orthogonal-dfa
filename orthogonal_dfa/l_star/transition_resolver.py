@@ -27,7 +27,8 @@ Two sources of redundant work at present:
   because compute_decision_from_strings records the suffix over the full prefix
   set, even though only s's cells are read here.
   [3] If it's only going to be all one state its possible this is easy to tell early
-  and bail on the rest of the queries, but we don't do that yet.
+  and bail on the rest of the queries, but we don't do that yet. Only possible
+  if we do [2] first.
 
 [1], [2] and [3] will be addressed in future commits.
 """
