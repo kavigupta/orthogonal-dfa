@@ -56,6 +56,18 @@ class _Internal:
         self.acc = acc
 
 
+def _replace_leaf(node, state_id, new_node):
+    """Return ``node`` with the leaf carrying ``state_id`` replaced by ``new_node``.
+    Subtrees not on the path to that leaf are shared (returned unchanged)."""
+    if isinstance(node, _Leaf):
+        return new_node if node.state_id == state_id else node
+    rej = _replace_leaf(node.rej, state_id, new_node)
+    acc = _replace_leaf(node.acc, state_id, new_node)
+    if rej is node.rej and acc is node.acc:
+        return node
+    return _Internal(node.predicate, rej, acc)
+
+
 def _splits(pst, n_acc, n_rej):
     """Binomial split test: both sides must carry more mass than the decision-rule
     FPR could explain by noise, at significance ``split_pval``."""
@@ -94,23 +106,8 @@ class TransitionResolver:
         for c in range(self.pst.alphabet_size):
             self.queue.append((state_id, c))
 
-    def _replace_leaf(self, state_id, new_node):
-        def rec(node):
-            for side in ("rej", "acc"):
-                child = getattr(node, side)
-                if isinstance(child, _Leaf) and child.state_id == state_id:
-                    setattr(node, side, new_node)
-                    return True
-                if isinstance(child, _Internal) and rec(child):
-                    return True
-            return False
-
-        rec(self.root)
-
     def _set_transition(self, state_id, c, target):
-        old = self.trans.get((state_id, c))
-        if old is not None:
-            self.incoming[old].discard((state_id, c))
+        assert (state_id, c) not in self.trans
         self.trans[(state_id, c)] = target
         self.incoming[target].add((state_id, c))
 
@@ -158,7 +155,9 @@ class TransitionResolver:
         )
         rej_leaf = self._new_leaf(old.mask & rej)
         acc_leaf = self._new_leaf(old.mask & acc)
-        self._replace_leaf(state_id, _Internal(predicate, rej_leaf, acc_leaf))
+        self.root = _replace_leaf(
+            self.root, state_id, _Internal(predicate, rej_leaf, acc_leaf)
+        )
         self._drop_state(state_id)
         self._enqueue_all_symbols(rej_leaf.state_id)
         self._enqueue_all_symbols(acc_leaf.state_id)
