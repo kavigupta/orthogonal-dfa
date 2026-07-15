@@ -132,27 +132,27 @@ class TransitionResolver:
             prepended = [[c] + list(v) for v in node.predicate.vs]
             with np.errstate(invalid="ignore"):
                 decision = pst.compute_decision_from_strings(prepended, s_mask)
-                n_acc = int(np.count_nonzero(decision >= pst.accept_thresh))
-                n_rej = int(np.count_nonzero(decision < pst.reject_thresh))
+                acc = decision >= pst.accept_thresh
+                rej = decision < pst.reject_thresh
+            n_acc, n_rej = int(acc.sum()), int(rej.sum())
             if _splits(pst, n_acc, n_rej):
-                self._split(state_id, prepended)
+                self._split(state_id, prepended, acc, rej)
                 return
             node = node.acc if n_acc >= n_rej else node.rej
         self._set_transition(state_id, c, node.state_id)
 
-    def _split(self, state_id, prepended_vs):
+    def _split(self, state_id, prepended_vs, acc, rej):
+        # acc/rej are the split distinguisher's accept/reject calls over s's prefixes
+        # (the s_mask subset), handed down from _resolve so we don't recompute them.
         pst = self.pst
-        old = self.leaves[state_id]
-        idxs = [pst.record_suffix(v)[2] for v in prepended_vs]
-        decision = pst.compute_decision(idxs, np.ones(pst.num_prefixes, dtype=bool))
-        with np.errstate(invalid="ignore"):
-            acc = decision >= pst.accept_thresh
-            rej = decision < pst.reject_thresh
-        predicate = TriPredicate(
-            [pst.suffix_bank[i] for i in idxs], pst.accept_thresh, pst.reject_thresh
-        )
-        rej_leaf = self._new_leaf(old.mask & rej)
-        acc_leaf = self._new_leaf(old.mask & acc)
+        s_mask = self.leaves[state_id].mask
+        predicate = TriPredicate(prepended_vs, pst.accept_thresh, pst.reject_thresh)
+        acc_mask = np.zeros(pst.num_prefixes, dtype=bool)
+        rej_mask = np.zeros(pst.num_prefixes, dtype=bool)
+        acc_mask[s_mask] = acc
+        rej_mask[s_mask] = rej
+        rej_leaf = self._new_leaf(rej_mask)
+        acc_leaf = self._new_leaf(acc_mask)
         self.root = _replace_leaf(
             self.root, state_id, _Internal(predicate, rej_leaf, acc_leaf)
         )
