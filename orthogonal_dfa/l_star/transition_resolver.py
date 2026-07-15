@@ -13,24 +13,22 @@ the current tree for the prefixes of s except with every distinguisher
 family prepended by c.
 This has two possibilities:
   1. They all land on one leaf t. In this case we record the transition (s, c) -> t and move on.
-  2. They split across multiple leaves. In this case, we now have multiple
-  additional distinguishers among the elements of s. We add all these
-  distinguishers and extend the tree.
-  [1] Currently we just add the first distinguisher we find, but we could add all of them.
+  2. They diverge: s is really more than one state. We split it in two at the
+  first decision tree node (from the root) where its prefixes disagree about where c leads
 
 This only directly affects state s, so all we need to do at this point is
 to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as every
 edge (s', c') -> s, which needs to be reclassified into one of the newly split states.
 
 Two sources of redundant work at present:
-  [2] Evaluating [c]+w fills its whole mask-matrix column (queries every prefix),
+  [1] Evaluating [c]+w fills its whole mask-matrix column (queries every prefix),
   because compute_decision_from_strings records the suffix over the full prefix
   set, even though only s's cells are read here.
-  [3] If it's only going to be all one state its possible this is easy to tell early
+  [2] If it's only going to be all one state its possible this is easy to tell early
   and bail on the rest of the queries, but we don't do that yet. Only possible
-  if we do [2] first.
+  if we do [1] first.
 
-[1], [2] and [3] will be addressed in future commits.
+[1] and [2] will be addressed in future commits.
 """
 
 from collections import deque
