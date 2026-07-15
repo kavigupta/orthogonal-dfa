@@ -46,17 +46,3 @@ def sample_string_reaching_state(dfa, counts, rng):
         string.append(symbol)
         state = dfa.transitions[state][symbol]
     return string
-
-
-def final_states_all_initial(transitions, strings):
-    """For each possible initial state, compute the final state of each string.
-
-    Returns an array of shape (num_states, len(strings)) where
-    result[initial_state, string_idx] is the final state reached.
-    """
-    num_states = transitions.shape[0]
-    result = np.tile(np.arange(num_states)[:, None], (1, len(strings)))
-    for string_idx, string in enumerate(strings):
-        for sym in string:
-            result[:, string_idx] = transitions[result[:, string_idx], sym]
-    return result
