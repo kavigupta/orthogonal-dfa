@@ -1,24 +1,33 @@
 """Incremental, transition-driven DFA discovery.
 
-Builds the discrimination tree (states) and the transition function *together*:
+Builds the discrimination tree (states) and the transition function together:
 
-* The tree starts as the initial distinguisher family ``v_eps`` with two leaves,
-  ``s_acc`` / ``s_rej`` (the prefixes accepted / rejected by ``v_eps``).
-* We work a queue of unresolved ``(state, symbol)`` pairs.  Resolving ``(s, c)``
-  sifts every prefix of ``s``, extended by ``c``, through the *current* tree.
-  If they all land in one leaf ``t`` we record ``s -c-> t``; if they split
-  (with a binomial evidence test) we split ``s`` by ``[c]+w`` -- ``w`` being the
-  distinguisher where the sift paths diverge -- enqueue the new children's edges,
-  and re-open every edge that pointed at ``s``.
+The tree starts as the initial distinguisher family v_eps which partitions
+prefix pool into two sets s_acc / s_rej.  The leaves of the tree are the
+states of the DFA. We also separately mantain a transition function, which maps
+(state, symbol) pairs to target states.
 
-Because the split distinguisher ``[c]+w`` is produced by resolving ``s``'s own
-``c``-transition and applied only to ``s``, it never touches an unrelated state,
-so a state is only ever split by a distinguisher reachable from its own
-transitions -- there are no cross-branch splits.
+We work a queue of unresolved (state, symbol) pairs.  Resolving (s, c)
+classifies every prefix of s extended by c. Doing so involves querying
+the current tree for the prefixes of s except with every distinnguisher
+family prepeded by c.
+This has two possibilities:
+  1. They all land on one leaf t. In this case we record the transition (s, c) -> t and move on.
+  2. They split across multiple leaves. In this case, we now have multiple
+  additional distinguishers among the elements of s. We add all these
+  distinguishers and extend the tree.
+  (Currently we just add the first distinguisher we find, but we could add all of them.)[1]
 
-This first cut is deliberately un-optimised: no sequential early stop (every
-prefix of ``s`` is used at each node), and ``[c]+w`` is evaluated over all
-prefixes via the shared mask cache.
+This only directly affects state s, so all we need to do at this point is
+to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as all
+(s', c) -> s, which need to be reclassified into the newly split states.
+
+One note: at present evaluating [c]+w fills its whole mask-matrix column
+(queries every prefix), because compute_decision_from_strings records the
+suffix over the full prefix set, even though only s's cells are read here.
+This is potential redundant computation[2]
+
+[1] and [2] will be addressed in future commits.
 """
 
 from collections import deque
