@@ -20,15 +20,13 @@ This only directly affects state s, so all we need to do at this point is
 to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as every
 edge (s', c') -> s, which needs to be reclassified into one of the newly split states.
 
-Two sources of redundant work at present:
-  [1] Evaluating [c]+w fills its whole mask-matrix column (queries every prefix),
-  because compute_decision_from_strings records the suffix over the full prefix
-  set, even though only s's cells are read here.
-  [2] If it's only going to be all one state its possible this is easy to tell early
-  and bail on the rest of the queries, but we don't do that yet. Only possible
-  if we do [1] first.
+Evaluating a distinguisher [c]+w while resolving (s, c) only requires
+executing on the prefixes of s, which is a potentially small subset of
+the prefix pool.
 
-[1] and [2] will be addressed in future commits.
+One source of redundant work remains:
+  [2] If it's only going to be all one state it's possible this is easy to tell early
+  and bail on the rest of the queries, but we don't do that yet.
 """
 
 from collections import deque

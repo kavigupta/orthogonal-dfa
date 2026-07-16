@@ -8,22 +8,25 @@ from .statistics import evidence_margin_for_population_size, give_up_check
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
+    # Cluster only over fully-observed suffix columns -- the sampled acceptance-
+    # family suffixes -- to avoid forcing a bunch of additional computation on the
+    # partially-observed transition distinguishers.
+    #
     # Restrict to representative (non-core) prefix columns: the suffix family and
     # the decision boundary are global calibration and must not be biased by the
-    # statistically-unrepresentative short prefix-closed core.  Suffix (row)
-    # indices are unaffected by the column slice, so the returned cluster is
-    # still valid against the full prefix set used for state discovery.
-    masks = pst.table.observed_masks(
-        range(pst.table.num_suffixes), pst.table.representative
-    )
-    cluster = [seed]
+    # statistically-unrepresentative short prefix-closed core.
+    candidate = pst.table.fully_observed()
+    masks = pst.table.observed_masks(candidate, pst.table.representative)
+    seed_local = int(np.searchsorted(candidate, seed))
+    assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    cluster = [seed_local]
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
         cluster = losses.argsort()[:count]
-        if seed not in cluster:
-            cluster = np.concatenate([[seed], cluster[: count - 1]])
+        if seed_local not in cluster:
+            cluster = np.concatenate([[seed_local], cluster[: count - 1]])
         new_loss = losses[cluster].sum()
         if new_loss >= loss:
             break
@@ -48,7 +51,7 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
-    return cluster.tolist(), decision_boundary
+    return candidate[cluster].tolist(), decision_boundary
 
 
 def recompute_evidence_margin(
@@ -121,21 +124,26 @@ def _give_up_check(pst, config, seed_mask, empirical_pos):
     rep = pst.table.representative
     seed_mask = seed_mask[rep]
     empirical_pos = float(seed_mask.mean())
+    # The give-up statistic reasons about the sampled acceptance-family suffixes
+    # (their count bounds how many are idempotent), so count the fully-observed
+    # family suffixes -- not every interned row, which would also include
+    # transition distinguishers.
+    candidate = pst.table.fully_observed()
     result = give_up_check(
         config.min_signal_strength,
         int(rep.sum()),
-        pst.table.num_suffixes,
+        len(candidate),
         config.min_suffix_frequency,
         config.min_acc_rej,
         empirical_pos,
     )
     if result is not None:
         k, threshold = result
-        masks = pst.table.observed_masks(range(pst.table.num_suffixes), rep)
+        masks = pst.table.observed_masks(candidate, rep)
         agreements = (masks == seed_mask).mean(axis=1)
         top_k_mean = float(np.sort(agreements)[-k:].mean())
         if top_k_mean <= threshold:
             raise GaveUpOnSuffixSearch(
-                f"Sampled {pst.table.num_suffixes} suffixes. "
+                f"Sampled {len(candidate)} suffixes. "
                 f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
             )
