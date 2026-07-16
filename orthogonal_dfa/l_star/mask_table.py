@@ -6,12 +6,14 @@ everything else works through the small interface below and never touches the
 underlying arrays.
 
 Each cell is int8: ``0`` (reject), ``1`` (accept), or ``UNOBSERVED (-1)`` for a
-``(prefix, suffix)`` pair whose membership query has not been issued yet.  No
-query is ever made preemptively -- ``record``/``add_prefixes`` only reserve
-``UNOBSERVED`` cells, and a cell is filled the first time some read
-(``observed_masks`` / ``column``) actually needs it.  Because the oracle is
-deterministic per string, lazy filling returns exactly the values eager filling
-would, so callers cannot tell the difference except in query count.
+``(prefix, suffix)`` pair whose membership query has not been issued yet.  A new
+suffix (``intern_suffix``) reserves an all-``UNOBSERVED`` column and queries
+nothing; a cell is filled the first time some read (``observed_masks`` /
+``column``) actually needs it.  ``add_prefixes`` reserves ``UNOBSERVED`` cells
+for partially-observed columns but does query the new prefixes for already
+fully-observed (family) columns, to keep them clustering candidates.  Because the
+oracle is deterministic per string, lazy filling returns exactly the values eager
+filling would, so callers cannot tell the difference except in query count.
 """
 
 from typing import List
