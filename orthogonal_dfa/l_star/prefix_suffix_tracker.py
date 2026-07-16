@@ -141,7 +141,13 @@ class PrefixSuffixTracker:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if self.table.contains_suffix(v):
                 continue
-            return self.table.intern_suffix(v)
+            row = self.table.intern_suffix(v)
+            # A sampled suffix is an acceptance-family candidate, so observe it
+            # over the whole prefix pool: that both fills its column for
+            # clustering and marks it (via "fully observed") as a family suffix,
+            # as opposed to the partially-observed transition distinguishers.
+            self.table.column(row)
+            return row
 
     def compute_fnr(self, vs):
         """
@@ -183,7 +189,7 @@ class PrefixSuffixTracker:
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
-        to ``subset_prefixes``."""
+        to ``subset_prefixes``; the table fills any cells not yet observed."""
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
 
     def compute_decision_from_strings(
