@@ -24,12 +24,28 @@ Evaluating a distinguisher [c]+w while resolving (s, c) only requires
 executing on the prefixes of s, which is a potentially small subset of
 the prefix pool.
 
-One source of redundant work remains:
-  [2] If it's only going to be all one state it's possible this is easy to tell early
-  and bail on the rest of the queries, but we don't do that yet.
+Resolving (s, c) when the answer is "all one state" (case 1) used to query
+every prefix of s at every node on the root-to-leaf path.  Most of that is
+wasted: at a node where the whole population agrees on the direction, a small
+sample already reveals the agreement.  So at each node we first evaluate a
+*subsample* (``_descend_side``): if it is unanimous we descend on that side
+without querying the rest; only when the subsample shows both sides -- a real
+split candidate -- do we escalate to the full population and run the exact
+split test (reusing the already-queried subsample cells, so escalation costs
+nothing extra).
+
+The subsample size is not a guess: the split test fires only when the minority
+side exceeds a binomial FPR-noise threshold ``m*(denom)``, and we size the
+sample so that a minority large enough to split is missed with probability at
+most ``_SUBSAMPLE_MISS_BUDGET`` (``_safe_sample_size``).  A miss merely leaves
+two states merged for this round, which the counterexample loop can still
+split later.  Populations too small to subsample safely (``k >= denom``) run
+the exact test unchanged.
 """
 
+import math
 from collections import deque
+from functools import lru_cache
 
 import numpy as np
 import scipy.stats
@@ -76,6 +92,44 @@ def _splits(pst, n_acc, n_rej):
         1 - scipy.stats.binom.cdf(n_rej, denom, fpr),
     )
     return pval < pst.config.split_pval
+
+
+# When ``_resolve`` bails on a node from a unanimous subsample, this bounds the
+# per-node probability of missing a minority large enough to have split.
+_SUBSAMPLE_MISS_BUDGET = 1e-3
+
+
+@lru_cache(maxsize=None)
+def _safe_sample_size(denom, fpr, split_pval, miss_budget):
+    """Smallest subsample of a ``denom``-prefix population that a splittable
+    minority would survive with probability >= ``1 - miss_budget``.
+
+    A split needs the minority count to clear the binomial FPR-noise threshold
+    ``m*`` = smallest ``m`` with ``P(Binom(denom, fpr) > m) < split_pval``.  A
+    minority of that size is ``q* = m*/denom`` of the population, and a sample
+    of ``k`` misses it entirely with probability ``(1 - q*)**k``; solve that for
+    ``k``.  Returns ``denom`` when the population is too small to subsample
+    safely (the caller then runs the exact test)."""
+    if denom <= 1:
+        return denom
+    m = int(scipy.stats.binom.ppf(1 - split_pval, denom, fpr))
+    while 1 - scipy.stats.binom.cdf(m, denom, fpr) >= split_pval:
+        m += 1
+    q = m / denom
+    if q <= 0 or q >= 1:
+        return denom
+    k = math.ceil(math.log(miss_budget) / math.log(1 - q))
+    return min(denom, max(1, k))
+
+
+def _subsample_mask(s_mask, k):
+    """A boolean mask selecting ``k`` evenly-spaced prefixes out of ``s_mask``
+    (deterministic: no RNG consumed, so runs stay reproducible)."""
+    idx = np.flatnonzero(s_mask)
+    sel = idx[np.linspace(0, len(idx), k, endpoint=False).astype(int)]
+    m = np.zeros_like(s_mask)
+    m[sel] = True
+    return m
 
 
 class TransitionResolver:
@@ -128,6 +182,14 @@ class TransitionResolver:
         node = self.root
         while isinstance(node, _Internal):
             prepended = [[c] + list(v) for v in node.predicate.vs]
+            side = self._descend_side(prepended, s_mask)
+            if side is not None:
+                # Unanimous subsample: descend without the exact split test.
+                node = node.acc if side else node.rej
+                continue
+            # Inconclusive subsample (or population too small): the full
+            # population is needed.  The subsample's cells are already observed,
+            # so this queries only the remainder.
             with np.errstate(invalid="ignore"):
                 decision = pst.compute_decision_from_strings(prepended, s_mask)
                 acc = decision >= pst.accept_thresh
@@ -138,6 +200,36 @@ class TransitionResolver:
                 return
             node = node.acc if n_acc >= n_rej else node.rej
         self._set_transition(state_id, c, node.state_id)
+
+    def _descend_side(self, prepended, s_mask):
+        """Cheap unanimity check on a safe subsample of ``s_mask``.
+
+        Returns ``True`` (descend to the accept child) or ``False`` (reject
+        child) when the subsample lands unanimously on one side -- so the split
+        test cannot fire above the miss budget -- and ``None`` when the
+        subsample is inconclusive (both sides present, i.e. a split candidate,
+        or all undecided, or the population is too small to subsample), telling
+        the caller to fall back to the exact full-population test."""
+        pst = self.pst
+        denom = int(s_mask.sum())
+        k = _safe_sample_size(
+            denom,
+            pst.config.decision_rule_fpr,
+            pst.config.split_pval,
+            _SUBSAMPLE_MISS_BUDGET,
+        )
+        if k >= denom:
+            return None
+        sample = _subsample_mask(s_mask, k)
+        with np.errstate(invalid="ignore"):
+            decision = pst.compute_decision_from_strings(prepended, sample)
+            n_acc = int((decision >= pst.accept_thresh).sum())
+            n_rej = int((decision < pst.reject_thresh).sum())
+        if n_acc > 0 and n_rej == 0:
+            return True
+        if n_rej > 0 and n_acc == 0:
+            return False
+        return None
 
     def _split(self, state_id, prepended_vs, acc, rej):
         # acc/rej are the split distinguisher's accept/reject calls over s's prefixes
