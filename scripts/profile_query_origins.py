@@ -78,25 +78,24 @@ PREDICT_PHASES = [
     "enrich_underrepresented_leaves",
 ]
 
-# For a new-suffix column, what needed the suffix: (stack frame -> label), searched
-# outward, first match wins. Ordered most-specific first, because the low-level
-# helpers (compute_decision*) are reached from several distinct phases — matching
-# the outer phase before them splits the otherwise-broad "decision" bucket into
-# clustering / fnr / transition-resolve / classify.
+# For a new-suffix column, the method that needed the suffix (searched outward,
+# first match wins). Ordered most-specific first, because the low-level helpers
+# (compute_decision*) are reached from several distinct phases — matching the
+# outer method before them splits the otherwise-broad decision bucket by caller.
 SUFFIX_TRIGGERS = [
-    ("identify_cluster_around", "clustering (pick discriminating family)"),
-    ("compute_fnr", "fnr check on a candidate family"),
-    ("_give_up_check", "give-up check"),
-    ("_resolve", "transition resolve (distinguisher)"),
-    ("_split", "transition split"),
-    ("classify_states_with_decision_tree", "classify / denoise"),
-    ("_sample_suffix", "suffix-family growth"),
-    ("sample_more_suffixes", "suffix-family growth"),
-    ("sample_suffix_family", "suffix-family (other)"),
-    ("build", "resolver build / seed"),
-    ("discover_states", "discovery"),
-    ("compute_decision_from_strings", "decision (other)"),
-    ("compute_decision", "decision (other)"),
+    "identify_cluster_around",
+    "compute_fnr",
+    "_give_up_check",
+    "_resolve",
+    "_split",
+    "classify_states_with_decision_tree",
+    "_sample_suffix",
+    "sample_more_suffixes",
+    "sample_suffix_family",
+    "build",
+    "discover_states",
+    "compute_decision_from_strings",
+    "compute_decision",
 ]
 
 # For a new-prefix row (add_prefixes), what added the prefixes.
@@ -146,8 +145,8 @@ class ProfilingOracle(Oracle):
             trig = next((t for t in ROW_TRIGGERS if t in name_set), "other")
             return f"matrix row: new prefix over all suffixes (add_prefixes) <- {trig}"
         if any(s in name_set for s in COL_SITES):
-            label = next((lbl for nm, lbl in SUFFIX_TRIGGERS if nm in name_set), "other")
-            return f"matrix col: new suffix over all prefixes <- {label}"
+            trig = next((t for t in SUFFIX_TRIGGERS if t in name_set), "other")
+            return f"matrix col: new suffix over all prefixes <- {trig}"
         return f"UNATTRIBUTED ({names[:4]})"
 
     def membership_query(self, string):
