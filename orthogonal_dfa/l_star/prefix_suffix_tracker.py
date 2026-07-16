@@ -1,17 +1,12 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 import tqdm.auto as tqdm
 
+from .mask_table import MaskTable
 from .sampler import Sampler
 from .structures import Oracle
-
-
-def compute_mask(for_state, oracle, v):
-    mask = np.array([oracle.membership_query(x + v) for x in for_state], np.float32)
-
-    return mask
 
 
 def short_prefix_closure(
@@ -64,34 +59,29 @@ class SearchConfig:
 
 @dataclass
 class PrefixSuffixTracker:
+    """Owns the search calibration (decision boundary, evidence margin, family
+    sampling) on top of a :class:`MaskTable`.
+
+    The prefixes, suffixes and membership matrix live entirely in ``self.table``
+    and are reached only through its interface -- nothing here (or in callers)
+    touches the raw arrays.
+    """
+
     sampler: Sampler
     rng: np.random.Generator
     oracle: Oracle
     config: SearchConfig
-    prefixes: List[List[int]]
-    suffixes_seen: dict
-    suffix_bank: List[List[int]]
-    corresponding_masks: List[np.ndarray]
+    table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-    # Per-prefix flag: True for "representative" probe prefixes (drawn from the
-    # sampler), False for the short prefix-closed core.  Global calibration
-    # (decision boundary, FNR) is computed over representative prefixes only, so
-    # the statistically-unrepresentative core does not bias it; state discovery
-    # still uses every prefix so transient states are split out.  None => all
-    # prefixes are representative (the default with no core).
-    representative_prefixes: Optional[List[bool]] = None
 
     def __post_init__(self):
         if self.evidence_margin == 0.0:
             self.evidence_margin = self.config.evidence_margin
-        if self.representative_prefixes is None:
-            self.representative_prefixes = [True] * len(self.prefixes)
 
     @property
-    def representative(self) -> np.ndarray:
-        """Boolean mask selecting the representative (non-core) prefixes."""
-        return np.array(self.representative_prefixes, dtype=bool)
+    def num_prefixes(self) -> int:
+        return self.table.num_prefixes
 
     @property
     def alphabet_size(self) -> int:
@@ -121,6 +111,11 @@ class PrefixSuffixTracker:
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
         ]
+        # Per-prefix flag: True for "representative" probe prefixes (drawn from
+        # the sampler), False for the short prefix-closed core.  Global
+        # calibration (decision boundary, FNR) is computed over representative
+        # prefixes only, so the statistically-unrepresentative core does not bias
+        # it; state discovery still uses every prefix so transient states split.
         representative = [True] * len(prefixes)
         if prefix_core_length > 0 and prefix_core_size > 0:
             existing = {tuple(p) for p in prefixes}
@@ -138,28 +133,15 @@ class PrefixSuffixTracker:
             rng=rng,
             oracle=oracle,
             config=config,
-            prefixes=prefixes,
-            suffixes_seen={},
-            suffix_bank=[],
-            corresponding_masks=[],
-            representative_prefixes=representative,
+            table=MaskTable(oracle, prefixes, representative),
         )
 
-    def sample_suffix(self) -> Tuple[List[int], np.ndarray, int]:
+    def _sample_suffix(self) -> int:
         while True:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
-            if tuple(v) in self.suffixes_seen:
+            if self.table.contains_suffix(v):
                 continue
-            return self.record_suffix(v)
-
-    def record_suffix(self, v: List[int]) -> Tuple[List[int], np.ndarray, int]:
-        if tuple(v) in self.suffixes_seen:
-            return self.suffixes_seen[tuple(v)]
-        self.suffix_bank.append(v)
-        mask = compute_mask(self.prefixes, self.oracle, v)
-        self.corresponding_masks.append(mask)
-        self.suffixes_seen[tuple(v)] = v, mask, len(self.suffix_bank) - 1
-        return v, mask, len(self.suffix_bank) - 1
+            return self.table.intern_suffix(v)
 
     def compute_fnr(self, vs):
         """
@@ -175,8 +157,9 @@ class PrefixSuffixTracker:
         core exists to give transient states discovery rows, not to recalibrate
         the family against an unrepresentative population.
         """
-        arr = self.compute_decision_array_from_strings(
-            [self.suffix_bank[v] for v in vs], self.representative
+        decision = self.compute_decision(vs, self.table.representative)
+        arr = np.array(
+            [decision < self.reject_thresh, decision >= self.accept_thresh]
         ).mean(1)
         if arr.min() == 0:
             return 1
@@ -189,75 +172,24 @@ class PrefixSuffixTracker:
             prefix = tuple(
                 self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
             )
-            if prefix in new_prefixes or prefix in self.prefixes:
+            if prefix in new_prefixes or self.table.contains_prefix(list(prefix)):
                 continue
             new_prefixes.add(prefix)
-        new_prefixes = sorted(list(x) for x in new_prefixes if x not in self.prefixes)
-        self.add_prefixes(new_prefixes)
+        self.table.add_prefixes(sorted(list(x) for x in new_prefixes))
 
     def sample_more_suffixes(self, *, amount: int):
         for _ in tqdm.trange(amount, desc="Completing suffix family", delay=1):
-            self.sample_suffix()
-
-    def corresponding_masks_for_subset(self, subset_prefixes) -> List[np.ndarray]:
-        corresponding_masks = np.array(self.corresponding_masks)
-        return corresponding_masks[:, subset_prefixes]
+            self._sample_suffix()
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
-        selected_masks = self.corresponding_masks_for_subset(subset_prefixes)[vs]
-        return selected_masks.mean(0)
+        """Mean over the suffix rows ``vs`` of the membership matrix, restricted
+        to ``subset_prefixes``."""
+        return self.table.observed_masks(vs, subset_prefixes).mean(0)
 
     def compute_decision_from_strings(
         self, vs: List[List[int]], subset_prefixes=None
     ) -> np.ndarray:
         if subset_prefixes is None:
             subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
-        vs_idxs = [self.record_suffix(v)[2] for v in vs]
+        vs_idxs = [self.table.intern_suffix(v) for v in vs]
         return self.compute_decision(vs_idxs, subset_prefixes)
-
-    def compute_decision_array_from_strings(
-        self, vs: List[List[int]], subset_prefixes=None
-    ) -> np.ndarray:
-        decision = self.compute_decision_from_strings(vs, subset_prefixes)
-        return np.array(
-            [
-                decision < self.reject_thresh,
-                decision >= self.accept_thresh,
-            ]
-        )
-
-    def add_prefixes(self, new_prefixes: List[List[int]]):
-
-        assert new_prefixes, "No new prefixes to add"
-        assert len(new_prefixes + self.prefixes) == len(
-            set(tuple(p) for p in new_prefixes + self.prefixes)
-        ), "Prefixes must be unique"
-
-        additional_prefixes = []
-        additional_masks = []
-        for prefix in tqdm.tqdm(new_prefixes, desc="Adding new prefixes", delay=1):
-            additional_prefixes.append(prefix)
-            additional_masks.append(
-                np.array(
-                    [
-                        self.oracle.membership_query(prefix + v)
-                        for v in self.suffix_bank
-                    ],
-                    np.float32,
-                )
-            )
-        additional_masks = np.array(additional_masks).T
-        self.prefixes.extend(additional_prefixes)
-        # Prefixes added after construction (counterexamples, leaf enrichment)
-        # are full-length probe prefixes, hence representative.
-        self.representative_prefixes.extend([True] * len(additional_prefixes))
-
-        assert len(self.corresponding_masks) == len(additional_masks)
-        self.corresponding_masks = [
-            np.concatenate([self.corresponding_masks[i], additional_masks[i]])
-            for i in range(len(self.suffix_bank))
-        ]
-
-    @property
-    def num_prefixes(self) -> int:
-        return len(self.prefixes)

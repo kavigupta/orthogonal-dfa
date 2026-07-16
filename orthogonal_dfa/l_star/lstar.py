@@ -35,8 +35,8 @@ from .transition_resolver import resolve_dfa
 
 def classify_states_with_decision_tree(pst, dt: DecisionTree):
     if isinstance(dt, DecisionTreeLeafNode):
-        return np.full(len(pst.prefixes), dt.state_idx)
-    results = np.full(len(pst.prefixes), -1)
+        return np.full(pst.num_prefixes, dt.state_idx)
+    results = np.full(pst.num_prefixes, -1)
     # Classify straight from the cached prefix x suffix mask matrix
     # (compute_decision_from_strings reads corresponding_masks), applying each node's
     # OWN thresholds rather than the PST's current margins.  For a discovery-time tree
@@ -85,7 +85,7 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200):
 
     label = {
         states_intermediate(dfa.initial_state, prefix, dfa)[-1]: None
-        for prefix in pst.prefixes
+        for prefix in pst.table.prefixes
     }
     label = {state: relabel(state) for state in label}
 
@@ -118,7 +118,7 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
         expected_acc=expected_acc,
     )
     if results:
-        pst.add_prefixes(results)
+        pst.table.add_prefixes(results)
     return results
 
 
@@ -198,7 +198,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                 pbar.close()
                 return additional_prefixes
             continue
-        if prefix in additional_prefixes or prefix in pst.prefixes:
+        if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
             continue
         state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
         state_2 = dfa.transitions[state_1][sym]
@@ -290,7 +290,7 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
         f" {sorted(target_leaves)} (median={median})"
     )
 
-    seen = {tuple(p) for p in pst.prefixes}
+    seen = {tuple(p) for p in pst.table.prefixes}
     new_prefixes = []
     max_attempts = count * 200
     attempts = 0
@@ -309,7 +309,7 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
         pbar.update()
     pbar.close()
     if new_prefixes:
-        pst.add_prefixes(new_prefixes)
+        pst.table.add_prefixes(new_prefixes)
     return new_prefixes
 
 
