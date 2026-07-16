@@ -164,7 +164,7 @@ class TransitionResolver:
 
     def build(self, first_round):
         pst = self.pst
-        _, _, v_idx = pst.record_suffix([])
+        v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
         pst.decision_boundary = boundary
         all_prefixes = np.ones(pst.num_prefixes, dtype=bool)
@@ -173,7 +173,7 @@ class TransitionResolver:
             acc = decision >= pst.accept_thresh
             rej = decision < pst.reject_thresh
         predicate = TriPredicate(
-            [pst.suffix_bank[i] for i in vs], pst.accept_thresh, pst.reject_thresh
+            [pst.table.suffix(i) for i in vs], pst.accept_thresh, pst.reject_thresh
         )
         rej_leaf = self._new_leaf(all_prefixes & rej)
         acc_leaf = self._new_leaf(all_prefixes & acc)
