@@ -6,12 +6,19 @@ it.  Prints a breakdown so we can see where queries actually come from before
 deciding what else is worth caching.
 
 Usage:
-    python scripts/profile_query_origins.py            # default: subseq
-    python scripts/profile_query_origins.py poor_case
+    python scripts/profile_query_origins.py                  # default: modulo subseq
+    python scripts/profile_query_origins.py poor_case        # one benchmark
+    python scripts/profile_query_origins.py modulo subseq    # several, in one run
 """
 
 import sys
 from collections import Counter
+from pathlib import Path
+
+# Profile THIS working tree, not whatever `orthogonal_dfa` is pip-installed
+# (it's an editable install pointing at a different clone). Insert before the
+# library imports so the local source wins.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from automata.fa.dfa import DFA
 
@@ -54,9 +61,11 @@ BENCHMARKS = {
 }
 
 # Direct call sites: the function whose body contains the membership_query call.
+# Post-#119 the bulk prefix x suffix queries live in MaskTable._query (reached via
+# intern_suffix = new suffix column, or add_prefixes = new prefix row); predict and
+# relabel still query the oracle directly.
 DIRECT_SITES = {
-    "compute_mask": "matrix col: new suffix over all prefixes (compute_mask)",
-    "add_prefixes": "matrix row: new prefix over all suffixes (add_prefixes)",
+    "_query": "MaskTable._query",
     "relabel": "denoise: fresh samples per state (relabel)",
     "predict": "DT classify one string (TriPredicate.predict)",
 }
@@ -68,11 +77,15 @@ PREDICT_PHASES = [
     "enrich_underrepresented_leaves",
 ]
 
-# For compute_mask, what triggered the new suffix (searched outward).
-MASK_TRIGGERS = [
-    "prepend_to_all",          # building child/transition predicates during discovery
-    "sample_more_suffixes",    # growing the suffix family
-    "discover_states",         # the initial empty-suffix / seed recording
+# For a new-suffix column (_query <- intern_suffix), what needed the suffix
+# (searched outward, first match wins).
+SUFFIX_TRIGGERS = [
+    "_sample_suffix",                # growing the suffix family
+    "sample_more_suffixes",          # (its caller, if _sample_suffix is inlined)
+    "compute_decision_from_strings",  # evaluating a candidate suffix set while clustering
+    "sample_suffix_family",          # the cluster-around growth loop
+    "build",                         # TransitionResolver seeding the empty suffix
+    "discover_states",
 ]
 
 
@@ -107,9 +120,13 @@ class ProfilingOracle(Oracle):
                     phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
                     sub = f" [locate L{locate_line}]" if locate_line else ""
                     return f"{label} <- {phase}{sub}"
-                if site == "compute_mask":
-                    trig = next((t for t in MASK_TRIGGERS if t in name_set), "other")
-                    return f"{label} <- {trig}"
+                if site == "_query":
+                    if "add_prefixes" in name_set:
+                        return "matrix row: new prefix over all suffixes (add_prefixes)"
+                    if "intern_suffix" in name_set:
+                        trig = next((t for t in SUFFIX_TRIGGERS if t in name_set), "other")
+                        return f"matrix col: new suffix over all prefixes (intern_suffix) <- {trig}"
+                    return f"{label} <- other"
                 return label
         return f"UNATTRIBUTED ({names[:4]})"
 
@@ -119,8 +136,7 @@ class ProfilingOracle(Oracle):
         return self._inner.membership_query(string)
 
 
-def main():
-    name = sys.argv[1] if len(sys.argv) > 1 else "subseq"
+def profile_one(name: str) -> None:
     oracle_creator, signal, symbols = BENCHMARKS[name]
     holder = {}
 
@@ -137,7 +153,14 @@ def main():
           f"(states={len(dfa.states)}, acc={acc:.3f}) =====")
     print(f"total queries: {o.total:,}\n")
     for label, n in o.buckets.most_common():
-        print(f"{n:>12,}  {100*n/o.total:5.1f}%  {label}")
+        print(f"{n:>12,}  {100 * n / o.total:5.1f}%  {label}")
+
+
+def main():
+    # One or more benchmark names (default: a representative couple).
+    names = sys.argv[1:] or ["modulo", "subseq"]
+    for name in names:
+        profile_one(name)
 
 
 if __name__ == "__main__":
