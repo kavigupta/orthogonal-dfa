@@ -20,20 +20,13 @@ This only directly affects state s, so all we need to do at this point is
 to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as every
 edge (s', c') -> s, which needs to be reclassified into one of the newly split states.
 
-Evaluating a distinguisher [c]+w while resolving (s, c) reads only s's own
-prefixes (the s_mask subset), not the whole mask-matrix column.  The MaskTable
-backing the pst fills cells on demand, so a distinguisher is queried only on the
-prefixes some operation actually reads: cells filled here are reused when the
-edge is re-resolved after a split, when another state sifts through the same
-node, when the hypothesis tree is later classified over the whole prefix pool
-(enrichment), and across rounds.
+Evaluating a distinguisher [c]+w while resolving (s, c) only requires
+executing on the prefixes of s, which is a potentially small subset of
+the prefix pool.
 
 One source of redundant work remains:
-  [2] When (s, c) lands coherently in a single leaf -- the common case -- that is
-  often decidable after sifting only a handful of s's prefixes, but we still
-  evaluate every prefix in s_mask before deciding.  The sequential early stop
-  (sift as many of s's prefixes as it takes to settle coherent-vs-split) will be
-  addressed in a future commit.
+  [2] If it's only going to be all one state it's possible this is easy to tell early
+  and bail on the rest of the queries, but we don't do that yet.
 """
 
 from collections import deque
@@ -136,10 +129,6 @@ class TransitionResolver:
         while isinstance(node, _Internal):
             prepended = [[c] + list(v) for v in node.predicate.vs]
             with np.errstate(invalid="ignore"):
-                # The pst cache records these distinguishers lazily and queries
-                # only the s_mask cells (finding [1]); cells filled here are
-                # reused when the edge is re-resolved after a split, when another
-                # state sifts this node, and across rounds.
                 decision = pst.compute_decision_from_strings(prepended, s_mask)
                 acc = decision >= pst.accept_thresh
                 rej = decision < pst.reject_thresh

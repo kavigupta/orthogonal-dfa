@@ -142,10 +142,7 @@ class PrefixSuffixTracker:
             if self.table.contains_suffix(v):
                 continue
             row = self.table.intern_suffix(v)
-            # A sampled suffix is an acceptance-family candidate, so observe it
-            # over the whole prefix pool: that both fills its column for
-            # clustering and marks it (via "fully observed") as a family suffix,
-            # as opposed to the partially-observed transition distinguishers.
+            # Fully observe the new suffix row, so it can be used in clustering
             self.table.column(row)
             return row
 
