@@ -60,15 +60,16 @@ BENCHMARKS = {
     ),
 }
 
-# Direct call sites: the function whose body contains the membership_query call.
-# Post-#119 the bulk prefix x suffix queries live in MaskTable._query (reached via
-# intern_suffix = new suffix column, or add_prefixes = new prefix row); predict and
-# relabel still query the oracle directly.
-DIRECT_SITES = {
-    "_query": "MaskTable._query",
-    "relabel": "denoise: fresh samples per state (relabel)",
-    "predict": "DT classify one string (TriPredicate.predict)",
-}
+# The bulk prefix x suffix queries live in MaskTable. We support both layouts
+# it has had: the EAGER one (queries in `_query`, reached via `intern_suffix`
+# for a new suffix column or `add_prefixes` for a new prefix row) and the LAZY
+# one (per-cell queries in `_ensure`, reached via `observed_masks`/`column`;
+# `add_prefixes` queries fully-observed family columns directly). `predict` and
+# `relabel` query the oracle directly in both. Attribution below is by role, so
+# it survives either layout.
+
+# A new-suffix-column query goes through one of these functions.
+COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 
 # For predict, the enclosing high-level phase (searched outward, first match wins).
 PREDICT_PHASES = [
@@ -77,15 +78,22 @@ PREDICT_PHASES = [
     "enrich_underrepresented_leaves",
 ]
 
-# For a new-suffix column (_query <- intern_suffix), what needed the suffix
-# (searched outward, first match wins).
+# For a new-suffix column, what needed the suffix (searched outward, first wins).
 SUFFIX_TRIGGERS = [
-    "_sample_suffix",                # growing the suffix family
-    "sample_more_suffixes",          # (its caller, if _sample_suffix is inlined)
+    "_sample_suffix",                 # growing the suffix family
+    "sample_more_suffixes",           # (its caller, if _sample_suffix is inlined)
     "compute_decision_from_strings",  # evaluating a candidate suffix set while clustering
-    "sample_suffix_family",          # the cluster-around growth loop
-    "build",                         # TransitionResolver seeding the empty suffix
+    "compute_decision",               # observed_masks -> clustering decision (lazy layout)
+    "sample_suffix_family",           # the cluster-around growth loop
+    "build",                          # TransitionResolver seeding the empty suffix
     "discover_states",
+]
+
+# For a new-prefix row (add_prefixes), what added the prefixes.
+ROW_TRIGGERS = [
+    "add_counterexample_prefixes",
+    "enrich_underrepresented_leaves",
+    "sample_more_prefixes",
 ]
 
 
@@ -114,20 +122,22 @@ class ProfilingOracle(Oracle):
             frame = frame.f_back
             depth += 1
         name_set = set(names)
-        for site, label in DIRECT_SITES.items():
-            if site in name_set:
-                if site == "predict":
-                    phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
-                    sub = f" [locate L{locate_line}]" if locate_line else ""
-                    return f"{label} <- {phase}{sub}"
-                if site == "_query":
-                    if "add_prefixes" in name_set:
-                        return "matrix row: new prefix over all suffixes (add_prefixes)"
-                    if "intern_suffix" in name_set:
-                        trig = next((t for t in SUFFIX_TRIGGERS if t in name_set), "other")
-                        return f"matrix col: new suffix over all prefixes (intern_suffix) <- {trig}"
-                    return f"{label} <- other"
-                return label
+        # Attribute by role, checking in priority order so the layout doesn't
+        # matter. DT classify and denoise query the oracle directly. A new prefix
+        # row is checked before the column sites because in the eager layout the
+        # row query still passes through `_query` (add_prefixes -> _query).
+        if "predict" in name_set:
+            phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
+            sub = f" [locate L{locate_line}]" if locate_line else ""
+            return f"DT classify one string (TriPredicate.predict) <- {phase}{sub}"
+        if "relabel" in name_set:
+            return "denoise: fresh samples per state (relabel)"
+        if "add_prefixes" in name_set:
+            trig = next((t for t in ROW_TRIGGERS if t in name_set), "other")
+            return f"matrix row: new prefix over all suffixes (add_prefixes) <- {trig}"
+        if any(s in name_set for s in COL_SITES):
+            trig = next((t for t in SUFFIX_TRIGGERS if t in name_set), "other")
+            return f"matrix col: new suffix over all prefixes <- {trig}"
         return f"UNATTRIBUTED ({names[:4]})"
 
     def membership_query(self, string):
