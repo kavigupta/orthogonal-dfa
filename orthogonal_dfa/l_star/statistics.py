@@ -13,8 +13,17 @@ def population_size_and_evidence_margin(
     (center - epsilon, center + epsilon). The true distribution has accept rate
     center + signal_strength and reject rate center - signal_strength.
 
-    We want FPR (under the null B(center)) at most acceptable_fpr, and FNR (under
-    the true distribution) at most acceptable_fnr.
+    We want FPR at most acceptable_fpr, and FNR at most acceptable_fnr, where:
+
+    - FPR is the probability of a prefix flipping from one category to the
+      other: a true-reject prefix (rate center - signal_strength) whose count
+      lands in the accept region (>= k_high), or the symmetric true-accept
+      prefix decided reject. This is the error we care about -- a prefix that
+      is genuinely near the boundary being decided either way is not a
+      meaningful error -- so we bound the flip probability rather than the rate
+      at which a boundary prefix at center gets decided at all.
+    - FNR is the probability that a true-accept prefix (rate center +
+      signal_strength) fails to be decided and lands in the undecided band.
     """
     assert signal_strength > 0
     N_low = 1
@@ -47,8 +56,13 @@ def evidence_margin_for_population_size(
     for eps in np.linspace(0.01, signal_strength, 100):
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
-        fpr = scipy.stats.binom.cdf(k_low, N, center) + (
-            1 - scipy.stats.binom.cdf(k_high - 1, N, center)
+        reject_rate = np.clip(center - signal_strength, 0, 1)
+        accept_rate = np.clip(center + signal_strength, 0, 1)
+        # FPR = probability of a category flip: a true-reject prefix decided
+        # accept, or a true-accept prefix decided reject.
+        fpr = max(
+            1 - scipy.stats.binom.cdf(k_high - 1, N, reject_rate),
+            scipy.stats.binom.cdf(k_low, N, accept_rate),
         )
         fnr = scipy.stats.binom.cdf(
             k_high - 1, N, signal_strength + center
