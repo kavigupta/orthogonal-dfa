@@ -68,19 +68,6 @@ class SearchConfig:
         num_addtl_prefixes=None,
         min_suffix_frequency=0.05,
     ) -> "SearchConfig":
-        """Build a config whose suffix family size and evidence margin are sized
-        against ``decision_rule_fpr``.
-
-        ``decision_rule_fpr`` is the split test's noise budget (see
-        ``transition_resolver._splits``): the rate at which a truly-homogeneous
-        state is allowed to leak prefixes to the wrong side of the decision
-        thresholds. The evidence margin has to be wide enough that the actual
-        boundary-region leak rate stays under that budget -- otherwise the split
-        test reads noise as real states. Because both come from this one value,
-        they cannot silently drift apart. ``evidence_margin_for_population_size``
-        computes exactly that leak rate (``fpr`` under ``B(center)``), so we pass
-        ``decision_rule_fpr`` in as its ``acceptable_fpr``.
-        """
         suffix_family_size, evidence_margin = population_size_and_evidence_margin(
             signal_strength=signal_strength,
             acceptable_fpr=decision_rule_fpr,

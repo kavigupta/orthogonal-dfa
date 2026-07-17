@@ -57,9 +57,6 @@ def identify_cluster_around(
 def recompute_evidence_margin(
     min_signal_strength, suffix_family_size, decision_boundary, decision_rule_fpr
 ):
-    # Re-size the margin against decision_rule_fpr -- the same split-noise budget
-    # _splits consumes -- so the moving boundary keeps the boundary-region leak
-    # rate under what the split test assumes. See SearchConfig.calibrated.
     result = evidence_margin_for_population_size(
         min_signal_strength,
         decision_rule_fpr,
