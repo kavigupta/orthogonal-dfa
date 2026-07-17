@@ -395,13 +395,13 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    @unittest.expectedFailure
     def test_boundary_near_zero(self):
         """Both noise rates near 0, boundary far from 0.5.
-        Fails: finds only 3 states instead of 9. With the true boundary at
-        0.22, the clustering threshold is so low that true-reject prefixes
-        (mean ~0.02) get mixed into the "accept" group on noisy suffix
-        samples, contaminating the boundary estimate downward to ~0.11."""
+        Previously found only 3 states instead of 9: with the true boundary at
+        0.22 and FPR calibrated against the null B(center), the boundary
+        estimate contaminated downward to ~0.11 and true-reject prefixes got
+        mixed into the "accept" group. Calibrating FPR as the category-flip
+        rate lets enrichment recover all 9 states (verified across seeds)."""
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
