@@ -6,7 +6,6 @@ learner (github.com/lkwargs/CAPAL) can solve the DFA-learning problems in
 
 Companion artifacts:
 - `data/capal_official_sweep.csv` — main noise-sweep numbers
-- `data/capal_noise_sweep_combined.csv` — CAPAL / aalpy-L* / ortho-L* head-to-head
 - `scripts/run_capal_official.py` — self-contained reproducer for the sweep
 - `scripts/capal_modulo_wall_queries.py` — reproducer for §5 (the modulo η=0.30
   wall), reporting states/acc/converged/time/distinct-queries per config
