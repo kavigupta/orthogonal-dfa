@@ -189,6 +189,14 @@ class PrefixSuffixTracker:
         to ``subset_prefixes``; the table fills any cells not yet observed."""
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
 
+    def compute_decision_array(self, vs, subset_prefixes) -> np.ndarray:
+        decision = self.compute_decision(vs, subset_prefixes)
+        return np.array([decision < self.reject_thresh, decision >= self.accept_thresh])
+
+    def compute_decision_decisive(self, vs, subset_prefixes) -> np.ndarray:
+        decision = self.compute_decision(vs, subset_prefixes)
+        return decision >= self.decision_boundary
+
     def compute_decision_from_strings(
         self, vs: List[List[int]], subset_prefixes=None
     ) -> np.ndarray:
