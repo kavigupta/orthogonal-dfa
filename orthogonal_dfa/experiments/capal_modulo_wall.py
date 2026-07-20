@@ -12,15 +12,14 @@ The default configs match the reproducible §5 table (seed=0, K_pos=K_neg=10,
 is validated by the m=60 default cell reproducing §2 exactly (20 states, 12 240
 distinct queries).
 
-No dependency on this repo's orthogonal_dfa package; the only in-repo import is
-the sibling `upstream` module in this folder. The other requirement is a
-clone of github.com/lkwargs/CAPAL at the commit pinned in upstream.py,
-checked out clean -- a wrong commit or a dirty tree is a hard error, since §5's
-numbers are only reproducible against that commit. Defaults to `../capal`
-relative to the repo root; override with --capal-dir.
+Requires a clone of github.com/lkwargs/CAPAL at the commit pinned in
+`orthogonal_dfa/capal_official/adapter.py`, checked out clean -- a wrong commit
+or a dirty tree is a hard error, since §5's numbers are only reproducible
+against that commit. Defaults to `../capal` relative to the repo root; override
+with --capal-dir or $ORTHO_CAPAL_DIR.
 
 Example:
-    python scripts/capal/modulo_wall_queries.py \
+    python -m orthogonal_dfa.experiments.capal_modulo_wall \
         --csv data/capal_modulo_wall_queries.csv
 """
 
@@ -29,40 +28,18 @@ from __future__ import annotations
 import argparse
 import csv
 import random
-import sys
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-
-# -- upstream import ----------------------------------------------------------
-
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from upstream import (  # noqa: E402
+from orthogonal_dfa.capal_official import (
     DEFAULT_CAPAL_DIR,
     PINNED_COMMIT,
+    build_modulo_dfa,
     import_capal,
 )
 
 
 # -- target + accuracy --------------------------------------------------------
-
-
-def build_modulo_dfa(M: Any, modulo: int, allowed: List[int]) -> Any:
-    """DFA over {'0','1'} accepting iff (count of '1' chars) mod `modulo` is in
-    `allowed`. Matches BernoulliParityOracle / the repo's test_modulo."""
-    delta = {}
-    for q in range(modulo):
-        delta[(q, "0")] = q
-        delta[(q, "1")] = (q + 1) % modulo
-    return M.DFA(
-        alphabet=["0", "1"],
-        num_states=modulo,
-        start=0,
-        accept=set(allowed),
-        delta=delta,
-    )
 
 
 def accuracy(
@@ -97,7 +74,7 @@ def run_one(
     eval_count: int,
     eval_max_len: int,
 ) -> Dict[str, Any]:
-    target = build_modulo_dfa(M, 9, [3, 6])
+    target = build_modulo_dfa(9, [3, 6])
     cfg = M.LearnerConfig(
         eta=eta,
         seed=seed,
@@ -165,7 +142,12 @@ def main() -> None:
     ap.add_argument("--csv", default=None, help="Optional CSV output path.")
     args = ap.parse_args()
 
-    M = import_capal(args.capal_dir)
+    # The pin check raises for library callers; as a CLI, report it as a plain
+    # message rather than a traceback.
+    try:
+        M = import_capal(args.capal_dir)
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from None
 
     header = (
         f"| config (seed={args.seed})          "

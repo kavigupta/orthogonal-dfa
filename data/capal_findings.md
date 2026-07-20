@@ -8,12 +8,12 @@ Companion artifacts:
 - `data/capal_official_sweep.csv` — main noise-sweep numbers
 - `orthogonal_dfa/experiments/capal_official_sweep.py` — reproducer for the
   sweep; regenerates `capal_official_sweep.csv`
-- `scripts/capal/modulo_wall_queries.py` — reproducer for §5 (the modulo η=0.30
-  wall), reporting states/acc/converged/time/distinct-queries per config
-- `scripts/capal/upstream.py` — pins the upstream commit both scripts run
-  against; a wrong commit or dirty checkout is a hard error
+- `orthogonal_dfa/experiments/capal_modulo_wall.py` — reproducer for §5 (the
+  modulo η=0.30 wall), reporting states/acc/converged/time/distinct-queries
+  per config
 - `orthogonal_dfa/capal_official/` — adapter that runs upstream CAPAL on our
-  oracle-creators
+  oracle-creators, and the pinned upstream commit both reproducers run
+  against; a wrong commit or dirty checkout is a hard error
 
 ## 1. Main sweep — official CAPAL, default config
 
@@ -103,7 +103,7 @@ for the harder cells.
 Even the resource-heavy configurations can't crack this cell. Re-measured on
 current upstream CAPAL (github.com/lkwargs/CAPAL @ 57d877f), modulo η=0.30,
 seed=0, K_pos=K_neg=10 (matching the repo adapter); every row non-converged.
-Reproduce with `scripts/capal/modulo_wall_queries.py`. `distinct MQ` =
+Reproduce with `orthogonal_dfa/experiments/capal_modulo_wall.py`. `distinct MQ` =
 `len(mq.cache)`, the number of *distinct* membership queries — the persistent MQ
 caches every string, so this is CAPAL's true oracle cost:
 

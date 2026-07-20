@@ -26,23 +26,27 @@ import numpy as np
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: Commit the findings doc was measured against. `scripts/capal/upstream.py`
-#: keeps its own copy (the scripts folder is standalone w.r.t. this package);
-#: bump both together, and re-measure.
+#: The single source of truth for the commit every number in
+#: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
 #: Env var to point at a checkout elsewhere; otherwise a sibling of the repo.
 CAPAL_DIR_ENV = "ORTHO_CAPAL_DIR"
 
+#: Default checkout location, resolved relative to the repo root rather than
+#: the cwd, so it does not matter where a caller is invoked from.
+DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[2].parent / "capal"
+
 _official: Any = None
 
 
-def resolve_capal_dir() -> Path:
-    """Upstream checkout location: $ORTHO_CAPAL_DIR, else `../capal`."""
-    override = os.environ.get(CAPAL_DIR_ENV)
+def resolve_capal_dir(capal_dir: Optional[str] = None) -> Path:
+    """Upstream checkout: explicit `capal_dir`, else $ORTHO_CAPAL_DIR, else
+    `../capal`."""
+    override = capal_dir or os.environ.get(CAPAL_DIR_ENV)
     if override:
         return Path(override).expanduser().resolve()
-    return Path(__file__).resolve().parents[2].parent / "capal"
+    return DEFAULT_CAPAL_DIR
 
 
 def _git(path: Path, *args: str) -> str:
@@ -98,23 +102,37 @@ def verify_pinned(path: Path) -> None:
         )
 
 
-def _require_official() -> Any:
-    """Verify the pin and import upstream on first use.
+def import_capal(capal_dir: Optional[str] = None) -> Any:
+    """Verify the pin, then import upstream's single-file `capal` module.
 
-    Deliberately lazy: importing this package must not fail just because the
-    checkout is missing, but *using* it against an unpinned tree must.
+    Deliberately lazy and cached: importing this package must not fail just
+    because the checkout is missing, but *using* it against an unpinned tree
+    must.
     """
     global _official
     if _official is not None:
         return _official
-    path = resolve_capal_dir()
+    path = resolve_capal_dir(capal_dir)
     verify_pinned(path)
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
     import capal  # type: ignore[import-not-found]
 
+    # A stray `capal` package/module elsewhere on sys.path would satisfy this
+    # import silently, giving wrong results rather than an error. Check.
+    loaded = getattr(capal, "__file__", None)
+    if loaded is None or Path(loaded).resolve().parent != path:
+        raise RuntimeError(
+            f"`import capal` resolved to {loaded or '<namespace package>'}, "
+            f"not the pinned checkout at {path}. Something on sys.path is "
+            f"shadowing upstream CAPAL."
+        )
     _official = capal
     return _official
+
+
+def _require_official() -> Any:
+    return import_capal()
 
 
 def build_modulo_dfa(modulo: int, allowed: Iterable[int]) -> Any:
