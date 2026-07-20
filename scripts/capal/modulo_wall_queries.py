@@ -13,14 +13,14 @@ is validated by the m=60 default cell reproducing §2 exactly (20 states, 12 240
 distinct queries).
 
 No dependency on this repo's orthogonal_dfa package; the only in-repo import is
-the sibling `capal_upstream` module in this folder. The other requirement is a
-clone of github.com/lkwargs/CAPAL at the commit pinned in capal_upstream.py,
+the sibling `upstream` module in this folder. The other requirement is a
+clone of github.com/lkwargs/CAPAL at the commit pinned in upstream.py,
 checked out clean -- a wrong commit or a dirty tree is a hard error, since §5's
 numbers are only reproducible against that commit. Defaults to `../capal`
 relative to the repo root; override with --capal-dir.
 
 Example:
-    python scripts/capal_modulo_wall_queries.py \
+    python scripts/capal/modulo_wall_queries.py \
         --csv data/capal_modulo_wall_queries.csv
 """
 
@@ -39,7 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from capal_upstream import (  # noqa: E402
+from upstream import (  # noqa: E402
     DEFAULT_CAPAL_DIR,
     PINNED_COMMIT,
     import_capal,

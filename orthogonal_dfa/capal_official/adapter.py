@@ -26,7 +26,7 @@ import numpy as np
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: Commit the findings doc was measured against. `scripts/capal_upstream.py`
+#: Commit the findings doc was measured against. `scripts/capal/upstream.py`
 #: keeps its own copy (the scripts folder is standalone w.r.t. this package);
 #: bump both together, and re-measure.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"

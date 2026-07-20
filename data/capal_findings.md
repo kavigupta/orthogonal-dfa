@@ -6,9 +6,11 @@ learner (github.com/lkwargs/CAPAL) can solve the DFA-learning problems in
 
 Companion artifacts:
 - `data/capal_official_sweep.csv` — main noise-sweep numbers
-- `scripts/run_capal_official.py` — self-contained reproducer for the sweep
-- `scripts/capal_modulo_wall_queries.py` — reproducer for §5 (the modulo η=0.30
+- `scripts/capal/run_official.py` — reproducer for the sweep
+- `scripts/capal/modulo_wall_queries.py` — reproducer for §5 (the modulo η=0.30
   wall), reporting states/acc/converged/time/distinct-queries per config
+- `scripts/capal/upstream.py` — pins the upstream commit both scripts run
+  against; a wrong commit or dirty checkout is a hard error
 - `orthogonal_dfa/capal_official/` — adapter that runs upstream CAPAL on our
   oracle-creators
 
@@ -100,7 +102,7 @@ for the harder cells.
 Even the resource-heavy configurations can't crack this cell. Re-measured on
 current upstream CAPAL (github.com/lkwargs/CAPAL @ 57d877f), modulo η=0.30,
 seed=0, K_pos=K_neg=10 (matching the repo adapter); every row non-converged.
-Reproduce with `scripts/capal_modulo_wall_queries.py`. `distinct MQ` =
+Reproduce with `scripts/capal/modulo_wall_queries.py`. `distinct MQ` =
 `len(mq.cache)`, the number of *distinct* membership queries — the persistent MQ
 caches every string, so this is CAPAL's true oracle cost:
 

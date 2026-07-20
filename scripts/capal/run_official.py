@@ -3,17 +3,17 @@
 DFAs at a configurable list of persistent-noise levels.
 
 No dependency on this repo's orthogonal_dfa package; the only in-repo import is
-the sibling `capal_upstream` module in this folder. The other requirements are
+the sibling `upstream` module in this folder. The other requirements are
     - `automata-lib`  (for regex -> DFA compilation), and
     - a clone of github.com/lkwargs/CAPAL at the commit pinned in
-      capal_upstream.py, checked out clean. Defaults to `../capal` relative to
+      upstream.py, checked out clean. Defaults to `../capal` relative to
       the repo root; pass --capal-dir to point elsewhere.
 
 The pin is enforced: a wrong commit or a dirty tree is a hard error, since the
 numbers in data/capal_findings.md are only reproducible against that commit.
 
 Example:
-    python scripts/run_capal_official.py --noises 0.05 0.1 0.2 0.3 \
+    python scripts/capal/run_official.py --noises 0.05 0.1 0.2 0.3 \
         --csv results.csv
 """
 
@@ -32,7 +32,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from capal_upstream import (  # noqa: E402
+from upstream import (  # noqa: E402
     DEFAULT_CAPAL_DIR,
     PINNED_COMMIT,
     import_capal,

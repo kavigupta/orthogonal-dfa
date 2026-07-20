@@ -1,6 +1,6 @@
 """Locate and verify the pinned upstream CAPAL checkout.
 
-Shared by the CAPAL scripts in this folder. The folder is standalone with
+Shared by the scripts in `scripts/capal/`. The folder is standalone with
 respect to this repo's `orthogonal_dfa` package: the scripts here import this
 sibling module and nothing else from the repo. `orthogonal_dfa/capal_official/`
 keeps its own copy of the constants below -- if the pin ever moves, both must
@@ -25,9 +25,13 @@ UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 #: `orthogonal_dfa/capal_official/adapter.py` together, and re-measure.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
-#: Default checkout location, resolved relative to the repo root (i.e. a
-#: sibling of this repo), not to the current working directory.
-DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[1].parent / "capal"
+#: scripts/capal/upstream.py -> repo root.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Default checkout location: a sibling of this repo. Resolved relative to the
+#: repo root, not to the current working directory, so it does not matter where
+#: the scripts are invoked from.
+DEFAULT_CAPAL_DIR = REPO_ROOT.parent / "capal"
 
 
 def resolve_capal_dir(capal_dir: Optional[str] = None) -> Path:
@@ -102,4 +106,14 @@ def import_capal(capal_dir: Optional[str] = None) -> Any:
         sys.path.insert(0, str(path))
     import capal  # type: ignore[import-not-found]
 
+    # This folder is itself named `capal`, so if scripts/ ever lands on
+    # sys.path it can shadow upstream as a namespace package -- which would
+    # silently import the wrong thing rather than fail. Check what we got.
+    loaded = getattr(capal, "__file__", None)
+    if loaded is None or Path(loaded).resolve().parent != path:
+        sys.exit(
+            f"`import capal` resolved to {loaded or '<namespace package>'}, "
+            f"not the pinned checkout at {path}. Something on sys.path is "
+            f"shadowing upstream CAPAL."
+        )
     return capal
