@@ -17,11 +17,12 @@ from pathlib import Path
 from typing import Any, Callable, List, Optional
 
 from orthogonal_dfa.capal_official import (
-    OFFICIAL_AVAILABLE,
     build_modulo_dfa,
     build_regex_dfa,
     evaluate_official_dfa,
+    resolve_capal_dir,
     run_official_capal,
+    verify_pinned,
 )
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
@@ -160,8 +161,8 @@ def print_table(results: List[Result], cases_: List[OfficialCase]) -> None:
 
 
 def main() -> None:
-    if not OFFICIAL_AVAILABLE:
-        raise SystemExit("Official CAPAL not importable. Expected /tmp/CAPAL/capal.py")
+    # Fail before spending an hour of compute on an unpinned checkout.
+    verify_pinned(resolve_capal_dir())
     cases_ = cases()
     results: List[Result] = []
     for c in cases_:

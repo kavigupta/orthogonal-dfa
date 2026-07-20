@@ -12,11 +12,15 @@ The default configs match the reproducible §5 table (seed=0, K_pos=K_neg=10,
 is validated by the m=60 default cell reproducing §2 exactly (20 states, 12 240
 distinct queries).
 
-Standalone: the only requirement is the upstream CAPAL source tree (a clone of
-github.com/lkwargs/CAPAL; defaults to /tmp/CAPAL, override with --capal-dir).
+No dependency on this repo's orthogonal_dfa package; the only in-repo import is
+the sibling `capal_upstream` module in this folder. The other requirement is a
+clone of github.com/lkwargs/CAPAL at the commit pinned in capal_upstream.py,
+checked out clean -- a wrong commit or a dirty tree is a hard error, since §5's
+numbers are only reproducible against that commit. Defaults to `../capal`
+relative to the repo root; override with --capal-dir.
 
 Example:
-    python scripts/capal_modulo_wall_queries.py --capal-dir /tmp/CAPAL \
+    python scripts/capal_modulo_wall_queries.py \
         --csv data/capal_modulo_wall_queries.csv
 """
 
@@ -34,17 +38,12 @@ from typing import Any, Dict, List, Optional, Tuple
 # -- upstream import ----------------------------------------------------------
 
 
-def import_capal(capal_dir: str) -> Any:
-    p = Path(capal_dir)
-    if not (p / "capal.py").exists():
-        sys.exit(
-            f"--capal-dir {capal_dir!r} does not contain capal.py; "
-            "expected a clone of github.com/lkwargs/CAPAL"
-        )
-    sys.path.insert(0, str(p))
-    import capal  # type: ignore[import-not-found]
-
-    return capal
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from capal_upstream import (  # noqa: E402
+    DEFAULT_CAPAL_DIR,
+    PINNED_COMMIT,
+    import_capal,
+)
 
 
 # -- target + accuracy --------------------------------------------------------
@@ -151,7 +150,12 @@ CONFIGS: List[Tuple[str, Dict[str, int]]] = [
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--capal-dir", default="/tmp/CAPAL")
+    ap.add_argument(
+        "--capal-dir",
+        default=None,
+        help=f"Clone of github.com/lkwargs/CAPAL, pinned at {PINNED_COMMIT[:7]} "
+        f"with a clean tree. Default: {DEFAULT_CAPAL_DIR}",
+    )
     ap.add_argument("--eta", type=float, default=0.30)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--k-pos", type=int, default=10)

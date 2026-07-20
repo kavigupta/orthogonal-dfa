@@ -1,6 +1,7 @@
 """Bridge between this repo's Oracle/test-harness and the official CAPAL repo.
 
-Loads the upstream `capal` module from /tmp/CAPAL/, then exposes:
+Loads the upstream `capal` module from the pinned checkout (see
+`resolve_capal_dir`), then exposes:
 
 - build_modulo_dfa(modulo, allowed): the explicit modulo-counting DFA used by
   BernoulliParityOracle, in the upstream `capal.DFA` format.
@@ -15,31 +16,104 @@ Loads the upstream `capal` module from /tmp/CAPAL/, then exposes:
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable, Optional, Sequence, Set
 
 import numpy as np
 
-OFFICIAL_CAPAL_ROOT = "/tmp/CAPAL"
-if OFFICIAL_CAPAL_ROOT not in sys.path:
-    sys.path.insert(0, OFFICIAL_CAPAL_ROOT)
+UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-try:
-    import capal as _official  # type: ignore[import-not-found]
+#: Commit the findings doc was measured against. `scripts/capal_upstream.py`
+#: keeps its own copy (the scripts folder is standalone w.r.t. this package);
+#: bump both together, and re-measure.
+PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
-    OFFICIAL_AVAILABLE = True
-except Exception:  # noqa: BLE001
-    _official = None  # type: ignore[assignment]
-    OFFICIAL_AVAILABLE = False
+#: Env var to point at a checkout elsewhere; otherwise a sibling of the repo.
+CAPAL_DIR_ENV = "ORTHO_CAPAL_DIR"
+
+_official: Any = None
+
+
+def resolve_capal_dir() -> Path:
+    """Upstream checkout location: $ORTHO_CAPAL_DIR, else `../capal`."""
+    override = os.environ.get(CAPAL_DIR_ENV)
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path(__file__).resolve().parents[2].parent / "capal"
+
+
+def _git(path: Path, *args: str) -> str:
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(path), *args],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            "git not found on PATH; cannot verify the pinned CAPAL checkout."
+        ) from exc
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"`git {' '.join(args)}` failed in {path}: "
+            f"{exc.stderr.strip() or exc}. Expected a clone of {UPSTREAM_URL}."
+        ) from exc
+    return out.stdout.strip()
+
+
+def verify_pinned(path: Path) -> None:
+    """Raise unless `path` is a clean checkout at PINNED_COMMIT.
+
+    Reproducibility guard: `data/capal_findings.md` is only meaningful against
+    this exact commit with no local modifications.
+    """
+    if not path.exists():
+        raise RuntimeError(
+            f"No CAPAL checkout at {path}. Clone {UPSTREAM_URL} there and "
+            f"`git checkout {PINNED_COMMIT}`, or set ${CAPAL_DIR_ENV}."
+        )
+    if not (path / "capal.py").exists():
+        raise RuntimeError(
+            f"{path} contains no capal.py; expected a clone of {UPSTREAM_URL}."
+        )
+
+    head = _git(path, "rev-parse", "HEAD")
+    if head != PINNED_COMMIT:
+        raise RuntimeError(
+            f"CAPAL checkout at {path} is at the wrong commit "
+            f"(expected {PINNED_COMMIT}, found {head}). data/capal_findings.md "
+            f"was measured against the expected commit; others are not "
+            f"comparable. Run: git -C {path} checkout {PINNED_COMMIT}"
+        )
+
+    dirty = _git(path, "status", "--porcelain")
+    if dirty:
+        raise RuntimeError(
+            f"CAPAL checkout at {path} has local modifications, so results "
+            f"would not be reproducible:\n{dirty}"
+        )
 
 
 def _require_official() -> Any:
-    if not OFFICIAL_AVAILABLE:
-        raise RuntimeError(
-            "official CAPAL not importable -- expected to find /tmp/CAPAL/capal.py "
-            "from a clone of github.com/lkwargs/CAPAL"
-        )
+    """Verify the pin and import upstream on first use.
+
+    Deliberately lazy: importing this package must not fail just because the
+    checkout is missing, but *using* it against an unpinned tree must.
+    """
+    global _official
+    if _official is not None:
+        return _official
+    path = resolve_capal_dir()
+    verify_pinned(path)
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
+    import capal  # type: ignore[import-not-found]
+
+    _official = capal
     return _official
 
 

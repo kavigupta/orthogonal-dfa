@@ -2,15 +2,19 @@
 """Run the official CAPAL learner (github.com/lkwargs/CAPAL) on five target
 DFAs at a configurable list of persistent-noise levels.
 
-Standalone: no dependency on this repo's orthogonal_dfa package. The only
-external requirements are
+No dependency on this repo's orthogonal_dfa package; the only in-repo import is
+the sibling `capal_upstream` module in this folder. The other requirements are
     - `automata-lib`  (for regex -> DFA compilation), and
-    - the upstream CAPAL source tree (defaults to /tmp/CAPAL); pass
-      --capal-dir to point elsewhere.
+    - a clone of github.com/lkwargs/CAPAL at the commit pinned in
+      capal_upstream.py, checked out clean. Defaults to `../capal` relative to
+      the repo root; pass --capal-dir to point elsewhere.
+
+The pin is enforced: a wrong commit or a dirty tree is a hard error, since the
+numbers in data/capal_findings.md are only reproducible against that commit.
 
 Example:
-    python scripts/run_capal_official.py --capal-dir /tmp/CAPAL \
-        --noises 0.05 0.1 0.2 0.3 --csv results.csv
+    python scripts/run_capal_official.py --noises 0.05 0.1 0.2 0.3 \
+        --csv results.csv
 """
 
 from __future__ import annotations
@@ -27,17 +31,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 # -- upstream import ----------------------------------------------------------
 
 
-def import_capal(capal_dir: str) -> Any:
-    p = Path(capal_dir)
-    if not (p / "capal.py").exists():
-        sys.exit(
-            f"--capal-dir {capal_dir!r} does not contain capal.py; "
-            "expected a clone of github.com/lkwargs/CAPAL"
-        )
-    sys.path.insert(0, str(p))
-    import capal  # type: ignore[import-not-found]
-
-    return capal
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from capal_upstream import (  # noqa: E402
+    DEFAULT_CAPAL_DIR,
+    PINNED_COMMIT,
+    import_capal,
+)
 
 
 # -- target-DFA builders ------------------------------------------------------
@@ -224,8 +223,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument(
         "--capal-dir",
-        default="/tmp/CAPAL",
-        help="Path to a clone of github.com/lkwargs/CAPAL.",
+        default=None,
+        help=f"Clone of github.com/lkwargs/CAPAL, pinned at {PINNED_COMMIT[:7]} "
+        f"with a clean tree. Default: {DEFAULT_CAPAL_DIR}",
     )
     ap.add_argument(
         "--noises",
