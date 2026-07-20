@@ -17,7 +17,6 @@ the numbers in data/capal_findings.md stay reproducible. This adapter:
 
 from .adapter import (
     PINNED_COMMIT,
-    build_all_frames_closed_dfa,
     build_modulo_dfa,
     build_regex_dfa,
     evaluate_official_dfa,

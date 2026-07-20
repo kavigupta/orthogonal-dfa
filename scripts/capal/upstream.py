@@ -1,10 +1,11 @@
 """Locate and verify the pinned upstream CAPAL checkout.
 
-Shared by the scripts in `scripts/capal/`. The folder is standalone with
-respect to this repo's `orthogonal_dfa` package: the scripts here import this
-sibling module and nothing else from the repo. `orthogonal_dfa/capal_official/`
-keeps its own copy of the constants below -- if the pin ever moves, both must
-be updated.
+Used by the scripts in `scripts/capal/`. The folder is standalone with respect
+to this repo's `orthogonal_dfa` package: the scripts here import this sibling
+module and nothing else from the repo, so they run against a bare CAPAL clone.
+`orthogonal_dfa/capal_official/adapter.py` keeps its own copy of the constants
+below for the package-side sweep -- if the pin ever moves, both must be
+updated.
 
 Every number in `data/capal_findings.md` was produced against
 github.com/lkwargs/CAPAL @ 57d877f. Running against a different commit, or
