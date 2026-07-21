@@ -201,6 +201,42 @@ class DecisionTreeLeafNode(DecisionTree):
         return self
 
 
+def classify_many(
+    dt: DecisionTree, strings: List[List[int]], oracle: Oracle
+) -> List[Union[int, None]]:
+    """
+    Equivalent of [dt.classify(s, oracle) for s in strings] but one batched oracle
+    call per tree level.
+
+    `dt` must be composed of TriPredicate nodes.
+    """
+    out = [None] * len(strings)
+    node_of = [dt] * len(strings)  # each string's current node; None once resolved
+    while True:
+        # spans: [(index in strings, node, lo, hi)]; lo/hi are the slice of queries for this node
+        queries, spans = [], []
+        for i, node in enumerate(node_of):
+            if node is None:
+                continue
+            if isinstance(node, DecisionTreeLeafNode):
+                out[i], node_of[i] = node.state_idx, None
+                continue
+            assert isinstance(
+                node.predicate, TriPredicate
+            ), "classify_many needs TriPredicate nodes"
+            lo = len(queries)
+            queries.extend(strings[i] + v for v in node.predicate.vs)
+            spans.append((i, node, lo, len(queries)))
+        if not queries:
+            return out
+        answers = np.asarray(oracle.membership_queries(queries))
+        assert len(answers) == len(queries), "oracle dropped answers"
+        for i, node, lo, hi in spans:
+            decision = node.predicate.decide(float(answers[lo:hi].mean()))
+            # None => undecided: drop the string (out[i] stays None); else descend.
+            node_of[i] = None if decision is None else node.by_rejection[int(decision)]
+
+
 @dataclass
 class TriPredicate:
     vs: List[List[int]]
@@ -208,15 +244,19 @@ class TriPredicate:
     reject_threshold: float
 
     def predict(self, x: List[int], oracle: Oracle) -> float:
-        return np.mean([oracle.membership_query(x + v) for v in self.vs])
+        answers = oracle.membership_queries([x + v for v in self.vs])
+        assert len(answers) == len(self.vs), "oracle dropped answers"
+        return float(np.mean(answers))
 
-    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
-        f = self.predict(x, oracle)
+    def decide(self, f: float) -> Union[bool, None]:
         if f > self.accept_threshold:
             return True
         if f < self.reject_threshold:
             return False
         return None
+
+    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
+        return self.decide(self.predict(x, oracle))
 
     def __hash__(self):
         return hash(

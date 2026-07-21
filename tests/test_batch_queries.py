@@ -1,11 +1,19 @@
-"""The batched MaskTable fill paths must agree, cell for cell, with per-string queries."""
+"""The batched oracle paths must agree, cell for cell, with the per-string ones."""
 
 import unittest
 
 import numpy as np
 
+from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
-from orthogonal_dfa.l_star.structures import Oracle
+from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.structures import (
+    DecisionTreeInternalNode,
+    DecisionTreeLeafNode,
+    Oracle,
+    TriPredicate,
+    classify_many,
+)
 
 
 class HashOracle(Oracle):
@@ -22,6 +30,52 @@ class HashOracle(Oracle):
     def membership_queries(self, strings):
         self.calls.append(len(strings))
         return super().membership_queries(strings)
+
+
+def random_tree(rng, depth, next_state):
+    if depth == 0:
+        next_state[0] += 1
+        return DecisionTreeLeafNode(next_state[0] - 1)
+    vs = [list(rng.integers(0, 2, size=int(rng.integers(1, 4)))) for _ in range(5)]
+    # Half decisive, half tri-state, so the None ("could not classify") path is hit.
+    a, r = (0.5, 0.5) if rng.random() < 0.5 else (0.7, 0.3)
+    return DecisionTreeInternalNode(
+        TriPredicate(vs, a, r),
+        tuple(random_tree(rng, depth - 1, next_state) for _ in range(2)),
+    )
+
+
+class TestClassifyMany(unittest.TestCase):
+    def test_matches_per_string_classify(self):
+        rng = np.random.default_rng(0)
+        saw_none = False
+        for _ in range(25):
+            tree = random_tree(rng, 3, [0])
+            strings = [
+                list(rng.integers(0, 2, size=int(rng.integers(0, 8))))
+                for _ in range(40)
+            ]
+            per_string, batched = HashOracle(), HashOracle()
+            expected = [tree.classify(s, per_string) for s in strings]
+            self.assertEqual(expected, classify_many(tree, strings, batched))
+            # Same work, far fewer calls: one per tree level rather than per string.
+            self.assertEqual(sum(per_string.calls), sum(batched.calls))
+            self.assertLessEqual(len(batched.calls), tree.depth)
+            saw_none |= None in expected
+        self.assertTrue(saw_none, "no undecided classification exercised")
+
+    def test_empty(self):
+        tree = random_tree(np.random.default_rng(0), 2, [0])
+        oracle = HashOracle()
+        self.assertEqual([], classify_many(tree, [], oracle))
+        self.assertEqual([], oracle.calls)
+
+    def test_leaf_root(self):
+        oracle = HashOracle()
+        self.assertEqual(
+            [7, 7], classify_many(DecisionTreeLeafNode(7), [[0], [1]], oracle)
+        )
+        self.assertEqual([], oracle.calls)
 
 
 class TestMaskTableBatching(unittest.TestCase):
@@ -106,6 +160,49 @@ class TestMaskTableBatching(unittest.TestCase):
         filled = np.array([table._masks[r] for r in rows])
         self.assertNotEqual(filled.min(), filled.max(), "fixture is order-blind")
         self._assert_cells_correct(oracle, table)
+
+
+class TestBatchBeforePossibleStop(unittest.TestCase):
+    """The look-ahead chunk must never span the sequential early-stop: below the
+    returned size the binomial test provably cannot fire, so batching that many is
+    identical to drawing them one at a time."""
+
+    boundary = 0.98
+    min_valid = 30
+    remaining = 2000
+    states = [(0, 0), (30, 30), (29, 30), (98, 100), (490, 500), (1900, 1950)]
+
+    def _fires(self, agreements, valid, k):
+        return (
+            binomial_side_of_boundary(agreements + k, valid + k, self.boundary) is True
+            or binomial_side_of_boundary(agreements, valid + k, self.boundary) is False
+        )
+
+    def test_never_spans_the_stop(self):
+        # No k strictly inside the chunk (at or above the min_valid floor) can fire.
+        for a, n in self.states:
+            k = _batch_before_possible_stop(
+                a, n, self.boundary, self.min_valid, self.remaining
+            )
+            self.assertGreaterEqual(n + k, self.min_valid)  # respects the floor
+            floor = max(self.min_valid - n, 1)
+            for kp in range(floor, k):
+                self.assertFalse(self._fires(a, n, kp), (a, n, kp))
+
+    def test_chunk_is_maximal(self):
+        # It is the *largest* safe chunk: firing is possible exactly at k (unless we
+        # ran out of budget), so stopping one sooner would have left batching on table.
+        for a, n in self.states:
+            k = _batch_before_possible_stop(
+                a, n, self.boundary, self.min_valid, self.remaining
+            )
+            if k < self.remaining:
+                self.assertTrue(self._fires(a, n, k), (a, n, k))
+
+    def test_capped_by_remaining(self):
+        self.assertEqual(
+            5, _batch_before_possible_stop(0, 0, self.boundary, self.min_valid, 5)
+        )
 
 
 if __name__ == "__main__":
