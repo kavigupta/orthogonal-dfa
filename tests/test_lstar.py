@@ -1,4 +1,3 @@
-import signal
 import unittest
 
 import numpy as np
@@ -349,6 +348,10 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+
+        # Imported locally: a module-level `import signal` would shadow the
+        # `signal` (signal-strength) parameter other tests in this file use.
+        import signal
 
         def _timeout(signum, frame):
             raise AssertionError(
