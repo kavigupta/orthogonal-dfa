@@ -313,6 +313,49 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     return new_prefixes
 
 
+def uncoverable_access_strings(pst, dt):
+    """Access strings the hypothesis cannot resolve and can never be covered.
+
+    The short prefix-closed core is the set of access strings, it reaches
+    every state, including transient ones that a fixed-length prefix sampler
+    never lands on.
+
+    We can use this to detect when the underlying DFA is not learnable in
+    our model. Specifically, when a state in the access strings is not also
+    reached by any representative (longer) prefix. This prevents us from
+    averaging across multiple prefixes to get a representative set for this state
+    implying that the state is only reached by a small number of strings
+    overall.
+    """
+    prefixes = list(pst.table.prefixes)
+    rep = pst.table.representative
+    fam = pst.table.fully_observed()
+    if len(fam) == 0 or not rep.any():
+        return []
+
+    eta = 0.5 - pst.config.min_signal_strength
+    # Two prefixes at the same state agree on every suffix up to independent
+    # per-cell noise, so their expected mask-disagreement rate is 2*eta*(1-eta).
+    same_state_rate = 2 * eta * (1 - eta)
+    n = len(fam)
+
+    repr_masks = pst.table.observed_masks(fam, rep).T  # [n_repr, n_fam]
+    leaves = classify_states_with_decision_tree(pst, dt)
+    potentially_problematic = np.flatnonzero(
+        (~rep) & (leaves == -1)
+    )  # only unclassifiable core prefixes
+    flagged = []
+    for i in potentially_problematic:
+        col = np.zeros(len(prefixes), dtype=bool)
+        col[i] = True
+        mask_i = pst.table.observed_masks(fam, col).T[0]
+        # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
+        nearest = int((repr_masks != mask_i).sum(1).min())
+        if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
+            flagged.append((list(prefixes[i]), nearest / n))
+    return flagged
+
+
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
@@ -343,6 +386,19 @@ def counterexample_driven_synthesis(
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            yield dfa, dt, None
+            return
+        uncoverable = uncoverable_access_strings(pst, dt)
+        if uncoverable:
+            examples = ", ".join(
+                "".join(map(str, p)) or "eps" for p, _ in uncoverable[:5]
+            )
+            print(
+                f"Stopping synthesis: {len(uncoverable)} access string(s) reach "
+                f"states no sampled prefix can cover at length "
+                f"{pst.sampler.length} (e.g. {examples}); the target is not "
+                f"learnable with this prefix sampler."
+            )
             yield dfa, dt, None
             return
         ce = add_counterexample_prefixes(
