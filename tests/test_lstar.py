@@ -1,3 +1,4 @@
+import signal
 import unittest
 
 import numpy as np
@@ -323,6 +324,44 @@ class TestLStar(unittest.TestCase):
             oracle_creator, min_signal_strength=0.3, seed=0
         )
         assertDFA(self, dfa, oracle_creator)
+
+    def test_transient_states_terminate(self):
+        # Regression for issue #128. This target -- {w : |w| >= 3 and
+        # w[2] == '0'} -- has transient states (0, 1, 2) that a fixed-length
+        # prefix sampler never lands on, so they are unresolvable and the DFA
+        # is not learnable with this sampler. Synthesis must still *terminate*
+        # rather than grow the prefix set forever. We assert only that it
+        # returns within a generous timeout, not what it returns: the learned
+        # DFA is expected to be imperfect, so there is no correct output to
+        # check.
+        dfa = DFA(
+            states={0, 1, 2, 3, 4},
+            input_symbols={0, 1},
+            transitions={
+                0: {0: 1, 1: 1},
+                1: {0: 2, 1: 2},
+                2: {0: 3, 1: 4},
+                3: {0: 3, 1: 3},
+                4: {0: 4, 1: 4},
+            },
+            initial_state=0,
+            final_states={3},
+            allow_partial=False,
+        )
+        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+
+        def _timeout(signum, frame):
+            raise AssertionError(
+                "synthesis did not terminate within the timeout (issue #128)"
+            )
+
+        previous = signal.signal(signal.SIGALRM, _timeout)
+        signal.alarm(60)
+        try:
+            compute_dfa_for_oracle(oracle_creator, min_signal_strength=0.45, seed=0)
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous)
 
 
 class TestLStarAsymmetric(unittest.TestCase):
