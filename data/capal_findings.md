@@ -34,10 +34,10 @@ Only 5 of 20 cells converge, all at η ≤ 0.10 and only on the `regex_alt_*`
 patterns. At η ≥ 0.20 the algorithm collapses to base-rate accuracy or worse
 on every regex oracle. Modulo-9 never converges at any noise level.
 
-## 2. Head-to-head with the repo's ortho-L\*
+## 2. Head-to-head with the repo's E-L\*
 
 ```
-| oracle              | η    | official CAPAL      | ortho-L*         |
+| oracle              | η    | official CAPAL      | E-L*         |
 | parity_mod9 (9st)   | 0.05 | 0.88 (23st*, 40s)   | 1.00 (9st, 16s)  |
 | parity_mod9 (9st)   | 0.10 | 0.82 (18st*, 10s)   | 1.00 (9st, 22s)  |
 | parity_mod9 (9st)   | 0.20 | 0.88 (17st*, 9s)    | 1.00 (9st, 44s)  |
@@ -48,7 +48,7 @@ on every regex oracle. Modulo-9 never converges at any noise level.
 ```
 
 CAPAL is **faster** on almost every cell (up to ~38× on regex_subseq) but
-**less accurate** everywhere. Ortho-L\* hits the target exactly.
+**less accurate** everywhere. E-L\* hits the target exactly.
 
 ## 3. Why more iterations don't help
 
@@ -129,11 +129,11 @@ learned DFA collapses this into a shorter period (typically 3), conflating state
 that differ by 3 modulo 9 — because the SAMESTATE test can't separate their
 empirical disagreement rate from the noise floor.
 
-**Oracle-query cost vs ortho-L\*.** Ortho-L\*'s noise is likewise persistent (a
+**Oracle-query cost vs E-L\*.** E-L\*'s noise is likewise persistent (a
 deterministic hash of the string), so distinct-query count is the fair metric on
-both sides. Ortho-L\* solves this exact cell with **2 934 112** distinct queries
+both sides. E-L\* solves this exact cell with **2 934 112** distinct queries
 (9 states, 100% acc) — so CAPAL hits the wall while spending **~70–250× fewer**
-oracle labels than ortho-L\* spends to succeed. Two things stand out in the table:
+oracle labels than E-L\* spends to succeed. Two things stand out in the table:
 
 - **Raising `max_same_samples` doesn't add evidence.** Across the 50-iter rows,
   bumping m from 120 → 1000 leaves the distinct-query count flat-to-declining
@@ -146,9 +146,9 @@ oracle labels than ortho-L\* spends to succeed. Two things stand out in the tabl
   convergence.
 
 That raises the obvious question — does simply letting CAPAL draw as many
-suffixes as ortho-L\* settle it? §10 tests exactly that; it does not.
+suffixes as E-L\* settle it? §10 tests exactly that; it does not.
 
-## 6. Why the noise floor bites CAPAL more than ortho-L\*
+## 6. Why the noise floor bites CAPAL more than E-L\*
 
 The two algorithms both use statistical row-equality under persistent noise,
 but the *test shape* is different:
@@ -158,7 +158,7 @@ but the *test shape* is different:
   with noise floor `p₀ = 2η(1−η)`. Observed signal above floor scales by
   **(1 − 2p₀) · true_D**.
 
-- **Ortho-L\*** measures each prefix's own accept rate against a data-driven
+- **E-L\*** measures each prefix's own accept rate against a data-driven
   boundary:
   `mean(x) = (1/|V|) · Σ_e y(x+e)`
   with noise floor `η` (only one noisy bit per cell of evidence). Observed
@@ -167,7 +167,7 @@ but the *test shape* is different:
 Concretely at each noise level:
 
 ```
-| η    | CAPAL signal (1−2p₀) | ortho-L* signal (1−2η) | ratio |
+| η    | CAPAL signal (1−2p₀) | E-L* signal (1−2η) | ratio |
 | 0.05 | 0.81                 | 0.90                   | 1.1×  |
 | 0.10 | 0.64                 | 0.80                   | 1.25× |
 | 0.20 | 0.36                 | 0.60                   | 1.7×  |
@@ -175,11 +175,11 @@ Concretely at each noise level:
 | 0.40 | 0.04                 | 0.20                   | 5×    |
 ```
 
-At η=0.30 ortho-L\* gets **2.5× more usable signal on the same oracle**, and
+At η=0.30 E-L\* gets **2.5× more usable signal on the same oracle**, and
 the gap widens with noise. That's structural to the pairwise-vs-per-prefix
 choice — no hyperparameter closes it.
 
-Ortho-L\* also picks a suffix family that maximises the accept-rate gap
+E-L\* also picks a suffix family that maximises the accept-rate gap
 between states (`cluster.identify_cluster_around`) and calibrates the
 decision boundary from observed cluster means (`cluster.py:36`), where CAPAL
 uses a fixed `p₀ + τ` on a random pool.
@@ -250,9 +250,9 @@ LearnerConfig(
 )
 ```
 
-Estimated cost per seed: ~1–2 hours wall. Ortho-L\* on the same cell: 80s.
+Estimated cost per seed: ~1–2 hours wall. E-L\* on the same cell: 80s.
 
-## 10. Tested: matching ortho-L\*'s query budget doesn't break the wall
+## 10. Tested: matching E-L\*'s query budget doesn't break the wall
 
 §9 predicts a *bigger* `m` might reach the cell. We tested the underlying
 question directly — **is the wall just a suffix budget/length limit?** — by
@@ -271,7 +271,7 @@ suffix length, default 8). With these raised, SAMESTATE probes thousands of
 
 Un-capping the suffix length did exactly what it should *mechanically*: the
 distinct-query count jumped from ~20 k to **3.3–4.9 M — as many as, or more
-than, ortho-L\*'s 2.93 M**. But the wall didn't move: accuracy stayed
+than, E-L\*'s 2.93 M**. But the wall didn't move: accuracy stayed
 0.71–0.88 and the state count got **worse** (27–29 vs baseline's 15–17), still
 never converging to the true 9. A pool-length-only sweep (`pool_len_max`
 8→32, m=500) tells the same story: best-of-3-seeds accuracy peaks weakly at
@@ -298,18 +298,18 @@ This makes §6/§7's thesis concrete: at a **matched** query budget CAPAL still
 fails, because the limiter is the *shape* of the pairwise SAMESTATE test, not
 the number of labels drawn.
 
-## 11. Query efficiency on the *easy* cells — what ortho-L\* should borrow
+## 11. Query efficiency on the *easy* cells — what E-L\* should borrow
 
-§5 shows ortho-L\* winning the hard cell by out-spending CAPAL ~180×. But run
-the query comparison on the *easy* cells and the sign flips — ortho-L\* is the
-profligate one everywhere. Distinct membership queries, ortho-L\* vs official
+§5 shows E-L\* winning the hard cell by out-spending CAPAL ~180×. But run
+the query comparison on the *easy* cells and the sign flips — E-L\* is the
+profligate one everywhere. Distinct membership queries, E-L\* vs official
 CAPAL (default m=60, seed=0; same persistent-noise metric on both sides, and
 CAPAL here has a free `PerfectEQ` — see the caveat below). The `old→new` column
-brackets the recent ortho-L\* query-reduction work already on `main` (#110
+brackets the recent E-L\* query-reduction work already on `main` (#110
 sequential accuracy early-stop, #112/#113 evidence-cache reuse):
 
 ```
-| cell                       | η    | ortho MQ (old→new) | ortho st | CAPAL st | acc   | conv | CAPAL MQ | ratio |
+| cell                       | η    | E-L* MQ (old→new) | E-L* st | CAPAL st | acc   | conv | CAPAL MQ | ratio |
 | regex_alt_1111_or_0000_11  | 0.05 |   436 896 → 447 259 | 10       | 15       | 1.000 | Yes  |   17 483 |   26× |
 | regex_alt_1111_or_0000_11  | 0.10 | 1 604 785 → 756 932 | 10       | 29       | 1.000 | Yes  |   21 810 |   35× |
 | regex_subseq_1010101       | 0.05 |   887 885 → 293 989 |  8       |  8       | 0.911 | No   |    6 154 |   48× |
@@ -318,16 +318,16 @@ sequential accuracy early-stop, #112/#113 evidence-cache reuse):
 | parity_mod9                | 0.10 |   715 766 → 584 259 |  9       | 18       | 0.866 | No   |    9 917 |   59× |
 ```
 
-Even after `main`'s optimisations (which cut 0–67%, biggest on subseq), ortho-L\*
+Even after `main`'s optimisations (which cut 0–67%, biggest on subseq), E-L\*
 spends **0.3–0.76 M** distinct queries per cell vs CAPAL's **6–22 k** —
 **26–87× more**. On `regex_alt`, where both hit 100%, CAPAL is *strictly*
-better: exact **and** ~26–35× cheaper. Ortho-L\*'s edge is robustness (100% on
+better: exact **and** ~26–35× cheaper. E-L\*'s edge is robustness (100% on
 every cell); it buys that with a 1–2 order-of-magnitude larger oracle budget. Note
 distinct ≈ total oracle calls now (e.g. 447 k vs 461 k), so caching is nearly
 complete — the remaining cost is genuine *distinct* information, not redundant
 re-queries.
 
-**Where do ortho-L\*'s queries go?** Not into the table. Instrumenting the phases
+**Where do E-L\*'s queries go?** Not into the table. Instrumenting the phases
 on the merged code (regex_alt / parity, η=0.05):
 
 ```
@@ -350,17 +350,17 @@ rounds.
    CAPAL here runs with `PerfectEQ`, which finds counterexamples by product-BFS
    against the *true* target — **zero** membership queries. `len(mq.cache)`
    therefore counts only CAPAL's *state-distinction* work; its counterexample
-   discovery is free. Ortho-L\* has no such oracle and pays for CE discovery by
+   discovery is free. E-L\* has no such oracle and pays for CE discovery by
    sampling — which, per the breakdown above, is its *entire* bill. Give CAPAL a
    sampling EQ (the repo's `RandomWordEqOracle`) and its count would climb toward
-   ortho-L\*'s; this comparison flatters CAPAL.
+   E-L\*'s; this comparison flatters CAPAL.
 2. **Compact, reused evidence (a real, portable advantage).** CAPAL's SAMESTATE
    reuses one small suffix set (≤ a few hundred short strings) across *all* prefix
    pairs, cached persistently — so its state-distinction cost stays at ~10 k even
-   as prefixes accumulate. Ortho-L\*'s CE/verification sampling generates a fresh,
+   as prefixes accumulate. E-L\*'s CE/verification sampling generates a fresh,
    never-reused word each time.
 
-**Porting CAPAL's compactness into ortho-L\*.** Two of the four ideas below are
+**Porting CAPAL's compactness into E-L\*.** Two of the four ideas below are
 already on `main` and account for the `old→new` reduction; two remain, and both
 target the synthesis loop (the 100%-of-cost phase) without touching the noise-robust
 per-prefix test that wins §5:
@@ -382,7 +382,7 @@ per-prefix test that wins §5:
   the per-prefix test. Fewer, higher-yield probes — closest to CAPAL's real edge and
   it preserves CE-finding power a fixed pool risks losing.
 
-Net: ortho-L\*'s noise robustness lives in the *table* (already free); its query
+Net: E-L\*'s noise robustness lives in the *table* (already free); its query
 blow-up lives entirely in *counterexample discovery and verification*. That is
 exactly where CAPAL is compact — so the two remaining ports are orthogonal to, and
 should not weaken, the high-noise advantage.
@@ -390,7 +390,7 @@ should not weaken, the high-noise advantage.
 ## 12. Bottom line
 
 - CAPAL as shipped works cleanly at η ≤ 0.10 on structurally simple
-  regex-alternation DFAs. It's fast — up to 38× faster than ortho-L\* on
+  regex-alternation DFAs. It's fast — up to 38× faster than E-L\* on
   cells where both succeed.
 - The main "CAPAL fails" cells in the sweep are default-config artefacts:
   bumping `max_same_samples` from 60 → 240–480 or picking a lucky seed
@@ -398,21 +398,21 @@ should not weaken, the high-noise advantage.
 - At η ≥ 0.20 on structured DFAs (modulo-K, regex with rare witnesses),
   CAPAL hits a signal-to-noise wall that no hyperparameter fully overcomes.
   The `1 − 2p₀` scaling in its pairwise test is the culprit.
-- Ortho-L\* uses a per-prefix accept-rate test with `1 − 2η` scaling, giving
+- E-L\* uses a per-prefix accept-rate test with `1 − 2η` scaling, giving
   it a 2.5×-to-∞ signal advantage in the high-noise regime, plus a
   data-driven decision boundary. It solves every tested cell at 100% acc.
 - Modulo-9 at η=0.30 is not reachable with CAPAL at any tested (m, α,
   pool_len_max, seed) combination we tried; theory suggests m ≈ 16k would
-  make it *possible* per-seed but at 100–1000× the ortho-L\* wall time.
+  make it *possible* per-seed but at 100–1000× the E-L\* wall time.
 - The wall is not a query-budget limit. In the §5 configs CAPAL spends ~12–42k
-  distinct oracle labels vs ortho-L\*'s 2.93 M. But *forcing* CAPAL to a matched
+  distinct oracle labels vs E-L\*'s 2.93 M. But *forcing* CAPAL to a matched
   budget — deep suffix enumeration pushes it to 3.3–4.9 M distinct queries (§10)
   — still fails and inflates state count to ~28. The bottleneck is the pairwise
   SAMESTATE test shape, not the number of labels.
 - On the *easy* cells the efficiency sign flips (§11): even after `main`'s query
-  cuts, ortho-L\* spends 0.3–0.76 M distinct queries vs CAPAL's 6–22 k (26–87×
+  cuts, E-L\* spends 0.3–0.76 M distinct queries vs CAPAL's 6–22 k (26–87×
   more), and on `regex_alt` CAPAL is both exact and ~26–35× cheaper. ~100% of
-  ortho-L\*'s spend is the counterexample-discovery / accuracy-estimation loop (the
+  E-L\*'s spend is the counterexample-discovery / accuracy-estimation loop (the
   table itself is free); CAPAL's edge is partly a free `PerfectEQ` and partly genuine
   evidence reuse. Two of the four ports are already landed (#110, #112/#113); the
   remaining two — a shared cached probe pool and targeted CE generation — are the
