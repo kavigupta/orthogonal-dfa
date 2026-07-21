@@ -314,31 +314,18 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
 
 
 def uncoverable_access_strings(pst, dt):
-    """Access strings the hypothesis cannot resolve *and* cannot ever cover.
+    """Access strings the hypothesis cannot resolve and can never be covered.
 
-    The short prefix-closed core is the set of access strings -- it reaches
+    The short prefix-closed core is the set of access strings, it reaches
     every state, including transient ones that a fixed-length prefix sampler
-    never lands on. The resolver excludes the core from state discovery (too
-    few, too noisy to drive splits), but the core still lets us check whether
-    the hypothesis is even *consistent* with its own access strings.
+    never lands on.
 
-    A core prefix is flagged when both hold:
-
-    - *closedness*: the hypothesis cannot classify it (``dt.classify`` is
-      ``None``) -- it belongs to no discovered state; and
-    - *uncoverable*: no representative (sampled) prefix matches its behaviour
-      over the suffix family within the noise floor -- so the state it
-      witnesses has no representative witness and no amount of further sampling
-      at this length can produce one.
-
-    The second condition is what separates this from an ordinary
-    under-represented state (``poor_case``): there, the rare state *is* reached
-    by some representative prefixes, so it has a match and is not flagged, and
-    enrichment resolves it. Only a genuinely uncoverable state -- e.g. a
-    transient state under a fixed-length sampler -- is flagged, which is the
-    signal to stop rather than grow the prefix set forever (issue #128).
-
-    Returns a list of ``(access_string, nearest_representative_disagreement)``.
+    We can use this to detect when the underlying DFA is not learnable in
+    our model. Specifically, when a state in the access strings is not also
+    reached by any representative (longer) prefix. This prevents us from
+    averaging across multiple prefixes to get a representative set for this state
+    implying that the state is only reached by a small number of strings
+    overall.
     """
     prefixes = list(pst.table.prefixes)
     rep = pst.table.representative
@@ -353,22 +340,16 @@ def uncoverable_access_strings(pst, dt):
     n = len(fam)
 
     repr_masks = pst.table.observed_masks(fam, rep).T  # [n_repr, n_fam]
-    oracle = pst.oracle
+    leaves = classify_states_with_decision_tree(pst, dt)
+    potentially_problematic = np.flatnonzero(
+        (~rep) & (leaves == -1)
+    )  # only unclassifiable core prefixes
     flagged = []
-    for i in range(len(prefixes)):
-        if rep[i] or dt.classify(prefixes[i], oracle) is not None:
-            continue  # only unclassifiable core prefixes are candidates
+    for i in potentially_problematic:
         col = np.zeros(len(prefixes), dtype=bool)
         col[i] = True
         mask_i = pst.table.observed_masks(fam, col).T[0]
-        # The nearest representative by disagreement count over the family; `min`
-        # is conservative (biased toward finding a match, i.e. toward *not*
-        # flagging). Flag only when even that nearest count is too high to be
-        # same-state noise: a one-sided binomial test against same_state_rate,
-        # at the give-up failure probability the codebase uses elsewhere
-        # (give_up_check), rather than the strict decision-rule level -- a false
-        # non-flag here just costs another round, a false flag abandons a
-        # learnable target.
+        # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
         nearest = int((repr_masks != mask_i).sum(1).min())
         if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
             flagged.append((list(prefixes[i]), nearest / n))
@@ -409,10 +390,6 @@ def counterexample_driven_synthesis(
             return
         uncoverable = uncoverable_access_strings(pst, dt)
         if uncoverable:
-            # The hypothesis is inconsistent with access strings it can never
-            # cover at this sampling length (issue #128). More rounds only grow
-            # the prefix set; stop and return the best hypothesis with a reason
-            # naming the offending access strings.
             examples = ", ".join(
                 "".join(map(str, p)) or "eps" for p, _ in uncoverable[:5]
             )
