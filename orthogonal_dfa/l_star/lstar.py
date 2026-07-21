@@ -146,6 +146,16 @@ def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
+class _CounterexampleSearchExhausted(Exception):
+    """Raised when counterexample search early-stops on the unlikely-agreements
+    signal. Carries whatever prefixes were found before stopping. Caught in
+    counterexample_driven_synthesis to terminate synthesis (issue #128)."""
+
+    def __init__(self, prefixes):
+        super().__init__()
+        self.prefixes = prefixes
+
+
 def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     boundary = pst.decision_boundary
     # The counterexample pipeline classifies strings many times: ~log2(string_len)
@@ -196,7 +206,14 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                     f" prefixes"
                 )
                 pbar.close()
-                return additional_prefixes
+                # EXPERIMENT (issue #128): the counterexample search is seeing
+                # far more agreement than expected_acc predicts, i.e. it can no
+                # longer find distinguishing prefixes. Treat that as "synthesis
+                # has converged as far as it can" and stop the whole loop,
+                # rather than letting leaf enrichment keep growing the prefix
+                # set forever. Signalled by exception so it unwinds the full
+                # generate -> add -> synthesis call chain at once.
+                raise _CounterexampleSearchExhausted(additional_prefixes)
             continue
         if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
             continue
@@ -345,9 +362,21 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, None
             return
-        ce = add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples, expected_acc=true_acc
-        )
+        try:
+            ce = add_counterexample_prefixes(
+                pst, dt, dfa, additional_counterexamples, expected_acc=true_acc
+            )
+        except _CounterexampleSearchExhausted:
+            # Counterexample search could no longer find distinguishing
+            # prefixes; stop synthesis instead of falling through to leaf
+            # enrichment (which never runs dry, so the loop would not
+            # terminate). See issue #128.
+            print(
+                "Counterexample search exhausted (unlikely-agreements signal);"
+                " stopping synthesis"
+            )
+            yield dfa, dt, None
+            return
         enriched = enrich_underrepresented_leaves(
             pst, dt_decisive, count=additional_counterexamples
         )
