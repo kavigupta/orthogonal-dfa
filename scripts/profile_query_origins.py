@@ -11,8 +11,9 @@ Usage:
     python scripts/profile_query_origins.py modulo subseq    # several, in one run
 """
 
+import math
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 # Profile THIS working tree, not whatever `orthogonal_dfa` is pip-installed
@@ -109,7 +110,9 @@ ROW_TRIGGERS = [
 class ProfilingOracle(Oracle):
     def __init__(self, inner: Oracle):
         self._inner = inner
-        self.buckets = Counter()
+        # label -> Counter(batch size -> calls at that size). Forward passes
+        # need the sizes, not just the totals.
+        self.sizes = defaultdict(Counter)
         self.total = 0
 
     @property
@@ -122,7 +125,7 @@ class ProfilingOracle(Oracle):
         # the exact call site (empty-string s0 vs full-string check vs binary search).
         names = []
         locate_line = None
-        frame = sys._getframe(2)  # skip _attribute + membership_query
+        frame = sys._getframe(3)  # skip _attribute + _record + the query method
         depth = 0
         while frame is not None and depth < 60:
             names.append(frame.f_code.co_name)
@@ -149,10 +152,17 @@ class ProfilingOracle(Oracle):
             return f"matrix col: new suffix over all prefixes <- {trig}"
         return f"UNATTRIBUTED ({names[:4]})"
 
+    def _record(self, n):
+        self.total += n
+        self.sizes[self._attribute()][n] += 1
+
     def membership_query(self, string):
-        self.total += 1
-        self.buckets[self._attribute()] += 1
+        self._record(1)
         return self._inner.membership_query(string)
+
+    def membership_queries(self, strings):
+        self._record(len(strings))
+        return self._inner.membership_queries(strings)
 
 
 def profile_one(name: str) -> None:
@@ -171,8 +181,26 @@ def profile_one(name: str) -> None:
     print(f"\n\n===== QUERY ORIGINS: {name} "
           f"(states={len(dfa.states)}, acc={acc:.3f}) =====")
     print(f"total queries: {o.total:,}\n")
-    for label, n in o.buckets.most_common():
-        print(f"{n:>12,}  {100 * n / o.total:5.1f}%  {label}")
+    # A call of n strings costs ceil(n / cap) passes, so a site issuing many
+    # small calls costs far more than its query share suggests. Sorted by fp at
+    # the largest cap, where under-filled batches hurt most.
+    caps = (32, 128, 1024)
+    fp = {lab: {c: sum(math.ceil(n / c) * k for n, k in sz.items()) for c in caps}
+          for lab, sz in o.sizes.items()}
+    head = (f"{'queries':>12}{'':7}{'calls':>9}{'avg sz':>8}"
+            + "".join(f"{f'fp@{c}':>10}" for c in caps) + "  site")
+    print(head)
+    for label in sorted(o.sizes, key=lambda lab: -fp[lab][caps[-1]]):
+        sz = o.sizes[label]
+        strings, calls = sum(n * k for n, k in sz.items()), sum(sz.values())
+        print(f"{strings:>12,}{100 * strings / o.total:6.1f}%{calls:>9,}"
+              f"{strings / calls:>8.0f}"
+              + "".join(f"{fp[label][c]:>10,}" for c in caps) + f"  {label}")
+    for c in caps:
+        actual = sum(fp[lab][c] for lab in fp)
+        ideal = math.ceil(o.total / c)
+        print(f"fp@{c}: {actual:,} (ideal {ideal:,}, "
+              f"{100 * ideal / actual:.0f}% packed)")
 
 
 def main():

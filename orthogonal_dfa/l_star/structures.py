@@ -85,6 +85,14 @@ class Oracle(ABC):
     def membership_query(self, string: List[int]) -> bool:
         pass
 
+    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+        """
+        Query multiple strings at once. Implementations can choose to override this
+        and provide a more efficient batch query method. This does not have a cap
+        on `strings`'s length.
+        """
+        return np.array([self.membership_query(s) for s in strings], dtype=bool)
+
 
 class DecisionTree(ABC):
     @abstractmethod
