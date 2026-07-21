@@ -138,10 +138,11 @@ class ProfilingOracle(Oracle):
         # matter. DT classify and denoise query the oracle directly. A new prefix
         # row is checked before the column sites because in the eager layout the
         # row query still passes through `_query` (add_prefixes -> _query).
-        if "predict" in name_set:
+        if name_set & {"predict", "classify_many"}:
             phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
             sub = f" [locate L{locate_line}]" if locate_line else ""
-            return f"DT classify one string (TriPredicate.predict) <- {phase}{sub}"
+            how = "batched" if "classify_many" in name_set else "one string"
+            return f"DT classify {how} <- {phase}{sub}"
         if "relabel" in name_set:
             return "denoise: fresh samples per state (relabel)"
         if "add_prefixes" in name_set:
