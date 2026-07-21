@@ -10,15 +10,15 @@ jobs:
       lstar-tests: ${{ steps.discover-lstar.outputs.tests }}
     steps:
       - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
+        run: uv python install 3.12
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install "setuptools>=68.0" "wheel>=0.41"
-          pip install -r requirements.txt
+          uv venv --python 3.12
+          uv pip install "setuptools>=68.0" "wheel>=0.41"
+          uv pip install -r requirements.txt
       - name: Discover test files (excluding lstar)
         id: discover-files
         run: |
@@ -27,7 +27,7 @@ jobs:
       - name: Discover lstar tests
         id: discover-lstar
         run: |
-          tests=$(python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
           echo "tests=$tests" >> "$GITHUB_OUTPUT"
 
   test-file:
@@ -60,18 +60,18 @@ jobs:
         test: ${{ fromJson(needs.discover-tests.outputs.lstar-tests) }}
     steps:
       - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
       - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.12"
+        run: uv python install 3.12
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install "setuptools>=68.0" "wheel>=0.41"
-          pip install -r requirements.txt
+          uv venv --python 3.12
+          uv pip install "setuptools>=68.0" "wheel>=0.41"
+          uv pip install -r requirements.txt
       - name: Run ${{ matrix.test }}
         run: |
-          python -m pytest "${{ matrix.test }}" -sv
+          uv run python -m pytest "${{ matrix.test }}" -sv
 
   lint:
     runs-on: ubuntu-latest
