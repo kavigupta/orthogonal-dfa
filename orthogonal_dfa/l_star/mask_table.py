@@ -55,7 +55,30 @@ class MaskTable:
     def contains_prefix(self, prefix: List[int]) -> bool:
         return tuple(prefix) in self._prefix_keys
 
-    def add_prefixes(self, new_prefixes: List[List[int]]) -> None:
+    def prefix_one_hot_mask(self, prefix: List[int]) -> np.ndarray:
+        """A boolean mask selecting the single row for ``prefix``."""
+        try:
+            idx = self._prefixes.index(list(prefix))
+        except ValueError:
+            raise KeyError(f"Prefix {prefix} not in table")
+        mask = np.zeros(self.num_prefixes, dtype=bool)
+        mask[idx] = True
+        return mask
+
+    def ensure_prefixes(
+        self, new_prefixes: List[List[int]], do_observation: bool = True
+    ) -> None:
+        """Add any of ``new_prefixes`` not already present.  ``do_observation``
+        is forwarded to :meth:`add_prefixes` -- pass ``False`` for transient
+        scratch prefixes that should not eagerly query the fully-observed
+        (family) columns."""
+        nonexistent = [p for p in new_prefixes if not self.contains_prefix(p)]
+        if nonexistent:
+            self.add_prefixes(nonexistent, do_observation=do_observation)
+
+    def add_prefixes(
+        self, new_prefixes: List[List[int]], do_observation: bool = True
+    ) -> None:
         assert new_prefixes, "No new prefixes to add"
         assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
             new_prefixes
@@ -65,10 +88,17 @@ class MaskTable:
         # candidate.  A partially-observed column (a transition distinguisher)
         # gets UNOBSERVED cells, filled later on demand only if some read needs
         # them.
+        #
+        # ``do_observation=False`` suppresses even the family-column queries, so
+        # the prefix is added entirely unobserved: used for transient scratch
+        # prefixes (e.g. a random-walk probe prefix we only need one node's
+        # decision for) that would otherwise pay a full family observation each.
+        # Such a prefix leaves the family columns partially observed, so it must
+        # not be relied on as a clustering candidate.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
         updated = []
         for suffix, col in zip(self._suffixes, self._masks):
-            if (col != UNOBSERVED).all():
+            if do_observation and (col != UNOBSERVED).all():
                 add = np.array(
                     [self._oracle.membership_query(p + suffix) for p in new_prefixes],
                     dtype=np.int8,
