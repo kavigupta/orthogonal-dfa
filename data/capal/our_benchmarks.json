@@ -4,11 +4,11 @@
   "description": "CAPAL and E-L* on this repo's oracle benchmarks (modulo-9 and the regex family from tests/test_lstar.py) under persistent noise.",
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_our_bench",
   "provenance": {
-    "repo_commit": "1add557edca1cad162aa0bd9997253d355e92994",
+    "repo_commit": "652058850264549785b6d9e3ef0ea6f69c06aa78",
     "repo_dirty": true,
     "capal_commit": "57d877f6a083d58852660fac388ff49c052dc2d2",
     "python": "3.12.7",
-    "generated_at": "2026-07-20T20:52:35+00:00"
+    "generated_at": "2026-07-22T22:54:16+00:00"
   },
   "config": {
     "etas": [
@@ -31,7 +31,119 @@
       "regex_alt_1111_or_0000_11",
       "regex_alt_111_or_000_3sym"
     ],
-    "capal_learner_defaults": {}
+    "capal_learner_defaults": {},
+    "elstar_regime": {
+      "parity_mod9_allowed_3_6": {
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.224,
+        "class_preserving_frac": 0.112,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [],
+        "in_regime": true,
+        "excluded_because": [],
+        "accept_rate_by_length": {
+          "8": 0.344,
+          "10": 0.337,
+          "12": 0.2815,
+          "16": 0.16,
+          "20": 0.184,
+          "30": 0.2305,
+          "40": 0.224
+        }
+      },
+      "regex_subseq_1010101": {
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.1855,
+        "class_preserving_frac": 0.1905,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": true,
+        "excluded_because": [],
+        "accept_rate_by_length": {
+          "8": 0.0125,
+          "10": 0.029,
+          "12": 0.0375,
+          "16": 0.057,
+          "20": 0.084,
+          "30": 0.1415,
+          "40": 0.1855
+        }
+      },
+      "regex_two_1111": {
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.3645,
+        "class_preserving_frac": 0.124,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [],
+        "in_regime": true,
+        "excluded_because": [],
+        "accept_rate_by_length": {
+          "8": 0.0025,
+          "10": 0.0125,
+          "12": 0.026,
+          "16": 0.053,
+          "20": 0.0995,
+          "30": 0.223,
+          "40": 0.3645
+        }
+      },
+      "regex_alt_1111_or_0000_11": {
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.5975,
+        "class_preserving_frac": 0.101,
+        "covered_accuracy_ceiling": 0.9915,
+        "uncovered_states": [
+          "0"
+        ],
+        "in_regime": true,
+        "excluded_because": [],
+        "accept_rate_by_length": {
+          "8": 0.073,
+          "10": 0.1155,
+          "12": 0.16,
+          "16": 0.244,
+          "20": 0.319,
+          "30": 0.4765,
+          "40": 0.5975
+        }
+      },
+      "regex_alt_111_or_000_3sym": {
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.8795,
+        "class_preserving_frac": 0.0405,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": false,
+        "excluded_because": [
+          "acceptance rate 0.879 outside [0.15, 0.85]",
+          "class-preserving fraction 0.041 below 0.05"
+        ],
+        "accept_rate_by_length": {
+          "8": 0.299,
+          "10": 0.3745,
+          "12": 0.447,
+          "16": 0.554,
+          "20": 0.648,
+          "30": 0.7965,
+          "40": 0.8795
+        }
+      }
+    },
+    "elstar_regime_filters": {
+      "min_accept_or_reject": 0.15,
+      "min_class_preserving_frac": 0.05,
+      "min_covered_accuracy": 0.99,
+      "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)"
+    }
   },
   "cells": [
     {
@@ -57,7 +169,7 @@
       "converged": false,
       "queries_total": 15517,
       "queries_distinct": 15517,
-      "seconds": 37.931,
+      "seconds": 37.565,
       "error_type": null,
       "error": null
     },
@@ -72,14 +184,16 @@
       "learner_config": {
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.224
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 320789,
       "queries_distinct": 318521,
-      "seconds": 7.663,
+      "seconds": 8.213,
       "error_type": null,
       "error": null
     },
@@ -106,7 +220,7 @@
       "converged": false,
       "queries_total": 9917,
       "queries_distinct": 9917,
-      "seconds": 9.423,
+      "seconds": 9.239,
       "error_type": null,
       "error": null
     },
@@ -121,14 +235,16 @@
       "learner_config": {
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.224
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 466026,
       "queries_distinct": 462894,
-      "seconds": 10.527,
+      "seconds": 11.057,
       "error_type": null,
       "error": null
     },
@@ -155,7 +271,7 @@
       "converged": false,
       "queries_total": 9610,
       "queries_distinct": 9610,
-      "seconds": 8.048,
+      "seconds": 7.572,
       "error_type": null,
       "error": null
     },
@@ -170,14 +286,16 @@
       "learner_config": {
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.224
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 875614,
       "queries_distinct": 869453,
-      "seconds": 19.616,
+      "seconds": 20.351,
       "error_type": null,
       "error": null
     },
@@ -204,7 +322,7 @@
       "converged": false,
       "queries_total": 12240,
       "queries_distinct": 12240,
-      "seconds": 10.19,
+      "seconds": 9.46,
       "error_type": null,
       "error": null
     },
@@ -219,14 +337,16 @@
       "learner_config": {
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.224
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 1787883,
       "queries_distinct": 1771791,
-      "seconds": 39.802,
+      "seconds": 41.548,
       "error_type": null,
       "error": null
     },
@@ -253,7 +373,7 @@
       "converged": false,
       "queries_total": 6154,
       "queries_distinct": 6154,
-      "seconds": 1.885,
+      "seconds": 1.792,
       "error_type": null,
       "error": null
     },
@@ -268,14 +388,16 @@
       "learner_config": {
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.1855
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 879411,
       "queries_distinct": 823884,
-      "seconds": 34.911,
+      "seconds": 34.487,
       "error_type": null,
       "error": null
     },
@@ -302,7 +424,7 @@
       "converged": false,
       "queries_total": 5652,
       "queries_distinct": 5652,
-      "seconds": 2.071,
+      "seconds": 1.932,
       "error_type": null,
       "error": null
     },
@@ -317,14 +439,16 @@
       "learner_config": {
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.1855
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 1139832,
       "queries_distinct": 1050071,
-      "seconds": 43.153,
+      "seconds": 41.415,
       "error_type": null,
       "error": null
     },
@@ -351,7 +475,7 @@
       "converged": false,
       "queries_total": 6190,
       "queries_distinct": 6190,
-      "seconds": 2.247,
+      "seconds": 1.962,
       "error_type": null,
       "error": null
     },
@@ -366,14 +490,16 @@
       "learner_config": {
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.1855
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 1277963,
       "queries_distinct": 1226669,
-      "seconds": 43.651,
+      "seconds": 40.329,
       "error_type": null,
       "error": null
     },
@@ -400,7 +526,7 @@
       "converged": false,
       "queries_total": 5651,
       "queries_distinct": 5651,
-      "seconds": 1.59,
+      "seconds": 1.437,
       "error_type": null,
       "error": null
     },
@@ -415,14 +541,16 @@
       "learner_config": {
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.1855
       },
       "learned_states": 8,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 2216849,
       "queries_distinct": 2095356,
-      "seconds": 77.207,
+      "seconds": 71.666,
       "error_type": null,
       "error": null
     },
@@ -449,7 +577,7 @@
       "converged": false,
       "queries_total": 11096,
       "queries_distinct": 11096,
-      "seconds": 21.434,
+      "seconds": 18.023,
       "error_type": null,
       "error": null
     },
@@ -464,14 +592,16 @@
       "learner_config": {
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.3645
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 508202,
       "queries_distinct": 489774,
-      "seconds": 17.303,
+      "seconds": 15.892,
       "error_type": null,
       "error": null
     },
@@ -498,7 +628,7 @@
       "converged": true,
       "queries_total": 8241,
       "queries_distinct": 8241,
-      "seconds": 0.217,
+      "seconds": 0.181,
       "error_type": null,
       "error": null
     },
@@ -513,14 +643,16 @@
       "learner_config": {
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.3645
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 452052,
       "queries_distinct": 426561,
-      "seconds": 15.7,
+      "seconds": 14.484,
       "error_type": null,
       "error": null
     },
@@ -547,7 +679,7 @@
       "converged": false,
       "queries_total": 10265,
       "queries_distinct": 10265,
-      "seconds": 2.54,
+      "seconds": 2.215,
       "error_type": null,
       "error": null
     },
@@ -562,14 +694,16 @@
       "learner_config": {
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.3645
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 916203,
       "queries_distinct": 862578,
-      "seconds": 30.931,
+      "seconds": 28.951,
       "error_type": null,
       "error": null
     },
@@ -596,7 +730,7 @@
       "converged": false,
       "queries_total": 6214,
       "queries_distinct": 6214,
-      "seconds": 1.393,
+      "seconds": 1.256,
       "error_type": null,
       "error": null
     },
@@ -611,14 +745,16 @@
       "learner_config": {
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.3645
       },
       "learned_states": 9,
       "accuracy": 1.0,
       "converged": true,
       "queries_total": 2345503,
       "queries_distinct": 2217453,
-      "seconds": 79.283,
+      "seconds": 78.314,
       "error_type": null,
       "error": null
     },
@@ -645,7 +781,7 @@
       "converged": true,
       "queries_total": 17483,
       "queries_distinct": 17483,
-      "seconds": 1.352,
+      "seconds": 1.157,
       "error_type": null,
       "error": null
     },
@@ -660,14 +796,16 @@
       "learner_config": {
         "min_signal_strength": 0.45,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.5975
       },
       "learned_states": 10,
       "accuracy": 0.989,
       "converged": false,
       "queries_total": 328840,
       "queries_distinct": 316030,
-      "seconds": 9.6,
+      "seconds": 9.04,
       "error_type": null,
       "error": null
     },
@@ -694,7 +832,7 @@
       "converged": true,
       "queries_total": 21810,
       "queries_distinct": 21810,
-      "seconds": 11.509,
+      "seconds": 9.981,
       "error_type": null,
       "error": null
     },
@@ -709,14 +847,16 @@
       "learner_config": {
         "min_signal_strength": 0.4,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.5975
       },
       "learned_states": 10,
       "accuracy": 0.989,
       "converged": false,
       "queries_total": 529355,
       "queries_distinct": 512100,
-      "seconds": 15.888,
+      "seconds": 14.188,
       "error_type": null,
       "error": null
     },
@@ -743,7 +883,7 @@
       "converged": false,
       "queries_total": 12790,
       "queries_distinct": 12790,
-      "seconds": 32.056,
+      "seconds": 28.012,
       "error_type": null,
       "error": null
     },
@@ -758,14 +898,16 @@
       "learner_config": {
         "min_signal_strength": 0.3,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.5975
       },
       "learned_states": 10,
       "accuracy": 0.989,
       "converged": false,
       "queries_total": 867171,
       "queries_distinct": 830754,
-      "seconds": 24.729,
+      "seconds": 22.803,
       "error_type": null,
       "error": null
     },
@@ -792,7 +934,7 @@
       "converged": false,
       "queries_total": 10741,
       "queries_distinct": 10741,
-      "seconds": 3.376,
+      "seconds": 2.879,
       "error_type": null,
       "error": null
     },
@@ -807,14 +949,16 @@
       "learner_config": {
         "min_signal_strength": 0.2,
         "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "additional_counterexamples": 200,
+        "sample_length": 40,
+        "accept_rate_at_sample_length": 0.5975
       },
       "learned_states": 10,
       "accuracy": 0.989,
       "converged": false,
       "queries_total": 7423979,
       "queries_distinct": 7085012,
-      "seconds": 334.672,
+      "seconds": 333.89,
       "error_type": null,
       "error": null
     },
@@ -841,7 +985,7 @@
       "converged": true,
       "queries_total": 2942,
       "queries_distinct": 2942,
-      "seconds": 0.054,
+      "seconds": 0.05,
       "error_type": null,
       "error": null
     },
@@ -854,18 +998,37 @@
       "target_states": 6,
       "alphabet_size": 3,
       "learner_config": {
-        "min_signal_strength": 0.45,
-        "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.8795,
+        "class_preserving_frac": 0.0405,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": false,
+        "excluded_because": [
+          "acceptance rate 0.879 outside [0.15, 0.85]",
+          "class-preserving fraction 0.041 below 0.05"
+        ],
+        "accept_rate_by_length": {
+          "8": 0.299,
+          "10": 0.3745,
+          "12": 0.447,
+          "16": 0.554,
+          "20": 0.648,
+          "30": 0.7965,
+          "40": 0.8795
+        }
       },
-      "learned_states": 6,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 852795,
-      "queries_distinct": 823622,
-      "seconds": 36.311,
-      "error_type": null,
-      "error": null
+      "learned_states": null,
+      "accuracy": null,
+      "converged": null,
+      "queries_total": null,
+      "queries_distinct": null,
+      "seconds": 0.0,
+      "error_type": "ExcludedOutOfRegime",
+      "error": "acceptance rate 0.879 outside [0.15, 0.85]; class-preserving fraction 0.041 below 0.05"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -890,7 +1053,7 @@
       "converged": true,
       "queries_total": 6013,
       "queries_distinct": 6013,
-      "seconds": 0.315,
+      "seconds": 0.302,
       "error_type": null,
       "error": null
     },
@@ -903,18 +1066,37 @@
       "target_states": 6,
       "alphabet_size": 3,
       "learner_config": {
-        "min_signal_strength": 0.4,
-        "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.8795,
+        "class_preserving_frac": 0.0405,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": false,
+        "excluded_because": [
+          "acceptance rate 0.879 outside [0.15, 0.85]",
+          "class-preserving fraction 0.041 below 0.05"
+        ],
+        "accept_rate_by_length": {
+          "8": 0.299,
+          "10": 0.3745,
+          "12": 0.447,
+          "16": 0.554,
+          "20": 0.648,
+          "30": 0.7965,
+          "40": 0.8795
+        }
       },
-      "learned_states": 6,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 1093250,
-      "queries_distinct": 1073383,
-      "seconds": 41.519,
-      "error_type": null,
-      "error": null
+      "learned_states": null,
+      "accuracy": null,
+      "converged": null,
+      "queries_total": null,
+      "queries_distinct": null,
+      "seconds": 0.0,
+      "error_type": "ExcludedOutOfRegime",
+      "error": "acceptance rate 0.879 outside [0.15, 0.85]; class-preserving fraction 0.041 below 0.05"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -939,7 +1121,7 @@
       "converged": false,
       "queries_total": 19786,
       "queries_distinct": 19786,
-      "seconds": 48.725,
+      "seconds": 45.815,
       "error_type": null,
       "error": null
     },
@@ -952,18 +1134,37 @@
       "target_states": 6,
       "alphabet_size": 3,
       "learner_config": {
-        "min_signal_strength": 0.3,
-        "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.8795,
+        "class_preserving_frac": 0.0405,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": false,
+        "excluded_because": [
+          "acceptance rate 0.879 outside [0.15, 0.85]",
+          "class-preserving fraction 0.041 below 0.05"
+        ],
+        "accept_rate_by_length": {
+          "8": 0.299,
+          "10": 0.3745,
+          "12": 0.447,
+          "16": 0.554,
+          "20": 0.648,
+          "30": 0.7965,
+          "40": 0.8795
+        }
       },
-      "learned_states": 6,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 1504933,
-      "queries_distinct": 1445697,
-      "seconds": 62.61,
-      "error_type": null,
-      "error": null
+      "learned_states": null,
+      "accuracy": null,
+      "converged": null,
+      "queries_total": null,
+      "queries_distinct": null,
+      "seconds": 0.0,
+      "error_type": "ExcludedOutOfRegime",
+      "error": "acceptance rate 0.879 outside [0.15, 0.85]; class-preserving fraction 0.041 below 0.05"
     },
     {
       "benchmark": "regex_alt_111_or_000_3sym",
@@ -988,7 +1189,7 @@
       "converged": false,
       "queries_total": 9890,
       "queries_distinct": 9890,
-      "seconds": 13.648,
+      "seconds": 13.166,
       "error_type": null,
       "error": null
     },
@@ -1001,18 +1202,37 @@
       "target_states": 6,
       "alphabet_size": 3,
       "learner_config": {
-        "min_signal_strength": 0.2,
-        "min_suffix_frequency": 0.05,
-        "additional_counterexamples": 200
+        "sample_length": 40,
+        "tuned_from_default": false,
+        "accept_rate_at_sample_length": 0.8795,
+        "class_preserving_frac": 0.0405,
+        "covered_accuracy_ceiling": 1.0,
+        "uncovered_states": [
+          "2"
+        ],
+        "in_regime": false,
+        "excluded_because": [
+          "acceptance rate 0.879 outside [0.15, 0.85]",
+          "class-preserving fraction 0.041 below 0.05"
+        ],
+        "accept_rate_by_length": {
+          "8": 0.299,
+          "10": 0.3745,
+          "12": 0.447,
+          "16": 0.554,
+          "20": 0.648,
+          "30": 0.7965,
+          "40": 0.8795
+        }
       },
-      "learned_states": 6,
-      "accuracy": 1.0,
-      "converged": true,
-      "queries_total": 29082218,
-      "queries_distinct": 28890454,
-      "seconds": 974.628,
-      "error_type": null,
-      "error": null
+      "learned_states": null,
+      "accuracy": null,
+      "converged": null,
+      "queries_total": null,
+      "queries_distinct": null,
+      "seconds": 0.0,
+      "error_type": "ExcludedOutOfRegime",
+      "error": "acceptance rate 0.879 outside [0.15, 0.85]; class-preserving fraction 0.041 below 0.05"
     }
   ]
 }
