@@ -49,6 +49,13 @@ DEGENERATE_HI = 0.98
 MIN_ACCEPT_OR_REJECT = 0.15  # tests/test_lstar.py passes this
 MIN_CLASS_PRESERVING_FRAC = 0.05  # sample_balanced_benchmark default
 
+#: A coverable-states-only classifier (all E-L* can build) must reach at least
+#: this accuracy, else the target has a state the length-tuned prefix sampler
+#: never lands in that carries a decision the learner cannot represent (e.g.
+#: Difficult10). This closely predicts E-L*'s ceiling; it subsumes the weaker
+#: structural "no transient non-start state" check.
+MIN_COVERABLE_ACCURACY = 0.99
+
 
 @dataclass
 class Benchmark:
@@ -120,17 +127,17 @@ class Benchmark:
         """Is this target inside E-L*'s designed regime, and if not, why not?
 
         Applies the three conditions of preconditions.satisfies_preconditions:
-        acceptance balance and class-preservation (sampled at the tuned length)
-        plus the exact infinite-reachability check. The measured values and the
-        failure reasons go into the experiment JSON so exclusions are auditable.
+        acceptance balance, class-preservation, and the coverable-accuracy
+        ceiling (all at the tuned sampling length). The ceiling closely predicts
+        E-L*'s achievable accuracy. The measured values and the failure reasons
+        go into the experiment JSON so exclusions are auditable.
         """
         aut = taf_to_automata_dfa(self.target)
         length, rate, rates = self.tune_sample_length()
         cp = self.class_preserving_frac(length)
-        infinite = preconditions.infinitely_reachable_states(aut)
-        transient = sorted(
-            str(q) for q in aut.states if q != aut.initial_state and q not in infinite
-        )
+        ceiling = preconditions.coverable_accuracy_ceiling(aut, length=length)
+        coverable = preconditions.coverable_states(aut, length=length)
+        uncovered = sorted(str(q) for q in aut.states if q not in coverable)
         reasons = []
         if not MIN_ACCEPT_OR_REJECT <= rate <= 1 - MIN_ACCEPT_OR_REJECT:
             reasons.append(
@@ -142,17 +149,18 @@ class Benchmark:
                 f"class-preserving fraction {cp:.3f} below "
                 f"{MIN_CLASS_PRESERVING_FRAC}"
             )
-        if transient:
+        if ceiling < MIN_COVERABLE_ACCURACY:
             reasons.append(
-                f"{len(transient)} non-start state(s) reached by finitely many "
-                f"strings (transient): {', '.join(transient)}"
+                f"coverable-accuracy ceiling {ceiling:.3f} below "
+                f"{MIN_COVERABLE_ACCURACY} (an uncovered state carries a decision)"
             )
         return {
             "sample_length": length,
             "tuned_from_default": length != DEFAULT_SAMPLE_LENGTH,
             "accept_rate_at_sample_length": round(rate, 4),
             "class_preserving_frac": round(cp, 4),
-            "transient_states": transient,
+            "coverable_accuracy_ceiling": round(ceiling, 4),
+            "uncovered_states": uncovered,
             "in_regime": not reasons,
             "excluded_because": reasons,
             "accept_rate_by_length": {str(k): round(v, 4) for k, v in rates.items()},

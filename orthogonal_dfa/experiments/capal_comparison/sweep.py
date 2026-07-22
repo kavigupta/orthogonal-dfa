@@ -20,7 +20,12 @@ from .core import (
     run_elstar_cell,
     write_experiment,
 )
-from .targets import MIN_ACCEPT_OR_REJECT, MIN_CLASS_PRESERVING_FRAC, Benchmark
+from .targets import (
+    MIN_ACCEPT_OR_REJECT,
+    MIN_CLASS_PRESERVING_FRAC,
+    MIN_COVERABLE_ACCURACY,
+    Benchmark,
+)
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0]
@@ -91,19 +96,17 @@ def run_sweep(
 
     # Before any cell runs, decide per target whether E-L* is in its designed
     # regime, via preconditions.satisfies_preconditions (acceptance balance +
-    # class-preservation at the tuned sampling length, plus exact
-    # infinite-reachability). The sampling length is tuned per target because
-    # CAPAL's default 40 is degenerate for many of its 28 targets. CAPAL runs on
-    # everything -- its PerfectEQ finds counterexamples structurally, so none of
-    # these conditions constrain it.
+    # class-preservation at the tuned sampling length, plus the coverable-accuracy
+    # ceiling). The sampling length is tuned per target because CAPAL's default 40
+    # is degenerate for many of its 28 targets. CAPAL runs on everything -- its
+    # PerfectEQ finds counterexamples structurally, so none of these conditions
+    # constrain it.
     tuning = {b.name: b.regime_report() for b in benchmarks}
     config["elstar_regime"] = tuning
     config["elstar_regime_filters"] = {
         "min_accept_or_reject": MIN_ACCEPT_OR_REJECT,
         "min_class_preserving_frac": MIN_CLASS_PRESERVING_FRAC,
-        "infinite_reachability": (
-            "every non-start state must be reached by infinitely many strings"
-        ),
+        "min_coverable_accuracy": MIN_COVERABLE_ACCURACY,
         "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)",
     }
     excluded = [n for n, t in tuning.items() if not t["in_regime"]]
