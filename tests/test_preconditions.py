@@ -34,8 +34,8 @@ DIFFICULT09 = DFA(
 
 # The [336] false positive: every state is on a cycle (structurally recurrent),
 # yet length-40 strings only ever end in {1,3,4} -- states 0 and 2 get zero
-# prefix mass, so they are uncoverable. The old infinite-reachability check
-# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the coverable-accuracy
+# prefix mass, so they are uncovered. The old infinite-reachability check
+# admitted this (ceiling 1.0) but E-L* only reaches ~0.75; the covered-accuracy
 # ceiling catches it. Guards against reintroducing the structural check.
 RECURRENT_BUT_UNCOVERED = DFA(
     states={0, 1, 2, 3, 4},
@@ -79,24 +79,24 @@ class TestMeasures(unittest.TestCase):
 
 
 class TestCoverability(unittest.TestCase):
-    def test_coverable_states_strongly_connected(self):
+    def test_covered_states_strongly_connected(self):
         # MOD3 is strongly connected and balanced: every state is a length-40
         # endpoint often enough to be built.
         self.assertEqual(
-            P.coverable_states(MOD3, length=40, num_samples=500), set(MOD3.states)
+            P.covered_states(MOD3, length=40, num_samples=500), set(MOD3.states)
         )
 
-    def test_coverable_states_excludes_transient(self):
+    def test_covered_states_excludes_transient(self):
         # DIFFICULT09: length-40 strings only ever reach the two absorbing sinks.
         self.assertEqual(
-            P.coverable_states(DIFFICULT09, length=40, num_samples=500), {3, 4}
+            P.covered_states(DIFFICULT09, length=40, num_samples=500), {3, 4}
         )
 
-    def test_coverable_states_excludes_recurrent_but_uncovered(self):
+    def test_covered_states_excludes_recurrent_but_uncovered(self):
         # Structurally every state is on a cycle, but 0 and 2 get no length-40
         # prefix mass -- the distinction structural reachability would miss.
         self.assertEqual(
-            P.coverable_states(RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000),
+            P.covered_states(RECURRENT_BUT_UNCOVERED, length=40, num_samples=1000),
             {1, 3, 4},
         )
 
@@ -110,13 +110,13 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertFalse(P.satisfies_preconditions(_constant_dfa(set()), length=40))
 
     def test_ceiling_catches_transient_states(self):
-        # Difficult09 is balanced and class-preserving, so only the coverable-
+        # Difficult09 is balanced and class-preserving, so only the covered-
         # accuracy ceiling catches it: the decision lives in transient states.
         self.assertTrue(0.15 <= P.acceptance_rate(DIFFICULT09, length=40) <= 0.85)
         self.assertGreaterEqual(
             P.class_preserving_fraction(DIFFICULT09, length=40), 0.05
         )
-        self.assertLess(P.coverable_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
+        self.assertLess(P.covered_accuracy_ceiling(DIFFICULT09, length=40), 0.99)
         self.assertFalse(P.satisfies_preconditions(DIFFICULT09, length=40))
 
     def test_ceiling_catches_recurrent_but_uncovered_states(self):
@@ -124,7 +124,7 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         # on cycles) but the decision lives in an uncovered state, so E-L* is
         # capped well below 1.0 and the ceiling must reject it.
         self.assertLess(
-            P.coverable_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
+            P.covered_accuracy_ceiling(RECURRENT_BUT_UNCOVERED, length=40), 0.99
         )
         self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
