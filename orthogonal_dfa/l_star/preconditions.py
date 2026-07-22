@@ -7,16 +7,21 @@ the following conditions, for a particular length of uniform sampling:
 - acceptance_rate: the language does not accept or reject nearly all strings
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- infinitely_reachable_states: every non-start state is reached by infinitely
-  many strings, so the fixed-length sampler can land in it
+- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
+  state (all the learner can anchor to) still classifies almost every string
 """
 
+from collections import Counter
 from typing import List
 
 import numpy as np
 from automata.fa.dfa import DFA
 
 DEFAULT_NUM_SAMPLES = 2000
+
+#: Bar for coverage by prefixes of the given length before we consider a state
+#: "covered" by it.
+DEFAULT_MIN_COVERAGE = 0.01
 
 
 def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> List[int]:
@@ -60,36 +65,52 @@ def class_preserving_fraction(
     return preserving / num_samples
 
 
-def _reachable_from(dfa: DFA, sources) -> set:
-    """States reachable from any of ``sources`` by following transitions."""
-    seen = set(sources)
-    stack = list(seen)
-    while stack:
-        s = stack.pop()
-        for c in dfa.input_symbols:
-            t = dfa.transitions[s][c]
-            if t not in seen:
-                seen.add(t)
-                stack.append(t)
-    return seen
-
-
-def infinitely_reachable_states(dfa: DFA) -> set:
-    """The states reached by infinitely many strings from the start.
-
-    A state is reached by infinitely many strings iff it is forward-reachable
-    from a state that lies on a cycle: pump the cycle for unboundedly many
-    prefixes, then walk on to the state. Every other reachable state is reached
-    by only finitely many (short) strings -- a transient state a fixed-length
-    prefix sampler almost never lands in, so the learner cannot build it.
+def covered_states(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> set:
     """
-    reachable = _reachable_from(dfa, [dfa.initial_state])
-    on_cycle = {
-        q
-        for q in reachable
-        if q in _reachable_from(dfa, [dfa.transitions[q][c] for c in dfa.input_symbols])
-    }
-    return _reachable_from(dfa, on_cycle)
+    The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
+    """
+    rng = np.random.default_rng(0)
+    counts = Counter(
+        _endpoint(dfa, _random_string(dfa, length, rng)) for _ in range(num_samples)
+    )
+    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+
+
+def covered_accuracy_ceiling(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> float:
+    """
+    Best accuracy reachable when the classifier may only be started from a
+    covered state.
+
+    E-L* discovers states from where its sampled prefixes land, so it can only
+    anchor its automaton at covered state; if the true initial state is uncovered
+    it cannot represent it. Only the start is constrained, from there we follow
+    the target's true transitions and read off the endpoint's true accept label.
+    """
+    rng = np.random.default_rng(0)
+    strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
+    truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
+    counts = Counter(_endpoint(dfa, s) for s in strings)
+    covered = {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    best = 0.0
+    for start in covered:
+        correct = sum(
+            (_endpoint(dfa, s, start) in dfa.final_states) == t
+            for s, t in zip(strings, truth)
+        )
+        best = max(best, correct / num_samples)
+    return best
 
 
 def satisfies_preconditions(
@@ -98,24 +119,24 @@ def satisfies_preconditions(
     length: int,
     min_accept_or_reject: float = 0.15,
     min_class_preserving_frac: float = 0.05,
+    min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
 ) -> bool:
-    """True iff ``dfa`` meets every learnability precondition:
+    """True iff ``dfa`` meets every learnability precondition, all under
+    length-``length`` uniform sampling:
 
     - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - every state other than the start is reached by infinitely many strings
-      (the start is exempt -- it is always accessible via the empty string).
+    - covered-accuracy ceiling at least ``min_covered_accuracy``
 
-    The first two are sampled under length-``length`` uniform sampling; the last
-    is an exact graph property. Checks run in increasing cost and short-circuit
-    on the first failure.
+    Checks run in increasing cost and short-circuit on the first failure.
     """
+
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
         return False
     cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
     if cp < min_class_preserving_frac:
         return False
-    infinite = infinitely_reachable_states(dfa)
-    return all(q in infinite for q in dfa.states if q != dfa.initial_state)
+    ceiling = covered_accuracy_ceiling(dfa, length=length, num_samples=num_samples)
+    return ceiling >= min_covered_accuracy
