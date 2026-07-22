@@ -23,7 +23,7 @@ from .core import (
 from .targets import (
     MIN_ACCEPT_OR_REJECT,
     MIN_CLASS_PRESERVING_FRAC,
-    MIN_COVERABLE_ACCURACY,
+    MIN_COVERED_ACCURACY,
     Benchmark,
 )
 
@@ -96,7 +96,7 @@ def run_sweep(
 
     # Before any cell runs, decide per target whether E-L* is in its designed
     # regime, via preconditions.satisfies_preconditions (acceptance balance +
-    # class-preservation at the tuned sampling length, plus the coverable-accuracy
+    # class-preservation at the tuned sampling length, plus the covered-accuracy
     # ceiling). The sampling length is tuned per target because CAPAL's default 40
     # is degenerate for many of its 28 targets. CAPAL runs on everything -- its
     # PerfectEQ finds counterexamples structurally, so none of these conditions
@@ -106,7 +106,7 @@ def run_sweep(
     config["elstar_regime_filters"] = {
         "min_accept_or_reject": MIN_ACCEPT_OR_REJECT,
         "min_class_preserving_frac": MIN_CLASS_PRESERVING_FRAC,
-        "min_coverable_accuracy": MIN_COVERABLE_ACCURACY,
+        "min_covered_accuracy": MIN_COVERED_ACCURACY,
         "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)",
     }
     excluded = [n for n, t in tuning.items() if not t["in_regime"]]

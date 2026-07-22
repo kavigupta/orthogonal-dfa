@@ -4,7 +4,7 @@
 Samples uniformly random DFAs (``sample_random_dfa``), keeps the ones that pass
 ``preconditions.satisfies_preconditions``, and runs E-L* on each to confirm it
 actually learns them -- i.e. the criterion has no *false positives* (a DFA it
-admits that E-L* cannot learn). Also reports how closely the coverable-accuracy
+admits that E-L* cannot learn). Also reports how closely the covered-accuracy
 ceiling tracks E-L*'s actual accuracy, and (optionally) whether any *excluded*
 DFA would have learned (a false negative / over-exclusion).
 
@@ -76,7 +76,7 @@ def main() -> None:
         n_states = int(rng.integers(args.min_states, args.max_states + 1))
         aut = sample_random_dfa(rng, num_states=n_states, alphabet_size=2)
         ok = P.satisfies_preconditions(aut, length=args.length)
-        ceiling = P.coverable_accuracy_ceiling(aut, length=args.length)
+        ceiling = P.covered_accuracy_ceiling(aut, length=args.length)
         if ok:
             n_pass += 1
             acc = elstar_accuracy(aut, args.eta, args.timeout)
