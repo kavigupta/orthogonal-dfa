@@ -8,9 +8,7 @@ the following conditions, for a particular length of uniform sampling:
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
 - covered_accuracy_ceiling: re-rooting the target at the best *covered* start
-  state (all the learner can anchor to) still classifies almost every string,
-  i.e. the states the length-``length`` sampler never lands in carry no
-  decision the learner would miss
+  state (all the learner can anchor to) still classifies almost every string
 """
 
 from collections import Counter
@@ -92,24 +90,13 @@ def covered_accuracy_ceiling(
     min_coverage: float = DEFAULT_MIN_COVERAGE,
 ) -> float:
     """
-    Best accuracy reachable when the classifier may only be *started* from a
+    Best accuracy reachable when the classifier may only be started from a
     covered state.
 
     E-L* discovers states from where its sampled prefixes land, so it can only
-    anchor its automaton at covered states (``covered_states``); if the true
-    initial state is uncovered it cannot represent it. Only the start is
-    constrained -- from there we follow the target's true transitions and read
-    off the endpoint's true accept label. So the ceiling is the best, over
-    covered start states, of relabelling each test string by the class of the
-    endpoint reached from that start. ``1 - ceiling`` is the mass it must
-    misclassify because no covered start reproduces the true initial behaviour
-    (issue #128) -- e.g. an initial state that routes, by an early character,
-    into covered states of differing acceptance (then the ceiling is a coin
-    flip).
-
-    This tracks E-L*'s achievable accuracy closely (0.738 predicted vs 0.751
-    actual on the [336] false positive), so it subsumes the weaker structural
-    "every non-start state is infinitely reachable" check that admitted it.
+    anchor its automaton at covered state; if the true initial state is uncovered
+    it cannot represent it. Only the start is constrained, from there we follow
+    the target's true transitions and read off the endpoint's true accept label.
     """
     rng = np.random.default_rng(0)
     strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
@@ -138,15 +125,13 @@ def satisfies_preconditions(
     """True iff ``dfa`` meets every learnability precondition, all under
     length-``length`` uniform sampling:
 
-    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``
-      (there is signal to separate accept from reject);
-    - class-preserving fraction at least ``min_class_preserving_frac`` (some
-      suffix separates the states);
-    - covered-accuracy ceiling at least ``min_covered_accuracy`` (the
-      uncovered states carry no classification decision the learner would miss).
+    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
+    - class-preserving fraction at least ``min_class_preserving_frac``;
+    - covered-accuracy ceiling at least ``min_covered_accuracy``
 
     Checks run in increasing cost and short-circuit on the first failure.
     """
+
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
         return False

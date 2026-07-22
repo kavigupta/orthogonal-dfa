@@ -1,11 +1,5 @@
-"""No-false-positives guard for the E-L* learnability preconditions.
-
-For every uniformly random DFA that ``satisfies_preconditions`` admits, run
-E-L* end to end and confirm it actually learns it (>= LEARNED accuracy). A
-false positive -- an admitted DFA the learner cannot learn -- is exactly the
-failure the covered-accuracy ceiling exists to prevent (issue #128, the
-recurrent-but-uncovered cases). Runs the full random population, so it is slow
-(a few minutes) and runs as its own CI job.
+"""
+Makes sure that the preconditions for learnability admit only DFAs that E-L* can learn.
 """
 
 import signal
