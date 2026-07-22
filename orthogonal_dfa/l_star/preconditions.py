@@ -7,10 +7,10 @@ the following conditions, for a particular length of uniform sampling:
 - acceptance_rate: the language does not accept or reject nearly all strings
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- covered_accuracy_ceiling: the best a covered-states-only classifier can
-  do is near-perfect, i.e. the states the length-``length`` prefix sampler
-  never lands in (which the learner cannot build) carry no classification
-  decision it would miss
+- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
+  state (all the learner can anchor to) still classifies almost every string,
+  i.e. the states the length-``length`` sampler never lands in carry no
+  decision the learner would miss
 """
 
 from collections import Counter
@@ -74,15 +74,8 @@ def covered_states(
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
 ) -> set:
-    """The states the learner can actually build: those reached as the endpoint
-    of at least ``min_coverage`` of random length-``length`` strings.
-
-    E-L* discovers states from where its sampled prefixes end, so a state no
-    prefix lands in cannot be built -- regardless of whether it is structurally
-    reachable or even on a cycle. This is the empirical, length-dependent notion
-    that predicts learnability; structural reachability over-counts it (issue
-    #128, and the [336]/[377] false positives, are exactly recurrent-but-uncovered
-    states).
+    """
+    The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
     """
     rng = np.random.default_rng(0)
     counts = Counter(
@@ -98,21 +91,24 @@ def covered_accuracy_ceiling(
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
 ) -> float:
-    """Best accuracy any covered-states-only classifier reaches on random
-    length-``length`` strings.
+    """
+    Best accuracy reachable when the classifier may only be *started* from a
+    covered state.
 
-    The learner can build only *covered* states (``covered_states``) -- an
-    uncovered state gets essentially no sampled prefixes to aggregate over. So
-    its achievable accuracy is capped by the best classifier the covered
-    states allow: run each test string through the true transitions from the
-    single best covered start state and read off that endpoint's accept label.
-    ``1 - ceiling`` is the mass of strings it must misclassify because telling
-    them apart needs an uncovered state it cannot build (issue #128) -- e.g. an
-    initial state that routes, by an early character, into covered states of
-    differing acceptance (then the ceiling is a coin flip).
+    E-L* discovers states from where its sampled prefixes land, so it can only
+    anchor its automaton at covered states (``covered_states``); if the true
+    initial state is uncovered it cannot represent it. Only the start is
+    constrained -- from there we follow the target's true transitions and read
+    off the endpoint's true accept label. So the ceiling is the best, over
+    covered start states, of relabelling each test string by the class of the
+    endpoint reached from that start. ``1 - ceiling`` is the mass it must
+    misclassify because no covered start reproduces the true initial behaviour
+    (issue #128) -- e.g. an initial state that routes, by an early character,
+    into covered states of differing acceptance (then the ceiling is a coin
+    flip).
 
-    This tracks E-L*'s achievable accuracy closely (measured 0.738 vs actual
-    0.751 on the [336] false positive), so it subsumes the weaker structural
+    This tracks E-L*'s achievable accuracy closely (0.738 predicted vs 0.751
+    actual on the [336] false positive), so it subsumes the weaker structural
     "every non-start state is infinitely reachable" check that admitted it.
     """
     rng = np.random.default_rng(0)
