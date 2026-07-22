@@ -24,7 +24,6 @@ from orthogonal_dfa.l_star.statistics import (
     compute_prefix_set_size,
     compute_suffix_size_counterexample_gen,
     give_up_check,
-    population_size_and_evidence_margin,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
@@ -124,23 +123,20 @@ def compute_pst(
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
-    n, eps = population_size_and_evidence_margin(
-        signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
-    )
     k = compute_prefix_set_size(0.05, effective_p_acc, 0.05)
     suffix_size = compute_suffix_size_counterexample_gen(0.01, effective_p_acc)
     num_prefixes = 200 if use_dynamic else k
-    config = SearchConfig(
-        suffix_family_size=n,
-        evidence_margin=eps,
+    config = SearchConfig.calibrated(
+        signal_strength=min_signal_strength,
         decision_rule_fpr=0.01,
+        acceptable_fnr=0.01,
         suffix_size_counterexample_gen=suffix_size,
-        min_signal_strength=min_signal_strength,
         num_addtl_prefixes=200 if use_dynamic else None,
         min_suffix_frequency=min_suffix_frequency,
     )
     print(
-        f"Using suffix population size {n}, eps {eps}, and {k} prefixes "
+        f"Using suffix population size {config.suffix_family_size}, "
+        f"eps {config.evidence_margin}, and {k} prefixes "
         f"(signal strength {min_signal_strength})."
     )
     pst = PrefixSuffixTracker.create(

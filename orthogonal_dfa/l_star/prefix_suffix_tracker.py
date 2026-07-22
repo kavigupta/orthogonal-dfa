@@ -6,6 +6,7 @@ import tqdm.auto as tqdm
 
 from .mask_table import MaskTable
 from .sampler import Sampler
+from .statistics import population_size_and_evidence_margin
 from .structures import Oracle
 
 
@@ -55,6 +56,32 @@ class SearchConfig:
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.05
     min_acc_rej: float = 0.1
+
+    @classmethod
+    def calibrated(
+        cls,
+        *,
+        signal_strength,
+        decision_rule_fpr,
+        acceptable_fnr,
+        suffix_size_counterexample_gen,
+        num_addtl_prefixes=None,
+        min_suffix_frequency=0.05,
+    ) -> "SearchConfig":
+        suffix_family_size, evidence_margin = population_size_and_evidence_margin(
+            signal_strength=signal_strength,
+            acceptable_fpr=decision_rule_fpr,
+            acceptable_fnr=acceptable_fnr,
+        )
+        return cls(
+            suffix_family_size=suffix_family_size,
+            evidence_margin=evidence_margin,
+            decision_rule_fpr=decision_rule_fpr,
+            suffix_size_counterexample_gen=suffix_size_counterexample_gen,
+            min_signal_strength=signal_strength,
+            num_addtl_prefixes=num_addtl_prefixes,
+            min_suffix_frequency=min_suffix_frequency,
+        )
 
 
 @dataclass

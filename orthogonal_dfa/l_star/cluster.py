@@ -55,10 +55,14 @@ def identify_cluster_around(
 
 
 def recompute_evidence_margin(
-    min_signal_strength, suffix_family_size, decision_boundary
+    min_signal_strength, suffix_family_size, decision_boundary, decision_rule_fpr
 ):
     result = evidence_margin_for_population_size(
-        min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
+        min_signal_strength,
+        decision_rule_fpr,
+        0.01,
+        suffix_family_size,
+        center=decision_boundary,
     )
     if result is None:
         return min_signal_strength * 0.5
@@ -90,6 +94,7 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
             pst.config.min_signal_strength,
             pst.config.suffix_family_size,
             decision_boundary,
+            pst.config.decision_rule_fpr,
         )
 
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
