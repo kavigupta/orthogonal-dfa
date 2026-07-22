@@ -74,15 +74,8 @@ def covered_states(
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
 ) -> set:
-    """The states the learner can actually build: those reached as the endpoint
-    of at least ``min_coverage`` of random length-``length`` strings.
-
-    E-L* discovers states from where its sampled prefixes end, so a state no
-    prefix lands in cannot be built -- regardless of whether it is structurally
-    reachable or even on a cycle. This is the empirical, length-dependent notion
-    that predicts learnability; structural reachability over-counts it (issue
-    #128, and the [336]/[377] false positives, are exactly recurrent-but-uncovered
-    states).
+    """
+    The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
     """
     rng = np.random.default_rng(0)
     counts = Counter(
@@ -98,7 +91,8 @@ def covered_accuracy_ceiling(
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
 ) -> float:
-    """Best accuracy any covered-states-only classifier reaches on random
+    """
+    Best accuracy any covered-states-only classifier reaches on random
     length-``length`` strings.
 
     The learner can build only *covered* states (``covered_states``) -- an
