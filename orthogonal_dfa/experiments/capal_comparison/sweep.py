@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from .core import (
     LEARNER_CAPAL,
@@ -20,11 +20,7 @@ from .core import (
     run_elstar_cell,
     write_experiment,
 )
-from .targets import (
-    MIN_ACCEPT_OR_REJECT,
-    MIN_CLASS_PRESERVING_FRAC,
-    Benchmark,
-)
+from .targets import MIN_ACCEPT_OR_REJECT, MIN_CLASS_PRESERVING_FRAC, Benchmark
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0]
@@ -93,25 +89,22 @@ def run_sweep(
             cells=cells,
         )
 
-    # E-L*'s sampling length is tuned per target before any cell runs, and
-    # recorded: on CAPAL's dataset the default 40 is degenerate for 13 of 28
-    # targets (near-0 or near-1 acceptance), which starves the acceptance-rate
-    # test of signal entirely. CAPAL is unaffected -- its PerfectEQ finds
-    # counterexamples structurally rather than by sampling.
-    # Before any cell runs, decide per target whether E-L* is being asked
-    # something it was designed for, using the same two filters this repo's own
-    # benchmark generator applies. CAPAL runs on everything -- its PerfectEQ
-    # finds counterexamples structurally, so neither filter constrains it.
+    # Before any cell runs, decide per target whether E-L* is in its designed
+    # regime, via preconditions.satisfies_preconditions (acceptance balance +
+    # class-preservation at the tuned sampling length, plus exact
+    # infinite-reachability). The sampling length is tuned per target because
+    # CAPAL's default 40 is degenerate for many of its 28 targets. CAPAL runs on
+    # everything -- its PerfectEQ finds counterexamples structurally, so none of
+    # these conditions constrain it.
     tuning = {b.name: b.regime_report() for b in benchmarks}
     config["elstar_regime"] = tuning
     config["elstar_regime_filters"] = {
         "min_accept_or_reject": MIN_ACCEPT_OR_REJECT,
         "min_class_preserving_frac": MIN_CLASS_PRESERVING_FRAC,
-        "source": (
-            "orthogonal_dfa/l_star/examples/benchmark_generator.py"
-            " (sample_balanced_benchmark), thresholds as passed in"
-            " tests/test_lstar.py"
+        "infinite_reachability": (
+            "every non-start state must be reached by infinitely many strings"
         ),
+        "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)",
     }
     excluded = [n for n, t in tuning.items() if not t["in_regime"]]
     retuned = [n for n, t in tuning.items() if t["tuned_from_default"]]

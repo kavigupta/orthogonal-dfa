@@ -19,6 +19,7 @@ from orthogonal_dfa.capal_official import (
     import_capal,
     resolve_capal_dir,
 )
+from orthogonal_dfa.l_star import preconditions
 
 FAMILY_OURS = "ours"
 FAMILY_CAPAL = "capal_dataset"
@@ -71,19 +72,10 @@ class Benchmark:
         dfa, alpha = self.target, self.alphabet
         return lambda w: bool(dfa.run("".join(alpha[i] for i in w)))
 
-    def accept_rate(self, length: int, *, count: int = 2000, seed: int = 0x5EED) -> float:
+    def accept_rate(self, length: int, *, count: int = 2000) -> float:
         """Fraction of uniform words of exactly `length` that the target accepts."""
-        import random
-
-        rng = random.Random(seed)
-        alpha = self.alphabet
-        dfa = self.target
-        return (
-            sum(
-                bool(dfa.run("".join(rng.choice(alpha) for _ in range(length))))
-                for _ in range(count)
-            )
-            / count
+        return preconditions.acceptance_rate(
+            taf_to_automata_dfa(self.target), length=length, num_samples=count
         )
 
     def tune_sample_length(self) -> tuple:
@@ -115,35 +107,30 @@ class Benchmark:
 
     def class_preserving_frac(self, length: int, *, count: int = 2000) -> float:
         """Fraction of random length-`length` suffixes that map every state to a
-        state of the same accept/reject class.
+        state of the same accept/reject class (preconditions.class_preserving_fraction).
 
         This repo's benchmark generator rejects candidates below
-        MIN_CLASS_PRESERVING_FRAC because a low value "confuses L* synthesis"
-        -- so it is the sharpest available predictor of whether E-L* is being
-        asked something it was designed for.
+        MIN_CLASS_PRESERVING_FRAC because a low value "confuses L* synthesis".
         """
-        import numpy as np
-
-        from orthogonal_dfa.l_star.examples.benchmark_generator import (
-            _frac_strings_preserving,
-        )
-
-        return _frac_strings_preserving(
-            taf_to_automata_dfa(self.target),
-            probe_len=length,
-            num_strings=count,
-            rng=np.random.default_rng(0),
+        return preconditions.class_preserving_fraction(
+            taf_to_automata_dfa(self.target), length=length, num_samples=count
         )
 
     def regime_report(self) -> Dict[str, Any]:
         """Is this target inside E-L*'s designed regime, and if not, why not?
 
-        Applies the same two filters `sample_balanced_benchmark` applies, at
-        the tuned sampling length. Emitted into the experiment JSON for every
-        target so the exclusions are auditable rather than asserted.
+        Applies the three conditions of preconditions.satisfies_preconditions:
+        acceptance balance and class-preservation (sampled at the tuned length)
+        plus the exact infinite-reachability check. The measured values and the
+        failure reasons go into the experiment JSON so exclusions are auditable.
         """
+        aut = taf_to_automata_dfa(self.target)
         length, rate, rates = self.tune_sample_length()
         cp = self.class_preserving_frac(length)
+        infinite = preconditions.infinitely_reachable_states(aut)
+        transient = sorted(
+            str(q) for q in aut.states if q != aut.initial_state and q not in infinite
+        )
         reasons = []
         if not MIN_ACCEPT_OR_REJECT <= rate <= 1 - MIN_ACCEPT_OR_REJECT:
             reasons.append(
@@ -155,11 +142,17 @@ class Benchmark:
                 f"class-preserving fraction {cp:.3f} below "
                 f"{MIN_CLASS_PRESERVING_FRAC}"
             )
+        if transient:
+            reasons.append(
+                f"{len(transient)} non-start state(s) reached by finitely many "
+                f"strings (transient): {', '.join(transient)}"
+            )
         return {
             "sample_length": length,
             "tuned_from_default": length != DEFAULT_SAMPLE_LENGTH,
             "accept_rate_at_sample_length": round(rate, 4),
             "class_preserving_frac": round(cp, 4),
+            "transient_states": transient,
             "in_regime": not reasons,
             "excluded_because": reasons,
             "accept_rate_by_length": {str(k): round(v, 4) for k, v in rates.items()},
