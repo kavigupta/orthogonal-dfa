@@ -34,6 +34,32 @@ from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
 
+def sample_random_dfa(
+    rng: np.random.Generator, *, num_states: int, alphabet_size: int = 2
+) -> DFA:
+    """A uniformly random complete DFA over symbols ``0..alphabet_size-1``.
+
+    Every transition target and every state's accept bit is drawn
+    independently; the initial state is 0. Unlike ``sample_balanced_benchmark``
+    this imposes no structure (no ``Σ*LΣ*`` form, no separator, no balance), so
+    it is a neutral population for validating the learnability preconditions on
+    arbitrary DFAs rather than only the ones the balanced generator produces.
+    """
+    transitions = {
+        q: {c: int(rng.integers(num_states)) for c in range(alphabet_size)}
+        for q in range(num_states)
+    }
+    final = {q for q in range(num_states) if rng.random() < 0.5}
+    return DFA(
+        states=set(range(num_states)),
+        input_symbols=set(range(alphabet_size)),
+        transitions=transitions,
+        initial_state=0,
+        final_states=final,
+        allow_partial=False,
+    )
+
+
 def sample_inner_dfa(
     rng: np.random.Generator,
     *,

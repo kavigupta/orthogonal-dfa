@@ -7,16 +7,25 @@ the following conditions, for a particular length of uniform sampling:
 - acceptance_rate: the language does not accept or reject nearly all strings
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- infinitely_reachable_states: every non-start state is reached by infinitely
-  many strings, so the fixed-length sampler can land in it
+- coverable_accuracy_ceiling: the best a coverable-states-only classifier can
+  do is near-perfect, i.e. the states the length-``length`` prefix sampler
+  never lands in (which the learner cannot build) carry no classification
+  decision it would miss
 """
 
+from collections import Counter
 from typing import List
 
 import numpy as np
 from automata.fa.dfa import DFA
 
 DEFAULT_NUM_SAMPLES = 2000
+
+#: A state must be the endpoint of at least this fraction of length-``length``
+#: prefixes for the learner to build it. A structurally on-a-cycle state can
+#: still sit below this (issue #128 / the [336],[377] false positives): being
+#: reachable by *some* string is not being reached by *sampled* ones.
+DEFAULT_MIN_COVERAGE = 0.01
 
 
 def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> List[int]:
@@ -60,36 +69,67 @@ def class_preserving_fraction(
     return preserving / num_samples
 
 
-def _reachable_from(dfa: DFA, sources) -> set:
-    """States reachable from any of ``sources`` by following transitions."""
-    seen = set(sources)
-    stack = list(seen)
-    while stack:
-        s = stack.pop()
-        for c in dfa.input_symbols:
-            t = dfa.transitions[s][c]
-            if t not in seen:
-                seen.add(t)
-                stack.append(t)
-    return seen
+def coverable_states(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> set:
+    """The states the learner can actually build: those reached as the endpoint
+    of at least ``min_coverage`` of random length-``length`` strings.
 
-
-def infinitely_reachable_states(dfa: DFA) -> set:
-    """The states reached by infinitely many strings from the start.
-
-    A state is reached by infinitely many strings iff it is forward-reachable
-    from a state that lies on a cycle: pump the cycle for unboundedly many
-    prefixes, then walk on to the state. Every other reachable state is reached
-    by only finitely many (short) strings -- a transient state a fixed-length
-    prefix sampler almost never lands in, so the learner cannot build it.
+    E-L* discovers states from where its sampled prefixes end, so a state no
+    prefix lands in cannot be built -- regardless of whether it is structurally
+    reachable or even on a cycle. This is the empirical, length-dependent notion
+    that predicts learnability; structural reachability over-counts it (issue
+    #128, and the [336]/[377] false positives, are exactly recurrent-but-uncovered
+    states).
     """
-    reachable = _reachable_from(dfa, [dfa.initial_state])
-    on_cycle = {
-        q
-        for q in reachable
-        if q in _reachable_from(dfa, [dfa.transitions[q][c] for c in dfa.input_symbols])
-    }
-    return _reachable_from(dfa, on_cycle)
+    rng = np.random.default_rng(0)
+    counts = Counter(
+        _endpoint(dfa, _random_string(dfa, length, rng)) for _ in range(num_samples)
+    )
+    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+
+
+def coverable_accuracy_ceiling(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> float:
+    """Best accuracy any coverable-states-only classifier reaches on random
+    length-``length`` strings.
+
+    The learner can build only *coverable* states (``coverable_states``) -- an
+    uncovered state gets essentially no sampled prefixes to aggregate over. So
+    its achievable accuracy is capped by the best classifier the coverable
+    states allow: run each test string through the true transitions from the
+    single best coverable start state and read off that endpoint's accept label.
+    ``1 - ceiling`` is the mass of strings it must misclassify because telling
+    them apart needs an uncovered state it cannot build (issue #128) -- e.g. an
+    initial state that routes, by an early character, into coverable states of
+    differing acceptance (then the ceiling is a coin flip).
+
+    This tracks E-L*'s achievable accuracy closely (measured 0.738 vs actual
+    0.751 on the [336] false positive), so it subsumes the weaker structural
+    "every non-start state is infinitely reachable" check that admitted it.
+    """
+    rng = np.random.default_rng(0)
+    strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
+    truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
+    counts = Counter(_endpoint(dfa, s) for s in strings)
+    coverable = {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    best = 0.0
+    for start in coverable:
+        correct = sum(
+            (_endpoint(dfa, s, start) in dfa.final_states) == t
+            for s, t in zip(strings, truth)
+        )
+        best = max(best, correct / num_samples)
+    return best
 
 
 def satisfies_preconditions(
@@ -98,18 +138,20 @@ def satisfies_preconditions(
     length: int,
     min_accept_or_reject: float = 0.15,
     min_class_preserving_frac: float = 0.05,
+    min_coverable_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
 ) -> bool:
-    """True iff ``dfa`` meets every learnability precondition:
+    """True iff ``dfa`` meets every learnability precondition, all under
+    length-``length`` uniform sampling:
 
-    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
-    - class-preserving fraction at least ``min_class_preserving_frac``;
-    - every state other than the start is reached by infinitely many strings
-      (the start is exempt -- it is always accessible via the empty string).
+    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``
+      (there is signal to separate accept from reject);
+    - class-preserving fraction at least ``min_class_preserving_frac`` (some
+      suffix separates the states);
+    - coverable-accuracy ceiling at least ``min_coverable_accuracy`` (the
+      uncovered states carry no classification decision the learner would miss).
 
-    The first two are sampled under length-``length`` uniform sampling; the last
-    is an exact graph property. Checks run in increasing cost and short-circuit
-    on the first failure.
+    Checks run in increasing cost and short-circuit on the first failure.
     """
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
@@ -117,5 +159,5 @@ def satisfies_preconditions(
     cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
     if cp < min_class_preserving_frac:
         return False
-    infinite = infinitely_reachable_states(dfa)
-    return all(q in infinite for q in dfa.states if q != dfa.initial_state)
+    ceiling = coverable_accuracy_ceiling(dfa, length=length, num_samples=num_samples)
+    return ceiling >= min_coverable_accuracy
