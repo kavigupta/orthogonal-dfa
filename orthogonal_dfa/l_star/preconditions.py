@@ -7,6 +7,8 @@ the following conditions, for a particular length of uniform sampling:
 - acceptance_rate: the language does not accept or reject nearly all strings
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
+- infinitely_reachable_states: every non-start state is reached by infinitely
+  many strings, so the fixed-length sampler can land in it
 """
 
 from typing import List
@@ -58,6 +60,38 @@ def class_preserving_fraction(
     return preserving / num_samples
 
 
+def _reachable_from(dfa: DFA, sources) -> set:
+    """States reachable from any of ``sources`` by following transitions."""
+    seen = set(sources)
+    stack = list(seen)
+    while stack:
+        s = stack.pop()
+        for c in dfa.input_symbols:
+            t = dfa.transitions[s][c]
+            if t not in seen:
+                seen.add(t)
+                stack.append(t)
+    return seen
+
+
+def infinitely_reachable_states(dfa: DFA) -> set:
+    """The states reached by infinitely many strings from the start.
+
+    A state is reached by infinitely many strings iff it is forward-reachable
+    from a state that lies on a cycle: pump the cycle for unboundedly many
+    prefixes, then walk on to the state. Every other reachable state is reached
+    by only finitely many (short) strings -- a transient state a fixed-length
+    prefix sampler almost never lands in, so the learner cannot build it.
+    """
+    reachable = _reachable_from(dfa, [dfa.initial_state])
+    on_cycle = {
+        q
+        for q in reachable
+        if q in _reachable_from(dfa, [dfa.transitions[q][c] for c in dfa.input_symbols])
+    }
+    return _reachable_from(dfa, on_cycle)
+
+
 def satisfies_preconditions(
     dfa: DFA,
     *,
@@ -66,16 +100,22 @@ def satisfies_preconditions(
     min_class_preserving_frac: float = 0.05,
     num_samples: int = DEFAULT_NUM_SAMPLES,
 ) -> bool:
-    """True iff ``dfa`` meets every learnability precondition, under
-    length-``length`` uniform sampling:
+    """True iff ``dfa`` meets every learnability precondition:
 
     - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
-    - class-preserving fraction at least ``min_class_preserving_frac``.
+    - class-preserving fraction at least ``min_class_preserving_frac``;
+    - every state other than the start is reached by infinitely many strings
+      (the start is exempt -- it is always accessible via the empty string).
 
-    Checks run in increasing cost and short-circuit on the first failure.
+    The first two are sampled under length-``length`` uniform sampling; the last
+    is an exact graph property. Checks run in increasing cost and short-circuit
+    on the first failure.
     """
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
         return False
     cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
-    return cp >= min_class_preserving_frac
+    if cp < min_class_preserving_frac:
+        return False
+    infinite = infinitely_reachable_states(dfa)
+    return all(q in infinite for q in dfa.states if q != dfa.initial_state)
