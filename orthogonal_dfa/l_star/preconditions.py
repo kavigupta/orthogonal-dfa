@@ -8,9 +8,7 @@ the following conditions, for a particular length of uniform sampling:
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
 - covered_accuracy_ceiling: re-rooting the target at the best *covered* start
-  state (all the learner can anchor to) still classifies almost every string,
-  i.e. the states the length-``length`` sampler never lands in carry no
-  decision the learner would miss
+  state (all the learner can anchor to) still classifies almost every string
 """
 
 from collections import Counter
@@ -127,15 +125,13 @@ def satisfies_preconditions(
     """True iff ``dfa`` meets every learnability precondition, all under
     length-``length`` uniform sampling:
 
-    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``
-      (there is signal to separate accept from reject);
-    - class-preserving fraction at least ``min_class_preserving_frac`` (some
-      suffix separates the states);
-    - covered-accuracy ceiling at least ``min_covered_accuracy`` (the
-      uncovered states carry no classification decision the learner would miss).
+    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
+    - class-preserving fraction at least ``min_class_preserving_frac``;
+    - covered-accuracy ceiling at least ``min_covered_accuracy``
 
     Checks run in increasing cost and short-circuit on the first failure.
     """
+
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
         return False
