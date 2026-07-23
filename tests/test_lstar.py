@@ -5,6 +5,7 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
+from orthogonal_dfa.l_star.direct_lstar import synthesize_direct_lstar_fnr
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     sample_balanced_benchmark,
@@ -14,7 +15,6 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.direct_lstar import synthesize_direct_lstar_fnr
 from orthogonal_dfa.l_star.prefix_suffix_tracker import (
     PrefixSuffixTracker,
     SearchConfig,

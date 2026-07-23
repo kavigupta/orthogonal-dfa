@@ -341,7 +341,7 @@ class DirectLStarLearner:
         """Give every current leaf a canonical access string by sifting the
         prefix pool.  The empty string pins the initial state; the rest come
         from whatever pool prefixes land in each leaf."""
-        for prefix in ([[]] + [list(p) for p in self.pst.table.prefixes]):
+        for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
             if len(self.access) >= self.num_states:
                 break
             st = self.sift(prefix)
@@ -827,7 +827,13 @@ Refiner = Callable[..., List[List[int]]]
 
 
 def default_refine(
-    pst, dfa, dt: DecisionTree, dt_decisive: DecisionTree, *, true_acc: float, count: int
+    pst,
+    dfa,
+    dt: DecisionTree,
+    dt_decisive: DecisionTree,
+    *,
+    true_acc: float,
+    count: int,
 ) -> List[List[int]]:
     """Provisional refiner: reuse the counterexample generation + leaf
     enrichment from the statistical ``TransitionResolver`` pipeline.
@@ -1069,6 +1075,35 @@ def _take_indecisive(learner, target: int) -> List[List[int]]:
     return [list(t) for t in list(learner.indecisive)[:target]]
 
 
+def _grow_representative_pool(
+    pst,
+    learner,
+    dfa,
+    accumulated: List[List[int]],
+    seen: Set,
+    *,
+    indecisive_fraction: float,
+    min_indecisive: int,
+    per_state: int,
+) -> None:
+    """Accumulate this round's boundary strings (capped) into ``accumulated`` /
+    ``seen``, then rebuild the table's representative set as those boundary
+    strings (which drive the FNR gate) plus a capped per-state balanced sample
+    (bounded coverage for the consistency check)."""
+    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+    for t in _take_indecisive(learner, target):
+        key = tuple(t)
+        if key not in seen:
+            seen.add(key)
+            accumulated.append(t)
+    curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
+    representative = accumulated + curated
+    fresh = [p for p in representative if not pst.table.contains_prefix(p)]
+    if fresh:
+        pst.table.add_prefixes(fresh, representative=True)
+    pst.table.set_representative(representative)
+
+
 def synthesize_direct_lstar_fnr(
     pst,
     *,
@@ -1105,14 +1140,27 @@ def synthesize_direct_lstar_fnr(
     # round are reused by every later round (the family ``vs`` changing only
     # affects which cells are averaged, not their values).
     membership_cache: Dict[tuple, int] = {}
+    # Early-stop when a round makes no progress. Some targets are unlearnable
+    # with a fixed-length prefix sampler (transient states the sampler never
+    # lands on, issue #128): the FNR gate then finds no new boundary strings and
+    # the round is a byte-for-byte repeat of the last. When nothing changes --
+    # no new states, no accuracy gain, no new boundary strings -- we have reached
+    # that fixpoint, so stop rather than burn the remaining rounds. ``stall``
+    # counts consecutive no-progress rounds; two in a row confirms the fixpoint.
+    prev_states = 0
+    prev_acc_len = 0
+    stall = 0
     for round_idx in range(max_rounds):
+        prior_best = best[0]
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
         pst.decision_boundary = boundary
         first_round = False
 
         learner = DirectLStarLearner(
-            pst, vs, split_test_budget=split_test_budget,
+            pst,
+            vs,
+            split_test_budget=split_test_budget,
             membership_cache=membership_cache,
         )
         # Family calibration (FNR) runs on the clean, bounded representative set.
@@ -1130,7 +1178,7 @@ def synthesize_direct_lstar_fnr(
         learner.counterexample_pass(
             max_probes=counterexample_probes,
             patience=counterexample_patience,
-            boundary_target=10 ** 9,
+            boundary_target=10**9,
         )
         learner.run_worklist()
         dfa, dt = learner.to_dfa_and_tree()
@@ -1151,30 +1199,43 @@ def synthesize_direct_lstar_fnr(
         if true_acc > best[0]:
             best = (true_acc, dfa, dt, pst.decision_boundary)
         if true_acc >= acc_threshold:
-            print(f"[direct-lstar/fnr] round {round_idx}: converged, "
-                  f"{learner.num_states} states")
+            print(
+                f"[direct-lstar/fnr] round {round_idx}: converged, "
+                f"{learner.num_states} states"
+            )
             break
 
-        # Accumulate this round's boundary strings (capped per round).
-        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        for t in _take_indecisive(learner, target):
-            key = tuple(t)
-            if key not in seen:
-                seen.add(key)
-                accumulated.append(t)
-        # Representative set = accumulated boundary strings (drive FNR) + a capped
-        # per-state balanced sample (bounded coverage for the consistency check).
-        curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
-        representative = accumulated + curated
-        fresh = [p for p in representative if not pst.table.contains_prefix(p)]
-        if fresh:
-            pst.table.add_prefixes(fresh, representative=True)
-        pst.table.set_representative(representative)
+        _grow_representative_pool(
+            pst,
+            learner,
+            dfa,
+            accumulated,
+            seen,
+            indecisive_fraction=indecisive_fraction,
+            min_indecisive=min_indecisive,
+            per_state=per_state,
+        )
         print(
             f"[direct-lstar/fnr] round {round_idx}: {learner.num_states} states, "
             f"est {true_acc:.3f}, {len(accumulated)} accumulated indecisive, "
             f"{int(pst.table.representative.sum())} rep / {pst.num_prefixes} total"
         )
+
+        progressed = (
+            learner.num_states > prev_states
+            or true_acc > prior_best + 1e-9
+            or len(accumulated) > prev_acc_len
+        )
+        stall = 0 if progressed else stall + 1
+        prev_states = learner.num_states
+        prev_acc_len = len(accumulated)
+        if stall >= 2:
+            print(
+                f"[direct-lstar/fnr] round {round_idx}: no progress "
+                f"({learner.num_states} states) -- target unresolvable with this "
+                "sampler, stopping"
+            )
+            break
 
     # Correct per-state accept/reject labels: the structural labeling (leaves on
     # the root's accept side) can flip low-support states under noise, especially
