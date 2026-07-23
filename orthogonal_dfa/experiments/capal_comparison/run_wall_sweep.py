@@ -39,8 +39,6 @@ from .core import (
 )
 from .targets import our_benchmarks
 
-DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "wall_sweep.json"
-
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
 
@@ -57,13 +55,37 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
+#: Section 10's "matched query budget" probe: uncap the suffix-enumeration knobs
+#: so SAMESTATE draws thousands of long suffixes per pair, pushing CAPAL's
+#: distinct-query count up to millions (E-L*'s range). If accuracy still stalls,
+#: the wall is the pairwise-test shape, not the number of labels. Slow: minutes
+#: per run. Run against eta=0.30 only, where every cell walls at capped budget.
+MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
+    (
+        "enum=8,extra=16,pool=16,m=2000",
+        dict(
+            max_same_samples=2000,
+            suffix_pool_len_max=16,
+            enum_depth=8,
+            extra_len_max=16,
+            max_iters=15,
+        ),
+    ),
+]
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--etas", nargs="+", type=float, default=DEFAULT_ETAS)
+    ap.add_argument("--etas", nargs="+", type=float, default=None)
     ap.add_argument("--seeds", nargs="+", type=int, default=DEFAULT_SEEDS)
     ap.add_argument(
         "--targets", nargs="+", default=None, help="Restrict to these benchmarks."
+    )
+    ap.add_argument(
+        "--matched-budget",
+        action="store_true",
+        help="Section-10 mode: uncap suffix enumeration to match E-L*'s query "
+        "budget (slow); defaults to eta=0.30 and its own output file.",
     )
     ap.add_argument(
         "--with-elstar",
@@ -77,6 +99,11 @@ def main() -> None:
     if args.capal_dir:
         os.environ["ORTHO_CAPAL_DIR"] = args.capal_dir
 
+    sweep_configs = MATCHED_BUDGET_CONFIGS if args.matched_budget else CONFIGS
+    etas = args.etas or ([0.30] if args.matched_budget else DEFAULT_ETAS)
+    experiment = "matched_budget" if args.matched_budget else "wall_sweep"
+    default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
+
     benchmarks = our_benchmarks()
     if args.targets:
         by = {b.name: b for b in benchmarks}
@@ -85,37 +112,46 @@ def main() -> None:
             raise SystemExit(f"unknown target(s): {sorted(missing)}")
         benchmarks = [by[n] for n in args.targets]
 
-    out_path = Path(args.out) if args.out else DEFAULT_OUT
+    out_path = Path(args.out) if args.out else default_out
     cells: List[Cell] = []
     config = {
-        "etas": list(args.etas),
+        "etas": list(etas),
         "seeds": list(args.seeds),
         "benchmarks": [b.name for b in benchmarks],
-        "configs": [label for label, _ in CONFIGS],
+        "configs": [label for label, _ in sweep_configs],
+        "matched_budget": args.matched_budget,
         "with_elstar": args.with_elstar,
     }
+
+    description = (
+        "CAPAL at a matched query budget (uncapped suffix enumeration) on the "
+        "eta=0.30 wall cells: does hitting E-L*'s distinct-query count break "
+        "the wall?"
+        if args.matched_budget
+        else (
+            "CAPAL hyperparameter sweep (max_same_samples x pool x alpha x seeds) "
+            "across every benchmark cell, to separate cell-specific structural "
+            "walls from default-config artifacts."
+        )
+    )
 
     def flush() -> None:
         write_experiment(
             out_path,
-            experiment="wall_sweep",
+            experiment=experiment,
             generated_by="orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
-            description=(
-                "CAPAL hyperparameter sweep (max_same_samples x seeds) across "
-                "every benchmark cell, to separate cell-specific structural "
-                "walls from default-config artifacts."
-            ),
+            description=description,
             config=config,
             cells=cells,
         )
 
-    total = len(benchmarks) * len(args.etas) * len(CONFIGS) * len(args.seeds)
+    total = len(benchmarks) * len(etas) * len(sweep_configs) * len(args.seeds)
     done = 0
     for b in benchmarks:
         words = eval_words(b.symbols)
         truth = b.truth()
-        for eta in args.etas:
-            for (label, kwargs), seed in itertools.product(CONFIGS, args.seeds):
+        for eta in etas:
+            for (label, kwargs), seed in itertools.product(sweep_configs, args.seeds):
                 done += 1
                 print(
                     f"[{done}/{total}] {b.name} eta={eta:.2f} {label} seed={seed}",

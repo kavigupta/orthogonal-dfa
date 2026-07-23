@@ -172,8 +172,14 @@ def run_capal_cell(
     alpha: float = 1e-3,
     tau_cap: float = 0.2,
     suffix_pool_init: int = 32,
+    enum_depth: int = 3,
+    extra_len_max: int = 8,
 ) -> Cell:
-    """Run upstream CAPAL on `target` and score it on the shared word list."""
+    """Run upstream CAPAL on `target` and score it on the shared word list.
+
+    ``enum_depth`` / ``extra_len_max`` control how many and how long the SAMESTATE
+    suffixes are; raising them is the section-10 "matched query budget" probe.
+    """
     M = import_capal()
     cfg = M.LearnerConfig(
         K_pos=k_pos,
@@ -205,10 +211,18 @@ def run_capal_cell(
             "alpha": alpha,
             "tau_cap": tau_cap,
             "suffix_pool_init": suffix_pool_init,
+            "enum_depth": enum_depth,
+            "extra_len_max": extra_len_max,
         },
     )
 
     learner = M.CAPALLearner(target=target, cfg=cfg)
+    # enum_depth / extra_len_max are not fields LearnerConfig forwards to its
+    # SameStateConfig -- upstream buries them (capal.py:919). Set them on the
+    # live SameStateConfig, which SAMESTATE reads lazily during fit(). This is
+    # the section-10 "matched query budget" knob.
+    learner.ss.cfg.enum_depth = enum_depth
+    learner.ss.cfg.extra_len_max = extra_len_max
     # Upstream's PersistentNoisyMQ caches but does not count; wrap it so we can
     # report total alongside distinct.
     totals = {"n": 0}
@@ -339,7 +353,9 @@ def run_elstar_cell(
         cell.error = f"{type(exc).__name__}: {exc}"
     cell.seconds = time.time() - t0
     cell.queries_total = sum(c.count for c in counters)
-    cell.queries_distinct = len(set().union(*[c.distinct for c in counters])) if counters else 0
+    cell.queries_distinct = (
+        len(set().union(*[c.distinct for c in counters])) if counters else 0
+    )
 
     if dfa is not None:
         cell.learned_states = len(dfa.states)
