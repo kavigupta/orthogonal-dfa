@@ -1081,14 +1081,14 @@ def synthesize_direct_lstar_fnr(
     pst,
     *,
     acc_threshold: float,
-    additional_counterexamples: int = 200,
     sample_size: int = 25,
     per_state: int = 60,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
     max_rounds: int = 20,
     split_test_budget: int = 40000,
-    refine: Refiner = default_refine,
+    counterexample_probes: int = 4000,
+    counterexample_patience: int = 400,
 ) -> Tuple[DFA, DecisionTree]:
     """Consistency learner that forces the suffix family to resolve boundary
     states via the FNR gate.
@@ -1133,6 +1133,18 @@ def synthesize_direct_lstar_fnr(
         # Full-membership sweep harvests boundary (sift -> None) strings from the
         # (now boundary-enriched) representative members.
         learner.consistency_close(sample_size=None, rng=pst.rng)
+        # Native discovery (the equivalence-oracle role): sample fresh strings and
+        # split on DFA-vs-tree disagreements.  This replaces the borrowed
+        # generate_counterexamples + enrich refiner, which did the same DFA-vs-tree
+        # discovery at ~4x the query cost -- and it was the whole reason this
+        # learner was ~6x slower than E-L*.  Run until counterexamples dry up
+        # (boundary_target disabled).
+        learner.counterexample_pass(
+            max_probes=counterexample_probes,
+            patience=counterexample_patience,
+            boundary_target=10 ** 9,
+        )
+        learner.run_worklist()
         dfa, dt = learner.to_dfa_and_tree()
 
         boundary = pst.decision_boundary
@@ -1163,14 +1175,9 @@ def synthesize_direct_lstar_fnr(
                 seen.add(key)
                 accumulated.append(t)
         # Representative set = accumulated boundary strings (drive FNR) + a capped
-        # per-state balanced sample (give the check bounded coverage) + this
-        # round's counterexamples.
-        counterexamples = refine(
-            pst, dfa, dt, dt_decisive, true_acc=true_acc,
-            count=additional_counterexamples,
-        )
+        # per-state balanced sample (bounded coverage for the consistency check).
         curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
-        representative = accumulated + curated + [list(p) for p in counterexamples]
+        representative = accumulated + curated
         fresh = [p for p in representative if not pst.table.contains_prefix(p)]
         if fresh:
             pst.table.add_prefixes(fresh, representative=True)

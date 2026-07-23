@@ -108,9 +108,7 @@ def compute_dfa_for_oracle(
     # Switched from do_counterexample_driven_synthesis (the statistical
     # TransitionResolver pipeline) to the transition-driven direct-L* learner, to
     # see how it fares across the whole benchmark suite on CI.
-    dfa, dt = synthesize_direct_lstar_fnr(
-        pst, acc_threshold=1 - allowed_error, additional_counterexamples=200
-    )
+    dfa, dt = synthesize_direct_lstar_fnr(pst, acc_threshold=1 - allowed_error)
     return pst, dfa, dt
 
 
