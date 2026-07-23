@@ -14,7 +14,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.lstar import do_counterexample_driven_synthesis
+from orthogonal_dfa.l_star.direct_lstar import synthesize_direct_lstar_fnr
 from orthogonal_dfa.l_star.prefix_suffix_tracker import (
     PrefixSuffixTracker,
     SearchConfig,
@@ -105,8 +105,11 @@ def compute_dfa_for_oracle(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
     )
-    dfa, dt = do_counterexample_driven_synthesis(
-        pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
+    # Switched from do_counterexample_driven_synthesis (the statistical
+    # TransitionResolver pipeline) to the transition-driven direct-L* learner, to
+    # see how it fares across the whole benchmark suite on CI.
+    dfa, dt = synthesize_direct_lstar_fnr(
+        pst, acc_threshold=1 - allowed_error, additional_counterexamples=200
     )
     return pst, dfa, dt
 
