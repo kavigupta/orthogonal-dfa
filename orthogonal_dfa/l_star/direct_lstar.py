@@ -1149,7 +1149,7 @@ def synthesize_direct_lstar_fnr(
             acc_threshold=acc_threshold,
         )
         if best is None or true_acc > best[0]:
-            best = (true_acc, dfa, dt)
+            best = (true_acc, dfa, dt, pst.decision_boundary)
         if true_acc >= acc_threshold:
             print(f"[direct-lstar/fnr] round {round_idx}: converged, "
                   f"{learner.num_states} states")
@@ -1181,7 +1181,16 @@ def synthesize_direct_lstar_fnr(
             f"{int(pst.table.representative.sum())} rep / {pst.num_prefixes} total"
         )
 
-    return best[1], best[2]
+    # Correct per-state accept/reject labels: the structural labeling (leaves on
+    # the root's accept side) can flip low-support states under noise, especially
+    # asymmetric noise -- a resample + binomial test per reachable state fixes it.
+    # This is the same denoising step the resolver pipeline applies at the end.
+    from .lstar import denoise_accept_labels
+
+    _, best_dfa, best_dt, best_boundary = best
+    pst.decision_boundary = best_boundary
+    best_dfa = denoise_accept_labels(pst, best_dfa)
+    return best_dfa, best_dt
 
 
 def _balanced_representative(learner, priority, fill, per_state) -> List[List[int]]:
