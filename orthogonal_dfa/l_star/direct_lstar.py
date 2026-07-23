@@ -549,7 +549,14 @@ class DirectLStarLearner:
             return hi
         mid = (lo + hi) // 2
         actual = self.sift(w[:mid])
-        if actual is None or states[mid] is None:
+        if actual is None:
+            # The binary search homes in on the DFA-vs-tree error, which sits at a
+            # boundary state -- so this indecisive midpoint is a boundary string
+            # worth harvesting (a probe need not *end* at the boundary to expose
+            # one).  Collect it before bailing.
+            self.indecisive.add(tuple(w[:mid]))
+            return None
+        if states[mid] is None:
             return None
         if actual == states[mid]:
             return self._first_disagreement(w, states, mid, hi)
@@ -1066,7 +1073,6 @@ def synthesize_direct_lstar_fnr(
     pst,
     *,
     acc_threshold: float,
-    sample_size: int = 25,
     per_state: int = 60,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
@@ -1109,21 +1115,18 @@ def synthesize_direct_lstar_fnr(
             pst, vs, split_test_budget=split_test_budget,
             membership_cache=membership_cache,
         )
-        # Both calibration (FNR) and the consistency check run on the same clean,
-        # bounded representative set -- no scratch (memoized is_accept), no mismatch.
+        # Family calibration (FNR) runs on the clean, bounded representative set.
         learner.check_representative_only = True
         learner.init_worklist()
         learner.run_worklist()
-        learner.consistency_close(sample_size=sample_size, rng=pst.rng)
-        # Full-membership sweep harvests boundary (sift -> None) strings from the
-        # (now boundary-enriched) representative members.
-        learner.consistency_close(sample_size=None, rng=pst.rng)
-        # Native discovery (the equivalence-oracle role): sample fresh strings and
-        # split on DFA-vs-tree disagreements.  This replaces the borrowed
-        # generate_counterexamples + enrich refiner, which did the same DFA-vs-tree
-        # discovery at ~4x the query cost -- and it was the whole reason this
-        # learner was ~6x slower than E-L*.  Run until counterexamples dry up
-        # (boundary_target disabled).
+        # A single discovery pass: sample fresh strings and split on DFA-vs-tree
+        # disagreements (the equivalence-oracle role).  Its binary search homes in
+        # on the errors, which sit at boundary states, so it *also* harvests the
+        # boundary (sift -> None) strings that feed the FNR gate -- densely and
+        # targeted, so a probe need not end at the boundary.  This subsumes the
+        # separate consistency check (pool verification + boundary sweep): dropping
+        # it brings the substring case to E-L* query parity (1.08M) with no loss of
+        # convergence across seeds.
         learner.counterexample_pass(
             max_probes=counterexample_probes,
             patience=counterexample_patience,
