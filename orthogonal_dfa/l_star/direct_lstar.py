@@ -36,6 +36,7 @@ lets :meth:`disagreement` locate a separating suffix.
 ``(DFA, DecisionTree)`` shape as ``resolve_dfa`` so it is a drop-in alternative.
 """
 
+import math
 from collections import deque
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
@@ -1127,7 +1128,7 @@ def synthesize_direct_lstar_fnr(
     max_rounds: int = 20,
     split_test_budget: int = 40000,
     counterexample_probes: int = 4000,
-    counterexample_patience: int = 400,
+    counterexample_patience: Optional[int] = None,
 ) -> Tuple[DFA, DecisionTree]:
     """Consistency learner that forces the suffix family to resolve boundary
     states via the FNR gate.
@@ -1141,6 +1142,16 @@ def synthesize_direct_lstar_fnr(
     ``max(indecisive_fraction * |prefixes|, min_indecisive)`` per round.
     """
     from .lstar import estimate_agreement_rate
+
+    # Patience for the discovery pass: stop a round after this many consecutive
+    # clean probes. Derived from acc_threshold, not hardcoded. If the DFA-vs-tree
+    # disagreement rate were still at the tolerated level eps = 1 - acc_threshold,
+    # seeing k clean probes in a row has probability (1 - eps)^k = acc_threshold^k,
+    # so k = ceil(ln(alpha) / ln(acc_threshold)) makes stopping a <= alpha event.
+    # This is a cost knob -- the outer estimate + next round verify -- so a modest
+    # alpha suffices (149 at acc_threshold 0.98; ~300 at 0.99).
+    if counterexample_patience is None:
+        counterexample_patience = math.ceil(math.log(0.05) / math.log(acc_threshold))
 
     first_round = True
     best = (-1.0, None, None, 0.0)
