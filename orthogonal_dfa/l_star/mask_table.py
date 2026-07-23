@@ -67,8 +67,8 @@ class MaskTable:
         """A boolean mask selecting the single row for ``prefix``."""
         try:
             idx = self._prefixes.index(list(prefix))
-        except ValueError:
-            raise KeyError(f"Prefix {prefix} not in table")
+        except ValueError as exc:
+            raise KeyError(f"Prefix {prefix} not in table") from exc
         mask = np.zeros(self.num_prefixes, dtype=bool)
         mask[idx] = True
         return mask

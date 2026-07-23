@@ -429,7 +429,10 @@ disable=raw-checker-failed,
         # these are all too strict
         too-many-lines,too-many-branches,too-many-locals,too-many-return-statements,too-many-arguments,too-few-public-methods,too-many-instance-attributes,too-many-public-methods,too-many-ancestors,
         # these are annoying and not useful
-        unspecified-encoding,use-dict-literal,import-outside-toplevel,unnecessary-lambda-assignment
+        unspecified-encoding,use-dict-literal,import-outside-toplevel,unnecessary-lambda-assignment,
+        # direct_lstar is an alternative learner that shares the DFA(...) constructor
+        # kwargs and the estimate_agreement_rate call block with lstar / transition_resolver
+        duplicate-code
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option

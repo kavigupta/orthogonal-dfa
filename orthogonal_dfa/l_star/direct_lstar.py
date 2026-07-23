@@ -135,6 +135,12 @@ class DirectLStarLearner:
             {} if membership_cache is None else membership_cache
         )
 
+        # Consistency-check state (populated by assign_leaves / consistency_close).
+        self.leaf_members: Dict[int, List[List[int]]] = {}
+        self.check_representative_only = False
+        self._checks = 0
+        self._confirms = 0
+
     def _derive_split_margin(
         self, split_test_budget: int, split_fpr: Optional[float]
     ) -> float:
@@ -342,7 +348,7 @@ class DirectLStarLearner:
             if st is not None and st not in self.access:
                 self.access[st] = list(prefix)
 
-    def _init_worklist(self) -> None:
+    def init_worklist(self) -> None:
         self._seed_access_from_pool()
         for state in range(self.num_states):
             for c in range(self.pst.alphabet_size):
@@ -512,8 +518,6 @@ class DirectLStarLearner:
         """Split until no sampled inconsistency remains.  ``sample_size=None``
         checks the full membership (the escalation / confirmation pass)."""
         self.assign_leaves()
-        self._checks = getattr(self, "_checks", 0)
-        self._confirms = getattr(self, "_confirms", 0)
         skip: Set = set()
         splits = 0
         while True:
@@ -560,7 +564,7 @@ class DirectLStarLearner:
         verified = False
         agree_point: Optional[int] = None
         states: List[Optional[int]] = []
-        for i in range(len(w)):
+        for i in range(len(w)):  # pylint: disable=consider-using-enumerate
             if state is None:
                 state = self.sift(w[:i])
                 if state is None:
@@ -759,7 +763,7 @@ class DirectLStarLearner:
 
         boundary = self.pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
         )
         initial = dt_decisive.classify([], self.pst.oracle)
         if initial is None:
@@ -796,7 +800,7 @@ def learn_direct_lstar(
     vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
     pst.decision_boundary = boundary
     learner = DirectLStarLearner(pst, vs, split_test_budget=max_probes)
-    learner._init_worklist()
+    learner.init_worklist()
     learner.run_worklist()
     learner.probe_for_counterexamples(max_probes=max_probes, patience=patience)
     learner.run_worklist()
@@ -843,24 +847,6 @@ def default_refine(
     return list(counterexamples) + list(enriched)
 
 
-def counterexamples_only_refine(
-    pst, dfa, dt: DecisionTree, dt_decisive: DecisionTree, *, true_acc: float, count: int
-) -> List[List[int]]:
-    """Refiner that generates counterexamples but skips leaf enrichment.
-
-    In the curated-representative learner (:func:`synthesize_direct_lstar_fnr`)
-    the balanced per-state sample already supplies the coverage that
-    ``enrich_underrepresented_leaves`` was for -- and enrichment was the single
-    most expensive refine step (~1/3 of total runtime).  Dropping it roughly
-    halves per-round cost with no loss of convergence.  The counterexamples are
-    still needed: without them some seeds collapse to the trivial automaton."""
-    from .lstar import add_counterexample_prefixes
-
-    return list(
-        add_counterexample_prefixes(pst, dt, dfa, count, expected_acc=true_acc)
-    )
-
-
 def synthesize_direct_lstar(
     pst,
     *,
@@ -899,7 +885,7 @@ def synthesize_direct_lstar(
     # The per-round rebuild is only weakly monotone -- a later round can recover a
     # worse hypothesis than an earlier one -- so keep the best-scoring round
     # rather than returning whatever the last round produced.
-    best = None  # (true_acc, dfa, dt)
+    best = (-1.0, None, None)  # (true_acc, dfa, dt)
     for round_idx in range(max_rounds):
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
@@ -913,7 +899,7 @@ def synthesize_direct_lstar(
             # Bonferroni budget: one split test per probe, over every round.
             split_test_budget=max_probes_per_round * max_rounds,
         )
-        learner._init_worklist()
+        learner.init_worklist()
         learner.run_worklist()
         # Re-walk accumulated counterexamples, then hunt for fresh ones; both
         # re-resolve the worklist after each split.
@@ -929,7 +915,7 @@ def synthesize_direct_lstar(
 
         boundary = pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
         )
         true_acc = estimate_agreement_rate(
             pst,
@@ -941,7 +927,7 @@ def synthesize_direct_lstar(
             acc_threshold=acc_threshold,
         )
         print(f"[direct-lstar] round {round_idx}: estimated accuracy {true_acc:.4f}")
-        if best is None or true_acc > best[0]:
+        if true_acc > best[0]:
             best = (true_acc, dfa, dt)
         if true_acc >= acc_threshold:
             break
@@ -991,7 +977,7 @@ def synthesize_direct_lstar_consistency(
     from .lstar import estimate_agreement_rate
 
     first_round = True
-    best = None
+    best = (-1.0, None, None)
     for round_idx in range(max_rounds):
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
@@ -999,7 +985,7 @@ def synthesize_direct_lstar_consistency(
         first_round = False
 
         learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
-        learner._init_worklist()
+        learner.init_worklist()
         learner.run_worklist()
         sampled = learner.consistency_close(sample_size=sample_size, rng=pst.rng)
         confirmed = learner.consistency_close(sample_size=None, rng=pst.rng)
@@ -1007,13 +993,12 @@ def synthesize_direct_lstar_consistency(
         print(
             f"[direct-lstar/consistency] round {round_idx}: {learner.num_states} "
             f"states from {pst.num_prefixes} prefixes "
-            f"(sampled splits {sampled}, escalation splits {confirmed}; "
-            f"leaf-symbol checks {learner._checks}, violations {learner._confirms})"
+            f"(sampled splits {sampled}, escalation splits {confirmed})"
         )
 
         boundary = pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
         )
         true_acc = estimate_agreement_rate(
             pst,
@@ -1028,7 +1013,7 @@ def synthesize_direct_lstar_consistency(
             f"[direct-lstar/consistency] round {round_idx}: "
             f"estimated accuracy {true_acc:.4f}"
         )
-        if best is None or true_acc > best[0]:
+        if true_acc > best[0]:
             best = (true_acc, dfa, dt)
         if true_acc >= acc_threshold:
             break
@@ -1104,7 +1089,7 @@ def synthesize_direct_lstar_fnr(
     from .lstar import estimate_agreement_rate
 
     first_round = True
-    best = None
+    best = (-1.0, None, None, 0.0)
     # Accumulated boundary strings -- the FNR gate resolves the chain one state
     # per round, so keeping earlier rounds' indecisives keeps the family honest
     # about the whole chain (they turn decisive once their state is resolved).
@@ -1127,7 +1112,7 @@ def synthesize_direct_lstar_fnr(
         # Both calibration (FNR) and the consistency check run on the same clean,
         # bounded representative set -- no scratch (memoized is_accept), no mismatch.
         learner.check_representative_only = True
-        learner._init_worklist()
+        learner.init_worklist()
         learner.run_worklist()
         learner.consistency_close(sample_size=sample_size, rng=pst.rng)
         # Full-membership sweep harvests boundary (sift -> None) strings from the
@@ -1149,7 +1134,7 @@ def synthesize_direct_lstar_fnr(
 
         boundary = pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
         )
         true_acc = estimate_agreement_rate(
             pst,
@@ -1160,7 +1145,7 @@ def synthesize_direct_lstar_fnr(
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        if best is None or true_acc > best[0]:
+        if true_acc > best[0]:
             best = (true_acc, dfa, dt, pst.decision_boundary)
         if true_acc >= acc_threshold:
             print(f"[direct-lstar/fnr] round {round_idx}: converged, "
@@ -1248,7 +1233,7 @@ def synthesize_direct_lstar_curated(
     from .lstar import estimate_agreement_rate
 
     first_round = True
-    best = None
+    best = (-1.0, None, None)
     for round_idx in range(max_rounds):
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
@@ -1257,7 +1242,7 @@ def synthesize_direct_lstar_curated(
 
         learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
         learner.check_representative_only = True
-        learner._init_worklist()
+        learner.init_worklist()
         learner.run_worklist()
         learner.consistency_close(sample_size=sample_size, rng=pst.rng)
         learner.consistency_close(sample_size=None, rng=pst.rng)
@@ -1270,7 +1255,7 @@ def synthesize_direct_lstar_curated(
 
         boundary = pst.decision_boundary
         dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
         )
         true_acc = estimate_agreement_rate(
             pst,
@@ -1282,7 +1267,7 @@ def synthesize_direct_lstar_curated(
             acc_threshold=acc_threshold,
         )
         print(f"[direct-lstar/curated] round {round_idx}: est accuracy {true_acc:.4f}")
-        if best is None or true_acc > best[0]:
+        if true_acc > best[0]:
             best = (true_acc, dfa, dt)
         if true_acc >= acc_threshold:
             break
