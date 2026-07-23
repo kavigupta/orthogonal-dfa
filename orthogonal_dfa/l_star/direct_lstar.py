@@ -234,18 +234,31 @@ class DirectLStarLearner:
         self._decision_cache[key] = d
         return d
 
-    def sift(self, seq, node: Optional[Node] = None) -> Optional[int]:
-        """Route ``seq`` through the discrimination tree to a state (leaf), or
-        ``None`` if any node classifies it indecisively."""
-        if node is None:
-            node = self.dt
-        if isinstance(node, int):
-            return node
-        prepend, lookup = node
-        decision = self.is_accept(seq, prepend)
-        if decision is None:
-            return None
-        return self.sift(seq, lookup[decision])
+    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
+        """Route ``seq`` through the discrimination tree.  Returns
+        ``(leaf, None)`` when it reaches a state decisively.  When some node
+        classifies ``seq`` indecisively, returns ``(None, seq + prepend)`` for
+        that node's ``prepend``.
+
+        The boundary string is ``seq + prepend``, not ``seq``: the indecision is
+        ``mean_v membership(seq + prepend + v)``, which equals the base
+        acceptance test ``is_accept(seq + prepend, [])``.  So it is ``seq +
+        prepend`` that the FNR gate sees as indecisive and can enrich the family
+        against -- ``seq`` itself may classify decisively at the base test."""
+        node = self.dt
+        while not isinstance(node, int):
+            prepend, lookup = node
+            decision = self.is_accept(seq, prepend)
+            if decision is None:
+                return None, tuple(seq) + tuple(prepend)
+            node = lookup[decision]
+        return node, None
+
+    def sift(self, seq) -> Optional[int]:
+        """Route ``seq`` to a state (leaf), or ``None`` if any node classifies it
+        indecisively.  See :meth:`sift_and_boundary` for the boundary string."""
+        leaf, _ = self.sift_and_boundary(seq)
+        return leaf
 
     # -- splitting ----------------------------------------------------------
 
@@ -392,11 +405,11 @@ class DirectLStarLearner:
                 continue
             seen.add(key)
             ext = list(m) + [c]
-            target = self.sift(ext)
+            target, boundary = self.sift_and_boundary(ext)
             if target is not None:
                 return target, list(m)
             # This successor is a boundary string the family can't place.
-            self.indecisive.add(tuple(ext))
+            self.indecisive.add(boundary)
             tries += 1
             if tries >= max_tries:
                 break
@@ -498,12 +511,12 @@ class DirectLStarLearner:
                     key = (state, tuple(u), c)
                     if key in skip:
                         continue
-                    tu = self.sift(u + [c])
+                    tu, boundary = self.sift_and_boundary(u + [c])
                     if tu is None:
                         # ``u + [c]`` is indecisive under the current family -- a
                         # boundary string this family can't place.  Record it so
                         # the caller can enrich the next round's family with it.
-                        self.indecisive.add(tuple(u + [c]))
+                        self.indecisive.add(boundary)
                     elif tu != target:
                         self._confirms += 1
                         dist = self.disagreement(access, u, self.dt, [c])
@@ -548,13 +561,13 @@ class DirectLStarLearner:
         if lo + 1 == hi:
             return hi
         mid = (lo + hi) // 2
-        actual = self.sift(w[:mid])
+        actual, boundary = self.sift_and_boundary(w[:mid])
         if actual is None:
             # The binary search homes in on the DFA-vs-tree error, which sits at a
             # boundary state -- so this indecisive midpoint is a boundary string
             # worth harvesting (a probe need not *end* at the boundary to expose
             # one).  Collect it before bailing.
-            self.indecisive.add(tuple(w[:mid]))
+            self.indecisive.add(boundary)
             return None
         if states[mid] is None:
             return None
@@ -573,9 +586,9 @@ class DirectLStarLearner:
         states: List[Optional[int]] = []
         for i in range(len(w)):  # pylint: disable=consider-using-enumerate
             if state is None:
-                state = self.sift(w[:i])
+                state, boundary = self.sift_and_boundary(w[:i])
                 if state is None:
-                    self.indecisive.add(tuple(w[:i]))  # boundary prefix
+                    self.indecisive.add(boundary)  # boundary: seq + bail prepend
                 verified = True
             states.append(state)
             if state is None:
@@ -591,9 +604,9 @@ class DirectLStarLearner:
                 state = self.transitions[state][c]
                 verified = False
                 continue
-            nxt = self.sift(w[: i + 1])
+            nxt, boundary = self.sift_and_boundary(w[: i + 1])
             if nxt is None:
-                self.indecisive.add(tuple(w[: i + 1]))  # boundary prefix
+                self.indecisive.add(boundary)  # boundary: seq + bail prepend
             elif verified:
                 # Only record an edge whose source was reached by a real sift, so
                 # the witness w[:i] genuinely sifts to ``state``.
