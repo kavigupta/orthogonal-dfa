@@ -116,16 +116,24 @@ class MaskTable:
         # Such a prefix leaves the family columns partially observed, so it must
         # not be relied on as a clustering candidate.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
-        updated = []
-        for suffix, col in zip(self._suffixes, self._masks):
-            if do_observation and (col != UNOBSERVED).all():
-                add = np.array(
-                    [self._oracle.membership_query(p + suffix) for p in new_prefixes],
-                    dtype=np.int8,
-                )
-            else:
-                add = pad
-            updated.append(np.concatenate([col, add]))
+        # Batch the membership queries for the fully-observed (family) columns
+        # (origin/main #132); do_observation=False skips them entirely, leaving
+        # every column UNOBSERVED for the new prefixes.
+        full_cols = (
+            [i for i, col in enumerate(self._masks) if (col != UNOBSERVED).all()]
+            if do_observation
+            else []
+        )
+        adds = {}
+        if full_cols:
+            strings = [p + self._suffixes[i] for i in full_cols for p in new_prefixes]
+            observed = np.asarray(
+                self._oracle.membership_queries(strings), dtype=np.int8
+            ).reshape(len(full_cols), len(new_prefixes))
+            adds = {i: observed[k] for k, i in enumerate(full_cols)}
+        updated = [
+            np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
+        ]
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
@@ -162,12 +170,21 @@ class MaskTable:
         """Fill any UNOBSERVED cells for ``rows`` over the boolean
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
+        assert len(set(rows)) == len(rows), "rows must be distinct"
         idx = np.flatnonzero(prefix_mask)
+        strings, targets = [], []
         for r in rows:
             col = self._masks[r]
             suffix = self._suffixes[r]
             for p in idx[col[idx] == UNOBSERVED]:
-                col[p] = self._oracle.membership_query(self._prefixes[p] + suffix)
+                strings.append(self._prefixes[p] + suffix)
+                targets.append((r, p))
+        if not strings:
+            return
+        results = self._oracle.membership_queries(strings)
+        assert len(results) == len(strings), "oracle dropped answers"
+        for (r, p), val in zip(targets, results):
+            self._masks[r][p] = val
 
     def observed_masks(self, rows, prefix_mask) -> np.ndarray:
         """The ``(len(rows), prefix_mask.sum())`` int8 block for ``rows`` over the

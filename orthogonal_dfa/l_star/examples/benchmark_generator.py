@@ -29,9 +29,30 @@ import numpy as np
 from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
-from orthogonal_dfa.l_star.sampler import UniformSampler
+from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
+
+
+def sample_random_dfa(
+    rng: np.random.Generator, *, num_states: int, alphabet_size: int = 2
+) -> DFA:
+    """
+    A uniformly random complete DFA over symbols ``0..alphabet_size-1``.
+    """
+    transitions = {
+        q: {c: int(rng.integers(num_states)) for c in range(alphabet_size)}
+        for q in range(num_states)
+    }
+    final = {q for q in range(num_states) if rng.random() < 0.5}
+    return DFA(
+        states=set(range(num_states)),
+        input_symbols=set(range(alphabet_size)),
+        transitions=transitions,
+        initial_state=0,
+        final_states=final,
+        allow_partial=False,
+    )
 
 
 def sample_inner_dfa(
@@ -141,34 +162,6 @@ def sample_star_l_star(
     return outer, inner, separator_char
 
 
-def _frac_strings_preserving(
-    dfa: DFA, probe_len: int, num_strings: int, rng: np.random.Generator
-) -> float:
-    """Fraction of random length-*probe_len* strings s for which every state q
-    satisfies ``(q in F) == (δ*(q, s) in F)``. Low values indicate there is
-    essentially no suffix that acts as a "class-preserving reset" across the
-    whole state set — a regime that appears to confuse L* synthesis (see
-    `test_undersampled_transitions_poor_case`).
-    """
-    alphabet = sorted(dfa.input_symbols)
-    states = list(dfa.states)
-    finals = dfa.final_states
-    strings_ok = 0
-    for _ in range(num_strings):
-        s = rng.choice(alphabet, size=probe_len).tolist()
-        ok = True
-        for q in states:
-            cur = q
-            for c in s:
-                cur = dfa.transitions[cur][c]
-            if (q in finals) != (cur in finals):
-                ok = False
-                break
-        if ok:
-            strings_ok += 1
-    return strings_ok / num_strings
-
-
 def sample_balanced_benchmark(
     seed: int,
     *,
@@ -212,8 +205,6 @@ def sample_balanced_benchmark(
     ------
     RuntimeError if no candidate passes the filters within ``max_attempts``.
     """
-    sampler = UniformSampler(probe_length)
-    probe_rng = np.random.default_rng(seed)
     for sub in range(max_attempts):
         rng = np.random.default_rng((seed, sub))
         outer, inner, sep = sample_star_l_star(
@@ -223,20 +214,13 @@ def sample_balanced_benchmark(
         )
         if len(outer.states) != num_outer_states:
             continue
-        rate = (
-            sum(
-                outer.accepts_input(sampler.sample(probe_rng, alphabet_size))
-                for _ in range(num_probe_samples)
-            )
-            / num_probe_samples
+        rate = preconditions.acceptance_rate(
+            outer, length=probe_length, num_samples=num_probe_samples
         )
         if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
             continue
-        cp_frac = _frac_strings_preserving(
-            outer,
-            probe_len=probe_length,
-            num_strings=num_class_preserving_samples,
-            rng=np.random.default_rng((seed, sub)),
+        cp_frac = preconditions.class_preserving_fraction(
+            outer, length=probe_length, num_samples=num_class_preserving_samples
         )
         if cp_frac < min_class_preserving_frac:
             continue

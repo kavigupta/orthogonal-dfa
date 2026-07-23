@@ -76,6 +76,9 @@ POOR_CASE_DFA = {
 QUERY_BAND = 0.02
 ACC_EPS = 0.005
 
+# A call of N strings is costed at ceil(N / cap) forward passes
+BATCH_CAPS = (32, 128, 1024)
+
 
 # ---------------------------------------------------------------------------
 # Measurer: runs INSIDE a worktree (imports that branch's orthogonal_dfa).
@@ -98,6 +101,7 @@ def _measure(root: str, names: list[str]) -> dict:
             self._inner = inner
             self.count = 0
             self.distinct = set()
+            self.batches = []  # size of each issued call
 
         @property
         def alphabet_size(self):
@@ -106,7 +110,14 @@ def _measure(root: str, names: list[str]) -> dict:
         def membership_query(self, string):
             self.count += 1
             self.distinct.add(tuple(string))
+            self.batches.append(1)
             return self._inner.membership_query(string)
+
+        def membership_queries(self, strings):
+            self.count += len(strings)
+            self.distinct.update(tuple(s) for s in strings)
+            self.batches.append(len(strings))
+            return self._inner.membership_queries(strings)
 
     def build_creator(spec):
         kind = spec["kind"]
@@ -146,9 +157,14 @@ def _measure(root: str, names: list[str]) -> dict:
                 counting_creator, min_signal_strength=bench["signal"], seed=0,
                 noise_model=noise_model)
             acc = evaluate_accuracy(dfa, creator, symbols=bench["symbols"])
+        all_batches = [n for c in counters for n in c.batches]
         results[name] = {
             "queries": sum(c.count for c in counters),
             "distinct": len(set().union(*[c.distinct for c in counters])),
+            "batches": len(all_batches),
+            "forward_passes": {
+                str(cap): sum(math.ceil(n / cap) for n in all_batches)
+                for cap in BATCH_CAPS},
             "states": len(dfa.states),
             "accuracy": acc,
             "seconds": time.time() - t0,
@@ -260,17 +276,46 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
             any_regression = True
         st = f"{b['states']}" if states_ok else f"{b['states']}→{p['states']} ‼️"
         lines.append(
-            f"| {emoji} | {name} | {b['queries']:,} | {p['queries']:,} | {ratio:.2f}x | "
+            f"| {emoji} | {name} | {b['queries']:,} | {p['queries']:,} | "
+            f"{_ratio_str(ratio)} | "
             f"{b['accuracy']:.3f} | {p['accuracy']:.3f} | {st} |")
     geo = math.prod(ratios) ** (1 / len(ratios)) if ratios else float("nan")
     lines.append(
         f"| {'🟢' if geo < 1 - QUERY_BAND else '🔴' if geo > 1 + QUERY_BAND else '⚪'} "
-        f"| **geomean** |  |  | **{geo:.2f}x** |  |  |  |")
+        f"| **geomean** |  |  | **{_ratio_str(geo)}** |  |  |  |")
     lines.append("")
     lines.append("**❌ REGRESSION** (queries up or accuracy/states broke on ≥1 task)"
                  if any_regression else
                  "**✅ no regressions** (accuracy held, no task's queries rose beyond band)")
+
+    lines.append("")
+    lines.append(f"### Forward passes — `{pr_ref}` vs `{base_ref}` "
+                 "(neural passes at each batch cap; `base → pr (ratio, pr packing)`)")
+    lines.append("")
+    lines.append("*Packing is `ceil(pr queries / cap) / pr fp` — the floor if every "
+                 "call filled its batch. Below 100% the remaining passes are "
+                 "under-filled calls, i.e. headroom from co-batching more call sites, "
+                 "not irreducible work.*")
+    lines.append("")
+    lines.append("| task | " + " | ".join(f"fp@{c}" for c in BATCH_CAPS) + " |")
+    lines.append("|---|" + "|".join(["---:"] * len(BATCH_CAPS)) + "|")
+    for name in names:
+        b, p = base[name], pr[name]
+        cells = []
+        for cap in BATCH_CAPS:
+            bf, pf = b["forward_passes"][str(cap)], p["forward_passes"][str(cap)]
+            packed = math.ceil(p["queries"] / cap) / pf if pf else float("nan")
+            ratio = pf / bf if bf else float("inf")
+            cells.append(f"{bf:,} → {pf:,} ({_ratio_str(ratio)}, "
+                         f"{100 * packed:.0f}% packed)")
+        lines.append(f"| {name} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
+
+
+def _ratio_str(ratio: float) -> str:
+    """pr/base as ``0.02x``. Two decimals, except below 0.01 (batching moves
+    forward passes by 100x+) where that would print ``0.00x``."""
+    return f"{ratio:.2f}x" if ratio >= 0.01 else f"{ratio:.2g}x"
 
 
 def update_pr_report(pr_ref: str, report: str):
@@ -299,14 +344,23 @@ def update_pr_report(pr_ref: str, report: str):
 
 def print_local_table(results: dict, names: list[str]):
     print("\n===== QUERY COUNT SUMMARY =====")
-    header = f"{'task':<14}{'queries':>12}{'distinct':>11}{'states':>8}{'acc':>8}{'sec':>8}"
+    caps = "".join(f"{f'fp@{cap}':>11}" for cap in BATCH_CAPS)
+    header = (f"{'task':<14}{'queries':>12}{'distinct':>11}{'batches':>10}{caps}"
+              f"{'states':>8}{'acc':>8}{'sec':>8}")
     print(header)
     print("-" * len(header))
     for name in names:
         r = results[name]
-        print(f"{name:<14}{r['queries']:>12,}{r['distinct']:>11,}{r['states']:>8}"
-              f"{r['accuracy']:>8.3f}{r['seconds']:>8.1f}")
-    print(f"\nTOTAL queries: {sum(results[n]['queries'] for n in names):,}")
+        fps = "".join(f"{r['forward_passes'][str(cap)]:>11,}" for cap in BATCH_CAPS)
+        print(f"{name:<14}{r['queries']:>12,}{r['distinct']:>11,}{r['batches']:>10,}"
+              f"{fps}{r['states']:>8}{r['accuracy']:>8.3f}{r['seconds']:>8.1f}")
+    queries = sum(results[n]["queries"] for n in names)
+    print(f"\nTOTAL queries: {queries:,}")
+    for cap in BATCH_CAPS:
+        total = sum(results[n]["forward_passes"][str(cap)] for n in names)
+        ideal = math.ceil(queries / cap)
+        print(f"TOTAL forward passes @ batch {cap}: {total:,} "
+              f"(ideal {ideal:,}, {100 * ideal / total:.0f}% packed)")
 
 
 def main():
