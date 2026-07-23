@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Experiment 3: CAPAL hyperparameter sweep across every benchmark cell.
+"""Experiment 3: full CAPAL hyperparameter sweep across every benchmark cell.
 
-Generalises the old single-cell "modulo wall" probe. For each cell (target x
-noise) it sweeps CAPAL's evidence knob `max_same_samples` over several seeds,
-so we can tell a *cell-specific structural wall* (fails at every config and
-seed) from a *default-config artifact* (a bigger m or a luckier seed cracks
-it). The modulo-9 eta=0.30 cell is one row here now, not the whole experiment;
-the open question is whether the wall is "one hard DFA at high noise" or "high
-noise is bad for everything".
+A full factorial over CAPAL's three real knobs -- `max_same_samples` (evidence
+per pairwise test), `suffix_pool_len_max` (suffix pool length), and `alpha`
+(comparison significance) -- run on every benchmark cell (target x noise) for
+three seeds. For each cell this tells a *cell-specific structural wall* (fails
+at every config and seed) from a *default-config artifact* (some config or seed
+cracks it), and whether the modulo-9 wall is "one hard DFA at high noise" or
+"high noise is bad for everything".
 
-Deliberately preliminary: it omits the expensive dimensions -- `max_same_samples
->= 1000` (minutes per run) and section 10's un-exposed deep-enumeration knobs
-(millions of queries) -- so we get a first read across all cells cheaply and
-decide where to spend the slow budget. Seeds are run as a matter of course, not
-swept as a knob.
+`max_same_samples` is capped at 240 on purpose: it is the entire runtime cost
+(m=60 ~2s, m=240 ~19s, m=480 ~146s with minutes-long outliers), and section 5 +
+the preliminary m=480 sweep already show larger m adds no convergence under
+persistent noise. `max_iters` is fixed at 50 -- section 3 showed the hypothesis
+reaches a fixed point well before then. Section 10's un-exposed deep-enumeration
+knobs (millions of queries) stay out of scope.
 
 Example:
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep \
-        --etas 0.20 0.30 --seeds 0 1 2
+        --etas 0.05 0.10 0.20 0.30 --seeds 0 1 2
 """
 
 from __future__ import annotations
@@ -40,17 +41,20 @@ from .targets import our_benchmarks
 
 DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "wall_sweep.json"
 
-DEFAULT_ETAS = [0.20, 0.30]
+DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
 
-#: CAPAL knob settings swept per (cell, eta, seed). Kept to the cheap end on
-#: purpose: max_same_samples up to 480 (m=1000/4000 are the minutes-per-run
-#: rows). max_iters is fixed at 50 -- section 3 showed the hypothesis reaches a
-#: fixed point well before then, so more iterations never help.
+#: Full factorial over the three knobs that actually move CAPAL. m is capped at
+#: 240 (see module docstring); max_iters fixed at 50.
+M_VALUES = [60, 240]
+POOL_VALUES = [8, 24]
+ALPHA_VALUES = [1e-3, 0.05]
 CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
-    ("m=60 (default)", dict(max_same_samples=60, max_iters=50)),
-    ("m=240", dict(max_same_samples=240, max_iters=50)),
-    ("m=480", dict(max_same_samples=480, max_iters=50)),
+    (
+        f"m={m},pool={p},alpha={a}",
+        dict(max_same_samples=m, suffix_pool_len_max=p, alpha=a, max_iters=50),
+    )
+    for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
 
