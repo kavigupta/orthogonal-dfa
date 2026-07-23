@@ -52,6 +52,14 @@ class MaskTable:
         """Boolean mask selecting the representative (non-core) prefixes."""
         return np.array(self._representative, dtype=bool)
 
+    def set_representative(self, prefixes: List[List[int]]) -> None:
+        """Make *exactly* ``prefixes`` the representative set (all others become
+        non-representative).  Lets a driver curate the calibration/check
+        population -- e.g. a balanced per-state resample -- without discarding the
+        accumulated (scratch) prefixes the sift cache still needs."""
+        keys = {tuple(p) for p in prefixes}
+        self._representative = [tuple(p) in keys for p in self._prefixes]
+
     def contains_prefix(self, prefix: List[int]) -> bool:
         return tuple(prefix) in self._prefix_keys
 
@@ -66,18 +74,30 @@ class MaskTable:
         return mask
 
     def ensure_prefixes(
-        self, new_prefixes: List[List[int]], do_observation: bool = True
+        self,
+        new_prefixes: List[List[int]],
+        do_observation: bool = True,
+        representative: bool = True,
     ) -> None:
         """Add any of ``new_prefixes`` not already present.  ``do_observation``
-        is forwarded to :meth:`add_prefixes` -- pass ``False`` for transient
-        scratch prefixes that should not eagerly query the fully-observed
-        (family) columns."""
+        and ``representative`` are forwarded to :meth:`add_prefixes` -- pass
+        ``do_observation=False`` for transient scratch prefixes that should not
+        eagerly query the fully-observed (family) columns, and
+        ``representative=False`` so they do not pollute the calibration
+        population."""
         nonexistent = [p for p in new_prefixes if not self.contains_prefix(p)]
         if nonexistent:
-            self.add_prefixes(nonexistent, do_observation=do_observation)
+            self.add_prefixes(
+                nonexistent,
+                do_observation=do_observation,
+                representative=representative,
+            )
 
     def add_prefixes(
-        self, new_prefixes: List[List[int]], do_observation: bool = True
+        self,
+        new_prefixes: List[List[int]],
+        do_observation: bool = True,
+        representative: bool = True,
     ) -> None:
         assert new_prefixes, "No new prefixes to add"
         assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
@@ -109,9 +129,12 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
-        # Prefixes added after construction (counterexamples, leaf enrichment)
-        # are full-length probe prefixes, hence representative.
-        self._representative.extend([True] * len(new_prefixes))
+        # Counterexample / leaf-enrichment prefixes are full-length probe
+        # prefixes (representative=True, the default).  Transient scratch prefixes
+        # -- e.g. strings a learner only sifts to make a classification -- pass
+        # representative=False so they stay out of the FNR / clustering /
+        # decision-boundary calibration, which must see a true probe sample.
+        self._representative.extend([representative] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
 
