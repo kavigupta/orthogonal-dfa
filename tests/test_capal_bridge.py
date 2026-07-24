@@ -2,14 +2,16 @@
 
 Ensures a pinned CAPAL checkout exists at ``../capal`` -- cloning it in CI if
 absent -- then exercises the bridge end to end: verify the pin, import the
-upstream module, build target DFAs both ways, and run a tiny CAPALLearner fit
-and score it. Catches a broken adapter or upstream-commit drift.
+upstream module, build target DFAs both ways, check a ported DFA against the
+oracle it stands in for, and run a tiny CAPALLearner fit. Catches a broken
+adapter or upstream-commit drift.
 
 The clone is skipped (not failed) when no checkout exists and cloning is not
 possible (e.g. offline), so the suite still runs without network; CI has git
 and network, so it clones and runs for real.
 """
 
+import itertools
 import subprocess
 import unittest
 from pathlib import Path
@@ -18,10 +20,10 @@ from orthogonal_dfa.capal_official import (
     PINNED_COMMIT,
     build_modulo_dfa,
     build_regex_dfa,
-    evaluate_official_dfa,
+    fit_with_fallback,
     import_capal,
+    make_learner,
     resolve_capal_dir,
-    run_official_capal,
     verify_pinned,
 )
 from orthogonal_dfa.capal_official.adapter import UPSTREAM_URL
@@ -46,6 +48,14 @@ def _ensure_capal_checkout() -> Path:
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             raise unittest.SkipTest(f"no CAPAL checkout and clone failed: {exc}")
     return path
+
+
+def _all_words(alphabet: str, max_len: int):
+    return [
+        "".join(w)
+        for n in range(max_len + 1)
+        for w in itertools.product(alphabet, repeat=n)
+    ]
 
 
 class TestCapalBridge(unittest.TestCase):
@@ -93,24 +103,42 @@ class TestCapalBridge(unittest.TestCase):
         self.assertTrue(dfa.run("01022"))
         self.assertFalse(dfa.run("2201"))
 
-    def test_end_to_end_fit_and_score(self):
+    def test_ported_dfa_matches_the_oracle(self):
+        # The head-to-head is only meaningful if the upstream DFA and the Oracle
+        # it stands in for denote the same language under the same symbol order.
         from orthogonal_dfa.l_star.examples.bernoulli_parity import (
             BernoulliParityOracle,
         )
+        from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
+        dfa = build_modulo_dfa(9, (3, 6))
+        oracle = BernoulliParityOracle(
+            SymmetricBernoulli(p_correct=1.0), 0, modulo=9, allowed_moduluses=(3, 6)
+        )
+        for word in _all_words("01", 8):
+            truth = oracle.membership_query([int(c) for c in word])
+            self.assertEqual(dfa.run(word), truth, word)
+
+    def test_end_to_end_fit(self):
         # Trivial noiseless target: CAPAL + PerfectEQ should learn it exactly.
         target = build_modulo_dfa(2, (1,))
-        learned = run_official_capal(target, eta=0.0, seed=0, max_iters=50)
-        acc = evaluate_official_dfa(
-            learned,
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=2, allowed_moduluses=(1,)
-            ),
-            alphabet_chars=["0", "1"],
-            symbols=2,
-            count=500,
+        learned, converged = fit_with_fallback(
+            make_learner(target, eta=0.0, seed=0, max_iters=50)
         )
-        self.assertGreater(acc, 0.99)
+        self.assertTrue(converged)
+        for word in _all_words("01", 10):
+            self.assertEqual(learned.run(word), target.run(word), word)
+
+    def test_fit_falls_back_to_the_last_hypothesis(self):
+        # One iteration cannot learn a 9-state target, so fit() hits its cap and
+        # the hypothesis it held at that point comes back as non-convergent.
+        target = build_modulo_dfa(9, (3, 6))
+        learned, converged = fit_with_fallback(
+            make_learner(target, eta=0.0, seed=0, max_iters=1)
+        )
+        self.assertFalse(converged)
+        self.assertIsNotNone(learned)
+        self.assertLess(learned.num_states, target.num_states)
 
 
 if __name__ == "__main__":
