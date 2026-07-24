@@ -97,6 +97,7 @@ def compute_dfa_for_oracle(
     seed,
     noise_model=None,
     min_suffix_frequency=0.05,
+    sampler=None,
 ):
     pst = compute_pst(
         oracle_creator,
@@ -104,6 +105,7 @@ def compute_dfa_for_oracle(
         seed,
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
+        sampler=sampler,
     )
     dfa, dt = do_counterexample_driven_synthesis(
         pst, additional_counterexamples=200, acc_threshold=1 - allowed_error
@@ -119,7 +121,14 @@ def compute_pst(
     use_dynamic=True,
     noise_model=None,
     min_suffix_frequency=0.05,
+    sampler=None,
 ):
+    # The sampler's word length is a real hyperparameter: all of E-L*'s signal
+    # comes from words it draws, so on a language that is near-empty or
+    # near-saturating at the default length 40 it sees one label for every draw
+    # and has nothing to discriminate on. Callers that know their target's
+    # density can pass a tuned sampler; `us` stays the default.
+    sampler = us if sampler is None else sampler
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
@@ -144,7 +153,7 @@ def compute_pst(
         f"(signal strength {min_signal_strength})."
     )
     pst = PrefixSuffixTracker.create(
-        us,
+        sampler,
         np.random.default_rng(0),
         oracle,
         config,
