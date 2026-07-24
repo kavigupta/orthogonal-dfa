@@ -3,15 +3,13 @@
 Loads the upstream `capal` module from the pinned checkout (see
 `resolve_capal_dir`), then exposes:
 
-- build_modulo_dfa(modulo, allowed): the explicit modulo-counting DFA used by
-  BernoulliParityOracle, in the upstream `capal.DFA` format.
-- build_regex_dfa(regex, alphabet_size): regex -> upstream DFA via automata-lib
-  (NFA.from_regex -> DFA.from_nfa, then state-relabel).
 - run_official_capal(target, eta, ...): instantiate CAPALLearner with the
   PersistentNoisyMQ + PerfectEQ defaults and call .fit().
 - evaluate_official_dfa(dfa, oracle_creator, alphabet_chars, symbols): sample
   uniformly random words, query the noiseless oracle for ground truth, count
   matches.
+
+Building the target DFAs upstream needs lives in `porters`.
 """
 
 from __future__ import annotations
@@ -20,7 +18,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
 
@@ -130,48 +128,6 @@ def import_capal(capal_dir: Optional[str] = None) -> Any:
 
 def _require_official() -> Any:
     return import_capal()
-
-
-def build_modulo_dfa(modulo: int, allowed: Iterable[int]) -> Any:
-    """The 'sum mod N in allowed?' DFA over {'0','1'}, in upstream format."""
-    M = _require_official()
-    delta = {}
-    for q in range(modulo):
-        delta[(q, "0")] = q
-        delta[(q, "1")] = (q + 1) % modulo
-    return M.DFA(
-        alphabet=["0", "1"],
-        num_states=modulo,
-        start=0,
-        accept={int(x) for x in allowed},
-        delta=delta,
-    )
-
-
-def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
-    """Compile `regex` to a minimal DFA in upstream format. Symbols are the
-    characters '0', '1', ... matching BernoulliRegex's int->str convention."""
-    from automata.fa.dfa import DFA as AutDFA
-    from automata.fa.nfa import NFA
-
-    M = _require_official()
-    syms = {str(i) for i in range(alphabet_size)}
-    nfa = NFA.from_regex(regex, input_symbols=syms)
-    aut = AutDFA.from_nfa(nfa, minify=True)
-
-    state_list = sorted(aut.states, key=lambda s: (str(type(s).__name__), str(s)))
-    sidx = {s: i for i, s in enumerate(state_list)}
-    delta = {}
-    for s in state_list:
-        for a, dest in aut.transitions[s].items():
-            delta[(sidx[s], a)] = sidx[dest]
-    return M.DFA(
-        alphabet=sorted(aut.input_symbols),
-        num_states=len(state_list),
-        start=sidx[aut.initial_state],
-        accept={sidx[s] for s in aut.final_states},
-        delta=delta,
-    )
 
 
 def run_official_capal(

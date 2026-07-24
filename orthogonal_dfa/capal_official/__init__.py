@@ -18,11 +18,10 @@ the numbers in data/capal_findings.md stay reproducible. This adapter:
 from .adapter import (
     DEFAULT_CAPAL_DIR,
     PINNED_COMMIT,
-    build_modulo_dfa,
-    build_regex_dfa,
     evaluate_official_dfa,
     import_capal,
     resolve_capal_dir,
     run_official_capal,
     verify_pinned,
 )
+from .porters import build_modulo_dfa, build_regex_dfa
