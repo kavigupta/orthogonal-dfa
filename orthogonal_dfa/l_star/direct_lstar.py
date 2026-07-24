@@ -40,7 +40,6 @@ import math
 from collections import deque
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
-import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -92,7 +91,7 @@ class DirectLStarLearner:
         self.vs = list(vs)
         # A distinguisher may split a leaf only when the *population* of that leaf's
         # members bifurcates at it with strong evidence, decided by a held-out
-        # Bayes factor (see _population_logbf) rather than a per-pair margin.  The
+        # Bayes factor (see _candidate_logbf) rather than a per-pair margin.  The
         # family is partitioned once into an ASSIGN half (groups the members) and a
         # TEST half (scores the split); disjoint suffixes keep the test from
         # measuring the very split it selected on.  ``split_margin`` is retained
@@ -111,6 +110,10 @@ class DirectLStarLearner:
         # once enough members have piled up for the BF to cross the threshold, so
         # the probe stream (not the fixed pool) is what drives it to resolve.
         self._leaf_probe_members: Dict[int, Set[tuple]] = {}
+        # Open split hypotheses: leaf -> distinguisher -> running sufficient
+        # statistics ({"ART": [A_t,R_t,A_f,R_f], "seen": {members}}).  Each member
+        # is folded in once as it is sifted, so the Bayes factor is O(1) to read.
+        self._open_splits: Dict[int, Dict[tuple, dict]] = {}
 
         # Root: the empty prepend splits into state 0 (accept) and state 1
         # (reject).  Splitting only ever refines a leaf, so the root stays a
@@ -166,7 +169,7 @@ class DirectLStarLearner:
         """Log Bayes factor a population split must clear right now.
 
         Under the "one Myhill-Nerode state" null the held-out BF (see
-        _population_logbf) concentrates near zero -- the two-rate model's Occam
+        _candidate_logbf) concentrates near zero -- the two-rate model's Occam
         penalty cancels the fit -- so a spurious split needs an upward fluctuation
         the BF rarely produces (``P(BF > K) <= 1/K``).  Bonferroni over the split
         hypotheses currently open (one per leaf x symbol) at target per-run false
@@ -285,7 +288,7 @@ class DirectLStarLearner:
         prepend``.  Returns ``None`` if a needed classification is indecisive.
 
         This only *proposes* the candidate; whether the split fires is decided by
-        the held-out population Bayes factor in :meth:`_population_logbf`, so the
+        the held-out population Bayes factor in :meth:`_candidate_logbf`, so the
         pair need only clear the ordinary decisive band, not a wide split margin.
         """
         if isinstance(node, int):
@@ -317,48 +320,64 @@ class DirectLStarLearner:
             bits.append(bit)
         return bits
 
-    def _population_logbf(self, state: int, distinguisher: tuple) -> float:
-        """Held-out log Bayes factor that leaf ``state`` genuinely splits at
-        ``distinguisher``.
+    def _member_group(self, prefix, distinguisher) -> Optional[bool]:
+        """Which side of ``distinguisher`` ``prefix`` falls on, judged on the
+        ASSIGN half of the family only (so the TEST half stays independent of the
+        grouping).  ``None`` if indecisive there -- it contributes no evidence."""
+        bits = self._family_votes(prefix, distinguisher)
+        assign = sum(bits[i] for i in self._assign_idx) / len(self._assign_idx)
+        if assign >= self.pst.accept_thresh:
+            return True
+        if assign < self.pst.reject_thresh:
+            return False
+        return None
 
-        Every member of the leaf is scored at ``distinguisher`` on the ASSIGN half
-        of the family and median-split into two groups; the groups' *TEST*-half
-        votes are then compared as one pooled Beta-Bernoulli rate (the "one state"
-        null) against two rates.  Grouping and scoring use disjoint suffixes, so
-        the test cannot manufacture the separation it selected on -- a random
-        grouping scores ~0.  Evidence grows with the member count, so a real split
-        clears the threshold while a same-state leaf stays near zero.
-        """
-        members = [list(t) for t in self._leaf_probe_members.get(state, ())]
-        if len(members) < self._split_member_cap:
-            seen = set(self._leaf_probe_members.get(state, ()))
+    def _fold_member(self, accum: dict, distinguisher, prefix) -> None:
+        """Add ``prefix``'s TEST-half votes into its group's running sums, once."""
+        key = tuple(prefix)
+        if key in accum["seen"]:
+            return
+        accum["seen"].add(key)
+        group = self._member_group(prefix, distinguisher)
+        if group is None:
+            return
+        bits = self._family_votes(prefix, distinguisher)
+        t = sum(bits[i] for i in self._test_idx)
+        side = 0 if group else 2
+        accum["ART"][side] += t
+        accum["ART"][side + 1] += len(self._test_idx) - t
+
+    def _split_candidate(self, state: int, distinguisher: tuple) -> dict:
+        """The running held-out split evidence for ``(state, distinguisher)``,
+        created (and back-filled from the members seen so far) on first use.
+        Thereafter :meth:`_record_member` folds each newly sifted member in
+        incrementally, so the Bayes factor is O(1) to read -- never recomputed
+        over the whole population."""
+        cands = self._open_splits.setdefault(state, {})
+        accum = cands.get(distinguisher)
+        if accum is not None:
+            return accum
+        accum = {"ART": [0, 0, 0, 0], "seen": set()}  # [A_true,R_true,A_false,R_false]
+        cands[distinguisher] = accum
+        for t in self._leaf_probe_members.get(state, ()):
+            self._fold_member(accum, distinguisher, list(t))
+        if len(accum["seen"]) < self._split_member_cap:
             for p in self._leaf_members(state, limit=self._split_member_cap):
-                if tuple(p) not in seen:
-                    members.append(p)
-                    if len(members) >= self._split_member_cap:
-                        break
-        if len(members) < self._min_split_members or not self._test_idx:
+                self._fold_member(accum, distinguisher, p)
+                if len(accum["seen"]) >= self._split_member_cap:
+                    break
+        return accum
+
+    def _candidate_logbf(self, accum: dict) -> float:
+        """Held-out log Bayes factor of the accumulated split evidence: one pooled
+        Beta-Bernoulli rate (single state) vs two (a real split)."""
+        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
             return float("-inf")
-        members = members[: self._split_member_cap]
-        assign_score, test = [], []
-        n_assign = len(self._assign_idx)
-        n_test = len(self._test_idx)
-        for p in members:
-            bits = self._family_votes(p, distinguisher)
-            a = sum(bits[i] for i in self._assign_idx)
-            t = sum(bits[i] for i in self._test_idx)
-            assign_score.append(a / n_assign)
-            test.append((t, n_test - t))
-        med = float(np.median(assign_score))
-        a1 = r1 = a2 = r2 = 0
-        for sc, (ta, tr) in zip(assign_score, test):
-            if sc >= med:
-                a1 += ta
-                r1 += tr
-            else:
-                a2 += ta
-                r2 += tr
-        log_beta = lambda a, b: math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+        a1, r1, a2, r2 = accum["ART"]
+
+        def log_beta(a, b):
+            return math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+
         return (
             log_beta(1 + a1, 1 + r1)
             + log_beta(1 + a2, 1 + r2)
@@ -423,9 +442,11 @@ class DirectLStarLearner:
         for sym in range(self.pst.alphabet_size):
             self._reopen(state, sym)
             self._reopen(new_state, sym)
-        # Accumulated per-leaf members are now stale (this leaf's members
-        # redistribute across the two halves); rebuild them from fresh sifts.
+        # Accumulated per-leaf members and open split candidates are now stale
+        # (this leaf's members redistribute across the two halves); rebuild from
+        # fresh sifts.
         self._leaf_probe_members = {}
+        self._open_splits = {}
         return new_state
 
     # -- transition-driven discovery (the worklist) -------------------------
@@ -657,10 +678,14 @@ class DirectLStarLearner:
 
     def _record_member(self, state: int, prefix: List[int]) -> None:
         """Note that ``prefix`` decisively sifts to leaf ``state`` -- a member the
-        population split Bayes factor accumulates.  Capped per leaf."""
+        population split Bayes factor accumulates.  New members are folded into any
+        open split candidates on this leaf right away (incremental evidence)."""
         bucket = self._leaf_probe_members.setdefault(state, set())
-        if len(bucket) < self._split_member_cap:
-            bucket.add(tuple(prefix))
+        if len(bucket) >= self._split_member_cap or tuple(prefix) in bucket:
+            return
+        bucket.add(tuple(prefix))
+        for distinguisher, accum in self._open_splits.get(state, {}).items():
+            self._fold_member(accum, distinguisher, prefix)
 
     def process(self, w: List[int]) -> int:
         """Walk one probe string: discover transitions, record the leaves its
@@ -741,10 +766,13 @@ class DirectLStarLearner:
         if distinguisher is None:
             return _RESOLVED
         # Sequential population test at the proposed distinguisher: split above the
-        # upper boundary, accept a single state below the lower boundary, and leave
-        # the leaf open in between so more probe members accumulate and drive the
-        # Bayes factor to a decision.
-        bf = self._population_logbf(s1, distinguisher)
+        # upper boundary, accept a single state below the lower boundary (and drop
+        # the candidate so it stops being probed), and leave the leaf open in
+        # between so more probe members accumulate and drive the BF to a decision.
+        accum = self._split_candidate(s1, distinguisher)
+        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
+            return _UNDECIDED  # too little evidence to judge yet -- keep sifting
+        bf = self._candidate_logbf(accum)
         if bf >= self._split_threshold():
             self.split(s1, distinguisher)
             # witness and sprime both reached the old leaf and the distinguisher
@@ -755,6 +783,7 @@ class DirectLStarLearner:
                     self.access[st] = list(p)
             return _SPLIT
         if bf <= self._no_split_threshold():
+            self._open_splits.get(s1, {}).pop(distinguisher, None)
             return _RESOLVED
         return _UNDECIDED
 
