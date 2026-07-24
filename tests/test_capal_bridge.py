@@ -140,6 +140,23 @@ class TestCapalBridge(unittest.TestCase):
         self.assertIsNotNone(learned)
         self.assertLess(learned.num_states, target.num_states)
 
+    def test_fit_propagates_errors_that_are_not_the_cap(self):
+        # RecursionError is a RuntimeError, so without the message guard an
+        # interpreter failure mid-fit would be recorded as an ordinary
+        # non-convergent run, hypothesis and accuracy and all.
+        learner = make_learner(build_modulo_dfa(9, (3, 6)), eta=0.1, seed=0)
+        inner = learner.mq.query
+        calls = itertools.count()
+
+        def flaky(word: str) -> bool:
+            if next(calls) == 100:
+                raise RecursionError("maximum recursion depth exceeded")
+            return inner(word)
+
+        learner.mq.query = flaky
+        with self.assertRaises(RecursionError):
+            fit_with_fallback(learner)
+
 
 if __name__ == "__main__":
     unittest.main()
