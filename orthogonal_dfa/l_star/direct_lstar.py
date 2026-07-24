@@ -41,7 +41,6 @@ from collections import deque
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
-import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -55,6 +54,11 @@ from .structures import (
 # A discrimination-tree node: a leaf is an ``int`` state id; an internal node is
 # ``(prepend, {True: accept_child, False: reject_child})``.
 Node = object
+
+# Outcome of processing one probe (see DirectLStarLearner.process):
+_RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
+_SPLIT = 1  # the leaf bifurcated decisively; a split was applied
+_UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
 
 
 class DirectLStarLearner:
@@ -80,17 +84,33 @@ class DirectLStarLearner:
         split_margin: Optional[float] = None,
         split_test_budget: int = 1,
         split_fpr: Optional[float] = None,
+        split_miss_rate: float = 0.01,
         membership_cache: Optional[Dict[tuple, int]] = None,
     ):
+        del split_test_budget  # accepted for API compatibility; splits gate on BF
         self.pst = pst
         self.vs = list(vs)
-        # Extra confidence required (beyond the ordinary accept/reject band) before
-        # a distinguisher is allowed to *split* a state.  Splitting on a noise-flip
-        # corrupts the tree globally, so the split bar is stricter than the bar for
-        # ordinary sifting.  Derived from the noise model unless overridden.
-        if split_margin is None:
-            split_margin = self._derive_split_margin(split_test_budget, split_fpr)
+        # A distinguisher may split a leaf only when the *population* of that leaf's
+        # members bifurcates at it with strong evidence, decided by a held-out
+        # Bayes factor (see _population_logbf) rather than a per-pair margin.  The
+        # family is partitioned once into an ASSIGN half (groups the members) and a
+        # TEST half (scores the split); disjoint suffixes keep the test from
+        # measuring the very split it selected on.  ``split_margin`` is retained
+        # only so callers that pass it don't break; it no longer gates splits.
         self.split_margin = split_margin
+        self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
+        # Tolerated miss rate (beta): the lower sequential boundary at which a leaf
+        # is accepted as a single state and no longer probed for a split.
+        self._split_miss_rate = split_miss_rate
+        self._assign_idx = list(range(0, len(self.vs), 2))
+        self._test_idx = list(range(1, len(self.vs), 2))
+        self._split_member_cap = 1500
+        self._min_split_members = 12
+        # Distinct prefixes seen to reach each leaf while sifting probes, the
+        # evidence the population split Bayes factor accumulates: a split fires
+        # once enough members have piled up for the BF to cross the threshold, so
+        # the probe stream (not the fixed pool) is what drives it to resolve.
+        self._leaf_probe_members: Dict[int, Set[tuple]] = {}
 
         # Root: the empty prepend splits into state 0 (accept) and state 1
         # (reject).  Splitting only ever refines a leaf, so the root stays a
@@ -142,36 +162,28 @@ class DirectLStarLearner:
         self._checks = 0
         self._confirms = 0
 
-    def _derive_split_margin(
-        self, split_test_budget: int, split_fpr: Optional[float]
-    ) -> float:
-        """The split confidence margin, derived from the noise model.
+    def _split_threshold(self) -> float:
+        """Log Bayes factor a population split must clear right now.
 
-        A split fires when two prefixes reaching the same leaf score on opposite
-        decisive sides of a distinguisher of size ``m = suffix_family_size``.
-        Their score difference ``D = f_s - f_sprime`` has, under the null "same
-        Myhill-Nerode state", mean 0 and variance ``2 p (1-p) / m`` (each family
-        term is a Bernoulli of variance ``p(1-p)`` *whatever* its true label, and
-        the two prefixes' membership noise is independent).  A spurious split needs
-        ``|D|`` past the decisive band ``2*eps``; we run one such test per probe,
-        so we Bonferroni-correct the target FPR over the whole probe budget:
-
-            threshold = z(split_fpr / budget) * sqrt(2 p (1-p) / m)
-            margin    = max(0, threshold/2 - evidence_margin)
-
-        Genuine splits (large ``|D|``) clear this comfortably; a same-state pair
-        would need a fluctuation the correction makes vanishingly unlikely even
-        aggregated over every probe.
+        Under the "one Myhill-Nerode state" null the held-out BF (see
+        _population_logbf) concentrates near zero -- the two-rate model's Occam
+        penalty cancels the fit -- so a spurious split needs an upward fluctuation
+        the BF rarely produces (``P(BF > K) <= 1/K``).  Bonferroni over the split
+        hypotheses currently open (one per leaf x symbol) at target per-run false
+        rate ``_split_fpr`` gives ``logBF > log(num_states * |alphabet| / fpr)``.
+        Genuine splits scale their evidence with the leaf's member count and clear
+        it; the bound grows only logarithmically as the tree does.
         """
-        if split_fpr is None:
-            split_fpr = self.pst.config.split_pval
-        p = 0.5 + self.pst.config.min_signal_strength
-        m = self.pst.config.suffix_family_size
-        sigma_d = np.sqrt(2 * p * (1 - p) / m)
-        alpha = split_fpr / max(split_test_budget, 1)
-        z = scipy.stats.norm.ppf(1 - alpha / 2)
-        threshold = z * sigma_d
-        return max(0.0, threshold / 2 - self.pst.evidence_margin)
+        n = max(self.num_states * self.pst.alphabet_size, 1)
+        return math.log(n / max(self._split_fpr, 1e-12))
+
+    def _no_split_threshold(self) -> float:
+        """Log Bayes factor at or below which a leaf is accepted as a single state
+        for this distinguisher and no longer probed -- the lower sequential
+        boundary from the tolerated miss rate ``_split_miss_rate`` (beta), i.e.
+        ``logBF <= log(beta)``.  Between this and :meth:`_split_threshold` the
+        split stays open and more probe members accumulate."""
+        return math.log(max(self._split_miss_rate, 1e-12))
 
     # -- membership / classification ---------------------------------------
 
@@ -264,30 +276,94 @@ class DirectLStarLearner:
     # -- splitting ----------------------------------------------------------
 
     def disagreement(self, s, sprime, node: Node, prepend_to_tree) -> Optional[tuple]:
-        """Find a distinguisher separating ``s`` and ``sprime``.
+        """Propose a distinguisher separating ``s`` and ``sprime``.
 
         Both currently sift to the same leaf, but ``s + prepend_to_tree`` and
         ``sprime + prepend_to_tree`` are known to reach *different* leaves.  Walk
         the tree down the branch where they still agree; the first node where
         they disagree yields the separating prepend ``prepend_to_tree + node
-        prepend``.  Returns ``None`` if a needed classification is indecisive
-        (the caller then skips this probe).
+        prepend``.  Returns ``None`` if a needed classification is indecisive.
+
+        This only *proposes* the candidate; whether the split fires is decided by
+        the held-out population Bayes factor in :meth:`_population_logbf`, so the
+        pair need only clear the ordinary decisive band, not a wide split margin.
         """
         if isinstance(node, int):
             return None  # reached a leaf without a disagreement
         prepend, lookup = node
         full = (*prepend_to_tree, *prepend)
-        # Require the *higher* standard of evidence here: both prefixes must be
-        # classified confidently (further from the boundary by ``split_margin``)
-        # for this node to justify a split.  An indecisive-under-strict-margin
-        # classification aborts the split rather than committing on thin evidence.
-        d = self.is_accept(s, full, extra_margin=self.split_margin)
-        dprime = self.is_accept(sprime, full, extra_margin=self.split_margin)
+        d = self.is_accept(s, full)
+        dprime = self.is_accept(sprime, full)
         if d is None or dprime is None:
             return None
         if d != dprime:
             return full
         return self.disagreement(s, sprime, lookup[d], prepend_to_tree)
+
+    def _family_votes(self, seq, prepend) -> List[int]:
+        """Per-family accept bits of ``seq`` at ``prepend`` (memoized in the same
+        cell cache as :meth:`_decision`), so the ASSIGN/TEST halves can be summed
+        separately for the split Bayes factor."""
+        base = list(seq) + list(prepend)
+        mc = self._membership_cache
+        oracle = self.pst.oracle
+        bits = []
+        for v in self.vs:
+            s = tuple(base) + tuple(self.pst.table.suffix(v))
+            bit = mc.get(s)
+            if bit is None:
+                bit = int(oracle.membership_query(list(s)))
+                mc[s] = bit
+            bits.append(bit)
+        return bits
+
+    def _population_logbf(self, state: int, distinguisher: tuple) -> float:
+        """Held-out log Bayes factor that leaf ``state`` genuinely splits at
+        ``distinguisher``.
+
+        Every member of the leaf is scored at ``distinguisher`` on the ASSIGN half
+        of the family and median-split into two groups; the groups' *TEST*-half
+        votes are then compared as one pooled Beta-Bernoulli rate (the "one state"
+        null) against two rates.  Grouping and scoring use disjoint suffixes, so
+        the test cannot manufacture the separation it selected on -- a random
+        grouping scores ~0.  Evidence grows with the member count, so a real split
+        clears the threshold while a same-state leaf stays near zero.
+        """
+        members = [list(t) for t in self._leaf_probe_members.get(state, ())]
+        if len(members) < self._split_member_cap:
+            seen = set(self._leaf_probe_members.get(state, ()))
+            for p in self._leaf_members(state, limit=self._split_member_cap):
+                if tuple(p) not in seen:
+                    members.append(p)
+                    if len(members) >= self._split_member_cap:
+                        break
+        if len(members) < self._min_split_members or not self._test_idx:
+            return float("-inf")
+        members = members[: self._split_member_cap]
+        assign_score, test = [], []
+        n_assign = len(self._assign_idx)
+        n_test = len(self._test_idx)
+        for p in members:
+            bits = self._family_votes(p, distinguisher)
+            a = sum(bits[i] for i in self._assign_idx)
+            t = sum(bits[i] for i in self._test_idx)
+            assign_score.append(a / n_assign)
+            test.append((t, n_test - t))
+        med = float(np.median(assign_score))
+        a1 = r1 = a2 = r2 = 0
+        for sc, (ta, tr) in zip(assign_score, test):
+            if sc >= med:
+                a1 += ta
+                r1 += tr
+            else:
+                a2 += ta
+                r2 += tr
+        log_beta = lambda a, b: math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+        return (
+            log_beta(1 + a1, 1 + r1)
+            + log_beta(1 + a2, 1 + r2)
+            - log_beta(1 + a1 + a2, 1 + r1 + r2)
+        )
 
     def _replace_leaf(self, node: Node, state: int, new_node: Node) -> Node:
         if isinstance(node, int):
@@ -347,6 +423,9 @@ class DirectLStarLearner:
         for sym in range(self.pst.alphabet_size):
             self._reopen(state, sym)
             self._reopen(new_state, sym)
+        # Accumulated per-leaf members are now stale (this leaf's members
+        # redistribute across the two halves); rebuild them from fresh sifts.
+        self._leaf_probe_members = {}
         return new_state
 
     # -- transition-driven discovery (the worklist) -------------------------
@@ -576,9 +655,22 @@ class DirectLStarLearner:
             return self._first_disagreement(w, states, mid, hi)
         return self._first_disagreement(w, states, lo, mid)
 
-    def process(self, w: List[int]) -> bool:
-        """Walk one probe string, discover transitions, and split on the first
-        internal disagreement it exposes.  Returns ``True`` iff a split happened.
+    def _record_member(self, state: int, prefix: List[int]) -> None:
+        """Note that ``prefix`` decisively sifts to leaf ``state`` -- a member the
+        population split Bayes factor accumulates.  Capped per leaf."""
+        bucket = self._leaf_probe_members.setdefault(state, set())
+        if len(bucket) < self._split_member_cap:
+            bucket.add(tuple(prefix))
+
+    def process(self, w: List[int]) -> int:
+        """Walk one probe string: discover transitions, record the leaves its
+        prefixes reach, and act on the first internal disagreement it exposes.
+
+        Returns ``_SPLIT`` when the disagreement's leaf bifurcated decisively (a
+        split was applied), ``_UNDECIDED`` when the population evidence is not yet
+        conclusive either way (the leaf stays open so more members accumulate), and
+        ``_RESOLVED`` otherwise -- a clean probe, or the leaf accepted as a single
+        state at this distinguisher.
         """
         w = list(w)
         state: Optional[int] = None
@@ -590,6 +682,8 @@ class DirectLStarLearner:
                 state, boundary = self.sift_and_boundary(w[:i])
                 if state is None:
                     self.indecisive.add(boundary)  # boundary: seq + bail prepend
+                else:
+                    self._record_member(state, w[:i])
                 verified = True
             states.append(state)
             if state is None:
@@ -608,44 +702,61 @@ class DirectLStarLearner:
             nxt, boundary = self.sift_and_boundary(w[: i + 1])
             if nxt is None:
                 self.indecisive.add(boundary)  # boundary: seq + bail prepend
-            elif verified:
-                # Only record an edge whose source was reached by a real sift, so
-                # the witness w[:i] genuinely sifts to ``state``.
-                self._set_transition(state, c, nxt, w[:i])
+            else:
+                self._record_member(nxt, w[: i + 1])
+                if verified:
+                    # Only record an edge whose source was reached by a real sift,
+                    # so the witness w[:i] genuinely sifts to ``state``.
+                    self._set_transition(state, c, nxt, w[:i])
             state = nxt
             verified = True
         states.append(state)
+        return self._act_on_disagreement(w, states, agree_point)
 
+    def _act_on_disagreement(self, w, states, agree_point) -> int:
+        """Localise the first followed-vs-sift disagreement in the walked probe
+        and run the sequential population split test on the leaf it exposes.
+        Returns ``_SPLIT`` / ``_UNDECIDED`` / ``_RESOLVED`` (see :meth:`process`)."""
+        state = states[-1]
         actual = self.sift(w)
         if actual is None or state is None or actual == state:
-            return False
+            return _RESOLVED
         fd = self._first_disagreement(w, states, agree_point, len(w))
         if fd is None:
-            return False
+            return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
         if s1 is None or s2 is None:
-            return False
+            return _RESOLVED
         # The disagreeing edge is necessarily a cached follow (a fresh sift could
         # not disagree with itself), so its witness is present and still valid.
         if self.transitions.get(s1, {}).get(c) != s2:
-            return False
+            return _RESOLVED
         witness = self.transition_witnesses.get((s1, c))
         if witness is None:
-            return False
+            return _RESOLVED
         sprime = w[: fd - 1]
         if self.sift(witness) != s1 or self.sift(sprime) != s1:
-            return False
+            return _RESOLVED
         distinguisher = self.disagreement(witness, sprime, self.dt, [c])
         if distinguisher is None:
-            return False
-        self.split(s1, distinguisher)
-        # witness and sprime both reached the old leaf and the distinguisher
-        # separates them, so re-sifting assigns an access string to each side.
-        for p in (witness, sprime):
-            st = self.sift(p)
-            if st is not None:
-                self.access[st] = list(p)
-        return True
+            return _RESOLVED
+        # Sequential population test at the proposed distinguisher: split above the
+        # upper boundary, accept a single state below the lower boundary, and leave
+        # the leaf open in between so more probe members accumulate and drive the
+        # Bayes factor to a decision.
+        bf = self._population_logbf(s1, distinguisher)
+        if bf >= self._split_threshold():
+            self.split(s1, distinguisher)
+            # witness and sprime both reached the old leaf and the distinguisher
+            # separates them, so re-sifting assigns an access string to each side.
+            for p in (witness, sprime):
+                st = self.sift(p)
+                if st is not None:
+                    self.access[st] = list(p)
+            return _SPLIT
+        if bf <= self._no_split_threshold():
+            return _RESOLVED
+        return _UNDECIDED
 
     # -- driver -------------------------------------------------------------
 
@@ -655,7 +766,7 @@ class DirectLStarLearner:
         split.  Returns the number of splits."""
         splits = 0
         for w in probes:
-            if self.process(w):
+            if self.process(w) == _SPLIT:
                 splits += 1
                 self.run_worklist()
         return splits
@@ -675,10 +786,13 @@ class DirectLStarLearner:
         since_split = 0
         for _ in range(max_probes):
             w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-            if self.process(w):
+            status = self.process(w)
+            if status == _SPLIT:
                 splits += 1
                 since_split = 0
                 self.run_worklist()
+            elif status == _UNDECIDED:
+                since_split = 0  # still resolving this leaf -- keep sifting
             else:
                 since_split += 1
                 if patience is not None and since_split >= patience:
@@ -702,10 +816,13 @@ class DirectLStarLearner:
         since_split = 0
         for _ in range(max_probes):
             w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-            if self.process(w):
+            status = self.process(w)
+            if status == _SPLIT:
                 splits += 1
                 since_split = 0
                 self.run_worklist()
+            elif status == _UNDECIDED:
+                since_split = 0  # a leaf is still resolving -- keep sifting it
             else:
                 since_split += 1
             if since_split >= patience or len(self.indecisive) >= boundary_target:
