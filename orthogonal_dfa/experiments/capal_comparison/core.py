@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from orthogonal_dfa.capal_official import PINNED_COMMIT, import_capal
+from orthogonal_dfa.capal_official import PINNED_COMMIT, fit_with_fallback, make_learner
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 1
@@ -180,20 +180,6 @@ def run_capal_cell(
     ``enum_depth`` / ``extra_len_max`` control how many and how long the SAMESTATE
     suffixes are; raising them is the section-10 "matched query budget" probe.
     """
-    M = import_capal()
-    cfg = M.LearnerConfig(
-        K_pos=k_pos,
-        K_neg=k_neg,
-        max_iters=max_iters,
-        seed=seed,
-        eta=eta,
-        alpha=alpha,
-        max_same_samples=max_same_samples,
-        tau_cap=tau_cap,
-        suffix_pool_init=suffix_pool_init,
-        suffix_pool_len_max=suffix_pool_len_max,
-        verbose=False,
-    )
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -216,13 +202,22 @@ def run_capal_cell(
         },
     )
 
-    learner = M.CAPALLearner(target=target, cfg=cfg)
-    # enum_depth / extra_len_max are not fields LearnerConfig forwards to its
-    # SameStateConfig -- upstream buries them (capal.py:919). Set them on the
-    # live SameStateConfig, which SAMESTATE reads lazily during fit(). This is
-    # the section-10 "matched query budget" knob.
-    learner.ss.cfg.enum_depth = enum_depth
-    learner.ss.cfg.extra_len_max = extra_len_max
+    learner = make_learner(
+        target,
+        eta,
+        max_iters=max_iters,
+        seed=seed,
+        verbose=False,
+        k_pos=k_pos,
+        k_neg=k_neg,
+        max_same_samples=max_same_samples,
+        tau_cap=tau_cap,
+        suffix_pool_init=suffix_pool_init,
+        suffix_pool_len_max=suffix_pool_len_max,
+        alpha=alpha,
+        enum_depth=enum_depth,
+        extra_len_max=extra_len_max,
+    )
     # Upstream's PersistentNoisyMQ caches but does not count; wrap it so we can
     # report total alongside distinct.
     totals = {"n": 0}
@@ -237,14 +232,8 @@ def run_capal_cell(
     t0 = time.time()
     try:
         with contextlib.redirect_stdout(io.StringIO()):
-            dfa = learner.fit()
-        cell.converged = True
-    except RuntimeError:
-        # Iteration cap without PerfectEQ accepting. Under noise this is the
-        # common case; keep the last hypothesis so the cell is still measurable.
-        cell.converged = False
-        last = getattr(learner, "_last_hyp", None)
-        dfa = getattr(last, "dfa", None) if last is not None else None
+            dfa, converged = fit_with_fallback(learner)
+        cell.converged = converged
     except Exception as exc:  # noqa: BLE001
         cell.error_type = type(exc).__name__
         cell.error = f"{type(exc).__name__}: {exc}"

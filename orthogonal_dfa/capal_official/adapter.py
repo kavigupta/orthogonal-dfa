@@ -7,11 +7,14 @@ Loads the upstream `capal` module from the pinned checkout (see
   BernoulliParityOracle, in the upstream `capal.DFA` format.
 - build_regex_dfa(regex, alphabet_size): regex -> upstream DFA via automata-lib
   (NFA.from_regex -> DFA.from_nfa, then state-relabel).
-- run_official_capal(target, eta, ...): instantiate CAPALLearner with the
-  PersistentNoisyMQ + PerfectEQ defaults and call .fit().
-- evaluate_official_dfa(dfa, oracle_creator, alphabet_chars, symbols): sample
-  uniformly random words, query the noiseless oracle for ground truth, count
-  matches.
+- make_learner(target, eta, ...): a CAPALLearner wired to the PersistentNoisyMQ
+  + PerfectEQ defaults, returned unfitted so callers can instrument it.
+- fit_with_fallback(learner): .fit(), plus whether it converged.
+
+The last two are split because callers need to reach the learner in between --
+to count queries by wrapping `learner.mq.query`, to time the fit, or to
+suppress upstream's stdout. Scoring is deliberately not here: a comparison must
+score every learner on one shared word list, which only the caller can build.
 """
 
 from __future__ import annotations
@@ -20,9 +23,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence, Set
-
-import numpy as np
+from typing import Any, Iterable, Optional, Tuple
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
@@ -131,13 +132,9 @@ def import_capal(capal_dir: Optional[str] = None) -> Any:
     return _official
 
 
-def _require_official() -> Any:
-    return import_capal()
-
-
 def build_modulo_dfa(modulo: int, allowed: Iterable[int]) -> Any:
     """The 'sum mod N in allowed?' DFA over {'0','1'}, in upstream format."""
-    M = _require_official()
+    M = import_capal()
     delta = {}
     for q in range(modulo):
         delta[(q, "0")] = q
@@ -157,48 +154,68 @@ def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
     from automata.fa.dfa import DFA as AutDFA
     from automata.fa.nfa import NFA
 
-    M = _require_official()
+    M = import_capal()
     syms = {str(i) for i in range(alphabet_size)}
     nfa = NFA.from_regex(regex, input_symbols=syms)
     aut = AutDFA.from_nfa(nfa, minify=True)
 
+    alphabet = sorted(aut.input_symbols)
     state_list = sorted(aut.states, key=lambda s: (str(type(s).__name__), str(s)))
     sidx = {s: i for i, s in enumerate(state_list)}
+
+    # automata-lib rejects by dying, so any language with a dead end (e.g. `1*`,
+    # `0*1*`) comes back partial, while upstream's DFA requires a transition for
+    # every (state, symbol). Route the missing ones to an explicit sink.
+    sink = len(state_list)
     delta = {}
     for s in state_list:
-        for a, dest in aut.transitions[s].items():
-            delta[(sidx[s], a)] = sidx[dest]
+        for a in alphabet:
+            dest = aut.transitions[s].get(a)
+            delta[(sidx[s], a)] = sink if dest is None else sidx[dest]
+    num_states = len(state_list)
+    if sink in delta.values():
+        num_states += 1
+        for a in alphabet:
+            delta[(sink, a)] = sink
+
     return M.DFA(
-        alphabet=sorted(aut.input_symbols),
-        num_states=len(state_list),
+        alphabet=alphabet,
+        num_states=num_states,
         start=sidx[aut.initial_state],
         accept={sidx[s] for s in aut.final_states},
         delta=delta,
     )
 
 
-def run_official_capal(
+def make_learner(
     target: Any,
     eta: float,
     *,
     max_iters: int = 200,
     seed: int = 0,
     verbose: bool = False,
-    K_pos: int = 10,
-    K_neg: int = 10,
+    k_pos: int = 10,
+    k_neg: int = 10,
     max_same_samples: int = 60,
     tau_cap: float = 0.2,
     suffix_pool_init: int = 32,
     suffix_pool_len_max: int = 8,
     alpha: float = 1e-3,
+    enum_depth: int = 3,
+    extra_len_max: int = 8,
 ) -> Any:
-    """Instantiate CAPALLearner with upstream defaults (PersistentNoisyMQ +
-    PerfectEQ are built automatically from `target`) and return the learned
-    `capal.DFA`."""
-    M = _require_official()
-    cfg = M.LearnerConfig(
-        K_pos=K_pos,
-        K_neg=K_neg,
+    """A CAPALLearner over `target`, unfitted (PersistentNoisyMQ + PerfectEQ are
+    built from `target` by upstream).
+
+    `enum_depth` / `extra_len_max` bound how many and how long the SAMESTATE
+    suffixes are -- the matched-query-budget knob. LearnerConfig does not
+    forward them, so they are set on the live SameStateConfig, which SAMESTATE
+    reads lazily during fit().
+    """
+    official = import_capal()
+    cfg = official.LearnerConfig(
+        K_pos=k_pos,
+        K_neg=k_neg,
         max_iters=max_iters,
         seed=seed,
         eta=eta,
@@ -209,47 +226,25 @@ def run_official_capal(
         suffix_pool_len_max=suffix_pool_len_max,
         verbose=verbose,
     )
-    learner = M.CAPALLearner(target=target, cfg=cfg)
+    learner = official.CAPALLearner(target=target, cfg=cfg)
+    learner.ss.cfg.enum_depth = enum_depth
+    learner.ss.cfg.extra_len_max = extra_len_max
+    return learner
+
+
+def fit_with_fallback(learner: Any) -> Tuple[Optional[Any], bool]:
+    """Fit `learner`, returning (dfa, converged).
+
+    fit() raises when max_iters elapses without PerfectEQ accepting -- under
+    noise this is common, because SAMESTATE may make a handful of
+    false-DIFFERENT decisions, leaving the hypothesis larger than the target.
+    That is a result, not an error: the last hypothesis comes back with
+    converged=False so its accuracy stays measurable. Only if there is no
+    hypothesis at all is the dfa None. Anything but the iteration cap
+    propagates.
+    """
     try:
-        return learner.fit()
-    except RuntimeError as exc:
-        # `fit()` raises when max_iters elapses without PerfectEQ accepting --
-        # under noise this is common because SAMESTATE may make a handful of
-        # false-DIFFERENT decisions, leaving the hypothesis larger than the
-        # target. Return the latest hypothesis so we can still measure its
-        # accuracy (the user wants accuracy at noise level, not just the
-        # converged/not bit).
+        return learner.fit(), True
+    except RuntimeError:
         last = getattr(learner, "_last_hyp", None)
-        if last is not None and getattr(last, "dfa", None) is not None:
-            last.dfa.converged = False  # type: ignore[attr-defined]
-            return last.dfa
-        raise
-
-
-def evaluate_official_dfa(
-    dfa: Any,
-    oracle_creator,
-    alphabet_chars: Sequence[str],
-    symbols: int,
-    *,
-    count: int = 5000,
-    rng_seed: int = 0x1234,
-) -> float:
-    """Sample random words via the repo's UniformSampler, ask the noiseless
-    oracle for the truth label, and ask the upstream DFA for its label.
-    Returns accuracy."""
-    from orthogonal_dfa.l_star.sampler import UniformSampler
-    from orthogonal_dfa.l_star.structures import SymmetricBernoulli
-
-    us = UniformSampler(40)
-    truth = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    rng = np.random.default_rng(rng_seed)
-    correct = 0
-    for _ in range(count):
-        s = us.sample(rng, symbols)
-        truth_label = bool(truth.membership_query(s))
-        word = "".join(alphabet_chars[c] for c in s)
-        pred = bool(dfa.run(word))
-        if pred == truth_label:
-            correct += 1
-    return correct / count
+        return getattr(last, "dfa", None), False
