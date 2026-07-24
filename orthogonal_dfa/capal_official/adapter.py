@@ -34,6 +34,9 @@ PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 #: Env var to point at a checkout elsewhere; otherwise a sibling of the repo.
 CAPAL_DIR_ENV = "ORTHO_CAPAL_DIR"
 
+#: What upstream's fit() says when it runs out of iterations (capal.py:1294).
+CAP_MESSAGE = "Maximum iterations reached without convergence"
+
 #: Default checkout location, resolved relative to the repo root rather than
 #: the cwd, so it does not matter where a caller is invoked from.
 DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[2].parent / "capal"
@@ -245,6 +248,13 @@ def fit_with_fallback(learner: Any) -> Tuple[Optional[Any], bool]:
     """
     try:
         return learner.fit(), True
-    except RuntimeError:
+    except RuntimeError as exc:
+        # The cap is upstream's only RuntimeError, but RecursionError is a
+        # subclass of it, so without this the interpreter's own failures would
+        # be recorded as ordinary non-convergent runs. Matching on the message
+        # is safe here only because the pin locks it: it cannot change without
+        # verify_pinned failing first.
+        if CAP_MESSAGE not in str(exc):
+            raise
         last = getattr(learner, "_last_hyp", None)
         return getattr(last, "dfa", None), False
