@@ -38,6 +38,7 @@ lets :meth:`disagreement` locate a separating suffix.
 
 import math
 from collections import deque
+from statistics import NormalDist
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from automata.fa.dfa import DFA
@@ -187,6 +188,35 @@ class DirectLStarLearner:
         ``logBF <= log(beta)``.  Between this and :meth:`_split_threshold` the
         split stays open and more probe members accumulate."""
         return math.log(max(self._split_miss_rate, 1e-12))
+
+    def _starved_split_margin(self) -> float:
+        """Confidence margin for the per-pair fallback the population Bayes factor
+        can't reach.  A genuinely starved leaf (a trapped initial state whose leaf
+        only a handful of *distinct* strings sift to) never gathers the members the
+        BF needs, yet those few members can still span two states.  There the
+        evidence is a single pair scoring on opposite sides of the distinguisher,
+        so we fall back to the resolver's split z-test on the score difference
+        ``D = f_s - f_sprime`` (mean 0, variance ``2 p (1-p) / m`` under one shared
+        state).  Bonferroni over the open leaf x symbol hypotheses at ``_split_fpr``
+        matches :meth:`_split_threshold`; ``|D|`` must clear the decisive band by
+        this margin for the split to fire."""
+        p = 0.5 + self.pst.config.min_signal_strength
+        m = self.pst.config.suffix_family_size
+        sigma_d = math.sqrt(2 * p * (1 - p) / m)
+        tests = max(self.num_states * self.pst.alphabet_size, 1)
+        alpha = self._split_fpr / tests
+        z = NormalDist().inv_cdf(1 - alpha / 2)
+        return max(0.0, z * sigma_d / 2 - self.pst.evidence_margin)
+
+    def _pair_splits(self, s, sprime, distinguisher) -> bool:
+        """Whether ``s`` and ``sprime`` land on opposite *decisive* sides of
+        ``distinguisher`` with the :meth:`_starved_split_margin` -- the starved-leaf
+        fallback for when the population Bayes factor has too few members to judge.
+        """
+        margin = self._starved_split_margin()
+        d = self.is_accept(s, distinguisher, extra_margin=margin)
+        dprime = self.is_accept(sprime, distinguisher, extra_margin=margin)
+        return d is not None and dprime is not None and d != dprime
 
     # -- membership / classification ---------------------------------------
 
@@ -442,10 +472,17 @@ class DirectLStarLearner:
         for sym in range(self.pst.alphabet_size):
             self._reopen(state, sym)
             self._reopen(new_state, sym)
-        # Accumulated per-leaf members and open split candidates are now stale
-        # (this leaf's members redistribute across the two halves); rebuild from
-        # fresh sifts.
-        self._leaf_probe_members = {}
+        # Only the split leaf's members change leaf (they re-sift to one of the two
+        # halves); every other leaf's members are untouched.  Redistribute this
+        # leaf's members by re-sifting rather than wiping everything -- otherwise a
+        # newly-created, still-conflated leaf (e.g. a trapped initial state that
+        # was split off last) starts empty and can never gather the members its own
+        # split needs before the pass ends.  Open candidates are dropped: their
+        # distinguishers may now cross the freshly inserted node.
+        for member in self._leaf_probe_members.pop(state, set()):
+            landed = self.sift(list(member))
+            if landed is not None:
+                self._leaf_probe_members.setdefault(landed, set()).add(member)
         self._open_splits = {}
         return new_state
 
@@ -770,22 +807,33 @@ class DirectLStarLearner:
         # the candidate so it stops being probed), and leave the leaf open in
         # between so more probe members accumulate and drive the BF to a decision.
         accum = self._split_candidate(s1, distinguisher)
-        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
-            return _UNDECIDED  # too little evidence to judge yet -- keep sifting
         bf = self._candidate_logbf(accum)
         if bf >= self._split_threshold():
-            self.split(s1, distinguisher)
-            # witness and sprime both reached the old leaf and the distinguisher
-            # separates them, so re-sifting assigns an access string to each side.
-            for p in (witness, sprime):
-                st = self.sift(p)
-                if st is not None:
-                    self.access[st] = list(p)
+            self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
+        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
+            # The BF is underpowered here (a starved leaf, e.g. a trapped initial
+            # state).  Fall back to the per-pair z-test on the two strings the
+            # disagreement already separated; a populous leaf always has the members
+            # to reach the BF instead and never takes this path.
+            if self._pair_splits(witness, sprime, distinguisher):
+                self._apply_split(s1, distinguisher, witness, sprime)
+                return _SPLIT
+            return _UNDECIDED  # too little evidence to judge yet -- keep sifting
         if bf <= self._no_split_threshold():
             self._open_splits.get(s1, {}).pop(distinguisher, None)
             return _RESOLVED
         return _UNDECIDED
+
+    def _apply_split(self, s1, distinguisher, witness, sprime) -> None:
+        """Split leaf ``s1`` on ``distinguisher`` and give each new side an access
+        string from the two prefixes the disagreement separated (both reached the
+        old leaf and land on opposite sides of the distinguisher)."""
+        self.split(s1, distinguisher)
+        for p in (witness, sprime):
+            st = self.sift(p)
+            if st is not None:
+                self.access[st] = list(p)
 
     # -- driver -------------------------------------------------------------
 
