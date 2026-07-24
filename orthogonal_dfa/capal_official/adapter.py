@@ -26,15 +26,12 @@ import numpy as np
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: The single source of truth for the commit every number in
-#: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
+#: Upstream CAPAL commit the checked-in results were measured against.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
-#: Env var to point at a checkout elsewhere; otherwise a sibling of the repo.
 CAPAL_DIR_ENV = "ORTHO_CAPAL_DIR"
 
-#: Default checkout location, resolved relative to the repo root rather than
-#: the cwd, so it does not matter where a caller is invoked from.
+#: Default checkout: a sibling of the repo root.
 DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[2].parent / "capal"
 
 _official: Any = None
@@ -116,12 +113,10 @@ def import_capal(capal_dir: Optional[str] = None) -> Any:
     verify_pinned(path)
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
-    # Dynamic path-based import of upstream's single-file module; pylint cannot
-    # see it and there is nothing to import at module load time.
     import capal  # type: ignore[import-not-found]  # pylint: disable=import-error,import-outside-toplevel
 
-    # A stray `capal` package/module elsewhere on sys.path would satisfy this
-    # import silently, giving wrong results rather than an error. Check.
+    # A stray `capal` elsewhere on sys.path would import silently and give wrong
+    # results; confirm we loaded the pinned checkout.
     loaded = getattr(capal, "__file__", None)
     if loaded is None or Path(loaded).resolve().parent != path:
         raise RuntimeError(
@@ -215,12 +210,8 @@ def run_official_capal(
     try:
         return learner.fit()
     except RuntimeError:
-        # `fit()` raises when max_iters elapses without PerfectEQ accepting --
-        # under noise this is common because SAMESTATE may make a handful of
-        # false-DIFFERENT decisions, leaving the hypothesis larger than the
-        # target. Return the latest hypothesis so we can still measure its
-        # accuracy (the user wants accuracy at noise level, not just the
-        # converged/not bit).
+        # fit() raises when max_iters elapses without PerfectEQ accepting, common
+        # under noise. Keep the last hypothesis so its accuracy stays measurable.
         last = getattr(learner, "_last_hyp", None)
         if last is not None and getattr(last, "dfa", None) is not None:
             last.dfa.converged = False  # type: ignore[attr-defined]
