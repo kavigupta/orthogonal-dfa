@@ -1,0 +1,1531 @@
+"""Random-walk, transition-driven DFA discovery (a "direct L*").
+
+This is the algorithm sketched in ``notebooks/direct-lstar.ipynb`` on the
+``different-approach`` branch, implemented as a real, self-contained learner.
+
+It is an alternative to :mod:`orthogonal_dfa.l_star.transition_resolver`.  Both
+grow a discrimination tree whose leaves are DFA states while maintaining a
+transition function on the side, but they find the work differently:
+
+  * ``TransitionResolver`` sweeps a queue of ``(state, symbol)`` pairs and, for
+    each, runs a *statistical* split test over the whole prefix pool.
+
+  * This learner instead draws random probe strings and walks each one through
+    the *cached* transition function.  It then re-classifies the same string
+    directly against the discrimination tree.  Where the two disagree, the probe
+    has, entirely on its own, exhibited two prefixes that reach the same tree
+    leaf yet behave differently under one more symbol -- a Myhill-Nerode
+    counterexample -- and the offending leaf is split.
+
+The discrimination tree here is not built from the generic ``DecisionTree``
+classes during learning; it is a lightweight nested structure so splits are
+cheap:
+
+    leaf     := int                      # a DFA state id
+    internal := (prepend, {True: node,   # ``prepend`` is a tuple of symbols
+                           False: node})  # prepended to every base suffix ``v``
+
+The base suffix family ``vs`` (the distinguishers that induce the initial
+accept/reject split) is sampled once, exactly as the resolver does.  A node's
+``prepend`` p means the node distinguishes using the suffixes ``p + v`` for each
+base ``v``; evaluating ``is_accept(s, p)`` is therefore the same membership test
+as classifying ``s + p`` against the base family, which is the identity that
+lets :meth:`disagreement` locate a separating suffix.
+
+``to_dfa_and_tree`` exports the learned automaton in the same
+``(DFA, DecisionTree)`` shape as ``resolve_dfa`` so it is a drop-in alternative.
+"""
+
+import math
+from collections import deque
+from typing import Callable, Dict, List, Optional, Set, Tuple
+
+from automata.fa.dfa import DFA
+
+from .cluster import sample_suffix_family
+from .structures import (
+    DecisionTree,
+    DecisionTreeInternalNode,
+    DecisionTreeLeafNode,
+    TriPredicate,
+)
+
+# A discrimination-tree node: a leaf is an ``int`` state id; an internal node is
+# ``(prepend, {True: accept_child, False: reject_child})``.
+Node = object
+
+# Outcome of processing one probe (see DirectLStarLearner.process):
+_RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
+_SPLIT = 1  # the leaf bifurcated decisively; a split was applied
+_UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
+
+
+class DirectLStarLearner:
+    """Learns a DFA from random probe strings via transition/tree disagreement.
+
+    Parameters
+    ----------
+    pst:
+        The :class:`~orthogonal_dfa.l_star.prefix_suffix_tracker.PrefixSuffixTracker`
+        providing oracle access, the prefix/suffix table, and the decision
+        thresholds (``accept_thresh`` / ``reject_thresh``).
+    vs:
+        Row indices (into ``pst.table``) of the base suffix family -- the
+        distinguishers for the root accept/reject split.  Obtain them with
+        :func:`sample_suffix_family` (see :func:`learn_direct_lstar`).
+    """
+
+    def __init__(
+        self,
+        pst,
+        vs: List[int],
+        *,
+        split_margin: Optional[float] = None,
+        split_test_budget: int = 1,
+        split_fpr: Optional[float] = None,
+        split_miss_rate: float = 0.01,
+        membership_cache: Optional[Dict[tuple, int]] = None,
+    ):
+        del split_test_budget  # accepted for API compatibility; splits gate on BF
+        self.pst = pst
+        self.vs = list(vs)
+        # A distinguisher may split a leaf only when the *population* of that leaf's
+        # members bifurcates at it with strong evidence, decided by a held-out
+        # Bayes factor (see _candidate_logbf) rather than a per-pair margin.  The
+        # family is partitioned once into an ASSIGN half (groups the members) and a
+        # TEST half (scores the split); disjoint suffixes keep the test from
+        # measuring the very split it selected on.  ``split_margin`` is retained
+        # only so callers that pass it don't break; it no longer gates splits.
+        self.split_margin = split_margin
+        self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
+        # Tolerated miss rate (beta): the lower sequential boundary at which a leaf
+        # is accepted as a single state and no longer probed for a split.
+        self._split_miss_rate = split_miss_rate
+        self._assign_idx = list(range(0, len(self.vs), 2))
+        self._test_idx = list(range(1, len(self.vs), 2))
+        self._split_member_cap = 1500
+        self._min_split_members = 12
+        # Distinct prefixes seen to reach each leaf while sifting probes, the
+        # evidence the population split Bayes factor accumulates: a split fires
+        # once enough members have piled up for the BF to cross the threshold, so
+        # the probe stream (not the fixed pool) is what drives it to resolve.
+        self._leaf_probe_members: Dict[int, Set[tuple]] = {}
+        # Open split hypotheses: leaf -> distinguisher -> running sufficient
+        # statistics ({"ART": [A_t,R_t,A_f,R_f], "seen": {members}}).  Each member
+        # is folded in once as it is sifted, so the Bayes factor is O(1) to read.
+        self._open_splits: Dict[int, Dict[tuple, dict]] = {}
+
+        # Root: the empty prepend splits into state 0 (accept) and state 1
+        # (reject).  Splitting only ever refines a leaf, so the root stays a
+        # tuple and state 0's subtree stays entirely on the accept side.
+        self.dt: Node = ((), {True: 0, False: 1})
+        self.num_states = 2
+
+        # transitions[s][c] -> target state, the current best guess for delta(s, c).
+        self.transitions: Dict[int, Dict[int, int]] = {0: {}, 1: {}}
+        # A prefix that provably reaches ``s`` and whose one-symbol extension by
+        # ``c`` reaches ``transitions[s][c]``.  Under the worklist, this is just
+        # ``access[s]`` (each edge is resolved by sifting ``access[s] + [c]``).
+        self.transition_witnesses: Dict[Tuple[int, int], List[int]] = {}
+        # A canonical access string per state (sifts to that state).  Transitions
+        # are resolved from it, so it must always be present for a reachable state.
+        self.access: Dict[int, List[int]] = {}
+
+        # Transition-driven discovery bookkeeping (see resolve / run_worklist):
+        #   incoming[s] -- the edges (src, c) whose current target is s, so that
+        #     when s splits we can re-open exactly those edges;
+        #   worklist    -- the (state, symbol) pairs still to resolve.
+        self.incoming: Dict[int, Set[Tuple[int, int]]] = {0: set(), 1: set()}
+        self.worklist: "deque[Tuple[int, int]]" = deque()
+
+        # Boundary strings encountered while *building* the DFA: any ``member + c``
+        # that sifts to None during transition resolution / consistency checking.
+        # The current family can't place these; the driver feeds them back into
+        # the representative pool so FNR forces the next family to resolve them.
+        self.indecisive: Set[Tuple[int, ...]] = set()
+
+        # Cache of prefix -> row for the one-hot membership lookups, rebuilt when
+        # the table grows.
+        self._prefix_pos: Optional[Dict[tuple, int]] = None
+        self._prefix_pos_n = -1
+        # Two-level memoization so sift scratch never enters the prefix pool:
+        #  * _decision_cache: (seq, prepend) -> mean family membership.  Depends on
+        #    the family ``vs``, so it is per-learner (per-round).
+        #  * _membership_cache: full-string -> membership bit.  Deterministic and
+        #    family-independent, so it is *shared across rounds* -- recovering the
+        #    cross-round cell caching the MaskTable used to give.
+        self._decision_cache: Dict[Tuple[tuple, tuple], float] = {}
+        self._membership_cache: Dict[tuple, int] = (
+            {} if membership_cache is None else membership_cache
+        )
+
+        # Consistency-check state (populated by assign_leaves / consistency_close).
+        self.leaf_members: Dict[int, List[List[int]]] = {}
+        self.check_representative_only = False
+        self._checks = 0
+        self._confirms = 0
+
+    def _split_threshold(self) -> float:
+        """Log Bayes factor a population split must clear right now.
+
+        Under the "one Myhill-Nerode state" null the held-out BF (see
+        _candidate_logbf) concentrates near zero -- the two-rate model's Occam
+        penalty cancels the fit -- so a spurious split needs an upward fluctuation
+        the BF rarely produces (``P(BF > K) <= 1/K``).  Bonferroni over the split
+        hypotheses currently open (one per leaf x symbol) at target per-run false
+        rate ``_split_fpr`` gives ``logBF > log(num_states * |alphabet| / fpr)``.
+        Genuine splits scale their evidence with the leaf's member count and clear
+        it; the bound grows only logarithmically as the tree does.
+        """
+        n = max(self.num_states * self.pst.alphabet_size, 1)
+        return math.log(n / max(self._split_fpr, 1e-12))
+
+    def _no_split_threshold(self) -> float:
+        """Log Bayes factor at or below which a leaf is accepted as a single state
+        for this distinguisher and no longer probed -- the lower sequential
+        boundary from the tolerated miss rate ``_split_miss_rate`` (beta), i.e.
+        ``logBF <= log(beta)``.  Between this and :meth:`_split_threshold` the
+        split stays open and more probe members accumulate."""
+        return math.log(max(self._split_miss_rate, 1e-12))
+
+    # -- membership / classification ---------------------------------------
+
+    def _prefix_index(self, seq: List[int]) -> int:
+        n = self.pst.table.num_prefixes
+        if self._prefix_pos is None or self._prefix_pos_n != n:
+            self._prefix_pos = {
+                tuple(p): i for i, p in enumerate(self.pst.table.prefixes)
+            }
+            self._prefix_pos_n = n
+        return self._prefix_pos[tuple(seq)]
+
+    def is_accept(self, seq, prepend, extra_margin: float = 0.0) -> Optional[bool]:
+        """Confidently classify ``seq`` at a node whose distinguishers are the
+        base family each prepended by ``prepend``.
+
+        Returns ``True`` (accept) / ``False`` (reject) when the mean membership
+        over the prepended family lands decisively past ``accept_thresh`` /
+        ``reject_thresh``, and ``None`` in the indecisive band between them.  The
+        decisive band is what keeps a single leaf from being split twice on the
+        same (noisy) criterion.
+
+        ``extra_margin`` widens that band symmetrically: a caller that wants a
+        *higher standard of evidence* (e.g. before committing a split, so a
+        noise-flipped membership can't manufacture a distinguisher) passes a
+        positive value and only gets a decisive answer further from the boundary.
+        """
+        decision = self._decision(seq, prepend)
+        if decision >= self.pst.accept_thresh + extra_margin:
+            return True
+        if decision < self.pst.reject_thresh - extra_margin:
+            return False
+        return None
+
+    def _decision(self, seq, prepend) -> float:
+        """Mean family membership of ``seq`` under the distinguishers
+        ``prepend + v``, queried straight from the oracle and memoized.
+
+        Routing this through the MaskTable's one-hot machinery would add ``seq``
+        to the prefix pool -- and a sift touches a fresh string at every tree
+        node, so transient scratch would bloat the pool (and every per-round pass
+        over it) to many thousands of entries.  The oracle is deterministic per
+        string, so the direct value is identical to the table path; it just isn't
+        persisted."""
+        key = (tuple(seq), tuple(prepend))
+        cached = self._decision_cache.get(key)
+        if cached is not None:
+            return cached
+        base = list(seq) + list(prepend)
+        mc = self._membership_cache
+        oracle = self.pst.oracle
+        total = 0
+        for v in self.vs:
+            s = tuple(base) + tuple(self.pst.table.suffix(v))
+            bit = mc.get(s)
+            if bit is None:
+                bit = int(oracle.membership_query(list(s)))
+                mc[s] = bit
+            total += bit
+        d = total / len(self.vs)
+        self._decision_cache[key] = d
+        return d
+
+    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
+        """Route ``seq`` through the discrimination tree.  Returns
+        ``(leaf, None)`` when it reaches a state decisively.  When some node
+        classifies ``seq`` indecisively, returns ``(None, seq + prepend)`` for
+        that node's ``prepend``.
+
+        The boundary string is ``seq + prepend``, not ``seq``: the indecision is
+        ``mean_v membership(seq + prepend + v)``, which equals the base
+        acceptance test ``is_accept(seq + prepend, [])``.  So it is ``seq +
+        prepend`` that the FNR gate sees as indecisive and can enrich the family
+        against -- ``seq`` itself may classify decisively at the base test."""
+        node = self.dt
+        while not isinstance(node, int):
+            prepend, lookup = node
+            decision = self.is_accept(seq, prepend)
+            if decision is None:
+                return None, tuple(seq) + tuple(prepend)
+            node = lookup[decision]
+        return node, None
+
+    def sift(self, seq) -> Optional[int]:
+        """Route ``seq`` to a state (leaf), or ``None`` if any node classifies it
+        indecisively.  See :meth:`sift_and_boundary` for the boundary string."""
+        leaf, _ = self.sift_and_boundary(seq)
+        return leaf
+
+    # -- splitting ----------------------------------------------------------
+
+    def disagreement(self, s, sprime, node: Node, prepend_to_tree) -> Optional[tuple]:
+        """Propose a distinguisher separating ``s`` and ``sprime``.
+
+        Both currently sift to the same leaf, but ``s + prepend_to_tree`` and
+        ``sprime + prepend_to_tree`` are known to reach *different* leaves.  Walk
+        the tree down the branch where they still agree; the first node where
+        they disagree yields the separating prepend ``prepend_to_tree + node
+        prepend``.  Returns ``None`` if a needed classification is indecisive.
+
+        This only *proposes* the candidate; whether the split fires is decided by
+        the held-out population Bayes factor in :meth:`_candidate_logbf`, so the
+        pair need only clear the ordinary decisive band, not a wide split margin.
+        """
+        if isinstance(node, int):
+            return None  # reached a leaf without a disagreement
+        prepend, lookup = node
+        full = (*prepend_to_tree, *prepend)
+        d = self.is_accept(s, full)
+        dprime = self.is_accept(sprime, full)
+        if d is None or dprime is None:
+            return None
+        if d != dprime:
+            return full
+        return self.disagreement(s, sprime, lookup[d], prepend_to_tree)
+
+    def _family_votes(self, seq, prepend) -> List[int]:
+        """Per-family accept bits of ``seq`` at ``prepend`` (memoized in the same
+        cell cache as :meth:`_decision`), so the ASSIGN/TEST halves can be summed
+        separately for the split Bayes factor."""
+        base = list(seq) + list(prepend)
+        mc = self._membership_cache
+        oracle = self.pst.oracle
+        bits = []
+        for v in self.vs:
+            s = tuple(base) + tuple(self.pst.table.suffix(v))
+            bit = mc.get(s)
+            if bit is None:
+                bit = int(oracle.membership_query(list(s)))
+                mc[s] = bit
+            bits.append(bit)
+        return bits
+
+    def _member_group(self, prefix, distinguisher) -> Optional[bool]:
+        """Which side of ``distinguisher`` ``prefix`` falls on, judged on the
+        ASSIGN half of the family only (so the TEST half stays independent of the
+        grouping).  ``None`` if indecisive there -- it contributes no evidence."""
+        bits = self._family_votes(prefix, distinguisher)
+        assign = sum(bits[i] for i in self._assign_idx) / len(self._assign_idx)
+        if assign >= self.pst.accept_thresh:
+            return True
+        if assign < self.pst.reject_thresh:
+            return False
+        return None
+
+    def _fold_member(self, accum: dict, distinguisher, prefix) -> None:
+        """Add ``prefix``'s TEST-half votes into its group's running sums, once."""
+        key = tuple(prefix)
+        if key in accum["seen"]:
+            return
+        accum["seen"].add(key)
+        group = self._member_group(prefix, distinguisher)
+        if group is None:
+            return
+        bits = self._family_votes(prefix, distinguisher)
+        t = sum(bits[i] for i in self._test_idx)
+        side = 0 if group else 2
+        accum["ART"][side] += t
+        accum["ART"][side + 1] += len(self._test_idx) - t
+
+    def _split_candidate(self, state: int, distinguisher: tuple) -> dict:
+        """The running held-out split evidence for ``(state, distinguisher)``,
+        created (and back-filled from the members seen so far) on first use.
+        Thereafter :meth:`_record_member` folds each newly sifted member in
+        incrementally, so the Bayes factor is O(1) to read -- never recomputed
+        over the whole population."""
+        cands = self._open_splits.setdefault(state, {})
+        accum = cands.get(distinguisher)
+        if accum is not None:
+            return accum
+        accum = {"ART": [0, 0, 0, 0], "seen": set()}  # [A_true,R_true,A_false,R_false]
+        cands[distinguisher] = accum
+        for t in self._leaf_probe_members.get(state, ()):
+            self._fold_member(accum, distinguisher, list(t))
+        if len(accum["seen"]) < self._split_member_cap:
+            for p in self._leaf_members(state, limit=self._split_member_cap):
+                self._fold_member(accum, distinguisher, p)
+                if len(accum["seen"]) >= self._split_member_cap:
+                    break
+        return accum
+
+    def _candidate_logbf(self, accum: dict) -> float:
+        """Held-out log Bayes factor of the accumulated split evidence: one pooled
+        Beta-Bernoulli rate (single state) vs two (a real split)."""
+        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
+            return float("-inf")
+        a1, r1, a2, r2 = accum["ART"]
+
+        def log_beta(a, b):
+            return math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+
+        return (
+            log_beta(1 + a1, 1 + r1)
+            + log_beta(1 + a2, 1 + r2)
+            - log_beta(1 + a1 + a2, 1 + r1 + r2)
+        )
+
+    def _replace_leaf(self, node: Node, state: int, new_node: Node) -> Node:
+        if isinstance(node, int):
+            return new_node if node == state else node
+        prepend, lookup = node
+        return (
+            prepend,
+            {k: self._replace_leaf(v, state, new_node) for k, v in lookup.items()},
+        )
+
+    def _set_transition(self, state: int, c: int, target: int, witness) -> None:
+        prev = self.transitions[state].get(c)
+        if prev is not None:
+            self.incoming[prev].discard((state, c))
+        self.transitions[state][c] = target
+        self.transition_witnesses[state, c] = list(witness)
+        self.incoming[target].add((state, c))
+
+    def _clear_transition(self, state: int, c: int) -> None:
+        target = self.transitions[state].pop(c, None)
+        self.transition_witnesses.pop((state, c), None)
+        if target is not None:
+            self.incoming[target].discard((state, c))
+
+    def _reopen(self, state: int, c: int) -> None:
+        """Re-queue ``(state, c)`` for resolution (deduped by run_worklist)."""
+        self.worklist.append((state, c))
+
+    def split(self, state: int, distinguisher: tuple) -> int:
+        """Refine leaf ``state`` into ``{True: state, False: new_state}`` under
+        ``distinguisher`` and return the new state id.
+
+        Splitting a leaf only makes edges *incident* to it ambiguous:
+          * its outgoing edges vanish (the source is now two states);
+          * the edges pointing at it must be re-classified into one of the two.
+        Every such edge is dropped and re-queued on the worklist; edges not
+        touching ``state`` keep valid witnesses (their sift path never passed
+        through this leaf) and are untouched.
+        """
+        new_state = self.num_states
+        self.num_states += 1
+        self.transitions[new_state] = {}
+        self.incoming[new_state] = set()
+        self.dt = self._replace_leaf(
+            self.dt, state, (distinguisher, {True: state, False: new_state})
+        )
+        # Outgoing edges of the split leaf: drop and re-open.
+        for c in list(self.transitions[state]):
+            self._clear_transition(state, c)
+            self._reopen(state, c)
+        # Incoming edges: drop and re-open (target is now ambiguous).
+        for src, c in list(self.incoming[state]):
+            self._clear_transition(src, c)
+            self._reopen(src, c)
+        self.incoming[state] = set()
+        # Both halves need all their outgoing edges resolved.
+        for sym in range(self.pst.alphabet_size):
+            self._reopen(state, sym)
+            self._reopen(new_state, sym)
+        # Accumulated per-leaf members and open split candidates are now stale
+        # (this leaf's members redistribute across the two halves); rebuild from
+        # fresh sifts.
+        self._leaf_probe_members = {}
+        self._open_splits = {}
+        return new_state
+
+    # -- transition-driven discovery (the worklist) -------------------------
+
+    def _seed_access_from_pool(self) -> None:
+        """Give every current leaf a canonical access string by sifting the
+        prefix pool.  The empty string pins the initial state; the rest come
+        from whatever pool prefixes land in each leaf."""
+        for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
+            if len(self.access) >= self.num_states:
+                break
+            st = self.sift(prefix)
+            if st is not None and st not in self.access:
+                self.access[st] = list(prefix)
+
+    def init_worklist(self) -> None:
+        self._seed_access_from_pool()
+        for state in range(self.num_states):
+            for c in range(self.pst.alphabet_size):
+                self._reopen(state, c)
+
+    def _leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
+        """Prefixes that sift to ``state``.  Uses the cached membership when a
+        consistency pass has populated it; otherwise scans the pool."""
+        cached = getattr(self, "leaf_members", None)
+        if cached is not None and state in cached:
+            return cached[state]
+        out = []
+        for p in self.pst.table.prefixes:
+            if self.sift(list(p)) == state:
+                out.append(list(p))
+                if len(out) >= limit:
+                    break
+        return out
+
+    def _decisive_target(
+        self, state: int, c: int, *, max_tries: int = 30
+    ) -> Tuple[Optional[int], Optional[List[int]]]:
+        """A *decisive* target for ``delta(state, c)``.
+
+        ``resolve`` used to sift only ``access[state] + [c]`` and give up (leaving
+        the edge to a self-loop) when that one string was indecisive -- even
+        though the tree is consistent, so *any* member of the leaf resolves the
+        same edge.  Here we try the access string first, then other leaf members,
+        and take the first decisive successor.  Returns ``(None, None)`` only when
+        every tried member is indecisive (a genuinely unresolvable edge)."""
+        candidates: List[List[int]] = []
+        access = self.access.get(state)
+        if access is not None:
+            candidates.append(access)
+        candidates.extend(self._leaf_members(state, limit=max_tries))
+        seen = set()
+        tries = 0
+        for m in candidates:
+            key = tuple(m)
+            if key in seen:
+                continue
+            seen.add(key)
+            ext = list(m) + [c]
+            target, boundary = self.sift_and_boundary(ext)
+            if target is not None:
+                return target, list(m)
+            # This successor is a boundary string the family can't place.
+            self.indecisive.add(boundary)
+            tries += 1
+            if tries >= max_tries:
+                break
+        return None, None
+
+    def resolve(self, state: int, c: int) -> None:
+        """Resolve one edge to a decisive successor (see :meth:`_decisive_target`)."""
+        if self.access.get(state) is None and self._find_access(state) is None:
+            return  # unreachable leaf; leave the edge for export fallback
+        target, witness = self._decisive_target(state, c)
+        if target is None:
+            return  # every member indecisive; export fills it as a self-loop
+        self._set_transition(state, c, target, witness)
+
+    def run_worklist(self) -> int:
+        """Resolve queued ``(state, symbol)`` edges until the hypothesis is
+        closed.  Returns the number of edges resolved.
+
+        A split reuses the old id for its True branch, so every id in
+        ``range(num_states)`` is always a live leaf -- no staleness check is
+        needed; the only dedup is skipping edges already resolved."""
+        resolved = 0
+        while self.worklist:
+            state, c = self.worklist.popleft()
+            if c in self.transitions[state]:
+                continue  # already resolved (deduped)
+            self.resolve(state, c)
+            resolved += 1
+        return resolved
+
+    # -- consistency-driven discovery --------------------------------------
+    #
+    # Instead of hunting counterexamples with random probes, verify the closed
+    # hypothesis directly: a leaf is one Myhill-Nerode state only if all its
+    # members agree on where each symbol leads.  We check this from a *sample*
+    # per leaf -- a genuine split is gross (a substantial fraction of the leaf
+    # diverges), so a handful of members reveals it -- and escalate to the full
+    # membership only to confirm convergence.  Each violation (a member whose
+    # ``c``-successor differs from the edge resolved off the access string) is an
+    # exact, noise-guarded counterexample that splits the leaf.
+
+    def assign_leaves(self) -> None:
+        """(Re)compute which pool prefixes land in each current leaf.
+
+        When ``self.check_representative_only`` is set, only representative
+        prefixes are checked -- so the consistency population matches the family
+        calibration population (both the curated state-balanced sample) instead
+        of the accumulated scratch."""
+        self.leaf_members: Dict[int, List[List[int]]] = {
+            s: [] for s in range(self.num_states)
+        }
+        prefixes = self.pst.table.prefixes
+        if getattr(self, "check_representative_only", False):
+            rep = self.pst.table.representative
+            prefixes = [p for p, r in zip(prefixes, rep) if r]
+        for p in prefixes:
+            st = self.sift(list(p))
+            if st is not None:
+                self.leaf_members[st].append(list(p))
+
+    def _reassign_after_split(self, state: int, new_state: int, distinguisher) -> None:
+        old = self.leaf_members.get(state, [])
+        self.leaf_members[state] = []
+        self.leaf_members[new_state] = []
+        for u in old:
+            d = self.is_accept(u, distinguisher)
+            if d is True:
+                self.leaf_members[state].append(u)
+            elif d is False:
+                self.leaf_members[new_state].append(u)
+            # None: indecisive under the new distinguisher; drop from membership.
+
+    def _sample(self, members, sample_size, rng):
+        if sample_size is None or len(members) <= sample_size:
+            return members
+        idx = rng.choice(len(members), size=sample_size, replace=False)
+        return [members[i] for i in idx]
+
+    def _find_inconsistency(self, sample_size, rng, skip):
+        """Scan leaves for a member whose ``c``-successor disagrees with the edge
+        resolved off the access string, returning ``(state, u, c, distinguisher)``
+        for the first noise-guarded split found, or ``None`` if the sample is
+        clean.  ``self._checks`` / ``self._confirms`` tally (leaf,symbol) probes
+        for the clean-vs-confirm measurement."""
+        for state in range(self.num_states):
+            members = self.leaf_members.get(state, [])
+            if len(members) <= 1:
+                continue
+            access = self.access.get(state)
+            if access is None:
+                continue
+            sample = self._sample(members, sample_size, rng)
+            for c in range(self.pst.alphabet_size):
+                target = self.transitions[state].get(c)
+                if target is None:
+                    continue
+                self._checks += 1
+                for u in sample:
+                    key = (state, tuple(u), c)
+                    if key in skip:
+                        continue
+                    tu, boundary = self.sift_and_boundary(u + [c])
+                    if tu is None:
+                        # ``u + [c]`` is indecisive under the current family -- a
+                        # boundary string this family can't place.  Record it so
+                        # the caller can enrich the next round's family with it.
+                        self.indecisive.add(boundary)
+                    elif tu != target:
+                        self._confirms += 1
+                        dist = self.disagreement(access, u, self.dt, [c])
+                        if dist is not None:
+                            return state, u, c, dist
+                        # decisive divergence but not margin-separable -> treat as
+                        # noise, don't split; skip so we don't re-find it.
+                        skip.add(key)
+        return None
+
+    def consistency_close(self, *, sample_size, rng) -> int:
+        """Split until no sampled inconsistency remains.  ``sample_size=None``
+        checks the full membership (the escalation / confirmation pass)."""
+        self.assign_leaves()
+        skip: Set = set()
+        splits = 0
+        while True:
+            cand = self._find_inconsistency(sample_size, rng, skip)
+            if cand is None:
+                return splits
+            state, u, _c, dist = cand
+            old_access = self.access[state]
+            new_state = self.split(state, dist)
+            for p in (old_access, u):
+                st = self.sift(p)
+                if st is not None:
+                    self.access[st] = list(p)
+            self._reassign_after_split(state, new_state, dist)
+            self.run_worklist()
+            skip.clear()  # tree changed; re-evaluate everything
+            splits += 1
+
+    # -- one probe ----------------------------------------------------------
+
+    def _first_disagreement(
+        self, w: List[int], states: List[Optional[int]], lo: int, hi: int
+    ) -> Optional[int]:
+        """Binary-search the first index where the *followed* state ``states[i]``
+        diverges from a fresh sift of ``w[:i]``.  Invariant: sift agrees at ``lo``
+        and disagrees at ``hi``.  Returns ``None`` on an indecisive sift."""
+        assert 0 <= lo < hi <= len(w), (lo, hi)
+        if lo + 1 == hi:
+            return hi
+        mid = (lo + hi) // 2
+        actual, boundary = self.sift_and_boundary(w[:mid])
+        if actual is None:
+            # The binary search homes in on the DFA-vs-tree error, which sits at a
+            # boundary state -- so this indecisive midpoint is a boundary string
+            # worth harvesting (a probe need not *end* at the boundary to expose
+            # one).  Collect it before bailing.
+            self.indecisive.add(boundary)
+            return None
+        if states[mid] is None:
+            return None
+        if actual == states[mid]:
+            return self._first_disagreement(w, states, mid, hi)
+        return self._first_disagreement(w, states, lo, mid)
+
+    def _record_member(self, state: int, prefix: List[int]) -> None:
+        """Note that ``prefix`` decisively sifts to leaf ``state`` -- a member the
+        population split Bayes factor accumulates.  New members are folded into any
+        open split candidates on this leaf right away (incremental evidence)."""
+        bucket = self._leaf_probe_members.setdefault(state, set())
+        if len(bucket) >= self._split_member_cap or tuple(prefix) in bucket:
+            return
+        bucket.add(tuple(prefix))
+        for distinguisher, accum in self._open_splits.get(state, {}).items():
+            self._fold_member(accum, distinguisher, prefix)
+
+    def process(self, w: List[int]) -> int:
+        """Walk one probe string: discover transitions, record the leaves its
+        prefixes reach, and act on the first internal disagreement it exposes.
+
+        Returns ``_SPLIT`` when the disagreement's leaf bifurcated decisively (a
+        split was applied), ``_UNDECIDED`` when the population evidence is not yet
+        conclusive either way (the leaf stays open so more members accumulate), and
+        ``_RESOLVED`` otherwise -- a clean probe, or the leaf accepted as a single
+        state at this distinguisher.
+        """
+        w = list(w)
+        state: Optional[int] = None
+        verified = False
+        agree_point: Optional[int] = None
+        states: List[Optional[int]] = []
+        for i in range(len(w)):  # pylint: disable=consider-using-enumerate
+            if state is None:
+                state, boundary = self.sift_and_boundary(w[:i])
+                if state is None:
+                    self.indecisive.add(boundary)  # boundary: seq + bail prepend
+                else:
+                    self._record_member(state, w[:i])
+                verified = True
+            states.append(state)
+            if state is None:
+                continue
+            if agree_point is None:
+                agree_point = i
+            if verified and state not in self.access:
+                self.access[state] = w[:i]
+            c = w[i]
+            if c in self.transitions[state]:
+                # Fast path: trust the cached edge.  If it is wrong, the mismatch
+                # against the direct sift below is exactly the signal we want.
+                state = self.transitions[state][c]
+                verified = False
+                continue
+            nxt, boundary = self.sift_and_boundary(w[: i + 1])
+            if nxt is None:
+                self.indecisive.add(boundary)  # boundary: seq + bail prepend
+            else:
+                self._record_member(nxt, w[: i + 1])
+                if verified:
+                    # Only record an edge whose source was reached by a real sift,
+                    # so the witness w[:i] genuinely sifts to ``state``.
+                    self._set_transition(state, c, nxt, w[:i])
+            state = nxt
+            verified = True
+        states.append(state)
+        return self._act_on_disagreement(w, states, agree_point)
+
+    def _act_on_disagreement(self, w, states, agree_point) -> int:
+        """Localise the first followed-vs-sift disagreement in the walked probe
+        and run the sequential population split test on the leaf it exposes.
+        Returns ``_SPLIT`` / ``_UNDECIDED`` / ``_RESOLVED`` (see :meth:`process`)."""
+        state = states[-1]
+        actual = self.sift(w)
+        if actual is None or state is None or actual == state:
+            return _RESOLVED
+        fd = self._first_disagreement(w, states, agree_point, len(w))
+        if fd is None:
+            return _RESOLVED
+        s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
+        if s1 is None or s2 is None:
+            return _RESOLVED
+        # The disagreeing edge is necessarily a cached follow (a fresh sift could
+        # not disagree with itself), so its witness is present and still valid.
+        if self.transitions.get(s1, {}).get(c) != s2:
+            return _RESOLVED
+        witness = self.transition_witnesses.get((s1, c))
+        if witness is None:
+            return _RESOLVED
+        sprime = w[: fd - 1]
+        if self.sift(witness) != s1 or self.sift(sprime) != s1:
+            return _RESOLVED
+        distinguisher = self.disagreement(witness, sprime, self.dt, [c])
+        if distinguisher is None:
+            return _RESOLVED
+        # Sequential population test at the proposed distinguisher: split above the
+        # upper boundary, accept a single state below the lower boundary (and drop
+        # the candidate so it stops being probed), and leave the leaf open in
+        # between so more probe members accumulate and drive the BF to a decision.
+        accum = self._split_candidate(s1, distinguisher)
+        if len(accum["seen"]) < self._min_split_members or not self._test_idx:
+            return _UNDECIDED  # too little evidence to judge yet -- keep sifting
+        bf = self._candidate_logbf(accum)
+        if bf >= self._split_threshold():
+            self.split(s1, distinguisher)
+            # witness and sprime both reached the old leaf and the distinguisher
+            # separates them, so re-sifting assigns an access string to each side.
+            for p in (witness, sprime):
+                st = self.sift(p)
+                if st is not None:
+                    self.access[st] = list(p)
+            return _SPLIT
+        if bf <= self._no_split_threshold():
+            self._open_splits.get(s1, {}).pop(distinguisher, None)
+            return _RESOLVED
+        return _UNDECIDED
+
+    # -- driver -------------------------------------------------------------
+
+    def process_probes(self, probes) -> int:
+        """Walk each string in ``probes`` (e.g. counterexamples supplied by a
+        refiner) through :meth:`process`, re-resolving the worklist after each
+        split.  Returns the number of splits."""
+        splits = 0
+        for w in probes:
+            if self.process(w) == _SPLIT:
+                splits += 1
+                self.run_worklist()
+        return splits
+
+    def probe_for_counterexamples(
+        self, *, max_probes: int, patience: Optional[int] = None
+    ) -> int:
+        """Draw random probe strings purely to *find counterexamples*: a probe
+        whose transition-followed state disagrees with a direct sift exposes a
+        state that must split.  The transition function itself is built by the
+        worklist (:meth:`run_worklist`), not here -- so an already-closed
+        hypothesis sifts each probe about once (the consistency check) instead of
+        re-deriving every edge.  After each split the worklist re-resolves the
+        re-opened edges.  Stops after ``patience`` consecutive clean probes.
+        Returns the number of splits (counterexamples consumed)."""
+        splits = 0
+        since_split = 0
+        for _ in range(max_probes):
+            w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+            status = self.process(w)
+            if status == _SPLIT:
+                splits += 1
+                since_split = 0
+                self.run_worklist()
+            elif status == _UNDECIDED:
+                since_split = 0  # still resolving this leaf -- keep sifting
+            else:
+                since_split += 1
+                if patience is not None and since_split >= patience:
+                    break
+        return splits
+
+    def counterexample_pass(
+        self, *, max_probes: int, patience: int, boundary_target: int
+    ) -> int:
+        """Targeted alternative to the full-membership escalation.
+
+        Sample strings and walk each through :meth:`process`: a walk that
+        disagrees with a direct sift exposes a split (found and applied at the
+        break point), and every ``sift -> None`` prefix it passes is collected as
+        a boundary string (into ``self.indecisive``).  Bails as soon as *either*
+        condition the caller cares about is met: counterexamples have dried up
+        (``patience`` consecutive clean probes) *or* enough boundary strings have
+        been gathered to feed the next round's FNR step.  Returns the split count.
+        """
+        splits = 0
+        since_split = 0
+        for _ in range(max_probes):
+            w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+            status = self.process(w)
+            if status == _SPLIT:
+                splits += 1
+                since_split = 0
+                self.run_worklist()
+            elif status == _UNDECIDED:
+                since_split = 0  # a leaf is still resolving -- keep sifting it
+            else:
+                since_split += 1
+            if since_split >= patience or len(self.indecisive) >= boundary_target:
+                break
+        return splits
+
+    # -- export -------------------------------------------------------------
+
+    def _collect_leaves(self, node: Node):
+        if isinstance(node, int):
+            yield node
+            return
+        _, lookup = node
+        for child in lookup.values():
+            yield from self._collect_leaves(child)
+
+    def _find_access(self, state: int) -> Optional[List[int]]:
+        cached = self.access.get(state)
+        if cached is not None:
+            return cached
+        for prefix in self.pst.table.prefixes:
+            if self.sift(list(prefix)) == state:
+                self.access[state] = list(prefix)
+                return list(prefix)
+        return None
+
+    def _completed_transitions(self) -> Dict[int, Dict[int, int]]:
+        """A total copy of the transition function.  Any edge the worklist left
+        unresolved is resolved here from a decisive leaf member
+        (:meth:`_decisive_target`) rather than sifting only the access string --
+        a single indecisive access continuation used to fall back to a bogus
+        self-loop, which wrecked the exported DFA even when the tree was correct.
+        Only an edge whose *entire* leaf is indecisive still self-loops.  Does not
+        mutate ``self.transitions`` -- unresolved edges stay open for later rounds."""
+        completed: Dict[int, Dict[int, int]] = {}
+        for state in range(self.num_states):
+            completed[state] = dict(self.transitions[state])
+            for c in range(self.pst.alphabet_size):
+                if c in completed[state]:
+                    continue
+                target, _ = self._decisive_target(state, c)
+                if target is None:
+                    print(
+                        f"direct_lstar: no decisive edge for (state {state}, "
+                        f"symbol {c}); falling back to a self-loop"
+                    )
+                    target = state
+                completed[state][c] = target
+        return completed
+
+    def to_dfa_and_tree(self) -> Tuple[DFA, DecisionTree]:
+        """Export the learned automaton as ``(DFA, DecisionTree)``, matching the
+        shape returned by ``resolve_dfa``."""
+        transitions = self._completed_transitions()
+
+        def to_dt(node: Node) -> DecisionTree:
+            if isinstance(node, int):
+                return DecisionTreeLeafNode(node)
+            prepend, lookup = node
+            vs_suffixes = [list(prepend) + self.pst.table.suffix(v) for v in self.vs]
+            predicate = TriPredicate(
+                vs_suffixes, self.pst.accept_thresh, self.pst.reject_thresh
+            )
+            # by_rejection is (if rejected, if accepted) == (False child, True child).
+            return DecisionTreeInternalNode(
+                predicate=predicate,
+                by_rejection=(to_dt(lookup[False]), to_dt(lookup[True])),
+            )
+
+        dt = to_dt(self.dt)
+
+        # Accepting states are exactly the leaves on the accept side of the root
+        # (empty-prepend) distinguisher; a split only ever refines a leaf.
+        _, root_lookup = self.dt
+        accepting = set(self._collect_leaves(root_lookup[True]))
+
+        boundary = self.pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        )
+        initial = dt_decisive.classify([], self.pst.oracle)
+        if initial is None:
+            initial = 0
+
+        dfa = DFA(
+            states=set(range(self.num_states)),
+            input_symbols=set(range(self.pst.alphabet_size)),
+            transitions=transitions,
+            initial_state=initial,
+            final_states=accepting,
+            allow_partial=False,
+        )
+        return dfa, dt
+
+
+def learn_direct_lstar(
+    pst,
+    *,
+    first_round: bool = True,
+    max_probes: int = 10000,
+    patience: Optional[int] = None,
+) -> Tuple[DFA, DecisionTree]:
+    """Sample the base suffix family, resolve the transition worklist, then probe
+    for counterexamples once, and return the ``(DFA, DecisionTree)``.
+
+    This is a *single round*: on rare / long-range patterns the boundary states
+    that need splitting sit in the indecisive band and are seldom hit by uniform
+    probes, so a single round collapses to the trivial accept/reject automaton.
+    Use :func:`synthesize_direct_lstar` to wrap this in a refinement loop that
+    manufactures the missing prefixes.
+    """
+    v_idx = pst.table.intern_suffix([])
+    vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+    pst.decision_boundary = boundary
+    learner = DirectLStarLearner(pst, vs, split_test_budget=max_probes)
+    learner.init_worklist()
+    learner.run_worklist()
+    learner.probe_for_counterexamples(max_probes=max_probes, patience=patience)
+    learner.run_worklist()
+    return learner.to_dfa_and_tree()
+
+
+# ---------------------------------------------------------------------------
+# Refinement -- the replaceable part of the outer loop.
+# ---------------------------------------------------------------------------
+#
+# A ``Refiner`` is called once per round when the current hypothesis is not yet
+# accurate enough.  It may add informative prefixes to ``pst.table`` (side
+# effect) and returns a list of *probe strings* for the next round's learner to
+# walk.  Returning an empty list (and adding nothing) signals convergence /
+# giving up, and the outer loop stops.
+Refiner = Callable[..., List[List[int]]]
+
+
+def default_refine(
+    pst,
+    dfa,
+    dt: DecisionTree,
+    dt_decisive: DecisionTree,
+    *,
+    true_acc: float,
+    count: int,
+) -> List[List[int]]:
+    """Provisional refiner: reuse the counterexample generation + leaf
+    enrichment from the statistical ``TransitionResolver`` pipeline.
+
+    TODO(direct-lstar): This is a stop-gap.  It borrows machinery
+    (``generate_counterexamples`` / ``enrich_underrepresented_leaves`` in
+    :mod:`orthogonal_dfa.l_star.lstar`) that was designed for the pool-wide
+    statistical splitter, not for this random-walk / discrimination-tree learner.
+    We should come back and replace it with a refiner native to *this* approach
+    -- one that deliberately manufactures probe strings driving a boundary state
+    out of the indecisive band (the documented root cause of the single-round
+    failure; see the module docstring).  The outer loop is written against the
+    ``Refiner`` interface precisely so this function can be swapped out without
+    touching :func:`synthesize_direct_lstar`.
+    """
+    # Imported here (not at module top) to keep the dependency on the resolver
+    # pipeline localized to the thing we intend to replace.
+    from .lstar import add_counterexample_prefixes, enrich_underrepresented_leaves
+
+    counterexamples = add_counterexample_prefixes(
+        pst, dt, dfa, count, expected_acc=true_acc
+    )
+    enriched = enrich_underrepresented_leaves(pst, dt_decisive, count=count)
+    return list(counterexamples) + list(enriched)
+
+
+def synthesize_direct_lstar(
+    pst,
+    *,
+    acc_threshold: float,
+    additional_counterexamples: int = 200,
+    max_probes_per_round: int = 4000,
+    patience: Optional[int] = 800,
+    max_rounds: int = 20,
+    split_margin: Optional[float] = None,
+    refine: Refiner = default_refine,
+) -> Tuple[DFA, DecisionTree]:
+    """Transition-driven learner inside a refinement loop.
+
+    Each round re-samples the suffix family over the current (growing) prefix
+    pool and builds a fresh learner -- the per-round recalibration is what pushes
+    boundary states out of the indecisive band, so it cannot be skipped.  Within
+    a round, though, discovery is *transition driven*, not random-walk driven:
+    :meth:`~DirectLStarLearner.run_worklist` resolves each ``(state, symbol)``
+    edge exactly once by sifting ``access[state] + [symbol]`` (roughly one sift
+    per transition), and random probes are used only to *find counterexamples*
+    that trigger splits -- each split re-opens just the incident edges for the
+    worklist rather than rebuilding the whole table.
+
+    Counterexamples accumulate across rounds (``extra_probes``) and are re-walked
+    each round: with the recalibrated family they can land decisively and drive
+    splits that were previously stuck in the indecisive band.
+
+    ``refine`` is the single swappable point where new prefixes are manufactured;
+    it defaults to :func:`default_refine` (see its TODO).
+    """
+    # Imported here to avoid importing the resolver pipeline unless the loop runs.
+    from .lstar import estimate_agreement_rate
+
+    first_round = True
+    extra_probes: List[List[int]] = []
+    # The per-round rebuild is only weakly monotone -- a later round can recover a
+    # worse hypothesis than an earlier one -- so keep the best-scoring round
+    # rather than returning whatever the last round produced.
+    best = (-1.0, None, None)  # (true_acc, dfa, dt)
+    for round_idx in range(max_rounds):
+        v_idx = pst.table.intern_suffix([])
+        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        pst.decision_boundary = boundary
+        first_round = False
+
+        learner = DirectLStarLearner(
+            pst,
+            vs,
+            split_margin=split_margin,
+            # Bonferroni budget: one split test per probe, over every round.
+            split_test_budget=max_probes_per_round * max_rounds,
+        )
+        learner.init_worklist()
+        learner.run_worklist()
+        # Re-walk accumulated counterexamples, then hunt for fresh ones; both
+        # re-resolve the worklist after each split.
+        learner.process_probes(extra_probes)
+        learner.probe_for_counterexamples(
+            max_probes=max_probes_per_round, patience=patience
+        )
+        dfa, dt = learner.to_dfa_and_tree()
+        print(
+            f"[direct-lstar] round {round_idx}: {learner.num_states} states "
+            f"from {pst.num_prefixes} prefixes"
+        )
+
+        boundary = pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        )
+        true_acc = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
+        )
+        print(f"[direct-lstar] round {round_idx}: estimated accuracy {true_acc:.4f}")
+        if true_acc > best[0]:
+            best = (true_acc, dfa, dt)
+        if true_acc >= acc_threshold:
+            break
+
+        new_probes = refine(
+            pst,
+            dfa,
+            dt,
+            dt_decisive,
+            true_acc=true_acc,
+            count=additional_counterexamples,
+        )
+        if not new_probes:
+            print("[direct-lstar] refiner produced no new prefixes; stopping")
+            break
+        extra_probes.extend(list(p) for p in new_probes)
+
+    return best[1], best[2]
+
+
+def synthesize_direct_lstar_consistency(
+    pst,
+    *,
+    acc_threshold: float,
+    additional_counterexamples: int = 200,
+    sample_size: int = 25,
+    max_rounds: int = 20,
+    split_test_budget: int = 40000,
+    refine: Refiner = default_refine,
+) -> Tuple[DFA, DecisionTree]:
+    """Transition-driven learner whose discovery is a *consistency check*, not
+    random probing.
+
+    Each round rebuilds over the recalibrated family, then:
+      1. resolve every edge off its access string (``run_worklist``);
+      2. ``consistency_close`` with a per-leaf *sample* -- split on any member
+         whose ``c``-successor disagrees with the access-string edge;
+      3. one full-membership ``consistency_close`` to confirm nothing subtle
+         remains (the escalation pass).
+    Random probes are not used at all.  ``refine`` still enriches the pool
+    between rounds so under-represented states get decisive members.
+
+    This is the design compared against ``TransitionResolver`` on query count:
+    the sample makes discovery pay for only a handful of members per (leaf,
+    symbol) instead of the whole leaf population.
+    """
+    from .lstar import estimate_agreement_rate
+
+    first_round = True
+    best = (-1.0, None, None)
+    for round_idx in range(max_rounds):
+        v_idx = pst.table.intern_suffix([])
+        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        pst.decision_boundary = boundary
+        first_round = False
+
+        learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
+        learner.init_worklist()
+        learner.run_worklist()
+        sampled = learner.consistency_close(sample_size=sample_size, rng=pst.rng)
+        confirmed = learner.consistency_close(sample_size=None, rng=pst.rng)
+        dfa, dt = learner.to_dfa_and_tree()
+        print(
+            f"[direct-lstar/consistency] round {round_idx}: {learner.num_states} "
+            f"states from {pst.num_prefixes} prefixes "
+            f"(sampled splits {sampled}, escalation splits {confirmed})"
+        )
+
+        boundary = pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        )
+        true_acc = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
+        )
+        print(
+            f"[direct-lstar/consistency] round {round_idx}: "
+            f"estimated accuracy {true_acc:.4f}"
+        )
+        if true_acc > best[0]:
+            best = (true_acc, dfa, dt)
+        if true_acc >= acc_threshold:
+            break
+
+        new_probes = refine(
+            pst,
+            dfa,
+            dt,
+            dt_decisive,
+            true_acc=true_acc,
+            count=additional_counterexamples,
+        )
+        if not new_probes:
+            print("[direct-lstar/consistency] refiner produced nothing; stopping")
+            break
+
+    return best[1], best[2]
+
+
+def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
+    """A state-balanced sample: up to ``per_state`` distinct length-``length``
+    strings reaching *each* DFA state (via the path-counting sampler).  This is
+    the representative population for the next round -- clean and balanced across
+    states, rather than the accumulated sift scratch."""
+    from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+
+    pool: List[List[int]] = []
+    for state in sorted(dfa.states):
+        counts = count_paths_to_state(dfa, state, length)
+        reachable = counts[length][dfa.initial_state]
+        if reachable == 0:
+            continue
+        seen = set()
+        for _ in range(per_state * 5):
+            if len(seen) >= min(per_state, reachable):
+                break
+            seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
+        pool.extend(list(s) for s in seen)
+    return pool
+
+
+def _take_indecisive(learner, target: int) -> List[List[int]]:
+    """Up to ``target`` of the boundary strings the learner bumped into while
+    building the DFA (``learner.indecisive``) -- no separate search; these arise
+    naturally from transition resolution and consistency checking."""
+    return [list(t) for t in list(learner.indecisive)[:target]]
+
+
+def _grow_representative_pool(
+    pst,
+    learner,
+    dfa,
+    accumulated: List[List[int]],
+    seen: Set,
+    *,
+    indecisive_fraction: float,
+    min_indecisive: int,
+    per_state: int,
+) -> None:
+    """Accumulate this round's boundary strings (capped) into ``accumulated`` /
+    ``seen``, then rebuild the table's representative set as those boundary
+    strings (which drive the FNR gate) plus a capped per-state balanced sample
+    (bounded coverage for the consistency check)."""
+    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+    for t in _take_indecisive(learner, target):
+        key = tuple(t)
+        if key not in seen:
+            seen.add(key)
+            accumulated.append(t)
+    curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
+    representative = accumulated + curated
+    fresh = [p for p in representative if not pst.table.contains_prefix(p)]
+    if fresh:
+        pst.table.add_prefixes(fresh, representative=True)
+    pst.table.set_representative(representative)
+
+
+def synthesize_direct_lstar_fnr(
+    pst,
+    *,
+    acc_threshold: float,
+    per_state: int = 60,
+    indecisive_fraction: float = 0.1,
+    min_indecisive: int = 200,
+    max_rounds: int = 20,
+    split_test_budget: int = 40000,
+    counterexample_probes: int = 4000,
+    counterexample_patience: Optional[int] = None,
+) -> Tuple[DFA, DecisionTree]:
+    """Consistency learner that forces the suffix family to resolve boundary
+    states via the FNR gate.
+
+    Each round, after learning, collect the strings the family can't classify
+    (``sift -> None`` -- measured to be, cleanly, the indecisive "boundary"
+    states) and add them to the *representative* pool.  ``sample_suffix_family``
+    then sees a high FNR over them and re-clusters to a family that classifies
+    them decisively -- dropping the "completing" suffixes that were diluting them
+    -- so the next round can place them and split.  The batch is capped at
+    ``max(indecisive_fraction * |prefixes|, min_indecisive)`` per round.
+    """
+    from .lstar import estimate_agreement_rate
+
+    # Patience for the discovery pass: stop a round after this many consecutive
+    # clean probes. Derived from acc_threshold, not hardcoded. If the DFA-vs-tree
+    # disagreement rate were still at the tolerated level eps = 1 - acc_threshold,
+    # seeing k clean probes in a row has probability (1 - eps)^k = acc_threshold^k,
+    # so k = ceil(ln(alpha) / ln(acc_threshold)) makes stopping a <= alpha event.
+    # This is a cost knob -- the outer estimate + next round verify -- so a modest
+    # alpha suffices (149 at acc_threshold 0.98; ~300 at 0.99).
+    if counterexample_patience is None:
+        counterexample_patience = math.ceil(math.log(0.05) / math.log(acc_threshold))
+
+    first_round = True
+    best = (-1.0, None, None, 0.0)
+    # Accumulated boundary strings -- the FNR gate resolves the chain one state
+    # per round, so keeping earlier rounds' indecisives keeps the family honest
+    # about the whole chain (they turn decisive once their state is resolved).
+    accumulated: List[List[int]] = []
+    seen: Set = set()
+    # Shared across rounds: membership is deterministic, so cells cached in one
+    # round are reused by every later round (the family ``vs`` changing only
+    # affects which cells are averaged, not their values).
+    membership_cache: Dict[tuple, int] = {}
+    # Early-stop when a round makes no progress. Some targets are unlearnable
+    # with a fixed-length prefix sampler (transient states the sampler never
+    # lands on, issue #128): the FNR gate then finds no new boundary strings and
+    # the round is a byte-for-byte repeat of the last. When nothing changes --
+    # no new states, no accuracy gain, no new boundary strings -- we have reached
+    # that fixpoint, so stop rather than burn the remaining rounds. ``stall``
+    # counts consecutive no-progress rounds; two in a row confirms the fixpoint.
+    prev_states = 0
+    prev_acc_len = 0
+    stall = 0
+    for round_idx in range(max_rounds):
+        prior_best = best[0]
+        v_idx = pst.table.intern_suffix([])
+        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        pst.decision_boundary = boundary
+        first_round = False
+
+        learner = DirectLStarLearner(
+            pst,
+            vs,
+            split_test_budget=split_test_budget,
+            membership_cache=membership_cache,
+        )
+        # Family calibration (FNR) runs on the clean, bounded representative set.
+        learner.check_representative_only = True
+        learner.init_worklist()
+        learner.run_worklist()
+        # A single discovery pass: sample fresh strings and split on DFA-vs-tree
+        # disagreements (the equivalence-oracle role).  Its binary search homes in
+        # on the errors, which sit at boundary states, so it *also* harvests the
+        # boundary (sift -> None) strings that feed the FNR gate -- densely and
+        # targeted, so a probe need not end at the boundary.  This subsumes the
+        # separate consistency check (pool verification + boundary sweep): dropping
+        # it brings the substring case to E-L* query parity (1.08M) with no loss of
+        # convergence across seeds.
+        learner.counterexample_pass(
+            max_probes=counterexample_probes,
+            patience=counterexample_patience,
+            boundary_target=10**9,
+        )
+        learner.run_worklist()
+        dfa, dt = learner.to_dfa_and_tree()
+
+        boundary = pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        )
+        true_acc = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
+        )
+        if true_acc > best[0]:
+            best = (true_acc, dfa, dt, pst.decision_boundary)
+        if true_acc >= acc_threshold:
+            print(
+                f"[direct-lstar/fnr] round {round_idx}: converged, "
+                f"{learner.num_states} states"
+            )
+            break
+
+        _grow_representative_pool(
+            pst,
+            learner,
+            dfa,
+            accumulated,
+            seen,
+            indecisive_fraction=indecisive_fraction,
+            min_indecisive=min_indecisive,
+            per_state=per_state,
+        )
+        print(
+            f"[direct-lstar/fnr] round {round_idx}: {learner.num_states} states, "
+            f"est {true_acc:.3f}, {len(accumulated)} accumulated indecisive, "
+            f"{int(pst.table.representative.sum())} rep / {pst.num_prefixes} total"
+        )
+
+        progressed = (
+            learner.num_states > prev_states
+            or true_acc > prior_best + 1e-9
+            or len(accumulated) > prev_acc_len
+        )
+        stall = 0 if progressed else stall + 1
+        prev_states = learner.num_states
+        prev_acc_len = len(accumulated)
+        if stall >= 2:
+            print(
+                f"[direct-lstar/fnr] round {round_idx}: no progress "
+                f"({learner.num_states} states) -- target unresolvable with this "
+                "sampler, stopping"
+            )
+            break
+
+    # Correct per-state accept/reject labels: the structural labeling (leaves on
+    # the root's accept side) can flip low-support states under noise, especially
+    # asymmetric noise -- a resample + binomial test per reachable state fixes it.
+    # This is the same denoising step the resolver pipeline applies at the end.
+    from .lstar import denoise_accept_labels
+
+    _, best_dfa, best_dt, best_boundary = best
+    pst.decision_boundary = best_boundary
+    best_dfa = denoise_accept_labels(pst, best_dfa)
+    return best_dfa, best_dt
+
+
+def _balanced_representative(learner, priority, fill, per_state) -> List[List[int]]:
+    """A balanced, capped representative set: bucket candidates by the leaf they
+    reach and keep at most ``per_state`` per bucket, taking ``priority`` (the
+    refiner's counterexamples -- the informative, split-revealing strings) before
+    ``fill`` (the state-balanced resample).  This gives every previous state a
+    good-but-bounded number of members -- enough for FNR to be a real gate --
+    without letting one conflated state accumulate thousands."""
+    from collections import defaultdict
+
+    buckets = defaultdict(list)
+    for u in list(priority) + list(fill):
+        buckets[learner.sift(list(u))].append(list(u))  # leaf None -> its own bucket
+    out: List[List[int]] = []
+    for members in buckets.values():
+        seen, uniq = set(), []
+        for m in members:
+            k = tuple(m)
+            if k not in seen:
+                seen.add(k)
+                uniq.append(m)
+        out.extend(uniq[:per_state])
+    return out
+
+
+def synthesize_direct_lstar_curated(
+    pst,
+    *,
+    acc_threshold: float,
+    additional_counterexamples: int = 200,
+    sample_size: int = 25,
+    per_state: int = 60,
+    max_rounds: int = 20,
+    split_test_budget: int = 40000,
+    refine: Refiner = default_refine,
+) -> Tuple[DFA, DecisionTree]:
+    """Consistency-driven learner whose calibration *and* check both run on a
+    curated, state-balanced representative pool (see :func:`_curated_pool`),
+    rebuilt from the previous round's DFA.
+
+    This closes the population mismatch that plagued the plain consistency
+    learner: the family was calibrated on the true probe sample while the
+    consistency check ran over the whole accumulated scratch.  Here both use the
+    same clean per-state resample, so the family fits exactly what it is checked
+    against.
+    """
+    from .lstar import estimate_agreement_rate
+
+    first_round = True
+    best = (-1.0, None, None)
+    for round_idx in range(max_rounds):
+        v_idx = pst.table.intern_suffix([])
+        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        pst.decision_boundary = boundary
+        first_round = False
+
+        learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
+        learner.check_representative_only = True
+        learner.init_worklist()
+        learner.run_worklist()
+        learner.consistency_close(sample_size=sample_size, rng=pst.rng)
+        learner.consistency_close(sample_size=None, rng=pst.rng)
+        dfa, dt = learner.to_dfa_and_tree()
+        print(
+            f"[direct-lstar/curated] round {round_idx}: {learner.num_states} states, "
+            f"{int(pst.table.representative.sum())} representative / "
+            f"{pst.num_prefixes} total prefixes"
+        )
+
+        boundary = pst.decision_boundary
+        dt_decisive = dt.map_over_predicates(
+            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        )
+        true_acc = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt_decisive,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
+        )
+        print(f"[direct-lstar/curated] round {round_idx}: est accuracy {true_acc:.4f}")
+        if true_acc > best[0]:
+            best = (true_acc, dfa, dt)
+        if true_acc >= acc_threshold:
+            break
+
+        # The next round's representative set = a state-balanced resample (for
+        # calibration + coverage) PLUS the refiner's fresh counterexamples (which
+        # are precisely the strings that expose the missing splits).  Excluding
+        # the latter -- as an earlier version did -- starves the consistency
+        # check of exactly the evidence it needs.
+        counterexamples = refine(
+            pst,
+            dfa,
+            dt,
+            dt_decisive,
+            true_acc=true_acc,
+            count=additional_counterexamples,
+        )
+        curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
+        representative = _balanced_representative(
+            learner, priority=counterexamples, fill=curated, per_state=per_state
+        )
+        fresh = [p for p in representative if not pst.table.contains_prefix(p)]
+        if fresh:
+            pst.table.add_prefixes(fresh, representative=True)
+        pst.table.set_representative(representative)
+
+    return best[1], best[2]
