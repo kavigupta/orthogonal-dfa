@@ -69,8 +69,29 @@ class TestCapalBridge(unittest.TestCase):
 
     def test_build_regex_dfa(self):
         dfa = build_regex_dfa(r".*1010101.*")
+        self.assertEqual(dfa.num_states, 8)  # every state is live, so no sink
         self.assertTrue(dfa.run("1010101"))
         self.assertFalse(dfa.run("0000000"))
+
+    def test_build_regex_dfa_with_dead_end(self):
+        # automata-lib hands back a partial DFA here; the sink has to be added
+        # back or upstream's DFA rejects the transition table outright.
+        dfa = build_regex_dfa(r"1*")
+        self.assertEqual(dfa.num_states, 2)
+        self.assertTrue(dfa.run(""))
+        self.assertTrue(dfa.run("111"))
+        self.assertFalse(dfa.run("0"))
+        self.assertFalse(dfa.run("110"))  # dead: the sink never accepts again
+
+        dfa = build_regex_dfa(r"0*1*")
+        self.assertTrue(dfa.run("0011"))
+        self.assertFalse(dfa.run("10"))
+
+    def test_build_regex_dfa_three_symbols(self):
+        dfa = build_regex_dfa(r"(0|1)*2*", alphabet_size=3)
+        self.assertEqual(dfa.alphabet, ("0", "1", "2"))
+        self.assertTrue(dfa.run("01022"))
+        self.assertFalse(dfa.run("2201"))
 
     def test_end_to_end_fit_and_score(self):
         from orthogonal_dfa.l_star.examples.bernoulli_parity import (

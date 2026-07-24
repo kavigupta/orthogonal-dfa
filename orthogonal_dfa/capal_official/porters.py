@@ -38,15 +38,28 @@ def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
     nfa = NFA.from_regex(regex, input_symbols=syms)
     aut = AutDFA.from_nfa(nfa, minify=True)
 
+    alphabet = sorted(aut.input_symbols)
     state_list = sorted(aut.states, key=lambda s: (str(type(s).__name__), str(s)))
     sidx = {s: i for i, s in enumerate(state_list)}
+
+    # automata-lib rejects by dying, so any language with a dead end (e.g. `1*`,
+    # `0*1*`) comes back partial, while upstream's DFA requires a transition for
+    # every (state, symbol). Route the missing ones to an explicit sink.
+    sink = len(state_list)
     delta = {}
     for s in state_list:
-        for a, dest in aut.transitions[s].items():
-            delta[(sidx[s], a)] = sidx[dest]
+        for a in alphabet:
+            dest = aut.transitions[s].get(a)
+            delta[(sidx[s], a)] = sink if dest is None else sidx[dest]
+    num_states = len(state_list)
+    if sink in delta.values():
+        num_states += 1
+        for a in alphabet:
+            delta[(sink, a)] = sink
+
     return M.DFA(
-        alphabet=sorted(aut.input_symbols),
-        num_states=len(state_list),
+        alphabet=alphabet,
+        num_states=num_states,
         start=sidx[aut.initial_state],
         accept={sidx[s] for s in aut.final_states},
         delta=delta,
