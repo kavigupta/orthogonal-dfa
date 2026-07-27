@@ -1,20 +1,8 @@
-"""Bridge between this repo's Oracle/test-harness and the official CAPAL repo.
+"""Run the official CAPAL learner against this repo's targets.
 
-Loads the upstream `capal` module from the pinned checkout (see
-`resolve_capal_dir`), then exposes:
-
-- build_modulo_dfa(modulo, allowed): the explicit modulo-counting DFA used by
-  BernoulliParityOracle, in the upstream `capal.DFA` format.
-- build_regex_dfa(regex, alphabet_size): regex -> upstream DFA via automata-lib
-  (NFA.from_regex -> DFA.from_nfa, then state-relabel).
-- make_learner(target, eta, ...): a CAPALLearner wired to the PersistentNoisyMQ
-  + PerfectEQ defaults, returned unfitted so callers can instrument it.
-- fit_with_fallback(learner): .fit(), plus whether it converged.
-
-The last two are split because callers need to reach the learner in between --
-to count queries by wrapping `learner.mq.query`, to time the fit, or to
-suppress upstream's stdout. Scoring is deliberately not here: a comparison must
-score every learner on one shared word list, which only the caller can build.
+`make_learner` returns the learner unfitted so callers can instrument it (count
+queries, time the fit) before `fit_with_fallback`. Scoring stays with the
+caller: a fair comparison scores every learner on one shared word list.
 """
 
 from __future__ import annotations
@@ -46,8 +34,7 @@ _official: Any = None
 
 
 def resolve_capal_dir(capal_dir: Optional[str] = None) -> Path:
-    """Upstream checkout: explicit `capal_dir`, else $ORTHO_CAPAL_DIR, else
-    `../capal`."""
+    """Explicit `capal_dir`, else $ORTHO_CAPAL_DIR, else `../capal`."""
     override = capal_dir or os.environ.get(CAPAL_DIR_ENV)
     if override:
         return Path(override).expanduser().resolve()
@@ -75,11 +62,8 @@ def _git(path: Path, *args: str) -> str:
 
 
 def verify_pinned(path: Path) -> None:
-    """Raise unless `path` is a clean checkout at PINNED_COMMIT.
-
-    Reproducibility guard: `data/capal_findings.md` is only meaningful against
-    this exact commit with no local modifications.
-    """
+    """Raise unless `path` is a clean checkout at PINNED_COMMIT -- the numbers
+    in data/capal_findings.md are only comparable against this exact tree."""
     if not path.exists():
         raise RuntimeError(
             f"No CAPAL checkout at {path}. Clone {UPSTREAM_URL} there and "
@@ -108,17 +92,11 @@ def verify_pinned(path: Path) -> None:
 
 
 def import_capal(capal_dir: Optional[str] = None) -> Any:
-    """Verify the pin, then load upstream's single-file `capal` module.
+    """Verify the pin and load upstream's `capal`, cached.
 
-    Deliberately lazy and cached: importing this package must not fail just
-    because the checkout is missing, but *using* it against an unpinned tree
-    must.
-
-    Loaded by file path, not by putting the checkout on sys.path: upstream is a
-    directory of loose modules, so a path insertion would put all of them ahead
-    of everything else and could shadow a like-named top-level import. capal.py
-    imports only stdlib, so loading the file alone is enough -- and there is no
-    longer a stray-`capal` to guard against, since we name the exact file.
+    Lazy so importing this package never requires the checkout, only using it
+    does. Loaded by exact file path rather than onto sys.path, so upstream's
+    loose sibling modules cannot shadow anything.
     """
     global _official  # pylint: disable=global-statement
     if _official is not None:
@@ -205,13 +183,10 @@ def make_learner(
     enum_depth: int = 3,
     extra_len_max: int = 8,
 ) -> Any:
-    """A CAPALLearner over `target`, unfitted (PersistentNoisyMQ + PerfectEQ are
-    built from `target` by upstream).
+    """An unfitted CAPALLearner over `target`.
 
-    `enum_depth` / `extra_len_max` bound how many and how long the SAMESTATE
-    suffixes are -- the matched-query-budget knob. LearnerConfig does not
-    forward them, so they are set on the live SameStateConfig, which SAMESTATE
-    reads lazily during fit().
+    `enum_depth`/`extra_len_max` are the matched-query-budget knob; LearnerConfig
+    does not forward them, so they go straight on the live SameStateConfig.
     """
     official = import_capal()
     cfg = official.LearnerConfig(
@@ -236,22 +211,16 @@ def make_learner(
 def fit_with_fallback(learner: Any) -> Tuple[Optional[Any], bool]:
     """Fit `learner`, returning (dfa, converged).
 
-    fit() raises when max_iters elapses without PerfectEQ accepting -- under
-    noise this is common, because SAMESTATE may make a handful of
-    false-DIFFERENT decisions, leaving the hypothesis larger than the target.
-    That is a result, not an error: the last hypothesis comes back with
-    converged=False so its accuracy stays measurable. Only if there is no
-    hypothesis at all is the dfa None. Anything but the iteration cap
-    propagates.
+    Under noise the iteration cap is a normal non-convergent outcome, not an
+    error: the last hypothesis comes back with converged=False, or dfa None if
+    there is none.
     """
     try:
         return learner.fit(), True
     except RuntimeError as exc:
-        # The cap is upstream's only RuntimeError, but RecursionError is a
-        # subclass of it, so without this the interpreter's own failures would
-        # be recorded as ordinary non-convergent runs. Matching on the message
-        # is safe here only because the pin locks it: it cannot change without
-        # verify_pinned failing first.
+        # RecursionError is a RuntimeError subclass; without this guard the
+        # interpreter's own failures would look like non-convergent runs.
+        # Matching the message is safe only because the pin locks it.
         if CAP_MESSAGE not in str(exc):
             raise
         last = getattr(learner, "_last_hyp", None)
