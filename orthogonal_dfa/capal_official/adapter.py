@@ -17,6 +17,7 @@ Building the target DFAs upstream needs lives in `porters`.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import subprocess
 import sys
@@ -102,31 +103,28 @@ def verify_pinned(path: Path) -> None:
 
 
 def import_capal(capal_dir: Optional[str] = None) -> Any:
-    """Verify the pin, then import upstream's single-file `capal` module.
+    """Verify the pin, then load upstream's single-file `capal` module.
 
     Deliberately lazy and cached: importing this package must not fail just
     because the checkout is missing, but *using* it against an unpinned tree
     must.
+
+    Loaded by file path, not by putting the checkout on sys.path: upstream is a
+    directory of loose modules, so a path insertion would put all of them ahead
+    of everything else and could shadow a like-named top-level import. capal.py
+    imports only stdlib, so loading the file alone is enough -- and there is no
+    longer a stray-`capal` to guard against, since we name the exact file.
     """
     global _official  # pylint: disable=global-statement
     if _official is not None:
         return _official
     path = resolve_capal_dir(capal_dir)
     verify_pinned(path)
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
-    import capal  # type: ignore[import-not-found]  # pylint: disable=import-error,import-outside-toplevel
-
-    # A stray `capal` elsewhere on sys.path would import silently and give wrong
-    # results; confirm we loaded the pinned checkout.
-    loaded = getattr(capal, "__file__", None)
-    if loaded is None or Path(loaded).resolve().parent != path:
-        raise RuntimeError(
-            f"`import capal` resolved to {loaded or '<namespace package>'}, "
-            f"not the pinned checkout at {path}. Something on sys.path is "
-            f"shadowing upstream CAPAL."
-        )
-    _official = capal
+    spec = importlib.util.spec_from_file_location("capal", path / "capal.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["capal"] = module  # so capal.DFA etc. resolve by module name
+    spec.loader.exec_module(module)
+    _official = module
     return _official
 
 
