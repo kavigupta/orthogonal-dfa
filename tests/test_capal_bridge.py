@@ -1,14 +1,7 @@
-"""Smoke tests for the upstream CAPAL bridge (orthogonal_dfa.capal_official).
+"""Smoke tests for the CAPAL bridge (orthogonal_dfa.capal_official).
 
-Ensures a pinned CAPAL checkout exists at ``../capal`` -- cloning it in CI if
-absent -- then exercises the bridge end to end: verify the pin, import the
-upstream module, build target DFAs both ways, check a ported DFA against the
-oracle it stands in for, and run a tiny CAPALLearner fit. Catches a broken
-adapter or upstream-commit drift.
-
-The clone is skipped (not failed) when no checkout exists and cloning is not
-possible (e.g. offline), so the suite still runs without network; CI has git
-and network, so it clones and runs for real.
+Clones the pinned CAPAL checkout to ../capal if absent, skipping (not failing)
+when that is impossible, e.g. offline. Catches a broken adapter or commit drift.
 """
 
 import itertools

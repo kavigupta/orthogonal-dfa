@@ -1,8 +1,5 @@
-"""Port this repo's example targets into upstream CAPAL's `capal.DFA` format.
-
-Each builds the noiseless target DFA for one benchmark family, so upstream's
-PerfectEQ can run its product-BFS counterexample search against it.
-"""
+"""Build this repo's target languages as upstream `capal.DFA`s, so CAPAL's
+PerfectEQ can run its product-BFS counterexample search against them."""
 
 from __future__ import annotations
 
