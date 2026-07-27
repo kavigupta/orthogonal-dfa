@@ -166,8 +166,6 @@ def make_learner(
     max_iters: int = 200,
     seed: int = 0,
     verbose: bool = False,
-    k_pos: int = 10,
-    k_neg: int = 10,
     max_same_samples: int = 60,
     tau_cap: float = 0.2,
     suffix_pool_init: int = 32,
@@ -180,11 +178,13 @@ def make_learner(
 
     `enum_depth`/`extra_len_max` are the matched-query-budget knob; LearnerConfig
     does not forward them, so they go straight on the live SameStateConfig.
+
+    LearnerConfig's K_pos/K_neg are left at their defaults: upstream reads them
+    only in its CLI, never in CAPALLearner or SameStateOracle, so setting them
+    would record a knob that cannot change a result.
     """
     official = import_capal()
     cfg = official.LearnerConfig(
-        K_pos=k_pos,
-        K_neg=k_neg,
         max_iters=max_iters,
         seed=seed,
         eta=eta,
