@@ -54,9 +54,6 @@ def add_common_args(ap: argparse.ArgumentParser) -> None:
         "--targets", nargs="+", default=None, help="Restrict to these benchmark names."
     )
     ap.add_argument("--out", default=None, help="Output JSON path.")
-    ap.add_argument(
-        "--capal-dir", default=None, help="Override the pinned CAPAL checkout."
-    )
 
 
 def run_sweep(

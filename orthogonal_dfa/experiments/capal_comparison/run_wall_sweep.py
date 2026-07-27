@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import itertools
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -93,11 +92,7 @@ def main() -> None:
         help="Also run one E-L* reference per (cell, eta). Slow.",
     )
     ap.add_argument("--out", default=None)
-    ap.add_argument("--capal-dir", default=None)
     args = ap.parse_args()
-
-    if args.capal_dir:
-        os.environ["ORTHO_CAPAL_DIR"] = args.capal_dir
 
     sweep_configs = MATCHED_BUDGET_CONFIGS if args.matched_budget else CONFIGS
     etas = args.etas or ([0.30] if args.matched_budget else DEFAULT_ETAS)

@@ -1,7 +1,7 @@
 """
 Run the baseline CAPAL learner (github.com/lkwargs/CAPAL) against this repo's oracles.
 
-Upstream is a pinned sibling checkout at `../capal` ($ORTHO_CAPAL_DIR to override).
+Upstream is a pinned sibling checkout at `../capal`.
 Scoring the learned DFA is the caller's job, see `orthogonal_dfa.experiments.capal_comparison`.
 """
 

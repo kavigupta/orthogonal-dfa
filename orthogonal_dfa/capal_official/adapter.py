@@ -8,7 +8,6 @@ caller: a fair comparison scores every learner on one shared word list.
 from __future__ import annotations
 
 import importlib.util
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,9 +19,6 @@ UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 #: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
-#: Env var to point at a checkout elsewhere; otherwise a sibling of the repo.
-CAPAL_DIR_ENV = "ORTHO_CAPAL_DIR"
-
 #: What upstream's fit() says when it runs out of iterations (capal.py:1294).
 CAP_MESSAGE = "Maximum iterations reached without convergence"
 
@@ -33,11 +29,8 @@ DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[2].parent / "capal"
 _official: Any = None
 
 
-def resolve_capal_dir(capal_dir: Optional[str] = None) -> Path:
-    """Explicit `capal_dir`, else $ORTHO_CAPAL_DIR, else `../capal`."""
-    override = capal_dir or os.environ.get(CAPAL_DIR_ENV)
-    if override:
-        return Path(override).expanduser().resolve()
+def resolve_capal_dir() -> Path:
+    """The upstream checkout: a `capal` sibling of the repo root."""
     return DEFAULT_CAPAL_DIR
 
 
@@ -67,7 +60,7 @@ def verify_pinned(path: Path) -> None:
     if not path.exists():
         raise RuntimeError(
             f"No CAPAL checkout at {path}. Clone {UPSTREAM_URL} there and "
-            f"`git checkout {PINNED_COMMIT}`, or set ${CAPAL_DIR_ENV}."
+            f"`git checkout {PINNED_COMMIT}`."
         )
     if not (path / "capal.py").exists():
         raise RuntimeError(
@@ -91,7 +84,7 @@ def verify_pinned(path: Path) -> None:
         )
 
 
-def import_capal(capal_dir: Optional[str] = None) -> Any:
+def import_capal() -> Any:
     """Verify the pin and load upstream's `capal`, cached.
 
     Lazy so importing this package never requires the checkout, only using it
@@ -101,7 +94,7 @@ def import_capal(capal_dir: Optional[str] = None) -> Any:
     global _official  # pylint: disable=global-statement
     if _official is not None:
         return _official
-    path = resolve_capal_dir(capal_dir)
+    path = resolve_capal_dir()
     verify_pinned(path)
     spec = importlib.util.spec_from_file_location("capal", path / "capal.py")
     module = importlib.util.module_from_spec(spec)

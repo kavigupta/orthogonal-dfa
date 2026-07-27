@@ -15,7 +15,6 @@ Example:
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 
 from .core import REPO_ROOT
@@ -29,9 +28,6 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     add_common_args(ap)
     args = ap.parse_args()
-
-    if args.capal_dir:
-        os.environ["ORTHO_CAPAL_DIR"] = args.capal_dir
 
     benchmarks = our_benchmarks()
     if args.targets:
