@@ -36,39 +36,25 @@ MIN_COVERED_ACCURACY = 0.99
 def report(aut: Any) -> Dict[str, Any]:
     """Is `aut` inside E-L*'s designed regime, and if not, why not?
 
-    Applies the three conditions of preconditions.satisfies_preconditions:
-    acceptance balance, class-preservation, and the covered-accuracy ceiling,
-    all at SAMPLE_LENGTH.
+    `preconditions.satisfies_preconditions` at this repo's thresholds, flattened
+    for the experiment JSON. Every reason is collected rather than just the
+    first, so an exclusion records everything that disqualified the target.
     """
-    length = SAMPLE_LENGTH
-    rate = preconditions.acceptance_rate(aut, length=length, num_samples=NUM_SAMPLES)
-    cp = preconditions.class_preserving_fraction(
-        aut, length=length, num_samples=NUM_SAMPLES
+    r = preconditions.satisfies_preconditions(
+        aut,
+        length=SAMPLE_LENGTH,
+        min_accept_or_reject=MIN_ACCEPT_OR_REJECT,
+        min_class_preserving_frac=MIN_CLASS_PRESERVING_FRAC,
+        min_covered_accuracy=MIN_COVERED_ACCURACY,
+        num_samples=NUM_SAMPLES,
+        short_circuit=False,
     )
-    ceiling = preconditions.covered_accuracy_ceiling(aut, length=length)
-    covered = preconditions.covered_states(aut, length=length)
-    uncovered = sorted(str(q) for q in aut.states if q not in covered)
-    reasons = []
-    if not MIN_ACCEPT_OR_REJECT <= rate <= 1 - MIN_ACCEPT_OR_REJECT:
-        reasons.append(
-            f"acceptance rate {rate:.3f} outside "
-            f"[{MIN_ACCEPT_OR_REJECT}, {1 - MIN_ACCEPT_OR_REJECT}]"
-        )
-    if cp < MIN_CLASS_PRESERVING_FRAC:
-        reasons.append(
-            f"class-preserving fraction {cp:.3f} below {MIN_CLASS_PRESERVING_FRAC}"
-        )
-    if ceiling < MIN_COVERED_ACCURACY:
-        reasons.append(
-            f"covered-accuracy ceiling {ceiling:.3f} below "
-            f"{MIN_COVERED_ACCURACY} (an uncovered state carries a decision)"
-        )
     return {
-        "sample_length": length,
-        "accept_rate_at_sample_length": round(rate, 4),
-        "class_preserving_frac": round(cp, 4),
-        "covered_accuracy_ceiling": round(ceiling, 4),
-        "uncovered_states": uncovered,
-        "in_regime": not reasons,
-        "excluded_because": reasons,
+        "sample_length": r.length,
+        "accept_rate_at_sample_length": round(r.acceptance_rate, 4),
+        "class_preserving_frac": round(r.class_preserving_fraction, 4),
+        "covered_accuracy_ceiling": round(r.covered_accuracy_ceiling, 4),
+        "uncovered_states": r.uncovered_states,
+        "in_regime": r.satisfied,
+        "excluded_because": list(r.reasons),
     }
