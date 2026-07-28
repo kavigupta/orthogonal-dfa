@@ -8,9 +8,11 @@ and a crash in cell 300 must not cost the first 299.
 from __future__ import annotations
 
 import argparse
+import itertools
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from .benchmark import Benchmark
 from .core import (
     LEARNER_CAPAL,
     LEARNER_ELSTAR,
@@ -20,7 +22,6 @@ from .core import (
     run_elstar_cell,
     write_experiment,
 )
-from .benchmark import Benchmark
 from .regime import (
     MIN_ACCEPT_OR_REJECT,
     MIN_CLASS_PRESERVING_FRAC,
@@ -54,6 +55,75 @@ def add_common_args(ap: argparse.ArgumentParser) -> None:
         "--targets", nargs="+", default=None, help="Restrict to these benchmark names."
     )
     ap.add_argument("--out", default=None, help="Output JSON path.")
+
+
+def run_cell(
+    b: Benchmark,
+    *,
+    learner: str,
+    eta: float,
+    seed: int,
+    words: Sequence[List[int]],
+    truth: Callable[[List[int]], bool],
+    regime: Dict[str, Any],
+    capal_kwargs: Dict[str, Any],
+) -> Cell:
+    """One (benchmark, learner, eta, seed) cell, run or explicitly excluded.
+
+    `regime` is this benchmark's `Benchmark.regime_report()`. CAPAL runs on
+    everything; E-L* runs only where that report says it is in regime.
+    """
+    if learner == LEARNER_CAPAL:
+        return run_capal_cell(
+            b.target,
+            benchmark=b.name,
+            family=b.family,
+            eta=eta,
+            seed=seed,
+            words=words,
+            truth=truth,
+            alphabet=b.alphabet,
+            **capal_kwargs,
+        )
+    if regime["in_regime"]:
+        return run_elstar_cell(
+            b.oracle_creator,
+            benchmark=b.name,
+            family=b.family,
+            eta=eta,
+            seed=seed,
+            symbols=b.symbols,
+            words=words,
+            truth=truth,
+            target_states=b.target_states,
+        )
+    # Outside E-L*'s designed regime: this repo's own benchmark generator would
+    # have discarded this target. Recorded as an explicit, reasoned exclusion
+    # rather than run -- a number here would measure the benchmark, not the
+    # learner.
+    return Cell(
+        benchmark=b.name,
+        family=b.family,
+        learner=LEARNER_ELSTAR,
+        eta=eta,
+        seed=seed,
+        target_states=b.target_states,
+        alphabet_size=b.symbols,
+        learner_config=dict(regime),
+        seconds=0.0,
+        error_type="ExcludedOutOfRegime",
+        error="; ".join(regime["excluded_because"]),
+    ).finalize()
+
+
+def describe(cell: Cell) -> str:
+    """The one-line progress summary printed after each cell."""
+    acc = cell.accuracy if cell.accuracy is None else round(cell.accuracy, 4)
+    return (
+        f"      -> states={cell.learned_states} acc={acc} "
+        f"conv={cell.converged} q={cell.queries_distinct} ({cell.seconds:.1f}s)"
+        + (f" ERR={cell.error}" if cell.error else "")
+    )
 
 
 def run_sweep(
@@ -117,68 +187,25 @@ def run_sweep(
         # it -- this is what makes the accuracies comparable.
         words = eval_words(b.symbols)
         truth = b.truth()
-        for eta in etas:
-            for seed in seeds:
-                for learner in learners:
-                    done += 1
-                    print(
-                        f"[{done}/{total}] {b.name} eta={eta:.2f} seed={seed} "
-                        f"{learner}",
-                        flush=True,
-                    )
-                    if learner == LEARNER_CAPAL:
-                        cell = run_capal_cell(
-                            b.target,
-                            benchmark=b.name,
-                            family=b.family,
-                            eta=eta,
-                            seed=seed,
-                            words=words,
-                            truth=truth,
-                            alphabet=b.alphabet,
-                            **capal_kwargs,
-                        )
-                    elif not regime[b.name]["in_regime"]:
-                        # Outside E-L*'s designed regime: this repo's own
-                        # benchmark generator would have discarded this target.
-                        # Recorded as an explicit, reasoned exclusion rather
-                        # than run -- a number here would measure the benchmark,
-                        # not the learner.
-                        cell = Cell(
-                            benchmark=b.name,
-                            family=b.family,
-                            learner=LEARNER_ELSTAR,
-                            eta=eta,
-                            seed=seed,
-                            target_states=b.target_states,
-                            alphabet_size=b.symbols,
-                            learner_config=dict(regime[b.name]),
-                            seconds=0.0,
-                            error_type="ExcludedOutOfRegime",
-                            error="; ".join(regime[b.name]["excluded_because"]),
-                        ).finalize()
-                    else:
-                        cell = run_elstar_cell(
-                            b.oracle_creator,
-                            benchmark=b.name,
-                            family=b.family,
-                            eta=eta,
-                            seed=seed,
-                            symbols=b.symbols,
-                            words=words,
-                            truth=truth,
-                            target_states=b.target_states,
-                        )
-                    cells.append(cell)
-                    print(
-                        f"      -> states={cell.learned_states} "
-                        f"acc={cell.accuracy if cell.accuracy is None else round(cell.accuracy, 4)} "
-                        f"conv={cell.converged} q={cell.queries_distinct} "
-                        f"({cell.seconds:.1f}s)"
-                        + (f" ERR={cell.error}" if cell.error else ""),
-                        flush=True,
-                    )
-                    flush()
+        for eta, seed, learner in itertools.product(etas, seeds, learners):
+            done += 1
+            print(
+                f"[{done}/{total}] {b.name} eta={eta:.2f} seed={seed} {learner}",
+                flush=True,
+            )
+            cell = run_cell(
+                b,
+                learner=learner,
+                eta=eta,
+                seed=seed,
+                words=words,
+                truth=truth,
+                regime=regime[b.name],
+                capal_kwargs=capal_kwargs,
+            )
+            cells.append(cell)
+            print(describe(cell), flush=True)
+            flush()
 
     flush()
     print(f"\nWrote {out_path} ({len(cells)} cells)")
