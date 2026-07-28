@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -16,6 +17,9 @@ from orthogonal_dfa.l_star.visualize import (
 # render_diagnostics imports pyplot lazily, so this lands before any backend is
 # selected -- the tests must not need a display.
 matplotlib.use("Agg")
+
+# `dot` does the graph layout; without it there is nothing to draw into.
+needs_dot = unittest.skipIf(shutil.which("dot") is None, "graphviz `dot` not installed")
 
 # Parity over {0,1}: state 0 accepts an even number of 1s.
 PARITY = DFA(
@@ -57,11 +61,10 @@ class _StubLearner:
         return sum(seq) % 2
 
 
+@needs_dot
 class TestDotLayout(unittest.TestCase):
     def test_parses_nodes_and_edges(self):
-        layout = _dot_layout(
-            {"a": (0.5, 0.5), "b": (0.5, 0.5)}, [("a", "b", "0,1")]
-        )
+        layout = _dot_layout({"a": (0.5, 0.5), "b": (0.5, 0.5)}, [("a", "b", "0,1")])
         self.assertEqual(set(layout["nodes"]), {"a", "b"})
         self.assertEqual(len(layout["edges"]), 1)
         edge = layout["edges"][0]
@@ -91,8 +94,12 @@ class TestSampleClassDistribution(unittest.TestCase):
     def test_covers_transient_states_and_counts_indecisives(self):
         learner = _StubLearner()
         dist = sample_class_distribution(
-            learner.sift, PARITY, pst=learner.pst, rng=np.random.default_rng(0),
-            num_samples=40, per_state=25,
+            learner.sift,
+            PARITY,
+            pst=learner.pst,
+            rng=np.random.default_rng(0),
+            num_samples=40,
+            per_state=25,
         )
         # Bucketing by prefix (not by end state) must reach every true state.
         self.assertEqual(set(dist), set(PARITY.states))
@@ -119,20 +126,32 @@ class TestSampleClassDistribution(unittest.TestCase):
         learner = _StubLearner()
         batches = []
         dist = sample_class_distribution(
-            learner.sift, PARITY, pst=learner.pst, rng=np.random.default_rng(2),
-            num_samples=20, per_state=8, prefill=batches.append,
+            learner.sift,
+            PARITY,
+            pst=learner.pst,
+            rng=np.random.default_rng(2),
+            num_samples=20,
+            per_state=8,
+            prefill=batches.append,
         )
         self.assertEqual(len(batches), 1)  # one batched pass, not one per string
         self.assertEqual(len(batches[0]), sum(sum(c.values()) for c in dist.values()))
 
 
+@needs_dot
 class TestRenderDiagnostics(unittest.TestCase):
     def test_writes_an_image(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "diag.png")
             path = render_diagnostics(
-                _StubLearner(), PARITY, rng=np.random.default_rng(0), path=out,
-                num_samples=20, per_state=10, final_states={0}, flipped={1},
+                _StubLearner(),
+                PARITY,
+                rng=np.random.default_rng(0),
+                path=out,
+                num_samples=20,
+                per_state=10,
+                final_states={0},
+                flipped={1},
                 dpi=60,
             )
             self.assertEqual(path, out)

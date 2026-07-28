@@ -118,7 +118,7 @@ def _dot_layout(nodes, edges, *, rankdir="LR", nodesep=0.45, ranksep=0.6) -> dic
     inches, y pointing up -- ready to draw at equal aspect."""
     lines = [
         "digraph {",
-        f'  rankdir={rankdir}; nodesep={nodesep}; ranksep={ranksep};',
+        f"  rankdir={rankdir}; nodesep={nodesep}; ranksep={ranksep};",
         '  node [shape=circle, fixedsize=true, label=""];',
     ]
     for name, (w, h) in nodes.items():
@@ -128,8 +128,11 @@ def _dot_layout(nodes, edges, *, rankdir="LR", nodesep=0.45, ranksep=0.6) -> dic
         lines.append(f'  "{tail}" -> "{head}"{lab};')
     lines.append("}")
     plain = subprocess.run(
-        ["dot", "-Tplain"], input="\n".join(lines), text=True,
-        capture_output=True, check=True,
+        ["dot", "-Tplain"],
+        input="\n".join(lines),
+        text=True,
+        capture_output=True,
+        check=True,
     ).stdout
 
     out = {"nodes": {}, "edges": [], "size": (1.0, 1.0)}
@@ -147,11 +150,13 @@ def _dot_layout(nodes, edges, *, rankdir="LR", nodesep=0.45, ranksep=0.6) -> dic
         elif f[0] == "edge":
             n = int(f[3])
             pts = [(float(f[4 + 2 * i]), float(f[5 + 2 * i])) for i in range(n)]
-            rest = f[4 + 2 * n:]
+            rest = f[4 + 2 * n :]
             label = None
             if rest and rest[0] not in ("solid", "dashed", "dotted", "bold"):
                 label = (rest[0], (float(rest[1]), float(rest[2])))
-            out["edges"].append({"tail": f[1], "head": f[2], "pts": pts, "label": label})
+            out["edges"].append(
+                {"tail": f[1], "head": f[2], "pts": pts, "label": label}
+            )
     return out
 
 
@@ -161,21 +166,40 @@ def _draw_edges(ax, layout, *, fontsize):
         # dot emits a cubic B-spline: one anchor then triplets of control points.
         verts, codes = [pts[0]], [Path.MOVETO]
         for i in range(1, len(pts) - 2, 3):
-            verts += pts[i:i + 3]
+            verts += pts[i : i + 3]
             codes += [Path.CURVE4] * 3
-        ax.add_patch(PathPatch(Path(verts, codes), fill=False,
-                               edgecolor=_MUTED, lw=0.9, zorder=1))
+        ax.add_patch(
+            PathPatch(
+                Path(verts, codes), fill=False, edgecolor=_MUTED, lw=0.9, zorder=1
+            )
+        )
         tip, prev = np.array(verts[-1]), np.array(verts[-2])
         d = tip - prev
         if np.hypot(*d):
             d = d / np.hypot(*d)
-            ax.add_patch(FancyArrowPatch(
-                tuple(tip - d * 0.06), tuple(tip), arrowstyle="-|>",
-                mutation_scale=8, color=_MUTED, lw=0, zorder=1))
+            ax.add_patch(
+                FancyArrowPatch(
+                    tuple(tip - d * 0.06),
+                    tuple(tip),
+                    arrowstyle="-|>",
+                    mutation_scale=8,
+                    color=_MUTED,
+                    lw=0,
+                    zorder=1,
+                )
+            )
         if e["label"]:
             text, (lx, ly) = e["label"]
-            ax.text(lx, ly, text, fontsize=fontsize, color=_MUTED,
-                    ha="center", va="center", zorder=2)
+            ax.text(
+                lx,
+                ly,
+                text,
+                fontsize=fontsize,
+                color=_MUTED,
+                ha="center",
+                va="center",
+                zorder=2,
+            )
 
 
 def _pie_node(ax, xy, r, shares, *, double=False, lw=1.0):
@@ -185,13 +209,15 @@ def _pie_node(ax, xy, r, shares, *, double=False, lw=1.0):
         if frac <= 0:
             continue
         end = start - 360.0 * frac
-        ax.add_patch(Wedge(xy, r, end, start, facecolor=colour,
-                           edgecolor="none", zorder=3))
+        ax.add_patch(
+            Wedge(xy, r, end, start, facecolor=colour, edgecolor="none", zorder=3)
+        )
         start = end
     ax.add_patch(Circle(xy, r, fill=False, edgecolor=_INK, lw=lw, zorder=4))
     if double:
-        ax.add_patch(Circle(xy, r * 0.84, fill=False, edgecolor=_INK,
-                            lw=lw * 0.8, zorder=4))
+        ax.add_patch(
+            Circle(xy, r * 0.84, fill=False, edgecolor=_INK, lw=lw * 0.8, zorder=4)
+        )
 
 
 def _finish(ax, layout, pad=0.35):
@@ -229,13 +255,36 @@ def _panel_true_dfa(ax, true_dfa, dist, colors):
         ] or [(_INDECISIVE, 1.0)]
         impure = len([c for c in counter if c is not None]) > 1 or counter.get(None)
         xy = layout["nodes"][str(s)]["xy"]
-        _pie_node(ax, xy, r, shares,
-                  double=s in true_dfa.final_states, lw=2.0 if impure else 1.0)
-        ax.text(xy[0], xy[1], str(s), fontsize=8.5, weight="bold", color="white",
-                ha="center", va="center", zorder=5,
-                path_effects=_halo())
-        ax.text(xy[0], xy[1] - r - 0.13, _breakdown(counter), fontsize=5.6,
-                color=_MUTED, ha="center", va="top", zorder=5)
+        _pie_node(
+            ax,
+            xy,
+            r,
+            shares,
+            double=s in true_dfa.final_states,
+            lw=2.0 if impure else 1.0,
+        )
+        ax.text(
+            xy[0],
+            xy[1],
+            str(s),
+            fontsize=8.5,
+            weight="bold",
+            color="white",
+            ha="center",
+            va="center",
+            zorder=5,
+            path_effects=_halo(),
+        )
+        ax.text(
+            xy[0],
+            xy[1] - r - 0.13,
+            _breakdown(counter),
+            fontsize=5.6,
+            color=_MUTED,
+            ha="center",
+            va="top",
+            zorder=5,
+        )
     _finish(ax, layout, pad=0.5)
 
 
@@ -266,19 +315,50 @@ def _panel_tree(ax, dt, colors):
         xy = layout["nodes"][name]["xy"]
         w, h = layout["nodes"][name]["wh"]
         if kind == "leaf":
-            ax.add_patch(matplotlib.patches.FancyBboxPatch(
-                (xy[0] - w / 2, xy[1] - h / 2), w, h,
-                boxstyle="round,pad=0,rounding_size=0.08",
-                facecolor=colour, edgecolor="none", zorder=3))
-            ax.text(*xy, text, fontsize=7.5, color="white", weight="bold",
-                    ha="center", va="center", zorder=4)
+            ax.add_patch(
+                matplotlib.patches.FancyBboxPatch(
+                    (xy[0] - w / 2, xy[1] - h / 2),
+                    w,
+                    h,
+                    boxstyle="round,pad=0,rounding_size=0.08",
+                    facecolor=colour,
+                    edgecolor="none",
+                    zorder=3,
+                )
+            )
+            ax.text(
+                *xy,
+                text,
+                fontsize=7.5,
+                color="white",
+                weight="bold",
+                ha="center",
+                va="center",
+                zorder=4,
+            )
         else:
-            ax.add_patch(matplotlib.patches.FancyBboxPatch(
-                (xy[0] - w / 2, xy[1] - h / 2), w, h,
-                boxstyle="square,pad=0", facecolor="#ffffff",
-                edgecolor=_INK, lw=0.9, zorder=3))
-            ax.text(*xy, text, fontsize=7.5, color=_INK, family="monospace",
-                    ha="center", va="center", zorder=4)
+            ax.add_patch(
+                matplotlib.patches.FancyBboxPatch(
+                    (xy[0] - w / 2, xy[1] - h / 2),
+                    w,
+                    h,
+                    boxstyle="square,pad=0",
+                    facecolor="#ffffff",
+                    edgecolor=_INK,
+                    lw=0.9,
+                    zorder=3,
+                )
+            )
+            ax.text(
+                *xy,
+                text,
+                fontsize=7.5,
+                color=_INK,
+                family="monospace",
+                ha="center",
+                va="center",
+                zorder=4,
+            )
     _finish(ax, layout, pad=0.3)
 
 
@@ -302,20 +382,47 @@ def _panel_class_dfa(ax, learner, colors, final_states, flipped):
     _draw_edges(ax, layout, fontsize=6.5)
     for s in sorted(transitions):
         xy = layout["nodes"][str(s)]["xy"]
-        ax.add_patch(Circle(xy, r, facecolor=colors.get(s, _OTHER),
-                            edgecolor="none", zorder=3))
-        ax.add_patch(Circle(xy, r, fill=False, zorder=4,
-                            edgecolor="#c0392f" if s in flipped else _INK,
-                            lw=2.4 if s in flipped else 1.0))
+        ax.add_patch(
+            Circle(xy, r, facecolor=colors.get(s, _OTHER), edgecolor="none", zorder=3)
+        )
+        ax.add_patch(
+            Circle(
+                xy,
+                r,
+                fill=False,
+                zorder=4,
+                edgecolor="#c0392f" if s in flipped else _INK,
+                lw=2.4 if s in flipped else 1.0,
+            )
+        )
         if s in finals:
-            ax.add_patch(Circle(xy, r * 0.84, fill=False, edgecolor=_INK,
-                                lw=0.8, zorder=4))
-        ax.text(xy[0], xy[1], f"q{s}", fontsize=8, weight="bold", color="white",
-                ha="center", va="center", zorder=5, path_effects=_halo())
+            ax.add_patch(
+                Circle(xy, r * 0.84, fill=False, edgecolor=_INK, lw=0.8, zorder=4)
+            )
+        ax.text(
+            xy[0],
+            xy[1],
+            f"q{s}",
+            fontsize=8,
+            weight="bold",
+            color="white",
+            ha="center",
+            va="center",
+            zorder=5,
+            path_effects=_halo(),
+        )
         access = learner.access.get(s)
         if access is not None:
-            ax.text(xy[0], xy[1] - r - 0.11, _fmt(access)[:16], fontsize=5.4,
-                    color=_MUTED, ha="center", va="top", zorder=5)
+            ax.text(
+                xy[0],
+                xy[1] - r - 0.11,
+                _fmt(access)[:16],
+                fontsize=5.4,
+                color=_MUTED,
+                ha="center",
+                va="top",
+                zorder=5,
+            )
     _finish(ax, layout, pad=0.4)
 
 
@@ -356,12 +463,18 @@ def render_diagnostics(
     )
     colors = _class_colors(set(range(learner.num_states)))
     panels = [
-        ("true DFA — shaded by the classes its strings sift to",
-         lambda a: _panel_true_dfa(a, true_dfa, dist, colors)),
-        ("discrimination tree — every internal node is a midfix",
-         lambda a: _panel_tree(a, learner.dt, colors)),
-        ("learned Myhill–Nerode classes",
-         lambda a: _panel_class_dfa(a, learner, colors, final_states, flipped)),
+        (
+            "true DFA — shaded by the classes its strings sift to",
+            lambda a: _panel_true_dfa(a, true_dfa, dist, colors),
+        ),
+        (
+            "discrimination tree — every internal node is a midfix",
+            lambda a: _panel_tree(a, learner.dt, colors),
+        ),
+        (
+            "learned Myhill–Nerode classes",
+            lambda a: _panel_class_dfa(a, learner, colors, final_states, flipped),
+        ),
     ]
 
     # Measure every panel first.  Each is then drawn at the *same* scale (one
@@ -380,7 +493,9 @@ def render_diagnostics(
     sheet_w = max(w for w, _ in extents) * scale
     heights = [h * scale for _, h in extents]
     fig, axes = plt.subplots(
-        3, 1, figsize=(sheet_w, sum(heights) + 1.0),
+        3,
+        1,
+        figsize=(sheet_w, sum(heights) + 1.0),
         gridspec_kw={"height_ratios": heights, "hspace": 0.10},
     )
     fig.patch.set_facecolor("white")
