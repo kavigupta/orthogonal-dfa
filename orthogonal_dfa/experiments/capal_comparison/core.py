@@ -11,6 +11,14 @@ are the honest oracle cost. CAPAL parameterises it as `eta` (flip probability);
 this repo parameterises it as `p_correct = 1 - eta`, with E-L* additionally
 told `min_signal_strength = 0.5 - eta` so it can size its suffix population.
 Both learners therefore know the true noise rate.
+
+Equivalence queries are recorded alongside membership queries, because the two
+learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
+pMAT assumption), and its counterexamples come back as gold labels that also
+shadow the MQ, so those strings cost it nothing thereafter. E-L* has no EQ at
+all and manufactures its counterexamples out of membership queries, so its EQ
+count is 0 by construction and its MQ count carries work CAPAL never pays for.
+Reading `queries_distinct` without `equivalence_queries` overstates E-L*'s cost.
 """
 
 from __future__ import annotations
@@ -27,7 +35,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 
 #: Bump when the emitted record shape changes incompatibly.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
@@ -81,8 +89,11 @@ def accuracy(
 class Cell:
     """One (benchmark, learner, eta, seed) measurement.
 
-    `queries_distinct` is the comparable oracle cost under persistent noise;
-    `queries_total` is kept so the report can show cache effectiveness.
+    `queries_distinct` is the comparable membership cost under persistent noise.
+    `queries_total` counts repeats too, and is E-L*-only: it is what E-L* would
+    have paid without the persistent-noise cache. `equivalence_queries` is the
+    other half of the oracle cost -- see the module docstring on why the two
+    columns have to be read together.
     """
 
     benchmark: str
@@ -98,6 +109,7 @@ class Cell:
     converged: Optional[bool] = None
     queries_total: Optional[int] = None
     queries_distinct: Optional[int] = None
+    equivalence_queries: Optional[int] = None
     seconds: Optional[float] = None
     #: Exception class name, so the report can group failure modes without
     #: parsing prose. E.g. E-L* raises GaveUpOnSuffixSearch when no suffix
@@ -179,29 +191,34 @@ def run_capal_cell(
         enum_depth=enum_depth,
         extra_len_max=extra_len_max,
     )
-    # Upstream's PersistentNoisyMQ caches but does not count; wrap it so we can
-    # report total alongside distinct.
-    totals = {"n": 0}
-    inner_query = learner.mq.query
+    # Every EQ call is a perfect-information answer E-L* has no access to, so
+    # it is counted rather than left implicit.
+    eq_calls = {"n": 0}
+    inner_eq = learner.eq.query
 
-    def counting_query(s: str) -> bool:
-        totals["n"] += 1
-        return inner_query(s)
+    def counting_eq(hyp: Any) -> Any:
+        eq_calls["n"] += 1
+        return inner_eq(hyp)
 
-    learner.mq.query = counting_query  # type: ignore[method-assign]
+    learner.eq.query = counting_eq  # type: ignore[method-assign]
 
     t0 = time.time()
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             dfa, converged = fit_with_fallback(learner)
         cell.converged = converged
-    except Exception as exc:  # noqa: BLE001
+    # Broad: any learner failure is a recorded outcome for this cell, not a
+    # reason to abandon the rest of the sweep.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         cell.error_type = type(exc).__name__
         cell.error = f"{type(exc).__name__}: {exc}"
         dfa = None
     cell.seconds = time.time() - t0
-    cell.queries_total = totals["n"]
+    # No queries_total: upstream memoises above the MQ (SameStateOracle._label),
+    # so nothing observable at the MQ ever repeats and a total would just be the
+    # distinct count again.
     cell.queries_distinct = len(getattr(learner.mq, "cache", {}))
+    cell.equivalence_queries = eq_calls["n"]
 
     if dfa is not None:
         cell.learned_states = dfa.num_states
@@ -226,7 +243,6 @@ def run_elstar_cell(
     truth: Callable[[List[int]], bool],
     target_states: Optional[int] = None,
     min_suffix_frequency: float = 0.05,
-    additional_counterexamples: int = 200,
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically.
 
@@ -251,8 +267,10 @@ def run_elstar_cell(
         learner_config={
             "min_signal_strength": signal,
             "min_suffix_frequency": min_suffix_frequency,
-            "additional_counterexamples": additional_counterexamples,
         },
+        # E-L* has no equivalence oracle: its counterexamples are built out of
+        # membership queries, which queries_distinct already charges it for.
+        equivalence_queries=0,
     )
 
     class CountingOracle(Oracle):
@@ -291,7 +309,8 @@ def run_elstar_cell(
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
             )
-    except Exception as exc:  # noqa: BLE001
+    # Broad, for the same reason as the CAPAL driver above.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         cell.error_type = type(exc).__name__
         cell.error = f"{type(exc).__name__}: {exc}"
     cell.seconds = time.time() - t0
@@ -302,7 +321,7 @@ def run_elstar_cell(
 
     if dfa is not None:
         cell.learned_states = len(dfa.states)
-        cell.accuracy = accuracy(lambda w: dfa.accepts_input(w), truth, words)
+        cell.accuracy = accuracy(dfa.accepts_input, truth, words)
         # E-L* has no convergence flag: it always returns a hypothesis. Treat
         # an exact-accuracy hypothesis as converged so the column is comparable.
         cell.converged = cell.accuracy == 1.0

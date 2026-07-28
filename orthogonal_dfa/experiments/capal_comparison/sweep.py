@@ -95,7 +95,8 @@ def describe(cell: Cell) -> str:
     acc = cell.accuracy if cell.accuracy is None else round(cell.accuracy, 4)
     return (
         f"      -> states={cell.learned_states} acc={acc} "
-        f"conv={cell.converged} q={cell.queries_distinct} ({cell.seconds:.1f}s)"
+        f"conv={cell.converged} mq={cell.queries_distinct} "
+        f"eq={cell.equivalence_queries} ({cell.seconds:.1f}s)"
         + (f" ERR={cell.error}" if cell.error else "")
     )
 
