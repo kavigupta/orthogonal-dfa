@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import argparse
 import itertools
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
+
+from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
 from .benchmark import Benchmark
 from .core import (
@@ -21,11 +24,6 @@ from .core import (
     run_capal_cell,
     run_elstar_cell,
     write_experiment,
-)
-from .regime import (
-    MIN_ACCEPT_OR_REJECT,
-    MIN_CLASS_PRESERVING_FRAC,
-    MIN_COVERED_ACCURACY,
 )
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
@@ -65,7 +63,7 @@ def run_cell(
     seed: int,
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
-    regime: Dict[str, Any],
+    regime: PreconditionReport,
     capal_kwargs: Dict[str, Any],
 ) -> Cell:
     """One (benchmark, learner, eta, seed) cell, run or explicitly excluded.
@@ -85,7 +83,7 @@ def run_cell(
             alphabet=b.alphabet,
             **capal_kwargs,
         )
-    if regime["in_regime"]:
+    if regime.satisfied:
         return run_elstar_cell(
             b.oracle_creator,
             benchmark=b.name,
@@ -109,10 +107,10 @@ def run_cell(
         seed=seed,
         target_states=b.target_states,
         alphabet_size=b.symbols,
-        learner_config=dict(regime),
+        learner_config=asdict(regime),
         seconds=0.0,
         error_type="ExcludedOutOfRegime",
-        error="; ".join(regime["excluded_because"]),
+        error="; ".join(regime.reasons),
     ).finalize()
 
 
@@ -167,14 +165,12 @@ def run_sweep(
     # CAPAL runs on everything -- its PerfectEQ finds counterexamples
     # structurally, so none of these conditions constrain it.
     regime = {b.name: b.regime_report() for b in benchmarks}
-    config["elstar_regime"] = regime
-    config["elstar_regime_filters"] = {
-        "min_accept_or_reject": MIN_ACCEPT_OR_REJECT,
-        "min_class_preserving_frac": MIN_CLASS_PRESERVING_FRAC,
-        "min_covered_accuracy": MIN_COVERED_ACCURACY,
-        "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)",
-    }
-    excluded = [n for n, t in regime.items() if not t["in_regime"]]
+    config["elstar_regime"] = {n: asdict(r) for n, r in regime.items()}
+    config["elstar_regime_source"] = (
+        "orthogonal_dfa/l_star/preconditions.py "
+        "(satisfies_preconditions, default thresholds)"
+    )
+    excluded = [n for n, r in regime.items() if not r.satisfied]
     if excluded:
         print(
             f"E-L* EXCLUDED on {len(excluded)}/{len(benchmarks)} targets "

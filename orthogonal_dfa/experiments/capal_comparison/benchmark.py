@@ -10,14 +10,17 @@ truth per family, in `our_targets` and `capal_targets`.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Sequence
+from typing import Any, Callable, List, Sequence
 
 from orthogonal_dfa.capal_official import to_automata_dfa
-
-from . import regime
+from orthogonal_dfa.l_star import preconditions
 
 FAMILY_OURS = "ours"
 FAMILY_CAPAL = "capal_dataset"
+
+#: E-L*'s word-sampling length, fixed: it is `compute_pst`'s default, and the
+#: length the regime check measures at.
+SAMPLE_LENGTH = 40
 
 
 @dataclass
@@ -42,6 +45,14 @@ class Benchmark:
         dfa, alpha = self.target, self.alphabet
         return lambda w: bool(dfa.run("".join(alpha[i] for i in w)))
 
-    def regime_report(self) -> Dict[str, Any]:
-        """Is this target inside E-L*'s designed regime, and if not, why not?"""
-        return regime.report(to_automata_dfa(self.target))
+    def regime_report(self) -> preconditions.PreconditionReport:
+        """Is this target inside E-L*'s designed regime, and if not, why not?
+
+        The thresholds are `satisfies_preconditions`' own defaults, which are
+        the values this repo's benchmark generator applies. Every reason is
+        collected rather than just the first, so a recorded exclusion says
+        everything that disqualified the target.
+        """
+        return preconditions.satisfies_preconditions(
+            to_automata_dfa(self.target), length=SAMPLE_LENGTH, short_circuit=False
+        )
