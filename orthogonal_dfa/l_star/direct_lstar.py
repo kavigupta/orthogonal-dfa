@@ -251,32 +251,36 @@ class DirectLStarLearner:
             return False
         return None
 
+    def _family_bits(self, base) -> List[int]:
+        """Membership bits of ``base`` under each family suffix ``v``, memoized
+        per full string in the shared cell cache.  The cache misses are issued as
+        a *single* batched ``membership_queries`` call rather than one query per
+        suffix, so a batching oracle (e.g. a neural one) evaluates the whole
+        family for a sift node in one forward pass instead of ``|vs|`` of them.
+
+        Queried straight from the oracle, not the MaskTable's one-hot machinery:
+        that would add ``base`` to the prefix pool, and a sift touches a fresh
+        string at every tree node, so transient scratch would bloat the pool (and
+        every per-round pass over it) to many thousands of entries.  The oracle is
+        deterministic per string, so the value is identical to the table path."""
+        mc = self._membership_cache
+        strings = [tuple(base) + tuple(self.pst.table.suffix(v)) for v in self.vs]
+        misses = list(dict.fromkeys(s for s in strings if s not in mc))
+        if misses:
+            results = self.pst.oracle.membership_queries([list(s) for s in misses])
+            for s, bit in zip(misses, results):
+                mc[s] = int(bit)
+        return [mc[s] for s in strings]
+
     def _decision(self, seq, prepend) -> float:
         """Mean family membership of ``seq`` under the distinguishers
-        ``prepend + v``, queried straight from the oracle and memoized.
-
-        Routing this through the MaskTable's one-hot machinery would add ``seq``
-        to the prefix pool -- and a sift touches a fresh string at every tree
-        node, so transient scratch would bloat the pool (and every per-round pass
-        over it) to many thousands of entries.  The oracle is deterministic per
-        string, so the direct value is identical to the table path; it just isn't
-        persisted."""
+        ``prepend + v``, memoized (see :meth:`_family_bits`)."""
         key = (tuple(seq), tuple(prepend))
         cached = self._decision_cache.get(key)
         if cached is not None:
             return cached
-        base = list(seq) + list(prepend)
-        mc = self._membership_cache
-        oracle = self.pst.oracle
-        total = 0
-        for v in self.vs:
-            s = tuple(base) + tuple(self.pst.table.suffix(v))
-            bit = mc.get(s)
-            if bit is None:
-                bit = int(oracle.membership_query(list(s)))
-                mc[s] = bit
-            total += bit
-        d = total / len(self.vs)
+        bits = self._family_bits(list(seq) + list(prepend))
+        d = sum(bits) / len(self.vs)
         self._decision_cache[key] = d
         return d
 
@@ -334,21 +338,10 @@ class DirectLStarLearner:
         return self.disagreement(s, sprime, lookup[d], prepend_to_tree)
 
     def _family_votes(self, seq, prepend) -> List[int]:
-        """Per-family accept bits of ``seq`` at ``prepend`` (memoized in the same
-        cell cache as :meth:`_decision`), so the ASSIGN/TEST halves can be summed
-        separately for the split Bayes factor."""
-        base = list(seq) + list(prepend)
-        mc = self._membership_cache
-        oracle = self.pst.oracle
-        bits = []
-        for v in self.vs:
-            s = tuple(base) + tuple(self.pst.table.suffix(v))
-            bit = mc.get(s)
-            if bit is None:
-                bit = int(oracle.membership_query(list(s)))
-                mc[s] = bit
-            bits.append(bit)
-        return bits
+        """Per-family accept bits of ``seq`` at ``prepend`` (see
+        :meth:`_family_bits`), so the ASSIGN/TEST halves can be summed separately
+        for the split Bayes factor."""
+        return self._family_bits(list(seq) + list(prepend))
 
     def _member_group(self, prefix, distinguisher) -> Optional[bool]:
         """Which side of ``distinguisher`` ``prefix`` falls on, judged on the
