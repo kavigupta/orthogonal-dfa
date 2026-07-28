@@ -2,7 +2,16 @@
 
 `make_learner` returns the learner unfitted so callers can instrument it (count
 queries, time the fit) before `fit_with_fallback`. Scoring stays with the
-caller: a fair comparison scores every learner on one shared word list.
+caller.
+
+The caller uses the target DFA as an Equivalence Query oracle, as in the paper's
+pMAT assumption (Section 3.1): counterexample labels are perfect information,
+which means
+    - some perfect information that the learner can utilize, leading to fewer queries
+    - the algorithm converging means exact equality.
+
+This is something that our methods do not have access to, so should be
+noted in reports.
 """
 
 from __future__ import annotations
@@ -195,6 +204,8 @@ def make_learner(
         suffix_pool_len_max=suffix_pool_len_max,
         verbose=verbose,
     )
+    # target= builds PersistentNoisyMQ + PerfectEQ (capal.py:907-914).
+    # See module docstring.
     learner = official.CAPALLearner(target=target, cfg=cfg)
     learner.ss.cfg.enum_depth = enum_depth
     learner.ss.cfg.extra_len_max = extra_len_max
