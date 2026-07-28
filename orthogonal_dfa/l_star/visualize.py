@@ -55,11 +55,18 @@ def _class_colors(classes) -> Dict[int, str]:
 
 
 def sample_class_distribution(
-    learner, true_dfa, *, rng, num_samples=500, per_state=60
+    classify, true_dfa, *, pst, rng, num_samples=500, per_state=60, prefill=None
 ):
     """For each true state, the distribution of learned classes that random
-    strings *reaching* that state sift to.  ``None`` keys the indecisive
+    strings *reaching* that state classify to.  ``None`` keys the indecisive
     (false-negative) share.  Returns ``{true_state: Counter}``.
+
+    ``classify`` maps a string to a class id or ``None``, and ``pst`` supplies the
+    sampler and alphabet, so this works for any learner: pass
+    ``learner.sift`` for direct-L*, or ``lambda s: dt.classify(s, oracle)`` for a
+    resolver-built decision tree.  ``prefill`` is an optional hook that warms a
+    whole batch of strings at once (e.g. ``learner._sift_prefill``); without it
+    the classifications simply cost more oracle calls.
 
     Every prefix is bucketed by the state it reaches, not just each sampled
     string's end state: the sampler draws one fixed length, so a transient state
@@ -69,7 +76,7 @@ def sample_class_distribution(
     buckets: Dict[int, List[tuple]] = {s: [] for s in true_dfa.states}
     seen: Dict[int, set] = {s: set() for s in true_dfa.states}
     for _ in range(num_samples):
-        w = list(learner.pst.sampler.sample(rng, learner.pst.alphabet_size))
+        w = list(pst.sampler.sample(rng, pst.alphabet_size))
         state = true_dfa.initial_state
         for i, c in enumerate([None] + w):
             if c is not None:
@@ -78,16 +85,12 @@ def sample_class_distribution(
             if len(buckets[state]) < per_state and key not in seen[state]:
                 seen[state].add(key)
                 buckets[state].append(key)
-    chosen = [list(p) for ps in buckets.values() for p in ps]
-    # If the learner can batch a sift, warm the whole sample in one pass so every
-    # sift below is a cache hit; without it the sifts just cost more oracle calls.
-    prefill = getattr(learner, "_sift_prefill", None)
     if prefill is not None:
-        prefill(chosen)
+        prefill([list(p) for ps in buckets.values() for p in ps])
     dist: Dict[int, Counter] = {s: Counter() for s in true_dfa.states}
     for state, ps in buckets.items():
         for p in ps:
-            dist[state][learner.sift(list(p))] += 1
+            dist[state][classify(list(p))] += 1
     return dist
 
 
@@ -328,6 +331,7 @@ def render_diagnostics(
     *,
     rng,
     path,
+    pst=None,
     num_samples: int = 500,
     per_state: int = 60,
     final_states: Optional[set] = None,
@@ -335,11 +339,20 @@ def render_diagnostics(
     scale: float = 1.0,
     dpi: int = 220,
 ) -> str:
-    """Write the three panels, stacked, to ``path``.  Returns the path."""
+    """Write the three panels, stacked, to ``path``.  Returns the path.
+
+    ``pst`` defaults to the learner's own; pass it explicitly when the learner
+    does not carry one."""
     import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel
 
     dist = sample_class_distribution(
-        learner, true_dfa, rng=rng, num_samples=num_samples, per_state=per_state
+        learner.sift,
+        true_dfa,
+        pst=pst if pst is not None else learner.pst,
+        rng=rng,
+        num_samples=num_samples,
+        per_state=per_state,
+        prefill=getattr(learner, "_sift_prefill", None),
     )
     colors = _class_colors(set(range(learner.num_states)))
     panels = [

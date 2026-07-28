@@ -89,8 +89,9 @@ class TestClassColors(unittest.TestCase):
 
 class TestSampleClassDistribution(unittest.TestCase):
     def test_covers_transient_states_and_counts_indecisives(self):
+        learner = _StubLearner()
         dist = sample_class_distribution(
-            _StubLearner(), PARITY, rng=np.random.default_rng(0),
+            learner.sift, PARITY, pst=learner.pst, rng=np.random.default_rng(0),
             num_samples=40, per_state=25,
         )
         # Bucketing by prefix (not by end state) must reach every true state.
@@ -99,6 +100,30 @@ class TestSampleClassDistribution(unittest.TestCase):
             self.assertGreater(sum(dist[state].values()), 0)
         # The stub sifts length-3 prefixes indecisively, so None must show up.
         self.assertTrue(any(None in c for c in dist.values()))
+
+    def test_accepts_any_classifier_and_an_explicit_pst(self):
+        # A resolver-style classifier: no learner, no .sift, just a callable.
+        seen = []
+        dist = sample_class_distribution(
+            lambda s: seen.append(s) or len(s) % 2,
+            PARITY,
+            pst=_StubPst(),
+            rng=np.random.default_rng(1),
+            num_samples=20,
+            per_state=8,
+        )
+        self.assertEqual(set(dist), set(PARITY.states))
+        self.assertTrue(seen)
+
+    def test_prefill_sees_every_sampled_string(self):
+        learner = _StubLearner()
+        batches = []
+        dist = sample_class_distribution(
+            learner.sift, PARITY, pst=learner.pst, rng=np.random.default_rng(2),
+            num_samples=20, per_state=8, prefill=batches.append,
+        )
+        self.assertEqual(len(batches), 1)  # one batched pass, not one per string
+        self.assertEqual(len(batches[0]), sum(sum(c.values()) for c in dist.values()))
 
 
 class TestRenderDiagnostics(unittest.TestCase):
