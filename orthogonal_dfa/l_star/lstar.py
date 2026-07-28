@@ -51,7 +51,7 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     return results
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200):
+def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -69,18 +69,27 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200):
         # True=accept, False=reject, None=undecided (keep the discovery label).
         counts = count_paths_to_state(dfa, state, length)
         cap = min(max_samples, counts[length][dfa.initial_state])
-        seen, accepts = set(), 0
+        seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
-            string = sample_string_reaching_state(dfa, counts, pst.rng)
-            if tuple(string) in seen:
-                continue  # need distinct strings for independent oracle draws
-            seen.add(tuple(string))
-            accepts += int(pst.oracle.membership_query(string))
-            decision = binomial_side_of_boundary(
-                accepts, len(seen), pst.decision_boundary
-            )
-            if decision is not None:
-                return decision
+            # Draw and query a block at a time.  The stopping rule is still read
+            # after every individual sample, so the label is exactly the one the
+            # one-at-a-time test would give; only the oracle calls are packed, at
+            # the cost of at most one block of overshoot per state.  ``n`` counts
+            # samples *scored*, which now lags ``len(seen)`` by up to a block.
+            target = min(block_size, cap - len(seen))
+            block = []
+            while len(block) < target:
+                string = sample_string_reaching_state(dfa, counts, pst.rng)
+                if tuple(string) in seen:
+                    continue  # need distinct strings for independent oracle draws
+                seen.add(tuple(string))
+                block.append(string)
+            for bit in pst.oracle.membership_queries(block):
+                accepts += int(bit)
+                n += 1
+                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
+                if decision is not None:
+                    return decision
         return None
 
     label = {
