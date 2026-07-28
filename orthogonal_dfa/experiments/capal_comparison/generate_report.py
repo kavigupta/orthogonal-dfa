@@ -16,6 +16,8 @@ import json
 import statistics
 from typing import Any, Dict, List
 
+from orthogonal_dfa.capal_official import PINNED_COMMIT
+
 from .core import REPO_ROOT
 
 DATA_DIR = REPO_ROOT / "data" / "capal"
@@ -304,7 +306,7 @@ def main() -> None:
         "`orthogonal_dfa.experiments.capal_comparison.generate_report`. "
         "Do not edit by hand; rerun the generator after any experiment rerun._",
         "",
-        f"Upstream CAPAL pinned at `{load('our_benchmarks')['provenance']['capal_commit']}`. "
+        f"Upstream CAPAL pinned at `{PINNED_COMMIT}`. "
         "Both learners model persistent noise, so `distinct` queries are the honest "
         "oracle cost on both sides.",
         "",

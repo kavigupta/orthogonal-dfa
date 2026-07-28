@@ -3,13 +3,6 @@
   "experiment": "our_benchmarks",
   "description": "CAPAL and E-L* on this repo's oracle benchmarks (modulo-9 and the regex family from tests/test_lstar.py) under persistent noise.",
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_our_bench",
-  "provenance": {
-    "repo_commit": "652058850264549785b6d9e3ef0ea6f69c06aa78",
-    "repo_dirty": true,
-    "capal_commit": "57d877f6a083d58852660fac388ff49c052dc2d2",
-    "python": "3.12.7",
-    "generated_at": "2026-07-22T22:54:16+00:00"
-  },
   "config": {
     "etas": [
       0.05,

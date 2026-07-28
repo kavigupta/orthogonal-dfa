@@ -3,13 +3,6 @@
   "experiment": "capal_benchmarks",
   "description": "CAPAL and E-L* on CAPAL's own 28 .taf benchmark targets (Simple/Normal/Difficult) under persistent noise.",
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_capal_bench",
-  "provenance": {
-    "repo_commit": "588090981f41ed9162919d6095f509b03cea7b46",
-    "repo_dirty": true,
-    "capal_commit": "57d877f6a083d58852660fac388ff49c052dc2d2",
-    "python": "3.12.7",
-    "generated_at": "2026-07-22T22:35:26+00:00"
-  },
   "config": {
     "etas": [
       0.05,

@@ -3,13 +3,6 @@
   "experiment": "matched_budget",
   "description": "CAPAL at a matched query budget (uncapped suffix enumeration) on the eta=0.30 wall cells: does hitting E-L*'s distinct-query count break the wall?",
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
-  "provenance": {
-    "repo_commit": "80a8d240cf3769224326f61a5f3498450f9f7dc9",
-    "repo_dirty": true,
-    "capal_commit": "57d877f6a083d58852660fac388ff49c052dc2d2",
-    "python": "3.12.7",
-    "generated_at": "2026-07-23T03:07:08+00:00"
-  },
   "config": {
     "etas": [
       0.3

@@ -18,16 +18,13 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import platform
 import random
-import subprocess
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from orthogonal_dfa.capal_official import PINNED_COMMIT, fit_with_fallback, make_learner
+from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 1
@@ -48,37 +45,6 @@ def eta_to_signal_strength(eta: float) -> float:
     """E-L* is configured by signal strength; CAPAL by eta. They are the same
     knob: `p_correct = 0.5 + signal = 1 - eta`."""
     return 0.5 - eta
-
-
-# -- provenance ---------------------------------------------------------------
-
-
-def _git(*args: str) -> Optional[str]:
-    try:
-        out = subprocess.run(
-            ["git", "-C", str(REPO_ROOT), *args],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except Exception:  # noqa: BLE001 -- provenance is best-effort
-        return None
-    return out.stdout.strip()
-
-
-def provenance() -> Dict[str, Any]:
-    """Everything needed to know what produced a JSON, and whether to trust it.
-
-    `repo_dirty` matters: a dirty tree means the numbers cannot be tied to a
-    commit, which is the same reproducibility standard we hold upstream to.
-    """
-    return {
-        "repo_commit": _git("rev-parse", "HEAD"),
-        "repo_dirty": bool(_git("status", "--porcelain")),
-        "capal_commit": PINNED_COMMIT,
-        "python": platform.python_version(),
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
 
 
 # -- shared evaluation --------------------------------------------------------
@@ -361,15 +327,13 @@ def write_experiment(
     config: Dict[str, Any],
     cells: Sequence[Cell],
 ) -> Path:
-    """Write one experiment's JSON. Self-contained by design: provenance, the
-    config that produced it, and every cell -- so the report generator needs
-    nothing but this file."""
+    """Write one experiment's JSON: the config that produced it and every
+    cell, so the report generator needs nothing but this file."""
     payload = {
         "schema_version": SCHEMA_VERSION,
         "experiment": experiment,
         "description": description,
         "generated_by": generated_by,
-        "provenance": provenance(),
         "config": config,
         "cells": [asdict(c) for c in cells],
     }

@@ -3,13 +3,6 @@
   "experiment": "wall_sweep",
   "description": "CAPAL hyperparameter sweep (max_same_samples x seeds) across every benchmark cell, to separate cell-specific structural walls from default-config artifacts.",
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_wall_sweep",
-  "provenance": {
-    "repo_commit": "8c547e676629a5184918e7a8673efcb96a8fe60f",
-    "repo_dirty": true,
-    "capal_commit": "57d877f6a083d58852660fac388ff49c052dc2d2",
-    "python": "3.12.7",
-    "generated_at": "2026-07-23T02:36:04+00:00"
-  },
   "config": {
     "etas": [
       0.05,
