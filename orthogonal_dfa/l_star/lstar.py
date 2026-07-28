@@ -74,9 +74,11 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             # Draw and query a block at a time.  The stopping rule is still read
             # after every individual sample, so the label is exactly the one the
             # one-at-a-time test would give; only the oracle calls are packed, at
-            # the cost of at most one block of overshoot per state.
+            # the cost of at most one block of overshoot per state.  ``n`` counts
+            # samples *scored*, which now lags ``len(seen)`` by up to a block.
+            target = min(block_size, cap - len(seen))
             block = []
-            while len(block) < min(block_size, cap - len(seen)):
+            while len(block) < target:
                 string = sample_string_reaching_state(dfa, counts, pst.rng)
                 if tuple(string) in seen:
                     continue  # need distinct strings for independent oracle draws
