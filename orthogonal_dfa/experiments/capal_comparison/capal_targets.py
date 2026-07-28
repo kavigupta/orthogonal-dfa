@@ -1,6 +1,6 @@
 """Benchmark family 2: CAPAL's own shipped `.taf` dataset.
 
-The `.taf` file is the source of truth; `taf_to_automata_dfa` ports it to the
+The `.taf` file is the source of truth; `to_automata_dfa` ports it to the
 automata-lib DFA that `DFAOracle` (and hence E-L*) reads.
 """
 
@@ -9,9 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from orthogonal_dfa.capal_official import import_capal, resolve_capal_dir
+from orthogonal_dfa.capal_official import (
+    import_capal,
+    resolve_capal_dir,
+    to_automata_dfa,
+)
 
-from .benchmark import FAMILY_CAPAL, Benchmark, taf_to_automata_dfa
+from .benchmark import FAMILY_CAPAL, Benchmark
 
 
 def capal_dataset_dir() -> Path:
@@ -33,7 +37,7 @@ def capal_benchmarks(names: Optional[Sequence[str]] = None) -> List[Benchmark]:
         if names is not None and name not in names:
             continue
         target = M.load_dfa_from_taf(str(taf))
-        aut = taf_to_automata_dfa(target)
+        aut = to_automata_dfa(target)
         out.append(
             Benchmark(
                 name=name,

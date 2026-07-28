@@ -12,35 +12,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Sequence
 
+from orthogonal_dfa.capal_official import to_automata_dfa
+
 from . import regime
 
 FAMILY_OURS = "ours"
 FAMILY_CAPAL = "capal_dataset"
-
-
-def taf_to_automata_dfa(target: Any) -> Any:
-    """Upstream `capal.DFA` -> automata-lib DFA over integer symbols.
-
-    `DFAOracle` (and hence E-L*) works in symbol *indices*; upstream works in
-    characters. Index i always means `target.alphabet[i]`, which is the same
-    mapping `Benchmark.alphabet` hands to the CAPAL side.
-    """
-    from automata.fa.dfa import DFA as AutDFA
-
-    alphabet = list(target.alphabet)
-    idx = {c: i for i, c in enumerate(alphabet)}
-    transitions = {
-        q: {idx[c]: target.step(q, c) for c in alphabet}
-        for q in range(target.num_states)
-    }
-    return AutDFA(
-        states=set(range(target.num_states)),
-        input_symbols=set(idx.values()),
-        transitions=transitions,
-        initial_state=target.start,
-        final_states=set(target.accept),
-        allow_partial=False,
-    )
 
 
 @dataclass
@@ -67,4 +44,4 @@ class Benchmark:
 
     def regime_report(self) -> Dict[str, Any]:
         """Is this target inside E-L*'s designed regime, and if not, why not?"""
-        return regime.report(taf_to_automata_dfa(self.target))
+        return regime.report(to_automata_dfa(self.target))
