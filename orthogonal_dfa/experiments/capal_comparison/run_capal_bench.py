@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .core import REPO_ROOT
 from .sweep import add_common_args, run_sweep
-from .targets import capal_benchmarks
+from .capal_targets import capal_benchmarks
 
 DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "capal_benchmarks.json"
 

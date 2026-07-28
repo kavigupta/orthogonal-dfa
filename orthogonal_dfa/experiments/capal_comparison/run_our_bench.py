@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .core import REPO_ROOT
 from .sweep import add_common_args, run_sweep
-from .targets import our_benchmarks
+from .our_targets import our_benchmarks
 
 DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "our_benchmarks.json"
 

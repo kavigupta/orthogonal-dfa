@@ -20,11 +20,11 @@ from .core import (
     run_elstar_cell,
     write_experiment,
 )
-from .targets import (
+from .benchmark import Benchmark
+from .regime import (
     MIN_ACCEPT_OR_REJECT,
     MIN_CLASS_PRESERVING_FRAC,
     MIN_COVERED_ACCURACY,
-    Benchmark,
 )
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
