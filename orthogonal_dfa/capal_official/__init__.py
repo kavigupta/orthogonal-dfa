@@ -8,11 +8,10 @@ Scoring the learned DFA is the caller's job, see `orthogonal_dfa.experiments.cap
 from .adapter import (
     DEFAULT_CAPAL_DIR,
     PINNED_COMMIT,
-    build_modulo_dfa,
-    build_regex_dfa,
     fit_with_fallback,
     import_capal,
     make_learner,
     resolve_capal_dir,
     verify_pinned,
 )
+from .porters import build_modulo_dfa, build_regex_dfa

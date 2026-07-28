@@ -20,7 +20,7 @@ import importlib.util
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Iterable, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
@@ -111,61 +111,6 @@ def import_capal() -> Any:
     spec.loader.exec_module(module)
     _official = module
     return _official
-
-
-def build_modulo_dfa(modulo: int, allowed: Iterable[int]) -> Any:
-    """The 'sum mod N in allowed?' DFA over {'0','1'}, in upstream format."""
-    M = import_capal()
-    delta = {}
-    for q in range(modulo):
-        delta[(q, "0")] = q
-        delta[(q, "1")] = (q + 1) % modulo
-    return M.DFA(
-        alphabet=["0", "1"],
-        num_states=modulo,
-        start=0,
-        accept={int(x) for x in allowed},
-        delta=delta,
-    )
-
-
-def build_regex_dfa(regex: str, alphabet_size: int = 2) -> Any:
-    """Compile `regex` to a minimal DFA in upstream format. Symbols are the
-    characters '0', '1', ... matching BernoulliRegex's int->str convention."""
-    from automata.fa.dfa import DFA as AutDFA
-    from automata.fa.nfa import NFA
-
-    M = import_capal()
-    syms = {str(i) for i in range(alphabet_size)}
-    nfa = NFA.from_regex(regex, input_symbols=syms)
-    aut = AutDFA.from_nfa(nfa, minify=True)
-
-    alphabet = sorted(aut.input_symbols)
-    state_list = sorted(aut.states, key=lambda s: (str(type(s).__name__), str(s)))
-    sidx = {s: i for i, s in enumerate(state_list)}
-
-    # automata-lib rejects by dying, so any language with a dead end (e.g. `1*`,
-    # `0*1*`) comes back partial, while upstream's DFA requires a transition for
-    # every (state, symbol). Route the missing ones to an explicit sink.
-    sink = len(state_list)
-    delta = {}
-    for s in state_list:
-        for a in alphabet:
-            dest = aut.transitions[s].get(a)
-            delta[(sidx[s], a)] = sink if dest is None else sidx[dest]
-    num_states = len(state_list)
-    if sink in delta.values():
-        num_states += 1
-        for a in alphabet:
-            delta[(sink, a)] = sink
-
-    return M.DFA(
-        alphabet=alphabet,
-        num_states=num_states,
-        start=sidx[aut.initial_state],
-        accept={sidx[s] for s in aut.final_states},
-        delta=delta,
-    )
 
 
 def make_learner(
