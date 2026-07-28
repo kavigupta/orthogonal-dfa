@@ -93,27 +93,18 @@ def run_sweep(
 
     # Before any cell runs, decide per target whether E-L* is in its designed
     # regime, via preconditions.satisfies_preconditions (acceptance balance +
-    # class-preservation at the tuned sampling length, plus the covered-accuracy
-    # ceiling). The sampling length is tuned per target because CAPAL's default 40
-    # is degenerate for many of its 28 targets. CAPAL runs on everything -- its
-    # PerfectEQ finds counterexamples structurally, so none of these conditions
-    # constrain it.
-    tuning = {b.name: b.regime_report() for b in benchmarks}
-    config["elstar_regime"] = tuning
+    # class-preservation + the covered-accuracy ceiling, all at SAMPLE_LENGTH).
+    # CAPAL runs on everything -- its PerfectEQ finds counterexamples
+    # structurally, so none of these conditions constrain it.
+    regime = {b.name: b.regime_report() for b in benchmarks}
+    config["elstar_regime"] = regime
     config["elstar_regime_filters"] = {
         "min_accept_or_reject": MIN_ACCEPT_OR_REJECT,
         "min_class_preserving_frac": MIN_CLASS_PRESERVING_FRAC,
         "min_covered_accuracy": MIN_COVERED_ACCURACY,
         "source": "orthogonal_dfa/l_star/preconditions.py (satisfies_preconditions)",
     }
-    excluded = [n for n, t in tuning.items() if not t["in_regime"]]
-    retuned = [n for n, t in tuning.items() if t["tuned_from_default"]]
-    if retuned:
-        print(
-            f"E-L* sampling length tuned away from 40 on {len(retuned)} target(s): "
-            + ", ".join(f"{n}->{tuning[n]['sample_length']}" for n in retuned),
-            flush=True,
-        )
+    excluded = [n for n, t in regime.items() if not t["in_regime"]]
     if excluded:
         print(
             f"E-L* EXCLUDED on {len(excluded)}/{len(benchmarks)} targets "
@@ -147,7 +138,7 @@ def run_sweep(
                             alphabet=b.alphabet,
                             **capal_kwargs,
                         )
-                    elif not tuning[b.name]["in_regime"]:
+                    elif not regime[b.name]["in_regime"]:
                         # Outside E-L*'s designed regime: this repo's own
                         # benchmark generator would have discarded this target.
                         # Recorded as an explicit, reasoned exclusion rather
@@ -161,10 +152,10 @@ def run_sweep(
                             seed=seed,
                             target_states=b.target_states,
                             alphabet_size=b.symbols,
-                            learner_config=dict(tuning[b.name]),
+                            learner_config=dict(regime[b.name]),
                             seconds=0.0,
                             error_type="ExcludedOutOfRegime",
-                            error="; ".join(tuning[b.name]["excluded_because"]),
+                            error="; ".join(regime[b.name]["excluded_because"]),
                         ).finalize()
                     else:
                         cell = run_elstar_cell(
@@ -177,10 +168,6 @@ def run_sweep(
                             words=words,
                             truth=truth,
                             target_states=b.target_states,
-                            sample_length=tuning[b.name]["sample_length"],
-                            accept_rate_at_sample_length=tuning[b.name][
-                                "accept_rate_at_sample_length"
-                            ],
                         )
                     cells.append(cell)
                     print(

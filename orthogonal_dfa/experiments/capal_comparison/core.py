@@ -226,16 +226,12 @@ def run_elstar_cell(
     target_states: Optional[int] = None,
     min_suffix_frequency: float = 0.05,
     additional_counterexamples: int = 200,
-    sample_length: int = 40,
-    accept_rate_at_sample_length: Optional[float] = None,
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically.
 
-    `sample_length` is E-L*'s word-sampling length -- a real hyperparameter,
-    since every bit of its signal comes from words drawn at that length. See
-    `Benchmark.tune_sample_length`.
+    Word sampling is left at `compute_pst`'s default (`UniformSampler(40)`),
+    which is also the length `Benchmark.regime_report` measures at.
     """
-    from orthogonal_dfa.l_star.sampler import UniformSampler
     from orthogonal_dfa.l_star.structures import Oracle
 
     # Imported lazily: this pulls in the test harness, which is also where the
@@ -255,8 +251,6 @@ def run_elstar_cell(
             "min_signal_strength": signal,
             "min_suffix_frequency": min_suffix_frequency,
             "additional_counterexamples": additional_counterexamples,
-            "sample_length": sample_length,
-            "accept_rate_at_sample_length": accept_rate_at_sample_length,
         },
     )
 
@@ -295,7 +289,6 @@ def run_elstar_cell(
                 min_signal_strength=signal,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
-                sampler=UniformSampler(sample_length),
             )
     except Exception as exc:  # noqa: BLE001
         cell.error_type = type(exc).__name__
