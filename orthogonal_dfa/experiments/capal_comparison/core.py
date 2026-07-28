@@ -342,7 +342,3 @@ def write_experiment(
         json.dump(payload, f, indent=2, sort_keys=False)
         f.write("\n")
     return path
-
-
-def _round(value: Optional[float], places: int) -> Optional[float]:
-    return None if value is None else round(value, places)

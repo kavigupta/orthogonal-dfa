@@ -27,12 +27,11 @@ FAMILY_CAPAL = "capal_dataset"
 #: E-L*'s default sampling length, and the candidates we tune over.
 DEFAULT_SAMPLE_LENGTH = 40
 
-#: Shorter lengths are excluded on purpose. A "balanced" acceptance rate at
+#: Nothing below 8 is a candidate on purpose. A "balanced" acceptance rate at
 #: length 3 is worthless: the whole word space is 8 strings, and E-L* draws
 #: hundreds of distinct prefixes and suffixes, so synthesis spins forever
 #: instead of converging. Difficult01 (b*a*) is the case in point -- balanced
 #: only at lengths 2-3, degenerate by length 10, measurable at neither.
-MIN_VIABLE_SAMPLE_LENGTH = 8
 CANDIDATE_LENGTHS = [8, 10, 12, 16, 20, 30, 40]
 
 #: A target is unusable at a given length when nearly every sampled word gets
@@ -95,9 +94,9 @@ class Benchmark:
         whose acceptance rate is closest to balanced.
 
         Some languages cannot be rescued by any length -- e.g. Difficult08 is
-        {w : |w| != 1}, which is constant at every fixed length. Those are
-        reported so the sweep can record them instead of burning hours
-        sampling a distribution with no signal in it.
+        {w : |w| != 1}, which is constant at every fixed length. Those still get
+        the closest-to-balanced candidate here; `regime_report` is what excludes
+        them, on the acceptance rate measured at that length.
 
         Returns (length, accept_rate_at_that_length, rates_by_length).
         """
@@ -107,10 +106,6 @@ class Benchmark:
             return DEFAULT_SAMPLE_LENGTH, default, rates
         best = min(CANDIDATE_LENGTHS, key=lambda n: abs(rates[n] - 0.5))
         return best, rates[best], rates
-
-    def degenerate_at_all_lengths(self, rates: Dict[int, float]) -> bool:
-        """True when no candidate length yields a usable acceptance rate."""
-        return not any(DEGENERATE_LO <= r <= DEGENERATE_HI for r in rates.values())
 
     def class_preserving_frac(self, length: int, *, count: int = 2000) -> float:
         """Fraction of random length-`length` suffixes that map every state to a
