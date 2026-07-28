@@ -63,40 +63,9 @@ class MaskTable:
     def contains_prefix(self, prefix: List[int]) -> bool:
         return tuple(prefix) in self._prefix_keys
 
-    def prefix_one_hot_mask(self, prefix: List[int]) -> np.ndarray:
-        """A boolean mask selecting the single row for ``prefix``."""
-        try:
-            idx = self._prefixes.index(list(prefix))
-        except ValueError as exc:
-            raise KeyError(f"Prefix {prefix} not in table") from exc
-        mask = np.zeros(self.num_prefixes, dtype=bool)
-        mask[idx] = True
-        return mask
-
-    def ensure_prefixes(
-        self,
-        new_prefixes: List[List[int]],
-        do_observation: bool = True,
-        representative: bool = True,
-    ) -> None:
-        """Add any of ``new_prefixes`` not already present.  ``do_observation``
-        and ``representative`` are forwarded to :meth:`add_prefixes` -- pass
-        ``do_observation=False`` for transient scratch prefixes that should not
-        eagerly query the fully-observed (family) columns, and
-        ``representative=False`` so they do not pollute the calibration
-        population."""
-        nonexistent = [p for p in new_prefixes if not self.contains_prefix(p)]
-        if nonexistent:
-            self.add_prefixes(
-                nonexistent,
-                do_observation=do_observation,
-                representative=representative,
-            )
-
     def add_prefixes(
         self,
         new_prefixes: List[List[int]],
-        do_observation: bool = True,
         representative: bool = True,
     ) -> None:
         assert new_prefixes, "No new prefixes to add"
@@ -108,22 +77,12 @@ class MaskTable:
         # candidate.  A partially-observed column (a transition distinguisher)
         # gets UNOBSERVED cells, filled later on demand only if some read needs
         # them.
-        #
-        # ``do_observation=False`` suppresses even the family-column queries, so
-        # the prefix is added entirely unobserved: used for transient scratch
-        # prefixes (e.g. a random-walk probe prefix we only need one node's
-        # decision for) that would otherwise pay a full family observation each.
-        # Such a prefix leaves the family columns partially observed, so it must
-        # not be relied on as a clustering candidate.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
         # Batch the membership queries for the fully-observed (family) columns
-        # (origin/main #132); do_observation=False skips them entirely, leaving
-        # every column UNOBSERVED for the new prefixes.
-        full_cols = (
-            [i for i, col in enumerate(self._masks) if (col != UNOBSERVED).all()]
-            if do_observation
-            else []
-        )
+        # (origin/main #132).
+        full_cols = [
+            i for i, col in enumerate(self._masks) if (col != UNOBSERVED).all()
+        ]
         adds = {}
         if full_cols:
             strings = [p + self._suffixes[i] for i in full_cols for p in new_prefixes]
@@ -138,10 +97,9 @@ class MaskTable:
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
         # Counterexample / leaf-enrichment prefixes are full-length probe
-        # prefixes (representative=True, the default).  Transient scratch prefixes
-        # -- e.g. strings a learner only sifts to make a classification -- pass
-        # representative=False so they stay out of the FNR / clustering /
-        # decision-boundary calibration, which must see a true probe sample.
+        # prefixes, hence representative by default.  ``representative=False``
+        # keeps a prefix out of the FNR / clustering / decision-boundary
+        # calibration, which must see a true probe sample.
         self._representative.extend([representative] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------

@@ -85,9 +85,7 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
                 n += 1
-                decision = binomial_side_of_boundary(
-                    accepts, n, pst.decision_boundary
-                )
+                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
                 if decision is not None:
                     return decision
         return None

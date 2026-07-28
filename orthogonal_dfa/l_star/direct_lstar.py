@@ -439,7 +439,10 @@ class DirectLStarLearner:
         members = list(
             dict.fromkeys(
                 [tuple(t) for t in self._leaf_probe_members.get(state, ())]
-                + [tuple(p) for p in self._leaf_members(state, limit=self._split_member_cap)]
+                + [
+                    tuple(p)
+                    for p in self._leaf_members(state, limit=self._split_member_cap)
+                ]
             )
         )[: self._split_member_cap]
         self._prefill_bases([list(m) + list(distinguisher) for m in members])
