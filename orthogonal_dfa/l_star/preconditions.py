@@ -1,8 +1,10 @@
 """
 Preconditions for E-L* learnability of a target DFA.
 
-satisfies_preconditions(dfa, *, length, ...) is the main check, checking
-the following conditions, for a particular length of uniform sampling:
+satisfies_preconditions(dfa, *, length, ...) is the main check. It returns a
+PreconditionReport -- truthy iff the DFA is admitted, and carrying the measured
+values and a reason per failed condition. The conditions, for a particular
+length of uniform sampling:
 
 - acceptance_rate: the language does not accept or reject nearly all strings
 - class_preserving_fraction: some fraction of suffixes map all accept
@@ -12,7 +14,8 @@ the following conditions, for a particular length of uniform sampling:
 """
 
 from collections import Counter
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -113,6 +116,34 @@ def covered_accuracy_ceiling(
     return best
 
 
+@dataclass(frozen=True)
+class PreconditionReport:
+    """The verdict, plus the measurements and the reasons behind it.
+
+    Truthy iff every precondition holds, so ``if satisfies_preconditions(...)``
+    reads the same as when this was a bare bool. A measurement is ``None`` when
+    short-circuiting meant it was never taken.
+    """
+
+    length: int
+    acceptance_rate: float
+    class_preserving_fraction: Optional[float] = None
+    covered_accuracy_ceiling: Optional[float] = None
+    #: States no sampled prefix lands in, as strings -- populated when the
+    #: ceiling is measured, since that is the check they explain.
+    uncovered_states: Optional[List[str]] = None
+    #: One entry per failed precondition, naming the measured value and the
+    #: threshold it missed. Empty iff the DFA is admitted.
+    reasons: Tuple[str, ...] = ()
+
+    @property
+    def satisfied(self) -> bool:
+        return not self.reasons
+
+    def __bool__(self) -> bool:
+        return self.satisfied
+
+
 def satisfies_preconditions(
     dfa: DFA,
     *,
@@ -121,22 +152,44 @@ def satisfies_preconditions(
     min_class_preserving_frac: float = 0.05,
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-) -> bool:
-    """True iff ``dfa`` meets every learnability precondition, all under
-    length-``length`` uniform sampling:
+    short_circuit: bool = True,
+) -> PreconditionReport:
+    """Does ``dfa`` meet every learnability precondition, and if not, why not?
+
+    All under length-``length`` uniform sampling:
 
     - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
     - class-preserving fraction at least ``min_class_preserving_frac``;
     - covered-accuracy ceiling at least ``min_covered_accuracy``
 
-    Checks run in increasing cost and short-circuit on the first failure.
+    Checks run in increasing cost. By default they stop at the first failure,
+    which is what a caller wanting only a verdict should do; pass
+    ``short_circuit=False`` to measure everything and collect every reason.
     """
-
+    reasons: List[str] = []
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
     if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-        return False
+        reasons.append(
+            f"acceptance rate {rate:.3f} outside "
+            f"[{min_accept_or_reject}, {1 - min_accept_or_reject}]"
+        )
+        if short_circuit:
+            return PreconditionReport(length, rate, reasons=tuple(reasons))
+
     cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
     if cp < min_class_preserving_frac:
-        return False
+        reasons.append(
+            f"class-preserving fraction {cp:.3f} below {min_class_preserving_frac}"
+        )
+        if short_circuit:
+            return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
+
     ceiling = covered_accuracy_ceiling(dfa, length=length, num_samples=num_samples)
-    return ceiling >= min_covered_accuracy
+    if ceiling < min_covered_accuracy:
+        reasons.append(
+            f"covered-accuracy ceiling {ceiling:.3f} below "
+            f"{min_covered_accuracy} (an uncovered state carries a decision)"
+        )
+    covered = covered_states(dfa, length=length, num_samples=num_samples)
+    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
+    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))
