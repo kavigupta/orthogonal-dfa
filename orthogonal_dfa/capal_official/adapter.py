@@ -24,13 +24,15 @@ from typing import Any, Optional, Tuple
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: Upstream CAPAL commit the checked-in results were measured against.
+#: The single source of truth for the commit every number in
+#: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
 #: What upstream's fit() says when it runs out of iterations (capal.py:1294).
 CAP_MESSAGE = "Maximum iterations reached without convergence"
 
-#: Default checkout: a sibling of the repo root.
+#: Default checkout location, resolved relative to the repo root rather than
+#: the cwd, so it does not matter where a caller is invoked from.
 DEFAULT_CAPAL_DIR = Path(__file__).resolve().parents[2].parent / "capal"
 
 _official: Any = None
@@ -118,8 +120,6 @@ def make_learner(
     max_iters: int = 200,
     seed: int = 0,
     verbose: bool = False,
-    k_pos: int = 10,
-    k_neg: int = 10,
     max_same_samples: int = 60,
     tau_cap: float = 0.2,
     suffix_pool_init: int = 32,
@@ -132,11 +132,13 @@ def make_learner(
 
     `enum_depth`/`extra_len_max` are the matched-query-budget knob; LearnerConfig
     does not forward them, so they go straight on the live SameStateConfig.
+
+    LearnerConfig's K_pos/K_neg are left at their defaults: upstream reads them
+    only in its CLI, never in CAPALLearner or SameStateOracle, so setting them
+    would record a knob that cannot change a result.
     """
     official = import_capal()
     cfg = official.LearnerConfig(
-        K_pos=k_pos,
-        K_neg=k_neg,
         max_iters=max_iters,
         seed=seed,
         eta=eta,

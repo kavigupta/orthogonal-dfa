@@ -1,8 +1,8 @@
-"""Run the official CAPAL learner (github.com/lkwargs/CAPAL) against this repo's
-oracles.
+"""
+Run the baseline CAPAL learner (github.com/lkwargs/CAPAL) against this repo's oracles.
 
-Upstream is a pinned sibling checkout at `../capal`. Scoring the learned DFA is
-the caller's job -- see `orthogonal_dfa.experiments.capal_comparison`.
+Upstream is a pinned sibling checkout at `../capal`.
+Scoring the learned DFA is the caller's job, see `orthogonal_dfa.experiments.capal_comparison`.
 """
 
 from .adapter import (
