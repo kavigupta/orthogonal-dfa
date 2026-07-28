@@ -7,11 +7,10 @@ and a crash in cell 300 must not cost the first 299.
 
 from __future__ import annotations
 
-import argparse
 import itertools
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Callable, List, Sequence
 
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
@@ -19,6 +18,7 @@ from .benchmark import Benchmark
 from .core import (
     LEARNER_CAPAL,
     LEARNER_ELSTAR,
+    REPO_ROOT,
     Cell,
     eval_words,
     run_capal_cell,
@@ -26,50 +26,11 @@ from .core import (
     write_experiment,
 )
 
-DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
-DEFAULT_SEEDS = [0]
-DEFAULT_LEARNERS = [LEARNER_CAPAL, LEARNER_ELSTAR]
-
-
-def add_common_args(ap: argparse.ArgumentParser) -> None:
-    ap.add_argument(
-        "--etas",
-        nargs="+",
-        type=float,
-        default=DEFAULT_ETAS,
-        help="Persistent-noise levels to sweep.",
-    )
-    ap.add_argument(
-        "--seeds", nargs="+", type=int, default=DEFAULT_SEEDS, help="Learner seeds."
-    )
-    ap.add_argument(
-        "--learners",
-        nargs="+",
-        default=DEFAULT_LEARNERS,
-        choices=[LEARNER_CAPAL, LEARNER_ELSTAR],
-        help="Which learners to run.",
-    )
-    ap.add_argument(
-        "--targets", nargs="+", default=None, help="Restrict to these benchmark names."
-    )
-    ap.add_argument("--out", default=None, help="Output JSON path.")
-
-
-def select_targets(
-    benchmarks: Sequence[Benchmark], names: Optional[Sequence[str]]
-) -> List[Benchmark]:
-    """Apply `--targets`, in the order the caller named them.
-
-    Unknown names are a hard error rather than a silent empty sweep, which is
-    otherwise easy to miss in a run that takes hours.
-    """
-    if not names:
-        return list(benchmarks)
-    by_name = {b.name: b for b in benchmarks}
-    missing = sorted(set(names) - by_name.keys())
-    if missing:
-        raise SystemExit(f"unknown target(s): {missing}")
-    return [by_name[n] for n in names]
+#: Every sweep runs the whole grid: these noise levels, this seed, both
+#: learners, every benchmark handed to it.
+ETAS = [0.05, 0.10, 0.20, 0.30]
+SEEDS = [0]
+LEARNERS = [LEARNER_CAPAL, LEARNER_ELSTAR]
 
 
 def run_cell(
@@ -81,7 +42,6 @@ def run_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     regime: PreconditionReport,
-    capal_kwargs: Dict[str, Any],
 ) -> Cell:
     """One (benchmark, learner, eta, seed) cell, run or explicitly excluded.
 
@@ -98,7 +58,6 @@ def run_cell(
             words=words,
             truth=truth,
             alphabet=b.alphabet,
-            **capal_kwargs,
         )
     if regime.satisfied:
         return run_elstar_cell(
@@ -147,22 +106,18 @@ def run_sweep(
     experiment: str,
     description: str,
     generated_by: str,
-    out_path: Path,
-    etas: Sequence[float],
-    seeds: Sequence[int],
-    learners: Sequence[str],
-    capal_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Path:
-    capal_kwargs = capal_kwargs or {}
+    """Run every learner on every benchmark at every noise level, and write
+    `data/capal/<experiment>.json`."""
+    out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
     config = {
-        "etas": list(etas),
-        "seeds": list(seeds),
-        "learners": list(learners),
+        "etas": list(ETAS),
+        "seeds": list(SEEDS),
+        "learners": list(LEARNERS),
         "benchmarks": [b.name for b in benchmarks],
-        "capal_learner_defaults": capal_kwargs,
     }
 
-    total = len(benchmarks) * len(etas) * len(seeds) * len(learners)
+    total = len(benchmarks) * len(ETAS) * len(SEEDS) * len(LEARNERS)
     cells: List[Cell] = []
     done = 0
 
@@ -200,7 +155,7 @@ def run_sweep(
         # it -- this is what makes the accuracies comparable.
         words = eval_words(b.symbols)
         truth = b.truth()
-        for eta, seed, learner in itertools.product(etas, seeds, learners):
+        for eta, seed, learner in itertools.product(ETAS, SEEDS, LEARNERS):
             done += 1
             print(
                 f"[{done}/{total}] {b.name} eta={eta:.2f} seed={seed} {learner}",
@@ -214,7 +169,6 @@ def run_sweep(
                 words=words,
                 truth=truth,
                 regime=regime[b.name],
-                capal_kwargs=capal_kwargs,
             )
             cells.append(cell)
             print(describe(cell), flush=True)

@@ -6,30 +6,18 @@ Runs CAPAL and E-L* over the 28 `.taf` targets shipped in the upstream
 the only experiment on *CAPAL's* home turf rather than ours, so it is the
 fairest read on the two learners' relative strengths.
 
-Example:
-    python -m orthogonal_dfa.experiments.capal_comparison.run_capal_bench \
-        --etas 0.05 0.20 --targets Simple01 Normal01
+    python -m orthogonal_dfa.experiments.capal_comparison.run_capal_bench
 """
 
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
-
-from .core import REPO_ROOT
-from .sweep import add_common_args, run_sweep, select_targets
 from .capal_targets import capal_benchmarks
-
-DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "capal_benchmarks.json"
+from .sweep import run_sweep
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    add_common_args(ap)
-    args = ap.parse_args()
-
     try:
-        benchmarks = select_targets(capal_benchmarks(), args.targets)
+        benchmarks = capal_benchmarks()
     except RuntimeError as exc:  # no CAPAL checkout / no dataset directory
         raise SystemExit(str(exc)) from None
 
@@ -41,10 +29,6 @@ def main() -> None:
             "(Simple/Normal/Difficult) under persistent noise."
         ),
         generated_by="orthogonal_dfa.experiments.capal_comparison.run_capal_bench",
-        out_path=Path(args.out) if args.out else DEFAULT_OUT,
-        etas=args.etas,
-        seeds=args.seeds,
-        learners=args.learners,
     )
 
 
