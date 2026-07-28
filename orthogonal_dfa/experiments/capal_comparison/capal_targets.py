@@ -7,7 +7,7 @@ automata-lib DFA that `DFAOracle` (and hence E-L*) reads.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import List
 
 from orthogonal_dfa.capal_official import (
     import_capal,
@@ -22,7 +22,7 @@ def capal_dataset_dir() -> Path:
     return resolve_capal_dir() / "dataset"
 
 
-def capal_benchmarks(names: Optional[Sequence[str]] = None) -> List[Benchmark]:
+def capal_benchmarks() -> List[Benchmark]:
     """CAPAL's shipped `.taf` targets, each wrapped for both learners."""
     from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 
@@ -34,8 +34,6 @@ def capal_benchmarks(names: Optional[Sequence[str]] = None) -> List[Benchmark]:
     out: List[Benchmark] = []
     for taf in sorted(d.glob("*.taf")):
         name = taf.stem
-        if names is not None and name not in names:
-            continue
         target = M.load_dfa_from_taf(str(taf))
         aut = to_automata_dfa(target)
         out.append(
@@ -49,8 +47,4 @@ def capal_benchmarks(names: Optional[Sequence[str]] = None) -> List[Benchmark]:
                 target_states=target.num_states,
             )
         )
-    if names is not None:
-        missing = set(names) - {b.name for b in out}
-        if missing:
-            raise RuntimeError(f"unknown target(s): {sorted(missing)}")
     return out

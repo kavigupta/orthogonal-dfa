@@ -18,8 +18,8 @@ import argparse
 from pathlib import Path
 
 from .core import REPO_ROOT
-from .sweep import add_common_args, run_sweep
 from .our_targets import our_benchmarks
+from .sweep import add_common_args, run_sweep, select_targets
 
 DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "our_benchmarks.json"
 
@@ -29,13 +29,7 @@ def main() -> None:
     add_common_args(ap)
     args = ap.parse_args()
 
-    benchmarks = our_benchmarks()
-    if args.targets:
-        by_name = {b.name: b for b in benchmarks}
-        missing = set(args.targets) - by_name.keys()
-        if missing:
-            raise SystemExit(f"unknown target(s): {sorted(missing)}")
-        benchmarks = [by_name[n] for n in args.targets]
+    benchmarks = select_targets(our_benchmarks(), args.targets)
 
     run_sweep(
         benchmarks,

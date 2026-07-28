@@ -17,7 +17,7 @@ import argparse
 from pathlib import Path
 
 from .core import REPO_ROOT
-from .sweep import add_common_args, run_sweep
+from .sweep import add_common_args, run_sweep, select_targets
 from .capal_targets import capal_benchmarks
 
 DEFAULT_OUT = REPO_ROOT / "data" / "capal" / "capal_benchmarks.json"
@@ -29,8 +29,8 @@ def main() -> None:
     args = ap.parse_args()
 
     try:
-        benchmarks = capal_benchmarks(args.targets)
-    except RuntimeError as exc:
+        benchmarks = select_targets(capal_benchmarks(), args.targets)
+    except RuntimeError as exc:  # no CAPAL checkout / no dataset directory
         raise SystemExit(str(exc)) from None
 
     run_sweep(

@@ -55,6 +55,23 @@ def add_common_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--out", default=None, help="Output JSON path.")
 
 
+def select_targets(
+    benchmarks: Sequence[Benchmark], names: Optional[Sequence[str]]
+) -> List[Benchmark]:
+    """Apply `--targets`, in the order the caller named them.
+
+    Unknown names are a hard error rather than a silent empty sweep, which is
+    otherwise easy to miss in a run that takes hours.
+    """
+    if not names:
+        return list(benchmarks)
+    by_name = {b.name: b for b in benchmarks}
+    missing = sorted(set(names) - by_name.keys())
+    if missing:
+        raise SystemExit(f"unknown target(s): {missing}")
+    return [by_name[n] for n in names]
+
+
 def run_cell(
     b: Benchmark,
     *,
