@@ -272,6 +272,22 @@ class DirectLStarLearner:
                 mc[s] = int(bit)
         return [mc[s] for s in strings]
 
+    def _prefill_bases(self, bases) -> None:
+        """Warm the cell cache for the whole distinguisher family of every base in
+        ``bases`` with one batched ``membership_queries`` call.  Folding a leaf's
+        members into a split candidate then costs a single oracle call for the
+        population instead of one per member (each an ``|vs|``-sized batch), which
+        is what a batching oracle needs to pack (see :meth:`_family_bits`)."""
+        mc = self._membership_cache
+        strings = [
+            tuple(b) + tuple(self.pst.table.suffix(v)) for b in bases for v in self.vs
+        ]
+        misses = list(dict.fromkeys(s for s in strings if s not in mc))
+        if misses:
+            results = self.pst.oracle.membership_queries([list(s) for s in misses])
+            for s, bit in zip(misses, results):
+                mc[s] = int(bit)
+
     def _decision(self, seq, prepend) -> float:
         """Mean family membership of ``seq`` under the distinguishers
         ``prepend + v``, memoized (see :meth:`_family_bits`)."""
@@ -382,13 +398,18 @@ class DirectLStarLearner:
             return accum
         accum = {"ART": [0, 0, 0, 0], "seen": set()}  # [A_true,R_true,A_false,R_false]
         cands[distinguisher] = accum
-        for t in self._leaf_probe_members.get(state, ()):
-            self._fold_member(accum, distinguisher, list(t))
-        if len(accum["seen"]) < self._split_member_cap:
-            for p in self._leaf_members(state, limit=self._split_member_cap):
-                self._fold_member(accum, distinguisher, p)
-                if len(accum["seen"]) >= self._split_member_cap:
-                    break
+        # Fold the leaf's members (probe-seen first, then the pool) up to the cap.
+        # Batch their family queries in one call so the population packs, rather
+        # than one ``|vs|`` batch per member.
+        members = list(
+            dict.fromkeys(
+                [tuple(t) for t in self._leaf_probe_members.get(state, ())]
+                + [tuple(p) for p in self._leaf_members(state, limit=self._split_member_cap)]
+            )
+        )[: self._split_member_cap]
+        self._prefill_bases([list(m) + list(distinguisher) for m in members])
+        for m in members:
+            self._fold_member(accum, distinguisher, list(m))
         return accum
 
     def _candidate_logbf(self, accum: dict) -> float:
