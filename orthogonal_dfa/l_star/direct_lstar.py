@@ -60,6 +60,11 @@ _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguishe
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
 
+# How many pool prefixes a leaf-membership scan sifts per batched pass.
+_MEMBER_SCAN_BLOCK = 128
+# How many probes a counterexample pass sifts per batched pass.
+_PROBE_BLOCK = 16
+
 
 class DirectLStarLearner:
     """Learns a DFA from random probe strings via transition/tree disagreement.
@@ -287,6 +292,36 @@ class DirectLStarLearner:
             results = self.pst.oracle.membership_queries([list(s) for s in misses])
             for s, bit in zip(misses, results):
                 mc[s] = int(bit)
+
+    def _sift_prefill(self, seqs) -> None:
+        """Warm the cache for sifting every string in ``seqs``, one batched call
+        per tree *level* instead of one per node visited.  The strings are walked
+        down the tree in lockstep and each level's queries are issued before its
+        branch decisions are read, so exactly the nodes an individual sift would
+        visit are queried -- the batching costs no extra queries."""
+        level = [(self.dt, [tuple(s) for s in seqs])]
+        while level:
+            bases = [
+                tuple(s) + tuple(node[0])
+                for node, group in level
+                if not isinstance(node, int)
+                for s in group
+            ]
+            if not bases:
+                return
+            self._prefill_bases(bases)
+            nxt = []
+            for node, group in level:
+                if isinstance(node, int):
+                    continue
+                prepend, lookup = node
+                buckets: dict = {}
+                for s in group:
+                    decision = self.is_accept(list(s), prepend)
+                    if decision is not None:
+                        buckets.setdefault(decision, []).append(s)
+                nxt.extend((lookup[d], g) for d, g in buckets.items())
+            level = nxt
 
     def _decision(self, seq, prepend) -> float:
         """Mean family membership of ``seq`` under the distinguishers
@@ -526,11 +561,19 @@ class DirectLStarLearner:
         if cached is not None and state in cached:
             return cached[state]
         out = []
-        for p in self.pst.table.prefixes:
-            if self.sift(list(p)) == state:
-                out.append(list(p))
-                if len(out) >= limit:
-                    break
+        prefixes = [list(p) for p in self.pst.table.prefixes]
+        # Sift the pool a block at a time: one batched call per tree level per
+        # block instead of one per prefix.  A block overshoots ``limit`` by at
+        # most its own size, and that work only warms the cache the next scan
+        # (this leaf's other distinguishers, or another leaf's) reads back.
+        for i in range(0, len(prefixes), _MEMBER_SCAN_BLOCK):
+            block = prefixes[i : i + _MEMBER_SCAN_BLOCK]
+            self._sift_prefill(block)
+            for p in block:
+                if self.sift(p) == state:
+                    out.append(p)
+                    if len(out) >= limit:
+                        return out
         return out
 
     def _decisive_target(
@@ -584,6 +627,15 @@ class DirectLStarLearner:
         ``range(num_states)`` is always a live leaf -- no staleness check is
         needed; the only dedup is skipping edges already resolved."""
         resolved = 0
+        # Batch the access-string sift every queued edge starts from; the queue is
+        # only appended to outside this drain, so one prefill covers all of them.
+        self._sift_prefill(
+            [
+                list(self.access[s]) + [c]
+                for s, c in self.worklist
+                if s in self.access and c not in self.transitions[s]
+            ]
+        )
         while self.worklist:
             state, c = self.worklist.popleft()
             if c in self.transitions[state]:
@@ -617,6 +669,7 @@ class DirectLStarLearner:
         if getattr(self, "check_representative_only", False):
             rep = self.pst.table.representative
             prefixes = [p for p, r in zip(prefixes, rep) if r]
+        self._sift_prefill([list(p) for p in prefixes])
         for p in prefixes:
             st = self.sift(list(p))
             if st is not None:
@@ -659,10 +712,10 @@ class DirectLStarLearner:
                 if target is None:
                     continue
                 self._checks += 1
-                for u in sample:
+                todo = [u for u in sample if (state, tuple(u), c) not in skip]
+                self._sift_prefill([u + [c] for u in todo])
+                for u in todo:
                     key = (state, tuple(u), c)
-                    if key in skip:
-                        continue
                     tu, boundary = self.sift_and_boundary(u + [c])
                     if tu is None:
                         # ``u + [c]`` is indecisive under the current family -- a
@@ -851,6 +904,22 @@ class DirectLStarLearner:
 
     # -- driver -------------------------------------------------------------
 
+    def _probe_blocks(self, max_probes: int):
+        """Yield up to ``max_probes`` sampled probes, sifting each block in one
+        batched pass just before it is walked.  :meth:`process` sifts every probe
+        in full, so warming a block up front costs nothing extra; only the tail of
+        a block is wasted, when the caller bails or a split rewrites the tree
+        part-way through.  Blocks are drawn lazily, so a bail never samples ahead."""
+        drawn = 0
+        while drawn < max_probes:
+            block = [
+                self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+                for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
+            ]
+            drawn += len(block)
+            self._sift_prefill(block)
+            yield from block
+
     def process_probes(self, probes) -> int:
         """Walk each string in ``probes`` (e.g. counterexamples supplied by a
         refiner) through :meth:`process`, re-resolving the worklist after each
@@ -875,8 +944,7 @@ class DirectLStarLearner:
         Returns the number of splits (counterexamples consumed)."""
         splits = 0
         since_split = 0
-        for _ in range(max_probes):
-            w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+        for w in self._probe_blocks(max_probes):
             status = self.process(w)
             if status == _SPLIT:
                 splits += 1
@@ -905,8 +973,7 @@ class DirectLStarLearner:
         """
         splits = 0
         since_split = 0
-        for _ in range(max_probes):
-            w = self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+        for w in self._probe_blocks(max_probes):
             status = self.process(w)
             if status == _SPLIT:
                 splits += 1
