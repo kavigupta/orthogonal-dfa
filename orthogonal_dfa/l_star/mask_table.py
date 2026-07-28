@@ -63,11 +63,7 @@ class MaskTable:
     def contains_prefix(self, prefix: List[int]) -> bool:
         return tuple(prefix) in self._prefix_keys
 
-    def add_prefixes(
-        self,
-        new_prefixes: List[List[int]],
-        representative: bool = True,
-    ) -> None:
+    def add_prefixes(self, new_prefixes: List[List[int]]) -> None:
         assert new_prefixes, "No new prefixes to add"
         assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
             new_prefixes
@@ -78,8 +74,7 @@ class MaskTable:
         # gets UNOBSERVED cells, filled later on demand only if some read needs
         # them.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
-        # Batch the membership queries for the fully-observed (family) columns
-        # (origin/main #132).
+        # Flatten out the pairs to update
         full_cols = [
             i for i, col in enumerate(self._masks) if (col != UNOBSERVED).all()
         ]
@@ -96,11 +91,9 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
-        # Counterexample / leaf-enrichment prefixes are full-length probe
-        # prefixes, hence representative by default.  ``representative=False``
-        # keeps a prefix out of the FNR / clustering / decision-boundary
-        # calibration, which must see a true probe sample.
-        self._representative.extend([representative] * len(new_prefixes))
+        # Prefixes added after construction (counterexamples, leaf enrichment)
+        # are full-length probe prefixes, hence representative.
+        self._representative.extend([True] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
 

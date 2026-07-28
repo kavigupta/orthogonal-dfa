@@ -1392,7 +1392,7 @@ def _grow_representative_pool(
     representative = accumulated + curated
     fresh = [p for p in representative if not pst.table.contains_prefix(p)]
     if fresh:
-        pst.table.add_prefixes(fresh, representative=True)
+        pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
 
 
@@ -1657,7 +1657,7 @@ def synthesize_direct_lstar_curated(
         )
         fresh = [p for p in representative if not pst.table.contains_prefix(p)]
         if fresh:
-            pst.table.add_prefixes(fresh, representative=True)
+            pst.table.add_prefixes(fresh)
         pst.table.set_representative(representative)
 
     return best[1], best[2]
