@@ -16,13 +16,8 @@ from .sweep import run_sweep
 
 
 def main() -> None:
-    try:
-        benchmarks = capal_benchmarks()
-    except RuntimeError as exc:  # no CAPAL checkout / no dataset directory
-        raise SystemExit(str(exc)) from None
-
     run_sweep(
-        benchmarks,
+        capal_benchmarks(),
         experiment="capal_benchmarks",
         description=(
             "CAPAL and E-L* on CAPAL's own 28 .taf benchmark targets "

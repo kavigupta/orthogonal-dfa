@@ -14,13 +14,10 @@ from typing import Any, Callable, List, Sequence
 
 from orthogonal_dfa.capal_official import to_automata_dfa
 from orthogonal_dfa.l_star import preconditions
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH
 
 FAMILY_OURS = "ours"
 FAMILY_CAPAL = "capal_dataset"
-
-#: E-L*'s word-sampling length, fixed: it is `compute_pst`'s default, and the
-#: length the regime check measures at.
-SAMPLE_LENGTH = 40
 
 
 @dataclass
@@ -43,16 +40,20 @@ class Benchmark:
         """Noiseless ground truth, taken from the upstream DFA so that both
         learners are scored against one definition of the language."""
         dfa, alpha = self.target, self.alphabet
-        return lambda w: bool(dfa.run("".join(alpha[i] for i in w)))
+        return lambda w: dfa.run("".join(alpha[i] for i in w))
 
     def regime_report(self) -> preconditions.PreconditionReport:
         """Is this target inside E-L*'s designed regime, and if not, why not?
 
-        The thresholds are `satisfies_preconditions`' own defaults, which are
-        the values this repo's benchmark generator applies. Every reason is
-        collected rather than just the first, so a recorded exclusion says
-        everything that disqualified the target.
+        Measured at the length E-L* draws its own words at, so the verdict is
+        about the distribution the learner actually sees. The thresholds are
+        `satisfies_preconditions`' own defaults, which are the values this
+        repo's benchmark generator applies. Every reason is collected rather
+        than just the first, so a recorded exclusion says everything that
+        disqualified the target.
         """
         return preconditions.satisfies_preconditions(
-            to_automata_dfa(self.target), length=SAMPLE_LENGTH, short_circuit=False
+            to_automata_dfa(self.target),
+            length=DEFAULT_SAMPLE_LENGTH,
+            short_circuit=False,
         )

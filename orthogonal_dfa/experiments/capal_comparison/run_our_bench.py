@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 """Experiment 2: both learners on this repo's benchmarks.
 
-Replaces the old split where CAPAL's numbers came from one sweep and E-L*'s
-from `scripts/count_queries.py`, with the head-to-head table assembled by hand
--- which is how the published comparison drifted out of date across three
-refactors without anything noticing. Both learners now run in one process,
-against one benchmark list, scored on one word list.
+The modulo-9 and regex oracles from `tests/test_lstar.py`, ported to upstream
+`capal.DFA`s so CAPAL can learn the same languages.
 
     python -m orthogonal_dfa.experiments.capal_comparison.run_our_bench
 """

@@ -76,9 +76,9 @@ def run_cell(
             target_states=b.target_states,
         )
     # Outside E-L*'s designed regime: this repo's own benchmark generator would
-    # have discarded this target. Recorded as an explicit, reasoned exclusion
-    # rather than run -- a number here would measure the benchmark, not the
-    # learner.
+    # have discarded this target. Recorded as an explicit exclusion rather than
+    # run -- a number here would measure the benchmark, not the learner. The
+    # measurements behind the verdict are in config["elstar_regime"].
     return Cell(
         benchmark=b.name,
         family=b.family,
@@ -87,7 +87,6 @@ def run_cell(
         seed=seed,
         target_states=b.target_states,
         alphabet_size=b.symbols,
-        learner_config=asdict(regime),
         seconds=0.0,
         error_type="ExcludedOutOfRegime",
         error="; ".join(regime.reasons),
@@ -170,7 +169,7 @@ def run_sweep(
 
     # Before any cell runs, decide per target whether E-L* is in its designed
     # regime, via preconditions.satisfies_preconditions (acceptance balance +
-    # class-preservation + the covered-accuracy ceiling, all at SAMPLE_LENGTH).
+    # class-preservation + the covered-accuracy ceiling).
     # CAPAL runs on everything -- its PerfectEQ finds counterexamples
     # structurally, so none of these conditions constrain it.
     regime = {b.name: b.regime_report() for b in benchmarks}

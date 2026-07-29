@@ -130,12 +130,8 @@ class Cell:
     error: Optional[str] = None
 
     def finalize(self) -> "Cell":
-        """Round the float fields.
-
-        Full precision on timings would make every re-run a noisy diff on a
-        checked-in file, for digits nobody reads. Called by the drivers once a
-        cell is fully populated.
-        """
+        """Round the float fields, for digits nobody reads. Called by the
+        drivers once a cell is fully populated."""
         self.seconds = None if self.seconds is None else round(self.seconds, 3)
         self.accuracy = None if self.accuracy is None else round(self.accuracy, 6)
         return self
@@ -154,21 +150,9 @@ def run_capal_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     alphabet: Sequence[str],
-    max_iters: int = 200,
-    max_same_samples: int = 60,
-    suffix_pool_len_max: int = 8,
-    alpha: float = 1e-3,
-    tau_cap: float = 0.2,
-    suffix_pool_init: int = 32,
-    enum_depth: int = 3,
-    extra_len_max: int = 8,
 ) -> Cell:
-    """Run upstream CAPAL on `target` and score it on the shared word list.
-
-    ``enum_depth`` / ``extra_len_max`` control how many and how long the SAMESTATE
-    suffixes are; raising them pushes CAPAL's query count up by orders of
-    magnitude, which is how a matched-query-budget comparison is set up.
-    """
+    """Run upstream CAPAL on `target` and score it on the shared word list."""
+    learner = make_learner(target, eta, seed=seed)
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -177,35 +161,23 @@ def run_capal_cell(
         seed=seed,
         target_states=target.num_states,
         alphabet_size=len(target.alphabet),
+        # Read off the learner rather than restated here, so this records what
+        # CAPAL ran with even when `make_learner`'s defaults move. `eta_hat` is
+        # not a knob at all: upstream derives it from eta and floors it, see the
+        # module docstring.
         learner_config={
-            "max_iters": max_iters,
-            "max_same_samples": max_same_samples,
-            "suffix_pool_len_max": suffix_pool_len_max,
-            "alpha": alpha,
-            "tau_cap": tau_cap,
-            "suffix_pool_init": suffix_pool_init,
-            "enum_depth": enum_depth,
-            "extra_len_max": extra_len_max,
+            "max_iters": learner.cfg.max_iters,
+            "max_same_samples": learner.ss.cfg.max_samples,
+            "suffix_pool_len_max": learner.ss.cfg.pool_len_max,
+            "alpha": learner.ss.cfg.alpha,
+            "tau_cap": learner.ss.cfg.tau_cap,
+            "suffix_pool_init": learner.ss.cfg.pool_init,
+            "enum_depth": learner.ss.cfg.enum_depth,
+            "extra_len_max": learner.ss.cfg.extra_len_max,
+            "eta_hat": learner.ss.eta_hat,
         },
     )
 
-    learner = make_learner(
-        target,
-        eta,
-        max_iters=max_iters,
-        seed=seed,
-        verbose=False,
-        max_same_samples=max_same_samples,
-        tau_cap=tau_cap,
-        suffix_pool_init=suffix_pool_init,
-        suffix_pool_len_max=suffix_pool_len_max,
-        alpha=alpha,
-        enum_depth=enum_depth,
-        extra_len_max=extra_len_max,
-    )
-    # Not an argument we pass: upstream derives it from eta and floors it. See
-    # the module docstring.
-    cell.learner_config["eta_hat"] = learner.ss.eta_hat
     # Every EQ call is a perfect-information answer E-L* has no access to, so
     # it is counted rather than left implicit.
     eq_calls = {"n": 0}
@@ -372,6 +344,6 @@ def write_experiment(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:
-        json.dump(payload, f, indent=2, sort_keys=False)
+        json.dump(payload, f, indent=2)
         f.write("\n")
     return path

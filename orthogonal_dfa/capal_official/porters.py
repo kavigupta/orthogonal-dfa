@@ -88,5 +88,4 @@ def to_automata_dfa(target: Any) -> Any:
         transitions=transitions,
         initial_state=target.start,
         final_states=set(target.accept),
-        allow_partial=False,
     )

@@ -6,7 +6,6 @@ automata-lib DFA that `DFAOracle` (and hence E-L*) reads.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import List
 
 from orthogonal_dfa.capal_official import (
@@ -18,16 +17,12 @@ from orthogonal_dfa.capal_official import (
 from .benchmark import FAMILY_CAPAL, Benchmark
 
 
-def capal_dataset_dir() -> Path:
-    return resolve_capal_dir() / "dataset"
-
-
 def capal_benchmarks() -> List[Benchmark]:
     """CAPAL's shipped `.taf` targets, each wrapped for both learners."""
     from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 
     M = import_capal()
-    d = capal_dataset_dir()
+    d = resolve_capal_dir() / "dataset"
     if not d.is_dir():
         raise RuntimeError(f"no dataset/ directory in the CAPAL checkout at {d}")
 
