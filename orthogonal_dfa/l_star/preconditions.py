@@ -6,7 +6,7 @@ PreconditionReport -- truthy iff the DFA is admitted, and carrying the measured
 values and a reason per failed condition. The conditions, for a particular
 length of uniform sampling:
 
-- acceptance_rate: the language does not accept or reject nearly all strings
+- acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
 - covered_accuracy_ceiling: re-rooting the target at the best *covered* start
@@ -148,7 +148,6 @@ def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
-    min_accept_or_reject: float = 0.15,
     min_class_preserving_frac: float = 0.05,
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
@@ -158,9 +157,14 @@ def satisfies_preconditions(
 
     All under length-``length`` uniform sampling:
 
-    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
+    - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
     - covered-accuracy ceiling at least ``min_covered_accuracy``
+
+    The acceptance-rate check only rejects degeneracy -- a language that is
+    constant over the sampled strings, which E-L* cannot get signal from and
+    which the other two checks pass trivially. It carries no balance
+    requirement: an imbalanced language is the class-preserving check's business.
 
     Checks run in increasing cost. By default they stop at the first failure,
     which is what a caller wanting only a verdict should do; pass
@@ -168,10 +172,10 @@ def satisfies_preconditions(
     """
     reasons: List[str] = []
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
-    if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
+    if rate in (0.0, 1.0):
         reasons.append(
-            f"acceptance rate {rate:.3f} outside "
-            f"[{min_accept_or_reject}, {1 - min_accept_or_reject}]"
+            f"acceptance rate {rate} degenerate: every sampled string of length "
+            f"{length} has the same label"
         )
         if short_circuit:
             return PreconditionReport(length, rate, reasons=tuple(reasons))
