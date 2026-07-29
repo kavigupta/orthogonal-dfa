@@ -12,7 +12,6 @@ it as `p_correct = 1 - eta`, with E-L* additionally told `min_signal_strength =
 Both learners are therefore told the true noise rate, but CAPAL discards part
 of it: upstream floors its working estimate at
     `eta_hat = min(0.49, max(eta, 0.15))` (capal.py:931)
-This is the choice of the CAPAL authors, not this harness.
 
 Equivalence queries are recorded alongside membership queries, because the two
 learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
@@ -45,8 +44,7 @@ LEARNER_ELSTAR = "E-L*"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-#: Shared evaluation settings. Both learners' hypotheses are scored on the very
-#: same sampled word list, so accuracies are directly comparable.
+#: Shared evaluation settings, for the word list both learners are scored on.
 EVAL_COUNT = 5000
 EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
@@ -126,8 +124,8 @@ class Cell:
     error: Optional[str] = None
 
     def finalize(self) -> "Cell":
-        """Round the float fields, for digits nobody reads. Called by the
-        drivers once a cell is fully populated."""
+        """Round the float fields. Called by the drivers once a cell is fully
+        populated."""
         self.seconds = None if self.seconds is None else round(self.seconds, 3)
         self.accuracy = None if self.accuracy is None else round(self.accuracy, 6)
         return self
@@ -158,9 +156,7 @@ def run_capal_cell(
         target_states=target.num_states,
         alphabet_size=len(target.alphabet),
         # Read off the learner rather than restated here, so this records what
-        # CAPAL ran with even when `make_learner`'s defaults move. `eta_hat` is
-        # not a knob at all: upstream derives it from eta and floors it, see the
-        # module docstring.
+        # CAPAL ran with even when `make_learner`'s defaults move.
         learner_config={
             "max_iters": learner.cfg.max_iters,
             "max_same_samples": learner.ss.cfg.max_samples,
@@ -174,8 +170,6 @@ def run_capal_cell(
         },
     )
 
-    # Every EQ call is a perfect-information answer E-L* has no access to, so
-    # it is counted rather than left implicit.
     eq_calls = {"n": 0}
     inner_eq = learner.eq.query
 
@@ -243,14 +237,10 @@ def run_elstar_cell(
             "min_signal_strength": signal,
             "min_suffix_frequency": min_suffix_frequency,
         },
-        # E-L* has no equivalence oracle: its counterexamples are built out of
-        # membership queries, which queries_total already charges it for.
         equivalence_queries=0,
     )
 
     class CountingOracle(Oracle):
-        """Counts membership queries."""
-
         def __init__(self, inner: Any) -> None:
             self._inner = inner
             self.count = 0
@@ -292,8 +282,6 @@ def run_elstar_cell(
     if dfa is not None:
         cell.learned_states = len(dfa.states)
         cell.accuracy = accuracy(dfa.accepts_input, truth, words)
-        # E-L* has no convergence flag: it always returns a hypothesis. Treat
-        # an exact-accuracy hypothesis as converged so the column is comparable.
         cell.converged = cell.accuracy == 1.0
     return cell.finalize()
 
@@ -314,9 +302,9 @@ def write_experiment(
     """Write one experiment's JSON: the config that produced it and every
     cell, so the report generator needs nothing but this file.
 
-    Sweeps rewrite this file after every cell so a crash costs one cell rather
-    than the run, which means a partial file is as well-formed as a finished
-    one. `complete` is what tells them apart.
+    A partial file is as well-formed as a finished one; `complete` is what
+    tells them apart. Written via a temporary file so an interrupted write
+    cannot leave a half-written JSON behind.
     """
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -328,7 +316,9 @@ def write_experiment(
         "cells": [asdict(c) for c in cells],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w") as f:
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w") as f:
         json.dump(payload, f, indent=2)
         f.write("\n")
+    tmp.replace(path)
     return path

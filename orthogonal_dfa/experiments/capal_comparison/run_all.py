@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Run every CAPAL-comparison experiment, in order.
 
-Each experiment reuses whatever its JSON already holds, so re-running this is
-cheap when nothing has changed and resumes where an interrupted sweep stopped.
-That reuse is keyed on cell identity, not on the code that produced the cell:
-after changing either learner, delete `data/capal/` first.
+Each experiment reuses whatever its JSON already holds; see
+`sweep.reusable_cells` for when that reuse is not what you want.
 
     python -m orthogonal_dfa.experiments.capal_comparison.run_all
 """

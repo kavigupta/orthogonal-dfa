@@ -1,10 +1,8 @@
 """Drive both learners across a benchmark family and emit the experiment JSON.
 
 Experiments 1 and 2 differ only in which benchmarks they run, so they share
-this driver. Results are flushed after every cell: these sweeps run for hours,
-and a crash in cell 300 must not cost the first 299. Only the final flush marks
-the file `complete`, so what a crash leaves behind cannot be read as a whole
-sweep.
+this driver. These sweeps run for hours, so results are flushed after every
+cell; only the final flush marks the file `complete`.
 """
 
 from __future__ import annotations
@@ -30,8 +28,7 @@ from .core import (
     write_experiment,
 )
 
-#: Every sweep runs the whole grid: these noise levels, this seed, both
-#: learners, every benchmark handed to it.
+#: Every sweep runs the whole grid of these against the benchmarks handed to it.
 ETAS = [0.05, 0.10, 0.20, 0.30]
 SEEDS = [0]
 LEARNERS = [LEARNER_CAPAL, LEARNER_ELSTAR]
@@ -76,9 +73,9 @@ def run_cell(
             target_states=b.target_states,
         )
     # Outside E-L*'s designed regime: this repo's own benchmark generator would
-    # have discarded this target. Recorded as an explicit exclusion rather than
-    # run -- a number here would measure the benchmark, not the learner. The
-    # measurements behind the verdict are in config["elstar_regime"].
+    # have discarded this target, so it is recorded as an explicit exclusion
+    # rather than run. The measurements behind the verdict are in
+    # config["elstar_regime"].
     return Cell(
         benchmark=b.name,
         family=b.family,
@@ -152,26 +149,36 @@ def run_sweep(
         "benchmarks": [b.name for b in benchmarks],
     }
 
+    previous = reusable_cells(out_path)
+    if previous:
+        print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
+
     total = len(benchmarks) * len(ETAS) * len(SEEDS) * len(LEARNERS)
     cells: List[Cell] = []
     done = 0
 
     def flush(complete: bool = False) -> None:
+        # Until the sweep finishes, carry the cells it has not reached yet:
+        # this file is their only copy. The final write is the grid alone.
+        done_keys = {(c.benchmark, c.learner, c.eta, c.seed) for c in cells}
+        carried = (
+            []
+            if complete
+            else [Cell(**c) for k, c in previous.items() if k not in done_keys]
+        )
         write_experiment(
             out_path,
             experiment=experiment,
             generated_by=generated_by,
             description=description,
             config=config,
-            cells=cells,
+            cells=[*cells, *carried],
             complete=complete,
         )
 
     # Before any cell runs, decide per target whether E-L* is in its designed
     # regime, via preconditions.satisfies_preconditions (acceptance balance +
     # class-preservation + the covered-accuracy ceiling).
-    # CAPAL runs on everything -- its PerfectEQ finds counterexamples
-    # structurally, so none of these conditions constrain it.
     regime = {b.name: b.regime_report() for b in benchmarks}
     config["elstar_regime"] = {n: asdict(r) for n, r in regime.items()}
     config["elstar_regime_source"] = (
@@ -186,13 +193,7 @@ def run_sweep(
             flush=True,
         )
 
-    previous = reusable_cells(out_path)
-    if previous:
-        print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
-
     for b in benchmarks:
-        # One word list per benchmark, shared by every learner/eta/seed cell on
-        # it -- this is what makes the accuracies comparable.
         words = eval_words(b.symbols)
         truth = b.truth()
         for eta, seed, learner in itertools.product(ETAS, SEEDS, LEARNERS):
@@ -202,9 +203,8 @@ def run_sweep(
                 flush=True,
             )
             cached = previous.get((b.name, learner, eta, seed))
-            # An exclusion is free to redo and is a verdict on the *current*
-            # regime, so it is never taken from the file: reusing one would
-            # outlive the preconditions that produced it.
+            # An exclusion is free to redo, and reusing one would outlive the
+            # preconditions that produced it.
             if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
                 cell = Cell(**cached)
                 print(describe(cell) + "  [reused]", flush=True)

@@ -28,8 +28,7 @@ from tests.test_capal_bridge import _ensure_capal_checkout
 #: Both are 2-state targets inside E-L*'s regime, so a cell on either is seconds.
 CAPAL_TARGET = "Simple01"
 ELSTAR_TARGET = "Simple02"
-#: Outside E-L*'s regime, and the largest .taf target -- so it exercises the
-#: exclusion branch without ever starting a learner.
+#: Outside E-L*'s regime, so it exercises the exclusion branch.
 EXCLUDED_TARGET = "Normal01"
 
 
@@ -61,8 +60,6 @@ class TestCapalComparison(unittest.TestCase):
         self.assertEqual(cell.learned_states, b.target_states)
         self.assertEqual(cell.accuracy, 1.0)
         self.assertGreater(cell.queries_total, 0)
-        # A perfect EQ is the asymmetry the whole comparison turns on, so a
-        # driver that stopped counting it has to fail here.
         self.assertGreaterEqual(cell.equivalence_queries, 1)
         # Upstream floors its noise estimate at 0.15, so it is not the eta it
         # was handed. See the core module docstring.
@@ -104,8 +101,7 @@ class TestCapalComparison(unittest.TestCase):
             regime=regime,
         )
         self.assertEqual(cell.error_type, "ExcludedOutOfRegime")
-        # The exclusion has to carry its reasons, or the excluded set is a bare
-        # assertion rather than something a reader can check.
+        # The exclusion has to carry the reasons behind it.
         self.assertTrue(cell.error)
         self.assertIsNone(cell.accuracy)
         self.assertIsNone(cell.queries_total)
