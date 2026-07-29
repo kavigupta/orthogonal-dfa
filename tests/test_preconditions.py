@@ -53,6 +53,19 @@ RECURRENT_BUT_UNCOVERED = DFA(
 )
 
 
+# Counts 1s mod 9 and accepts one residue: strongly connected and learnable,
+# but only ~13% of length-40 strings are accepted, so a balance requirement on
+# the acceptance rate would reject it.
+MOD9_SKEWED = DFA(
+    states=set(range(9)),
+    input_symbols={0, 1},
+    transitions={q: {0: q, 1: (q + 1) % 9} for q in range(9)},
+    initial_state=0,
+    final_states={1},
+    allow_partial=False,
+)
+
+
 def _constant_dfa(final_states):
     return DFA(
         states={0},
@@ -106,13 +119,24 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertTrue(P.satisfies_preconditions(MOD3, length=40))
 
     def test_degenerate_acceptance_rate_fails(self):
-        self.assertFalse(P.satisfies_preconditions(_constant_dfa({0}), length=40))
-        self.assertFalse(P.satisfies_preconditions(_constant_dfa(set()), length=40))
+        # The other two checks pass a constant language trivially, so the
+        # acceptance rate is the only one that can reject it.
+        for finals in ({0}, set()):
+            report = P.satisfies_preconditions(_constant_dfa(finals), length=40)
+            self.assertFalse(report)
+            self.assertIn("degenerate", report.reasons[0])
+
+    def test_skewed_but_non_degenerate_target_passes(self):
+        # Only 13% accepted, so the acceptance-rate check must not impose
+        # balance: E-L* learns this one to accuracy 1.0.
+        self.assertLess(P.acceptance_rate(MOD9_SKEWED, length=40), 0.15)
+        self.assertTrue(P.satisfies_preconditions(MOD9_SKEWED, length=40))
 
     def test_ceiling_catches_transient_states(self):
-        # Difficult09 is balanced and class-preserving, so only the covered-
-        # accuracy ceiling catches it: the decision lives in transient states.
-        self.assertTrue(0.15 <= P.acceptance_rate(DIFFICULT09, length=40) <= 0.85)
+        # Difficult09 is non-degenerate and class-preserving, so only the
+        # covered-accuracy ceiling catches it: the decision lives in transient
+        # states.
+        self.assertNotIn(P.acceptance_rate(DIFFICULT09, length=40), (0.0, 1.0))
         self.assertGreaterEqual(
             P.class_preserving_fraction(DIFFICULT09, length=40), 0.05
         )
