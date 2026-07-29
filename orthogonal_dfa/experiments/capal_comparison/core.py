@@ -1,29 +1,25 @@
 """Shared measurement machinery for the CAPAL vs E-L* experiments.
 
-The point of this module is that **both learners are measured identically**:
-same evaluation word list, same accuracy definition, same query accounting,
-same result record. Anything that differs between the two learners is a
-property of the learner, not of the harness.
+The point of this module is that both learners are measured identically:
+same evaluation word list, same accuracy definition, same query accounting.
+Anything that differs between the two learners is a property of the learner,
+not of the harness.
 
-Noise. Both sides model *persistent* noise -- a given string's label is fixed
-the first time it is asked, so repeated queries are free and `distinct` queries
-are the honest oracle cost. CAPAL parameterises it as `eta` (flip probability);
-this repo parameterises it as `p_correct = 1 - eta`, with E-L* additionally
-told `min_signal_strength = 0.5 - eta` so it can size its suffix population.
-Both learners are therefore *told* the true noise rate, but CAPAL discards part
+Noise. CAPAL parameterises it as `eta` (flip probability); this repo parameterises
+it as `p_correct = 1 - eta`, with E-L* additionally told `min_signal_strength =
+0.5 - eta` so it can size its suffix population.
+
+Both learners are therefore told the true noise rate, but CAPAL discards part
 of it: upstream floors its working estimate at
-`eta_hat = min(0.49, max(eta, 0.15))` (capal.py:931), so at eta 0.05 and 0.10 it
-runs its SAMESTATE test against 0.15 rather than the rate it was handed. That is
-upstream's choice, not the harness's; `learner_config["eta_hat"]` records what it
-actually used.
+    `eta_hat = min(0.49, max(eta, 0.15))` (capal.py:931)
+This is the choice of the CAPAL authors, not this harness.
 
 Equivalence queries are recorded alongside membership queries, because the two
 learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
 pMAT assumption), and its counterexamples come back as gold labels that also
 shadow the MQ, so those strings cost it nothing thereafter. E-L* has no EQ at
 all and manufactures its counterexamples out of membership queries, so its EQ
-count is 0 by construction and its MQ count carries work CAPAL never pays for.
-Reading `queries_distinct` without `equivalence_queries` overstates E-L*'s cost.
+count is 0 by construction.
 """
 
 from __future__ import annotations
@@ -93,7 +89,8 @@ def accuracy(
 
 @dataclass
 class Cell:
-    """One (benchmark, learner, eta, seed) measurement.
+    """
+    One (benchmark, learner, eta, seed) measurement.
 
     `queries_distinct` is the comparable membership cost under persistent noise.
     `queries_total` counts repeats too, and is E-L*-only: it is what E-L* would

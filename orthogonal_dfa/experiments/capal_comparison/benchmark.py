@@ -1,10 +1,7 @@
 """One target, presentable to *both* learners.
 
 A benchmark has to be readable two ways: as an upstream `capal.DFA` (what CAPAL
-learns) and as one of this repo's `Oracle`s (what E-L* learns). The two views
-must denote the same language under the same symbol ordering, or the
-head-to-head is meaningless -- so both are derived from a single source of
-truth per family, in `our_targets` and `capal_targets`.
+learns) and as one of this repo's `Oracle`s (what E-L* learns).
 """
 
 from __future__ import annotations
