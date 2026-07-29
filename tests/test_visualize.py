@@ -5,7 +5,6 @@ import unittest
 
 import matplotlib
 import numpy as np
-from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.visualize import (
     _class_colors,
@@ -13,6 +12,7 @@ from orthogonal_dfa.l_star.visualize import (
     render_diagnostics,
     sample_class_distribution,
 )
+from tests.dfas import PARITY
 
 # render_diagnostics imports pyplot lazily, so this lands before any backend is
 # selected -- the tests must not need a display.
@@ -20,16 +20,6 @@ matplotlib.use("Agg")
 
 # `dot` does the graph layout; without it there is nothing to draw into.
 needs_dot = unittest.skipIf(shutil.which("dot") is None, "graphviz `dot` not installed")
-
-# Parity over {0,1}: state 0 accepts an even number of 1s.
-PARITY = DFA(
-    states={0, 1},
-    input_symbols={0, 1},
-    transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 0}},
-    initial_state=0,
-    final_states={0},
-    allow_partial=False,
-)
 
 
 class _StubSampler:

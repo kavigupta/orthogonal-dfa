@@ -4,16 +4,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.lstar import denoise_accept_labels
-
-# Accepts strings with an even number of 1s.  State 0 is the accepting one.
-PARITY = DFA(
-    states={0, 1},
-    input_symbols={0, 1},
-    transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 0}},
-    initial_state=0,
-    final_states={0},
-    allow_partial=False,
-)
+from tests.dfas import PARITY, parity_membership
 
 
 class _CountingOracle:
@@ -28,11 +19,11 @@ class _CountingOracle:
 
     def membership_query(self, string):
         self.batches.append(1)
-        return sum(string) % 2 == 0
+        return parity_membership(string)
 
     def membership_queries(self, strings):
         self.batches.append(len(strings))
-        return [sum(s) % 2 == 0 for s in strings]
+        return [parity_membership(s) for s in strings]
 
 
 class _StubSampler:
