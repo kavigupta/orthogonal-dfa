@@ -12,7 +12,8 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     sample_random_dfa,
 )
-from tests.test_lstar import compute_dfa_accuracy, compute_dfa_for_oracle
+from orthogonal_dfa.l_star.learn import learn_dfa
+from tests.test_lstar import compute_dfa_accuracy
 
 NUM_DFAS = 600
 ETA = 0.05
@@ -34,9 +35,7 @@ def _elstar_accuracy(aut) -> float:
     old = signal.signal(signal.SIGALRM, _timeout)
     signal.alarm(PER_DFA_TIMEOUT)
     try:
-        _, dfa, _ = compute_dfa_for_oracle(
-            oracle_creator, min_signal_strength=0.5 - ETA, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.5 - ETA, seed=0)
         if dfa is None:
             return 0.0
         acc, _, _ = compute_dfa_accuracy(dfa, oracle_creator)
