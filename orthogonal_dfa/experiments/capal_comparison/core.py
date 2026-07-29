@@ -163,6 +163,8 @@ def run_capal_cell(
             "alpha": learner.ss.cfg.alpha,
             "tau_cap": learner.ss.cfg.tau_cap,
             "suffix_pool_init": learner.ss.cfg.pool_init,
+            "discr_search_max_len": learner.cfg.discr_search_max_len,
+            "discr_search_random": learner.cfg.discr_search_random,
             "enum_depth": learner.ss.cfg.enum_depth,
             "extra_len_max": learner.ss.cfg.extra_len_max,
             "eta_hat": learner.ss.eta_hat,
