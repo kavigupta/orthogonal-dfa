@@ -61,6 +61,8 @@ class TestCapalComparison(unittest.TestCase):
         self.assertEqual(cell.learned_states, b.target_states)
         self.assertEqual(cell.accuracy, 1.0)
         self.assertGreater(cell.queries_distinct, 0)
+        # Upstream memoises above the MQ, so it issues no repeat oracle calls.
+        self.assertEqual(cell.queries_total, cell.queries_distinct)
         # A perfect EQ is the asymmetry the whole comparison turns on, so a
         # driver that stopped counting it has to fail here.
         self.assertGreaterEqual(cell.equivalence_queries, 1)

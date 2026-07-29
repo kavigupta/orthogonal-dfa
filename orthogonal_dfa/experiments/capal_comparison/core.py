@@ -36,8 +36,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 from orthogonal_dfa.l_star.learn import learn_dfa
 
-#: Bump when the emitted record shape changes incompatibly.
-SCHEMA_VERSION = 3
+#: Bump when the emitted record shape changes incompatibly. 4: queries_total is
+#: populated for CAPAL too, so it no longer doubles as "this row is E-L*".
+SCHEMA_VERSION = 4
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
@@ -92,11 +93,23 @@ class Cell:
     """
     One (benchmark, learner, eta, seed) measurement.
 
-    `queries_distinct` is the comparable membership cost under persistent noise.
-    `queries_total` counts repeats too, and is E-L*-only: it is what E-L* would
-    have paid without the persistent-noise cache. `equivalence_queries` is the
-    other half of the oracle cost -- see the module docstring on why the two
-    columns have to be read together.
+    The two membership columns answer different questions.
+
+    `queries_distinct` is the algorithmic cost: distinct strings whose label was
+    drawn from the noisy oracle. Under persistent noise a repeat carries no new
+    information, so this is what the two learners can be compared on.
+
+    `queries_total` is the engineering cost: calls each implementation actually
+    issues today. CAPAL's equals its distinct count because upstream memoises
+    above the MQ (SameStateOracle._label), so a repeat never reaches the oracle.
+    E-L* issues its repeats for real -- it draws in batches, so it cannot simply
+    put a cache in front -- and the gap between its two columns is headroom, not
+    a property of the algorithm. Do not read it as a cost CAPAL avoids: measured
+    at the matching layer (`ss._label`) CAPAL re-asks about 2.8x, it just
+    re-asks into a dict.
+
+    `equivalence_queries` is the other half of the oracle cost -- see the module
+    docstring on why it has to be read alongside `queries_distinct`.
 
     `converged` is the one column that is *not* the same claim on both sides.
     CAPAL's comes from its PerfectEQ and means exact equality with the target.
@@ -198,10 +211,11 @@ def run_capal_cell(
         cell.error = f"{type(exc).__name__}: {exc}"
         dfa = None
     cell.seconds = time.time() - t0
-    # No queries_total: upstream memoises above the MQ (SameStateOracle._label),
-    # so nothing observable at the MQ ever repeats and a total would just be the
-    # distinct count again.
-    cell.queries_distinct = len(getattr(learner.mq, "cache", {}))
+    # mq.cache is upstream's persistence dict, keyed by string, so its size is
+    # the distinct count. Totals equal it: SameStateOracle._label memoises above
+    # the MQ, so a repeat never reaches the oracle. See the Cell docstring.
+    cell.queries_distinct = len(learner.mq.cache)
+    cell.queries_total = cell.queries_distinct
     cell.equivalence_queries = eq_calls["n"]
 
     if dfa is not None:
