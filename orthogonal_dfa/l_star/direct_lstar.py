@@ -44,16 +44,8 @@ from typing import Callable, Dict, List, Optional, Set, Tuple
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .structures import (
-    DecisionTree,
-    DecisionTreeInternalNode,
-    DecisionTreeLeafNode,
-    TriPredicate,
-)
-
-# A discrimination-tree node: a leaf is an ``int`` state id; an internal node is
-# ``(prepend, {True: accept_child, False: reject_child})``.
-Node = object
+from .midfix_tree import MidfixTree
+from .structures import DecisionTree, TriPredicate
 
 # Outcome of processing one probe (see DirectLStarLearner.process):
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
@@ -121,11 +113,9 @@ class DirectLStarLearner:
         # is folded in once as it is sifted, so the Bayes factor is O(1) to read.
         self._open_splits: Dict[int, Dict[tuple, dict]] = {}
 
-        # Root: the empty prepend splits into state 0 (accept) and state 1
-        # (reject).  Splitting only ever refines a leaf, so the root stays a
-        # tuple and state 0's subtree stays entirely on the accept side.
-        self.dt: Node = ((), {True: 0, False: 1})
-        self.num_states = 2
+        # The discrimination tree owns the structure -- midfixes, branches and
+        # leaves -- and calls back into is_accept for every classification.
+        self.tree = MidfixTree()
 
         # transitions[s][c] -> target state, the current best guess for delta(s, c).
         self.transitions: Dict[int, Dict[int, int]] = {0: {}, 1: {}}
@@ -170,6 +160,11 @@ class DirectLStarLearner:
         self.check_representative_only = False
         self._checks = 0
         self._confirms = 0
+
+    @property
+    def num_states(self) -> int:
+        """Leaf count; the tree allocates the ids as it splits."""
+        return self.tree.num_states
 
     def _split_threshold(self) -> float:
         """Log Bayes factor a population split must clear right now.
@@ -295,33 +290,9 @@ class DirectLStarLearner:
 
     def _sift_prefill(self, seqs) -> None:
         """Warm the cache for sifting every string in ``seqs``, one batched call
-        per tree *level* instead of one per node visited.  The strings are walked
-        down the tree in lockstep and each level's queries are issued before its
-        branch decisions are read, so exactly the nodes an individual sift would
-        visit are queried -- the batching costs no extra queries."""
-        level = [(self.dt, [tuple(s) for s in seqs])]
-        while level:
-            bases = [
-                tuple(s) + tuple(node[0])
-                for node, group in level
-                if not isinstance(node, int)
-                for s in group
-            ]
-            if not bases:
-                return
-            self._prefill_bases(bases)
-            nxt = []
-            for node, group in level:
-                if isinstance(node, int):
-                    continue
-                prepend, lookup = node
-                buckets: dict = {}
-                for s in group:
-                    decision = self.is_accept(list(s), prepend)
-                    if decision is not None:
-                        buckets.setdefault(decision, []).append(s)
-                nxt.extend((lookup[d], g) for d, g in buckets.items())
-            level = nxt
+        per tree level rather than one per node visited."""
+        for pairs in self.tree.sift_levels(seqs, self.is_accept):
+            self._prefill_bases([list(s) + list(m) for s, m in pairs])
 
     def _decision(self, seq, prepend) -> float:
         """Mean family membership of ``seq`` under the distinguishers
@@ -336,24 +307,9 @@ class DirectLStarLearner:
         return d
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
-        """Route ``seq`` through the discrimination tree.  Returns
-        ``(leaf, None)`` when it reaches a state decisively.  When some node
-        classifies ``seq`` indecisively, returns ``(None, seq + prepend)`` for
-        that node's ``prepend``.
-
-        The boundary string is ``seq + prepend``, not ``seq``: the indecision is
-        ``mean_v membership(seq + prepend + v)``, which equals the base
-        acceptance test ``is_accept(seq + prepend, [])``.  So it is ``seq +
-        prepend`` that the FNR gate sees as indecisive and can enrich the family
-        against -- ``seq`` itself may classify decisively at the base test."""
-        node = self.dt
-        while not isinstance(node, int):
-            prepend, lookup = node
-            decision = self.is_accept(seq, prepend)
-            if decision is None:
-                return None, tuple(seq) + tuple(prepend)
-            node = lookup[decision]
-        return node, None
+        """Route ``seq`` through the tree: ``(leaf, None)``, or ``(None,
+        boundary)`` when some node classifies it indecisively."""
+        return self.tree.sift(seq, self.is_accept)
 
     def sift(self, seq) -> Optional[int]:
         """Route ``seq`` to a state (leaf), or ``None`` if any node classifies it
@@ -363,30 +319,15 @@ class DirectLStarLearner:
 
     # -- splitting ----------------------------------------------------------
 
-    def disagreement(self, s, sprime, node: Node, prepend_to_tree) -> Optional[tuple]:
-        """Propose a distinguisher separating ``s`` and ``sprime``.
-
-        Both currently sift to the same leaf, but ``s + prepend_to_tree`` and
-        ``sprime + prepend_to_tree`` are known to reach *different* leaves.  Walk
-        the tree down the branch where they still agree; the first node where
-        they disagree yields the separating prepend ``prepend_to_tree + node
-        prepend``.  Returns ``None`` if a needed classification is indecisive.
+    def disagreement(self, s, sprime, prefix) -> Optional[tuple]:
+        """Propose a distinguisher separating ``s`` and ``sprime`` (see
+        :meth:`MidfixTree.first_disagreement`).
 
         This only *proposes* the candidate; whether the split fires is decided by
         the held-out population Bayes factor in :meth:`_candidate_logbf`, so the
         pair need only clear the ordinary decisive band, not a wide split margin.
         """
-        if isinstance(node, int):
-            return None  # reached a leaf without a disagreement
-        prepend, lookup = node
-        full = (*prepend_to_tree, *prepend)
-        d = self.is_accept(s, full)
-        dprime = self.is_accept(sprime, full)
-        if d is None or dprime is None:
-            return None
-        if d != dprime:
-            return full
-        return self.disagreement(s, sprime, lookup[d], prepend_to_tree)
+        return self.tree.first_disagreement(s, sprime, self.is_accept, prefix)
 
     def _family_votes(self, seq, prepend) -> List[int]:
         """Per-family accept bits of ``seq`` at ``prepend`` (see
@@ -466,15 +407,6 @@ class DirectLStarLearner:
             - log_beta(1 + a1 + a2, 1 + r1 + r2)
         )
 
-    def _replace_leaf(self, node: Node, state: int, new_node: Node) -> Node:
-        if isinstance(node, int):
-            return new_node if node == state else node
-        prepend, lookup = node
-        return (
-            prepend,
-            {k: self._replace_leaf(v, state, new_node) for k, v in lookup.items()},
-        )
-
     def _set_transition(self, state: int, c: int, target: int, witness) -> None:
         prev = self.transitions[state].get(c)
         if prev is not None:
@@ -504,13 +436,9 @@ class DirectLStarLearner:
         touching ``state`` keep valid witnesses (their sift path never passed
         through this leaf) and are untouched.
         """
-        new_state = self.num_states
-        self.num_states += 1
+        new_state = self.tree.split(state, distinguisher)
         self.transitions[new_state] = {}
         self.incoming[new_state] = set()
-        self.dt = self._replace_leaf(
-            self.dt, state, (distinguisher, {True: state, False: new_state})
-        )
         # Outgoing edges of the split leaf: drop and re-open.
         for c in list(self.transitions[state]):
             self._clear_transition(state, c)
@@ -727,7 +655,7 @@ class DirectLStarLearner:
                         self.indecisive.add(boundary)
                     elif tu != target:
                         self._confirms += 1
-                        dist = self.disagreement(access, u, self.dt, [c])
+                        dist = self.disagreement(access, u, [c])
                         if dist is not None:
                             return state, u, c, dist
                         # decisive divergence but not margin-separable -> treat as
@@ -869,7 +797,7 @@ class DirectLStarLearner:
         sprime = w[: fd - 1]
         if self.sift(witness) != s1 or self.sift(sprime) != s1:
             return _RESOLVED
-        distinguisher = self.disagreement(witness, sprime, self.dt, [c])
+        distinguisher = self.disagreement(witness, sprime, [c])
         if distinguisher is None:
             return _RESOLVED
         # Sequential population test at the proposed distinguisher: split above the
@@ -992,14 +920,6 @@ class DirectLStarLearner:
 
     # -- export -------------------------------------------------------------
 
-    def _collect_leaves(self, node: Node):
-        if isinstance(node, int):
-            yield node
-            return
-        _, lookup = node
-        for child in lookup.values():
-            yield from self._collect_leaves(child)
-
     def _find_access(self, state: int) -> Optional[List[int]]:
         cached = self.access.get(state)
         if cached is not None:
@@ -1039,26 +959,15 @@ class DirectLStarLearner:
         shape returned by ``resolve_dfa``."""
         transitions = self._completed_transitions()
 
-        def to_dt(node: Node) -> DecisionTree:
-            if isinstance(node, int):
-                return DecisionTreeLeafNode(node)
-            prepend, lookup = node
-            vs_suffixes = [list(prepend) + self.pst.table.suffix(v) for v in self.vs]
-            predicate = TriPredicate(
-                vs_suffixes, self.pst.accept_thresh, self.pst.reject_thresh
-            )
-            # by_rejection is (if rejected, if accepted) == (False child, True child).
-            return DecisionTreeInternalNode(
-                predicate=predicate,
-                by_rejection=(to_dt(lookup[False]), to_dt(lookup[True])),
+        def predicate_for(midfix) -> TriPredicate:
+            return TriPredicate(
+                [list(midfix) + self.pst.table.suffix(v) for v in self.vs],
+                self.pst.accept_thresh,
+                self.pst.reject_thresh,
             )
 
-        dt = to_dt(self.dt)
-
-        # Accepting states are exactly the leaves on the accept side of the root
-        # (empty-prepend) distinguisher; a split only ever refines a leaf.
-        _, root_lookup = self.dt
-        accepting = set(self._collect_leaves(root_lookup[True]))
+        dt = self.tree.to_decision_tree(predicate_for)
+        accepting = self.tree.accepting_leaves()
 
         boundary = self.pst.decision_boundary
         dt_decisive = dt.map_over_predicates(

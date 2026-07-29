@@ -306,6 +306,12 @@ def _walk_tree(node, colors, nodes, edges, labels, *, uid=None):
     return name
 
 
+def _tree_root(learner):
+    """The learner's discrimination-tree root, however it stores its tree."""
+    tree = getattr(learner, "tree", None)
+    return learner.dt if tree is None else tree.root
+
+
 def _panel_tree(ax, dt, colors):
     nodes, edges, labels = {}, [], {}
     _walk_tree(dt, colors, nodes, edges, labels)
@@ -469,7 +475,7 @@ def render_diagnostics(
         ),
         (
             "discrimination tree — every internal node is a midfix",
-            lambda a: _panel_tree(a, learner.dt, colors),
+            lambda a: _panel_tree(a, _tree_root(learner), colors),
         ),
         (
             "learned Myhill–Nerode classes",
