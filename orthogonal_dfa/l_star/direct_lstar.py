@@ -37,7 +37,6 @@ lets :meth:`disagreement` locate a separating suffix.
 """
 
 import math
-from collections import deque
 from statistics import NormalDist
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
@@ -45,6 +44,7 @@ from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .midfix_tree import MidfixTree
+from .partial_dfa import PartialDFA
 from .structures import DecisionTree, TriPredicate
 
 # Outcome of processing one probe (see DirectLStarLearner.process):
@@ -117,22 +117,9 @@ class DirectLStarLearner:
         # leaves -- and calls back into is_accept for every classification.
         self.tree = MidfixTree()
 
-        # transitions[s][c] -> target state, the current best guess for delta(s, c).
-        self.transitions: Dict[int, Dict[int, int]] = {0: {}, 1: {}}
-        # A prefix that provably reaches ``s`` and whose one-symbol extension by
-        # ``c`` reaches ``transitions[s][c]``.  Under the worklist, this is just
-        # ``access[s]`` (each edge is resolved by sifting ``access[s] + [c]``).
-        self.transition_witnesses: Dict[Tuple[int, int], List[int]] = {}
-        # A canonical access string per state (sifts to that state).  Transitions
-        # are resolved from it, so it must always be present for a reachable state.
-        self.access: Dict[int, List[int]] = {}
-
-        # Transition-driven discovery bookkeeping (see resolve / run_worklist):
-        #   incoming[s] -- the edges (src, c) whose current target is s, so that
-        #     when s splits we can re-open exactly those edges;
-        #   worklist    -- the (state, symbol) pairs still to resolve.
-        self.incoming: Dict[int, Set[Tuple[int, int]]] = {0: set(), 1: set()}
-        self.worklist: "deque[Tuple[int, int]]" = deque()
+        # The partial transition function, its witnesses, the per-state access
+        # strings and the queue of edges still to resolve.
+        self.dfa = PartialDFA(pst.alphabet_size)
 
         # Boundary strings encountered while *building* the DFA: any ``member + c``
         # that sifts to None during transition resolution / consistency checking.
@@ -407,51 +394,15 @@ class DirectLStarLearner:
             - log_beta(1 + a1 + a2, 1 + r1 + r2)
         )
 
-    def _set_transition(self, state: int, c: int, target: int, witness) -> None:
-        prev = self.transitions[state].get(c)
-        if prev is not None:
-            self.incoming[prev].discard((state, c))
-        self.transitions[state][c] = target
-        self.transition_witnesses[state, c] = list(witness)
-        self.incoming[target].add((state, c))
-
-    def _clear_transition(self, state: int, c: int) -> None:
-        target = self.transitions[state].pop(c, None)
-        self.transition_witnesses.pop((state, c), None)
-        if target is not None:
-            self.incoming[target].discard((state, c))
-
-    def _reopen(self, state: int, c: int) -> None:
-        """Re-queue ``(state, c)`` for resolution (deduped by run_worklist)."""
-        self.worklist.append((state, c))
-
     def split(self, state: int, distinguisher: tuple) -> int:
         """Refine leaf ``state`` into ``{True: state, False: new_state}`` under
         ``distinguisher`` and return the new state id.
 
-        Splitting a leaf only makes edges *incident* to it ambiguous:
-          * its outgoing edges vanish (the source is now two states);
-          * the edges pointing at it must be re-classified into one of the two.
-        Every such edge is dropped and re-queued on the worklist; edges not
-        touching ``state`` keep valid witnesses (their sift path never passed
-        through this leaf) and are untouched.
+        The tree refines the leaf and the partial DFA re-opens exactly the edges
+        that refinement made ambiguous (see :meth:`PartialDFA.split_state`).
         """
         new_state = self.tree.split(state, distinguisher)
-        self.transitions[new_state] = {}
-        self.incoming[new_state] = set()
-        # Outgoing edges of the split leaf: drop and re-open.
-        for c in list(self.transitions[state]):
-            self._clear_transition(state, c)
-            self._reopen(state, c)
-        # Incoming edges: drop and re-open (target is now ambiguous).
-        for src, c in list(self.incoming[state]):
-            self._clear_transition(src, c)
-            self._reopen(src, c)
-        self.incoming[state] = set()
-        # Both halves need all their outgoing edges resolved.
-        for sym in range(self.pst.alphabet_size):
-            self._reopen(state, sym)
-            self._reopen(new_state, sym)
+        self.dfa.split_state(state, new_state)
         # Only the split leaf's members change leaf (they re-sift to one of the two
         # halves); every other leaf's members are untouched.  Redistribute this
         # leaf's members by re-sifting rather than wiping everything -- otherwise a
@@ -473,17 +424,15 @@ class DirectLStarLearner:
         prefix pool.  The empty string pins the initial state; the rest come
         from whatever pool prefixes land in each leaf."""
         for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
-            if len(self.access) >= self.num_states:
+            if len(self.dfa.access) >= self.num_states:
                 break
             st = self.sift(prefix)
-            if st is not None and st not in self.access:
-                self.access[st] = list(prefix)
+            if st is not None and st not in self.dfa.access:
+                self.dfa.access[st] = list(prefix)
 
     def init_worklist(self) -> None:
         self._seed_access_from_pool()
-        for state in range(self.num_states):
-            for c in range(self.pst.alphabet_size):
-                self._reopen(state, c)
+        self.dfa.open_every_edge(range(self.num_states))
 
     def _leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
         """Prefixes that sift to ``state``.  Uses the cached membership when a
@@ -519,7 +468,7 @@ class DirectLStarLearner:
         and take the first decisive successor.  Returns ``(None, None)`` only when
         every tried member is indecisive (a genuinely unresolvable edge)."""
         candidates: List[List[int]] = []
-        access = self.access.get(state)
+        access = self.dfa.access.get(state)
         if access is not None:
             candidates.append(access)
         candidates.extend(self._leaf_members(state, limit=max_tries))
@@ -543,37 +492,18 @@ class DirectLStarLearner:
 
     def resolve(self, state: int, c: int) -> None:
         """Resolve one edge to a decisive successor (see :meth:`_decisive_target`)."""
-        if self.access.get(state) is None and self._find_access(state) is None:
+        if self.dfa.access.get(state) is None and self._find_access(state) is None:
             return  # unreachable leaf; leave the edge for export fallback
         target, witness = self._decisive_target(state, c)
         if target is None:
             return  # every member indecisive; export fills it as a self-loop
-        self._set_transition(state, c, target, witness)
+        self.dfa.set_edge(state, c, target, witness)
 
     def run_worklist(self) -> int:
         """Resolve queued ``(state, symbol)`` edges until the hypothesis is
-        closed.  Returns the number of edges resolved.
-
-        A split reuses the old id for its True branch, so every id in
-        ``range(num_states)`` is always a live leaf -- no staleness check is
-        needed; the only dedup is skipping edges already resolved."""
-        resolved = 0
-        # Batch the access-string sift every queued edge starts from; the queue is
-        # only appended to outside this drain, so one prefill covers all of them.
-        self._sift_prefill(
-            [
-                list(self.access[s]) + [c]
-                for s, c in self.worklist
-                if s in self.access and c not in self.transitions[s]
-            ]
-        )
-        while self.worklist:
-            state, c = self.worklist.popleft()
-            if c in self.transitions[state]:
-                continue  # already resolved (deduped)
-            self.resolve(state, c)
-            resolved += 1
-        return resolved
+        closed.  Returns the number of edges resolved."""
+        self._sift_prefill(self.dfa.pending_probes())
+        return self.dfa.drain(self.resolve)
 
     # -- consistency-driven discovery --------------------------------------
     #
@@ -634,12 +564,12 @@ class DirectLStarLearner:
             members = self.leaf_members.get(state, [])
             if len(members) <= 1:
                 continue
-            access = self.access.get(state)
+            access = self.dfa.access.get(state)
             if access is None:
                 continue
             sample = self._sample(members, sample_size, rng)
             for c in range(self.pst.alphabet_size):
-                target = self.transitions[state].get(c)
+                target = self.dfa.transitions[state].get(c)
                 if target is None:
                     continue
                 self._checks += 1
@@ -674,12 +604,12 @@ class DirectLStarLearner:
             if cand is None:
                 return splits
             state, u, _c, dist = cand
-            old_access = self.access[state]
+            old_access = self.dfa.access[state]
             new_state = self.split(state, dist)
             for p in (old_access, u):
                 st = self.sift(p)
                 if st is not None:
-                    self.access[st] = list(p)
+                    self.dfa.access[st] = list(p)
             self._reassign_after_split(state, new_state, dist)
             self.run_worklist()
             skip.clear()  # tree changed; re-evaluate everything
@@ -750,13 +680,13 @@ class DirectLStarLearner:
                 continue
             if agree_point is None:
                 agree_point = i
-            if verified and state not in self.access:
-                self.access[state] = w[:i]
+            if verified and state not in self.dfa.access:
+                self.dfa.access[state] = w[:i]
             c = w[i]
-            if c in self.transitions[state]:
+            if c in self.dfa.transitions[state]:
                 # Fast path: trust the cached edge.  If it is wrong, the mismatch
                 # against the direct sift below is exactly the signal we want.
-                state = self.transitions[state][c]
+                state = self.dfa.transitions[state][c]
                 verified = False
                 continue
             nxt, boundary = self.sift_and_boundary(w[: i + 1])
@@ -767,7 +697,7 @@ class DirectLStarLearner:
                 if verified:
                     # Only record an edge whose source was reached by a real sift,
                     # so the witness w[:i] genuinely sifts to ``state``.
-                    self._set_transition(state, c, nxt, w[:i])
+                    self.dfa.set_edge(state, c, nxt, w[:i])
             state = nxt
             verified = True
         states.append(state)
@@ -789,9 +719,9 @@ class DirectLStarLearner:
             return _RESOLVED
         # The disagreeing edge is necessarily a cached follow (a fresh sift could
         # not disagree with itself), so its witness is present and still valid.
-        if self.transitions.get(s1, {}).get(c) != s2:
+        if self.dfa.target(s1, c) != s2:
             return _RESOLVED
-        witness = self.transition_witnesses.get((s1, c))
+        witness = self.dfa.witness(s1, c)
         if witness is None:
             return _RESOLVED
         sprime = w[: fd - 1]
@@ -831,7 +761,7 @@ class DirectLStarLearner:
         for p in (witness, sprime):
             st = self.sift(p)
             if st is not None:
-                self.access[st] = list(p)
+                self.dfa.access[st] = list(p)
 
     # -- driver -------------------------------------------------------------
 
@@ -921,37 +851,30 @@ class DirectLStarLearner:
     # -- export -------------------------------------------------------------
 
     def _find_access(self, state: int) -> Optional[List[int]]:
-        cached = self.access.get(state)
+        cached = self.dfa.access.get(state)
         if cached is not None:
             return cached
         for prefix in self.pst.table.prefixes:
             if self.sift(list(prefix)) == state:
-                self.access[state] = list(prefix)
+                self.dfa.access[state] = list(prefix)
                 return list(prefix)
         return None
 
     def _completed_transitions(self) -> Dict[int, Dict[int, int]]:
         """A total copy of the transition function.  Any edge the worklist left
-        unresolved is resolved here from a decisive leaf member
-        (:meth:`_decisive_target`) rather than sifting only the access string --
+        open is resolved here from a decisive leaf member
+        (:meth:`_decisive_target`) rather than by sifting only the access string --
         a single indecisive access continuation used to fall back to a bogus
         self-loop, which wrecked the exported DFA even when the tree was correct.
-        Only an edge whose *entire* leaf is indecisive still self-loops.  Does not
-        mutate ``self.transitions`` -- unresolved edges stay open for later rounds."""
-        completed: Dict[int, Dict[int, int]] = {}
-        for state in range(self.num_states):
-            completed[state] = dict(self.transitions[state])
-            for c in range(self.pst.alphabet_size):
-                if c in completed[state]:
-                    continue
-                target, _ = self._decisive_target(state, c)
-                if target is None:
-                    print(
-                        f"direct_lstar: no decisive edge for (state {state}, "
-                        f"symbol {c}); falling back to a self-loop"
-                    )
-                    target = state
-                completed[state][c] = target
+        Only an edge whose *entire* leaf is indecisive still self-loops."""
+        completed, unresolved = self.dfa.totalise(
+            range(self.num_states), lambda s, c: self._decisive_target(s, c)[0]
+        )
+        for state, c in unresolved:
+            print(
+                f"direct_lstar: no decisive edge for (state {state}, "
+                f"symbol {c}); falling back to a self-loop"
+            )
         return completed
 
     def to_dfa_and_tree(self) -> Tuple[DFA, DecisionTree]:
