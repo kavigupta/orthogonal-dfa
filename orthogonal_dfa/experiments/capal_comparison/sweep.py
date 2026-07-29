@@ -2,7 +2,9 @@
 
 Experiments 1 and 2 differ only in which benchmarks they run, so they share
 this driver. Results are flushed after every cell: these sweeps run for hours,
-and a crash in cell 300 must not cost the first 299.
+and a crash in cell 300 must not cost the first 299. Only the final flush marks
+the file `complete`, so what a crash leaves behind cannot be read as a whole
+sweep.
 """
 
 from __future__ import annotations
@@ -122,7 +124,7 @@ def run_sweep(
     cells: List[Cell] = []
     done = 0
 
-    def flush() -> None:
+    def flush(complete: bool = False) -> None:
         write_experiment(
             out_path,
             experiment=experiment,
@@ -130,6 +132,7 @@ def run_sweep(
             description=description,
             config=config,
             cells=cells,
+            complete=complete,
         )
 
     # Before any cell runs, decide per target whether E-L* is in its designed
@@ -175,6 +178,6 @@ def run_sweep(
             print(describe(cell), flush=True)
             flush()
 
-    flush()
+    flush(complete=True)
     print(f"\nWrote {out_path} ({len(cells)} cells)")
     return out_path

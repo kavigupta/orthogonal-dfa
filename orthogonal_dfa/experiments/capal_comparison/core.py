@@ -10,7 +10,12 @@ the first time it is asked, so repeated queries are free and `distinct` queries
 are the honest oracle cost. CAPAL parameterises it as `eta` (flip probability);
 this repo parameterises it as `p_correct = 1 - eta`, with E-L* additionally
 told `min_signal_strength = 0.5 - eta` so it can size its suffix population.
-Both learners therefore know the true noise rate.
+Both learners are therefore *told* the true noise rate, but CAPAL discards part
+of it: upstream floors its working estimate at
+`eta_hat = min(0.49, max(eta, 0.15))` (capal.py:931), so at eta 0.05 and 0.10 it
+runs its SAMESTATE test against 0.15 rather than the rate it was handed. That is
+upstream's choice, not the harness's; `learner_config["eta_hat"]` records what it
+actually used.
 
 Equivalence queries are recorded alongside membership queries, because the two
 learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
@@ -35,7 +40,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 
 #: Bump when the emitted record shape changes incompatibly.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
@@ -94,6 +99,12 @@ class Cell:
     have paid without the persistent-noise cache. `equivalence_queries` is the
     other half of the oracle cost -- see the module docstring on why the two
     columns have to be read together.
+
+    `converged` is the one column that is *not* the same claim on both sides.
+    CAPAL's comes from its PerfectEQ and means exact equality with the target.
+    E-L* has no such signal, so it gets `accuracy == 1.0` on the sampled word
+    list -- an upper bound, which a hypothesis differing only off the sample
+    passes. Do not read an E-L* `converged` as exactness.
     """
 
     benchmark: str
@@ -191,6 +202,9 @@ def run_capal_cell(
         enum_depth=enum_depth,
         extra_len_max=extra_len_max,
     )
+    # Not an argument we pass: upstream derives it from eta and floors it. See
+    # the module docstring.
+    cell.learner_config["eta_hat"] = learner.ss.eta_hat
     # Every EQ call is a perfect-information answer E-L* has no access to, so
     # it is counted rather than left implicit.
     eq_calls = {"n": 0}
@@ -339,13 +353,22 @@ def write_experiment(
     description: str,
     config: Dict[str, Any],
     cells: Sequence[Cell],
+    complete: bool,
 ) -> Path:
     """Write one experiment's JSON: the config that produced it and every
-    cell, so the report generator needs nothing but this file."""
+    cell, so the report generator needs nothing but this file.
+
+    Sweeps rewrite this file after every cell so a crash costs one cell rather
+    than the run, which means a partial file is as well-formed as a finished
+    one. `complete` is what tells them apart: anything reading these numbers
+    must refuse a file where it is false, or it will report a truncated sweep
+    as the whole of one.
+    """
     payload = {
         "schema_version": SCHEMA_VERSION,
         "experiment": experiment,
         "description": description,
+        "complete": complete,
         "generated_by": generated_by,
         "config": config,
         "cells": [asdict(c) for c in cells],
