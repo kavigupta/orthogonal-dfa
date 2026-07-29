@@ -35,9 +35,7 @@ def _elstar_accuracy(aut) -> float:
     old = signal.signal(signal.SIGALRM, _timeout)
     signal.alarm(PER_DFA_TIMEOUT)
     try:
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.5 - ETA, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.5 - ETA, seed=0)
         if dfa is None:
             return 0.0
         acc, _, _ = compute_dfa_accuracy(dfa, oracle_creator)

@@ -106,72 +106,56 @@ class TestLStar(unittest.TestCase):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_harder(self):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.2, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.2, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_even_harder(self):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.1, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_subsequence(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*1010101.*"
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*1111.*1111.*"
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences_with_alternation(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*1111.*(1111|0000)11.*"
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_alternation(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*(1111|0000)11.*"
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
 
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*(111|000).*", alphabet_size=3
         )
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3)
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
@@ -219,9 +203,7 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_another_countexample_poor_case(self):
@@ -245,9 +227,7 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_transient_states_terminate(self):
@@ -473,9 +453,7 @@ class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
     def test_no_orf(self, signal):
         oracle_creator = AllFramesClosedOracle
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=signal, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=signal, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=4)
 
 
@@ -492,9 +470,7 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
         )
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
@@ -524,9 +500,7 @@ class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
         )
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
@@ -587,9 +561,7 @@ class TestLStarBimodalReproducer(unittest.TestCase):
 
     def test_bimodal_reproducer(self):
         oracle_creator = lambda nm, s, _dfa=self.DFA: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
@@ -625,9 +597,7 @@ class TestLStarDeepCounter(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _d=dfa: DFAOracle(nm, s, _d)
-        learned = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
 
 
@@ -699,7 +669,5 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
                 f"{self.HARD_PAIR_FRACTION} of length-40 suffixes in 10000 seeds"
             )
         oracle_creator = lambda nm, s, _d=outer: DFAOracle(nm, s, _d)
-        learned = learn_dfa(
-            oracle_creator, min_signal_strength=0.3, seed=0
-        )
+        learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
