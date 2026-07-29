@@ -10,9 +10,10 @@ sweep.
 from __future__ import annotations
 
 import itertools
+import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Callable, List, Sequence
+from typing import Callable, Dict, List, Sequence
 
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
@@ -21,6 +22,7 @@ from .core import (
     LEARNER_CAPAL,
     LEARNER_ELSTAR,
     REPO_ROOT,
+    SCHEMA_VERSION,
     Cell,
     eval_words,
     run_capal_cell,
@@ -103,6 +105,33 @@ def describe(cell: Cell) -> str:
     )
 
 
+def reusable_cells(out_path: Path) -> Dict[tuple, dict]:
+    """Cells from an earlier run of this experiment, keyed by identity.
+
+    A cell is written only once it has finished, so a crashed run's cells are
+    reusable too -- `complete` says whether the sweep as a whole got there, not
+    whether an individual cell is sound.
+
+    Reuse is keyed on identity alone, so it cannot notice that the *learner*
+    changed underneath it. Delete the JSON after touching anything that moves
+    the numbers.
+    """
+    if not out_path.exists():
+        return {}
+    payload = json.loads(out_path.read_text())
+    if payload.get("schema_version") != SCHEMA_VERSION:
+        print(
+            f"Ignoring {out_path}: schema_version {payload.get('schema_version')} "
+            f"!= {SCHEMA_VERSION}; re-running every cell.",
+            flush=True,
+        )
+        return {}
+    return {
+        (c["benchmark"], c["learner"], c["eta"], c["seed"]): c
+        for c in payload.get("cells", [])
+    }
+
+
 def run_sweep(
     benchmarks: Sequence[Benchmark],
     *,
@@ -111,7 +140,11 @@ def run_sweep(
     generated_by: str,
 ) -> Path:
     """Run every learner on every benchmark at every noise level, and write
-    `data/capal/<experiment>.json`."""
+    `data/capal/<experiment>.json`.
+
+    Cells already present in that file are reused rather than re-run, so an
+    interrupted sweep resumes and an unchanged one is nearly free.
+    """
     out_path = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
     config = {
         "etas": list(ETAS),
@@ -154,6 +187,10 @@ def run_sweep(
             flush=True,
         )
 
+    previous = reusable_cells(out_path)
+    if previous:
+        print(f"Reusing up to {len(previous)} cells from {out_path}.", flush=True)
+
     for b in benchmarks:
         # One word list per benchmark, shared by every learner/eta/seed cell on
         # it -- this is what makes the accuracies comparable.
@@ -165,17 +202,25 @@ def run_sweep(
                 f"[{done}/{total}] {b.name} eta={eta:.2f} seed={seed} {learner}",
                 flush=True,
             )
-            cell = run_cell(
-                b,
-                learner=learner,
-                eta=eta,
-                seed=seed,
-                words=words,
-                truth=truth,
-                regime=regime[b.name],
-            )
+            cached = previous.get((b.name, learner, eta, seed))
+            # An exclusion is free to redo and is a verdict on the *current*
+            # regime, so it is never taken from the file: reusing one would
+            # outlive the preconditions that produced it.
+            if cached is not None and cached.get("error_type") != "ExcludedOutOfRegime":
+                cell = Cell(**cached)
+                print(describe(cell) + "  [reused]", flush=True)
+            else:
+                cell = run_cell(
+                    b,
+                    learner=learner,
+                    eta=eta,
+                    seed=seed,
+                    words=words,
+                    truth=truth,
+                    regime=regime[b.name],
+                )
+                print(describe(cell), flush=True)
             cells.append(cell)
-            print(describe(cell), flush=True)
             flush()
 
     flush(complete=True)
