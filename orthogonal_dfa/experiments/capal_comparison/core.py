@@ -36,8 +36,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 from orthogonal_dfa.l_star.learn import learn_dfa
 
-#: Bump when the emitted record shape changes incompatibly. 4: queries_total is
-#: populated for CAPAL too, so it no longer doubles as "this row is E-L*".
+#: Bump when the emitted record shape changes incompatibly. 4: queries_distinct
+#: is gone; queries_total is the one membership column, populated on both sides.
 SCHEMA_VERSION = 4
 
 LEARNER_CAPAL = "CAPAL"
@@ -93,23 +93,15 @@ class Cell:
     """
     One (benchmark, learner, eta, seed) measurement.
 
-    The two membership columns answer different questions.
-
-    `queries_distinct` is the algorithmic cost: distinct strings whose label was
-    drawn from the noisy oracle. Under persistent noise a repeat carries no new
-    information, so this is what the two learners can be compared on.
-
-    `queries_total` is the engineering cost: calls each implementation actually
-    issues today. CAPAL's equals its distinct count because upstream memoises
-    above the MQ (SameStateOracle._label), so a repeat never reaches the oracle.
-    E-L* issues its repeats for real -- it draws in batches, so it cannot simply
-    put a cache in front -- and the gap between its two columns is headroom, not
-    a property of the algorithm. Do not read it as a cost CAPAL avoids: measured
-    at the matching layer (`ss._label`) CAPAL re-asks about 2.8x, it just
-    re-asks into a dict.
+    `queries_total` is the membership cost: calls each implementation actually
+    issues. CAPAL's are all distinct, because upstream memoises above the MQ
+    (SameStateOracle._label) and a repeat never reaches the oracle. E-L* issues
+    its repeats for real -- it draws in batches, so it cannot simply put a cache
+    in front -- so some of its count is headroom in our implementation rather
+    than a cost the algorithm requires.
 
     `equivalence_queries` is the other half of the oracle cost -- see the module
-    docstring on why it has to be read alongside `queries_distinct`.
+    docstring on why the two have to be read together.
 
     `converged` is the one column that is *not* the same claim on both sides.
     CAPAL's comes from its PerfectEQ and means exact equality with the target.
@@ -130,7 +122,6 @@ class Cell:
     accuracy: Optional[float] = None
     converged: Optional[bool] = None
     queries_total: Optional[int] = None
-    queries_distinct: Optional[int] = None
     equivalence_queries: Optional[int] = None
     seconds: Optional[float] = None
     #: Exception class name, so the report can group failure modes without
@@ -212,10 +203,9 @@ def run_capal_cell(
         dfa = None
     cell.seconds = time.time() - t0
     # mq.cache is upstream's persistence dict, keyed by string, so its size is
-    # the distinct count. Totals equal it: SameStateOracle._label memoises above
-    # the MQ, so a repeat never reaches the oracle. See the Cell docstring.
-    cell.queries_distinct = len(learner.mq.cache)
-    cell.queries_total = cell.queries_distinct
+    # every call that reached the oracle: SameStateOracle._label memoises above
+    # the MQ, so repeats never get here.
+    cell.queries_total = len(learner.mq.cache)
     cell.equivalence_queries = eq_calls["n"]
 
     if dfa is not None:
@@ -263,17 +253,16 @@ def run_elstar_cell(
             "min_suffix_frequency": min_suffix_frequency,
         },
         # E-L* has no equivalence oracle: its counterexamples are built out of
-        # membership queries, which queries_distinct already charges it for.
+        # membership queries, which queries_total already charges it for.
         equivalence_queries=0,
     )
 
     class CountingOracle(Oracle):
-        """Counts total and distinct membership queries."""
+        """Counts membership queries."""
 
         def __init__(self, inner: Any) -> None:
             self._inner = inner
             self.count = 0
-            self.distinct: set = set()
 
         @property
         def alphabet_size(self) -> int:
@@ -281,7 +270,6 @@ def run_elstar_cell(
 
         def membership_query(self, string: List[int]) -> bool:
             self.count += 1
-            self.distinct.add(tuple(string))
             return self._inner.membership_query(string)
 
     counters: List[CountingOracle] = []
@@ -309,9 +297,6 @@ def run_elstar_cell(
         cell.error = f"{type(exc).__name__}: {exc}"
     cell.seconds = time.time() - t0
     cell.queries_total = sum(c.count for c in counters)
-    cell.queries_distinct = (
-        len(set().union(*[c.distinct for c in counters])) if counters else 0
-    )
 
     if dfa is not None:
         cell.learned_states = len(dfa.states)

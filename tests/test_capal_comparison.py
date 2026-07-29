@@ -60,9 +60,7 @@ class TestCapalComparison(unittest.TestCase):
         self.assertTrue(cell.converged)
         self.assertEqual(cell.learned_states, b.target_states)
         self.assertEqual(cell.accuracy, 1.0)
-        self.assertGreater(cell.queries_distinct, 0)
-        # Upstream memoises above the MQ, so it issues no repeat oracle calls.
-        self.assertEqual(cell.queries_total, cell.queries_distinct)
+        self.assertGreater(cell.queries_total, 0)
         # A perfect EQ is the asymmetry the whole comparison turns on, so a
         # driver that stopped counting it has to fail here.
         self.assertGreaterEqual(cell.equivalence_queries, 1)
@@ -88,8 +86,7 @@ class TestCapalComparison(unittest.TestCase):
         self.assertEqual(cell.learned_states, b.target_states)
         self.assertEqual(cell.accuracy, 1.0)
         self.assertEqual(cell.equivalence_queries, 0)
-        self.assertGreater(cell.queries_distinct, 0)
-        self.assertGreaterEqual(cell.queries_total, cell.queries_distinct)
+        self.assertGreater(cell.queries_total, 0)
         self.assertEqual(cell.learner_config["min_signal_strength"], 0.45)
 
     def test_out_of_regime_target_is_excluded_not_run(self):
@@ -111,7 +108,7 @@ class TestCapalComparison(unittest.TestCase):
         # assertion rather than something a reader can check.
         self.assertTrue(cell.error)
         self.assertIsNone(cell.accuracy)
-        self.assertIsNone(cell.queries_distinct)
+        self.assertIsNone(cell.queries_total)
 
     def test_capal_runs_where_elstar_is_excluded(self):
         # CAPAL's PerfectEQ finds counterexamples structurally, so E-L*'s
@@ -127,7 +124,7 @@ class TestCapalComparison(unittest.TestCase):
             regime=b.regime_report(),
         )
         self.assertIsNone(cell.error_type)
-        self.assertGreater(cell.queries_distinct, 0)
+        self.assertGreater(cell.queries_total, 0)
 
     def test_written_experiment_records_completeness(self):
         cell = Cell(benchmark="b", family="f", learner=LEARNER_CAPAL, eta=0.05, seed=0)
