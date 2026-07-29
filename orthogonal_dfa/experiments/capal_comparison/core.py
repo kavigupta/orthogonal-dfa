@@ -35,8 +35,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 from orthogonal_dfa.l_star.learn import learn_dfa
 
-#: Bump when the emitted record shape changes incompatibly. 4: queries_distinct
-#: is gone; queries_total is the one membership column, populated on both sides.
+#: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 4
 
 LEARNER_CAPAL = "CAPAL"

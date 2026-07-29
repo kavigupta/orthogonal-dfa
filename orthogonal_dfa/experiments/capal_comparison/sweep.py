@@ -176,9 +176,6 @@ def run_sweep(
             complete=complete,
         )
 
-    # Before any cell runs, decide per target whether E-L* is in its designed
-    # regime, via preconditions.satisfies_preconditions (acceptance balance +
-    # class-preservation + the covered-accuracy ceiling).
     regime = {b.name: b.regime_report() for b in benchmarks}
     config["elstar_regime"] = {n: asdict(r) for n, r in regime.items()}
     config["elstar_regime_source"] = (
