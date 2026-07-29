@@ -94,11 +94,7 @@ class Cell:
     One (benchmark, learner, eta, seed) measurement.
 
     `queries_total` is the membership cost: calls each implementation actually
-    issues. CAPAL's are all distinct, because upstream memoises above the MQ
-    (SameStateOracle._label) and a repeat never reaches the oracle. E-L* issues
-    its repeats for real -- it draws in batches, so it cannot simply put a cache
-    in front -- so some of its count is headroom in our implementation rather
-    than a cost the algorithm requires.
+    issues.
 
     `equivalence_queries` is the other half of the oracle cost -- see the module
     docstring on why the two have to be read together.
@@ -106,8 +102,7 @@ class Cell:
     `converged` is the one column that is *not* the same claim on both sides.
     CAPAL's comes from its PerfectEQ and means exact equality with the target.
     E-L* has no such signal, so it gets `accuracy == 1.0` on the sampled word
-    list -- an upper bound, which a hypothesis differing only off the sample
-    passes. Do not read an E-L* `converged` as exactness.
+    list, which is an approximation to the same claim.
     """
 
     benchmark: str
@@ -232,11 +227,7 @@ def run_elstar_cell(
     target_states: Optional[int] = None,
     min_suffix_frequency: float = 0.05,
 ) -> Cell:
-    """Run this repo's E-L* on `oracle_creator` and score it identically.
-
-    Word sampling is left at `learn_dfa`'s default length, which is also the
-    length `Benchmark.regime_report` measures at.
-    """
+    """Run this repo's E-L* on `oracle_creator` and score it identically."""
     from orthogonal_dfa.l_star.structures import Oracle
 
     signal = eta_to_signal_strength(eta)
@@ -325,9 +316,7 @@ def write_experiment(
 
     Sweeps rewrite this file after every cell so a crash costs one cell rather
     than the run, which means a partial file is as well-formed as a finished
-    one. `complete` is what tells them apart: anything reading these numbers
-    must refuse a file where it is false, or it will report a truncated sweep
-    as the whole of one.
+    one. `complete` is what tells them apart.
     """
     payload = {
         "schema_version": SCHEMA_VERSION,

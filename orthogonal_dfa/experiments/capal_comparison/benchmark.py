@@ -40,14 +40,8 @@ class Benchmark:
         return lambda w: dfa.run("".join(alpha[i] for i in w))
 
     def regime_report(self) -> preconditions.PreconditionReport:
-        """Is this target inside E-L*'s designed regime, and if not, why not?
-
-        Measured at the length E-L* draws its own words at, so the verdict is
-        about the distribution the learner actually sees. The thresholds are
-        `satisfies_preconditions`' own defaults, which are the values this
-        repo's benchmark generator applies. Every reason is collected rather
-        than just the first, so a recorded exclusion says everything that
-        disqualified the target.
+        """
+        Is this target inside E-L*'s designed regime, and if not, why not?
         """
         return preconditions.satisfies_preconditions(
             to_automata_dfa(self.target),
