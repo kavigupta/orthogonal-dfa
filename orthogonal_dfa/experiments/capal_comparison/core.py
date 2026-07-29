@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
+from orthogonal_dfa.l_star.learn import learn_dfa
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 3
@@ -260,14 +261,10 @@ def run_elstar_cell(
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically.
 
-    Word sampling is left at `compute_pst`'s default (`UniformSampler(40)`),
-    which is also the length `Benchmark.regime_report` measures at.
+    Word sampling is left at `learn_dfa`'s default length, which is also the
+    length `Benchmark.regime_report` measures at.
     """
     from orthogonal_dfa.l_star.structures import Oracle
-
-    # Imported lazily: this pulls in the test harness, which is also where the
-    # canonical synthesis entry point lives.
-    from tests.test_lstar import compute_dfa_for_oracle
 
     signal = eta_to_signal_strength(eta)
     cell = Cell(
@@ -317,7 +314,7 @@ def run_elstar_cell(
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            _, dfa, _ = compute_dfa_for_oracle(
+            dfa = learn_dfa(
                 counting_creator,
                 min_signal_strength=signal,
                 seed=seed,
