@@ -36,7 +36,7 @@ from .core import (
     run_elstar_cell,
     write_experiment,
 )
-from .targets import our_benchmarks
+from .our_targets import our_benchmarks
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
@@ -130,7 +130,7 @@ def main() -> None:
         )
     )
 
-    def flush() -> None:
+    def flush(complete: bool = False) -> None:
         write_experiment(
             out_path,
             experiment=experiment,
@@ -138,6 +138,7 @@ def main() -> None:
             description=description,
             config=config,
             cells=cells,
+            complete=complete,
         )
 
     total = len(benchmarks) * len(etas) * len(sweep_configs) * len(args.seeds)
@@ -168,7 +169,7 @@ def main() -> None:
                 print(
                     f"   -> acc={cell.accuracy} conv={cell.converged} "
                     f"states={cell.learned_states}/{b.target_states} "
-                    f"distinct={cell.queries_distinct} ({cell.seconds:.1f}s)",
+                    f"mq={cell.queries_total} eq={cell.equivalence_queries} ({cell.seconds:.1f}s)",
                     flush=True,
                 )
                 flush()
@@ -190,7 +191,7 @@ def main() -> None:
                 cells.append(cell)
                 flush()
 
-    flush()
+    flush(complete=True)
     print(f"\nWrote {out_path} ({len(cells)} cells)")
 
 

@@ -14,4 +14,4 @@ from .adapter import (
     resolve_capal_dir,
     verify_pinned,
 )
-from .porters import build_modulo_dfa, build_regex_dfa
+from .porters import build_modulo_dfa, build_regex_dfa, to_automata_dfa

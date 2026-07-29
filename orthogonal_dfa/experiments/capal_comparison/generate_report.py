@@ -57,10 +57,35 @@ def _acc(c: dict) -> str:
     return "-" if a is None else f"{a:.3f}"
 
 
-def _q(c: dict) -> str:
-    if c is None or c.get("queries_distinct") is None:
+def _n(c: dict) -> int:
+    """The comparable membership-query count, whichever schema wrote the cell."""
+    n = c.get("queries_distinct")
+    return c.get("queries_total") if n is None else n
+
+
+def _mq(c: dict) -> str:
+    """Membership queries. Schema 1 split them into total/distinct and only
+    distinct was comparable; schema 4 records the one honest count."""
+    if c is None:
         return "-"
-    return f"{c['queries_distinct']:,}"
+    n = _n(c)
+    return "-" if n is None else f"{n:,}"
+
+
+def _eq(c: dict) -> str:
+    """Equivalence queries -- absent before schema 4, so `-` means unrecorded,
+    not zero."""
+    if c is None or c.get("equivalence_queries") is None:
+        return "-"
+    return f"{c['equivalence_queries']:,}"
+
+
+def capal_settings(exp: Dict[str, Any]) -> Dict[str, Any]:
+    """The CAPAL knobs an experiment's cells were measured at."""
+    for c in exp["cells"]:
+        if c["learner"] == "CAPAL":
+            return {k: v for k, v in c["learner_config"].items() if k != "eta_hat"}
+    return {}
 
 
 def _conv(c: dict) -> str:
@@ -86,14 +111,25 @@ def head_to_head(exp: Dict[str, Any], order: List[str]) -> str:
                     f"{eta:.2f}",
                     _acc(ca),
                     _conv(ca),
-                    _q(ca),
+                    _mq(ca),
+                    _eq(ca),
                     _acc(el),
                     _conv(el),
-                    _q(el),
+                    _mq(el),
                 ]
             )
     return table(
-        ["target", "η", "CAPAL acc", "conv", "CAPAL q", "E-L* acc", "conv", "E-L* q"],
+        [
+            "target",
+            "η",
+            "CAPAL acc",
+            "conv",
+            "CAPAL mq",
+            "eq",
+            "E-L* acc",
+            "conv",
+            "E-L* mq",
+        ],
         rows,
     )
 
@@ -146,17 +182,62 @@ query cost differs by orders of magnitude:
 """
 
 
+def capal_convergence_by_eta(exp: Dict[str, Any]) -> Dict[float, str]:
+    """converged/total per noise level, for CAPAL."""
+    out = {}
+    for eta in exp["config"]["etas"]:
+        cs = [c for c in exp["cells"] if c["learner"] == "CAPAL" and c["eta"] == eta]
+        out[eta] = f"{sum(1 for c in cs if c['converged'])}/{len(cs)}"
+    return out
+
+
 def exp2_section() -> str:
     exp = load("our_benchmarks")
     hh = head_to_head(exp, OUR_ORDER)
+    conv = capal_convergence_by_eta(exp)
+    ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
+    el = [
+        c
+        for c in exp["cells"]
+        if c["learner"] == "E-L*" and c.get("accuracy") is not None
+    ]
+    el_exact = sum(1 for c in el if c["accuracy"] == 1.0)
     return f"""## 2. This repo's benchmarks (head-to-head)
 
-Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`. On
-our turf the picture inverts: E-L* is accurate and noise-robust where it is
-in-regime, while CAPAL degrades badly under noise. E-L* pays for it in queries.
+Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
+These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
+E-L*'s preconditions.
+
+CAPAL's convergence here is a clean function of the noise level ({ladder}); it
+is not that these languages defeat it, but that noise does. E-L* reaches exact
+accuracy on {el_exact}/{len(el)} of the cells it is in regime for, and is flat in
+the noise -- and pays two to three orders of magnitude more membership queries
+for it.
 
 {hh}
 """
+
+
+def settings_warning(exp: Dict[str, Any], reference: Dict[str, Any]) -> str:
+    """A banner when this experiment predates the authors'-settings change.
+
+    `discr_search_random` is the tell: it was unreachable through make_learner
+    before that change, so a cell lacking it was measured with CAPAL's stingier
+    dataclass defaults. Comparing such numbers with sections 1-2 is comparing
+    two different configurations of the learner, which is exactly the mistake
+    this doc exists to avoid.
+    """
+    ref = capal_settings(reference)
+    if "discr_search_random" in capal_settings(exp):
+        return ""
+    return (
+        "\n> **Measured before CAPAL was moved to its authors' benchmark-script"
+        f" settings** (`max_same_samples` 60 -> {ref.get('max_same_samples')},"
+        f" `suffix_pool_init` 32 -> {ref.get('suffix_pool_init')},"
+        f" `suffix_pool_len_max` 8 -> {ref.get('suffix_pool_len_max')},"
+        f" `discr_search_random` 200 -> {ref.get('discr_search_random')})."
+        " Re-run before comparing these numbers with sections 1-2.\n"
+    )
 
 
 def wall_section() -> str:
@@ -186,7 +267,7 @@ def wall_section() -> str:
     rate_rows = [[f"{e}", f"{statistics.mean(by_eta[e]):.2f}"] for e in sorted(by_eta)]
 
     return f"""## 3. The wall: full hyperparameter sweep
-
+{settings_warning(exp, load("capal_benchmarks"))}
 A full factorial over CAPAL's three real knobs -- `max_same_samples`,
 `suffix_pool_len_max`, `alpha` -- across every cell, all four noise levels, and
 three seeds ({len(cells)} runs). For each (cell, η), how many of the
@@ -209,7 +290,8 @@ sweeping only `max_same_samples`; adding pool/alpha cracks it at η≤0.20.
 
 
 def matched_budget_section() -> str:
-    mb = load("matched_budget")["cells"]
+    exp = load("matched_budget")
+    mb = exp["cells"]
     el = {
         c["benchmark"]: c
         for c in load("our_benchmarks")["cells"]
@@ -225,7 +307,7 @@ def matched_budget_section() -> str:
         if not cs:
             continue
         acc = statistics.mean(c["accuracy"] for c in cs)
-        dq = int(statistics.mean(c["queries_distinct"] for c in cs))
+        dq = int(statistics.mean(_n(c) for c in cs))
         nconv = sum(bool(c["converged"]) for c in cs)
         e = el.get(name)
         rows.append(
@@ -235,11 +317,11 @@ def matched_budget_section() -> str:
                 f"{nconv}/{len(cs)}",
                 f"{dq:,}",
                 f"{e['accuracy']:.3f}" if e else "excl",
-                f"{e['queries_distinct']:,}" if e else "-",
+                _mq(e) if e else "-",
             ]
         )
     return f"""## 4. Matched query budget: the wall is structural
-
+{settings_warning(exp, load("capal_benchmarks"))}
 CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
 `extra_len_max={cfg['extra_len_max']}`, `suffix_pool_len_max={cfg['suffix_pool_len_max']}`,
 `max_same_samples={cfg['max_same_samples']}`) on the η=0.30 wall cells, three
@@ -282,19 +364,39 @@ not move it.
 
 
 def bottom_line() -> str:
-    return """## 6. Bottom line
+    e1, e2 = load("capal_benchmarks"), load("our_benchmarks")
+    capal1 = [c for c in e1["cells"] if c["learner"] == "CAPAL"]
+    solved = sum(1 for c in capal1 if c["accuracy"] >= 0.999)
+    inreg = sorted(
+        {
+            c["benchmark"]
+            for c in e1["cells"]
+            if c["learner"] == "E-L*" and c.get("accuracy") is not None
+        }
+    )
+    conv = capal_convergence_by_eta(e2)
+    ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
+    stale = " (still at the pre-change settings; see the banners above)"
+    return f"""## 6. Bottom line
 
-- On CAPAL's own suite CAPAL is broadly applicable and cheap (100% on 108/112
-  cells), degrading only at η=0.30. E-L* matches its accuracy but only on the
-  narrow slice its preconditions admit, at 2–3 orders of magnitude more queries.
-- On this repo's benchmarks E-L* is accurate and noise-robust where in-regime;
-  CAPAL fails to converge on modulo and collapses on the regexes at η≥0.20.
-- The high-noise wall is a property of the **noise level, not the DFA**: at
-  η=0.30 every structured cell fails on every hyperparameter and seed; below
-  that everything is crackable. Modulo is not special.
-- The wall is **structural, not a budget limit**: forced to E-L*'s query range
-  (2.45M on modulo, exceeding E-L*'s 1.77M) CAPAL still stalls. The limiter is
-  the pairwise SAMESTATE test's `1 − 2p₀` signal scaling, not the label count.
+- On CAPAL's own suite CAPAL is broadly applicable and cheap: {solved}/{len(capal1)}
+  cells at 100%, every failure at η=0.30. E-L* matches its accuracy but only on
+  the {len(inreg)}/28 targets its preconditions admit, at two to three orders of
+  magnitude more membership queries.
+- The membership columns are not like for like. CAPAL is handed a perfect
+  equivalence oracle and E-L* is not, so part of what E-L* pays for in queries
+  is work CAPAL is given for free.
+- On this repo's benchmarks CAPAL's convergence tracks the noise level rather
+  than the language ({ladder}). E-L* is exact wherever it is in regime, at every
+  noise level tested.
+- Sections 3 and 4 -- the hyperparameter wall and the matched-budget probe --
+  predate the settings change{stale}. Their conclusions, including "the wall is
+  a property of the noise level, not the DFA" and "the wall is structural, not a
+  budget limit", are not supported by the current data until they are re-run.
+- Single seed throughout. Individual cell verdicts move under re-measurement:
+  raising CAPAL's budget to its authors' settings flipped cells in both
+  directions, including one from 1.000 to 0.507. Read the per-cell numbers as
+  indicative, not as settled.
 """
 
 
@@ -306,9 +408,13 @@ def main() -> None:
         "`orthogonal_dfa.experiments.capal_comparison.generate_report`. "
         "Do not edit by hand; rerun the generator after any experiment rerun._",
         "",
-        f"Upstream CAPAL pinned at `{PINNED_COMMIT}`. "
-        "Both learners model persistent noise, so `distinct` queries are the honest "
-        "oracle cost on both sides.",
+        f"Upstream CAPAL pinned at `{PINNED_COMMIT}`, run at its authors' "
+        "benchmark-script settings. Both learners model persistent noise, so a "
+        "membership count is the distinct strings each was told about. The two "
+        "columns are not the same cost: CAPAL is given a perfect equivalence "
+        "oracle (the paper's pMAT assumption) whose counterexamples arrive as "
+        "gold labels, while E-L* has no EQ and manufactures counterexamples out "
+        "of membership queries. Read `mq` and `eq` together.",
         "",
         exp1_section(),
         exp2_section(),

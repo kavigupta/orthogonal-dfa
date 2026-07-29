@@ -2,22 +2,21 @@
 
 _Generated from `data/capal/*.json` by `orthogonal_dfa.experiments.capal_comparison.generate_report`. Do not edit by hand; rerun the generator after any experiment rerun._
 
-Upstream CAPAL pinned at `57d877f6a083d58852660fac388ff49c052dc2d2`. Both learners model persistent noise, so `distinct` queries are the honest oracle cost on both sides.
+Upstream CAPAL pinned at `57d877f6a083d58852660fac388ff49c052dc2d2`, run at its authors' benchmark-script settings. Both learners model persistent noise, so a membership count is the distinct strings each was told about. The two columns are not the same cost: CAPAL is given a perfect equivalence oracle (the paper's pMAT assumption) whose counterexamples arrive as gold labels, while E-L* has no EQ and manufactures counterexamples out of membership queries. Read `mq` and `eq` together.
 
 ## 1. CAPAL's own benchmark suite
 
 Both learners on CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult) at
 η ∈ {0.05, 0.10, 0.20, 0.30}. This is CAPAL's home turf.
 
-CAPAL solves **108/112** cells at 100% accuracy. Every failure is
+CAPAL solves **109/112** cells at 100% accuracy. Every failure is
 at η=0.30:
 
 | target | η | acc | states |
 | --- | --- | --- | --- |
-| Normal01 | 0.30 | 0.158 | 10/12 |
-| Normal02 | 0.30 | 0.876 | 10/10 |
-| Normal04 | 0.30 | 0.983 | 6/5 |
-| Simple05 | 0.30 | 0.996 | 19/5 |
+| Normal01 | 0.30 | 0.161 | 10/12 |
+| Difficult02 | 0.30 | 0.507 | 29/5 |
+| Normal03 | 0.30 | 0.998 | 40/7 |
 
 E-L* is in its designed regime on only **3/28** targets
 (Normal07, Simple01, Simple02); the other 25 are recorded as reasoned
@@ -25,51 +24,59 @@ exclusions (acceptance imbalance / class-preservation / covered-accuracy
 ceiling), not run. On the shared in-regime cells both are accurate, but the
 query cost differs by orders of magnitude:
 
-| target | η | CAPAL acc | conv | CAPAL q | E-L* acc | conv | E-L* q |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Normal07 | 0.05 | 1.000 | yes | 919 | 1.000 | yes | 206,288 |
-| Normal07 | 0.10 | 1.000 | yes | 905 | 1.000 | yes | 278,012 |
-| Normal07 | 0.20 | 1.000 | yes | 2,748 | 1.000 | yes | 428,926 |
-| Normal07 | 0.30 | 1.000 | yes | 2,752 | 1.000 | yes | 1,192,004 |
-| Simple01 | 0.05 | 1.000 | yes | 434 | 1.000 | yes | 78,100 |
-| Simple01 | 0.10 | 1.000 | yes | 435 | 1.000 | yes | 107,651 |
-| Simple01 | 0.20 | 1.000 | yes | 442 | 1.000 | yes | 187,633 |
-| Simple01 | 0.30 | 1.000 | yes | 468 | 1.000 | yes | 456,223 |
-| Simple02 | 0.05 | 1.000 | yes | 434 | 1.000 | yes | 78,287 |
-| Simple02 | 0.10 | 1.000 | yes | 435 | 1.000 | yes | 107,728 |
-| Simple02 | 0.20 | 1.000 | yes | 442 | 1.000 | yes | 138,275 |
-| Simple02 | 0.30 | 1.000 | yes | 468 | 1.000 | yes | 401,894 |
+| target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Normal07 | 0.05 | 1.000 | yes | 956 | 3 | 1.000 | yes | 219,912 |
+| Normal07 | 0.10 | 1.000 | yes | 827 | 2 | 1.000 | yes | 299,346 |
+| Normal07 | 0.20 | 1.000 | yes | 704 | 5 | 1.000 | yes | 473,551 |
+| Normal07 | 0.30 | 1.000 | yes | 1,186 | 7 | 1.000 | yes | 1,300,469 |
+| Simple01 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 78,794 |
+| Simple01 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 108,604 |
+| Simple01 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 189,647 |
+| Simple01 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 461,305 |
+| Simple02 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 78,962 |
+| Simple02 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 108,662 |
+| Simple02 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 140,249 |
+| Simple02 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 406,648 |
 
 ## 2. This repo's benchmarks (head-to-head)
 
-Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`. On
-our turf the picture inverts: E-L* is accurate and noise-robust where it is
-in-regime, while CAPAL degrades badly under noise. E-L* pays for it in queries.
+Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
+These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
+E-L*'s preconditions.
 
-| target | η | CAPAL acc | conv | CAPAL q | E-L* acc | conv | E-L* q |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.05 | 0.910 | no | 15,517 | 1.000 | yes | 318,521 |
-| parity_mod9_allowed_3_6 | 0.10 | 0.876 | no | 9,917 | 1.000 | yes | 462,894 |
-| parity_mod9_allowed_3_6 | 0.20 | 0.908 | no | 9,610 | 1.000 | yes | 869,453 |
-| parity_mod9_allowed_3_6 | 0.30 | 0.847 | no | 12,240 | 1.000 | yes | 1,771,791 |
-| regex_subseq_1010101 | 0.05 | 0.919 | no | 6,154 | 1.000 | yes | 823,884 |
-| regex_subseq_1010101 | 0.10 | 0.919 | no | 5,652 | 1.000 | yes | 1,050,071 |
-| regex_subseq_1010101 | 0.20 | 0.919 | no | 6,190 | 1.000 | yes | 1,226,669 |
-| regex_subseq_1010101 | 0.30 | 0.919 | no | 5,651 | 1.000 | yes | 2,095,356 |
-| regex_two_1111 | 0.05 | 0.954 | no | 11,096 | 1.000 | yes | 489,774 |
-| regex_two_1111 | 0.10 | 1.000 | yes | 8,241 | 1.000 | yes | 426,561 |
-| regex_two_1111 | 0.20 | 0.867 | no | 10,265 | 1.000 | yes | 862,578 |
-| regex_two_1111 | 0.30 | 0.867 | no | 6,214 | 1.000 | yes | 2,217,453 |
-| regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 17,483 | 0.989 | no | 316,030 |
-| regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 21,810 | 0.989 | no | 512,100 |
-| regex_alt_1111_or_0000_11 | 0.20 | 0.707 | no | 12,790 | 0.989 | no | 830,754 |
-| regex_alt_1111_or_0000_11 | 0.30 | 0.694 | no | 10,741 | 0.989 | no | 7,085,012 |
-| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 2,942 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 6,013 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.20 | 0.543 | no | 19,786 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.30 | 0.433 | no | 9,890 | excl | - | - |
+CAPAL's convergence here is a clean function of the noise level (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5); it
+is not that these languages defeat it, but that noise does. E-L* reaches exact
+accuracy on 12/16 of the cells it is in regime for, and is flat in
+the noise -- and pays two to three orders of magnitude more membership queries
+for it.
+
+| target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| parity_mod9_allowed_3_6 | 0.05 | 1.000 | yes | 3,083 | 10 | 1.000 | yes | 302,721 |
+| parity_mod9_allowed_3_6 | 0.10 | 0.947 | no | 55,232 | 200 | 1.000 | yes | 466,140 |
+| parity_mod9_allowed_3_6 | 0.20 | 0.774 | no | 11,085 | 200 | 1.000 | yes | 875,691 |
+| parity_mod9_allowed_3_6 | 0.30 | 0.758 | no | 17,194 | 200 | 1.000 | yes | 1,383,779 |
+| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 879,542 |
+| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 672,349 |
+| regex_subseq_1010101 | 0.20 | 1.000 | yes | 7,197 | 18 | 1.000 | yes | 1,281,289 |
+| regex_subseq_1010101 | 0.30 | 0.919 | no | 5,284 | 200 | 1.000 | yes | 3,204,645 |
+| regex_two_1111 | 0.05 | 1.000 | yes | 4,556 | 10 | 1.000 | yes | 435,614 |
+| regex_two_1111 | 0.10 | 0.871 | no | 9,327 | 200 | 1.000 | yes | 452,176 |
+| regex_two_1111 | 0.20 | 0.868 | no | 4,633 | 200 | 1.000 | yes | 912,121 |
+| regex_two_1111 | 0.30 | 0.867 | no | 2,392 | 200 | 1.000 | yes | 2,345,411 |
+| regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 11,257 | 21 | 0.989 | no | 328,929 |
+| regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 8,477 | 15 | 0.989 | no | 553,514 |
+| regex_alt_1111_or_0000_11 | 0.20 | 0.776 | no | 11,475 | 200 | 0.989 | no | 866,460 |
+| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 4,770,083 |
+| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | excl | - | - |
+| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | excl | - | - |
+| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | excl | - | - |
+| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | excl | - | - |
 
 ## 3. The wall: full hyperparameter sweep
+
+> **Measured before CAPAL was moved to its authors' benchmark-script settings** (`max_same_samples` 60 -> 80, `suffix_pool_init` 32 -> 100, `suffix_pool_len_max` 8 -> 10, `discr_search_random` 200 -> 2000). Re-run before comparing these numbers with sections 1-2.
 
 A full factorial over CAPAL's three real knobs -- `max_same_samples`,
 `suffix_pool_len_max`, `alpha` -- across every cell, all four noise levels, and
@@ -103,6 +110,8 @@ sweeping only `max_same_samples`; adding pool/alpha cracks it at η≤0.20.
 
 ## 4. Matched query budget: the wall is structural
 
+> **Measured before CAPAL was moved to its authors' benchmark-script settings** (`max_same_samples` 60 -> 80, `suffix_pool_init` 32 -> 100, `suffix_pool_len_max` 8 -> 10, `discr_search_random` 200 -> 2000). Re-run before comparing these numbers with sections 1-2.
+
 CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
 `extra_len_max=16`, `suffix_pool_len_max=16`,
 `max_same_samples=2000`) on the η=0.30 wall cells, three
@@ -110,10 +119,10 @@ seeds, versus E-L*'s spend on the same cell:
 
 | cell | CAPAL acc | conv | CAPAL distinct | E-L* acc | E-L* distinct |
 | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.858 | 0/3 | 2,450,379 | 1.000 | 1,771,791 |
-| regex_subseq_1010101 | 0.905 | 0/3 | 846,458 | 1.000 | 2,095,356 |
-| regex_two_1111 | 0.867 | 0/3 | 793,899 | 1.000 | 2,217,453 |
-| regex_alt_1111_or_0000_11 | 0.752 | 0/3 | 1,232,352 | 0.989 | 7,085,012 |
+| parity_mod9_allowed_3_6 | 0.858 | 0/3 | 2,450,379 | 1.000 | 1,383,779 |
+| regex_subseq_1010101 | 0.905 | 0/3 | 846,458 | 1.000 | 3,204,645 |
+| regex_two_1111 | 0.867 | 0/3 | 793,899 | 1.000 | 2,345,411 |
+| regex_alt_1111_or_0000_11 | 0.752 | 0/3 | 1,232,352 | 0.989 | 4,770,083 |
 | regex_alt_111_or_000_3sym | 0.658 | 0/3 | 83,353 | excl | - |
 
 CAPAL never converges (0/3 everywhere) even at 0.08–2.45M distinct queries. On
@@ -148,14 +157,21 @@ not move it.
 
 ## 6. Bottom line
 
-- On CAPAL's own suite CAPAL is broadly applicable and cheap (100% on 108/112
-  cells), degrading only at η=0.30. E-L* matches its accuracy but only on the
-  narrow slice its preconditions admit, at 2–3 orders of magnitude more queries.
-- On this repo's benchmarks E-L* is accurate and noise-robust where in-regime;
-  CAPAL fails to converge on modulo and collapses on the regexes at η≥0.20.
-- The high-noise wall is a property of the **noise level, not the DFA**: at
-  η=0.30 every structured cell fails on every hyperparameter and seed; below
-  that everything is crackable. Modulo is not special.
-- The wall is **structural, not a budget limit**: forced to E-L*'s query range
-  (2.45M on modulo, exceeding E-L*'s 1.77M) CAPAL still stalls. The limiter is
-  the pairwise SAMESTATE test's `1 − 2p₀` signal scaling, not the label count.
+- On CAPAL's own suite CAPAL is broadly applicable and cheap: 109/112
+  cells at 100%, every failure at η=0.30. E-L* matches its accuracy but only on
+  the 3/28 targets its preconditions admit, at two to three orders of
+  magnitude more membership queries.
+- The membership columns are not like for like. CAPAL is handed a perfect
+  equivalence oracle and E-L* is not, so part of what E-L* pays for in queries
+  is work CAPAL is given for free.
+- On this repo's benchmarks CAPAL's convergence tracks the noise level rather
+  than the language (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5). E-L* is exact wherever it is in regime, at every
+  noise level tested.
+- Sections 3 and 4 -- the hyperparameter wall and the matched-budget probe --
+  predate the settings change (still at the pre-change settings; see the banners above). Their conclusions, including "the wall is
+  a property of the noise level, not the DFA" and "the wall is structural, not a
+  budget limit", are not supported by the current data until they are re-run.
+- Single seed throughout. Individual cell verdicts move under re-measurement:
+  raising CAPAL's budget to its authors' settings flipped cells in both
+  directions, including one from 1.000 to 0.507. Read the per-cell numbers as
+  indicative, not as settled.

@@ -1,16 +1,24 @@
 """Shared measurement machinery for the CAPAL vs E-L* experiments.
 
-The point of this module is that **both learners are measured identically**:
-same evaluation word list, same accuracy definition, same query accounting,
-same result record. Anything that differs between the two learners is a
-property of the learner, not of the harness.
+The point of this module is that both learners are measured identically:
+same evaluation word list, same accuracy definition, same query accounting.
+Anything that differs between the two learners is a property of the learner,
+not of the harness.
 
-Noise. Both sides model *persistent* noise -- a given string's label is fixed
-the first time it is asked, so repeated queries are free and `distinct` queries
-are the honest oracle cost. CAPAL parameterises it as `eta` (flip probability);
-this repo parameterises it as `p_correct = 1 - eta`, with E-L* additionally
-told `min_signal_strength = 0.5 - eta` so it can size its suffix population.
-Both learners therefore know the true noise rate.
+Noise. CAPAL parameterises it as `eta` (flip probability); this repo parameterises
+it as `p_correct = 1 - eta`, with E-L* additionally told `min_signal_strength =
+0.5 - eta` so it can size its suffix population.
+
+Both learners are therefore told the true noise rate, but CAPAL discards part
+of it: upstream floors its working estimate at
+    `eta_hat = min(0.49, max(eta, 0.15))` (capal.py:931)
+
+Equivalence queries are recorded alongside membership queries, because the two
+learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
+pMAT assumption), and its counterexamples come back as gold labels that also
+shadow the MQ, so those strings cost it nothing thereafter. E-L* has no EQ at
+all and manufactures its counterexamples out of membership queries, so its EQ
+count is 0 by construction.
 """
 
 from __future__ import annotations
@@ -25,17 +33,17 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
+from orthogonal_dfa.l_star.learn import learn_dfa
 
 #: Bump when the emitted record shape changes incompatibly.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
-#: Shared evaluation settings. Both learners' hypotheses are scored on the very
-#: same sampled word list, so accuracies are directly comparable.
+#: Shared evaluation settings, for the word list both learners are scored on.
 EVAL_COUNT = 5000
 EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
@@ -79,10 +87,19 @@ def accuracy(
 
 @dataclass
 class Cell:
-    """One (benchmark, learner, eta, seed) measurement.
+    """
+    One (benchmark, learner, eta, seed) measurement.
 
-    `queries_distinct` is the comparable oracle cost under persistent noise;
-    `queries_total` is kept so the report can show cache effectiveness.
+    `queries_total` is the membership cost: calls each implementation actually
+    issues.
+
+    `equivalence_queries` is the other half of the oracle cost -- see the module
+    docstring on why the two have to be read together.
+
+    `converged` is the one column that is *not* the same claim on both sides.
+    CAPAL's comes from its PerfectEQ and means exact equality with the target.
+    E-L* has no such signal, so it gets `accuracy == 1.0` on the sampled word
+    list, which is an approximation to the same claim.
     """
 
     benchmark: str
@@ -97,7 +114,7 @@ class Cell:
     accuracy: Optional[float] = None
     converged: Optional[bool] = None
     queries_total: Optional[int] = None
-    queries_distinct: Optional[int] = None
+    equivalence_queries: Optional[int] = None
     seconds: Optional[float] = None
     #: Exception class name, so the report can group failure modes without
     #: parsing prose. E.g. E-L* raises GaveUpOnSuffixSearch when no suffix
@@ -106,12 +123,8 @@ class Cell:
     error: Optional[str] = None
 
     def finalize(self) -> "Cell":
-        """Round the float fields.
-
-        Full precision on timings would make every re-run a noisy diff on a
-        checked-in file, for digits nobody reads. Called by the drivers once a
-        cell is fully populated.
-        """
+        """Round the float fields. Called by the drivers once a cell is fully
+        populated."""
         self.seconds = None if self.seconds is None else round(self.seconds, 3)
         self.accuracy = None if self.accuracy is None else round(self.accuracy, 6)
         return self
@@ -130,20 +143,16 @@ def run_capal_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     alphabet: Sequence[str],
-    max_iters: int = 200,
-    max_same_samples: int = 60,
-    suffix_pool_len_max: int = 8,
-    alpha: float = 1e-3,
-    tau_cap: float = 0.2,
-    suffix_pool_init: int = 32,
-    enum_depth: int = 3,
-    extra_len_max: int = 8,
+    **learner_kwargs: Any,
 ) -> Cell:
     """Run upstream CAPAL on `target` and score it on the shared word list.
 
-    ``enum_depth`` / ``extra_len_max`` control how many and how long the SAMESTATE
-    suffixes are; raising them is the section-10 "matched query budget" probe.
+    `learner_kwargs` go to `make_learner`, which defaults to upstream's own
+    benchmark-script settings. Overriding them is the hyperparameter sweep;
+    whatever they end up as is read back off the learner below, so the record
+    always says what CAPAL actually ran with.
     """
+    learner = make_learner(target, eta, seed=seed, **learner_kwargs)
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -152,55 +161,49 @@ def run_capal_cell(
         seed=seed,
         target_states=target.num_states,
         alphabet_size=len(target.alphabet),
+        # Read off the learner rather than restated here, so this records what
+        # CAPAL ran with even when `make_learner`'s defaults move.
         learner_config={
-            "max_iters": max_iters,
-            "max_same_samples": max_same_samples,
-            "suffix_pool_len_max": suffix_pool_len_max,
-            "alpha": alpha,
-            "tau_cap": tau_cap,
-            "suffix_pool_init": suffix_pool_init,
-            "enum_depth": enum_depth,
-            "extra_len_max": extra_len_max,
+            "max_iters": learner.cfg.max_iters,
+            "max_same_samples": learner.ss.cfg.max_samples,
+            "suffix_pool_len_max": learner.ss.cfg.pool_len_max,
+            "alpha": learner.ss.cfg.alpha,
+            "tau_cap": learner.ss.cfg.tau_cap,
+            "suffix_pool_init": learner.ss.cfg.pool_init,
+            "discr_search_max_len": learner.cfg.discr_search_max_len,
+            "discr_search_random": learner.cfg.discr_search_random,
+            "enum_depth": learner.ss.cfg.enum_depth,
+            "extra_len_max": learner.ss.cfg.extra_len_max,
+            "eta_hat": learner.ss.eta_hat,
         },
     )
 
-    learner = make_learner(
-        target,
-        eta,
-        max_iters=max_iters,
-        seed=seed,
-        verbose=False,
-        max_same_samples=max_same_samples,
-        tau_cap=tau_cap,
-        suffix_pool_init=suffix_pool_init,
-        suffix_pool_len_max=suffix_pool_len_max,
-        alpha=alpha,
-        enum_depth=enum_depth,
-        extra_len_max=extra_len_max,
-    )
-    # Upstream's PersistentNoisyMQ caches but does not count; wrap it so we can
-    # report total alongside distinct.
-    totals = {"n": 0}
-    inner_query = learner.mq.query
+    eq_calls = {"n": 0}
+    inner_eq = learner.eq.query
 
-    def counting_query(s: str) -> bool:
-        totals["n"] += 1
-        return inner_query(s)
+    def counting_eq(hyp: Any) -> Any:
+        eq_calls["n"] += 1
+        return inner_eq(hyp)
 
-    learner.mq.query = counting_query  # type: ignore[method-assign]
+    learner.eq.query = counting_eq  # type: ignore[method-assign]
 
     t0 = time.time()
     try:
         with contextlib.redirect_stdout(io.StringIO()):
             dfa, converged = fit_with_fallback(learner)
         cell.converged = converged
-    except Exception as exc:  # noqa: BLE001
+    # Broad: any learner failure is a recorded outcome for this cell, not a
+    # reason to abandon the rest of the sweep.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         cell.error_type = type(exc).__name__
         cell.error = f"{type(exc).__name__}: {exc}"
         dfa = None
     cell.seconds = time.time() - t0
-    cell.queries_total = totals["n"]
-    cell.queries_distinct = len(getattr(learner.mq, "cache", {}))
+    # mq.cache is upstream's persistence dict, keyed by string, so its size is
+    # every call that reached the oracle: SameStateOracle._label memoises above
+    # the MQ, so repeats never get here.
+    cell.queries_total = len(learner.mq.cache)
+    cell.equivalence_queries = eq_calls["n"]
 
     if dfa is not None:
         cell.learned_states = dfa.num_states
@@ -225,18 +228,9 @@ def run_elstar_cell(
     truth: Callable[[List[int]], bool],
     target_states: Optional[int] = None,
     min_suffix_frequency: float = 0.05,
-    additional_counterexamples: int = 200,
 ) -> Cell:
-    """Run this repo's E-L* on `oracle_creator` and score it identically.
-
-    Word sampling is left at `compute_pst`'s default (`UniformSampler(40)`),
-    which is also the length `Benchmark.regime_report` measures at.
-    """
+    """Run this repo's E-L* on `oracle_creator` and score it identically."""
     from orthogonal_dfa.l_star.structures import Oracle
-
-    # Imported lazily: this pulls in the test harness, which is also where the
-    # canonical synthesis entry point lives.
-    from tests.test_lstar import compute_dfa_for_oracle
 
     signal = eta_to_signal_strength(eta)
     cell = Cell(
@@ -250,17 +244,14 @@ def run_elstar_cell(
         learner_config={
             "min_signal_strength": signal,
             "min_suffix_frequency": min_suffix_frequency,
-            "additional_counterexamples": additional_counterexamples,
         },
+        equivalence_queries=0,
     )
 
     class CountingOracle(Oracle):
-        """Counts total and distinct membership queries."""
-
         def __init__(self, inner: Any) -> None:
             self._inner = inner
             self.count = 0
-            self.distinct: set = set()
 
         @property
         def alphabet_size(self) -> int:
@@ -268,7 +259,6 @@ def run_elstar_cell(
 
         def membership_query(self, string: List[int]) -> bool:
             self.count += 1
-            self.distinct.add(tuple(string))
             return self._inner.membership_query(string)
 
     counters: List[CountingOracle] = []
@@ -284,26 +274,22 @@ def run_elstar_cell(
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
             io.StringIO()
         ):
-            _, dfa, _ = compute_dfa_for_oracle(
+            dfa = learn_dfa(
                 counting_creator,
                 min_signal_strength=signal,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
             )
-    except Exception as exc:  # noqa: BLE001
+    # Broad, for the same reason as the CAPAL driver above.
+    except Exception as exc:  # pylint: disable=broad-exception-caught
         cell.error_type = type(exc).__name__
         cell.error = f"{type(exc).__name__}: {exc}"
     cell.seconds = time.time() - t0
     cell.queries_total = sum(c.count for c in counters)
-    cell.queries_distinct = (
-        len(set().union(*[c.distinct for c in counters])) if counters else 0
-    )
 
     if dfa is not None:
         cell.learned_states = len(dfa.states)
-        cell.accuracy = accuracy(lambda w: dfa.accepts_input(w), truth, words)
-        # E-L* has no convergence flag: it always returns a hypothesis. Treat
-        # an exact-accuracy hypothesis as converged so the column is comparable.
+        cell.accuracy = accuracy(dfa.accepts_input, truth, words)
         cell.converged = cell.accuracy == 1.0
     return cell.finalize()
 
@@ -319,19 +305,28 @@ def write_experiment(
     description: str,
     config: Dict[str, Any],
     cells: Sequence[Cell],
+    complete: bool,
 ) -> Path:
     """Write one experiment's JSON: the config that produced it and every
-    cell, so the report generator needs nothing but this file."""
+    cell, so the report generator needs nothing but this file.
+
+    A partial file is as well-formed as a finished one; `complete` is what
+    tells them apart. Written via a temporary file so an interrupted write
+    cannot leave a half-written JSON behind.
+    """
     payload = {
         "schema_version": SCHEMA_VERSION,
         "experiment": experiment,
         "description": description,
+        "complete": complete,
         "generated_by": generated_by,
         "config": config,
         "cells": [asdict(c) for c in cells],
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w") as f:
-        json.dump(payload, f, indent=2, sort_keys=False)
+    tmp = path.with_name(path.name + ".tmp")
+    with tmp.open("w") as f:
+        json.dump(payload, f, indent=2)
         f.write("\n")
+    tmp.replace(path)
     return path
