@@ -15,8 +15,8 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.lstar import counterexample_sample_budget
+from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     counterexample_search_exhausted,
     give_up_check,
@@ -691,9 +691,7 @@ class TestCounterexampleSearchExhausted(unittest.TestCase):
 
     def test_does_not_fire_on_a_search_that_is_still_productive(self):
         # 2 found in 8 draws is the yield that used to trigger the abort.
-        self.assertFalse(
-            counterexample_search_exhausted(2, 8, self.COUNT, self.BUDGET)
-        )
+        self.assertFalse(counterexample_search_exhausted(2, 8, self.COUNT, self.BUDGET))
         self.assertFalse(
             counterexample_search_exhausted(30, 400, self.COUNT, self.BUDGET)
         )

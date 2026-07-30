@@ -480,9 +480,7 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, None
             return
-        ce = add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples
-        )
+        ce = add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
         enriched = enrich_underrepresented_leaves(
             pst, dt_decisive, count=additional_counterexamples
         )
