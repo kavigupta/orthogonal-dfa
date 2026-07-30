@@ -125,13 +125,45 @@ class TestMaskTableBatching(unittest.TestCase):
 
         table.add_prefixes(new_prefixes)
         self._assert_cells_correct(oracle, table)
-        # The fully-observed columns stay fully observed; the partial one does not
-        # acquire cells it was never asked for.
+        # The fully-observed columns stay fully observed -- over the representative
+        # prefixes, which is what "observed" means; the partial one does not acquire
+        # cells it was never asked for.
+        rep = table.representative
         for row in full:
-            self.assertFalse((table._masks[row] == UNOBSERVED).any())
+            self.assertFalse((table._masks[row][rep] == UNOBSERVED).any())
         self.assertEqual(
             1 + len(new_prefixes), int((table._masks[partial] == UNOBSERVED).sum())
         )
+
+    def test_column_skips_non_representative_prefixes(self):
+        # Nothing reads a non-representative cell -- every consumer slices to
+        # representative first -- so column() must not pay for them.
+        oracle, table = self._table()
+        row = table.intern_suffix([1, 1])
+        oracle.calls.clear()
+        table.column(row)
+        rep = table.representative
+        self.assertEqual([int(rep.sum())], oracle.calls)
+        self.assertFalse((table._masks[row][rep] == UNOBSERVED).any())
+        self.assertTrue((table._masks[row][~rep] == UNOBSERVED).all())
+        # ...and such a column still counts as a clustering candidate.
+        self.assertIn(row, list(table.fully_observed()))
+
+    def test_scratch_prefixes_are_added_wholly_unobserved(self):
+        # representative=False marks transient scratch: it must cost no queries to
+        # add, and must not drag the family columns along with it.
+        oracle, table = self._table()
+        row = table.intern_suffix([1, 1])
+        table.column(row)
+        oracle.calls.clear()
+        table.add_prefixes([[1, 1], [0, 0, 1]], representative=False)
+        self.assertEqual([], oracle.calls)
+        self.assertTrue((table._masks[row][-2:] == UNOBSERVED).all())
+        # The column is still a candidate: scratch rows do not count against it.
+        self.assertIn(row, list(table.fully_observed()))
+        # And a pool scan does not see them.
+        self.assertEqual(len(table.probe_prefixes), int(table.representative.sum()))
+        self.assertNotIn((1, 1), {tuple(p) for p in table.probe_prefixes})
 
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
