@@ -934,13 +934,14 @@ def default_refine(
     ``Refiner`` interface precisely so this function can be swapped out without
     touching :func:`synthesize_direct_lstar`.
     """
+    # Part of the Refiner signature; the counterexample search stops on its own
+    # yield now (#144), so this refiner has no use for it.
+    del true_acc
     # Imported here (not at module top) to keep the dependency on the resolver
     # pipeline localized to the thing we intend to replace.
     from .lstar import add_counterexample_prefixes, enrich_underrepresented_leaves
 
-    counterexamples = add_counterexample_prefixes(
-        pst, dt, dfa, count, expected_acc=true_acc
-    )
+    counterexamples = add_counterexample_prefixes(pst, dt, dfa, count)
     enriched = enrich_underrepresented_leaves(pst, dt_decisive, count=count)
     return list(counterexamples) + list(enriched)
 
