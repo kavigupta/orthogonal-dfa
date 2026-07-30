@@ -224,17 +224,11 @@ class DirectLStarLearner:
         Read as table cells ``(base, v)``: the base is a prefix row and the family
         suffixes are columns already interned, so the table both caches the cells
         and batches the misses into one ``membership_queries`` call.  The row is
-        added non-representative -- it is transient sift scratch, not a probe
-        sample, so it must stay out of the clustering/FNR/boundary population and
-        out of ``column``'s eager observation."""
+        added as *scratch* -- it is a transient sift string, not a pool prefix, so
+        no column observes it and no pass over the pool yields it."""
         table = self.pst.table
-        table.ensure_prefixes([list(base)], representative=False)
-        return [
-            int(b)
-            for b in table.observed_masks(self.vs, table.prefix_rows([list(base)]))[
-                :, 0
-            ]
-        ]
+        table.ensure_prefixes([list(base)], scratch=True)
+        return [int(b) for b in table.cells(self.vs, [table.row_of(list(base))])[:, 0]]
 
     def _prefill_bases(self, bases) -> None:
         """Observe the whole family for every base in ``bases`` at once, so a
@@ -243,8 +237,8 @@ class DirectLStarLearner:
             return
         table = self.pst.table
         rows = [list(b) for b in bases]
-        table.ensure_prefixes(rows, representative=False)
-        table.observed_masks(self.vs, table.prefix_rows(rows))
+        table.ensure_prefixes(rows, scratch=True)
+        table.cells(self.vs, [table.row_of(r) for r in rows])
 
     def _sift_prefill(self, seqs) -> None:
         """Warm the cache for sifting every string in ``seqs``, one batched call
@@ -394,7 +388,7 @@ class DirectLStarLearner:
         """Give every current leaf a canonical access string by sifting the
         prefix pool.  The empty string pins the initial state; the rest come
         from whatever pool prefixes land in each leaf."""
-        for prefix in [[]] + [list(p) for p in self.pst.table.probe_prefixes]:
+        for prefix in [[]] + [list(p) for p in self.pst.table.pool_prefixes]:
             if len(self.dfa.access) >= self.num_states:
                 break
             st = self.sift(prefix)
@@ -412,7 +406,7 @@ class DirectLStarLearner:
         if cached is not None and state in cached:
             return cached[state]
         out = []
-        prefixes = [list(p) for p in self.pst.table.probe_prefixes]
+        prefixes = [list(p) for p in self.pst.table.pool_prefixes]
         # Sift the pool a block at a time: one batched call per tree level per
         # block instead of one per prefix.  A block overshoots ``limit`` by at
         # most its own size, and that work only warms the cache the next scan
@@ -497,7 +491,7 @@ class DirectLStarLearner:
         self.leaf_members: Dict[int, List[List[int]]] = {
             s: [] for s in range(self.num_states)
         }
-        prefixes = self.pst.table.probe_prefixes
+        prefixes = self.pst.table.pool_prefixes
         if getattr(self, "check_representative_only", False):
             rep = self.pst.table.representative
             prefixes = [p for p, r in zip(prefixes, rep) if r]
@@ -825,7 +819,7 @@ class DirectLStarLearner:
         cached = self.dfa.access.get(state)
         if cached is not None:
             return cached
-        for prefix in self.pst.table.probe_prefixes:
+        for prefix in self.pst.table.pool_prefixes:
             if self.sift(list(prefix)) == state:
                 self.dfa.access[state] = list(prefix)
                 return list(prefix)

@@ -30,8 +30,14 @@ class MaskTable:
         assert len(prefixes) == len(representative)
         self._oracle = oracle
         self._prefixes = [list(p) for p in prefixes]
-        self._prefix_keys = {tuple(p) for p in self._prefixes}
         self._representative = list(representative)
+        # Scratch rows are transient strings some caller needed a few cells of.
+        # They are *not* part of the pool: no column observes them, no pass over
+        # the prefixes yields them, and they never gate a column's candidacy.
+        # This is separate from ``representative``, which selects the statistical
+        # sample among the real pool rows.
+        self._scratch = [False] * len(self._prefixes)
+        self._prefix_pos = {tuple(p): i for i, p in enumerate(self._prefixes)}
         self._suffixes: List[List[int]] = []
         self._suffix_index = {}  # tuple(suffix) -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -48,11 +54,28 @@ class MaskTable:
         return tuple(self._prefixes)
 
     @property
-    def probe_prefixes(self) -> tuple:
-        """The representative prefixes -- the probe sample.  Every per-round pass
-        over "the pool" means these; transient scratch rows are excluded so adding
-        scratch never lengthens a pool scan."""
-        return tuple(p for p, rep in zip(self._prefixes, self._representative) if rep)
+    def pool_prefixes(self) -> tuple:
+        """The real pool -- every prefix except transient scratch.  This is what
+        "the prefixes" meant before scratch rows existed, so a pass over the pool
+        is unchanged by how much scratch has accumulated."""
+        return tuple(p for p, sc in zip(self._prefixes, self._scratch) if not sc)
+
+    @property
+    def _pool_mask(self) -> np.ndarray:
+        return ~np.array(self._scratch, dtype=bool)
+
+    def row_of(self, prefix: List[int]) -> int:
+        """The row index of ``prefix``, O(1)."""
+        return self._prefix_pos[tuple(prefix)]
+
+    def cells(self, rows, prefix_indices) -> np.ndarray:
+        """The ``(len(rows), len(prefix_indices))`` int8 block, querying whatever
+        is not yet observed.  Indices rather than a boolean mask: the sift asks
+        about one prefix at a time, and building a pool-wide mask for each ask
+        made that O(pool) in Python."""
+        idx = np.asarray(prefix_indices, dtype=int)
+        self._ensure_at(rows, idx)
+        return np.array([self._masks[r][idx] for r in rows])
 
     @property
     def representative(self) -> np.ndarray:
@@ -67,26 +90,18 @@ class MaskTable:
         keys = {tuple(p) for p in prefixes}
         self._representative = [tuple(p) in keys for p in self._prefixes]
 
-    def prefix_rows(self, prefixes: List[List[int]]) -> np.ndarray:
-        """A boolean mask selecting exactly ``prefixes``, which must be present."""
-        wanted = {tuple(p) for p in prefixes}
-        return np.array([tuple(p) in wanted for p in self._prefixes], dtype=bool)
-
-    def ensure_prefixes(
-        self, prefixes: List[List[int]], representative: bool = True
-    ) -> None:
-        """Add any of ``prefixes`` not already present, forwarding
-        ``representative`` to :meth:`add_prefixes`."""
+    def ensure_prefixes(self, prefixes: List[List[int]], scratch: bool = False) -> None:
+        """Add any of ``prefixes`` not already present, forwarding ``scratch``."""
         missing = [p for p in prefixes if not self.contains_prefix(p)]
         if missing:
             deduped = list({tuple(p): list(p) for p in missing}.values())
-            self.add_prefixes(deduped, representative=representative)
+            self.add_prefixes(deduped, scratch=scratch)
 
     def contains_prefix(self, prefix: List[int]) -> bool:
-        return tuple(prefix) in self._prefix_keys
+        return tuple(prefix) in self._prefix_pos
 
     def add_prefixes(
-        self, new_prefixes: List[List[int]], representative: bool = True
+        self, new_prefixes: List[List[int]], scratch: bool = False
     ) -> None:
         assert new_prefixes, "No new prefixes to add"
         assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
@@ -97,21 +112,19 @@ class MaskTable:
         # candidate.  A partially-observed column (a transition distinguisher)
         # gets UNOBSERVED cells, filled later on demand only if some read needs
         # them.
-        # ``representative=False`` marks transient scratch -- a string some caller
-        # only needs a few cells of.  Such a row is added wholly unobserved: the
-        # eager family-column observation below is what keeps a column a
-        # clustering candidate, and :meth:`fully_observed` no longer counts
-        # scratch rows, so there is nothing to keep up to date.
+        # A scratch row is added wholly unobserved: the eager observation below is
+        # what keeps a column a clustering candidate, and :meth:`fully_observed`
+        # does not count scratch, so there is nothing to keep up to date.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
-        rep_mask = self.representative
+        pool = self._pool_mask
         full_cols = (
-            [
+            []
+            if scratch
+            else [
                 i
                 for i, col in enumerate(self._masks)
-                if (col[rep_mask] != UNOBSERVED).all()
+                if (col[pool] != UNOBSERVED).all()
             ]
-            if representative
-            else []
         )
         adds = {}
         if full_cols:
@@ -125,10 +138,15 @@ class MaskTable:
         ]
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
-        self._prefix_keys.update(tuple(p) for p in new_prefixes)
         # Prefixes added after construction (counterexamples, leaf enrichment)
-        # are full-length probe prefixes, hence representative by default.
-        self._representative.extend([representative] * len(new_prefixes))
+        # are full-length probe prefixes, hence representative.  Scratch is
+        # neither a probe sample nor part of the pool.
+        self._representative.extend([not scratch] * len(new_prefixes))
+        self._scratch.extend([scratch] * len(new_prefixes))
+        for i, prefix in enumerate(
+            new_prefixes, start=len(self._prefixes) - len(new_prefixes)
+        ):
+            self._prefix_pos[tuple(prefix)] = i
 
     # -- suffix side --------------------------------------------------------
 
@@ -156,8 +174,11 @@ class MaskTable:
         """Fill any UNOBSERVED cells for ``rows`` over the boolean
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
+        self._ensure_at(rows, np.flatnonzero(prefix_mask))
+
+    def _ensure_at(self, rows, idx) -> None:
+        """:meth:`_ensure` over prefix *indices*."""
         assert len(set(rows)) == len(rows), "rows must be distinct"
-        idx = np.flatnonzero(prefix_mask)
         strings, targets = [], []
         for r in rows:
             col = self._masks[r]
@@ -180,28 +201,26 @@ class MaskTable:
         return np.array([self._masks[r][prefix_mask] for r in rows])
 
     def column(self, row: int) -> np.ndarray:
-        """Observe suffix ``row`` over the *representative* prefixes and return
-        its column.  Also used to promote a suffix to "fully observed" (a
-        clustering candidate).
+        """Observe suffix ``row`` over the real pool and return its column.  Also
+        used to promote a suffix to "fully observed" (a clustering candidate).
 
-        Non-representative rows are skipped because nothing reads them: every
-        consumer of a column slices to ``representative`` first (clustering, the
-        give-up check, the FNR estimate), so observing the rest buys cells no
-        reader looks at -- and it is what would make transient scratch prefixes
-        ruinously expensive to keep in the pool."""
-        self._ensure([row], self.representative)
+        Scratch rows are skipped -- nothing reads them, and observing them is
+        what would make transient sift strings ruinously expensive to keep in the
+        table.  Every real pool row is still observed, so this is exactly the
+        column the table produced before scratch rows existed."""
+        self._ensure_at([row], np.flatnonzero(self._pool_mask))
         return self._masks[row].copy()
 
     def fully_observed(self) -> np.ndarray:
-        """Row indices of the suffixes observed over every *representative*
-        prefix -- the sampled acceptance-family suffixes.  Partially-observed
-        transition distinguishers are excluded.
+        """Row indices of the suffixes observed over every real pool prefix --
+        the sampled acceptance-family suffixes.  Partially-observed transition
+        distinguishers are excluded.
 
-        Scratch rows are deliberately not required: :meth:`column` does not
-        observe them, so demanding them would make a column's candidacy hinge on
-        cells no reader ever reads."""
-        rep = self.representative
-        if not self._masks or not rep.any():
+        Scratch rows are not required: :meth:`column` does not observe them, so
+        demanding them would make a column's candidacy depend on transient sift
+        strings."""
+        pool = self._pool_mask
+        if not self._masks or not pool.any():
             return np.array([], dtype=int)
-        matrix = np.array(self._masks)[:, rep]
+        matrix = np.array(self._masks)[:, pool]
         return np.flatnonzero((matrix != UNOBSERVED).all(axis=1))
