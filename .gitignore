@@ -6,3 +6,6 @@ env
 *.egg-info
 dist
 build
+
+# E-L* run outputs
+runs
