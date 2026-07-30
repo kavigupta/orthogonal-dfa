@@ -79,9 +79,8 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
 
     while True:
         seed_mask = pst.table.column(v)
-        empirical_pos = float(seed_mask.mean())
         if first_round:
-            _give_up_check(pst, config, seed_mask, empirical_pos)
+            _give_up_check(pst, config, seed_mask)
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
@@ -116,7 +115,7 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
             pst.sample_more_prefixes()
 
 
-def _give_up_check(pst, config, seed_mask, empirical_pos):
+def _give_up_check(pst, config, seed_mask):
     # Judge whether the signal is too weak over the representative prefixes only:
     # the short prefix-closed core explores a skewed region of the state space and
     # is classified more confidently than the probe prefixes, so folding it in

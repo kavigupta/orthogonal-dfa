@@ -82,7 +82,6 @@ class DirectLStarLearner:
         split_test_budget: int = 1,
         split_fpr: Optional[float] = None,
         split_miss_rate: float = 0.01,
-        membership_cache: Optional[Dict[tuple, int]] = None,
     ):
         del split_test_budget  # accepted for API compatibility; splits gate on BF
         self.pst = pst
@@ -127,20 +126,10 @@ class DirectLStarLearner:
         # the representative pool so FNR forces the next family to resolve them.
         self.indecisive: Set[Tuple[int, ...]] = set()
 
-        # Cache of prefix -> row for the one-hot membership lookups, rebuilt when
-        # the table grows.
-        self._prefix_pos: Optional[Dict[tuple, int]] = None
-        self._prefix_pos_n = -1
-        # Two-level memoization so sift scratch never enters the prefix pool:
-        #  * _decision_cache: (seq, prepend) -> mean family membership.  Depends on
-        #    the family ``vs``, so it is per-learner (per-round).
-        #  * _membership_cache: full-string -> membership bit.  Deterministic and
-        #    family-independent, so it is *shared across rounds* -- recovering the
-        #    cross-round cell caching the MaskTable used to give.
+        # The decision (family-mean) memo.  Per-round, because the mean depends
+        # on which family ``vs`` is in play; the underlying cells live in the
+        # table, which persists across rounds.
         self._decision_cache: Dict[Tuple[tuple, tuple], float] = {}
-        self._membership_cache: Dict[tuple, int] = (
-            {} if membership_cache is None else membership_cache
-        )
 
         # Consistency-check state (populated by assign_leaves / consistency_close).
         self.leaf_members: Dict[int, List[List[int]]] = {}
@@ -207,15 +196,6 @@ class DirectLStarLearner:
 
     # -- membership / classification ---------------------------------------
 
-    def _prefix_index(self, seq: List[int]) -> int:
-        n = self.pst.table.num_prefixes
-        if self._prefix_pos is None or self._prefix_pos_n != n:
-            self._prefix_pos = {
-                tuple(p): i for i, p in enumerate(self.pst.table.prefixes)
-            }
-            self._prefix_pos_n = n
-        return self._prefix_pos[tuple(seq)]
-
     def is_accept(self, seq, prepend, extra_margin: float = 0.0) -> Optional[bool]:
         """Confidently classify ``seq`` at a node whose distinguishers are the
         base family each prepended by ``prepend``.
@@ -239,41 +219,32 @@ class DirectLStarLearner:
         return None
 
     def _family_bits(self, base) -> List[int]:
-        """Membership bits of ``base`` under each family suffix ``v``, memoized
-        per full string in the shared cell cache.  The cache misses are issued as
-        a *single* batched ``membership_queries`` call rather than one query per
-        suffix, so a batching oracle (e.g. a neural one) evaluates the whole
-        family for a sift node in one forward pass instead of ``|vs|`` of them.
+        """Membership bits of ``base`` under each family suffix ``v``.
 
-        Queried straight from the oracle, not the MaskTable's one-hot machinery:
-        that would add ``base`` to the prefix pool, and a sift touches a fresh
-        string at every tree node, so transient scratch would bloat the pool (and
-        every per-round pass over it) to many thousands of entries.  The oracle is
-        deterministic per string, so the value is identical to the table path."""
-        mc = self._membership_cache
-        strings = [tuple(base) + tuple(self.pst.table.suffix(v)) for v in self.vs]
-        misses = list(dict.fromkeys(s for s in strings if s not in mc))
-        if misses:
-            results = self.pst.oracle.membership_queries([list(s) for s in misses])
-            for s, bit in zip(misses, results):
-                mc[s] = int(bit)
-        return [mc[s] for s in strings]
+        Read as table cells ``(base, v)``: the base is a prefix row and the family
+        suffixes are columns already interned, so the table both caches the cells
+        and batches the misses into one ``membership_queries`` call.  The row is
+        added non-representative -- it is transient sift scratch, not a probe
+        sample, so it must stay out of the clustering/FNR/boundary population and
+        out of ``column``'s eager observation."""
+        table = self.pst.table
+        table.ensure_prefixes([list(base)], representative=False)
+        return [
+            int(b)
+            for b in table.observed_masks(self.vs, table.prefix_rows([list(base)]))[
+                :, 0
+            ]
+        ]
 
     def _prefill_bases(self, bases) -> None:
-        """Warm the cell cache for the whole distinguisher family of every base in
-        ``bases`` with one batched ``membership_queries`` call.  Folding a leaf's
-        members into a split candidate then costs a single oracle call for the
-        population instead of one per member (each an ``|vs|``-sized batch), which
-        is what a batching oracle needs to pack (see :meth:`_family_bits`)."""
-        mc = self._membership_cache
-        strings = [
-            tuple(b) + tuple(self.pst.table.suffix(v)) for b in bases for v in self.vs
-        ]
-        misses = list(dict.fromkeys(s for s in strings if s not in mc))
-        if misses:
-            results = self.pst.oracle.membership_queries([list(s) for s in misses])
-            for s, bit in zip(misses, results):
-                mc[s] = int(bit)
+        """Observe the whole family for every base in ``bases`` at once, so a
+        population costs one oracle call rather than one per member."""
+        if not bases:
+            return
+        table = self.pst.table
+        rows = [list(b) for b in bases]
+        table.ensure_prefixes(rows, representative=False)
+        table.observed_masks(self.vs, table.prefix_rows(rows))
 
     def _sift_prefill(self, seqs) -> None:
         """Warm the cache for sifting every string in ``seqs``, one batched call
@@ -423,7 +394,7 @@ class DirectLStarLearner:
         """Give every current leaf a canonical access string by sifting the
         prefix pool.  The empty string pins the initial state; the rest come
         from whatever pool prefixes land in each leaf."""
-        for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
+        for prefix in [[]] + [list(p) for p in self.pst.table.probe_prefixes]:
             if len(self.dfa.access) >= self.num_states:
                 break
             st = self.sift(prefix)
@@ -441,7 +412,7 @@ class DirectLStarLearner:
         if cached is not None and state in cached:
             return cached[state]
         out = []
-        prefixes = [list(p) for p in self.pst.table.prefixes]
+        prefixes = [list(p) for p in self.pst.table.probe_prefixes]
         # Sift the pool a block at a time: one batched call per tree level per
         # block instead of one per prefix.  A block overshoots ``limit`` by at
         # most its own size, and that work only warms the cache the next scan
@@ -526,7 +497,7 @@ class DirectLStarLearner:
         self.leaf_members: Dict[int, List[List[int]]] = {
             s: [] for s in range(self.num_states)
         }
-        prefixes = self.pst.table.prefixes
+        prefixes = self.pst.table.probe_prefixes
         if getattr(self, "check_representative_only", False):
             rep = self.pst.table.representative
             prefixes = [p for p, r in zip(prefixes, rep) if r]
@@ -854,7 +825,7 @@ class DirectLStarLearner:
         cached = self.dfa.access.get(state)
         if cached is not None:
             return cached
-        for prefix in self.pst.table.prefixes:
+        for prefix in self.pst.table.probe_prefixes:
             if self.sift(list(prefix)) == state:
                 self.dfa.access[state] = list(prefix)
                 return list(prefix)
@@ -1270,10 +1241,6 @@ def synthesize_direct_lstar_fnr(
     # about the whole chain (they turn decisive once their state is resolved).
     accumulated: List[List[int]] = []
     seen: Set = set()
-    # Shared across rounds: membership is deterministic, so cells cached in one
-    # round are reused by every later round (the family ``vs`` changing only
-    # affects which cells are averaged, not their values).
-    membership_cache: Dict[tuple, int] = {}
     # Early-stop when a round makes no progress. Some targets are unlearnable
     # with a fixed-length prefix sampler (transient states the sampler never
     # lands on, issue #128): the FNR gate then finds no new boundary strings and
@@ -1295,7 +1262,6 @@ def synthesize_direct_lstar_fnr(
             pst,
             vs,
             split_test_budget=split_test_budget,
-            membership_cache=membership_cache,
         )
         # Family calibration (FNR) runs on the clean, bounded representative set.
         learner.check_representative_only = True
