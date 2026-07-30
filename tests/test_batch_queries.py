@@ -133,59 +133,52 @@ class TestMaskTableBatching(unittest.TestCase):
             1 + len(new_prefixes), int((table._masks[partial] == UNOBSERVED).sum())
         )
 
-    def test_column_observes_the_whole_real_pool(self):
-        # Scratch aside, column() observes every pool row, exactly as before
-        # scratch rows existed.
-        oracle, table = self._table()
-        row = table.intern_suffix([1, 1])
-        oracle.calls.clear()
-        table.column(row)
-        self.assertEqual([table.num_prefixes], oracle.calls)
-        self.assertFalse((table._masks[row] == UNOBSERVED).any())
-        # ...and such a column still counts as a clustering candidate.
-        self.assertIn(row, list(table.fully_observed()))
-
-    def test_scratch_prefixes_are_added_wholly_unobserved(self):
-        # representative=False marks transient scratch: it must cost no queries to
-        # add, and must not drag the family columns along with it.
-        oracle, table = self._table()
-        row = table.intern_suffix([1, 1])
-        table.column(row)
-        oracle.calls.clear()
-        table.add_prefixes([[1, 1], [0, 0, 1]], scratch=True)
-        self.assertEqual([], oracle.calls)
-        self.assertTrue((table._masks[row][-2:] == UNOBSERVED).all())
-        # The column is still a candidate: scratch rows do not count against it.
-        self.assertIn(row, list(table.fully_observed()))
-        # And a pool scan does not see them.
-        self.assertEqual(len(table.pool_prefixes), 3)
-        self.assertNotIn((1, 1), {tuple(p) for p in table.pool_prefixes})
-
-    def test_core_rows_gate_candidacy_but_scratch_does_not(self):
+    def test_every_prefix_gates_a_columns_candidacy(self):
         # Regression: scoping "fully observed" to the *representative* rows made a
         # column a clustering candidate while its core cells -- non-representative,
-        # but still real pool rows -- were unobserved.  That silently changed which
-        # suffixes clustering could pick, and with them the whole search path, which
-        # surfaced only as a distant end-to-end timeout.  The pool is the unit here:
-        # core rows gate candidacy, scratch rows never do.
+        # but still prefixes -- were unobserved.  That silently changed which
+        # suffixes clustering could pick, and with them the whole search path,
+        # surfacing only as a distant end-to-end timeout.
         oracle, table = self._table()  # prefix 2 is core: non-representative
         row = table.intern_suffix([1, 1])
 
-        # Observing just the representative cells leaves a pool row unobserved, so
-        # the column is not yet a candidate.
+        # Observing just the representative cells leaves a prefix unobserved, so
+        # the column is not a candidate yet.
         table._ensure([row], table.representative)
         self.assertTrue((table._masks[row] == UNOBSERVED).any())
         self.assertNotIn(row, list(table.fully_observed()))
 
-        # Observing the whole pool makes it one.
+        # Observing every prefix makes it one.
+        oracle.calls.clear()
         table.column(row)
+        self.assertEqual([int((~table.representative).sum())], oracle.calls)
         self.assertIn(row, list(table.fully_observed()))
 
-        # Scratch is not pool, so adding it cannot revoke that -- nor cost a query.
+    def test_membership_caches_batches_and_leaves_the_grid_alone(self):
+        # Strings that are not (prefix, suffix) cells -- a sift touches a fresh one
+        # per tree node -- are held sparsely, so asking about them must not add
+        # rows, disturb a column's candidacy, or re-query anything.
+        oracle, table = self._table()
+        row = table.intern_suffix([1, 1])
+        table.column(row)
+        prefixes_before, candidates_before = table.num_prefixes, list(
+            table.fully_observed()
+        )
+
+        strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
         oracle.calls.clear()
-        table.add_prefixes([[1, 0, 1, 0]], scratch=True)
+        bits = table.membership(strings)
+        self.assertEqual([oracle.membership_query(s) for s in strings], bits)
+        self.assertEqual([2], oracle.calls, "one batched call, deduped")
+
+        # A repeat costs nothing.
+        oracle.calls.clear()
+        self.assertEqual(bits, table.membership(strings))
         self.assertEqual([], oracle.calls)
-        self.assertIn(row, list(table.fully_observed()))
+
+        # And the grid is untouched.
+        self.assertEqual(prefixes_before, table.num_prefixes)
+        self.assertEqual(candidates_before, list(table.fully_observed()))
 
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
