@@ -16,7 +16,11 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.statistics import give_up_check
+from orthogonal_dfa.l_star.lstar import counterexample_sample_budget
+from orthogonal_dfa.l_star.statistics import (
+    counterexample_search_exhausted,
+    give_up_check,
+)
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
 us = UniformSampler(40)
@@ -671,3 +675,46 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
         oracle_creator = lambda nm, s, _d=outer: DFAOracle(nm, s, _d)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
+
+
+class TestCounterexampleSearchExhausted(unittest.TestCase):
+    """The stop is about this search's own yield, not the hypothesis's accuracy.
+
+    The case that motivated it: a degenerate hypothesis agrees with an equally
+    degenerate tree nearly everywhere, so the old accuracy-based test aborted
+    after a handful of samples with 2/200 prefixes -- starving the enrichment
+    that would have split the collapsed state.
+    """
+
+    COUNT = 200
+    BUDGET = counterexample_sample_budget(COUNT)
+
+    def test_does_not_fire_on_a_search_that_is_still_productive(self):
+        # 2 found in 8 draws is the yield that used to trigger the abort.
+        self.assertFalse(
+            counterexample_search_exhausted(2, 8, self.COUNT, self.BUDGET)
+        )
+        self.assertFalse(
+            counterexample_search_exhausted(30, 400, self.COUNT, self.BUDGET)
+        )
+
+    def test_fires_once_the_budget_is_spent(self):
+        self.assertTrue(
+            counterexample_search_exhausted(5, self.BUDGET, self.COUNT, self.BUDGET)
+        )
+
+    def test_fires_when_the_yield_cannot_reach_count(self):
+        # Nothing found with almost the whole budget gone: no continuation gets
+        # to COUNT, so spending the rest is waste.
+        self.assertTrue(
+            counterexample_search_exhausted(
+                0, self.BUDGET - 10, self.COUNT, self.BUDGET
+            )
+        )
+
+    def test_never_fires_once_count_is_reached(self):
+        self.assertFalse(
+            counterexample_search_exhausted(
+                self.COUNT, self.BUDGET - 1, self.COUNT, self.BUDGET
+            )
+        )

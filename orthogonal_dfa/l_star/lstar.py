@@ -28,7 +28,7 @@ from .dfa_utils import (
     sample_string_reaching_state,
     states_intermediate,
 )
-from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, counterexample_search_exhausted
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate, classify_many
 from .transition_resolver import resolve_dfa
 
@@ -116,7 +116,7 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     )
 
 
-def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
+def add_counterexample_prefixes(pst, dt, dfa, count):
     results = generate_counterexamples(
         pst,
         pst.sampler,
@@ -124,7 +124,6 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
         dt,
         dfa,
         count=count,
-        expected_acc=expected_acc,
     )
     if results:
         pst.table.add_prefixes(results)
@@ -156,7 +155,17 @@ def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0, s_end):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
+#: Draws allowed per counterexample search, as a multiple of the prefixes asked
+#: for. The search yields only where the tree and the DFA disagree, so it needs
+#: room for a low hit rate without running unbounded.
+SAMPLES_PER_COUNTEREXAMPLE = 50
+
+
+def counterexample_sample_budget(count: int) -> int:
+    return SAMPLES_PER_COUNTEREXAMPLE * count
+
+
+def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     boundary = pst.decision_boundary
     # The counterexample pipeline classifies strings many times: ~log2(string_len)
     # binary search steps + 2 decisive checks, each traversing the full DT.  A
@@ -182,7 +191,9 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     num_samples = 0
-    num_agreements = 0
+    #: Draw budget for one call. The search only terminates on `count` or on
+    #: running out of yield, so it needs a ceiling of its own.
+    max_samples = counterexample_sample_budget(count)
     while True:
         num_samples += 1
         x = us.sample(pst.rng, pst.alphabet_size)
@@ -203,18 +214,18 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                 else None
             ),
         )
+        if counterexample_search_exhausted(
+            len(additional_prefixes), num_samples, count, max_samples
+        ):
+            warnings.warn(
+                f"Counterexample search yielded {len(additional_prefixes)}/{count}"
+                f" prefixes in {num_samples} samples; the decision tree and the"
+                f" DFA disagree too rarely to reach {count} within"
+                f" {max_samples} samples"
+            )
+            pbar.close()
+            return additional_prefixes
         if prefix is None:
-            num_agreements += sym == "no inconsistency"
-            if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
-                warnings.warn(
-                    f"Observed {num_agreements} 'no inconsistency' results in"
-                    f" {num_samples} samples, which is unlikely given expected"
-                    f" accuracy {expected_acc:.3f}; stopping counterexample"
-                    f" search early with {len(additional_prefixes)}/{count}"
-                    f" prefixes"
-                )
-                pbar.close()
-                return additional_prefixes
             continue
         if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
             continue
@@ -269,9 +280,9 @@ def estimate_agreement_rate(
 
     Sampling stops early as soon as a one-sided binomial test is confident which
     side of *acc_threshold* the true rate lies on.  The estimate is consumed only
-    to decide ``true_acc >= acc_threshold`` (the termination test) and as a loose
-    ``expected_acc`` guard for counterexample search, so settling that decision is
-    all the precision required.  When the true rate is far from the threshold a few
+    to decide ``true_acc >= acc_threshold`` (the termination test), so settling
+    that decision is all the precision required.  When the true rate is far from
+    the threshold a few
     dozen samples settle it, but near the threshold it can run to the full
     *num_samples* budget (e.g. on the poor_case guard it hits the cap on most
     calls), which is why that budget caps the cost.
@@ -470,7 +481,7 @@ def counterexample_driven_synthesis(
             yield dfa, dt, None
             return
         ce = add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples, expected_acc=true_acc
+            pst, dt, dfa, additional_counterexamples
         )
         enriched = enrich_underrepresented_leaves(
             pst, dt_decisive, count=additional_counterexamples

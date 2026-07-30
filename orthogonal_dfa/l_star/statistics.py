@@ -234,12 +234,32 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
-def unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
+def counterexample_search_exhausted(
+    num_found, num_samples, count, max_samples, *, failure_prob=1e-5
+):
+    """Whether the counterexample search cannot plausibly reach ``count``
+    prefixes within ``max_samples`` draws.
+
+    Conditioned on the rate at which the decision tree and the DFA actually
+    disagree -- the thing this search samples -- rather than on the
+    hypothesis's accuracy against the target. The two coincide only while the
+    tree is a good proxy for the target: a degenerate tree agrees with an
+    equally degenerate DFA nearly everywhere while both are wrong, so accuracy
+    is not evidence about this search's yield, and reading it as such stops the
+    search exactly when the prefixes it would add are most needed.
     """
-    Computes whether observing num_agreements or more agreements in num_samples samples is unlikely given expected_acc.
-    """
-    pval = 1 - scipy.stats.binom.cdf(num_agreements - 1, num_samples, expected_acc)
-    return pval < 1e-5
+    remaining = max_samples - num_samples
+    if remaining <= 0:
+        return True
+    still_wanted = count - num_found
+    if still_wanted <= 0:
+        return False
+    # Optimistic (upper) bound on the yield rate given what we have seen, so we
+    # stop only once even a lucky continuation could not get there.
+    yield_hi = scipy.stats.beta.ppf(
+        1 - failure_prob, num_found + 1, max(num_samples - num_found, 1)
+    )
+    return yield_hi * remaining < still_wanted
 
 
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
