@@ -696,23 +696,29 @@ class TestCounterexampleSearchExhausted(unittest.TestCase):
             counterexample_search_exhausted(30, 400, self.COUNT, self.BUDGET)
         )
 
-    def test_fires_once_the_budget_is_spent(self):
-        self.assertTrue(
-            counterexample_search_exhausted(5, self.BUDGET, self.COUNT, self.BUDGET)
-        )
-
-    def test_fires_when_the_yield_cannot_reach_count(self):
-        # Nothing found with almost the whole budget gone: no continuation gets
-        # to COUNT, so spending the rest is waste.
-        self.assertTrue(
-            counterexample_search_exhausted(
-                0, self.BUDGET - 10, self.COUNT, self.BUDGET
-            )
-        )
-
-    def test_never_fires_once_count_is_reached(self):
+    def test_does_not_fire_on_a_search_running_to_pace(self):
+        # Exactly the needed rate, nearly the whole budget spent.
         self.assertFalse(
             counterexample_search_exhausted(
                 self.COUNT, self.BUDGET - 1, self.COUNT, self.BUDGET
             )
+        )
+
+    def test_fires_on_a_dry_search_long_before_the_budget(self):
+        # Nothing at all: no need to spend the remaining draws to know.
+        self.assertTrue(
+            counterexample_search_exhausted(0, 600, self.COUNT, self.BUDGET)
+        )
+        self.assertFalse(
+            counterexample_search_exhausted(0, 100, self.COUNT, self.BUDGET)
+        )
+
+    def test_fires_on_a_yield_too_far_below_the_needed_rate(self):
+        # Half the rate the search has to sustain to reach COUNT.
+        self.assertTrue(
+            counterexample_search_exhausted(40, 4000, self.COUNT, self.BUDGET)
+        )
+        # ...but not on the same shortfall before it is established.
+        self.assertFalse(
+            counterexample_search_exhausted(4, 400, self.COUNT, self.BUDGET)
         )
