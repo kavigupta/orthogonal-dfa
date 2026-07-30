@@ -155,9 +155,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0, s_end):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-#: Draws allowed per counterexample search, as a multiple of the prefixes asked
-#: for. The search yields only where the tree and the DFA disagree, so it needs
-#: room for a low hit rate without running unbounded.
+#: Draws allowed per counterexample search, per prefix asked for.
 SAMPLES_PER_COUNTEREXAMPLE = 50
 
 
@@ -191,8 +189,6 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     num_samples = 0
-    #: Draw budget for one call. The search only terminates on `count` or on
-    #: running out of yield, so it needs a ceiling of its own.
     max_samples = counterexample_sample_budget(count)
     while True:
         num_samples += 1
@@ -282,10 +278,9 @@ def estimate_agreement_rate(
     side of *acc_threshold* the true rate lies on.  The estimate is consumed only
     to decide ``true_acc >= acc_threshold`` (the termination test), so settling
     that decision is all the precision required.  When the true rate is far from
-    the threshold a few
-    dozen samples settle it, but near the threshold it can run to the full
-    *num_samples* budget (e.g. on the poor_case guard it hits the cap on most
-    calls), which is why that budget caps the cost.
+    the threshold a few dozen samples settle it, but near the threshold it can run
+    to the full *num_samples* budget (e.g. on the poor_case guard it hits the cap
+    on most calls), which is why that budget caps the cost.
 
     Samples whose ``y`` classifications are independent are drawn in a chunk and
     classified through ``classify_many`` -- one oracle call per tree level for the

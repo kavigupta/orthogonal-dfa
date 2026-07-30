@@ -237,20 +237,8 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
 def counterexample_search_exhausted(
     num_found, num_samples, count, max_samples, *, failure_prob=1e-5
 ):
-    """Whether the search is yielding too slowly to reach ``count`` prefixes in
-    ``max_samples`` draws.
-
-    One-sided binomial test of the hits so far against ``count / max_samples``,
-    the rate the search has to sustain.
-
-    The null is the rate at which the decision tree and the DFA actually
-    disagree -- the thing this search samples -- not the hypothesis's accuracy
-    against the target. Those coincide only while the tree is a good proxy for
-    the target: a degenerate tree agrees with an equally degenerate DFA nearly
-    everywhere while both are wrong, so accuracy is not evidence about this
-    search's yield, and testing against it stops the search exactly when the
-    prefixes it would add are most needed.
-    """
+    """Whether the hits so far are too far below ``count / max_samples``, the
+    rate the search has to sustain to reach ``count``."""
     needed_rate = count / max_samples
     pval = scipy.stats.binom.cdf(num_found, num_samples, needed_rate)
     return pval < failure_prob

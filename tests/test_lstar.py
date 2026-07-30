@@ -678,26 +678,17 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
 
 
 class TestCounterexampleSearchExhausted(unittest.TestCase):
-    """The stop is about this search's own yield, not the hypothesis's accuracy.
-
-    The case that motivated it: a degenerate hypothesis agrees with an equally
-    degenerate tree nearly everywhere, so the old accuracy-based test aborted
-    after a handful of samples with 2/200 prefixes -- starving the enrichment
-    that would have split the collapsed state.
-    """
-
     COUNT = 200
     BUDGET = counterexample_sample_budget(COUNT)
 
     def test_does_not_fire_on_a_search_that_is_still_productive(self):
-        # 2 found in 8 draws is the yield that used to trigger the abort.
+        # 2 found in 8 draws is what used to trigger the old abort.
         self.assertFalse(counterexample_search_exhausted(2, 8, self.COUNT, self.BUDGET))
         self.assertFalse(
             counterexample_search_exhausted(30, 400, self.COUNT, self.BUDGET)
         )
 
     def test_does_not_fire_on_a_search_running_to_pace(self):
-        # Exactly the needed rate, nearly the whole budget spent.
         self.assertFalse(
             counterexample_search_exhausted(
                 self.COUNT, self.BUDGET - 1, self.COUNT, self.BUDGET
@@ -705,7 +696,6 @@ class TestCounterexampleSearchExhausted(unittest.TestCase):
         )
 
     def test_fires_on_a_dry_search_long_before_the_budget(self):
-        # Nothing at all: no need to spend the remaining draws to know.
         self.assertTrue(
             counterexample_search_exhausted(0, 600, self.COUNT, self.BUDGET)
         )
@@ -714,11 +704,11 @@ class TestCounterexampleSearchExhausted(unittest.TestCase):
         )
 
     def test_fires_on_a_yield_too_far_below_the_needed_rate(self):
-        # Half the rate the search has to sustain to reach COUNT.
+        # Half the needed rate, established...
         self.assertTrue(
             counterexample_search_exhausted(40, 4000, self.COUNT, self.BUDGET)
         )
-        # ...but not on the same shortfall before it is established.
+        # ...and the same shortfall, too early to tell.
         self.assertFalse(
             counterexample_search_exhausted(4, 400, self.COUNT, self.BUDGET)
         )
