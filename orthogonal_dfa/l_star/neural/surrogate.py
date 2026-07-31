@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 import numpy as np
+import scipy.stats
 import torch
 from automata.fa.dfa import DFA
 from torch import nn
@@ -77,6 +78,20 @@ class SurrogateConfig:
     # bound the surrogate's rate error, and the miscoverage level of that bound.
     calibration_fraction: float = 0.15
     conformal_alpha: float = 0.1
+    # SearchConfig uses 0.001, but it tests over far larger samples. Here a (cluster, suffix)
+    # cell holds ~15 observations, so a real 0.2-vs-0.8 gap gives z ~ 3.3 while Bonferroni
+    # over 40 columns at 0.001 demands 4.2 -- genuine differences get missed and clusters
+    # collapse. Measured over 3 seeds: subseq reaches exactly 8 states on 2/3 seeds at 0.01
+    # versus 1/3 at 0.001. Loosening further hurts (0/3 at 0.05), because extra groups make
+    # the transition argmax noisier and the DFA minifies back down.
+    split_pvalue: float = 0.01
+    # Statistical transition resolution, OFF by default: implemented but NOT validated.
+    # Enabling it regressed parity from 1.0 to 0.5003. The motivation stands -- delta(b, c)
+    # needs the group of p . c, which is not a row of the table, so the argmax infers it
+    # entirely from the model -- but buying successor cells per transition is not yet
+    # producing better transitions than the co-occurrence vote.
+    resolve_transitions_statistically: bool = False
+    successors_per_transition: int = 40
     min_cells_per_estimate: int = 8
     refine_iters: int = 12
     max_blocks: int = 60
@@ -334,6 +349,177 @@ def conformal_rate_bound(response, clusters, pool, holdout, cfg):
     return float(np.quantile(scores, level))
 
 
+def resolve_transitions(pool, block_of, num_groups, accepts, totals, *, cfg, rng):
+    """Determine delta(b, c) from cells bought for the successors themselves.
+
+    The argmax over the co-occurrence tensor cannot work: delta(b, c) needs the group of
+    ``p . c``, but ``p . c`` is generally not a row of the table, so its group comes entirely
+    from the model. L* sidesteps this by keeping the table prefix-closed, so the successor is
+    a real row. Bounded version of the same thing: there are only ``num_groups * |Sigma|``
+    transitions, so buy cells for a sample of successors per transition and assign the
+    destination by the same two-proportion test used to form the groups.
+
+    Falls back to the group's own index (a self-loop) when nothing clears the test, which
+    keeps the DFA total without inventing a destination.
+    """
+    members = {b: np.flatnonzero(block_of == b) for b in range(num_groups)}
+    delta = np.arange(num_groups)[None, :].repeat(pool.oracle.alphabet_size, axis=0)
+    for b, rows in members.items():
+        # Only prefixes with room to grow: p . c must still fit the padded width.
+        rows = np.array([i for i in rows if len(pool.prefixes[i]) < cfg.prefix_length])
+        if rows.size == 0:
+            continue
+        sample = rng.choice(
+            rows, size=min(cfg.successors_per_transition, len(rows)), replace=False
+        )
+        for c in range(pool.oracle.alphabet_size):
+            successors = [pool.prefixes[i] + [c] for i in sample]
+            start = len(pool.prefixes)
+            pool.prefixes.extend(successors)
+            columns = rng.choice(
+                len(pool.suffixes),
+                size=min(cfg.cols_per_new_prefix, len(pool.suffixes)),
+                replace=False,
+            )
+            pool.observe(
+                [(start + k, int(j)) for k in range(len(successors)) for j in columns]
+            )
+            # Pool the successors into one profile and ask which group it fails to differ from.
+            succ_accepts = np.zeros(len(pool.suffixes))
+            succ_totals = np.zeros(len(pool.suffixes))
+            for k in range(len(successors)):
+                for j in columns:
+                    value = pool.answers.get((start + k, int(j)))
+                    if value is not None:
+                        succ_accepts[j] += value
+                        succ_totals[j] += 1
+            stacked_a = np.vstack([accepts, succ_accepts])
+            stacked_t = np.vstack([totals, succ_totals])
+            candidates = [
+                b2
+                for b2 in range(num_groups)
+                if len(members[b2])
+                and not differ_significantly(
+                    stacked_a,
+                    stacked_t,
+                    num_groups,
+                    b2,
+                    pvalue=cfg.split_pvalue,
+                    min_cells=cfg.min_cells_per_estimate,
+                )
+            ]
+            if candidates:
+                delta[c, b] = min(candidates, key=lambda b2: -len(members[b2]))
+    return delta
+
+
+def trim_unreachable(dfa):
+    """Drop states unreachable from the initial state. Deliberately NOT ``minify``.
+
+    ``minify`` also merges behaviourally equivalent states, which assumes the transition
+    table is correct. Here it is estimated, so two states whose transitions are wrong in the
+    same way look equivalent and get merged -- turning a transition error into total
+    collapse, which is what the recurring "1 state" outcome was. It also explains why
+    loosening ``split_pvalue`` made things worse: more groups meant noisier transitions,
+    hence more spurious equivalences for minify to collapse.
+
+    ``transition_resolver._to_dfa_and_tree`` does not minify either. It does not need to: its
+    states are discrimination-tree leaves, each separated by an actual distinguishing suffix,
+    so no two are equivalent by construction. ``merge_by_counts`` gives the same guarantee.
+    """
+    reachable, frontier = {dfa.initial_state}, [dfa.initial_state]
+    while frontier:
+        state = frontier.pop()
+        for target in dfa.transitions[state].values():
+            if target not in reachable:
+                reachable.add(target)
+                frontier.append(target)
+    renamed = {state: i for i, state in enumerate(sorted(reachable))}
+    return DFA(
+        states=set(renamed.values()),
+        input_symbols=set(dfa.input_symbols),
+        transitions={
+            renamed[s]: {c: renamed[t] for c, t in dfa.transitions[s].items()}
+            for s in reachable
+        },
+        initial_state=renamed[dfa.initial_state],
+        final_states={renamed[s] for s in dfa.final_states if s in reachable},
+        allow_partial=False,
+    )
+
+
+def observed_counts(pool, clusters, num_states):
+    """``(accepts, totals)`` per ``(cluster, suffix)`` over the cells actually queried."""
+    accepts = np.zeros((num_states, len(pool.suffixes)))
+    totals = np.zeros((num_states, len(pool.suffixes)))
+    for (i, j), value in pool.answers.items():
+        # Rows appended after the assignment was computed (successor rows bought by
+        # resolve_transitions) have no cluster yet; they are counted next round.
+        if i >= len(clusters):
+            continue
+        accepts[clusters[i], j] += value
+        totals[clusters[i], j] += 1
+    return accepts, totals
+
+
+def differ_significantly(accepts, totals, s, t, *, pvalue, min_cells):
+    """Do clusters ``s`` and ``t`` differ on ANY suffix, by a two-proportion test?
+
+    Max over columns, not mean. That distinction is the whole point: separating two states
+    typically needs one specific suffix out of forty -- for ``.*1010101.*``, the one that
+    completes the pattern from one state and not the other. Averaging over columns buries it,
+    which is why a mean row distance over-merged and why the cross-entropy itself barely
+    notices the distinction (measured: each column separates ~12 of 28 state pairs, but the
+    other ~37 columns agree and dominate the loss).
+
+    Tested on the cells actually observed rather than on the model's predicted rows, so a
+    decision never rests on a value the surrogate interpolated. Bonferroni over the columns
+    compared.
+    """
+    usable = (totals[s] >= min_cells) & (totals[t] >= min_cells)
+    if not usable.any():
+        return False
+    rate_s = accepts[s][usable] / totals[s][usable]
+    rate_t = accepts[t][usable] / totals[t][usable]
+    pooled = (accepts[s][usable] + accepts[t][usable]) / (
+        totals[s][usable] + totals[t][usable]
+    )
+    standard_error = np.sqrt(
+        np.maximum(pooled * (1 - pooled), 1e-9)
+        * (1 / totals[s][usable] + 1 / totals[t][usable])
+    )
+    z = np.abs(rate_s - rate_t) / standard_error
+    critical = scipy.stats.norm.isf(pvalue / (2 * max(int(usable.sum()), 1)))
+    return bool((z > critical).any())
+
+
+def merge_by_counts(pool, clusters, counts, cfg):
+    """Group clusters unless some suffix separates them significantly on observed cells."""
+    accepts, totals = observed_counts(pool, clusters, len(counts))
+    order = np.argsort(-counts)
+    labels = np.full(len(counts), -1)
+    representatives = []
+    for state in order:
+        if counts[state] == 0:
+            continue
+        for group, rep in enumerate(representatives):
+            if not differ_significantly(
+                accepts,
+                totals,
+                state,
+                rep,
+                pvalue=cfg.split_pvalue,
+                min_cells=cfg.min_cells_per_estimate,
+            ):
+                labels[state] = group
+                break
+        else:
+            labels[state] = len(representatives)
+            representatives.append(state)
+    labels[labels < 0] = max(len(representatives), 1)
+    return labels, max(len(representatives), 1) + 1
+
+
 def merge_by_conformal(response, counts, boundary, q_hat):
     """Group clusters unless some suffix separates them *with calibrated confidence*.
 
@@ -398,7 +584,7 @@ def merge_by_row(response, counts, tolerance):
     return labels, len(representatives) + 1
 
 
-def extract_dfa(model, pool, cfg, device, alphabet_size):
+def extract_dfa(model, pool, cfg, device, alphabet_size, *, rng=None):
     """Soft-vote the transitions off the softmax clusters, then minify.
 
     ``T[c, s, t] = sum_p m(p)[s] m(p.c)[t]``, and ``delta(s, c) = argmax_t``. This is a
@@ -424,7 +610,8 @@ def extract_dfa(model, pool, cfg, device, alphabet_size):
     (``split_pval``, ``decision_rule_fpr``, ``evidence_margin``). Under per-string noise a
     bare threshold is not enough to decide whether two prefixes differ.
     """
-    current, successors = _encode_all(model, pool, cfg, device, alphabet_size)
+    rng = np.random.default_rng(0) if rng is None else rng
+    current, _ = _encode_all(model, pool, cfg, device, alphabet_size)
     with torch.no_grad():
         v_pad, v_len = pad(pool.suffixes, cfg.max_suffix_length, device)
         response = model.response(v_pad, v_len).T.cpu().numpy()  # (S, V)
@@ -437,13 +624,28 @@ def extract_dfa(model, pool, cfg, device, alphabet_size):
     boundary = accept_threshold(response[:, empty_col], counts.astype(float))
 
     q_hat = conformal_rate_bound(response, clusters, pool, pool.holdout, cfg)
-    labels, num_groups = merge_by_conformal(response, counts, boundary, q_hat)
+    labels, num_groups = merge_by_counts(pool, clusters, counts, cfg)
     grouping = torch.zeros(cfg.num_states, num_groups, device=device)
     grouping[torch.arange(cfg.num_states), torch.as_tensor(labels, device=device)] = 1.0
 
     grouped = current @ grouping
-    transition = torch.einsum("ps,cpt->cst", grouped, successors @ grouping)
-    delta = transition.argmax(-1).cpu().numpy()
+    block_of = labels[clusters]
+    group_accepts, group_totals = observed_counts(pool, block_of, num_groups)
+    # Transitions from cells bought for the successors, not from the co-occurrence argmax:
+    # delta(b, c) needs the group of p.c, and p.c is not a row of the table, so the argmax
+    # infers it entirely from the model. See resolve_transitions.
+    if cfg.resolve_transitions_statistically:
+        delta = resolve_transitions(
+            pool, block_of, num_groups, group_accepts, group_totals, cfg=cfg, rng=rng
+        )
+    else:
+        _, successors = _encode_all(model, pool, cfg, device, alphabet_size)
+        delta = (
+            torch.einsum("ps,cpt->cst", grouped, successors @ grouping)
+            .argmax(-1)
+            .cpu()
+            .numpy()
+        )
     accept = np.array(
         [
             (
@@ -467,11 +669,7 @@ def extract_dfa(model, pool, cfg, device, alphabet_size):
         final_states={s for s in range(num_groups) if accept[s] > boundary},
         allow_partial=False,
     )
-    return (
-        dfa.minify(retain_names=False),
-        boundary,
-        {"q_hat": q_hat, "groups": num_groups},
-    )
+    return trim_unreachable(dfa), boundary, {"q_hat": q_hat, "groups": num_groups}
 
 
 def counterexample_prefixes(
@@ -634,7 +832,9 @@ def learn_dfa(oracle: Oracle, cfg: SurrogateConfig, *, log=print) -> Tuple[DFA, 
             device=device,
             steps=cfg.steps_per_round,
         )
-        dfa, boundary, diag = extract_dfa(model, pool, cfg, device, alphabet_size)
+        dfa, boundary, diag = extract_dfa(
+            model, pool, cfg, device, alphabet_size, rng=rng
+        )
         log(
             f"round {round_idx}: cells={len(pool.answers):,} queries={len(pool.queried):,} "
             f"prefixes={len(pool.prefixes)} suffixes={len(pool.suffixes)} "
