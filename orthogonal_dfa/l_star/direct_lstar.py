@@ -37,7 +37,7 @@ lets :meth:`disagreement` locate a separating suffix.
 """
 
 import math
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, List, Optional, Set, Tuple
 
 from automata.fa.dfa import DFA
 
@@ -434,55 +434,51 @@ class DirectLStarLearner:
                 return list(prefix)
         return None
 
-    def _completed_transitions(self) -> Dict[int, Dict[int, int]]:
-        """A total copy of the transition function.  Any edge the worklist left
-        open is resolved here from a decisive leaf member
-        (:meth:`_decisive_target`) rather than by sifting only the access string --
-        a single indecisive access continuation used to fall back to a bogus
-        self-loop, which wrecked the exported DFA even when the tree was correct.
-        Only an edge whose *entire* leaf is indecisive still self-loops."""
-        completed, unresolved = self.dfa.totalise(
-            range(self.num_states), lambda s, c: self._decisive_target(s, c)[0]
-        )
-        for state, c in unresolved:
-            print(
-                f"direct_lstar: no decisive edge for (state {state}, "
-                f"symbol {c}); falling back to a self-loop"
-            )
-        return completed
-
     def to_dfa_and_tree(self) -> Tuple[DFA, DecisionTree]:
         """Export the learned automaton as ``(DFA, DecisionTree)``, matching the
         shape returned by ``resolve_dfa``."""
-        transitions = self._completed_transitions()
-
-        def predicate_for(midfix) -> TriPredicate:
-            return TriPredicate(
-                [list(midfix) + self.pst.table.suffix(v) for v in self.family.vs],
-                self.pst.accept_thresh,
-                self.pst.reject_thresh,
-            )
-
-        dt = self.tree.to_decision_tree(predicate_for)
-        accepting = self.tree.accepting_leaves()
-
-        boundary = self.pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p, b=boundary: TriPredicate(p.vs, b, b)
+        return export_dfa(
+            self.tree, self.dfa, self.family, self.pst, self._decisive_target
         )
-        initial = dt_decisive.classify([], self.pst.oracle)
-        if initial is None:
-            initial = 0
 
-        dfa = DFA(
-            states=set(range(self.num_states)),
-            input_symbols=set(range(self.pst.alphabet_size)),
-            transitions=transitions,
-            initial_state=initial,
-            final_states=accepting,
-            allow_partial=False,
+
+def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, DecisionTree]:
+    """The learned automaton as ``(DFA, DecisionTree)``.
+
+    Any edge the worklist left open is filled from a decisive leaf member rather
+    than by sifting only the access string -- a single indecisive access
+    continuation used to fall back to a bogus self-loop, wrecking the exported
+    DFA even when the tree was correct.  Only an edge whose *entire* leaf is
+    indecisive still self-loops."""
+    transitions, unresolved = partial.totalise(
+        range(tree.num_states), lambda s, c: decisive_target(s, c)[0]
+    )
+    for state, c in unresolved:
+        print(
+            f"direct_lstar: no decisive edge for (state {state}, symbol {c}); "
+            "falling back to a self-loop"
         )
-        return dfa, dt
+
+    def predicate_for(midfix) -> TriPredicate:
+        return TriPredicate(
+            [list(midfix) + pst.table.suffix(v) for v in family.vs],
+            pst.accept_thresh,
+            pst.reject_thresh,
+        )
+
+    dt = tree.to_decision_tree(predicate_for)
+    boundary = pst.decision_boundary
+    dt_decisive = dt.map_over_predicates(lambda p, b=boundary: TriPredicate(p.vs, b, b))
+    initial = dt_decisive.classify([], pst.oracle)
+    dfa = DFA(
+        states=set(range(tree.num_states)),
+        input_symbols=set(range(pst.alphabet_size)),
+        transitions=transitions,
+        initial_state=0 if initial is None else initial,
+        final_states=tree.accepting_leaves(),
+        allow_partial=False,
+    )
+    return dfa, dt
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +551,104 @@ def _grow_representative_pool(
     pst.table.set_representative(representative)
 
 
+class _Best:
+    """The most accurate hypothesis seen so far.  Rounds are not monotone -- a
+    later family can classify worse -- so the run returns its best, not its last."""
+
+    def __init__(self):
+        self.accuracy = -1.0
+        self.dfa = None
+        self.dt = None
+        self.boundary = 0.0
+
+    def offer(self, accuracy, dfa, dt, boundary) -> None:
+        if accuracy > self.accuracy:
+            self.accuracy, self.dfa, self.dt, self.boundary = (
+                accuracy,
+                dfa,
+                dt,
+                boundary,
+            )
+
+
+class _StallDetector:
+    """Stops a run that has started repeating itself.
+
+    Some targets are unlearnable with a fixed-length prefix sampler (transient
+    states it never lands on, #128).  The FNR gate then finds no new boundary
+    strings and the round is a byte-for-byte repeat of the last, so the remaining
+    rounds would burn queries for nothing.  Two consecutive rounds with no new
+    states, no accuracy gain and no new boundary strings confirm the fixpoint."""
+
+    def __init__(self, patience: int = 2):
+        self._patience = patience
+        self._states = 0
+        self._boundary_strings = 0
+        self._stalled = 0
+
+    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
+        progressed = (
+            states > self._states
+            or improved
+            or boundary_strings > self._boundary_strings
+        )
+        self._stalled = 0 if progressed else self._stalled + 1
+        self._states, self._boundary_strings = states, boundary_strings
+        return self._stalled >= self._patience
+
+
+def _discover(pst, vs, *, max_probes: int, patience: int):
+    """One round: close the hypothesis, hunt counterexamples, close it again.
+
+    The discovery pass samples fresh strings and splits on DFA-vs-tree
+    disagreements (the equivalence-oracle role).  Its binary search homes in on
+    the errors, which sit at boundary states, so it *also* harvests the boundary
+    (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
+    probe need not end at the boundary.  This subsumes the separate consistency
+    check (pool verification + boundary sweep): dropping it brings the substring
+    case to E-L* query parity with no loss of convergence across seeds."""
+    learner = DirectLStarLearner(pst, vs)
+    learner.init_worklist()
+    learner.run_worklist()
+    learner.counterexample_pass(
+        max_probes=max_probes, patience=patience, boundary_target=10**9
+    )
+    learner.run_worklist()
+    dfa, dt = learner.to_dfa_and_tree()
+    return learner, dfa, dt
+
+
+def _estimate_accuracy(pst, dfa, dt, acc_threshold: float) -> float:
+    """Agreement between the exported DFA and the tree read decisively -- the
+    termination test.  The tree is re-read with both thresholds at the decision
+    boundary so it answers every string rather than abstaining."""
+    from .lstar import estimate_agreement_rate
+
+    boundary = pst.decision_boundary
+    decisive = dt.map_over_predicates(lambda p, b=boundary: TriPredicate(p.vs, b, b))
+    return estimate_agreement_rate(
+        pst,
+        pst.sampler,
+        pst.oracle,
+        decisive,
+        dfa,
+        num_samples=2000,
+        acc_threshold=acc_threshold,
+    )
+
+
+def _default_patience(acc_threshold: float) -> int:
+    """Consecutive clean probes that end a discovery pass.
+
+    If the DFA-vs-tree disagreement rate were still at the tolerated level
+    ``eps = 1 - acc_threshold``, seeing k clean probes in a row has probability
+    ``acc_threshold ** k``, so ``k = ceil(ln(alpha) / ln(acc_threshold))`` makes
+    stopping early a ``<= alpha`` event.  This is a cost knob -- the outer
+    estimate and the next round both verify -- so a modest alpha suffices (149 at
+    acc_threshold 0.98, ~300 at 0.99)."""
+    return math.ceil(math.log(0.05) / math.log(acc_threshold))
+
+
 def synthesize_direct_lstar_fnr(
     pst,
     *,
@@ -566,87 +660,42 @@ def synthesize_direct_lstar_fnr(
     counterexample_probes: int = 4000,
     counterexample_patience: Optional[int] = None,
 ) -> Tuple[DFA, DecisionTree]:
-    """Consistency learner that forces the suffix family to resolve boundary
-    states via the FNR gate.
+    """Learn a DFA, forcing the suffix family to resolve boundary states.
 
-    Each round, after learning, collect the strings the family can't classify
-    (``sift -> None`` -- measured to be, cleanly, the indecisive "boundary"
-    states) and add them to the *representative* pool.  ``sample_suffix_family``
-    then sees a high FNR over them and re-clusters to a family that classifies
-    them decisively -- dropping the "completing" suffixes that were diluting them
-    -- so the next round can place them and split.  The batch is capped at
-    ``max(indecisive_fraction * |prefixes|, min_indecisive)`` per round.
-    """
-    from .lstar import estimate_agreement_rate
-
-    # Patience for the discovery pass: stop a round after this many consecutive
-    # clean probes. Derived from acc_threshold, not hardcoded. If the DFA-vs-tree
-    # disagreement rate were still at the tolerated level eps = 1 - acc_threshold,
-    # seeing k clean probes in a row has probability (1 - eps)^k = acc_threshold^k,
-    # so k = ceil(ln(alpha) / ln(acc_threshold)) makes stopping a <= alpha event.
-    # This is a cost knob -- the outer estimate + next round verify -- so a modest
-    # alpha suffices (149 at acc_threshold 0.98; ~300 at 0.99).
+    Each round, the strings the family cannot classify (``sift -> None`` --
+    measured to be, cleanly, the indecisive boundary states) are added to the
+    *representative* pool.  ``sample_suffix_family`` then sees a high FNR over
+    them and re-clusters to a family that classifies them decisively, dropping
+    the "completing" suffixes that were diluting them, so the next round can
+    place them and split."""
     if counterexample_patience is None:
-        counterexample_patience = math.ceil(math.log(0.05) / math.log(acc_threshold))
+        counterexample_patience = _default_patience(acc_threshold)
 
     first_round = True
-    best = (-1.0, None, None, 0.0)
-    # Accumulated boundary strings -- the FNR gate resolves the chain one state
-    # per round, so keeping earlier rounds' indecisives keeps the family honest
-    # about the whole chain (they turn decisive once their state is resolved).
+    best = _Best()
+    stall = _StallDetector()
+    # Kept across rounds: the FNR gate resolves the chain one state per round, so
+    # earlier rounds' indecisives keep the family honest about the whole chain
+    # (they turn decisive once their state is resolved).
     accumulated: List[List[int]] = []
     seen: Set = set()
-    # Early-stop when a round makes no progress. Some targets are unlearnable
-    # with a fixed-length prefix sampler (transient states the sampler never
-    # lands on, issue #128): the FNR gate then finds no new boundary strings and
-    # the round is a byte-for-byte repeat of the last. When nothing changes --
-    # no new states, no accuracy gain, no new boundary strings -- we have reached
-    # that fixpoint, so stop rather than burn the remaining rounds. ``stall``
-    # counts consecutive no-progress rounds; two in a row confirms the fixpoint.
-    prev_states = 0
-    prev_acc_len = 0
-    stall = 0
+
     for round_idx in range(max_rounds):
-        prior_best = best[0]
-        v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        prior_best = best.accuracy
+        vs, boundary = sample_suffix_family(
+            pst, pst.table.intern_suffix([]), first_round=first_round
+        )
         pst.decision_boundary = boundary
         first_round = False
 
-        learner = DirectLStarLearner(pst, vs)
-        learner.init_worklist()
-        learner.run_worklist()
-        # A single discovery pass: sample fresh strings and split on DFA-vs-tree
-        # disagreements (the equivalence-oracle role).  Its binary search homes in
-        # on the errors, which sit at boundary states, so it *also* harvests the
-        # boundary (sift -> None) strings that feed the FNR gate -- densely and
-        # targeted, so a probe need not end at the boundary.  This subsumes the
-        # separate consistency check (pool verification + boundary sweep): dropping
-        # it brings the substring case to E-L* query parity (1.08M) with no loss of
-        # convergence across seeds.
-        learner.counterexample_pass(
+        learner, dfa, dt = _discover(
+            pst,
+            vs,
             max_probes=counterexample_probes,
             patience=counterexample_patience,
-            boundary_target=10**9,
         )
-        learner.run_worklist()
-        dfa, dt = learner.to_dfa_and_tree()
-
-        boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p, b=boundary: TriPredicate(p.vs, b, b)
-        )
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt_decisive,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
-        if true_acc > best[0]:
-            best = (true_acc, dfa, dt, pst.decision_boundary)
+        true_acc = _estimate_accuracy(pst, dfa, dt, acc_threshold)
+        best.offer(true_acc, dfa, dt, pst.decision_boundary)
         if true_acc >= acc_threshold:
             print(
                 f"[direct-lstar/fnr] round {round_idx}: converged, "
@@ -669,16 +718,11 @@ def synthesize_direct_lstar_fnr(
             f"est {true_acc:.3f}, {len(accumulated)} accumulated indecisive, "
             f"{int(pst.table.representative.sum())} rep / {pst.num_prefixes} total"
         )
-
-        progressed = (
-            learner.num_states > prev_states
-            or true_acc > prior_best + 1e-9
-            or len(accumulated) > prev_acc_len
-        )
-        stall = 0 if progressed else stall + 1
-        prev_states = learner.num_states
-        prev_acc_len = len(accumulated)
-        if stall >= 2:
+        if stall.stalled(
+            states=learner.num_states,
+            improved=true_acc > prior_best + 1e-9,
+            boundary_strings=len(accumulated),
+        ):
             print(
                 f"[direct-lstar/fnr] round {round_idx}: no progress "
                 f"({learner.num_states} states) -- target unresolvable with this "
@@ -686,13 +730,11 @@ def synthesize_direct_lstar_fnr(
             )
             break
 
-    # Correct per-state accept/reject labels: the structural labeling (leaves on
-    # the root's accept side) can flip low-support states under noise, especially
-    # asymmetric noise -- a resample + binomial test per reachable state fixes it.
-    # This is the same denoising step the resolver pipeline applies at the end.
+    # The structural labeling (leaves on the root's accept side) can flip a
+    # low-support state under noise, especially asymmetric noise; a resample plus
+    # binomial test per reachable state corrects it.  Same step the resolver
+    # pipeline applies at the end.
     from .lstar import denoise_accept_labels
 
-    _, best_dfa, best_dt, best_boundary = best
-    pst.decision_boundary = best_boundary
-    best_dfa = denoise_accept_labels(pst, best_dfa)
-    return best_dfa, best_dt
+    pst.decision_boundary = best.boundary
+    return denoise_accept_labels(pst, best.dfa), best.dt

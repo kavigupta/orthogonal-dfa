@@ -368,11 +368,20 @@ def _panel_tree(ax, dt, colors):
     _finish(ax, layout, pad=0.3)
 
 
+def _resolved_edges(learner):
+    """The learner's transition function, wherever it keeps it."""
+    for attr in ("dfa", None):
+        holder = learner if attr is None else getattr(learner, attr, None)
+        edges = getattr(holder, "transitions", None)
+        if edges is not None:
+            return edges
+    raise AttributeError("learner exposes no transition function")
+
+
 def _panel_class_dfa(ax, learner, colors, final_states, flipped):
-    # Prefer the learner's totalised transition function; fall back to whatever
-    # edges it has resolved so far, which is all a diagnostic needs.
-    complete = getattr(learner, "_completed_transitions", None)
-    transitions = complete() if complete is not None else learner.transitions
+    # Whatever edges the learner has resolved so far, which is all a diagnostic
+    # needs -- however it happens to store them.
+    transitions = _resolved_edges(learner)
     finals = set(final_states or ())
     r = 0.26
     nodes = {str(s): (2 * r, 2 * r) for s in sorted(transitions)}
