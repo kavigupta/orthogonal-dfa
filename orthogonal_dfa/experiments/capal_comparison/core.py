@@ -24,6 +24,7 @@ count is 0 by construction.
 from __future__ import annotations
 
 import contextlib
+import inspect
 import io
 import json
 import random
@@ -37,6 +38,14 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 
 #: Bump when the emitted record shape changes incompatibly.
 SCHEMA_VERSION = 4
+
+#: Read off `learn_dfa` rather than restated here, for the same reason the CAPAL
+#: side reads its config off the learner: E-L* must be measured at its own
+#: default, and `min_suffix_frequency` has to stay in step with the
+#: `min_class_preserving_frac` that decides which targets are in regime.
+DEFAULT_MIN_SUFFIX_FREQUENCY = (
+    inspect.signature(learn_dfa).parameters["min_suffix_frequency"].default
+)
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
@@ -220,7 +229,7 @@ def run_elstar_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     target_states: Optional[int] = None,
-    min_suffix_frequency: float = 0.05,
+    min_suffix_frequency: float = DEFAULT_MIN_SUFFIX_FREQUENCY,
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically."""
     from orthogonal_dfa.l_star.structures import Oracle
