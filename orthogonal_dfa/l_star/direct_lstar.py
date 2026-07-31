@@ -441,21 +441,28 @@ class DirectLStarLearner:
         """Export the learned automaton as ``(DFA, DecisionTree)``, matching the
         shape returned by ``resolve_dfa``."""
         return export_dfa(
-            self.tree, self.dfa, self.family, self.pst, self._decisive_target
+            self.tree,
+            self.dfa,
+            self.family,
+            self.pst,
+            lambda state, c: self._decisive_target(state, c, max_tries=_MAX_EDGE_TRIES)[
+                0
+            ],
         )
 
 
 def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, DecisionTree]:
     """The learned automaton as ``(DFA, DecisionTree)``.
 
+    ``decisive_target(state, symbol)`` resolves an edge the worklist left open,
+    returning ``None`` when the leaf is wholly indecisive.
+
     Any edge the worklist left open is filled from a decisive leaf member rather
     than by sifting only the access string -- a single indecisive access
     continuation used to fall back to a bogus self-loop, wrecking the exported
     DFA even when the tree was correct.  Only an edge whose *entire* leaf is
     indecisive still self-loops."""
-    transitions, unresolved = partial.totalise(
-        range(tree.num_states), lambda s, c: decisive_target(s, c)[0]
-    )
+    transitions, unresolved = partial.totalise(range(tree.num_states), decisive_target)
     for state, c in unresolved:
         print(
             f"direct_lstar: no decisive edge for (state {state}, symbol {c}); "
