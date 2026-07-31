@@ -78,12 +78,9 @@ class DirectLStarLearner:
         pst,
         vs: List[int],
         *,
-        split_margin: Optional[float] = None,
-        split_test_budget: int = 1,
         split_fpr: Optional[float] = None,
         split_miss_rate: float = 0.01,
     ):
-        del split_test_budget  # accepted for API compatibility; splits gate on BF
         self.pst = pst
         self.vs = list(vs)
         # A distinguisher may split a leaf only when the *population* of that leaf's
@@ -91,9 +88,7 @@ class DirectLStarLearner:
         # Bayes factor (see _candidate_logbf) rather than a per-pair margin.  The
         # family is partitioned once into an ASSIGN half (groups the members) and a
         # TEST half (scores the split); disjoint suffixes keep the test from
-        # measuring the very split it selected on.  ``split_margin`` is retained
-        # only so callers that pass it don't break; it no longer gates splits.
-        self.split_margin = split_margin
+        # measuring the very split it selected on.
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
         # Tolerated miss rate (beta): the lower sequential boundary at which a leaf
         # is accepted as a single state and no longer probed for a split.
@@ -130,12 +125,6 @@ class DirectLStarLearner:
         # on which family ``vs`` is in play; the underlying cells live in the
         # table, which persists across rounds.
         self._decision_cache: Dict[Tuple[tuple, tuple], float] = {}
-
-        # Consistency-check state (populated by assign_leaves / consistency_close).
-        self.leaf_members: Dict[int, List[List[int]]] = {}
-        self.check_representative_only = False
-        self._checks = 0
-        self._confirms = 0
 
     @property
     def num_states(self) -> int:
@@ -396,11 +385,7 @@ class DirectLStarLearner:
         self.dfa.open_every_edge(range(self.num_states))
 
     def _leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
-        """Prefixes that sift to ``state``.  Uses the cached membership when a
-        consistency pass has populated it; otherwise scans the pool."""
-        cached = getattr(self, "leaf_members", None)
-        if cached is not None and state in cached:
-            return cached[state]
+        """Prefixes that sift to ``state``, by scanning the pool."""
         out = []
         prefixes = [list(p) for p in self.pst.table.prefixes]
         # Sift the pool a block at a time: one batched call per tree level per
@@ -477,104 +462,7 @@ class DirectLStarLearner:
     # ``c``-successor differs from the edge resolved off the access string) is an
     # exact, noise-guarded counterexample that splits the leaf.
 
-    def assign_leaves(self) -> None:
-        """(Re)compute which pool prefixes land in each current leaf.
-
-        When ``self.check_representative_only`` is set, only representative
-        prefixes are checked -- so the consistency population matches the family
-        calibration population (both the curated state-balanced sample) instead
-        of the accumulated scratch."""
-        self.leaf_members: Dict[int, List[List[int]]] = {
-            s: [] for s in range(self.num_states)
-        }
-        prefixes = self.pst.table.prefixes
-        if getattr(self, "check_representative_only", False):
-            rep = self.pst.table.representative
-            prefixes = [p for p, r in zip(prefixes, rep) if r]
-        self._sift_prefill([list(p) for p in prefixes])
-        for p in prefixes:
-            st = self.sift(list(p))
-            if st is not None:
-                self.leaf_members[st].append(list(p))
-
-    def _reassign_after_split(self, state: int, new_state: int, distinguisher) -> None:
-        old = self.leaf_members.get(state, [])
-        self.leaf_members[state] = []
-        self.leaf_members[new_state] = []
-        for u in old:
-            d = self.is_accept(u, distinguisher)
-            if d is True:
-                self.leaf_members[state].append(u)
-            elif d is False:
-                self.leaf_members[new_state].append(u)
-            # None: indecisive under the new distinguisher; drop from membership.
-
-    def _sample(self, members, sample_size, rng):
-        if sample_size is None or len(members) <= sample_size:
-            return members
-        idx = rng.choice(len(members), size=sample_size, replace=False)
-        return [members[i] for i in idx]
-
-    def _find_inconsistency(self, sample_size, rng, skip):
-        """Scan leaves for a member whose ``c``-successor disagrees with the edge
-        resolved off the access string, returning ``(state, u, c, distinguisher)``
-        for the first noise-guarded split found, or ``None`` if the sample is
-        clean.  ``self._checks`` / ``self._confirms`` tally (leaf,symbol) probes
-        for the clean-vs-confirm measurement."""
-        for state in range(self.num_states):
-            members = self.leaf_members.get(state, [])
-            if len(members) <= 1:
-                continue
-            access = self.dfa.access.get(state)
-            if access is None:
-                continue
-            sample = self._sample(members, sample_size, rng)
-            for c in range(self.pst.alphabet_size):
-                target = self.dfa.transitions[state].get(c)
-                if target is None:
-                    continue
-                self._checks += 1
-                todo = [u for u in sample if (state, tuple(u), c) not in skip]
-                self._sift_prefill([u + [c] for u in todo])
-                for u in todo:
-                    key = (state, tuple(u), c)
-                    tu, boundary = self.sift_and_boundary(u + [c])
-                    if tu is None:
-                        # ``u + [c]`` is indecisive under the current family -- a
-                        # boundary string this family can't place.  Record it so
-                        # the caller can enrich the next round's family with it.
-                        self.indecisive.add(boundary)
-                    elif tu != target:
-                        self._confirms += 1
-                        dist = self.disagreement(access, u, [c])
-                        if dist is not None:
-                            return state, u, c, dist
-                        # decisive divergence but not margin-separable -> treat as
-                        # noise, don't split; skip so we don't re-find it.
-                        skip.add(key)
-        return None
-
-    def consistency_close(self, *, sample_size, rng) -> int:
-        """Split until no sampled inconsistency remains.  ``sample_size=None``
-        checks the full membership (the escalation / confirmation pass)."""
-        self.assign_leaves()
-        skip: Set = set()
-        splits = 0
-        while True:
-            cand = self._find_inconsistency(sample_size, rng, skip)
-            if cand is None:
-                return splits
-            state, u, _c, dist = cand
-            old_access = self.dfa.access[state]
-            new_state = self.split(state, dist)
-            for p in (old_access, u):
-                st = self.sift(p)
-                if st is not None:
-                    self.dfa.access[st] = list(p)
-            self._reassign_after_split(state, new_state, dist)
-            self.run_worklist()
-            skip.clear()  # tree changed; re-evaluate everything
-            splits += 1
+    # None: indecisive under the new distinguisher; drop from membership.
 
     # -- one probe ----------------------------------------------------------
 
@@ -742,44 +630,6 @@ class DirectLStarLearner:
             self._sift_prefill(block)
             yield from block
 
-    def process_probes(self, probes) -> int:
-        """Walk each string in ``probes`` (e.g. counterexamples supplied by a
-        refiner) through :meth:`process`, re-resolving the worklist after each
-        split.  Returns the number of splits."""
-        splits = 0
-        for w in probes:
-            if self.process(w) == _SPLIT:
-                splits += 1
-                self.run_worklist()
-        return splits
-
-    def probe_for_counterexamples(
-        self, *, max_probes: int, patience: Optional[int] = None
-    ) -> int:
-        """Draw random probe strings purely to *find counterexamples*: a probe
-        whose transition-followed state disagrees with a direct sift exposes a
-        state that must split.  The transition function itself is built by the
-        worklist (:meth:`run_worklist`), not here -- so an already-closed
-        hypothesis sifts each probe about once (the consistency check) instead of
-        re-deriving every edge.  After each split the worklist re-resolves the
-        re-opened edges.  Stops after ``patience`` consecutive clean probes.
-        Returns the number of splits (counterexamples consumed)."""
-        splits = 0
-        since_split = 0
-        for w in self._probe_blocks(max_probes):
-            status = self.process(w)
-            if status == _SPLIT:
-                splits += 1
-                since_split = 0
-                self.run_worklist()
-            elif status == _UNDECIDED:
-                since_split = 0  # still resolving this leaf -- keep sifting
-            else:
-                since_split += 1
-                if patience is not None and since_split >= patience:
-                    break
-        return splits
-
     def counterexample_pass(
         self, *, max_probes: int, patience: int, boundary_target: int
     ) -> int:
@@ -872,33 +722,6 @@ class DirectLStarLearner:
         return dfa, dt
 
 
-def learn_direct_lstar(
-    pst,
-    *,
-    first_round: bool = True,
-    max_probes: int = 10000,
-    patience: Optional[int] = None,
-) -> Tuple[DFA, DecisionTree]:
-    """Sample the base suffix family, resolve the transition worklist, then probe
-    for counterexamples once, and return the ``(DFA, DecisionTree)``.
-
-    This is a *single round*: on rare / long-range patterns the boundary states
-    that need splitting sit in the indecisive band and are seldom hit by uniform
-    probes, so a single round collapses to the trivial accept/reject automaton.
-    Use :func:`synthesize_direct_lstar` to wrap this in a refinement loop that
-    manufactures the missing prefixes.
-    """
-    v_idx = pst.table.intern_suffix([])
-    vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
-    pst.decision_boundary = boundary
-    learner = DirectLStarLearner(pst, vs, split_test_budget=max_probes)
-    learner.init_worklist()
-    learner.run_worklist()
-    learner.probe_for_counterexamples(max_probes=max_probes, patience=patience)
-    learner.run_worklist()
-    return learner.to_dfa_and_tree()
-
-
 # ---------------------------------------------------------------------------
 # Refinement -- the replaceable part of the outer loop.
 # ---------------------------------------------------------------------------
@@ -909,227 +732,6 @@ def learn_direct_lstar(
 # walk.  Returning an empty list (and adding nothing) signals convergence /
 # giving up, and the outer loop stops.
 Refiner = Callable[..., List[List[int]]]
-
-
-def default_refine(
-    pst,
-    dfa,
-    dt: DecisionTree,
-    dt_decisive: DecisionTree,
-    *,
-    true_acc: float,
-    count: int,
-) -> List[List[int]]:
-    """Provisional refiner: reuse the counterexample generation + leaf
-    enrichment from the statistical ``TransitionResolver`` pipeline.
-
-    TODO(direct-lstar): This is a stop-gap.  It borrows machinery
-    (``generate_counterexamples`` / ``enrich_underrepresented_leaves`` in
-    :mod:`orthogonal_dfa.l_star.lstar`) that was designed for the pool-wide
-    statistical splitter, not for this random-walk / discrimination-tree learner.
-    We should come back and replace it with a refiner native to *this* approach
-    -- one that deliberately manufactures probe strings driving a boundary state
-    out of the indecisive band (the documented root cause of the single-round
-    failure; see the module docstring).  The outer loop is written against the
-    ``Refiner`` interface precisely so this function can be swapped out without
-    touching :func:`synthesize_direct_lstar`.
-    """
-    # Part of the Refiner signature; the counterexample search stops on its own
-    # yield now (#144), so this refiner has no use for it.
-    del true_acc
-    # Imported here (not at module top) to keep the dependency on the resolver
-    # pipeline localized to the thing we intend to replace.
-    from .lstar import add_counterexample_prefixes, enrich_underrepresented_leaves
-
-    counterexamples = add_counterexample_prefixes(pst, dt, dfa, count)
-    enriched = enrich_underrepresented_leaves(pst, dt_decisive, count=count)
-    return list(counterexamples) + list(enriched)
-
-
-def synthesize_direct_lstar(
-    pst,
-    *,
-    acc_threshold: float,
-    additional_counterexamples: int = 200,
-    max_probes_per_round: int = 4000,
-    patience: Optional[int] = 800,
-    max_rounds: int = 20,
-    split_margin: Optional[float] = None,
-    refine: Refiner = default_refine,
-) -> Tuple[DFA, DecisionTree]:
-    """Transition-driven learner inside a refinement loop.
-
-    Each round re-samples the suffix family over the current (growing) prefix
-    pool and builds a fresh learner -- the per-round recalibration is what pushes
-    boundary states out of the indecisive band, so it cannot be skipped.  Within
-    a round, though, discovery is *transition driven*, not random-walk driven:
-    :meth:`~DirectLStarLearner.run_worklist` resolves each ``(state, symbol)``
-    edge exactly once by sifting ``access[state] + [symbol]`` (roughly one sift
-    per transition), and random probes are used only to *find counterexamples*
-    that trigger splits -- each split re-opens just the incident edges for the
-    worklist rather than rebuilding the whole table.
-
-    Counterexamples accumulate across rounds (``extra_probes``) and are re-walked
-    each round: with the recalibrated family they can land decisively and drive
-    splits that were previously stuck in the indecisive band.
-
-    ``refine`` is the single swappable point where new prefixes are manufactured;
-    it defaults to :func:`default_refine` (see its TODO).
-    """
-    # Imported here to avoid importing the resolver pipeline unless the loop runs.
-    from .lstar import estimate_agreement_rate
-
-    first_round = True
-    extra_probes: List[List[int]] = []
-    # The per-round rebuild is only weakly monotone -- a later round can recover a
-    # worse hypothesis than an earlier one -- so keep the best-scoring round
-    # rather than returning whatever the last round produced.
-    best = (-1.0, None, None)  # (true_acc, dfa, dt)
-    for round_idx in range(max_rounds):
-        v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
-        pst.decision_boundary = boundary
-        first_round = False
-
-        learner = DirectLStarLearner(
-            pst,
-            vs,
-            split_margin=split_margin,
-            # Bonferroni budget: one split test per probe, over every round.
-            split_test_budget=max_probes_per_round * max_rounds,
-        )
-        learner.init_worklist()
-        learner.run_worklist()
-        # Re-walk accumulated counterexamples, then hunt for fresh ones; both
-        # re-resolve the worklist after each split.
-        learner.process_probes(extra_probes)
-        learner.probe_for_counterexamples(
-            max_probes=max_probes_per_round, patience=patience
-        )
-        dfa, dt = learner.to_dfa_and_tree()
-        print(
-            f"[direct-lstar] round {round_idx}: {learner.num_states} states "
-            f"from {pst.num_prefixes} prefixes"
-        )
-
-        boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p, b=boundary: TriPredicate(p.vs, b, b)
-        )
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt_decisive,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
-        print(f"[direct-lstar] round {round_idx}: estimated accuracy {true_acc:.4f}")
-        if true_acc > best[0]:
-            best = (true_acc, dfa, dt)
-        if true_acc >= acc_threshold:
-            break
-
-        new_probes = refine(
-            pst,
-            dfa,
-            dt,
-            dt_decisive,
-            true_acc=true_acc,
-            count=additional_counterexamples,
-        )
-        if not new_probes:
-            print("[direct-lstar] refiner produced no new prefixes; stopping")
-            break
-        extra_probes.extend(list(p) for p in new_probes)
-
-    return best[1], best[2]
-
-
-def synthesize_direct_lstar_consistency(
-    pst,
-    *,
-    acc_threshold: float,
-    additional_counterexamples: int = 200,
-    sample_size: int = 25,
-    max_rounds: int = 20,
-    split_test_budget: int = 40000,
-    refine: Refiner = default_refine,
-) -> Tuple[DFA, DecisionTree]:
-    """Transition-driven learner whose discovery is a *consistency check*, not
-    random probing.
-
-    Each round rebuilds over the recalibrated family, then:
-      1. resolve every edge off its access string (``run_worklist``);
-      2. ``consistency_close`` with a per-leaf *sample* -- split on any member
-         whose ``c``-successor disagrees with the access-string edge;
-      3. one full-membership ``consistency_close`` to confirm nothing subtle
-         remains (the escalation pass).
-    Random probes are not used at all.  ``refine`` still enriches the pool
-    between rounds so under-represented states get decisive members.
-
-    This is the design compared against ``TransitionResolver`` on query count:
-    the sample makes discovery pay for only a handful of members per (leaf,
-    symbol) instead of the whole leaf population.
-    """
-    from .lstar import estimate_agreement_rate
-
-    first_round = True
-    best = (-1.0, None, None)
-    for round_idx in range(max_rounds):
-        v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
-        pst.decision_boundary = boundary
-        first_round = False
-
-        learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
-        learner.init_worklist()
-        learner.run_worklist()
-        sampled = learner.consistency_close(sample_size=sample_size, rng=pst.rng)
-        confirmed = learner.consistency_close(sample_size=None, rng=pst.rng)
-        dfa, dt = learner.to_dfa_and_tree()
-        print(
-            f"[direct-lstar/consistency] round {round_idx}: {learner.num_states} "
-            f"states from {pst.num_prefixes} prefixes "
-            f"(sampled splits {sampled}, escalation splits {confirmed})"
-        )
-
-        boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p, b=boundary: TriPredicate(p.vs, b, b)
-        )
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt_decisive,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
-        print(
-            f"[direct-lstar/consistency] round {round_idx}: "
-            f"estimated accuracy {true_acc:.4f}"
-        )
-        if true_acc > best[0]:
-            best = (true_acc, dfa, dt)
-        if true_acc >= acc_threshold:
-            break
-
-        new_probes = refine(
-            pst,
-            dfa,
-            dt,
-            dt_decisive,
-            true_acc=true_acc,
-            count=additional_counterexamples,
-        )
-        if not new_probes:
-            print("[direct-lstar/consistency] refiner produced nothing; stopping")
-            break
-
-    return best[1], best[2]
 
 
 def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
@@ -1198,7 +800,6 @@ def synthesize_direct_lstar_fnr(
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
     max_rounds: int = 20,
-    split_test_budget: int = 40000,
     counterexample_probes: int = 4000,
     counterexample_patience: Optional[int] = None,
 ) -> Tuple[DFA, DecisionTree]:
@@ -1249,13 +850,7 @@ def synthesize_direct_lstar_fnr(
         pst.decision_boundary = boundary
         first_round = False
 
-        learner = DirectLStarLearner(
-            pst,
-            vs,
-            split_test_budget=split_test_budget,
-        )
-        # Family calibration (FNR) runs on the clean, bounded representative set.
-        learner.check_representative_only = True
+        learner = DirectLStarLearner(pst, vs)
         learner.init_worklist()
         learner.run_worklist()
         # A single discovery pass: sample fresh strings and split on DFA-vs-tree
@@ -1338,115 +933,3 @@ def synthesize_direct_lstar_fnr(
     pst.decision_boundary = best_boundary
     best_dfa = denoise_accept_labels(pst, best_dfa)
     return best_dfa, best_dt
-
-
-def _balanced_representative(learner, priority, fill, per_state) -> List[List[int]]:
-    """A balanced, capped representative set: bucket candidates by the leaf they
-    reach and keep at most ``per_state`` per bucket, taking ``priority`` (the
-    refiner's counterexamples -- the informative, split-revealing strings) before
-    ``fill`` (the state-balanced resample).  This gives every previous state a
-    good-but-bounded number of members -- enough for FNR to be a real gate --
-    without letting one conflated state accumulate thousands."""
-    from collections import defaultdict
-
-    buckets = defaultdict(list)
-    for u in list(priority) + list(fill):
-        buckets[learner.sift(list(u))].append(list(u))  # leaf None -> its own bucket
-    out: List[List[int]] = []
-    for members in buckets.values():
-        seen, uniq = set(), []
-        for m in members:
-            k = tuple(m)
-            if k not in seen:
-                seen.add(k)
-                uniq.append(m)
-        out.extend(uniq[:per_state])
-    return out
-
-
-def synthesize_direct_lstar_curated(
-    pst,
-    *,
-    acc_threshold: float,
-    additional_counterexamples: int = 200,
-    sample_size: int = 25,
-    per_state: int = 60,
-    max_rounds: int = 20,
-    split_test_budget: int = 40000,
-    refine: Refiner = default_refine,
-) -> Tuple[DFA, DecisionTree]:
-    """Consistency-driven learner whose calibration *and* check both run on a
-    curated, state-balanced representative pool (see :func:`_curated_pool`),
-    rebuilt from the previous round's DFA.
-
-    This closes the population mismatch that plagued the plain consistency
-    learner: the family was calibrated on the true probe sample while the
-    consistency check ran over the whole accumulated scratch.  Here both use the
-    same clean per-state resample, so the family fits exactly what it is checked
-    against.
-    """
-    from .lstar import estimate_agreement_rate
-
-    first_round = True
-    best = (-1.0, None, None)
-    for round_idx in range(max_rounds):
-        v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
-        pst.decision_boundary = boundary
-        first_round = False
-
-        learner = DirectLStarLearner(pst, vs, split_test_budget=split_test_budget)
-        learner.check_representative_only = True
-        learner.init_worklist()
-        learner.run_worklist()
-        learner.consistency_close(sample_size=sample_size, rng=pst.rng)
-        learner.consistency_close(sample_size=None, rng=pst.rng)
-        dfa, dt = learner.to_dfa_and_tree()
-        print(
-            f"[direct-lstar/curated] round {round_idx}: {learner.num_states} states, "
-            f"{int(pst.table.representative.sum())} representative / "
-            f"{pst.num_prefixes} total prefixes"
-        )
-
-        boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p, b=boundary: TriPredicate(p.vs, b, b)
-        )
-        true_acc = estimate_agreement_rate(
-            pst,
-            pst.sampler,
-            pst.oracle,
-            dt_decisive,
-            dfa,
-            num_samples=2000,
-            acc_threshold=acc_threshold,
-        )
-        print(f"[direct-lstar/curated] round {round_idx}: est accuracy {true_acc:.4f}")
-        if true_acc > best[0]:
-            best = (true_acc, dfa, dt)
-        if true_acc >= acc_threshold:
-            break
-
-        # The next round's representative set = a state-balanced resample (for
-        # calibration + coverage) PLUS the refiner's fresh counterexamples (which
-        # are precisely the strings that expose the missing splits).  Excluding
-        # the latter -- as an earlier version did -- starves the consistency
-        # check of exactly the evidence it needs.
-        counterexamples = refine(
-            pst,
-            dfa,
-            dt,
-            dt_decisive,
-            true_acc=true_acc,
-            count=additional_counterexamples,
-        )
-        curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
-        representative = _balanced_representative(
-            learner, priority=counterexamples, fill=curated, per_state=per_state
-        )
-        fresh = [p for p in representative if not pst.table.contains_prefix(p)]
-        if fresh:
-            pst.table.add_prefixes(fresh)
-        pst.table.set_representative(representative)
-
-    return best[1], best[2]
