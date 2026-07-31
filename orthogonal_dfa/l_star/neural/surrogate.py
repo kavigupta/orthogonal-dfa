@@ -41,6 +41,7 @@ from orthogonal_dfa.l_star.structures import Oracle
 @dataclass
 class SurrogateConfig:
     num_states: int = 32  # over-provisioned on purpose; see module notes
+    signal_strength: float = 0.3  # same input SearchConfig takes
     suffix_dim: int = 16
     hidden_size: int = 128
     prefix_length: int = 40
@@ -129,13 +130,29 @@ class TableSurrogate(nn.Module):
         self.rows = Encoder(alphabet_size, cfg.num_states, cfg.hidden_size)
         self.cols = Encoder(alphabet_size, cfg.suffix_dim, cfg.hidden_size)
         self.state_vectors = nn.Parameter(torch.randn(cfg.num_states, cfg.suffix_dim))
+        # Response confined to [0.5 - s, 0.5 + s], the only rates a cell can legitimately
+        # have. Without this the model memorises: predicted rates pile up at 0.0 and 1.0
+        # instead of the noise rates, which only beats predicting the rate if the model is
+        # right about individual cells -- and it gets there by grouping prefixes whose
+        # observed cells happen to agree, which shreds the partition (each true residue
+        # smeared over 16-21 clusters, transition concentration 0.25).
+        #
+        # The bound must be FIXED, not learned. A learned range is vacuous: the model just
+        # widens it to 0/1 and memorises anyway, which is exactly what happened.
+        # min_signal_strength is an input to the existing pipeline too (SearchConfig), so
+        # this is the same information L* is given.
+        self.signal_strength = cfg.signal_strength
 
     def row_log_probs(self, padded, lengths):
         return torch.log_softmax(self.rows(padded, lengths), dim=-1)
 
     def response(self, col_padded, col_lengths):
-        """``(V, S)``: probability that state ``s`` followed by suffix ``v`` is accepted."""
-        return torch.sigmoid(self.cols(col_padded, col_lengths) @ self.state_vectors.T)
+        """``(V, S)``: probability that state ``s`` followed by suffix ``v`` is accepted.
+
+        Confined to the achievable rate range; see ``signal_strength`` above.
+        """
+        inner = torch.sigmoid(self.cols(col_padded, col_lengths) @ self.state_vectors.T)
+        return 0.5 - self.signal_strength + 2 * self.signal_strength * inner
 
     def forward(self, row_log_m, response, rows_idx, cols_idx):
         return (row_log_m[rows_idx].exp() * response[cols_idx]).sum(-1)
