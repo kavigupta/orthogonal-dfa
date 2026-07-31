@@ -67,18 +67,14 @@ def _pst():
     )
 
 
-def _evidence(
-    family=None,
-    pool_members=lambda state, limit: [],
-    num_states=2,
-    split_miss_rate=0.01,
-):
+def _evidence(family=None, pool_members=lambda state, limit: [], num_states=2, **kw):
+    """Production defaults unless a test overrides them."""
     return SplitEvidence(
         _pst(),
         family or _StubFamily(),
         pool_members=pool_members,
         num_states=lambda: num_states,
-        split_miss_rate=split_miss_rate,
+        **kw,
     )
 
 
@@ -149,28 +145,31 @@ class TestVerdict(unittest.TestCase):
             ev.record(0, [i, i % 2])
         self.assertEqual(SPLIT, ev.verdict(0, (1,), [0, 0], [1, 1]))
 
-    def test_an_uninformative_distinguisher_settles_the_leaf(self):
-        # Members land on both sides but score identically, so the two-rate model
-        # pays its Occam penalty and fits no better: the leaf is one state here
-        # and the candidate stops being probed.
-        # A looser miss rate than the default: the evidence against a split grows
-        # only like half a log in the member count, so at the default 0.01 the
-        # boundary sits below anything _member_cap members can reach.
-        family = _StubFamily(side_of=lambda p: p[-1] == 0, accept_rate=lambda p: 0.5)
-        ev = _evidence(family, split_miss_rate=0.1)
+    def test_a_one_sided_population_settles_the_leaf(self):
+        # Every member on the same side: the distinguisher does not divide this
+        # leaf at all.  The scores alone cannot see that -- an empty group makes
+        # the two-rate model *identical* to the one-rate model, so they score
+        # exactly 0 -- so it is the assignment that has to carry it.
+        ev = _evidence(_StubFamily(side_of=lambda p: True))
         for i in range(200):
-            ev.record(0, [i, i % 2])
-        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,), [0, 0], [1, 1]))
+            ev.record(0, [i])
+        accum = ev._candidate(0, (1,))
+        self.assertEqual([200, 0], accum["N"])
+        self.assertEqual(0.0, ev._log_bf_scores(accum))
+        self.assertLess(ev._log_bf_assignment(accum), 0)
+        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,), [0], [1]))
         self.assertNotIn((1,), ev._open.get(0, {}))
 
-    def test_an_all_one_side_leaf_is_undecided_not_settled(self):
-        # The empty second group contributes log_beta(1, 1) = 0, which cancels
-        # exactly, so the factor is 0 -- no evidence either way, not evidence of
-        # one state.
-        ev = _evidence(_StubFamily(side_of=lambda p: True))
-        for i in range(40):
-            ev.record(0, [i])
-        self.assertEqual(UNDECIDED, ev.verdict(0, (1,), [0], [1]))
+    def test_a_balanced_assignment_is_evidence_for_a_split(self):
+        # Members dividing evenly is not what a single state produces, so the
+        # grouping itself argues for two -- even when the scores are flat.
+        family = _StubFamily(side_of=lambda p: p[-1] == 0, accept_rate=lambda p: 0.5)
+        ev = _evidence(family)
+        for i in range(200):
+            ev.record(0, [i, i % 2])
+        accum = ev._candidate(0, (1,))
+        self.assertEqual([100, 100], accum["N"])
+        self.assertGreater(ev._log_bf_assignment(accum), 0)
 
     def test_too_few_members_is_undecided_not_a_split(self):
         # Under _min_members the Bayes factor is underpowered, and the per-pair

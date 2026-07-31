@@ -80,7 +80,7 @@ class DirectLStarLearner:
         vs: List[int],
         *,
         split_fpr: Optional[float] = None,
-        split_miss_rate: float = 0.01,
+        split_miss_rate: Optional[float] = None,
     ):
         self.pst = pst
         self.family = SuffixFamily(pst, vs)
@@ -101,7 +101,7 @@ class DirectLStarLearner:
             pool_members=self._leaf_members,
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
-            split_miss_rate=split_miss_rate,
+            **({} if split_miss_rate is None else {"split_miss_rate": split_miss_rate}),
         )
 
         # Boundary strings encountered while *building* the DFA: any ``member + c``
