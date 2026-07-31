@@ -148,7 +148,7 @@ def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
-    min_class_preserving_frac: float = 0.05,
+    min_class_preserving_frac: float = 0.02,
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,

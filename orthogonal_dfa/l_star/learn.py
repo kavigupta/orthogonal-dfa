@@ -38,7 +38,7 @@ def build_pst(
     min_signal_strength: float,
     seed: int,
     noise_model: Optional[Any] = None,
-    min_suffix_frequency: float = 0.05,
+    min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
@@ -81,7 +81,7 @@ def learn_dfa(
     min_signal_strength: float,
     seed: int,
     noise_model: Optional[Any] = None,
-    min_suffix_frequency: float = 0.05,
+    min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ):
