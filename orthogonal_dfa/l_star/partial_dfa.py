@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Set, Tuple
 class PartialDFA:
     """See the module docstring."""
 
-    def __init__(self, alphabet_size: int, *, num_states: int = 2):
+    def __init__(self, alphabet_size: int, *, num_states: int):
         self.alphabet_size = alphabet_size
         #: ``transitions[s][c]`` -- the current best guess for ``delta(s, c)``.
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}

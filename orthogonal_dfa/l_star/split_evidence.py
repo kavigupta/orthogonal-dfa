@@ -62,9 +62,9 @@ class SplitEvidence:
         *,
         pool_members,
         num_states,
-        split_fpr: Optional[float] = None,
-        split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
-        members: Optional[Dict[int, Set[tuple]]] = None,
+        split_fpr: Optional[float],
+        split_miss_rate: float,
+        members: Dict[int, Set[tuple]],
     ):
         self.pst = pst
         self.family = family
@@ -78,9 +78,7 @@ class SplitEvidence:
         # Distinct prefixes seen to reach each leaf while sifting probes.  A split
         # fires once enough have piled up for the Bayes factor to cross, so the
         # probe stream -- not the fixed pool -- is what drives a leaf to resolve.
-        self.members: Dict[int, Set[tuple]] = (
-            {} if members is None else {k: set(v) for k, v in members.items()}
-        )
+        self.members: Dict[int, Set[tuple]] = {k: set(v) for k, v in members.items()}
         # leaf -> distinguisher -> running sufficient statistics.
         self._open: Dict[int, Dict[tuple, dict]] = {}
 

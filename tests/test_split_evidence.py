@@ -2,6 +2,7 @@ import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.split_evidence import (
+    DEFAULT_SPLIT_MISS_RATE,
     NO_SPLIT,
     SPLIT,
     UNDECIDED,
@@ -61,20 +62,26 @@ def _pst():
     return SimpleNamespace(
         alphabet_size=2,
         evidence_margin=0.0,
+        # split_pval is SearchConfig's default -- what production actually runs.
         config=SimpleNamespace(
-            split_pval=0.01, min_signal_strength=0.3, suffix_family_size=20
+            split_pval=0.001, min_signal_strength=0.3, suffix_family_size=20
         ),
     )
 
 
 def _evidence(family=None, pool_members=lambda state, limit: [], num_states=2, **kw):
-    """Production defaults unless a test overrides them."""
+    """Production values unless a test overrides them."""
     return SplitEvidence(
         _pst(),
         family or _StubFamily(),
         pool_members=pool_members,
         num_states=lambda: num_states,
-        **kw,
+        **{
+            "split_fpr": None,
+            "split_miss_rate": DEFAULT_SPLIT_MISS_RATE,
+            "members": {},
+            **kw,
+        },
     )
 
 

@@ -57,6 +57,8 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 _MEMBER_SCAN_BLOCK = 128
 # How many probes a counterexample pass sifts per batched pass.
 _PROBE_BLOCK = 16
+# Leaf members to try before giving an edge up as unresolvable.
+_MAX_EDGE_TRIES = 30
 
 
 class DirectLStarLearner:
@@ -79,8 +81,8 @@ class DirectLStarLearner:
         pst,
         vs: List[int],
         *,
-        split_fpr: Optional[float] = None,
-        split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
+        split_fpr: Optional[float],
+        split_miss_rate: float,
     ):
         self.pst = pst
         self.family = SuffixFamily(pst, vs)
@@ -91,7 +93,7 @@ class DirectLStarLearner:
 
         # The partial transition function, its witnesses, the per-state access
         # strings and the queue of edges still to resolve.
-        self.dfa = PartialDFA(pst.alphabet_size)
+        self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
 
         # The sequential population test: it accumulates each leaf's members and
         # says whether a proposed distinguisher splits it.
@@ -102,6 +104,7 @@ class DirectLStarLearner:
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
             split_miss_rate=split_miss_rate,
+            members={},
         )
 
         # Boundary strings encountered while *building* the DFA: any ``member + c``
@@ -194,7 +197,7 @@ class DirectLStarLearner:
         return out
 
     def _decisive_target(
-        self, state: int, c: int, *, max_tries: int = 30
+        self, state: int, c: int, *, max_tries: int
     ) -> Tuple[Optional[int], Optional[List[int]]]:
         """A *decisive* target for ``delta(state, c)``.
 
@@ -231,7 +234,7 @@ class DirectLStarLearner:
         """Resolve one edge to a decisive successor (see :meth:`_decisive_target`)."""
         if self.dfa.access.get(state) is None and self._find_access(state) is None:
             return  # unreachable leaf; leave the edge for export fallback
-        target, witness = self._decisive_target(state, c)
+        target, witness = self._decisive_target(state, c, max_tries=_MAX_EDGE_TRIES)
         if target is None:
             return  # every member indecisive; export fills it as a self-loop
         self.dfa.set_edge(state, c, target, witness)
@@ -580,7 +583,7 @@ class _StallDetector:
     rounds would burn queries for nothing.  Two consecutive rounds with no new
     states, no accuracy gain and no new boundary strings confirm the fixpoint."""
 
-    def __init__(self, patience: int = 2):
+    def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
         self._boundary_strings = 0
@@ -597,7 +600,7 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-def _discover(pst, vs, *, max_probes: int, patience: int):
+def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_rate):
     """One round: close the hypothesis, hunt counterexamples, close it again.
 
     The discovery pass samples fresh strings and splits on DFA-vs-tree
@@ -607,7 +610,9 @@ def _discover(pst, vs, *, max_probes: int, patience: int):
     probe need not end at the boundary.  This subsumes the separate consistency
     check (pool verification + boundary sweep): dropping it brings the substring
     case to E-L* query parity with no loss of convergence across seeds."""
-    learner = DirectLStarLearner(pst, vs)
+    learner = DirectLStarLearner(
+        pst, vs, split_fpr=split_fpr, split_miss_rate=split_miss_rate
+    )
     learner.init_worklist()
     learner.run_worklist()
     learner.counterexample_pass(
@@ -659,6 +664,9 @@ def synthesize_direct_lstar_fnr(
     max_rounds: int = 20,
     counterexample_probes: int = 4000,
     counterexample_patience: Optional[int] = None,
+    stall_patience: int = 2,
+    split_fpr: Optional[float] = None,
+    split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
 ) -> Tuple[DFA, DecisionTree]:
     """Learn a DFA, forcing the suffix family to resolve boundary states.
 
@@ -673,7 +681,7 @@ def synthesize_direct_lstar_fnr(
 
     first_round = True
     best = _Best()
-    stall = _StallDetector()
+    stall = _StallDetector(stall_patience)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' indecisives keep the family honest about the whole chain
     # (they turn decisive once their state is resolved).
@@ -693,6 +701,8 @@ def synthesize_direct_lstar_fnr(
             vs,
             max_probes=counterexample_probes,
             patience=counterexample_patience,
+            split_fpr=split_fpr,
+            split_miss_rate=split_miss_rate,
         )
         true_acc = _estimate_accuracy(pst, dfa, dt, acc_threshold)
         best.offer(true_acc, dfa, dt, pst.decision_boundary)
