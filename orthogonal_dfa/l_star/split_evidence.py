@@ -24,6 +24,13 @@ import math
 from statistics import NormalDist
 from typing import Dict, Optional, Set
 
+#: Tolerated miss rate (beta) -- the lower sequential boundary, ``logBF <=
+#: log(beta)``, at which a leaf is accepted as one state and stops being probed.
+#: Coupled to _NULL_ASSIGNMENT_PRIOR: a wholly one-sided population scores about
+#: -4.4, which clears log(0.02) but not log(0.01), so a tighter beta than this
+#: would put the boundary out of reach again.
+DEFAULT_SPLIT_MISS_RATE = 0.02
+
 #: Shape of the Beta prior on the split proportion under the *null*.  Under one
 #: state every member should land on the same side of the distinguisher, so the
 #: proportion is pinned near 0 or 1 -- a U-shaped Beta(e, e) with small e.  Under
@@ -56,7 +63,7 @@ class SplitEvidence:
         pool_members,
         num_states,
         split_fpr: Optional[float] = None,
-        split_miss_rate: float = 0.02,
+        split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
         members: Optional[Dict[int, Set[tuple]]] = None,
     ):
         self.pst = pst

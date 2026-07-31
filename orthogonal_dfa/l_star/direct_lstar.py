@@ -44,7 +44,7 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .midfix_tree import MidfixTree
 from .partial_dfa import PartialDFA
-from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
+from .split_evidence import DEFAULT_SPLIT_MISS_RATE, NO_SPLIT, SPLIT, SplitEvidence
 from .structures import DecisionTree, TriPredicate
 from .suffix_family import SuffixFamily
 
@@ -80,7 +80,7 @@ class DirectLStarLearner:
         vs: List[int],
         *,
         split_fpr: Optional[float] = None,
-        split_miss_rate: Optional[float] = None,
+        split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
     ):
         self.pst = pst
         self.family = SuffixFamily(pst, vs)
@@ -101,7 +101,7 @@ class DirectLStarLearner:
             pool_members=self._leaf_members,
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
-            **({} if split_miss_rate is None else {"split_miss_rate": split_miss_rate}),
+            split_miss_rate=split_miss_rate,
         )
 
         # Boundary strings encountered while *building* the DFA: any ``member + c``
