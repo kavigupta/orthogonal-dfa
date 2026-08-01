@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from .direct_lstar import synthesize_direct_lstar_fnr
+from .fnr_synthesis import synthesize_direct_lstar_fnr
 from .lstar import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
