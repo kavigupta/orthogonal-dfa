@@ -33,8 +33,10 @@ from typing import Callable, List, Optional, Set, Tuple
 
 from automata.fa.dfa import DFA
 
+from .edge_resolver import MAX_EDGE_TRIES, EdgeResolver
 from .midfix_tree import MidfixTree
 from .partial_dfa import PartialDFA
+from .sifting import Sifter
 from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
 from .structures import DecisionTree, TriPredicate
 from .suffix_family import SuffixFamily
@@ -44,12 +46,8 @@ _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguishe
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
 
-# How many pool prefixes a leaf-membership scan sifts per batched pass.
-_MEMBER_SCAN_BLOCK = 128
 # How many probes a counterexample pass sifts per batched pass.
 _PROBE_BLOCK = 16
-# Leaf members to try before giving an edge up as unresolvable.
-_MAX_EDGE_TRIES = 30
 
 
 class DirectLStarLearner:
@@ -86,23 +84,25 @@ class DirectLStarLearner:
         # strings and the queue of edges still to resolve.
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
 
+        # Classifying against the tree, and closing the transition function with
+        # it.  The resolver harvests boundary strings into ``indecisive``.
+        self.sifter = Sifter(self.tree, self.family)
+        self.indecisive: Set[Tuple[int, ...]] = set()
+        self.edges = EdgeResolver(
+            pst, self.dfa, self.sifter, self.indecisive, max_tries=MAX_EDGE_TRIES
+        )
+
         # The sequential population test: it accumulates each leaf's members and
         # says whether a proposed distinguisher splits it.
         self.splits = SplitEvidence(
             pst,
             self.family,
-            pool_members=self._leaf_members,
+            pool_members=self.edges.leaf_members,
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
             split_miss_rate=split_miss_rate,
             members={},
         )
-
-        # Boundary strings encountered while *building* the DFA: any ``member + c``
-        # that sifts to None during transition resolution / consistency checking.
-        # The current family can't place these; the driver feeds them back into
-        # the representative pool so FNR forces the next family to resolve them.
-        self.indecisive: Set[Tuple[int, ...]] = set()
 
     @property
     def num_states(self) -> int:
@@ -111,34 +111,13 @@ class DirectLStarLearner:
 
     # -- membership / classification ---------------------------------------
 
-    def _sift_prefill(self, seqs) -> None:
-        """Warm the cache for sifting every string in ``seqs``, one batched call
-        per tree level rather than one per node visited."""
-        for pairs in self.tree.sift_levels(seqs, self.family.is_accept):
-            self.family.prefill([list(s) + list(m) for s, m in pairs])
-
-    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
-        """Route ``seq`` through the tree: ``(leaf, None)``, or ``(None,
-        boundary)`` when some node classifies it indecisively."""
-        return self.tree.sift(seq, self.family.is_accept)
-
-    def sift(self, seq) -> Optional[int]:
-        """Route ``seq`` to a state (leaf), or ``None`` if any node classifies it
-        indecisively.  See :meth:`sift_and_boundary` for the boundary string."""
-        leaf, _ = self.sift_and_boundary(seq)
-        return leaf
-
     # -- splitting ----------------------------------------------------------
 
-    def disagreement(self, s, sprime, prefix) -> Optional[tuple]:
-        """Propose a distinguisher separating ``s`` and ``sprime`` (see
-        :meth:`MidfixTree.first_disagreement`).
+    def init_worklist(self) -> None:
+        self.edges.open_all_edges()
 
-        This only *proposes* the candidate; whether the split fires is decided by
-        the held-out population Bayes factor in :meth:`_candidate_logbf`, so the
-        pair need only clear the ordinary decisive band, not a wide split margin.
-        """
-        return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+    def run_worklist(self) -> int:
+        return self.edges.close()
 
     def split(self, state: int, distinguisher: tuple) -> int:
         """Refine leaf ``state`` into ``{True: state, False: new_state}`` under
@@ -149,105 +128,8 @@ class DirectLStarLearner:
         """
         new_state = self.tree.split(state, distinguisher)
         self.dfa.split_state(state, new_state)
-        self.splits = self.splits.after_split(state, self.sift)
+        self.splits = self.splits.after_split(state, self.sifter.sift)
         return new_state
-
-    # -- transition-driven discovery (the worklist) -------------------------
-
-    def _seed_access_from_pool(self) -> None:
-        """Give every current leaf a canonical access string by sifting the
-        prefix pool.  The empty string pins the initial state; the rest come
-        from whatever pool prefixes land in each leaf."""
-        for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
-            if len(self.dfa.access) >= self.num_states:
-                break
-            st = self.sift(prefix)
-            if st is not None and st not in self.dfa.access:
-                self.dfa.access[st] = list(prefix)
-
-    def init_worklist(self) -> None:
-        self._seed_access_from_pool()
-        self.dfa.open_every_edge(range(self.num_states))
-
-    def _leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
-        """Prefixes that sift to ``state``, by scanning the pool."""
-        out = []
-        prefixes = [list(p) for p in self.pst.table.prefixes]
-        # Sift the pool a block at a time: one batched call per tree level per
-        # block instead of one per prefix.  A block overshoots ``limit`` by at
-        # most its own size, and that work only warms the cache the next scan
-        # (this leaf's other distinguishers, or another leaf's) reads back.
-        for i in range(0, len(prefixes), _MEMBER_SCAN_BLOCK):
-            block = prefixes[i : i + _MEMBER_SCAN_BLOCK]
-            self._sift_prefill(block)
-            for p in block:
-                if self.sift(p) == state:
-                    out.append(p)
-                    if len(out) >= limit:
-                        return out
-        return out
-
-    def _decisive_target(
-        self, state: int, c: int, *, max_tries: int
-    ) -> Tuple[Optional[int], Optional[List[int]]]:
-        """A *decisive* target for ``delta(state, c)``.
-
-        ``resolve`` used to sift only ``access[state] + [c]`` and give up (leaving
-        the edge to a self-loop) when that one string was indecisive -- even
-        though the tree is consistent, so *any* member of the leaf resolves the
-        same edge.  Here we try the access string first, then other leaf members,
-        and take the first decisive successor.  Returns ``(None, None)`` only when
-        every tried member is indecisive (a genuinely unresolvable edge)."""
-        candidates: List[List[int]] = []
-        access = self.dfa.access.get(state)
-        if access is not None:
-            candidates.append(access)
-        candidates.extend(self._leaf_members(state, limit=max_tries))
-        seen = set()
-        tries = 0
-        for m in candidates:
-            key = tuple(m)
-            if key in seen:
-                continue
-            seen.add(key)
-            ext = list(m) + [c]
-            target, boundary = self.sift_and_boundary(ext)
-            if target is not None:
-                return target, list(m)
-            # This successor is a boundary string the family can't place.
-            self.indecisive.add(boundary)
-            tries += 1
-            if tries >= max_tries:
-                break
-        return None, None
-
-    def resolve(self, state: int, c: int) -> None:
-        """Resolve one edge to a decisive successor (see :meth:`_decisive_target`)."""
-        if self.dfa.access.get(state) is None and self._find_access(state) is None:
-            return  # unreachable leaf; leave the edge for export fallback
-        target, witness = self._decisive_target(state, c, max_tries=_MAX_EDGE_TRIES)
-        if target is None:
-            return  # every member indecisive; export fills it as a self-loop
-        self.dfa.set_edge(state, c, target, witness)
-
-    def run_worklist(self) -> int:
-        """Resolve queued ``(state, symbol)`` edges until the hypothesis is
-        closed.  Returns the number of edges resolved."""
-        self._sift_prefill(self.dfa.pending_probes())
-        return self.dfa.drain(self.resolve)
-
-    # -- consistency-driven discovery --------------------------------------
-    #
-    # Instead of hunting counterexamples with random probes, verify the closed
-    # hypothesis directly: a leaf is one Myhill-Nerode state only if all its
-    # members agree on where each symbol leads.  We check this from a *sample*
-    # per leaf -- a genuine split is gross (a substantial fraction of the leaf
-    # diverges), so a handful of members reveals it -- and escalate to the full
-    # membership only to confirm convergence.  Each violation (a member whose
-    # ``c``-successor differs from the edge resolved off the access string) is an
-    # exact, noise-guarded counterexample that splits the leaf.
-
-    # None: indecisive under the new distinguisher; drop from membership.
 
     # -- one probe ----------------------------------------------------------
 
@@ -261,7 +143,7 @@ class DirectLStarLearner:
         if lo + 1 == hi:
             return hi
         mid = (lo + hi) // 2
-        actual, boundary = self.sift_and_boundary(w[:mid])
+        actual, boundary = self.sifter.sift_and_boundary(w[:mid])
         if actual is None:
             # The binary search homes in on the DFA-vs-tree error, which sits at a
             # boundary state -- so this indecisive midpoint is a boundary string
@@ -292,7 +174,7 @@ class DirectLStarLearner:
         states: List[Optional[int]] = []
         for i in range(len(w)):  # pylint: disable=consider-using-enumerate
             if state is None:
-                state, boundary = self.sift_and_boundary(w[:i])
+                state, boundary = self.sifter.sift_and_boundary(w[:i])
                 if state is None:
                     self.indecisive.add(boundary)  # boundary: seq + bail prepend
                 else:
@@ -312,7 +194,7 @@ class DirectLStarLearner:
                 state = self.dfa.transitions[state][c]
                 verified = False
                 continue
-            nxt, boundary = self.sift_and_boundary(w[: i + 1])
+            nxt, boundary = self.sifter.sift_and_boundary(w[: i + 1])
             if nxt is None:
                 self.indecisive.add(boundary)  # boundary: seq + bail prepend
             else:
@@ -331,7 +213,7 @@ class DirectLStarLearner:
         and run the sequential population split test on the leaf it exposes.
         Returns ``_SPLIT`` / ``_UNDECIDED`` / ``_RESOLVED`` (see :meth:`process`)."""
         state = states[-1]
-        actual = self.sift(w)
+        actual = self.sifter.sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
         fd = self._first_disagreement(w, states, agree_point, len(w))
@@ -348,9 +230,9 @@ class DirectLStarLearner:
         if witness is None:
             return _RESOLVED
         sprime = w[: fd - 1]
-        if self.sift(witness) != s1 or self.sift(sprime) != s1:
+        if self.sifter.sift(witness) != s1 or self.sifter.sift(sprime) != s1:
             return _RESOLVED
-        distinguisher = self.disagreement(witness, sprime, [c])
+        distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher, witness, sprime)
@@ -365,7 +247,7 @@ class DirectLStarLearner:
         old leaf and land on opposite sides of the distinguisher)."""
         self.split(s1, distinguisher)
         for p in (witness, sprime):
-            st = self.sift(p)
+            st = self.sifter.sift(p)
             if st is not None:
                 self.dfa.access[st] = list(p)
 
@@ -384,7 +266,7 @@ class DirectLStarLearner:
                 for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
-            self._sift_prefill(block)
+            self.sifter.prefill(block)
             yield from block
 
     def counterexample_pass(
@@ -418,16 +300,6 @@ class DirectLStarLearner:
 
     # -- export -------------------------------------------------------------
 
-    def _find_access(self, state: int) -> Optional[List[int]]:
-        cached = self.dfa.access.get(state)
-        if cached is not None:
-            return cached
-        for prefix in self.pst.table.prefixes:
-            if self.sift(list(prefix)) == state:
-                self.dfa.access[state] = list(prefix)
-                return list(prefix)
-        return None
-
     def to_dfa_and_tree(self) -> Tuple[DFA, DecisionTree]:
         """Export the learned automaton as ``(DFA, DecisionTree)``, matching the
         shape returned by ``resolve_dfa``."""
@@ -436,9 +308,7 @@ class DirectLStarLearner:
             self.dfa,
             self.family,
             self.pst,
-            lambda state, c: self._decisive_target(state, c, max_tries=_MAX_EDGE_TRIES)[
-                0
-            ],
+            lambda state, c: self.edges.decisive_target(state, c)[0],
         )
 
 

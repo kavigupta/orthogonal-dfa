@@ -1,0 +1,60 @@
+"""Classifying strings against the current discrimination tree.
+
+The tree knows which midfix cuts where; the family knows how to answer a midfix.
+Putting them together is what "sift" means, and both the probe loop and the edge
+resolver need it, so it lives here rather than in either of them.
+"""
+
+from typing import List, Optional, Tuple
+
+
+class Sifter:
+    """Routes strings through ``tree``, classifying with ``family``."""
+
+    def __init__(self, tree, family):
+        self.tree = tree
+        self.family = family
+
+    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
+        """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
+        when some node cannot place it."""
+        return self.tree.sift(seq, self.family.is_accept)
+
+    def sift(self, seq) -> Optional[int]:
+        """The leaf ``seq`` reaches, or ``None`` if any node is indecisive."""
+        leaf, _ = self.sift_and_boundary(seq)
+        return leaf
+
+    def prefill(self, seqs) -> None:
+        """Warm the cache for sifting all of ``seqs``, one batched call per tree
+        level rather than one per node visited."""
+        for pairs in self.tree.sift_levels(seqs, self.family.is_accept):
+            self.family.prefill([list(s) + list(m) for s, m in pairs])
+
+    def disagreement(self, s, sprime, prefix) -> Optional[tuple]:
+        """A midfix separating ``s`` and ``sprime`` (see
+        :meth:`MidfixTree.first_disagreement`), or ``None``.
+
+        This only *proposes* a distinguisher; whether the split fires is decided
+        by the population evidence, so the pair need only clear the ordinary
+        decisive band, not a wide split margin."""
+        return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+
+    def leaves_of(
+        self, prefixes, state: int, *, limit: Optional[int], block: int
+    ) -> List[List[int]]:
+        """Those of ``prefixes`` that sift to ``state``, scanned a block at a time.
+
+        One batched call per tree level per block, rather than one per prefix.  A
+        block overshoots ``limit`` by at most its own size, and that work only
+        warms the cache the next scan reads back."""
+        out: List[List[int]] = []
+        for i in range(0, len(prefixes), block):
+            chunk = prefixes[i : i + block]
+            self.prefill(chunk)
+            for p in chunk:
+                if self.sift(p) == state:
+                    out.append(p)
+                    if limit is not None and len(out) >= limit:
+                        return out
+        return out
