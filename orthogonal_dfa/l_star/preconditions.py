@@ -20,6 +20,8 @@ from typing import List, Optional, Tuple
 import numpy as np
 from automata.fa.dfa import DFA
 
+from .statistics import DEFAULT_MIN_ACC_REJ
+
 DEFAULT_NUM_SAMPLES = 2000
 
 #: Bar for coverage by prefixes of the given length before we consider a state
@@ -148,6 +150,7 @@ def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
+    min_accept_or_reject: float = DEFAULT_MIN_ACC_REJ,
     min_class_preserving_frac: float = 0.02,
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
@@ -157,14 +160,16 @@ def satisfies_preconditions(
 
     All under length-``length`` uniform sampling:
 
-    - acceptance rate strictly between 0 and 1;
+    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
     - class-preserving fraction at least ``min_class_preserving_frac``;
     - covered-accuracy ceiling at least ``min_covered_accuracy``
 
-    The acceptance-rate check only rejects degeneracy -- a language that is
-    constant over the sampled strings, which E-L* cannot get signal from and
-    which the other two checks pass trivially. It carries no balance
-    requirement: an imbalanced language is the class-preserving check's business.
+    ``min_accept_or_reject`` is the same bound the learner's ``give_up_check``
+    assumes of its prefixes: it derives a threshold from
+    ``8 * min_acc_rej * (1 - min_acc_rej) * s**2``, which only holds as a bound
+    when the prefixes really are at least that balanced. A target outside the
+    band breaks that assumption and is given up on regardless of its signal,
+    so it is rejected here rather than run.
 
     Checks run in increasing cost. By default they stop at the first failure,
     which is what a caller wanting only a verdict should do; pass
@@ -172,10 +177,11 @@ def satisfies_preconditions(
     """
     reasons: List[str] = []
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
-    if rate in (0.0, 1.0):
+    if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
         reasons.append(
-            f"acceptance rate {rate} degenerate: every sampled string of length "
-            f"{length} has the same label"
+            f"acceptance rate {rate:.3f} outside "
+            f"[{min_accept_or_reject}, {round(1 - min_accept_or_reject, 10)}] "
+            f"(the balance give_up_check assumes)"
         )
         if short_circuit:
             return PreconditionReport(length, rate, reasons=tuple(reasons))

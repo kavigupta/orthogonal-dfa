@@ -18,6 +18,7 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.lstar import counterexample_sample_budget
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
+    DEFAULT_MIN_ACC_REJ,
     counterexample_search_exhausted,
     give_up_check,
 )
@@ -450,7 +451,7 @@ class TestGiveUpThreshold(unittest.TestCase):
         strings, a balance of 0.077 against the SearchConfig default of 0.1.
         """
         signal_strength, num_prefixes, num_suffixes, r = 0.40, 200, 958, 0.02
-        center, min_acc_rej = 0.5, 0.1
+        center, min_acc_rej = 0.5, DEFAULT_MIN_ACC_REJ
         balance = 0.077
         p_accept, p_reject = center + signal_strength, center - signal_strength
         empirical_pos = (1 - balance) * p_accept + balance * p_reject

@@ -4,6 +4,11 @@ from typing import Optional, Tuple
 import numpy as np
 import scipy
 
+#: Floor on the smaller of the prefix accept/reject rates. ``give_up_check``
+#: needs it as a lower bound, and ``satisfies_preconditions`` rejects targets
+#: that would break it, so both read this.
+DEFAULT_MIN_ACC_REJ = 0.02
+
 
 def population_size_and_evidence_margin(
     signal_strength, acceptable_fpr, acceptable_fnr

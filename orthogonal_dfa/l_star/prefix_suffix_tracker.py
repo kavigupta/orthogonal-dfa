@@ -6,6 +6,7 @@ import tqdm.auto as tqdm
 
 from .mask_table import MaskTable
 from .sampler import Sampler
+from .statistics import DEFAULT_MIN_ACC_REJ
 from .structures import Oracle
 
 
@@ -54,7 +55,7 @@ class SearchConfig:
     fnr_limit: float = 0.02
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    min_acc_rej: float = 0.1
+    min_acc_rej: float = DEFAULT_MIN_ACC_REJ
 
 
 @dataclass

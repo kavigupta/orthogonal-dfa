@@ -159,7 +159,19 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         for finals in ({0}, set()):
             report = P.satisfies_preconditions(_constant_dfa(finals), length=40)
             self.assertFalse(report)
-            self.assertIn("degenerate", report.reasons[0])
+            self.assertIn("acceptance rate", report.reasons[0])
+
+    def test_acceptance_rate_band_matches_the_give_up_bound(self):
+        # The band is give_up_check's assumption about its prefixes, so a target
+        # skewed past it is rejected rather than run and given up on.
+        skewed = P.satisfies_preconditions(
+            MOD9_SKEWED, length=40, min_accept_or_reject=0.2
+        )
+        self.assertFalse(skewed)
+        self.assertIn("acceptance rate", skewed.reasons[0])
+        self.assertTrue(
+            P.satisfies_preconditions(MOD9_SKEWED, length=40, min_accept_or_reject=0.02)
+        )
 
     def test_skewed_but_non_degenerate_target_passes(self):
         # Only 13% accepted, so the acceptance-rate check must not impose

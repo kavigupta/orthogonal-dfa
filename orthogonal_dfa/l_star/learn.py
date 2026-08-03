@@ -16,6 +16,7 @@ from .lstar import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
 from .statistics import (
+    DEFAULT_MIN_ACC_REJ,
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_margin,
 )
@@ -39,6 +40,7 @@ def build_pst(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
+    min_acc_rej: float = DEFAULT_MIN_ACC_REJ,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
@@ -65,6 +67,7 @@ def build_pst(
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
+        min_acc_rej=min_acc_rej,
     )
     return PrefixSuffixTracker.create(
         UniformSampler(sample_length),
@@ -82,6 +85,7 @@ def learn_dfa(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
+    min_acc_rej: float = DEFAULT_MIN_ACC_REJ,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ):
@@ -97,6 +101,7 @@ def learn_dfa(
         seed=seed,
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
+        min_acc_rej=min_acc_rej,
         sample_length=sample_length,
     )
     dfa, _ = do_counterexample_driven_synthesis(
