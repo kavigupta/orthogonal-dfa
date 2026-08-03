@@ -53,6 +53,18 @@ called this "near-noise"; that was WRONG (see below).
 ⇒ SpliceAI's exon call is DOMINATED by the composition counter, but there IS a small genuine
 non-compositional finite-state-ish signal, and E-L\* only captures a sliver — room to push.
 
+### Confirmed on a CLEAN target (per-length residual, 2026-07-31)
+Re-ran E-L\* on the length-robust `PerLengthResidualOracle` (generic BoW, balanced across the
+query-length range) at finer eps (mss 0.06 → eps 0.032). The **round-0** DFA (30 states),
+re-rooted + composition-controlled on the clean len-95 target:
+- agreement 0.549 vs independence 0.504 → z=9.1; 2×2 χ² p=6e-20; **φ=0.091**.
+- composition-controlled LR (DFA beyond CpG+stops): χ²=70.8, **p=3.9e-17**, DFA coef +0.34.
+So on a *clean* target at *round 0* the signal is slightly STRONGER than the contaminated
+round-1 result (φ 0.081→0.091), confirming it's real and that cleaning + finer eps help.
+Round 1 exploded to **404 states** (finer eps on a signal-rich clean target) but the run died
+mid-enrichment before saving; the states are hub-and-spoke/starved (2 bulk states + ~400
+satellites with 1–7 prefixes each), so pushing further needs more prefixes to avoid starvation.
+
 ### Residual-oracle LENGTH BUG (fix before pushing)
 `CompositionResidualOracle` fits at `ref_len` with FREQUENCY features → composition removal only
 holds at the fit length. len 95 (fit): CpG −0.015, accept 0.50 (clean). len 140/190: CpG +0.13/+0.14,
