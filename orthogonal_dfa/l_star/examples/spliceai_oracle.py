@@ -1,23 +1,3 @@
-r"""An E-L\* membership oracle backed by a splice model (e.g. SpliceAI).
-
-:class:`SpliceModelOracle` is only a **batching / format adapter**: it takes E-L\*'s
-ragged ``List[List[int]]`` queries (variable-length middles over {A,C,G,T}), wraps
-each with the exon's fixed flanks, right-pads the batch to a rectangle, chunks it,
-and returns a numpy bool array. It does no model evaluation and no calibration of
-its own -- those live in the ``scorer`` you pass in.
-
-A ``scorer`` is any callable ``(wrapped, lengths) -> np.ndarray[bool]`` where
-``wrapped`` is the padded ``(n, width)`` int array of flank+middle+flank sequences
-and ``lengths`` is the ``(n,)`` array of middle lengths. Build a calibrated SpliceAI
-scorer with :func:`calibrated_spliceai_scorer` (the calibration -- i.e. the accept
-threshold -- is computed outside the oracle, e.g. via :func:`median_threshold`)::
-
-    model = load_spliceai(400, 0)
-    threshold = median_threshold(model, exon, length=95)   # calibrate OUTSIDE
-    scorer = calibrated_spliceai_scorer(model, threshold)  # model + calibration
-    oracle = SpliceModelOracle(exon, scorer)               # just batching
-"""
-
 from typing import Callable, List
 
 import numpy as np
@@ -25,19 +5,12 @@ import numpy as np
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.structures import Oracle
 
-# A scorer maps a padded batch of wrapped sequences + their middle lengths to a
-# per-sequence hard accept/reject call.
+# (wrapped [n, width] int, middle lengths [n]) -> accept mask [n] bool
 Scorer = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 
 def wrap_with_flanks(flank_l, flank_r, strings):
-    """Right-pad a ragged batch of middles wrapped in the flanks to a rectangle.
-
-    Returns ``(wrapped, lengths)`` where ``wrapped`` is ``(n, width)`` int64 with
-    each row ``flank_l + middle + flank_r`` followed by ``0`` padding, and
-    ``lengths`` is the ``(n,)`` array of middle lengths. Padding sits after
-    ``flank_r`` so a convolutional splice model's boundary outputs are unaffected.
-    """
+    """Wrap each middle as flank_l+middle+flank_r, right-pad to a rectangle, and return (wrapped, middle_lengths)."""
     lengths = np.array([len(s) for s in strings], dtype=np.int64)
     flank = len(flank_l) + len(flank_r)
     width = int(flank + (lengths.max() if len(strings) else 0))
@@ -49,12 +22,7 @@ def wrap_with_flanks(flank_l, flank_r, strings):
 
 
 class SpliceModelOracle(Oracle):
-    r"""Batching/format adapter turning a calibrated ``scorer`` into an E-L\* oracle.
-
-    Wraps each queried middle with the exon flanks, right-pads ragged batches,
-    chunks, and converts to/from numpy -- nothing else. All model evaluation and
-    calibration lives in ``scorer`` (see the module docstring).
-    """
+    r"""E-L\* oracle that only batches: it wraps/pads/chunks queries and defers scoring to ``scorer``."""
 
     def __init__(self, exon: RawExon, scorer: Scorer, *, chunk: int = 8192):
         trim = exon.cl // 2 + 2
@@ -86,16 +54,8 @@ class SpliceModelOracle(Oracle):
         return bool(self.membership_queries([string])[0])
 
 
-# -- SpliceAI scorer + calibration (external to the oracle) --------------------
-
-
 def spliceai_exon_scores(model, wrapped: np.ndarray, lengths: np.ndarray) -> np.ndarray:
-    """Continuous exon score for each wrapped sequence: the mean of the acceptor
-    logit at the 5' boundary (output position 0) and the donor logit at the 3'
-    boundary (output position ``len(middle)+3``). Mirrors
-    :func:`orthogonal_dfa.oracle.run_model.compute_exon_scores`, but gathers the
-    donor position per row (it shifts with the middle length in a ragged batch).
-    """
+    """Exon score per wrapped sequence: mean of the acceptor logit at output position 0 and the donor logit at len(middle)+3."""
     import torch
 
     from orthogonal_dfa.oracle.run_model import batched_run
@@ -110,7 +70,7 @@ def spliceai_exon_scores(model, wrapped: np.ndarray, lengths: np.ndarray) -> np.
 
 
 def calibrated_spliceai_scorer(model, threshold: float) -> Scorer:
-    """A scorer with calibration built in: SpliceAI exon score > ``threshold``."""
+    """Scorer that accepts when the SpliceAI exon score exceeds ``threshold``."""
 
     def scorer(wrapped, lengths):
         return spliceai_exon_scores(model, wrapped, lengths) > threshold
@@ -119,10 +79,7 @@ def calibrated_spliceai_scorer(model, threshold: float) -> Scorer:
 
 
 def median_threshold(model, exon: RawExon, length: int, *, count=20000, seed=0xCA11B):
-    """Calibration (done outside the oracle): the median exon score over ``count``
-    random length-``length`` middles, so a scorer thresholding above it accepts
-    ~50%. The exon score drifts with middle length, hence calibrating per length.
-    """
+    """Median exon score over ``count`` random length-``length`` middles (per-length since the score drifts with length)."""
     rng = np.random.default_rng(seed)
     mids = rng.integers(0, 4, size=(count, length)).tolist()
     trim = exon.cl // 2 + 2
