@@ -438,21 +438,14 @@ class TestGiveUpThreshold(unittest.TestCase):
         # suffixes), so we only check the upper bound.
         self.assertLess(empirical_failure_rate, failure_prob + 0.02)
 
-    def test_does_not_give_up_when_prefixes_are_more_skewed_than_min_acc_rej(self):
-        """``min_acc_rej`` has to lower-bound the prefix accept/reject balance.
+    def _spurious_give_up_rate(self, balance, min_acc_rej, *, num_trials=300):
+        """How often the check fires on prefixes that all carry full signal.
 
-        ``p_same`` uses ``8 * min_acc_rej * (1 - min_acc_rej) * s**2``, a term
-        the derivation obtains by minimising over ``p_acc``.  It is a config
-        constant, never measured, so a target whose prefixes are more skewed
-        than it makes the term too large, the threshold too high, and the check
-        gives up on prefixes carrying full signal.
-
-        CAPAL's Simple05 is the case in hand: it accepts 92.3% of length-40
-        strings, a balance of 0.077 against the SearchConfig default of 0.1.
+        ``balance`` is the true share of the smaller class; ``min_acc_rej`` is
+        what the check is told to assume about it.
         """
         signal_strength, num_prefixes, num_suffixes, r = 0.40, 200, 958, 0.02
-        center, min_acc_rej = 0.5, DEFAULT_MIN_ACC_REJ
-        balance = 0.077
+        center = 0.5
         p_accept, p_reject = center + signal_strength, center - signal_strength
         empirical_pos = (1 - balance) * p_accept + balance * p_reject
 
@@ -467,7 +460,6 @@ class TestGiveUpThreshold(unittest.TestCase):
         self.assertIsNotNone(result, "k too small")
         k, threshold = result
 
-        num_trials = 300
         rng = np.random.default_rng(42)
         failures = 0
         for _ in range(num_trials):
@@ -483,10 +475,25 @@ class TestGiveUpThreshold(unittest.TestCase):
             agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
             if np.sort(agreements)[-k:].mean() <= threshold:
                 failures += 1
+        return failures / num_trials
 
-        # Every prefix here carries the full signal, so the check should almost
-        # never fire -- it claims a 0.01 failure probability.
-        self.assertLess(failures / num_trials, 0.03, f"k={k} threshold={threshold:.4f}")
+    @parameterized.expand([(0.02,), (0.03,), (0.077,), (0.2,), (0.5,)])
+    def test_default_bound_holds_for_everything_preconditions_admit(self, balance):
+        """``satisfies_preconditions`` rejects anything below
+        ``DEFAULT_MIN_ACC_REJ``, so every target that reaches the learner is at
+        least this balanced and must not be given up on for lack of signal it
+        has.  0.077 is CAPAL's Simple05."""
+        rate = self._spurious_give_up_rate(balance, DEFAULT_MIN_ACC_REJ)
+        self.assertLess(rate, 0.03, f"balance={balance}")
+
+    def test_gives_up_spuriously_once_the_bound_is_violated(self):
+        """The check is only sound while ``min_acc_rej`` really does bound the
+        balance: ``p_same`` adds ``8 * min_acc_rej * (1 - min_acc_rej) * s**2``,
+        a term the derivation gets by minimising over ``p_acc``.  Told 0.1 about
+        prefixes that are actually at 0.077, it gives up on full signal -- which
+        is why the precondition band exists rather than a larger constant.
+        """
+        self.assertGreater(self._spurious_give_up_rate(0.077, 0.1), 0.10)
 
     def test_gives_up_with_no_signal(self):
         """With p_0 = p_1 = 0.5 (pure coin-flip), the oracle has no signal.
