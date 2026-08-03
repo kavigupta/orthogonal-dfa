@@ -6,17 +6,13 @@ decide where an edge *goes*, because that needs the oracle.  This does: it sifts
 the family can place.
 
 Any member will do -- the tree is consistent, so every member of a leaf resolves
-the same edge -- which is the whole point of not stopping at the access string.
-An earlier version sifted only ``access[state] + [symbol]`` and left the edge to
-a self-loop when that one string happened to be indecisive, wrecking the exported
-DFA even when the tree was correct.  Only an edge whose *entire* leaf is
-indecisive is genuinely unresolvable.
+the same edge.  That is why it does not stop at the access string: one
+indecisive continuation would otherwise strand an edge the leaf as a whole can
+place.  Only an edge whose *entire* leaf is indecisive is unresolvable.
 """
 
 from typing import List, Optional, Tuple
 
-#: Pool prefixes a leaf-membership scan sifts per batched pass.
-MEMBER_SCAN_BLOCK = 128
 #: Leaf members to try before giving an edge up as unresolvable.
 MAX_EDGE_TRIES = 30
 
@@ -29,12 +25,11 @@ class EdgeResolver:
     so the next round's family is forced to resolve them.
     """
 
-    def __init__(self, pst, partial, sifter, indecisive, *, max_tries: int):
+    def __init__(self, pst, partial, sifter, indecisive):
         self.pst = pst
         self.dfa = partial
         self.sifter = sifter
         self.indecisive = indecisive
-        self._max_tries = max_tries
 
     # -- opening the queue ---------------------------------------------------
 
@@ -56,15 +51,9 @@ class EdgeResolver:
 
     # -- resolving -----------------------------------------------------------
 
-    def leaf_members(
-        self, state: int, *, limit: Optional[int] = None
-    ) -> List[List[int]]:
-        """Pool prefixes that sift to ``state``."""
+    def leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
         return self.sifter.leaves_of(
-            [list(p) for p in self.pst.table.prefixes],
-            state,
-            limit=limit,
-            block=MEMBER_SCAN_BLOCK,
+            [list(p) for p in self.pst.table.prefixes], state, limit=limit
         )
 
     def find_access(self, state: int) -> Optional[List[int]]:
@@ -87,7 +76,7 @@ class EdgeResolver:
         access = self.dfa.access.get(state)
         if access is not None:
             candidates.append(access)
-        candidates.extend(self.leaf_members(state, limit=self._max_tries))
+        candidates.extend(self.leaf_members(state, limit=MAX_EDGE_TRIES))
         seen, tries = set(), 0
         for member in candidates:
             key = tuple(member)
@@ -100,7 +89,7 @@ class EdgeResolver:
             # This successor is a boundary string the family cannot place.
             self.indecisive.add(boundary)
             tries += 1
-            if tries >= self._max_tries:
+            if tries >= MAX_EDGE_TRIES:
                 break
         return None, None
 

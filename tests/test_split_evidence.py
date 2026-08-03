@@ -53,9 +53,10 @@ class _StubFamily:
             return False
         return None
 
-    def is_accept(self, seq, distinguisher, extra_margin=0.0):
-        del distinguisher, extra_margin
-        return self.side_of(list(seq))
+    def separates(self, s, sprime, distinguisher, *, margin):
+        del distinguisher, margin
+        first, second = self.side_of(list(s)), self.side_of(list(sprime))
+        return first is not None and second is not None and first != second
 
 
 def _pst():

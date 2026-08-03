@@ -13,7 +13,6 @@ from typing import Any, Callable, Optional
 import numpy as np
 
 from .fnr_synthesis import synthesize_direct_lstar_fnr
-from .lstar import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
 from .statistics import (
@@ -28,9 +27,8 @@ DEFAULT_SAMPLE_LENGTH = 40
 #: Accuracy the synthesis loop drives the hypothesis to before stopping.
 DEFAULT_ACC_THRESHOLD = 0.98
 
-#: Prefixes to start from, and counterexamples to add per synthesis round.
+#: Prefixes to start from.
 NUM_PREFIXES = 200
-NUM_ADDITIONAL_COUNTEREXAMPLES = 200
 
 
 def build_pst(
@@ -85,17 +83,12 @@ def learn_dfa(
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
-    use_direct_lstar: bool = True,
 ):
     """Learn a DFA from `oracle_creator`, and return it.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
     Returns None when synthesis produced no hypothesis.
-
-    `use_direct_lstar` picks the transition-driven direct-L* learner over the
-    statistical TransitionResolver pipeline (E-L*).  It is the default so the
-    whole benchmark suite exercises direct-L* on CI; pass False for E-L*.
     """
     pst = build_pst(
         oracle_creator,
@@ -105,12 +98,5 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sample_length=sample_length,
     )
-    if use_direct_lstar:
-        dfa, _ = synthesize_direct_lstar_fnr(pst, acc_threshold=acc_threshold)
-    else:
-        dfa, _ = do_counterexample_driven_synthesis(
-            pst,
-            additional_counterexamples=NUM_ADDITIONAL_COUNTEREXAMPLES,
-            acc_threshold=acc_threshold,
-        )
+    dfa, _ = synthesize_direct_lstar_fnr(pst, acc_threshold=acc_threshold)
     return dfa

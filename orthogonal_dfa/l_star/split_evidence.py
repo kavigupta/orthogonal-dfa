@@ -260,9 +260,8 @@ class SplitEvidence:
         return max(0.0, z * sigma_d / 2 - self.pst.evidence_margin)
 
     def _pair_splits(self, s, sprime, distinguisher) -> bool:
-        """Whether ``s`` and ``sprime`` land on opposite *decisive* sides of
-        ``distinguisher`` with the :meth:`_starved_split_margin`."""
-        margin = self._starved_split_margin()
-        d = self.family.is_accept(s, distinguisher, extra_margin=margin)
-        dprime = self.family.is_accept(sprime, distinguisher, extra_margin=margin)
-        return d is not None and dprime is not None and d != dprime
+        """The starved-leaf fallback: the pair itself must separate, at the
+        :meth:`_starved_split_margin` standard of evidence."""
+        return self.family.separates(
+            s, sprime, distinguisher, margin=self._starved_split_margin()
+        )

@@ -33,7 +33,7 @@ from typing import List, Optional, Set, Tuple
 
 from automata.fa.dfa import DFA
 
-from .edge_resolver import MAX_EDGE_TRIES, EdgeResolver
+from .edge_resolver import EdgeResolver
 from .midfix_tree import MidfixTree
 from .partial_dfa import PartialDFA
 from .sifting import Sifter
@@ -90,9 +90,7 @@ class DirectLStarLearner:
         # it.  The resolver harvests boundary strings into ``indecisive``.
         self.sifter = Sifter(self.tree, self.family)
         self.indecisive: Set[Tuple[int, ...]] = set()
-        self.edges = EdgeResolver(
-            pst, self.dfa, self.sifter, self.indecisive, max_tries=MAX_EDGE_TRIES
-        )
+        self.edges = EdgeResolver(pst, self.dfa, self.sifter, self.indecisive)
 
         # The sequential population test: it accumulates each leaf's members and
         # says whether a proposed distinguisher splits it.
@@ -312,14 +310,9 @@ class DirectLStarLearner:
 def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, DecisionTree]:
     """The learned automaton as ``(DFA, DecisionTree)``.
 
-    ``decisive_target(state, symbol)`` resolves an edge the worklist left open,
-    returning ``None`` when the leaf is wholly indecisive.
-
-    Any edge the worklist left open is filled from a decisive leaf member rather
-    than by sifting only the access string -- a single indecisive access
-    continuation used to fall back to a bogus self-loop, wrecking the exported
-    DFA even when the tree was correct.  Only an edge whose *entire* leaf is
-    indecisive still self-loops."""
+    ``decisive_target(state, symbol)`` fills an edge the worklist left open,
+    returning ``None`` when the leaf is wholly indecisive -- only such an edge
+    self-loops."""
     transitions, unresolved = partial.totalise(range(tree.num_states), decisive_target)
     for state, c in unresolved:
         print(

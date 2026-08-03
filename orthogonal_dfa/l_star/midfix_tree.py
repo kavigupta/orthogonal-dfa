@@ -65,7 +65,6 @@ class MidfixTree:
         return self._root
 
     def leaves(self) -> Iterator[int]:
-        """Every state id in the tree."""
         return _leaves(self._root)
 
     def accepting_leaves(self) -> set:

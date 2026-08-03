@@ -7,6 +7,9 @@ resolver need it, so it lives here rather than in either of them.
 
 from typing import List, Optional, Tuple
 
+#: Strings a pool scan sifts per batched pass.
+SCAN_BLOCK = 128
+
 
 class Sifter:
     """Routes strings through ``tree``, classifying with ``family``."""
@@ -21,7 +24,6 @@ class Sifter:
         return self.tree.sift(seq, self.family.is_accept)
 
     def sift(self, seq) -> Optional[int]:
-        """The leaf ``seq`` reaches, or ``None`` if any node is indecisive."""
         leaf, _ = self.sift_and_boundary(seq)
         return leaf
 
@@ -41,7 +43,7 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
     def leaves_of(
-        self, prefixes, state: int, *, limit: Optional[int], block: int
+        self, prefixes, state: int, *, limit: Optional[int]
     ) -> List[List[int]]:
         """Those of ``prefixes`` that sift to ``state``, scanned a block at a time.
 
@@ -49,8 +51,8 @@ class Sifter:
         block overshoots ``limit`` by at most its own size, and that work only
         warms the cache the next scan reads back."""
         out: List[List[int]] = []
-        for i in range(0, len(prefixes), block):
-            chunk = prefixes[i : i + block]
+        for i in range(0, len(prefixes), SCAN_BLOCK):
+            chunk = prefixes[i : i + SCAN_BLOCK]
             self.prefill(chunk)
             for p in chunk:
                 if self.sift(p) == state:

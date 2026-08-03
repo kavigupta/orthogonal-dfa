@@ -103,11 +103,11 @@ class _Best:
 class _StallDetector:
     """Stops a run that has started repeating itself.
 
-    Some targets are unlearnable with a fixed-length prefix sampler (transient
-    states it never lands on, #128).  The FNR gate then finds no new boundary
-    strings and the round is a byte-for-byte repeat of the last, so the remaining
-    rounds would burn queries for nothing.  Two consecutive rounds with no new
-    states, no accuracy gain and no new boundary strings confirm the fixpoint."""
+    A fixed-length prefix sampler cannot reach every target's transient states,
+    and when it cannot, the FNR gate finds no new boundary strings and the round
+    repeats the last one exactly.  Two consecutive rounds with no new states, no
+    accuracy gain and no new boundary strings confirm that fixpoint, so the
+    remaining rounds are not spent on it."""
 
     def __init__(self, patience: int):
         self._patience = patience
@@ -133,10 +133,8 @@ def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_
     disagreements (the equivalence-oracle role).  Its binary search homes in on
     the errors, which sit at boundary states, so it *also* harvests the boundary
     (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
-    probe need not end at the boundary.  That is why one pass is enough: an
-    earlier design verified the closed hypothesis over the whole pool as well,
-    and dropping that brought the substring case to E-L* query parity with no
-    loss of convergence across seeds."""
+    probe need not end at the boundary.  One pass therefore both finds the splits
+    and gathers what the next round's family must resolve."""
     learner = DirectLStarLearner(
         pst, vs, split_fpr=split_fpr, split_miss_rate=split_miss_rate
     )

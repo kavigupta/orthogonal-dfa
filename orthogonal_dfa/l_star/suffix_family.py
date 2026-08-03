@@ -57,19 +57,29 @@ class SuffixFamily:
         self._means[key] = value
         return value
 
-    def is_accept(self, seq, midfix, extra_margin: float = 0.0) -> Optional[bool]:
+    def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
         ``None`` in the indecisive band between them.  That band is what keeps a
-        single leaf from being split twice on the same noise.
+        single leaf from being split twice on the same noise."""
+        return self._decide(self.mean(seq, midfix), margin=0.0)
 
-        ``extra_margin`` widens the band symmetrically, for a caller that wants a
-        higher standard of evidence (e.g. before committing a split, so a
-        noise-flipped membership cannot manufacture a distinguisher)."""
-        value = self.mean(seq, midfix)
-        if value >= self.pst.accept_thresh + extra_margin:
+    def separates(self, s, sprime, midfix, *, margin: float) -> bool:
+        """Whether ``s`` and ``sprime`` land on opposite *decisive* sides of
+        ``midfix``, judged with the band widened by ``margin``.
+
+        The widening is a higher standard of evidence than an ordinary sift: this
+        answers a question a split is about to be committed on, so a
+        noise-flipped membership must not be able to manufacture a
+        distinguisher."""
+        first = self._decide(self.mean(s, midfix), margin=margin)
+        second = self._decide(self.mean(sprime, midfix), margin=margin)
+        return first is not None and second is not None and first != second
+
+    def _decide(self, value: float, *, margin: float) -> Optional[bool]:
+        if value >= self.pst.accept_thresh + margin:
             return True
-        if value < self.pst.reject_thresh - extra_margin:
+        if value < self.pst.reject_thresh - margin:
             return False
         return None
 
