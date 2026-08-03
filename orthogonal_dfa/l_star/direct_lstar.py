@@ -194,6 +194,12 @@ class DirectLStarLearner:
                 state = self.dfa.transitions[state][c]
                 verified = False
                 continue
+            # The worklist resolves an edge from ``access[state] + [c]``, which a
+            # transient state has no usable access string for -- so those edges
+            # stay open and only a probe that actually walks through them can
+            # close them (#128).  Looks dead on targets whose edges the worklist
+            # can all close; test_transient_states_terminate is the one that
+            # notices when it is removed.
             nxt, boundary = self.sifter.sift_and_boundary(w[: i + 1])
             if nxt is None:
                 self.indecisive.add(boundary)  # boundary: seq + bail prepend
