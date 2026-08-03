@@ -158,18 +158,23 @@ class DirectLStarLearner:
         return self._first_disagreement(w, states, lo, mid)
 
     def process(self, w: List[int]) -> int:
-        """Walk one probe string: discover transitions, record the leaves its
-        prefixes reach, and act on the first internal disagreement it exposes.
+        """Walk one probe string through the cached transitions, recording the
+        leaves its prefixes reach, and act on the first disagreement it exposes.
 
         Returns ``_SPLIT`` when the disagreement's leaf bifurcated decisively (a
         split was applied), ``_UNDECIDED`` when the population evidence is not yet
         conclusive either way (the leaf stays open so more members accumulate), and
         ``_RESOLVED`` otherwise -- a clean probe, or the leaf accepted as a single
         state at this distinguisher.
+
+        The walk only *follows* edges; the worklist is what resolves them, and it
+        has closed the hypothesis before any probing.  An edge it could not close
+        is one no member of the leaf can place, so there is nothing to compare the
+        walk against and the probe carries no information.
         """
         w = list(w)
         state: Optional[int] = None
-        verified = False
+        sifted_here = False
         agree_point: Optional[int] = None
         states: List[Optional[int]] = []
         for i in range(len(w)):  # pylint: disable=consider-using-enumerate
@@ -179,32 +184,23 @@ class DirectLStarLearner:
                     self.indecisive.add(boundary)  # boundary: seq + bail prepend
                 else:
                     self.splits.record(state, w[:i])
-                verified = True
+                sifted_here = True
             states.append(state)
             if state is None:
                 continue
             if agree_point is None:
                 agree_point = i
-            if verified and state not in self.dfa.access:
+            # Only an access string reached by a real sift genuinely sifts to
+            # ``state``; a followed edge proves nothing about the prefix.
+            if sifted_here and state not in self.dfa.access:
                 self.dfa.access[state] = w[:i]
-            c = w[i]
-            if c in self.dfa.transitions[state]:
-                # Fast path: trust the cached edge.  If it is wrong, the mismatch
-                # against the direct sift below is exactly the signal we want.
-                state = self.dfa.transitions[state][c]
-                verified = False
-                continue
-            nxt, boundary = self.sifter.sift_and_boundary(w[: i + 1])
-            if nxt is None:
-                self.indecisive.add(boundary)  # boundary: seq + bail prepend
-            else:
-                self.splits.record(nxt, w[: i + 1])
-                if verified:
-                    # Only record an edge whose source was reached by a real sift,
-                    # so the witness w[:i] genuinely sifts to ``state``.
-                    self.dfa.set_edge(state, c, nxt, w[:i])
-            state = nxt
-            verified = True
+            target = self.dfa.target(state, w[i])
+            if target is None:
+                return _RESOLVED  # unresolved edge; nothing to compare against
+            # Trust the cached edge.  If it is wrong, the mismatch against the
+            # direct sift of the whole probe is exactly the signal we want.
+            state = target
+            sifted_here = False
         states.append(state)
         return self._act_on_disagreement(w, states, agree_point)
 
