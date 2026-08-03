@@ -46,8 +46,8 @@ def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
 
 def _take_indecisive(learner, target: int) -> List[List[int]]:
     """Up to ``target`` of the boundary strings the learner bumped into while
-    building the DFA (``learner.indecisive``) -- no separate search; these arise
-    naturally from transition resolution and consistency checking."""
+    building the DFA.  No separate search for them: resolving an edge sifts
+    ``member + symbol``, and the ones the family cannot place are exactly these."""
     return [list(t) for t in list(learner.indecisive)[:target]]
 
 
@@ -64,8 +64,8 @@ def _grow_representative_pool(
 ) -> None:
     """Accumulate this round's boundary strings (capped) into ``accumulated`` /
     ``seen``, then rebuild the table's representative set as those boundary
-    strings (which drive the FNR gate) plus a capped per-state balanced sample
-    (bounded coverage for the consistency check)."""
+    strings -- which drive the FNR gate -- plus a capped per-state balanced
+    sample, so the population stays spread across the states."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(learner, target):
         key = tuple(t)
@@ -133,17 +133,16 @@ def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_
     disagreements (the equivalence-oracle role).  Its binary search homes in on
     the errors, which sit at boundary states, so it *also* harvests the boundary
     (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
-    probe need not end at the boundary.  This subsumes the separate consistency
-    check (pool verification + boundary sweep): dropping it brings the substring
-    case to E-L* query parity with no loss of convergence across seeds."""
+    probe need not end at the boundary.  That is why one pass is enough: an
+    earlier design verified the closed hypothesis over the whole pool as well,
+    and dropping that brought the substring case to E-L* query parity with no
+    loss of convergence across seeds."""
     learner = DirectLStarLearner(
         pst, vs, split_fpr=split_fpr, split_miss_rate=split_miss_rate
     )
     learner.init_worklist()
     learner.run_worklist()
-    learner.counterexample_pass(
-        max_probes=max_probes, patience=patience, boundary_target=10**9
-    )
+    learner.counterexample_pass(max_probes=max_probes, patience=patience)
     learner.run_worklist()
     dfa, dt = learner.to_dfa_and_tree()
     return learner, dfa, dt

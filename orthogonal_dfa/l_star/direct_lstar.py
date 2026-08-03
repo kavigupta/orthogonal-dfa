@@ -29,7 +29,7 @@ learner knows nothing about.
 as ``resolve_dfa``, so it is a drop-in alternative.
 """
 
-from typing import Callable, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 from automata.fa.dfa import DFA
 
@@ -62,7 +62,9 @@ class DirectLStarLearner:
     vs:
         Row indices (into ``pst.table``) of the base suffix family -- the
         distinguishers for the root accept/reject split.  Obtain them with
-        :func:`sample_suffix_family` (see :func:`learn_direct_lstar`).
+        :func:`~orthogonal_dfa.l_star.cluster.sample_suffix_family`; the round
+        driver in :mod:`orthogonal_dfa.l_star.fnr_synthesis` resamples them each
+        round.
     """
 
     def __init__(
@@ -269,19 +271,14 @@ class DirectLStarLearner:
             self.sifter.prefill(block)
             yield from block
 
-    def counterexample_pass(
-        self, *, max_probes: int, patience: int, boundary_target: int
-    ) -> int:
-        """Targeted alternative to the full-membership escalation.
+    def counterexample_pass(self, *, max_probes: int, patience: int) -> int:
+        """Hunt counterexamples until they dry up.  Returns the split count.
 
-        Sample strings and walk each through :meth:`process`: a walk that
-        disagrees with a direct sift exposes a split (found and applied at the
-        break point), and every ``sift -> None`` prefix it passes is collected as
-        a boundary string (into ``self.indecisive``).  Bails as soon as *either*
-        condition the caller cares about is met: counterexamples have dried up
-        (``patience`` consecutive clean probes) *or* enough boundary strings have
-        been gathered to feed the next round's FNR step.  Returns the split count.
-        """
+        Each sampled string is walked through :meth:`process`: a walk that
+        disagrees with a direct sift exposes a split, applied at the break point,
+        and every ``sift -> None`` prefix it passes is collected as a boundary
+        string.  Stops after ``patience`` consecutive clean probes -- see
+        :func:`fnr_synthesis._default_patience` for what that buys."""
         splits = 0
         since_split = 0
         for w in self._probe_blocks(max_probes):
@@ -294,7 +291,7 @@ class DirectLStarLearner:
                 since_split = 0  # a leaf is still resolving -- keep sifting it
             else:
                 since_split += 1
-            if since_split >= patience or len(self.indecisive) >= boundary_target:
+            if since_split >= patience:
                 break
         return splits
 
@@ -350,15 +347,3 @@ def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, Decisi
         allow_partial=False,
     )
     return dfa, dt
-
-
-# ---------------------------------------------------------------------------
-# Refinement -- the replaceable part of the outer loop.
-# ---------------------------------------------------------------------------
-#
-# A ``Refiner`` is called once per round when the current hypothesis is not yet
-# accurate enough.  It may add informative prefixes to ``pst.table`` (side
-# effect) and returns a list of *probe strings* for the next round's learner to
-# walk.  Returning an empty list (and adding nothing) signals convergence /
-# giving up, and the outer loop stops.
-Refiner = Callable[..., List[List[int]]]
