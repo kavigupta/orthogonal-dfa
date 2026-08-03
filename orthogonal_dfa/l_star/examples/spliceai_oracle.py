@@ -10,6 +10,11 @@ from orthogonal_dfa.l_star.structures import Oracle
 # (model output tensor, middle lengths tensor) -> accept mask bool tensor
 Readout = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
+# Each flank keeps this many bases beyond the model's cl/2 half-context (matching
+# data.sample_text's trim_zone = cl//2 + 2), so the output spans len(middle) +
+# 2*FLANK_MARGIN positions: the acceptor is the first, the donor the last.
+FLANK_MARGIN = 2
+
 
 def wrap_with_flanks(flank_l, flank_r, strings):
     """Wrap each middle as flank_l+middle+flank_r, right-pad to a rectangle, and return (wrapped, middle_lengths)."""
@@ -37,7 +42,7 @@ class SpliceModelOracle(Oracle):
             if device is not None
             else next(model.parameters()).device
         )
-        trim = exon.cl // 2 + 2
+        trim = exon.cl // 2 + FLANK_MARGIN
         self._flank_l = np.array(exon.text[:trim], dtype=np.int64)
         self._flank_r = np.array(exon.text[-trim:], dtype=np.int64)
         self._length = exon.random_text_length
@@ -69,11 +74,11 @@ class SpliceModelOracle(Oracle):
 
 
 def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    """Exon score per sequence: mean of the acceptor logit at output position 0 and the donor logit at len(middle)+3."""
+    """Exon score per sequence: mean of the acceptor logit at the first output position and the donor logit at the last."""
     lyp = logits.log_softmax(-1)
     rows = torch.arange(len(lyp), device=lyp.device)
     acc = lyp[rows, 0, 1]
-    don = lyp[rows, lengths + 3, 2]
+    don = lyp[rows, lengths + 2 * FLANK_MARGIN - 1, 2]
     return torch.stack([acc, don], -1).mean(-1)
 
 
@@ -97,7 +102,7 @@ def median_threshold(
     device = (
         torch.device(device) if device is not None else next(model.parameters()).device
     )
-    trim = exon.cl // 2 + 2
+    trim = exon.cl // 2 + FLANK_MARGIN
     flank_l = np.array(exon.text[:trim], dtype=np.int64)
     flank_r = np.array(exon.text[-trim:], dtype=np.int64)
     rng = np.random.default_rng(seed)
