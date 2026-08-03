@@ -174,8 +174,25 @@ counter:** SpliceAI CpG +0.54/stops −0.50; FM CpG +0.26/−0.23 (tracks it at 
 `SpliceAI−FM` still CpG +0.39/−0.36. So SpliceAI is "more of a counter" than fixed-motifs, and
 differencing amplifies rather than cancels composition. ⇒ Idea 2 would likely hit the same
 counter/reachability wall; **Idea 3 removes the counter far more cleanly (BoW R²=0.73)**.
-Decision pending: still run E-L\* on SpliceAI\FM (17.5% accept, rebalanced) or skip in favor of Idea 3.
 Files: `scratchpad/fm_compare.py`. FM load recipe in memory/this doc.
+
+**CORRECTION (2026-08-03): idea 2 is NOT empty — E-L\* missed real structure.** The two
+set-diff runs both gave only the trivial 2-state {reject-all/accept-all} DFA, which I wrongly
+read as "no signal". But an E-L\*-independent variance decomposition of the (prefix x suffix)
+membership matrix shows BOTH contrasts have substantial re-rootable PREFIX structure:
+plain SpliceAI\FM prefix-explained = **0.192**, residualized = **0.188** (noise floor 0.004;
+idea-3 residual 0.30). E-L\* failed to capture it for two different reasons:
+- **plain**: stopped at 2 states because the trivial DFA hit `acc_threshold=0.9` (82%-reject
+  target inflates the internal estimate to 0.94 -> "achieved desired accuracy, stopping"). Never
+  searched. Fix: `acc_threshold~=0.98`.
+- **residualized**: ran multiple rounds WITHOUT the threshold artifact (estimate 0.59) and STILL
+  found only 2 states -> genuine state-discovery failure despite 18.8% structure present. Likely
+  because the set-difference `a AND NOT b` is a conjunction of two boundary thresholds -> doubly
+  noisy per mask cell, so the suffix-family clustering can't find discriminating families through
+  the noise (idea-3's single-threshold residual was cleaner -> 30-54 states). Fix: bigger suffix
+  families / lower mss.
+Caveat: residualized still carries composition (stops -0.30), so part of its 19% is leaked
+counter, not all non-compositional. Files: `scratchpad/setdiff_structure.py`.
 
 ### Round-0 results (all three idea-2/3 runs), 2026-07-30 [running, watching later rounds]
 All start at the trivial DFA (= L\* round 0). Real agreement vs each oracle's base rate:
