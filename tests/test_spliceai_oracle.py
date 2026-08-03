@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.spliceai_oracle import (
@@ -19,6 +20,20 @@ def wrapped_row(middle, width):
     return row + [0] * (width - len(row))
 
 
+class RecordingModel:
+    """Fake model recording the argmax-decoded one-hot input it is given."""
+
+    def __init__(self):
+        self.seen = []
+
+    def eval(self):
+        return self
+
+    def __call__(self, x):
+        self.seen.append(x.argmax(-1).cpu().numpy())
+        return x
+
+
 class TestWrapWithFlanks(unittest.TestCase):
     def test_wraps_pads_and_reports_lengths(self):
         strings = [[1, 2], [3], []]
@@ -34,31 +49,34 @@ class TestWrapWithFlanks(unittest.TestCase):
 
 class TestSpliceModelOracle(unittest.TestCase):
     def setUp(self):
-        self.calls = []
+        self.model = RecordingModel()
+        self.seen_lengths = []
 
-        def scorer(wrapped, lengths):
-            self.calls.append((wrapped.copy(), lengths.copy()))
+        def readout(logits, lengths):
+            self.seen_lengths.append(lengths.cpu().numpy())
             return lengths >= 2
 
-        self.scorer = scorer
+        self.readout = readout
+
+    def _oracle(self, **kw):
+        return SpliceModelOracle(EXON, self.model, self.readout, device="cpu", **kw)
 
     def test_alphabet_and_length(self):
-        oracle = SpliceModelOracle(EXON, self.scorer)
+        oracle = self._oracle()
         self.assertEqual(oracle.alphabet_size, 4)
         self.assertEqual(oracle.string_length, EXON.random_text_length)
 
     def test_membership_batching_and_wrapping(self):
-        oracle = SpliceModelOracle(EXON, self.scorer, chunk=2)
-        strings = [[1, 2], [3], [0, 1, 2, 3, 0], []]
-        result = oracle.membership_queries(strings)
+        oracle = self._oracle(chunk=2)
+        result = oracle.membership_queries([[1, 2], [3], [0, 1, 2, 3, 0], []])
 
         np.testing.assert_array_equal(result, [True, False, True, False])
         self.assertEqual(result.dtype, bool)
 
-        self.assertEqual(len(self.calls), 2)
-        (w0, l0), (w1, l1) = self.calls
-        np.testing.assert_array_equal(l0, [2, 1])
-        np.testing.assert_array_equal(l1, [5, 0])
+        self.assertEqual(len(self.model.seen), 2)
+        np.testing.assert_array_equal(self.seen_lengths[0], [2, 1])
+        np.testing.assert_array_equal(self.seen_lengths[1], [5, 0])
+        w0, w1 = self.model.seen
         self.assertEqual(w0.shape, (2, 10))
         self.assertEqual(w1.shape, (2, 13))
         np.testing.assert_array_equal(w0[0], wrapped_row([1, 2], 10))
@@ -66,7 +84,7 @@ class TestSpliceModelOracle(unittest.TestCase):
         np.testing.assert_array_equal(w1[1], wrapped_row([], 13))
 
     def test_membership_query_singular(self):
-        oracle = SpliceModelOracle(EXON, self.scorer)
+        oracle = self._oracle()
         self.assertTrue(oracle.membership_query([0, 0, 0]))
         self.assertFalse(oracle.membership_query([0]))
 

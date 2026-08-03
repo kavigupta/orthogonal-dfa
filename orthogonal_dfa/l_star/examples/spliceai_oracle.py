@@ -1,12 +1,14 @@
 from typing import Callable, List
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.structures import Oracle
 
-# (wrapped [n, width] int, middle lengths [n]) -> accept mask [n] bool
-Scorer = Callable[[np.ndarray, np.ndarray], np.ndarray]
+# (model output tensor, middle lengths tensor) -> accept mask bool tensor
+Readout = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
 def wrap_with_flanks(flank_l, flank_r, strings):
@@ -22,14 +24,23 @@ def wrap_with_flanks(flank_l, flank_r, strings):
 
 
 class SpliceModelOracle(Oracle):
-    r"""E-L\* oracle that only batches: it wraps/pads/chunks queries and defers scoring to ``scorer``."""
+    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (eval, no_grad, on ``device``), leaving the accept decision to ``readout``."""
 
-    def __init__(self, exon: RawExon, scorer: Scorer, *, chunk: int = 8192):
+    def __init__(
+        self, exon: RawExon, model, readout: Readout, *, device=None, chunk: int = 1024
+    ):
+        model.eval()
+        self._model = model
+        self._readout = readout
+        self._device = (
+            torch.device(device)
+            if device is not None
+            else next(model.parameters()).device
+        )
         trim = exon.cl // 2 + 2
         self._flank_l = np.array(exon.text[:trim], dtype=np.int64)
         self._flank_r = np.array(exon.text[-trim:], dtype=np.int64)
         self._length = exon.random_text_length
-        self._scorer = scorer
         self._chunk = chunk
 
     @property
@@ -43,49 +54,59 @@ class SpliceModelOracle(Oracle):
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
         out = np.empty(len(strings), dtype=bool)
         for i in range(0, len(strings), self._chunk):
-            batch = strings[i : i + self._chunk]
-            wrapped, lengths = wrap_with_flanks(self._flank_l, self._flank_r, batch)
-            out[i : i + self._chunk] = np.asarray(
-                self._scorer(wrapped, lengths), dtype=bool
+            wrapped, lengths = wrap_with_flanks(
+                self._flank_l, self._flank_r, strings[i : i + self._chunk]
             )
+            x = F.one_hot(torch.as_tensor(wrapped, device=self._device), 4).float()
+            lens = torch.as_tensor(lengths, device=self._device)
+            with torch.no_grad():
+                pred = self._readout(self._model(x), lens)
+            out[i : i + self._chunk] = pred.cpu().numpy().astype(bool)
         return out
 
     def membership_query(self, string: List[int]) -> bool:
         return bool(self.membership_queries([string])[0])
 
 
-def spliceai_exon_scores(model, wrapped: np.ndarray, lengths: np.ndarray) -> np.ndarray:
-    """Exon score per wrapped sequence: mean of the acceptor logit at output position 0 and the donor logit at len(middle)+3."""
-    import torch
-
-    from orthogonal_dfa.oracle.run_model import batched_run
-
-    with torch.no_grad():
-        lyp = batched_run(model, wrapped).log_softmax(-1)
-        rows = torch.arange(len(wrapped), device=lyp.device)
-        don_pos = torch.tensor(lengths + 3, device=lyp.device)
-        acc = lyp[rows, 0, 1]
-        don = lyp[rows, don_pos, 2]
-        return torch.stack([acc, don], -1).mean(-1).cpu().numpy()
+def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+    """Exon score per sequence: mean of the acceptor logit at output position 0 and the donor logit at len(middle)+3."""
+    lyp = logits.log_softmax(-1)
+    rows = torch.arange(len(lyp), device=lyp.device)
+    acc = lyp[rows, 0, 1]
+    don = lyp[rows, lengths + 3, 2]
+    return torch.stack([acc, don], -1).mean(-1)
 
 
-def calibrated_spliceai_scorer(model, threshold: float) -> Scorer:
-    """Scorer that accepts when the SpliceAI exon score exceeds ``threshold``."""
-
-    def scorer(wrapped, lengths):
-        return spliceai_exon_scores(model, wrapped, lengths) > threshold
-
-    return scorer
+def calibrated_spliceai_readout(threshold: float) -> Readout:
+    """Readout that accepts when the SpliceAI exon score exceeds ``threshold``."""
+    return lambda logits, lengths: spliceai_exon_scores(logits, lengths) > threshold
 
 
-def median_threshold(model, exon: RawExon, length: int, *, count=20000, seed=0xCA11B):
+def median_threshold(
+    model,
+    exon: RawExon,
+    length: int,
+    *,
+    count=20000,
+    seed=0xCA11B,
+    device=None,
+    chunk=1024
+):
     """Median exon score over ``count`` random length-``length`` middles (per-length since the score drifts with length)."""
-    rng = np.random.default_rng(seed)
-    mids = rng.integers(0, 4, size=(count, length)).tolist()
-    trim = exon.cl // 2 + 2
-    wrapped, lengths = wrap_with_flanks(
-        np.array(exon.text[:trim], dtype=np.int64),
-        np.array(exon.text[-trim:], dtype=np.int64),
-        mids,
+    model.eval()
+    device = (
+        torch.device(device) if device is not None else next(model.parameters()).device
     )
-    return float(np.median(spliceai_exon_scores(model, wrapped, lengths)))
+    trim = exon.cl // 2 + 2
+    flank_l = np.array(exon.text[:trim], dtype=np.int64)
+    flank_r = np.array(exon.text[-trim:], dtype=np.int64)
+    rng = np.random.default_rng(seed)
+    scores = []
+    for i in range(0, count, chunk):
+        mids = rng.integers(0, 4, size=(min(chunk, count - i), length)).tolist()
+        wrapped, lengths = wrap_with_flanks(flank_l, flank_r, mids)
+        x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
+        lens = torch.as_tensor(lengths, device=device)
+        with torch.no_grad():
+            scores.append(spliceai_exon_scores(model(x), lens).cpu().numpy())
+    return float(np.median(np.concatenate(scores)))
