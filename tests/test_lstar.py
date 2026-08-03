@@ -437,6 +437,56 @@ class TestGiveUpThreshold(unittest.TestCase):
         # suffixes), so we only check the upper bound.
         self.assertLess(empirical_failure_rate, failure_prob + 0.02)
 
+    def test_does_not_give_up_when_prefixes_are_more_skewed_than_min_acc_rej(self):
+        """``min_acc_rej`` has to lower-bound the prefix accept/reject balance.
+
+        ``p_same`` uses ``8 * min_acc_rej * (1 - min_acc_rej) * s**2``, a term
+        the derivation obtains by minimising over ``p_acc``.  It is a config
+        constant, never measured, so a target whose prefixes are more skewed
+        than it makes the term too large, the threshold too high, and the check
+        gives up on prefixes carrying full signal.
+
+        CAPAL's Simple05 is the case in hand: it accepts 92.3% of length-40
+        strings, a balance of 0.077 against the SearchConfig default of 0.1.
+        """
+        signal_strength, num_prefixes, num_suffixes, r = 0.40, 200, 958, 0.02
+        center, min_acc_rej = 0.5, 0.1
+        balance = 0.077
+        p_accept, p_reject = center + signal_strength, center - signal_strength
+        empirical_pos = (1 - balance) * p_accept + balance * p_reject
+
+        result = give_up_check(
+            signal_strength,
+            num_prefixes,
+            num_suffixes,
+            r,
+            min_acc_rej,
+            empirical_pos,
+        )
+        self.assertIsNotNone(result, "k too small")
+        k, threshold = result
+
+        num_trials = 300
+        rng = np.random.default_rng(42)
+        failures = 0
+        for _ in range(num_trials):
+            true_labels = rng.random(num_prefixes) < 1 - balance
+            p_per_prefix = np.where(true_labels, p_accept, p_reject)
+            seed_obs = rng.random(num_prefixes) < p_per_prefix
+
+            is_idempotent = rng.random(num_suffixes) < r
+            all_obs = rng.random((num_suffixes, num_prefixes))
+            suffix_obs = all_obs < np.where(
+                is_idempotent[:, None], p_per_prefix[None, :], empirical_pos
+            )
+            agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
+            if np.sort(agreements)[-k:].mean() <= threshold:
+                failures += 1
+
+        # Every prefix here carries the full signal, so the check should almost
+        # never fire -- it claims a 0.01 failure probability.
+        self.assertLess(failures / num_trials, 0.03, f"k={k} threshold={threshold:.4f}")
+
     def test_gives_up_with_no_signal(self):
         """With p_0 = p_1 = 0.5 (pure coin-flip), the oracle has no signal.
         The give-up mechanism should detect this and raise GaveUpOnSuffixSearch."""
