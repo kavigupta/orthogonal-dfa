@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import evidence_margin_for_population_size, give_up_check
+from .statistics import evidence_margin_for_population_size
 
 
 def identify_cluster_around(
@@ -66,21 +66,16 @@ def recompute_evidence_margin(
     return eps
 
 
-class GaveUpOnSuffixSearch(Exception):
-    """Raised when the suffix search exceeds the give-up threshold."""
-
-
-def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
 
-    config = pst.config
-
     while True:
-        seed_mask = pst.table.column(v)
-        if first_round:
-            _give_up_check(pst, config, seed_mask)
+        # Promotes the seed to fully observed, which identify_cluster_around
+        # requires of it. Redone each round, since more prefixes may have
+        # arrived since the last one.
+        pst.table.column(v)
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
@@ -113,36 +108,3 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
             pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
         else:
             pst.sample_more_prefixes()
-
-
-def _give_up_check(pst, config, seed_mask):
-    # Judge whether the signal is too weak over the representative prefixes only:
-    # the short prefix-closed core explores a skewed region of the state space and
-    # is classified more confidently than the probe prefixes, so folding it in
-    # would distort the agreement estimate and could trigger a spurious give-up.
-    rep = pst.table.representative
-    seed_mask = seed_mask[rep]
-    empirical_pos = float(seed_mask.mean())
-    # The give-up statistic reasons about the sampled acceptance-family suffixes
-    # (their count bounds how many are idempotent), so count the fully-observed
-    # family suffixes -- not every interned row, which would also include
-    # transition distinguishers.
-    candidate = pst.table.fully_observed()
-    result = give_up_check(
-        config.min_signal_strength,
-        int(rep.sum()),
-        len(candidate),
-        config.min_suffix_frequency,
-        config.min_acc_rej,
-        empirical_pos,
-    )
-    if result is not None:
-        k, threshold = result
-        masks = pst.table.observed_masks(candidate, rep)
-        agreements = (masks == seed_mask).mean(axis=1)
-        top_k_mean = float(np.sort(agreements)[-k:].mean())
-        if top_k_mean <= threshold:
-            raise GaveUpOnSuffixSearch(
-                f"Sampled {len(candidate)} suffixes. "
-                f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
-            )

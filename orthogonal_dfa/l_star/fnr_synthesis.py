@@ -202,7 +202,6 @@ def synthesize_direct_lstar_fnr(
     if counterexample_patience is None:
         counterexample_patience = _default_patience(acc_threshold)
 
-    first_round = True
     best = _Best()
     stall = _StallDetector(stall_patience)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
@@ -213,11 +212,8 @@ def synthesize_direct_lstar_fnr(
 
     for round_idx in range(max_rounds):
         prior_best = best.accuracy
-        vs, boundary = sample_suffix_family(
-            pst, pst.table.intern_suffix([]), first_round=first_round
-        )
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
         pst.decision_boundary = boundary
-        first_round = False
 
         learner, dfa, dt = _discover(
             pst,
