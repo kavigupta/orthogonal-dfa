@@ -82,7 +82,7 @@ def row_sum_dispersion(columns) -> float:
 
 
 def _dispersion_at_the_bound(
-    k, num_prefixes, center, s, min_acc_rej, quantile, num_sim
+    k, num_prefixes, *, center, s, min_acc_rej, quantile, num_sim
 ):
     """The ``quantile`` of ``row_sum_dispersion`` when a cluster does exist, at
     the least favourable balance the caller has ruled out going below.
@@ -151,7 +151,13 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
     if k < 2:
         return None
     tau = _dispersion_at_the_bound(
-        k, num_prefixes, center, signal_strength, min_acc_rej, each, num_sim
+        k,
+        num_prefixes,
+        center=center,
+        s=signal_strength,
+        min_acc_rej=min_acc_rej,
+        quantile=each,
+        num_sim=num_sim,
     )
     return k, tau
 

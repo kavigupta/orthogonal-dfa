@@ -18,7 +18,6 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.lstar import counterexample_sample_budget
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
-    DEFAULT_MIN_ACC_REJ,
     counterexample_search_exhausted,
     give_up_check,
     row_sum_dispersion,
