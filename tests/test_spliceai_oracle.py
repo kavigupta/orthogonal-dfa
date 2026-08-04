@@ -54,11 +54,7 @@ class RecordingModel:
 
     def __init__(self):
         self.seen = []
-        self.training = True
-
-    def eval(self):
         self.training = False
-        return self
 
     def __call__(self, x):
         self.seen.append(x.argmax(-1).cpu().numpy())
@@ -125,9 +121,9 @@ class TestSpliceModelOracle(unittest.TestCase):
         self.assertEqual(result.shape, (0,))
         self.assertEqual(result.dtype, bool)
 
-    def test_rejects_a_model_put_back_into_train_mode(self):
-        """The oracle sets eval once, but padding invariance has to hold at every
-        query -- a caller sharing the model with a training loop can undo it."""
+    def test_rejects_a_model_in_train_mode(self):
+        """Padding invariance has to hold at every query, so the oracle refuses a
+        train-mode model rather than quietly switching one it does not own."""
         oracle = self._oracle()
         self.model.training = True
         with self.assertRaises(AssertionError):

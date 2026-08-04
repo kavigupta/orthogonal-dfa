@@ -61,8 +61,12 @@ def run_over_middles(model, flank_l, flank_r, strings, readout, *, device, chunk
 
 
 class SpliceModelOracle(Oracle):
-    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (eval,
+    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (under
     no_grad, on ``device``), deferring the accept decision to ``readout``.
+
+    ``model`` must already be in eval mode -- forward_batch checks that on every
+    query rather than this setting it, so a caller who shares the model with a
+    training loop hears about it instead of having it silently switched.
 
     ``model`` is left on its own device unless ``device`` is passed, which only
     picks where the inputs go -- it does not move the model."""
@@ -70,7 +74,6 @@ class SpliceModelOracle(Oracle):
     def __init__(
         self, exon: RawExon, model, readout: Readout, *, device=None, chunk: int = 1024
     ):
-        model.eval()
         self._model = model
         self._readout = readout
         self._device = device_of(model, device)
@@ -162,8 +165,10 @@ def median_threshold(
     whatever the score distribution's skew, which is what E-L*'s degeneracy
     precondition wants.  The two conventions will disagree on borderline
     sequences, so do not mix a dataset built by one with an oracle built by the
-    other."""
-    model.eval()
+    other.
+
+    ``model`` must already be in eval mode; forward_batch checks it, which a
+    permacache hit would skip along with the rest of the body."""
     flank_l, flank_r = flanks(exon)
     mids = np.random.default_rng(seed).integers(0, 4, size=(count, length)).tolist()
     scores = run_over_middles(
