@@ -1,25 +1,13 @@
-"""E-L\* membership oracles backed by the SpliceAI neural model (and variants).
+r"""Composition-residual and set-difference E-L\* oracles built on
+:class:`~orthogonal_dfa.l_star.examples.spliceai_oracle.SpliceModelOracle`.
 
-A membership query is a variable-length string over {A,C,G,T} (ints 0-3) that fills
-the variable middle region of an ``exon``; the fixed flanks are prepended/appended
-exactly as :func:`orthogonal_dfa.data.sample_text.sample_text` does, and the model's
-per-position (null/acceptor/donor) logits are read at the two exon boundaries and
-averaged into a scalar exon score (mirroring
-:func:`orthogonal_dfa.oracle.run_model.compute_exon_scores`). Membership is that
-score thresholded to a hard accept/reject call.
-
-Oracles provided:
-
-* :class:`SpliceModelOracle` -- the raw model call. Works for any model whose
-  ``forward`` produces ``(N, L-cl, 3)`` logits (SpliceAI via ``load_spliceai`` or
-  the fixed-motif ``modular_splicing`` model via :func:`load_fm`).
-* :class:`CompositionResidualOracle` -- the score with its
-  bag-of-k-mers-composition-predictable part regressed out (single fit length).
-* :class:`PerLengthResidualOracle` -- the length-robust version of the above; the
-  composition model is refit per length bin so the residual stays balanced and
-  composition-free across the whole prefix+suffix query-length range.
-* :class:`SetDifferenceOracle` -- ``a \\ b`` (a accepts and b does not), used to
-  contrast SpliceAI against the fixed-motif model.
+* :func:`balanced_oracle` / :func:`canonical_oracle` -- the raw SpliceAI (or FM)
+  call, with the accept threshold at the median score at a length / at run_model's
+  canonical calibration.
+* :class:`CompositionResidualOracle` / :class:`PerLengthResidualOracle` -- the exon
+  score with its generic bag-of-k-mers composition regressed out (single fit length
+  / per-length bins).
+* :class:`SetDifferenceOracle` -- ``a \\ b``, to contrast SpliceAI against the FM.
 
 See ``ELSTAR_NEURAL_ORACLE_FINDINGS.md`` for what running E-L\* on these produced.
 """
@@ -27,15 +15,21 @@ See ``ELSTAR_NEURAL_ORACLE_FINDINGS.md`` for what running E-L\* on these produce
 from typing import List
 
 import numpy as np
-import torch
 
 from orthogonal_dfa.data.exon import RawExon
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (
+    SpliceModelOracle,
+    calibrated_spliceai_readout,
+    flanks,
+    median_threshold,
+    run_over_middles,
+)
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.oracle.run_model import batched_run, calibrate
+from orthogonal_dfa.oracle.run_model import calibrate
+from orthogonal_dfa.spliceai.exon_score import device_of, spliceai_exon_scores
 
 # The fixed-motif ("FM") model is a trained modular_splicing model living in a
 # separate repo on this machine (BothLSSIModels + an 82-motif RBNS PSAMMotifModel).
-# It loads through modular_splicing's renamed-symbol unpickler; see load_fm.
 FM_REPO = "/mnt/md0/ExpeditionsCommon/spliceai/Canonical"
 FM_MODEL_PREFIX = f"{FM_REPO}/model/msp-273.665a3"
 
@@ -46,10 +40,40 @@ def load_fm(seed=1):
 
     if FM_REPO not in sys.path:
         sys.path.insert(0, FM_REPO)
-    from modular_splicing.utils.io import load_model  # noqa: E402
+    # modular_splicing is an external repo added to sys.path above, not a dependency.
+    from modular_splicing.utils.io import load_model  # pylint: disable=import-error
 
     _, model = load_model(f"{FM_MODEL_PREFIX}_{seed}")  # picks the latest step
     return model.eval().cuda()
+
+
+def exon_scores(model, exon, strings, *, chunk=1024):
+    """Continuous SpliceAI exon score for each flank-wrapped middle."""
+    flank_l, flank_r = flanks(exon)
+    return run_over_middles(
+        model,
+        flank_l,
+        flank_r,
+        strings,
+        spliceai_exon_scores,
+        device=device_of(model),
+        chunk=chunk,
+    )
+
+
+def balanced_oracle(model, exon, length, *, chunk=1024):
+    """Oracle whose accept threshold is the median exon score at middle ``length``."""
+    # .function skips the permacache: the FM model is not stable_hashable.
+    threshold = median_threshold.function(model, exon, length)
+    readout = calibrated_spliceai_readout(threshold, length)
+    return SpliceModelOracle(exon, model, readout, chunk=chunk)
+
+
+def canonical_oracle(model, exon, *, chunk=1024):
+    """Oracle using run_model's canonical calibration (threshold at the score mean)."""
+    threshold = calibrate(exon, model)["mean"]
+    readout = calibrated_spliceai_readout(threshold, exon.random_text_length)
+    return SpliceModelOracle(exon, model, readout, chunk=chunk)
 
 
 def bow_features(strings: List[List[int]], n_max: int) -> np.ndarray:
@@ -78,79 +102,6 @@ def bow_features(strings: List[List[int]], n_max: int) -> np.ndarray:
     return F
 
 
-class SpliceModelOracle(Oracle):
-    """The model's hard exon call on the variable middle as an E-L\* oracle.
-
-    ``calib_len`` re-centers the accept threshold on the median score at that middle
-    length (so accept ~= 50% there). This is needed because the exon score drifts
-    with length, and it also side-steps the permacached ``calibrate`` (whose
-    stable_hash cannot serialize every model). Pass ``calib_len=None`` to use the
-    canonical L=189 calibration (SpliceAI only).
-    """
-
-    def __init__(self, exon: RawExon, model, calib_len=None):
-        self._exon = exon
-        self._model = model
-        trim = exon.cl // 2 + 2
-        self._flank_l = np.array(exon.text[:trim], dtype=np.int64)
-        self._flank_r = np.array(exon.text[-trim:], dtype=np.int64)
-        self._length = exon.random_text_length
-        if calib_len is not None:
-            rng = np.random.default_rng(0xCA11B)
-            mids = rng.integers(0, 4, size=(20000, calib_len)).tolist()
-            self._mean = float(np.median(self._raw_scores(mids)))
-            self._std = 1.0  # sign is all that matters for the hard label
-        else:
-            cal = calibrate(exon, model)
-            self._mean = cal["mean"]
-            self._std = cal["std"]
-
-    @property
-    def alphabet_size(self) -> int:
-        return 4
-
-    @property
-    def string_length(self) -> int:
-        return self._length
-
-    def _raw_scores(self, strings: List[List[int]]) -> np.ndarray:
-        """Continuous (acceptor+donor)/2 log-prob exon score for each string.
-
-        E-L\* passes ragged batches; we right-pad each wrapped sequence
-        (flank_l + middle + flank_r) to a common length so one forward pass covers
-        the chunk. Padding sits after flank_r, beyond the donor site's receptive
-        field, so it never affects the two output positions read. The acceptor is
-        output position 0; the donor is output position ``len(middle)+3``, which
-        shifts per string -- hence the per-row gather rather than a fixed index.
-        """
-        lens = np.array([len(s) for s in strings])
-        flank = len(self._flank_l) + len(self._flank_r)
-        max_total = int(flank + lens.max())
-        arr = np.zeros((len(strings), max_total), dtype=np.int64)
-        for i, s in enumerate(strings):
-            full = np.concatenate(
-                [self._flank_l, np.asarray(s, np.int64), self._flank_r]
-            )
-            arr[i, : len(full)] = full
-        with torch.no_grad():
-            lyp = batched_run(self._model, arr).log_softmax(-1)
-            rows = torch.arange(len(strings), device=lyp.device)
-            don_pos = torch.tensor(lens + 3, device=lyp.device)
-            acc = lyp[rows, 0, 1]
-            don = lyp[rows, don_pos, 2]
-            return torch.stack([acc, don], -1).mean(-1).cpu().numpy()
-
-    def membership_queries(self, strings: List[List[int]], chunk=8192) -> np.ndarray:
-        out = np.empty(len(strings), dtype=bool)
-        for i in range(0, len(strings), chunk):
-            score = self._raw_scores(strings[i : i + chunk])
-            out[i : i + chunk] = (score - self._mean) / self._std > 0
-        return out
-
-    def membership_query(self, string: List[int]) -> bool:
-        return bool(self.membership_queries([string])[0])
-
-
 class CompositionResidualOracle(Oracle):
     """Exon score with its generic bag-of-k-mers-composition part regressed out.
 
@@ -171,13 +122,13 @@ class CompositionResidualOracle(Oracle):
         ridge=1.0,
         seed=0,
     ):
-        # calib_len only avoids the permacached calibrate(); we use _base for scores.
-        self._base = SpliceModelOracle(exon, model, calib_len=ref_len)
+        self._exon = exon
+        self._model = model
         self._n_max = n_max
         self._length = exon.random_text_length
         rng = np.random.default_rng(seed)
         mids = rng.integers(0, 4, size=(fit_count, ref_len)).tolist()
-        S = self._base._raw_scores(mids).astype(np.float64)
+        S = exon_scores(model, exon, mids).astype(np.float64)
         F = bow_features(mids, n_max).astype(np.float64)
         self._Fmean, self._Smean = F.mean(0), S.mean()
         Fc = F - self._Fmean
@@ -200,7 +151,7 @@ class CompositionResidualOracle(Oracle):
         return self._r2
 
     def residual_scores(self, strings: List[List[int]]) -> np.ndarray:
-        raw = self._base._raw_scores(strings).astype(np.float64)
+        raw = exon_scores(self._model, self._exon, strings).astype(np.float64)
         F = bow_features(strings, self._n_max).astype(np.float64)
         return raw - (self._Smean + (F - self._Fmean) @ self._beta)
 
@@ -242,7 +193,8 @@ class PerLengthResidualOracle(Oracle):
         ridge=1.0,
         seed=0,
     ):
-        self._base = SpliceModelOracle(exon, model, calib_len=len_lo)
+        self._exon = exon
+        self._model = model
         self._n_max = n_max
         self._length = exon.random_text_length
         self._edges = np.arange(len_lo, len_hi + bin_width, bin_width)
@@ -252,7 +204,7 @@ class PerLengthResidualOracle(Oracle):
         for lo, hi in zip(self._edges[:-1], self._edges[1:]):
             lens = rng.integers(lo, hi, size=per_bin)
             mids = [rng.integers(0, 4, size=int(L)).tolist() for L in lens]
-            S = self._base._raw_scores(mids).astype(np.float64)
+            S = exon_scores(model, exon, mids).astype(np.float64)
             F = bow_features(mids, n_max).astype(np.float64)
             Fm, Sm = F.mean(0), S.mean()
             Fc = F - Fm
@@ -290,7 +242,7 @@ class PerLengthResidualOracle(Oracle):
                 subidx = idxs[j0 : j0 + chunk]
                 sub = [strings[i] for i in subidx]
                 _, _, Fm, Sm, beta, th = self._bin_for(len(sub[0]))
-                raw = self._base._raw_scores(sub).astype(np.float64)
+                raw = exon_scores(self._model, self._exon, sub).astype(np.float64)
                 F = bow_features(sub, self._n_max).astype(np.float64)
                 r = raw - (Sm + (F - Fm) @ beta)
                 for k, i in enumerate(subidx):
@@ -302,11 +254,11 @@ class PerLengthResidualOracle(Oracle):
 
 
 class SetDifferenceOracle(Oracle):
-    """``a \\ b``: membership = ``a`` accepts AND ``b`` does not.
+    r"""``a \\ b``: membership = ``a`` accepts AND ``b`` does not.
 
     Used to contrast SpliceAI against the fixed-motif model, e.g. with two balanced
-    :class:`SpliceModelOracle`s (plain) or two :class:`CompositionResidualOracle`s
-    (composition stripped from both before differencing).
+    oracles (plain) or two :class:`CompositionResidualOracle`s (composition stripped
+    from both before differencing).
     """
 
     def __init__(self, oracle_a, oracle_b, exon: RawExon):

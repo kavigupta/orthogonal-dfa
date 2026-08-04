@@ -1,4 +1,4 @@
-"""Run E-L\* (counterexample-driven DFA synthesis) against the SpliceAI oracle.
+r"""Run E-L\* (counterexample-driven DFA synthesis) against the SpliceAI oracle.
 
 Wraps the SpliceAI model (or a composition-residual / set-difference variant) as a
 batched membership oracle and drives ``counterexample_driven_synthesis``. Saves a
@@ -27,16 +27,26 @@ import numpy as np
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
 from orthogonal_dfa.l_star.examples.spliceai_oracles import (
-    CompositionResidualOracle, PerLengthResidualOracle, SetDifferenceOracle,
-    SpliceModelOracle, load_fm)
-from orthogonal_dfa.l_star.lstar import (counterexample_driven_synthesis,
-                                         denoise_accept_labels)
-from orthogonal_dfa.l_star.prefix_suffix_tracker import (PrefixSuffixTracker,
-                                                         SearchConfig)
+    CompositionResidualOracle,
+    PerLengthResidualOracle,
+    SetDifferenceOracle,
+    balanced_oracle,
+    canonical_oracle,
+    load_fm,
+)
+from orthogonal_dfa.l_star.lstar import (
+    counterexample_driven_synthesis,
+    denoise_accept_labels,
+)
+from orthogonal_dfa.l_star.prefix_suffix_tracker import (
+    PrefixSuffixTracker,
+    SearchConfig,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import (
     compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_margin)
+    population_size_and_evidence_margin,
+)
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
 
@@ -102,8 +112,8 @@ def build_oracle(args, exon, model):
             a = CompositionResidualOracle(exon, model, n_max=nm, ref_len=ref)
             b = CompositionResidualOracle(exon, fm, n_max=nm, ref_len=ref)
         else:
-            a = SpliceModelOracle(exon, model, calib_len=ref)
-            b = SpliceModelOracle(exon, fm, calib_len=ref)
+            a = balanced_oracle(model, exon, ref)
+            b = balanced_oracle(fm, exon, ref)
         if args.reverse:
             a, b = b, a
         target = "FM \\ SpliceAI" if args.reverse else "SpliceAI \\ FM"
@@ -128,8 +138,10 @@ def build_oracle(args, exon, model):
             flush=True,
         )
         return o
-    o = SpliceModelOracle(
-        exon, model, calib_len=args.sampler_len if args.recalibrate else None
+    o = (
+        balanced_oracle(model, exon, args.sampler_len)
+        if args.recalibrate
+        else canonical_oracle(model, exon)
     )
     print(f"oracle: SpliceAI (recalibrated={args.recalibrate})", flush=True)
     return o
