@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 import torch
+from permacache import no_cache_global
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.composition_residual import (
@@ -104,18 +105,18 @@ class TestCompositionResidualScore(unittest.TestCase):
         self.flank_l, self.flank_r = flanks(self.exon)
 
     def _fit(self, *, n_max=2, **band):
-        # cache=False recomputes: the tests must see the fit as the math currently is,
-        # not a stale permacache entry keyed only by (model, exon, params).
-        return fit_composition_residual(
-            self.score_model,
-            self.exon,
-            n_max=n_max,
-            per_bin=400,  # >= MIN_SAMPLES_PER_PARAMETER * free_parameters(2) == 360
-            device="cpu",
-            chunk=64,
-            cache=False,
-            **band,
-        )
+        # The tests must see the fit as the math currently is, not a stale permacache
+        # entry keyed only by (model, exon, params).
+        with no_cache_global():
+            return fit_composition_residual(
+                self.score_model,
+                self.exon,
+                n_max=n_max,
+                per_bin=400,  # >= MIN_SAMPLES_PER_PARAMETER * free_parameters(2) == 360
+                device="cpu",
+                chunk=64,
+                **band,
+            )
 
     def _scores(self, model, middles):
         return run_over_middles(

@@ -1,14 +1,3 @@
-"""A score model that regresses generic sequence composition out of the exon score.
-
-The SpliceAI exon score is dominated by low-order sequence composition (CpG-rich up,
-AT/stop-rich down).  :class:`CompositionResidualScore` wraps a score model and
-subtracts a linear bag-of-k-mers prediction of its score, so what E-L\\* sees is the
-composition residual.  Because it acts on the scalar score (not the per-position
-logits) and gets the middle from its own input, it is just an ``nn.Module`` the
-normal :class:`~orthogonal_dfa.l_star.examples.spliceai_oracle.SpliceModelOracle`
-wraps -- no bespoke oracle.  See ``ELSTAR_NEURAL_ORACLE_FINDINGS.md``.
-"""
-
 import warnings
 
 import numpy as np
@@ -20,9 +9,7 @@ from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import device_of
 
-# Middles per free coefficient the fit demands.  Nothing regularizes it, so per_bin
-# carries the variance alone: on random middles at n_max=4 (336 coefficients) held-out
-# R2 runs 0.48 at 24x, 0.44 at 9.5x, 0.36 at 4.8x, and goes negative below ~2x.
+# Minimal number of samples per free coefficient to fit an unregularized linear model effectively.
 MIN_SAMPLES_PER_PARAMETER = 20
 
 
@@ -32,12 +19,12 @@ def free_parameters(k_max):
 
 
 def bow_features(strings, k_max):
-    """(N, D) bag-of-k-mers design matrix for k=1..k_max, D=sum(4**k - 1).
+    """
+    (N, D) bag-of-k-mers design matrix for k=1..k_max, D=sum(4**k - 1).
 
-    Each k's block holds the sliding-window frequency of every k-mer but the last.
-    A block's frequencies sum to 1, so carrying all 4**k of them would leave the
-    design rank-deficient in any model with an intercept; the omitted k-mer is one
-    minus the rest, so the block still spans the same space."""
+    Each k's block holds the sliding-window frequency of every k-mer but the last,
+    to avoid linear dependence.
+    """
     D = free_parameters(k_max)
     F = np.zeros((len(strings), D), dtype=np.float32)
     for i, s in enumerate(strings):
@@ -264,7 +251,6 @@ def fit_composition_residual(
     seed=0,
     device=None,
     chunk=1024,
-    cache=True,
 ):
     """Fit a :class:`CompositionResidualScore` around ``score_model`` over the length
     band ``[len_lo, len_hi)`` (``len_hi`` exclusive, as in ``rng.integers``; a single
@@ -275,16 +261,15 @@ def fit_composition_residual(
 
     The per-bin fit is permacached on ``stable_hash(score_model)``, which SpliceAI
     supports through its ``__permacache_hash__``.  The key covers the model, the exon
-    and the band, but not this file: change the fit math without bumping the cache
-    name and a stale entry comes back looking current.  ``cache=False`` recomputes
-    through ``.function``, which is what the tests use for exactly that reason."""
+    and the band, but not this file, so bump the cache name when the fit math changes
+    or a stale entry comes back looking current.  ``permacache.no_cache_global``
+    bypasses the cache, which is what the tests use for exactly that reason."""
     q = exon.random_text_length
     assert len_lo <= q < len_hi, (
         f"the exon's query length {q} is outside the fitted band [{len_lo}, {len_hi}); "
         "widen len_lo/len_hi so the band covers the lengths E-L* will query"
     )
-    fit_bins = _fit_composition_bins if cache else _fit_composition_bins.function
-    fit = fit_bins(
+    fit = _fit_composition_bins(
         score_model,
         exon,
         n_max=n_max,
