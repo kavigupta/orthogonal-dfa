@@ -273,10 +273,11 @@ def fit_composition_residual(
     The band must cover the exon's query length; E-L* also queries other lengths
     (prefix+suffix), which the module warns about rather than silently miscalibrating.
 
-    The per-bin fit is permacached on ``stable_hash(score_model)``.  Like
-    ``median_threshold``, that hash only works for a stable-hashable model; SpliceAI
-    and the FM are not (a bare function / a weakref), so pass ``cache=False`` for
-    them to recompute rather than raise on the cache key."""
+    The per-bin fit is permacached on ``stable_hash(score_model)``, which SpliceAI
+    supports through its ``__permacache_hash__``.  The key covers the model, the exon
+    and the band, but not this file: change the fit math without bumping the cache
+    name and a stale entry comes back looking current.  ``cache=False`` recomputes
+    through ``.function``, which is what the tests use for exactly that reason."""
     q = exon.random_text_length
     assert len_lo <= q < len_hi, (
         f"the exon's query length {q} is outside the fitted band [{len_lo}, {len_hi}); "
