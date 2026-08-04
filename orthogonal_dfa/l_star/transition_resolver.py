@@ -160,10 +160,10 @@ class TransitionResolver:
 
     # -- driver -------------------------------------------------------------
 
-    def build(self, first_round):
+    def build(self):
         pst = self.pst
         v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx, first_round=first_round)
+        vs, boundary = sample_suffix_family(pst, v_idx)
         pst.decision_boundary = boundary
         all_prefixes = np.ones(pst.num_prefixes, dtype=bool)
         decision = pst.compute_decision(vs, all_prefixes)
@@ -231,6 +231,6 @@ class TransitionResolver:
         return dfa, dt
 
 
-def resolve_dfa(pst, *, first_round):
+def resolve_dfa(pst):
     """Build the (DFA, DecisionTree) for the current prefix pool via the resolver."""
-    return TransitionResolver(pst).build(first_round=first_round)
+    return TransitionResolver(pst).build()
