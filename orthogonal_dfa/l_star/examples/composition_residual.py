@@ -23,7 +23,7 @@ def bow_features(strings, k_max):
     (N, D) bag-of-k-mers design matrix for k=1..k_max, D=sum(4**k - 1).
 
     Each k's block holds the sliding-window frequency of every k-mer but the last,
-    to avoid linear dependence.
+    to avoid linear dependence (since they sum to 1 in each block).
     """
     D = free_parameters(k_max)
     F = np.zeros((len(strings), D), dtype=np.float32)
@@ -183,12 +183,10 @@ def _fit_composition_bins(
     OLS-fit the k-mer regression per length bin; returns the picklable fit (small
     numpy arrays), so the cache does not have to pickle the model.
 
-    The deployed coefficients use every middle; the reported r2s are held out (a 20%
-    slice each), since in-sample r2 with up to 336 features reads optimistically.  That
-    makes them a slight understatement: they describe fits trained on 80% of per_bin,
-    where the deployed ones have the full set to work with.  Kept per bin rather than
-    averaged, so a band whose fit is good in the middle and poor at one edge is
-    visible instead of blended away.
+    We use the whole dataset to fit the linear model, and separately fit a model
+    to 80% of the data and score it on the remaining 20% to get a held-out R^2 per bin.
+    This is done to be maximally sample efficient in the oracle, which is much more costly
+    to run than the linear regression.
     """
     flank_l, flank_r = flanks(exon)
     dev = device_of(score_model, device)
@@ -252,18 +250,13 @@ def fit_composition_residual(
     device=None,
     chunk=1024,
 ):
-    """Fit a :class:`CompositionResidualScore` around ``score_model`` over the length
-    band ``[len_lo, len_hi)`` (``len_hi`` exclusive, as in ``rng.integers``; a single
-    length L is ``len_hi = L+1``).
+    """
+    Fit a CompositionResidualScore around score_model over the length
+    band [len_lo, len_hi).
 
     The band must cover the exon's query length; E-L* also queries other lengths
     (prefix+suffix), which the module warns about rather than silently miscalibrating.
-
-    The per-bin fit is permacached on ``stable_hash(score_model)``, which SpliceAI
-    supports through its ``__permacache_hash__``.  The key covers the model, the exon
-    and the band, but not this file, so bump the cache name when the fit math changes
-    or a stale entry comes back looking current.  ``permacache.no_cache_global``
-    bypasses the cache, which is what the tests use for exactly that reason."""
+    """
     q = exon.random_text_length
     assert len_lo <= q < len_hi, (
         f"the exon's query length {q} is outside the fitted band [{len_lo}, {len_hi}); "
