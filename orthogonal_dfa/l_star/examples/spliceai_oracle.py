@@ -1,5 +1,4 @@
-import warnings
-from typing import Callable, List
+from typing import List
 
 import numpy as np
 import torch
@@ -7,15 +6,7 @@ from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.spliceai.exon_score import (
-    FLANK_MARGIN,
-    device_of,
-    forward_batch,
-    spliceai_exon_scores,
-)
-
-# (model output tensor, middle lengths tensor) -> per-sequence value tensor
-Readout = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+from orthogonal_dfa.spliceai.exon_score import FLANK_MARGIN, device_of, one_hot
 
 CALIBRATION_SEED = int(stable_hash("calibration"), 16)
 
@@ -48,35 +39,48 @@ def wrap_with_flanks(flank_l, flank_r, strings):
     return wrapped, lengths
 
 
-def run_over_middles(model, flank_l, flank_r, strings, readout, *, device, chunk):
-    """Flank-wrap and run ``model`` over ``strings`` in chunks, returning
-    np.concatenate of ``readout(logits, lengths)``."""
+def run_over_middles(score_model, flank_l, flank_r, strings, *, device, chunk):
+    """Flank-wrap, one-hot, and run ``score_model(x, lengths)`` (no_grad) over
+    ``strings`` in chunks, returning the concatenated per-sequence scores."""
+    # Checked on every call rather than once at setup: wrap_with_flanks's padding
+    # only stays inert in eval mode, and a caller sharing the model with a training
+    # loop can flip a submodule back into train mode at any point.
+    assert not any(m.training for m in score_model.modules()), (
+        "score_model must be in eval mode: in train mode BatchNorm normalizes over "
+        "the batch, so padded rows leak into every other row's score"
+    )
     parts = []
     for i in range(0, len(strings), chunk):
         wrapped, lengths = wrap_with_flanks(flank_l, flank_r, strings[i : i + chunk])
-        logits = forward_batch(model, wrapped, device=device)
+        x = one_hot(wrapped, device=device)
         lens = torch.as_tensor(lengths, device=device)
-        parts.append(readout(logits, lens).cpu().numpy())
-    return np.concatenate(parts) if parts else np.empty(0, dtype=bool)
+        with torch.no_grad():
+            parts.append(score_model(x, lens).cpu().numpy())
+    return np.concatenate(parts) if parts else np.empty(0, dtype=np.float32)
 
 
 class SpliceModelOracle(Oracle):
-    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (under
-    no_grad, on ``device``), deferring the accept decision to ``readout``.
+    r"""E-L\* oracle that wraps/one-hots/batches queries, runs ``score_model(x,
+    lengths)`` (no_grad, on ``device``), and accepts when the score exceeds
+    ``threshold``.
 
-    ``model`` must already be in eval mode -- forward_batch checks that on every
-    query rather than this setting it, so a caller who shares the model with a
-    training loop hears about it instead of having it silently switched.
-
-    ``model`` is left on its own device unless ``device`` is passed, which only
-    picks where the inputs go -- it does not move the model."""
+    ``score_model`` must already be in eval mode -- run_over_middles checks that on
+    every query rather than this setting it, so a caller who shares the model with a
+    training loop hears about it instead of having it silently switched.  ``device``
+    only picks where the inputs go; it does not move the model."""
 
     def __init__(
-        self, exon: RawExon, model, readout: Readout, *, device=None, chunk: int = 1024
+        self,
+        exon: RawExon,
+        score_model,
+        threshold: float,
+        *,
+        device=None,
+        chunk: int = 1024,
     ):
-        self._model = model
-        self._readout = readout
-        self._device = device_of(model, device)
+        self._score_model = score_model
+        self._threshold = threshold
+        self._device = device_of(score_model, device)
         self._flank_l, self._flank_r = flanks(exon)
         self._length = exon.random_text_length
         self._chunk = chunk
@@ -90,65 +94,31 @@ class SpliceModelOracle(Oracle):
         return self._length
 
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
-        preds = run_over_middles(
-            self._model,
+        scores = run_over_middles(
+            self._score_model,
             self._flank_l,
             self._flank_r,
             strings,
-            self._readout,
             device=self._device,
             chunk=self._chunk,
         )
-        return preds.astype(bool)
+        return scores > self._threshold
 
     def membership_query(self, string: List[int]) -> bool:
         return bool(self.membership_queries([string])[0])
 
 
-class _CalibratedReadout:
-    """Accepts when the exon score exceeds ``threshold``, warning when queried at
-    a length ``threshold`` was not calibrated for.
-
-    The score drifts with length, so a threshold is only near its intended accept
-    rate close to its own calibration length -- one calibrated at 40 accepts ~77%
-    of random length-80 middles.  E-L* queries a few lengths at once (2L for the
-    probes, L..L+4 for the core), so this warns once per length rather than
-    failing; until the threshold is per-length, expect the off-length rows to sit
-    off 0.5."""
-
-    def __init__(self, threshold: float, length: int):
-        self.threshold = threshold
-        self.calibration_length = length
-        self._warned = set()
-
-    def __call__(self, logits, lengths):
-        for length in set(lengths.tolist()) - self._warned - {self.calibration_length}:
-            self._warned.add(length)
-            warnings.warn(
-                f"threshold {self.threshold:.3f} was calibrated at middle length "
-                f"{self.calibration_length} but is being applied at length {length}; "
-                "the accept rate on these rows will be off its calibrated value"
-            )
-        return spliceai_exon_scores(logits, lengths) > self.threshold
-
-
-def calibrated_spliceai_readout(threshold: float, length: int) -> Readout:
-    """Readout that accepts when the SpliceAI exon score exceeds ``threshold``,
-    which ``median_threshold`` computed at middle length ``length``."""
-    return _CalibratedReadout(threshold, length)
-
-
 @permacache(
     "orthogonal_dfa/l_star/examples/spliceai_oracle/median_threshold",
     key_function=dict(
-        model=lambda m: stable_hash(m, version=2),
+        score_model=lambda m: stable_hash(m, version=2),
         exon=stable_hash,
         device=lambda _: None,  # does not affect the result
         chunk=lambda _: None,
     ),
 )
 def median_threshold(
-    model,
+    score_model,
     exon: RawExon,
     length: int,
     *,
@@ -158,26 +128,23 @@ def median_threshold(
     chunk=1024,
 ):
     """Median exon score over ``count`` random length-``length`` middles (per-length
-    since the score drifts with length).
+    since the score drifts with length), i.e. the threshold that makes
+    ``SpliceModelOracle`` accept ~50% of length-``length`` middles.
 
-    oracle.run_model calibrates its dataset with a z-score thresholded at 0, i.e.
-    at the *mean*; the median here instead puts the accept rate at exactly 0.5
-    whatever the score distribution's skew, which is what E-L*'s degeneracy
-    precondition wants.  The two conventions will disagree on borderline
-    sequences, so do not mix a dataset built by one with an oracle built by the
-    other.
+    run_model calibrates its dataset with a z-score thresholded at 0 (the *mean*);
+    the median here puts the accept rate at exactly 0.5 whatever the distribution's
+    skew, so do not mix a dataset built by one with an oracle built by the other.
 
-    ``model`` must already be in eval mode; forward_batch checks it, which a
-    permacache hit would skip along with the rest of the body."""
+    ``score_model`` must already be in eval mode; a permacache hit skips the check
+    along with the rest of the body."""
     flank_l, flank_r = flanks(exon)
     mids = np.random.default_rng(seed).integers(0, 4, size=(count, length)).tolist()
     scores = run_over_middles(
-        model,
+        score_model,
         flank_l,
         flank_r,
         mids,
-        spliceai_exon_scores,
-        device=device_of(model, device),
+        device=device_of(score_model, device),
         chunk=chunk,
     )
     return float(np.median(scores))
