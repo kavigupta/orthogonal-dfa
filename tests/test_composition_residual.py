@@ -38,44 +38,64 @@ def small_score_model_and_exon(cl=SMALL_CL):
     return score_model, exon
 
 
+def every_kmer_frequency(strings, k_max):
+    """All 4**k frequencies per k, including the ones bow_features omits."""
+    rows = []
+    for s in strings:
+        s, row = np.asarray(s), []
+        for k in range(1, k_max + 1):
+            ids = np.zeros(len(s) - k + 1, dtype=np.int64)
+            for j in range(k):
+                ids = ids * 4 + s[j : len(s) - k + 1 + j]
+            row.append(np.bincount(ids, minlength=4**k) / (len(s) - k + 1))
+        rows.append(np.concatenate(row))
+    return np.array(rows)
+
+
+def random_middles(n, length, seed):
+    rng = np.random.default_rng(seed)
+    return [rng.integers(0, 4, size=length).tolist() for _ in range(n)], rng
+
+
 class TestBowFeatures(unittest.TestCase):
     def test_shape_and_frequencies(self):
-        features = bow_features([[0, 1, 2, 3], [3, 3, 3]], n_max=2)
-        self.assertEqual(features.shape, (2, 4 + 16))
-        np.testing.assert_allclose(features[0, :4], 0.25)  # ACGT -> each base 1/4
-        np.testing.assert_allclose(features[1, :4], [0, 0, 0, 1])  # TTT -> T only
+        features = bow_features([[0, 1, 2, 3], [3, 3, 3]], k_max=2)
+        self.assertEqual(features.shape, (2, 3 + 15))  # last k-mer of each k omitted
+        np.testing.assert_allclose(features[0, :3], 0.25)  # ACGT -> A, C, G each 1/4
+        np.testing.assert_allclose(features[1, :3], 0)  # TTT is all of the omitted T
+
+    def test_omitted_kmer_is_one_minus_the_rest(self):
+        mids, _ = random_middles(16, 40, seed=3)
+        features = bow_features(mids, 2)
+        full = every_kmer_frequency(mids, 2)
+        np.testing.assert_allclose(1 - features[:, :3].sum(1), full[:, 3], atol=1e-6)
+        np.testing.assert_allclose(1 - features[:, 3:].sum(1), full[:, 19], atol=1e-6)
 
 
 class TestFitBin(unittest.TestCase):
-    def test_ridge_is_invariant_to_feature_scale(self):
-        # The penalty must not depend on a feature's raw scale: otherwise rarer
-        # (lower-variance) higher-order k-mers get shrunk harder than 1-mers.  The
-        # standardized ridge makes the fitted prediction invariant to rescaling any
-        # column -- so its coefficient rescales inversely and nothing else moves.
-        rng = np.random.default_rng(0)
-        feats = rng.random((500, 6))
-        scores = feats @ rng.random(6) + 0.01 * rng.standard_normal(500)
-        _, _, beta = _fit_bin(feats, scores, ridge=1.0)
-        scaled = feats.copy()
-        scaled[:, 2] *= 7.0
-        _, _, beta_scaled = _fit_bin(scaled, scores, ridge=1.0)
-        np.testing.assert_allclose(beta_scaled[2], beta[2] / 7.0, rtol=1e-6)
-        np.testing.assert_allclose(
-            (feats - feats.mean(0)) @ beta,
-            (scaled - scaled.mean(0)) @ beta_scaled,
-            rtol=1e-6,
-        )
+    def test_omitting_a_kmer_per_block_loses_nothing(self):
+        # A block's frequencies sum to 1, so the omitted k-mer is one minus the rest:
+        # with an intercept the 18-wide design still spans all 20 frequencies.  A
+        # target exactly affine in all 20 is therefore fit with no residual.
+        mids, rng = random_middles(500, 40, seed=1)
+        scores = every_kmer_frequency(mids, 2) @ rng.standard_normal(20) + 3.0
+        feats = bow_features(mids, 2).astype(np.float64)
+        intercept, beta = _fit_bin(feats, scores)
+        np.testing.assert_allclose(intercept + feats @ beta, scores, rtol=1e-6)
 
-    def test_effective_penalty_shrinks_with_more_samples(self):
-        # lambda ~ D/n, so a fixed correlation strength regularizes less with more
-        # data: doubling the sample count moves beta strictly toward OLS (ridge=0).
-        rng = np.random.default_rng(1)
-        feats = rng.random((400, 6))
-        scores = feats @ rng.random(6) + 0.1 * rng.standard_normal(400)
-        _, _, ols = _fit_bin(feats, scores, ridge=0.0)
-        _, _, small = _fit_bin(feats, scores, ridge=1.0)
-        _, _, large = _fit_bin(np.tile(feats, (2, 1)), np.tile(scores, 2), ridge=1.0)
-        self.assertLess(np.linalg.norm(large - ols), np.linalg.norm(small - ols))
+    def test_rejects_per_bin_too_small_to_fit_unregularized(self):
+        # k_max=2 is 18 features wide -> needs 360 middles; 100 must not fit.
+        with self.assertRaises(AssertionError):
+            _fit_composition_bins.function(
+                *small_score_model_and_exon(),
+                n_max=2,
+                len_lo=30,
+                len_hi=31,
+                bin_width=1,
+                per_bin=100,
+                device="cpu",
+                chunk=64,
+            )
 
 
 class TestCompositionResidualScore(unittest.TestCase):
@@ -90,7 +110,7 @@ class TestCompositionResidualScore(unittest.TestCase):
             self.score_model,
             self.exon,
             n_max=n_max,
-            per_bin=300,
+            per_bin=400,  # >= MIN_SAMPLES_PER_PARAMETER * free_parameters(2) == 360
             device="cpu",
             chunk=64,
             cache=False,
@@ -106,7 +126,7 @@ class TestCompositionResidualScore(unittest.TestCase):
         # pylint: disable=protected-access
         # the documented single-length form: len_hi = len_lo + 1 (len_hi exclusive).
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        self.assertEqual(residual._f_means.shape[0], 1)
+        self.assertEqual(residual._betas.shape[0], 1)
         scored = self._scores(residual, [[0, 1, 2] * 10])
         self.assertEqual(scored.shape, (1,))
         self.assertFalse(np.isnan(residual.composition_r2))
@@ -114,14 +134,16 @@ class TestCompositionResidualScore(unittest.TestCase):
     def test_empty_length_range_is_rejected(self):
         # len_hi == len_lo yields zero bins; the fitter must fail loudly, not return a
         # module with no bins (nan r2, IndexError later).
-        with self.assertRaises(AssertionError):
+        # per_bin/n_max are kept valid so only the empty-range assert can fire.
+        with self.assertRaisesRegex(AssertionError, "at least one length bin"):
             _fit_composition_bins.function(
                 self.score_model,
                 self.exon,
+                n_max=2,
                 len_lo=30,
                 len_hi=30,
                 bin_width=1,
-                per_bin=8,
+                per_bin=400,
             )
 
     def test_fit_time_rejects_a_band_missing_the_query_length(self):
@@ -142,8 +164,8 @@ class TestCompositionResidualScore(unittest.TestCase):
         subtracted = self._scores(self.score_model, middles) - self._scores(
             residual, middles
         )
-        # what was subtracted is s_mean + (bow - f_mean) @ beta, i.e. an affine
-        # function of the bag-of-k-mers features, so it fits with no residual.
+        # what was subtracted is intercept + bow @ beta, i.e. an affine function of
+        # the bag-of-k-mers features, so it fits with no residual.
         design = np.column_stack([np.ones(len(middles)), bow_features(middles, 2)])
         coef, *_ = np.linalg.lstsq(design, subtracted, rcond=None)
         np.testing.assert_allclose(design @ coef, subtracted, atol=1e-4)
@@ -160,8 +182,7 @@ class TestCompositionResidualScore(unittest.TestCase):
                 edge0=0.0,
                 step=1.0,
                 # pylint: disable=protected-access
-                f_means=np.zeros_like(residual._f_means.numpy()),
-                s_means=np.zeros_like(residual._s_means.numpy()),
+                intercepts=np.zeros_like(residual._intercepts.numpy()),
                 betas=np.zeros_like(residual._betas.numpy()),
                 r2=0.0,
             ),

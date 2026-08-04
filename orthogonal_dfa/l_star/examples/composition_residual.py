@@ -20,40 +20,67 @@ from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import device_of
 
+# Middles per free coefficient the fit demands.  Nothing regularizes it, so per_bin
+# carries the variance alone: on random middles at n_max=4 (336 coefficients) held-out
+# R2 runs 0.48 at 24x, 0.44 at 9.5x, 0.36 at 4.8x, and goes negative below ~2x.
+MIN_SAMPLES_PER_PARAMETER = 20
 
-def bow_features(strings, n_max):
-    """(N, D) generic bag-of-k-mers frequency features for k=1..n_max, D=sum 4^k.
 
-    Position- and frame-agnostic: every k-mer's sliding-window count over the number
-    of windows.  CG and the stop codons are present only as individual k-mer
-    frequencies among all 4^k -- nothing is hand-embedded."""
-    D = sum(4**k for k in range(1, n_max + 1))
+def free_parameters(k_max):
+    """Width of :func:`bow_features`, hence the coefficient count a fit estimates."""
+    return sum(4**k - 1 for k in range(1, k_max + 1))
+
+
+def bow_features(strings, k_max):
+    """(N, D) bag-of-k-mers design matrix for k=1..k_max, D=sum(4**k - 1).
+
+    Each k's block holds the sliding-window frequency of every k-mer but the last.
+    A block's frequencies sum to 1, so carrying all 4**k of them would leave the
+    design rank-deficient in any model with an intercept; the omitted k-mer is one
+    minus the rest, so the block still spans the same space."""
+    D = free_parameters(k_max)
     F = np.zeros((len(strings), D), dtype=np.float32)
     for i, s in enumerate(strings):
         s = np.asarray(s, dtype=np.int64)
         m, off = len(s), 0
-        for k in range(1, n_max + 1):
-            width = 4**k
+        for k in range(1, k_max + 1):
+            width = 4**k - 1
             if m >= k:
                 ids = np.zeros(m - k + 1, dtype=np.int64)
                 for j in range(k):
                     ids = ids * 4 + s[j : m - k + 1 + j]
-                F[i, off : off + width] = np.bincount(ids, minlength=width) / (
-                    m - k + 1
-                )
+                counts = np.bincount(ids, minlength=width + 1)[:width]
+                F[i, off : off + width] = counts / (m - k + 1)
             off += width
     return F
 
 
 class CompositionResidualScore(nn.Module):
-    """Wraps a score model, subtracting a per-length-bin linear bag-of-k-mers
+    """
+    Wraps a score model, subtracting a per-length-bin linear bag-of-k-mers
     prediction of its score.
 
     Each bin's linear model carries an intercept, so the residual is centered per
-    bin: its median is ~0 at every length, and one ``median_threshold`` keeps the
-    wrapping oracle balanced across the fitted band.  The fit lives in buffers, so it
-    survives ``state_dict``; ``n_max`` and the flank length are architecture, needed
-    to reconstruct before loading.  Build with :func:`fit_composition_residual`."""
+    bin.
+
+    The fit is one linear model per length bin, written as parallel arrays.
+
+    With B bins and D = sum(4**k - 1 for k in 1..n_max) bow_features, a middle of
+    length m scores
+
+        bin  = clamp(floor((m - edge0) / step), 0, B - 1)
+        pred = intercepts[bin] + bow_features(middle) @ betas[bin]
+
+    where
+        - edge0, step: the band start and bin width (scalars), i.e. len_lo and
+          bin_width, from which every bin edge follows.
+        - intercepts: (B,) each bin's constant term.
+        - betas: (B, D) each bin's k-mer coefficients.
+        - r2: diagnostic only, surfaced as composition_r2.
+
+    score_model, flank_l_len and n_max are architecture rather than fit: they are
+    needed to reconstruct the module before load_state_dict can restore the rest.
+    """
 
     def __init__(
         self,
@@ -63,8 +90,7 @@ class CompositionResidualScore(nn.Module):
         n_max,
         edge0,
         step,
-        f_means,
-        s_means,
+        intercepts,
         betas,
         r2,
     ):
@@ -75,10 +101,7 @@ class CompositionResidualScore(nn.Module):
         self.register_buffer("_edge0", torch.tensor(float(edge0)))
         self.register_buffer("_step", torch.tensor(float(step)))
         self.register_buffer(
-            "_f_means", torch.as_tensor(np.asarray(f_means, np.float32))
-        )
-        self.register_buffer(
-            "_s_means", torch.as_tensor(np.asarray(s_means, np.float32))
+            "_intercepts", torch.as_tensor(np.asarray(intercepts, np.float32))
         )
         self.register_buffer("_betas", torch.as_tensor(np.asarray(betas, np.float32)))
         self.register_buffer("_composition_r2", torch.tensor(float(r2)))
@@ -90,9 +113,9 @@ class CompositionResidualScore(nn.Module):
 
     def _bin_indices(self, lengths):
         idx = torch.div(lengths - self._edge0, self._step, rounding_mode="floor").long()
-        clamped = idx.clamp(0, self._f_means.shape[0] - 1)
+        clamped = idx.clamp(0, self._betas.shape[0] - 1)
         if bool((idx != clamped).any()):
-            hi = float(self._edge0) + self._f_means.shape[0] * float(self._step)
+            hi = float(self._edge0) + self._betas.shape[0] * float(self._step)
             warnings.warn(
                 f"query length outside the fitted band [{float(self._edge0):.0f}, "
                 f"{hi:.0f}); the nearest bin is used there and its score is not "
@@ -115,36 +138,27 @@ class CompositionResidualScore(nn.Module):
             dtype=self._betas.dtype,
         )
         idx = self._bin_indices(lengths.to(self._edge0.device))
-        pred = self._s_means[idx] + (
-            (feats - self._f_means[idx]) * self._betas[idx]
-        ).sum(-1)
+        pred = self._intercepts[idx] + (feats * self._betas[idx]).sum(-1)
         return raw - pred.to(raw.dtype)
 
 
-def _fit_bin(feats, scores, ridge):
-    """Standardized, sample-averaged ridge -> (feature_mean, score_mean, coefficients).
+def _fit_bin(feats, scores):
+    """
+    Plain OLS -> (intercept, coefficients), predicting ``intercept + feats @ coef``.
 
-    Scale-free by construction: the normal equations are averaged over the samples
-    and the predictors are standardized to unit variance, so the penalty is a
-    correlation-matrix ridge that does not move with ``per_bin`` or with k-mer order
-    (higher-order k-mers are rarer, so on the raw scale their Gram diagonal is
-    smaller and a fixed penalty would crush them).  The effective strength is
-    ``ridge * D / n`` -- regularization proportional to model complexity per sample,
-    lighter with more middles, heavier with more k-mers."""
-    n, D = feats.shape
-    f_mean = feats.mean(0)
-    centered = feats - f_mean
-    std = np.sqrt((centered**2).mean(0))
-    std[std == 0] = 1.0  # k-mers absent at this length are constant; their coef stays 0
-    z = centered / std  # unit-variance predictors -> correlation-matrix Gram below
-    coef = np.linalg.solve(
-        z.T @ z / n + (ridge * D / n) * np.eye(D), z.T @ (scores - scores.mean()) / n
-    )
-    return f_mean, scores.mean(), coef / std
+    Unregularized (see MIN_SAMPLES_PER_PARAMETER);
+    :func:`bow_features` already omits one k-mer per block, so the design is full rank.
+
+    Fitting centers the features, but the centering point folds into the intercept
+    rather than being kept.
+    """
+    f_mean, s_mean = feats.mean(0), scores.mean()
+    coef, *_ = np.linalg.lstsq(feats - f_mean, scores - s_mean, rcond=None)
+    return s_mean - f_mean @ coef, coef
 
 
-def _r2(feats, scores, f_mean, s_mean, beta):
-    resid = scores - (s_mean + (feats - f_mean) @ beta)
+def _r2(feats, scores, intercept, beta):
+    resid = scores - (intercept + feats @ beta)
     return 1 - (resid**2).sum() / ((scores - scores.mean()) ** 2).sum()
 
 
@@ -166,16 +180,17 @@ def _fit_composition_bins(
     len_hi=190,
     bin_width=5,
     per_bin=8000,
-    ridge=1.0,
     seed=0,
     device=None,
     chunk=1024,
 ):
-    """Ridge-fit the k-mer regression per length bin; returns the picklable fit (small
+    """
+    OLS-fit the k-mer regression per length bin; returns the picklable fit (small
     numpy arrays), so the cache does not have to pickle the model.
 
     The deployed coefficients use every middle; the reported r2 is held out (a 20%
-    slice), since in-sample r2 with up to 340 features reads optimistically."""
+    slice), since in-sample r2 with up to 340 features reads optimistically.
+    """
     flank_l, flank_r = flanks(exon)
     dev = device_of(score_model, device)
     edges = np.arange(len_lo, len_hi + bin_width, bin_width)
@@ -183,8 +198,15 @@ def _fit_composition_bins(
         f"need at least one length bin, got none: len_hi ({len_hi}) must exceed "
         f"len_lo ({len_lo}) -- len_hi is exclusive, so a single length L is len_hi=L+1"
     )
+    free = free_parameters(n_max)
+    assert per_bin >= MIN_SAMPLES_PER_PARAMETER * free, (
+        f"per_bin={per_bin} is too small for n_max={n_max}: the fit is unregularized "
+        f"and estimates {free} free coefficients per bin, so it needs at least "
+        f"{MIN_SAMPLES_PER_PARAMETER * free} middles to stay out of the overfitting "
+        f"regime; raise per_bin or lower n_max"
+    )
     rng = np.random.default_rng(seed)
-    f_means, s_means, betas, r2s = [], [], [], []
+    intercepts, betas, r2s = [], [], []
     for lo, hi in zip(edges[:-1], edges[1:]):
         lens = rng.integers(lo, hi, size=per_bin)
         mids = [rng.integers(0, 4, size=int(length)).tolist() for length in lens]
@@ -192,18 +214,16 @@ def _fit_composition_bins(
             score_model, flank_l, flank_r, mids, device=dev, chunk=chunk
         ).astype(np.float64)
         feats = bow_features(mids, n_max).astype(np.float64)
-        f_mean, s_mean, beta = _fit_bin(feats, scores, ridge)
+        intercept, beta = _fit_bin(feats, scores)
         cut = max(1, per_bin - max(1, per_bin // 5))
-        held = _fit_bin(feats[:cut], scores[:cut], ridge)
-        f_means.append(f_mean)
-        s_means.append(s_mean)
+        held = _fit_bin(feats[:cut], scores[:cut])
+        intercepts.append(intercept)
         betas.append(beta)
         r2s.append(_r2(feats[cut:], scores[cut:], *held))
     return dict(
         edge0=float(edges[0]),
         step=float(edges[1] - edges[0]),
-        f_means=np.stack(f_means).astype(np.float32),
-        s_means=np.array(s_means, dtype=np.float32),
+        intercepts=np.array(intercepts, dtype=np.float32),
         betas=np.stack(betas).astype(np.float32),
         r2=float(np.mean(r2s)),
     )
@@ -226,7 +246,6 @@ def fit_composition_residual(
     len_hi=190,
     bin_width=5,
     per_bin=8000,
-    ridge=1.0,
     seed=0,
     device=None,
     chunk=1024,
@@ -257,7 +276,6 @@ def fit_composition_residual(
         len_hi=len_hi,
         bin_width=bin_width,
         per_bin=per_bin,
-        ridge=ridge,
         seed=seed,
         device=device,
         chunk=chunk,
