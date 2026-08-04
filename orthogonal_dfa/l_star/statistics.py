@@ -132,7 +132,7 @@ def _dispersion_at_the_bound(
     accept = rng.random((num_sim, num_prefixes)) < balance
     draws = rng.binomial(k, np.where(accept, accept_rate, reject_rate))
     mu = draws.mean(axis=1) / k
-    #`row_sum_dispersion` scores it a 0.0 whenever it shows up with all 0s or all 1s
+    # `row_sum_dispersion` scores it a 0.0 whenever it shows up with all 0s or all 1s
     spread = ((draws - (k * mu)[:, None]) ** 2).sum(axis=1)
     scale = k * mu * (1 - mu) * (num_prefixes - 1)
     x2 = np.divide(
@@ -142,7 +142,7 @@ def _dispersion_at_the_bound(
 
 
 def give_up_check(  # pylint: disable=too-many-positional-arguments
-    signal_strength,
+    minimal_signal_strength,
     num_prefixes,
     num_suffixes,
     min_suffix_frequency,
@@ -152,40 +152,34 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
     failure_prob=0.01,
     num_sim=4000,
 ):
-    """When to conclude no suffix family separates the prefixes.
+    """
 
-    Returns ``(k, tau)``; give up if ``row_sum_dispersion`` over the top-``k``
-    columns is ``<= tau``.  ``None`` when ``k < 2`` leaves nothing to test, or
-    when no balance is consistent with ``empirical_pos``.
+    When to conclude no suffix family separates the prefixes.
 
-    H0 is that the cluster exists, so rejecting it is what triggers the
-    destructive action and ``Pr[give up | cluster exists] <= failure_prob`` is
-    the guarantee.
+    Returns (k, tau): give up if row_sum_dispersion over the top-k
+    columns is <= tau.  None when either k < 2, so nothing to test, or
+    when no balance p is feasible given the observed parameters.
 
-    Under H0 prefix ``i``'s row sum is ``R_i ~ Bin(k, q_i)`` with
-    ``q_i = c + s`` or ``c - s`` by class, drawn with ``P(accept) = p``.
-    Writing ``mu = E[q]``::
+    Pr[give up | cluster exists] <= failure_prob is guaranteed.
 
-        Var(R)     = k E[q(1-q)] + k^2 Var(q)      (law of total variance)
+    When a cluster exists, prefix i's row sum is
+        R_i ~ Bin(k, q_i)
+    where q_i is c + s with probability p and c - s with probability 1 - p.
+    Writing mu = E[q] and X2/df as the return of row_sum_dispersion, we have
+
+        Var(R)     = k E[q(1-q)] + k^2 Var(q)
         mu(1 - mu) = E[q(1-q)] + Var(q)
         E[X2]/df   = Var(R) / (k mu(1-mu)) = 1 + (k-1) Var(q) / (mu(1-mu))
         Var(q)     = 4 p (1-p) s^2
 
-    So the dispersion H0 predicts is increasing in ``p(1-p)``: the least
-    balanced admissible ``p`` gives the least it allows, and a lower-tail
-    threshold there is conservative for every better-balanced target.
+    So the dispersion is increasing in p(1-p), we can take the least balanced
+    feasible p to get a lower bound.
 
-    ``mu`` enters only as the observed rate, which the statistic already
-    normalises by -- taking it from anywhere else would test the data against
-    a threshold built for a different population.  It also pins
-    ``c = mu + s(1 - 2p)``, so requiring ``c - s >= 0`` and ``c + s <= 1``
-    bounds ``p`` into ``[1 - (1-mu)/2s, mu/2s]``; see
-    :func:`_feasible_balance_range`.
+    mu has to be the observed rate, since that is what the statistic normalises
+    by, and the seed only picks the columns: it is not read by the statistic,
+    so seed-based selection can only inflate dispersion, which a lower-tail
+    test cannot be tripped by.
 
-    The statistic never reads the seed column, so the k readings in a prefix
-    are independent given its class.  Selecting the columns by agreement with
-    the seed only inflates dispersion, and inflation cannot trip a lower-tail
-    test, so the selection needs no correction.
 
     :param min_acc_rej: floor on the smaller of the accept/reject rates.  A
         *bound*, not an estimate -- the guarantee holds only above it.
@@ -193,7 +187,7 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
         prefixes the dispersion is measured on.
     """
     assert 0 < min_suffix_frequency <= 1
-    assert signal_strength > 0
+    assert minimal_signal_strength > 0
 
     # Split the budget: k may undercount the idempotent suffixes, and the
     # threshold may sit above the true quantile.
@@ -201,7 +195,9 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
     k = int(scipy.stats.binom.ppf(each, num_suffixes, min_suffix_frequency))
     if k < 2:
         return None
-    feasible = _feasible_balance_range(empirical_pos, signal_strength, min_acc_rej)
+    feasible = _feasible_balance_range(
+        empirical_pos, minimal_signal_strength, min_acc_rej
+    )
     if feasible is None:
         return None
     lo, hi = feasible
@@ -210,7 +206,7 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
         k,
         num_prefixes,
         empirical_pos=empirical_pos,
-        s=signal_strength,
+        s=minimal_signal_strength,
         balance=balance,
         quantile=each,
         num_sim=num_sim,
