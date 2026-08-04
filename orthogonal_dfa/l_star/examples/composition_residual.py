@@ -12,6 +12,13 @@ from orthogonal_dfa.spliceai.exon_score import device_of
 # Minimal number of samples per free coefficient to fit an unregularized linear model effectively.
 MIN_SAMPLES_PER_PARAMETER = 20
 
+# Singular values below this fraction of the largest are dropped by :func:`_fit_bin`.
+# The k and k-1 blocks of bow_features are near-dependent -- summing a k-block over
+# its last base recovers the (k-1)-mer frequency up to an O(1/m) boundary term -- so
+# the design is full rank but ill-conditioned (~3e6 at n_max=4).  Keeping those
+# directions lets the fit spend enormous coefficients on boundary effects.
+RCOND = 1e-4
+
 
 def free_parameters(k_max):
     """Width of :func:`bow_features`, hence the coefficient count a fit estimates."""
@@ -139,16 +146,17 @@ class CompositionResidualScore(nn.Module):
 
 def _fit_bin(feats, scores):
     """
-    Plain OLS -> (intercept, coefficients), predicting ``intercept + feats @ coef``.
+    Least squares -> (intercept, coefficients), predicting ``intercept + feats @ coef``.
 
-    Unregularized (see MIN_SAMPLES_PER_PARAMETER);
-    :func:`bow_features` already omits one k-mer per block, so the design is full rank.
+    Unpenalized (see MIN_SAMPLES_PER_PARAMETER), but truncated at RCOND rather than
+    at machine precision, which keeps the coefficients on the scale of the score
+    instead of the 1e5 the ill-conditioned directions would otherwise reach.
 
     Fitting centers the features, but the centering point folds into the intercept
     rather than being kept.
     """
     f_mean, s_mean = feats.mean(0), scores.mean()
-    coef, *_ = np.linalg.lstsq(feats - f_mean, scores - s_mean, rcond=None)
+    coef, *_ = np.linalg.lstsq(feats - f_mean, scores - s_mean, rcond=RCOND)
     return s_mean - f_mean @ coef, coef
 
 
@@ -158,7 +166,9 @@ def _r2(feats, scores, intercept, beta):
 
 
 @permacache(
-    "orthogonal_dfa/l_star/examples/composition_residual/fit_bins",
+    # Bump this whenever bow_features' layout or _fit_bin's math changes: the key
+    # covers only the arguments, so a stale entry is a silently wrong residual.
+    "orthogonal_dfa/l_star/examples/composition_residual/fit_bins_2",
     key_function=dict(
         score_model=lambda m: stable_hash(m, version=2),
         exon=stable_hash,
