@@ -21,6 +21,7 @@ from orthogonal_dfa.l_star.statistics import (
     DEFAULT_MIN_ACC_REJ,
     counterexample_search_exhausted,
     give_up_check,
+    row_sum_dispersion,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
@@ -368,132 +369,58 @@ class TestLStarAsymmetric(unittest.TestCase):
 
 class TestGiveUpThreshold(unittest.TestCase):
 
-    @parameterized.expand(
-        [
-            # (signal, P, r, min_acc_rej, center)
-            (0.25, 200, 0.10, 0.5, 0.5),
-            (0.30, 200, 0.10, 0.5, 0.5),
-            (0.30, 100, 0.10, 0.5, 0.5),
-            # Asymmetric: center=0.65, min_acc_rej=0.2
-            (0.30, 200, 0.10, 0.2, 0.65),
-        ]
-    )
-    def test_rarely_gives_up_when_evidence_present(  # pylint: disable=too-many-positional-arguments
-        self, signal_strength, num_prefixes, r, min_acc_rej, center
-    ):
-        """Empirically validate that the give-up check matches its claimed
-        failure probability. Under signal, the top-k mean agreement should
-        almost always exceed the threshold."""
-        failure_prob = 0.05
-        num_suffixes = 200
-        p_accept = center + signal_strength
-        p_reject = center - signal_strength
-        empirical_pos = min_acc_rej * p_accept + (1 - min_acc_rej) * p_reject
+    S, P, T, R = 0.3, 200, 958, 0.02
+    FAILURE_PROB = 0.01
 
-        result = give_up_check(
-            signal_strength,
-            num_prefixes,
-            num_suffixes,
-            r,
+    def _give_up_rate(self, balance, *, structured, min_acc_rej, num_trials=800):
+        """How often the check fires, over ``num_trials`` draws of the k cluster
+        columns at the given true ``balance``."""
+        k, tau = give_up_check(
+            self.S,
+            self.P,
+            self.T,
+            self.R,
             min_acc_rej,
-            empirical_pos,
-            failure_prob=failure_prob,
+            failure_prob=self.FAILURE_PROB,
         )
-        self.assertIsNotNone(result, "k too small")
-        k, threshold = result
-
-        num_trials = 5_000
-        rng = np.random.default_rng(42)
-        failures = 0
-
+        rng = np.random.default_rng(1234)
+        base = balance * (0.5 + self.S) + (1 - balance) * (0.5 - self.S)
+        fired = 0
         for _ in range(num_trials):
-            true_labels = rng.random(num_prefixes) < min_acc_rej
-            p_per_prefix = np.where(true_labels, p_accept, p_reject)
-            seed_obs = rng.random(num_prefixes) < p_per_prefix
-
-            is_idempotent = rng.random(num_suffixes) < r
-            all_obs = rng.random((num_suffixes, num_prefixes))
-            thresh = np.where(
-                is_idempotent[:, None],
-                p_per_prefix[None, :],
-                empirical_pos,
+            accept = rng.random(self.P) < balance
+            rates = (
+                np.where(accept, 0.5 + self.S, 0.5 - self.S)
+                if structured
+                else np.full(self.P, base)
             )
-            suffix_obs = all_obs < thresh
-            agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
-            top_k_mean = np.sort(agreements)[-k:].mean()
+            columns = rng.random((k, self.P)) < rates[None, :]
+            fired += row_sum_dispersion(columns) <= tau
+        return fired / num_trials
 
-            if top_k_mean <= threshold:
-                failures += 1
-
-        empirical_failure_rate = failures / num_trials
-        print(
-            f"s={signal_strength}, P={num_prefixes}, r={r}, "
-            f"min_acc_rej={min_acc_rej}, T={num_suffixes}: "
-            f"k={k}, threshold={threshold:.4f}, "
-            f"empirical_failure={empirical_failure_rate:.4f}, "
-            f"target={failure_prob}"
-        )
-
-        # The bound is conservative (top-k >= random idempotent
-        # suffixes), so we only check the upper bound.
-        self.assertLess(empirical_failure_rate, failure_prob + 0.02)
-
-    def _spurious_give_up_rate(self, balance, min_acc_rej, *, num_trials=300):
-        """How often the check fires on prefixes that all carry full signal.
-
-        ``balance`` is the true share of the smaller class; ``min_acc_rej`` is
-        what the check is told to assume about it.
-        """
-        signal_strength, num_prefixes, num_suffixes, r = 0.40, 200, 958, 0.02
-        center = 0.5
-        p_accept, p_reject = center + signal_strength, center - signal_strength
-        empirical_pos = (1 - balance) * p_accept + balance * p_reject
-
-        result = give_up_check(
-            signal_strength,
-            num_prefixes,
-            num_suffixes,
-            r,
-            min_acc_rej,
-            empirical_pos,
-        )
-        self.assertIsNotNone(result, "k too small")
-        k, threshold = result
-
-        rng = np.random.default_rng(42)
-        failures = 0
-        for _ in range(num_trials):
-            true_labels = rng.random(num_prefixes) < 1 - balance
-            p_per_prefix = np.where(true_labels, p_accept, p_reject)
-            seed_obs = rng.random(num_prefixes) < p_per_prefix
-
-            is_idempotent = rng.random(num_suffixes) < r
-            all_obs = rng.random((num_suffixes, num_prefixes))
-            suffix_obs = all_obs < np.where(
-                is_idempotent[:, None], p_per_prefix[None, :], empirical_pos
+    def test_false_give_up_rate_is_neither_over_nor_under_bounded(self):
+        """At exactly ``min_acc_rej`` -- the least balance the bound permits --
+        the cluster does exist, so firing is a false give-up and its rate should
+        sit near ``failure_prob``.  Far above means the guarantee is broken; far
+        below means the bound is so slack the check can never fire."""
+        for min_acc_rej in (0.02, 0.1):
+            rate = self._give_up_rate(
+                min_acc_rej, structured=True, min_acc_rej=min_acc_rej
             )
-            agreements = (suffix_obs == seed_obs[None, :]).mean(axis=1)
-            if np.sort(agreements)[-k:].mean() <= threshold:
-                failures += 1
-        return failures / num_trials
+            self.assertLess(rate, 3 * self.FAILURE_PROB, f"m={min_acc_rej}")
+            self.assertGreater(rate, self.FAILURE_PROB / 4, f"m={min_acc_rej}")
 
-    @parameterized.expand([(0.02,), (0.03,), (0.077,), (0.2,), (0.5,)])
-    def test_default_bound_holds_for_everything_preconditions_admit(self, balance):
-        """``satisfies_preconditions`` rejects anything below
-        ``DEFAULT_MIN_ACC_REJ``, so every target that reaches the learner is at
-        least this balanced and must not be given up on for lack of signal it
-        has.  0.077 is CAPAL's Simple05."""
-        rate = self._spurious_give_up_rate(balance, DEFAULT_MIN_ACC_REJ)
-        self.assertLess(rate, 0.03, f"balance={balance}")
+    @parameterized.expand([(0.02, 0.077), (0.02, 0.2), (0.02, 0.5), (0.1, 0.5)])
+    def test_better_balanced_targets_are_conservative(self, min_acc_rej, balance):
+        """Dispersion under H0 grows with ``balance * (1 - balance)``, so a
+        target more balanced than the bound must fire even less often."""
+        rate = self._give_up_rate(balance, structured=True, min_acc_rej=min_acc_rej)
+        self.assertLessEqual(rate, self.FAILURE_PROB)
 
-    def test_gives_up_spuriously_once_the_bound_is_violated(self):
-        """The check is only sound while ``min_acc_rej`` really does bound the
-        balance: ``p_same`` adds ``8 * min_acc_rej * (1 - min_acc_rej) * s**2``,
-        a term the derivation gets by minimising over ``p_acc``.  Told 0.1 about
-        prefixes that are actually at 0.077, it gives up on full signal -- which
-        is why the precondition band exists rather than a larger constant.
-        """
-        self.assertGreater(self._spurious_give_up_rate(0.077, 0.1), 0.10)
+    def test_fires_when_there_is_no_cluster(self):
+        """The prefixes are exchangeable, so no family separates them and the
+        check has to say so."""
+        rate = self._give_up_rate(0.5, structured=False, min_acc_rej=0.1)
+        self.assertGreater(rate, 0.9)
 
     def test_gives_up_with_no_signal(self):
         """With p_0 = p_1 = 0.5 (pure coin-flip), the oracle has no signal.

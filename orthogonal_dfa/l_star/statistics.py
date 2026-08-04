@@ -63,87 +63,97 @@ def evidence_margin_for_population_size(
     return None
 
 
+def row_sum_dispersion(columns) -> float:
+    """Chi-square dispersion of the per-prefix row sums of ``columns`` (k x P).
+
+    Around 1 when the prefixes are exchangeable, above 1 when they split into
+    classes the columns agree about: a prefix in the accept class reads 1 more
+    often in *every* column at once, so its row sum sits high and the sums
+    spread wider than a single binomial.
+    """
+    k, num_prefixes = columns.shape
+    mu = float(columns.mean())
+    if mu <= 0 or mu >= 1 or num_prefixes < 2:
+        return 0.0
+    row_sums = columns.sum(axis=0)
+    return float(
+        ((row_sums - k * mu) ** 2).sum() / (k * mu * (1 - mu)) / (num_prefixes - 1)
+    )
+
+
+def _dispersion_at_the_bound(
+    k, num_prefixes, center, s, min_acc_rej, quantile, num_sim
+):
+    """The ``quantile`` of ``row_sum_dispersion`` when a cluster does exist, at
+    the least favourable balance the caller has ruled out going below.
+
+    Row sums are drawn straight from the two-class mixture rather than from a
+    whole mask matrix, so this stays cheap as k and P grow.
+    """
+    rng = np.random.default_rng(0)
+    accept = rng.random((num_sim, num_prefixes)) < min_acc_rej
+    rates = np.clip(np.where(accept, center + s, center - s), 0.0, 1.0)
+    draws = rng.binomial(k, rates)
+    mu = draws.mean(axis=1) / k
+    ok = (mu > 0) & (mu < 1)
+    if not ok.any():
+        return 0.0
+    draws, mu = draws[ok], mu[ok]
+    spread = ((draws - (k * mu)[:, None]) ** 2).sum(axis=1)
+    x2 = spread / (k * mu * (1 - mu)) / (num_prefixes - 1)
+    return float(np.quantile(x2, quantile))
+
+
 def give_up_check(  # pylint: disable=too-many-positional-arguments
     signal_strength,
     num_prefixes,
     num_suffixes,
     min_suffix_frequency,
     min_acc_rej,
-    empirical_pos,
     *,
+    center=0.5,
     failure_prob=0.01,
+    num_sim=4000,
 ):
-    """
-    Checks whether we should give up on finding suffixes based on the
-    parameters of the problem and the empirical agreement with the seed.
+    """When to conclude no suffix family separates the prefixes.
 
-    :param signal_strength: The minimum signal strength we are trying
-        to detect.
-    :param num_prefixes: The number of prefixes we have.
-    :param num_suffixes: The number of suffixes we have sampled so far.
-    :param min_suffix_frequency: The minimum frequency of suffixes we
-        are trying to find.
-    :param min_acc_rej: The minimum of the accept and reject rates of
-        the prefixes.
-    :param empirical_pos: The empirical positive rate of the prefixes.
-    :param failure_prob: The probability with which we are willing to
-        fail to find a good suffix.
-    :return: A tuple of (k, agreement_threshold). We should give up if
-        ``mean([mask[i] == mask[0] for i in top_k])
-        < agreement_threshold``.
-    """
-    r = min_suffix_frequency
-    s = signal_strength
-    P = num_prefixes
-    T = num_suffixes
-    assert 0 < r <= 1
-    assert s > 0
+    Returns ``(k, tau)``; give up if ``row_sum_dispersion`` over the top-``k``
+    columns is ``<= tau``.  ``None`` when ``k < 2`` leaves nothing to test.
 
-    # k = lower bound on number of idempotent suffixes.
-    # We can assume that the top k are idempotent, because the ones
-    # that aren't are better than a random idempotent suffix anyway,
-    # so this is a conservative threshold.
-    k = int(scipy.stats.binom.ppf(failure_prob / 3, T, r))
+    H0 is that the cluster exists, so rejecting it is what triggers the
+    destructive action, and Pr[give up | cluster exists] <= ``failure_prob`` is
+    the guarantee.  Under H0 a prefix's row sum is ``Bin(k, center +- s)`` by
+    its class, a mixture whose dispersion grows with ``p * (1 - p)``.  That is
+    monotone, so taking ``p = min_acc_rej`` -- the least balance the caller
+    permits -- gives the lowest dispersion H0 allows, and a lower-tail
+    threshold there is conservative for every better-balanced target.
+
+    The statistic never mentions the seed column, so the k readings in a prefix
+    are independent given its class.  Selecting the columns by agreement with
+    the seed only inflates dispersion, and inflation cannot trip a lower-tail
+    test, so the selection needs no correction.
+
+    :param signal_strength: separation ``s`` of the two class rates about ``center``.
+    :param num_prefixes: prefixes the dispersion is measured over.
+    :param num_suffixes: suffixes sampled so far.
+    :param min_suffix_frequency: assumed floor on the idempotent-suffix rate.
+    :param min_acc_rej: assumed floor on the smaller of the accept/reject rates.
+        A *bound*, not an estimate -- the guarantee holds only above it.
+    :param center: rate a prefix reads 1 at with no class signal.
+    """
+    assert 0 < min_suffix_frequency <= 1
+    assert signal_strength > 0
+
+    # Split the budget: k may undercount the idempotent suffixes, and the
+    # threshold may sit above the true quantile.
+    each = failure_prob / 2
+    k = int(scipy.stats.binom.ppf(each, num_suffixes, min_suffix_frequency))
     if k < 2:
         return None
-
-    # We now know we have at least k idempotent suffixes, but these
-    # are noisy.  Specifically, each has v_{ij} ~ B(center + s) if
-    # prefix i is accept, and v_{ij} ~ B(center - s) if prefix i is
-    # reject.  This means if we let w_{ij} = v_{ij} == v_{0j}
-    # (agreement with seed), we have that w_{ij} = 1 iff either
-    #   - prefix i is accept and two samples from B(center + s) agree
-    #   - prefix i is reject and two samples from B(center - s) agree
-    # The probability that two samples from B(p) agree is
-    #   a(p) = p^2 + (1-p)^2 = 2p^2 - 2p + 1 = 1 - 2p(1-p).
-    # This is a quadratic with minimum at p=0.5, where it equals 0.5,
-    # and it increases as p goes to 0 or 1.
-    # As such, we have that w_{ij} = 1 with probability
-    #   p_same
-    #     = p_acc * a(c + s) + (1 - p_acc) * a(c - s)
-    # One thing is that we know the empirical positives the oracle
-    # produces on the prefixes:
-    #   empirical_pos = p_acc * (c + s) + (1 - p_acc) * (c - s)
-    # So if we subtract out the expected agreement based on the
-    # empirical positive rate, we get
-    #   p_same - a(empirical_pos)
-    # Which we can simplify (see _give_up_check_sym) to
-    #   8*p_acc (1 - p_acc) s^2
-    # This is minimized when p_acc is minimized.
-    # We can thus compute
-    def a(p):
-        return 1 - 2 * p * (1 - p)
-
-    p_same = 8 * min_acc_rej * (1 - min_acc_rej) * s**2 + a(empirical_pos)
-
-    # We want to give up if the top-k mean agreement is less than
-    # p_same, which is the expected agreement of a random idempotent
-    # suffix.  The top-k mean agreement can be computed as
-    # sum_ij w_{ij} / (kP)
-    # Which is just a binomial distribution with kP trials and
-    # probability p_same, divided by kP.
-    threshold = scipy.stats.binom.ppf(failure_prob / 3, k * P, p_same) / (k * P)
-    return k, threshold
+    tau = _dispersion_at_the_bound(
+        k, num_prefixes, center, signal_strength, min_acc_rej, each, num_sim
+    )
+    return k, tau
 
 
 def _give_up_check_sym():

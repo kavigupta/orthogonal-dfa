@@ -2,7 +2,11 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import evidence_margin_for_population_size, give_up_check
+from .statistics import (
+    evidence_margin_for_population_size,
+    give_up_check,
+    row_sum_dispersion,
+)
 
 
 def identify_cluster_around(
@@ -79,9 +83,8 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
 
     while True:
         seed_mask = pst.table.column(v)
-        empirical_pos = float(seed_mask.mean())
         if first_round:
-            _give_up_check(pst, config, seed_mask, empirical_pos)
+            _give_up_check(pst, config, seed_mask)
         vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
@@ -116,14 +119,13 @@ def sample_suffix_family(pst, v: int, first_round: bool) -> Tuple[List[int], flo
             pst.sample_more_prefixes()
 
 
-def _give_up_check(pst, config, seed_mask, empirical_pos):
+def _give_up_check(pst, config, seed_mask):
     # Judge whether the signal is too weak over the representative prefixes only:
     # the short prefix-closed core explores a skewed region of the state space and
     # is classified more confidently than the probe prefixes, so folding it in
-    # would distort the agreement estimate and could trigger a spurious give-up.
+    # would distort the estimate and could trigger a spurious give-up.
     rep = pst.table.representative
     seed_mask = seed_mask[rep]
-    empirical_pos = float(seed_mask.mean())
     # The give-up statistic reasons about the sampled acceptance-family suffixes
     # (their count bounds how many are idempotent), so count the fully-observed
     # family suffixes -- not every interned row, which would also include
@@ -135,15 +137,18 @@ def _give_up_check(pst, config, seed_mask, empirical_pos):
         len(candidate),
         config.min_suffix_frequency,
         config.min_acc_rej,
-        empirical_pos,
+        center=pst.decision_boundary,
     )
-    if result is not None:
-        k, threshold = result
-        masks = pst.table.observed_masks(candidate, rep)
-        agreements = (masks == seed_mask).mean(axis=1)
-        top_k_mean = float(np.sort(agreements)[-k:].mean())
-        if top_k_mean <= threshold:
-            raise GaveUpOnSuffixSearch(
-                f"Sampled {len(candidate)} suffixes. "
-                f"Top-{k} mean agreement {top_k_mean:.3f} <= {threshold:.3f}"
-            )
+    if result is None:
+        return
+    k, tau = result
+    masks = pst.table.observed_masks(candidate, rep)
+    # The seed picks which columns to look at; the statistic does not read it,
+    # so the k readings in a prefix stay independent given its class.
+    top = np.argsort((masks == seed_mask).mean(axis=1))[-k:]
+    dispersion = row_sum_dispersion(masks[top])
+    if dispersion <= tau:
+        raise GaveUpOnSuffixSearch(
+            f"Sampled {len(candidate)} suffixes. "
+            f"Top-{k} row-sum dispersion {dispersion:.3f} <= {tau:.3f}"
+        )
