@@ -16,6 +16,8 @@ Readout = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 # 2*FLANK_MARGIN positions: the acceptor is the first, the donor the last.
 FLANK_MARGIN = 2
 
+CALIBRATION_SEED = int(stable_hash("calibration"), 16)
+
 
 def flanks(exon: RawExon):
     """The (left, right) fixed flanks the middle is wrapped in, as int arrays."""
@@ -123,7 +125,7 @@ def median_threshold(
     length: int,
     *,
     count=20000,
-    seed=0xCA11B,
+    seed=CALIBRATION_SEED,
     device=None,
     chunk=1024
 ):
