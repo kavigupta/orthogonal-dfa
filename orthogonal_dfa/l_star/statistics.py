@@ -122,11 +122,9 @@ def _feasible_balance_range(empirical_pos, min_s, min_acc_rej):
 def _dispersion_at_the_bound(
     k, num_prefixes, *, empirical_pos, s, balance, quantile, num_sim
 ):
-    """The ``quantile`` of ``row_sum_dispersion`` when a cluster does exist, at
+    """
+    The ``quantile`` of ``row_sum_dispersion`` when a cluster does exist, at
     the given balance and the observed rate.
-
-    Row sums are drawn straight from the two-class mixture rather than from a
-    whole mask matrix, so this stays cheap as k and P grow.
     """
     accept_rate = empirical_pos + 2 * s * (1 - balance)
     reject_rate = empirical_pos - 2 * s * balance
@@ -134,12 +132,12 @@ def _dispersion_at_the_bound(
     accept = rng.random((num_sim, num_prefixes)) < balance
     draws = rng.binomial(k, np.where(accept, accept_rate, reject_rate))
     mu = draws.mean(axis=1) / k
-    ok = (mu > 0) & (mu < 1)
-    if not ok.any():
-        return 0.0
-    draws, mu = draws[ok], mu[ok]
+    #`row_sum_dispersion` scores it a 0.0 whenever it shows up with all 0s or all 1s
     spread = ((draws - (k * mu)[:, None]) ** 2).sum(axis=1)
-    x2 = spread / (k * mu * (1 - mu)) / (num_prefixes - 1)
+    scale = k * mu * (1 - mu) * (num_prefixes - 1)
+    x2 = np.divide(
+        spread, scale, out=np.zeros_like(spread, dtype=float), where=scale > 0
+    )
     return float(np.quantile(x2, quantile))
 
 
