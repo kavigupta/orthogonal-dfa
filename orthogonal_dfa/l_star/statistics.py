@@ -64,12 +64,19 @@ def evidence_margin_for_population_size(
 
 
 def row_sum_dispersion(columns) -> float:
-    """Chi-square dispersion of the per-prefix row sums of ``columns`` (k x P).
+    """
+    Dispersion of the per-prefix row sums of the columns.
 
-    Around 1 when the prefixes are exchangeable, above 1 when they split into
-    classes the columns agree about: a prefix in the accept class reads 1 more
-    often in *every* column at once, so its row sum sits high and the sums
-    spread wider than a single binomial.
+    Numerator is
+        sum_i (r_i - k mu)^2 / (num_prefixes - 1)
+    which is the sum of each row sum's deviation from the mean, squared, divided by the degrees of freedom.
+
+    Denominator is
+        k mu (1 - mu)
+    which is what the numerator would be if the row sums were drawn from a single binomial with mean mu. 
+
+    Around 1 when the prefixes are exchangeable, above 1 when the prefixes are more variable (i.e.,
+    there are multiple classes of prefix).
     """
     k, num_prefixes = columns.shape
     mu = float(columns.mean())
