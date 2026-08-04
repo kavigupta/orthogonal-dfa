@@ -81,19 +81,33 @@ def row_sum_dispersion(columns) -> float:
     )
 
 
+def _feasible_balance_range(empirical_pos, s, min_acc_rej):
+    """Balances consistent with the observed rate.
+
+    Fixing ``empirical_pos = p*(c+s) + (1-p)*(c-s)`` pins ``c`` once ``p`` is
+    chosen, and ``c +- s`` still has to be a probability, which rules out the
+    extremes: a population that is almost all one class cannot average to a
+    middling rate without pushing a class rate outside ``[0, 1]``.
+    """
+    lo = max(min_acc_rej, 1 - (1 - empirical_pos) / (2 * s))
+    hi = min(1 - min_acc_rej, empirical_pos / (2 * s))
+    return (lo, hi) if lo <= hi else None
+
+
 def _dispersion_at_the_bound(
-    k, num_prefixes, *, center, s, min_acc_rej, quantile, num_sim
+    k, num_prefixes, *, empirical_pos, s, balance, quantile, num_sim
 ):
     """The ``quantile`` of ``row_sum_dispersion`` when a cluster does exist, at
-    the least favourable balance the caller has ruled out going below.
+    the given balance and the observed rate.
 
     Row sums are drawn straight from the two-class mixture rather than from a
     whole mask matrix, so this stays cheap as k and P grow.
     """
+    accept_rate = empirical_pos + 2 * s * (1 - balance)
+    reject_rate = empirical_pos - 2 * s * balance
     rng = np.random.default_rng(0)
-    accept = rng.random((num_sim, num_prefixes)) < min_acc_rej
-    rates = np.clip(np.where(accept, center + s, center - s), 0.0, 1.0)
-    draws = rng.binomial(k, rates)
+    accept = rng.random((num_sim, num_prefixes)) < balance
+    draws = rng.binomial(k, np.where(accept, accept_rate, reject_rate))
     mu = draws.mean(axis=1) / k
     ok = (mu > 0) & (mu < 1)
     if not ok.any():
@@ -110,36 +124,38 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
     num_suffixes,
     min_suffix_frequency,
     min_acc_rej,
+    empirical_pos,
     *,
-    center=0.5,
     failure_prob=0.01,
     num_sim=4000,
 ):
     """When to conclude no suffix family separates the prefixes.
 
     Returns ``(k, tau)``; give up if ``row_sum_dispersion`` over the top-``k``
-    columns is ``<= tau``.  ``None`` when ``k < 2`` leaves nothing to test.
+    columns is ``<= tau``.  ``None`` when ``k < 2`` leaves nothing to test, or
+    when no balance is consistent with ``empirical_pos``.
 
     H0 is that the cluster exists, so rejecting it is what triggers the
-    destructive action, and Pr[give up | cluster exists] <= ``failure_prob`` is
-    the guarantee.  Under H0 a prefix's row sum is ``Bin(k, center +- s)`` by
-    its class, a mixture whose dispersion grows with ``p * (1 - p)``.  That is
-    monotone, so taking ``p = min_acc_rej`` -- the least balance the caller
-    permits -- gives the lowest dispersion H0 allows, and a lower-tail
-    threshold there is conservative for every better-balanced target.
+    destructive action and ``Pr[give up | cluster exists] <= failure_prob`` is
+    the guarantee.  Under H0 a prefix's row sum is binomial in its class rate,
+    a mixture whose dispersion rises with ``p * (1 - p)``.  That is monotone,
+    so evaluating at the least balanced population still consistent with the
+    evidence gives the lowest dispersion H0 allows, and a lower-tail threshold
+    there is conservative for every better-balanced target.
 
-    The statistic never mentions the seed column, so the k readings in a prefix
+    The model is pinned to ``empirical_pos`` because the statistic normalises
+    by the observed rate; deriving an expected rate from anything else would
+    compare the data against a threshold built for a different population.
+
+    The statistic never reads the seed column, so the k readings in a prefix
     are independent given its class.  Selecting the columns by agreement with
     the seed only inflates dispersion, and inflation cannot trip a lower-tail
     test, so the selection needs no correction.
 
-    :param signal_strength: separation ``s`` of the two class rates about ``center``.
-    :param num_prefixes: prefixes the dispersion is measured over.
-    :param num_suffixes: suffixes sampled so far.
-    :param min_suffix_frequency: assumed floor on the idempotent-suffix rate.
-    :param min_acc_rej: assumed floor on the smaller of the accept/reject rates.
-        A *bound*, not an estimate -- the guarantee holds only above it.
-    :param center: rate a prefix reads 1 at with no class signal.
+    :param min_acc_rej: floor on the smaller of the accept/reject rates.  A
+        *bound*, not an estimate -- the guarantee holds only above it.
+    :param empirical_pos: observed rate the prefixes read 1 at, over the same
+        prefixes the dispersion is measured on.
     """
     assert 0 < min_suffix_frequency <= 1
     assert signal_strength > 0
@@ -150,12 +166,17 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
     k = int(scipy.stats.binom.ppf(each, num_suffixes, min_suffix_frequency))
     if k < 2:
         return None
+    feasible = _feasible_balance_range(empirical_pos, signal_strength, min_acc_rej)
+    if feasible is None:
+        return None
+    lo, hi = feasible
+    balance = lo if lo * (1 - lo) <= hi * (1 - hi) else hi
     tau = _dispersion_at_the_bound(
         k,
         num_prefixes,
-        center=center,
+        empirical_pos=empirical_pos,
         s=signal_strength,
-        min_acc_rej=min_acc_rej,
+        balance=balance,
         quantile=each,
         num_sim=num_sim,
     )

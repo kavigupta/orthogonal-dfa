@@ -374,16 +374,17 @@ class TestGiveUpThreshold(unittest.TestCase):
     def _give_up_rate(self, balance, *, structured, min_acc_rej, num_trials=800):
         """How often the check fires, over ``num_trials`` draws of the k cluster
         columns at the given true ``balance``."""
+        base = balance * (0.5 + self.S) + (1 - balance) * (0.5 - self.S)
         k, tau = give_up_check(
             self.S,
             self.P,
             self.T,
             self.R,
             min_acc_rej,
+            base,
             failure_prob=self.FAILURE_PROB,
         )
         rng = np.random.default_rng(1234)
-        base = balance * (0.5 + self.S) + (1 - balance) * (0.5 - self.S)
         fired = 0
         for _ in range(num_trials):
             accept = rng.random(self.P) < balance

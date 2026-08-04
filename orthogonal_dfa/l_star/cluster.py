@@ -137,7 +137,7 @@ def _give_up_check(pst, config, seed_mask):
         len(candidate),
         config.min_suffix_frequency,
         config.min_acc_rej,
-        center=pst.decision_boundary,
+        float(seed_mask.mean()),
     )
     if result is None:
         return
