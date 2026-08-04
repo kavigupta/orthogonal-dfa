@@ -1,7 +1,6 @@
 import unittest
 
 import numpy as np
-import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.spliceai_oracle import (
@@ -53,6 +52,7 @@ class TestSpliceModelOracle(unittest.TestCase):
         self.seen_lengths = []
 
         def readout(logits, lengths):
+            del logits  # unused
             self.seen_lengths.append(lengths.cpu().numpy())
             return lengths >= 2
 
@@ -76,7 +76,7 @@ class TestSpliceModelOracle(unittest.TestCase):
         self.assertEqual(len(self.model.seen), 2)
         np.testing.assert_array_equal(self.seen_lengths[0], [2, 1])
         np.testing.assert_array_equal(self.seen_lengths[1], [5, 0])
-        w0, w1 = self.model.seen
+        w0, w1 = self.model.seen[0], self.model.seen[1]
         self.assertEqual(w0.shape, (2, 10))
         self.assertEqual(w1.shape, (2, 13))
         np.testing.assert_array_equal(w0[0], wrapped_row([1, 2], 10))

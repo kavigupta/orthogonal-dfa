@@ -41,10 +41,12 @@ def wrap_with_flanks(flank_l, flank_r, strings):
 
 
 def run_over_middles(model, flank_l, flank_r, strings, readout, *, device, chunk):
-    """Flank-wrap, one-hot, and run ``model`` (no_grad) over ``strings`` in chunks, returning np.concatenate of ``readout(logits, lengths)``."""
+    """Flank-wrap, one-hot, and run ``model`` (no_grad) over ``strings`` in chunks,
+    returning np.concatenate of ``readout(logits, lengths)``."""
     parts = []
     for i in range(0, len(strings), chunk):
         wrapped, lengths = wrap_with_flanks(flank_l, flank_r, strings[i : i + chunk])
+        # pylint: disable=not-callable
         x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
         lens = torch.as_tensor(lengths, device=device)
         with torch.no_grad():
@@ -59,7 +61,8 @@ def _device_of(model, device):
 
 
 class SpliceModelOracle(Oracle):
-    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (eval, no_grad, on ``device``), leaving the accept decision to ``readout``."""
+    r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (eval,
+    no_grad, on ``device``), deferring the accept decision to ``readout``."""
 
     def __init__(
         self, exon: RawExon, model, readout: Readout, *, device=None, chunk: int = 1024
@@ -97,7 +100,8 @@ class SpliceModelOracle(Oracle):
 
 
 def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    """Exon score per sequence: mean of the acceptor logit at the first output position and the donor logit at the last."""
+    """Exon score per sequence: mean of the acceptor logit at the first output
+    position and the donor logit at the last."""
     lyp = logits.log_softmax(-1)
     rows = torch.arange(len(lyp), device=lyp.device)
     acc = lyp[rows, 0, 1]
@@ -129,7 +133,8 @@ def median_threshold(
     device=None,
     chunk=1024
 ):
-    """Median exon score over ``count`` random length-``length`` middles (per-length since the score drifts with length)."""
+    """Median exon score over ``count`` random length-``length`` middles (per-length
+    since the score drifts with length)."""
     model.eval()
     flank_l, flank_r = flanks(exon)
     mids = np.random.default_rng(seed).integers(0, 4, size=(count, length)).tolist()
