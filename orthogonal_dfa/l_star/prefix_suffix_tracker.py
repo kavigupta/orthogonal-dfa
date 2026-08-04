@@ -54,7 +54,6 @@ class SearchConfig:
     fnr_limit: float = 0.02
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    min_acc_rej: float = 0.1
 
 
 @dataclass
