@@ -2,12 +2,11 @@ from typing import List
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.spliceai.exon_score import FLANK_MARGIN, device_of
+from orthogonal_dfa.spliceai.exon_score import FLANK_MARGIN, device_of, one_hot
 
 CALIBRATION_SEED = int(stable_hash("calibration"), 16)
 
@@ -53,12 +52,11 @@ def run_over_middles(score_model, flank_l, flank_r, strings, *, device, chunk):
     parts = []
     for i in range(0, len(strings), chunk):
         wrapped, lengths = wrap_with_flanks(flank_l, flank_r, strings[i : i + chunk])
-        # pylint: disable=not-callable
-        x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
+        x = one_hot(wrapped, device=device)
         lens = torch.as_tensor(lengths, device=device)
         with torch.no_grad():
             parts.append(score_model(x, lens).cpu().numpy())
-    return np.concatenate(parts) if parts else np.empty(0)
+    return np.concatenate(parts) if parts else np.empty(0, dtype=np.float32)
 
 
 class SpliceModelOracle(Oracle):

@@ -2,8 +2,9 @@
 
 `oracle.run_model` scores full-length windows straight out of `data.sample_text`;
 `l_star.examples.spliceai_oracle` scores ragged middles wrapped in the same
-flanks.  Both read the same two positions out of the same model, so the readout
-and the batched forward live here rather than in either caller.
+flanks.  Both read the same two positions out of the same model and feed it the
+same one-hot encoding, so the score and the input encoding live here rather than
+in either caller.
 """
 
 import torch
@@ -22,6 +23,12 @@ def device_of(model, device=None):
     )
 
 
+def one_hot(wrapped, *, device):
+    """The float one-hot encoding of the base-index array ``wrapped``."""
+    # pylint: disable=not-callable
+    return F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
+
+
 def forward_batch(model, wrapped, *, device):
     """One-hot ``wrapped`` and run ``model`` over it under no_grad.
 
@@ -32,10 +39,8 @@ def forward_batch(model, wrapped, *, device):
         "model must be in eval mode: in train mode BatchNorm normalizes over the "
         "batch, so padded rows leak into every other row's score"
     )
-    # pylint: disable=not-callable
-    x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
     with torch.no_grad():
-        return model(x)
+        return model(one_hot(wrapped, device=device))
 
 
 def full_lengths(logits):
