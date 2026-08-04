@@ -81,6 +81,30 @@ class CompositionResidualScore(nn.Module):
         return raw - torch.as_tensor(pred, device=raw.device, dtype=raw.dtype)
 
 
+def _fit_bin(feats, scores, ridge):
+    """Ridge-regress ``scores`` on ``feats``, returning (feature_mean, score_mean,
+    coefficients, r2).
+
+    Scale-free by construction: the normal equations are averaged over the samples
+    and the predictors are standardized to unit variance, so the penalty is a
+    correlation-matrix ridge that does not move with ``per_bin`` or with k-mer order
+    (higher-order k-mers are rarer, so on the raw scale their Gram diagonal is
+    smaller and a fixed penalty would crush them).  The effective strength is
+    ``ridge * D / n`` -- regularization proportional to model complexity per sample,
+    lighter with more middles, heavier with more k-mers."""
+    n, D = feats.shape
+    f_mean, s_mean = feats.mean(0), scores.mean()
+    centered, target = feats - f_mean, scores - s_mean
+    std = np.sqrt((centered**2).mean(0))
+    std[std == 0] = 1.0  # k-mers absent at this length are constant; their coef stays 0
+    z = centered / std  # unit-variance predictors -> correlation-matrix Gram below
+    coef = np.linalg.solve(z.T @ z / n + (ridge * D / n) * np.eye(D), z.T @ target / n)
+    beta = coef / std
+    resid = target - centered @ beta
+    r2 = 1 - (resid**2).sum() / (target**2).sum()
+    return f_mean, s_mean, beta, r2
+
+
 def fit_composition_residual(
     score_model,
     exon: RawExon,
@@ -98,11 +122,16 @@ def fit_composition_residual(
     """Fit a :class:`CompositionResidualScore` around ``score_model``.
 
     Per length bin, ridge-regress the exon score on n<=n_max k-mer frequencies over
-    random middles and keep the residual.  ``len_lo`` == ``len_hi`` with
-    ``bin_width=1`` is the single-length fit."""
+    random middles and keep the residual (see :func:`_fit_bin` for the scale-free
+    ridge).  ``len_hi`` is exclusive (as in ``rng.integers``), so
+    ``len_hi == len_lo + 1`` with ``bin_width=1`` is the single-length fit."""
     flank_l, flank_r = flanks(exon)
     dev = device_of(score_model, device)
     edges = np.arange(len_lo, len_hi + bin_width, bin_width)
+    assert len(edges) >= 2, (
+        f"need at least one length bin, got none: len_hi ({len_hi}) must exceed "
+        f"len_lo ({len_lo}) -- len_hi is exclusive, so a single length L is len_hi=L+1"
+    )
     rng = np.random.default_rng(seed)
     bins, r2s = [], []
     for lo, hi in zip(edges[:-1], edges[1:]):
@@ -112,15 +141,9 @@ def fit_composition_residual(
             score_model, flank_l, flank_r, mids, device=dev, chunk=chunk
         ).astype(np.float64)
         feats = bow_features(mids, n_max).astype(np.float64)
-        f_mean, s_mean = feats.mean(0), scores.mean()
-        centered = feats - f_mean
-        beta = np.linalg.solve(
-            centered.T @ centered + ridge * np.eye(feats.shape[1]),
-            centered.T @ (scores - s_mean),
-        )
-        resid = scores - (s_mean + centered @ beta)
+        f_mean, s_mean, beta, r2 = _fit_bin(feats, scores, ridge)
         bins.append((f_mean, s_mean, beta))
-        r2s.append(1 - (resid**2).sum() / ((scores - scores.mean()) ** 2).sum())
+        r2s.append(r2)
     return CompositionResidualScore(
         score_model,
         flank_l_len=len(flank_l),

@@ -5,6 +5,7 @@ import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.composition_residual import (
+    _fit_bin,
     bow_features,
     fit_composition_residual,
 )
@@ -41,6 +42,39 @@ class TestBowFeatures(unittest.TestCase):
         np.testing.assert_allclose(features[1, :4], [0, 0, 0, 1])  # TTT -> T only
 
 
+class TestFitBin(unittest.TestCase):
+    def test_ridge_is_invariant_to_feature_scale(self):
+        # The penalty must not depend on a feature's raw scale: otherwise rarer
+        # (lower-variance) higher-order k-mers get shrunk harder than 1-mers.  The
+        # standardized ridge makes the fitted prediction invariant to rescaling any
+        # column -- so its coefficient rescales inversely and nothing else moves.
+        rng = np.random.default_rng(0)
+        feats = rng.random((500, 6))
+        scores = feats @ rng.random(6) + 0.01 * rng.standard_normal(500)
+        _, _, beta, _ = _fit_bin(feats, scores, ridge=1.0)
+        scaled = feats.copy()
+        scaled[:, 2] *= 7.0
+        _, _, beta_scaled, _ = _fit_bin(scaled, scores, ridge=1.0)
+        np.testing.assert_allclose(beta_scaled[2], beta[2] / 7.0, rtol=1e-6)
+        np.testing.assert_allclose(
+            (feats - feats.mean(0)) @ beta,
+            (scaled - scaled.mean(0)) @ beta_scaled,
+            rtol=1e-6,
+        )
+
+    def test_effective_penalty_shrinks_with_more_samples(self):
+        # lambda ~ D/n, so a fixed correlation strength regularizes less with more
+        # data: doubling the sample count moves beta strictly toward OLS (ridge=0).
+        rng = np.random.default_rng(1)
+        feats = rng.random((400, 6))
+        beta_true = rng.random(6)
+        scores = feats @ beta_true + 0.1 * rng.standard_normal(400)
+        _, _, ols, _ = _fit_bin(feats, scores, ridge=0.0)
+        _, _, small, _ = _fit_bin(feats, scores, ridge=1.0)
+        _, _, large, _ = _fit_bin(np.tile(feats, (2, 1)), np.tile(scores, 2), ridge=1.0)
+        self.assertLess(np.linalg.norm(large - ols), np.linalg.norm(small - ols))
+
+
 class TestCompositionResidualScore(unittest.TestCase):
     def setUp(self):
         self.score_model, self.exon = small_score_model_and_exon()
@@ -58,8 +92,19 @@ class TestCompositionResidualScore(unittest.TestCase):
         )
 
     def test_single_bin_at_one_length(self):
+        # the documented single-length form: len_hi = len_lo + 1 (len_hi exclusive).
         residual = self._fit(len_lo=20, len_hi=21, bin_width=1)
         self.assertEqual(len(residual._bins), 1)  # pylint: disable=protected-access
+        # and it is usable end to end, exercising _bin rather than tripping IndexError.
+        scored = self._scores(residual, [[0, 1, 2, 3] * 5])
+        self.assertEqual(scored.shape, (1,))
+        self.assertFalse(np.isnan(residual.composition_r2))
+
+    def test_empty_length_range_is_rejected(self):
+        # len_hi == len_lo yields zero bins; that must fail loudly, not return a
+        # module with no bins (nan r2, IndexError later in _bin).
+        with self.assertRaises(AssertionError):
+            self._fit(len_lo=20, len_hi=20, bin_width=1)
 
     def test_forward_subtracts_a_linear_function_of_composition(self):
         residual = self._fit(len_lo=20, len_hi=21, bin_width=1)
