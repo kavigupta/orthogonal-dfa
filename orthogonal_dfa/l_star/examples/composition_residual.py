@@ -76,7 +76,8 @@ class CompositionResidualScore(nn.Module):
           bin_width, from which every bin edge follows.
         - intercepts: (B,) each bin's constant term.
         - betas: (B, D) each bin's k-mer coefficients.
-        - r2: diagnostic only, surfaced as composition_r2.
+        - r2s: (B,) diagnostic only, surfaced per bin as composition_r2s and
+          averaged as composition_r2.
 
     score_model, flank_l_len and n_max are architecture rather than fit: they are
     needed to reconstruct the module before load_state_dict can restore the rest.
@@ -92,7 +93,7 @@ class CompositionResidualScore(nn.Module):
         step,
         intercepts,
         betas,
-        r2,
+        r2s,
     ):
         super().__init__()
         self.score_model = score_model
@@ -104,12 +105,19 @@ class CompositionResidualScore(nn.Module):
             "_intercepts", torch.as_tensor(np.asarray(intercepts, np.float32))
         )
         self.register_buffer("_betas", torch.as_tensor(np.asarray(betas, np.float32)))
-        self.register_buffer("_composition_r2", torch.tensor(float(r2)))
+        self.register_buffer(
+            "_composition_r2s", torch.as_tensor(np.asarray(r2s, np.float32))
+        )
+
+    @property
+    def composition_r2s(self) -> np.ndarray:
+        """Held-out R^2 of the k-mer regression, per length bin."""
+        return self._composition_r2s.cpu().numpy()
 
     @property
     def composition_r2(self) -> float:
         """Held-out R^2 of the k-mer regression, averaged over bins."""
-        return float(self._composition_r2)
+        return float(self._composition_r2s.mean())
 
     def _bin_indices(self, lengths):
         idx = torch.div(lengths - self._edge0, self._step, rounding_mode="floor").long()
@@ -188,8 +196,12 @@ def _fit_composition_bins(
     OLS-fit the k-mer regression per length bin; returns the picklable fit (small
     numpy arrays), so the cache does not have to pickle the model.
 
-    The deployed coefficients use every middle; the reported r2 is held out (a 20%
-    slice), since in-sample r2 with up to 340 features reads optimistically.
+    The deployed coefficients use every middle; the reported r2s are held out (a 20%
+    slice each), since in-sample r2 with up to 336 features reads optimistically.  That
+    makes them a slight understatement: they describe fits trained on 80% of per_bin,
+    where the deployed ones have the full set to work with.  Kept per bin rather than
+    averaged, so a band whose fit is good in the middle and poor at one edge is
+    visible instead of blended away.
     """
     flank_l, flank_r = flanks(exon)
     dev = device_of(score_model, device)
@@ -215,17 +227,20 @@ def _fit_composition_bins(
         ).astype(np.float64)
         feats = bow_features(mids, n_max).astype(np.float64)
         intercept, beta = _fit_bin(feats, scores)
-        cut = max(1, per_bin - max(1, per_bin // 5))
-        held = _fit_bin(feats[:cut], scores[:cut])
         intercepts.append(intercept)
         betas.append(beta)
-        r2s.append(_r2(feats[cut:], scores[cut:], *held))
+        # Scoring the fit above on its own training data would read optimistically, so
+        # r2 comes from a throwaway second fit on 80% scored on the 20% it never saw.
+        # The middles are i.i.d., so a contiguous split is a random one.
+        cut = per_bin * 4 // 5
+        probe = _fit_bin(feats[:cut], scores[:cut])
+        r2s.append(_r2(feats[cut:], scores[cut:], *probe))
     return dict(
         edge0=float(edges[0]),
         step=float(edges[1] - edges[0]),
         intercepts=np.array(intercepts, dtype=np.float32),
         betas=np.stack(betas).astype(np.float32),
-        r2=float(np.mean(r2s)),
+        r2s=np.array(r2s),
     )
 
 

@@ -129,6 +129,7 @@ class TestCompositionResidualScore(unittest.TestCase):
         self.assertEqual(residual._betas.shape[0], 1)
         scored = self._scores(residual, [[0, 1, 2] * 10])
         self.assertEqual(scored.shape, (1,))
+        self.assertEqual(residual.composition_r2s.shape, (1,))
         self.assertFalse(np.isnan(residual.composition_r2))
 
     def test_empty_length_range_is_rejected(self):
@@ -184,7 +185,7 @@ class TestCompositionResidualScore(unittest.TestCase):
                 # pylint: disable=protected-access
                 intercepts=np.zeros_like(residual._intercepts.numpy()),
                 betas=np.zeros_like(residual._betas.numpy()),
-                r2=0.0,
+                r2s=np.zeros_like(residual.composition_r2s),
             ),
             "cpu",
         )
