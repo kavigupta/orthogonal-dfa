@@ -6,3 +6,6 @@ env
 *.egg-info
 dist
 build
+
+# FM model TorchScript traces (regenerate via scripts/convert_fm_to_torchscript.py)
+data/pretrained_models/fm-*.traced.pt

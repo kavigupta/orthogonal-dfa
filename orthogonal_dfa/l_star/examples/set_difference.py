@@ -6,31 +6,31 @@ is SpliceAI against the fixed-motif model loaded by :func:`load_fm`; both are wr
 the same way (e.g. by ``SpliceAIExonScore`` into a ``SpliceModelOracle``) and differenced.
 """
 
-import sys
+import os
 from typing import List
 
 import numpy as np
+import torch
 
 from orthogonal_dfa.l_star.structures import Oracle
 
-# The fixed-motif ("FM") model is a trained modular_splicing model living in a separate
-# repo on this machine (BothLSSIModels + an 82-motif RBNS PSAMMotifModel).
-FM_REPO = "/mnt/md0/ExpeditionsCommon/spliceai/Canonical"
-FM_MODEL_PREFIX = f"{FM_REPO}/model/msp-273.665a3"
+# Where the self-contained FM TorchScript traces live (gitignored; produced by
+# scripts/convert_fm_to_torchscript.py on the machine that has the modular_splicing repo).
+FM_TRACED_DIR = "data/pretrained_models"
 
 
 def load_fm(seed=1):
-    """Load the fixed-motif model (seed 1..5) as an eval/cuda nn.Module.
+    """Load the fixed-motif model (seed 1..5) as an eval/cuda TorchScript module.
 
-    ``modular_splicing`` lives in ``FM_REPO`` (added to ``sys.path`` here), not in this
-    package's dependencies.  The returned model reads the same acceptor/donor logits as
-    SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
-    if FM_REPO not in sys.path:
-        sys.path.insert(0, FM_REPO)
-    from modular_splicing.utils.io import load_model  # pylint: disable=import-error
-
-    _, model = load_model(f"{FM_MODEL_PREFIX}_{seed}")  # picks the latest step
-    return model.eval().cuda()
+    A trained modular_splicing model (BothLSSIModels + an 82-motif RBNS PSAMMotifModel),
+    converted to a self-contained trace so loading needs only torch.  Reads the same
+    acceptor/donor logits as SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
+    path = os.path.join(FM_TRACED_DIR, f"fm-{seed}.traced.pt")
+    assert os.path.exists(path), (
+        f"{path} is missing; generate the FM traces (on the machine with the "
+        f"modular_splicing repo) via scripts/convert_fm_to_torchscript.py"
+    )
+    return torch.jit.load(path).eval().cuda()
 
 
 class SetDifferenceOracle(Oracle):
