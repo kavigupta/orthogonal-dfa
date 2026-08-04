@@ -1,22 +1,30 @@
 """
 Preconditions for E-L* learnability of a target DFA.
 
-satisfies_preconditions(dfa, *, length, ...) is the main check, checking
-the following conditions, for a particular length of uniform sampling:
+satisfies_preconditions(dfa, *, length, ...) is the main check. It returns a
+PreconditionReport -- truthy iff the DFA is admitted, and carrying the measured
+values and a reason per failed condition. The conditions, for a particular
+length of uniform sampling:
 
-- acceptance_rate: the language does not accept or reject nearly all strings
+- acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
   states to an accept state and all reject states to a reject state
-- infinitely_reachable_states: every non-start state is reached by infinitely
-  many strings, so the fixed-length sampler can land in it
+- covered_accuracy_ceiling: re-rooting the target at the best *covered* start
+  state (all the learner can anchor to) still classifies almost every string
 """
 
-from typing import List
+from collections import Counter
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
 
 DEFAULT_NUM_SAMPLES = 2000
+
+#: Bar for coverage by prefixes of the given length before we consider a state
+#: "covered" by it.
+DEFAULT_MIN_COVERAGE = 0.01
 
 
 def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> List[int]:
@@ -60,62 +68,132 @@ def class_preserving_fraction(
     return preserving / num_samples
 
 
-def _reachable_from(dfa: DFA, sources) -> set:
-    """States reachable from any of ``sources`` by following transitions."""
-    seen = set(sources)
-    stack = list(seen)
-    while stack:
-        s = stack.pop()
-        for c in dfa.input_symbols:
-            t = dfa.transitions[s][c]
-            if t not in seen:
-                seen.add(t)
-                stack.append(t)
-    return seen
-
-
-def infinitely_reachable_states(dfa: DFA) -> set:
-    """The states reached by infinitely many strings from the start.
-
-    A state is reached by infinitely many strings iff it is forward-reachable
-    from a state that lies on a cycle: pump the cycle for unboundedly many
-    prefixes, then walk on to the state. Every other reachable state is reached
-    by only finitely many (short) strings -- a transient state a fixed-length
-    prefix sampler almost never lands in, so the learner cannot build it.
+def covered_states(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> set:
     """
-    reachable = _reachable_from(dfa, [dfa.initial_state])
-    on_cycle = {
-        q
-        for q in reachable
-        if q in _reachable_from(dfa, [dfa.transitions[q][c] for c in dfa.input_symbols])
-    }
-    return _reachable_from(dfa, on_cycle)
+    The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
+    """
+    rng = np.random.default_rng(0)
+    counts = Counter(
+        _endpoint(dfa, _random_string(dfa, length, rng)) for _ in range(num_samples)
+    )
+    return {q for q, c in counts.items() if c / num_samples >= min_coverage}
+
+
+def covered_accuracy_ceiling(
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    min_coverage: float = DEFAULT_MIN_COVERAGE,
+) -> float:
+    """
+    Best accuracy reachable when the classifier may only be started from a
+    covered state.
+
+    E-L* discovers states from where its sampled prefixes land, so it can only
+    anchor its automaton at covered state; if the true initial state is uncovered
+    it cannot represent it. Only the start is constrained, from there we follow
+    the target's true transitions and read off the endpoint's true accept label.
+    """
+    rng = np.random.default_rng(0)
+    strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
+    truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
+    counts = Counter(_endpoint(dfa, s) for s in strings)
+    covered = {q for q, c in counts.items() if c / num_samples >= min_coverage}
+    best = 0.0
+    for start in covered:
+        correct = sum(
+            (_endpoint(dfa, s, start) in dfa.final_states) == t
+            for s, t in zip(strings, truth)
+        )
+        best = max(best, correct / num_samples)
+    return best
+
+
+@dataclass(frozen=True)
+class PreconditionReport:
+    """The verdict, plus the measurements and the reasons behind it.
+
+    Truthy iff every precondition holds, so ``if satisfies_preconditions(...)``
+    reads the same as when this was a bare bool. A measurement is ``None`` when
+    short-circuiting meant it was never taken.
+    """
+
+    length: int
+    acceptance_rate: float
+    class_preserving_fraction: Optional[float] = None
+    covered_accuracy_ceiling: Optional[float] = None
+    #: States no sampled prefix lands in, as strings -- populated when the
+    #: ceiling is measured, since that is the check they explain.
+    uncovered_states: Optional[List[str]] = None
+    #: One entry per failed precondition, naming the measured value and the
+    #: threshold it missed. Empty iff the DFA is admitted.
+    reasons: Tuple[str, ...] = ()
+
+    @property
+    def satisfied(self) -> bool:
+        return not self.reasons
+
+    def __bool__(self) -> bool:
+        return self.satisfied
 
 
 def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
-    min_accept_or_reject: float = 0.15,
-    min_class_preserving_frac: float = 0.05,
+    min_class_preserving_frac: float = 0.02,
+    min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
-) -> bool:
-    """True iff ``dfa`` meets every learnability precondition:
+    short_circuit: bool = True,
+) -> PreconditionReport:
+    """Does ``dfa`` meet every learnability precondition, and if not, why not?
 
-    - acceptance rate in ``[min_accept_or_reject, 1 - min_accept_or_reject]``;
+    All under length-``length`` uniform sampling:
+
+    - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
-    - every state other than the start is reached by infinitely many strings
-      (the start is exempt -- it is always accessible via the empty string).
+    - covered-accuracy ceiling at least ``min_covered_accuracy``
 
-    The first two are sampled under length-``length`` uniform sampling; the last
-    is an exact graph property. Checks run in increasing cost and short-circuit
-    on the first failure.
+    The acceptance-rate check only rejects degeneracy -- a language that is
+    constant over the sampled strings, which E-L* cannot get signal from and
+    which the other two checks pass trivially. It carries no balance
+    requirement: an imbalanced language is the class-preserving check's business.
+
+    Checks run in increasing cost. By default they stop at the first failure,
+    which is what a caller wanting only a verdict should do; pass
+    ``short_circuit=False`` to measure everything and collect every reason.
     """
+    reasons: List[str] = []
     rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
-    if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-        return False
+    if rate in (0.0, 1.0):
+        reasons.append(
+            f"acceptance rate {rate} degenerate: every sampled string of length "
+            f"{length} has the same label"
+        )
+        if short_circuit:
+            return PreconditionReport(length, rate, reasons=tuple(reasons))
+
     cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
     if cp < min_class_preserving_frac:
-        return False
-    infinite = infinitely_reachable_states(dfa)
-    return all(q in infinite for q in dfa.states if q != dfa.initial_state)
+        reasons.append(
+            f"class-preserving fraction {cp:.3f} below {min_class_preserving_frac}"
+        )
+        if short_circuit:
+            return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
+
+    ceiling = covered_accuracy_ceiling(dfa, length=length, num_samples=num_samples)
+    if ceiling < min_covered_accuracy:
+        reasons.append(
+            f"covered-accuracy ceiling {ceiling:.3f} below "
+            f"{min_covered_accuracy} (an uncovered state carries a decision)"
+        )
+    covered = covered_states(dfa, length=length, num_samples=num_samples)
+    uncovered = sorted(str(q) for q in dfa.states if q not in covered)
+    return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))

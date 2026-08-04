@@ -28,7 +28,7 @@ from .dfa_utils import (
     sample_string_reaching_state,
     states_intermediate,
 )
-from .statistics import binomial_side_of_boundary, unlikely_this_many_agreements
+from .statistics import binomial_side_of_boundary, counterexample_search_exhausted
 from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate, classify_many
 from .transition_resolver import resolve_dfa
 
@@ -51,7 +51,7 @@ def classify_states_with_decision_tree(pst, dt: DecisionTree):
     return results
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200):
+def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -69,18 +69,27 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200):
         # True=accept, False=reject, None=undecided (keep the discovery label).
         counts = count_paths_to_state(dfa, state, length)
         cap = min(max_samples, counts[length][dfa.initial_state])
-        seen, accepts = set(), 0
+        seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
-            string = sample_string_reaching_state(dfa, counts, pst.rng)
-            if tuple(string) in seen:
-                continue  # need distinct strings for independent oracle draws
-            seen.add(tuple(string))
-            accepts += int(pst.oracle.membership_query(string))
-            decision = binomial_side_of_boundary(
-                accepts, len(seen), pst.decision_boundary
-            )
-            if decision is not None:
-                return decision
+            # Draw and query a block at a time.  The stopping rule is still read
+            # after every individual sample, so the label is exactly the one the
+            # one-at-a-time test would give; only the oracle calls are packed, at
+            # the cost of at most one block of overshoot per state.  ``n`` counts
+            # samples *scored*, which now lags ``len(seen)`` by up to a block.
+            target = min(block_size, cap - len(seen))
+            block = []
+            while len(block) < target:
+                string = sample_string_reaching_state(dfa, counts, pst.rng)
+                if tuple(string) in seen:
+                    continue  # need distinct strings for independent oracle draws
+                seen.add(tuple(string))
+                block.append(string)
+            for bit in pst.oracle.membership_queries(block):
+                accepts += int(bit)
+                n += 1
+                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
+                if decision is not None:
+                    return decision
         return None
 
     label = {
@@ -107,7 +116,7 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200):
     )
 
 
-def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
+def add_counterexample_prefixes(pst, dt, dfa, count):
     results = generate_counterexamples(
         pst,
         pst.sampler,
@@ -115,7 +124,6 @@ def add_counterexample_prefixes(pst, dt, dfa, count, *, expected_acc):
         dt,
         dfa,
         count=count,
-        expected_acc=expected_acc,
     )
     if results:
         pst.table.add_prefixes(results)
@@ -147,7 +155,15 @@ def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0, s_end):
     return x + y[: correct_idx + 1], y[correct_idx + 1]
 
 
-def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
+#: Draws allowed per counterexample search, per prefix asked for.
+SAMPLES_PER_COUNTEREXAMPLE = 50
+
+
+def counterexample_sample_budget(count: int) -> int:
+    return SAMPLES_PER_COUNTEREXAMPLE * count
+
+
+def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     boundary = pst.decision_boundary
     # The counterexample pipeline classifies strings many times: ~log2(string_len)
     # binary search steps + 2 decisive checks, each traversing the full DT.  A
@@ -173,7 +189,7 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     num_samples = 0
-    num_agreements = 0
+    max_samples = counterexample_sample_budget(count)
     while True:
         num_samples += 1
         x = us.sample(pst.rng, pst.alphabet_size)
@@ -194,18 +210,18 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count, expected_acc):
                 else None
             ),
         )
+        if counterexample_search_exhausted(
+            len(additional_prefixes), num_samples, count, max_samples
+        ):
+            warnings.warn(
+                f"Counterexample search yielded {len(additional_prefixes)}/{count}"
+                f" prefixes in {num_samples} samples; the decision tree and the"
+                f" DFA disagree too rarely to reach {count} within"
+                f" {max_samples} samples"
+            )
+            pbar.close()
+            return additional_prefixes
         if prefix is None:
-            num_agreements += sym == "no inconsistency"
-            if unlikely_this_many_agreements(num_agreements, num_samples, expected_acc):
-                warnings.warn(
-                    f"Observed {num_agreements} 'no inconsistency' results in"
-                    f" {num_samples} samples, which is unlikely given expected"
-                    f" accuracy {expected_acc:.3f}; stopping counterexample"
-                    f" search early with {len(additional_prefixes)}/{count}"
-                    f" prefixes"
-                )
-                pbar.close()
-                return additional_prefixes
             continue
         if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
             continue
@@ -260,12 +276,11 @@ def estimate_agreement_rate(
 
     Sampling stops early as soon as a one-sided binomial test is confident which
     side of *acc_threshold* the true rate lies on.  The estimate is consumed only
-    to decide ``true_acc >= acc_threshold`` (the termination test) and as a loose
-    ``expected_acc`` guard for counterexample search, so settling that decision is
-    all the precision required.  When the true rate is far from the threshold a few
-    dozen samples settle it, but near the threshold it can run to the full
-    *num_samples* budget (e.g. on the poor_case guard it hits the cap on most
-    calls), which is why that budget caps the cost.
+    to decide ``true_acc >= acc_threshold`` (the termination test), so settling
+    that decision is all the precision required.  When the true rate is far from
+    the threshold a few dozen samples settle it, but near the threshold it can run
+    to the full *num_samples* budget (e.g. on the poor_case guard it hits the cap
+    on most calls), which is why that budget caps the cost.
 
     Samples whose ``y`` classifications are independent are drawn in a chunk and
     classified through ``classify_many`` -- one oracle call per tree level for the
@@ -460,9 +475,7 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, None
             return
-        ce = add_counterexample_prefixes(
-            pst, dt, dfa, additional_counterexamples, expected_acc=true_acc
-        )
+        ce = add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
         enriched = enrich_underrepresented_leaves(
             pst, dt_decisive, count=additional_counterexamples
         )
