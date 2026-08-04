@@ -125,7 +125,7 @@ class TestSpliceModelOracle(unittest.TestCase):
 
 
 class TestSpliceaiExonScore(unittest.TestCase):
-    """Everything here runs a real SpliceAI, so the readout's output indexing is
+    """Everything here runs a real SpliceAI, so the score's output indexing is
     checked against the model's actual cl trimming rather than a fake."""
 
     def setUp(self):
