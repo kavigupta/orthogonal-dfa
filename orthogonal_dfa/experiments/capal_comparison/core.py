@@ -42,7 +42,10 @@ SCHEMA_VERSION = 5
 
 #: Wall-clock a single cell may take. Neither learner has an internal bound on
 #: how long it searches, so without this one target stalls the whole sweep.
-CELL_TIMEOUT_SECONDS = 1800
+#: A backstop against that, not a budget: Simple05 at eta=0.30 was still
+#: searching at 53.7M queries when a 1800s cap cut it, with no sign of being
+#: stuck, so the cap has to sit well clear of the slowest cell that converges.
+CELL_TIMEOUT_SECONDS = 7200
 
 #: Read off `learn_dfa` rather than restated here, for the same reason the CAPAL
 #: side reads its config off the learner: E-L* must be measured at its own
