@@ -9,6 +9,12 @@ by the model's own calibration. Oracles live in
 
 _Last updated: 2026-07-30._
 
+> **Note (post-refactor):** the oracles below were later rebuilt as thin wrappers over
+> the shared `SpliceModelOracle` / `CompositionResidualScore` modules. The residual
+> here was a per-length **ridge** fit; the merged module uses a drop-column **OLS** fit
+> (`fit_composition_residual`). The qualitative findings hold, but exact numbers and the
+> saved residual DFAs are from the earlier code and may shift on a fresh run.
+
 ## BIGGEST UPDATE (2026-07-30): the reachability wall is NOT counter-specific
 Idea 3 (composition-residual oracle, counter cleanly removed: CpG corr→0, BoW R²=0.73)
 STILL hits the same wall. E-L\* round 1 on the residual: **54 states, 32 accepting, only 1

@@ -25,14 +25,12 @@ import time
 import numpy as np
 
 from orthogonal_dfa.data.exon import default_exon
-from orthogonal_dfa.l_star.cluster import GaveUpOnSuffixSearch
 from orthogonal_dfa.l_star.examples.spliceai_oracles import (
-    CompositionResidualOracle,
-    PerLengthResidualOracle,
     SetDifferenceOracle,
     balanced_oracle,
     canonical_oracle,
     load_fm,
+    residual_oracle,
 )
 from orthogonal_dfa.l_star.lstar import (
     counterexample_driven_synthesis,
@@ -78,11 +76,6 @@ def parse_args():
         help="re-center the accept threshold on the median at --sampler-len",
     )
     p.add_argument(
-        "--residual",
-        action="store_true",
-        help="composition-residual oracle (single fit length)",
-    )
-    p.add_argument(
         "--residual-perlen",
         action="store_true",
         help="length-robust generic-BoW composition residual (per-length bins)",
@@ -107,34 +100,27 @@ def parse_args():
 def build_oracle(args, exon, model):
     if args.setdiff:
         fm = load_fm(1)
-        ref, nm = args.sampler_len, args.n_max
+        len_hi = 2 * args.sampler_len + 5
         if args.setdiff == "resid":
-            a = CompositionResidualOracle(exon, model, n_max=nm, ref_len=ref)
-            b = CompositionResidualOracle(exon, fm, n_max=nm, ref_len=ref)
+            a, _ = residual_oracle(
+                model, exon, n_max=args.n_max, len_lo=90, len_hi=len_hi
+            )
+            b, _ = residual_oracle(fm, exon, n_max=args.n_max, len_lo=90, len_hi=len_hi)
         else:
-            a = balanced_oracle(model, exon, ref)
-            b = balanced_oracle(fm, exon, ref)
+            a = balanced_oracle(model, exon, args.sampler_len)
+            b = balanced_oracle(fm, exon, args.sampler_len)
         if args.reverse:
             a, b = b, a
         target = "FM \\ SpliceAI" if args.reverse else "SpliceAI \\ FM"
         print(f"oracle: SETDIFF {args.setdiff} {target}", flush=True)
         return SetDifferenceOracle(a, b, exon)
     if args.residual_perlen:
-        o = PerLengthResidualOracle(
-            exon, model, n_max=args.n_max, len_lo=90, len_hi=2 * args.sampler_len + 5
+        o, r2 = residual_oracle(
+            model, exon, n_max=args.n_max, len_lo=90, len_hi=2 * args.sampler_len + 5
         )
         print(
             f"oracle: PER-LENGTH RESIDUAL (generic BoW n<={args.n_max}); "
-            f"mean per-bin composition R^2={o.composition_r2:.3f}",
-            flush=True,
-        )
-        return o
-    if args.residual:
-        o = CompositionResidualOracle(
-            exon, model, n_max=args.n_max, ref_len=args.sampler_len
-        )
-        print(
-            f"oracle: RESIDUAL (n<={args.n_max}); composition R^2={o.composition_r2:.3f}",
+            f"mean per-bin composition R^2={r2:.3f}",
             flush=True,
         )
         return o
@@ -149,8 +135,6 @@ def build_oracle(args, exon, model):
 
 def default_save_dir(args):
     tag = f"mss{args.mss}_np{args.num_prefixes}_len{args.sampler_len}"
-    if args.residual:
-        tag += f"_resid{args.n_max}"
     if args.residual_perlen:
         tag += f"_residPL{args.n_max}"
     if args.setdiff:
@@ -266,26 +250,21 @@ def main():
     gen = counterexample_driven_synthesis(
         pst, additional_counterexamples=args.addtl, acc_threshold=args.acc_threshold
     )
-    try:
-        for i, (dfa, dt, pst_copy) in enumerate(gen):
-            last_dfa, last_dt = dfa, dt
-            print(
-                f"=== round {i}: states={dt.num_states} finals={len(dfa.final_states)} "
-                f"elapsed={time.time() - t0:.0f}s ===",
-                flush=True,
-            )
-            report(dfa, dt)
-            save_state(save_dir, f"{i:02d}", dfa, dt, pst, args)
-            if pst_copy is None:
-                print("synthesis terminated on its own", flush=True)
-                break
-            if i + 1 >= args.max_rounds:
-                print(f"hit max-rounds={args.max_rounds}", flush=True)
-                break
-    except GaveUpOnSuffixSearch as e:
-        print(f"\n!!! GaveUpOnSuffixSearch: {e}", flush=True)
-        if last_dfa is None:
-            raise SystemExit(0)
+    for i, (dfa, dt, pst_copy) in enumerate(gen):
+        last_dfa, last_dt = dfa, dt
+        print(
+            f"=== round {i}: states={dt.num_states} finals={len(dfa.final_states)} "
+            f"elapsed={time.time() - t0:.0f}s ===",
+            flush=True,
+        )
+        report(dfa, dt)
+        save_state(save_dir, f"{i:02d}", dfa, dt, pst, args)
+        if pst_copy is None:
+            print("synthesis terminated on its own", flush=True)
+            break
+        if i + 1 >= args.max_rounds:
+            print(f"hit max-rounds={args.max_rounds}", flush=True)
+            break
 
     dfa = denoise_accept_labels(pst, last_dfa)
     print("\n===== FINAL DFA =====\n", dfa, flush=True)
