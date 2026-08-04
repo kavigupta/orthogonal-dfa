@@ -1,9 +1,11 @@
 import unittest
+import warnings
 
 import numpy as np
 import torch
 
 from orthogonal_dfa.data.exon import RawExon
+from orthogonal_dfa.data.sample_text import sample_text
 from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     SpliceModelOracle,
     calibrated_spliceai_readout,
@@ -12,6 +14,7 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     run_over_middles,
     wrap_with_flanks,
 )
+from orthogonal_dfa.oracle.run_model import compute_exon_scores
 from orthogonal_dfa.spliceai.exon_score import (
     FLANK_MARGIN,
     forward_batch,
@@ -51,8 +54,10 @@ class RecordingModel:
 
     def __init__(self):
         self.seen = []
+        self.training = True
 
     def eval(self):
+        self.training = False
         return self
 
     def __call__(self, x):
@@ -119,6 +124,14 @@ class TestSpliceModelOracle(unittest.TestCase):
         result = self._oracle().membership_queries([])
         self.assertEqual(result.shape, (0,))
         self.assertEqual(result.dtype, bool)
+
+    def test_rejects_a_model_put_back_into_train_mode(self):
+        """The oracle sets eval once, but padding invariance has to hold at every
+        query -- a caller sharing the model with a training loop can undo it."""
+        oracle = self._oracle()
+        self.model.training = True
+        with self.assertRaises(AssertionError):
+            oracle.membership_queries([[1, 2]])
 
 
 class TestSpliceaiExonScores(unittest.TestCase):
@@ -196,12 +209,29 @@ class TestCalibration(unittest.TestCase):
         oracle = SpliceModelOracle(
             self.exon,
             self.model,
-            calibrated_spliceai_readout(threshold),
+            calibrated_spliceai_readout(threshold, length),
             device="cpu",
             chunk=64,
         )
         fresh = np.random.default_rng(7).integers(0, 4, size=(count, length)).tolist()
         self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.15)
+
+    def test_warns_once_per_off_calibration_length(self):
+        oracle = SpliceModelOracle(
+            self.exon,
+            self.model,
+            calibrated_spliceai_readout(0.0, FULL_LENGTH),
+            device="cpu",
+            chunk=64,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            oracle.membership_queries([[0] * n for n in [FULL_LENGTH, 5, 5, 7]])
+            oracle.membership_queries([[0] * 5])
+        self.assertEqual(len(caught), 2)  # lengths 5 and 7, once each
+        self.assertIn(
+            f"calibrated at middle length {FULL_LENGTH}", str(caught[0].message)
+        )
 
     def test_readout_accepts_exactly_the_scores_above_the_threshold(self):
         flank_l, flank_r = flanks(self.exon)
@@ -215,11 +245,48 @@ class TestCalibration(unittest.TestCase):
         )
         threshold = float(np.median(scores))
         oracle = SpliceModelOracle(
-            self.exon, self.model, calibrated_spliceai_readout(threshold), **kw
+            self.exon,
+            self.model,
+            calibrated_spliceai_readout(threshold, FULL_LENGTH),
+            **kw,
         )
-        np.testing.assert_array_equal(
-            oracle.membership_queries(middles), scores > threshold
+        with warnings.catch_warnings():  # the two short middles are off-calibration
+            warnings.simplefilter("ignore")
+            np.testing.assert_array_equal(
+                oracle.membership_queries(middles), scores > threshold
+            )
+
+
+class TestComputeExonScores(unittest.TestCase):
+    """oracle.run_model's path, where the output width is derived from itself and
+    so the cl check has to come from the input width instead."""
+
+    def setUp(self):
+        self.model, self.exon = small_model_and_exon()
+
+    def test_agrees_with_the_oracle_path(self):
+        middles, arr = sample_text(self.exon, 0, 4)
+        flank_l, flank_r = flanks(self.exon)
+        via_oracle = run_over_middles(
+            self.model,
+            flank_l,
+            flank_r,
+            middles.tolist(),
+            spliceai_exon_scores,
+            device="cpu",
+            chunk=64,
         )
+        np.testing.assert_allclose(
+            compute_exon_scores(self.model, arr, cl=self.exon.cl).numpy(),
+            via_oracle,
+            rtol=1e-6,
+        )
+
+    def test_rejects_a_model_whose_cl_disagrees(self):
+        _, wide_exon = small_model_and_exon(cl=400)
+        _, arr = sample_text(wide_exon, 0, 2)
+        with self.assertRaises(AssertionError):
+            compute_exon_scores(self.model, arr, cl=wide_exon.cl)
 
 
 if __name__ == "__main__":

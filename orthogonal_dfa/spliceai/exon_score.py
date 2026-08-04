@@ -22,7 +22,15 @@ def device_of(model, device=None):
 
 
 def forward_batch(model, wrapped, *, device):
-    """One-hot ``wrapped`` and run ``model`` over it under no_grad."""
+    """One-hot ``wrapped`` and run ``model`` over it under no_grad.
+
+    Checked on every forward rather than once at setup: the padding argument in
+    wrap_with_flanks holds only in eval mode, and a caller sharing the model with
+    a training loop can put it back into train mode at any point."""
+    assert not model.training, (
+        "model must be in eval mode: in train mode BatchNorm normalizes over the "
+        "batch, so padded rows leak into every other row's score"
+    )
     # pylint: disable=not-callable
     x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
     with torch.no_grad():
@@ -36,17 +44,21 @@ def full_lengths(logits):
     )
 
 
+def assert_output_width(output_width: int, expected: int):
+    """Guard that the model's cl matches the exon the input was cut for.
+
+    A model that trims a different cl shifts every output position, so the donor
+    gets read off the wrong one and the score comes back as plausible noise."""
+    assert output_width == expected, (
+        f"model output width {output_width} does not match the expected "
+        f"{expected}; the exon's cl and the model's cl probably disagree"
+    )
+
+
 def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
     """Exon score per sequence: mean of the acceptor log probability at the first
     output position and the donor log probability at the middle's last."""
-    # The output width pins down the model's context length, so this catches a
-    # model whose cl disagrees with the exon the flanks were cut from -- which
-    # would otherwise just read the donor off the wrong position.
-    assert logits.shape[1] == int(lengths.max()) + 2 * FLANK_MARGIN, (
-        f"model output width {logits.shape[1]} does not match the widest middle "
-        f"({int(lengths.max())}) plus 2*{FLANK_MARGIN}; the exon's cl and the "
-        f"model's cl probably disagree"
-    )
+    assert_output_width(logits.shape[1], int(lengths.max()) + 2 * FLANK_MARGIN)
     lyp = logits.log_softmax(-1)
     rows = torch.arange(len(lyp), device=lyp.device)
     acc = lyp[rows, 0, 1]

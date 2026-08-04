@@ -1,3 +1,4 @@
+import warnings
 from typing import Callable, List
 
 import numpy as np
@@ -101,9 +102,37 @@ class SpliceModelOracle(Oracle):
         return bool(self.membership_queries([string])[0])
 
 
-def calibrated_spliceai_readout(threshold: float) -> Readout:
-    """Readout that accepts when the SpliceAI exon score exceeds ``threshold``."""
-    return lambda logits, lengths: spliceai_exon_scores(logits, lengths) > threshold
+class _CalibratedReadout:
+    """Accepts when the exon score exceeds ``threshold``, warning when queried at
+    a length ``threshold`` was not calibrated for.
+
+    The score drifts with length, so a threshold is only near its intended accept
+    rate close to its own calibration length -- one calibrated at 40 accepts ~77%
+    of random length-80 middles.  E-L* queries a few lengths at once (2L for the
+    probes, L..L+4 for the core), so this warns once per length rather than
+    failing; until the threshold is per-length, expect the off-length rows to sit
+    off 0.5."""
+
+    def __init__(self, threshold: float, length: int):
+        self.threshold = threshold
+        self.calibration_length = length
+        self._warned = set()
+
+    def __call__(self, logits, lengths):
+        for length in set(lengths.tolist()) - self._warned - {self.calibration_length}:
+            self._warned.add(length)
+            warnings.warn(
+                f"threshold {self.threshold:.3f} was calibrated at middle length "
+                f"{self.calibration_length} but is being applied at length {length}; "
+                "the accept rate on these rows will be off its calibrated value"
+            )
+        return spliceai_exon_scores(logits, lengths) > self.threshold
+
+
+def calibrated_spliceai_readout(threshold: float, length: int) -> Readout:
+    """Readout that accepts when the SpliceAI exon score exceeds ``threshold``,
+    which ``median_threshold`` computed at middle length ``length``."""
+    return _CalibratedReadout(threshold, length)
 
 
 @permacache(
