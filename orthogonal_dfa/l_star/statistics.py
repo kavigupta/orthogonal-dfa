@@ -137,15 +137,27 @@ def give_up_check(  # pylint: disable=too-many-positional-arguments
 
     H0 is that the cluster exists, so rejecting it is what triggers the
     destructive action and ``Pr[give up | cluster exists] <= failure_prob`` is
-    the guarantee.  Under H0 a prefix's row sum is binomial in its class rate,
-    a mixture whose dispersion rises with ``p * (1 - p)``.  That is monotone,
-    so evaluating at the least balanced population still consistent with the
-    evidence gives the lowest dispersion H0 allows, and a lower-tail threshold
-    there is conservative for every better-balanced target.
+    the guarantee.
 
-    The model is pinned to ``empirical_pos`` because the statistic normalises
-    by the observed rate; deriving an expected rate from anything else would
-    compare the data against a threshold built for a different population.
+    Under H0 prefix ``i``'s row sum is ``R_i ~ Bin(k, q_i)`` with
+    ``q_i = c + s`` or ``c - s`` by class, drawn with ``P(accept) = p``.
+    Writing ``mu = E[q]``::
+
+        Var(R)     = k E[q(1-q)] + k^2 Var(q)      (law of total variance)
+        mu(1 - mu) = E[q(1-q)] + Var(q)
+        E[X2]/df   = Var(R) / (k mu(1-mu)) = 1 + (k-1) Var(q) / (mu(1-mu))
+        Var(q)     = 4 p (1-p) s^2
+
+    So the dispersion H0 predicts is increasing in ``p(1-p)``: the least
+    balanced admissible ``p`` gives the least it allows, and a lower-tail
+    threshold there is conservative for every better-balanced target.
+
+    ``mu`` enters only as the observed rate, which the statistic already
+    normalises by -- taking it from anywhere else would test the data against
+    a threshold built for a different population.  It also pins
+    ``c = mu + s(1 - 2p)``, so requiring ``c - s >= 0`` and ``c + s <= 1``
+    bounds ``p`` into ``[1 - (1-mu)/2s, mu/2s]``; see
+    :func:`_feasible_balance_range`.
 
     The statistic never reads the seed column, so the k readings in a prefix
     are independent given its class.  Selecting the columns by agreement with
