@@ -8,6 +8,7 @@ and the batched forward live here rather than in either caller.
 
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 # Each flank keeps this many bases beyond the model's cl/2 half-context (matching
 # data.sample_text's trim_zone = cl//2 + 2), so the output spans len(middle) +
@@ -64,3 +65,16 @@ def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.T
     acc = lyp[rows, 0, 1]
     don = lyp[rows, lengths + 2 * FLANK_MARGIN - 1, 2]
     return torch.stack([acc, don], -1).mean(-1)
+
+
+class SpliceAIExonScore(nn.Module):
+    """Wraps a splice model so its forward maps (one-hot ``x``, middle ``lengths``)
+    to the per-sequence exon score; a composition-residual model can wrap this in
+    turn and adjust the scalar it returns."""
+
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x, lengths):
+        return spliceai_exon_scores(self.model(x), lengths)
