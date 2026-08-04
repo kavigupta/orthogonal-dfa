@@ -73,7 +73,7 @@ def row_sum_dispersion(columns) -> float:
 
     Denominator is
         k mu (1 - mu)
-    which is what the numerator would be if the row sums were drawn from a single binomial with mean mu. 
+    which is what the numerator would be if the row sums were drawn from a single binomial with mean mu.
 
     Around 1 when the prefixes are exchangeable, above 1 when the prefixes are more variable (i.e.,
     there are multiple classes of prefix).
@@ -88,16 +88,34 @@ def row_sum_dispersion(columns) -> float:
     )
 
 
-def _feasible_balance_range(empirical_pos, s, min_acc_rej):
-    """Balances consistent with the observed rate.
-
-    Fixing ``empirical_pos = p*(c+s) + (1-p)*(c-s)`` pins ``c`` once ``p`` is
-    chosen, and ``c +- s`` still has to be a probability, which rules out the
-    extremes: a population that is almost all one class cannot average to a
-    middling rate without pushing a class rate outside ``[0, 1]``.
+def _feasible_balance_range(empirical_pos, min_s, min_acc_rej):
     """
-    lo = max(min_acc_rej, 1 - (1 - empirical_pos) / (2 * s))
-    hi = min(1 - min_acc_rej, empirical_pos / (2 * s))
+    The empirical positive oracle rate
+        empirical_pos = p*(c+s) + (1-p)*(c-s)
+    limits the set of possible (p, c, s) values
+    and we have a bound on p: p > min_acc_rej, and s >= min_s.
+
+    Therefore, we can solve for the feasible range of p given the empirical_pos, min_s, and min_acc_rej as:
+
+        empirical_pos = c + s(2p - 1)        so  c = empirical_pos - s(2p - 1)
+
+    and both class rates have to be probabilities, which bounds p on each side:
+
+        c - s >= 0   <=>  empirical_pos - 2ps       >= 0  <=>  p <= empirical_pos / 2s
+        c + s <= 1   <=>  empirical_pos + 2s(1 - p) <= 1  <=>  p >= 1 - (1 - empirical_pos) / 2s
+
+    These can be bounded by
+
+    p <= empirical_pos / 2 min_s
+    p >= 1 - (1 - empirical_pos) / 2 min_s
+
+    We also intersect with the bound (min_acc_rej, 1 - min_acc_rej).
+
+    If the lower bound is above the upper bound, there is no feasible p, and we return None.
+    This is because min_acc_rej is too high for the observed empirical_pos and min_s.
+    """
+    lo = max(min_acc_rej, 1 - (1 - empirical_pos) / (2 * min_s))
+    hi = min(1 - min_acc_rej, empirical_pos / (2 * min_s))
     return (lo, hi) if lo <= hi else None
 
 
