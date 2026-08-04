@@ -1,22 +1,49 @@
 import unittest
 
 import numpy as np
+import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     SpliceModelOracle,
+    calibrated_spliceai_readout,
+    flanks,
+    median_threshold,
+    run_over_middles,
     wrap_with_flanks,
 )
+from orthogonal_dfa.spliceai.exon_score import (
+    FLANK_MARGIN,
+    forward_batch,
+    full_lengths,
+    spliceai_exon_scores,
+)
+from orthogonal_dfa.spliceai.module import SpliceAIModule
 
 # cl=4 -> trim = cl//2+2 = 4, so the flanks are the first/last 4 bases of the text.
 EXON = RawExon.of(4, "ACGTAAAAGGGG")
 FLANK_L = [0, 1, 2, 3]
 FLANK_R = [2, 2, 2, 2]
 
+# The smallest window SpliceAI is defined for; a forward pass takes a few ms.
+SMALL_CL = 80
+FULL_LENGTH = 30
+
 
 def wrapped_row(middle, width):
     row = FLANK_L + list(middle) + FLANK_R
     return row + [0] * (width - len(row))
+
+
+def small_model_and_exon(cl=SMALL_CL):
+    """A randomly initialised SpliceAI of context ``cl``, and an exon to match."""
+    torch.manual_seed(0)
+    model = SpliceAIModule(window=SMALL_CL).eval()
+    rng = np.random.default_rng(0)
+    exon = RawExon(
+        cl, rng.integers(0, 4, size=cl + 2 * FLANK_MARGIN + FULL_LENGTH).tolist()
+    )
+    return model, exon
 
 
 class RecordingModel:
@@ -87,6 +114,112 @@ class TestSpliceModelOracle(unittest.TestCase):
         oracle = self._oracle()
         self.assertTrue(oracle.membership_query([0, 0, 0]))
         self.assertFalse(oracle.membership_query([0]))
+
+    def test_empty_batch(self):
+        result = self._oracle().membership_queries([])
+        self.assertEqual(result.shape, (0,))
+        self.assertEqual(result.dtype, bool)
+
+
+class TestSpliceaiExonScores(unittest.TestCase):
+    """Everything here runs a real SpliceAI, so the readout's output indexing is
+    checked against the model's actual cl trimming rather than a fake."""
+
+    def setUp(self):
+        self.model, self.exon = small_model_and_exon()
+        self.flank_l, self.flank_r = flanks(self.exon)
+        self.rng = np.random.default_rng(1)
+
+    def _scores(self, middles, chunk=64):
+        return run_over_middles(
+            self.model,
+            self.flank_l,
+            self.flank_r,
+            middles,
+            spliceai_exon_scores,
+            device="cpu",
+            chunk=chunk,
+        )
+
+    def test_matches_first_and_last_output_positions(self):
+        """On full-length rows the score is the acceptor at output position 0 and
+        the donor at the last, which is what oracle.run_model has always read."""
+        middles = self.rng.integers(0, 4, size=(4, FULL_LENGTH)).tolist()
+        wrapped, _ = wrap_with_flanks(self.flank_l, self.flank_r, middles)
+        logits = forward_batch(self.model, wrapped, device="cpu")
+        self.assertEqual(logits.shape[1], FULL_LENGTH + 2 * FLANK_MARGIN)
+
+        reference = logits.log_softmax(-1)[:, [0, -1], [1, 2]].mean(-1)
+        np.testing.assert_allclose(
+            spliceai_exon_scores(logits, full_lengths(logits)).numpy(),
+            reference.numpy(),
+            rtol=1e-6,
+        )
+
+    def test_padding_does_not_change_scores(self):
+        """A short middle scores the same whether or not it is padded up to a
+        longer row's width."""
+        middles = [
+            self.rng.integers(0, 4, size=n).tolist() for n in [FULL_LENGTH, 17, 5, 1, 0]
+        ]
+        ragged = self._scores(middles)
+        one_at_a_time = np.concatenate([self._scores([m]) for m in middles])
+        np.testing.assert_allclose(ragged, one_at_a_time, rtol=1e-6)
+
+    def test_rejects_a_model_whose_cl_disagrees(self):
+        """Flanks cut for a cl=400 exon put the donor 320 positions off for an
+        80-context model; that has to fail loudly rather than score noise."""
+        _, wide_exon = small_model_and_exon(cl=400)
+        flank_l, flank_r = flanks(wide_exon)
+        with self.assertRaises(AssertionError):
+            run_over_middles(
+                self.model,
+                flank_l,
+                flank_r,
+                [[0] * FULL_LENGTH],
+                spliceai_exon_scores,
+                device="cpu",
+                chunk=64,
+            )
+
+
+class TestCalibration(unittest.TestCase):
+    def setUp(self):
+        self.model, self.exon = small_model_and_exon()
+
+    def test_threshold_splits_random_middles_in_half(self):
+        length, count = 12, 256
+        # .function skips permacache: nothing here is worth caching to disk.
+        threshold = median_threshold.function(
+            self.model, self.exon, length, count=count, chunk=64, device="cpu"
+        )
+        oracle = SpliceModelOracle(
+            self.exon,
+            self.model,
+            calibrated_spliceai_readout(threshold),
+            device="cpu",
+            chunk=64,
+        )
+        fresh = np.random.default_rng(7).integers(0, 4, size=(count, length)).tolist()
+        self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.15)
+
+    def test_readout_accepts_exactly_the_scores_above_the_threshold(self):
+        flank_l, flank_r = flanks(self.exon)
+        middles = [
+            np.random.default_rng(3).integers(0, 4, size=n).tolist()
+            for n in [FULL_LENGTH, 9, 2]
+        ]
+        kw = dict(device="cpu", chunk=64)
+        scores = run_over_middles(
+            self.model, flank_l, flank_r, middles, spliceai_exon_scores, **kw
+        )
+        threshold = float(np.median(scores))
+        oracle = SpliceModelOracle(
+            self.exon, self.model, calibrated_spliceai_readout(threshold), **kw
+        )
+        np.testing.assert_array_equal(
+            oracle.membership_queries(middles), scores > threshold
+        )
 
 
 if __name__ == "__main__":

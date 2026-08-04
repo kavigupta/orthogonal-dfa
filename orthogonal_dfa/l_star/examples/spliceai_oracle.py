@@ -2,19 +2,19 @@ from typing import Callable, List
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.structures import Oracle
+from orthogonal_dfa.spliceai.exon_score import (
+    FLANK_MARGIN,
+    device_of,
+    forward_batch,
+    spliceai_exon_scores,
+)
 
 # (model output tensor, middle lengths tensor) -> per-sequence value tensor
 Readout = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
-
-# Each flank keeps this many bases beyond the model's cl/2 half-context (matching
-# data.sample_text's trim_zone = cl//2 + 2), so the output spans len(middle) +
-# 2*FLANK_MARGIN positions: the acceptor is the first, the donor the last.
-FLANK_MARGIN = 2
 
 CALIBRATION_SEED = int(stable_hash("calibration"), 16)
 
@@ -29,7 +29,14 @@ def flanks(exon: RawExon):
 
 
 def wrap_with_flanks(flank_l, flank_r, strings):
-    """Wrap each middle as flank_l+middle+flank_r, right-pad to a rectangle, and return (wrapped, middle_lengths)."""
+    """Wrap each middle as flank_l+middle+flank_r, right-pad to a rectangle, and
+    return (wrapped, middle_lengths).
+
+    The pad value is arbitrary: a row's acceptor and donor readout positions sit
+    cl/2 inside the row's own last real base, so neither one's receptive field
+    ever reaches the padding, whatever the rest of the batch is.  That holds only
+    with the model in eval mode -- BatchNorm over batch statistics would let the
+    padded rows leak into every other row."""
     lengths = np.array([len(s) for s in strings], dtype=np.int64)
     flank = len(flank_l) + len(flank_r)
     width = int(flank + (lengths.max() if len(strings) else 0))
@@ -41,28 +48,23 @@ def wrap_with_flanks(flank_l, flank_r, strings):
 
 
 def run_over_middles(model, flank_l, flank_r, strings, readout, *, device, chunk):
-    """Flank-wrap, one-hot, and run ``model`` (no_grad) over ``strings`` in chunks,
-    returning np.concatenate of ``readout(logits, lengths)``."""
+    """Flank-wrap and run ``model`` over ``strings`` in chunks, returning
+    np.concatenate of ``readout(logits, lengths)``."""
     parts = []
     for i in range(0, len(strings), chunk):
         wrapped, lengths = wrap_with_flanks(flank_l, flank_r, strings[i : i + chunk])
-        # pylint: disable=not-callable
-        x = F.one_hot(torch.as_tensor(wrapped, device=device), 4).float()
+        logits = forward_batch(model, wrapped, device=device)
         lens = torch.as_tensor(lengths, device=device)
-        with torch.no_grad():
-            parts.append(readout(model(x), lens).cpu().numpy())
-    return np.concatenate(parts) if parts else np.empty(0)
-
-
-def _device_of(model, device):
-    return (
-        torch.device(device) if device is not None else next(model.parameters()).device
-    )
+        parts.append(readout(logits, lens).cpu().numpy())
+    return np.concatenate(parts) if parts else np.empty(0, dtype=bool)
 
 
 class SpliceModelOracle(Oracle):
     r"""E-L\* oracle that wraps/one-hots/batches queries and runs ``model`` (eval,
-    no_grad, on ``device``), deferring the accept decision to ``readout``."""
+    no_grad, on ``device``), deferring the accept decision to ``readout``.
+
+    ``model`` is left on its own device unless ``device`` is passed, which only
+    picks where the inputs go -- it does not move the model."""
 
     def __init__(
         self, exon: RawExon, model, readout: Readout, *, device=None, chunk: int = 1024
@@ -70,7 +72,7 @@ class SpliceModelOracle(Oracle):
         model.eval()
         self._model = model
         self._readout = readout
-        self._device = _device_of(model, device)
+        self._device = device_of(model, device)
         self._flank_l, self._flank_r = flanks(exon)
         self._length = exon.random_text_length
         self._chunk = chunk
@@ -99,16 +101,6 @@ class SpliceModelOracle(Oracle):
         return bool(self.membership_queries([string])[0])
 
 
-def spliceai_exon_scores(logits: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    """Exon score per sequence: mean of the acceptor logit at the first output
-    position and the donor logit at the last."""
-    lyp = logits.log_softmax(-1)
-    rows = torch.arange(len(lyp), device=lyp.device)
-    acc = lyp[rows, 0, 1]
-    don = lyp[rows, lengths + 2 * FLANK_MARGIN - 1, 2]
-    return torch.stack([acc, don], -1).mean(-1)
-
-
 def calibrated_spliceai_readout(threshold: float) -> Readout:
     """Readout that accepts when the SpliceAI exon score exceeds ``threshold``."""
     return lambda logits, lengths: spliceai_exon_scores(logits, lengths) > threshold
@@ -131,10 +123,17 @@ def median_threshold(
     count=20000,
     seed=CALIBRATION_SEED,
     device=None,
-    chunk=1024
+    chunk=1024,
 ):
     """Median exon score over ``count`` random length-``length`` middles (per-length
-    since the score drifts with length)."""
+    since the score drifts with length).
+
+    oracle.run_model calibrates its dataset with a z-score thresholded at 0, i.e.
+    at the *mean*; the median here instead puts the accept rate at exactly 0.5
+    whatever the score distribution's skew, which is what E-L*'s degeneracy
+    precondition wants.  The two conventions will disagree on borderline
+    sequences, so do not mix a dataset built by one with an oracle built by the
+    other."""
     model.eval()
     flank_l, flank_r = flanks(exon)
     mids = np.random.default_rng(seed).integers(0, 4, size=(count, length)).tolist()
@@ -144,7 +143,7 @@ def median_threshold(
         flank_r,
         mids,
         spliceai_exon_scores,
-        device=_device_of(model, device),
+        device=device_of(model, device),
         chunk=chunk,
     )
     return float(np.median(scores))
