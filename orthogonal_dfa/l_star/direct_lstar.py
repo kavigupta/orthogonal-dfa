@@ -90,7 +90,15 @@ class DirectLStarLearner:
         # it.  The resolver harvests boundary strings into ``indecisive``.
         self.sifter = Sifter(self.tree, self.family)
         self.indecisive: Set[Tuple[int, ...]] = set()
-        self.edges = EdgeResolver(pst, self.dfa, self.sifter, self.indecisive)
+        # ``splits`` is rebound on every split, so the resolver reads the probe
+        # members through a callable rather than holding the object.
+        self.edges = EdgeResolver(
+            pst,
+            self.dfa,
+            self.sifter,
+            self.indecisive,
+            probe_members=lambda state: self.splits.members.get(state, ()),
+        )
 
         # The sequential population test: it accumulates each leaf's members and
         # says whether a proposed distinguisher splits it.
@@ -187,30 +195,17 @@ class DirectLStarLearner:
                 agree_point = i
             if verified and state not in self.dfa.access:
                 self.dfa.access[state] = w[:i]
-            c = w[i]
-            if c in self.dfa.transitions[state]:
-                # Fast path: trust the cached edge.  If it is wrong, the mismatch
-                # against the direct sift below is exactly the signal we want.
-                state = self.dfa.transitions[state][c]
+            target = self.dfa.target(state, w[i])
+            if target is not None:
+                # Trust the cached edge.  If it is wrong, the mismatch against the
+                # direct sift of the whole probe is exactly the signal we want.
+                state = target
                 verified = False
                 continue
-            # The worklist resolves an edge from ``access[state] + [c]``, which a
-            # transient state has no usable access string for -- so those edges
-            # stay open and only a probe that actually walks through them can
-            # close them (#128).  Looks dead on targets whose edges the worklist
-            # can all close; test_transient_states_terminate is the one that
-            # notices when it is removed.
-            nxt, boundary = self.sifter.sift_and_boundary(w[: i + 1])
-            if nxt is None:
-                self.indecisive.add(boundary)  # boundary: seq + bail prepend
-            else:
-                self.splits.record(nxt, w[: i + 1])
-                if verified:
-                    # Only record an edge whose source was reached by a real sift,
-                    # so the witness w[:i] genuinely sifts to ``state``.
-                    self.dfa.set_edge(state, c, nxt, w[:i])
-            state = nxt
-            verified = True
+            # The worklist has not closed this edge.  Drop back to sifting: the
+            # next iteration places w[:i+1] and records it as a member, which is
+            # what lets the resolver close the edge that the pool alone cannot.
+            state = None
         states.append(state)
         return self._act_on_disagreement(w, states, agree_point)
 

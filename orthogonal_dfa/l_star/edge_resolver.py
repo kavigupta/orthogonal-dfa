@@ -11,7 +11,7 @@ indecisive continuation would otherwise strand an edge the leaf as a whole can
 place.  Only an edge whose *entire* leaf is indecisive is unresolvable.
 """
 
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 #: Leaf members to try before giving an edge up as unresolvable.
 MAX_EDGE_TRIES = 30
@@ -25,11 +25,12 @@ class EdgeResolver:
     so the next round's family is forced to resolve them.
     """
 
-    def __init__(self, pst, partial, sifter, indecisive):
+    def __init__(self, pst, partial, sifter, indecisive, *, probe_members):
         self.pst = pst
         self.dfa = partial
         self.sifter = sifter
         self.indecisive = indecisive
+        self._probe_members = probe_members
 
     # -- opening the queue ---------------------------------------------------
 
@@ -66,19 +67,29 @@ class EdgeResolver:
                 return list(prefix)
         return None
 
+    def _candidates(self, state: int) -> Iterator[List[int]]:
+        """Members to try, cheapest first, yielded lazily so the pool scan only
+        happens if the earlier sources run out.
+
+        Probe-seen members come before the pool because they are what the pool
+        lacks: an edge is usually left open not for want of members but because
+        every ``member + symbol`` drawn from the fixed pool is indecisive, and a
+        probe supplies fresh strings the family can place."""
+        access = self.dfa.access.get(state)
+        if access is not None:
+            yield access
+        for member in self._probe_members(state):
+            yield list(member)
+        yield from self.leaf_members(state, limit=MAX_EDGE_TRIES)
+
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[List[int]]]:
         """A *decisive* target for ``delta(state, c)``, and the member that gave
-        it.  Tries the access string first, then other leaf members; returns
-        ``(None, None)`` only when every one tried is indecisive."""
-        candidates: List[List[int]] = []
-        access = self.dfa.access.get(state)
-        if access is not None:
-            candidates.append(access)
-        candidates.extend(self.leaf_members(state, limit=MAX_EDGE_TRIES))
+        it.  Returns ``(None, None)`` only when every member tried is
+        indecisive."""
         seen, tries = set(), 0
-        for member in candidates:
+        for member in self._candidates(state):
             key = tuple(member)
             if key in seen:
                 continue
