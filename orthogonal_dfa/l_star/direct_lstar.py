@@ -165,13 +165,15 @@ class DirectLStarLearner:
             return self._first_disagreement(w, states, mid, hi)
         return self._first_disagreement(w, states, lo, mid)
 
-    def process(self, w: List[int]) -> int:
-        """Walk one probe string against the cached transitions, recording the
-        leaves its prefixes reach, and act on the first disagreement it exposes.
+    def process(self, w: List[int], delta) -> int:
+        """Walk one probe string through ``delta`` and act on the disagreement it
+        exposes.
 
-        The walk only follows edges; the resolver is what sets them.  Where an
-        edge is still open the walk drops back to sifting, and the prefix it
-        records there is what lets the resolver close that edge later.
+        ``delta`` is total, so the walk never has to stop and sift: it sifts once
+        to find where the probe starts, follows an edge per symbol, and the only
+        oracle work left is the whole-probe sift the disagreement is measured
+        against.  If the walk is wrong -- because an edge was a guess -- that
+        mismatch is exactly the signal being hunted.
 
         Returns ``_SPLIT`` when the disagreement's leaf bifurcated decisively (a
         split was applied), ``_UNDECIDED`` when the population evidence is not yet
@@ -180,38 +182,18 @@ class DirectLStarLearner:
         state at this distinguisher.
         """
         w = list(w)
-        state: Optional[int] = None
-        verified = False
-        agree_point: Optional[int] = None
-        states: List[Optional[int]] = []
-        for i in range(len(w)):  # pylint: disable=consider-using-enumerate
-            if state is None:
-                state, boundary = self.sifter.sift_and_boundary(w[:i])
-                if state is None:
-                    self.indecisive.add(boundary)  # boundary: seq + bail prepend
-                else:
-                    self.splits.record(state, w[:i])
-                verified = True
+        state, boundary = self.sifter.sift_and_boundary([])
+        if state is None:
+            self.indecisive.add(boundary)
+            return _RESOLVED  # cannot even place the empty string
+        self.splits.record(state, [])
+        if state not in self.dfa.access:
+            self.dfa.access[state] = []
+        states: List[Optional[int]] = [state]
+        for c in w:
+            state = delta[state][c]
             states.append(state)
-            if state is None:
-                continue
-            if agree_point is None:
-                agree_point = i
-            if verified and state not in self.dfa.access:
-                self.dfa.access[state] = w[:i]
-            target = self.dfa.target(state, w[i])
-            if target is not None:
-                # Trust the cached edge.  If it is wrong, the mismatch against the
-                # direct sift of the whole probe is exactly the signal we want.
-                state = target
-                verified = False
-                continue
-            # The worklist has not closed this edge.  Drop back to sifting: the
-            # next iteration places w[:i+1] and records it as a member, which is
-            # what lets the resolver close the edge that the pool alone cannot.
-            state = None
-        states.append(state)
-        return self._act_on_disagreement(w, states, agree_point)
+        return self._act_on_disagreement(w, states, 0)
 
     def _act_on_disagreement(self, w, states, agree_point) -> int:
         """Localise the first followed-vs-sift disagreement in the walked probe
@@ -274,6 +256,16 @@ class DirectLStarLearner:
             self.sifter.prefill(block)
             yield from block
 
+    def _total_delta(self):
+        """A total transition function to walk.  The worklist cannot always close
+        an edge -- a leaf every one of whose members is indecisive has no
+        successor the family can name -- so the remainder is filled here, once,
+        rather than every probe that passes through it re-sifting."""
+        delta, _ = self.dfa.totalise(
+            range(self.num_states), lambda s, c: self.edges.decisive_target(s, c)[0]
+        )
+        return delta
+
     def counterexample_pass(self, *, max_probes: int, patience: int) -> int:
         """Hunt counterexamples until they dry up.  Returns the split count.
 
@@ -284,12 +276,14 @@ class DirectLStarLearner:
         :func:`fnr_synthesis._default_patience` for what that buys."""
         splits = 0
         since_split = 0
+        delta = self._total_delta()
         for w in self._probe_blocks(max_probes):
-            status = self.process(w)
+            status = self.process(w, delta)
             if status == _SPLIT:
                 splits += 1
                 since_split = 0
                 self.run_worklist()
+                delta = self._total_delta()  # the split rewrote the state set
             elif status == _UNDECIDED:
                 since_split = 0  # a leaf is still resolving -- keep sifting it
             else:
