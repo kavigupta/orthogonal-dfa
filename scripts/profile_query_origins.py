@@ -87,7 +87,6 @@ PREDICT_PHASES = [
 SUFFIX_TRIGGERS = [
     "identify_cluster_around",
     "compute_fnr",
-    "_give_up_check",
     "_resolve",
     "_split",
     "classify_states_with_decision_tree",
