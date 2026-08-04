@@ -166,8 +166,12 @@ class DirectLStarLearner:
         return self._first_disagreement(w, states, lo, mid)
 
     def process(self, w: List[int]) -> int:
-        """Walk one probe string: discover transitions, record the leaves its
-        prefixes reach, and act on the first internal disagreement it exposes.
+        """Walk one probe string against the cached transitions, recording the
+        leaves its prefixes reach, and act on the first disagreement it exposes.
+
+        The walk only follows edges; the resolver is what sets them.  Where an
+        edge is still open the walk drops back to sifting, and the prefix it
+        records there is what lets the resolver close that edge later.
 
         Returns ``_SPLIT`` when the disagreement's leaf bifurcated decisively (a
         split was applied), ``_UNDECIDED`` when the population evidence is not yet
