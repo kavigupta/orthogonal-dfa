@@ -11,6 +11,7 @@ not connect.  The realistic runs are slow (hours per round), hence permacached; 
 round is also written to ``runs/<key>/`` so a crashed run keeps its finished rounds.
 """
 
+import collections
 import os
 import pickle
 
@@ -85,7 +86,7 @@ def elstar_rounds(
     addtl=300,
     fnr_limit=0.05,
     acc_threshold=0.98,
-    max_rounds=8,
+    max_rounds=2,  # round 0 (trivial) + round 1 (where states appear but strand)
     seed=0,
     run_dir=RUNS_DIR,
 ):
@@ -121,21 +122,38 @@ def elstar_rounds(
     return rounds
 
 
+def _endpoints(dfa, strings, start):
+    return [_endpoint(dfa, s, start) for s in strings]
+
+
 def _agreement(dfa, strings, truth, start=None):
-    pred = np.array(
-        [_endpoint(dfa, s, start) in dfa.final_states for s in strings], dtype=bool
-    )
+    """Agreement using E-L*'s own accept/reject labels (a state accepts iff final)."""
+    pred = np.array([q in dfa.final_states for q in _endpoints(dfa, strings, start)])
     return float((pred == truth).mean())
 
 
-def _best_reroot_agreement(dfa, val, val_truth, test, test_truth):
-    """Pick the start state that maximizes validation agreement, report it on test."""
-    best_state = max(dfa.states, key=lambda q: _agreement(dfa, val, val_truth, q))
-    return _agreement(dfa, test, test_truth, best_state)
+def _fit_labels(dfa, strings, truth, start):
+    """Label each state accept/reject by the majority oracle truth of the strings that
+    land in it (states unseen here fall back to the overall majority)."""
+    hit, acc = collections.Counter(), collections.Counter()
+    for q, t in zip(_endpoints(dfa, strings, start), truth):
+        hit[q] += 1
+        acc[q] += bool(t)
+    labels = {q: acc[q] / hit[q] > 0.5 for q in hit}
+    return labels, bool(truth.mean() > 0.5)
+
+
+def _relabeled_agreement(dfa, fit_s, fit_t, eval_s, eval_t, *, start):
+    """Agreement with per-state labels fit on (fit_s, fit_t), evaluated on (eval_s, eval_t)."""
+    labels, default = _fit_labels(dfa, fit_s, fit_t, start)
+    pred = np.array(
+        [labels.get(q, default) for q in _endpoints(dfa, eval_s, start)], dtype=bool
+    )
+    return float((pred == eval_t).mean())
 
 
 @permacache(
-    "orthogonal_dfa/analysis/elstar_learnability/measure_v1",
+    "orthogonal_dfa/analysis/elstar_learnability/measure_v2",
     key_function=dict(run_dir=lambda _: None),
 )
 def learnability(
@@ -147,9 +165,15 @@ def learnability(
     run_dir=RUNS_DIR,
     **run_kw,
 ):
-    """Agreement of the final learned DFA with the oracle: base rate (best trivial DFA),
-    as E-L* wired it, and after re-rooting (chosen on validation, scored on disjoint test).
-    """
+    """Agreement of the final learned DFA with the oracle on a held-out test set:
+
+    - ``learned``: E-L*'s DFA as wired (initial state, its own accept labels).
+    - ``rerooted``: best start state (its labels), start chosen on validation.
+    - ``relabeled``: best start *and* per-state accept labels refit on validation --
+      the DFA's transition structure at its best, decoupled from E-L*'s labeling.
+
+    Re-root/relabel are chosen on validation and scored on a disjoint test half, so a
+    structure that only fits its own noise cannot beat the base rate here."""
     rounds = elstar_rounds(oracle_name, length=length, run_dir=run_dir, **run_kw)
     dfa = rounds[-1]["dfa"]
     rng = np.random.default_rng(eval_seed)
@@ -158,12 +182,21 @@ def learnability(
     half = eval_count // 2
     val, test = strings[:half], strings[half:]
     val_truth, test_truth = truth[:half], truth[half:]
-    accept = float(truth.mean())
+    reroot = max(dfa.states, key=lambda q: _agreement(dfa, val, val_truth, q))
+    relabel = max(
+        dfa.states,
+        key=lambda q: _relabeled_agreement(
+            dfa, val, val_truth, val, val_truth, start=q
+        ),
+    )
     return dict(
-        base_rate=max(accept, 1 - accept),
+        base_rate=float(max(test_truth.mean(), 1 - test_truth.mean())),
         learned=_agreement(dfa, test, test_truth),
-        rerooted=_best_reroot_agreement(dfa, val, val_truth, test, test_truth),
-        accept_rate=accept,
+        rerooted=_agreement(dfa, test, test_truth, reroot),
+        relabeled=_relabeled_agreement(
+            dfa, val, val_truth, test, test_truth, start=relabel
+        ),
+        accept_rate=float(truth.mean()),
         num_states=rounds[-1]["num_states"],
     )
 
@@ -174,16 +207,23 @@ def learnability_bars(**kw):
 
 
 def plot_learnability(results, ax=None):
-    """Grouped bars per oracle: E-L* as-learned and best re-rooted agreement, over the
-    base-rate line (what a trivial accept/reject DFA scores)."""
+    """Grouped bars per oracle: E-L* as-learned, best re-rooted, and re-root+relabeled
+    agreement, over the base-rate line (what a trivial accept/reject DFA scores)."""
     import matplotlib.pyplot as plt
 
     if ax is None:
-        _, ax = plt.subplots(figsize=(5.5, 3.5))
+        _, ax = plt.subplots(figsize=(6.5, 3.5))
     names = list(results)
     x = np.arange(len(names))
-    ax.bar(x - 0.2, [results[n]["learned"] for n in names], 0.4, label="as learned")
-    ax.bar(x + 0.2, [results[n]["rerooted"] for n in names], 0.4, label="re-rooted")
+    series = [
+        ("learned", "as learned"),
+        ("rerooted", "re-rooted"),
+        ("relabeled", "re-root + relabel"),
+    ]
+    width = 0.8 / len(series)
+    for i, (key, label) in enumerate(series):
+        offset = (i - (len(series) - 1) / 2) * width
+        ax.bar(x + offset, [results[n][key] for n in names], width, label=label)
     base = float(np.mean([results[n]["base_rate"] for n in names]))
     ax.axhline(base, linestyle="--", color="0.4", linewidth=1)
     ax.text(len(names) - 0.5, base, "base rate", va="bottom", ha="right", color="0.4")
