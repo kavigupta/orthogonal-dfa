@@ -73,7 +73,9 @@ class SplitEvidence:
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
         # Tolerated miss rate (beta): the lower sequential boundary.
         self._split_miss_rate = split_miss_rate
-        self._member_cap = 1500
+        # How many members one candidate is built from, so a populous leaf does
+        # not scan the whole pool.  The probe stream never reaches it.
+        self._pool_member_limit = 1500
         self._min_members = 12
         # Distinct prefixes seen to reach each leaf while sifting probes.  A split
         # fires once enough have piled up for the Bayes factor to cross, so the
@@ -89,7 +91,7 @@ class SplitEvidence:
         into any open candidate on that leaf right away, so the Bayes factor stays
         O(1) to read rather than being recomputed over the population."""
         bucket = self.members.setdefault(state, set())
-        if len(bucket) >= self._member_cap or tuple(prefix) in bucket:
+        if tuple(prefix) in bucket:
             return
         bucket.add(tuple(prefix))
         for distinguisher, accum in self._open.get(state, {}).items():
@@ -156,9 +158,12 @@ class SplitEvidence:
         members = list(
             dict.fromkeys(
                 [tuple(t) for t in self.members.get(state, ())]
-                + [tuple(p) for p in self._pool_members(state, limit=self._member_cap)]
+                + [
+                    tuple(p)
+                    for p in self._pool_members(state, limit=self._pool_member_limit)
+                ]
             )
-        )[: self._member_cap]
+        )[: self._pool_member_limit]
         self.family.prefill([list(m) + list(distinguisher) for m in members])
         for member in members:
             self._fold(accum, distinguisher, list(member))
