@@ -18,14 +18,18 @@ at η=0.30:
 | Difficult02 | 0.30 | 0.507 | 29/5 |
 | Normal03 | 0.30 | 0.998 | 40/7 |
 
-E-L* is in its designed regime on only **3/28** targets
-(Normal07, Simple01, Simple02); the other 25 are recorded as reasoned
+E-L* is in its designed regime on only **5/28** targets
+(Difficult02, Normal07, Simple01, Simple02, Simple05); the other 23 are recorded as reasoned
 exclusions (acceptance imbalance / class-preservation / covered-accuracy
 ceiling), not run. On the shared in-regime cells both are accurate, but the
 query cost differs by orders of magnitude:
 
 | target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Difficult02 | 0.05 | 1.000 | yes | 1,704 | 6 | 1.000 | yes | 1,756,677 |
+| Difficult02 | 0.10 | 1.000 | yes | 2,093 | 7 | 1.000 | yes | 1,120,559 |
+| Difficult02 | 0.20 | 1.000 | yes | 3,254 | 9 | 1.000 | yes | 1,972,239 |
+| Difficult02 | 0.30 | 0.507 | no | 18,075 | 200 | 1.000 | yes | 23,164,055 |
 | Normal07 | 0.05 | 1.000 | yes | 956 | 3 | 1.000 | yes | 219,912 |
 | Normal07 | 0.10 | 1.000 | yes | 827 | 2 | 1.000 | yes | 299,346 |
 | Normal07 | 0.20 | 1.000 | yes | 704 | 5 | 1.000 | yes | 473,551 |
@@ -38,6 +42,10 @@ query cost differs by orders of magnitude:
 | Simple02 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 108,662 |
 | Simple02 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 140,249 |
 | Simple02 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 406,648 |
+| Simple05 | 0.05 | 1.000 | yes | 1,202 | 3 | 1.000 | yes | 4,521,187 |
+| Simple05 | 0.10 | 1.000 | yes | 1,202 | 6 | 1.000 | yes | 6,529,658 |
+| Simple05 | 0.20 | 1.000 | yes | 1,219 | 6 | 1.000 | yes | 6,317,569 |
+| Simple05 | 0.30 | 1.000 | yes | 3,213 | 13 | 1.000 | yes | 92,338,752 |
 
 ## 2. This repo's benchmarks (head-to-head)
 
@@ -47,7 +55,7 @@ E-L*'s preconditions.
 
 CAPAL's convergence here is a clean function of the noise level (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5); it
 is not that these languages defeat it, but that noise does. E-L* reaches exact
-accuracy on 12/16 of the cells it is in regime for, and is flat in
+accuracy on 16/20 of the cells it is in regime for, and is flat in
 the noise -- and pays two to three orders of magnitude more membership queries
 for it.
 
@@ -57,8 +65,8 @@ for it.
 | parity_mod9_allowed_3_6 | 0.10 | 0.947 | no | 55,232 | 200 | 1.000 | yes | 466,140 |
 | parity_mod9_allowed_3_6 | 0.20 | 0.774 | no | 11,085 | 200 | 1.000 | yes | 875,691 |
 | parity_mod9_allowed_3_6 | 0.30 | 0.758 | no | 17,194 | 200 | 1.000 | yes | 1,383,779 |
-| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 879,542 |
-| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 672,349 |
+| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 299,040 |
+| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 990,677 |
 | regex_subseq_1010101 | 0.20 | 1.000 | yes | 7,197 | 18 | 1.000 | yes | 1,281,289 |
 | regex_subseq_1010101 | 0.30 | 0.919 | no | 5,284 | 200 | 1.000 | yes | 3,204,645 |
 | regex_two_1111 | 0.05 | 1.000 | yes | 4,556 | 10 | 1.000 | yes | 435,614 |
@@ -68,11 +76,11 @@ for it.
 | regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 11,257 | 21 | 0.989 | no | 328,929 |
 | regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 8,477 | 15 | 0.989 | no | 553,514 |
 | regex_alt_1111_or_0000_11 | 0.20 | 0.776 | no | 11,475 | 200 | 0.989 | no | 866,460 |
-| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 4,770,083 |
-| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | excl | - | - |
-| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | excl | - | - |
+| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 5,701,657 |
+| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | 1.000 | yes | 1,107,150 |
+| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | 1.000 | yes | 2,533,131 |
+| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | 1.000 | yes | 2,492,408 |
+| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | 1.000 | yes | 12,513,579 |
 
 ## 3. The wall: full hyperparameter sweep
 
@@ -122,8 +130,8 @@ seeds, versus E-L*'s spend on the same cell:
 | parity_mod9_allowed_3_6 | 0.858 | 0/3 | 2,450,379 | 1.000 | 1,383,779 |
 | regex_subseq_1010101 | 0.905 | 0/3 | 846,458 | 1.000 | 3,204,645 |
 | regex_two_1111 | 0.867 | 0/3 | 793,899 | 1.000 | 2,345,411 |
-| regex_alt_1111_or_0000_11 | 0.752 | 0/3 | 1,232,352 | 0.989 | 4,770,083 |
-| regex_alt_111_or_000_3sym | 0.658 | 0/3 | 83,353 | excl | - |
+| regex_alt_1111_or_0000_11 | 0.752 | 0/3 | 1,232,352 | 0.989 | 5,701,657 |
+| regex_alt_111_or_000_3sym | 0.658 | 0/3 | 83,353 | 1.000 | 12,513,579 |
 
 CAPAL never converges (0/3 everywhere) even at 0.08–2.45M distinct queries. On
 modulo it spends **more** than E-L* and still fails, while E-L* succeeds at
@@ -159,7 +167,7 @@ not move it.
 
 - On CAPAL's own suite CAPAL is broadly applicable and cheap: 109/112
   cells at 100%, every failure at η=0.30. E-L* matches its accuracy but only on
-  the 3/28 targets its preconditions admit, at two to three orders of
+  the 5/28 targets its preconditions admit, at two to three orders of
   magnitude more membership queries.
 - The membership columns are not like for like. CAPAL is handed a perfect
   equivalence oracle and E-L* is not, so part of what E-L* pays for in queries

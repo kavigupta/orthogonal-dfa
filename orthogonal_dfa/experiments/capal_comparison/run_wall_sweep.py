@@ -9,12 +9,16 @@ at every config and seed) from a *default-config artifact* (some config or seed
 cracks it), and whether the modulo-9 wall is "one hard DFA at high noise" or
 "high noise is bad for everything".
 
-`max_same_samples` is capped at 240 on purpose: it is the entire runtime cost
-(m=60 ~2s, m=240 ~19s, m=480 ~146s with minutes-long outliers), and section 5 +
-the preliminary m=480 sweep already show larger m adds no convergence under
-persistent noise. `max_iters` is fixed at 50 -- section 3 showed the hypothesis
-reaches a fixed point well before then. Section 10's un-exposed deep-enumeration
-knobs (millions of queries) stay out of scope.
+The grid starts at upstream's own benchmark settings and only goes up, so its
+low corner is exactly the configuration experiments 1 and 2 measure. A cell that
+fails everywhere in this grid failed with at least the evidence, pool and search
+budget CAPAL's authors publish with, and more.
+
+`max_same_samples` is capped at 240: it is the entire runtime cost (m=80 ~3s,
+m=240 ~19s, m=480 ~146s with minutes-long outliers), and the preliminary m=480
+sweep showed larger m adds no convergence under persistent noise. `max_iters`
+stays at upstream's 200 rather than the 50 an earlier revision used, so
+convergence here means the same thing it does in sections 1-2.
 
 Example:
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep \
@@ -41,15 +45,15 @@ from .our_targets import our_benchmarks
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
 
-#: Full factorial over the three knobs that actually move CAPAL. m is capped at
-#: 240 (see module docstring); max_iters fixed at 50.
-M_VALUES = [60, 240]
-POOL_VALUES = [8, 24]
+#: Full factorial over the three knobs that actually move CAPAL, anchored at
+#: upstream's benchmark settings (m=80, pool=10, alpha=1e-3) and sweeping up.
+M_VALUES = [80, 240]
+POOL_VALUES = [10, 24]
 ALPHA_VALUES = [1e-3, 0.05]
 CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
         f"m={m},pool={p},alpha={a}",
-        dict(max_same_samples=m, suffix_pool_len_max=p, alpha=a, max_iters=50),
+        dict(max_same_samples=m, suffix_pool_len_max=p, alpha=a),
     )
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
@@ -67,7 +71,6 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
             suffix_pool_len_max=16,
             enum_depth=8,
             extra_len_max=16,
-            max_iters=15,
         ),
     ),
 ]

@@ -66,6 +66,41 @@ MOD9_SKEWED = DFA(
 )
 
 
+# cp = 0.028: admitted at the 0.02 bar, rejected at the old 0.05 one.
+MARGINAL_CLASS_PRESERVING = DFA(
+    states=set(range(7)),
+    input_symbols={0, 1},
+    transitions={
+        0: {0: 5, 1: 0},
+        1: {0: 6, 1: 6},
+        2: {0: 3, 1: 6},
+        3: {0: 2, 1: 1},
+        4: {0: 4, 1: 5},
+        5: {0: 1, 1: 5},
+        6: {0: 0, 1: 1},
+    },
+    initial_state=0,
+    final_states={4, 6},
+    allow_partial=False,
+)
+
+# cp = 0.011: below the bar, and E-L* does not learn it within a 420s budget.
+TOO_FEW_CLASS_PRESERVING = DFA(
+    states=set(range(5)),
+    input_symbols={0, 1},
+    transitions={
+        0: {0: 3, 1: 1},
+        1: {0: 1, 1: 2},
+        2: {0: 3, 1: 2},
+        3: {0: 0, 1: 3},
+        4: {0: 4, 1: 2},
+    },
+    initial_state=0,
+    final_states={1, 4},
+    allow_partial=False,
+)
+
+
 def _constant_dfa(final_states):
     return DFA(
         states={0},
@@ -131,6 +166,17 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         # balance: E-L* learns this one to accuracy 1.0.
         self.assertLess(P.acceptance_rate(MOD9_SKEWED, length=40), 0.15)
         self.assertTrue(P.satisfies_preconditions(MOD9_SKEWED, length=40))
+
+    def test_marginal_class_preserving_target_passes(self):
+        # Between the old 0.05 bar and the current 0.02 one: E-L* learns these.
+        cp = P.class_preserving_fraction(MARGINAL_CLASS_PRESERVING, length=40)
+        self.assertTrue(0.02 <= cp < 0.05)
+        self.assertTrue(P.satisfies_preconditions(MARGINAL_CLASS_PRESERVING, length=40))
+
+    def test_too_few_class_preserving_suffixes_fails(self):
+        report = P.satisfies_preconditions(TOO_FEW_CLASS_PRESERVING, length=40)
+        self.assertFalse(report)
+        self.assertIn("class-preserving", report.reasons[0])
 
     def test_ceiling_catches_transient_states(self):
         # Difficult09 is non-degenerate and class-preserving, so only the

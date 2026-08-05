@@ -433,12 +433,10 @@ def uncoverable_access_strings(pst, dt):
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
-    first_round = True
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         while True:
-            dfa, dt = resolve_dfa(pst, first_round=first_round)
-            first_round = False
+            dfa, dt = resolve_dfa(pst)
             print(f"Resolved DFA with {dt.num_states} states")
             if dt.num_states > 1:
                 break

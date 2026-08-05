@@ -24,9 +24,11 @@ count is 0 by construction.
 from __future__ import annotations
 
 import contextlib
+import inspect
 import io
 import json
 import random
+import signal
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -36,7 +38,22 @@ from orthogonal_dfa.capal_official import fit_with_fallback, make_learner
 from orthogonal_dfa.l_star.learn import learn_dfa
 
 #: Bump when the emitted record shape changes incompatibly.
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+#: Wall-clock a single cell may take. Neither learner has an internal bound on
+#: how long it searches, so without this one target stalls the whole sweep.
+#: A backstop against that, not a budget: Simple05 at eta=0.30 was still
+#: searching at 53.7M queries when a 1800s cap cut it, with no sign of being
+#: stuck, so the cap has to sit well clear of the slowest cell that converges.
+CELL_TIMEOUT_SECONDS = 7200
+
+#: Read off `learn_dfa` rather than restated here, for the same reason the CAPAL
+#: side reads its config off the learner: E-L* must be measured at its own
+#: default, and `min_suffix_frequency` has to stay in step with the
+#: `min_class_preserving_frac` that decides which targets are in regime.
+DEFAULT_MIN_SUFFIX_FREQUENCY = (
+    inspect.signature(learn_dfa).parameters["min_suffix_frequency"].default
+)
 
 LEARNER_CAPAL = "CAPAL"
 LEARNER_ELSTAR = "E-L*"
@@ -47,6 +64,30 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 EVAL_COUNT = 5000
 EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
+
+
+class CellTimeout(BaseException):
+    """Raised when a cell outruns `CELL_TIMEOUT_SECONDS`.
+
+    Derives from BaseException so the broad `except Exception` each driver uses
+    to record learner failures cannot swallow it.
+    """
+
+
+@contextlib.contextmanager
+def time_limit(seconds: int):
+    """Raise `CellTimeout` in the calling thread after `seconds`."""
+
+    def _fire(*_):
+        raise CellTimeout
+
+    previous = signal.signal(signal.SIGALRM, _fire)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def eta_to_signal_strength(eta: float) -> float:
@@ -117,8 +158,8 @@ class Cell:
     equivalence_queries: Optional[int] = None
     seconds: Optional[float] = None
     #: Exception class name, so the report can group failure modes without
-    #: parsing prose. E.g. E-L* raises GaveUpOnSuffixSearch when no suffix
-    #: family clears the signal threshold -- a learner outcome, not a crash.
+    #: parsing prose. "Timeout" means the cell hit `CELL_TIMEOUT_SECONDS`
+    #: without producing a hypothesis.
     error_type: Optional[str] = None
     error: Optional[str] = None
 
@@ -143,13 +184,14 @@ def run_capal_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     alphabet: Sequence[str],
+    timeout: int = CELL_TIMEOUT_SECONDS,
     **learner_kwargs: Any,
 ) -> Cell:
     """Run upstream CAPAL on `target` and score it on the shared word list.
 
-    `learner_kwargs` go to `make_learner`, which defaults to upstream's own
-    benchmark-script settings. Overriding them is the hyperparameter sweep;
-    whatever they end up as is read back off the learner below, so the record
+    `learner_kwargs` go to `make_learner`, whose defaults are upstream's own
+    benchmark settings. Overriding them is what the hyperparameter sweep does;
+    the config is read back off the learner below either way, so the record
     always says what CAPAL actually ran with.
     """
     learner = make_learner(target, eta, seed=seed, **learner_kwargs)
@@ -189,9 +231,13 @@ def run_capal_cell(
 
     t0 = time.time()
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
+        with time_limit(timeout), contextlib.redirect_stdout(io.StringIO()):
             dfa, converged = fit_with_fallback(learner)
         cell.converged = converged
+    except CellTimeout:
+        cell.error_type = "Timeout"
+        cell.error = f"no hypothesis within {timeout}s"
+        dfa = None
     # Broad: any learner failure is a recorded outcome for this cell, not a
     # reason to abandon the rest of the sweep.
     except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -227,12 +273,13 @@ def run_elstar_cell(
     words: Sequence[List[int]],
     truth: Callable[[List[int]], bool],
     target_states: Optional[int] = None,
-    min_suffix_frequency: float = 0.05,
+    min_suffix_frequency: float = DEFAULT_MIN_SUFFIX_FREQUENCY,
+    timeout: int = CELL_TIMEOUT_SECONDS,
 ) -> Cell:
     """Run this repo's E-L* on `oracle_creator` and score it identically."""
     from orthogonal_dfa.l_star.structures import Oracle
 
-    signal = eta_to_signal_strength(eta)
+    signal_strength = eta_to_signal_strength(eta)
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -242,7 +289,7 @@ def run_elstar_cell(
         target_states=target_states,
         alphabet_size=symbols,
         learner_config={
-            "min_signal_strength": signal,
+            "min_signal_strength": signal_strength,
             "min_suffix_frequency": min_suffix_frequency,
         },
         equivalence_queries=0,
@@ -271,15 +318,18 @@ def run_elstar_cell(
     t0 = time.time()
     dfa = None
     try:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+        with time_limit(timeout), contextlib.redirect_stdout(
             io.StringIO()
-        ):
+        ), contextlib.redirect_stderr(io.StringIO()):
             dfa = learn_dfa(
                 counting_creator,
-                min_signal_strength=signal,
+                min_signal_strength=signal_strength,
                 seed=seed,
                 min_suffix_frequency=min_suffix_frequency,
             )
+    except CellTimeout:
+        cell.error_type = "Timeout"
+        cell.error = f"no hypothesis within {timeout}s"
     # Broad, for the same reason as the CAPAL driver above.
     except Exception as exc:  # pylint: disable=broad-exception-caught
         cell.error_type = type(exc).__name__
