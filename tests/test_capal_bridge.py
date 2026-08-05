@@ -4,7 +4,9 @@ Clones the pinned CAPAL checkout to ../capal if absent, skipping (not failing)
 when that is impossible, e.g. offline. Catches a broken adapter or commit drift.
 """
 
+import inspect
 import itertools
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -17,6 +19,7 @@ from orthogonal_dfa.capal_official import (
     import_capal,
     make_learner,
     resolve_capal_dir,
+    to_automata_dfa,
     verify_pinned,
 )
 from orthogonal_dfa.capal_official.adapter import UPSTREAM_URL
@@ -111,6 +114,51 @@ class TestCapalBridge(unittest.TestCase):
         for word in _all_words("01", 8):
             truth = oracle.membership_query([int(c) for c in word])
             self.assertEqual(dfa.run(word), truth, word)
+
+    def test_defaults_match_the_upstream_benchmark_script(self):
+        # The comparison is only fair if CAPAL runs at the settings its authors
+        # publish with, so read them out of run_capal_benchmark.py rather than
+        # restating them: a drift in the pinned checkout should fail here.
+        script = (resolve_capal_dir() / "run_capal_benchmark.py").read_text()
+        wanted = {
+            "max-same-samples": "max_same_samples",
+            "suffix-pool-init": "suffix_pool_init",
+            "suffix-pool-len-max": "suffix_pool_len_max",
+            "discr-search-max-len": "discr_search_max_len",
+            "discr-search-random": "discr_search_random",
+            "max-iters": "max_iters",
+            "tau-cap": "tau_cap",
+            "alpha": "alpha",
+        }
+        ours = inspect.signature(make_learner).parameters
+        for flag, param in wanted.items():
+            match = re.search(
+                rf'add_argument\("--{flag}",[^)]*default=([0-9.e-]+)', script
+            )
+            self.assertIsNotNone(match, flag)
+            self.assertEqual(float(match.group(1)), float(ours[param].default), flag)
+
+    def test_round_trip_preserves_the_language_and_symbol_order(self):
+        # `to_automata_dfa` is the inverse leg: E-L* reads symbol indices while
+        # upstream reads characters, so a round trip has to agree on both the
+        # language and which index means which character.
+        for regex, symbols in ((r".*1010101.*", 2), (r".*(111|000).*", 3)):
+            upstream = build_regex_dfa(regex, symbols)
+            back = to_automata_dfa(upstream)
+            alphabet = list(upstream.alphabet)
+            for word in _all_words("".join(alphabet), 7):
+                indices = [alphabet.index(c) for c in word]
+                self.assertEqual(
+                    upstream.run(word), back.accepts_input(indices), (regex, word)
+                )
+
+    def test_round_trip_is_total(self):
+        # automata-lib rejects by dying; upstream requires every (state, symbol),
+        # so the port has to leave a complete transition function behind.
+        back = to_automata_dfa(build_modulo_dfa(9, (3, 6)))
+        self.assertEqual(back.input_symbols, {0, 1})
+        for state in back.states:
+            self.assertEqual(set(back.transitions[state]), {0, 1})
 
     def test_end_to_end_fit(self):
         # Trivial noiseless target: CAPAL + PerfectEQ should learn it exactly.
