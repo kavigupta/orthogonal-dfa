@@ -3,9 +3,9 @@ import unittest
 
 import torch
 
-from orthogonal_dfa.spliceai.load_model import FM_TRACED_DIR, load_fm
+from orthogonal_dfa.spliceai.load_model import PRETRAINED_DIR, load_fm
 
-FM_SEED1 = os.path.join(FM_TRACED_DIR, "fm-1.traced.pt")
+FM_SEED1 = os.path.join(PRETRAINED_DIR, "fm-1.traced.pt")
 
 
 @unittest.skipUnless(

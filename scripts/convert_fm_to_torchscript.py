@@ -9,12 +9,12 @@ import sys
 
 import torch
 
-from orthogonal_dfa.spliceai.load_model import FM_TRACED_DIR
+from orthogonal_dfa.spliceai.load_model import PRETRAINED_DIR
 
 FM_REPO = "/mnt/md0/ExpeditionsCommon/spliceai/Canonical"
 FM_MODEL_PREFIX = f"{FM_REPO}/model/msp-273.665a3"
 # Any width > cl (400); the trace generalizes across lengths (conv/attention crop off
-# tensor shapes), verified bit-exact over the oracle's 499..593 input range.
+# tensor shapes).
 TRACE_WIDTH = 560
 
 
@@ -35,8 +35,8 @@ def convert(seed):
     example[:, torch.arange(TRACE_WIDTH), torch.randint(0, 4, (TRACE_WIDTH,))] = 1.0
     with torch.no_grad():
         traced = torch.jit.trace(model, (example,), check_trace=True)
-    os.makedirs(FM_TRACED_DIR, exist_ok=True)
-    path = os.path.join(FM_TRACED_DIR, f"fm-{seed}.traced.pt")
+    os.makedirs(PRETRAINED_DIR, exist_ok=True)
+    path = os.path.join(PRETRAINED_DIR, f"fm-{seed}.traced.pt")
     torch.jit.save(traced, path)
     return path
 

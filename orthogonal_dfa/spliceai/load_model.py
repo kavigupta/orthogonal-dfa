@@ -41,13 +41,16 @@ class remapping_pickle:
         return hasattr(pickle, name)
 
 
+PRETRAINED_DIR = "data/pretrained_models"
+
+
 def load_spliceai(size, seed):
     assert size in (400, 10000, "10k")
     if size == 10000:
         size = "10k"
     return (
         torch.load(
-            os.path.join("data/pretrained_models", f"spliceai-{size}-{seed}.pt"),
+            os.path.join(PRETRAINED_DIR, f"spliceai-{size}-{seed}.pt"),
             weights_only=False,
             pickle_module=remapping_pickle(),
         )
@@ -60,7 +63,7 @@ def load_lssi(which, seed):
     assert which in ("donor", "acceptor")
     return (
         torch.load(
-            os.path.join("data/pretrained_models", f"{which}-{seed}.pt"),
+            os.path.join(PRETRAINED_DIR, f"{which}-{seed}.pt"),
             weights_only=False,
             pickle_module=remapping_pickle(),
         )
@@ -76,7 +79,7 @@ def load_fm(seed=1):
     converted to a self-contained trace so loading needs only torch (unlike the eager
     model, which needs the modular_splicing repo).  Reads the same acceptor/donor logits
     as SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
-    path = os.path.join("data/pretrained_models", f"fm-{seed}.traced.pt")
+    path = os.path.join(PRETRAINED_DIR, f"fm-{seed}.traced.pt")
     assert os.path.exists(path), (
         f"{path} is missing; generate the FM traces (on the machine with the "
         f"modular_splicing repo) via scripts/convert_fm_to_torchscript.py"
