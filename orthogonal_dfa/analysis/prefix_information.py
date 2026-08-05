@@ -25,11 +25,17 @@ from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 from orthogonal_dfa.spliceai.load_model import load_fm, load_spliceai
 
 # Oracle variants shown as bars, ordered by how much composition each strips out.
-ORACLES = ["spliceai", "composition_residual", "spliceai_minus_fm"]
+ORACLES = [
+    "spliceai",
+    "composition_residual",
+    "spliceai_minus_fm",
+    "spliceai_minus_fm_residual",
+]
 LABELS = {
     "spliceai": "SpliceAI",
     "composition_residual": "composition\nresidual",
     "spliceai_minus_fm": "SpliceAI \\ FM",
+    "spliceai_minus_fm_residual": "SpliceAI \\ FM\nresidual",
 }
 
 
@@ -86,6 +92,10 @@ def _build_oracle(name, length):
     if name == "spliceai_minus_fm":
         return SetDifferenceOracle(
             _balanced(model, exon, calib), _balanced(load_fm(1), exon, calib)
+        )
+    if name == "spliceai_minus_fm_residual":
+        return SetDifferenceOracle(
+            _residual(model, exon, calib + 5), _residual(load_fm(1), exon, calib + 5)
         )
     raise ValueError(f"unknown oracle {name!r}")
 
