@@ -1,14 +1,16 @@
-r"""Composition-residual and set-difference E-L\* oracles, thin wrappers over
+r"""SpliceAI (or FM) E-L\* oracle builders, thin wrappers over
 :class:`~orthogonal_dfa.l_star.examples.spliceai_oracle.SpliceModelOracle` and
 :class:`~orthogonal_dfa.l_star.examples.composition_residual.CompositionResidualScore`.
 
-* :func:`balanced_oracle` / :func:`canonical_oracle` -- the raw SpliceAI (or FM)
-  call, thresholded at the median score at a length / at run_model's canonical
-  calibration.
-* :func:`residual_oracle` -- the exon score with its generic bag-of-k-mers
-  composition regressed out per length bin (a ``CompositionResidualScore`` module the
-  normal oracle wraps), thresholded at the median residual.
-* :class:`SetDifferenceOracle` -- ``a \\ b``, to contrast SpliceAI against the FM.
+* :func:`balanced_oracle` / :func:`canonical_oracle` -- the raw call, thresholded at
+  the median score at a length / at run_model's canonical calibration.
+* :func:`residual_oracle` -- the exon score with its generic bag-of-k-mers composition
+  regressed out per length bin (a ``CompositionResidualScore`` module the normal oracle
+  wraps), thresholded at the median residual.
+
+To contrast SpliceAI against the FM, wrap two of these in
+:class:`~orthogonal_dfa.l_star.examples.set_difference.SetDifferenceOracle` (with the FM
+from :func:`~orthogonal_dfa.spliceai.load_model.load_fm`).
 
 See ``ELSTAR_NEURAL_ORACLE_FINDINGS.md`` for what running E-L\* on these produced.
 Those runs predate the refactor onto the shared modules; the residual there was a
@@ -16,9 +18,6 @@ per-length ridge fit rather than today's drop-column OLS, so a fresh run's exact
 numbers and residual DFAs may differ.
 """
 
-from typing import List
-
-import numpy as np
 from permacache import no_cache_global
 
 from orthogonal_dfa.data.exon import RawExon
@@ -27,27 +26,8 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     SpliceModelOracle,
     median_threshold,
 )
-from orthogonal_dfa.l_star.structures import Oracle
 from orthogonal_dfa.oracle.run_model import calibrate
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
-
-# The fixed-motif ("FM") model is a trained modular_splicing model living in a
-# separate repo on this machine (BothLSSIModels + an 82-motif RBNS PSAMMotifModel).
-FM_REPO = "/mnt/md0/ExpeditionsCommon/spliceai/Canonical"
-FM_MODEL_PREFIX = f"{FM_REPO}/model/msp-273.665a3"
-
-
-def load_fm(seed=1):
-    """Load the fixed-motif model (seed 1..5) as an eval/cuda nn.Module."""
-    import sys
-
-    if FM_REPO not in sys.path:
-        sys.path.insert(0, FM_REPO)
-    # modular_splicing is an external repo added to sys.path above, not a dependency.
-    from modular_splicing.utils.io import load_model  # pylint: disable=import-error
-
-    _, model = load_model(f"{FM_MODEL_PREFIX}_{seed}")  # picks the latest step
-    return model.eval().cuda()
 
 
 def score_model_of(model):
@@ -98,33 +78,3 @@ def residual_oracle(
     threshold = median_threshold.function(residual, exon, exon.random_text_length)
     oracle = SpliceModelOracle(exon, residual, threshold, chunk=chunk)
     return oracle, residual.composition_r2
-
-
-class SetDifferenceOracle(Oracle):
-    r"""``a \\ b``: membership = ``a`` accepts AND ``b`` does not.
-
-    Used to contrast SpliceAI against the fixed-motif model, e.g. with two balanced
-    oracles (plain) or two residual oracles (composition stripped from both before
-    differencing).
-    """
-
-    def __init__(self, oracle_a, oracle_b, exon: RawExon):
-        self._a = oracle_a
-        self._b = oracle_b
-        self._length = exon.random_text_length
-
-    @property
-    def alphabet_size(self) -> int:
-        return 4
-
-    @property
-    def string_length(self) -> int:
-        return self._length
-
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
-        return self._a.membership_queries(strings) & ~self._b.membership_queries(
-            strings
-        )
-
-    def membership_query(self, string: List[int]) -> bool:
-        return bool(self.membership_queries([string])[0])

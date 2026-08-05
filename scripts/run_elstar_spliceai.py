@@ -25,11 +25,10 @@ import time
 import numpy as np
 
 from orthogonal_dfa.data.exon import default_exon
+from orthogonal_dfa.l_star.examples.set_difference import SetDifferenceOracle
 from orthogonal_dfa.l_star.examples.spliceai_oracles import (
-    SetDifferenceOracle,
     balanced_oracle,
     canonical_oracle,
-    load_fm,
     residual_oracle,
 )
 from orthogonal_dfa.l_star.lstar import (
@@ -45,7 +44,7 @@ from orthogonal_dfa.l_star.statistics import (
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_margin,
 )
-from orthogonal_dfa.spliceai.load_model import load_spliceai
+from orthogonal_dfa.spliceai.load_model import load_fm, load_spliceai
 
 
 def parse_args():
@@ -113,7 +112,7 @@ def build_oracle(args, exon, model):
             a, b = b, a
         target = "FM \\ SpliceAI" if args.reverse else "SpliceAI \\ FM"
         print(f"oracle: SETDIFF {args.setdiff} {target}", flush=True)
-        return SetDifferenceOracle(a, b, exon)
+        return SetDifferenceOracle(a, b)
     if args.residual_perlen:
         o, r2 = residual_oracle(
             model, exon, n_max=args.n_max, len_lo=90, len_hi=2 * args.sampler_len + 5
