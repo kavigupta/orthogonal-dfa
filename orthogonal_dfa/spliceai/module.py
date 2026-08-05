@@ -86,6 +86,21 @@ class SpliceAI(nn.Module):
 
         self.hooks_handles = []
 
+    def __permacache_hash__(self):
+        """Identify this model to ``permacache.stable_hash``.
+
+        Without this, stable_hash's generic nn.Module encoding hashes every public
+        entry of ``__dict__``, which here includes ``preprocess`` -- a function, and
+        so not JSON-serializable, making every SpliceAI unhashable.  Naming the
+        contents explicitly also survives ``load_spliceai``, which unpickles whole
+        modules and restores that attribute whatever a constructor does about it.
+
+        ``w`` and ``cl`` come along because the weights alone do not identify the
+        model: ``ar`` sets the dilations, which change the receptive field without
+        changing a single parameter shape, so two models differing only in ``ar``
+        have byte-identical state_dicts.  ``cl`` is a function of both."""
+        return dict(state_dict=self.state_dict(), w=self.w, cl=self.cl)
+
     def forward(self, x):
         if isinstance(x, dict):
             x = x["x"]

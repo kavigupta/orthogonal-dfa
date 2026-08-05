@@ -24,8 +24,9 @@ from typing import Any, Optional, Tuple
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: The single source of truth for the commit every number in
-#: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
+#: The commit every recorded CAPAL number was measured against. Bumping it
+#: means re-measuring -- and so does changing `make_learner`'s defaults, which
+#: are equally part of what those numbers mean.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
 #: What upstream's fit() says when it runs out of iterations (capal.py:1294).
