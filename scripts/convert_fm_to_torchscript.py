@@ -1,12 +1,4 @@
-r"""Convert the fixed-motif (FM) model to self-contained TorchScript artifacts.
-
-Run once, on the machine that has the ``modular_splicing`` repo (``FM_REPO``). Loading
-the FM eagerly pulls in ~55 modular_splicing/shelved modules, but only ~21 files / ~345
-lines actually run in a forward pass, and ``torch.jit.trace`` captures exactly that path.
-The trace was verified bit-identical to eager across the whole length range the E-L*
-oracle queries, so afterwards :func:`load_fm` needs only torch -- no modular_splicing.
-
-Writes ``data/pretrained_models/fm-<seed>.traced.pt`` (gitignored; ~23 MB each).
+"""Convert the fixed-motif (FM) model to self-contained TorchScript artifacts.
 
     python scripts/convert_fm_to_torchscript.py           # seeds 1..5
     python scripts/convert_fm_to_torchscript.py 1 3       # specific seeds
@@ -42,7 +34,7 @@ def convert(seed):
     example = torch.zeros(2, TRACE_WIDTH, 4, device="cuda")
     example[:, torch.arange(TRACE_WIDTH), torch.randint(0, 4, (TRACE_WIDTH,))] = 1.0
     with torch.no_grad():
-        traced = torch.jit.trace(model, (example,), check_trace=False)
+        traced = torch.jit.trace(model, (example,), check_trace=True)
     os.makedirs(FM_TRACED_DIR, exist_ok=True)
     path = os.path.join(FM_TRACED_DIR, f"fm-{seed}.traced.pt")
     torch.jit.save(traced, path)
