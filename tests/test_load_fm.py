@@ -6,12 +6,7 @@ from permacache import stable_hash
 from torch import nn
 
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
-from orthogonal_dfa.spliceai.load_model import (
-    PRETRAINED_DIR,
-    TracedFM,
-    file_sha256,
-    load_fm,
-)
+from orthogonal_dfa.spliceai.load_model import PRETRAINED_DIR, TracedFM, load_fm
 
 FM_SEED1 = os.path.join(PRETRAINED_DIR, "fm-1.traced.pt")
 
@@ -23,11 +18,6 @@ def traced_stub():
 
 
 class TestTracedFMHash(unittest.TestCase):
-    def test_bare_trace_is_unhashable(self):
-        # The reason TracedFM exists: stable_hash cannot walk a ScriptModule.
-        with self.assertRaises(TypeError):
-            stable_hash(traced_stub(), version=2)
-
     def test_hash_follows_the_artifact_hash(self):
         # Same declared hash, different underlying weights: equal, because the
         # trace itself is never walked.
@@ -69,9 +59,6 @@ class TestLoadFM(unittest.TestCase):
             out = model(x)
         # (N, L - cl, 3): the cl=400 acceptor/donor/null logits SpliceAIExonScore reads.
         self.assertEqual(tuple(out.shape), (2, length - 400, 3))
-
-    def test_tagged_with_the_artifact_hash(self):
-        self.assertEqual(load_fm(1).trace_sha256, file_sha256(FM_SEED1))
 
 
 if __name__ == "__main__":

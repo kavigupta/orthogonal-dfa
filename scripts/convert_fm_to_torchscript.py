@@ -30,6 +30,9 @@ def _load_eager(seed):
 
 def convert(seed):
     model = _load_eager(seed)
+    # Seeded so the artifact is byte-reproducible: its sha256 is the permacache key
+    # that load_fm tags the model with.
+    torch.manual_seed(seed)
     example = torch.zeros(2, TRACE_WIDTH, 4, device="cuda")
     example[:, torch.arange(TRACE_WIDTH), torch.randint(0, 4, (TRACE_WIDTH,))] = 1.0
     with torch.no_grad():
