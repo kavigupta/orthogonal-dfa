@@ -1,7 +1,9 @@
+import hashlib
 import os
 import pickle
 
 import torch
+from torch import nn
 
 MODULE_RENAME_MAP = {
     "spliceai_torch": "orthogonal_dfa.spliceai.module",
@@ -72,16 +74,50 @@ def load_lssi(which, seed):
     )
 
 
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+class TracedFM(nn.Module):
+    """The FM TorchScript trace, tagged with the hash of the file it came from.
+
+    permacache's ``stable_hash`` walks an eager model's state dict, but a
+    ScriptModule is opaque to it and raises instead, so anything permacached on
+    the model (``median_threshold``, the E-L* oracle) cannot compute a key.
+    ``__permacache_hash__`` answers with the artifact's hash, which identifies
+    the weights just as precisely: regenerating a trace changes the file.
+    """
+
+    def __init__(self, model, trace_sha256: str):
+        super().__init__()
+        self.model = model
+        self.trace_sha256 = trace_sha256
+
+    def forward(self, x):
+        return self.model(x)
+
+    def __permacache_hash__(self):
+        return {"fm_trace_sha256": self.trace_sha256}
+
+
 def load_fm(seed=1):
     """
     Load the fixed-motif (FM) model as a self-contained TorchScript artifact.
 
     Reads the same acceptor/donor logits as SpliceAI, so ``SpliceAIExonScore``
     wraps it identically.
+
+    The trace has ``cuda:0`` baked into every device it names, so select a GPU
+    with ``CUDA_VISIBLE_DEVICES`` rather than moving the module: ``.to("cuda:1")``
+    moves the parameters while the baked constants keep producing cuda:0 tensors.
     """
     path = os.path.join(PRETRAINED_DIR, f"fm-{seed}.traced.pt")
     assert os.path.exists(path), (
         f"{path} is missing; generate the FM traces (on the machine with the "
         f"modular_splicing repo) via scripts/convert_fm_to_torchscript.py"
     )
-    return torch.jit.load(path).eval().cuda()
+    return TracedFM(torch.jit.load(path), file_sha256(path)).eval().cuda()
