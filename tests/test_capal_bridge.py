@@ -4,7 +4,9 @@ Clones the pinned CAPAL checkout to ../capal if absent, skipping (not failing)
 when that is impossible, e.g. offline. Catches a broken adapter or commit drift.
 """
 
+import inspect
 import itertools
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -112,6 +114,29 @@ class TestCapalBridge(unittest.TestCase):
         for word in _all_words("01", 8):
             truth = oracle.membership_query([int(c) for c in word])
             self.assertEqual(dfa.run(word), truth, word)
+
+    def test_defaults_match_the_upstream_benchmark_script(self):
+        # The comparison is only fair if CAPAL runs at the settings its authors
+        # publish with, so read them out of run_capal_benchmark.py rather than
+        # restating them: a drift in the pinned checkout should fail here.
+        script = (resolve_capal_dir() / "run_capal_benchmark.py").read_text()
+        wanted = {
+            "max-same-samples": "max_same_samples",
+            "suffix-pool-init": "suffix_pool_init",
+            "suffix-pool-len-max": "suffix_pool_len_max",
+            "discr-search-max-len": "discr_search_max_len",
+            "discr-search-random": "discr_search_random",
+            "max-iters": "max_iters",
+            "tau-cap": "tau_cap",
+            "alpha": "alpha",
+        }
+        ours = inspect.signature(make_learner).parameters
+        for flag, param in wanted.items():
+            match = re.search(
+                rf'add_argument\("--{flag}",[^)]*default=([0-9.e-]+)', script
+            )
+            self.assertIsNotNone(match, flag)
+            self.assertEqual(float(match.group(1)), float(ours[param].default), flag)
 
     def test_round_trip_preserves_the_language_and_symbol_order(self):
         # `to_automata_dfa` is the inverse leg: E-L* reads symbol indices while

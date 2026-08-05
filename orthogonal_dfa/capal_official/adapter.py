@@ -24,8 +24,9 @@ from typing import Any, Optional, Tuple
 
 UPSTREAM_URL = "https://github.com/lkwargs/CAPAL"
 
-#: The single source of truth for the commit every number in
-#: `data/capal_findings.md` was measured against. Bumping it means re-measuring.
+#: The commit every recorded CAPAL number was measured against. Bumping it
+#: means re-measuring -- and so does changing `make_learner`'s defaults, which
+#: are equally part of what those numbers mean.
 PINNED_COMMIT = "57d877f6a083d58852660fac388ff49c052dc2d2"
 
 #: What upstream's fit() says when it runs out of iterations (capal.py:1294).
@@ -120,18 +121,29 @@ def make_learner(
     max_iters: int = 200,
     seed: int = 0,
     verbose: bool = False,
-    max_same_samples: int = 60,
+    max_same_samples: int = 80,
     tau_cap: float = 0.2,
-    suffix_pool_init: int = 32,
-    suffix_pool_len_max: int = 8,
+    suffix_pool_init: int = 100,
+    suffix_pool_len_max: int = 10,
     alpha: float = 1e-3,
+    discr_search_max_len: int = 6,
+    discr_search_random: int = 2000,
     enum_depth: int = 3,
     extra_len_max: int = 8,
 ) -> Any:
     """An unfitted CAPALLearner over `target`.
 
-    `enum_depth`/`extra_len_max` are the matched-query-budget knob; LearnerConfig
-    does not forward them, so they go straight on the live SameStateConfig.
+    Defaults are upstream's *benchmark script* values (`run_capal_benchmark.py`
+    argparse defaults), not `LearnerConfig`'s dataclass defaults, which are
+    stingier on four knobs -- max_same_samples 60, suffix_pool_init 32,
+    suffix_pool_len_max 8, discr_search_random 200. Running the dataclass
+    defaults would measure CAPAL with less evidence per pairwise test and a
+    10x smaller discriminator search than the values its authors publish with.
+
+    `enum_depth`/`extra_len_max` stay at the dataclass defaults: the benchmark
+    script does not expose them. They are the matched-query-budget knob, and
+    LearnerConfig does not forward them, so they go straight on the live
+    SameStateConfig.
 
     LearnerConfig's K_pos/K_neg are left at their defaults: upstream reads them
     only in its CLI, never in CAPALLearner or SameStateOracle, so setting them
@@ -147,6 +159,8 @@ def make_learner(
         tau_cap=tau_cap,
         suffix_pool_init=suffix_pool_init,
         suffix_pool_len_max=suffix_pool_len_max,
+        discr_search_max_len=discr_search_max_len,
+        discr_search_random=discr_search_random,
         verbose=verbose,
     )
     # target= builds PersistentNoisyMQ + PerfectEQ (capal.py:907-914).
