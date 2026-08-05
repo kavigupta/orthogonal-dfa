@@ -84,8 +84,6 @@ for it.
 
 ## 3. The wall: full hyperparameter sweep
 
-> **Measured before CAPAL was moved to its authors' benchmark-script settings** (`max_same_samples` 60 -> 80, `suffix_pool_init` 32 -> 100, `suffix_pool_len_max` 8 -> 10, `discr_search_random` 200 -> 2000). Re-run before comparing these numbers with sections 1-2.
-
 A full factorial over CAPAL's three real knobs -- `max_same_samples`,
 `suffix_pool_len_max`, `alpha` -- across every cell, all four noise levels, and
 three seeds (480 runs). For each (cell, η), how many of the
@@ -93,51 +91,51 @@ three seeds (480 runs). For each (cell, η), how many of the
 
 | cell | η=0.05 | η=0.1 | η=0.2 | η=0.3 |
 | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 20/24 | 11/24 | 1/24 | wall (0.91) |
-| regex_subseq_1010101 | 17/24 | 11/24 | 3/24 | wall (0.93) |
-| regex_two_1111 | 14/24 | 9/24 | 2/24 | wall (0.87) |
-| regex_alt_1111_or_0000_11 | 15/24 | 10/24 | 1/24 | wall (0.89) |
-| regex_alt_111_or_000_3sym | 24/24 | 12/24 | 3/24 | wall (0.87) |
+| parity_mod9_allowed_3_6 | 21/24 | 11/24 | wall (0.92) | wall (0.91) |
+| regex_subseq_1010101 | 20/24 | 15/24 | 8/24 | wall (0.93) |
+| regex_two_1111 | 22/24 | 15/24 | 1/24 | wall (0.87) |
+| regex_alt_1111_or_0000_11 | 19/24 | 13/24 | wall (0.92) | wall (0.78) |
+| regex_alt_111_or_000_3sym | 22/24 | 12/24 | 4/24 | wall (0.88) |
 
-**The wall is a property of the noise level, not the DFA.** At η=0.30 every
-cell fails on all 24 configs; at η≤0.20 every cell -- modulo included --
-is crackable by some config and seed, with the crack-rate falling monotonically
-with noise. Convergence rate by η, over all configs:
+**Noise dominates, but not alone.** At η=0.30 every cell fails on all 24 configs and every seed; parity_mod9_allowed_3_6 already walls at η=0.2, regex_alt_1111_or_0000_11 already walls at η=0.2, while the other 3 cells still crack there. Which DFA it is decides where the wall starts; the noise level decides that there is one.
+
+Convergence rate by η, over all configs:
 
 | η | convergence rate |
 | --- | --- |
-| 0.05 | 0.75 |
-| 0.1 | 0.44 |
-| 0.2 | 0.08 |
+| 0.05 | 0.87 |
+| 0.1 | 0.55 |
+| 0.2 | 0.11 |
 | 0.3 | 0.00 |
 
-The hyperparameters are near-neutral within the swept ranges (each knob value
-moves the aggregate rate by <0.05); **η alone drives convergence from 75% to
-0%.** The earlier impression that modulo is uniquely hard was an artifact of
-sweeping only `max_same_samples`; adding pool/alpha cracks it at η≤0.20.
+η drives the aggregate rate from 0.87 to 0.00. The knobs move it far less
+over the swept range -- `max_same_samples` 80: 0.34 vs 240: 0.42; `suffix_pool_len_max` 10: 0.40 vs 24: 0.37; `alpha` 0.001: 0.37 vs 0.05: 0.40 -- and none of them rescues a single
+η=0.30 cell.
+
+The grid's low corner is upstream's own benchmark setting, so a cell that fails
+across it failed with at least the budget CAPAL's authors publish with, and up
+to 3× the evidence per pairwise test.
 
 ## 4. Matched query budget: the wall is structural
-
-> **Measured before CAPAL was moved to its authors' benchmark-script settings** (`max_same_samples` 60 -> 80, `suffix_pool_init` 32 -> 100, `suffix_pool_len_max` 8 -> 10, `discr_search_random` 200 -> 2000). Re-run before comparing these numbers with sections 1-2.
 
 CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
 `extra_len_max=16`, `suffix_pool_len_max=16`,
 `max_same_samples=2000`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
 
-| cell | CAPAL acc | conv | CAPAL distinct | E-L* acc | E-L* distinct |
-| --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.858 | 0/3 | 2,450,379 | 1.000 | 1,383,779 |
-| regex_subseq_1010101 | 0.905 | 0/3 | 846,458 | 1.000 | 3,204,645 |
-| regex_two_1111 | 0.867 | 0/3 | 793,899 | 1.000 | 2,345,411 |
-| regex_alt_1111_or_0000_11 | 0.752 | 0/3 | 1,232,352 | 0.989 | 5,701,657 |
-| regex_alt_111_or_000_3sym | 0.658 | 0/3 | 83,353 | 1.000 | 12,513,579 |
+| cell | CAPAL acc | conv | timeout | CAPAL mq | E-L* acc | E-L* mq |
+| --- | --- | --- | --- | --- | --- | --- |
+| parity_mod9_allowed_3_6 | no hypothesis | 0/3 | 3/3 | 22,502,202 | 1.000 | 1,383,779 |
+| regex_subseq_1010101 | 0.922 | 0/3 | 0/3 | 4,884,309 | 1.000 | 3,204,645 |
+| regex_two_1111 | 0.867 | 0/3 | 0/3 | 1,978,922 | 1.000 | 2,345,411 |
+| regex_alt_1111_or_0000_11 | 0.767 | 0/3 | 0/3 | 6,583,848 | 0.989 | 5,701,657 |
+| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 0/3 | 107,359 | 1.000 | 12,513,579 |
 
-CAPAL never converges (0/3 everywhere) even at 0.08–2.45M distinct queries. On
-modulo it spends **more** than E-L* and still fails, while E-L* succeeds at
-100%; the regex cells plateau below E-L*'s budget and fail. Throwing queries at
-CAPAL does not break the wall: the limiter is the pairwise SAMESTATE test shape,
-not the label count.
+CAPAL converges on none of them. On parity_mod9_allowed_3_6, 3 of 3 runs hit the per-cell time limit with no hypothesis at all. On 3 of 5 cells it
+outspends E-L* outright (parity_mod9_allowed_3_6, regex_subseq_1010101, regex_alt_1111_or_0000_11) and still fails, so on those the
+budget is not what stops it. The remaining cells plateau below E-L*'s spend, and
+for them this probe does not settle the question -- it shows CAPAL stopping, not
+CAPAL failing at a matched budget.
 
 ## 5. Why the noise floor bites CAPAL harder (theory)
 
@@ -175,11 +173,16 @@ not move it.
 - On this repo's benchmarks CAPAL's convergence tracks the noise level rather
   than the language (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5). E-L* is exact wherever it is in regime, at every
   noise level tested.
-- Sections 3 and 4 -- the hyperparameter wall and the matched-budget probe --
-  predate the settings change (still at the pre-change settings; see the banners above). Their conclusions, including "the wall is
-  a property of the noise level, not the DFA" and "the wall is structural, not a
-  budget limit", are not supported by the current data until they are re-run.
-- Single seed throughout. Individual cell verdicts move under re-measurement:
-  raising CAPAL's budget to its authors' settings flipped cells in both
-  directions, including one from 1.000 to 0.507. Read the per-cell numbers as
-  indicative, not as settled.
+- The η=0.3 wall holds across the whole sweep: 0
+  of 120 runs converge, over a grid whose low corner is upstream's own
+  benchmark setting and which sweeps up from there. No knob rescues a cell.
+- The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
+  E-L*'s own query spend on 3 of 5 cells without converging on any, and on
+  modulo 3 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
+  spend without producing a hypothesis at all. On the two cells that stop below
+  E-L*'s spend the probe is inconclusive rather than supportive.
+- Sections 1-2 are single-seed; the sweep and the matched-budget probe use
+  3. Individual cell verdicts move under
+  re-measurement -- raising CAPAL's budget to its authors' settings flipped
+  cells in both directions, including one from 1.000 to 0.507 -- so read the
+  single-seed per-cell numbers as indicative rather than settled.

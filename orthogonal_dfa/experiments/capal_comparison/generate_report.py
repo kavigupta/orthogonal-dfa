@@ -265,6 +265,52 @@ def wall_section() -> str:
     for c in cells:
         by_eta[c["eta"]].append(bool(c["converged"]))
     rate_rows = [[f"{e}", f"{statistics.mean(by_eta[e]):.2f}"] for e in sorted(by_eta)]
+    top_rate = f"{statistics.mean(by_eta[min(by_eta)]):.2f}"
+
+    # cells that wall below the top noise level, which is the claim most likely
+    # to move when the grid or the learner changes
+    low = sorted(
+        {
+            (c["benchmark"], c["eta"])
+            for (c_name, c_eta), cs in g.items()
+            for c in [cs[0]]
+            if c_eta != max(etas) and not any(x["converged"] for x in cs)
+            for c_name, c_eta in [(c_name, c_eta)]
+        }
+    )
+    if low:
+        names = sorted({n for n, _ in low})
+        walled_below = (
+            "**Noise dominates, but not alone.** At η=0.30 every cell fails on"
+            f" all {n_cfg} configs and every seed; "
+            + ", ".join(f"{n} already walls at η={e:g}" for n, e in low)
+            + f", while the other {len(g) // len(etas) - len(names)} cells still"
+            " crack there. Which DFA it is decides where the wall starts; the"
+            " noise level decides that there is one."
+        )
+    else:
+        walled_below = (
+            "**The wall is a property of the noise level, not the DFA.** At"
+            f" η=0.30 every cell fails on all {n_cfg} configs and every seed,"
+            " while at every η≤0.20 each cell is crackable by some config and"
+            " seed, with the crack-rate falling monotonically with noise."
+        )
+
+    knobs = collections.defaultdict(lambda: collections.defaultdict(list))
+    for c in cells:
+        for knob in ("max_same_samples", "suffix_pool_len_max", "alpha"):
+            knobs[knob][c["learner_config"][knob]].append(bool(c["converged"]))
+    knob_spread = "; ".join(
+        f"`{knob}` "
+        + " vs ".join(
+            f"{v}: {statistics.mean(hits):.2f}" for v, hits in sorted(vals.items())
+        )
+        for knob, vals in knobs.items()
+    )
+    max_m = int(
+        max(c["learner_config"]["max_same_samples"] for c in cells)
+        / min(c["learner_config"]["max_same_samples"] for c in cells)
+    )
 
     return f"""## 3. The wall: full hyperparameter sweep
 {settings_warning(exp, load("capal_benchmarks"))}
@@ -275,17 +321,19 @@ three seeds ({len(cells)} runs). For each (cell, η), how many of the
 
 {verdict}
 
-**The wall is a property of the noise level, not the DFA.** At η=0.30 every
-cell fails on all {n_cfg} configs; at η≤0.20 every cell -- modulo included --
-is crackable by some config and seed, with the crack-rate falling monotonically
-with noise. Convergence rate by η, over all configs:
+{walled_below}
+
+Convergence rate by η, over all configs:
 
 {table(["η", "convergence rate"], rate_rows)}
 
-The hyperparameters are near-neutral within the swept ranges (each knob value
-moves the aggregate rate by <0.05); **η alone drives convergence from 75% to
-0%.** The earlier impression that modulo is uniquely hard was an artifact of
-sweeping only `max_same_samples`; adding pool/alpha cracks it at η≤0.20.
+η drives the aggregate rate from {top_rate} to 0.00. The knobs move it far less
+over the swept range -- {knob_spread} -- and none of them rescues a single
+η=0.30 cell.
+
+The grid's low corner is upstream's own benchmark setting, so a cell that fails
+across it failed with at least the budget CAPAL's authors publish with, and up
+to {max_m}× the evidence per pairwise test.
 """
 
 
@@ -301,25 +349,47 @@ def matched_budget_section() -> str:
     g = collections.defaultdict(list)
     for c in mb:
         g[c["benchmark"]].append(c)
-    rows = []
+
+    rows, reached, timed_out = [], [], []
     for name in OUR_ORDER:
         cs = g.get(name)
         if not cs:
             continue
-        acc = statistics.mean(c["accuracy"] for c in cs)
-        dq = int(statistics.mean(_n(c) for c in cs))
-        nconv = sum(bool(c["converged"]) for c in cs)
+        # A timed-out run has no hypothesis to score, so it is counted, not
+        # averaged in: folding it in as a zero would understate what CAPAL
+        # reached, and dropping it silently would hide that it never finished.
+        scored = [c["accuracy"] for c in cs if c["accuracy"] is not None]
+        outs = sum(1 for c in cs if c["error_type"] == "Timeout")
+        if outs:
+            timed_out.append((name, outs, len(cs)))
+        mq = int(statistics.mean(_n(c) for c in cs if _n(c) is not None))
         e = el.get(name)
+        if e and mq >= _n(e):
+            reached.append(name)
         rows.append(
             [
                 name,
-                f"{acc:.3f}",
-                f"{nconv}/{len(cs)}",
-                f"{dq:,}",
+                f"{statistics.mean(scored):.3f}" if scored else "no hypothesis",
+                f"{sum(bool(c['converged']) for c in cs)}/{len(cs)}",
+                f"{outs}/{len(cs)}",
+                f"{mq:,}",
                 f"{e['accuracy']:.3f}" if e else "excl",
                 _mq(e) if e else "-",
             ]
         )
+
+    outs_note = (
+        " "
+        + "; ".join(
+            f"On {n}, {k} of {t} runs hit the per-cell time limit with no"
+            " hypothesis at all"
+            for n, k, t in timed_out
+        )
+        + "."
+        if timed_out
+        else ""
+    )
+    n_over = len(reached)
     return f"""## 4. Matched query budget: the wall is structural
 {settings_warning(exp, load("capal_benchmarks"))}
 CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
@@ -327,13 +397,13 @@ CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
 `max_same_samples={cfg['max_same_samples']}`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
 
-{table(["cell", "CAPAL acc", "conv", "CAPAL distinct", "E-L* acc", "E-L* distinct"], rows)}
+{table(["cell", "CAPAL acc", "conv", "timeout", "CAPAL mq", "E-L* acc", "E-L* mq"], rows)}
 
-CAPAL never converges (0/3 everywhere) even at 0.08–2.45M distinct queries. On
-modulo it spends **more** than E-L* and still fails, while E-L* succeeds at
-100%; the regex cells plateau below E-L*'s budget and fail. Throwing queries at
-CAPAL does not break the wall: the limiter is the pairwise SAMESTATE test shape,
-not the label count.
+CAPAL converges on none of them.{outs_note} On {n_over} of {len(rows)} cells it
+outspends E-L* outright ({", ".join(reached)}) and still fails, so on those the
+budget is not what stops it. The remaining cells plateau below E-L*'s spend, and
+for them this probe does not settle the question -- it shows CAPAL stopping, not
+CAPAL failing at a matched budget.
 """
 
 
@@ -376,7 +446,11 @@ def bottom_line() -> str:
     )
     conv = capal_convergence_by_eta(e2)
     ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
-    stale = " (still at the pre-change settings; see the banners above)"
+    sweep = load("wall_sweep")
+    hi = max(sweep["config"]["etas"])
+    hi_runs = [c for c in sweep["cells"] if c["eta"] == hi]
+    mb = load("matched_budget")["cells"]
+    mb_out = sum(1 for c in mb if c["error_type"] == "Timeout")
     return f"""## 6. Bottom line
 
 - On CAPAL's own suite CAPAL is broadly applicable and cheap: {solved}/{len(capal1)}
@@ -389,14 +463,19 @@ def bottom_line() -> str:
 - On this repo's benchmarks CAPAL's convergence tracks the noise level rather
   than the language ({ladder}). E-L* is exact wherever it is in regime, at every
   noise level tested.
-- Sections 3 and 4 -- the hyperparameter wall and the matched-budget probe --
-  predate the settings change{stale}. Their conclusions, including "the wall is
-  a property of the noise level, not the DFA" and "the wall is structural, not a
-  budget limit", are not supported by the current data until they are re-run.
-- Single seed throughout. Individual cell verdicts move under re-measurement:
-  raising CAPAL's budget to its authors' settings flipped cells in both
-  directions, including one from 1.000 to 0.507. Read the per-cell numbers as
-  indicative, not as settled.
+- The η={hi:g} wall holds across the whole sweep: {sum(bool(c["converged"]) for c in hi_runs)}
+  of {len(hi_runs)} runs converge, over a grid whose low corner is upstream's own
+  benchmark setting and which sweeps up from there. No knob rescues a cell.
+- The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
+  E-L*'s own query spend on 3 of 5 cells without converging on any, and on
+  modulo {mb_out} of {len(mb)} runs exhaust the per-cell time limit at ~16x E-L*'s
+  spend without producing a hypothesis at all. On the two cells that stop below
+  E-L*'s spend the probe is inconclusive rather than supportive.
+- Sections 1-2 are single-seed; the sweep and the matched-budget probe use
+  {len(sweep["config"]["seeds"])}. Individual cell verdicts move under
+  re-measurement -- raising CAPAL's budget to its authors' settings flipped
+  cells in both directions, including one from 1.000 to 0.507 -- so read the
+  single-seed per-cell numbers as indicative rather than settled.
 """
 
 
