@@ -17,7 +17,7 @@ import sys
 
 import torch
 
-from orthogonal_dfa.l_star.examples.set_difference import FM_TRACED_DIR
+from orthogonal_dfa.spliceai.load_model import FM_TRACED_DIR
 
 FM_REPO = "/mnt/md0/ExpeditionsCommon/spliceai/Canonical"
 FM_MODEL_PREFIX = f"{FM_REPO}/model/msp-273.665a3"

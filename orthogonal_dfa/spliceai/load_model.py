@@ -67,3 +67,23 @@ def load_lssi(which, seed):
         .eval()
         .cuda()
     )
+
+
+# Seed 1 (the one the oracle uses) is checked in; other seeds are gitignored, regenerable
+# via scripts/convert_fm_to_torchscript.py on the machine with the modular_splicing repo.
+FM_TRACED_DIR = "data/pretrained_models"
+
+
+def load_fm(seed=1):
+    """Load the fixed-motif (FM) model (seed 1..5) as an eval/cuda TorchScript module.
+
+    A trained modular_splicing model (BothLSSIModels + an 82-motif RBNS PSAMMotifModel),
+    converted to a self-contained trace so loading needs only torch (unlike the eager
+    model, which needs the modular_splicing repo).  Reads the same acceptor/donor logits
+    as SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
+    path = os.path.join(FM_TRACED_DIR, f"fm-{seed}.traced.pt")
+    assert os.path.exists(path), (
+        f"{path} is missing; generate the FM traces (on the machine with the "
+        f"modular_splicing repo) via scripts/convert_fm_to_torchscript.py"
+    )
+    return torch.jit.load(path).eval().cuda()

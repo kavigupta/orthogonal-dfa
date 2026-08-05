@@ -1,37 +1,17 @@
-r"""The set-difference oracle and the fixed-motif (FM) model it contrasts SpliceAI against.
+r"""The set-difference oracle: ``a \ b`` accepts the strings ``a`` accepts and ``b``
+rejects.
 
-``a \ b`` accepts exactly the strings ``a`` accepts and ``b`` rejects, so running E-L\*
-on it isolates what one splice model captures that another does not.  In practice that
-is SpliceAI against the fixed-motif model loaded by :func:`load_fm`; both are wrapped
-the same way (e.g. by ``SpliceAIExonScore`` into a ``SpliceModelOracle``) and differenced.
+Running E-L\* on it isolates what one splice model captures that another does not -- in
+practice SpliceAI against the fixed-motif model (``load_fm`` in
+``orthogonal_dfa.spliceai.load_model``); both are wrapped the same way (e.g. by
+``SpliceAIExonScore`` into a ``SpliceModelOracle``) and differenced.
 """
 
-import os
 from typing import List
 
 import numpy as np
-import torch
 
 from orthogonal_dfa.l_star.structures import Oracle
-
-# Where the self-contained FM TorchScript traces live. Seed 1 (the one the oracle uses)
-# is checked in; other seeds are gitignored, regenerable via
-# scripts/convert_fm_to_torchscript.py on the machine with the modular_splicing repo.
-FM_TRACED_DIR = "data/pretrained_models"
-
-
-def load_fm(seed=1):
-    """Load the fixed-motif model (seed 1..5) as an eval/cuda TorchScript module.
-
-    A trained modular_splicing model (BothLSSIModels + an 82-motif RBNS PSAMMotifModel),
-    converted to a self-contained trace so loading needs only torch.  Reads the same
-    acceptor/donor logits as SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
-    path = os.path.join(FM_TRACED_DIR, f"fm-{seed}.traced.pt")
-    assert os.path.exists(path), (
-        f"{path} is missing; generate the FM traces (on the machine with the "
-        f"modular_splicing repo) via scripts/convert_fm_to_torchscript.py"
-    )
-    return torch.jit.load(path).eval().cuda()
 
 
 class SetDifferenceOracle(Oracle):

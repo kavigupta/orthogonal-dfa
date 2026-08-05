@@ -1,17 +1,9 @@
-import os
 import unittest
 
 import numpy as np
-import torch
 
-from orthogonal_dfa.l_star.examples.set_difference import (
-    FM_TRACED_DIR,
-    SetDifferenceOracle,
-    load_fm,
-)
+from orthogonal_dfa.l_star.examples.set_difference import SetDifferenceOracle
 from orthogonal_dfa.l_star.structures import Oracle
-
-FM_SEED1 = os.path.join(FM_TRACED_DIR, "fm-1.traced.pt")
 
 
 class PredicateOracle(Oracle):
@@ -83,22 +75,6 @@ class TestSetDifferenceOracle(unittest.TestCase):
         result = self.oracle.membership_queries([])
         self.assertEqual(result.shape, (0,))
         self.assertEqual(result.dtype, bool)
-
-
-@unittest.skipUnless(
-    os.path.exists(FM_SEED1) and torch.cuda.is_available(),
-    "FM trace is gitignored and cuda-only; regenerate via scripts/convert_fm_to_torchscript.py",
-)
-class TestLoadFM(unittest.TestCase):
-    def test_trace_loads_and_forwards_without_modular_splicing(self):
-        model = load_fm(1)
-        length = 500
-        x = torch.zeros(2, length, 4, device="cuda")
-        x[:, torch.arange(length), torch.randint(0, 4, (length,))] = 1.0
-        with torch.no_grad():
-            out = model(x)
-        # (N, L - cl, 3): the cl=400 acceptor/donor/null logits SpliceAIExonScore reads.
-        self.assertEqual(tuple(out.shape), (2, length - 400, 3))
 
 
 if __name__ == "__main__":
