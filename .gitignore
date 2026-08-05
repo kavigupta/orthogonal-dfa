@@ -11,3 +11,6 @@ build
 # Seed 1 is checked in (the only seed the oracle uses); 2..5 stay regenerable.
 data/pretrained_models/fm-*.traced.pt
 !data/pretrained_models/fm-1.traced.pt
+
+# E-L* per-round run pickles (elstar_learnability writes these; the permacache holds them too)
+runs/
