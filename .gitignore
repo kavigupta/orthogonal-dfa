@@ -7,5 +7,7 @@ env
 dist
 build
 
-# FM model TorchScript traces (regenerate via scripts/convert_fm_to_torchscript.py)
+# FM model TorchScript traces (regenerate via scripts/convert_fm_to_torchscript.py).
+# Seed 1 is checked in (the only seed the oracle uses); 2..5 stay regenerable.
 data/pretrained_models/fm-*.traced.pt
+!data/pretrained_models/fm-1.traced.pt

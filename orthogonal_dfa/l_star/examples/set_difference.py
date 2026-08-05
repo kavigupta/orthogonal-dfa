@@ -14,8 +14,9 @@ import torch
 
 from orthogonal_dfa.l_star.structures import Oracle
 
-# Where the self-contained FM TorchScript traces live (gitignored; produced by
-# scripts/convert_fm_to_torchscript.py on the machine that has the modular_splicing repo).
+# Where the self-contained FM TorchScript traces live. Seed 1 (the one the oracle uses)
+# is checked in; other seeds are gitignored, regenerable via
+# scripts/convert_fm_to_torchscript.py on the machine with the modular_splicing repo.
 FM_TRACED_DIR = "data/pretrained_models"
 
 
