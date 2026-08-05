@@ -73,12 +73,12 @@ def load_lssi(which, seed):
 
 
 def load_fm(seed=1):
-    """Load the fixed-motif (FM) model (seed 1..5) as an eval/cuda TorchScript module.
+    """
+    Load the fixed-motif (FM) model as a self-contained TorchScript artifact.
 
-    A trained modular_splicing model (BothLSSIModels + an 82-motif RBNS PSAMMotifModel),
-    converted to a self-contained trace so loading needs only torch (unlike the eager
-    model, which needs the modular_splicing repo).  Reads the same acceptor/donor logits
-    as SpliceAI, so ``SpliceAIExonScore`` wraps it identically."""
+    Reads the same acceptor/donor logits as SpliceAI, so ``SpliceAIExonScore``
+    wraps it identically.
+    """
     path = os.path.join(PRETRAINED_DIR, f"fm-{seed}.traced.pt")
     assert os.path.exists(path), (
         f"{path} is missing; generate the FM traces (on the machine with the "

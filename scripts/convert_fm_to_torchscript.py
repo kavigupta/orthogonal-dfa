@@ -29,7 +29,6 @@ def _load_eager(seed):
 
 
 def convert(seed):
-    """Trace FM seed ``seed`` and save it, returning the artifact path."""
     model = _load_eager(seed)
     example = torch.zeros(2, TRACE_WIDTH, 4, device="cuda")
     example[:, torch.arange(TRACE_WIDTH), torch.randint(0, 4, (TRACE_WIDTH,))] = 1.0
