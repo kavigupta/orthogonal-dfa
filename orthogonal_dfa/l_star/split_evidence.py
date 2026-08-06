@@ -66,6 +66,7 @@ class SplitEvidence:
         split_fpr: Optional[float],
         split_miss_rate: float,
         members: Dict[int, Set[tuple]],
+        open_candidates: Optional[Dict[int, Dict[tuple, dict]]] = None,
     ):
         self.pst = pst
         self.family = family
@@ -83,8 +84,9 @@ class SplitEvidence:
         # fires once enough have piled up for the Bayes factor to cross, so the
         # probe stream -- not the fixed pool -- is what drives a leaf to resolve.
         self.members: Dict[int, Set[tuple]] = {k: set(v) for k, v in members.items()}
-        # leaf -> distinguisher -> running sufficient statistics.
-        self._open: Dict[int, Dict[tuple, dict]] = {}
+        # leaf -> distinguisher -> running sufficient statistics.  Carried across
+        # a split for every leaf the split did not touch.
+        self._open: Dict[int, Dict[tuple, dict]] = dict(open_candidates or {})
 
     # -- accumulating evidence ----------------------------------------------
 
@@ -119,16 +121,21 @@ class SplitEvidence:
     def after_split(self, state: int, sift) -> "SplitEvidence":
         """Evidence for the tree left by splitting ``state``.
 
-        Candidates are dropped: their distinguishers may now cross the freshly
-        inserted node.  Members survive -- only the split leaf's move, re-sifted
-        into the two halves -- because a newly created, still-conflated leaf that
-        started empty could never gather the members its own split needs before
-        the pass ends."""
+        Only the split leaf is affected.  Its members move -- re-sifted into the
+        two halves -- and its candidates die, because its population bifurcated
+        under them.  Every other leaf keeps both: a split replaces one leaf with
+        an internal node, so no other leaf's path through the tree changed, and an
+        accumulator depends on nothing but its members and its distinguisher.
+
+        Members survive rather than starting empty because a newly created,
+        still-conflated leaf could never gather the members its own split needs
+        before the pass ends."""
         carried = {k: set(v) for k, v in self.members.items() if k != state}
         for member in self.members.get(state, ()):
             landed = sift(list(member))
             if landed is not None:
                 carried.setdefault(landed, set()).add(member)
+        carried_open = {k: v for k, v in self._open.items() if k != state}
         return SplitEvidence(
             self.pst,
             self.family,
@@ -138,6 +145,7 @@ class SplitEvidence:
             split_fpr=self._split_fpr,
             split_miss_rate=self._split_miss_rate,
             members=carried,
+            open_candidates=carried_open,
         )
 
     # -- weighing it ---------------------------------------------------------

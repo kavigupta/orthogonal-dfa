@@ -82,8 +82,8 @@ class DirectLStarLearner:
         # leaves -- and calls back into is_accept for every classification.
         self.tree = MidfixTree()
 
-        # The partial transition function, its witnesses, the per-state access
-        # strings and the queue of edges still to resolve.
+        # The partial transition function, its witnesses and the queue of edges
+        # still to resolve.
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
 
         # Classifying against the tree, and closing the transition function with
@@ -122,11 +122,8 @@ class DirectLStarLearner:
     def access(self) -> dict:
         """Canonical access string per state, for renderers.  Derived: the
         evidence owns the strings known to reach each leaf."""
-        return {
-            s: self.splits.representative(s)
-            for s in range(self.num_states)
-            if self.splits.representative(s) is not None
-        }
+        reps = ((s, self.splits.representative(s)) for s in range(self.num_states))
+        return {s: rep for s, rep in reps if rep is not None}
 
     @property
     def num_states(self) -> int:

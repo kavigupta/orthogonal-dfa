@@ -1,7 +1,7 @@
 """The partial transition function direct-L* builds alongside its tree.
 
 ``delta`` under construction: the edges resolved so far, the witness prefix that
-justified each one, a canonical access string per state, and the queue of edges
+justified each one, and the queue of edges
 still to resolve.  Keeping it here is what lets a split invalidate *precisely*
 the edges it made ambiguous instead of rebuilding the hypothesis: an edge that
 does not touch the split leaf keeps a valid witness, because its sift path never

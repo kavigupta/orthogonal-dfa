@@ -94,12 +94,12 @@ def _evidence(
 
 
 class TestAfterSplit(unittest.TestCase):
-    """after_split's contract: candidates die, members live.
+    """after_split's contract: the split leaf is rebuilt, everything else carries.
 
-    The second half is easy to lose -- returning a plain fresh SplitEvidence
-    reads cleaner and passes everything else -- but a newly created, still
-    conflated leaf that starts empty can never gather the members its own split
-    needs, so the failure surfaces rounds later as non-convergence.
+    Carrying is easy to lose -- returning a plain fresh SplitEvidence reads
+    cleaner and passes everything else -- but a newly created, still conflated
+    leaf that starts empty can never gather the members its own split needs, so
+    the failure surfaces rounds later as non-convergence.
     """
 
     # Whether a candidate is still being probed is internal; nothing public asks.
@@ -130,15 +130,26 @@ class TestAfterSplit(unittest.TestCase):
         self.assertEqual({(0,)}, refined.members[0])
         self.assertNotIn((1,), {m for ms in refined.members.values() for m in ms})
 
-    def test_open_candidates_are_dropped(self):
-        # Their distinguishers may now cross the freshly inserted node.
+    def test_the_split_leafs_candidates_are_dropped(self):
+        # Its population bifurcated under them, so the running sums are stale.
         ev = _evidence()
         for i in range(20):
             ev.record(0, [0, i])
         ev.verdict(0, (1,), [0, 0], [0, 1])  # opens a candidate on leaf 0
         self.assertTrue(ev._open.get(0))
         refined = ev.after_split(0, sift=lambda m: 0)
-        self.assertEqual({}, refined._open)
+        self.assertNotIn(0, refined._open)
+
+    def test_untouched_leaves_keep_their_candidates(self):
+        """A split replaces one leaf with an internal node, so no other leaf's
+        path changed and its accumulator is still exactly what it was."""
+        ev = _evidence(num_states=3)
+        for i in range(20):
+            ev.record(1, [1, i])
+        ev.verdict(1, (1,), [1, 0], [1, 1])  # opens a candidate on leaf 1
+        before = dict(ev._open[1])
+        refined = ev.after_split(0, sift=lambda m: 0)
+        self.assertEqual(before, refined._open.get(1))
 
     def test_the_original_is_left_alone(self):
         ev = _evidence()
