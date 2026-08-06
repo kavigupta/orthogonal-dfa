@@ -58,19 +58,61 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
-#: Section 10's "matched query budget" probe: uncap the suffix-enumeration knobs
-#: so SAMESTATE draws thousands of long suffixes per pair, pushing CAPAL's
-#: distinct-query count up to millions (E-L*'s range). If accuracy still stalls,
-#: the wall is the pairwise-test shape, not the number of labels. Slow: minutes
-#: per run. Run against eta=0.30 only, where every cell walls at capped budget.
+#: The "matched query budget" probe, at the three settings that decide whether
+#: the eta=0.30 wall is structural or a budget CAPAL was never given.
+#:
+#: SAMESTATE calls a pair different when its observed disagreement exceeds
+#: `p0 + tau`, where `p0 = 2*eta_hat*(1-eta_hat)` and
+#: `tau = min(sqrt(ln(2/alpha) / 2m), tau_cap)` over `m` probe suffixes
+#: (capal.py:674). A pair whose states genuinely differ on a fraction `d` of
+#: suffixes shows up at `p0 + (1-2*p0)*d`, so it is decidable only when
+#:
+#:     d > tau / (1 - 2*p0)   <=>   m > ln(2/alpha) / (2 * (d*(1-2*p0))**2)
+#:
+#: At eta=0.30, `1-2*p0` is 0.16, and modulo-9's ±3 pairs differ on at most
+#: `d = 2/9`, so modulo needs m > 3006 at alpha=1e-3, or m > 1459 at alpha=0.05.
+#: The first config below is the one already run: m=2000 at alpha=1e-3, which
+#: sits *under* its own threshold, so its failure shows CAPAL stopping short
+#: rather than a structural limit. The other two clear the bound, in the two
+#: independent ways available, and are predicted to converge on modulo. If they
+#: do not, the structural claim is earned; if they do, it is a budget claim.
+#:
+#: `d` is derived for modulo only, so the prediction covers that target alone.
+#: The decisive run is therefore
+#:     ... run_wall_sweep --matched-budget --targets parity_mod9_allowed_3_6
+#: The high-m cells are slow -- m=2000 already exhausted the default cell
+#: timeout on modulo -- so they get a longer one.
 MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
-        "enum=8,extra=16,pool=16,m=2000",
+        "enum=8,extra=16,pool=16,m=2000,alpha=0.001",
         dict(
             max_same_samples=2000,
             suffix_pool_len_max=16,
             enum_depth=8,
             extra_len_max=16,
+            alpha=1e-3,
+        ),
+    ),
+    (
+        "enum=8,extra=16,pool=16,m=5000,alpha=0.001",
+        dict(
+            max_same_samples=5000,
+            suffix_pool_len_max=16,
+            enum_depth=8,
+            extra_len_max=16,
+            alpha=1e-3,
+            timeout=4 * 3600,
+        ),
+    ),
+    (
+        "enum=8,extra=16,pool=16,m=2000,alpha=0.05",
+        dict(
+            max_same_samples=2000,
+            suffix_pool_len_max=16,
+            enum_depth=8,
+            extra_len_max=16,
+            alpha=0.05,
+            timeout=4 * 3600,
         ),
     ),
 ]
