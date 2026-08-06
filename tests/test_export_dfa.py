@@ -92,8 +92,8 @@ class TestLearnerExport(unittest.TestCase):
         learner = DirectLStarLearner(
             _pst(), [0, 1], split_fpr=None, split_miss_rate=0.02
         )
-        learner.dfa.access[0] = []
-        learner.dfa.access[1] = [1]
+        learner.splits.record(0, [])
+        learner.splits.record(1, [1])
         dfa, _ = learner.to_dfa_and_tree()  # every edge still open
         for state in dfa.states:
             self.assertEqual({0, 1}, set(dfa.transitions[state]))

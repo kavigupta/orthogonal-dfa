@@ -368,6 +368,29 @@ def _panel_tree(ax, dt, colors):
     _finish(ax, layout, pad=0.3)
 
 
+def _sift_fn(learner):
+    """The learner's classifier, wherever it keeps it."""
+    for holder in (learner, getattr(learner, "sifter", None)):
+        fn = getattr(holder, "sift", None)
+        if fn is not None:
+            return fn
+    raise AttributeError("learner exposes no sift")
+
+
+def _prefill_fn(learner):
+    """The batched warm-up for a whole set of strings, if there is one."""
+    for holder, name in ((learner, "_sift_prefill"), (learner, "sifter")):
+        if name == "sifter":
+            sifter = getattr(learner, "sifter", None)
+            if sifter is not None:
+                return getattr(sifter, "prefill", None)
+        else:
+            fn = getattr(holder, name, None)
+            if fn is not None:
+                return fn
+    return None
+
+
 def _resolved_edges(learner):
     """The learner's transition function, wherever it keeps it."""
     for attr in ("dfa", None):
@@ -468,13 +491,13 @@ def render_diagnostics(
     import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel
 
     dist = sample_class_distribution(
-        learner.sift,
+        _sift_fn(learner),
         true_dfa,
         pst=pst if pst is not None else learner.pst,
         rng=rng,
         num_samples=num_samples,
         per_state=per_state,
-        prefill=getattr(learner, "_sift_prefill", None),
+        prefill=_prefill_fn(learner),
     )
     colors = _class_colors(set(range(learner.num_states)))
     panels = [

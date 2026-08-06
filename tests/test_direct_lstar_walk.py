@@ -72,7 +72,6 @@ class TestProcessAnchor(unittest.TestCase):
         learner.process([0, 1, 0, 1], DELTA)
 
         self.assertEqual(learner.splits.recorded, [(7, (0, 1))])
-        self.assertEqual(learner.dfa.access, {7: [0, 1]})
 
     def test_harvests_every_prefix_it_could_not_place(self):
         learner = _Learner(_StubSifter(places_at=2))

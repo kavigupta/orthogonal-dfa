@@ -98,6 +98,7 @@ class DirectLStarLearner:
             self.sifter,
             self.indecisive,
             probe_members=lambda state: self.splits.members.get(state, ()),
+            representative=self._representative,
         )
 
         # The sequential population test: it accumulates each leaf's members and
@@ -106,11 +107,26 @@ class DirectLStarLearner:
             pst,
             self.family,
             pool_members=self.edges.leaf_members,
+            pool_representative=self.edges.pool_representative,
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
             split_miss_rate=split_miss_rate,
             members={},
         )
+
+    def _representative(self, state: int):
+        """Forwarded rather than bound: ``splits`` is replaced on every split."""
+        return self.splits.representative(state)
+
+    @property
+    def access(self) -> dict:
+        """Canonical access string per state, for renderers.  Derived: the
+        evidence owns the strings known to reach each leaf."""
+        return {
+            s: self.splits.representative(s)
+            for s in range(self.num_states)
+            if self.splits.representative(s) is not None
+        }
 
     @property
     def num_states(self) -> int:
@@ -202,8 +218,6 @@ class DirectLStarLearner:
         if state is None:
             return _RESOLVED  # no prefix of this probe can be placed
         self.splits.record(state, w[:start])
-        if state not in self.dfa.access:
-            self.dfa.access[state] = w[:start]
         states: List[Optional[int]] = [None] * start + [state]
         for c in w[start:]:
             state = delta[state][c]
@@ -244,14 +258,14 @@ class DirectLStarLearner:
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
     def _apply_split(self, s1, distinguisher, witness, sprime) -> None:
-        """Split leaf ``s1`` on ``distinguisher`` and give each new side an access
-        string from the two prefixes the disagreement separated (both reached the
-        old leaf and land on opposite sides of the distinguisher)."""
+        """Split leaf ``s1`` on ``distinguisher`` and record the two prefixes the
+        disagreement separated as members of whichever side they land on -- they
+        are the first strings known to reach the new leaves."""
         self.split(s1, distinguisher)
         for p in (witness, sprime):
             st = self.sifter.sift(p)
             if st is not None:
-                self.dfa.access[st] = list(p)
+                self.splits.record(st, list(p))
 
     # -- driver -------------------------------------------------------------
 

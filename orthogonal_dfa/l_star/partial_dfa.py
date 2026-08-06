@@ -27,9 +27,6 @@ class PartialDFA:
         #: A prefix that provably reaches ``s`` and whose one-symbol extension by
         #: ``c`` reaches ``transitions[s][c]``.
         self.witnesses: Dict[Tuple[int, int], List[int]] = {}
-        #: A canonical access string per state.  Edges are resolved from it, so it
-        #: must be present for every reachable state.
-        self.access: Dict[int, List[int]] = {}
         #: ``incoming[s]`` -- the edges whose current target is ``s``, so that a
         #: split can re-open exactly those.
         self.incoming: Dict[int, Set[Tuple[int, int]]] = {
@@ -74,15 +71,19 @@ class PartialDFA:
             for c in range(self.alphabet_size):
                 self.reopen(state, c)
 
-    def pending_probes(self) -> List[List[int]]:
-        """``access[s] + [c]`` for every queued edge still needing resolution --
-        the strings the next :meth:`drain` will sift, so a caller can warm them in
-        one batch.  The queue only grows outside a drain, so one pass covers it."""
-        return [
-            list(self.access[s]) + [c]
-            for s, c in self.worklist
-            if s in self.access and not self.has_edge(s, c)
-        ]
+    def pending_probes(self, representative) -> List[List[int]]:
+        """``representative(s) + [c]`` for every queued edge still needing
+        resolution -- the strings the next :meth:`drain` will sift, so a caller
+        can warm them in one batch.  The queue only grows outside a drain, so one
+        pass covers it."""
+        probes = []
+        for s, c in self.worklist:
+            if self.has_edge(s, c):
+                continue
+            rep = representative(s)
+            if rep is not None:
+                probes.append(list(rep) + [c])
+        return probes
 
     def drain(self, resolve) -> int:
         """Resolve queued edges via ``resolve(state, symbol)`` until the

@@ -61,6 +61,7 @@ class SplitEvidence:
         family,
         *,
         pool_members,
+        pool_representative,
         num_states,
         split_fpr: Optional[float],
         split_miss_rate: float,
@@ -69,6 +70,7 @@ class SplitEvidence:
         self.pst = pst
         self.family = family
         self._pool_members = pool_members
+        self._pool_representative = pool_representative
         self._num_states = num_states
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
         # Tolerated miss rate (beta): the lower sequential boundary.
@@ -97,6 +99,23 @@ class SplitEvidence:
         for distinguisher, accum in self._open.get(state, {}).items():
             self._fold(accum, distinguisher, prefix)
 
+    def representative(self, state: int) -> Optional[list]:
+        """A canonical string reaching ``state`` -- the shortest member, ties
+        broken lexicographically.
+
+        Falls back to the pool when the probe stream has not reached the leaf yet
+        and keeps what it finds as a member, so the scan happens once and the
+        choice is stable while the leaf lives.  ``None`` means nothing known
+        reaches the leaf, so its edges cannot be resolved."""
+        bucket = self.members.get(state)
+        if bucket:
+            return list(min(bucket, key=lambda m: (len(m), m)))
+        found = self._pool_representative(state)
+        if found is None:
+            return None
+        self.record(state, found)
+        return list(found)
+
     def after_split(self, state: int, sift) -> "SplitEvidence":
         """Evidence for the tree left by splitting ``state``.
 
@@ -114,6 +133,7 @@ class SplitEvidence:
             self.pst,
             self.family,
             pool_members=self._pool_members,
+            pool_representative=self._pool_representative,
             num_states=self._num_states,
             split_fpr=self._split_fpr,
             split_miss_rate=self._split_miss_rate,

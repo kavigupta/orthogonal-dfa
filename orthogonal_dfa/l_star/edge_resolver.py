@@ -25,29 +25,19 @@ class EdgeResolver:
     so the next round's family is forced to resolve them.
     """
 
-    def __init__(self, pst, partial, sifter, indecisive, *, probe_members):
+    def __init__(
+        self, pst, partial, sifter, indecisive, *, probe_members, representative
+    ):
         self.pst = pst
         self.dfa = partial
         self.sifter = sifter
         self.indecisive = indecisive
         self._probe_members = probe_members
+        self._representative = representative
 
     # -- opening the queue ---------------------------------------------------
 
-    def seed_access(self) -> None:
-        """Give every current leaf a canonical access string by sifting the pool.
-        The empty string pins the initial state; the rest come from whatever pool
-        prefixes land in each leaf."""
-        states = self.sifter.tree.num_states
-        for prefix in [[]] + [list(p) for p in self.pst.table.prefixes]:
-            if len(self.dfa.access) >= states:
-                break
-            state = self.sifter.sift(prefix)
-            if state is not None and state not in self.dfa.access:
-                self.dfa.access[state] = list(prefix)
-
     def open_all_edges(self) -> None:
-        self.seed_access()
         self.dfa.open_every_edge(range(self.sifter.tree.num_states))
 
     # -- resolving -----------------------------------------------------------
@@ -57,15 +47,14 @@ class EdgeResolver:
             [list(p) for p in self.pst.table.prefixes], state, limit=limit
         )
 
-    def find_access(self, state: int) -> Optional[List[int]]:
-        cached = self.dfa.access.get(state)
-        if cached is not None:
-            return cached
-        for prefix in self.pst.table.prefixes:
-            if self.sifter.sift(list(prefix)) == state:
-                self.dfa.access[state] = list(prefix)
-                return list(prefix)
-        return None
+    def pool_representative(self, state: int) -> Optional[List[int]]:
+        """The first pool prefix that sifts to ``state``, or ``None``.  The empty
+        string leads, so it pins the initial state as it did before the pool was
+        the only source."""
+        found = self.sifter.leaves_of(
+            [[]] + [list(p) for p in self.pst.table.prefixes], state, limit=1
+        )
+        return found[0] if found else None
 
     def _candidates(self, state: int) -> Iterator[List[int]]:
         """Members to try, cheapest first, yielded lazily so the pool scan only
@@ -75,9 +64,9 @@ class EdgeResolver:
         lacks: an edge is usually left open not for want of members but because
         every ``member + symbol`` drawn from the fixed pool is indecisive, and a
         probe supplies fresh strings the family can place."""
-        access = self.dfa.access.get(state)
-        if access is not None:
-            yield access
+        rep = self._representative(state)
+        if rep is not None:
+            yield rep
         for member in self._probe_members(state):
             yield list(member)
         yield from self.leaf_members(state, limit=MAX_EDGE_TRIES)
@@ -106,7 +95,7 @@ class EdgeResolver:
 
     def resolve(self, state: int, c: int) -> None:
         """Point one edge at a decisive successor, or leave it open."""
-        if self.dfa.access.get(state) is None and self.find_access(state) is None:
+        if self._representative(state) is None:
             return  # unreachable leaf; leave the edge for the export fallback
         target, witness = self.decisive_target(state, c)
         if target is None:
@@ -116,5 +105,5 @@ class EdgeResolver:
     def close(self) -> int:
         """Resolve queued edges until the hypothesis is closed.  Returns the
         number resolved."""
-        self.sifter.prefill(self.dfa.pending_probes())
+        self.sifter.prefill(self.dfa.pending_probes(self._representative))
         return self.dfa.drain(self.resolve)

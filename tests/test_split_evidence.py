@@ -70,12 +70,19 @@ def _pst():
     )
 
 
-def _evidence(family=None, pool_members=lambda state, limit: [], num_states=2, **kw):
+def _evidence(
+    family=None,
+    pool_members=lambda state, limit: [],
+    pool_representative=lambda state: None,
+    num_states=2,
+    **kw,
+):
     """Production values unless a test overrides them."""
     return SplitEvidence(
         _pst(),
         family or _StubFamily(),
         pool_members=pool_members,
+        pool_representative=pool_representative,
         num_states=lambda: num_states,
         **{
             "split_fpr": None,
