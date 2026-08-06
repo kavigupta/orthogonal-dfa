@@ -30,7 +30,7 @@ from __future__ import annotations
 import argparse
 import itertools
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .core import (
     REPO_ROOT,
@@ -118,6 +118,19 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
 ]
 
 
+def select_configs(
+    configs: List[Tuple[str, Dict[str, Any]]], labels: Optional[Sequence[str]]
+) -> List[Tuple[str, Dict[str, Any]]]:
+    """Apply `--configs`, in the order the caller named them."""
+    if not labels:
+        return list(configs)
+    by_label = dict(configs)
+    missing = sorted(set(labels) - by_label.keys())
+    if missing:
+        raise SystemExit(f"unknown config(s): {missing}\nknown: {sorted(by_label)}")
+    return [(label, by_label[label]) for label in labels]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--etas", nargs="+", type=float, default=None)
@@ -136,10 +149,18 @@ def main() -> None:
         action="store_true",
         help="Also run one E-L* reference per (cell, eta). Slow.",
     )
+    ap.add_argument(
+        "--configs",
+        nargs="+",
+        default=None,
+        help="Restrict to these config labels (see CONFIGS / MATCHED_BUDGET_CONFIGS).",
+    )
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
-    sweep_configs = MATCHED_BUDGET_CONFIGS if args.matched_budget else CONFIGS
+    sweep_configs = select_configs(
+        MATCHED_BUDGET_CONFIGS if args.matched_budget else CONFIGS, args.configs
+    )
     etas = args.etas or ([0.30] if args.matched_budget else DEFAULT_ETAS)
     experiment = "matched_budget" if args.matched_budget else "wall_sweep"
     default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
