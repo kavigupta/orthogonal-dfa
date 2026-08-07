@@ -36,8 +36,7 @@ from .transition_resolver import resolve_dfa
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     """A ``seq -> leaf | None`` classifier reading ``tree`` against ``oracle`` at the
     given thresholds -- optionally over a shorter ``suffix_limit`` slice of the base
-    family for a cheaper, noise-tolerant read.  This is what a caller holds instead
-    of a predicate-rewritten copy of the tree."""
+    family for a cheaper, noise-tolerant read."""
     base = tree.base_family if suffix_limit is None else tree.base_family[:suffix_limit]
     decide, _ = oracle_decider(oracle, base, accept, reject)
     return lambda seq: tree.classify(seq, decide)
