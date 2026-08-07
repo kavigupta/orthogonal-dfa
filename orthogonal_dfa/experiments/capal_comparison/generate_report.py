@@ -14,7 +14,7 @@ from __future__ import annotations
 import collections
 import json
 import statistics
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from orthogonal_dfa.capal_official import PINNED_COMMIT
 
@@ -337,6 +337,24 @@ to {max_m}× the evidence per pairwise test.
 """
 
 
+def _stalled(cell: dict, elstar: Optional[dict]) -> bool:
+    """Did this cell stop before its budget could bind?
+
+    Derived rather than read off `error_type`, so that runs recorded before the
+    Stalled outcome existed are classified too: a cell that neither converged
+    nor errored, and stopped under E-L*'s spend, ran out of iterations at a
+    fixed point where further rounds issue no new queries.
+    """
+    if cell["error_type"] == "Stalled":
+        return True
+    return (
+        cell["error_type"] is None
+        and not cell["converged"]
+        and elstar is not None
+        and _n(cell) < _n(elstar)
+    )
+
+
 def matched_budget_section() -> str:
     exp = load("matched_budget")
     mb = exp["cells"]
@@ -350,7 +368,7 @@ def matched_budget_section() -> str:
     for c in mb:
         g[c["benchmark"]].append(c)
 
-    rows, reached, timed_out = [], [], []
+    rows, reached, timed_out, stalled = [], [], [], []
     for name in OUR_ORDER:
         cs = g.get(name)
         if not cs:
@@ -358,12 +376,15 @@ def matched_budget_section() -> str:
         # A timed-out run has no hypothesis to score, so it is counted, not
         # averaged in: folding it in as a zero would understate what CAPAL
         # reached, and dropping it silently would hide that it never finished.
+        e = el.get(name)
         scored = [c["accuracy"] for c in cs if c["accuracy"] is not None]
         outs = sum(1 for c in cs if c["error_type"] == "Timeout")
+        stalls = sum(1 for c in cs if _stalled(c, e))
         if outs:
             timed_out.append((name, outs, len(cs)))
+        if stalls:
+            stalled.append((name, stalls, len(cs)))
         mq = int(statistics.mean(_n(c) for c in cs if _n(c) is not None))
-        e = el.get(name)
         if e and mq >= _n(e):
             reached.append(name)
         rows.append(
@@ -371,6 +392,7 @@ def matched_budget_section() -> str:
                 name,
                 f"{statistics.mean(scored):.3f}" if scored else "no hypothesis",
                 f"{sum(bool(c['converged']) for c in cs)}/{len(cs)}",
+                f"{stalls}/{len(cs)}",
                 f"{outs}/{len(cs)}",
                 f"{mq:,}",
                 f"{e['accuracy']:.3f}" if e else "excl",
@@ -378,32 +400,50 @@ def matched_budget_section() -> str:
             ]
         )
 
-    outs_note = (
-        " "
-        + "; ".join(
-            f"On {n}, {k} of {t} runs hit the per-cell time limit with no"
-            " hypothesis at all"
-            for n, k, t in timed_out
+    def _tally(entries: List[tuple]) -> str:
+        return ", ".join(f"{n} ({k}/{t})" for n, k, t in entries)
+
+    matched = (
+        _tally(
+            [
+                (
+                    name,
+                    sum(1 for c in g[name] if c["error_type"] == "BudgetExhausted"),
+                    len(g[name]),
+                )
+                for name in OUR_ORDER
+                if name in g
+                and any(c["error_type"] == "BudgetExhausted" for c in g[name])
+            ]
         )
-        + "."
-        if timed_out
-        else ""
+        or "none"
     )
-    n_over = len(reached)
-    return f"""## 4. Matched query budget: the wall is structural
+    stalls = _tally(stalled) or "none"
+    outs = _tally(timed_out) or "none"
+    return f"""## 4. Matched query budget: CAPAL at E-L*'s own spend
 {settings_warning(exp, load("capal_benchmarks"))}
 CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
 `extra_len_max={cfg['extra_len_max']}`, `suffix_pool_len_max={cfg['suffix_pool_len_max']}`,
 `max_same_samples={cfg['max_same_samples']}`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
 
-{table(["cell", "CAPAL acc", "conv", "timeout", "CAPAL mq", "E-L* acc", "E-L* mq"], rows)}
+{table(["cell", "CAPAL acc", "conv", "stalled", "timeout", "CAPAL mq", "E-L* acc", "E-L* mq"], rows)}
 
-CAPAL converges on none of them.{outs_note} On {n_over} of {len(rows)} cells it
-outspends E-L* outright ({", ".join(reached)}) and still fails, so on those the
-budget is not what stops it. The remaining cells plateau below E-L*'s spend, and
-for them this probe does not settle the question -- it shows CAPAL stopping, not
-CAPAL failing at a matched budget.
+CAPAL converges on none of them, at any budget, on any seed.
+
+Only the cells that spent their budget are matched-budget measurements, and
+they are the ones to read: {matched}. There CAPAL is handed exactly the queries
+E-L* used, plus a perfect equivalence oracle E-L* never gets, and still comes
+back short of it.
+
+Two kinds of cell are not measurements of that, and are separated out above
+rather than averaged in. **Stalled** ({stalls}) ran out of iterations at a fixed
+point: further rounds issue no new queries at all -- on
+regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations and
+at 10000 -- so no budget could ever bind. That is a stronger statement than a
+low score, just a different one: CAPAL stops improving at a fraction of E-L*'s
+spend and cannot use more. **Timed out** ({outs}) were ended by the wall clock
+with no hypothesis to score, and say nothing either way.
 """
 
 

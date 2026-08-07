@@ -208,10 +208,16 @@ def run_capal_cell(
     have been issued, and scores whatever hypothesis CAPAL had reached. That is
     what makes a like-for-like comparison against E-L*'s own spend possible:
     without it, CAPAL's query count is whatever its configuration happens to
-    consume, which on this repo's targets ranged from 1% to 16x E-L*'s. A cell
-    stopped this way records `error_type="BudgetExhausted"` and still carries an
-    accuracy, since the hypothesis is real -- it simply is not CAPAL's final
-    answer.
+    consume, which on this repo's targets ranged from 1% to 16x E-L*'s.
+
+    A budgeted cell ends one of four ways, and `error_type` says which:
+
+    - `None` -- converged inside the budget.
+    - `"BudgetExhausted"` -- spent the budget; the scored hypothesis is real,
+      it simply is not CAPAL's final answer.
+    - `"Stalled"` -- ran out of iterations without spending the budget, so the
+      budget never bound and this is not a matched-budget measurement.
+    - `"Timeout"` -- the wall clock ended it, with no hypothesis to score.
     """
     learner = make_learner(target, eta, seed=seed, **learner_kwargs)
     cell = Cell(
@@ -288,6 +294,24 @@ def run_capal_cell(
     # the MQ, so repeats never get here.
     cell.queries_total = len(learner.mq.cache)
     cell.equivalence_queries = eq_calls["n"]
+
+    # Given a budget and unable to spend it: CAPAL ran out of iterations at a
+    # fixed point. Further rounds issue no new queries at all -- on
+    # regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations
+    # and at 10000 -- so the budget can never bind and this is not a
+    # matched-budget measurement. It is its own outcome, and a stronger claim
+    # than a low score: CAPAL stops improving and cannot use more.
+    if (
+        query_budget is not None
+        and cell.error_type is None
+        and not cell.converged
+        and cell.queries_total < query_budget
+    ):
+        cell.error_type = "Stalled"
+        cell.error = (
+            f"stopped after {cell.equivalence_queries} iterations having used "
+            f"{cell.queries_total} of the {query_budget} query budget"
+        )
 
     if dfa is not None:
         cell.learned_states = dfa.num_states

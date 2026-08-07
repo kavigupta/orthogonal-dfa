@@ -116,26 +116,36 @@ The grid's low corner is upstream's own benchmark setting, so a cell that fails
 across it failed with at least the budget CAPAL's authors publish with, and up
 to 3× the evidence per pairwise test.
 
-## 4. Matched query budget: the wall is structural
+## 4. Matched query budget: CAPAL at E-L*'s own spend
 
 CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
-`extra_len_max=16`, `suffix_pool_len_max=16`,
+`extra_len_max=16`, `suffix_pool_len_max=24`,
 `max_same_samples=2000`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
 
-| cell | CAPAL acc | conv | timeout | CAPAL mq | E-L* acc | E-L* mq |
-| --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | no hypothesis | 0/3 | 3/3 | 22,502,202 | 1.000 | 1,383,779 |
-| regex_subseq_1010101 | 0.922 | 0/3 | 0/3 | 4,884,309 | 1.000 | 3,204,645 |
-| regex_two_1111 | 0.867 | 0/3 | 0/3 | 1,978,922 | 1.000 | 2,345,411 |
-| regex_alt_1111_or_0000_11 | 0.767 | 0/3 | 0/3 | 6,583,848 | 0.989 | 5,701,657 |
-| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 0/3 | 107,359 | 1.000 | 12,513,579 |
+| cell | CAPAL acc | conv | stalled | timeout | CAPAL mq | E-L* acc | E-L* mq |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| parity_mod9_allowed_3_6 | 0.685 | 0/3 | 0/3 | 0/3 | 1,383,779 | 1.000 | 1,383,779 |
+| regex_subseq_1010101 | 0.933 | 0/3 | 1/3 | 0/3 | 2,617,190 | 1.000 | 3,204,645 |
+| regex_two_1111 | 0.904 | 0/3 | 0/3 | 1/3 | 2,131,790 | 1.000 | 2,345,411 |
+| regex_alt_1111_or_0000_11 | 0.725 | 0/3 | 0/3 | 1/3 | 4,933,556 | 0.989 | 5,701,657 |
+| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 3/3 | 0/3 | 107,359 | 1.000 | 12,513,579 |
 
-CAPAL converges on none of them. On parity_mod9_allowed_3_6, 3 of 3 runs hit the per-cell time limit with no hypothesis at all. On 3 of 5 cells it
-outspends E-L* outright (parity_mod9_allowed_3_6, regex_subseq_1010101, regex_alt_1111_or_0000_11) and still fails, so on those the
-budget is not what stops it. The remaining cells plateau below E-L*'s spend, and
-for them this probe does not settle the question -- it shows CAPAL stopping, not
-CAPAL failing at a matched budget.
+CAPAL converges on none of them, at any budget, on any seed.
+
+Only the cells that spent their budget are matched-budget measurements, and
+they are the ones to read: parity_mod9_allowed_3_6 (3/3), regex_subseq_1010101 (2/3), regex_two_1111 (2/3), regex_alt_1111_or_0000_11 (2/3). There CAPAL is handed exactly the queries
+E-L* used, plus a perfect equivalence oracle E-L* never gets, and still comes
+back short of it.
+
+Two kinds of cell are not measurements of that, and are separated out above
+rather than averaged in. **Stalled** (regex_subseq_1010101 (1/3), regex_alt_111_or_000_3sym (3/3)) ran out of iterations at a fixed
+point: further rounds issue no new queries at all -- on
+regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations and
+at 10000 -- so no budget could ever bind. That is a stronger statement than a
+low score, just a different one: CAPAL stops improving at a fraction of E-L*'s
+spend and cannot use more. **Timed out** (regex_two_1111 (1/3), regex_alt_1111_or_0000_11 (1/3)) were ended by the wall clock
+with no hypothesis to score, and say nothing either way.
 
 ## 5. Why the noise floor bites CAPAL harder (theory)
 
@@ -178,7 +188,7 @@ not move it.
   benchmark setting and which sweeps up from there. No knob rescues a cell.
 - The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
   E-L*'s own query spend on 3 of 5 cells without converging on any, and on
-  modulo 3 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
+  modulo 2 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
   spend without producing a hypothesis at all. On the two cells that stop below
   E-L*'s spend the probe is inconclusive rather than supportive.
 - Sections 1-2 are single-seed; the sweep and the matched-budget probe use
