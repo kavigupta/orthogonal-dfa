@@ -105,6 +105,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         if strategy == "suffix":
-            pst.sample_more_suffixes(amount=pst.config.suffix_family_size)
+            kept = pst.sample_more_suffixes(
+                amount=pst.config.suffix_family_size, reference=v
+            )
+            print(f"  kept {kept}/{pst.config.suffix_family_size} after screening")
         else:
             pst.sample_more_prefixes()
