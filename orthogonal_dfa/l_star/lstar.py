@@ -34,19 +34,21 @@ from .transition_resolver import resolve_dfa
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
-    """A ``seq -> leaf | None`` classifier reading ``tree`` against ``oracle`` at the
-    given thresholds -- optionally over a shorter ``suffix_limit`` slice of the base
-    family for a cheaper, noise-tolerant read."""
+    """
+    Converts a midfix tree to a seq -> leaf | None classifier using the oracle.
+    """
     base = tree.base_family if suffix_limit is None else tree.base_family[:suffix_limit]
     decide, _ = oracle_decider(oracle, base, accept, reject)
     return lambda seq: tree.classify(seq, decide)
 
 
 def classify_pool(pst, tree, *, accept, reject):
-    """Classify every prefix in the pool to its leaf (or -1 if undecided) straight
-    from the cached prefix x suffix mask matrix, no oracle queries.  ``accept`` /
-    ``reject`` are the thresholds every node is read at: the PST's margins for a
-    discovery-time tree, or the boundary for a decisive read."""
+    """
+    Classify every prefix in the pool to its leaf (or -1 if undecided) straight from
+    the cached prefix x suffix mask matrix, no oracle queries. accept / reject are the
+    thresholds every node is read at: the PST's margins for a discovery-time tree, or
+    the boundary for a decisive read.
+    """
 
     def decide_columns(midfix):
         decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
@@ -135,10 +137,9 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
 
 
 def locate_incorrect_point(classify, dfa, x, y, *, s0, s_end):
-    # ``s0`` and ``s_end`` are ``classify(x)`` and ``classify(x + y)``, passed in so
-    # the caller can share them across many calls: estimate_agreement_rate holds
-    # ``x`` fixed (one ``s0`` for the whole loop) and batches the per-``y`` ``s_end``
-    # through ``classify_many``.
+    # s0 and s_end are classify(x) and classify(x + y), passed in so the caller can
+    # share them across many calls: estimate_agreement_rate holds x fixed (one s0 for
+    # the whole loop) and batches the per-y s_end through classify_many.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -265,9 +266,7 @@ def _batch_before_possible_stop(agreements, valid, boundary, min_valid, remainin
     return lo
 
 
-def estimate_agreement_rate(
-    pst, us, oracle, tree, dfa, *, num_samples, acc_threshold
-):
+def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_threshold):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
@@ -424,7 +423,9 @@ def uncoverable_access_strings(pst, tree):
     n = len(fam)
 
     repr_masks = pst.table.observed_masks(fam, rep).T  # [n_repr, n_fam]
-    leaves = classify_pool(pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh)
+    leaves = classify_pool(
+        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
+    )
     potentially_problematic = np.flatnonzero(
         (~rep) & (leaves == -1)
     )  # only unclassifiable core prefixes

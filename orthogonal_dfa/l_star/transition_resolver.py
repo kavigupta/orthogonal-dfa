@@ -24,9 +24,9 @@ Evaluating a distinguisher [c]+w while resolving (s, c) only requires
 executing on the prefixes of s, which is a potentially small subset of
 the prefix pool.
 
-The split keeps the accept side of the divergence as ``s`` itself and gives the
-reject side a fresh id (see ``MidfixTree.split``), so state ids stay a dense
-``range(num_states)`` and never need remapping on export.
+The split keeps the accept side of the divergence as s itself and gives the reject
+side a fresh id (see MidfixTree.split), so state ids stay a dense range(num_states)
+and never need remapping on export.
 
 One source of redundant work remains:
   [2] If it's only going to be all one state it's possible this is easy to tell early
@@ -80,9 +80,9 @@ class TransitionResolver:
         self.incoming[target].add((state_id, c))
 
     def _reopen_edges(self, state_id):
-        # A split shrank ``state_id``'s membership, so both its outgoing edges
-        # (computed under the old, larger mask) and every edge into it (which may
-        # now belong to either side) must be re-resolved.
+        # A split shrank state_id's membership, so both its outgoing edges (computed
+        # under the old, larger mask) and every edge into it (which may now belong to
+        # either side) must be re-resolved.
         for c in range(self.pst.alphabet_size):
             target = self.trans.pop((state_id, c), None)
             if target is not None:
@@ -151,7 +151,7 @@ class TransitionResolver:
             state_id, c = self.queue.popleft()
             # A stable-id split reuses state_id and re-opens its edges, so the same
             # (state, c) can sit in the queue twice; skip one already resolved (a
-            # later split pops it from ``trans`` when it must be redone).
+            # later split pops it from trans when it must be redone).
             if (state_id, c) in self.trans:
                 continue
             self._resolve(state_id, c)
@@ -190,5 +190,7 @@ class TransitionResolver:
 
 
 def resolve_dfa(pst):
-    """Build the (DFA, MidfixTree) for the current prefix pool via the resolver."""
+    """
+    Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
+    """
     return TransitionResolver(pst).build()
