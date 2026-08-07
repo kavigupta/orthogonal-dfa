@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -58,64 +59,47 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
-#: The "matched query budget" probe, at the three settings that decide whether
-#: the eta=0.30 wall is structural or a budget CAPAL was never given.
+#: The matched-budget probe: CAPAL given exactly the distinct membership
+#: queries E-L* spent on the same cell, then stopped and scored on whatever
+#: hypothesis it had reached.
 #:
-#: SAMESTATE calls a pair different when its observed disagreement exceeds
-#: `p0 + tau`, where `p0 = 2*eta_hat*(1-eta_hat)` and
-#: `tau = min(sqrt(ln(2/alpha) / 2m), tau_cap)` over `m` probe suffixes
-#: (capal.py:674). A pair whose states genuinely differ on a fraction `d` of
-#: suffixes shows up at `p0 + (1-2*p0)*d`, so it is decidable only when
-#:
-#:     d > tau / (1 - 2*p0)   <=>   m > ln(2/alpha) / (2 * (d*(1-2*p0))**2)
-#:
-#: At eta=0.30, `1-2*p0` is 0.16, and modulo-9's ±3 pairs differ on at most
-#: `d = 2/9`, so modulo needs m > 3006 at alpha=1e-3, or m > 1459 at alpha=0.05.
-#: The first config below is the one already run: m=2000 at alpha=1e-3, which
-#: sits *under* its own threshold, so its failure shows CAPAL stopping short
-#: rather than a structural limit. The other two clear the bound, in the two
-#: independent ways available, and are predicted to converge on modulo. If they
-#: do not, the structural claim is earned; if they do, it is a budget claim.
-#:
-#: `d` is derived for modulo only, so the prediction covers that target alone.
-#: The decisive run is therefore
-#:     ... run_wall_sweep --matched-budget --targets parity_mod9_allowed_3_6
-#: The high-m cells are slow -- m=2000 already exhausted the default cell
-#: timeout on modulo -- so they get a longer one.
+#: The knobs uncap suffix enumeration so that CAPAL has somewhere productive to
+#: spend the budget -- at its shipped settings it stops after a few thousand
+#: queries, far short of E-L*'s millions, and the comparison would be vacuous.
+#: `max_iters` is raised for the same reason: the run should end because the
+#: budget ran out, not because the iteration cap did.
 MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
-        "enum=8,extra=16,pool=16,m=2000,alpha=0.001",
+        "matched,enum=8,extra=16,pool=16,m=2000",
         dict(
             max_same_samples=2000,
             suffix_pool_len_max=16,
             enum_depth=8,
             extra_len_max=16,
-            alpha=1e-3,
-        ),
-    ),
-    (
-        "enum=8,extra=16,pool=16,m=5000,alpha=0.001",
-        dict(
-            max_same_samples=5000,
-            suffix_pool_len_max=16,
-            enum_depth=8,
-            extra_len_max=16,
-            alpha=1e-3,
-            timeout=4 * 3600,
-        ),
-    ),
-    (
-        "enum=8,extra=16,pool=16,m=2000,alpha=0.05",
-        dict(
-            max_same_samples=2000,
-            suffix_pool_len_max=16,
-            enum_depth=8,
-            extra_len_max=16,
-            alpha=0.05,
-            timeout=4 * 3600,
+            max_iters=10_000,
         ),
     ),
 ]
+
+
+def elstar_budgets() -> Dict[Tuple[str, float], int]:
+    """E-L*'s distinct membership queries per (benchmark, eta), from experiment 2.
+
+    Only cells E-L* actually solved carry a budget: matching CAPAL against a
+    number E-L* did not itself achieve would not be a comparison.
+    """
+    path = REPO_ROOT / "data" / "capal" / "our_benchmarks.json"
+    if not path.exists():
+        raise SystemExit(
+            f"{path} is missing; run run_our_bench first -- the matched budget "
+            "is defined by what E-L* spent."
+        )
+    cells = json.loads(path.read_text())["cells"]
+    return {
+        (c["benchmark"], c["eta"]): c["queries_total"]
+        for c in cells
+        if c["learner"] == "E-L*" and c.get("queries_total") is not None
+    }
 
 
 def select_configs(
@@ -165,6 +149,7 @@ def main() -> None:
     experiment = "matched_budget" if args.matched_budget else "wall_sweep"
     default_out = REPO_ROOT / "data" / "capal" / f"{experiment}.json"
 
+    budgets = elstar_budgets() if args.matched_budget else {}
     benchmarks = our_benchmarks()
     if args.targets:
         by = {b.name: b for b in benchmarks}
@@ -219,6 +204,10 @@ def main() -> None:
                     f"[{done}/{total}] {b.name} eta={eta:.2f} {label} seed={seed}",
                     flush=True,
                 )
+                budget = budgets.get((b.name, eta)) if args.matched_budget else None
+                if args.matched_budget and budget is None:
+                    print("   skipped: E-L* has no spend recorded here", flush=True)
+                    continue
                 cell = run_capal_cell(
                     b.target,
                     benchmark=b.name,
@@ -228,6 +217,7 @@ def main() -> None:
                     words=words,
                     truth=truth,
                     alphabet=b.alphabet,
+                    query_budget=budget,
                     **kwargs,
                 )
                 cell.learner_config["label"] = label
