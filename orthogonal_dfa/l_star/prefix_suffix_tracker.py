@@ -189,7 +189,9 @@ class PrefixSuffixTracker:
                 break
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
-            disagreements = (self.table.observed_masks(alive, subset) != ref[subset]).sum(1)
+            disagreements = (
+                self.table.observed_masks(alive, subset) != ref[subset]
+            ).sum(1)
             alive = [
                 row
                 for row, count in zip(alive, disagreements)
