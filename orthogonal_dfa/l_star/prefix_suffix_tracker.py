@@ -6,6 +6,7 @@ import tqdm.auto as tqdm
 
 from .mask_table import MaskTable
 from .sampler import Sampler
+from .statistics import binomial_side_of_boundary
 from .structures import Oracle
 
 
@@ -54,6 +55,9 @@ class SearchConfig:
     fnr_limit: float = 0.02
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
+    #: Chance of screening out a suffix that does belong, spent across the
+    #: whole staircase rather than per test.
+    screening_alpha: float = 0.1
 
 
 @dataclass
@@ -135,15 +139,53 @@ class PrefixSuffixTracker:
             table=MaskTable(oracle, prefixes, representative),
         )
 
-    def _sample_suffix(self) -> int:
-        while True:
+    def _screening_staircase(self, available: int) -> List[int]:
+        """Prefix counts to test a candidate at, smallest first."""
+        out = []
+        p = 16
+        while p < available:
+            out.append(p)
+            p *= 2
+        out.append(available)
+        return out
+
+    def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
+        """The rows still explicable as ``reference`` plus per-cell noise, which
+        flips one of the two observations at rate ``2*eta*(1-eta)``."""
+        eta = 0.5 - self.config.min_signal_strength
+        same_family_rate = 2 * eta * (1 - eta)
+        ref = self.table.column(reference)
+        candidates = np.flatnonzero(self.table.representative)
+        order = candidates[self.rng.permutation(len(candidates))]
+        staircase = self._screening_staircase(len(order))
+        alpha = self.config.screening_alpha / len(staircase)
+        alive = list(rows)
+        for p in staircase:
+            if not alive:
+                break
+            subset = np.zeros(self.num_prefixes, dtype=bool)
+            subset[order[:p]] = True
+            disagreements = (
+                self.table.observed_masks(alive, subset) != ref[subset]
+            ).sum(1)
+            alive = [
+                row
+                for row, count in zip(alive, disagreements)
+                if not binomial_side_of_boundary(
+                    int(count), p, same_family_rate, failure_prob=alpha
+                )
+            ]
+        return alive
+
+    def _draw_cohort(self, size: int) -> List[int]:
+        """``size`` unseen suffixes, interned but not yet observed."""
+        rows = []
+        while len(rows) < size:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if self.table.contains_suffix(v):
                 continue
-            row = self.table.intern_suffix(v)
-            # Fully observe the new suffix row, so it can be used in clustering
-            self.table.column(row)
-            return row
+            rows.append(self.table.intern_suffix(v))
+        return rows
 
     def compute_fnr(self, vs):
         """
@@ -179,9 +221,29 @@ class PrefixSuffixTracker:
             new_prefixes.add(prefix)
         self.table.add_prefixes(sorted(list(x) for x in new_prefixes))
 
-    def sample_more_suffixes(self, *, amount: int):
-        for _ in tqdm.trange(amount, desc="Completing suffix family", delay=1):
-            self._sample_suffix()
+    def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
+        """Grow the pool of clustering candidates by ``amount`` suffixes that
+        survive screening against ``reference``."""
+        kept = 0
+        drawn = 0
+        max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
+        every = np.ones(self.num_prefixes, dtype=bool)
+        with tqdm.tqdm(total=amount, desc="Completing suffix family", delay=1) as pbar:
+            while kept < amount and drawn < max_draws:
+                cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                drawn += len(cohort)
+                survivors = (
+                    cohort
+                    if reference is None
+                    else self._screen_cohort(cohort, reference)
+                )
+                if survivors:
+                    # The dropped ones stay partial, keeping them out of
+                    # fully_observed() and so out of add_prefixes' top-ups.
+                    self.table.observed_masks(survivors, every)
+                kept += len(survivors)
+                pbar.update(len(survivors))
+        return kept
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
