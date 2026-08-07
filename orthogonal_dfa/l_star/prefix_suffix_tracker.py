@@ -150,10 +150,11 @@ class PrefixSuffixTracker:
         out.append(available)
         return out
 
-    def _diverges_from(self, row: int, reference: int) -> bool:
-        """Whether ``row``'s membership pattern differs from ``reference``'s by
-        more than per-cell noise can explain, measured on a growing subset of
-        prefixes and stopping at the first subset that settles it.
+    def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
+        """The rows whose membership pattern is still explicable as
+        ``reference``'s plus per-cell noise, after testing the whole cohort on a
+        growing subset of prefixes and dropping each row at the first subset that
+        settles it.
 
         A suffix in the same family as ``reference`` induces the same accept /
         reject labelling of the prefixes, so the two columns differ only where
@@ -162,6 +163,12 @@ class PrefixSuffixTracker:
         signal, hence upper-bounds ``eta``, so this null holds without knowing
         anything about the family being assembled; a candidate significantly
         above it is not in the family and does not need its remaining cells.
+
+        The cohort shares one prefix ordering, which is what lets a whole
+        staircase step go to the oracle as a single batch -- one call per step
+        rather than one per candidate.  Each row is still judged only on its own
+        disagreement count, so the decisions are the ones a per-candidate screen
+        would make.
 
         Only representative prefixes are used, matching the population the
         clustering and the decision boundary are calibrated over.
@@ -176,35 +183,31 @@ class PrefixSuffixTracker:
         # has to be the budget split across them for screening_alpha to mean what
         # it says.
         alpha = self.config.screening_alpha / len(staircase)
+        alive = list(rows)
         for p in staircase:
+            if not alive:
+                break
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
-            observed = self.table.observed_masks([row], subset)[0]
-            disagreements = int((observed != ref[subset]).sum())
-            if binomial_side_of_boundary(
-                disagreements, p, same_family_rate, failure_prob=alpha
-            ):
-                return True
-        return False
+            disagreements = (self.table.observed_masks(alive, subset) != ref[subset]).sum(1)
+            alive = [
+                row
+                for row, count in zip(alive, disagreements)
+                if not binomial_side_of_boundary(
+                    int(count), p, same_family_rate, failure_prob=alpha
+                )
+            ]
+        return alive
 
-    def _sample_suffix(self, reference: Optional[int] = None) -> Optional[int]:
-        """Draw an unseen suffix and fully observe it, returning its row.
-
-        Returns None if the suffix was screened out against ``reference``: it
-        keeps the cells the screen paid for and stays out of ``fully_observed``,
-        so it is neither a clustering candidate nor a column that
-        ``add_prefixes`` has to keep topped up.
-        """
-        while True:
+    def _draw_cohort(self, size: int) -> List[int]:
+        """``size`` unseen suffixes, interned but not yet observed."""
+        rows = []
+        while len(rows) < size:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if self.table.contains_suffix(v):
                 continue
-            row = self.table.intern_suffix(v)
-            if reference is not None and self._diverges_from(row, reference):
-                return None
-            # Fully observe the new suffix row, so it can be used in clustering
-            self.table.column(row)
-            return row
+            rows.append(self.table.intern_suffix(v))
+        return rows
 
     def compute_fnr(self, vs):
         """
@@ -252,16 +255,34 @@ class PrefixSuffixTracker:
         Draws are capped using ``min_suffix_frequency``, the assumed floor on
         how often a family member comes up, so a reference that nothing matches
         cannot spin here forever.
+
+        Candidates are drawn and screened a cohort at a time so each staircase
+        step is one oracle call for the whole cohort.  A cohort's survivors are
+        all completed even if that overshoots ``amount``: they passed, and
+        stranding a passed suffix half-observed would waste the screening
+        already paid for and lose it for good, since it can never be redrawn.
         """
         kept = 0
-        max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         drawn = 0
+        max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
+        every = np.ones(self.num_prefixes, dtype=bool)
         with tqdm.tqdm(total=amount, desc="Completing suffix family", delay=1) as pbar:
             while kept < amount and drawn < max_draws:
-                drawn += 1
-                if self._sample_suffix(reference) is not None:
-                    kept += 1
-                    pbar.update()
+                cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                drawn += len(cohort)
+                survivors = (
+                    cohort
+                    if reference is None
+                    else self._screen_cohort(cohort, reference)
+                )
+                if survivors:
+                    # Fully observe them, so they can be used in clustering.  The
+                    # ones the screen dropped keep the cells it paid for and stay
+                    # out of fully_observed(), so they are neither clustering
+                    # candidates nor columns add_prefixes has to top up.
+                    self.table.observed_masks(survivors, every)
+                kept += len(survivors)
+                pbar.update(len(survivors))
         return kept
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
