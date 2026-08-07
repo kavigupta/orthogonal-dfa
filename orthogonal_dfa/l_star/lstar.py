@@ -28,27 +28,42 @@ from .dfa_utils import (
     sample_string_reaching_state,
     states_intermediate,
 )
+from .midfix_tree import oracle_decider
 from .statistics import binomial_side_of_boundary, counterexample_search_exhausted
-from .structures import DecisionTree, DecisionTreeLeafNode, TriPredicate, classify_many
 from .transition_resolver import resolve_dfa
 
 
-def classify_states_with_decision_tree(pst, dt: DecisionTree):
-    if isinstance(dt, DecisionTreeLeafNode):
-        return np.full(pst.num_prefixes, dt.state_idx)
-    results = np.full(pst.num_prefixes, -1)
-    # Classify straight from the cached prefix x suffix mask matrix
-    # (compute_decision_from_strings reads corresponding_masks), applying each node's
-    # OWN thresholds rather than the PST's current margins.  For a discovery-time tree
-    # the predicate thresholds equal the margins in effect here, so existing callers are
-    # unchanged; for a decisive tree (accept==reject==boundary) this reproduces
-    # dt.classify(prefix, oracle) for every prefix without re-querying the oracle.
-    decision = pst.compute_decision_from_strings(dt.predicate.vs)
-    rej = decision < dt.predicate.reject_threshold
-    acc = decision >= dt.predicate.accept_threshold
-    results[rej] = classify_states_with_decision_tree(pst, dt.by_rejection[0])[rej]
-    results[acc] = classify_states_with_decision_tree(pst, dt.by_rejection[1])[acc]
-    return results
+class _TreeClassifier:
+    """Classifies fresh strings against a :class:`MidfixTree` through the oracle.
+
+    Bundles the tree with a decision rule -- thresholds and, optionally, a shorter
+    ``suffix_limit`` of the base family for a cheaper noise-tolerant read -- so a
+    caller can hold "the decisive classifier" or "the reduced classifier" the way
+    it used to hold a predicate-rewritten copy of the tree."""
+
+    def __init__(self, tree, oracle, *, accept, reject, suffix_limit=None):
+        self.tree = tree
+        base = tree.base_family if suffix_limit is None else tree.base_family[:suffix_limit]
+        self._decide, self._decide_level = oracle_decider(oracle, base, accept, reject)
+
+    def classify(self, seq):
+        return self.tree.classify(seq, self._decide)
+
+    def classify_many(self, seqs):
+        return self.tree.classify_many(seqs, self._decide_level)
+
+
+def classify_pool(pst, tree, *, accept, reject):
+    """Classify every prefix in the pool to its leaf (or -1 if undecided) straight
+    from the cached prefix x suffix mask matrix, no oracle queries.  ``accept`` /
+    ``reject`` are the thresholds every node is read at: the PST's margins for a
+    discovery-time tree, or the boundary for a decisive read."""
+
+    def decide_columns(midfix):
+        decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
+        return decision >= accept, decision < reject
+
+    return tree.classify_pool(pst.num_prefixes, decide_columns)
 
 
 def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
@@ -130,11 +145,11 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
     return results
 
 
-def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0, s_end):
-    # ``s0`` and ``s_end`` are ``dt.classify(x, oracle)`` and ``dt.classify(x + y,
-    # oracle)``, computed by the caller so it can share them across many calls:
-    # estimate_agreement_rate holds ``x`` fixed (one ``s0`` for the whole loop) and
-    # batches the per-``y`` ``s_end`` through ``classify_many``.
+def locate_incorrect_point(classifier, dfa, x, y, *, s0, s_end):
+    # ``s0`` and ``s_end`` are ``classifier.classify(x)`` and
+    # ``classifier.classify(x + y)``, computed by the caller so it can share them
+    # across many calls: estimate_agreement_rate holds ``x`` fixed (one ``s0`` for
+    # the whole loop) and batches the per-``y`` ``s_end`` through ``classify_many``.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -145,7 +160,7 @@ def locate_incorrect_point(oracle, dt, dfa, x, y, *, s0, s_end):
     # binary search for first incorrect index
     while correct_idx < incorrect_idx - 1:
         mid_idx = (correct_idx + incorrect_idx) // 2
-        dt_state = dt.classify(x + y[: mid_idx + 1], oracle)
+        dt_state = classifier.classify(x + y[: mid_idx + 1])
         if dt_state is None:
             return None, "could not classify state during binary search"
         if dt_state == dfa_states_each[mid_idx + 1]:
@@ -163,10 +178,10 @@ def counterexample_sample_budget(count: int) -> int:
     return SAMPLES_PER_COUNTEREXAMPLE * count
 
 
-def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
+def generate_counterexamples(pst, us, oracle, tree, dfa, *, count):
     boundary = pst.decision_boundary
     # The counterexample pipeline classifies strings many times: ~log2(string_len)
-    # binary search steps + 2 decisive checks, each traversing the full DT.  A
+    # binary search steps + 2 decisive checks, each traversing the full tree.  A
     # false positive just adds an uninformative prefix (harmless), so we can
     # tolerate a much higher overall error rate than state discovery (which uses
     # decision_rule_fpr).  We use 0.2 as the whole-pipeline budget and union-bound
@@ -176,16 +191,16 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
     counterexample_fpr = 0.2
     string_len = pst.sampler.length
     num_classifications = 2 + int(np.ceil(np.log2(string_len)))
-    num_node_decisions = num_classifications * dt.depth
+    num_node_decisions = num_classifications * tree.depth
     effective_p = 0.5 + pst.config.min_signal_strength
     per_node_budget = counterexample_fpr / max(num_node_decisions, 1)
     scaled_suffix_size = _compute_sfx(per_node_budget, effective_p)
-    dt_with_reduced_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs[:scaled_suffix_size], boundary, boundary)
+    # Both read the tree decisively (accept==reject==boundary); the reduced one uses
+    # a shorter slice of the family for a cheaper, noise-tolerant classification.
+    reduced = _TreeClassifier(
+        tree, oracle, accept=boundary, reject=boundary, suffix_limit=scaled_suffix_size
     )
-    dt_with_decisive_predicates = dt.map_over_predicates(
-        lambda p: TriPredicate(p.vs, boundary, boundary)
-    )
+    decisive = _TreeClassifier(tree, oracle, accept=boundary, reject=boundary)
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     num_samples = 0
@@ -194,21 +209,16 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
         num_samples += 1
         x = us.sample(pst.rng, pst.alphabet_size)
         y = us.sample(pst.rng, pst.alphabet_size)
-        s0 = dt_with_reduced_predicates.classify(x, oracle)
+        s0 = reduced.classify(x)
         prefix, sym = locate_incorrect_point(
-            oracle,
-            dt_with_reduced_predicates,
+            reduced,
             dfa,
             x,
             y,
             s0=s0,
             # Skip the endpoint classification when x itself is unclassifiable --
             # locate_incorrect_point returns on s0 without reading s_end.
-            s_end=(
-                dt_with_reduced_predicates.classify(x + y, oracle)
-                if s0 is not None
-                else None
-            ),
+            s_end=(reduced.classify(x + y) if s0 is not None else None),
         )
         if counterexample_search_exhausted(
             len(additional_prefixes), num_samples, count, max_samples
@@ -225,9 +235,9 @@ def generate_counterexamples(pst, us, oracle, dt, dfa, *, count):
             continue
         if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
             continue
-        state_1 = dt_with_decisive_predicates.classify(prefix, oracle)
+        state_1 = decisive.classify(prefix)
         state_2 = dfa.transitions[state_1][sym]
-        if state_2 == dt_with_decisive_predicates.classify(prefix + [sym], oracle):
+        if state_2 == decisive.classify(prefix + [sym]):
             continue
         additional_prefixes.append(prefix)
         pbar.update()
@@ -267,7 +277,7 @@ def _batch_before_possible_stop(agreements, valid, boundary, min_valid, remainin
 
 
 def estimate_agreement_rate(
-    pst, us, oracle, dt_decisive, dfa, *, num_samples, acc_threshold
+    pst, us, oracle, classifier, dfa, *, num_samples, acc_threshold
 ):
     """
     Estimate the DFA's true agreement rate with the DT on fresh random strings,
@@ -296,11 +306,11 @@ def estimate_agreement_rate(
     min_valid = 30
     agreements = 0
     valid = 0
-    # Every sample classifies from the empty prefix, so dt_decisive.classify([]) is
+    # Every sample classifies from the empty prefix, so classifier.classify([]) is
     # constant across the loop; compute it once instead of re-querying the oracle on
     # each sample.  On multi-iteration benchmarks this empty-prefix reclassification
     # was ~24% of all oracle queries (it recurs on up to num_samples draws per call).
-    s0 = dt_decisive.classify([], oracle)
+    s0 = classifier.classify([])
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0
@@ -310,10 +320,10 @@ def estimate_agreement_rate(
         )
         ys = [us.sample(pst.rng, pst.alphabet_size) for _ in range(size)]
         drawn += size
-        ends = classify_many(dt_decisive, ys, oracle)
+        ends = classifier.classify_many(ys)
         for y, s_end in zip(ys, ends):
             prefix, reason = locate_incorrect_point(
-                oracle, dt_decisive, dfa, [], y, s0=s0, s_end=s_end
+                classifier, dfa, [], y, s0=s0, s_end=s_end
             )
             if prefix is None and reason == "no inconsistency":
                 agreements += 1
@@ -332,9 +342,9 @@ def estimate_agreement_rate(
     return agreements / valid if valid else 0.0
 
 
-def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
+def enrich_underrepresented_leaves(pst, tree, *, count):
     """
-    Sample random length-L prefixes routed (via the decisive DT) to leaves
+    Sample random length-L prefixes routed (via the decisive tree) to leaves
     whose current population is below the median.  This rebalances the PST
     so that the next suffix-family clustering has enough signal to pick
     suffixes that shatter under-represented leaves.
@@ -345,10 +355,12 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     which left the suffix-family clustering unable to find discriminating
     suffixes for that state.
     """
+    boundary = pst.decision_boundary
+    decisive = _TreeClassifier(tree, pst.oracle, accept=boundary, reject=boundary)
     # Classify every existing prefix through the decisive tree directly from the cached
     # mask matrix instead of re-querying the oracle once per prefix: all these
     # prefix x suffix pairs are already in corresponding_masks.  -1 marks undecided.
-    leaves = classify_states_with_decision_tree(pst, dt_decisive)
+    leaves = classify_pool(pst, tree, accept=boundary, reject=boundary)
     leaf_counts = {}
     for leaf in leaves.tolist():
         if leaf < 0:
@@ -375,7 +387,7 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
         t = tuple(p)
         if t in seen:
             continue
-        leaf = dt_decisive.classify(p, pst.oracle)
+        leaf = decisive.classify(p)
         if leaf is None or leaf not in target_leaves:
             continue
         new_prefixes.append(p)
@@ -387,7 +399,7 @@ def enrich_underrepresented_leaves(pst, dt_decisive, *, count):
     return new_prefixes
 
 
-def uncoverable_access_strings(pst, dt):
+def uncoverable_access_strings(pst, tree):
     """Access strings the hypothesis cannot resolve and can never be covered.
 
     The short prefix-closed core is the set of access strings, it reaches
@@ -414,7 +426,7 @@ def uncoverable_access_strings(pst, dt):
     n = len(fam)
 
     repr_masks = pst.table.observed_masks(fam, rep).T  # [n_repr, n_fam]
-    leaves = classify_states_with_decision_tree(pst, dt)
+    leaves = classify_pool(pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh)
     potentially_problematic = np.flatnonzero(
         (~rep) & (leaves == -1)
     )  # only unclassifiable core prefixes
@@ -443,14 +455,12 @@ def counterexample_driven_synthesis(
             pst.sample_more_prefixes()
         print(dfa)
         boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
-        )
+        decisive = _TreeClassifier(dt, pst.oracle, accept=boundary, reject=boundary)
         true_acc = estimate_agreement_rate(
             pst,
             pst.sampler,
             pst.oracle,
-            dt_decisive,
+            decisive,
             dfa,
             num_samples=2000,
             acc_threshold=acc_threshold,
@@ -475,7 +485,7 @@ def counterexample_driven_synthesis(
             return
         ce = add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
         enriched = enrich_underrepresented_leaves(
-            pst, dt_decisive, count=additional_counterexamples
+            pst, dt, count=additional_counterexamples
         )
         if not ce and not enriched:
             print(

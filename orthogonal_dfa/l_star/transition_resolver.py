@@ -24,6 +24,10 @@ Evaluating a distinguisher [c]+w while resolving (s, c) only requires
 executing on the prefixes of s, which is a potentially small subset of
 the prefix pool.
 
+The split keeps the accept side of the divergence as ``s`` itself and gives the
+reject side a fresh id (see ``MidfixTree.split``), so state ids stay a dense
+``range(num_states)`` and never need remapping on export.
+
 One source of redundant work remains:
   [2] If it's only going to be all one state it's possible this is easy to tell early
   and bail on the rest of the queries, but we don't do that yet.
@@ -36,32 +40,7 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .structures import DecisionTreeInternalNode, DecisionTreeLeafNode, TriPredicate
-
-
-class _Leaf:
-    def __init__(self, state_id, mask):
-        self.state_id = state_id
-        self.mask = mask
-
-
-class _Internal:
-    def __init__(self, predicate, rej, acc):
-        self.predicate = predicate
-        self.rej = rej
-        self.acc = acc
-
-
-def _replace_leaf(node, state_id, new_node):
-    """Return ``node`` with the leaf carrying ``state_id`` replaced by ``new_node``.
-    Subtrees not on the path to that leaf are shared (returned unchanged)."""
-    if isinstance(node, _Leaf):
-        return new_node if node.state_id == state_id else node
-    rej = _replace_leaf(node.rej, state_id, new_node)
-    acc = _replace_leaf(node.acc, state_id, new_node)
-    if rej is node.rej and acc is node.acc:
-        return node
-    return _Internal(node.predicate, rej, acc)
+from .midfix_tree import MidfixTree, oracle_decider
 
 
 def _splits(pst, n_acc, n_rej):
@@ -81,24 +60,17 @@ def _splits(pst, n_acc, n_rej):
 class TransitionResolver:
     def __init__(self, pst):
         self.pst = pst
-        self.leaves = {}  # state_id -> _Leaf
+        self.tree = None
+        self.masks = {}  # state_id -> bool mask over the prefix pool
         self.trans = {}  # (state_id, symbol) -> target state_id
         self.incoming = {}  # state_id -> set of (state_id, symbol) pointing at it
         self.queue = deque()
-        self._next_id = 0
-        self.root = None
 
-    # -- tree bookkeeping ---------------------------------------------------
+    # -- bookkeeping --------------------------------------------------------
 
-    def _new_leaf(self, mask):
-        state_id = self._next_id
-        self._next_id += 1
-        leaf = _Leaf(state_id, mask)
-        self.leaves[state_id] = leaf
+    def _open_state(self, state_id, mask):
+        self.masks[state_id] = mask
         self.incoming[state_id] = set()
-        return leaf
-
-    def _enqueue_all_symbols(self, state_id):
         for c in range(self.pst.alphabet_size):
             self.queue.append((state_id, c))
 
@@ -107,56 +79,56 @@ class TransitionResolver:
         self.trans[(state_id, c)] = target
         self.incoming[target].add((state_id, c))
 
-    def _drop_state(self, state_id):
-        # Edges out of the state disappear; edges into it become ambiguous and are
-        # re-opened (closedness restoration).
+    def _reopen_edges(self, state_id):
+        # A split shrank ``state_id``'s membership, so both its outgoing edges
+        # (computed under the old, larger mask) and every edge into it (which may
+        # now belong to either side) must be re-resolved.
         for c in range(self.pst.alphabet_size):
             target = self.trans.pop((state_id, c), None)
             if target is not None:
                 self.incoming[target].discard((state_id, c))
+            self.queue.append((state_id, c))
         for src, c in list(self.incoming[state_id]):
             self.trans.pop((src, c), None)
             self.queue.append((src, c))
-        del self.incoming[state_id]
-        del self.leaves[state_id]
+        self.incoming[state_id] = set()
 
     # -- the resolution step ------------------------------------------------
 
     def _resolve(self, state_id, c):
         pst = self.pst
-        s_mask = self.leaves[state_id].mask
-        node = self.root
-        while isinstance(node, _Internal):
-            prepended = [[c] + list(v) for v in node.predicate.vs]
+        s_mask = self.masks[state_id]
+        node = self.tree.root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            # Resolving edge (state, c) reads the family one symbol deeper: c, then
+            # this node's own midfix, then each base suffix.
+            prepended = [c] + list(midfix)
+            vs = self.tree.suffixes(prepended)
             with np.errstate(invalid="ignore"):
-                decision = pst.compute_decision_from_strings(prepended, s_mask)
+                decision = pst.compute_decision_from_strings(vs, s_mask)
                 acc = decision >= pst.accept_thresh
                 rej = decision < pst.reject_thresh
             n_acc, n_rej = int(acc.sum()), int(rej.sum())
             if _splits(pst, n_acc, n_rej):
                 self._split(state_id, prepended, acc, rej)
                 return
-            node = node.acc if n_acc >= n_rej else node.rej
-        self._set_transition(state_id, c, node.state_id)
+            node = lookup[True] if n_acc >= n_rej else lookup[False]
+        self._set_transition(state_id, c, node)
 
-    def _split(self, state_id, prepended_vs, acc, rej):
-        # acc/rej are the split distinguisher's accept/reject calls over s's prefixes
-        # (the s_mask subset), handed down from _resolve so we don't recompute them.
+    def _split(self, state_id, midfix, acc, rej):
+        # acc/rej are the split family's accept/reject calls over this state's
+        # prefixes (the s_mask subset); scatter them back to full-pool masks.
         pst = self.pst
-        s_mask = self.leaves[state_id].mask
-        predicate = TriPredicate(prepended_vs, pst.accept_thresh, pst.reject_thresh)
+        s_mask = self.masks[state_id]
         acc_mask = np.zeros(pst.num_prefixes, dtype=bool)
         rej_mask = np.zeros(pst.num_prefixes, dtype=bool)
         acc_mask[s_mask] = acc
         rej_mask[s_mask] = rej
-        rej_leaf = self._new_leaf(rej_mask)
-        acc_leaf = self._new_leaf(acc_mask)
-        self.root = _replace_leaf(
-            self.root, state_id, _Internal(predicate, rej_leaf, acc_leaf)
-        )
-        self._drop_state(state_id)
-        self._enqueue_all_symbols(rej_leaf.state_id)
-        self._enqueue_all_symbols(acc_leaf.state_id)
+        new_id = self.tree.split(state_id, midfix)  # True (accept) keeps state_id
+        self.masks[state_id] = acc_mask
+        self._reopen_edges(state_id)
+        self._open_state(new_id, rej_mask)
 
     # -- driver -------------------------------------------------------------
 
@@ -165,24 +137,23 @@ class TransitionResolver:
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx)
         pst.decision_boundary = boundary
+        self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         all_prefixes = np.ones(pst.num_prefixes, dtype=bool)
         decision = pst.compute_decision(vs, all_prefixes)
         with np.errstate(invalid="ignore"):
             acc = decision >= pst.accept_thresh
             rej = decision < pst.reject_thresh
-        predicate = TriPredicate(
-            [pst.table.suffix(i) for i in vs], pst.accept_thresh, pst.reject_thresh
-        )
-        rej_leaf = self._new_leaf(all_prefixes & rej)
-        acc_leaf = self._new_leaf(all_prefixes & acc)
-        self.root = _Internal(predicate, rej_leaf, acc_leaf)
-        self._enqueue_all_symbols(rej_leaf.state_id)
-        self._enqueue_all_symbols(acc_leaf.state_id)
+        # Root ids match MidfixTree: 0 = accept (True side), 1 = reject (False side).
+        self._open_state(0, all_prefixes & acc)
+        self._open_state(1, all_prefixes & rej)
 
         while self.queue:
             state_id, c = self.queue.popleft()
-            if state_id not in self.leaves:
-                continue  # stale entry for a state that has since been split
+            # A stable-id split reuses state_id and re-opens its edges, so the same
+            # (state, c) can sit in the queue twice; skip one already resolved (a
+            # later split pops it from ``trans`` when it must be redone).
+            if (state_id, c) in self.trans:
+                continue
             self._resolve(state_id, c)
 
         return self._to_dfa_and_tree()
@@ -191,32 +162,19 @@ class TransitionResolver:
 
     def _to_dfa_and_tree(self):
         pst = self.pst
-        remap = {sid: i for i, sid in enumerate(sorted(self.leaves))}
-        n = len(remap)
-
-        def to_dt(node):
-            if isinstance(node, _Leaf):
-                return DecisionTreeLeafNode(remap[node.state_id])
-            return DecisionTreeInternalNode(
-                predicate=node.predicate,
-                by_rejection=(to_dt(node.rej), to_dt(node.acc)),
-            )
-
-        dt = to_dt(self.root)
+        n = self.tree.num_states
 
         transitions = {i: {} for i in range(n)}
         for (sid, c), target in self.trans.items():
-            transitions[remap[sid]][c] = remap[target]
+            transitions[sid][c] = target
 
-        # Accepting states are exactly the leaves on the accept side of the root
-        # distinguisher v_eps; splitting only refines a state, never its label.
-        accepting = set(to_dt(self.root.acc).collect_states())
+        accepting = self.tree.accepting_leaves()
 
         boundary = pst.decision_boundary
-        dt_decisive = dt.map_over_predicates(
-            lambda p: TriPredicate(p.vs, boundary, boundary)
+        decide, _ = oracle_decider(
+            pst.oracle, self.tree.base_family, boundary, boundary
         )
-        initial = dt_decisive.classify([], pst.oracle)
+        initial = self.tree.classify([], decide)
         if initial is None:
             initial = 0
 
@@ -228,9 +186,9 @@ class TransitionResolver:
             final_states=accepting,
             allow_partial=False,
         )
-        return dfa, dt
+        return dfa, self.tree
 
 
 def resolve_dfa(pst):
-    """Build the (DFA, DecisionTree) for the current prefix pool via the resolver."""
+    """Build the (DFA, MidfixTree) for the current prefix pool via the resolver."""
     return TransitionResolver(pst).build()
