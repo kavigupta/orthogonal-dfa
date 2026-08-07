@@ -136,10 +136,10 @@ def add_counterexample_prefixes(pst, dt, dfa, count):
 
 
 def locate_incorrect_point(classify, dfa, x, y, *, s0, s_end):
-    # ``classify`` is a ``seq -> leaf | None`` callable.  ``s0`` and ``s_end`` are
-    # ``classify(x)`` and ``classify(x + y)``, passed in so the caller can share them
-    # across many calls: estimate_agreement_rate holds ``x`` fixed (one ``s0`` for
-    # the whole loop) and batches the per-``y`` ``s_end`` through ``classify_many``.
+    # ``s0`` and ``s_end`` are ``classify(x)`` and ``classify(x + y)``, passed in so
+    # the caller can share them across many calls: estimate_agreement_rate holds
+    # ``x`` fixed (one ``s0`` for the whole loop) and batches the per-``y`` ``s_end``
+    # through ``classify_many``.
     if s0 is None:
         return None, "could not classify initial state"
     dfa_states_each = states_intermediate(s0, y, dfa)
@@ -290,9 +290,9 @@ def estimate_agreement_rate(
     sample past the stopping point -- same queries as the sequential loop, just
     grouped -- and needs no chunk-size constant.
     """
-    # The tree is read decisively (accept==reject==boundary).  This is the one place
-    # that needs the level-batched read as well as the single one, so it holds both
-    # deciders rather than a bundled classifier.
+    # Read decisively (accept==reject==boundary).  This is the only caller that also
+    # needs the level-batched read, so it builds both deciders here instead of a
+    # single-string classify closure.
     boundary = pst.decision_boundary
     decide, decide_level = oracle_decider(oracle, tree.base_family, boundary, boundary)
 
