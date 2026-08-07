@@ -55,9 +55,8 @@ class SearchConfig:
     fnr_limit: float = 0.02
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    #: Chance of screening out a suffix that does belong to the family.  Spent
-    #: across the whole staircase, not per test.  Raising it rejects more of the
-    #: population on fewer prefixes; the cost of a mistake is one extra draw.
+    #: Chance of screening out a suffix that does belong, spent across the
+    #: whole staircase rather than per test.
     screening_alpha: float = 0.1
 
 
@@ -151,37 +150,14 @@ class PrefixSuffixTracker:
         return out
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows whose membership pattern is still explicable as
-        ``reference``'s plus per-cell noise, after testing the whole cohort on a
-        growing subset of prefixes and dropping each row at the first subset that
-        settles it.
-
-        A suffix in the same family as ``reference`` induces the same accept /
-        reject labelling of the prefixes, so the two columns differ only where
-        one of the two queries was flipped -- a rate of ``2*eta*(1-eta)``, with
-        ``eta`` the per-query noise.  ``min_signal_strength`` lower-bounds the
-        signal, hence upper-bounds ``eta``, so this null holds without knowing
-        anything about the family being assembled; a candidate significantly
-        above it is not in the family and does not need its remaining cells.
-
-        The cohort shares one prefix ordering, which is what lets a whole
-        staircase step go to the oracle as a single batch -- one call per step
-        rather than one per candidate.  Each row is still judged only on its own
-        disagreement count, so the decisions are the ones a per-candidate screen
-        would make.
-
-        Only representative prefixes are used, matching the population the
-        clustering and the decision boundary are calibrated over.
-        """
+        """The rows still explicable as ``reference`` plus per-cell noise, which
+        flips one of the two observations at rate ``2*eta*(1-eta)``."""
         eta = 0.5 - self.config.min_signal_strength
         same_family_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        # The staircase gets one shot at rejecting per step, so the per-test rate
-        # has to be the budget split across them for screening_alpha to mean what
-        # it says.
         alpha = self.config.screening_alpha / len(staircase)
         alive = list(rows)
         for p in staircase:
@@ -246,24 +222,8 @@ class PrefixSuffixTracker:
         self.table.add_prefixes(sorted(list(x) for x in new_prefixes))
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
-        """Grow the pool of clustering candidates by ``amount``.
-
-        ``amount`` counts survivors, not draws: the caller loops until the pool
-        supports a family of ``suffix_family_size`` and treats a round that
-        grows it less as failure to progress, so a screened round has to deliver
-        as much as an unscreened one did -- it just pays a screening subset per
-        rejection instead of a full column.
-
-        Draws are capped using ``min_suffix_frequency``, the assumed floor on
-        how often a family member comes up, so a reference that nothing matches
-        cannot spin here forever.
-
-        Candidates are drawn and screened a cohort at a time so each staircase
-        step is one oracle call for the whole cohort.  A cohort's survivors are
-        all completed even if that overshoots ``amount``: they passed, and
-        stranding a passed suffix half-observed would waste the screening
-        already paid for and lose it for good, since it can never be redrawn.
-        """
+        """Grow the pool of clustering candidates by ``amount`` suffixes that
+        survive screening against ``reference``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
@@ -278,10 +238,8 @@ class PrefixSuffixTracker:
                     else self._screen_cohort(cohort, reference)
                 )
                 if survivors:
-                    # Fully observe them, so they can be used in clustering.  The
-                    # ones the screen dropped keep the cells it paid for and stay
-                    # out of fully_observed(), so they are neither clustering
-                    # candidates nor columns add_prefixes has to top up.
+                    # The dropped ones stay partial, keeping them out of
+                    # fully_observed() and so out of add_prefixes' top-ups.
                     self.table.observed_masks(survivors, every)
                 kept += len(survivors)
                 pbar.update(len(survivors))
