@@ -44,10 +44,8 @@ def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
 
 def classify_pool(pst, tree, *, accept, reject):
     """
-    Classify every prefix in the pool to its leaf (or -1 if undecided) straight from
-    the cached prefix x suffix mask matrix, no oracle queries. accept / reject are the
-    thresholds every node is read at: the PST's margins for a discovery-time tree, or
-    the boundary for a decisive read.
+    Classify every prefix in the pool to its leaf (or -1 if undecided), from
+    the cached mask matrix. Uses accept and reject thresholds.
     """
 
     def decide_columns(midfix):
@@ -185,8 +183,7 @@ def generate_counterexamples(pst, us, oracle, tree, dfa, *, count):
     effective_p = 0.5 + pst.config.min_signal_strength
     per_node_budget = counterexample_fpr / max(num_node_decisions, 1)
     scaled_suffix_size = _compute_sfx(per_node_budget, effective_p)
-    # Both read the tree decisively (accept==reject==boundary); the reduced one uses
-    # a shorter slice of the family for a cheaper, noise-tolerant classification.
+    # Both are decisive, reduced is more efficient
     reduced = _oracle_classify(
         tree, oracle, accept=boundary, reject=boundary, suffix_limit=scaled_suffix_size
     )
@@ -288,9 +285,6 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     sample past the stopping point -- same queries as the sequential loop, just
     grouped -- and needs no chunk-size constant.
     """
-    # Read decisively (accept==reject==boundary).  This is the only caller that also
-    # needs the level-batched read, so it builds both deciders here instead of a
-    # single-string classify closure.
     boundary = pst.decision_boundary
     decide, decide_level = oracle_decider(oracle, tree.base_family, boundary, boundary)
 
