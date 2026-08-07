@@ -68,12 +68,18 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
 #: queries, far short of E-L*'s millions, and the comparison would be vacuous.
 #: `max_iters` is raised for the same reason: the run should end because the
 #: budget ran out, not because the iteration cap did.
+#:
+#: Every knob here is at or above the sweep's range, so this cannot be read as
+#: CAPAL being under-provisioned on some axis relative to experiment 3:
+#: `suffix_pool_len_max` matches the sweep's 24, `max_same_samples` is 8x its
+#: top, and `enum_depth`/`extra_len_max` are above the defaults the sweep holds
+#: them at.
 MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
-        "matched,enum=8,extra=16,pool=16,m=2000",
+        "matched,enum=8,extra=16,pool=24,m=2000",
         dict(
             max_same_samples=2000,
-            suffix_pool_len_max=16,
+            suffix_pool_len_max=24,
             enum_depth=8,
             extra_len_max=16,
             max_iters=10_000,
