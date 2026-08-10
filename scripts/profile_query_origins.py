@@ -89,7 +89,7 @@ SUFFIX_TRIGGERS = [
     "compute_fnr",
     "_resolve",
     "_split",
-    "classify_states_with_decision_tree",
+    "classify_pool",
     "_sample_suffix",
     "sample_more_suffixes",
     "sample_suffix_family",
@@ -135,14 +135,16 @@ class ProfilingOracle(Oracle):
             depth += 1
         name_set = set(names)
         # Attribute by role, checking in priority order so the layout doesn't
-        # matter. DT classify and denoise query the oracle directly. A new prefix
+        # matter. Tree classify and denoise query the oracle directly. A new prefix
         # row is checked before the column sites because in the eager layout the
         # row query still passes through `_query` (add_prefixes -> _query).
-        if name_set & {"predict", "classify_many"}:
+        # Single-string classify queries inside the oracle_decider `decide` closure
+        # under MidfixTree.classify; the batched path under classify_many.
+        if name_set & {"classify", "classify_many"}:
             phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
             sub = f" [locate L{locate_line}]" if locate_line else ""
             how = "batched" if "classify_many" in name_set else "one string"
-            return f"DT classify {how} <- {phase}{sub}"
+            return f"tree classify {how} <- {phase}{sub}"
         if "relabel" in name_set:
             return "denoise: fresh samples per state (relabel)"
         if "add_prefixes" in name_set:
