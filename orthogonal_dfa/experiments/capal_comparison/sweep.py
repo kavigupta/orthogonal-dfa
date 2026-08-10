@@ -11,7 +11,7 @@ import itertools
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Callable, Dict, List, Sequence
+from typing import Any, Callable, Dict, List, Sequence
 
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
@@ -34,6 +34,30 @@ SEEDS = [0]
 LEARNERS = [LEARNER_CAPAL, LEARNER_ELSTAR]
 
 
+def capal_cell(
+    b: Benchmark,
+    *,
+    eta: float,
+    seed: int,
+    words: Sequence[List[int]],
+    truth: Callable[[List[int]], bool],
+    **learner_kwargs: Any,
+) -> Cell:
+    """CAPAL on one benchmark cell. The single call site, so the sweep and the
+    head-to-head drivers cannot drift apart in how they invoke it."""
+    return run_capal_cell(
+        b.target,
+        benchmark=b.name,
+        family=b.family,
+        eta=eta,
+        seed=seed,
+        words=words,
+        truth=truth,
+        alphabet=b.alphabet,
+        **learner_kwargs,
+    )
+
+
 def run_cell(
     b: Benchmark,
     *,
@@ -50,16 +74,7 @@ def run_cell(
     everything; E-L* runs only where that report says it is in regime.
     """
     if learner == LEARNER_CAPAL:
-        return run_capal_cell(
-            b.target,
-            benchmark=b.name,
-            family=b.family,
-            eta=eta,
-            seed=seed,
-            words=words,
-            truth=truth,
-            alphabet=b.alphabet,
-        )
+        return capal_cell(b, eta=eta, seed=seed, words=words, truth=truth)
     if regime.satisfied:
         return run_elstar_cell(
             b.oracle_creator,

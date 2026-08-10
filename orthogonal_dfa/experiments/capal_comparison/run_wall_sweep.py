@@ -33,15 +33,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .core import (
-    REPO_ROOT,
-    Cell,
-    eval_words,
-    run_capal_cell,
-    run_elstar_cell,
-    write_experiment,
-)
+from .core import REPO_ROOT, Cell, eval_words, write_experiment
 from .our_targets import our_benchmarks
+from .sweep import capal_cell
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
@@ -140,11 +134,6 @@ def main() -> None:
         "budget (slow); defaults to eta=0.30 and its own output file.",
     )
     ap.add_argument(
-        "--with-elstar",
-        action="store_true",
-        help="Also run one E-L* reference per (cell, eta). Slow.",
-    )
-    ap.add_argument(
         "--configs",
         nargs="+",
         default=None,
@@ -177,7 +166,6 @@ def main() -> None:
         "benchmarks": [b.name for b in benchmarks],
         "configs": [label for label, _ in sweep_configs],
         "matched_budget": args.matched_budget,
-        "with_elstar": args.with_elstar,
     }
 
     description = (
@@ -219,15 +207,12 @@ def main() -> None:
                 if args.matched_budget and budget is None:
                     print("   skipped: E-L* has no spend recorded here", flush=True)
                     continue
-                cell = run_capal_cell(
-                    b.target,
-                    benchmark=b.name,
-                    family=b.family,
+                cell = capal_cell(
+                    b,
                     eta=eta,
                     seed=seed,
                     words=words,
                     truth=truth,
-                    alphabet=b.alphabet,
                     query_budget=budget,
                     **kwargs,
                 )
@@ -239,23 +224,6 @@ def main() -> None:
                     f"mq={cell.queries_total} eq={cell.equivalence_queries} ({cell.seconds:.1f}s)",
                     flush=True,
                 )
-                flush()
-
-            if args.with_elstar:
-                print(f"[E-L*] {b.name} eta={eta:.2f} reference", flush=True)
-                cell = run_elstar_cell(
-                    b.oracle_creator,
-                    benchmark=b.name,
-                    family=b.family,
-                    eta=eta,
-                    seed=0,
-                    symbols=b.symbols,
-                    words=words,
-                    truth=truth,
-                    target_states=b.target_states,
-                )
-                cell.learner_config["label"] = "E-L* reference"
-                cells.append(cell)
                 flush()
 
     flush(complete=True)
