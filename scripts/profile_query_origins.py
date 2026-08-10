@@ -73,11 +73,14 @@ BENCHMARKS = {
 # A new-suffix-column query goes through one of these functions.
 COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 
-# For predict, the enclosing high-level phase (searched outward, first match wins).
-PREDICT_PHASES = [
+# For a tree classify, the enclosing high-level phase (searched outward, first match
+# wins). "build" catches the resolver's initial-state classify in _to_dfa_and_tree,
+# which otherwise falls to "other".
+CLASSIFY_PHASES = [
     "estimate_agreement_rate",
     "generate_counterexamples",
     "enrich_underrepresented_leaves",
+    "build",
 ]
 
 # For a new-suffix column, the method that needed the suffix (searched outward,
@@ -141,7 +144,7 @@ class ProfilingOracle(Oracle):
         # Single-string classify queries inside the oracle_decider `decide` closure
         # under MidfixTree.classify; the batched path under classify_many.
         if name_set & {"classify", "classify_many"}:
-            phase = next((p for p in PREDICT_PHASES if p in name_set), "other")
+            phase = next((p for p in CLASSIFY_PHASES if p in name_set), "other")
             sub = f" [locate L{locate_line}]" if locate_line else ""
             how = "batched" if "classify_many" in name_set else "one string"
             return f"tree classify {how} <- {phase}{sub}"
