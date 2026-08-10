@@ -67,7 +67,12 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
 #: spend the budget -- at its shipped settings it stops after a few thousand
 #: queries, far short of E-L*'s millions, and the comparison would be vacuous.
 #: `max_iters` is raised for the same reason: the run should end because the
-#: budget ran out, not because the iteration cap did.
+#: budget ran out, not because the iteration cap did. 500 is well clear of what
+#: a productive run needs -- the parity cells spend their whole budget in 6 to 8
+#: iterations -- and a stalled run gets no value from more: on
+#: regex_alt_111_or_000_3sym the distinct-query count and the learned automaton
+#: are identical at 50 iterations and at 10000, so the extra rounds only cost
+#: wall clock.
 #:
 #: Every knob here is at or above the sweep's range, so this cannot be read as
 #: CAPAL being under-provisioned on some axis relative to experiment 3:
@@ -82,7 +87,7 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
             suffix_pool_len_max=24,
             enum_depth=8,
             extra_len_max=16,
-            max_iters=10_000,
+            max_iters=500,
         ),
     ),
 ]
