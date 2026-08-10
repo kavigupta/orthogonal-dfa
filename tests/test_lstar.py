@@ -4,6 +4,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
+from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_sample_budget
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     sample_balanced_benchmark,
@@ -14,7 +15,6 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_sample_budget
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import counterexample_search_exhausted
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
