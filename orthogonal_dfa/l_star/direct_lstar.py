@@ -25,8 +25,8 @@ Driving the learner in rounds -- resampling the family until it can place the
 strings it could not -- is :mod:`orthogonal_dfa.l_star.fnr_synthesis`, which the
 learner knows nothing about.
 
-``to_dfa_and_tree`` exports the result in the same ``(DFA, DecisionTree)`` shape
-as ``resolve_dfa``, so it is a drop-in alternative.
+``to_dfa_and_tree`` exports the result in the same ``(DFA, MidfixTree)`` shape as
+``resolve_dfa``, so it is a drop-in alternative.
 """
 
 from typing import List, Optional, Set, Tuple
@@ -34,11 +34,10 @@ from typing import List, Optional, Set, Tuple
 from automata.fa.dfa import DFA
 
 from .edge_resolver import EdgeResolver
-from .midfix_tree import MidfixTree
+from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
 from .sifting import Sifter
 from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
-from .structures import DecisionTree, TriPredicate
 from .suffix_family import SuffixFamily
 
 # Outcome of processing one probe (see DirectLStarLearner.process):
@@ -79,8 +78,10 @@ class DirectLStarLearner:
         self.family = SuffixFamily(pst, vs)
 
         # The discrimination tree owns the structure -- midfixes, branches and
-        # leaves -- and calls back into is_accept for every classification.
-        self.tree = MidfixTree()
+        # leaves -- and calls back into is_accept for every classification. Its
+        # base family is the round's suffixes, so the exported tree can be re-read
+        # decisively (via oracle_decider) for the accuracy estimate.
+        self.tree = MidfixTree([pst.table.suffix(v) for v in vs])
 
         # The partial transition function, its witnesses and the queue of edges
         # still to resolve.
@@ -320,8 +321,8 @@ class DirectLStarLearner:
 
     # -- export -------------------------------------------------------------
 
-    def to_dfa_and_tree(self) -> Tuple[DFA, DecisionTree]:
-        """Export the learned automaton as ``(DFA, DecisionTree)``, matching the
+    def to_dfa_and_tree(self) -> Tuple[DFA, MidfixTree]:
+        """Export the learned automaton as ``(DFA, MidfixTree)``, matching the
         shape returned by ``resolve_dfa``."""
         return export_dfa(
             self.tree,
@@ -332,8 +333,8 @@ class DirectLStarLearner:
         )
 
 
-def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, DecisionTree]:
-    """The learned automaton as ``(DFA, DecisionTree)``.
+def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, MidfixTree]:
+    """The learned automaton as ``(DFA, MidfixTree)``.
 
     ``decisive_target(state, symbol)`` fills an edge the worklist left open,
     returning ``None`` when the leaf is wholly indecisive -- only such an edge
@@ -345,17 +346,13 @@ def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, Decisi
             "falling back to a self-loop"
         )
 
-    def predicate_for(midfix) -> TriPredicate:
-        return TriPredicate(
-            [list(midfix) + pst.table.suffix(v) for v in family.vs],
-            pst.accept_thresh,
-            pst.reject_thresh,
-        )
-
-    dt = tree.to_decision_tree(predicate_for)
+    # Read the tree decisively (accept==reject==boundary) for the initial state,
+    # over the round's family behind each midfix -- the same distinguishers the
+    # learner classified with.
     boundary = pst.decision_boundary
-    dt_decisive = dt.map_over_predicates(lambda p, b=boundary: TriPredicate(p.vs, b, b))
-    initial = dt_decisive.classify([], pst.oracle)
+    base_family = [pst.table.suffix(v) for v in family.vs]
+    decide, _ = oracle_decider(pst.oracle, base_family, boundary, boundary)
+    initial = tree.classify([], decide)
     dfa = DFA(
         states=set(range(tree.num_states)),
         input_symbols=set(range(pst.alphabet_size)),
@@ -364,4 +361,4 @@ def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, Decisi
         final_states=tree.accepting_leaves(),
         allow_partial=False,
     )
-    return dfa, dt
+    return dfa, tree

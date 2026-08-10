@@ -6,14 +6,9 @@ import numpy as np
 
 from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
+from orthogonal_dfa.l_star.midfix_tree import MidfixTree, oracle_decider
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
-from orthogonal_dfa.l_star.structures import (
-    DecisionTreeInternalNode,
-    DecisionTreeLeafNode,
-    Oracle,
-    TriPredicate,
-    classify_many,
-)
+from orthogonal_dfa.l_star.structures import Oracle
 
 
 class HashOracle(Oracle):
@@ -32,17 +27,14 @@ class HashOracle(Oracle):
         return super().membership_queries(strings)
 
 
-def random_tree(rng, depth, next_state):
-    if depth == 0:
-        next_state[0] += 1
-        return DecisionTreeLeafNode(next_state[0] - 1)
-    vs = [list(rng.integers(0, 2, size=int(rng.integers(1, 4)))) for _ in range(5)]
-    # Half decisive, half tri-state, so the None ("could not classify") path is hit.
-    a, r = (0.5, 0.5) if rng.random() < 0.5 else (0.7, 0.3)
-    return DecisionTreeInternalNode(
-        TriPredicate(vs, a, r),
-        tuple(random_tree(rng, depth - 1, next_state) for _ in range(2)),
-    )
+def random_midfix_tree(rng, num_splits):
+    base = [list(rng.integers(0, 2, size=int(rng.integers(1, 4)))) for _ in range(5)]
+    tree = MidfixTree(base)
+    for _ in range(num_splits):
+        state = int(rng.choice(list(tree.leaves())))
+        midfix = list(rng.integers(0, 2, size=int(rng.integers(0, 3))))
+        tree.split(state, midfix)
+    return tree
 
 
 class TestClassifyMany(unittest.TestCase):
@@ -50,14 +42,19 @@ class TestClassifyMany(unittest.TestCase):
         rng = np.random.default_rng(0)
         saw_none = False
         for _ in range(25):
-            tree = random_tree(rng, 3, [0])
+            tree = random_midfix_tree(rng, 6)
+            # Half decisive, half tri-state, so the None ("could not classify")
+            # path is hit.
+            accept, reject = (0.5, 0.5) if rng.random() < 0.5 else (0.7, 0.3)
             strings = [
                 list(rng.integers(0, 2, size=int(rng.integers(0, 8))))
                 for _ in range(40)
             ]
             per_string, batched = HashOracle(), HashOracle()
-            expected = [tree.classify(s, per_string) for s in strings]
-            self.assertEqual(expected, classify_many(tree, strings, batched))
+            decide, _ = oracle_decider(per_string, tree.base_family, accept, reject)
+            _, decide_level = oracle_decider(batched, tree.base_family, accept, reject)
+            expected = [tree.classify(s, decide) for s in strings]
+            self.assertEqual(expected, tree.classify_many(strings, decide_level))
             # Same work, far fewer calls: one per tree level rather than per string.
             self.assertEqual(sum(per_string.calls), sum(batched.calls))
             self.assertLessEqual(len(batched.calls), tree.depth)
@@ -65,16 +62,10 @@ class TestClassifyMany(unittest.TestCase):
         self.assertTrue(saw_none, "no undecided classification exercised")
 
     def test_empty(self):
-        tree = random_tree(np.random.default_rng(0), 2, [0])
+        tree = random_midfix_tree(np.random.default_rng(0), 3)
         oracle = HashOracle()
-        self.assertEqual([], classify_many(tree, [], oracle))
-        self.assertEqual([], oracle.calls)
-
-    def test_leaf_root(self):
-        oracle = HashOracle()
-        self.assertEqual(
-            [7, 7], classify_many(DecisionTreeLeafNode(7), [[0], [1]], oracle)
-        )
+        _, decide_level = oracle_decider(oracle, tree.base_family, 0.5, 0.5)
+        self.assertEqual([], tree.classify_many([], decide_level))
         self.assertEqual([], oracle.calls)
 
 

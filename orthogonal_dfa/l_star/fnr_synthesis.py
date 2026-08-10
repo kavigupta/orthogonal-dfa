@@ -20,8 +20,8 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .direct_lstar import DirectLStarLearner
+from .midfix_tree import MidfixTree
 from .split_evidence import DEFAULT_SPLIT_MISS_RATE
-from .structures import DecisionTree, TriPredicate
 
 
 def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
@@ -146,19 +146,18 @@ def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_
     return learner, dfa, dt
 
 
-def _estimate_accuracy(pst, dfa, dt, acc_threshold: float) -> float:
+def _estimate_accuracy(pst, dfa, tree, acc_threshold: float) -> float:
     """Agreement between the exported DFA and the tree read decisively -- the
-    termination test.  The tree is re-read with both thresholds at the decision
-    boundary so it answers every string rather than abstaining."""
+    termination test.  ``estimate_agreement_rate`` re-reads the tree with both
+    thresholds at the decision boundary so it answers every string rather than
+    abstaining."""
     from .lstar import estimate_agreement_rate
 
-    boundary = pst.decision_boundary
-    decisive = dt.map_over_predicates(lambda p, b=boundary: TriPredicate(p.vs, b, b))
     return estimate_agreement_rate(
         pst,
         pst.sampler,
         pst.oracle,
-        decisive,
+        tree,
         dfa,
         num_samples=2000,
         acc_threshold=acc_threshold,
@@ -190,7 +189,7 @@ def synthesize_direct_lstar_fnr(
     stall_patience: int = 2,
     split_fpr: Optional[float] = None,
     split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
-) -> Tuple[DFA, DecisionTree]:
+) -> Tuple[DFA, MidfixTree]:
     """Learn a DFA, forcing the suffix family to resolve boundary states.
 
     Each round, the strings the family cannot classify (``sift -> None`` --

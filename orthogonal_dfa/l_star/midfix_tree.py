@@ -1,29 +1,27 @@
-"""The discrimination tree direct-L* sifts against.
+"""
+The discrimination tree the direct-L* learner and the transition resolver build.
 
-Internal nodes are *midfixes*.  A node's midfix ``p`` classifies a string ``s``
-by the family membership of ``s + p + v`` over the base suffixes ``v`` -- so ``p``
-sits between the string and each suffix, hence the name.  Leaves are state ids.
+Internal nodes are midfixes. A node's midfix p classifies a string s by the family
+membership of s + p + v over the base suffixes v, so p sits between the string and
+each suffix, hence the name. Leaves are DFA state ids.
 
-The tree owns *structure* only: which midfix cuts where, and which leaf a branch
-lands in.  Every classification is delegated to a caller-supplied
+The tree owns structure only: which midfix cuts where, and which leaf a branch lands
+in. Reading a node is delegated to a caller-supplied decision callback, against the
+oracle for a fresh string or against the cached mask matrix for the whole prefix
+pool, so the thresholds and the query mechanism stay with the caller.
 
-    decide(seq, midfix) -> True | False | None
-
-so the oracle, the query caching and the accept/reject thresholds all stay with
-the learner.  ``None`` means the family cannot place ``seq`` at that node, and a
-sift that meets one reports the boundary string it died on rather than a leaf.
-
-Splitting only ever refines a leaf, which is what lets the learner keep its
-transition function: the accept side of the root stays the accept side forever,
-and every id in ``range(num_states)`` is always a live leaf.
+Splitting only ever refines a leaf. The accept side of the root stays the accept side
+forever, so accepting_leaves needs no per-node labels; and the accept branch reuses
+the split leaf's id, so every id in range(num_states) is always a live leaf and the
+ids need no remapping on export.
 """
 
 from typing import Callable, Iterator, List, Optional, Tuple
 
-from .structures import DecisionTree, DecisionTreeInternalNode, DecisionTreeLeafNode
+import numpy as np
 
-# A leaf is an ``int`` state id; an internal node is
-# ``(midfix, {True: accept_child, False: reject_child})``.
+# A leaf is an int state id; an internal node is
+# (midfix, {True: accept_child, False: reject_child}).
 Node = object
 
 Decide = Callable[[List[int], tuple], Optional[bool]]
@@ -48,10 +46,24 @@ def _replace_leaf(node: Node, state: int, new_node: Node) -> Node:
     )
 
 
-class MidfixTree:
-    """Discrimination tree over midfixes; see the module docstring."""
+def _depth(node: Node) -> int:
+    if isinstance(node, int):
+        return 0
+    _, lookup = node
+    return 1 + max(_depth(child) for child in lookup.values())
 
-    def __init__(self):
+
+class MidfixTree:
+    """
+    Discrimination tree over midfixes; see the module docstring.
+
+    base_family is the suffix family the midfixes are read against. The learner
+    classifies through its own decide callback and does not need it, so it defaults
+    to empty; the resolver and the accuracy estimate read it via suffixes().
+    """
+
+    def __init__(self, base_family: List[List[int]] = ()):
+        self.base_family = [list(v) for v in base_family]
         # The empty midfix splits accept (state 0) from reject (state 1).
         self._root: Node = ((), {True: 0, False: 1})
         self.num_states = 2
@@ -60,23 +72,32 @@ class MidfixTree:
 
     @property
     def root(self) -> Node:
-        """The raw root node, for renderers that draw the structure itself.
-        Everything else should go through the methods below."""
+        """
+        The raw root node, for renderers that draw the structure itself.
+        """
         return self._root
 
     def leaves(self) -> Iterator[int]:
         return _leaves(self._root)
 
     def accepting_leaves(self) -> set:
-        """The leaves on the accept side of the root, i.e. the accepting states.
-        Sound because a split only refines a leaf, never moves it across."""
+        """
+        The leaves on the accept side of the root, i.e. the accepting states. Sound
+        because a split only refines a leaf, never moves it across.
+        """
         _, lookup = self._root
         return set(_leaves(lookup[True]))
 
+    @property
+    def depth(self) -> int:
+        return _depth(self._root)
+
     def split(self, state: int, midfix) -> int:
-        """Refine leaf ``state`` into ``{True: state, False: new}`` under
-        ``midfix``, returning the new state id.  The True branch reuses the old
-        id so the learner's existing references to ``state`` stay valid."""
+        """
+        Refine leaf state into {True: state, False: new} under midfix, returning the
+        new state id. The accept branch reuses the old id so existing references to
+        state stay valid.
+        """
         new_state = self.num_states
         self.num_states += 1
         self._root = _replace_leaf(
@@ -84,15 +105,23 @@ class MidfixTree:
         )
         return new_state
 
-    # -- classification -----------------------------------------------------
+    def suffixes(self, midfix) -> List[List[int]]:
+        """
+        The node's distinguisher family: each base suffix behind midfix.
+        """
+        return [list(midfix) + v for v in self.base_family]
+
+    # -- classification (learner: sift, with boundary reporting) ------------
 
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[tuple]]:
-        """Route ``seq`` to a leaf.  Returns ``(state, None)`` when it lands
-        decisively, or ``(None, boundary)`` when some node cannot place it.
+        """
+        Route seq to a leaf. Returns (state, None) when it lands decisively, or
+        (None, boundary) when some node cannot place it.
 
-        The boundary is ``seq + midfix``, not ``seq``: the indecision is over
-        ``seq + midfix + v``, so it is ``seq + midfix`` that the family failed on
-        and that the caller can enrich the next family against."""
+        The boundary is seq + midfix, not seq: the indecision is over seq + midfix + v,
+        so it is seq + midfix that the family failed on and that the caller can enrich
+        the next family against.
+        """
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
@@ -103,12 +132,13 @@ class MidfixTree:
         return node, None
 
     def sift_levels(self, seqs, decide: Decide) -> Iterator[List[Tuple[tuple, tuple]]]:
-        """Walk ``seqs`` down the tree in lockstep, yielding each level's
-        ``(seq, midfix)`` pairs *before* that level's decisions are read.
+        """
+        Walk seqs down the tree in lockstep, yielding each level's (seq, midfix) pairs
+        before that level's decisions are read.
 
-        A caller can therefore warm a cache one batch per level and still visit
-        exactly the nodes the individual sifts would -- the batching costs no
-        extra queries."""
+        A caller can therefore warm a cache one batch per level and still visit exactly
+        the nodes the individual sifts would -- the batching costs no extra queries.
+        """
         level = [(self._root, [tuple(s) for s in seqs])]
         while level:
             pairs = [
@@ -134,13 +164,15 @@ class MidfixTree:
             level = nxt
 
     def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
-        """The midfix separating ``s`` and ``sprime``, or ``None``.
+        """
+        The midfix separating s and sprime, or None.
 
-        Both currently sift to the same leaf, but ``s + prefix`` and
-        ``sprime + prefix`` are known to reach different leaves.  Walk down the
-        branch where they still agree; the first node where they disagree yields
-        the separating midfix ``prefix + node midfix``.  ``None`` when a needed
-        classification is indecisive, or when they agree all the way to a leaf."""
+        Both currently sift to the same leaf, but s + prefix and sprime + prefix are
+        known to reach different leaves. Walk down the branch where they still agree;
+        the first node where they disagree yields the separating midfix prefix + node
+        midfix. None when a needed classification is indecisive, or when they agree all
+        the way to a leaf.
+        """
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
@@ -153,20 +185,103 @@ class MidfixTree:
             node = lookup[d]
         return None
 
-    # -- export -------------------------------------------------------------
+    # -- classification (resolver: classify, leaf ids only) -----------------
 
-    def to_decision_tree(self, predicate_for) -> DecisionTree:
-        """Convert to the generic :class:`DecisionTree`, with
-        ``predicate_for(midfix)`` supplying each internal node's predicate."""
+    def classify(self, seq, decide: Decide) -> Optional[int]:
+        """
+        Route seq to a leaf, or None when a node's decide callback abstains.
+        """
+        return self.sift(seq, decide)[0]
 
-        def convert(node: Node) -> DecisionTree:
+    def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
+        """
+        Like [classify(s) for s in seqs] but with the reads batched one level at a
+        time: decide_level gets every (seq, midfix) at the current level and returns
+        their decisions, so a batching oracle spends one call per level rather than one
+        per node. A None decision drops that string (its result stays None).
+        """
+        out: List[Optional[int]] = [None] * len(seqs)
+        active = [(self._root, i) for i in range(len(seqs))]
+        while active:
+            pairs: List[Tuple[list, tuple]] = []
+            meta = []
+            for node, i in active:
+                if isinstance(node, int):
+                    out[i] = node
+                else:
+                    midfix, lookup = node
+                    pairs.append((seqs[i], midfix))
+                    meta.append((lookup, i))
+            if not pairs:
+                break
+            nxt = []
+            for (lookup, i), decision in zip(meta, decide_level(pairs)):
+                if decision is not None:
+                    nxt.append((lookup[decision], i))
+            active = nxt
+        return out
+
+    def classify_pool(self, num_prefixes: int, decide_columns) -> np.ndarray:
+        """
+        Classify a whole fixed population at once. decide_columns(midfix) returns the
+        (accept, reject) boolean columns over all num_prefixes for that node's family,
+        read straight off a cached mask matrix with no oracle. A prefix an ancestor
+        abstained on stays -1.
+        """
+
+        def recurse(node: Node) -> np.ndarray:
             if isinstance(node, int):
-                return DecisionTreeLeafNode(node)
+                return np.full(num_prefixes, node)
             midfix, lookup = node
-            # by_rejection is (if rejected, if accepted).
-            return DecisionTreeInternalNode(
-                predicate=predicate_for(midfix),
-                by_rejection=(convert(lookup[False]), convert(lookup[True])),
-            )
+            acc, rej = decide_columns(midfix)
+            results = np.full(num_prefixes, -1)
+            results[rej] = recurse(lookup[False])[rej]
+            results[acc] = recurse(lookup[True])[acc]
+            return results
 
-        return convert(self._root)
+        return recurse(self._root)
+
+    def render(self, render_midfix, indent=0) -> List[str]:
+        def recurse(node: Node, indent: int) -> List[str]:
+            pad = " " * indent
+            if isinstance(node, int):
+                return [f"{pad}State {node}"]
+            midfix, lookup = node
+            lines = [f"{pad}{render_midfix(midfix)}:"]
+            lines += recurse(lookup[False], indent + 4)
+            lines += recurse(lookup[True], indent + 4)
+            return lines
+
+        return recurse(self._root, indent)
+
+
+def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: float):
+    """
+    Reads a midfix node against the oracle, returning a (decide, decide_level) pair.
+    Both query s + midfix + v over base_family and threshold the mean the same way
+    (> accept accepts, < reject rejects, the band between abstains); decide scores one
+    string, decide_level scores a whole level in one batched call for classify_many.
+    """
+
+    def verdict(mean: float) -> Optional[bool]:
+        if mean > accept:
+            return True
+        if mean < reject:
+            return False
+        return None
+
+    def decide(seq, midfix) -> Optional[bool]:
+        vs = [list(seq) + list(midfix) + v for v in base_family]
+        return verdict(float(np.mean(oracle.membership_queries(vs))))
+
+    def decide_level(pairs) -> List[Optional[bool]]:
+        queries, spans = [], []
+        for seq, midfix in pairs:
+            lo = len(queries)
+            queries.extend(list(seq) + list(midfix) + v for v in base_family)
+            spans.append((lo, len(queries)))
+        answers = np.asarray(oracle.membership_queries(queries))
+        assert len(answers) == len(queries), "oracle dropped answers"
+        return [verdict(float(answers[lo:hi].mean())) for lo, hi in spans]
+
+    return decide, decide_level
