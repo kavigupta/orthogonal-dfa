@@ -6,6 +6,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
+from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree, oracle_decider
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import Oracle
@@ -145,32 +146,6 @@ class TestMaskTableBatching(unittest.TestCase):
         self.assertEqual([int((~table.representative).sum())], oracle.calls)
         self.assertIn(row, list(table.fully_observed()))
 
-    def test_membership_caches_batches_and_leaves_the_grid_alone(self):
-        # Strings that are not (prefix, suffix) cells -- a sift touches a fresh one
-        # per tree node -- are held sparsely, so asking about them must not add
-        # rows, disturb a column's candidacy, or re-query anything.
-        oracle, table = self._table()
-        row = table.intern_suffix([1, 1])
-        table.column(row)
-        prefixes_before, candidates_before = table.num_prefixes, list(
-            table.fully_observed()
-        )
-
-        strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
-        oracle.calls.clear()
-        bits = table.membership(strings)
-        self.assertEqual([oracle.membership_query(s) for s in strings], bits)
-        self.assertEqual([2], oracle.calls, "one batched call, deduped")
-
-        # A repeat costs nothing.
-        oracle.calls.clear()
-        self.assertEqual(bits, table.membership(strings))
-        self.assertEqual([], oracle.calls)
-
-        # And the grid is untouched.
-        self.assertEqual(prefixes_before, table.num_prefixes)
-        self.assertEqual(candidates_before, list(table.fully_observed()))
-
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
         rows = [table.intern_suffix([1]), table.intern_suffix([0, 0])]
@@ -241,6 +216,21 @@ class TestBatchBeforePossibleStop(unittest.TestCase):
         self.assertEqual(
             5, _batch_before_possible_stop(0, 0, self.boundary, self.min_valid, 5)
         )
+
+
+class TestMemoizedOracle(unittest.TestCase):
+    def test_caches_batches_and_dedupes(self):
+        oracle = HashOracle()
+        memo = MemoizedOracle(oracle)
+        strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
+        bits = memo.membership(strings)
+        self.assertEqual([oracle.membership_query(s) for s in strings], bits)
+        self.assertEqual([2], oracle.calls, "one batched call, deduped")
+
+        # A repeat costs nothing.
+        oracle.calls.clear()
+        self.assertEqual(bits, memo.membership(strings))
+        self.assertEqual([], oracle.calls)
 
 
 if __name__ == "__main__":

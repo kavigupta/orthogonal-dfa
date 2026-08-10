@@ -34,17 +34,21 @@ class SuffixFamily:
         """Membership of ``base`` under each family suffix.
 
         A sift base is not a pool prefix -- a fresh string is touched at every
-        tree node -- so this goes through the table's loose-cell cache rather
-        than its grid.  Misses are issued as one batched call, so a batching
+        tree node -- so this goes through the off-grid ``sift_cache`` rather than
+        the table's grid.  Misses are issued as one batched call, so a batching
         oracle evaluates the whole family for a node in a single forward pass."""
         table = self.pst.table
-        return table.membership([list(base) + table.suffix(v) for v in self.vs])
+        return self.pst.sift_cache.membership(
+            [list(base) + table.suffix(v) for v in self.vs]
+        )
 
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs
         one oracle call rather than one per member."""
         table = self.pst.table
-        table.membership([list(b) + table.suffix(v) for b in bases for v in self.vs])
+        self.pst.sift_cache.membership(
+            [list(b) + table.suffix(v) for b in bases for v in self.vs]
+        )
 
     def mean(self, seq, midfix) -> float:
         """Mean family membership of ``seq`` under the distinguishers

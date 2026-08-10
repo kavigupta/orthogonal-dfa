@@ -5,6 +5,7 @@ import numpy as np
 import tqdm.auto as tqdm
 
 from .mask_table import MaskTable
+from .memoized_oracle import MemoizedOracle
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
 from .structures import Oracle
@@ -81,6 +82,8 @@ class PrefixSuffixTracker:
     def __post_init__(self):
         if self.evidence_margin == 0.0:
             self.evidence_margin = self.config.evidence_margin
+        # Off-grid membership cache for sifting fresh strings (see MemoizedOracle).
+        self.sift_cache = MemoizedOracle(self.oracle)
 
     @property
     def num_prefixes(self) -> int:

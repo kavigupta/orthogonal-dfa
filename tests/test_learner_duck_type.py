@@ -9,6 +9,7 @@ import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.direct_lstar import DirectLStarLearner
+from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.visualize import (
     _prefill_fn,
     _resolved_edges,
@@ -23,9 +24,6 @@ class _StubTable:
     def suffix(self, v):
         return [v]
 
-    def membership(self, strings):
-        return [1] * len(strings)
-
 
 class _StubOracle:
     def membership_queries(self, strings):
@@ -33,6 +31,7 @@ class _StubOracle:
 
 
 def _pst():
+    oracle = _StubOracle()
     return SimpleNamespace(
         alphabet_size=2,
         accept_thresh=0.7,
@@ -40,7 +39,8 @@ def _pst():
         decision_boundary=0.5,
         evidence_margin=0.0,
         table=_StubTable(),
-        oracle=_StubOracle(),
+        oracle=oracle,
+        sift_cache=MemoizedOracle(oracle),
         config=SimpleNamespace(
             split_pval=0.001, min_signal_strength=0.3, suffix_family_size=2
         ),

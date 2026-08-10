@@ -32,8 +32,6 @@ class MaskTable:
         self._prefixes = [list(p) for p in prefixes]
         self._prefix_keys = {tuple(p) for p in self._prefixes}
         self._representative = list(representative)
-        # Cells for strings that are not pool prefixes (see ``membership``).
-        self._loose_cells: dict = {}
         self._suffixes: List[List[int]] = []
         self._suffix_index = {}  # tuple(suffix) -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -96,30 +94,6 @@ class MaskTable:
         # Prefixes added after construction (counterexamples, leaf enrichment)
         # are full-length probe prefixes, hence representative.
         self._representative.extend([True] * len(new_prefixes))
-
-    # -- membership off the grid ---------------------------------------------
-
-    def membership(self, strings) -> List[int]:
-        """Membership of arbitrary strings, memoized per string and batched.
-
-        Not everything a learner asks about is a ``(prefix, suffix)`` cell of the
-        grid: a sift touches a fresh string at every tree node, and those are
-        transient -- they are nobody's population, no column should observe them,
-        and no pass over the prefixes should yield them.  Holding them sparsely
-        here, rather than as rows of the dense matrix, keeps the table the single
-        owner of oracle traffic without the grid having to know they exist.
-
-        The oracle is deterministic per string, so a cached bit is exactly what a
-        fresh query would return.  Misses are issued as one batched call."""
-        cache = self._loose_cells
-        keys = [tuple(s) for s in strings]
-        misses = list(dict.fromkeys(k for k in keys if k not in cache))
-        if misses:
-            answers = self._oracle.membership_queries([list(k) for k in misses])
-            assert len(answers) == len(misses), "oracle dropped answers"
-            for key, bit in zip(misses, answers):
-                cache[key] = int(bit)
-        return [cache[k] for k in keys]
 
     # -- suffix side --------------------------------------------------------
 
