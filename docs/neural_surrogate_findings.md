@@ -130,6 +130,12 @@ Matched at exactly 36,000 oracle queries, parity, model fidelity:
 A prefix is placed by its response across 24 suffixes that 1,499 other prefixes already
 calibrated. With one column there is nothing to triangulate against.
 
+Caveat: modulo9 scores 0.5000 in *both* arms of this test, which contradicts the plain-GRU
+control (0.787) and is unexplained. The likely suspect is that this harness derives the accept
+rate through the column encoder as `sigma(<u_s, phi(eps)>)` rather than from a free per-state
+scalar -- the same reparameterisation that was independently found to flatten every state's
+rate at once. So the parity row is the load-bearing one here.
+
 ---
 
 ## Data regime
@@ -156,6 +162,29 @@ not the mean.
 points. Cells 6,000 → 246,000, and **no change** (parity/modulo9 both 0.5 either way; subseq
 0.9994 → 0.9936). The 41 splits carry the *same* label — 41 copies of one bit, no new
 information. Querying each prefix separately gives 41 *different* labels and is what matters.
+
+### Modulus sweep — terminal supervision, 6,000 strings, length 40
+
+| language | balanced |
+|---|---|
+| mod 4, accept {0,1} (contiguous) | 0.4733 |
+| mod 4, accept {0,2} (alternating) | 0.4626 |
+| mod 2 / 3 / 5 / 7, accept {0} | 0.463 / 0.517 / 0.493 / 0.490 |
+| mod 9, accept {0} | **0.7672** |
+
+Run to test whether difficulty tracks the *frequency* of the accept function in count-space.
+It does not: contiguous vs alternating at fixed modulus is the decisive comparison and shows
+no difference, and the trend across `k` is not monotone (mod 7 fails, mod 9 works).
+
+A hypothesis that does fit all seven numbers, untested: over length-40 strings the sum
+concentrates near 20±3, and accepting sums in that range number ~8 for mod 2, 6 for mod 3, 3
+for mod 5 and 7, but only {18, 27} for mod 9 -- with 27 deep in the tail. So mod 9 reduces to
+roughly "is the sum about 18", a single unimodal bump, while the rest need an oscillating
+readout.
+
+This entire sweep is in the terminal-supervision regime, which the pipeline never encounters
+(it gives ~24 labels per prefix). Treat it as a fact about the harness, not about the
+pipeline.
 
 ### Architecture controls — 6,000 strings, one label each, length 40
 
