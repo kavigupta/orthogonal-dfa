@@ -1,6 +1,6 @@
 """Run a learner against an oracle: the configuration entry point.
 
-`counterexample_driven_synthesis` in `lstar` learns from a populated
+`synthesize_direct_lstar_fnr` in `fnr_synthesis` learns from a populated
 PrefixSuffixTracker. Getting to one means sizing the suffix population, the
 evidence margin and the prefix count from the noise level, which is what this
 module does -- so a caller only has to say how much signal the oracle carries.

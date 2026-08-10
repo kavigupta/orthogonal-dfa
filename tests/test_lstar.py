@@ -14,9 +14,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.lstar import counterexample_sample_budget
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.statistics import counterexample_search_exhausted
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
 
 us = UniformSampler(40)
@@ -587,40 +585,3 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
         oracle_creator = lambda nm, s, _d=outer: DFAOracle(nm, s, _d)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
-
-
-class TestCounterexampleSearchExhausted(unittest.TestCase):
-    COUNT = 200
-    BUDGET = counterexample_sample_budget(COUNT)
-
-    def test_does_not_fire_on_a_search_that_is_still_productive(self):
-        # 2 found in 8 draws is what used to trigger the old abort.
-        self.assertFalse(counterexample_search_exhausted(2, 8, self.COUNT, self.BUDGET))
-        self.assertFalse(
-            counterexample_search_exhausted(30, 400, self.COUNT, self.BUDGET)
-        )
-
-    def test_does_not_fire_on_a_search_running_to_pace(self):
-        self.assertFalse(
-            counterexample_search_exhausted(
-                self.COUNT, self.BUDGET - 1, self.COUNT, self.BUDGET
-            )
-        )
-
-    def test_fires_on_a_dry_search_long_before_the_budget(self):
-        self.assertTrue(
-            counterexample_search_exhausted(0, 600, self.COUNT, self.BUDGET)
-        )
-        self.assertFalse(
-            counterexample_search_exhausted(0, 100, self.COUNT, self.BUDGET)
-        )
-
-    def test_fires_on_a_yield_too_far_below_the_needed_rate(self):
-        # Half the needed rate, established...
-        self.assertTrue(
-            counterexample_search_exhausted(40, 4000, self.COUNT, self.BUDGET)
-        )
-        # ...and the same shortfall, too early to tell.
-        self.assertFalse(
-            counterexample_search_exhausted(4, 400, self.COUNT, self.BUDGET)
-        )

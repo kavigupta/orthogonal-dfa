@@ -1,17 +1,11 @@
 """Random-walk, transition-driven DFA discovery (a "direct L*").
 
-An alternative to :mod:`orthogonal_dfa.l_star.transition_resolver`.  Both grow a
-discrimination tree whose leaves are DFA states while maintaining a transition
-function on the side, but they find the work differently:
-
-  * ``TransitionResolver`` sweeps a queue of ``(state, symbol)`` pairs and, for
-    each, runs a *statistical* split test over the whole prefix pool.
-
-  * This learner draws random probe strings and walks each one through the
-    *cached* transition function, then re-classifies the same string directly
-    against the tree.  Where the two disagree, the probe has on its own exhibited
-    two prefixes that reach the same leaf yet behave differently under one more
-    symbol -- a Myhill-Nerode counterexample -- and the offending leaf is split.
+Grows a discrimination tree whose leaves are DFA states while maintaining a
+transition function on the side.  It draws random probe strings and walks each one
+through the *cached* transition function, then re-classifies the same string
+directly against the tree.  Where the two disagree, the probe has on its own
+exhibited two prefixes that reach the same leaf yet behave differently under one
+more symbol -- a Myhill-Nerode counterexample -- and the offending leaf is split.
 
 What the learner owns is the loop that turns probes into splits.  The pieces it
 works through are their own objects:
@@ -25,8 +19,7 @@ Driving the learner in rounds -- resampling the family until it can place the
 strings it could not -- is :mod:`orthogonal_dfa.l_star.fnr_synthesis`, which the
 learner knows nothing about.
 
-``to_dfa_and_tree`` exports the result in the same ``(DFA, MidfixTree)`` shape as
-``resolve_dfa``, so it is a drop-in alternative.
+``to_dfa_and_tree`` exports the result as ``(DFA, MidfixTree)``.
 """
 
 from typing import List, Optional, Set, Tuple
@@ -322,8 +315,7 @@ class DirectLStarLearner:
     # -- export -------------------------------------------------------------
 
     def to_dfa_and_tree(self) -> Tuple[DFA, MidfixTree]:
-        """Export the learned automaton as ``(DFA, MidfixTree)``, matching the
-        shape returned by ``resolve_dfa``."""
+        """Export the learned automaton as ``(DFA, MidfixTree)``."""
         return export_dfa(
             self.tree,
             self.dfa,

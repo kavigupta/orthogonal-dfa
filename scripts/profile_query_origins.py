@@ -78,8 +78,6 @@ COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 # which otherwise falls to "other".
 CLASSIFY_PHASES = [
     "estimate_agreement_rate",
-    "generate_counterexamples",
-    "enrich_underrepresented_leaves",
     "build",
 ]
 
@@ -92,7 +90,6 @@ SUFFIX_TRIGGERS = [
     "compute_fnr",
     "_resolve",
     "_split",
-    "classify_pool",
     "_sample_suffix",
     "sample_more_suffixes",
     "sample_suffix_family",
@@ -104,8 +101,6 @@ SUFFIX_TRIGGERS = [
 
 # For a new-prefix row (add_prefixes), what added the prefixes.
 ROW_TRIGGERS = [
-    "add_counterexample_prefixes",
-    "enrich_underrepresented_leaves",
     "sample_more_prefixes",
 ]
 
