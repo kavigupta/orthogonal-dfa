@@ -35,11 +35,16 @@ from .transition_resolver import resolve_dfa
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     """
-    Converts a midfix tree to a seq -> leaf | None classifier using the oracle.
+    Reads a midfix tree against the oracle at the given thresholds, returning a
+    (classify, classify_many) pair over one string and over a batch. suffix_limit
+    reads a shorter slice of the base family for a cheaper, noise-tolerant read.
     """
     base = tree.base_family if suffix_limit is None else tree.base_family[:suffix_limit]
-    decide, _ = oracle_decider(oracle, base, accept, reject)
-    return lambda seq: tree.classify(seq, decide)
+    decide, decide_level = oracle_decider(oracle, base, accept, reject)
+    return (
+        lambda seq: tree.classify(seq, decide),
+        lambda seqs: tree.classify_many(seqs, decide_level),
+    )
 
 
 def classify_pool(pst, tree, *, accept, reject):
@@ -184,10 +189,10 @@ def generate_counterexamples(pst, us, oracle, tree, dfa, *, count):
     per_node_budget = counterexample_fpr / max(num_node_decisions, 1)
     scaled_suffix_size = _compute_sfx(per_node_budget, effective_p)
     # Both are decisive, reduced is more efficient
-    reduced = _oracle_classify(
+    reduced, _ = _oracle_classify(
         tree, oracle, accept=boundary, reject=boundary, suffix_limit=scaled_suffix_size
     )
-    decisive = _oracle_classify(tree, oracle, accept=boundary, reject=boundary)
+    decisive, _ = _oracle_classify(tree, oracle, accept=boundary, reject=boundary)
     pbar = tqdm.tqdm(total=count)
     additional_prefixes = []
     num_samples = 0
@@ -286,10 +291,10 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     grouped -- and needs no chunk-size constant.
     """
     boundary = pst.decision_boundary
-    decide, decide_level = oracle_decider(oracle, tree.base_family, boundary, boundary)
-
-    def classify(seq):
-        return tree.classify(seq, decide)
+    # The one caller that needs the batched read too, so it keeps both closures.
+    classify, classify_many = _oracle_classify(
+        tree, oracle, accept=boundary, reject=boundary
+    )
 
     # Minimum trials before the sequential test can fire: at acc_threshold near 1
     # the "above" tail cannot clear alpha with only a handful of samples anyway,
@@ -311,7 +316,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
         )
         ys = [us.sample(pst.rng, pst.alphabet_size) for _ in range(size)]
         drawn += size
-        ends = tree.classify_many(ys, decide_level)
+        ends = classify_many(ys)
         for y, s_end in zip(ys, ends):
             prefix, reason = locate_incorrect_point(
                 classify, dfa, [], y, s0=s0, s_end=s_end
@@ -347,7 +352,7 @@ def enrich_underrepresented_leaves(pst, tree, *, count):
     suffixes for that state.
     """
     boundary = pst.decision_boundary
-    decisive = _oracle_classify(tree, pst.oracle, accept=boundary, reject=boundary)
+    decisive, _ = _oracle_classify(tree, pst.oracle, accept=boundary, reject=boundary)
     # Classify every existing prefix through the decisive tree directly from the cached
     # mask matrix instead of re-querying the oracle once per prefix: all these
     # prefix x suffix pairs are already in corresponding_masks.  -1 marks undecided.
