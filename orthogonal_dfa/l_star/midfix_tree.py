@@ -131,38 +131,6 @@ class MidfixTree:
             node = lookup[decision]
         return node, None
 
-    def sift_levels(self, seqs, decide: Decide) -> Iterator[List[Tuple[tuple, tuple]]]:
-        """
-        Walk seqs down the tree in lockstep, yielding each level's (seq, midfix) pairs
-        before that level's decisions are read.
-
-        A caller can therefore warm a cache one batch per level and still visit exactly
-        the nodes the individual sifts would -- the batching costs no extra queries.
-        """
-        level = [(self._root, [tuple(s) for s in seqs])]
-        while level:
-            pairs = [
-                (s, node[0])
-                for node, group in level
-                if not isinstance(node, int)
-                for s in group
-            ]
-            if not pairs:
-                return
-            yield pairs
-            nxt = []
-            for node, group in level:
-                if isinstance(node, int):
-                    continue
-                midfix, lookup = node
-                buckets: dict = {}
-                for s in group:
-                    decision = decide(s, midfix)
-                    if decision is not None:
-                        buckets.setdefault(decision, []).append(s)
-                nxt.extend((lookup[d], g) for d, g in buckets.items())
-            level = nxt
-
     def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
         """
         The midfix separating s and sprime, or None.

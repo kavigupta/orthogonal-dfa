@@ -29,9 +29,18 @@ class Sifter:
 
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
-        level rather than one per node visited."""
-        for pairs in self.tree.sift_levels(seqs, self.family.is_accept):
+        level rather than one per node visited.
+
+        Uses ``classify_many`` purely for its per-level walk: each level's
+        ``decide`` first warms the whole level's family cells in one batched call,
+        then reads them back (now cached) to descend.  The returned leaves are
+        discarded -- only the warmed cache matters."""
+
+        def warm(pairs):
             self.family.prefill([list(s) + list(m) for s, m in pairs])
+            return [self.family.is_accept(s, m) for s, m in pairs]
+
+        self.tree.classify_many(seqs, warm)
 
     def disagreement(self, s, sprime, prefix) -> Optional[tuple]:
         """A midfix separating ``s`` and ``sprime`` (see
