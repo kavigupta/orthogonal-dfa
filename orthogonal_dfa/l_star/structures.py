@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List
 
 import numpy as np
 
@@ -92,34 +92,3 @@ class Oracle(ABC):
         on `strings`'s length.
         """
         return np.array([self.membership_query(s) for s in strings], dtype=bool)
-
-
-@dataclass
-class TriPredicate:
-    vs: List[List[int]]
-    accept_threshold: float
-    reject_threshold: float
-
-    def predict(self, x: List[int], oracle: Oracle) -> float:
-        answers = oracle.membership_queries([x + v for v in self.vs])
-        assert len(answers) == len(self.vs), "oracle dropped answers"
-        return float(np.mean(answers))
-
-    def decide(self, f: float) -> Union[bool, None]:
-        if f > self.accept_threshold:
-            return True
-        if f < self.reject_threshold:
-            return False
-        return None
-
-    def __call__(self, x: List[int], oracle: Oracle) -> Union[bool, None]:
-        return self.decide(self.predict(x, oracle))
-
-    def __hash__(self):
-        return hash(
-            (
-                tuple(tuple(v) for v in self.vs),
-                self.accept_threshold,
-                self.reject_threshold,
-            )
-        )
