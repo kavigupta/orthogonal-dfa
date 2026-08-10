@@ -42,6 +42,12 @@ SOURCE_NAMES = {"capal_dataset": "CAPAL suite", "ours": "This repo"}
 SOURCE_ORDER = ["capal_dataset", "ours"]
 
 
+def load_experiment(name: str) -> List[dict]:
+    """One experiment's cells, or an empty list if it has not been run."""
+    path = DATA_DIR / f"{name}.json"
+    return json.loads(path.read_text())["cells"] if path.exists() else []
+
+
 def load_cells() -> List[dict]:
     out: List[dict] = []
     for name in EXPERIMENTS:
@@ -142,6 +148,84 @@ def cost_rows(cells: Sequence[dict]) -> List[List[str]]:
     return rows
 
 
+def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
+    """Experiment 3: the hyperparameter grid, one row per configuration.
+
+    The grid is the rows rather than a count of "configs that worked", so the
+    table says what was actually varied. Cells are successes out of the runs at
+    that (config, eta), which is targets x seeds.
+    """
+    cells = load_experiment("wall_sweep")
+    if not cells:
+        return []
+    etas = sorted({c["eta"] for c in cells})
+    grid = collections.defaultdict(list)
+    for c in cells:
+        lc = c["learner_config"]
+        grid[
+            (lc["max_same_samples"], lc["suffix_pool_len_max"], lc["alpha"], c["eta"])
+        ].append(c)
+    rows = []
+    for m, pool, alpha in sorted({(m, p, a) for m, p, a, _ in grid}):
+        # The baseline corner is upstream's own benchmark setting, and the
+        # configuration experiments 1, 2 and 4 all run at.
+        baseline = (m, pool, alpha) == (80, 10, 1e-3)
+        mark = (lambda v: f"\\textbf{{{v}}}") if baseline else (lambda v: str(v))
+        rows.append(
+            [mark(m), mark(pool), mark(alpha)]
+            + [
+                mark(
+                    f"{sum(map(succeeded, grid[(m, pool, alpha, e)]))}/"
+                    f"{len(grid[(m, pool, alpha, e)])}"
+                )
+                for e in etas
+            ]
+        )
+    return rows
+
+
+def budget_rows(_cells: Sequence[dict]) -> List[List[str]]:
+    """Experiment 4: CAPAL at E-L*'s own spend, per target.
+
+    Matched and stalled cells are averaged separately. Only the matched ones are
+    like-for-like; folding a stalled cell in would report CAPAL's score "at
+    E-L*'s budget" for a run that never approached it.
+    """
+    cells = load_experiment("matched_budget")
+    if not cells:
+        return []
+    elstar = {
+        c["benchmark"]: c
+        for c in load_experiment("our_benchmarks")
+        if c["learner"] == LEARNER_ELSTAR and c["eta"] == 0.30
+    }
+    by_target = collections.defaultdict(list)
+    for c in cells:
+        by_target[c["benchmark"]].append(c)
+
+    def mean_acc(subset: List[dict]) -> str:
+        scored = [c["accuracy"] for c in subset if c["accuracy"] is not None]
+        return f"{statistics.mean(scored):.3f}" if scored else "--"
+
+    rows = []
+    for name in sorted(by_target, key=lambda n: elstar[n]["queries_total"]):
+        cs = by_target[name]
+        matched = [c for c in cs if c["error_type"] == "BudgetExhausted"]
+        stalled = [c for c in cs if c["error_type"] == "Stalled"]
+        rows.append(
+            [
+                name.replace("_", r"\_"),
+                _sci(elstar[name]["queries_total"]),
+                f"{len(matched)}/{len(cs)}",
+                f"{len(stalled)}/{len(cs)}",
+                mean_acc(matched),
+                mean_acc(stalled),
+                f"{elstar[name]['accuracy']:.3f}",
+            ]
+        )
+    return rows
+
+
 def tabular(headers: Sequence[str], align: str, rows: Sequence[Sequence[str]]) -> str:
     body = "\n".join(" & ".join(r) + r" \\" for r in rows)
     return "\n".join(
@@ -227,6 +311,27 @@ TABLES: List[Dict[str, Any]] = [
         ],
         "align": "llrrrrr",
         "rows": cost_rows,
+    },
+    {
+        "name": "hyperparameter_sweep",
+        "headers": ["$m$", "pool", r"$\alpha$"]
+        + [rf"$\eta$={e:g}" for e in (0.05, 0.1, 0.2, 0.3)],
+        "align": "rrrrrrr",
+        "rows": sweep_rows,
+    },
+    {
+        "name": "matched_budget",
+        "headers": [
+            "Target",
+            "Budget (E-L* MQ)",
+            "matched",
+            "stalled",
+            "CAPAL (matched)",
+            "CAPAL (stalled)",
+            "E-L*",
+        ],
+        "align": "lrrrrrr",
+        "rows": budget_rows,
     },
 ]
 
