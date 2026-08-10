@@ -66,6 +66,15 @@ EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
 
 
+class BudgetExhausted(BaseException):
+    """Raised when a cell has issued its allowance of distinct membership queries.
+
+    BaseException for the same reason as `CellTimeout`: it is a stopping rule
+    imposed from outside, not a learner failure, so the drivers' broad
+    `except Exception` must not swallow it.
+    """
+
+
 class CellTimeout(BaseException):
     """Raised when a cell outruns `CELL_TIMEOUT_SECONDS`.
 
@@ -185,9 +194,32 @@ def run_capal_cell(
     truth: Callable[[List[int]], bool],
     alphabet: Sequence[str],
     timeout: int = CELL_TIMEOUT_SECONDS,
+    query_budget: Optional[int] = None,
+    **learner_kwargs: Any,
 ) -> Cell:
-    """Run upstream CAPAL on `target` and score it on the shared word list."""
-    learner = make_learner(target, eta, seed=seed)
+    """Run upstream CAPAL on `target` and score it on the shared word list.
+
+    `learner_kwargs` go to `make_learner`, whose defaults are upstream's own
+    benchmark settings. Overriding them is what the hyperparameter sweep does;
+    the config is read back off the learner below either way, so the record
+    always says what CAPAL actually ran with.
+
+    `query_budget` stops the fit once that many *distinct* membership queries
+    have been issued, and scores whatever hypothesis CAPAL had reached. That is
+    what makes a like-for-like comparison against E-L*'s own spend possible:
+    without it, CAPAL's query count is whatever its configuration happens to
+    consume, which on this repo's targets ranged from 1% to 16x E-L*'s.
+
+    A budgeted cell ends one of four ways, and `error_type` says which:
+
+    - `None` -- converged inside the budget.
+    - `"BudgetExhausted"` -- spent the budget; the scored hypothesis is real,
+      it simply is not CAPAL's final answer.
+    - `"Stalled"` -- ran out of iterations without spending the budget, so the
+      budget never bound and this is not a matched-budget measurement.
+    - `"Timeout"` -- the wall clock ended it, with no hypothesis to score.
+    """
+    learner = make_learner(target, eta, seed=seed, **learner_kwargs)
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -213,6 +245,17 @@ def run_capal_cell(
         },
     )
 
+    if query_budget is not None:
+        inner_mq = learner.mq.query
+
+        def budgeted_query(string: str) -> bool:
+            answer = inner_mq(string)
+            if len(learner.mq.cache) >= query_budget:
+                raise BudgetExhausted()
+            return answer
+
+        learner.mq.query = budgeted_query  # type: ignore[method-assign]
+
     eq_calls = {"n": 0}
     inner_eq = learner.eq.query
 
@@ -227,6 +270,14 @@ def run_capal_cell(
         with time_limit(timeout), contextlib.redirect_stdout(io.StringIO()):
             dfa, converged = fit_with_fallback(learner)
         cell.converged = converged
+    except BudgetExhausted:
+        # The last hypothesis is what CAPAL would have answered had it been
+        # stopped here, so it is the thing to score -- not a failure.
+        last = getattr(learner, "_last_hyp", None)
+        dfa = getattr(last, "dfa", None)
+        cell.converged = False
+        cell.error_type = "BudgetExhausted"
+        cell.error = f"stopped at the {query_budget} distinct-query budget"
     except CellTimeout:
         cell.error_type = "Timeout"
         cell.error = f"no hypothesis within {timeout}s"
@@ -243,6 +294,24 @@ def run_capal_cell(
     # the MQ, so repeats never get here.
     cell.queries_total = len(learner.mq.cache)
     cell.equivalence_queries = eq_calls["n"]
+
+    # Given a budget and unable to spend it: CAPAL ran out of iterations at a
+    # fixed point. Further rounds issue no new queries at all -- on
+    # regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations
+    # and at 10000 -- so the budget can never bind and this is not a
+    # matched-budget measurement. It is its own outcome, and a stronger claim
+    # than a low score: CAPAL stops improving and cannot use more.
+    if (
+        query_budget is not None
+        and cell.error_type is None
+        and not cell.converged
+        and cell.queries_total < query_budget
+    ):
+        cell.error_type = "Stalled"
+        cell.error = (
+            f"stopped after {cell.equivalence_queries} iterations having used "
+            f"{cell.queries_total} of the {query_budget} query budget"
+        )
 
     if dfa is not None:
         cell.learned_states = dfa.num_states
