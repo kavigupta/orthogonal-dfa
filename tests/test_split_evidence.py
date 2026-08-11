@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.split_evidence import (
     DEFAULT_SPLIT_MISS_RATE,
+    NO_SPLIT,
     SPLIT,
     UNDECIDED,
     SplitEvidence,
@@ -165,16 +166,24 @@ class TestVerdict(unittest.TestCase):
             ev.record(0, [i, i % 2])
         self.assertEqual(SPLIT, ev.verdict(0, (1,)))
 
-    def test_a_one_sided_population_stays_undecided(self):
+    def test_a_one_sided_population_settles_the_leaf(self):
         # Every member on the same side: the distinguisher does not divide this
-        # leaf.  An empty group makes the two-rate model identical to the
-        # one-rate model, so scores are exactly 0 -- with only the scores term a
-        # one-sided leaf never reaches the no-split boundary and stays open.
+        # leaf.  Scores stay 0 (no second rate to compare), so the one-state test
+        # decides it -- a zero minority over enough members rules a split out.
         ev = _evidence(_StubFamily(side_of=lambda p: True))
         for i in range(200):
             ev.record(0, [i])
         accum = ev._candidate(0, (1,))
+        self.assertEqual([200, 0], accum["N"])
         self.assertEqual(0.0, ev._log_bf_scores(accum))
+        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,)))
+        self.assertNotIn((1,), ev._open.get(0, {}))
+
+    def test_a_small_one_sided_population_is_not_yet_conclusive(self):
+        # The same agreement, too few members to rule a split out: UNDECIDED.
+        ev = _evidence(_StubFamily(side_of=lambda p: True))
+        for i in range(5):
+            ev.record(0, [i])
         self.assertEqual(UNDECIDED, ev.verdict(0, (1,)))
 
     def test_pool_members_are_only_scanned_when_a_candidate_opens(self):
@@ -186,9 +195,13 @@ class TestVerdict(unittest.TestCase):
             scans.append(state)
             return []
 
-        ev = _evidence(_StubFamily(side_of=lambda p: True), pool_members=pool_members)
+        # A balanced, same-rate split stays UNDECIDED (neither side wins on rate,
+        # and the minority is far too large to rule a split out), so the
+        # candidate lives across all three verdicts.
+        family = _StubFamily(side_of=lambda p: p[-1] == 0, accept_rate=lambda p: 0.5)
+        ev = _evidence(family, pool_members=pool_members)
         for i in range(40):
-            ev.record(0, [i])
+            ev.record(0, [i, i % 2])
         ev.verdict(0, (1,))
         ev.verdict(0, (1,))
         ev.verdict(0, (1,))

@@ -2,16 +2,20 @@
 Sequential population test that decides whether a leaf splits.
 
 A proposed distinguisher opens a hypothesis, and SplitEvidence accumulates the
-leaf's members against it until the evidence is conclusive one way or the other.
+leaf's members against it until one of two tests fires.  They answer different
+questions, so they are separate hypothesis tests rather than one Bayes factor:
 
-The statistic is a Beta-Bernoulli Bayes factor:
-    H0=one pooled accept rate (the leaf is one state)
-    H1=two pooled accept rates
+  SPLIT     -- the two sides, grouped on the assign half, differ in accept rate
+               on the held-out test half.  A real second state reproduces across
+               the disjoint halves; noise that merely scattered members across
+               sides does not.  (Beta-Bernoulli Bayes factor, one pooled rate vs
+               two, cleared against a Bonferroni threshold.)
+  NO_SPLIT  -- the members agree closely enough to rule out a split of at least
+               _MIN_DETECTABLE_SPLIT at the tolerated miss rate; the leaf is one
+               state and stops being probed.  (binomial test on the minority
+               count; rarer splits are left to the FNR loop.)
 
-We compute the assignment to groups on the assign half and score the test half,
-to avoid contamination.
-
-Our verdict is either split, no split, or undecided (insufficient evidence).
+Otherwise the verdict is UNDECIDED and more members accumulate.
 
 This class also tracks the elements of each Myhill-Nerode equivalence class.
 """
@@ -19,11 +23,16 @@ This class also tracks the elements of each Myhill-Nerode equivalence class.
 import math
 from typing import Dict, Optional, Set
 
-#: Tolerated miss rate (beta) -- the lower sequential boundary, ``logBF <=
-#: log(beta)``, at which a leaf is accepted as one state and stops being probed.
-#: Only a two-sided population whose halves score the same rate reaches it; a
-#: one-sided population scores 0 and stays UNDECIDED.
+import scipy.stats
+
+#: Tolerated miss rate (beta) for the one-state test: the chance of accepting a
+#: leaf as one state when a split of _MIN_DETECTABLE_SPLIT really exists.
 DEFAULT_SPLIT_MISS_RATE = 0.02
+
+#: Smallest minority fraction the one-state test resolves within a round.  A leaf
+#: is confirmed one state once a split this large is ruled out; rarer second
+#: states are resurfaced by the FNR loop across rounds.
+_MIN_DETECTABLE_SPLIT = 0.1
 
 # Outcome of weighing one proposed split.
 SPLIT = "split"
@@ -62,7 +71,7 @@ class SplitEvidence:
         self._pool_representative = pool_representative
         self._num_states = num_states
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
-        # Tolerated miss rate (beta): the lower sequential boundary.
+        # Tolerated miss rate (beta) for the one-state test.
         self._split_miss_rate = split_miss_rate
         # How many members one candidate is built from, so a populous leaf does
         # not scan the whole pool.  The probe stream never reaches it.
@@ -138,15 +147,31 @@ class SplitEvidence:
     # -- weighing it ---------------------------------------------------------
 
     def verdict(self, state: int, distinguisher: tuple) -> str:
-        """Weigh the proposed split: ``SPLIT`` / ``NO_SPLIT`` / ``UNDECIDED``."""
+        """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
+        sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
+        rule out a split, else ``UNDECIDED``."""
         accum = self._candidate(state, distinguisher)
-        logbf = self._log_bayes_factor(accum)
-        if logbf >= self._split_threshold():
+        assert self.family.test_idx  # vs is sized >= suffix_family_size, never empty
+        if self._log_bf_scores(accum) >= self._split_threshold():
             return SPLIT
-        if logbf <= self._no_split_threshold():
+        if self._agrees_as_one_state(accum):
             self._open.get(state, {}).pop(distinguisher, None)
             return NO_SPLIT
         return UNDECIDED
+
+    def _agrees_as_one_state(self, accum: dict) -> bool:
+        """The minority side is too small for a split of ``_MIN_DETECTABLE_SPLIT``:
+        under such a split we would expect that fraction on the minority side, so
+        seeing this few rules it out at the tolerated miss rate."""
+        n_a, n_b = accum["N"]
+        total = n_a + n_b
+        if total == 0:
+            return False
+        minority = min(n_a, n_b)
+        return (
+            scipy.stats.binom.cdf(minority, total, _MIN_DETECTABLE_SPLIT)
+            <= self._split_miss_rate
+        )
 
     def _candidate(self, state: int, distinguisher: tuple) -> dict:
         """The running evidence for ``(state, distinguisher)``, back-filled from
@@ -155,8 +180,9 @@ class SplitEvidence:
         accum = cands.get(distinguisher)
         if accum is not None:
             return accum
-        # ART: [A_true, R_true, A_false, R_false] TEST-half counts per side.
-        accum = {"ART": [0, 0, 0, 0], "seen": set()}
+        # ART: [A_true, R_true, A_false, R_false] TEST-half counts per side; N:
+        # decisive members per side, for the one-state minority test.
+        accum = {"ART": [0, 0, 0, 0], "N": [0, 0], "seen": set()}
         cands[distinguisher] = accum
         # Probe-seen members first, then the pool, up to the cap.  Their family
         # queries are batched in one call so the population packs, rather than one
@@ -189,23 +215,16 @@ class SplitEvidence:
         side = 0 if group else 2
         accum["ART"][side] += accepts
         accum["ART"][side + 1] += len(self.family.test_idx) - accepts
-
-    def _log_bayes_factor(self, accum: dict) -> float:
-        """Held-out log Bayes factor for the split: one pooled TEST-half accept
-        rate against two.  The ASSIGN half did the grouping, so scoring on the
-        disjoint TEST half cannot confirm the noise that produced the grouping."""
-        assert self.family.test_idx  # vs is sized >= suffix_family_size, never empty
-        return self._log_bf_scores(accum)
+        accum["N"][0 if group else 1] += 1
 
     @staticmethod
     def _log_bf_scores(accum: dict) -> float:
         """One pooled Beta-Bernoulli rate (a single state) against two (a real
-        split), over the TEST-half votes.
+        split), over the TEST-half votes.  This is the SPLIT test's statistic.
 
         Note this is exactly 0 when either side is empty: a two-rate model whose
-        second rate has no data *is* the one-rate model.  So a wholly one-sided
-        population scores 0 and stays UNDECIDED -- only a genuine rate difference
-        between two populated sides moves the verdict."""
+        second rate has no data *is* the one-rate model.  So splitting needs two
+        populated sides that differ; the one-state test handles agreement."""
         a1, r1, a2, r2 = accum["ART"]
         return (
             _log_beta(1 + a1, 1 + r1)
@@ -213,7 +232,7 @@ class SplitEvidence:
             - _log_beta(1 + a1 + a2, 1 + r1 + r2)
         )
 
-    # -- the two boundaries --------------------------------------------------
+    # -- the split threshold -------------------------------------------------
 
     def _split_threshold(self) -> float:
         """Log Bayes factor a split must clear.
@@ -228,9 +247,3 @@ class SplitEvidence:
         logarithmically as the tree does."""
         n = max(self._num_states() * self.pst.alphabet_size, 1)
         return math.log(n / max(self._split_fpr, 1e-12))
-
-    def _no_split_threshold(self) -> float:
-        """Log Bayes factor at or below which the leaf is accepted as one state
-        for this distinguisher and stops being probed -- the lower sequential
-        boundary from the tolerated miss rate (beta), ``logBF <= log(beta)``."""
-        return math.log(max(self._split_miss_rate, 1e-12))
