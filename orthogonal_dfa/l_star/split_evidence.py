@@ -1,9 +1,9 @@
 """
 Sequential population test that decides whether a leaf splits.
 
-A proposed distinguisher opens a hypothesis, and SplitEvidence accumulates the
-leaf's members against it until one of two tests fires.  They answer different
-questions, so they are separate hypothesis tests rather than one Bayes factor:
+A proposed distinguisher is weighed against the leaf's members until one of two
+tests fires.  They answer different questions, so they are separate hypothesis
+tests rather than one Bayes factor:
 
   SPLIT     -- the two sides, grouped on the assign half, differ in accept rate
                on the held-out test half.  A real second state reproduces across
@@ -15,13 +15,13 @@ questions, so they are separate hypothesis tests rather than one Bayes factor:
                state and stops being probed.  (binomial test on the minority
                count; rarer splits are left to the FNR loop.)
 
-Otherwise the verdict is UNDECIDED and more members accumulate.
+Otherwise the verdict is UNDECIDED and more members accumulate before the next.
 
 This class also tracks the elements of each Myhill-Nerode equivalence class.
 """
 
 import math
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Set
 
 import scipy.stats
 
@@ -48,8 +48,7 @@ class SplitEvidence:
     """See the module docstring.
 
     ``pool_members(state, limit)`` supplies members beyond those the probe stream
-    has shown, and is called only when a candidate is first opened -- it scans the
-    prefix pool, so it must stay lazy.
+    has shown; it scans the prefix pool, so it is called once per leaf and cached.
     """
 
     def __init__(
@@ -63,7 +62,6 @@ class SplitEvidence:
         split_fpr: Optional[float],
         split_miss_rate: float,
         members: Dict[int, Set[tuple]],
-        open_candidates: Optional[Dict[int, Dict[tuple, dict]]] = None,
     ):
         self.pst = pst
         self.family = family
@@ -73,29 +71,22 @@ class SplitEvidence:
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
         # Tolerated miss rate (beta) for the one-state test.
         self._split_miss_rate = split_miss_rate
-        # How many members one candidate is built from, so a populous leaf does
-        # not scan the whole pool.  The probe stream never reaches it.
+        # How many members a leaf is weighed from, so a populous leaf does not
+        # scan the whole pool.
         self._pool_member_limit = 1500
-        # Distinct prefixes seen to reach each leaf while sifting probes.  A split
-        # fires once enough have piled up for the Bayes factor to cross, so the
-        # probe stream -- not the fixed pool -- is what drives a leaf to resolve.
+        # Prefixes the probe stream has shown to reach each leaf.  verdict weighs
+        # these together with a one-time pool scan of the leaf (see _members).
         self.members: Dict[int, Set[tuple]] = {k: set(v) for k, v in members.items()}
-        # leaf -> distinguisher -> running sufficient statistics.  Carried across
-        # a split for every leaf the split did not touch.
-        self._open: Dict[int, Dict[tuple, dict]] = dict(open_candidates or {})
+        # leaf -> its pool members, scanned once and reused across the leaf's
+        # distinguishers.  Not carried across a split -- the leaves re-partition.
+        self._pool_cache: Dict[int, List[tuple]] = {}
 
-    # -- accumulating evidence ----------------------------------------------
+    # -- the leaf population -------------------------------------------------
 
     def record(self, state: int, prefix) -> None:
-        """Note that ``prefix`` decisively sifts to ``state``.  New members fold
-        into any open candidate on that leaf right away, so the Bayes factor stays
-        O(1) to read rather than being recomputed over the population."""
-        bucket = self.members.setdefault(state, set())
-        if tuple(prefix) in bucket:
-            return
-        bucket.add(tuple(prefix))
-        for distinguisher, accum in self._open.get(state, {}).items():
-            self._fold(accum, distinguisher, prefix)
+        """Note that ``prefix`` decisively sifts to ``state``, adding it to the
+        leaf population that :meth:`verdict` weighs."""
+        self.members.setdefault(state, set()).add(tuple(prefix))
 
     def representative(self, state: int) -> Optional[list]:
         """A canonical string reaching ``state`` -- the shortest member, ties
@@ -117,11 +108,9 @@ class SplitEvidence:
     def after_split(self, state: int, sift) -> "SplitEvidence":
         """Evidence for the tree left by splitting ``state``.
 
-        Only the split leaf is affected.  Its members move -- re-sifted into the
-        two halves -- and its candidates die, because its population bifurcated
-        under them.  Every other leaf keeps both: a split replaces one leaf with
-        an internal node, so no other leaf's path through the tree changed, and an
-        accumulator depends on nothing but its members and its distinguisher.
+        The split leaf's members are re-sifted into the two halves; every other
+        leaf's members carry over untouched, since a split replaces one leaf with
+        an internal node and no other leaf's path through the tree changed.
 
         Members survive rather than starting empty because a newly created,
         still-conflated leaf could never gather the members its own split needs
@@ -131,7 +120,6 @@ class SplitEvidence:
             landed = sift(list(member))
             if landed is not None:
                 carried.setdefault(landed, set()).add(member)
-        carried_open = {k: v for k, v in self._open.items() if k != state}
         return SplitEvidence(
             self.pst,
             self.family,
@@ -141,7 +129,6 @@ class SplitEvidence:
             split_fpr=self._split_fpr,
             split_miss_rate=self._split_miss_rate,
             members=carried,
-            open_candidates=carried_open,
         )
 
     # -- weighing it ---------------------------------------------------------
@@ -150,82 +137,68 @@ class SplitEvidence:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
-        accum = self._candidate(state, distinguisher)
         assert self.family.test_idx  # vs is sized >= suffix_family_size, never empty
-        if self._log_bf_scores(accum) >= self._split_threshold():
+        a1, r1, a2, r2, n_a, n_b = self._tally(state, distinguisher)
+        if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold():
             return SPLIT
-        if self._agrees_as_one_state(accum):
-            self._open.get(state, {}).pop(distinguisher, None)
+        if self._agrees_as_one_state(n_a, n_b):
             return NO_SPLIT
         return UNDECIDED
 
-    def _agrees_as_one_state(self, accum: dict) -> bool:
+    def _tally(self, state: int, distinguisher: tuple):
+        """Group the leaf's members by the ASSIGN half and count the disjoint
+        TEST half per side: ``(A_true, R_true, A_false, R_false, n_true,
+        n_false)``.  Indecisive members contribute nothing.  Family queries are
+        batched in one call so the population packs, rather than one per member."""
+        members = self._members(state)
+        self.family.prefill([member + list(distinguisher) for member in members])
+        a1 = r1 = a2 = r2 = n_a = n_b = 0
+        test = self.family.test_idx
+        for member in members:
+            votes = self.family.votes(member, distinguisher)
+            group = self.family.assign_side(votes)
+            if group is None:
+                continue
+            accepts = sum(votes[i] for i in test)
+            if group:
+                a1, r1, n_a = a1 + accepts, r1 + len(test) - accepts, n_a + 1
+            else:
+                a2, r2, n_b = a2 + accepts, r2 + len(test) - accepts, n_b + 1
+        return a1, r1, a2, r2, n_a, n_b
+
+    def _members(self, state: int) -> List[list]:
+        """The leaf population to weigh: the probe-seen members plus a one-time
+        pool scan for this leaf, deduped and capped."""
+        if state not in self._pool_cache:
+            self._pool_cache[state] = [
+                tuple(p)
+                for p in self._pool_members(state, limit=self._pool_member_limit)
+            ]
+        seen = dict.fromkeys(
+            [tuple(m) for m in self.members.get(state, ())] + self._pool_cache[state]
+        )
+        return [list(m) for m in seen][: self._pool_member_limit]
+
+    def _agrees_as_one_state(self, n_a: int, n_b: int) -> bool:
         """The minority side is too small for a split of ``_MIN_DETECTABLE_SPLIT``:
         under such a split we would expect that fraction on the minority side, so
         seeing this few rules it out at the tolerated miss rate."""
-        n_a, n_b = accum["N"]
         total = n_a + n_b
         if total == 0:
             return False
-        minority = min(n_a, n_b)
         return (
-            scipy.stats.binom.cdf(minority, total, _MIN_DETECTABLE_SPLIT)
+            scipy.stats.binom.cdf(min(n_a, n_b), total, _MIN_DETECTABLE_SPLIT)
             <= self._split_miss_rate
         )
 
-    def _candidate(self, state: int, distinguisher: tuple) -> dict:
-        """The running evidence for ``(state, distinguisher)``, back-filled from
-        the members seen so far on first use."""
-        cands = self._open.setdefault(state, {})
-        accum = cands.get(distinguisher)
-        if accum is not None:
-            return accum
-        # ART: [A_true, R_true, A_false, R_false] TEST-half counts per side; N:
-        # decisive members per side, for the one-state minority test.
-        accum = {"ART": [0, 0, 0, 0], "N": [0, 0], "seen": set()}
-        cands[distinguisher] = accum
-        # Probe-seen members first, then the pool, up to the cap.  Their family
-        # queries are batched in one call so the population packs, rather than one
-        # |vs|-sized batch per member.
-        members = list(
-            dict.fromkeys(
-                [tuple(t) for t in self.members.get(state, ())]
-                + [
-                    tuple(p)
-                    for p in self._pool_members(state, limit=self._pool_member_limit)
-                ]
-            )
-        )[: self._pool_member_limit]
-        self.family.prefill([list(m) + list(distinguisher) for m in members])
-        for member in members:
-            self._fold(accum, distinguisher, list(member))
-        return accum
-
-    def _fold(self, accum: dict, distinguisher, prefix) -> None:
-        """Add ``prefix``'s TEST-half votes into its group's running sums, once."""
-        key = tuple(prefix)
-        if key in accum["seen"]:
-            return
-        accum["seen"].add(key)
-        votes = self.family.votes(prefix, distinguisher)
-        group = self.family.assign_side(votes)
-        if group is None:
-            return  # indecisive on the ASSIGN half; contributes no evidence
-        accepts = sum(votes[i] for i in self.family.test_idx)
-        side = 0 if group else 2
-        accum["ART"][side] += accepts
-        accum["ART"][side + 1] += len(self.family.test_idx) - accepts
-        accum["N"][0 if group else 1] += 1
-
     @staticmethod
-    def _log_bf_scores(accum: dict) -> float:
+    def _log_bf_scores(a1: int, r1: int, a2: int, r2: int) -> float:
         """One pooled Beta-Bernoulli rate (a single state) against two (a real
         split), over the TEST-half votes.  This is the SPLIT test's statistic.
 
         Note this is exactly 0 when either side is empty: a two-rate model whose
         second rate has no data *is* the one-rate model.  So splitting needs two
         populated sides that differ; the one-state test handles agreement."""
-        a1, r1, a2, r2 = accum["ART"]
         return (
             _log_beta(1 + a1, 1 + r1)
             + _log_beta(1 + a2, 1 + r2)
@@ -240,8 +213,8 @@ class SplitEvidence:
         Under the "one Myhill-Nerode state" null the held-out factor concentrates
         near zero -- the two-rate model's Occam penalty cancels the fit -- so a
         spurious split needs an upward fluctuation it rarely produces
-        (``P(BF > K) <= 1/K``).  Bonferroni over the hypotheses currently open (one
-        per leaf x symbol) at per-run false rate ``split_fpr`` gives
+        (``P(BF > K) <= 1/K``).  Bonferroni over the hypotheses in play (one per
+        leaf x symbol) at per-run false rate ``split_fpr`` gives
         ``logBF > log(num_states * |alphabet| / fpr)``.  Genuine splits scale their
         evidence with the member count and clear it; the bound grows only
         logarithmically as the tree does."""

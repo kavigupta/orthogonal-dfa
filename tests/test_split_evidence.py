@@ -125,27 +125,6 @@ class TestAfterSplit(unittest.TestCase):
         self.assertEqual({(0,)}, refined.members[0])
         self.assertNotIn((1,), {m for ms in refined.members.values() for m in ms})
 
-    def test_the_split_leafs_candidates_are_dropped(self):
-        # Its population bifurcated under them, so the running sums are stale.
-        ev = _evidence()
-        for i in range(20):
-            ev.record(0, [0, i])
-        ev.verdict(0, (1,))  # opens a candidate on leaf 0
-        self.assertTrue(ev._open.get(0))
-        refined = ev.after_split(0, sift=lambda m: 0)
-        self.assertNotIn(0, refined._open)
-
-    def test_untouched_leaves_keep_their_candidates(self):
-        """A split replaces one leaf with an internal node, so no other leaf's
-        path changed and its accumulator is still exactly what it was."""
-        ev = _evidence(num_states=3)
-        for i in range(20):
-            ev.record(1, [1, i])
-        ev.verdict(1, (1,))  # opens a candidate on leaf 1
-        before = dict(ev._open[1])
-        refined = ev.after_split(0, sift=lambda m: 0)
-        self.assertEqual(before, refined._open.get(1))
-
     def test_the_original_is_left_alone(self):
         ev = _evidence()
         ev.record(0, [0])
@@ -173,11 +152,10 @@ class TestVerdict(unittest.TestCase):
         ev = _evidence(_StubFamily(side_of=lambda p: True))
         for i in range(200):
             ev.record(0, [i])
-        accum = ev._candidate(0, (1,))
-        self.assertEqual([200, 0], accum["N"])
-        self.assertEqual(0.0, ev._log_bf_scores(accum))
+        a1, r1, a2, r2, n_a, n_b = ev._tally(0, (1,))
+        self.assertEqual((200, 0), (n_a, n_b))
+        self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, (1,)))
-        self.assertNotIn((1,), ev._open.get(0, {}))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):
         # The same agreement, too few members to rule a split out: UNDECIDED.
@@ -186,8 +164,9 @@ class TestVerdict(unittest.TestCase):
             ev.record(0, [i])
         self.assertEqual(UNDECIDED, ev.verdict(0, (1,)))
 
-    def test_pool_members_are_only_scanned_when_a_candidate_opens(self):
-        # The scan walks the whole prefix pool, so it must not run per verdict.
+    def test_pool_members_are_scanned_once_per_leaf(self):
+        # The scan walks the whole prefix pool, so it is cached per leaf and must
+        # not run again on later verdicts for the same leaf.
         scans = []
 
         def pool_members(state, limit):
@@ -195,9 +174,6 @@ class TestVerdict(unittest.TestCase):
             scans.append(state)
             return []
 
-        # A balanced, same-rate split stays UNDECIDED (neither side wins on rate,
-        # and the minority is far too large to rule a split out), so the
-        # candidate lives across all three verdicts.
         family = _StubFamily(side_of=lambda p: p[-1] == 0, accept_rate=lambda p: 0.5)
         ev = _evidence(family, pool_members=pool_members)
         for i in range(40):
