@@ -20,10 +20,6 @@ shadow the MQ, so those strings cost it nothing thereafter. E-L* has no EQ at
 all and manufactures its counterexamples out of membership queries, so its EQ
 count is 0 by construction. Reading a membership count alone therefore overstates
 what E-L* spends relative to CAPAL.
-
-Query counts are a snapshot of the learners as they stand, not a property of
-either method: screening candidate suffixes before paying for a full column
-moved E-L*'s counts by up to 42x without changing which cells it solves.
 """
 
 from __future__ import annotations

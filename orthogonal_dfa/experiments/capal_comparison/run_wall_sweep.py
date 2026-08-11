@@ -9,9 +9,7 @@ own benchmark settings and goes up along each axis.
 m stops at 240 because it is essentially the whole runtime cost (m=80 ~3s,
 m=240 ~19s, m=480 ~146s) and a preliminary m=480 sweep added no convergence.
 
-Three seeds per cell, against one for the head-to-head experiments. Per-cell
-verdicts do move under re-measurement: raising CAPAL to its authors' settings
-flipped cells in both directions, one of them from 1.000 to 0.507.
+Three seeds per cell, against one for the head-to-head experiments.
 
 --matched-budget runs CAPAL with exactly the membership queries E-L* spent on
 the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
