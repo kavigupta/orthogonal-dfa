@@ -5,7 +5,6 @@ from orthogonal_dfa.l_star.split_evidence import (
     DEFAULT_SPLIT_MISS_RATE,
     NO_SPLIT,
     SPLIT,
-    UNDECIDED,
     SplitEvidence,
 )
 
@@ -52,11 +51,6 @@ class _StubFamily:
         if mean < 0.1:
             return False
         return None
-
-    def separates(self, s, sprime, distinguisher, *, margin):
-        del distinguisher, margin
-        first, second = self.side_of(list(s)), self.side_of(list(sprime))
-        return first is not None and second is not None and first != second
 
 
 def _pst():
@@ -135,7 +129,7 @@ class TestAfterSplit(unittest.TestCase):
         ev = _evidence()
         for i in range(20):
             ev.record(0, [0, i])
-        ev.verdict(0, (1,), [0, 0], [0, 1])  # opens a candidate on leaf 0
+        ev.verdict(0, (1,))  # opens a candidate on leaf 0
         self.assertTrue(ev._open.get(0))
         refined = ev.after_split(0, sift=lambda m: 0)
         self.assertNotIn(0, refined._open)
@@ -146,7 +140,7 @@ class TestAfterSplit(unittest.TestCase):
         ev = _evidence(num_states=3)
         for i in range(20):
             ev.record(1, [1, i])
-        ev.verdict(1, (1,), [1, 0], [1, 1])  # opens a candidate on leaf 1
+        ev.verdict(1, (1,))  # opens a candidate on leaf 1
         before = dict(ev._open[1])
         refined = ev.after_split(0, sift=lambda m: 0)
         self.assertEqual(before, refined._open.get(1))
@@ -169,7 +163,7 @@ class TestVerdict(unittest.TestCase):
         ev = _evidence(family)
         for i in range(40):
             ev.record(0, [i, i % 2])
-        self.assertEqual(SPLIT, ev.verdict(0, (1,), [0, 0], [1, 1]))
+        self.assertEqual(SPLIT, ev.verdict(0, (1,)))
 
     def test_a_one_sided_population_settles_the_leaf(self):
         # Every member on the same side: the distinguisher does not divide this
@@ -183,7 +177,7 @@ class TestVerdict(unittest.TestCase):
         self.assertEqual([200, 0], accum["N"])
         self.assertEqual(0.0, ev._log_bf_scores(accum))
         self.assertLess(ev._log_bf_assignment(accum), 0)
-        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,), [0], [1]))
+        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,)))
         self.assertNotIn((1,), ev._open.get(0, {}))
 
     def test_a_balanced_assignment_is_evidence_for_a_split(self):
@@ -197,23 +191,6 @@ class TestVerdict(unittest.TestCase):
         self.assertEqual([100, 100], accum["N"])
         self.assertGreater(ev._log_bf_assignment(accum), 0)
 
-    def test_too_few_members_is_undecided_not_a_split(self):
-        # Under _min_members the Bayes factor is underpowered, and the per-pair
-        # fallback needs the pair itself to separate decisively -- here it does
-        # not, so the leaf stays open rather than splitting on thin evidence.
-        ev = _evidence(_StubFamily(side_of=lambda p: True))
-        ev.record(0, [0])
-        ev.record(0, [1])
-        self.assertEqual(UNDECIDED, ev.verdict(0, (1,), [0], [1]))
-
-    def test_a_starved_leaf_splits_on_the_pair_fallback(self):
-        # Too few members for the Bayes factor, but the two strings the
-        # disagreement separated land on opposite decisive sides.
-        ev = _evidence(_StubFamily(side_of=lambda p: p == [0]))
-        ev.record(0, [0])
-        ev.record(0, [1])
-        self.assertEqual(SPLIT, ev.verdict(0, (1,), [0], [1]))
-
     def test_pool_members_are_only_scanned_when_a_candidate_opens(self):
         # The scan walks the whole prefix pool, so it must not run per verdict.
         scans = []
@@ -226,9 +203,9 @@ class TestVerdict(unittest.TestCase):
         ev = _evidence(_StubFamily(side_of=lambda p: True), pool_members=pool_members)
         for i in range(40):
             ev.record(0, [i])
-        ev.verdict(0, (1,), [0], [1])
-        ev.verdict(0, (1,), [0], [1])
-        ev.verdict(0, (1,), [0], [1])
+        ev.verdict(0, (1,))
+        ev.verdict(0, (1,))
+        ev.verdict(0, (1,))
         self.assertEqual([0], scans)
 
 

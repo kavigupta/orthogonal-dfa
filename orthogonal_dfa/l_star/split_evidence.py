@@ -21,7 +21,6 @@ never gather the members its own split needs.
 """
 
 import math
-from statistics import NormalDist
 from typing import Dict, Optional, Set
 
 #: Tolerated miss rate (beta) -- the lower sequential boundary, ``logBF <=
@@ -79,7 +78,6 @@ class SplitEvidence:
         # How many members one candidate is built from, so a populous leaf does
         # not scan the whole pool.  The probe stream never reaches it.
         self._pool_member_limit = 1500
-        self._min_members = 12
         # Distinct prefixes seen to reach each leaf while sifting probes.  A split
         # fires once enough have piled up for the Bayes factor to cross, so the
         # probe stream -- not the fixed pool -- is what drives a leaf to resolve.
@@ -150,20 +148,12 @@ class SplitEvidence:
 
     # -- weighing it ---------------------------------------------------------
 
-    def verdict(self, state: int, distinguisher: tuple, witness, sprime) -> str:
+    def verdict(self, state: int, distinguisher: tuple) -> str:
         """Weigh the proposed split: ``SPLIT`` / ``NO_SPLIT`` / ``UNDECIDED``."""
         accum = self._candidate(state, distinguisher)
         logbf = self._log_bayes_factor(accum)
         if logbf >= self._split_threshold():
             return SPLIT
-        if len(accum["seen"]) < self._min_members or not self.family.test_idx:
-            # Underpowered here (a starved leaf, e.g. a trapped initial state that
-            # only a handful of distinct strings reach).  Fall back to the per-pair
-            # z-test on the two strings the disagreement already separated; a
-            # populous leaf reaches the Bayes factor instead and never comes here.
-            if self._pair_splits(witness, sprime, distinguisher):
-                return SPLIT
-            return UNDECIDED
         if logbf <= self._no_split_threshold():
             self._open.get(state, {}).pop(distinguisher, None)
             return NO_SPLIT
@@ -219,7 +209,7 @@ class SplitEvidence:
         *scored* them.  The halves use disjoint suffixes, so the two are
         conditionally independent given the hypothesis and their log factors
         add."""
-        if len(accum["seen"]) < self._min_members or not self.family.test_idx:
+        if not self.family.test_idx:
             return float("-inf")
         return self._log_bf_scores(accum) + self._log_bf_assignment(accum)
 
@@ -275,26 +265,3 @@ class SplitEvidence:
         for this distinguisher and stops being probed -- the lower sequential
         boundary from the tolerated miss rate (beta), ``logBF <= log(beta)``."""
         return math.log(max(self._split_miss_rate, 1e-12))
-
-    def _starved_split_margin(self) -> float:
-        """Confidence margin for the per-pair fallback the population factor
-        cannot reach.  A genuinely starved leaf never gathers the members the
-        Bayes factor needs, yet its few members can still span two states.  There
-        the evidence is a single pair scoring on opposite sides, so this falls
-        back to the resolver's z-test on the score difference ``D = f_s -
-        f_sprime`` (mean 0, variance ``2 p (1-p) / m`` under one shared state).
-        Bonferroni at ``split_fpr`` matches :meth:`_split_threshold`."""
-        p = 0.5 + self.pst.config.min_signal_strength
-        m = self.pst.config.suffix_family_size
-        sigma_d = math.sqrt(2 * p * (1 - p) / m)
-        tests = max(self._num_states() * self.pst.alphabet_size, 1)
-        alpha = self._split_fpr / tests
-        z = NormalDist().inv_cdf(1 - alpha / 2)
-        return max(0.0, z * sigma_d / 2 - self.pst.evidence_margin)
-
-    def _pair_splits(self, s, sprime, distinguisher) -> bool:
-        """The starved-leaf fallback: the pair itself must separate, at the
-        :meth:`_starved_split_margin` standard of evidence."""
-        return self.family.separates(
-            s, sprime, distinguisher, margin=self._starved_split_margin()
-        )

@@ -242,7 +242,7 @@ class DirectLStarLearner:
         distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
             return _RESOLVED
-        verdict = self.splits.verdict(s1, distinguisher, witness, sprime)
+        verdict = self.splits.verdict(s1, distinguisher)
         if verdict == SPLIT:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT

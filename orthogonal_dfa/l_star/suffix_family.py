@@ -68,18 +68,6 @@ class SuffixFamily:
         single leaf from being split twice on the same noise."""
         return self._decide(self.mean(seq, midfix), margin=0.0)
 
-    def separates(self, s, sprime, midfix, *, margin: float) -> bool:
-        """Whether ``s`` and ``sprime`` land on opposite *decisive* sides of
-        ``midfix``, judged with the band widened by ``margin``.
-
-        The widening is a higher standard of evidence than an ordinary sift: this
-        answers a question a split is about to be committed on, so a
-        noise-flipped membership must not be able to manufacture a
-        distinguisher."""
-        first = self._decide(self.mean(s, midfix), margin=margin)
-        second = self._decide(self.mean(sprime, midfix), margin=margin)
-        return first is not None and second is not None and first != second
-
     def _decide(self, value: float, *, margin: float) -> Optional[bool]:
         if value >= self.pst.accept_thresh + margin:
             return True
