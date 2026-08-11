@@ -20,13 +20,7 @@ E-L* is admitted on Difficult02, Normal07, Simple01, Simple02, Simple05. The oth
 acceptance imbalance, class-preservation or the covered-accuracy ceiling, and
 not run.
 
-## 2. This repo's benchmarks
-
-The modulo-9 and regex oracles from `tests/test_lstar.py`: 8-11 states, larger
-than CAPAL's suite, and selected to satisfy E-L*'s preconditions -- which is why
-E-L* applies to every target here and to five of CAPAL's 28.
-
-## 3. The wall: full hyperparameter sweep
+## 2. The wall: hyperparameter sweep
 
 A full factorial over CAPAL's three real knobs -- `max_same_samples`,
 `suffix_pool_len_max`, `alpha` -- across every cell, all four noise levels, and
@@ -46,7 +40,7 @@ three seeds (480 runs). For each (cell, η), how many of the
 The grid's low corner is upstream's own benchmark setting, so a cell that fails
 across it failed with at least the budget CAPAL's authors publish with.
 
-## 4. Matched query budget: CAPAL at E-L*'s own spend
+## 3. Matched query budget: CAPAL at E-L*'s own spend
 
 CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
 `extra_len_max=16`, `suffix_pool_len_max=24`,
@@ -64,7 +58,7 @@ is not a matched-budget measurement. That is a stronger statement than a low
 score rather than a weaker one: CAPAL stops improving at a fraction of E-L*'s
 spend and cannot use more.
 
-## 5. Why the noise floor bites CAPAL harder (theory)
+## 4. Why the noise floor bites CAPAL harder (theory)
 
 Both learners use statistical row-equality under persistent noise, but the test
 *shape* differs. CAPAL's SAMESTATE compares two noisy rows against each other,
@@ -85,17 +79,19 @@ widens with noise. For the pairs CAPAL merges on modulo-9 (states differing by
 so at η=0.30 the observed disagreement sits only ~0.035 above the 0.42 floor.
 Resolving that needs a threshold so tight it over-splits every easy pair -- one
 global knob (τ) cannot serve the hard and easy pairs at once. That is the wall,
-and it is structural to the pairwise test, which is why §4's matched budget does
+and it is structural to the pairwise test, which is why §3's matched budget does
 not move it.
 
-## 6. Caveats
+## 5. Caveats
 
 - The membership columns are not like for like. CAPAL is handed a perfect
   equivalence oracle and E-L* is not, so part of what E-L* pays for in queries
   is work CAPAL is given.
-- Sections 3 and 4 cover only this repo's five targets. CAPAL's own 28-target
-  suite has never been run at more than one configuration.
-- Sections 1 and 2 are single-seed; the sweep and the matched-budget probe use
+- Neither learner is measured on a neutral set. This repo's five targets are
+  its own test set, which is why E-L* is in regime on all of them and on five of
+  CAPAL's 28; and the sweep and the matched-budget probe run only on those five,
+  so CAPAL's own suite has never been run at more than one configuration.
+- The head-to-head experiments are single-seed; the sweep and the probe use
   three. Per-cell verdicts move under re-measurement: raising CAPAL's budget to
   its authors' settings flipped cells in both directions, one of them from 1.000
   to 0.507. Read single-seed per-cell numbers as indicative.
