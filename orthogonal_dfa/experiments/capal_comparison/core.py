@@ -18,7 +18,8 @@ learners do not have the same oracles: CAPAL is given a perfect EQ (the paper's
 pMAT assumption), and its counterexamples come back as gold labels that also
 shadow the MQ, so those strings cost it nothing thereafter. E-L* has no EQ at
 all and manufactures its counterexamples out of membership queries, so its EQ
-count is 0 by construction.
+count is 0 by construction. Reading a membership count alone therefore overstates
+what E-L* spends relative to CAPAL.
 """
 
 from __future__ import annotations

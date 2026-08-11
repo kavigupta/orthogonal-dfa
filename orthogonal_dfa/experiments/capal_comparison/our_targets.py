@@ -2,6 +2,10 @@
 
 The oracle is the source of truth; `build_modulo_dfa` / `build_regex_dfa` port
 it to an upstream `capal.DFA` denoting the same language.
+
+These are this repo's own test set, so E-L* is in regime on all of them. That is
+selection, not a result: a comparison drawn only from this family is drawn on
+E-L*'s home ground, as one drawn only from `capal_targets` is on CAPAL's.
 """
 
 from __future__ import annotations
