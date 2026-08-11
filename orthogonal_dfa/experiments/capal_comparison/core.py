@@ -66,6 +66,15 @@ EVAL_MAX_LEN = 40
 EVAL_SEED = 0x1234
 
 
+class BudgetExhausted(BaseException):
+    """Raised when a cell has issued its allowance of distinct membership queries.
+
+    BaseException for the same reason as `CellTimeout`: it is a stopping rule
+    imposed from outside, not a learner failure, so the drivers' broad
+    `except Exception` must not swallow it.
+    """
+
+
 class CellTimeout(BaseException):
     """Raised when a cell outruns `CELL_TIMEOUT_SECONDS`.
 
@@ -185,9 +194,20 @@ def run_capal_cell(
     truth: Callable[[List[int]], bool],
     alphabet: Sequence[str],
     timeout: int = CELL_TIMEOUT_SECONDS,
+    query_budget: Optional[int] = None,
+    **learner_kwargs: Any,
 ) -> Cell:
-    """Run upstream CAPAL on `target` and score it on the shared word list."""
-    learner = make_learner(target, eta, seed=seed)
+    """Run upstream CAPAL on `target` and score it on the shared word list.
+
+    learner_kwargs override make_learner's defaults, which are upstream's own
+    benchmark settings.
+
+    query_budget stops the fit after that many distinct membership queries and
+    scores the hypothesis reached, so CAPAL can be compared against E-L* at
+    equal spend. Stalled means it ran out of iterations under budget, so the
+    budget never bound and the cell is not a matched-budget measurement.
+    """
+    learner = make_learner(target, eta, seed=seed, **learner_kwargs)
     cell = Cell(
         benchmark=benchmark,
         family=family,
@@ -213,6 +233,17 @@ def run_capal_cell(
         },
     )
 
+    if query_budget is not None:
+        inner_mq = learner.mq.query
+
+        def budgeted_query(string: str) -> bool:
+            answer = inner_mq(string)
+            if len(learner.mq.cache) >= query_budget:
+                raise BudgetExhausted()
+            return answer
+
+        learner.mq.query = budgeted_query  # type: ignore[method-assign]
+
     eq_calls = {"n": 0}
     inner_eq = learner.eq.query
 
@@ -227,6 +258,14 @@ def run_capal_cell(
         with time_limit(timeout), contextlib.redirect_stdout(io.StringIO()):
             dfa, converged = fit_with_fallback(learner)
         cell.converged = converged
+    except BudgetExhausted:
+        # The last hypothesis is what CAPAL would have answered had it been
+        # stopped here, so it is the thing to score -- not a failure.
+        last = getattr(learner, "_last_hyp", None)
+        dfa = getattr(last, "dfa", None)
+        cell.converged = False
+        cell.error_type = "BudgetExhausted"
+        cell.error = f"stopped at the {query_budget} distinct-query budget"
     except CellTimeout:
         cell.error_type = "Timeout"
         cell.error = f"no hypothesis within {timeout}s"
@@ -243,6 +282,18 @@ def run_capal_cell(
     # the MQ, so repeats never get here.
     cell.queries_total = len(learner.mq.cache)
     cell.equivalence_queries = eq_calls["n"]
+
+    if (
+        query_budget is not None
+        and cell.error_type is None
+        and not cell.converged
+        and cell.queries_total < query_budget
+    ):
+        cell.error_type = "Stalled"
+        cell.error = (
+            f"stopped after {cell.equivalence_queries} iterations having used "
+            f"{cell.queries_total} of the {query_budget} query budget"
+        )
 
     if dfa is not None:
         cell.learned_states = dfa.num_states
