@@ -26,26 +26,26 @@ query cost differs by orders of magnitude:
 
 | target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Difficult02 | 0.05 | 1.000 | yes | 1,704 | 6 | 1.000 | yes | 1,756,677 |
-| Difficult02 | 0.10 | 1.000 | yes | 2,093 | 7 | 1.000 | yes | 1,120,559 |
-| Difficult02 | 0.20 | 1.000 | yes | 3,254 | 9 | 1.000 | yes | 1,972,239 |
-| Difficult02 | 0.30 | 0.507 | no | 18,075 | 200 | 1.000 | yes | 23,164,055 |
-| Normal07 | 0.05 | 1.000 | yes | 956 | 3 | 1.000 | yes | 219,912 |
-| Normal07 | 0.10 | 1.000 | yes | 827 | 2 | 1.000 | yes | 299,346 |
-| Normal07 | 0.20 | 1.000 | yes | 704 | 5 | 1.000 | yes | 473,551 |
-| Normal07 | 0.30 | 1.000 | yes | 1,186 | 7 | 1.000 | yes | 1,300,469 |
-| Simple01 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 78,794 |
-| Simple01 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 108,604 |
-| Simple01 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 189,647 |
-| Simple01 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 461,305 |
-| Simple02 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 78,962 |
-| Simple02 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 108,662 |
-| Simple02 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 140,249 |
-| Simple02 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 406,648 |
-| Simple05 | 0.05 | 1.000 | yes | 1,202 | 3 | 1.000 | yes | 4,521,187 |
-| Simple05 | 0.10 | 1.000 | yes | 1,202 | 6 | 1.000 | yes | 6,529,658 |
-| Simple05 | 0.20 | 1.000 | yes | 1,219 | 6 | 1.000 | yes | 6,317,569 |
-| Simple05 | 0.30 | 1.000 | yes | 3,213 | 13 | 1.000 | yes | 92,338,752 |
+| Difficult02 | 0.05 | 1.000 | yes | 1,704 | 6 | 1.000 | yes | 441,482 |
+| Difficult02 | 0.10 | 1.000 | yes | 2,093 | 7 | 1.000 | yes | 547,711 |
+| Difficult02 | 0.20 | 1.000 | yes | 3,254 | 9 | 1.000 | yes | 1,421,126 |
+| Difficult02 | 0.30 | 0.507 | no | 18,075 | 200 | 1.000 | yes | 13,334,977 |
+| Normal07 | 0.05 | 1.000 | yes | 956 | 3 | 1.000 | yes | 147,663 |
+| Normal07 | 0.10 | 1.000 | yes | 827 | 2 | 1.000 | yes | 208,234 |
+| Normal07 | 0.20 | 1.000 | yes | 704 | 5 | 1.000 | yes | 429,880 |
+| Normal07 | 0.30 | 1.000 | yes | 1,186 | 7 | 1.000 | yes | 1,142,060 |
+| Simple01 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 44,514 |
+| Simple01 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 58,830 |
+| Simple01 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 115,951 |
+| Simple01 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 327,845 |
+| Simple02 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 40,375 |
+| Simple02 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 55,459 |
+| Simple02 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 116,552 |
+| Simple02 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 331,745 |
+| Simple05 | 0.05 | 1.000 | yes | 1,202 | 3 | 1.000 | yes | 108,485 |
+| Simple05 | 0.10 | 1.000 | yes | 1,202 | 6 | 1.000 | yes | 853,568 |
+| Simple05 | 0.20 | 1.000 | yes | 1,219 | 6 | 1.000 | yes | 2,426,132 |
+| Simple05 | 0.30 | 1.000 | yes | 3,213 | 13 | 1.000 | yes | 31,644,445 |
 
 ## 2. This repo's benchmarks (head-to-head)
 
@@ -55,32 +55,32 @@ E-L*'s preconditions.
 
 CAPAL's convergence here is a clean function of the noise level (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5); it
 is not that these languages defeat it, but that noise does. E-L* reaches exact
-accuracy on 16/20 of the cells it is in regime for, and is flat in
+accuracy on 15/20 of the cells it is in regime for, and is flat in
 the noise -- and pays two to three orders of magnitude more membership queries
 for it.
 
 | target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.05 | 1.000 | yes | 3,083 | 10 | 1.000 | yes | 302,721 |
-| parity_mod9_allowed_3_6 | 0.10 | 0.947 | no | 55,232 | 200 | 1.000 | yes | 466,140 |
-| parity_mod9_allowed_3_6 | 0.20 | 0.774 | no | 11,085 | 200 | 1.000 | yes | 875,691 |
-| parity_mod9_allowed_3_6 | 0.30 | 0.758 | no | 17,194 | 200 | 1.000 | yes | 1,383,779 |
-| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 299,040 |
-| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 990,677 |
-| regex_subseq_1010101 | 0.20 | 1.000 | yes | 7,197 | 18 | 1.000 | yes | 1,281,289 |
-| regex_subseq_1010101 | 0.30 | 0.919 | no | 5,284 | 200 | 1.000 | yes | 3,204,645 |
-| regex_two_1111 | 0.05 | 1.000 | yes | 4,556 | 10 | 1.000 | yes | 435,614 |
-| regex_two_1111 | 0.10 | 0.871 | no | 9,327 | 200 | 1.000 | yes | 452,176 |
-| regex_two_1111 | 0.20 | 0.868 | no | 4,633 | 200 | 1.000 | yes | 912,121 |
-| regex_two_1111 | 0.30 | 0.867 | no | 2,392 | 200 | 1.000 | yes | 2,345,411 |
-| regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 11,257 | 21 | 0.989 | no | 328,929 |
-| regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 8,477 | 15 | 0.989 | no | 553,514 |
-| regex_alt_1111_or_0000_11 | 0.20 | 0.776 | no | 11,475 | 200 | 0.989 | no | 866,460 |
-| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 5,701,657 |
-| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | 1.000 | yes | 1,107,150 |
-| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | 1.000 | yes | 2,533,131 |
-| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | 1.000 | yes | 2,492,408 |
-| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | 1.000 | yes | 12,513,579 |
+| parity_mod9_allowed_3_6 | 0.05 | 1.000 | yes | 3,083 | 10 | 1.000 | yes | 120,177 |
+| parity_mod9_allowed_3_6 | 0.10 | 0.947 | no | 55,232 | 200 | 1.000 | yes | 168,723 |
+| parity_mod9_allowed_3_6 | 0.20 | 0.774 | no | 11,085 | 200 | 1.000 | yes | 457,812 |
+| parity_mod9_allowed_3_6 | 0.30 | 0.758 | no | 17,194 | 200 | 1.000 | yes | 1,252,527 |
+| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 464,950 |
+| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 715,850 |
+| regex_subseq_1010101 | 0.20 | 1.000 | yes | 7,197 | 18 | 1.000 | yes | 794,189 |
+| regex_subseq_1010101 | 0.30 | 0.919 | no | 5,284 | 200 | 0.989 | no | 2,307,903 |
+| regex_two_1111 | 0.05 | 1.000 | yes | 4,556 | 10 | 1.000 | yes | 254,756 |
+| regex_two_1111 | 0.10 | 0.871 | no | 9,327 | 200 | 1.000 | yes | 354,970 |
+| regex_two_1111 | 0.20 | 0.868 | no | 4,633 | 200 | 1.000 | yes | 798,858 |
+| regex_two_1111 | 0.30 | 0.867 | no | 2,392 | 200 | 1.000 | yes | 1,882,095 |
+| regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 11,257 | 21 | 0.989 | no | 184,141 |
+| regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 8,477 | 15 | 0.989 | no | 341,623 |
+| regex_alt_1111_or_0000_11 | 0.20 | 0.776 | no | 11,475 | 200 | 0.989 | no | 1,094,636 |
+| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 2,856,597 |
+| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | 1.000 | yes | 270,494 |
+| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | 1.000 | yes | 1,219,238 |
+| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | 1.000 | yes | 1,824,480 |
+| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | 1.000 | yes | 22,551,794 |
 
 ## 3. The wall: full hyperparameter sweep
 
@@ -125,11 +125,11 @@ seeds, versus E-L*'s spend on the same cell:
 
 | cell | CAPAL acc | conv | stalled | timeout | CAPAL mq | E-L* acc | E-L* mq |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.685 | 0/3 | 0/3 | 0/3 | 1,383,779 | 1.000 | 1,383,779 |
-| regex_subseq_1010101 | 0.933 | 0/3 | 1/3 | 0/3 | 2,617,190 | 1.000 | 3,204,645 |
-| regex_two_1111 | 0.904 | 0/3 | 0/3 | 1/3 | 2,131,790 | 1.000 | 2,345,411 |
-| regex_alt_1111_or_0000_11 | 0.725 | 0/3 | 0/3 | 1/3 | 4,933,556 | 0.989 | 5,701,657 |
-| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 3/3 | 0/3 | 107,359 | 1.000 | 12,513,579 |
+| parity_mod9_allowed_3_6 | 0.669 | 0/3 | 0/3 | 0/3 | 1,252,527 | 1.000 | 1,252,527 |
+| regex_subseq_1010101 | 0.835 | 0/3 | 1/3 | 0/3 | 1,972,081 | 0.989 | 2,307,903 |
+| regex_two_1111 | 0.880 | 0/3 | 1/3 | 0/3 | 1,816,777 | 1.000 | 1,882,095 |
+| regex_alt_1111_or_0000_11 | 0.755 | 0/3 | 1/3 | 0/3 | 2,449,660 | 0.989 | 2,856,597 |
+| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 3/3 | 0/3 | 107,359 | 1.000 | 22,551,794 |
 
 CAPAL converges on none of them, at any budget, on any seed.
 
@@ -139,12 +139,12 @@ E-L* used, plus a perfect equivalence oracle E-L* never gets, and still comes
 back short of it.
 
 Two kinds of cell are not measurements of that, and are separated out above
-rather than averaged in. **Stalled** (regex_subseq_1010101 (1/3), regex_alt_111_or_000_3sym (3/3)) ran out of iterations at a fixed
+rather than averaged in. **Stalled** (regex_subseq_1010101 (1/3), regex_two_1111 (1/3), regex_alt_1111_or_0000_11 (1/3), regex_alt_111_or_000_3sym (3/3)) ran out of iterations at a fixed
 point: further rounds issue no new queries at all -- on
 regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations and
 at 10000 -- so no budget could ever bind. That is a stronger statement than a
 low score, just a different one: CAPAL stops improving at a fraction of E-L*'s
-spend and cannot use more. **Timed out** (regex_two_1111 (1/3), regex_alt_1111_or_0000_11 (1/3)) were ended by the wall clock
+spend and cannot use more. **Timed out** (none) were ended by the wall clock
 with no hypothesis to score, and say nothing either way.
 
 ## 5. Why the noise floor bites CAPAL harder (theory)
@@ -188,7 +188,7 @@ not move it.
   benchmark setting and which sweeps up from there. No knob rescues a cell.
 - The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
   E-L*'s own query spend on 3 of 5 cells without converging on any, and on
-  modulo 2 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
+  modulo 0 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
   spend without producing a hypothesis at all. On the two cells that stop below
   E-L*'s spend the probe is inconclusive rather than supportive.
 - Sections 1-2 are single-seed; the sweep and the matched-budget probe use

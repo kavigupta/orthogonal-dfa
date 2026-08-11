@@ -167,10 +167,13 @@ def sweep_rows(_cells: Sequence[dict]) -> List[List[str]]:
         ].append(c)
     rows = []
     for m, pool, alpha in sorted({(m, p, a) for m, p, a, _ in grid}):
-        # The baseline corner is upstream's own benchmark setting, and the
-        # configuration experiments 1, 2 and 4 all run at.
+        # Bold marks upstream's own benchmark setting, which is also what
+        # experiments 1, 2 and 4 run at.
         baseline = (m, pool, alpha) == (80, 10, 1e-3)
-        mark = (lambda v: f"\\textbf{{{v}}}") if baseline else (lambda v: str(v))
+
+        def mark(value: Any, bold: bool = baseline) -> str:
+            return f"\\textbf{{{value}}}" if bold else str(value)
+
         rows.append(
             [mark(m), mark(pool), mark(alpha)]
             + [

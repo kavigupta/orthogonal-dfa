@@ -199,25 +199,13 @@ def run_capal_cell(
 ) -> Cell:
     """Run upstream CAPAL on `target` and score it on the shared word list.
 
-    `learner_kwargs` go to `make_learner`, whose defaults are upstream's own
-    benchmark settings. Overriding them is what the hyperparameter sweep does;
-    the config is read back off the learner below either way, so the record
-    always says what CAPAL actually ran with.
+    learner_kwargs override make_learner's defaults, which are upstream's own
+    benchmark settings.
 
-    `query_budget` stops the fit once that many *distinct* membership queries
-    have been issued, and scores whatever hypothesis CAPAL had reached. That is
-    what makes a like-for-like comparison against E-L*'s own spend possible:
-    without it, CAPAL's query count is whatever its configuration happens to
-    consume, which on this repo's targets ranged from 1% to 16x E-L*'s.
-
-    A budgeted cell ends one of four ways, and `error_type` says which:
-
-    - `None` -- converged inside the budget.
-    - `"BudgetExhausted"` -- spent the budget; the scored hypothesis is real,
-      it simply is not CAPAL's final answer.
-    - `"Stalled"` -- ran out of iterations without spending the budget, so the
-      budget never bound and this is not a matched-budget measurement.
-    - `"Timeout"` -- the wall clock ended it, with no hypothesis to score.
+    query_budget stops the fit after that many distinct membership queries and
+    scores the hypothesis reached, so CAPAL can be compared against E-L* at
+    equal spend. Stalled means it ran out of iterations under budget, so the
+    budget never bound and the cell is not a matched-budget measurement.
     """
     learner = make_learner(target, eta, seed=seed, **learner_kwargs)
     cell = Cell(
@@ -295,12 +283,6 @@ def run_capal_cell(
     cell.queries_total = len(learner.mq.cache)
     cell.equivalence_queries = eq_calls["n"]
 
-    # Given a budget and unable to spend it: CAPAL ran out of iterations at a
-    # fixed point. Further rounds issue no new queries at all -- on
-    # regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations
-    # and at 10000 -- so the budget can never bind and this is not a
-    # matched-budget measurement. It is its own outcome, and a stronger claim
-    # than a low score: CAPAL stops improving and cannot use more.
     if (
         query_budget is not None
         and cell.error_type is None

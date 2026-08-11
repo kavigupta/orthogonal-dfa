@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from .lstar import do_counterexample_driven_synthesis
+from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
 from .statistics import (

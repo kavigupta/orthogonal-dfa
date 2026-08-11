@@ -1,28 +1,20 @@
 #!/usr/bin/env python3
-"""Experiment 3: full CAPAL hyperparameter sweep across every benchmark cell.
+"""
+Experiment 3, the hyperparameter sweep, and experiment 4, the matched budget.
 
-A full factorial over CAPAL's three real knobs -- `max_same_samples` (evidence
-per pairwise test), `suffix_pool_len_max` (suffix pool length), and `alpha`
-(comparison significance) -- run on every benchmark cell (target x noise) for
-three seeds. For each cell this tells a *cell-specific structural wall* (fails
-at every config and seed) from a *default-config artifact* (some config or seed
-cracks it), and whether the modulo-9 wall is "one hard DFA at high noise" or
-"high noise is bad for everything".
+The sweep runs every combination of max_same_samples, suffix_pool_len_max and
+alpha on every benchmark cell, for three seeds. Its grid starts at upstream's
+own benchmark settings and goes up along each axis.
 
-The grid starts at upstream's own benchmark settings and only goes up, so its
-low corner is exactly the configuration experiments 1 and 2 measure. A cell that
-fails everywhere in this grid failed with at least the evidence, pool and search
-budget CAPAL's authors publish with, and more.
+m stops at 240 because it is essentially the whole runtime cost (m=80 ~3s,
+m=240 ~19s, m=480 ~146s) and a preliminary m=480 sweep added no convergence.
 
-`max_same_samples` is capped at 240: it is the entire runtime cost (m=80 ~3s,
-m=240 ~19s, m=480 ~146s with minutes-long outliers), and the preliminary m=480
-sweep showed larger m adds no convergence under persistent noise. `max_iters`
-stays at upstream's 200 rather than the 50 an earlier revision used, so
-convergence here means the same thing it does in sections 1-2.
+--matched-budget runs CAPAL with exactly the membership queries E-L* spent on
+the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
+and so is not a sweep.
 
-Example:
-    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep \
-        --etas 0.05 0.10 0.20 0.30 --seeds 0 1 2
+    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep
+    python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --matched-budget
 """
 
 from __future__ import annotations
@@ -33,21 +25,14 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from .core import (
-    REPO_ROOT,
-    Cell,
-    eval_words,
-    run_capal_cell,
-    run_elstar_cell,
-    write_experiment,
-)
+from .core import REPO_ROOT, Cell, eval_words, write_experiment
 from .our_targets import our_benchmarks
+from .sweep import capal_cell
 
 DEFAULT_ETAS = [0.05, 0.10, 0.20, 0.30]
 DEFAULT_SEEDS = [0, 1, 2]
 
-#: Full factorial over the three knobs that actually move CAPAL, anchored at
-#: upstream's benchmark settings (m=80, pool=10, alpha=1e-3) and sweeping up.
+#: Anchored at upstream's benchmark settings (m=80, pool=10, alpha=1e-3).
 M_VALUES = [80, 240]
 POOL_VALUES = [10, 24]
 ALPHA_VALUES = [1e-3, 0.05]
@@ -59,26 +44,6 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
-#: The matched-budget probe: CAPAL given exactly the distinct membership
-#: queries E-L* spent on the same cell, then stopped and scored on whatever
-#: hypothesis it had reached.
-#:
-#: The knobs uncap suffix enumeration so that CAPAL has somewhere productive to
-#: spend the budget -- at its shipped settings it stops after a few thousand
-#: queries, far short of E-L*'s millions, and the comparison would be vacuous.
-#: `max_iters` is raised for the same reason: the run should end because the
-#: budget ran out, not because the iteration cap did. 500 is well clear of what
-#: a productive run needs -- the parity cells spend their whole budget in 6 to 8
-#: iterations -- and a stalled run gets no value from more: on
-#: regex_alt_111_or_000_3sym the distinct-query count and the learned automaton
-#: are identical at 50 iterations and at 10000, so the extra rounds only cost
-#: wall clock.
-#:
-#: Every knob here is at or above the sweep's range, so this cannot be read as
-#: CAPAL being under-provisioned on some axis relative to experiment 3:
-#: `suffix_pool_len_max` matches the sweep's 24, `max_same_samples` is 8x its
-#: top, and `enum_depth`/`extra_len_max` are above the defaults the sweep holds
-#: them at.
 MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
         "matched,enum=8,extra=16,pool=24,m=2000",
@@ -94,10 +59,10 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
 
 
 def elstar_budgets() -> Dict[Tuple[str, float], int]:
-    """E-L*'s distinct membership queries per (benchmark, eta), from experiment 2.
+    """
+    E-L*'s membership queries per (benchmark, eta), from experiment 2.
 
-    Only cells E-L* actually solved carry a budget: matching CAPAL against a
-    number E-L* did not itself achieve would not be a comparison.
+    Cells E-L* was not run on have no spend to match, and so carry no budget.
     """
     path = REPO_ROOT / "data" / "capal" / "our_benchmarks.json"
     if not path.exists():
@@ -136,13 +101,8 @@ def main() -> None:
     ap.add_argument(
         "--matched-budget",
         action="store_true",
-        help="Section-10 mode: uncap suffix enumeration to match E-L*'s query "
-        "budget (slow); defaults to eta=0.30 and its own output file.",
-    )
-    ap.add_argument(
-        "--with-elstar",
-        action="store_true",
-        help="Also run one E-L* reference per (cell, eta). Slow.",
+        help="Experiment 4: give CAPAL E-L*'s query budget instead of sweeping "
+        "(slow); defaults to eta=0.30 and its own output file.",
     )
     ap.add_argument(
         "--configs",
@@ -177,18 +137,15 @@ def main() -> None:
         "benchmarks": [b.name for b in benchmarks],
         "configs": [label for label, _ in sweep_configs],
         "matched_budget": args.matched_budget,
-        "with_elstar": args.with_elstar,
     }
 
     description = (
-        "CAPAL at a matched query budget (uncapped suffix enumeration) on the "
-        "eta=0.30 wall cells: does hitting E-L*'s distinct-query count break "
-        "the wall?"
+        "CAPAL given exactly the membership queries E-L* spent on the same "
+        "cell, at eta=0.30."
         if args.matched_budget
         else (
-            "CAPAL hyperparameter sweep (max_same_samples x pool x alpha x seeds) "
-            "across every benchmark cell, to separate cell-specific structural "
-            "walls from default-config artifacts."
+            "CAPAL hyperparameter sweep (max_same_samples x pool x alpha x "
+            "seeds) across every benchmark cell."
         )
     )
 
@@ -219,15 +176,12 @@ def main() -> None:
                 if args.matched_budget and budget is None:
                     print("   skipped: E-L* has no spend recorded here", flush=True)
                     continue
-                cell = run_capal_cell(
-                    b.target,
-                    benchmark=b.name,
-                    family=b.family,
+                cell = capal_cell(
+                    b,
                     eta=eta,
                     seed=seed,
                     words=words,
                     truth=truth,
-                    alphabet=b.alphabet,
                     query_budget=budget,
                     **kwargs,
                 )
@@ -239,23 +193,6 @@ def main() -> None:
                     f"mq={cell.queries_total} eq={cell.equivalence_queries} ({cell.seconds:.1f}s)",
                     flush=True,
                 )
-                flush()
-
-            if args.with_elstar:
-                print(f"[E-L*] {b.name} eta={eta:.2f} reference", flush=True)
-                cell = run_elstar_cell(
-                    b.oracle_creator,
-                    benchmark=b.name,
-                    family=b.family,
-                    eta=eta,
-                    seed=0,
-                    symbols=b.symbols,
-                    words=words,
-                    truth=truth,
-                    target_states=b.target_states,
-                )
-                cell.learner_config["label"] = "E-L* reference"
-                cells.append(cell)
                 flush()
 
     flush(complete=True)
