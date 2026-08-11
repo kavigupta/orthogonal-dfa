@@ -194,8 +194,7 @@ class SplitEvidence:
         """Held-out log Bayes factor for the split: one pooled TEST-half accept
         rate against two.  The ASSIGN half did the grouping, so scoring on the
         disjoint TEST half cannot confirm the noise that produced the grouping."""
-        if not self.family.test_idx:
-            return float("-inf")
+        assert self.family.test_idx  # vs is sized >= suffix_family_size, never empty
         return self._log_bf_scores(accum)
 
     @staticmethod

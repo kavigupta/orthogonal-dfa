@@ -220,28 +220,26 @@ class DirectLStarLearner:
         and run the sequential population split test on the leaf it exposes.
         Returns ``_SPLIT`` / ``_UNDECIDED`` / ``_RESOLVED`` (see :meth:`process`)."""
         state = states[-1]
+        assert state is not None  # the last walked state is always decisive
         actual = self.sifter.sift(w)
-        if actual is None or state is None or actual == state:
+        if actual is None or actual == state:
             return _RESOLVED
         fd = self._first_disagreement(w, states, agree_point, len(w))
         if fd is None:
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
-        if s1 is None or s2 is None:
-            return _RESOLVED
-        # The disagreeing edge is necessarily a cached follow (a fresh sift could
-        # not disagree with itself), so its witness is present and still valid.
-        if self.dfa.target(s1, c) != s2:
-            return _RESOLVED
+        # fd > agree_point, so both endpoints are in the walked, non-None region.
+        assert s1 is not None and s2 is not None
+        # The disagreeing edge is necessarily a cached decisive follow (a fresh
+        # sift could not disagree with itself), so the DFA still holds it, its
+        # witness is present, and both re-sifts land back on s1.
+        assert self.dfa.target(s1, c) == s2
         witness = self.dfa.witness(s1, c)
-        if witness is None:
-            return _RESOLVED
+        assert witness is not None
         sprime = w[: fd - 1]
-        if self.sifter.sift(witness) != s1 or self.sifter.sift(sprime) != s1:
-            return _RESOLVED
+        assert self.sifter.sift(witness) == s1 and self.sifter.sift(sprime) == s1
         distinguisher = self.sifter.disagreement(witness, sprime, [c])
-        if distinguisher is None:
-            return _RESOLVED
+        assert distinguisher is not None
         verdict = self.splits.verdict(s1, distinguisher)
         if verdict == SPLIT:
             self._apply_split(s1, distinguisher, witness, sprime)
