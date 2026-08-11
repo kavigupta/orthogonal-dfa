@@ -2,39 +2,9 @@ import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.direct_lstar import DirectLStarLearner, export_dfa
-from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.partial_dfa import PartialDFA
-
-
-class _StubTable:
-    prefixes = ()
-
-    def suffix(self, v):
-        return [v]
-
-
-class _StubOracle:
-    def membership_queries(self, strings):
-        # Accept everything, so the root's decisive re-read picks the accept side.
-        return [1] * len(strings)
-
-
-def _pst():
-    oracle = _StubOracle()
-    return SimpleNamespace(
-        alphabet_size=2,
-        accept_thresh=0.7,
-        reject_thresh=0.3,
-        decision_boundary=0.5,
-        evidence_margin=0.0,
-        table=_StubTable(),
-        oracle=oracle,
-        sift_cache=MemoizedOracle(oracle),
-        config=SimpleNamespace(
-            split_pval=0.001, min_signal_strength=0.3, suffix_family_size=2
-        ),
-    )
+from tests.direct_lstar_stubs import make_pst
 
 
 def _family():
@@ -57,7 +27,7 @@ class TestExportDfa(unittest.TestCase):
             asked.append((state, c))
             return 1
 
-        dfa, _ = export_dfa(tree, partial, _family(), _pst(), decisive_target)
+        dfa, _ = export_dfa(tree, partial, _family(), make_pst(), decisive_target)
         self.assertEqual([(0, 1), (1, 0), (1, 1)], sorted(asked))
         self.assertEqual({0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}}, dfa.transitions)
 
@@ -66,7 +36,7 @@ class TestExportDfa(unittest.TestCase):
         # must still produce a total transition function.
         tree = MidfixTree()
         partial = PartialDFA(2, num_states=tree.num_states)
-        dfa, _ = export_dfa(tree, partial, _family(), _pst(), lambda state, c: None)
+        dfa, _ = export_dfa(tree, partial, _family(), make_pst(), lambda state, c: None)
         self.assertEqual({0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}, dfa.transitions)
 
     def test_a_closed_hypothesis_never_asks(self):
@@ -79,7 +49,7 @@ class TestExportDfa(unittest.TestCase):
         def decisive_target(state, c):
             raise AssertionError(f"asked about the resolved edge ({state}, {c})")
 
-        dfa, _ = export_dfa(tree, partial, _family(), _pst(), decisive_target)
+        dfa, _ = export_dfa(tree, partial, _family(), make_pst(), decisive_target)
         self.assertEqual({0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}, dfa.transitions)
 
 
@@ -90,7 +60,7 @@ class TestLearnerExport(unittest.TestCase):
         # still break here -- and only when the worklist left an edge open, which
         # the quick benchmarks never do.
         learner = DirectLStarLearner(
-            _pst(), [0, 1], split_fpr=None, split_miss_rate=0.02
+            make_pst(), [0, 1], split_fpr=None, split_miss_rate=0.02
         )
         learner.splits.record(0, [])
         learner.splits.record(1, [1])

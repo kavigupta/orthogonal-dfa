@@ -6,49 +6,19 @@ exactly that.  These assert the real class, not a duck.
 """
 
 import unittest
-from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.direct_lstar import DirectLStarLearner
-from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.visualize import (
     _prefill_fn,
     _resolved_edges,
     _sift_fn,
     _tree_root,
 )
-
-
-class _StubTable:
-    prefixes = ()
-
-    def suffix(self, v):
-        return [v]
-
-
-class _StubOracle:
-    def membership_queries(self, strings):
-        return [1] * len(strings)
-
-
-def _pst():
-    oracle = _StubOracle()
-    return SimpleNamespace(
-        alphabet_size=2,
-        accept_thresh=0.7,
-        reject_thresh=0.3,
-        decision_boundary=0.5,
-        evidence_margin=0.0,
-        table=_StubTable(),
-        oracle=oracle,
-        sift_cache=MemoizedOracle(oracle),
-        config=SimpleNamespace(
-            split_pval=0.001, min_signal_strength=0.3, suffix_family_size=2
-        ),
-    )
+from tests.direct_lstar_stubs import make_pst
 
 
 def _learner():
-    return DirectLStarLearner(_pst(), [0, 1], split_fpr=None, split_miss_rate=0.02)
+    return DirectLStarLearner(make_pst(), [0, 1], split_fpr=None, split_miss_rate=0.02)
 
 
 class TestVisualizeDuckType(unittest.TestCase):
