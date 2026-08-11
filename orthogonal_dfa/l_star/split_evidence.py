@@ -1,23 +1,19 @@
-"""The sequential population test that decides whether a leaf splits.
+"""
+Sequential population test that decides whether a leaf splits.
 
-A probe can exhibit a Myhill-Nerode violation on its own, but under a noisy
-oracle one disagreement is not evidence: it could be a flipped bit.  So a
-proposed distinguisher only *opens* a hypothesis, and this accumulates the leaf's
-members against it until the evidence is conclusive one way or the other.
+A proposed distinguisher opens a hypothesis, and SplitEvidence accumulates the
+leaf's members against it until the evidence is conclusive one way or the other.
 
-The statistic is a held-out Beta-Bernoulli Bayes factor -- one pooled accept rate
-(the leaf is one state) against two (it is really two).  Held out because the
-family's ASSIGN half groups each member and only its TEST half scores the
-grouping, so the test cannot confirm the very noise that produced the grouping
-(see :class:`SuffixFamily`).  The verdict is three-way against two boundaries:
-split above the upper one, accept the leaf as a single state below the lower one,
-and otherwise leave the hypothesis open so more members accumulate.
+The statistic is a Beta-Bernoulli Bayes factor:
+    H0=one pooled accept rate (the leaf is one state)
+    H1=two pooled accept rates
 
-An instance belongs to one tree shape.  A split rewrites the tree, so the
-distinguishers of every open candidate may now cross the freshly inserted node --
-:meth:`after_split` returns the evidence for the refined tree, dropping the
-candidates but carrying the members over, since a leaf that started empty could
-never gather the members its own split needs.
+We compute the assignment to groups on the assign half and score the test half,
+to avoid contamination.
+
+Our verdict is either split, no split, or undecided (insufficient evidence).
+
+This class also tracks the elements of each Myhill-Nerode equivalence class.
 """
 
 import math
