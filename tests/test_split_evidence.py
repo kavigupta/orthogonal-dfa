@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.split_evidence import (
     DEFAULT_SPLIT_MISS_RATE,
-    NO_SPLIT,
     SPLIT,
+    UNDECIDED,
     SplitEvidence,
 )
 
@@ -165,31 +165,17 @@ class TestVerdict(unittest.TestCase):
             ev.record(0, [i, i % 2])
         self.assertEqual(SPLIT, ev.verdict(0, (1,)))
 
-    def test_a_one_sided_population_settles_the_leaf(self):
+    def test_a_one_sided_population_stays_undecided(self):
         # Every member on the same side: the distinguisher does not divide this
-        # leaf at all.  The scores alone cannot see that -- an empty group makes
-        # the two-rate model *identical* to the one-rate model, so they score
-        # exactly 0 -- so it is the assignment that has to carry it.
+        # leaf.  An empty group makes the two-rate model identical to the
+        # one-rate model, so scores are exactly 0 -- with only the scores term a
+        # one-sided leaf never reaches the no-split boundary and stays open.
         ev = _evidence(_StubFamily(side_of=lambda p: True))
         for i in range(200):
             ev.record(0, [i])
         accum = ev._candidate(0, (1,))
-        self.assertEqual([200, 0], accum["N"])
         self.assertEqual(0.0, ev._log_bf_scores(accum))
-        self.assertLess(ev._log_bf_assignment(accum), 0)
-        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,)))
-        self.assertNotIn((1,), ev._open.get(0, {}))
-
-    def test_a_balanced_assignment_is_evidence_for_a_split(self):
-        # Members dividing evenly is not what a single state produces, so the
-        # grouping itself argues for two -- even when the scores are flat.
-        family = _StubFamily(side_of=lambda p: p[-1] == 0, accept_rate=lambda p: 0.5)
-        ev = _evidence(family)
-        for i in range(200):
-            ev.record(0, [i, i % 2])
-        accum = ev._candidate(0, (1,))
-        self.assertEqual([100, 100], accum["N"])
-        self.assertGreater(ev._log_bf_assignment(accum), 0)
+        self.assertEqual(UNDECIDED, ev.verdict(0, (1,)))
 
     def test_pool_members_are_only_scanned_when_a_candidate_opens(self):
         # The scan walks the whole prefix pool, so it must not run per verdict.

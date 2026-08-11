@@ -25,16 +25,9 @@ from typing import Dict, Optional, Set
 
 #: Tolerated miss rate (beta) -- the lower sequential boundary, ``logBF <=
 #: log(beta)``, at which a leaf is accepted as one state and stops being probed.
-#: Coupled to _NULL_ASSIGNMENT_PRIOR: a wholly one-sided population scores about
-#: -4.4, which clears log(0.02) but not log(0.01), so a tighter beta than this
-#: would put the boundary out of reach again.
+#: Only a two-sided population whose halves score the same rate reaches it; a
+#: one-sided population scores 0 and stays UNDECIDED.
 DEFAULT_SPLIT_MISS_RATE = 0.02
-
-#: Shape of the Beta prior on the split proportion under the *null*.  Under one
-#: state every member should land on the same side of the distinguisher, so the
-#: proportion is pinned near 0 or 1 -- a U-shaped Beta(e, e) with small e.  Under
-#: a real split it is a free parameter, Beta(1, 1).
-_NULL_ASSIGNMENT_PRIOR = 0.1
 
 # Outcome of weighing one proposed split.
 SPLIT = "split"
@@ -166,9 +159,8 @@ class SplitEvidence:
         accum = cands.get(distinguisher)
         if accum is not None:
             return accum
-        # ART: [A_true, R_true, A_false, R_false] TEST-half counts; N: members
-        # assigned to each side, which is evidence in its own right.
-        accum = {"ART": [0, 0, 0, 0], "N": [0, 0], "seen": set()}
+        # ART: [A_true, R_true, A_false, R_false] TEST-half counts per side.
+        accum = {"ART": [0, 0, 0, 0], "seen": set()}
         cands[distinguisher] = accum
         # Probe-seen members first, then the pool, up to the cap.  Their family
         # queries are batched in one call so the population packs, rather than one
@@ -201,17 +193,14 @@ class SplitEvidence:
         side = 0 if group else 2
         accum["ART"][side] += accepts
         accum["ART"][side + 1] += len(self.family.test_idx) - accepts
-        accum["N"][0 if group else 1] += 1
 
     def _log_bayes_factor(self, accum: dict) -> float:
-        """Held-out log Bayes factor for the split, from two independent pieces
-        of evidence: how the members were *assigned*, and how the TEST half
-        *scored* them.  The halves use disjoint suffixes, so the two are
-        conditionally independent given the hypothesis and their log factors
-        add."""
+        """Held-out log Bayes factor for the split: one pooled TEST-half accept
+        rate against two.  The ASSIGN half did the grouping, so scoring on the
+        disjoint TEST half cannot confirm the noise that produced the grouping."""
         if not self.family.test_idx:
             return float("-inf")
-        return self._log_bf_scores(accum) + self._log_bf_assignment(accum)
+        return self._log_bf_scores(accum)
 
     @staticmethod
     def _log_bf_scores(accum: dict) -> float:
@@ -219,29 +208,14 @@ class SplitEvidence:
         split), over the TEST-half votes.
 
         Note this is exactly 0 when either side is empty: a two-rate model whose
-        second rate has no data *is* the one-rate model, so the scores alone
-        cannot see a wholly one-sided population.  That is what the assignment
-        term is for."""
+        second rate has no data *is* the one-rate model.  So a wholly one-sided
+        population scores 0 and stays UNDECIDED -- only a genuine rate difference
+        between two populated sides moves the verdict."""
         a1, r1, a2, r2 = accum["ART"]
         return (
             _log_beta(1 + a1, 1 + r1)
             + _log_beta(1 + a2, 1 + r2)
             - _log_beta(1 + a1 + a2, 1 + r1 + r2)
-        )
-
-    @staticmethod
-    def _log_bf_assignment(accum: dict) -> float:
-        """How surprising the *grouping itself* is under each hypothesis.
-
-        A real split predicts members on both sides, with the proportion a free
-        parameter (uniform).  A single state predicts they all land together, the
-        minority being classification noise -- a U-shaped Beta.  So a lopsided
-        assignment is evidence against a split, and a balanced one mild evidence
-        for it; without this the grouping carries no weight at all."""
-        n_a, n_b = accum["N"]
-        e = _NULL_ASSIGNMENT_PRIOR
-        return _log_beta(1 + n_a, 1 + n_b) - (
-            _log_beta(e + n_a, e + n_b) - _log_beta(e, e)
         )
 
     # -- the two boundaries --------------------------------------------------
