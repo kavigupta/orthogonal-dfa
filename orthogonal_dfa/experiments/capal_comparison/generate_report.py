@@ -72,7 +72,6 @@ def exp1_section() -> str:
     capal = [
         c for c in cells if c["learner"] == "CAPAL" and c.get("accuracy") is not None
     ]
-    solved = sum(1 for c in capal if c["accuracy"] >= 0.999)
     fails = sorted(
         (c for c in capal if c["accuracy"] < 0.999),
         key=lambda c: c["accuracy"],
@@ -95,18 +94,15 @@ def exp1_section() -> str:
     ]
     return f"""## 1. CAPAL's own benchmark suite
 
-Both learners on CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult) at
-η ∈ {{0.05, 0.10, 0.20, 0.30}}. This is CAPAL's home turf.
-
-CAPAL solves **{solved}/{len(capal)}** cells at 100% accuracy. Every failure is
-at η=0.30:
+CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult), at
+η ∈ {{0.05, 0.10, 0.20, 0.30}}. Which cells CAPAL fails, and the size of the
+automaton it returns for them:
 
 {table(["target", "η", "acc", "states"], fail_rows)}
 
-E-L* is in its designed regime on only **{len(inreg)}/28** targets
-({", ".join(inreg)}); the other {len(excl)} are recorded as reasoned
-exclusions (acceptance imbalance / class-preservation / covered-accuracy
-ceiling), not run.
+E-L* is admitted on {", ".join(inreg)}. The other {len(excl)} are excluded by
+acceptance imbalance, class-preservation or the covered-accuracy ceiling, and
+not run.
 """
 
 
@@ -120,26 +116,11 @@ def capal_convergence_by_eta(exp: Dict[str, Any]) -> Dict[float, str]:
 
 
 def exp2_section() -> str:
-    exp = load("our_benchmarks")
-    conv = capal_convergence_by_eta(exp)
-    ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
-    el = [
-        c
-        for c in exp["cells"]
-        if c["learner"] == "E-L*" and c.get("accuracy") is not None
-    ]
-    el_exact = sum(1 for c in el if c["accuracy"] == 1.0)
-    return f"""## 2. This repo's benchmarks
+    return """## 2. This repo's benchmarks
 
-Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
-These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
-E-L*'s preconditions.
-
-CAPAL's convergence here is a clean function of the noise level ({ladder}); it
-is not that these languages defeat it, but that noise does. E-L* reaches exact
-accuracy on {el_exact}/{len(el)} of the cells it is in regime for, and is flat in
-the noise -- and pays two to three orders of magnitude more membership queries
-for it.
+The modulo-9 and regex oracles from `tests/test_lstar.py`: 8-11 states, larger
+than CAPAL's suite, and selected to satisfy E-L*'s preconditions -- which is why
+E-L* applies to every target here and to five of CAPAL's 28.
 """
 
 
@@ -189,7 +170,6 @@ def wall_section() -> str:
     by_eta = collections.defaultdict(list)
     for c in cells:
         by_eta[c["eta"]].append(bool(c["converged"]))
-    top_rate = f"{statistics.mean(by_eta[min(by_eta)]):.2f}"
 
     # cells that wall below the top noise level, which is the claim most likely
     # to move when the grid or the learner changes
@@ -220,22 +200,6 @@ def wall_section() -> str:
             " seed, with the crack-rate falling monotonically with noise."
         )
 
-    knobs = collections.defaultdict(lambda: collections.defaultdict(list))
-    for c in cells:
-        for knob in ("max_same_samples", "suffix_pool_len_max", "alpha"):
-            knobs[knob][c["learner_config"][knob]].append(bool(c["converged"]))
-    knob_spread = "; ".join(
-        f"`{knob}` "
-        + " vs ".join(
-            f"{v}: {statistics.mean(hits):.2f}" for v, hits in sorted(vals.items())
-        )
-        for knob, vals in knobs.items()
-    )
-    max_m = int(
-        max(c["learner_config"]["max_same_samples"] for c in cells)
-        / min(c["learner_config"]["max_same_samples"] for c in cells)
-    )
-
     return f"""## 3. The wall: full hyperparameter sweep
 {settings_warning(exp, load("capal_benchmarks"))}
 A full factorial over CAPAL's three real knobs -- `max_same_samples`,
@@ -247,13 +211,8 @@ three seeds ({len(cells)} runs). For each (cell, η), how many of the
 
 {walled_below}
 
-η drives the aggregate rate from {top_rate} to 0.00. The knobs move it far less
-over the swept range -- {knob_spread} -- and none of them rescues a single
-η=0.30 cell.
-
 The grid's low corner is upstream's own benchmark setting, so a cell that fails
-across it failed with at least the budget CAPAL's authors publish with, and up
-to {max_m}× the evidence per pairwise test.
+across it failed with at least the budget CAPAL's authors publish with.
 """
 
 
@@ -320,48 +279,23 @@ def matched_budget_section() -> str:
             ]
         )
 
-    def _tally(entries: List[tuple]) -> str:
-        return ", ".join(f"{n} ({k}/{t})" for n, k, t in entries)
-
-    matched = (
-        _tally(
-            [
-                (
-                    name,
-                    sum(1 for c in g[name] if c["error_type"] == "BudgetExhausted"),
-                    len(g[name]),
-                )
-                for name in OUR_ORDER
-                if name in g
-                and any(c["error_type"] == "BudgetExhausted" for c in g[name])
-            ]
-        )
-        or "none"
-    )
-    stalls = _tally(stalled) or "none"
-    outs = _tally(timed_out) or "none"
     return f"""## 4. Matched query budget: CAPAL at E-L*'s own spend
 {settings_warning(exp, load("capal_benchmarks"))}
 CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
 `extra_len_max={cfg['extra_len_max']}`, `suffix_pool_len_max={cfg['suffix_pool_len_max']}`,
-`max_same_samples={cfg['max_same_samples']}`) on the η=0.30 wall cells, three
-seeds, versus E-L*'s spend on the same cell:
+`max_same_samples={cfg['max_same_samples']}`) on the η=0.30 cells, three seeds,
+stopped once it has issued the membership queries E-L* spent on the same cell.
 
-CAPAL converges on none of them, at any budget, on any seed.
+It converges on none of them, on any seed. Where a cell did spend its budget,
+CAPAL was handed exactly the queries E-L* used plus a perfect equivalence oracle
+E-L* never gets, and still came back short of it.
 
-Only the cells that spent their budget are matched-budget measurements, and
-they are the ones to read: {matched}. There CAPAL is handed exactly the queries
-E-L* used, plus a perfect equivalence oracle E-L* never gets, and still comes
-back short of it.
-
-Two kinds of cell are not measurements of that, and are separated out above
-rather than averaged in. **Stalled** ({stalls}) ran out of iterations at a fixed
-point: further rounds issue no new queries at all -- on
-regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations and
-at 10000 -- so no budget could ever bind. That is a stronger statement than a
-low score, just a different one: CAPAL stops improving at a fraction of E-L*'s
-spend and cannot use more. **Timed out** ({outs}) were ended by the wall clock
-with no hypothesis to score, and say nothing either way.
+A stalled cell ran out of iterations at a fixed point where further rounds issue
+no new queries at all -- on regex_alt_111_or_000_3sym the distinct count is
+identical at 50 iterations and at 10000 -- so no budget could bind, and the cell
+is not a matched-budget measurement. That is a stronger statement than a low
+score rather than a weaker one: CAPAL stops improving at a fraction of E-L*'s
+spend and cannot use more.
 """
 
 
@@ -392,48 +326,20 @@ not move it.
 
 
 def bottom_line() -> str:
-    e1, e2 = load("capal_benchmarks"), load("our_benchmarks")
-    capal1 = [c for c in e1["cells"] if c["learner"] == "CAPAL"]
-    solved = sum(1 for c in capal1 if c["accuracy"] >= 0.999)
-    inreg = sorted(
-        {
-            c["benchmark"]
-            for c in e1["cells"]
-            if c["learner"] == "E-L*" and c.get("accuracy") is not None
-        }
-    )
-    conv = capal_convergence_by_eta(e2)
-    ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
-    sweep = load("wall_sweep")
-    hi = max(sweep["config"]["etas"])
-    hi_runs = [c for c in sweep["cells"] if c["eta"] == hi]
-    mb = load("matched_budget")["cells"]
-    mb_out = sum(1 for c in mb if c["error_type"] == "Timeout")
-    return f"""## 6. Bottom line
+    return """## 6. Caveats
 
-- On CAPAL's own suite CAPAL is broadly applicable and cheap: {solved}/{len(capal1)}
-  cells at 100%, every failure at η=0.30. E-L* matches its accuracy but only on
-  the {len(inreg)}/28 targets its preconditions admit, at two to three orders of
-  magnitude more membership queries.
 - The membership columns are not like for like. CAPAL is handed a perfect
   equivalence oracle and E-L* is not, so part of what E-L* pays for in queries
-  is work CAPAL is given for free.
-- On this repo's benchmarks CAPAL's convergence tracks the noise level rather
-  than the language ({ladder}). E-L* is exact wherever it is in regime, at every
-  noise level tested.
-- The η={hi:g} wall holds across the whole sweep: {sum(bool(c["converged"]) for c in hi_runs)}
-  of {len(hi_runs)} runs converge, over a grid whose low corner is upstream's own
-  benchmark setting and which sweeps up from there. No knob rescues a cell.
-- The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
-  E-L*'s own query spend on 3 of 5 cells without converging on any, and on
-  modulo {mb_out} of {len(mb)} runs exhaust the per-cell time limit at ~16x E-L*'s
-  spend without producing a hypothesis at all. On the two cells that stop below
-  E-L*'s spend the probe is inconclusive rather than supportive.
-- Sections 1-2 are single-seed; the sweep and the matched-budget probe use
-  {len(sweep["config"]["seeds"])}. Individual cell verdicts move under
-  re-measurement -- raising CAPAL's budget to its authors' settings flipped
-  cells in both directions, including one from 1.000 to 0.507 -- so read the
-  single-seed per-cell numbers as indicative rather than settled.
+  is work CAPAL is given.
+- Sections 3 and 4 cover only this repo's five targets. CAPAL's own 28-target
+  suite has never been run at more than one configuration.
+- Sections 1 and 2 are single-seed; the sweep and the matched-budget probe use
+  three. Per-cell verdicts move under re-measurement: raising CAPAL's budget to
+  its authors' settings flipped cells in both directions, one of them from 1.000
+  to 0.507. Read single-seed per-cell numbers as indicative.
+- The query counts are a snapshot of the learners as they stand. A change to
+  E-L*'s suffix screening moved its counts by up to 42x without changing which
+  cells it solves.
 """
 
 

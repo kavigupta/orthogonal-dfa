@@ -6,11 +6,9 @@ Upstream CAPAL pinned at `57d877f6a083d58852660fac388ff49c052dc2d2`, run at its 
 
 ## 1. CAPAL's own benchmark suite
 
-Both learners on CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult) at
-η ∈ {0.05, 0.10, 0.20, 0.30}. This is CAPAL's home turf.
-
-CAPAL solves **109/112** cells at 100% accuracy. Every failure is
-at η=0.30:
+CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult), at
+η ∈ {0.05, 0.10, 0.20, 0.30}. Which cells CAPAL fails, and the size of the
+automaton it returns for them:
 
 | target | η | acc | states |
 | --- | --- | --- | --- |
@@ -18,22 +16,15 @@ at η=0.30:
 | Difficult02 | 0.30 | 0.507 | 29/5 |
 | Normal03 | 0.30 | 0.998 | 40/7 |
 
-E-L* is in its designed regime on only **5/28** targets
-(Difficult02, Normal07, Simple01, Simple02, Simple05); the other 23 are recorded as reasoned
-exclusions (acceptance imbalance / class-preservation / covered-accuracy
-ceiling), not run.
+E-L* is admitted on Difficult02, Normal07, Simple01, Simple02, Simple05. The other 23 are excluded by
+acceptance imbalance, class-preservation or the covered-accuracy ceiling, and
+not run.
 
 ## 2. This repo's benchmarks
 
-Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
-These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
-E-L*'s preconditions.
-
-CAPAL's convergence here is a clean function of the noise level (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5); it
-is not that these languages defeat it, but that noise does. E-L* reaches exact
-accuracy on 15/20 of the cells it is in regime for, and is flat in
-the noise -- and pays two to three orders of magnitude more membership queries
-for it.
+The modulo-9 and regex oracles from `tests/test_lstar.py`: 8-11 states, larger
+than CAPAL's suite, and selected to satisfy E-L*'s preconditions -- which is why
+E-L* applies to every target here and to five of CAPAL's 28.
 
 ## 3. The wall: full hyperparameter sweep
 
@@ -52,36 +43,26 @@ three seeds (480 runs). For each (cell, η), how many of the
 
 **Noise dominates, but not alone.** At η=0.30 every cell fails on all 24 configs and every seed; parity_mod9_allowed_3_6 already walls at η=0.2, regex_alt_1111_or_0000_11 already walls at η=0.2, while the other 3 cells still crack there. Which DFA it is decides where the wall starts; the noise level decides that there is one.
 
-η drives the aggregate rate from 0.87 to 0.00. The knobs move it far less
-over the swept range -- `max_same_samples` 80: 0.34 vs 240: 0.42; `suffix_pool_len_max` 10: 0.40 vs 24: 0.37; `alpha` 0.001: 0.37 vs 0.05: 0.40 -- and none of them rescues a single
-η=0.30 cell.
-
 The grid's low corner is upstream's own benchmark setting, so a cell that fails
-across it failed with at least the budget CAPAL's authors publish with, and up
-to 3× the evidence per pairwise test.
+across it failed with at least the budget CAPAL's authors publish with.
 
 ## 4. Matched query budget: CAPAL at E-L*'s own spend
 
 CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
 `extra_len_max=16`, `suffix_pool_len_max=24`,
-`max_same_samples=2000`) on the η=0.30 wall cells, three
-seeds, versus E-L*'s spend on the same cell:
+`max_same_samples=2000`) on the η=0.30 cells, three seeds,
+stopped once it has issued the membership queries E-L* spent on the same cell.
 
-CAPAL converges on none of them, at any budget, on any seed.
+It converges on none of them, on any seed. Where a cell did spend its budget,
+CAPAL was handed exactly the queries E-L* used plus a perfect equivalence oracle
+E-L* never gets, and still came back short of it.
 
-Only the cells that spent their budget are matched-budget measurements, and
-they are the ones to read: parity_mod9_allowed_3_6 (3/3), regex_subseq_1010101 (2/3), regex_two_1111 (2/3), regex_alt_1111_or_0000_11 (2/3). There CAPAL is handed exactly the queries
-E-L* used, plus a perfect equivalence oracle E-L* never gets, and still comes
-back short of it.
-
-Two kinds of cell are not measurements of that, and are separated out above
-rather than averaged in. **Stalled** (regex_subseq_1010101 (1/3), regex_two_1111 (1/3), regex_alt_1111_or_0000_11 (1/3), regex_alt_111_or_000_3sym (3/3)) ran out of iterations at a fixed
-point: further rounds issue no new queries at all -- on
-regex_alt_111_or_000_3sym the distinct count is identical at 50 iterations and
-at 10000 -- so no budget could ever bind. That is a stronger statement than a
-low score, just a different one: CAPAL stops improving at a fraction of E-L*'s
-spend and cannot use more. **Timed out** (none) were ended by the wall clock
-with no hypothesis to score, and say nothing either way.
+A stalled cell ran out of iterations at a fixed point where further rounds issue
+no new queries at all -- on regex_alt_111_or_000_3sym the distinct count is
+identical at 50 iterations and at 10000 -- so no budget could bind, and the cell
+is not a matched-budget measurement. That is a stronger statement than a low
+score rather than a weaker one: CAPAL stops improving at a fraction of E-L*'s
+spend and cannot use more.
 
 ## 5. Why the noise floor bites CAPAL harder (theory)
 
@@ -107,28 +88,17 @@ global knob (τ) cannot serve the hard and easy pairs at once. That is the wall,
 and it is structural to the pairwise test, which is why §4's matched budget does
 not move it.
 
-## 6. Bottom line
+## 6. Caveats
 
-- On CAPAL's own suite CAPAL is broadly applicable and cheap: 109/112
-  cells at 100%, every failure at η=0.30. E-L* matches its accuracy but only on
-  the 5/28 targets its preconditions admit, at two to three orders of
-  magnitude more membership queries.
 - The membership columns are not like for like. CAPAL is handed a perfect
   equivalence oracle and E-L* is not, so part of what E-L* pays for in queries
-  is work CAPAL is given for free.
-- On this repo's benchmarks CAPAL's convergence tracks the noise level rather
-  than the language (η=0.05 5/5, η=0.1 3/5, η=0.2 1/5, η=0.3 0/5). E-L* is exact wherever it is in regime, at every
-  noise level tested.
-- The η=0.3 wall holds across the whole sweep: 0
-  of 120 runs converge, over a grid whose low corner is upstream's own
-  benchmark setting and which sweeps up from there. No knob rescues a cell.
-- The wall is not a budget limit. Uncapping suffix enumeration puts CAPAL above
-  E-L*'s own query spend on 3 of 5 cells without converging on any, and on
-  modulo 0 of 15 runs exhaust the per-cell time limit at ~16x E-L*'s
-  spend without producing a hypothesis at all. On the two cells that stop below
-  E-L*'s spend the probe is inconclusive rather than supportive.
-- Sections 1-2 are single-seed; the sweep and the matched-budget probe use
-  3. Individual cell verdicts move under
-  re-measurement -- raising CAPAL's budget to its authors' settings flipped
-  cells in both directions, including one from 1.000 to 0.507 -- so read the
-  single-seed per-cell numbers as indicative rather than settled.
+  is work CAPAL is given.
+- Sections 3 and 4 cover only this repo's five targets. CAPAL's own 28-target
+  suite has never been run at more than one configuration.
+- Sections 1 and 2 are single-seed; the sweep and the matched-budget probe use
+  three. Per-cell verdicts move under re-measurement: raising CAPAL's budget to
+  its authors' settings flipped cells in both directions, one of them from 1.000
+  to 0.507. Read single-seed per-cell numbers as indicative.
+- The query counts are a snapshot of the learners as they stand. A change to
+  E-L*'s suffix screening moved its counts by up to 42x without changing which
+  cells it solves.
