@@ -21,33 +21,9 @@ at η=0.30:
 E-L* is in its designed regime on only **5/28** targets
 (Difficult02, Normal07, Simple01, Simple02, Simple05); the other 23 are recorded as reasoned
 exclusions (acceptance imbalance / class-preservation / covered-accuracy
-ceiling), not run. On the shared in-regime cells both are accurate, but the
-query cost differs by orders of magnitude:
+ceiling), not run.
 
-| target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Difficult02 | 0.05 | 1.000 | yes | 1,704 | 6 | 1.000 | yes | 441,482 |
-| Difficult02 | 0.10 | 1.000 | yes | 2,093 | 7 | 1.000 | yes | 547,711 |
-| Difficult02 | 0.20 | 1.000 | yes | 3,254 | 9 | 1.000 | yes | 1,421,126 |
-| Difficult02 | 0.30 | 0.507 | no | 18,075 | 200 | 1.000 | yes | 13,334,977 |
-| Normal07 | 0.05 | 1.000 | yes | 956 | 3 | 1.000 | yes | 147,663 |
-| Normal07 | 0.10 | 1.000 | yes | 827 | 2 | 1.000 | yes | 208,234 |
-| Normal07 | 0.20 | 1.000 | yes | 704 | 5 | 1.000 | yes | 429,880 |
-| Normal07 | 0.30 | 1.000 | yes | 1,186 | 7 | 1.000 | yes | 1,142,060 |
-| Simple01 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 44,514 |
-| Simple01 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 58,830 |
-| Simple01 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 115,951 |
-| Simple01 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 327,845 |
-| Simple02 | 0.05 | 1.000 | yes | 338 | 1 | 1.000 | yes | 40,375 |
-| Simple02 | 0.10 | 1.000 | yes | 338 | 1 | 1.000 | yes | 55,459 |
-| Simple02 | 0.20 | 1.000 | yes | 338 | 1 | 1.000 | yes | 116,552 |
-| Simple02 | 0.30 | 1.000 | yes | 338 | 2 | 1.000 | yes | 331,745 |
-| Simple05 | 0.05 | 1.000 | yes | 1,202 | 3 | 1.000 | yes | 108,485 |
-| Simple05 | 0.10 | 1.000 | yes | 1,202 | 6 | 1.000 | yes | 853,568 |
-| Simple05 | 0.20 | 1.000 | yes | 1,219 | 6 | 1.000 | yes | 2,426,132 |
-| Simple05 | 0.30 | 1.000 | yes | 3,213 | 13 | 1.000 | yes | 31,644,445 |
-
-## 2. This repo's benchmarks (head-to-head)
+## 2. This repo's benchmarks
 
 Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
 These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
@@ -58,29 +34,6 @@ is not that these languages defeat it, but that noise does. E-L* reaches exact
 accuracy on 15/20 of the cells it is in regime for, and is flat in
 the noise -- and pays two to three orders of magnitude more membership queries
 for it.
-
-| target | η | CAPAL acc | conv | CAPAL mq | eq | E-L* acc | conv | E-L* mq |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.05 | 1.000 | yes | 3,083 | 10 | 1.000 | yes | 120,177 |
-| parity_mod9_allowed_3_6 | 0.10 | 0.947 | no | 55,232 | 200 | 1.000 | yes | 168,723 |
-| parity_mod9_allowed_3_6 | 0.20 | 0.774 | no | 11,085 | 200 | 1.000 | yes | 457,812 |
-| parity_mod9_allowed_3_6 | 0.30 | 0.758 | no | 17,194 | 200 | 1.000 | yes | 1,252,527 |
-| regex_subseq_1010101 | 0.05 | 1.000 | yes | 10,269 | 15 | 1.000 | yes | 464,950 |
-| regex_subseq_1010101 | 0.10 | 1.000 | yes | 5,425 | 9 | 1.000 | yes | 715,850 |
-| regex_subseq_1010101 | 0.20 | 1.000 | yes | 7,197 | 18 | 1.000 | yes | 794,189 |
-| regex_subseq_1010101 | 0.30 | 0.919 | no | 5,284 | 200 | 0.989 | no | 2,307,903 |
-| regex_two_1111 | 0.05 | 1.000 | yes | 4,556 | 10 | 1.000 | yes | 254,756 |
-| regex_two_1111 | 0.10 | 0.871 | no | 9,327 | 200 | 1.000 | yes | 354,970 |
-| regex_two_1111 | 0.20 | 0.868 | no | 4,633 | 200 | 1.000 | yes | 798,858 |
-| regex_two_1111 | 0.30 | 0.867 | no | 2,392 | 200 | 1.000 | yes | 1,882,095 |
-| regex_alt_1111_or_0000_11 | 0.05 | 1.000 | yes | 11,257 | 21 | 0.989 | no | 184,141 |
-| regex_alt_1111_or_0000_11 | 0.10 | 1.000 | yes | 8,477 | 15 | 0.989 | no | 341,623 |
-| regex_alt_1111_or_0000_11 | 0.20 | 0.776 | no | 11,475 | 200 | 0.989 | no | 1,094,636 |
-| regex_alt_1111_or_0000_11 | 0.30 | 0.722 | no | 2,240 | 200 | 0.989 | no | 2,856,597 |
-| regex_alt_111_or_000_3sym | 0.05 | 1.000 | yes | 6,103 | 10 | 1.000 | yes | 270,494 |
-| regex_alt_111_or_000_3sym | 0.10 | 1.000 | yes | 10,223 | 13 | 1.000 | yes | 1,219,238 |
-| regex_alt_111_or_000_3sym | 0.20 | 0.486 | no | 29,556 | 200 | 1.000 | yes | 1,824,480 |
-| regex_alt_111_or_000_3sym | 0.30 | 0.502 | no | 16,889 | 200 | 1.000 | yes | 22,551,794 |
 
 ## 3. The wall: full hyperparameter sweep
 
@@ -99,15 +52,6 @@ three seeds (480 runs). For each (cell, η), how many of the
 
 **Noise dominates, but not alone.** At η=0.30 every cell fails on all 24 configs and every seed; parity_mod9_allowed_3_6 already walls at η=0.2, regex_alt_1111_or_0000_11 already walls at η=0.2, while the other 3 cells still crack there. Which DFA it is decides where the wall starts; the noise level decides that there is one.
 
-Convergence rate by η, over all configs:
-
-| η | convergence rate |
-| --- | --- |
-| 0.05 | 0.87 |
-| 0.1 | 0.55 |
-| 0.2 | 0.11 |
-| 0.3 | 0.00 |
-
 η drives the aggregate rate from 0.87 to 0.00. The knobs move it far less
 over the swept range -- `max_same_samples` 80: 0.34 vs 240: 0.42; `suffix_pool_len_max` 10: 0.40 vs 24: 0.37; `alpha` 0.001: 0.37 vs 0.05: 0.40 -- and none of them rescues a single
 η=0.30 cell.
@@ -122,14 +66,6 @@ CAPAL with its suffix enumeration uncapped (`enum_depth=8`,
 `extra_len_max=16`, `suffix_pool_len_max=24`,
 `max_same_samples=2000`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
-
-| cell | CAPAL acc | conv | stalled | timeout | CAPAL mq | E-L* acc | E-L* mq |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| parity_mod9_allowed_3_6 | 0.669 | 0/3 | 0/3 | 0/3 | 1,252,527 | 1.000 | 1,252,527 |
-| regex_subseq_1010101 | 0.835 | 0/3 | 1/3 | 0/3 | 1,972,081 | 0.989 | 2,307,903 |
-| regex_two_1111 | 0.880 | 0/3 | 1/3 | 0/3 | 1,816,777 | 1.000 | 1,882,095 |
-| regex_alt_1111_or_0000_11 | 0.755 | 0/3 | 1/3 | 0/3 | 2,449,660 | 0.989 | 2,856,597 |
-| regex_alt_111_or_000_3sym | 0.679 | 0/3 | 3/3 | 0/3 | 107,359 | 1.000 | 22,551,794 |
 
 CAPAL converges on none of them, at any budget, on any seed.
 

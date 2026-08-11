@@ -43,20 +43,6 @@ def table(headers: List[str], rows: List[List[str]]) -> str:
     return "\n".join([line, sep, *body])
 
 
-def _cell_index(cells: List[dict]) -> Dict[tuple, dict]:
-    """(benchmark, eta, learner) -> cell, for the single-seed head-to-heads."""
-    return {(c["benchmark"], c["eta"], c["learner"]): c for c in cells}
-
-
-def _acc(c: dict) -> str:
-    if c is None:
-        return "-"
-    if c.get("error_type") == "ExcludedOutOfRegime":
-        return "excl"
-    a = c.get("accuracy")
-    return "-" if a is None else f"{a:.3f}"
-
-
 def _n(c: dict) -> int:
     """The comparable membership-query count, whichever schema wrote the cell."""
     n = c.get("queries_distinct")
@@ -72,66 +58,12 @@ def _mq(c: dict) -> str:
     return "-" if n is None else f"{n:,}"
 
 
-def _eq(c: dict) -> str:
-    """Equivalence queries -- absent before schema 4, so `-` means unrecorded,
-    not zero."""
-    if c is None or c.get("equivalence_queries") is None:
-        return "-"
-    return f"{c['equivalence_queries']:,}"
-
-
 def capal_settings(exp: Dict[str, Any]) -> Dict[str, Any]:
     """The CAPAL knobs an experiment's cells were measured at."""
     for c in exp["cells"]:
         if c["learner"] == "CAPAL":
             return {k: v for k, v in c["learner_config"].items() if k != "eta_hat"}
     return {}
-
-
-def _conv(c: dict) -> str:
-    if c is None or c.get("converged") is None:
-        return "-"
-    return "yes" if c["converged"] else "no"
-
-
-def head_to_head(exp: Dict[str, Any], order: List[str]) -> str:
-    cells = exp["cells"]
-    idx = _cell_index(cells)
-    etas = exp["config"]["etas"]
-    rows = []
-    for name in order:
-        for eta in etas:
-            ca = idx.get((name, eta, "CAPAL"))
-            el = idx.get((name, eta, "E-L*"))
-            if ca is None and el is None:
-                continue
-            rows.append(
-                [
-                    name,
-                    f"{eta:.2f}",
-                    _acc(ca),
-                    _conv(ca),
-                    _mq(ca),
-                    _eq(ca),
-                    _acc(el),
-                    _conv(el),
-                    _mq(el),
-                ]
-            )
-    return table(
-        [
-            "target",
-            "η",
-            "CAPAL acc",
-            "conv",
-            "CAPAL mq",
-            "eq",
-            "E-L* acc",
-            "conv",
-            "E-L* mq",
-        ],
-        rows,
-    )
 
 
 def exp1_section() -> str:
@@ -161,7 +93,6 @@ def exp1_section() -> str:
         ]
         for c in fails
     ]
-    hh = head_to_head(exp, inreg)
     return f"""## 1. CAPAL's own benchmark suite
 
 Both learners on CAPAL's 28 shipped `.taf` targets (Simple/Normal/Difficult) at
@@ -175,10 +106,7 @@ at η=0.30:
 E-L* is in its designed regime on only **{len(inreg)}/28** targets
 ({", ".join(inreg)}); the other {len(excl)} are recorded as reasoned
 exclusions (acceptance imbalance / class-preservation / covered-accuracy
-ceiling), not run. On the shared in-regime cells both are accurate, but the
-query cost differs by orders of magnitude:
-
-{hh}
+ceiling), not run.
 """
 
 
@@ -193,7 +121,6 @@ def capal_convergence_by_eta(exp: Dict[str, Any]) -> Dict[float, str]:
 
 def exp2_section() -> str:
     exp = load("our_benchmarks")
-    hh = head_to_head(exp, OUR_ORDER)
     conv = capal_convergence_by_eta(exp)
     ladder = ", ".join(f"η={eta:g} {v}" for eta, v in conv.items())
     el = [
@@ -202,7 +129,7 @@ def exp2_section() -> str:
         if c["learner"] == "E-L*" and c.get("accuracy") is not None
     ]
     el_exact = sum(1 for c in el if c["accuracy"] == 1.0)
-    return f"""## 2. This repo's benchmarks (head-to-head)
+    return f"""## 2. This repo's benchmarks
 
 Both learners on the modulo-9 and regex oracles from `tests/test_lstar.py`.
 These are longer targets (8-11 states) than CAPAL's suite, chosen to satisfy
@@ -213,8 +140,6 @@ is not that these languages defeat it, but that noise does. E-L* reaches exact
 accuracy on {el_exact}/{len(el)} of the cells it is in regime for, and is flat in
 the noise -- and pays two to three orders of magnitude more membership queries
 for it.
-
-{hh}
 """
 
 
@@ -264,7 +189,6 @@ def wall_section() -> str:
     by_eta = collections.defaultdict(list)
     for c in cells:
         by_eta[c["eta"]].append(bool(c["converged"]))
-    rate_rows = [[f"{e}", f"{statistics.mean(by_eta[e]):.2f}"] for e in sorted(by_eta)]
     top_rate = f"{statistics.mean(by_eta[min(by_eta)]):.2f}"
 
     # cells that wall below the top noise level, which is the claim most likely
@@ -322,10 +246,6 @@ three seeds ({len(cells)} runs). For each (cell, η), how many of the
 {verdict}
 
 {walled_below}
-
-Convergence rate by η, over all configs:
-
-{table(["η", "convergence rate"], rate_rows)}
 
 η drives the aggregate rate from {top_rate} to 0.00. The knobs move it far less
 over the swept range -- {knob_spread} -- and none of them rescues a single
@@ -426,8 +346,6 @@ CAPAL with its suffix enumeration uncapped (`enum_depth={cfg['enum_depth']}`,
 `extra_len_max={cfg['extra_len_max']}`, `suffix_pool_len_max={cfg['suffix_pool_len_max']}`,
 `max_same_samples={cfg['max_same_samples']}`) on the η=0.30 wall cells, three
 seeds, versus E-L*'s spend on the same cell:
-
-{table(["cell", "CAPAL acc", "conv", "stalled", "timeout", "CAPAL mq", "E-L* acc", "E-L* mq"], rows)}
 
 CAPAL converges on none of them, at any budget, on any seed.
 
