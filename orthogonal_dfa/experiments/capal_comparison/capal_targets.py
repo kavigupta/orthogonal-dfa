@@ -2,6 +2,11 @@
 
 The `.taf` file is the source of truth; `to_automata_dfa` ports it to the
 automata-lib DFA that `DFAOracle` (and hence E-L*) reads.
+
+E-L* is in regime on a minority of these; the rest fail acceptance imbalance,
+class-preservation or the covered-accuracy ceiling and are recorded as
+exclusions rather than run. CAPAL is measured on all of them, so the two
+learners' columns cover different target sets unless read per cell.
 """
 
 from __future__ import annotations
