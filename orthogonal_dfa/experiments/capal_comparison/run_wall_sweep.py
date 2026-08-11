@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Experiment 3, the hyperparameter sweep, and experiment 4, the matched budget.
+"""
+Experiment 3, the hyperparameter sweep, and experiment 4, the matched budget.
 
-The sweep runs a full factorial over max_same_samples, suffix_pool_len_max and
+The sweep runs every combination of max_same_samples, suffix_pool_len_max and
 alpha on every benchmark cell, for three seeds. Its grid starts at upstream's
-own benchmark settings and only goes up, so a cell that fails across all of it
-failed with at least the budget CAPAL's authors publish with.
+own benchmark settings and goes up along each axis.
 
 m stops at 240 because it is essentially the whole runtime cost (m=80 ~3s,
 m=240 ~19s, m=480 ~146s) and a preliminary m=480 sweep added no convergence.
+
+--matched-budget runs CAPAL with exactly the membership queries E-L* spent on
+the same cell, at eta=0.30. It is slow because it runs CAPAL with a large query budget,
+and so is not a sweep.
 
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep
     python -m orthogonal_dfa.experiments.capal_comparison.run_wall_sweep --matched-budget
@@ -40,11 +44,6 @@ CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     for m, p, a in itertools.product(M_VALUES, POOL_VALUES, ALPHA_VALUES)
 ]
 
-#: Experiment 4: CAPAL given exactly the queries E-L* spent on the same cell.
-#: The knobs uncap suffix enumeration so it has somewhere to spend them, since
-#: at its shipped settings it stops after a few thousand. Every one is at or
-#: above the sweep's range, so failing here cannot be read as CAPAL being
-#: under-provisioned relative to experiment 3.
 MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
     (
         "matched,enum=8,extra=16,pool=24,m=2000",
@@ -60,7 +59,8 @@ MATCHED_BUDGET_CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
 
 
 def elstar_budgets() -> Dict[Tuple[str, float], int]:
-    """E-L*'s membership queries per (benchmark, eta), from experiment 2.
+    """
+    E-L*'s membership queries per (benchmark, eta), from experiment 2.
 
     Cells E-L* was not run on have no spend to match, and so carry no budget.
     """
