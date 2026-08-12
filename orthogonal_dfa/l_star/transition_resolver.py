@@ -136,8 +136,17 @@ class TransitionResolver:
         return None
 
     def _edge_target(self, c, members):
-        """The leaf ``members`` extended by ``c`` reach, following the majority at
-        each node."""
+        """Where the ``(leaf, c)`` edge points: the leaf the first decisive member
+        sifts to under one more symbol. The tree is consistent, so any member of
+        the leaf resolves the edge the same way; only when every member is
+        indecisive do we fall back to the whole-population majority."""
+        for m in members:
+            target = self.tree.classify(list(m) + [c], self.family.is_accept)
+            if target is not None:
+                return target
+        return self._majority_target(c, members)
+
+    def _majority_target(self, c, members):
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
