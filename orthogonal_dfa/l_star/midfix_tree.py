@@ -66,6 +66,31 @@ class MidfixTree:
     def leaves(self) -> Iterator[int]:
         return _leaves(self._root)
 
+    def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
+        """The branches from the root to leaf ``state`` (True = accept child).
+
+        A path names a node stably across splits, so a companion that tracks
+        strings by node keys off this rather than the rebuilt node objects."""
+
+        def find(node: Node, path: Tuple[bool, ...]) -> Optional[Tuple[bool, ...]]:
+            if isinstance(node, int):
+                return path if node == state else None
+            _, lookup = node
+            for branch, child in lookup.items():
+                found = find(child, path + (branch,))
+                if found is not None:
+                    return found
+            return None
+
+        return find(self._root, ())
+
+    def midfix_at(self, path: Tuple[bool, ...]) -> tuple:
+        """The midfix of the internal node reached by following ``path``."""
+        node = self._root
+        for branch in path:
+            node = node[1][branch]
+        return node[0]
+
     def accepting_leaves(self) -> set:
         """
         The leaves on the accept side of the root, i.e. the accepting states. Sound
