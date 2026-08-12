@@ -32,7 +32,7 @@ class MaskTable:
         assert len(prefixes) == len(representative)
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
-        # string, and -- once other readers share it -- across the whole learner.
+        # string, and allows us to remove the matrix caching in future.
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
         self._prefixes = [list(p) for p in prefixes]
