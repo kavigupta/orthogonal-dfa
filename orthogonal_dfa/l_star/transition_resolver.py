@@ -128,7 +128,7 @@ class TransitionResolver:
         split under one more symbol *and* SplitEvidence confirms the leaf is really
         two states, or ``None`` if none does. The binomial only proposes a
         candidate; the held-out test decides, since a real second state reproduces
-        across the family's disjoint ASSIGN/TEST halves where scattered noise
+        across the family's disjoint train/test halves where scattered noise
         does not."""
         node = self.tree.root
         while not isinstance(node, int):
