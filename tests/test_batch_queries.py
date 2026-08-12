@@ -202,12 +202,18 @@ class TestMemoizedOracle(unittest.TestCase):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
         strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
-        bits = memo.membership(strings)
+        bits = memo.membership_queries(strings)
         self.assertEqual([oracle.membership_query(s) for s in strings], bits)
         self.assertEqual([2], oracle.calls, "one batched call, deduped")
         oracle.calls.clear()
-        self.assertEqual(bits, memo.membership(strings))
+        self.assertEqual(bits, memo.membership_queries(strings))
         self.assertEqual([], oracle.calls)
+        # the single-string query rides the same cache
+        oracle.calls.clear()
+        self.assertEqual(
+            oracle.membership_query([1, 0, 1]), memo.membership_query([1, 0, 1])
+        )
+        self.assertEqual([], oracle.calls, "cached, no new call")
 
 
 if __name__ == "__main__":
