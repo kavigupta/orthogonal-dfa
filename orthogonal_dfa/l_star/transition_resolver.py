@@ -35,7 +35,7 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
-from .split_evidence import DEFAULT_SPLIT_MISS_RATE, SPLIT, SplitEvidence
+from .split_evidence import SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
 
@@ -162,9 +162,6 @@ class TransitionResolver:
             self.family,
             population=self.population,
             tree=self.tree,
-            num_states=lambda: self.tree.num_states,
-            split_fpr=None,
-            split_miss_rate=DEFAULT_SPLIT_MISS_RATE,
         )
         # Root ids match MidfixTree: 0 = accept (True side), 1 = reject (False side).
         self._open_state(0)

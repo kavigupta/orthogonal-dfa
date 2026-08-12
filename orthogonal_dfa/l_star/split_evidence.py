@@ -48,17 +48,13 @@ class SplitEvidence:
         *,
         population,
         tree,
-        num_states,
-        split_fpr,
-        split_miss_rate: float,
     ):
         self.pst = pst
         self.family = family
         self._population = population
         self._tree = tree
-        self._num_states = num_states
-        self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
-        self._split_miss_rate = split_miss_rate
+        self._split_fpr = pst.config.split_pval
+        self._split_miss_rate = DEFAULT_SPLIT_MISS_RATE
 
     def _members(self, state: int):
         return self._population.members(self._tree.path_of(state), _MEMBER_LIMIT)
@@ -136,5 +132,5 @@ class SplitEvidence:
             <= n/K
         which then requires K > n/fpr to hold the overall false positive rate at fpr
         """
-        n = max(self._num_states() * self.pst.alphabet_size, 1)
+        n = max(self._tree.num_states * self.pst.alphabet_size, 1)
         return math.log(n / max(self._split_fpr, 1e-12))

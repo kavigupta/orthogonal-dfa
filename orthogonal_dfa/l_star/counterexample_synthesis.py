@@ -66,7 +66,7 @@ def generate_counterexamples(pst, us, oracle, tree, dfa, *, count):
     # binary search steps + 2 decisive checks, each traversing the full tree.  A
     # false positive just adds an uninformative prefix (harmless), so we can
     # tolerate a much higher overall error rate than state discovery (which uses
-    # decision_rule_fpr).  We use 0.2 as the whole-pipeline budget and union-bound
+    # split_pval).  We use 0.2 as the whole-pipeline budget and union-bound
     # over all node-level decisions.
     from .statistics import compute_suffix_size_counterexample_gen as _compute_sfx
 
