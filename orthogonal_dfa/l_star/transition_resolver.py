@@ -30,7 +30,6 @@ and never need remapping on export.
 
 from collections import deque
 
-import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -38,20 +37,6 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .split_evidence import DEFAULT_SPLIT_MISS_RATE, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
-
-
-def _splits(pst, n_acc, n_rej):
-    """Binomial split test: both sides must carry more mass than the decision-rule
-    FPR could explain by noise, at significance ``split_pval``."""
-    denom = n_acc + n_rej
-    if denom == 0:
-        return False
-    fpr = pst.config.decision_rule_fpr
-    pval = max(
-        1 - scipy.stats.binom.cdf(n_acc, denom, fpr),
-        1 - scipy.stats.binom.cdf(n_rej, denom, fpr),
-    )
-    return pval < pst.config.split_pval
 
 
 class TransitionResolver:
@@ -124,21 +109,19 @@ class TransitionResolver:
         return sum(v is True for v in votes), sum(v is False for v in votes)
 
     def _divergence(self, state_id, c, members):
-        """The distinguisher ``[c] + midfix`` at the first node where ``members``
-        split under one more symbol *and* SplitEvidence confirms the leaf is really
-        two states, or ``None`` if none does. The binomial only proposes a
-        candidate; the held-out test decides, since a real second state reproduces
-        across the family's disjoint ASSIGN/TEST halves where scattered noise
-        does not."""
+        """The distinguisher ``[c] + midfix`` at the first node down the descent
+        where SplitEvidence confirms ``state_id``'s members are really two states,
+        or ``None`` if none does. The held-out ASSIGN/TEST test is the sole
+        decision -- a real second state reproduces across the disjoint halves where
+        scattered noise does not -- so no cheap pre-filter is needed to propose
+        candidates first."""
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
             distinguisher = [c] + list(midfix)
-            n_acc, n_rej = self._tally(members, distinguisher)
-            if _splits(self.pst, n_acc, n_rej) and (
-                self.splits.verdict(state_id, tuple(distinguisher)) == SPLIT
-            ):
+            if self.splits.verdict(state_id, tuple(distinguisher)) == SPLIT:
                 return distinguisher
+            n_acc, n_rej = self._tally(members, distinguisher)
             node = lookup[True] if n_acc >= n_rej else lookup[False]
         return None
 
