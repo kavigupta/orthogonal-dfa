@@ -106,21 +106,44 @@ class TransitionResolver:
     # -- the resolution step ------------------------------------------------
 
     def _resolve(self, state_id, c):
-        pst = self.pst
         members = self._members(state_id)
+        distinguisher = self._divergence(c, members)
+        if distinguisher is not None:
+            self._split(state_id, distinguisher)
+            return
+        self._set_transition(state_id, c, self._edge_target(c, members))
+
+    def _tally(self, members, distinguisher):
+        """Accept/reject counts of ``members`` classified against ``distinguisher``.
+        Means are memoized, so the split-detection and edge-target descents that
+        both call this share every read."""
+        self.family.prefill([list(m) + distinguisher for m in members])
+        votes = [self.family.is_accept(m, distinguisher) for m in members]
+        return sum(v is True for v in votes), sum(v is False for v in votes)
+
+    def _divergence(self, c, members):
+        """The distinguisher ``[c] + midfix`` at the first node where ``members``
+        split under one more symbol -- meaning their leaf is really two states --
+        or ``None`` if they agree all the way to a leaf."""
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
-            prepended = [c] + list(midfix)
-            self.family.prefill([list(m) + prepended for m in members])
-            votes = [self.family.is_accept(m, prepended) for m in members]
-            n_acc = sum(v is True for v in votes)
-            n_rej = sum(v is False for v in votes)
-            if _splits(pst, n_acc, n_rej):
-                self._split(state_id, prepended)
-                return
+            distinguisher = [c] + list(midfix)
+            n_acc, n_rej = self._tally(members, distinguisher)
+            if _splits(self.pst, n_acc, n_rej):
+                return distinguisher
             node = lookup[True] if n_acc >= n_rej else lookup[False]
-        self._set_transition(state_id, c, node)
+        return None
+
+    def _edge_target(self, c, members):
+        """The leaf ``members`` extended by ``c`` reach, following the majority at
+        each node."""
+        node = self.tree.root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            n_acc, n_rej = self._tally(members, [c] + list(midfix))
+            node = lookup[True] if n_acc >= n_rej else lookup[False]
+        return node
 
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
