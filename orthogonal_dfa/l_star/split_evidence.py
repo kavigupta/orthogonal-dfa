@@ -17,11 +17,11 @@ tests rather than one Bayes factor:
 
 Otherwise the verdict is UNDECIDED and more members accumulate before the next.
 
-This class also tracks the elements of each Myhill-Nerode equivalence class.
+The members themselves live in a :class:`~orthogonal_dfa.l_star.leaf_population.
+LeafPopulation` shared with the edge resolver; this is a stateless reader of it.
 """
 
 import math
-from typing import Dict, List, Optional, Set
 
 import scipy.stats
 
@@ -34,6 +34,10 @@ DEFAULT_SPLIT_MISS_RATE = 0.02
 #: states are resurfaced by the FNR loop across rounds.
 _MIN_DETECTABLE_SPLIT = 0.1
 
+#: Members weighed per leaf.  The tests converge well below this; it just caps a
+#: populous leaf.
+_MEMBER_LIMIT = 1500
+
 # Outcome of weighing one proposed split.
 SPLIT = "split"
 NO_SPLIT = "no_split"  # the leaf is one state at this distinguisher; stop probing
@@ -45,91 +49,38 @@ def _log_beta(a: float, b: float) -> float:
 
 
 class SplitEvidence:
-    """See the module docstring.
-
-    ``pool_members(state, limit)`` supplies members beyond those the probe stream
-    has shown; it scans the prefix pool, so it is called once per leaf and cached.
-    """
+    """See the module docstring.  A stateless reader over ``population`` and
+    ``tree``: it turns a leaf id into a path, pulls that leaf's members, and
+    weighs a proposed distinguisher against them."""
 
     def __init__(
         self,
         pst,
         family,
         *,
-        pool_members,
-        pool_representative,
+        population,
+        tree,
         num_states,
-        split_fpr: Optional[float],
+        split_fpr,
         split_miss_rate: float,
-        members: Dict[int, Set[tuple]],
     ):
         self.pst = pst
         self.family = family
-        self._pool_members = pool_members
-        self._pool_representative = pool_representative
+        self._population = population
+        self._tree = tree
         self._num_states = num_states
         self._split_fpr = split_fpr if split_fpr is not None else pst.config.split_pval
         # Tolerated miss rate (beta) for the one-state test.
         self._split_miss_rate = split_miss_rate
-        # How many members a leaf is weighed from, so a populous leaf does not
-        # scan the whole pool.
-        self._pool_member_limit = 1500
-        # Prefixes the probe stream has shown to reach each leaf.  verdict weighs
-        # these together with a one-time pool scan of the leaf (see _members).
-        self.members: Dict[int, Set[tuple]] = {k: set(v) for k, v in members.items()}
-        # leaf -> its pool members, scanned once and reused across the leaf's
-        # distinguishers.  Not carried across a split -- the leaves re-partition.
-        self._pool_cache: Dict[int, List[tuple]] = {}
 
-    # -- the leaf population -------------------------------------------------
+    def _members(self, state: int):
+        return self._population.members(self._tree.path_of(state), _MEMBER_LIMIT)
 
-    def record(self, state: int, prefix) -> None:
-        """Note that ``prefix`` decisively sifts to ``state``, adding it to the
-        leaf population that :meth:`verdict` weighs."""
-        self.members.setdefault(state, set()).add(tuple(prefix))
-
-    def representative(self, state: int) -> Optional[list]:
+    def representative(self, state: int):
         """A canonical string reaching ``state`` -- the shortest member, ties
-        broken lexicographically.
-
-        Falls back to the pool when the probe stream has not reached the leaf yet
-        and keeps what it finds as a member, so the scan happens once and the
-        choice is stable while the leaf lives.  ``None`` means nothing known
-        reaches the leaf, so its edges cannot be resolved."""
-        bucket = self.members.get(state)
-        if bucket:
-            return list(min(bucket, key=lambda m: (len(m), m)))
-        found = self._pool_representative(state)
-        if found is None:
-            return None
-        self.record(state, found)
-        return list(found)
-
-    def after_split(self, state: int, sift) -> "SplitEvidence":
-        """Evidence for the tree left by splitting ``state``.
-
-        The split leaf's members are re-sifted into the two halves; every other
-        leaf's members carry over untouched, since a split replaces one leaf with
-        an internal node and no other leaf's path through the tree changed.
-
-        Members survive rather than starting empty because a newly created,
-        still-conflated leaf could never gather the members its own split needs
-        before the pass ends."""
-        carried = {k: set(v) for k, v in self.members.items() if k != state}
-        for member in self.members.get(state, ()):
-            landed = sift(list(member))
-            if landed is not None:
-                carried.setdefault(landed, set()).add(member)
-        return SplitEvidence(
-            self.pst,
-            self.family,
-            pool_members=self._pool_members,
-            pool_representative=self._pool_representative,
-            num_states=self._num_states,
-            split_fpr=self._split_fpr,
-            split_miss_rate=self._split_miss_rate,
-            members=carried,
-        )
+        broken lexicographically -- or ``None`` if nothing known reaches it."""
+        members = self._members(state)
+        return min(members, key=lambda m: (len(m), m)) if members else None
 
     # -- weighing it ---------------------------------------------------------
 
@@ -166,19 +117,6 @@ class SplitEvidence:
                 a2, r2, n_b = a2 + accepts, r2 + len(test) - accepts, n_b + 1
         return a1, r1, a2, r2, n_a, n_b
 
-    def _members(self, state: int) -> List[list]:
-        """The leaf population to weigh: the probe-seen members plus a one-time
-        pool scan for this leaf, deduped and capped."""
-        if state not in self._pool_cache:
-            self._pool_cache[state] = [
-                tuple(p)
-                for p in self._pool_members(state, limit=self._pool_member_limit)
-            ]
-        seen = dict.fromkeys(
-            [tuple(m) for m in self.members.get(state, ())] + self._pool_cache[state]
-        )
-        return [list(m) for m in seen][: self._pool_member_limit]
-
     def _agrees_as_one_state(self, n_a: int, n_b: int) -> bool:
         """The minority side is too small for a split of ``_MIN_DETECTABLE_SPLIT``:
         under such a split we would expect that fraction on the minority side, so
@@ -204,8 +142,6 @@ class SplitEvidence:
             + _log_beta(1 + a2, 1 + r2)
             - _log_beta(1 + a1 + a2, 1 + r1 + r2)
         )
-
-    # -- the split threshold -------------------------------------------------
 
     def _split_threshold(self) -> float:
         """Log Bayes factor a split must clear.

@@ -26,12 +26,12 @@ class _StubSifter:
         return self.state, None
 
 
-class _StubSplits:
+class _StubPopulation:
     def __init__(self):
         self.recorded = []
 
-    def record(self, state, prefix):
-        self.recorded.append((state, tuple(prefix)))
+    def add(self, string, at):
+        self.recorded.append((at, tuple(string)))
 
 
 class _Learner(DirectLStarLearner):
@@ -40,7 +40,8 @@ class _Learner(DirectLStarLearner):
     # pylint: disable=super-init-not-called
     def __init__(self, sifter):
         self.sifter = sifter
-        self.splits = _StubSplits()
+        self.population = _StubPopulation()
+        self.tree = SimpleNamespace(path_of=lambda s: s)
         self.dfa = SimpleNamespace(access={})
         self.indecisive = set()
         self.acted = None
@@ -71,7 +72,7 @@ class TestProcessAnchor(unittest.TestCase):
         learner = _Learner(_StubSifter(places_at=2))
         learner.process([0, 1, 0, 1], DELTA)
 
-        self.assertEqual(learner.splits.recorded, [(7, (0, 1))])
+        self.assertEqual(learner.population.recorded, [(7, (0, 1))])
 
     def test_harvests_every_prefix_it_could_not_place(self):
         learner = _Learner(_StubSifter(places_at=2))

@@ -27,6 +27,7 @@ from typing import List, Optional, Set, Tuple
 from automata.fa.dfa import DFA
 
 from .edge_resolver import EdgeResolver
+from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
 from .sifting import Sifter
@@ -84,33 +85,44 @@ class DirectLStarLearner:
         # it.  The resolver harvests boundary strings into ``indecisive``.
         self.sifter = Sifter(self.tree, self.family)
         self.indecisive: Set[Tuple[int, ...]] = set()
-        # ``splits`` is rebound on every split, so the resolver reads the probe
-        # members through a callable rather than holding the object.
-        self.edges = EdgeResolver(
-            pst,
-            self.dfa,
-            self.sifter,
-            self.indecisive,
-            probe_members=lambda state: self.splits.members.get(state, ()),
-            representative=self._representative,
-        )
 
-        # The sequential population test: it accumulates each leaf's members and
-        # says whether a proposed distinguisher splits it.
+        # Strings resting at tree nodes, pulled toward a leaf on demand.  Seeded
+        # with the fixed prefix pool at the root (the empty string leads, pinning
+        # the initial state); probe-seen members are added at the leaf they sift
+        # to.  Shared by the split test and the edge resolver, and -- unlike the
+        # tree it reads -- persists unchanged across splits.
+        self.population = LeafPopulation(self.tree, self._classify)
+        self.population.add([])
+        for prefix in pst.table.prefixes:
+            self.population.add(prefix)
+
+        # The sequential population test: weighs whether a distinguisher splits a
+        # leaf.  Stateless over (population, tree), so it is never rebound.
         self.splits = SplitEvidence(
             pst,
             self.family,
-            pool_members=self.edges.leaf_members,
-            pool_representative=self.edges.pool_representative,
+            population=self.population,
+            tree=self.tree,
             num_states=lambda: self.tree.num_states,
             split_fpr=split_fpr,
             split_miss_rate=split_miss_rate,
-            members={},
         )
 
-    def _representative(self, state: int):
-        """Forwarded rather than bound: ``splits`` is replaced on every split."""
-        return self.splits.representative(state)
+        # Closes the transition function against the tree, drawing members from
+        # the same population and harvesting boundary strings into ``indecisive``.
+        self.edges = EdgeResolver(
+            self.dfa,
+            self.sifter,
+            self.indecisive,
+            population=self.population,
+            representative=self.splits.representative,
+        )
+
+    def _classify(self, strings, midfix) -> List[Optional[bool]]:
+        """Read a node for the population: batch the family queries for
+        ``strings`` at ``midfix``, then return each one's accept/reject/None."""
+        self.family.prefill([list(s) + list(midfix) for s in strings])
+        return [self.family.is_accept(list(s), midfix) for s in strings]
 
     @property
     def access(self) -> dict:
@@ -139,11 +151,12 @@ class DirectLStarLearner:
         ``distinguisher`` and return the new state id.
 
         The tree refines the leaf and the partial DFA re-opens exactly the edges
-        that refinement made ambiguous (see :meth:`PartialDFA.split_state`).
+        that refinement made ambiguous (see :meth:`PartialDFA.split_state`).  The
+        population and split test read the tree, so the split needs no fix-up
+        there -- the moved leaf's strings flush down on the next pull.
         """
         new_state = self.tree.split(state, distinguisher)
         self.dfa.split_state(state, new_state)
-        self.splits = self.splits.after_split(state, self.sifter.sift)
         return new_state
 
     # -- one probe ----------------------------------------------------------
@@ -208,7 +221,7 @@ class DirectLStarLearner:
             start += 1
         if state is None:
             return _RESOLVED  # no prefix of this probe can be placed
-        self.splits.record(state, w[:start])
+        self.population.add(w[:start], at=self.tree.path_of(state))
         states: List[Optional[int]] = [None] * start + [state]
         for c in w[start:]:
             state = delta[state][c]
@@ -254,7 +267,7 @@ class DirectLStarLearner:
         for p in (witness, sprime):
             st = self.sifter.sift(p)
             if st is not None:
-                self.splits.record(st, list(p))
+                self.population.add(list(p), at=self.tree.path_of(st))
 
     # -- driver -------------------------------------------------------------
 
