@@ -59,9 +59,7 @@ class TestLearnerExport(unittest.TestCase):
         # *callback*, so an arity change that every direct call site absorbs can
         # still break here -- and only when the worklist left an edge open, which
         # the quick benchmarks never do.
-        learner = DirectLStarLearner(
-            make_pst(), [0, 1], split_fpr=None, split_miss_rate=0.02
-        )
+        learner = DirectLStarLearner(make_pst(), [0, 1])
         learner.population.add([], at=learner.tree.path_of(0))
         learner.population.add([1], at=learner.tree.path_of(1))
         dfa, _ = learner.to_dfa_and_tree()  # every edge still open

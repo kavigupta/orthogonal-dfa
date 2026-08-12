@@ -13,6 +13,8 @@ place.  Only an edge whose *entire* leaf is indecisive is unresolvable.
 
 from typing import Iterator, List, Optional, Tuple
 
+from .split_evidence import _MEMBER_LIMIT
+
 #: Leaf members to try before giving an edge up as unresolvable.
 MAX_EDGE_TRIES = 30
 
@@ -25,12 +27,11 @@ class EdgeResolver:
     so the next round's family is forced to resolve them.
     """
 
-    def __init__(self, partial, sifter, indecisive, *, population, representative):
+    def __init__(self, partial, sifter, indecisive, *, population):
         self.dfa = partial
         self.sifter = sifter
         self.indecisive = indecisive
         self._population = population
-        self._representative = representative
 
     # -- opening the queue ---------------------------------------------------
 
@@ -41,6 +42,13 @@ class EdgeResolver:
 
     def leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
         return self._population.members(self.sifter.tree.path_of(state), limit)
+
+    def _representative(self, state: int) -> Optional[List[int]]:
+        """The leaf's canonical access string -- its shortest member -- read
+        straight from the population, or ``None`` when nothing reaches it."""
+        return self._population.representative(
+            self.sifter.tree.path_of(state), _MEMBER_LIMIT
+        )
 
     def _candidates(self, state: int) -> Iterator[List[int]]:
         """Members to try, the shortest first, yielded lazily so the leaf's

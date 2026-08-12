@@ -18,7 +18,7 @@ from tests.direct_lstar_stubs import make_pst
 
 
 def _learner():
-    return DirectLStarLearner(make_pst(), [0, 1], split_fpr=None, split_miss_rate=0.02)
+    return DirectLStarLearner(make_pst(), [0, 1])
 
 
 class TestVisualizeDuckType(unittest.TestCase):

@@ -31,7 +31,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
 from .sifting import Sifter
-from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
+from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
 # Outcome of processing one probe (see DirectLStarLearner.process):
@@ -60,14 +60,7 @@ class DirectLStarLearner:
         round.
     """
 
-    def __init__(
-        self,
-        pst,
-        vs: List[int],
-        *,
-        split_fpr: Optional[float],
-        split_miss_rate: float,
-    ):
+    def __init__(self, pst, vs: List[int]):
         self.pst = pst
         self.family = SuffixFamily(pst, vs)
 
@@ -103,9 +96,6 @@ class DirectLStarLearner:
             self.family,
             population=self.population,
             tree=self.tree,
-            num_states=lambda: self.tree.num_states,
-            split_fpr=split_fpr,
-            split_miss_rate=split_miss_rate,
         )
 
         # Closes the transition function against the tree, drawing members from
@@ -115,7 +105,6 @@ class DirectLStarLearner:
             self.sifter,
             self.indecisive,
             population=self.population,
-            representative=self.splits.representative,
         )
 
     def _classify(self, strings, midfix) -> List[Optional[bool]]:
@@ -128,7 +117,10 @@ class DirectLStarLearner:
     def access(self) -> dict:
         """Canonical access string per state, for renderers.  Derived: the
         evidence owns the strings known to reach each leaf."""
-        reps = ((s, self.splits.representative(s)) for s in range(self.num_states))
+        reps = (
+            (s, self.population.representative(self.tree.path_of(s), _MEMBER_LIMIT))
+            for s in range(self.num_states)
+        )
         return {s: rep for s, rep in reps if rep is not None}
 
     @property

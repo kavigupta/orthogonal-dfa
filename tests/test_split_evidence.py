@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.split_evidence import (
-    DEFAULT_SPLIT_MISS_RATE,
     NO_SPLIT,
     SPLIT,
     UNDECIDED,
@@ -16,13 +15,13 @@ class _StubFamily:
     """Classifies by caller-supplied rules, so no oracle is involved.
 
     The two halves are driven independently, because that is the whole point of
-    the partition: ``side_of(prefix)`` groups a member on the ASSIGN half
+    the partition: ``side_of(prefix)`` groups a member on the train half
     (``None`` = indecisive there, contributing no evidence), and
     ``accept_rate(prefix)`` sets the fraction of TEST bits that score it.
     """
 
     test_idx = list(range(1, 20, 2))
-    assign_idx = list(range(0, 20, 2))
+    train_idx = list(range(0, 20, 2))
 
     def __init__(self, side_of=lambda p: True, accept_rate=None):
         self.side_of = side_of
@@ -37,17 +36,17 @@ class _StubFamily:
         side = self.side_of(list(prefix))
         rate = self.accept_rate(list(prefix)) if self.accept_rate else float(bool(side))
         votes = [0] * 20
-        for i in self.assign_idx:
+        for i in self.train_idx:
             votes[i] = 0 if side is None else (1 if side else 0)
-        if side is None:  # straddle the ASSIGN thresholds
-            for i in self.assign_idx[: len(self.assign_idx) // 2]:
+        if side is None:  # straddle the train thresholds
+            for i in self.train_idx[: len(self.train_idx) // 2]:
                 votes[i] = 1
         for n, i in enumerate(self.test_idx):
             votes[i] = 1 if n < round(rate * len(self.test_idx)) else 0
         return votes
 
-    def assign_side(self, votes):
-        mean = sum(votes[i] for i in self.assign_idx) / len(self.assign_idx)
+    def train_side(self, votes):
+        mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
         if mean >= 0.9:
             return True
         if mean < 0.1:
@@ -63,7 +62,7 @@ def _pst():
     )
 
 
-def _evidence(family=None, members=(), state=0, num_states=2):
+def _evidence(family=None, members=(), state=0):
     """A SplitEvidence over a population holding ``members`` at leaf ``state``.
 
     The classifier is a stub: members are placed directly at the leaf, so no
@@ -79,9 +78,6 @@ def _evidence(family=None, members=(), state=0, num_states=2):
         family or _StubFamily(),
         population=population,
         tree=tree,
-        num_states=lambda: num_states,
-        split_fpr=None,
-        split_miss_rate=DEFAULT_SPLIT_MISS_RATE,
     )
 
 
@@ -112,15 +108,6 @@ class TestVerdict(unittest.TestCase):
             _StubFamily(side_of=lambda p: True), members=[[i] for i in range(5)]
         )
         self.assertEqual(UNDECIDED, ev.verdict(0, (1,)))
-
-
-class TestRepresentative(unittest.TestCase):
-    def test_it_is_the_shortest_member(self):
-        ev = _evidence(members=[[3, 3, 3], [7], [1, 2]])
-        self.assertEqual([7], ev.representative(0))
-
-    def test_it_is_none_when_nothing_reaches_the_leaf(self):
-        self.assertIsNone(_evidence(members=[]).representative(0))
 
 
 if __name__ == "__main__":

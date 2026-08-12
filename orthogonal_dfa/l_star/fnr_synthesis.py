@@ -21,7 +21,6 @@ from .cluster import sample_suffix_family
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .direct_lstar import DirectLStarLearner
 from .midfix_tree import MidfixTree
-from .split_evidence import DEFAULT_SPLIT_MISS_RATE
 
 
 def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
@@ -126,7 +125,7 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_rate):
+def _discover(pst, vs, *, max_probes: int, patience: int):
     """One round: close the hypothesis, hunt counterexamples, close it again.
 
     The discovery pass samples fresh strings and splits on DFA-vs-tree
@@ -135,9 +134,7 @@ def _discover(pst, vs, *, max_probes: int, patience: int, split_fpr, split_miss_
     (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
     probe need not end at the boundary.  One pass therefore both finds the splits
     and gathers what the next round's family must resolve."""
-    learner = DirectLStarLearner(
-        pst, vs, split_fpr=split_fpr, split_miss_rate=split_miss_rate
-    )
+    learner = DirectLStarLearner(pst, vs)
     learner.init_worklist()
     learner.run_worklist()
     learner.counterexample_pass(max_probes=max_probes, patience=patience)
@@ -187,8 +184,6 @@ def synthesize_direct_lstar_fnr(
     counterexample_probes: int = 4000,
     counterexample_patience: Optional[int] = None,
     stall_patience: int = 2,
-    split_fpr: Optional[float] = None,
-    split_miss_rate: float = DEFAULT_SPLIT_MISS_RATE,
 ) -> Tuple[DFA, MidfixTree]:
     """Learn a DFA, forcing the suffix family to resolve boundary states.
 
@@ -219,8 +214,6 @@ def synthesize_direct_lstar_fnr(
             vs,
             max_probes=counterexample_probes,
             patience=counterexample_patience,
-            split_fpr=split_fpr,
-            split_miss_rate=split_miss_rate,
         )
         true_acc = _estimate_accuracy(pst, dfa, dt, acc_threshold)
         best.offer(true_acc, dfa, dt, pst.decision_boundary)
