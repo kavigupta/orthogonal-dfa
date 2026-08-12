@@ -28,13 +28,12 @@ side a fresh id (see MidfixTree.split), so state ids stay a dense range(num_stat
 and never need remapping on export.
 """
 
-from collections import deque
-
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
+from .partial_dfa import PartialDFA
 from .split_evidence import SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -46,9 +45,7 @@ class TransitionResolver:
         self.family = None
         self.splits = None
         self.population = None  # pool prefixes, per leaf
-        self.trans = {}  # (state_id, symbol) -> target state_id
-        self.incoming = {}  # state_id -> set of edges pointing at it
-        self.queue = deque()
+        self.dfa = None  # the partial transition function + its worklist
 
     # -- membership / population -------------------------------------------
 
@@ -64,32 +61,6 @@ class TransitionResolver:
             self.tree.path_of(state_id), self.pst.num_prefixes
         )
 
-    # -- bookkeeping --------------------------------------------------------
-
-    def _open_state(self, state_id):
-        self.incoming[state_id] = set()
-        for c in range(self.pst.alphabet_size):
-            self.queue.append((state_id, c))
-
-    def _set_transition(self, state_id, c, target):
-        assert (state_id, c) not in self.trans
-        self.trans[(state_id, c)] = target
-        self.incoming[target].add((state_id, c))
-
-    def _reopen_edges(self, state_id):
-        # A split shrank state_id's membership, so both its outgoing edges (computed
-        # under the old, larger population) and every edge into it (which may now
-        # belong to either side) must be re-resolved.
-        for c in range(self.pst.alphabet_size):
-            target = self.trans.pop((state_id, c), None)
-            if target is not None:
-                self.incoming[target].discard((state_id, c))
-            self.queue.append((state_id, c))
-        for src, c in list(self.incoming[state_id]):
-            self.trans.pop((src, c), None)
-            self.queue.append((src, c))
-        self.incoming[state_id] = set()
-
     # -- the resolution step ------------------------------------------------
 
     def _resolve(self, state_id, c):
@@ -98,7 +69,7 @@ class TransitionResolver:
         if distinguisher is not None:
             self._split(state_id, distinguisher)
             return
-        self._set_transition(state_id, c, self._edge_target(c, members))
+        self.dfa.set_edge(state_id, c, self._edge_target(c, members))
 
     def _tally(self, members, distinguisher):
         """Accept/reject counts of ``members`` classified against ``distinguisher``.
@@ -142,8 +113,7 @@ class TransitionResolver:
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
-        self._reopen_edges(state_id)
-        self._open_state(new_id)
+        self.dfa.split_state(state_id, new_id)
 
     # -- driver -------------------------------------------------------------
 
@@ -163,18 +133,10 @@ class TransitionResolver:
             population=self.population,
             tree=self.tree,
         )
+        self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
         # Root ids match MidfixTree: 0 = accept (True side), 1 = reject (False side).
-        self._open_state(0)
-        self._open_state(1)
-
-        while self.queue:
-            state_id, c = self.queue.popleft()
-            # A stable-id split reuses state_id and re-opens its edges, so the same
-            # (state, c) can sit in the queue twice; skip one already resolved (a
-            # later split pops it from trans when it must be redone).
-            if (state_id, c) in self.trans:
-                continue
-            self._resolve(state_id, c)
+        self.dfa.open_every_edge(range(self.tree.num_states))
+        self.dfa.drain(self._resolve)
 
         return self._to_dfa_and_tree()
 
@@ -184,9 +146,7 @@ class TransitionResolver:
         pst = self.pst
         n = self.tree.num_states
 
-        transitions = {i: {} for i in range(n)}
-        for (sid, c), target in self.trans.items():
-            transitions[sid][c] = target
+        transitions = {i: dict(self.dfa.transitions[i]) for i in range(n)}
 
         accepting = self.tree.accepting_leaves()
 
