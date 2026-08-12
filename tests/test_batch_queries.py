@@ -6,6 +6,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
+from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree, oracle_decider
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import Oracle
@@ -194,6 +195,25 @@ class TestBatchBeforePossibleStop(unittest.TestCase):
         self.assertEqual(
             5, _batch_before_possible_stop(0, 0, self.boundary, self.min_valid, 5)
         )
+
+
+class TestMemoizedOracle(unittest.TestCase):
+    def test_caches_batches_and_dedupes(self):
+        oracle = HashOracle()
+        memo = MemoizedOracle(oracle)
+        strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
+        bits = memo.membership_queries(strings)
+        self.assertEqual([oracle.membership_query(s) for s in strings], bits)
+        self.assertEqual([2], oracle.calls, "one batched call, deduped")
+        oracle.calls.clear()
+        self.assertEqual(bits, memo.membership_queries(strings))
+        self.assertEqual([], oracle.calls)
+        # the single-string query rides the same cache
+        oracle.calls.clear()
+        self.assertEqual(
+            oracle.membership_query([1, 0, 1]), memo.membership_query([1, 0, 1])
+        )
+        self.assertEqual([], oracle.calls, "cached, no new call")
 
 
 if __name__ == "__main__":
