@@ -19,9 +19,8 @@ This only directly affects state s, so all we need to do at this point is
 to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as every
 edge (s', c') -> s, which needs to be reclassified into one of the newly split states.
 
-Each state's prefixes are the pool prefixes that sift to its leaf; they live in a
-:class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation` that rests them at
-tree nodes and pulls them toward a leaf on demand, reading membership through the
+Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
+:class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`, read through the
 mask's shared MemoizedOracle so a cell the mask already holds costs no new query.
 
 The split keeps the accept side of the divergence as s itself and gives the reject
@@ -58,17 +57,16 @@ class TransitionResolver:
     def __init__(self, pst):
         self.pst = pst
         self.tree = None
-        self.population = None  # LeafPopulation: pool prefixes resting at each leaf
+        self.population = None  # pool prefixes, per leaf
         self.trans = {}  # (state_id, symbol) -> target state_id
-        self.incoming = {}  # state_id -> set of (state_id, symbol) pointing at it
+        self.incoming = {}  # state_id -> set of edges pointing at it
         self.queue = deque()
 
     # -- membership / population -------------------------------------------
 
     def _means(self, strings, distinguisher):
-        """Mean family membership of each string past ``distinguisher`` -- the
-        mean over ``string + distinguisher + v`` for base suffixes ``v``, through
-        the mask's shared memo (matching compute_decision's observed_masks.mean(0))."""
+        """Mean membership of each string past ``distinguisher``, read through the
+        mask's shared memo so cells the mask already holds cost no new query."""
         base = self.tree.base_family
         queries, spans = [], []
         for s in strings:
@@ -81,9 +79,8 @@ class TransitionResolver:
         return np.array([answers[lo:hi].mean() for lo, hi in spans])
 
     def _classify(self, strings, midfix):
-        """The leaf-population's decide: which side of ``midfix`` each string sits
-        on, thresholded like the split (accept_thresh / reject_thresh; the band
-        between is indecisive and drops out of the population)."""
+        """Which side of ``midfix`` each string sits on; the indecisive band
+        between the thresholds returns None and drops out of the population."""
         pst = self.pst
         means = self._means(strings, midfix)
         return [
@@ -131,8 +128,6 @@ class TransitionResolver:
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
-            # Resolving (state, c) reads the family one symbol deeper: c, then this
-            # node's own midfix, then each base suffix.
             prepended = [c] + list(midfix)
             decision = self._means(members, prepended)
             with np.errstate(invalid="ignore"):
@@ -145,8 +140,7 @@ class TransitionResolver:
         self._set_transition(state_id, c, node)
 
     def _split(self, state_id, midfix):
-        # The tree split re-partitions state_id's prefixes; the population re-sifts
-        # them on the next members() call, so nothing to fix up here.
+        # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
         self._reopen_edges(state_id)
         self._open_state(new_id)
@@ -159,8 +153,6 @@ class TransitionResolver:
         vs, boundary = sample_suffix_family(pst, v_idx)
         pst.decision_boundary = boundary
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
-        # The pool prefixes rest in the tree and are sifted lazily through the
-        # shared memo -- the per-leaf partition self.masks used to hold explicitly.
         self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
             self.population.add(list(p))

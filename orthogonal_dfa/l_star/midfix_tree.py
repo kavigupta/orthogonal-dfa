@@ -67,10 +67,8 @@ class MidfixTree:
         return _leaves(self._root)
 
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
-        """The branches from the root to leaf ``state`` (True = accept child).
-
-        A path names a node stably across splits, so a companion that tracks
-        strings by node keys off this rather than the rebuilt node objects."""
+        """The branches from the root to leaf ``state`` (True = accept child); a
+        stable node key, unlike the node objects a split rebuilds."""
 
         def find(node: Node, path: Tuple[bool, ...]) -> Optional[Tuple[bool, ...]]:
             if isinstance(node, int):
