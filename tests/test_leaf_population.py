@@ -84,6 +84,20 @@ class TestLeafPopulation(unittest.TestCase):
         # Only two strings reach (True,); asking for more just returns those two.
         self.assertEqual(sorted(pop.members((True,), 50)), [[1, 0], [1, 1]])
 
+    def test_representative_is_shortest_then_lexicographic(self):
+        classify, _ = _classifier()
+        pop = LeafPopulation(_StubTree(), classify, chunk=16)
+        for s in ([1, 1, 0], [1, 0], [1, 1]):  # all reach (True,) by bit 0
+            pop.add(s)
+        # [1, 0] and [1, 1] tie on length; lexicographic order picks [1, 0].
+        self.assertEqual(pop.representative((True,), 10), [1, 0])
+
+    def test_representative_is_none_when_no_members_reach_the_leaf(self):
+        classify, _ = _classifier()
+        pop = LeafPopulation(_StubTree(), classify, chunk=16)
+        pop.add([1, 0])  # reaches (True,), not the False subtree
+        self.assertIsNone(pop.representative((False, True), 10))
+
 
 if __name__ == "__main__":
     unittest.main()

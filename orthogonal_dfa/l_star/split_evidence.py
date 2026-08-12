@@ -63,12 +63,6 @@ class SplitEvidence:
     def _members(self, state: int):
         return self._population.members(self._tree.path_of(state), _MEMBER_LIMIT)
 
-    def representative(self, state: int):
-        """A canonical string reaching ``state`` -- the shortest member, ties
-        broken lexicographically -- or ``None`` if nothing known reaches it."""
-        members = self._members(state)
-        return min(members, key=lambda m: (len(m), m)) if members else None
-
     def verdict(self, state: int, distinguisher: tuple) -> str:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
