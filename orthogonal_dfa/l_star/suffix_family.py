@@ -16,6 +16,9 @@ class SuffixFamily:
     def __init__(self, pst, vs: List[int]):
         self.pst = pst
         self.vs = list(vs)
+        # train/test halves for the split test
+        self.train_idx = list(range(0, len(self.vs), 2))
+        self.test_idx = list(range(1, len(self.vs), 2))
         self._means: Dict[Tuple[tuple, tuple], float] = {}
 
     def bits(self, base) -> List[int]:
@@ -50,6 +53,21 @@ class SuffixFamily:
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
         ``None`` in the indecisive band between them."""
         mean = self.mean(seq, midfix)
+        if mean >= self.pst.accept_thresh:
+            return True
+        if mean < self.pst.reject_thresh:
+            return False
+        return None
+
+    def votes(self, seq, midfix) -> List[int]:
+        """Per-suffix accept bits"""
+        return self.bits(list(seq) + list(midfix))
+
+    def train_side(self, votes) -> Optional[bool]:
+        """
+        Which side of the distinguisher the votes fall on (on the training half only).
+        """
+        mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
         if mean >= self.pst.accept_thresh:
             return True
         if mean < self.pst.reject_thresh:

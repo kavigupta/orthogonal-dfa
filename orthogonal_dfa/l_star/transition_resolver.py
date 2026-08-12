@@ -30,27 +30,13 @@ and never need remapping on export.
 
 from collections import deque
 
-import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
+from .split_evidence import SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
-
-
-def _splits(pst, n_acc, n_rej):
-    """Binomial split test: both sides must carry more mass than the decision-rule
-    FPR could explain by noise, at significance ``split_pval``."""
-    denom = n_acc + n_rej
-    if denom == 0:
-        return False
-    fpr = pst.config.decision_rule_fpr
-    pval = max(
-        1 - scipy.stats.binom.cdf(n_acc, denom, fpr),
-        1 - scipy.stats.binom.cdf(n_rej, denom, fpr),
-    )
-    return pval < pst.config.split_pval
 
 
 class TransitionResolver:
@@ -58,6 +44,7 @@ class TransitionResolver:
         self.pst = pst
         self.tree = None
         self.family = None
+        self.splits = None
         self.population = None  # pool prefixes, per leaf
         self.trans = {}  # (state_id, symbol) -> target state_id
         self.incoming = {}  # state_id -> set of edges pointing at it
@@ -107,7 +94,7 @@ class TransitionResolver:
 
     def _resolve(self, state_id, c):
         members = self._members(state_id)
-        distinguisher = self._divergence(c, members)
+        distinguisher = self._divergence(state_id, c, members)
         if distinguisher is not None:
             self._split(state_id, distinguisher)
             return
@@ -121,23 +108,30 @@ class TransitionResolver:
         votes = [self.family.is_accept(m, distinguisher) for m in members]
         return sum(v is True for v in votes), sum(v is False for v in votes)
 
-    def _divergence(self, c, members):
-        """The distinguisher ``[c] + midfix`` at the first node where ``members``
-        split under one more symbol -- meaning their leaf is really two states --
-        or ``None`` if they agree all the way to a leaf."""
+    def _divergence(self, state_id, c, members):
+        """
+        The distinguisher [c] + midfix at the first node down the descent where
+        SplitEvidence confirms state_id's members are really two states, or None
+        if none does.
+
+        The held-out train/test test is the sole decision -- a real second state
+        reproduces across the disjoint halves where scattered noise does not -- so
+        no cheap pre-filter is needed to propose candidates first.
+        """
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
             distinguisher = [c] + list(midfix)
-            n_acc, n_rej = self._tally(members, distinguisher)
-            if _splits(self.pst, n_acc, n_rej):
+            if self.splits.verdict(state_id, tuple(distinguisher)) == SPLIT:
                 return distinguisher
+            n_acc, n_rej = self._tally(members, distinguisher)
             node = lookup[True] if n_acc >= n_rej else lookup[False]
         return None
 
     def _edge_target(self, c, members):
         """The leaf ``members`` extended by ``c`` reach, following the majority at
-        each node."""
+        each node -- the same descent ``_divergence`` just took, so its tallies are
+        already memoized."""
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
@@ -163,6 +157,12 @@ class TransitionResolver:
         self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
             self.population.add(list(p))
+        self.splits = SplitEvidence(
+            pst,
+            self.family,
+            population=self.population,
+            tree=self.tree,
+        )
         # Root ids match MidfixTree: 0 = accept (True side), 1 = reject (False side).
         self._open_state(0)
         self._open_state(1)
