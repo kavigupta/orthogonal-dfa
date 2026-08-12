@@ -124,12 +124,15 @@ class TransitionResolver:
         return sum(v is True for v in votes), sum(v is False for v in votes)
 
     def _divergence(self, state_id, c, members):
-        """The distinguisher ``[c] + midfix`` at the first node where ``members``
+        """
+        The distinguisher [c] + midfix at the first node where members
         split under one more symbol *and* SplitEvidence confirms the leaf is really
-        two states, or ``None`` if none does. The binomial only proposes a
-        candidate; the held-out test decides, since a real second state reproduces
-        across the family's disjoint train/test halves where scattered noise
-        does not."""
+        two states, or ``None`` if none does.
+        
+        The binomial only proposes a candidate; the held-out test decides, since a
+        real second state reproduces across the family's disjoint train/test halves
+        where scattered noise does not.
+        """
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
