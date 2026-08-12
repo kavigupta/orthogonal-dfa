@@ -30,13 +30,13 @@ and never need remapping on export.
 
 from collections import deque
 
-import numpy as np
 import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
+from .suffix_family import SuffixFamily
 
 
 def _splits(pst, n_acc, n_rej):
@@ -57,6 +57,7 @@ class TransitionResolver:
     def __init__(self, pst):
         self.pst = pst
         self.tree = None
+        self.family = None
         self.population = None  # pool prefixes, per leaf
         self.trans = {}  # (state_id, symbol) -> target state_id
         self.incoming = {}  # state_id -> set of edges pointing at it
@@ -64,29 +65,11 @@ class TransitionResolver:
 
     # -- membership / population -------------------------------------------
 
-    def _means(self, strings, distinguisher):
-        """Mean membership of each string past ``distinguisher``, read through the
-        mask's shared memo so cells the mask already holds cost no new query."""
-        base = self.tree.base_family
-        queries, spans = [], []
-        for s in strings:
-            lo = len(queries)
-            queries.extend(list(s) + list(distinguisher) + v for v in base)
-            spans.append((lo, len(queries)))
-        if not queries:
-            return np.zeros(len(strings))
-        answers = np.asarray(self.pst.table.memo.membership_queries(queries))
-        return np.array([answers[lo:hi].mean() for lo, hi in spans])
-
     def _classify(self, strings, midfix):
         """Which side of ``midfix`` each string sits on; the indecisive band
         between the thresholds returns None and drops out of the population."""
-        pst = self.pst
-        means = self._means(strings, midfix)
-        return [
-            True if m >= pst.accept_thresh else False if m < pst.reject_thresh else None
-            for m in means
-        ]
+        self.family.prefill([list(s) + list(midfix) for s in strings])
+        return [self.family.is_accept(s, midfix) for s in strings]
 
     def _members(self, state_id):
         """The pool prefixes that sift to leaf ``state_id``."""
@@ -129,10 +112,10 @@ class TransitionResolver:
         while not isinstance(node, int):
             midfix, lookup = node
             prepended = [c] + list(midfix)
-            decision = self._means(members, prepended)
-            with np.errstate(invalid="ignore"):
-                n_acc = int((decision >= pst.accept_thresh).sum())
-                n_rej = int((decision < pst.reject_thresh).sum())
+            self.family.prefill([list(m) + prepended for m in members])
+            votes = [self.family.is_accept(m, prepended) for m in members]
+            n_acc = sum(v is True for v in votes)
+            n_rej = sum(v is False for v in votes)
             if _splits(pst, n_acc, n_rej):
                 self._split(state_id, prepended)
                 return
@@ -152,6 +135,7 @@ class TransitionResolver:
         v_idx = pst.table.intern_suffix([])
         vs, boundary = sample_suffix_family(pst, v_idx)
         pst.decision_boundary = boundary
+        self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
