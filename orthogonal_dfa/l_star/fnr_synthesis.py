@@ -135,10 +135,9 @@ def _discover(pst, vs, *, max_probes: int, patience: int):
     probe need not end at the boundary.  One pass therefore both finds the splits
     and gathers what the next round's family must resolve."""
     learner = DirectLStarLearner(pst, vs)
-    learner.init_worklist()
-    learner.run_worklist()
+    learner.close_edges()
     learner.counterexample_pass(max_probes=max_probes, patience=patience)
-    learner.run_worklist()
+    learner.close_edges()
     dfa, dt = learner.to_dfa_and_tree()
     return learner, dfa, dt
 

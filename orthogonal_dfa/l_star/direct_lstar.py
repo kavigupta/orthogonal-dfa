@@ -11,7 +11,7 @@ What the learner owns is the loop that turns probes into splits.  The pieces it
 works through are their own objects:
 
     MidfixTree      which midfix cuts where, and which leaf a branch lands in
-    PartialDFA      the edges resolved so far, their witnesses, and the worklist
+    PartialDFA      the edges resolved so far and their witnesses
     SuffixFamily    the family a round classifies against, and how to read it
     SplitEvidence   whether a proposed distinguisher really splits a leaf
 
@@ -70,8 +70,7 @@ class DirectLStarLearner:
         # decisively (via oracle_decider) for the accuracy estimate.
         self.tree = MidfixTree([pst.table.suffix(v) for v in vs])
 
-        # The partial transition function, its witnesses and the queue of edges
-        # still to resolve.
+        # The partial transition function and its witnesses.
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
 
         # Classifying against the tree, and closing the transition function with
@@ -132,20 +131,18 @@ class DirectLStarLearner:
 
     # -- splitting ----------------------------------------------------------
 
-    def init_worklist(self) -> None:
-        self.edges.open_all_edges()
-
-    def run_worklist(self) -> int:
+    def close_edges(self) -> int:
         return self.edges.close()
 
     def split(self, state: int, distinguisher: tuple) -> int:
         """Refine leaf ``state`` into ``{True: state, False: new_state}`` under
         ``distinguisher`` and return the new state id.
 
-        The tree refines the leaf and the partial DFA re-opens exactly the edges
-        that refinement made ambiguous (see :meth:`PartialDFA.split_state`).  The
-        population and split test read the tree, so the split needs no fix-up
-        there -- the moved leaf's strings flush down on the next pull.
+        The tree refines the leaf and the partial DFA drops exactly the edges that
+        refinement made ambiguous, so they read as unresolved again (see
+        :meth:`PartialDFA.split_state`).  The population and split test read the
+        tree, so the split needs no fix-up there -- the moved leaf's strings flush
+        down on the next pull.
         """
         new_state = self.tree.split(state, distinguisher)
         self.dfa.split_state(state, new_state)
@@ -285,8 +282,8 @@ class DirectLStarLearner:
             yield from block
 
     def _total_delta(self):
-        """A total transition function to walk.  The worklist cannot always close
-        an edge -- a leaf every one of whose members is indecisive has no
+        """A total transition function to walk.  Edge resolution cannot always
+        close an edge -- a leaf every one of whose members is indecisive has no
         successor the family can name -- so the remainder is filled here, once,
         rather than every probe that passes through it re-sifting."""
         delta, _ = self.dfa.totalise(
@@ -310,7 +307,7 @@ class DirectLStarLearner:
             if status == _SPLIT:
                 splits += 1
                 since_split = 0
-                self.run_worklist()
+                self.close_edges()
                 delta = self._total_delta()  # the split rewrote the state set
             elif status == _UNDECIDED:
                 since_split = 0  # a leaf is still resolving -- keep sifting it
@@ -336,7 +333,7 @@ class DirectLStarLearner:
 def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, MidfixTree]:
     """The learned automaton as ``(DFA, MidfixTree)``.
 
-    ``decisive_target(state, symbol)`` fills an edge the worklist left open,
+    ``decisive_target(state, symbol)`` fills an edge resolution left open,
     returning ``None`` when the leaf is wholly indecisive -- only such an edge
     self-loops."""
     transitions, unresolved = partial.totalise(range(tree.num_states), decisive_target)

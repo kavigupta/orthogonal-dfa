@@ -1,7 +1,7 @@
 """Deciding where the partial DFA's open edges point.
 
-:class:`PartialDFA` owns the edges, the witnesses and the queue.  It cannot
-decide where an edge *goes*, because that needs the oracle.  This does: it sifts
+:class:`PartialDFA` owns the edges and the witnesses.  It cannot decide where an
+edge *goes*, because that needs the oracle.  This does: it sifts
 ``member + symbol`` for members of the source leaf and takes the first successor
 the family can place.
 
@@ -32,11 +32,6 @@ class EdgeResolver:
         self.sifter = sifter
         self.indecisive = indecisive
         self._population = population
-
-    # -- opening the queue ---------------------------------------------------
-
-    def open_all_edges(self) -> None:
-        self.dfa.open_every_edge(range(self.sifter.tree.num_states))
 
     # -- resolving -----------------------------------------------------------
 
@@ -90,7 +85,7 @@ class EdgeResolver:
         self.dfa.set_edge(state, c, target, witness)
 
     def close(self) -> int:
-        """Resolve queued edges until the hypothesis is closed.  Returns the
-        number resolved."""
+        """Resolve the unresolved edges until the hypothesis is closed.  Returns
+        the number resolved."""
         self.sifter.prefill(self.dfa.pending_probes(self._representative))
         return self.dfa.drain(self.resolve)

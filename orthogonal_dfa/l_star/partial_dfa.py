@@ -1,20 +1,20 @@
 """The partial transition function direct-L* builds alongside its tree.
 
-``delta`` under construction: the edges resolved so far, the witness prefix that
-justified each one, and the queue of edges
-still to resolve.  Keeping it here is what lets a split invalidate *precisely*
-the edges it made ambiguous instead of rebuilding the hypothesis: an edge that
-does not touch the split leaf keeps a valid witness, because its sift path never
-passed through that leaf.
+``delta`` under construction: the edges resolved so far and the witness prefix
+that justified each one.  Keeping it here is what lets a split invalidate
+*precisely* the edges it made ambiguous instead of rebuilding the hypothesis: an
+edge that does not touch the split leaf keeps a valid witness, because its sift
+path never passed through that leaf.
 
 The object owns bookkeeping only.  *Deciding* where an edge points needs the
-oracle, so the caller supplies ``resolve(state, symbol)`` when draining the queue
-and ``decisive_target(state, symbol)`` when totalising -- the same division of
-labour as :class:`MidfixTree`'s ``decide`` callback.
+oracle, so the caller supplies ``resolve(state, symbol)`` when draining and
+``decisive_target(state, symbol)`` when totalising.  Neither the edges pointing at
+a state nor the edges still to resolve are indexed: a split needs the former only
+~once per state, and an unresolved edge is just one missing from ``transitions``
+-- both are scanned on demand.
 """
 
-from collections import deque
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class PartialDFA:
@@ -27,12 +27,6 @@ class PartialDFA:
         #: A prefix that provably reaches ``s`` and whose one-symbol extension by
         #: ``c`` reaches ``transitions[s][c]``.
         self.witnesses: Dict[Tuple[int, int], List[int]] = {}
-        #: ``incoming[s]`` -- the edges whose current target is ``s``, so that a
-        #: split can re-open exactly those.
-        self.incoming: Dict[int, Set[Tuple[int, int]]] = {
-            s: set() for s in range(num_states)
-        }
-        self.worklist: "deque[Tuple[int, int]]" = deque()
 
     # -- edges --------------------------------------------------------------
 
@@ -46,87 +40,83 @@ class PartialDFA:
         return self.witnesses.get((state, c))
 
     def set_edge(self, state: int, c: int, target: int, witness) -> None:
-        previous = self.transitions[state].get(c)
-        if previous is not None:
-            self.incoming[previous].discard((state, c))
         self.transitions[state][c] = target
         self.witnesses[state, c] = list(witness)
-        self.incoming[target].add((state, c))
 
     def clear_edge(self, state: int, c: int) -> None:
-        target = self.transitions[state].pop(c, None)
+        self.transitions[state].pop(c, None)
         self.witnesses.pop((state, c), None)
-        if target is not None:
-            self.incoming[target].discard((state, c))
 
-    # -- the queue ----------------------------------------------------------
+    def edges_into(self, state: int) -> List[Tuple[int, int]]:
+        """The edges whose current target is ``state``, scanned from
+        ``transitions`` rather than a maintained reverse index."""
+        return [
+            (s, c)
+            for s, edges in self.transitions.items()
+            for c, t in edges.items()
+            if t == state
+        ]
 
-    def reopen(self, state: int, c: int) -> None:
-        """Re-queue ``(state, c)``; :meth:`drain` dedups against edges that have
-        since been resolved."""
-        self.worklist.append((state, c))
+    def unresolved_edges(self) -> List[Tuple[int, int]]:
+        """Every edge still missing from ``transitions``."""
+        return [
+            (s, c)
+            for s, edges in self.transitions.items()
+            for c in range(self.alphabet_size)
+            if c not in edges
+        ]
 
-    def open_every_edge(self, states) -> None:
-        for state in states:
+    def _next_unresolved(self) -> Optional[Tuple[int, int]]:
+        for state, edges in self.transitions.items():
             for c in range(self.alphabet_size):
-                self.reopen(state, c)
+                if c not in edges:
+                    return (state, c)
+        return None
+
+    # -- resolving ----------------------------------------------------------
 
     def pending_probes(self, representative) -> List[List[int]]:
-        """``representative(s) + [c]`` for every queued edge still needing
-        resolution -- the strings the next :meth:`drain` will sift, so a caller
-        can warm them in one batch.  The queue only grows outside a drain, so one
-        pass covers it."""
+        """``representative(s) + [c]`` for every unresolved edge -- the strings the
+        next :meth:`drain` will sift, so a caller can warm them in one batch."""
         probes = []
-        for s, c in self.worklist:
-            if self.has_edge(s, c):
-                continue
+        for s, c in self.unresolved_edges():
             rep = representative(s)
             if rep is not None:
                 probes.append(list(rep) + [c])
         return probes
 
     def drain(self, resolve) -> int:
-        """Resolve queued edges via ``resolve(state, symbol)`` until the
-        hypothesis is closed.  Returns the number of edges resolved.
+        """Resolve edges via ``resolve(state, symbol)`` until the hypothesis is
+        closed; returns the number resolved.
 
-        A split reuses the old id for its True branch, so every id below the state
-        count is always live -- no staleness check is needed, and the only dedup is
-        skipping edges already resolved."""
+        ``resolve`` may split -- clearing edges, which the next scan picks back up
+        -- so this loops until no edge is missing."""
         resolved = 0
-        while self.worklist:
-            state, c = self.worklist.popleft()
-            if self.has_edge(state, c):
-                continue
-            resolve(state, c)
+        while (edge := self._next_unresolved()) is not None:
+            resolve(*edge)
             resolved += 1
         return resolved
 
     # -- splitting ----------------------------------------------------------
 
     def split_state(self, state: int, new_state: int) -> None:
-        """Account for ``state`` having bifurcated into ``state`` and
-        ``new_state``.
+        """Account for ``state`` having bifurcated into ``state`` and ``new_state``.
 
-        Only edges *incident* to the old leaf become ambiguous: its outgoing edges
-        vanish (the source is now two states), and the edges pointing at it must be
-        re-classified into one of the two.  Both sets are dropped and re-queued,
-        along with every outgoing edge of the two halves."""
+        Only edges incident to the old leaf become ambiguous: its outgoing edges
+        vanish (the source is now two states) and every edge into it must be
+        re-classified.  Both sets are dropped; they and the new leaf's edges then
+        read as unresolved and get re-resolved."""
         self.transitions[new_state] = {}
-        self.incoming[new_state] = set()
-        for c in list(self.transitions[state]):
+        for c in range(self.alphabet_size):
             self.clear_edge(state, c)
-            self.reopen(state, c)
-        for src, c in list(self.incoming[state]):
+        for src, c in self.edges_into(state):
             self.clear_edge(src, c)
-            self.reopen(src, c)
-        self.incoming[state] = set()
-        self.open_every_edge((state, new_state))
 
     # -- export -------------------------------------------------------------
 
     def totalise(self, states, decisive_target):
-        """A total copy of ``delta``.  An edge the worklist left open is filled
-        from ``decisive_target(state, symbol)``; where that fails too the edge
+        """A total copy of ``delta``.  An edge resolution left open is filled from
+        ``decisive_target(state, symbol)``; where that fails too the edge
         self-loops and is reported in the second return value.
 
         Does not mutate ``transitions`` -- unresolved edges stay open so a later
