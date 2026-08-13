@@ -49,6 +49,7 @@ class TransitionResolver:
         self.splits = None
         self.population = None  # pool prefixes, per leaf
         self.dfa = None  # the partial transition function
+        self.indecisive = set()  # boundary strings the family could not place
 
     # -- membership / population -------------------------------------------
 
@@ -65,8 +66,15 @@ class TransitionResolver:
         )
 
     def _sift(self, seq):
-        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it."""
-        return self.tree.classify(list(seq), self.family.is_accept)
+        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
+
+        Every string the tree cannot place is harvested into ``indecisive``: it is
+        a boundary string the current family straddles, and the driver feeds these
+        back so the next family is forced to resolve them."""
+        leaf, boundary = self.tree.sift(list(seq), self.family.is_accept)
+        if leaf is None:
+            self.indecisive.add(boundary)
+        return leaf
 
     # -- the resolution step ------------------------------------------------
 

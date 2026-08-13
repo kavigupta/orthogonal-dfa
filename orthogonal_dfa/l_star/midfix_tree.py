@@ -122,18 +122,29 @@ class MidfixTree:
 
     # -- classification -----------------------------------------------------
 
-    def classify(self, seq, decide: Decide) -> Optional[int]:
+    def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[tuple]]:
         """
-        Route seq to a leaf, or None when a node's decide callback abstains.
+        Route seq to a leaf: (state, None) when it lands decisively, or
+        (None, boundary) when some node cannot place it.
+
+        The boundary is seq + midfix, not seq: the indecision is over
+        seq + midfix + v, so it is seq + midfix that the family failed on and
+        that a caller can force the next family to resolve.
         """
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
             decision = decide(seq, midfix)
             if decision is None:
-                return None
+                return None, tuple(seq) + tuple(midfix)
             node = lookup[decision]
-        return node
+        return node, None
+
+    def classify(self, seq, decide: Decide) -> Optional[int]:
+        """
+        Route seq to a leaf, or None when a node's decide callback abstains.
+        """
+        return self.sift(seq, decide)[0]
 
     def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
         """
