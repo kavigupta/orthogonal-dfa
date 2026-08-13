@@ -135,16 +135,6 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
-def counterexample_search_exhausted(
-    num_found, num_samples, count, max_samples, *, failure_prob=1e-5
-):
-    """Whether the hits so far are too far below ``count / max_samples``, the
-    rate the search has to sustain to reach ``count``."""
-    needed_rate = count / max_samples
-    pval = scipy.stats.binom.cdf(num_found, num_samples, needed_rate)
-    return pval < failure_prob
-
-
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
     """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
 
