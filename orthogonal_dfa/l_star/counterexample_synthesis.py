@@ -156,16 +156,21 @@ def feed_boundary_strings(pst, boundaries, *, limit: int) -> int:
     adding it makes the next round's ``sample_suffix_family`` see a high FNR over
     it and re-cluster to a family that places it decisively.  Capped at the same
     per-round budget as enrichment so one round cannot flood the pool.  Returns
-    how many were added."""
+    how many were added.
+
+    ``boundaries`` is a set, so sort it to a canonical order and then shuffle it
+    with a fixed rng: the cap picks the same unbiased sample every run, rather
+    than one biased by sort order or dependent on set iteration order."""
+    ordered = sorted(tuple(b) for b in boundaries)
+    np.random.default_rng(0).shuffle(ordered)
     fresh, seen = [], set()
-    for b in boundaries:
+    for key in ordered:
         if len(fresh) >= limit:
             break
-        key = tuple(b)
-        if key in seen or pst.table.contains_prefix(list(b)):
+        if key in seen or pst.table.contains_prefix(list(key)):
             continue
         seen.add(key)
-        fresh.append(list(b))
+        fresh.append(list(key))
     if fresh:
         pst.table.add_prefixes(fresh)
     return len(fresh)
