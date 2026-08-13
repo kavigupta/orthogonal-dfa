@@ -1,26 +1,24 @@
-"""The partial transition function the resolver builds alongside its tree.
+"""
+The partial transition function the resolver builds alongside its tree.
 
-It owns the edges resolved so far, the set of edges pointing at each state, and
-the queue of edges still to resolve.  Keeping this here lets a split invalidate
-*precisely* the edges it made ambiguous -- the leaf's own outgoing edges and
-every edge into it -- instead of rebuilding the hypothesis: an edge that never
-touched the split leaf keeps its resolved target.
+This model owns
+    - edges resolved so far
+    - queue of edges still to resolve
+
+The edges pointing at a state are not indexed; a split needs them only ~once per
+state, so they are scanned out of ``transitions`` on demand instead of being kept
+in sync on every ``set_edge``.
 """
 
 from collections import deque
-from typing import Dict, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class PartialDFA:
     def __init__(self, alphabet_size: int, *, num_states: int):
         self.alphabet_size = alphabet_size
-        #: ``transitions[s][c]`` -- the resolved target of edge ``(s, c)``.
+        #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
-        #: ``incoming[s]`` -- the edges whose target is ``s``, so a split can
-        #: re-open exactly those.
-        self.incoming: Dict[int, Set[Tuple[int, int]]] = {
-            s: set() for s in range(num_states)
-        }
         self.worklist: "deque[Tuple[int, int]]" = deque()
 
     def target(self, state: int, c: int) -> Optional[int]:
@@ -30,16 +28,7 @@ class PartialDFA:
         return c in self.transitions[state]
 
     def set_edge(self, state: int, c: int, target: int) -> None:
-        previous = self.transitions[state].get(c)
-        if previous is not None:
-            self.incoming[previous].discard((state, c))
         self.transitions[state][c] = target
-        self.incoming[target].add((state, c))
-
-    def clear_edge(self, state: int, c: int) -> None:
-        target = self.transitions[state].pop(c, None)
-        if target is not None:
-            self.incoming[target].discard((state, c))
 
     def reopen(self, state: int, c: int) -> None:
         self.worklist.append((state, c))
@@ -49,6 +38,16 @@ class PartialDFA:
             for c in range(self.alphabet_size):
                 self.reopen(state, c)
 
+    def edges_into(self, state: int) -> List[Tuple[int, int]]:
+        """The edges whose current target is ``state``, scanned from
+        ``transitions`` rather than a maintained reverse index."""
+        return [
+            (s, c)
+            for s, edges in self.transitions.items()
+            for c, t in edges.items()
+            if t == state
+        ]
+
     def split_state(self, state: int, new_state: int) -> None:
         """Account for ``state`` bifurcating into ``state`` and ``new_state``.
 
@@ -57,14 +56,12 @@ class PartialDFA:
         re-queued; then the new leaf's edges are opened.
         """
         self.transitions[new_state] = {}
-        self.incoming[new_state] = set()
         for c in range(self.alphabet_size):
-            self.clear_edge(state, c)
+            self.transitions[state].pop(c, None)
             self.reopen(state, c)
-        for src, c in list(self.incoming[state]):
-            self.clear_edge(src, c)
+        for src, c in self.edges_into(state):
+            self.transitions[src].pop(c, None)
             self.reopen(src, c)
-        self.incoming[state] = set()
         self.open_every_edge((new_state,))
 
     def drain(self, resolve) -> None:
