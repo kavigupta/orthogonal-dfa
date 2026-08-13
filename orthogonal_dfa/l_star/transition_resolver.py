@@ -161,19 +161,20 @@ class TransitionResolver:
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
-        state = states[-1]
         actual = self._sift(w)
-        if actual is None or state is None or actual == state:
+        if actual is None or actual == states[-1]:
             return _RESOLVED
-        fd = self._first_disagreement(w, states, agree_point, len(w))
+        fd = self._first_bad_edge(w, states, agree_point, len(w))
         if fd is None:
             return _RESOLVED
-        s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
-        if s1 is None or s2 is None or self.dfa.target(s1, c) != s2:
-            return _RESOLVED
+        # The walk follows resolved edges over a total delta, so s1, its
+        # c-successor and the edge's witness are all present, and sprime reaches s1
+        # (the sift agrees up to fd - 1). Only a majority-fallback witness (from an
+        # empty-membered leaf) can miss s1, which the sift below screens out.
+        s1, c = states[fd - 1], w[fd - 1]
         sprime = w[: fd - 1]
         witness = self.dfa.witness(s1, c)
-        if witness is None or self._sift(sprime) != s1 or self._sift(witness) != s1:
+        if self._sift(witness) != s1:
             return _RESOLVED
         distinguisher = self.tree.first_disagreement(
             witness, sprime, self.family.is_accept, [c]
@@ -186,18 +187,19 @@ class TransitionResolver:
             return _SPLIT
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
-    def _first_disagreement(self, w, states, lo, hi):
+    def _first_bad_edge(self, w, states, lo, hi):
         """Binary-search the first index where the followed state diverges from a
-        fresh sift of ``w[:i]``; ``None`` on an indecisive sift."""
+        fresh sift of ``w[:i]``; ``None`` on an indecisive sift.  Invariant: the
+        sift agrees at ``lo`` and disagrees at ``hi``."""
         if lo + 1 == hi:
             return hi
         mid = (lo + hi) // 2
         actual = self._sift(w[:mid])
-        if actual is None or states[mid] is None:
+        if actual is None:
             return None
         if actual == states[mid]:
-            return self._first_disagreement(w, states, mid, hi)
-        return self._first_disagreement(w, states, lo, mid)
+            return self._first_bad_edge(w, states, mid, hi)
+        return self._first_bad_edge(w, states, lo, mid)
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)

@@ -15,11 +15,7 @@ import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .lstar import (
-    _oracle_classify,
-    denoise_accept_labels,
-    estimate_agreement_rate,
-)
+from .lstar import _oracle_classify, denoise_accept_labels, estimate_agreement_rate
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
