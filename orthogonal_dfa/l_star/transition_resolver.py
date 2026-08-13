@@ -7,7 +7,8 @@ prefix pool into two sets s_acc / s_rej.  The leaves of the tree are the states
 of the DFA. We also separately maintain a transition function, which maps
 (state, symbol) pairs to target states.
 
-We work a queue of unresolved (state, symbol) pairs.  Resolving (s, c) classifies
+We resolve the unresolved (state, symbol) edges -- each just one missing from the
+partial transition function -- until none remain.  Resolving (s, c) classifies
 every prefix of s extended by c. Doing so involves querying the current tree for
 the prefixes of s except with every distinguisher family prepended by c.
 This has two possibilities:
@@ -15,9 +16,9 @@ This has two possibilities:
   2. They diverge: s is really more than one state. We split it in two at the
   first decision tree node (from the root) where its prefixes disagree about where c leads
 
-This only directly affects state s, so all we need to do at this point is
-to re-enqueue all (s, c') for all symbols c' in the alphabet, as well as every
-edge (s', c') -> s, which needs to be reclassified into one of the newly split states.
+This only directly affects state s, so we drop its outgoing edges and every
+edge (s', c') -> s into it; both then read as unresolved and are re-resolved into
+one of the newly split states.
 
 Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
 :class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`, read through the

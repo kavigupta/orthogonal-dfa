@@ -40,11 +40,10 @@ class PartialDFA:
         return None
 
     def split_state(self, state: int, new_state: int) -> None:
-        """Account for ``state`` bifurcating into ``state`` and ``new_state``.
+        """
+        Account for state bifurcating into (state, new_state).
 
-        Both its outgoing edges (computed under the old, larger leaf) and every
-        edge into it (which may now belong to either side) are dropped; they and
-        the new leaf's edges then read as unresolved and get re-resolved.
+        All relevant edges are removed, both outgoing from and incoming to state.
         """
         self.transitions[new_state] = {}
         for c in range(self.alphabet_size):
@@ -53,8 +52,11 @@ class PartialDFA:
             self.transitions[src].pop(c, None)
 
     def drain(self, resolve) -> None:
-        """Resolve edges via ``resolve(state, symbol)`` until every one is filled.
-        ``resolve`` may split -- clearing edges, which the next scan picks back
-        up -- so this loops until no edge is missing."""
+        """
+        Resolve edges via resolve(state, symbol) until every one is filled.
+
+        resolve() is allowed to call split_state() on this, which adds more work,
+        so this is not guaranteed to terminate unless resolve() is well-behaved.
+        """
         while (edge := self._next_unresolved()) is not None:
             resolve(*edge)
