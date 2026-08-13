@@ -1,28 +1,38 @@
 """
 Counterexample-driven synthesis: the E-L* learner loop.
 
-Resolves a DFA from the current prefix pool (``resolve_dfa``), estimates its
-accuracy, and when it falls short generates counterexample prefixes and enriches
-under-represented leaves before resolving again -- until the estimate clears the
-threshold or the search dries up.  The classification and accuracy primitives it
-uses live in ``lstar``.
+Each round the resolver builds a DFA from the current prefix pool and splits it
+in place on DFA-vs-tree disagreements (its counterexample pass); when the
+estimated accuracy still falls short, under-represented leaves are enriched and
+the round repeats -- until the estimate clears the threshold or enrichment dries
+up.  The classification and accuracy primitives it uses live in ``lstar``.
 """
 
 import copy
-import warnings
+import math
 
 import numpy as np
 import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .lstar import (
-    _oracle_classify,
-    denoise_accept_labels,
-    estimate_agreement_rate,
-    locate_incorrect_point,
-)
-from .statistics import binomial_side_of_boundary, counterexample_search_exhausted
-from .transition_resolver import resolve_dfa
+from .lstar import _oracle_classify, denoise_accept_labels, estimate_agreement_rate
+from .statistics import binomial_side_of_boundary
+from .transition_resolver import TransitionResolver
+
+#: Probes drawn per counterexample pass.
+COUNTEREXAMPLE_PROBES = 4000
+
+
+def _default_patience(acc_threshold: float) -> int:
+    """Consecutive clean probes that end a counterexample pass: seeing this many
+    in a row is a ``<= 0.05`` event if the disagreement rate were still at the
+    tolerated ``1 - acc_threshold``.
+
+    A perfect-accuracy target tolerates no disagreement, so no finite clean run
+    rules it out -- never early-stop, run the whole probe budget."""
+    if acc_threshold >= 1:
+        return COUNTEREXAMPLE_PROBES
+    return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
 def classify_pool(pst, tree, *, accept, reject):
@@ -36,95 +46,6 @@ def classify_pool(pst, tree, *, accept, reject):
         return decision >= accept, decision < reject
 
     return tree.classify_pool(pst.num_prefixes, decide_columns)
-
-
-def add_counterexample_prefixes(pst, dt, dfa, count):
-    results = generate_counterexamples(
-        pst,
-        pst.sampler,
-        pst.oracle,
-        dt,
-        dfa,
-        count=count,
-    )
-    if results:
-        pst.table.add_prefixes(results)
-    return results
-
-
-#: Draws allowed per counterexample search, per prefix asked for.
-SAMPLES_PER_COUNTEREXAMPLE = 50
-
-
-def counterexample_sample_budget(count: int) -> int:
-    return SAMPLES_PER_COUNTEREXAMPLE * count
-
-
-def generate_counterexamples(pst, us, oracle, tree, dfa, *, count):
-    boundary = pst.decision_boundary
-    # The counterexample pipeline classifies strings many times: ~log2(string_len)
-    # binary search steps + 2 decisive checks, each traversing the full tree.  A
-    # false positive just adds an uninformative prefix (harmless), so we can
-    # tolerate a much higher overall error rate than state discovery (which uses
-    # split_pval).  We use 0.2 as the whole-pipeline budget and union-bound
-    # over all node-level decisions.
-    from .statistics import compute_suffix_size_counterexample_gen as _compute_sfx
-
-    counterexample_fpr = 0.2
-    string_len = pst.sampler.length
-    num_classifications = 2 + int(np.ceil(np.log2(string_len)))
-    num_node_decisions = num_classifications * tree.depth
-    effective_p = 0.5 + pst.config.min_signal_strength
-    per_node_budget = counterexample_fpr / max(num_node_decisions, 1)
-    scaled_suffix_size = _compute_sfx(per_node_budget, effective_p)
-    # Both are decisive, reduced is more efficient
-    reduced, _ = _oracle_classify(
-        tree, oracle, accept=boundary, reject=boundary, suffix_limit=scaled_suffix_size
-    )
-    decisive, _ = _oracle_classify(tree, oracle, accept=boundary, reject=boundary)
-    pbar = tqdm.tqdm(total=count)
-    additional_prefixes = []
-    num_samples = 0
-    max_samples = counterexample_sample_budget(count)
-    while True:
-        num_samples += 1
-        x = us.sample(pst.rng, pst.alphabet_size)
-        y = us.sample(pst.rng, pst.alphabet_size)
-        s0 = reduced(x)
-        prefix, sym = locate_incorrect_point(
-            reduced,
-            dfa,
-            x,
-            y,
-            s0=s0,
-            # Skip the endpoint classification when x itself is unclassifiable --
-            # locate_incorrect_point returns on s0 without reading s_end.
-            s_end=(reduced(x + y) if s0 is not None else None),
-        )
-        if counterexample_search_exhausted(
-            len(additional_prefixes), num_samples, count, max_samples
-        ):
-            warnings.warn(
-                f"Counterexample search yielded {len(additional_prefixes)}/{count}"
-                f" prefixes in {num_samples} samples; the decision tree and the"
-                f" DFA disagree too rarely to reach {count} within"
-                f" {max_samples} samples"
-            )
-            pbar.close()
-            return additional_prefixes
-        if prefix is None:
-            continue
-        if prefix in additional_prefixes or pst.table.contains_prefix(prefix):
-            continue
-        state_1 = decisive(prefix)
-        state_2 = dfa.transitions[state_1][sym]
-        if state_2 == decisive(prefix + [sym]):
-            continue
-        additional_prefixes.append(prefix)
-        pbar.update()
-        if len(additional_prefixes) >= count:
-            pbar.close()
-            return additional_prefixes
 
 
 def enrich_underrepresented_leaves(pst, tree, *, count):
@@ -232,14 +153,17 @@ def uncoverable_access_strings(pst, tree):
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
+    patience = _default_patience(acc_threshold)
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        while True:
-            dfa, dt = resolve_dfa(pst)
-            print(f"Resolved DFA with {dt.num_states} states")
-            if dt.num_states > 1:
-                break
-            pst.sample_more_prefixes()
+        resolver = TransitionResolver(pst)
+        resolver.build()
+        resolver.counterexample_pass(
+            max_probes=COUNTEREXAMPLE_PROBES, patience=patience
+        )
+        dfa, dt = resolver.export()
+        print(f"Resolved DFA with {dt.num_states} states")
+        assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
             pst,
@@ -268,15 +192,11 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, None
             return
-        ce = add_counterexample_prefixes(pst, dt, dfa, additional_counterexamples)
         enriched = enrich_underrepresented_leaves(
             pst, dt, count=additional_counterexamples
         )
-        if not ce and not enriched:
-            print(
-                "Neither counterexample search nor leaf enrichment found"
-                " new prefixes; stopping synthesis"
-            )
+        if not enriched:
+            print("Leaf enrichment found no new prefixes; stopping synthesis")
             yield dfa, dt, None
             return
         yield dfa, dt, copy.deepcopy(pst)

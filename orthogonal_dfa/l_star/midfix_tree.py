@@ -135,6 +135,28 @@ class MidfixTree:
             node = lookup[decision]
         return node
 
+    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
+        """
+        The midfix separating s and sprime, or None.
+
+        s and sprime currently sift to the same leaf, but s + prefix and
+        sprime + prefix are known to reach different leaves. Walk down the branch
+        where they still agree; the first node where they disagree yields the
+        separating midfix prefix + node midfix. None when a needed classification
+        is indecisive, or when they agree all the way to a leaf.
+        """
+        node = self._root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            full = (*prefix, *midfix)
+            d, dprime = decide(s, full), decide(sprime, full)
+            if d is None or dprime is None:
+                return None
+            if d != dprime:
+                return full
+            node = lookup[d]
+        return None
+
     def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
         """
         Like [classify(s) for s in seqs] but with the reads batched one level at a
