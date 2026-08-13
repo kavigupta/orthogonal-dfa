@@ -134,8 +134,6 @@ class TransitionResolver:
             tree=self.tree,
         )
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
-        # Root ids match MidfixTree: 0 = accept (True side), 1 = reject (False side).
-        self.dfa.open_every_edge(range(self.tree.num_states))
         self.dfa.drain(self._resolve)
 
         return self._to_dfa_and_tree()
