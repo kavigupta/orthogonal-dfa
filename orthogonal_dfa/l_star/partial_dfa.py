@@ -15,9 +15,7 @@ class PartialDFA:
     def __init__(self, alphabet_size: int, *, num_states: int):
         self.alphabet_size = alphabet_size
         #: ``transitions[s][c]`` -- the resolved target of edge ``(s, c)``.
-        self.transitions: Dict[int, Dict[int, int]] = {
-            s: {} for s in range(num_states)
-        }
+        self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
         #: ``incoming[s]`` -- the edges whose target is ``s``, so a split can
         #: re-open exactly those.
         self.incoming: Dict[int, Set[Tuple[int, int]]] = {
