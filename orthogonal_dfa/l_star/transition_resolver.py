@@ -161,7 +161,6 @@ class TransitionResolver:
             start += 1
         if state is None:
             return _RESOLVED
-        self.population.add(w[:start], at=self.tree.path_of(state))
         states = [None] * start + [state]
         for c in w[start:]:
             state = self.dfa.target(state, c)
