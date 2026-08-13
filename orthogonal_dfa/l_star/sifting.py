@@ -20,10 +20,6 @@ class Sifter:
         when some node cannot place it."""
         return self.tree.sift(seq, self.family.is_accept)
 
-    def sift(self, seq) -> Optional[int]:
-        leaf, _ = self.sift_and_boundary(seq)
-        return leaf
-
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
         level rather than one per node visited.
