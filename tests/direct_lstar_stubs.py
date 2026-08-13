@@ -9,6 +9,9 @@ from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
 class StubTable:
     prefixes = ()
 
+    def __init__(self, oracle):
+        self.memo = MemoizedOracle(oracle)
+
     def suffix(self, v):
         return [v]
 
@@ -27,9 +30,8 @@ def make_pst():
         reject_thresh=0.3,
         decision_boundary=0.5,
         evidence_margin=0.0,
-        table=StubTable(),
+        table=StubTable(oracle),
         oracle=oracle,
-        sift_cache=MemoizedOracle(oracle),
         config=SimpleNamespace(
             split_pval=0.001, min_signal_strength=0.3, suffix_family_size=2
         ),

@@ -22,11 +22,10 @@ class SuffixFamily:
         self._means: Dict[Tuple[tuple, tuple], float] = {}
 
     def bits(self, base) -> List[int]:
-        """Membership of ``base`` under each family suffix. A sift base is a fresh
-        string, not a pool prefix, so it goes through the off-grid ``sift_cache``
-        rather than the table's grid; misses are one batched call."""
+        """Membership of ``base`` under each family suffix, through the table's
+        shared memo so cells the mask already holds cost no new query."""
         table = self.pst.table
-        return self.pst.sift_cache.membership(
+        return table.memo.membership_queries(
             [list(base) + table.suffix(v) for v in self.vs]
         )
 
@@ -34,7 +33,7 @@ class SuffixFamily:
         """Observe the whole family for every base at once, so a population costs
         one oracle call rather than one per member."""
         table = self.pst.table
-        self.pst.sift_cache.membership(
+        table.memo.membership_queries(
             [list(b) + table.suffix(v) for b in bases for v in self.vs]
         )
 

@@ -20,6 +20,8 @@ from typing import List
 
 import numpy as np
 
+from .memoized_oracle import MemoizedOracle
+
 # Sentinel for a not-yet-queried cell.  Private to this module: callers ask about
 # observation through ``fully_observed`` / ``observed_masks`` and never see it.
 UNOBSERVED = np.int8(-1)
@@ -28,7 +30,11 @@ UNOBSERVED = np.int8(-1)
 class MaskTable:
     def __init__(self, oracle, prefixes: List[List[int]], representative: List[bool]):
         assert len(prefixes) == len(representative)
-        self._oracle = oracle
+        # Memoize membership per string.  The matrix already dedups by (prefix,
+        # suffix) cell; this additionally dedups across cells that spell the same
+        # string, and allows us to remove the matrix caching in future.
+        self.memo = MemoizedOracle(oracle)
+        self._oracle = self.memo
         self._prefixes = [list(p) for p in prefixes]
         self._prefix_keys = {tuple(p) for p in self._prefixes}
         self._representative = list(representative)
@@ -54,9 +60,7 @@ class MaskTable:
 
     def set_representative(self, prefixes: List[List[int]]) -> None:
         """Make *exactly* ``prefixes`` the representative set (all others become
-        non-representative).  Lets a driver curate the calibration/check
-        population -- e.g. a balanced per-state resample -- without discarding the
-        accumulated prefixes."""
+        non-representative)."""
         keys = {tuple(p) for p in prefixes}
         self._representative = [tuple(p) in keys for p in self._prefixes]
 
