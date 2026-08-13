@@ -134,8 +134,19 @@ class TransitionResolver:
                 for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
-            self.family.prefill(block)
+            self._prefill_sifts(block)
             yield from block
+
+    def _prefill_sifts(self, seqs):
+        """Warm the whole block's sifts one tree level at a time -- one batched
+        family read per level over every probe still descending, rather than one
+        per node per probe -- so :meth:`_process` then re-reads a warm cache."""
+
+        def decide_level(pairs):
+            self.family.prefill([list(s) + list(m) for s, m in pairs])
+            return [self.family.is_accept(s, m) for s, m in pairs]
+
+        self.tree.classify_many(seqs, decide_level)
 
     def _process(self, w):
         """Anchor at the shortest prefix the tree places, follow the resolved
