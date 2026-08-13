@@ -125,6 +125,27 @@ class TestMaskTableBatching(unittest.TestCase):
             1 + len(new_prefixes), int((table._masks[partial] == UNOBSERVED).sum())
         )
 
+    def test_every_prefix_gates_a_columns_candidacy(self):
+        # Regression: scoping "fully observed" to the *representative* rows made a
+        # column a clustering candidate while its core cells -- non-representative,
+        # but still prefixes -- were unobserved.  That silently changed which
+        # suffixes clustering could pick, and with them the whole search path,
+        # surfacing only as a distant end-to-end timeout.
+        oracle, table = self._table()  # prefix 2 is core: non-representative
+        row = table.intern_suffix([1, 1])
+
+        # Observing just the representative cells leaves a prefix unobserved, so
+        # the column is not a candidate yet.
+        table._ensure([row], table.representative)
+        self.assertTrue((table._masks[row] == UNOBSERVED).any())
+        self.assertNotIn(row, list(table.fully_observed()))
+
+        # Observing every prefix makes it one.
+        oracle.calls.clear()
+        table.column(row)
+        self.assertEqual([int((~table.representative).sum())], oracle.calls)
+        self.assertIn(row, list(table.fully_observed()))
+
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
         rows = [table.intern_suffix([1]), table.intern_suffix([0, 0])]
