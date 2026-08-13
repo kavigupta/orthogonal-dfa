@@ -12,16 +12,23 @@ class PartialDFA:
         self.alphabet_size = alphabet_size
         #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
+        #: A prefix reaching s whose extension by c reaches transitions[s][c] --
+        #: the member that resolved the edge, kept so a split can separate on it.
+        self.witnesses: Dict[Tuple[int, int], List[int]] = {}
 
     def target(self, state: int, c: int) -> Optional[int]:
         return self.transitions[state].get(c)
 
+    def witness(self, state: int, c: int) -> Optional[List[int]]:
+        return self.witnesses.get((state, c))
+
     def has_edge(self, state: int, c: int) -> bool:
         return c in self.transitions[state]
 
-    def set_edge(self, state: int, c: int, target: int) -> None:
+    def set_edge(self, state: int, c: int, target: int, witness) -> None:
         assert c not in self.transitions[state]
         self.transitions[state][c] = target
+        self.witnesses[state, c] = list(witness)
 
     def edges_into(self, state: int) -> List[Tuple[int, int]]:
         """The edges whose current target is ``state``, scanned from
@@ -49,8 +56,10 @@ class PartialDFA:
         self.transitions[new_state] = {}
         for c in range(self.alphabet_size):
             self.transitions[state].pop(c, None)
+            self.witnesses.pop((state, c), None)
         for src, c in self.edges_into(state):
             self.transitions[src].pop(c, None)
+            self.witnesses.pop((src, c), None)
 
     def drain(self, resolve) -> None:
         """

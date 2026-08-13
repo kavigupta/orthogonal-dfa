@@ -1,32 +1,26 @@
 """Incremental, transition-driven DFA discovery.
 
-Builds the discrimination tree (states) and the transition function together:
+Builds the discrimination tree (states) and the transition function together.
 
-The tree starts as the initial distinguisher family v_eps which partitions the
-prefix pool into two sets s_acc / s_rej.  The leaves of the tree are the states
-of the DFA. We also separately maintain a transition function, which maps
-(state, symbol) pairs to target states.
+The tree starts as the initial distinguisher family v_eps, partitioning the
+prefix pool into accept / reject -- two leaves, the initial two states.  Each
+(state, symbol) edge is then resolved by sifting a member of the state extended
+by the symbol: the leaf it lands on is the target, and the member is kept as the
+edge's witness (the tree is consistent, so any member resolves it the same way).
 
-We resolve the unresolved (state, symbol) edges -- each just one missing from the
-partial transition function -- until none remain.  Resolving (s, c) classifies
-every prefix of s extended by c. Doing so involves querying the current tree for
-the prefixes of s except with every distinguisher family prepended by c.
-This has two possibilities:
-  1. They all land on one leaf t. In this case we record the transition (s, c) -> t and move on.
-  2. They diverge: s is really more than one state. We split it in two at the
-  first decision tree node (from the root) where its prefixes disagree about where c leads
-
-This only directly affects state s, so we drop its outgoing edges and every
-edge (s', c') -> s into it; both then read as unresolved and are re-resolved into
-one of the newly split states.
+States beyond the initial two are found by the counterexample pass: random probe
+strings are walked through the resolved transition function and re-sifted, and
+where the walk and the sift disagree the probe has exhibited two prefixes that
+reach one leaf yet behave differently under one more symbol -- a Myhill-Nerode
+counterexample -- so that leaf is split (see SplitEvidence).  A split drops the
+edges it made ambiguous; both they and the new leaf's edges then read as
+unresolved and are refilled on the next resolve pass.
 
 Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
-:class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`, read through the
-mask's shared MemoizedOracle so a cell the mask already holds costs no new query.
-
-The split keeps the accept side of the divergence as s itself and gives the reject
-side a fresh id (see MidfixTree.split), so state ids stay a dense range(num_states)
-and never need remapping on export.
+:class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`.  The split keeps
+the accept side as s itself and gives the reject side a fresh id (see
+MidfixTree.split), so state ids stay a dense range(num_states) and need no
+remapping on export.
 """
 
 from automata.fa.dfa import DFA
@@ -35,8 +29,16 @@ from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
-from .split_evidence import SPLIT, SplitEvidence
+from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
+
+# Outcome of processing one probe (see TransitionResolver.counterexample_pass).
+_RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
+_SPLIT = 1  # the leaf bifurcated decisively; a split was applied
+_UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
+
+#: Probes sifted per batched pass.
+_PROBE_BLOCK = 16
 
 
 class TransitionResolver:
@@ -62,15 +64,16 @@ class TransitionResolver:
             self.tree.path_of(state_id), self.pst.num_prefixes
         )
 
+    def _sift(self, seq):
+        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it."""
+        return self.tree.classify(list(seq), self.family.is_accept)
+
     # -- the resolution step ------------------------------------------------
 
     def _resolve(self, state_id, c):
         members = self._members(state_id)
-        distinguisher = self._divergence(state_id, c, members)
-        if distinguisher is not None:
-            self._split(state_id, distinguisher)
-            return
-        self.dfa.set_edge(state_id, c, self._edge_target(c, members))
+        target, witness = self._edge_target(c, members)
+        self.dfa.set_edge(state_id, c, target, witness)
 
     def _tally(self, members, distinguisher):
         """Accept/reject counts of ``members`` classified against ``distinguisher``.
@@ -80,41 +83,128 @@ class TransitionResolver:
         votes = [self.family.is_accept(m, distinguisher) for m in members]
         return sum(v is True for v in votes), sum(v is False for v in votes)
 
-    def _divergence(self, state_id, c, members):
-        """
-        The distinguisher [c] + midfix at the first node down the descent where
-        SplitEvidence confirms state_id's members are really two states, or None
-        if none does.
-
-        The held-out train/test test is the sole decision -- a real second state
-        reproduces across the disjoint halves where scattered noise does not -- so
-        no cheap pre-filter is needed to propose candidates first.
-        """
-        node = self.tree.root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            distinguisher = [c] + list(midfix)
-            if self.splits.verdict(state_id, tuple(distinguisher)) == SPLIT:
-                return distinguisher
-            n_acc, n_rej = self._tally(members, distinguisher)
-            node = lookup[True] if n_acc >= n_rej else lookup[False]
-        return None
-
     def _edge_target(self, c, members):
-        """The leaf ``members`` extended by ``c`` reach, following the majority at
-        each node -- the same descent ``_divergence`` just took, so its tallies are
-        already memoized."""
+        """Where the ``(leaf, c)`` edge points and the member that witnesses it:
+        the first decisive member's ``c``-successor, or the whole-population
+        majority (witnessed by any member) when every member is indecisive."""
+        for m in members:
+            target = self._sift(list(m) + [c])
+            if target is not None:
+                return target, list(m)
         node = self.tree.root
         while not isinstance(node, int):
             midfix, lookup = node
             n_acc, n_rej = self._tally(members, [c] + list(midfix))
             node = lookup[True] if n_acc >= n_rej else lookup[False]
-        return node
+        return node, (list(members[0]) if members else [])
 
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
         self.dfa.split_state(state_id, new_id)
+
+    # -- counterexamples ----------------------------------------------------
+
+    def counterexample_pass(self, *, max_probes, patience):
+        """Split in place on DFA-vs-tree disagreements until they dry up.
+
+        Each probe is walked through the resolved delta and re-sifted; where they
+        disagree, the probe has exhibited two prefixes reaching one leaf that
+        behave differently under one more symbol, so the leaf is split -- the same
+        counterexample the outer loop used to defer by adding a prefix and
+        rebuilding. Stops after ``patience`` consecutive clean probes."""
+        splits = 0
+        since_split = 0
+        for w in self._probe_blocks(max_probes):
+            status = self._process(w)
+            if status == _SPLIT:
+                splits += 1
+                since_split = 0
+                self.dfa.drain(self._resolve)  # the split dropped edges; refill
+            elif status == _UNDECIDED:
+                since_split = 0
+            else:
+                since_split += 1
+            if since_split >= patience:
+                break
+        return splits
+
+    def _probe_blocks(self, max_probes):
+        drawn = 0
+        while drawn < max_probes:
+            block = [
+                self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+                for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
+            ]
+            drawn += len(block)
+            self.family.prefill(block)
+            yield from block
+
+    def _process(self, w):
+        """Anchor at the shortest prefix the tree places, follow the resolved
+        delta, then act on where the walk and a fresh sift disagree."""
+        w = list(w)
+        state = None
+        start = 0
+        while start < len(w):
+            state = self._sift(w[:start])
+            if state is not None:
+                break
+            start += 1
+        if state is None:
+            return _RESOLVED
+        self.population.add(w[:start], at=self.tree.path_of(state))
+        states = [None] * start + [state]
+        for c in w[start:]:
+            state = self.dfa.target(state, c)
+            states.append(state)
+        return self._act_on_disagreement(w, states, start)
+
+    def _act_on_disagreement(self, w, states, agree_point):
+        state = states[-1]
+        actual = self._sift(w)
+        if actual is None or state is None or actual == state:
+            return _RESOLVED
+        fd = self._first_disagreement(w, states, agree_point, len(w))
+        if fd is None:
+            return _RESOLVED
+        s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
+        if s1 is None or s2 is None or self.dfa.target(s1, c) != s2:
+            return _RESOLVED
+        sprime = w[: fd - 1]
+        witness = self.dfa.witness(s1, c)
+        if witness is None or self._sift(sprime) != s1 or self._sift(witness) != s1:
+            return _RESOLVED
+        distinguisher = self.tree.first_disagreement(
+            witness, sprime, self.family.is_accept, [c]
+        )
+        if distinguisher is None:
+            return _RESOLVED
+        verdict = self.splits.verdict(s1, tuple(distinguisher))
+        if verdict == SPLIT:
+            self._apply_split(s1, list(distinguisher), witness, sprime)
+            return _SPLIT
+        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+
+    def _first_disagreement(self, w, states, lo, hi):
+        """Binary-search the first index where the followed state diverges from a
+        fresh sift of ``w[:i]``; ``None`` on an indecisive sift."""
+        if lo + 1 == hi:
+            return hi
+        mid = (lo + hi) // 2
+        actual = self._sift(w[:mid])
+        if actual is None or states[mid] is None:
+            return None
+        if actual == states[mid]:
+            return self._first_disagreement(w, states, mid, hi)
+        return self._first_disagreement(w, states, lo, mid)
+
+    def _apply_split(self, s1, distinguisher, witness, sprime):
+        self._split(s1, distinguisher)
+        for p in (witness, sprime):
+            st = self._sift(p)
+            if st is not None:
+                self.population.add(list(p), at=self.tree.path_of(st))
 
     # -- driver -------------------------------------------------------------
 
@@ -137,11 +227,9 @@ class TransitionResolver:
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
         self.dfa.drain(self._resolve)
 
-        return self._to_dfa_and_tree()
-
     # -- output -------------------------------------------------------------
 
-    def _to_dfa_and_tree(self):
+    def export(self):
         pst = self.pst
         n = self.tree.num_states
 
@@ -172,4 +260,6 @@ def resolve_dfa(pst):
     """
     Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
     """
-    return TransitionResolver(pst).build()
+    resolver = TransitionResolver(pst)
+    resolver.build()
+    return resolver.export()
