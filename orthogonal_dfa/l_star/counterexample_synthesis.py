@@ -150,13 +150,13 @@ def uncoverable_access_strings(pst, tree):
     return flagged
 
 
-def feed_boundary_strings(pst, boundaries) -> int:
-    """Add up to a capped share of the round's boundary strings to the
-    representative pool.  A boundary string is one the family straddled
-    (``sift -> None``); adding it makes the next round's ``sample_suffix_family``
-    see a high FNR over it and re-cluster to a family that places it decisively.
-    Returns how many were added."""
-    limit = max(int(0.1 * pst.num_prefixes), 200)
+def feed_boundary_strings(pst, boundaries, *, limit: int) -> int:
+    """Add up to ``limit`` of the round's boundary strings to the representative
+    pool.  A boundary string is one the family straddled (``sift -> None``);
+    adding it makes the next round's ``sample_suffix_family`` see a high FNR over
+    it and re-cluster to a family that places it decisively.  Capped at the same
+    per-round budget as enrichment so one round cannot flood the pool.  Returns
+    how many were added."""
     fresh, seen = [], set()
     for b in boundaries:
         if len(fresh) >= limit:
@@ -216,7 +216,9 @@ def counterexample_driven_synthesis(
         enriched = enrich_underrepresented_leaves(
             pst, dt, count=additional_counterexamples
         )
-        fed = feed_boundary_strings(pst, resolver.indecisive)
+        fed = feed_boundary_strings(
+            pst, resolver.indecisive, limit=additional_counterexamples
+        )
         if fed:
             print(f"Fed {fed} boundary strings into the representative pool")
         if not enriched and not fed:
