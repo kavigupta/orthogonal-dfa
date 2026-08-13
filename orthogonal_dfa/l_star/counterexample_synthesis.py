@@ -26,7 +26,12 @@ COUNTEREXAMPLE_PROBES = 4000
 def _default_patience(acc_threshold: float) -> int:
     """Consecutive clean probes that end a counterexample pass: seeing this many
     in a row is a ``<= 0.05`` event if the disagreement rate were still at the
-    tolerated ``1 - acc_threshold``."""
+    tolerated ``1 - acc_threshold``.
+
+    A perfect-accuracy target tolerates no disagreement, so no finite clean run
+    rules it out -- never early-stop, run the whole probe budget."""
+    if acc_threshold >= 1:
+        return COUNTEREXAMPLE_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
@@ -41,14 +46,6 @@ def classify_pool(pst, tree, *, accept, reject):
         return decision >= accept, decision < reject
 
     return tree.classify_pool(pst.num_prefixes, decide_columns)
-
-
-#: Draws allowed per counterexample search, per prefix asked for.
-SAMPLES_PER_COUNTEREXAMPLE = 50
-
-
-def counterexample_sample_budget(count: int) -> int:
-    return SAMPLES_PER_COUNTEREXAMPLE * count
 
 
 def enrich_underrepresented_leaves(pst, tree, *, count):
@@ -166,9 +163,7 @@ def counterexample_driven_synthesis(
         )
         dfa, dt = resolver.export()
         print(f"Resolved DFA with {dt.num_states} states")
-        if dt.num_states <= 1:
-            pst.sample_more_prefixes()
-            continue
+        assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
             pst,
