@@ -46,7 +46,7 @@ class TransitionResolver:
         self.family = None
         self.splits = None
         self.population = None  # pool prefixes, per leaf
-        self.dfa = None  # the partial transition function + its worklist
+        self.dfa = None  # the partial transition function
 
     # -- membership / population -------------------------------------------
 

@@ -20,6 +20,7 @@ class PartialDFA:
         return c in self.transitions[state]
 
     def set_edge(self, state: int, c: int, target: int) -> None:
+        assert c not in self.transitions[state]
         self.transitions[state][c] = target
 
     def edges_into(self, state: int) -> List[Tuple[int, int]]:
