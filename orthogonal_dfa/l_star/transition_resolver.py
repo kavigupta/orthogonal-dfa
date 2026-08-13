@@ -113,12 +113,10 @@ class TransitionResolver:
         behave differently under one more symbol, so the leaf is split -- the same
         counterexample the outer loop used to defer by adding a prefix and
         rebuilding. Stops after ``patience`` consecutive clean probes."""
-        splits = 0
         since_split = 0
         for w in self._probe_blocks(max_probes):
             status = self._process(w)
             if status == _SPLIT:
-                splits += 1
                 since_split = 0
                 self.dfa.drain(self._resolve)  # the split dropped edges; refill
             elif status == _UNDECIDED:
@@ -127,7 +125,6 @@ class TransitionResolver:
                 since_split += 1
             if since_split >= patience:
                 break
-        return splits
 
     def _probe_blocks(self, max_probes):
         drawn = 0
