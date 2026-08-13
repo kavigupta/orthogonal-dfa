@@ -34,8 +34,17 @@ class LeafPopulation:
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
-        default (pooled, leaf unknown), or a leaf the caller has already sifted."""
-        self._at.setdefault(at, []).append(tuple(string))
+        default (pooled, leaf unknown), or a leaf the caller has already sifted.
+
+        A leaf-targeted add is deduped: seeding the same string at one leaf twice
+        does no work, so a repeatedly re-anchored prefix cannot flood it with
+        copies that the split test would then miscount as independent members.
+        The root pool keeps every add, so a prefix's multiplicity is preserved."""
+        bucket = self._at.setdefault(at, [])
+        entry = tuple(string)
+        if at and entry in bucket:
+            return
+        bucket.append(entry)
 
     def members(self, at: Path, count: int) -> List[list]:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
