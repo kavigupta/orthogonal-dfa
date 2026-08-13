@@ -161,6 +161,10 @@ class TransitionResolver:
             start += 1
         if state is None:
             return _RESOLVED
+        # Seed the anchor leaf's population. The prefix pool is length-L, so it
+        # only reaches deep leaves; short anchor prefixes are what give the shallow
+        # leaves enough members for the one-state test to settle them.
+        self.population.add(w[:start], at=self.tree.path_of(state))
         states = [None] * start + [state]
         for c in w[start:]:
             state = self.dfa.target(state, c)
