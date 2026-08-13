@@ -29,6 +29,7 @@ from .cluster import sample_suffix_family
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
+from .sifting import Sifter
 from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -46,6 +47,7 @@ class TransitionResolver:
         self.pst = pst
         self.tree = None
         self.family = None
+        self.sifter = None
         self.splits = None
         self.population = None  # pool prefixes, per leaf
         self.dfa = None  # the partial transition function
@@ -71,7 +73,7 @@ class TransitionResolver:
         Every string the tree cannot place is harvested into ``indecisive``: it is
         a boundary string the current family straddles, and the driver feeds these
         back so the next family is forced to resolve them."""
-        leaf, boundary = self.tree.sift(list(seq), self.family.is_accept)
+        leaf, boundary = self.sifter.sift_and_boundary(list(seq))
         if leaf is None:
             self.indecisive.add(boundary)
         return leaf
@@ -142,19 +144,8 @@ class TransitionResolver:
                 for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
-            self._prefill_sifts(block)
+            self.sifter.prefill(block)
             yield from block
-
-    def _prefill_sifts(self, seqs):
-        """Warm the whole block's sifts one tree level at a time -- one batched
-        family read per level over every probe still descending, rather than one
-        per node per probe -- so :meth:`_process` then re-reads a warm cache."""
-
-        def decide_level(pairs):
-            self.family.prefill([list(s) + list(m) for s, m in pairs])
-            return [self.family.is_accept(s, m) for s, m in pairs]
-
-        self.tree.classify_many(seqs, decide_level)
 
     def _process(self, w):
         """Anchor at the shortest prefix the tree places, follow the resolved
@@ -195,9 +186,7 @@ class TransitionResolver:
         witness = self.dfa.witness(s1, c)
         if self._sift(witness) != s1:
             return _RESOLVED
-        distinguisher = self.tree.first_disagreement(
-            witness, sprime, self.family.is_accept, [c]
-        )
+        distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, tuple(distinguisher))
@@ -236,6 +225,7 @@ class TransitionResolver:
         pst.decision_boundary = boundary
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
+        self.sifter = Sifter(self.tree, self.family)
         self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
             self.population.add(list(p))
