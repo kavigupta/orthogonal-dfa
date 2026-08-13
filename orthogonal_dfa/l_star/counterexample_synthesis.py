@@ -8,7 +8,6 @@ the round repeats -- until the estimate clears the threshold or enrichment dries
 up.  The classification and accuracy primitives it uses live in ``lstar``.
 """
 
-import copy
 import math
 
 import numpy as np
@@ -203,7 +202,7 @@ def counterexample_driven_synthesis(
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, None
+            yield dfa, dt, true_acc, pst.decision_boundary
             return
         uncoverable = uncoverable_access_strings(pst, dt)
         if uncoverable:
@@ -216,7 +215,7 @@ def counterexample_driven_synthesis(
                 f"{pst.sampler.length} (e.g. {examples}); the target is not "
                 f"learnable with this prefix sampler."
             )
-            yield dfa, dt, None
+            yield dfa, dt, true_acc, pst.decision_boundary
             return
         enriched = enrich_underrepresented_leaves(
             pst, dt, count=additional_counterexamples
@@ -228,21 +227,27 @@ def counterexample_driven_synthesis(
             print(f"Fed {fed} boundary strings into the representative pool")
         if not enriched and not fed:
             print("No new prefixes from enrichment or boundary feed; stopping")
-            yield dfa, dt, None
+            yield dfa, dt, true_acc, pst.decision_boundary
             return
-        yield dfa, dt, copy.deepcopy(pst)
+        yield dfa, dt, true_acc, pst.decision_boundary
 
 
 def do_counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ) -> DFA:
-    dfa = dt = None
-    for dfa, dt, _ in counterexample_driven_synthesis(
+    # Rounds are not monotone -- feeding re-clusters, so a later family can
+    # classify worse -- so keep the most accurate hypothesis, not the last. The
+    # boundary is kept with it because denoising reads the tree against it.
+    best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
+    for dfa, dt, true_acc, boundary in counterexample_driven_synthesis(
         pst,
         additional_counterexamples=additional_counterexamples,
         acc_threshold=acc_threshold,
     ):
-        pass
+        if true_acc > best_acc:
+            best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
+    dfa, dt = best_dfa, best_dt
     if dfa is not None:
+        pst.decision_boundary = best_boundary
         dfa = denoise_accept_labels(pst, dfa)
     return dfa, dt
