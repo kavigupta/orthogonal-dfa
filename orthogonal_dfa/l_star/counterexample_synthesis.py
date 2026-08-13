@@ -150,6 +150,27 @@ def uncoverable_access_strings(pst, tree):
     return flagged
 
 
+def feed_boundary_strings(pst, boundaries) -> int:
+    """Add up to a capped share of the round's boundary strings to the
+    representative pool.  A boundary string is one the family straddled
+    (``sift -> None``); adding it makes the next round's ``sample_suffix_family``
+    see a high FNR over it and re-cluster to a family that places it decisively.
+    Returns how many were added."""
+    limit = max(int(0.1 * pst.num_prefixes), 200)
+    fresh, seen = [], set()
+    for b in boundaries:
+        if len(fresh) >= limit:
+            break
+        key = tuple(b)
+        if key in seen or pst.table.contains_prefix(list(b)):
+            continue
+        seen.add(key)
+        fresh.append(list(b))
+    if fresh:
+        pst.table.add_prefixes(fresh)
+    return len(fresh)
+
+
 def counterexample_driven_synthesis(
     pst, *, additional_counterexamples: int, acc_threshold: float
 ):
@@ -195,8 +216,11 @@ def counterexample_driven_synthesis(
         enriched = enrich_underrepresented_leaves(
             pst, dt, count=additional_counterexamples
         )
-        if not enriched:
-            print("Leaf enrichment found no new prefixes; stopping synthesis")
+        fed = feed_boundary_strings(pst, resolver.indecisive)
+        if fed:
+            print(f"Fed {fed} boundary strings into the representative pool")
+        if not enriched and not fed:
+            print("No new prefixes from enrichment or boundary feed; stopping")
             yield dfa, dt, None
             return
         yield dfa, dt, copy.deepcopy(pst)
