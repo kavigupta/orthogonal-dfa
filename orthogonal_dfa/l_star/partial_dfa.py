@@ -1,34 +1,19 @@
-"""The partial transition function the resolver builds alongside its tree.
+"""
+The partial transition function the resolver builds alongside its tree.
 
-``delta`` under construction: the edges resolved so far and the witness prefix
-that justified each one.  Keeping it here is what lets a split invalidate
-*precisely* the edges it made ambiguous instead of rebuilding the hypothesis: an
-edge that does not touch the split leaf keeps a valid witness, because its sift
-path never passed through that leaf.
-
-The object owns bookkeeping only.  *Deciding* where an edge points needs the
-oracle, so the caller supplies ``resolve(state, symbol)`` when draining and
-``decisive_target(state, symbol)`` when totalising.  Neither the edges pointing at
-a state nor the edges still to resolve are indexed: a split needs the former only
-~once per state, and an unresolved edge is just one missing from ``transitions``
--- both are scanned on demand.
+Also contains methods for splitting states and a loop for resolving unresolved edges.
 """
 
 from typing import Dict, List, Optional, Tuple
 
 
 class PartialDFA:
-    """See the module docstring."""
-
     def __init__(self, alphabet_size: int, *, num_states: int):
         self.alphabet_size = alphabet_size
-        #: ``transitions[s][c]`` -- the current best guess for ``delta(s, c)``.
+        #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
-        #: A prefix that provably reaches ``s`` and whose one-symbol extension by
-        #: ``c`` reaches ``transitions[s][c]``.
+        #: witnesses[s, c] = A prefix x such that dfa(x) = s and dfa(x + [c]) = transitions[s][c]
         self.witnesses: Dict[Tuple[int, int], List[int]] = {}
-
-    # -- edges --------------------------------------------------------------
 
     def target(self, state: int, c: int) -> Optional[int]:
         return self.transitions[state].get(c)
@@ -74,25 +59,13 @@ class PartialDFA:
                     return (state, c)
         return None
 
-    # -- resolving ----------------------------------------------------------
-
-    def pending_probes(self, representative) -> List[List[int]]:
-        """``representative(s) + [c]`` for every unresolved edge -- the strings the
-        next :meth:`drain` will sift, so a caller can warm them in one batch."""
-        probes = []
-        for s, c in self.unresolved_edges():
-            rep = representative(s)
-            if rep is not None:
-                probes.append(list(rep) + [c])
-        return probes
-
     def drain(self, resolve) -> int:
-        """Resolve edges via ``resolve(state, symbol)`` until every one is filled;
-        returns the number resolved.
+        """
+        Resolve edges via resolve(state, symbol) until every one is filled; return
+        how many were resolved.
 
-        ``resolve`` is allowed to call :meth:`split_state`, which clears edges the
-        next scan picks back up, so this loops until no edge is missing rather than
-        iterating a fixed list.
+        resolve() is allowed to call split_state() on this, which adds more work,
+        so this is not guaranteed to terminate unless resolve() is well-behaved.
         """
         resolved = 0
         while (edge := self._next_unresolved()) is not None:
@@ -100,30 +73,27 @@ class PartialDFA:
             resolved += 1
         return resolved
 
-    # -- splitting ----------------------------------------------------------
-
     def split_state(self, state: int, new_state: int) -> None:
-        """Account for ``state`` having bifurcated into ``state`` and ``new_state``.
+        """
+        Account for state bifurcating into (state, new_state).
 
-        Only edges incident to the old leaf become ambiguous: its outgoing edges
-        vanish (the source is now two states) and every edge into it must be
-        re-classified.  Both sets are dropped; they and the new leaf's edges then
-        read as unresolved and get re-resolved."""
+        All relevant edges are removed, both outgoing from and incoming to state.
+        """
         self.transitions[new_state] = {}
         for c in range(self.alphabet_size):
             self.clear_edge(state, c)
         for src, c in self.edges_into(state):
             self.clear_edge(src, c)
 
-    # -- export -------------------------------------------------------------
-
     def totalise(self, states, decisive_target):
-        """A total copy of ``delta``.  An edge resolution left open is filled from
-        ``decisive_target(state, symbol)``; where that fails too the edge
-        self-loops and is reported in the second return value.
+        """
+        A "total" copy this partial DFA. An open edge is filled from
+            decisive_target(state, symbol),
+        or self-looped and reported in the second return value where that
+        fails too.
 
-        Does not mutate ``transitions`` -- unresolved edges stay open so a later
-        round can still close them."""
+        Does not mutate transitions, so a later round can still close the open edges.
+        """
         complete: Dict[int, Dict[int, int]] = {}
         unresolved: List[Tuple[int, int]] = []
         for state in states:
