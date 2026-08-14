@@ -4,7 +4,7 @@ Shared classification and accuracy machinery for the direct-L* learner.
 ``estimate_agreement_rate`` is the termination test -- how well the exported DFA
 agrees with the tree read decisively -- and ``denoise_accept_labels`` corrects
 noise-flipped accept labels at the end of a run.  Both are driven by
-``fnr_synthesis``; the learner itself is in ``direct_lstar``.
+``counterexample_synthesis``; the learner itself is in ``direct_lstar``.
 """
 
 from automata.fa.dfa import DFA

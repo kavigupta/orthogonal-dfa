@@ -16,7 +16,7 @@ works through are their own objects:
     SplitEvidence   whether a proposed distinguisher really splits a leaf
 
 Driving the learner in rounds -- resampling the family until it can place the
-strings it could not -- is :mod:`orthogonal_dfa.l_star.fnr_synthesis`, which the
+strings it could not -- is :mod:`orthogonal_dfa.l_star.counterexample_synthesis`, which the
 learner knows nothing about.
 
 ``to_dfa_and_tree`` exports the result as ``(DFA, MidfixTree)``.
@@ -56,7 +56,7 @@ class DirectLStarLearner:
         Row indices (into ``pst.table``) of the base suffix family -- the
         distinguishers for the root accept/reject split.  Obtain them with
         :func:`~orthogonal_dfa.l_star.cluster.sample_suffix_family`; the round
-        driver in :mod:`orthogonal_dfa.l_star.fnr_synthesis` resamples them each
+        driver in :mod:`orthogonal_dfa.l_star.counterexample_synthesis` resamples them each
         round.
     """
 
@@ -298,7 +298,7 @@ class DirectLStarLearner:
         disagrees with a direct sift exposes a split, applied at the break point,
         and every ``sift -> None`` prefix it passes is collected as a boundary
         string.  Stops after ``patience`` consecutive clean probes -- see
-        :func:`fnr_synthesis._default_patience` for what that buys."""
+        :func:`counterexample_synthesis._default_patience` for what that buys."""
         splits = 0
         since_split = 0
         delta = self._total_delta()

@@ -1,6 +1,6 @@
 """Run a learner against an oracle: the configuration entry point.
 
-`synthesize_direct_lstar_fnr` in `fnr_synthesis` learns from a populated
+`synthesize_direct_lstar_fnr` in `counterexample_synthesis` learns from a populated
 PrefixSuffixTracker. Getting to one means sizing the suffix population, the
 evidence margin and the prefix count from the noise level, which is what this
 module does -- so a caller only has to say how much signal the oracle carries.
@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from .fnr_synthesis import synthesize_direct_lstar_fnr
+from .counterexample_synthesis import synthesize_direct_lstar_fnr
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
 from .statistics import (
