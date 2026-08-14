@@ -48,18 +48,50 @@ def sample_string_reaching_state(dfa, counts, rng):
     return string
 
 
+def rank_string_reaching_state(dfa, counts, string):
+    """
+    Index in ``[0, counts[length][initial])`` of ``string`` among the length-``length``
+    strings reaching the target, in the order used by :func:`unrank_string_reaching_state`.
+    """
+    syms = sorted(dfa.input_symbols)
+    length = len(counts) - 1
+    state = dfa.initial_state
+    index = 0
+    for i, symbol in enumerate(string):
+        remaining = length - i
+        for s in syms:
+            if s == symbol:
+                break
+            index += counts[remaining - 1][dfa.transitions[state][s]]
+        state = dfa.transitions[state][symbol]
+    return index
+
+
+def unrank_string_reaching_state(dfa, counts, index):
+    """Inverse of :func:`rank_string_reaching_state`: the ``index``-th length-``length``
+    string reaching the target ``counts`` was built for.
+    """
+    syms = sorted(dfa.input_symbols)
+    length = len(counts) - 1
+    state = dfa.initial_state
+    string = []
+    for remaining in range(length, 0, -1):
+        for s in syms:
+            block = counts[remaining - 1][dfa.transitions[state][s]]
+            if index < block:
+                string.append(s)
+                state = dfa.transitions[state][s]
+                break
+            index -= block
+    return string
+
+
 def per_state_sample(dfa, rng, length, per_state, existing=()):
-    """A state-balanced selection: ``per_state`` distinct length-``length`` strings
-    reaching *each* state of ``dfa``, drawn with the path-counting sampler.
-
-    Length-``length`` strings in ``existing`` that already reach a state count
-    toward its ``per_state`` target and are reused as its representatives, so
-    repeated calls top the coverage up to ``per_state`` rather than adding a fresh
-    ``per_state`` every time -- the pool converges instead of building up. The
-    returned selection includes both reused and freshly-drawn strings.
-
-    Keep in sync with ``lstar.denoise_accept_labels.relabel``, which runs the same
-    per-state count-paths-then-draw-distinct loop (it also scores accepts)."""
+    """
+    Sample strings of length ``length`` such that when these strings are
+    added to the list of strings already in ``existing``, each state of ``dfa``
+    has at least ``per_state`` strings.
+    """
     have = {}
     for s in existing:
         if len(s) == length:
@@ -73,10 +105,20 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
         if reachable == 0:
             continue
         target = min(per_state, reachable)
-        seen = set(have.get(state, ())[:target])
-        for _ in range(per_state * 5):
-            if len(seen) >= target:
+        used = set()
+        for s in have.get(state, ()):
+            if len(used) >= target:
                 break
-            seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
-        pool.extend(list(s) for s in seen)
+            used.add(rank_string_reaching_state(dfa, counts, s))
+        fits_int64 = reachable <= 2**63 - 1
+        while len(used) < target:
+            if fits_int64:
+                used.add(int(rng.integers(reachable)))
+            else:
+                used.add(
+                    rank_string_reaching_state(
+                        dfa, counts, sample_string_reaching_state(dfa, counts, rng)
+                    )
+                )
+        pool.extend(unrank_string_reaching_state(dfa, counts, r) for r in used)
     return pool
