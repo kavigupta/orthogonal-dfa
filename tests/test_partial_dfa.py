@@ -56,18 +56,6 @@ class TestPartialDFA(unittest.TestCase):
         self.assertEqual(d.unresolved_edges(), [])
         self.assertGreater(count, 2)  # more than the initial 2 edges, due to the split
 
-    def test_pending_probes_extends_each_representative_by_its_symbol(self):
-        d = self._dfa()
-        d.set_edge(0, 0, 1, [])  # leaves (0,1), (1,0), (1,1) open
-        reps = {0: [9], 1: [8, 8]}
-        probes = d.pending_probes(lambda s: reps[s])
-        self.assertEqual(sorted(probes), sorted([[9, 1], [8, 8, 0], [8, 8, 1]]))
-
-    def test_pending_probes_skips_edges_without_a_representative(self):
-        d = self._dfa()
-        probes = d.pending_probes(lambda s: [s] if s == 0 else None)
-        self.assertEqual(sorted(probes), sorted([[0, 0], [0, 1]]))
-
     def test_split_state_reopens_incident_edges(self):
         d = self._dfa()
         d.set_edge(0, 0, 1, [0])  # into 1

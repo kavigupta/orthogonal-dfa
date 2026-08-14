@@ -59,16 +59,6 @@ class PartialDFA:
                     return (state, c)
         return None
 
-    def pending_probes(self, representative) -> List[List[int]]:
-        """representative(s) + [c] for every unresolved edge -- the strings a drain
-        will sift, exposed so a caller can warm them in one batch."""
-        probes = []
-        for s, c in self.unresolved_edges():
-            rep = representative(s)
-            if rep is not None:
-                probes.append(list(rep) + [c])
-        return probes
-
     def drain(self, resolve) -> int:
         """
         Resolve edges via resolve(state, symbol) until every one is filled; return
