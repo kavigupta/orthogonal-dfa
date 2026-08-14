@@ -38,6 +38,10 @@ class MaskTable:
         self._prefixes = [list(p) for p in prefixes]
         self._prefix_keys = {tuple(p) for p in self._prefixes}
         self._representative = list(representative)
+        #: The short prefix-closed core -- the access strings -- fixed at
+        #: construction.  Unlike ``representative`` (which a caller may re-scope to
+        #: focus clustering) this never changes, so coverage tests stay stable.
+        self._core = [not r for r in representative]
         self._suffixes: List[List[int]] = []
         self._suffix_index = {}  # tuple(suffix) -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -55,12 +59,21 @@ class MaskTable:
 
     @property
     def representative(self) -> np.ndarray:
-        """Boolean mask selecting the representative (non-core) prefixes."""
+        """Boolean mask selecting the prefixes clustering reads -- the sampled
+        population by default, but a caller may re-scope it (see
+        ``set_representative``) to focus the family."""
         return np.array(self._representative, dtype=bool)
+
+    @property
+    def noncore(self) -> np.ndarray:
+        """Boolean mask selecting the non-core (sampled) prefixes -- the stable
+        complement of the short prefix-closed core, unaffected by
+        ``set_representative``."""
+        return np.array([not c for c in self._core], dtype=bool)
 
     def set_representative(self, prefixes: List[List[int]]) -> None:
         """Make *exactly* ``prefixes`` the representative set (all others become
-        non-representative)."""
+        non-representative), realigning the mask to the current prefixes."""
         keys = {tuple(p) for p in prefixes}
         self._representative = [tuple(p) in keys for p in self._prefixes]
 
@@ -95,9 +108,10 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
-        # Prefixes added after construction (counterexamples, leaf enrichment)
-        # are full-length probe prefixes, hence representative.
+        # Prefixes added after construction (counterexamples, curated sample)
+        # are full-length probe prefixes, so representative and never core.
         self._representative.extend([True] * len(new_prefixes))
+        self._core.extend([False] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
 
