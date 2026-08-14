@@ -16,7 +16,7 @@ import math
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
@@ -50,25 +50,6 @@ def classify_pool(pst, tree, *, accept, reject):
     return tree.classify_pool(pst.num_prefixes, decide_columns)
 
 
-def _curated_pool(dfa, rng, length, per_state):
-    """A state-balanced sample: up to ``per_state`` distinct length-``length``
-    strings reaching *each* DFA state, drawn with the path-counting sampler -- a
-    clean population spread across the states, not the accumulated sift scratch."""
-    pool = []
-    for state in sorted(dfa.states):
-        counts = count_paths_to_state(dfa, state, length)
-        reachable = counts[length][dfa.initial_state]
-        if reachable == 0:
-            continue
-        seen = set()
-        for _ in range(per_state * 5):
-            if len(seen) >= min(per_state, reachable):
-                break
-            seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
-        pool.extend(list(s) for s in seen)
-    return pool
-
-
 def _take_indecisive(resolver, target):
     """Up to ``target`` of the round's boundary strings (the ``sift -> None``
     strings the family could not place).  The set is sorted then shuffled with a
@@ -99,7 +80,7 @@ def _grow_representative_pool(
         if key not in seen:
             seen.add(key)
             accumulated.append(t)
-    representative = accumulated + _curated_pool(
+    representative = accumulated + per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state
     )
     fresh = [p for p in representative if not pst.table.contains_prefix(p)]

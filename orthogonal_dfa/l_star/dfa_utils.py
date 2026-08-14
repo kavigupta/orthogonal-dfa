@@ -46,3 +46,23 @@ def sample_string_reaching_state(dfa, counts, rng):
         string.append(symbol)
         state = dfa.transitions[state][symbol]
     return string
+
+
+def per_state_sample(dfa, rng, length, per_state):
+    """A state-balanced sample: up to ``per_state`` distinct length-``length``
+    strings reaching *each* state of ``dfa``, drawn with the path-counting
+    sampler.  Returns one flat pool spread across the states, skipping states no
+    length-``length`` string reaches."""
+    pool = []
+    for state in sorted(dfa.states):
+        counts = count_paths_to_state(dfa, state, length)
+        reachable = counts[length][dfa.initial_state]
+        if reachable == 0:
+            continue
+        seen = set()
+        for _ in range(per_state * 5):
+            if len(seen) >= min(per_state, reachable):
+                break
+            seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
+        pool.extend(list(s) for s in seen)
+    return pool
