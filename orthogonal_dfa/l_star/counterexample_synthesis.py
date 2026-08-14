@@ -19,30 +19,10 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+from .dfa_utils import per_state_sample
 from .direct_lstar import DirectLStarLearner
 from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
-
-
-def _curated_pool(dfa, rng, length: int, per_state: int) -> List[List[int]]:
-    """A state-balanced sample: up to ``per_state`` distinct length-``length``
-    strings reaching *each* DFA state (via the path-counting sampler).  This is
-    the representative population for the next round -- clean and balanced across
-    states, rather than the accumulated sift scratch."""
-    pool: List[List[int]] = []
-    for state in sorted(dfa.states):
-        counts = count_paths_to_state(dfa, state, length)
-        reachable = counts[length][dfa.initial_state]
-        if reachable == 0:
-            continue
-        seen = set()
-        for _ in range(per_state * 5):
-            if len(seen) >= min(per_state, reachable):
-                break
-            seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
-        pool.extend(list(s) for s in seen)
-    return pool
 
 
 def classify_pool(pst, tree, *, accept, reject):
@@ -113,30 +93,49 @@ def _take_indecisive(learner, target: int) -> List[List[int]]:
     return [list(t) for t in list(learner.indecisive)[:target]]
 
 
+class _PoolState:
+    """The pool state carried across rounds: the accumulated boundary strings
+    (with a ``seen`` set to dedup them) and last round's balanced sample."""
+
+    def __init__(self):
+        self.accumulated: List[List[int]] = []
+        self.seen: Set = set()
+        self.sampled: List[List[int]] = []
+
+
 def _grow_representative_pool(
     pst,
     learner,
     dfa,
-    accumulated: List[List[int]],
-    seen: Set,
+    state,
     *,
     indecisive_fraction: float,
     min_indecisive: int,
     per_state: int,
 ) -> None:
-    """Accumulate this round's boundary strings (capped) into ``accumulated`` /
-    ``seen``, then rebuild the table's representative set as those boundary
-    strings -- which drive the FNR gate -- plus a capped per-state balanced
-    sample, so the population stays spread across the states."""
+    """Accumulate this round's boundary strings (capped) into ``state``, then
+    rebuild the table's representative set as those boundary strings -- which
+    drive the FNR gate -- plus a capped per-state balanced sample, so the
+    population stays spread across the states."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(learner, target):
         key = tuple(t)
-        if key not in seen:
-            seen.add(key)
-            accumulated.append(t)
-    curated = _curated_pool(dfa, pst.rng, pst.sampler.length, per_state)
-    representative = accumulated + curated
-    fresh = [p for p in representative if not pst.table.contains_prefix(p)]
+        if key not in state.seen:
+            state.seen.add(key)
+            state.accumulated.append(t)
+    # Feed last round's sample back in so per_state_sample tops each state up to
+    # per_state rather than adding a fresh per_state every round; the sample then
+    # converges to per_state-per-state instead of building up.
+    state.sampled = per_state_sample(
+        dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
+    )
+    representative = state.accumulated + state.sampled
+    fresh = [
+        list(p)
+        for p in sorted(
+            set(tuple(p) for p in representative if not pst.table.contains_prefix(p))
+        )
+    ]
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
@@ -239,7 +238,7 @@ def synthesize_direct_lstar_fnr(
     pst,
     *,
     acc_threshold: float,
-    per_state: int = 60,
+    per_state: int = 20,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
     max_rounds: int = 20,
@@ -263,8 +262,7 @@ def synthesize_direct_lstar_fnr(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' indecisives keep the family honest about the whole chain
     # (they turn decisive once their state is resolved).
-    accumulated: List[List[int]] = []
-    seen: Set = set()
+    state = _PoolState()
 
     for round_idx in range(max_rounds):
         prior_best = best.accuracy
@@ -303,21 +301,20 @@ def synthesize_direct_lstar_fnr(
             pst,
             learner,
             dfa,
-            accumulated,
-            seen,
+            state,
             indecisive_fraction=indecisive_fraction,
             min_indecisive=min_indecisive,
             per_state=per_state,
         )
         print(
             f"[direct-lstar/fnr] round {round_idx}: {learner.num_states} states, "
-            f"est {true_acc:.3f}, {len(accumulated)} accumulated indecisive, "
+            f"est {true_acc:.3f}, {len(state.accumulated)} accumulated indecisive, "
             f"{int(pst.table.representative.sum())} rep / {pst.num_prefixes} total"
         )
         if stall.stalled(
             states=learner.num_states,
             improved=true_acc > prior_best + 1e-9,
-            boundary_strings=len(accumulated),
+            boundary_strings=len(state.accumulated),
         ):
             print(
                 f"[direct-lstar/fnr] round {round_idx}: no progress "
