@@ -52,17 +52,6 @@ class LeafPopulation:
         self._fill(at, count)
         return [list(s) for s in self._at.get(at, [])[:count]]
 
-    def representative(self, at: Path, count: int) -> Optional[list]:
-        """
-        The canonical member reaching leaf at: the shortest, ties broken
-        lexicographically. None if no such member exists.
-
-        count is the number of elements to ensure we have before selecting this
-        representative.
-        """
-        members = self.members(at, count)
-        return min(members, key=lambda m: (len(m), m)) if members else None
-
     def _fill(self, at: Path, count: int) -> None:
         """Pull strings down into ``at`` until it holds ``count`` or its ancestors
         are exhausted."""
