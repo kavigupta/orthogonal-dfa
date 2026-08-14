@@ -1,20 +1,24 @@
 """
 Counterexample-driven synthesis: the E-L* learner loop.
 
-Each round the resolver builds a DFA from the current prefix pool and splits it
-in place on DFA-vs-tree disagreements (its counterexample pass); when the
-estimated accuracy still falls short, under-represented leaves are enriched and
-the round repeats -- until the estimate clears the threshold or enrichment dries
-up.  The classification and accuracy primitives it uses live in ``lstar``.
+Each round builds a DFA from the current prefix pool and splits it in place on
+DFA-vs-tree disagreements (the counterexample pass).
+
+When the estimate still falls short, the representative pool is rebuilt to add
+    - boundary strings the family could not place
+    - per-state balanced sample
+
+These drive the suffix-family FNR gate to re-cluster and resolve them
+in the next round.
 """
 
 import math
 
 import numpy as np
-import tqdm.auto as tqdm
 from automata.fa.dfa import DFA
 
-from .lstar import _oracle_classify, denoise_accept_labels, estimate_agreement_rate
+from .dfa_utils import per_state_sample
+from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
@@ -47,61 +51,60 @@ def classify_pool(pst, tree, *, accept, reject):
     return tree.classify_pool(pst.num_prefixes, decide_columns)
 
 
-def enrich_underrepresented_leaves(pst, tree, *, count):
+def _take_indecisive(resolver, target):
     """
-    Sample random length-L prefixes routed (via the decisive tree) to leaves
-    whose current population is below the median.  This rebalances the PST
-    so that the next suffix-family clustering has enough signal to pick
-    suffixes that shatter under-represented leaves.
+    Take up to target of the round's boundary strings.
 
-    See docs/counterexample_poor_case_findings.md: the
-    `test_another_countexample_poor_case` failure was caused by a single
-    ground-truth state receiving only ~1.5% of uniform random prefixes,
-    which left the suffix-family clustering unable to find discriminating
-    suffixes for that state.
+    The set is sorted then shuffled with a fixed rng, so the
+    cap picks the same unbiased sample every run.
     """
-    boundary = pst.decision_boundary
-    decisive, _ = _oracle_classify(tree, pst.oracle, accept=boundary, reject=boundary)
-    # Classify every existing prefix through the decisive tree directly from the cached
-    # mask matrix instead of re-querying the oracle once per prefix: all these
-    # prefix x suffix pairs are already in corresponding_masks.  -1 marks undecided.
-    leaves = classify_pool(pst, tree, accept=boundary, reject=boundary)
-    leaf_counts = {}
-    for leaf in leaves.tolist():
-        if leaf < 0:
-            continue
-        leaf_counts[leaf] = leaf_counts.get(leaf, 0) + 1
-    if not leaf_counts:
-        return []
-    counts = sorted(leaf_counts.values())
-    median = counts[len(counts) // 2]
-    target_leaves = {leaf for leaf, c in leaf_counts.items() if c <= median}
-    print(
-        f"Leaf populations: {sorted(leaf_counts.items())}; enriching leaves"
-        f" {sorted(target_leaves)} (median={median})"
+    ordered = sorted(tuple(b) for b in resolver.indecisive)
+    np.random.default_rng(0).shuffle(ordered)
+    return [list(t) for t in ordered[:target]]
+
+
+class _PoolState:
+    """The pool state carried across rounds: the initial uniform sample (kept in
+    the representative set every round so global calibration stays anchored to the
+    sampling distribution even if the per-state sample is skewed), the accumulated
+    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
+
+    def __init__(self, baseline):
+        self.baseline = [list(p) for p in baseline]
+        self.accumulated = []
+        self.seen = set()
+        self.sampled = []
+
+
+def _grow_representative_pool(
+    pst,
+    resolver,
+    dfa,
+    state,
+    *,
+    indecisive_fraction,
+    min_indecisive,
+    per_state,
+):
+    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+    for t in _take_indecisive(resolver, target):
+        key = tuple(t)
+        if key not in state.seen:
+            state.seen.add(key)
+            state.accumulated.append(t)
+    state.sampled = per_state_sample(
+        dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
-
-    seen = {tuple(p) for p in pst.table.prefixes}
-    new_prefixes = []
-    max_attempts = count * 200
-    attempts = 0
-    pbar = tqdm.tqdm(total=count, desc="Enriching under-represented leaves")
-    while len(new_prefixes) < count and attempts < max_attempts:
-        attempts += 1
-        p = pst.sampler.sample(pst.rng, pst.alphabet_size)
-        t = tuple(p)
-        if t in seen:
-            continue
-        leaf = decisive(p)
-        if leaf is None or leaf not in target_leaves:
-            continue
-        new_prefixes.append(p)
-        seen.add(t)
-        pbar.update()
-    pbar.close()
-    if new_prefixes:
-        pst.table.add_prefixes(new_prefixes)
-    return new_prefixes
+    representative = state.baseline + state.accumulated + state.sampled
+    fresh = [
+        list(p)
+        for p in sorted(
+            set(tuple(p) for p in representative if not pst.table.contains_prefix(p))
+        )
+    ]
+    if fresh:
+        pst.table.add_prefixes(fresh)
+    pst.table.set_representative(representative)
 
 
 def uncoverable_access_strings(pst, tree):
@@ -119,9 +122,12 @@ def uncoverable_access_strings(pst, tree):
     overall.
     """
     prefixes = list(pst.table.prefixes)
-    rep = pst.table.representative
+    # Coverage is measured against the stable non-core (sampled) prefixes, not the
+    # representative set, the driver re-scopes representative to focus clustering,
+    # which must not narrow what counts as "covered".
+    sampled = pst.table.noncore
     fam = pst.table.fully_observed()
-    if len(fam) == 0 or not rep.any():
+    if len(fam) == 0 or not sampled.any():
         return []
 
     eta = 0.5 - pst.config.min_signal_strength
@@ -130,12 +136,12 @@ def uncoverable_access_strings(pst, tree):
     same_state_rate = 2 * eta * (1 - eta)
     n = len(fam)
 
-    repr_masks = pst.table.observed_masks(fam, rep).T  # [n_repr, n_fam]
+    repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
     leaves = classify_pool(
         pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
     )
     potentially_problematic = np.flatnonzero(
-        (~rep) & (leaves == -1)
+        (~sampled) & (leaves == -1)
     )  # only unclassifiable core prefixes
     flagged = []
     for i in potentially_problematic:
@@ -149,36 +155,37 @@ def uncoverable_access_strings(pst, tree):
     return flagged
 
 
-def feed_boundary_strings(pst, boundaries, *, limit: int) -> int:
-    """Add up to ``limit`` of the round's boundary strings to the representative
-    pool.  A boundary string is one the family straddled (``sift -> None``);
-    adding it makes the next round's ``sample_suffix_family`` see a high FNR over
-    it and re-cluster to a family that places it decisively.  Capped at the same
-    per-round budget as enrichment so one round cannot flood the pool.  Returns
-    how many were added.
+#: Consecutive rounds with no accuracy gain before we conclude the loop has
+#: plateaued below the threshold and stop.  The FNR gate resolves roughly one
+#: state per round and accuracy is non-monotone across rounds, so a couple of flat
+#: rounds are normal; this many in a row means the pool is churning (fresh probes
+#: keep feeding boundary strings) without resolving anything new.
+NO_PROGRESS_PATIENCE = 3
 
-    ``boundaries`` is a set, so sort it to a canonical order and then shuffle it
-    with a fixed rng: the cap picks the same unbiased sample every run, rather
-    than one biased by sort order or dependent on set iteration order."""
-    ordered = sorted(tuple(b) for b in boundaries)
-    np.random.default_rng(0).shuffle(ordered)
-    fresh, seen = [], set()
-    for key in ordered:
-        if len(fresh) >= limit:
-            break
-        if key in seen or pst.table.contains_prefix(list(key)):
-            continue
-        seen.add(key)
-        fresh.append(list(key))
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    return len(fresh)
+#: Target number of representative strings per DFA state.  Each round tops the
+#: sampled pool up to this per state (see ``per_state_sample``); states the
+#: original prefixes already cover need no top-up, so the pool converges rather
+#: than growing every round.
+PER_STATE = 20
 
 
 def counterexample_driven_synthesis(
-    pst, *, additional_counterexamples: int, acc_threshold: float
+    pst,
+    *,
+    acc_threshold: float,
+    per_state: int = PER_STATE,
+    indecisive_fraction: float = 0.1,
+    min_indecisive: int = 200,
 ):
     patience = _default_patience(acc_threshold)
+    # Kept across rounds: the FNR gate resolves the chain one state per round, so
+    # earlier rounds' boundary strings keep the family honest about the whole
+    # chain (they turn decisive once their state is resolved).
+    baseline = [
+        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
+    ]
+    state = _PoolState(baseline)
+    best_acc, stalled = -1.0, 0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         resolver = TransitionResolver(pst)
@@ -217,32 +224,37 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, true_acc, pst.decision_boundary
             return
-        enriched = enrich_underrepresented_leaves(
-            pst, dt, count=additional_counterexamples
+        if true_acc > best_acc:
+            best_acc, stalled = true_acc, 0
+        else:
+            stalled += 1
+            if stalled >= NO_PROGRESS_PATIENCE:
+                print(
+                    f"No accuracy gain in {NO_PROGRESS_PATIENCE} rounds "
+                    f"(best {best_acc:.4f}); stopping synthesis"
+                )
+                yield dfa, dt, true_acc, pst.decision_boundary
+                return
+        _grow_representative_pool(
+            pst,
+            resolver,
+            dfa,
+            state,
+            indecisive_fraction=indecisive_fraction,
+            min_indecisive=min_indecisive,
+            per_state=per_state,
         )
-        fed = feed_boundary_strings(
-            pst, resolver.indecisive, limit=additional_counterexamples
-        )
-        if fed:
-            print(f"Fed {fed} boundary strings into the representative pool")
-        if not enriched and not fed:
-            print("No new prefixes from enrichment or boundary feed; stopping")
-            yield dfa, dt, true_acc, pst.decision_boundary
-            return
         yield dfa, dt, true_acc, pst.decision_boundary
 
 
-def do_counterexample_driven_synthesis(
-    pst, *, additional_counterexamples: int, acc_threshold: float
-) -> DFA:
-    # Rounds are not monotone -- feeding re-clusters, so a later family can
-    # classify worse -- so keep the most accurate hypothesis, not the last. The
-    # boundary is kept with it because denoising reads the tree against it.
+def do_counterexample_driven_synthesis(pst, *, acc_threshold: float) -> DFA:
+    # Rounds are not monotone -- rebuilding the representative pool re-clusters,
+    # so a later family can classify worse -- so keep the most accurate
+    # hypothesis, not the last. The boundary is kept with it because denoising
+    # reads the tree against it.
     best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
     for dfa, dt, true_acc, boundary in counterexample_driven_synthesis(
-        pst,
-        additional_counterexamples=additional_counterexamples,
-        acc_threshold=acc_threshold,
+        pst, acc_threshold=acc_threshold
     ):
         if true_acc > best_acc:
             best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
