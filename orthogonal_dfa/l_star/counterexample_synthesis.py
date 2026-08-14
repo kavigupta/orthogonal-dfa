@@ -94,10 +94,13 @@ def _take_indecisive(learner, target: int) -> List[List[int]]:
 
 
 class _PoolState:
-    """The pool state carried across rounds: the accumulated boundary strings
-    (with a ``seen`` set to dedup them) and last round's balanced sample."""
+    """The pool state carried across rounds: the initial uniform sample (kept in
+    the representative set every round so global calibration stays anchored to the
+    sampling distribution even if the per-state sample is skewed), the accumulated
+    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
 
-    def __init__(self):
+    def __init__(self, baseline):
+        self.baseline = [list(p) for p in baseline]
         self.accumulated: List[List[int]] = []
         self.seen: Set = set()
         self.sampled: List[List[int]] = []
@@ -129,7 +132,7 @@ def _grow_representative_pool(
     state.sampled = per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
-    representative = state.accumulated + state.sampled
+    representative = state.baseline + state.accumulated + state.sampled
     fresh = [
         list(p)
         for p in sorted(
@@ -262,7 +265,10 @@ def synthesize_direct_lstar_fnr(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' indecisives keep the family honest about the whole chain
     # (they turn decisive once their state is resolved).
-    state = _PoolState()
+    baseline = [
+        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
+    ]
+    state = _PoolState(baseline)
 
     for round_idx in range(max_rounds):
         prior_best = best.accuracy
