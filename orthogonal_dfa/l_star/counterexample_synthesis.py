@@ -92,16 +92,16 @@ def _grow_representative_pool(
     state.sampled = per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
-    fresh = sorted(
-        set(
-            tuple(p)
-            for p in state.accumulated + state.sampled
-            if not pst.table.contains_prefix(p)
+    representative = state.accumulated + state.sampled
+    fresh = [
+        list(p)
+        for p in sorted(
+            set(tuple(p) for p in representative if not pst.table.contains_prefix(p))
         )
-    )
+    ]
     if fresh:
         pst.table.add_prefixes(fresh)
-    pst.table.set_representative(fresh)
+    pst.table.set_representative(representative)
 
 
 def uncoverable_access_strings(pst, tree):
