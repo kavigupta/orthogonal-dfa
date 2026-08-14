@@ -1,15 +1,16 @@
-"""Deciding where the partial DFA's open edges point.
+"""
+Deciding where the partial DFA's open edges point.
 
-:class:`PartialDFA` owns the edges and the witnesses.  It cannot decide where an
-edge *goes*, because that needs the oracle.  This does: it sifts
-``member + symbol`` for the members the source leaf already has and takes the
-first successor the family can place.
+PartialDFA owns the edges and the witnesses, but cannot decide where an
+edge *goes*, because that needs the oracle.
 
-Any member will do -- the tree is consistent, so every member of a leaf resolves
-the same edge.  When no member's continuation can be placed the edge is left
-open; the export totalises it, and every ``member + symbol`` the family could not
-place is harvested into ``indecisive``, which the driver feeds back so the next
-round's family resolves it.
+We pick an arbitrary member of a source state, and ask the oracle
+where its successor under the edge's character goes.
+
+    - If the family can place that successor, we point the edge there and
+      record the member as the witness.
+    - If the family cannot place that successor, we harvest it as a boundary
+      string and leave the edge open.
 """
 
 from typing import List, Optional, Tuple
@@ -32,9 +33,6 @@ class EdgeResolver:
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[List[int]]]:
-        """The first member of ``state`` whose ``c``-successor the family can
-        place, and that member; ``(None, None)`` when none can.  Each successor the
-        family cannot place is harvested as a boundary string."""
         for member in self.leaf_members(state):
             target, boundary = self.sifter.sift_and_boundary(list(member) + [c])
             if target is not None:
@@ -43,15 +41,17 @@ class EdgeResolver:
         return None, None
 
     def resolve(self, state: int, c: int) -> None:
-        """Point one edge at a decisive successor, or leave it open."""
         target, witness = self.decisive_target(state, c)
         if target is not None:
             self.dfa.set_edge(state, c, target, witness)
 
     def close(self) -> int:
-        """Resolve every open edge once, returning how many are now closed.  Edge
-        resolution never splits, so one pass resolves all it can; the rest stay
-        open for the export to totalise."""
+        """
+        Resolve every open edge once, returning how many are now closed.
+
+        Edge resolution never splits, so one pass resolves all it can; the rest stay
+        open for the export to totalise.
+        """
         edges = self.dfa.unresolved_edges()
         for state, c in edges:
             self.resolve(state, c)
