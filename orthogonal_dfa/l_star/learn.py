@@ -27,9 +27,8 @@ DEFAULT_SAMPLE_LENGTH = 40
 #: Accuracy the synthesis loop drives the hypothesis to before stopping.
 DEFAULT_ACC_THRESHOLD = 0.98
 
-#: Prefixes to start from, and counterexamples to add per synthesis round.
+#: Prefixes to start from.
 NUM_PREFIXES = 200
-NUM_ADDITIONAL_COUNTEREXAMPLES = 200
 
 
 def build_pst(
@@ -98,9 +97,5 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sample_length=sample_length,
     )
-    dfa, _ = do_counterexample_driven_synthesis(
-        pst,
-        additional_counterexamples=NUM_ADDITIONAL_COUNTEREXAMPLES,
-        acc_threshold=acc_threshold,
-    )
+    dfa, _ = do_counterexample_driven_synthesis(pst, acc_threshold=acc_threshold)
     return dfa
