@@ -1,5 +1,5 @@
 """
-Counterexample-driven synthesis: the learner loop.
+Counterexample-driven synthesis: the E-L* learner loop.
 
 Each round builds a DFA from the current prefix pool and splits it in place on
 DFA-vs-tree disagreements (the counterexample pass).
@@ -89,25 +89,19 @@ def _grow_representative_pool(
         if key not in state.seen:
             state.seen.add(key)
             state.accumulated.append(t)
-    # Feed last round's balanced sample back in so per_state_sample tops each state
-    # up to per_state rather than adding a fresh per_state every round; the sample
-    # then converges to per_state-per-state instead of building up.
     state.sampled = per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
-    representative = state.accumulated + state.sampled
-    # accumulated and per_state_sample are deduped separately, so the same string
-    # can appear in both; dedup here to keep add_prefixes' uniqueness invariant.
-    fresh_seen = set()
-    fresh = []
-    for p in representative:
-        key = tuple(p)
-        if key not in fresh_seen and not pst.table.contains_prefix(p):
-            fresh_seen.add(key)
-            fresh.append(p)
+    fresh = sorted(
+        set(
+            tuple(p)
+            for p in state.accumulated + state.sampled
+            if not pst.table.contains_prefix(p)
+        )
+    )
     if fresh:
         pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative)
+    pst.table.set_representative(fresh)
 
 
 def uncoverable_access_strings(pst, tree):
@@ -126,7 +120,7 @@ def uncoverable_access_strings(pst, tree):
     """
     prefixes = list(pst.table.prefixes)
     # Coverage is measured against the stable non-core (sampled) prefixes, not the
-    # representative set -- the driver re-scopes representative to focus clustering,
+    # representative set, the driver re-scopes representative to focus clustering,
     # which must not narrow what counts as "covered".
     sampled = pst.table.noncore
     fam = pst.table.fully_observed()
