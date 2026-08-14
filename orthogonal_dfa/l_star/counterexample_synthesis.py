@@ -63,12 +63,21 @@ def _take_indecisive(resolver, target):
     return [list(t) for t in ordered[:target]]
 
 
+class _PoolState:
+    """The pool state carried across rounds: the accumulated boundary strings
+    (with a ``seen`` set to dedup them) and last round's balanced sample."""
+
+    def __init__(self):
+        self.accumulated = []
+        self.seen = set()
+        self.sampled = []
+
+
 def _grow_representative_pool(
     pst,
     resolver,
     dfa,
-    accumulated,
-    seen,
+    state,
     *,
     indecisive_fraction,
     min_indecisive,
@@ -77,12 +86,16 @@ def _grow_representative_pool(
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         key = tuple(t)
-        if key not in seen:
-            seen.add(key)
-            accumulated.append(t)
-    representative = accumulated + per_state_sample(
-        dfa, pst.rng, pst.sampler.length, per_state
+        if key not in state.seen:
+            state.seen.add(key)
+            state.accumulated.append(t)
+    # Feed last round's balanced sample back in so per_state_sample tops each state
+    # up to per_state rather than adding a fresh per_state every round; the sample
+    # then converges to per_state-per-state instead of building up.
+    state.sampled = per_state_sample(
+        dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
+    representative = state.accumulated + state.sampled
     # accumulated and per_state_sample are deduped separately, so the same string
     # can appear in both; dedup here to keep add_prefixes' uniqueness invariant.
     fresh_seen = set()
@@ -148,9 +161,10 @@ def uncoverable_access_strings(pst, tree):
 #: Rounds to try before giving up when the estimate never clears the threshold.
 MAX_ROUNDS = 20
 
-#: Curated strings the pool draws per DFA state each round.  The per-round growth
-#: is ``per_state * num_states``, so this is sized to keep that near the old
-#: ~200-prefix enrichment budget rather than ballooning the query volume.
+#: Target number of representative strings per DFA state.  Each round tops the
+#: sampled pool up to this per state (see ``per_state_sample``); states the
+#: original prefixes already cover need no top-up, so the pool converges rather
+#: than growing every round.
 PER_STATE = 20
 
 
@@ -167,7 +181,7 @@ def counterexample_driven_synthesis(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    accumulated, seen = [], set()
+    state = _PoolState()
     for _ in range(max_rounds):
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         resolver = TransitionResolver(pst)
@@ -210,8 +224,7 @@ def counterexample_driven_synthesis(
             pst,
             resolver,
             dfa,
-            accumulated,
-            seen,
+            state,
             indecisive_fraction=indecisive_fraction,
             min_indecisive=min_indecisive,
             per_state=per_state,

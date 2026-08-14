@@ -48,21 +48,34 @@ def sample_string_reaching_state(dfa, counts, rng):
     return string
 
 
-def per_state_sample(dfa, rng, length, per_state):
-    """A state-balanced sample: up to ``per_state`` distinct length-``length``
-    strings reaching *each* state of ``dfa``, drawn with the path-counting sampler.
+def per_state_sample(dfa, rng, length, per_state, existing=()):
+    """A state-balanced selection: ``per_state`` distinct length-``length`` strings
+    reaching *each* state of ``dfa``, drawn with the path-counting sampler.
+
+    Length-``length`` strings in ``existing`` that already reach a state count
+    toward its ``per_state`` target and are reused as its representatives, so
+    repeated calls top the coverage up to ``per_state`` rather than adding a fresh
+    ``per_state`` every time -- the pool converges instead of building up. The
+    returned selection includes both reused and freshly-drawn strings.
 
     Keep in sync with ``lstar.denoise_accept_labels.relabel``, which runs the same
     per-state count-paths-then-draw-distinct loop (it also scores accepts)."""
+    have = {}
+    for s in existing:
+        if len(s) == length:
+            have.setdefault(
+                states_intermediate(dfa.initial_state, s, dfa)[-1], []
+            ).append(tuple(s))
     pool = []
     for state in sorted(dfa.states):
         counts = count_paths_to_state(dfa, state, length)
         reachable = counts[length][dfa.initial_state]
         if reachable == 0:
             continue
-        seen = set()
+        target = min(per_state, reachable)
+        seen = set(have.get(state, ())[:target])
         for _ in range(per_state * 5):
-            if len(seen) >= min(per_state, reachable):
+            if len(seen) >= target:
                 break
             seen.add(tuple(sample_string_reaching_state(dfa, counts, rng)))
         pool.extend(list(s) for s in seen)
