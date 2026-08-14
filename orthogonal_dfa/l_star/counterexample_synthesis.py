@@ -2,13 +2,14 @@
 Counterexample-driven synthesis: the learner loop.
 
 Each round builds a DFA from the current prefix pool and splits it in place on
-DFA-vs-tree disagreements (the counterexample pass).  When the estimate still
-falls short, the representative pool is rebuilt from the boundary strings the
-family could not place -- which drive the suffix-family FNR gate to re-cluster
-and resolve them -- plus a per-state balanced sample, and the round repeats,
-until the estimate clears the threshold, the target proves uncoverable, or the
-round budget is spent.  The classification and accuracy primitives live in
-``lstar``.
+DFA-vs-tree disagreements (the counterexample pass).
+
+When the estimate still falls short, the representative pool is rebuilt to add
+    - boundary strings the family could not place
+    - per-state balanced sample
+
+These drive the suffix-family FNR gate to re-cluster and resolve them
+in the next round.
 """
 
 import math
@@ -51,9 +52,10 @@ def classify_pool(pst, tree, *, accept, reject):
 
 
 def _curated_pool(dfa, rng, length, per_state):
-    """A state-balanced sample: up to ``per_state`` distinct length-``length``
-    strings reaching *each* DFA state, drawn with the path-counting sampler -- a
-    clean population spread across the states, not the accumulated sift scratch."""
+    """
+    A state-balanced sample: up to per_state distinct length-``length``
+    strings reaching *each* DFA state, drawn with the path-counting sampler
+    """
     pool = []
     for state in sorted(dfa.states):
         counts = count_paths_to_state(dfa, state, length)
@@ -70,9 +72,12 @@ def _curated_pool(dfa, rng, length, per_state):
 
 
 def _take_indecisive(resolver, target):
-    """Up to ``target`` of the round's boundary strings (the ``sift -> None``
-    strings the family could not place).  The set is sorted then shuffled with a
-    fixed rng, so the cap picks the same unbiased sample every run."""
+    """
+    Take up to target of the round's boundary strings.
+
+    The set is sorted then shuffled with a fixed rng, so the
+    cap picks the same unbiased sample every run.
+    """
     ordered = sorted(tuple(b) for b in resolver.indecisive)
     np.random.default_rng(0).shuffle(ordered)
     return [list(t) for t in ordered[:target]]
@@ -89,10 +94,6 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Accumulate this round's boundary strings (capped) into ``accumulated``,
-    then rebuild the representative set as those boundary strings -- which drive
-    the FNR gate to re-cluster and resolve them -- plus a per-state balanced
-    sample that keeps the population spread across the states."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         key = tuple(t)
