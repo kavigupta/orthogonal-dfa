@@ -79,7 +79,7 @@ COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 CLASSIFY_PHASES = [
     "estimate_agreement_rate",
     "counterexample_pass",
-    "enrich_underrepresented_leaves",
+    "_grow_representative_pool",
     "build",
     "export",
 ]
@@ -105,7 +105,7 @@ SUFFIX_TRIGGERS = [
 
 # For a new-prefix row (add_prefixes), what added the prefixes.
 ROW_TRIGGERS = [
-    "enrich_underrepresented_leaves",
+    "_grow_representative_pool",
     "sample_more_prefixes",
 ]
 

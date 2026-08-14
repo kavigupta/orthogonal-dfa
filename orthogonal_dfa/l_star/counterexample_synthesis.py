@@ -83,7 +83,15 @@ def _grow_representative_pool(
     representative = accumulated + per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state
     )
-    fresh = [p for p in representative if not pst.table.contains_prefix(p)]
+    # accumulated and per_state_sample are deduped separately, so the same string
+    # can appear in both; dedup here to keep add_prefixes' uniqueness invariant.
+    fresh_seen = set()
+    fresh = []
+    for p in representative:
+        key = tuple(p)
+        if key not in fresh_seen and not pst.table.contains_prefix(p):
+            fresh_seen.add(key)
+            fresh.append(p)
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
