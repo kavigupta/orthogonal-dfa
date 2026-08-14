@@ -1,7 +1,8 @@
 """
 The partial transition function the resolver builds alongside its tree.
 
-Also contains methods for splitting states and a loop for resolving unresolved edges.
+Also contains methods for splitting a state and for totalising the partial delta
+into a complete transition function for export.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -51,27 +52,6 @@ class PartialDFA:
             for c in range(self.alphabet_size)
             if c not in edges
         ]
-
-    def _next_unresolved(self) -> Optional[Tuple[int, int]]:
-        for state, edges in self.transitions.items():
-            for c in range(self.alphabet_size):
-                if c not in edges:
-                    return (state, c)
-        return None
-
-    def drain(self, resolve) -> int:
-        """
-        Resolve edges via resolve(state, symbol) until every one is filled; return
-        how many were resolved.
-
-        resolve() is allowed to call split_state() on this, which adds more work,
-        so this is not guaranteed to terminate unless resolve() is well-behaved.
-        """
-        resolved = 0
-        while (edge := self._next_unresolved()) is not None:
-            resolve(*edge)
-            resolved += 1
-        return resolved
 
     def split_state(self, state: int, new_state: int) -> None:
         """

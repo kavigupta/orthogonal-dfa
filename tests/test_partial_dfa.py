@@ -29,33 +29,6 @@ class TestPartialDFA(unittest.TestCase):
         d.set_edge(0, 0, 1, [])
         self.assertEqual(set(d.unresolved_edges()), {(0, 1), (1, 0), (1, 1)})
 
-    def test_drain_resolves_every_edge_and_counts_them(self):
-        d = self._dfa()
-        resolved = []
-
-        def resolve(s, c):
-            resolved.append((s, c))
-            d.set_edge(s, c, 0, [s])
-
-        self.assertEqual(d.drain(resolve), 4)
-        self.assertEqual(d.unresolved_edges(), [])
-
-    def test_drain_loops_until_no_edge_is_missing(self):
-        # A resolve that splits on its first call reopens edges; drain must pick
-        # them up rather than stopping at the initial set.
-        d = PartialDFA(alphabet_size=2, num_states=1)
-        calls = []
-
-        def resolve(s, c):
-            calls.append((s, c))
-            d.set_edge(s, c, 0, [])
-            if len(calls) == 1:
-                d.split_state(0, 1)
-
-        count = d.drain(resolve)
-        self.assertEqual(d.unresolved_edges(), [])
-        self.assertGreater(count, 2)  # more than the initial 2 edges, due to the split
-
     def test_split_state_reopens_incident_edges(self):
         d = self._dfa()
         d.set_edge(0, 0, 1, [0])  # into 1
