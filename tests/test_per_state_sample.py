@@ -157,7 +157,7 @@ class TestPerStateSample(unittest.TestCase):
             expected = min(per_state, reachable)
             self.assertEqual(counts_in_pool.get(state, 0), expected)
 
-    @parameterized.expand([(name, dfa) for name, dfa in ALL_DFAS])
+    @parameterized.expand(ALL_DFAS)
     def test_existing_fills_quota_without_oversampling(self, _name, dfa):
         length, per_state = 4, 6
         rng = np.random.default_rng(1)
@@ -201,7 +201,7 @@ class TestPerStateSample(unittest.TestCase):
         rng = np.random.default_rng(3)
         by_state = enumerate_by_end_state(PARITY, length)
         # Two length-3 strings that end in state 1 (odd number of 1s).
-        existing = [s for s in by_state[1]][:2]
+        existing = by_state[1][:2]
         pool = per_state_sample(PARITY, rng, length, per_state, existing=existing)
         pool_reaching_1 = [
             s
