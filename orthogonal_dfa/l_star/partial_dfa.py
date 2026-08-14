@@ -1,7 +1,8 @@
 """
 The partial transition function the resolver builds alongside its tree.
 
-Also contains methods for splitting states and a loop for resolving unresolved edges.
+Also contains methods for splitting a state and for totalising the partial delta
+into a complete transition function for export.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -12,23 +13,26 @@ class PartialDFA:
         self.alphabet_size = alphabet_size
         #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
-        #: A prefix reaching s whose extension by c reaches transitions[s][c] --
-        #: the member that resolved the edge, kept so a split can separate on it.
+        #: witnesses[s, c] = A prefix x such that dfa(x) = s and dfa(x + [c]) = transitions[s][c]
         self.witnesses: Dict[Tuple[int, int], List[int]] = {}
 
     def target(self, state: int, c: int) -> Optional[int]:
         return self.transitions[state].get(c)
 
-    def witness(self, state: int, c: int) -> Optional[List[int]]:
-        return self.witnesses.get((state, c))
-
     def has_edge(self, state: int, c: int) -> bool:
         return c in self.transitions[state]
+
+    def witness(self, state: int, c: int) -> Optional[List[int]]:
+        return self.witnesses.get((state, c))
 
     def set_edge(self, state: int, c: int, target: int, witness) -> None:
         assert c not in self.transitions[state]
         self.transitions[state][c] = target
         self.witnesses[state, c] = list(witness)
+
+    def clear_edge(self, state: int, c: int) -> None:
+        self.transitions[state].pop(c, None)
+        self.witnesses.pop((state, c), None)
 
     def edges_into(self, state: int) -> List[Tuple[int, int]]:
         """The edges whose current target is ``state``, scanned from
@@ -40,12 +44,14 @@ class PartialDFA:
             if t == state
         ]
 
-    def _next_unresolved(self) -> Optional[Tuple[int, int]]:
-        for state, edges in self.transitions.items():
-            for c in range(self.alphabet_size):
-                if c not in edges:
-                    return (state, c)
-        return None
+    def unresolved_edges(self) -> List[Tuple[int, int]]:
+        """Every edge still missing from ``transitions``."""
+        return [
+            (s, c)
+            for s, edges in self.transitions.items()
+            for c in range(self.alphabet_size)
+            if c not in edges
+        ]
 
     def split_state(self, state: int, new_state: int) -> None:
         """
@@ -55,18 +61,29 @@ class PartialDFA:
         """
         self.transitions[new_state] = {}
         for c in range(self.alphabet_size):
-            self.transitions[state].pop(c, None)
-            self.witnesses.pop((state, c), None)
+            self.clear_edge(state, c)
         for src, c in self.edges_into(state):
-            self.transitions[src].pop(c, None)
-            self.witnesses.pop((src, c), None)
+            self.clear_edge(src, c)
 
-    def drain(self, resolve) -> None:
+    def totalise(self, states, decisive_target):
         """
-        Resolve edges via resolve(state, symbol) until every one is filled.
+        A "total" copy this partial DFA. An open edge is filled from
+            decisive_target(state, symbol),
+        or self-looped and reported in the second return value where that
+        fails too.
 
-        resolve() is allowed to call split_state() on this, which adds more work,
-        so this is not guaranteed to terminate unless resolve() is well-behaved.
+        Does not mutate transitions, so a later round can still close the open edges.
         """
-        while (edge := self._next_unresolved()) is not None:
-            resolve(*edge)
+        complete: Dict[int, Dict[int, int]] = {}
+        unresolved: List[Tuple[int, int]] = []
+        for state in states:
+            complete[state] = dict(self.transitions[state])
+            for c in range(self.alphabet_size):
+                if c in complete[state]:
+                    continue
+                target = decisive_target(state, c)
+                if target is None:
+                    unresolved.append((state, c))
+                    target = state
+                complete[state][c] = target
+        return complete, unresolved
