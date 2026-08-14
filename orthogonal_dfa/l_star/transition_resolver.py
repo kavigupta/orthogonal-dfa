@@ -4,17 +4,20 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is then resolved by sifting a member of the state extended
-by the symbol: the leaf it lands on is the target, and the member is kept as the
-edge's witness (the tree is consistent, so any member resolves it the same way).
+(state, symbol) edge is resolved by sifting a member of the state extended by the
+symbol: the leaf it lands on is the target, and the member is kept as the edge's
+witness (the tree is consistent, so any member resolves it the same way).  A leaf
+every one of whose members is indecisive, or that no prefix reaches, leaves its
+edge open; the export totalises those -- self-looping them and feeding their
+boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
-strings are walked through the resolved transition function and re-sifted, and
-where the walk and the sift disagree the probe has exhibited two prefixes that
-reach one leaf yet behave differently under one more symbol -- a Myhill-Nerode
-counterexample -- so that leaf is split (see SplitEvidence).  A split drops the
-edges it made ambiguous; both they and the new leaf's edges then read as
-unresolved and are refilled on the next resolve pass.
+strings are walked through a *totalised* copy of the transition function and
+re-sifted, and where the walk and the sift disagree the probe has exhibited two
+prefixes that reach one leaf yet behave differently under one more symbol -- a
+Myhill-Nerode counterexample -- so that leaf is split (see SplitEvidence).  A
+split drops the edges it made ambiguous; both they and the new leaf's edges then
+read as unresolved and are refilled on the next resolve pass.
 
 Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
 :class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`.  The split keeps
@@ -26,6 +29,7 @@ remapping on export.
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
+from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
@@ -51,6 +55,7 @@ class TransitionResolver:
         self.splits = None
         self.population = None  # pool prefixes, per leaf
         self.dfa = None  # the partial transition function
+        self.edges = None  # resolves (leaf, symbol) edges against the population
         self.indecisive = set()  # boundary strings the family could not place
 
     # -- membership / population -------------------------------------------
@@ -60,12 +65,6 @@ class TransitionResolver:
         between the thresholds returns None and drops out of the population."""
         self.family.prefill([list(s) + list(midfix) for s in strings])
         return [self.family.is_accept(s, midfix) for s in strings]
-
-    def _members(self, state_id):
-        """The pool prefixes that sift to leaf ``state_id``."""
-        return self.population.members(
-            self.tree.path_of(state_id), self.pst.num_prefixes
-        )
 
     def _sift(self, seq):
         """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
@@ -78,36 +77,6 @@ class TransitionResolver:
             self.indecisive.add(boundary)
         return leaf
 
-    # -- the resolution step ------------------------------------------------
-
-    def _resolve(self, state_id, c):
-        members = self._members(state_id)
-        target, witness = self._edge_target(c, members)
-        self.dfa.set_edge(state_id, c, target, witness)
-
-    def _tally(self, members, distinguisher):
-        """Accept/reject counts of ``members`` classified against ``distinguisher``.
-        Means are memoized, so the split-detection and edge-target descents that
-        both call this share every read."""
-        self.family.prefill([list(m) + distinguisher for m in members])
-        votes = [self.family.is_accept(m, distinguisher) for m in members]
-        return sum(v is True for v in votes), sum(v is False for v in votes)
-
-    def _edge_target(self, c, members):
-        """Where the ``(leaf, c)`` edge points and the member that witnesses it:
-        the first decisive member's ``c``-successor, or the whole-population
-        majority (witnessed by any member) when every member is indecisive."""
-        for m in members:
-            target = self._sift(list(m) + [c])
-            if target is not None:
-                return target, list(m)
-        node = self.tree.root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            n_acc, n_rej = self._tally(members, [c] + list(midfix))
-            node = lookup[True] if n_acc >= n_rej else lookup[False]
-        return node, (list(members[0]) if members else [])
-
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
@@ -118,23 +87,36 @@ class TransitionResolver:
     def counterexample_pass(self, *, max_probes, patience):
         """Split in place on DFA-vs-tree disagreements until they dry up.
 
-        Each probe is walked through the resolved delta and re-sifted; where they
+        Each probe is walked through a totalised delta and re-sifted; where they
         disagree, the probe has exhibited two prefixes reaching one leaf that
         behave differently under one more symbol, so the leaf is split -- the same
         counterexample the outer loop used to defer by adding a prefix and
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
+        delta = self._total_delta()
         for w in self._probe_blocks(max_probes):
-            status = self._process(w)
+            status = self._process(w, delta)
             if status == _SPLIT:
                 since_split = 0
-                self.dfa.drain(self._resolve)  # the split dropped edges; refill
+                self.edges.close()  # the split dropped edges; refill
+                delta = self._total_delta()  # the split rewrote the state set
             elif status == _UNDECIDED:
                 since_split = 0
             else:
                 since_split += 1
             if since_split >= patience:
                 break
+
+    def _total_delta(self):
+        """A total transition function to walk.  Edge resolution cannot always
+        close an edge -- a leaf every one of whose members is indecisive has no
+        successor the family can name -- so the remainder is filled here, once,
+        rather than every probe that passes through it re-sifting."""
+        delta, _ = self.dfa.totalise(
+            range(self.tree.num_states),
+            lambda s, c: self.edges.decisive_target(s, c)[0],
+        )
+        return delta
 
     def _probe_blocks(self, max_probes):
         drawn = 0
@@ -147,9 +129,9 @@ class TransitionResolver:
             self.sifter.prefill(block)
             yield from block
 
-    def _process(self, w):
-        """Anchor at the shortest prefix the tree places, follow the resolved
-        delta, then act on where the walk and a fresh sift disagree."""
+    def _process(self, w, delta):
+        """Anchor at the shortest prefix the tree places, follow the total delta,
+        then act on where the walk and a fresh sift disagree."""
         w = list(w)
         state = None
         start = 0
@@ -166,32 +148,40 @@ class TransitionResolver:
         self.population.add(w[:start], at=self.tree.path_of(state))
         states = [None] * start + [state]
         for c in w[start:]:
-            state = self.dfa.target(state, c)
+            state = delta[state][c]
             states.append(state)
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
+        state = states[-1]
         actual = self._sift(w)
-        if actual is None or actual == states[-1]:
+        if actual is None or state is None or actual == state:
             return _RESOLVED
         fd = self._first_bad_edge(w, states, agree_point, len(w))
         if fd is None:
             return _RESOLVED
-        # The walk follows resolved edges over a total delta, so s1, its
-        # c-successor and the edge's witness are all present, and sprime reaches s1
-        # (the sift agrees up to fd - 1). Only a majority-fallback witness (from an
-        # empty-membered leaf) can miss s1, which the sift below screens out.
-        s1, c = states[fd - 1], w[fd - 1]
-        sprime = w[: fd - 1]
+        s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
+        if s1 is None or s2 is None:
+            return _RESOLVED
+        # The walk follows a totalised delta, so the followed edge s1 -(c)-> s2 can
+        # be a gap the totaliser self-looped rather than a resolved DFA edge -- then
+        # the DFA holds no such edge, there is no witness to separate on, and the
+        # re-sifts need not reach s1.  Any of those means the disagreement is not
+        # one we can act on.
+        if self.dfa.target(s1, c) != s2:
+            return _RESOLVED
         witness = self.dfa.witness(s1, c)
-        if self._sift(witness) != s1:
+        if witness is None:
+            return _RESOLVED
+        sprime = w[: fd - 1]
+        if self._sift(witness) != s1 or self._sift(sprime) != s1:
             return _RESOLVED
         distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
             return _RESOLVED
-        verdict = self.splits.verdict(s1, tuple(distinguisher))
+        verdict = self.splits.verdict(s1, distinguisher)
         if verdict == SPLIT:
-            self._apply_split(s1, list(distinguisher), witness, sprime)
+            self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
@@ -236,7 +226,10 @@ class TransitionResolver:
             tree=self.tree,
         )
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
-        self.dfa.drain(self._resolve)
+        self.edges = EdgeResolver(
+            self.dfa, self.sifter, self.indecisive, population=self.population
+        )
+        self.edges.close()
 
     # -- output -------------------------------------------------------------
 
@@ -244,7 +237,14 @@ class TransitionResolver:
         pst = self.pst
         n = self.tree.num_states
 
-        transitions = {i: dict(self.dfa.transitions[i]) for i in range(n)}
+        transitions, unresolved = self.dfa.totalise(
+            range(n), lambda s, c: self.edges.decisive_target(s, c)[0]
+        )
+        for state, c in unresolved:
+            print(
+                f"transition_resolver: no decisive edge for (state {state}, symbol "
+                f"{c}); falling back to a self-loop"
+            )
 
         accepting = self.tree.accepting_leaves()
 
