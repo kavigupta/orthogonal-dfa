@@ -140,13 +140,18 @@ def uncoverable_access_strings(pst, tree):
 #: Rounds to try before giving up when the estimate never clears the threshold.
 MAX_ROUNDS = 20
 
+#: Curated strings the pool draws per DFA state each round.  The per-round growth
+#: is ``per_state * num_states``, so this is sized to keep that near the old
+#: ~200-prefix enrichment budget rather than ballooning the query volume.
+PER_STATE = 20
+
 
 def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
     max_rounds: int = MAX_ROUNDS,
-    per_state: int = 60,
+    per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ):
