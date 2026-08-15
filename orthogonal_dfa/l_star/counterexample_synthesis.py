@@ -89,8 +89,13 @@ def uncoverable_access_strings(pst, tree):
 def _take_indecisive(learner, target: int) -> List[List[int]]:
     """Up to ``target`` of the boundary strings the learner bumped into while
     building the DFA.  No separate search for them: resolving an edge sifts
-    ``member + symbol``, and the ones the family cannot place are exactly these."""
-    return [list(t) for t in list(learner.indecisive)[:target]]
+    ``member + symbol``, and the ones the family cannot place are exactly these.
+
+    The set is sorted then shuffled with a fixed rng, so the cap picks the same
+    unbiased sample every run rather than an arbitrary iteration-order slice."""
+    ordered = sorted(tuple(b) for b in learner.indecisive)
+    np.random.default_rng(0).shuffle(ordered)
+    return [list(t) for t in ordered[:target]]
 
 
 class _PoolState:
