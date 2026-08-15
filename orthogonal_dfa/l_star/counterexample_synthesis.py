@@ -155,12 +155,38 @@ def uncoverable_access_strings(pst, tree):
     return flagged
 
 
-#: Consecutive rounds with no accuracy gain before we conclude the loop has
-#: plateaued below the threshold and stop.  The FNR gate resolves roughly one
-#: state per round and accuracy is non-monotone across rounds, so a couple of flat
-#: rounds are normal; this many in a row means the pool is churning (fresh probes
-#: keep feeding boundary strings) without resolving anything new.
-NO_PROGRESS_PATIENCE = 3
+#: Consecutive rounds with no progress -- no new states, no accuracy gain, and no
+#: new boundary strings -- before we conclude the run has reached a fixpoint below
+#: threshold and stop.  Smaller than an accuracy-only patience would need to be:
+#: the three signals together make a false "stall" much less likely.
+STALL_PATIENCE = 2
+
+
+class _StallDetector:
+    """Stops a run that has started repeating itself.
+
+    A fixed-length prefix sampler cannot reach every target's transient states,
+    and when it cannot the counterexample pass finds no new boundary strings and
+    the round rebuilds the same DFA.  Consecutive rounds with no new states, no
+    accuracy gain and no new boundary strings confirm that fixpoint, so the
+    remaining rounds are not spent on it."""
+
+    def __init__(self, patience: int):
+        self._patience = patience
+        self._states = 0
+        self._boundary_strings = 0
+        self._stalled = 0
+
+    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
+        progressed = (
+            states > self._states
+            or improved
+            or boundary_strings > self._boundary_strings
+        )
+        self._stalled = 0 if progressed else self._stalled + 1
+        self._states, self._boundary_strings = states, boundary_strings
+        return self._stalled >= self._patience
+
 
 #: Target number of representative strings per DFA state.  Each round tops the
 #: sampled pool up to this per state (see ``per_state_sample``); states the
@@ -185,7 +211,8 @@ def counterexample_driven_synthesis(
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
     state = _PoolState(baseline)
-    best_acc, stalled = -1.0, 0
+    stall = _StallDetector(STALL_PATIENCE)
+    best_acc = -1.0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         resolver = TransitionResolver(pst)
@@ -224,17 +251,6 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, true_acc, pst.decision_boundary
             return
-        if true_acc > best_acc:
-            best_acc, stalled = true_acc, 0
-        else:
-            stalled += 1
-            if stalled >= NO_PROGRESS_PATIENCE:
-                print(
-                    f"No accuracy gain in {NO_PROGRESS_PATIENCE} rounds "
-                    f"(best {best_acc:.4f}); stopping synthesis"
-                )
-                yield dfa, dt, true_acc, pst.decision_boundary
-                return
         _grow_representative_pool(
             pst,
             resolver,
@@ -244,6 +260,19 @@ def counterexample_driven_synthesis(
             min_indecisive=min_indecisive,
             per_state=per_state,
         )
+        improved = true_acc > best_acc
+        best_acc = max(best_acc, true_acc)
+        if stall.stalled(
+            states=dt.num_states,
+            improved=improved,
+            boundary_strings=len(state.accumulated),
+        ):
+            print(
+                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
+                "-- pool churning without resolving; stopping synthesis"
+            )
+            yield dfa, dt, true_acc, pst.decision_boundary
+            return
         yield dfa, dt, true_acc, pst.decision_boundary
 
 
