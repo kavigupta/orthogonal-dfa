@@ -85,7 +85,16 @@ class EdgeResolver:
         self.dfa.set_edge(state, c, target, witness)
 
     def close(self) -> int:
-        """Resolve the unresolved edges until the hypothesis is closed.  Returns
-        the number resolved."""
+        """Resolve each currently-unresolved edge once.  Returns the number
+        resolved.
+
+        A single pass, not a drain-until-closed loop: ``resolve`` never splits (it
+        only points an edge at a decisive successor or leaves it open for the
+        export fallback), so an edge it leaves open would be retried forever."""
         self.sifter.prefill(self.dfa.pending_probes(self._representative))
-        return self.dfa.drain(self.resolve)
+        resolved = 0
+        for state, c in self.dfa.unresolved_edges():
+            self.resolve(state, c)
+            if self.dfa.has_edge(state, c):
+                resolved += 1
+        return resolved
