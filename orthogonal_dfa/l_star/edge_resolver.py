@@ -1,25 +1,31 @@
-"""
-Deciding where the partial DFA's open edges point.
+"""Deciding where the partial DFA's open edges point.
 
-PartialDFA owns the edges and the witnesses, but cannot decide where an
-edge *goes*, because that needs the oracle.
+:class:`PartialDFA` owns the edges and the witnesses.  It cannot decide where an
+edge *goes*, because that needs the oracle.  This does: it sifts
+``member + symbol`` for members of the source leaf and takes the first successor
+the family can place.
 
-We pick an arbitrary member of a source state, and ask the oracle
-where its successor under the edge's character goes.
-
-    - If the family can place that successor, we point the edge there and
-      record the member as the witness.
-    - If the family cannot place that successor, we harvest it as a boundary
-      string and leave the edge open.
+Any member will do -- the tree is consistent, so every member of a leaf resolves
+the same edge.  That is why it does not stop at the access string: one
+indecisive continuation would otherwise strand an edge the leaf as a whole can
+place.  Only an edge whose *entire* leaf is indecisive is unresolvable.
 """
 
-from typing import List, Optional, Tuple
+from typing import Iterator, List, Optional, Tuple
 
 from .split_evidence import _MEMBER_LIMIT
 
+#: Leaf members to try before giving an edge up as unresolvable.
+MAX_EDGE_TRIES = 30
+
 
 class EdgeResolver:
-    """Closes the hypothesis: see the module docstring."""
+    """Closes the hypothesis: see the module docstring.
+
+    ``indecisive`` is the sink for boundary strings -- every ``member + symbol``
+    the family cannot place is recorded there, because the driver feeds them back
+    so the next round's family is forced to resolve them.
+    """
 
     def __init__(self, partial, sifter, indecisive, *, population):
         self.dfa = partial
@@ -27,32 +33,68 @@ class EdgeResolver:
         self.indecisive = indecisive
         self._population = population
 
-    def leaf_members(self, state: int) -> List[List[int]]:
-        return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
+    # -- resolving -----------------------------------------------------------
+
+    def leaf_members(self, state: int, *, limit: int) -> List[List[int]]:
+        return self._population.members(self.sifter.tree.path_of(state), limit)
+
+    def _representative(self, state: int) -> Optional[List[int]]:
+        """The leaf's canonical access string -- its shortest member -- read
+        straight from the population, or ``None`` when nothing reaches it."""
+        return self._population.representative(
+            self.sifter.tree.path_of(state), _MEMBER_LIMIT
+        )
+
+    def _candidates(self, state: int) -> Iterator[List[int]]:
+        """Members to try, the shortest first, yielded lazily so the leaf's
+        population is pulled down only as far as an edge needs."""
+        rep = self._representative(state)
+        if rep is not None:
+            yield rep
+        yield from self.leaf_members(state, limit=MAX_EDGE_TRIES)
 
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[List[int]]]:
-        for member in self.leaf_members(state):
+        """A *decisive* target for ``delta(state, c)``, and the member that gave
+        it.  Returns ``(None, None)`` only when every member tried is
+        indecisive."""
+        seen, tries = set(), 0
+        for member in self._candidates(state):
+            key = tuple(member)
+            if key in seen:
+                continue
+            seen.add(key)
             target, boundary = self.sifter.sift_and_boundary(list(member) + [c])
             if target is not None:
                 return target, list(member)
+            # This successor is a boundary string the family cannot place.
             self.indecisive.add(boundary)
+            tries += 1
+            if tries >= MAX_EDGE_TRIES:
+                break
         return None, None
 
     def resolve(self, state: int, c: int) -> None:
+        """Point one edge at a decisive successor, or leave it open."""
+        if self._representative(state) is None:
+            return  # unreachable leaf; leave the edge for the export fallback
         target, witness = self.decisive_target(state, c)
-        if target is not None:
-            self.dfa.set_edge(state, c, target, witness)
+        if target is None:
+            return  # every member indecisive; export fills it as a self-loop
+        self.dfa.set_edge(state, c, target, witness)
 
     def close(self) -> int:
-        """
-        Resolve every open edge once, returning how many are now closed.
+        """Resolve each currently-unresolved edge once.  Returns the number
+        resolved.
 
-        Edge resolution never splits, so one pass resolves all it can; the rest stay
-        open for the export to totalise.
-        """
-        edges = self.dfa.unresolved_edges()
-        for state, c in edges:
+        A single pass, not a drain-until-closed loop: ``resolve`` never splits (it
+        only points an edge at a decisive successor or leaves it open for the
+        export fallback), so an edge it leaves open would be retried forever."""
+        self.sifter.prefill(self.dfa.pending_probes(self._representative))
+        resolved = 0
+        for state, c in self.dfa.unresolved_edges():
             self.resolve(state, c)
-        return sum(1 for state, c in edges if self.dfa.has_edge(state, c))
+            if self.dfa.has_edge(state, c):
+                resolved += 1
+        return resolved

@@ -53,6 +53,17 @@ class PartialDFA:
             if c not in edges
         ]
 
+    def pending_probes(self, representative) -> List[List[int]]:
+        """``representative(s) + [c]`` for every unresolved edge -- the strings the
+        next :meth:`~edge_resolver.EdgeResolver.close` pass will sift, so a caller
+        can warm them all in one batch."""
+        probes = []
+        for s, c in self.unresolved_edges():
+            rep = representative(s)
+            if rep is not None:
+                probes.append(list(rep) + [c])
+        return probes
+
     def split_state(self, state: int, new_state: int) -> None:
         """
         Account for state bifurcating into (state, new_state).
