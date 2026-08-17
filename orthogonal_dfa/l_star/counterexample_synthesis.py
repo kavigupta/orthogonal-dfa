@@ -155,21 +155,23 @@ def uncoverable_access_strings(pst, tree):
     return flagged
 
 
-#: Consecutive rounds with no progress -- no new states, no accuracy gain, and no
-#: new boundary strings -- before we conclude the run has reached a fixpoint below
-#: threshold and stop.  Smaller than an accuracy-only patience would need to be:
-#: the three signals together make a false "stall" much less likely.
+#: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
 
 class _StallDetector:
-    """Stops a run that has started repeating itself.
+    """Stops a run that has started repeating itself. We consider a round stalled if
 
-    A fixed-length prefix sampler cannot reach every target's transient states,
-    and when it cannot the counterexample pass finds no new boundary strings and
-    the round rebuilds the same DFA.  Consecutive rounds with no new states, no
-    accuracy gain and no new boundary strings confirm that fixpoint, so the
-    remaining rounds are not spent on it."""
+    1. There are no new states
+    2. (Internal) accuracy has not increased
+    3. No new boundary strings have been harvested
+
+    This catches a situation where the fixed-length probes can't find any information
+    about transient states.
+
+    Deliberately fairly restrictive, so we can have a low Patience before
+    exiting the loop.
+    """
 
     def __init__(self, patience: int):
         self._patience = patience
