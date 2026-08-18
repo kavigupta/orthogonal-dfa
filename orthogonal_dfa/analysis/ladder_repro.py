@@ -123,6 +123,67 @@ class PositionalScoreOracle(Oracle):
         return bool(sum(self._w[i, seq[i]] for i in range(len(seq))) > 0.0)
 
 
+class InteractionOracle(Oracle):
+    """A HARDER non-regular pathology than :class:`PositionalScoreOracle`.
+
+    A dominant dense linear score (which spreads prefix propensities, so the FNR
+    machinery still builds a family and splits) PLUS prefix-boundary interaction terms:
+    the effect of the boundary window where a midfix is inserted depends on the prefix,
+    so a midfix distinguisher separates prefixes differently -- the driver of the prepend
+    ladder, absent from the pure halfspace.  It shatters where ``PositionalScoreOracle``
+    only mildly ladders (scaling with ``alpha``).
+
+    It is also the case the **translation-invariance split gate does not catch**: its
+    distinguishers are C/G runs that only weakly encode absolute position
+    (``distinguisher_position_dependence`` ~0.038, below the ~0.04 threshold the
+    shift-register ladder's ~0.084 exceeds), so the gate stays inert and the oracle still
+    shatters.  Median-thresholded (~50/50 balanced).
+    """
+
+    alphabet_size = 4
+
+    def __init__(
+        self,
+        *,
+        length: int = 40,
+        n_pairs: int = 120,
+        alpha: float = 4.0,
+        boundary_window: int = 8,
+        seed: int = 7,
+    ):
+        self._alpha = alpha
+        self._max_len = 6 * length
+        qlen = 2 * length
+        rng = np.random.default_rng(seed)
+        w1 = rng.normal(size=(self._max_len, 4))
+        self._w1 = w1 - w1.mean(axis=1, keepdims=True)  # dense linear (spreads propensity)
+        # interaction pairs: prefix position i x boundary position j near `length`
+        self._pairs = []
+        for _ in range(n_pairs):
+            i = int(rng.integers(0, length))
+            j = int(
+                rng.integers(
+                    max(0, length - boundary_window), min(qlen, length + boundary_window)
+                )
+            )
+            self._pairs.append((i, j, rng.normal(size=(4, 4))))
+        sample = rng.integers(0, 4, (6000, qlen))
+        self._threshold = float(
+            np.median([self._score(row.tolist()) for row in sample])
+        )
+
+    def _score(self, seq):
+        n = min(len(seq), self._max_len)
+        score = sum(self._w1[i, seq[i]] for i in range(n))
+        for i, j, w in self._pairs:
+            if i < n and j < n:
+                score += self._alpha * w[seq[i], seq[j]]
+        return score
+
+    def membership_query(self, string):
+        return bool(self._score(list(string)) > self._threshold)
+
+
 def distinguishers(tree):
     """Every internal-node midfix of the discrimination tree, root (ε) excluded."""
     out = []
