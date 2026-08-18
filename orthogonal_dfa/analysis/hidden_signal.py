@@ -1,3 +1,4 @@
+# pylint: disable=duplicate-code
 """Probe whether the prepend-ladder *hides* recoverable signal.
 
 See ``results/hidden_signal_probe.md`` for the writeup.  The short version: it does
@@ -62,8 +63,8 @@ class HiddenFrameOracle(Oracle):
     def frame(self, seq):
         return nframes(list(seq)) >= self.thr
 
-    def membership_query(self, seq):
-        seq = list(seq)
+    def membership_query(self, string):
+        seq = list(string)
         return bool(self.frame(seq) ^ (self._score(seq) > self._tau))
 
 
@@ -72,8 +73,8 @@ class ParityOracle(Oracle):
 
     alphabet_size = 4
 
-    def membership_query(self, seq):
-        return sum(1 for x in seq if x == 0) % 2 == 0
+    def membership_query(self, string):
+        return sum(1 for x in string if x == 0) % 2 == 0
 
 
 class ModOracle(Oracle):
@@ -84,8 +85,8 @@ class ModOracle(Oracle):
     def __init__(self, k=3):
         self.k = k
 
-    def membership_query(self, seq):
-        return sum(1 for x in seq if x == 0) % self.k == 0
+    def membership_query(self, string):
+        return sum(1 for x in string if x == 0) % self.k == 0
 
 
 def synthesize_capturing(oracle, *, length, rounds, seed=0):

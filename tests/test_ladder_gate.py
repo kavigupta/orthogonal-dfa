@@ -22,6 +22,7 @@ class _GateLearner(DirectLStarLearner):
 
 
 class TestMergeSignal(unittest.TestCase):
+    # pylint: disable=protected-access
     def test_back_edge_to_an_older_state_merges(self):
         learner = _GateLearner(3)
         # new state 2 resolves an edge back to the older state 0.

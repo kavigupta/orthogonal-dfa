@@ -321,9 +321,13 @@ class DirectLStarLearner:
         ``ladder_budget`` (off when ``None``) is the *ladder gate*: after that many
         splits in a row whose new state does not merge back into the existing
         automaton (see :meth:`_merges_into_existing`), the pass stops.  A regular
-        target's splits close and merge, so the run resets and never trips it; a
-        non-regular prepend-ladder unrolls a shift register and does, bounding the
-        otherwise unbounded growth."""
+        target's splits close and merge, so the run resets and never trips it.  It
+        bounds a *pure* shift-register ladder -- one that only ever flows forward.
+        It does NOT catch a ladder that cross-links back into the automaton (e.g.
+        the positional oracle, whose rungs do merge): merging is a graded property,
+        and a single non-merging streak is too local to separate those cases.  For
+        that, collapse the acyclic tail post-hoc instead (see
+        ``analysis/hidden_signal.core_extract``)."""
         splits = 0
         since_split = 0
         nonmerging = 0

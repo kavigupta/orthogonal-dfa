@@ -120,12 +120,21 @@ Reproduce with `python -m orthogonal_dfa.analysis.hidden_signal`.
 ### Acting on it during synthesis: the ladder gate
 
 Core-extraction above is a post-hoc transform on the exported DFA. The same merging
-signal can act *during* synthesis, so the ladder never runs unbounded in the first
-place: `synthesize_direct_lstar_fnr(..., ladder_budget=k)` (off by default) ends a
-discovery pass once `k` splits in a row produce a state that does **not** merge back
-into the automaton — no resolved edge to an earlier state and no edge from one into it
-(`DirectLStarLearner._merges_into_existing`). A regular target's splits close and merge,
-so the run resets and never trips it (verified: parity still converges with the gate on,
-`tests/test_ladder_gate.py`); a non-regular prepend-ladder unrolls a shift register and
-does, bounding the growth. Because it can only fire when `ladder_budget` is passed, it is
-inert for every existing caller.
+signal can also act *during* synthesis: `synthesize_direct_lstar_fnr(..., ladder_budget=k)`
+(off by default) ends a discovery pass once `k` splits in a row produce a state that does
+**not** merge back into the automaton — no resolved edge to an earlier state and no edge
+from one into it (`DirectLStarLearner._merges_into_existing`). It is safe by construction:
+a regular target's splits close and merge, so the run resets and never trips it — verified,
+parity still converges with the gate on (`tests/test_ladder_gate.py`) — and it can only
+fire when `ladder_budget` is passed, so it is inert for every existing caller.
+
+**But it does not fix the positional ladder** — an honest negative result. On the
+`PositionalScoreOracle` the gate never fires (`gate_fired=0`, still 18 states, same as
+off), because that ladder's rungs *do* merge back: they carry cross-links, exactly the
+42% cyclic core measured above. A single non-merging *streak* is too local to separate a
+cross-linking non-regular ladder from a genuine deep chain — the same local-vs-global
+wall this whole note keeps hitting. The gate bounds only a *pure* forward-growing
+shift-register; the positional case is not one. **The post-hoc core-extraction is the
+operation that actually works here** (it compresses the positional machine and preserves
+the frame signal in the mix), because it uses the global SCC structure, not a local
+per-split test.

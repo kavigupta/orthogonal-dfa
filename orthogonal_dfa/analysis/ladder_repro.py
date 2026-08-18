@@ -51,6 +51,7 @@ Run
 ---
     python -m orthogonal_dfa.analysis.ladder_repro
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -95,8 +96,8 @@ class FrameOracle(Oracle):
         self.sw = sw
         self.thr = thr
 
-    def membership_query(self, seq):
-        seq = list(seq)
+    def membership_query(self, string):
+        seq = list(string)
         if _hash01(seq, 1) < self.sw:
             return nframes(seq) >= self.thr
         return _hash01(seq, 2) < 0.5
@@ -117,8 +118,8 @@ class PositionalScoreOracle(Oracle):
         w = np.random.default_rng(seed).normal(size=(n_max, 4))
         self._w = w - w.mean(axis=1, keepdims=True)  # center => E[score]=0 => ~50%
 
-    def membership_query(self, seq):
-        seq = list(seq)
+    def membership_query(self, string):
+        seq = list(string)
         return bool(sum(self._w[i, seq[i]] for i in range(len(seq))) > 0.0)
 
 
@@ -135,7 +136,7 @@ def distinguishers(tree):
         walk(lookup[True])
         walk(lookup[False])
 
-    walk(tree._root)
+    walk(tree.root)
     return out
 
 
@@ -226,18 +227,24 @@ def main():
     _report("CONTROL: FrameOracle (regular) -- ladders but CONVERGES", control)
 
     pathology = run(PositionalScoreOracle(), length=length)
-    _report("PATHOLOGY: PositionalScoreOracle (non-regular) -- ladders FOREVER", pathology)
+    _report(
+        "PATHOLOGY: PositionalScoreOracle (non-regular) -- ladders FOREVER", pathology
+    )
 
     print("## the contrast")
-    print(f"{'oracle':>28} {'regular?':>9} {'states':>7} {'chain':>6} "
-          f"{'acc':>6} {'chance':>7} {'recovers?':>10}")
+    print(
+        f"{'oracle':>28} {'regular?':>9} {'states':>7} {'chain':>6} "
+        f"{'acc':>6} {'chance':>7} {'recovers?':>10}"
+    )
     for name, reg, r in [
         ("FrameOracle", "yes", control),
         ("PositionalScoreOracle", "no", pathology),
     ]:
         recovers = "yes" if r["held_out_acc"] > r["chance"] + 0.03 else "NO"
-        print(f"{name:>28} {reg:>9} {r['states']:>7} {r['longest_chain']:>6} "
-              f"{r['held_out_acc']:>6.3f} {r['chance']:>7.3f} {recovers:>10}")
+        print(
+            f"{name:>28} {reg:>9} {r['states']:>7} {r['longest_chain']:>6} "
+            f"{r['held_out_acc']:>6.3f} {r['chance']:>7.3f} {recovers:>10}"
+        )
     print("\nSame prepend-ladder mechanism; opposite outcome.  The discriminator is")
     print("whether the target is compactly regular in the region the midfix varies.")
 
