@@ -49,7 +49,12 @@ class SurrogateConfig:
     num_prefixes: int = 1200
     num_suffixes: int = 40
     max_suffix_length: int = 10
-    initial_density: float = 0.3
+    # Set by a power calculation, not by feel. Splitting stalls when a block gets small: at
+    # k blocks over P prefixes each side of a candidate column holds density * P/(2k) cells,
+    # so z = 0.6 * sqrt(density * P / k) for the 0.2-vs-0.8 gap. At density 0.3 with P=1500
+    # and k=9 that is 4.2, just under the Bonferroni threshold -- which is why every variant
+    # stalled at 4-7 blocks no matter what the test read. At 0.6 it is ~6.0.
+    initial_density: float = 0.6
     cells_per_round: int = 6000
     new_suffixes_per_round: int = 6
     # Row growth, OFF by default. The idea is right -- random prefixes find a rare state only
@@ -76,7 +81,18 @@ class SurrogateConfig:
     merge_tolerance: float = 0.15
     # Conformal calibration: fraction of observed cells held out of training and used to
     # bound the surrogate's rate error, and the miscoverage level of that bound.
-    calibration_fraction: float = 0.15
+    # Half the cells. The split test reads only held-out cells (testing on the cells the
+    # proposal was fitted to is circular), so this directly sets its power: at 0.15 the test
+    # under-splits badly -- modulo9 found 3 blocks of 9, subseq 2 of 8.
+    calibration_fraction: float = 0.5
+    # Split down from one blob (a state exists only if some suffix proved it) versus merging
+    # up from the softmax's clusters. Splitting is the better-founded design -- merging does
+    # 496 pairwise tests corrected only across columns, so chance differences become
+    # permanent states -- but it measures WORSE end to end: subseq 0.813 on every seed
+    # against 1.0 on one seed for merging. Off until that is understood.
+    use_split_from_blob: bool = False
+    split_test_on_holdout: bool = True
+    cross_fit_folds: int = 4
     conformal_alpha: float = 0.1
     # SearchConfig uses 0.001, but it tests over far larger samples. Here a (cluster, suffix)
     # cell holds ~15 observations, so a real 0.2-vs-0.8 gap gives z ~ 3.3 while Bonferroni
@@ -91,10 +107,16 @@ class SurrogateConfig:
     # entirely from the model -- but buying successor cells per transition is not yet
     # producing better transitions than the co-occurrence vote.
     resolve_transitions_statistically: bool = False
-    successors_per_transition: int = 40
+    successors_per_transition: int = 25
+    # Columns bought per successor batch. The decision is a MAX over columns, so restricting
+    # it to a subset directly removes chances to catch the one suffix that distinguishes.
+    # 0 means every suffix.
+    transition_columns: int = 0
     min_cells_per_estimate: int = 8
     refine_iters: int = 12
-    max_blocks: int = 60
+    # The correction should cover the tests actually run, not a hypothetical 60 blocks:
+    # 40 columns x 60 blocks put the critical z at 4.6 and blocked splits that were real.
+    max_blocks: int = 16
     cols_per_new_prefix: int = 16
     rounds: int = 5
     steps_per_round: int = 250
@@ -376,10 +398,9 @@ def resolve_transitions(pool, block_of, num_groups, accepts, totals, *, cfg, rng
             successors = [pool.prefixes[i] + [c] for i in sample]
             start = len(pool.prefixes)
             pool.prefixes.extend(successors)
+            width = cfg.transition_columns or len(pool.suffixes)
             columns = rng.choice(
-                len(pool.suffixes),
-                size=min(cfg.cols_per_new_prefix, len(pool.suffixes)),
-                replace=False,
+                len(pool.suffixes), size=min(width, len(pool.suffixes)), replace=False
             )
             pool.observe(
                 [(start + k, int(j)) for k in range(len(successors)) for j in columns]
@@ -395,21 +416,28 @@ def resolve_transitions(pool, block_of, num_groups, accepts, totals, *, cfg, rng
                         succ_totals[j] += 1
             stacked_a = np.vstack([accepts, succ_accepts])
             stacked_t = np.vstack([totals, succ_totals])
-            candidates = [
-                b2
+            # BEST match, not "any group we fail to reject". Failing to reject is not
+            # evidence of sameness: with only cols_per_new_prefix columns observed the test
+            # has little power, so the successor fails to differ from most groups and an
+            # arbitrary tie-break decides -- previously the largest group, which funnelled
+            # every transition into one state and left the rest unreachable (parity 0.5003).
+            scored = [
+                (
+                    difference_evidence(
+                        stacked_a,
+                        stacked_t,
+                        num_groups,
+                        b2,
+                        min_cells=cfg.min_cells_per_estimate,
+                    )[0],
+                    b2,
+                )
                 for b2 in range(num_groups)
                 if len(members[b2])
-                and not differ_significantly(
-                    stacked_a,
-                    stacked_t,
-                    num_groups,
-                    b2,
-                    pvalue=cfg.split_pvalue,
-                    min_cells=cfg.min_cells_per_estimate,
-                )
             ]
-            if candidates:
-                delta[c, b] = min(candidates, key=lambda b2: -len(members[b2]))
+            scored = [(z, b2) for z, b2 in scored if np.isfinite(z)]
+            if scored:
+                delta[c, b] = min(scored)[1]
     return delta
 
 
@@ -462,6 +490,29 @@ def observed_counts(pool, clusters, num_states):
     return accepts, totals
 
 
+def difference_evidence(accepts, totals, s, t, *, min_cells):
+    """Largest z-statistic over the columns both ``s`` and ``t`` have enough cells for.
+
+    ``-inf`` when no column qualifies. Returning the statistic rather than a verdict is what
+    lets a caller pick the *best-matching* group instead of any group it merely fails to
+    reject -- failing to reject is not evidence of sameness, and at low power everything
+    fails to reject.
+    """
+    usable = (totals[s] >= min_cells) & (totals[t] >= min_cells)
+    if not usable.any():
+        return -np.inf, 0
+    rate_s = accepts[s][usable] / totals[s][usable]
+    rate_t = accepts[t][usable] / totals[t][usable]
+    pooled = (accepts[s][usable] + accepts[t][usable]) / (
+        totals[s][usable] + totals[t][usable]
+    )
+    standard_error = np.sqrt(
+        np.maximum(pooled * (1 - pooled), 1e-9)
+        * (1 / totals[s][usable] + 1 / totals[t][usable])
+    )
+    return float((np.abs(rate_s - rate_t) / standard_error).max()), int(usable.sum())
+
+
 def differ_significantly(accepts, totals, s, t, *, pvalue, min_cells):
     """Do clusters ``s`` and ``t`` differ on ANY suffix, by a two-proportion test?
 
@@ -476,21 +527,118 @@ def differ_significantly(accepts, totals, s, t, *, pvalue, min_cells):
     decision never rests on a value the surrogate interpolated. Bonferroni over the columns
     compared.
     """
-    usable = (totals[s] >= min_cells) & (totals[t] >= min_cells)
-    if not usable.any():
+    z, columns = difference_evidence(accepts, totals, s, t, min_cells=min_cells)
+    if not columns:
         return False
-    rate_s = accepts[s][usable] / totals[s][usable]
-    rate_t = accepts[t][usable] / totals[t][usable]
-    pooled = (accepts[s][usable] + accepts[t][usable]) / (
-        totals[s][usable] + totals[t][usable]
-    )
-    standard_error = np.sqrt(
-        np.maximum(pooled * (1 - pooled), 1e-9)
-        * (1 / totals[s][usable] + 1 / totals[t][usable])
-    )
-    z = np.abs(rate_s - rate_t) / standard_error
-    critical = scipy.stats.norm.isf(pvalue / (2 * max(int(usable.sum()), 1)))
-    return bool((z > critical).any())
+    return bool(z > scipy.stats.norm.isf(pvalue / (2 * columns)))
+
+
+def cross_fitted_rows(pool, cfg, rng, device, alphabet_size):
+    """Out-of-fold predicted rows: each cell predicted by a model that never saw it.
+
+    A single train/test split forces a trade-off I created and then measured: the split test
+    must read cells the proposal was not fitted to, but every cell withheld is a cell the
+    proposer loses. At 15% holdout the model proposed well (subseq blocks 9-10, accuracy up
+    to 1.0) and at 50% it proposed badly (blocks 4-6, accuracy 0.813) -- while the test itself
+    made no difference, since testing on all cells under-split identically.
+
+    K folds remove the trade-off: every model trains on (K-1)/K of the cells, and every cell
+    is predicted by the one model that excluded it.
+    """
+    cells = sorted(pool.answers)
+    fold_of = {
+        cell: i % cfg.cross_fit_folds
+        for i, cell in enumerate(rng.permutation(len(cells)))
+    }
+    rows = np.zeros((len(pool.prefixes), len(pool.suffixes)))
+    for k in range(cfg.cross_fit_folds):
+        held = {cells[i] for i, f in fold_of.items() if f == k}
+        pool.holdout = held
+        model = TableSurrogate(alphabet_size, cfg).to(device)
+        opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+        _fit(
+            model, opt, pool, cfg=cfg, rng=rng, device=device, steps=cfg.steps_per_round
+        )
+        with torch.no_grad():
+            p_pad, p_len = pad(pool.prefixes, cfg.prefix_length, device)
+            v_pad, v_len = pad(pool.suffixes, cfg.max_suffix_length, device)
+            predicted = (
+                (
+                    model.row_log_probs(p_pad, p_len).exp()
+                    @ model.response(v_pad, v_len).T
+                )
+                .cpu()
+                .numpy()
+            )
+        for i, j in held:
+            rows[i, j] = predicted[i, j]
+    return rows
+
+
+def split_by_evidence(pool, prefix_rows, boundary, cfg):
+    """Start with every prefix in one block; split only where the cells prove a difference.
+
+    Merging *down* from the softmax's clusters cannot avoid over-splitting: with 32 clusters
+    that is 496 pairwise comparisons, and any pair that differs by chance stays apart. Here
+    every block that exists exists because some suffix separated it, so a state is never
+    created without evidence -- which is what the discrimination tree gives L*.
+
+    The surrogate proposes and the cells decide. For a candidate suffix, the surrogate's
+    predicted rate says which side of that column each prefix falls on; the two sides are then
+    compared on the cells actually observed at that column. The split happens only if that
+    two-proportion test clears a Bonferroni threshold over every (column, split) tried, so the
+    surrogate can suggest a bad column without being able to create a state.
+
+    Returns a block label per prefix.
+    """
+    # HELD-OUT cells only. The split direction comes from a model fitted to the training
+    # cells, so testing on those same cells is circular: a prefix whose cell was noise-flipped
+    # gets predicted onto the other side of the column, and the test then reads that same
+    # flipped cell and confirms the split. That manufactures states out of noise, which is
+    # exactly what splitting-from-one-blob is supposed to make impossible.
+    accepts = np.zeros((len(pool.prefixes), len(pool.suffixes)))
+    totals = np.zeros((len(pool.prefixes), len(pool.suffixes)))
+    for i, j in pool.holdout:
+        if i < len(prefix_rows):
+            accepts[i, j] = pool.answers[(i, j)]
+            totals[i, j] = 1
+
+    block = np.zeros(len(prefix_rows), dtype=np.int64)
+    queue = [0]
+    comparisons = max(len(pool.suffixes) * cfg.max_blocks, 1)
+    critical = scipy.stats.norm.isf(cfg.split_pvalue / (2 * comparisons))
+
+    while queue and block.max() + 1 < cfg.max_blocks:
+        current = queue.pop(0)
+        rows = np.flatnonzero(block == current)
+        if len(rows) < 2 * cfg.min_cells_per_estimate:
+            continue
+        best = (critical, None, None)
+        for v in range(len(pool.suffixes)):
+            side = prefix_rows[rows, v] > boundary
+            if side.all() or not side.any():
+                continue
+            counts_hi = totals[rows[side], v].sum()
+            counts_lo = totals[rows[~side], v].sum()
+            if min(counts_hi, counts_lo) < cfg.min_cells_per_estimate:
+                continue
+            rate_hi = accepts[rows[side], v].sum() / counts_hi
+            rate_lo = accepts[rows[~side], v].sum() / counts_lo
+            pooled = (accepts[rows[side], v].sum() + accepts[rows[~side], v].sum()) / (
+                counts_hi + counts_lo
+            )
+            standard_error = np.sqrt(
+                max(pooled * (1 - pooled), 1e-9) * (1 / counts_hi + 1 / counts_lo)
+            )
+            z = abs(rate_hi - rate_lo) / standard_error
+            if z > best[0]:
+                best = (z, v, side)
+        if best[1] is None:
+            continue
+        fresh = block.max() + 1
+        block[rows[best[2]]] = fresh
+        queue.extend([current, fresh])
+    return block, int(block.max()) + 1
 
 
 def merge_by_counts(pool, clusters, counts, cfg):
@@ -624,39 +772,58 @@ def extract_dfa(model, pool, cfg, device, alphabet_size, *, rng=None):
     boundary = accept_threshold(response[:, empty_col], counts.astype(float))
 
     q_hat = conformal_rate_bound(response, clusters, pool, pool.holdout, cfg)
-    labels, num_groups = merge_by_counts(pool, clusters, counts, cfg)
-    grouping = torch.zeros(cfg.num_states, num_groups, device=device)
-    grouping[torch.arange(cfg.num_states), torch.as_tensor(labels, device=device)] = 1.0
-
-    grouped = current @ grouping
-    block_of = labels[clusters]
-    group_accepts, group_totals = observed_counts(pool, block_of, num_groups)
-    # Transitions from cells bought for the successors, not from the co-occurrence argmax:
-    # delta(b, c) needs the group of p.c, and p.c is not a row of the table, so the argmax
-    # infers it entirely from the model. See resolve_transitions.
-    if cfg.resolve_transitions_statistically:
-        delta = resolve_transitions(
-            pool, block_of, num_groups, group_accepts, group_totals, cfg=cfg, rng=rng
-        )
+    if cfg.cross_fit_folds > 1:
+        saved = pool.holdout
+        prefix_rows = cross_fitted_rows(pool, cfg, rng, device, alphabet_size)
+        pool.holdout = saved
     else:
-        _, successors = _encode_all(model, pool, cfg, device, alphabet_size)
-        delta = (
-            torch.einsum("ps,cpt->cst", grouped, successors @ grouping)
-            .argmax(-1)
-            .cpu()
-            .numpy()
-        )
+        prefix_rows = current.cpu().numpy() @ response
+    if cfg.use_split_from_blob:
+        block_of, num_groups = split_by_evidence(pool, prefix_rows, boundary, cfg)
+    else:
+        labels, num_groups = merge_by_counts(pool, clusters, counts, cfg)
+        block_of = labels[clusters]
+
+    # A block's profile is the mean predicted row of its members. Assigning p.c to the
+    # nearest profile is the sifting step -- classifying a prefix that is not a table row --
+    # which is the one thing only the surrogate can do without buying cells.
+    profiles = np.stack(
+        [
+            (
+                prefix_rows[block_of == b].mean(0)
+                if (block_of == b).any()
+                else np.full(prefix_rows.shape[1], 0.5)
+            )
+            for b in range(num_groups)
+        ]
+    )
+    _, successors = _encode_all(model, pool, cfg, device, alphabet_size)
+    delta = np.zeros((alphabet_size, num_groups), dtype=int)
+    for c in range(alphabet_size):
+        successor_rows = successors[c].cpu().numpy()[: len(block_of)] @ response
+        # MAX over columns, not mean -- the same distinction that governs merging. A
+        # successor matches its own block on every column (gap ~0.03) and differs sharply
+        # from any other on the few distinguishing ones (gap ~0.51, measured). Averaging over
+        # 40 columns shrinks that 0.51 to ~0.04, where it loses to noise, so successors get
+        # assigned to arbitrary blocks and most blocks end up unreachable.
+        landed = np.abs(successor_rows[:, None, :] - profiles[None]).max(-1).argmin(1)
+        for b in range(num_groups):
+            members = block_of == b
+            if members.any():
+                delta[c, b] = np.bincount(
+                    landed[members], minlength=num_groups
+                ).argmax()
+
     accept = np.array(
         [
             (
-                response[np.flatnonzero(labels == g), empty_col].mean()
-                if (labels == g).any()
+                prefix_rows[block_of == b, empty_col].mean()
+                if (block_of == b).any()
                 else 0.5
             )
-            for g in range(num_groups)
+            for b in range(num_groups)
         ]
     )
-
     empty_row = [i for i, p in enumerate(pool.prefixes) if len(p) == 0][0]
     dfa = DFA(
         states=set(range(num_groups)),
@@ -665,7 +832,7 @@ def extract_dfa(model, pool, cfg, device, alphabet_size, *, rng=None):
             s: {c: int(delta[c, s]) for c in range(alphabet_size)}
             for s in range(num_groups)
         },
-        initial_state=int(grouped[empty_row].argmax()),
+        initial_state=int(block_of[empty_row]),
         final_states={s for s in range(num_groups) if accept[s] > boundary},
         allow_partial=False,
     )
@@ -916,4 +1083,5 @@ def learn_dfa(oracle: Oracle, cfg: SurrogateConfig, *, log=print) -> Tuple[DFA, 
         "states": len(dfa.states),
         "boundary": round(float(boundary), 4),
         "q_hat": round(float(diag["q_hat"]), 4),
+        "groups": diag["groups"],
     }
