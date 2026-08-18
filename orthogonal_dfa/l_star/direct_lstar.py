@@ -127,6 +127,15 @@ class DirectLStarLearner:
 
     # -- membership / classification ---------------------------------------
 
+    def _sift(self, seq) -> Optional[int]:
+        """The leaf ``seq`` sifts to, or ``None``.  A string the tree cannot place
+        is harvested into ``indecisive`` -- a boundary string the driver feeds back
+        so the next round's family is forced to resolve it."""
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
+        if leaf is None:
+            self.indecisive.add(boundary)
+        return leaf
+
     # -- splitting ----------------------------------------------------------
 
     def close_edges(self) -> int:
@@ -158,13 +167,8 @@ class DirectLStarLearner:
         if lo + 1 == hi:
             return hi
         mid = (lo + hi) // 2
-        actual, boundary = self.sifter.sift_and_boundary(w[:mid])
+        actual = self._sift(w[:mid])
         if actual is None:
-            # The binary search homes in on the DFA-vs-tree error, which sits at a
-            # boundary state -- so this indecisive midpoint is a boundary string
-            # worth harvesting (a probe need not *end* at the boundary to expose
-            # one).  Collect it before bailing.
-            self.indecisive.add(boundary)
             return None
         if states[mid] is None:
             return None
@@ -201,10 +205,9 @@ class DirectLStarLearner:
         state = None
         start = 0
         while start < len(w):
-            state, boundary = self.sifter.sift_and_boundary(w[:start])
+            state = self._sift(w[:start])
             if state is not None:
                 break
-            self.indecisive.add(boundary)
             start += 1
         if state is None:
             return _RESOLVED  # no prefix of this probe can be placed
@@ -220,7 +223,7 @@ class DirectLStarLearner:
         and run the sequential population split test on the leaf it exposes.
         Returns ``_SPLIT`` / ``_UNDECIDED`` / ``_RESOLVED`` (see :meth:`process`)."""
         state = states[-1]
-        actual = self.sifter.sift(w)
+        actual = self._sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
         fd = self._first_disagreement(w, states, agree_point, len(w))
@@ -240,7 +243,7 @@ class DirectLStarLearner:
         if witness is None:
             return _RESOLVED
         sprime = w[: fd - 1]
-        if self.sifter.sift(witness) != s1 or self.sifter.sift(sprime) != s1:
+        if self._sift(witness) != s1 or self._sift(sprime) != s1:
             return _RESOLVED
         distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
@@ -257,7 +260,7 @@ class DirectLStarLearner:
         are the first strings known to reach the new leaves."""
         self.split(s1, distinguisher)
         for p in (witness, sprime):
-            st = self.sifter.sift(p)
+            st = self._sift(p)
             if st is not None:
                 self.population.add(list(p), at=self.tree.path_of(st))
 
