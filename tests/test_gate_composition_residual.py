@@ -1,11 +1,8 @@
 import unittest
-import warnings
 
 import numpy as np
-import torch
 from permacache import no_cache_global
 
-from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.composition_residual import bow_features
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     GateCompositionResidualScore,
@@ -17,26 +14,11 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     flanks,
     run_over_middles,
 )
-from orthogonal_dfa.spliceai.exon_score import FLANK_MARGIN, SpliceAIExonScore
-from orthogonal_dfa.spliceai.module import SpliceAIModule
+from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
+from tests.spliceai_small import QUERY_LENGTH, small_module_and_exon
 
-SMALL_CL = 80
-# RawExon.random_text_length = len(text) - (cl + 4), so this is the query length.
-QUERY_LENGTH = 30
 # small monotonic fit so the tests stay fast on CPU
 FAST = dict(n_max=2, per_bin=400, epochs=30, device="cpu", chunk=64)
-
-
-def small_module_and_exon(cl=SMALL_CL):
-    torch.manual_seed(0)
-    module = SpliceAIModule(window=cl)
-    exon = RawExon(
-        cl,
-        np.random.default_rng(0)
-        .integers(0, 4, size=cl + 2 * FLANK_MARGIN + QUERY_LENGTH)
-        .tolist(),
-    )
-    return module, exon
 
 
 class TestGateCompositionResidualScore(unittest.TestCase):
