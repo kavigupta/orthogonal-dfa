@@ -61,16 +61,18 @@ def distinguisher_position_dependence(
     samples=_GATE_SAMPLES,
     seed=0,
 ):
-    """How much appending ``distinguisher`` shifts the oracle's accept-rate with the
-    absolute position it sits at (set by the string length).
+    """Position-dependence of ``distinguisher``: how much the accept-rate of ``s + d``
+    varies with the prefix length ``len(s)`` -- i.e. with the absolute position the
+    distinguisher sits at.
 
-    ``g(d, L)`` is the mean label of ``s + d`` over random length-``L`` strings;
-    averaging over the random prefix marginalises out the DFA state, so the only thing
-    left is position.  A translation-invariant (regular) feature has a flat or
-    small-period ``g(d, .)``; a position-encoding (positional) one is aperiodic.  The
-    score is the residual std of ``g(d, .)`` after removing a linear length trend (a
-    base-rate drift is not position information) and the best small period -- near zero
-    for a regular feature, large for a positional one."""
+    ``g(d, L)`` is the mean label of ``s + d`` over random length-``L`` strings.
+    Averaging over the random prefix marginalises out the DFA state, so the variation
+    of ``g(d, .)`` with ``L`` is pure position-dependence: a translation-invariant
+    (regular) feature gives a flat or small-period ``g(d, .)``, a position-encoding
+    (positional) one an aperiodic one.  The score is the residual std of ``g(d, .)``
+    after removing a linear length trend (a base-rate drift with length is not position
+    information) and the best small period -- near zero for a regular feature, large
+    for a positional one."""
     rng = np.random.default_rng(seed)
     tail = np.broadcast_to(
         np.asarray(distinguisher, dtype=int), (samples, len(distinguisher))
