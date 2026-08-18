@@ -79,12 +79,10 @@ class DirectLStarLearner:
         self.indecisive: Set[Tuple[int, ...]] = set()
 
         # Strings resting at tree nodes, pulled toward a leaf on demand.  Seeded
-        # with the fixed prefix pool at the root (the empty string leads, pinning
-        # the initial state); probe-seen members are added at the leaf they sift
-        # to.  Shared by the split test and the edge resolver, and -- unlike the
-        # tree it reads -- persists unchanged across splits.
+        # with the fixed prefix pool at the root; probe-seen members are added at
+        # the leaf they sift to.  Shared by the split test and the edge resolver,
+        # and -- unlike the tree it reads -- persists unchanged across splits.
         self.population = LeafPopulation(self.tree, self._classify)
-        self.population.add([])
         for prefix in pst.table.prefixes:
             self.population.add(prefix)
 
