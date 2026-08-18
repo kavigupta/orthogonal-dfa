@@ -153,8 +153,12 @@ class TransitionResolver:
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
+        # The re-sifts here localise and verify a disagreement already found; they
+        # are not probe-boundary discovery, so they use the non-harvesting sift.
+        # Feeding their indecisive results to the family floods it with boundary
+        # strings it need not resolve, which slows convergence badly.
         state = states[-1]
-        actual = self._sift(w)
+        actual = self.sifter.sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
         fd = self._first_bad_edge(w, states, agree_point, len(w))
@@ -174,7 +178,7 @@ class TransitionResolver:
         if witness is None:
             return _RESOLVED
         sprime = w[: fd - 1]
-        if self._sift(witness) != s1 or self._sift(sprime) != s1:
+        if self.sifter.sift(witness) != s1 or self.sifter.sift(sprime) != s1:
             return _RESOLVED
         distinguisher = self.sifter.disagreement(witness, sprime, [c])
         if distinguisher is None:
@@ -202,7 +206,7 @@ class TransitionResolver:
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
         for p in (witness, sprime):
-            st = self._sift(p)
+            st = self.sifter.sift(p)  # placing known members; not boundary discovery
             if st is not None:
                 self.population.add(list(p), at=self.tree.path_of(st))
 
