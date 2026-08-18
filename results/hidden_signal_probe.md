@@ -117,24 +117,37 @@ finite-memory skeleton from the shift-register tail.
 
 Reproduce with `python -m orthogonal_dfa.analysis.hidden_signal`.
 
-### Acting on it during synthesis: the ladder gate
+### Preventing it during synthesis: the invariance gate
 
-Core-extraction above is a post-hoc transform on the exported DFA. The same merging
-signal can also act *during* synthesis: `synthesize_direct_lstar_fnr(..., ladder_budget=k)`
-(off by default) ends a discovery pass once `k` splits in a row produce a state that does
-**not** merge back into the automaton — no resolved edge to an earlier state and no edge
-from one into it (`DirectLStarLearner._merges_into_existing`). It is safe by construction:
-a regular target's splits close and merge, so the run resets and never trips it — verified,
-parity still converges with the gate on (`tests/test_ladder_gate.py`) — and it can only
-fire when `ladder_budget` is passed, so it is inert for every existing caller.
+Core-extraction above is a post-hoc transform on the exported DFA. The pathology can also
+be prevented *at the split*, and the right signal turns out to be neither the
+distinguisher's length nor whether the new state merges — both of those were tried and
+failed (length kills a legitimate deep chain like `.*11111.*`; a non-merging test never
+fires on the positional ladder, because its rungs cross-link — the 42% cyclic core). The
+signal that works is **translation invariance**.
 
-**But it does not fix the positional ladder** — an honest negative result. On the
-`PositionalScoreOracle` the gate never fires (`gate_fired=0`, still 18 states, same as
-off), because that ladder's rungs *do* merge back: they carry cross-links, exactly the
-42% cyclic core measured above. A single non-merging *streak* is too local to separate a
-cross-linking non-regular ladder from a genuine deep chain — the same local-vs-global
-wall this whole note keeps hitting. The gate bounds only a *pure* forward-growing
-shift-register; the positional case is not one. **The post-hoc core-extraction is the
-operation that actually works here** (it compresses the positional machine and preserves
-the frame signal in the mix), because it uses the global SCC structure, not a local
-per-split test.
+A genuine finite-memory feature is *transportable*: the same feature, wherever it occurs
+(a stop codon anywhere in frame; a run of ones anywhere). A positional-score feature is
+not — the same distinguisher `d` cuts differently depending on *where* it sits. Measure
+it per distinguisher: `g(d, L) = E_s[oracle(s·d)]` over random length-`L` strings;
+averaging over the prefix marginalises out the DFA state, leaving only how appending `d`
+depends on absolute position. The score (`distinguisher_position_dependence`) is the
+residual std of `g(d, ·)` after removing a linear length trend and the best small period —
+near zero for a transportable feature, large for a position-encoding one:
+
+| target | regular? | position-dependence (mean over `d`) |
+| --- | --- | ---: |
+| parity | yes | 0.008 |
+| mod3 | yes | 0.010 |
+| frame | yes | 0.011 |
+| `PositionalScoreOracle` | no | **0.084** |
+
+A ~8× separation, at the single-distinguisher level, with no budget, no cross-round state,
+and no graph structure. `synthesize_direct_lstar_fnr(..., invariance_threshold=t)` (off by
+default) refuses any split whose distinguisher scores above `t`
+(`DirectLStarLearner._act_on_disagreement`). A regular target's distinguishers are
+invariant and pass — parity still converges with the gate on
+(`tests/test_ladder_gate.py`); the positional target's are all position-dependent, so every
+split is refused and the shift-register ladder never forms. It fixes what the length cap
+and the merge gate could not, because it tests the true property — is the feature
+position-bound — rather than a proxy for it.
