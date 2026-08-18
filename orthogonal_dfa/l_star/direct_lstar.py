@@ -24,6 +24,7 @@ learner knows nothing about.
 
 from typing import List, Optional, Set, Tuple
 
+import numpy as np
 from automata.fa.dfa import DFA
 
 from .edge_resolver import EdgeResolver
@@ -41,6 +42,61 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 
 # How many probes a counterexample pass sifts per batched pass.
 _PROBE_BLOCK = 16
+
+# The invariance gate's probe: string lengths (which set the distinguisher's absolute
+# position) and how many random strings to average at each, per candidate split.
+_GATE_LENGTHS = tuple(range(8, 28, 2))
+_GATE_SAMPLES = 1500
+
+
+def distinguisher_position_dependence(
+    oracle,
+    distinguisher,
+    alphabet_size: int,
+    *,
+    lengths=_GATE_LENGTHS,
+    samples: int = _GATE_SAMPLES,
+    seed: int = 0,
+) -> float:
+    """How much appending ``distinguisher`` shifts the oracle's accept-rate with the
+    absolute position it sits at (set by the string length).
+
+    ``g(d, L)`` is the mean label of ``s + d`` over random length-``L`` strings;
+    averaging over the random prefix marginalises out the DFA state, so the only thing
+    left is position.  A translation-invariant (regular) feature has a flat or
+    small-period ``g(d, .)``; a position-encoding (positional) one is aperiodic.  The
+    score is the residual std of ``g(d, .)`` after removing a linear length trend (a
+    base-rate drift is not position information) and the best small period -- near zero
+    for a regular feature, large for a positional one."""
+    rng = np.random.default_rng(seed)
+    tail = np.broadcast_to(
+        np.asarray(distinguisher, dtype=int), (samples, len(distinguisher))
+    )
+    prof = []
+    for length in lengths:
+        s = rng.integers(0, alphabet_size, (samples, length))
+        queries = np.concatenate([s, tail], axis=1).tolist()
+        prof.append(float(np.mean(oracle.membership_queries(queries))))
+    prof = np.array(prof)
+    ls = np.array(lengths, dtype=float)
+    slope, intercept = np.polyfit(ls, prof, 1)
+    resid = prof - (slope * ls + intercept)
+    best = float(np.std(resid))
+    for period in range(2, 7):
+        phase_mean = np.array(
+            [
+                resid[
+                    [
+                        j
+                        for j, l in enumerate(lengths)
+                        if l % period == lengths[i] % period
+                    ]
+                ].mean()
+                for i in range(len(lengths))
+            ]
+        )
+        best = min(best, float(np.std(resid - phase_mean)))
+    return best
 
 
 class DirectLStarLearner:
@@ -60,9 +116,17 @@ class DirectLStarLearner:
         round.
     """
 
-    def __init__(self, pst, vs: List[int]):
+    def __init__(
+        self, pst, vs: List[int], *, invariance_threshold: Optional[float] = None
+    ):
         self.pst = pst
         self.family = SuffixFamily(pst, vs)
+
+        # The invariance gate (off when None): refuse a split whose distinguisher
+        # encodes absolute position -- its position-dependence exceeds this.  Scores
+        # are cached per distinguisher (the probe is the same each time).
+        self.invariance_threshold = invariance_threshold
+        self._pos_dep_cache: dict = {}
 
         # The discrimination tree owns the structure -- midfixes, branches and
         # leaves -- and calls back into is_accept for every classification. Its
@@ -249,10 +313,27 @@ class DirectLStarLearner:
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
-        if verdict == SPLIT:
-            self._apply_split(s1, distinguisher, witness, sprime)
-            return _SPLIT
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        if verdict != SPLIT:
+            return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        # The invariance gate: refuse a distinguisher that encodes absolute position
+        # rather than a transportable finite-memory feature.  A regular target's
+        # distinguishers are position-invariant and pass; a positional target's are
+        # aperiodic in position and are refused, so the shift-register ladder never
+        # forms.  Only would-be splits pay for the probe, and it is cached per
+        # distinguisher.
+        if self.invariance_threshold is not None:
+            if self._position_dependence(distinguisher) > self.invariance_threshold:
+                return _RESOLVED
+        self._apply_split(s1, distinguisher, witness, sprime)
+        return _SPLIT
+
+    def _position_dependence(self, distinguisher) -> float:
+        key = tuple(distinguisher)
+        if key not in self._pos_dep_cache:
+            self._pos_dep_cache[key] = distinguisher_position_dependence(
+                self.pst.oracle, key, self.pst.alphabet_size
+            )
+        return self._pos_dep_cache[key]
 
     def _apply_split(self, s1, distinguisher, witness, sprime) -> None:
         """Split leaf ``s1`` on ``distinguisher`` and record the two prefixes the
@@ -299,7 +380,12 @@ class DirectLStarLearner:
         disagrees with a direct sift exposes a split, applied at the break point,
         and every ``sift -> None`` prefix it passes is collected as a boundary
         string.  Stops after ``patience`` consecutive clean probes -- see
-        :func:`counterexample_synthesis._default_patience` for what that buys."""
+        :func:`counterexample_synthesis._default_patience` for what that buys.
+
+        A split whose distinguisher fails the invariance gate (see
+        :meth:`_act_on_disagreement`) is refused rather than applied, so a positional
+        shift-register ladder never forms; on such a target the refusals read as clean
+        probes and the pass stops on ``patience``."""
         splits = 0
         since_split = 0
         delta = self._total_delta()

@@ -195,7 +195,7 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-def _discover(pst, vs, *, max_probes: int, patience: int):
+def _discover(pst, vs, *, max_probes: int, patience: int, invariance_threshold=None):
     """One round: close the hypothesis, hunt counterexamples, close it again.
 
     The discovery pass samples fresh strings and splits on DFA-vs-tree
@@ -204,7 +204,7 @@ def _discover(pst, vs, *, max_probes: int, patience: int):
     (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
     probe need not end at the boundary.  One pass therefore both finds the splits
     and gathers what the next round's family must resolve."""
-    learner = DirectLStarLearner(pst, vs)
+    learner = DirectLStarLearner(pst, vs, invariance_threshold=invariance_threshold)
     learner.close_edges()
     learner.counterexample_pass(max_probes=max_probes, patience=patience)
     learner.close_edges()
@@ -253,6 +253,7 @@ def synthesize_direct_lstar_fnr(
     counterexample_probes: int = 4000,
     counterexample_patience: Optional[int] = None,
     stall_patience: int = 2,
+    invariance_threshold: Optional[float] = None,
 ) -> Tuple[DFA, MidfixTree]:
     """Learn a DFA, forcing the suffix family to resolve boundary states.
 
@@ -285,6 +286,7 @@ def synthesize_direct_lstar_fnr(
             vs,
             max_probes=counterexample_probes,
             patience=counterexample_patience,
+            invariance_threshold=invariance_threshold,
         )
         true_acc = _estimate_accuracy(pst, dfa, dt, acc_threshold)
         best.offer(true_acc, dfa, dt, pst.decision_boundary)
