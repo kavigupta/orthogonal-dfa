@@ -61,18 +61,14 @@ def distinguisher_position_dependence(
     samples=_GATE_SAMPLES,
     seed=0,
 ):
-    """Position-dependence of ``distinguisher``: how much the accept-rate of ``s + d``
-    varies with the prefix length ``len(s)`` -- i.e. with the absolute position the
-    distinguisher sits at.
+    """Position-dependence of distinguisher d.
 
-    ``g(d, L)`` is the mean label of ``s + d`` over random length-``L`` strings.
-    Averaging over the random prefix marginalises out the DFA state, so the variation
-    of ``g(d, .)`` with ``L`` is pure position-dependence: a translation-invariant
-    (regular) feature gives a flat or small-period ``g(d, .)``, a position-encoding
-    (positional) one an aperiodic one.  The score is the residual std of ``g(d, .)``
-    after removing a linear length trend (a base-rate drift with length is not position
-    information) and the best small period -- near zero for a regular feature, large
-    for a positional one."""
+        g(L) = E[oracle(s + d) | len(s) = L]
+
+    Score = std of g across the sampled lengths after removing a linear fit in L (a
+    length trend is a base-rate drift, not d's position). Near 0 when d's effect is
+    translation-invariant (regular); large when it depends on where d sits (positional
+    -- the ladder pathology)."""
     rng = np.random.default_rng(seed)
     tail = np.broadcast_to(
         np.asarray(distinguisher, dtype=int), (samples, len(distinguisher))
@@ -85,23 +81,7 @@ def distinguisher_position_dependence(
     prof = np.array(prof)
     ls = np.array(lengths, dtype=float)
     slope, intercept = np.polyfit(ls, prof, 1)
-    resid = prof - (slope * ls + intercept)
-    best = float(np.std(resid))
-    for period in range(2, 7):
-        phase_mean = np.array(
-            [
-                resid[
-                    [
-                        j
-                        for j, l in enumerate(lengths)
-                        if l % period == lengths[i] % period
-                    ]
-                ].mean()
-                for i in range(len(lengths))
-            ]
-        )
-        best = min(best, float(np.std(resid - phase_mean)))
-    return best
+    return float(np.std(prof - (slope * ls + intercept)))
 
 
 class TransitionResolver:
