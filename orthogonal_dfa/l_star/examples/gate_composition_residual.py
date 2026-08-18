@@ -10,7 +10,7 @@ monotonically, so it removes at least as much composition as the linear fit.
 
 import numpy as np
 import torch
-from permacache import permacache, stable_hash
+from permacache import drop_if_equal, permacache, stable_hash
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
@@ -28,17 +28,15 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
 from orthogonal_dfa.module.monotonic import Monotonic1D
 from orthogonal_dfa.spliceai.exon_score import device_of
 
-# Monotonic hyperparameters, matching train_monotonic_for_manual_dfa's defaults.
-MAX_Z_ABS = 4.0
-NUM_INPUT_BREAKS = 1000
-
-
-def _fit_monotonic(pred_lin, scores, device, *, epochs, lr=1e-2, batch=2000, seed=0):
+def _fit_monotonic(
+    pred_lin, scores, device, *, epochs, max_z_abs, num_input_breaks,
+    lr=1e-2, batch=2000, seed=0,
+):
     """Fit a Monotonic1D mapping the linear composition prediction -> score (MSE).
 
     Returns the fitted state dict."""
     torch.manual_seed(seed)
-    mono = Monotonic1D(MAX_Z_ABS, NUM_INPUT_BREAKS, batch_norm=True).to(device)
+    mono = Monotonic1D(max_z_abs, num_input_breaks, batch_norm=True).to(device)
     x = torch.as_tensor(pred_lin, dtype=torch.float32, device=device).view(-1, 1)
     y = torch.as_tensor(scores, dtype=torch.float32, device=device).view(-1, 1)
     opt = torch.optim.Adam(mono.parameters(), lr=lr)
@@ -64,6 +62,8 @@ def _fit_monotonic(pred_lin, scores, device, *, epochs, lr=1e-2, batch=2000, see
         exon=stable_hash,
         device=lambda _: None,
         chunk=lambda _: None,
+        max_z_abs=drop_if_equal(4.0),
+        num_input_breaks=drop_if_equal(1000),
     ),
 )
 def _fit_gate_bins(
@@ -79,6 +79,8 @@ def _fit_gate_bins(
     seed=0,
     device=None,
     chunk=1024,
+    max_z_abs=4.0,
+    num_input_breaks=1000,
 ):
     """Linear composition fit (reused from composition_residual) plus a per-bin
     monotonic fit to the score.  Returns the linear fit dict augmented with a
@@ -100,19 +102,25 @@ def _fit_gate_bins(
         ).astype(np.float64)
         feats = bow_features(mids, n_max).astype(np.float64)
         pred_lin = lin["intercepts"][bi] + feats @ lin["betas"][bi]
-        monotonics.append(_fit_monotonic(pred_lin, scores, dev, epochs=epochs, seed=seed + bi))
-    return dict(**lin, monotonics=monotonics)
+        monotonics.append(_fit_monotonic(
+            pred_lin, scores, dev, epochs=epochs, seed=seed + bi,
+            max_z_abs=max_z_abs, num_input_breaks=num_input_breaks,
+        ))
+    return dict(
+        **lin, monotonics=monotonics,
+        max_z_abs=max_z_abs, num_input_breaks=num_input_breaks,
+    )
 
 
 class GateCompositionResidualScore(CompositionResidualScore):
     """CompositionResidualScore that subtracts ``monotonic_bin(pred_lin)`` instead of
     the bare composition index ``pred_lin``."""
 
-    def __init__(self, score_model, *, monotonics, **kw):
+    def __init__(self, score_model, *, monotonics, max_z_abs=4.0, num_input_breaks=1000, **kw):
         super().__init__(score_model, **kw)
         monos = []
         for sd in monotonics:
-            m = Monotonic1D(MAX_Z_ABS, NUM_INPUT_BREAKS, batch_norm=True)
+            m = Monotonic1D(max_z_abs, num_input_breaks, batch_norm=True)
             m.load_state_dict({k: torch.as_tensor(v) for k, v in sd.items()})
             monos.append(m.eval())
         self.monotonics = nn.ModuleList(monos)
@@ -129,12 +137,25 @@ class GateCompositionResidualScore(CompositionResidualScore):
 
 
 def fit_gate_composition_residual(score_model, exon, *, device=None, **kw):
-    """Fit a GateCompositionResidualScore around score_model (eval mode)."""
+    """Fit a GateCompositionResidualScore around score_model (eval mode).
+
+    The band must cover the exon's query length; E-L* also queries other lengths
+    (prefix+suffix), which the module warns about rather than silently miscalibrating.
+    """
+    q = exon.random_text_length
+    len_lo, len_hi = kw.get("len_lo", 90), kw.get("len_hi", 195)
+    assert len_lo <= q < len_hi, (
+        f"the exon's query length {q} is outside the fitted band [{len_lo}, {len_hi}); "
+        "widen len_lo/len_hi so the band covers the lengths E-L* will query"
+    )
     fit = _fit_gate_bins(score_model, exon, device=device, **kw)
     flank_l, _ = flanks(exon)
     module = GateCompositionResidualScore(
         score_model, flank_l_len=len(flank_l), n_max=kw.get("n_max", 4), **{
-            k: fit[k] for k in ("edge0", "step", "intercepts", "betas", "r2s", "monotonics")
+            k: fit[k] for k in (
+                "edge0", "step", "intercepts", "betas", "r2s",
+                "monotonics", "max_z_abs", "num_input_breaks",
+            )
         }
     )
     return module.to(device_of(score_model, device)).eval()
