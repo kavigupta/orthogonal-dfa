@@ -7,7 +7,7 @@ edge that does not touch the split leaf keeps a valid witness, because its sift
 path never passed through that leaf.
 
 The object owns bookkeeping only.  *Deciding* where an edge points needs the
-oracle, so the caller supplies ``resolve(state, symbol)`` when draining and
+oracle, so the caller supplies ``resolve(state, symbol)`` when closing and
 ``decisive_target(state, symbol)`` when totalising.  Neither the edges pointing at
 a state nor the edges still to resolve are indexed: a split needs the former only
 ~once per state, and an unresolved edge is just one missing from ``transitions``
@@ -65,37 +65,6 @@ class PartialDFA:
             for c in range(self.alphabet_size)
             if c not in edges
         ]
-
-    def _next_unresolved(self) -> Optional[Tuple[int, int]]:
-        for state, edges in self.transitions.items():
-            for c in range(self.alphabet_size):
-                if c not in edges:
-                    return (state, c)
-        return None
-
-    # -- resolving ----------------------------------------------------------
-
-    def pending_probes(self, representative) -> List[List[int]]:
-        """``representative(s) + [c]`` for every unresolved edge -- the strings the
-        next :meth:`drain` will sift, so a caller can warm them in one batch."""
-        probes = []
-        for s, c in self.unresolved_edges():
-            rep = representative(s)
-            if rep is not None:
-                probes.append(list(rep) + [c])
-        return probes
-
-    def drain(self, resolve) -> int:
-        """Resolve edges via ``resolve(state, symbol)`` until the hypothesis is
-        closed; returns the number resolved.
-
-        ``resolve`` may split -- clearing edges, which the next scan picks back up
-        -- so this loops until no edge is missing."""
-        resolved = 0
-        while (edge := self._next_unresolved()) is not None:
-            resolve(*edge)
-            resolved += 1
-        return resolved
 
     # -- splitting ----------------------------------------------------------
 
