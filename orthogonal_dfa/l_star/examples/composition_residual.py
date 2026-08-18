@@ -126,8 +126,9 @@ class CompositionResidualScore(nn.Module):
             )
         return clamped
 
-    def forward(self, x, lengths):
-        raw = self.score_model(x, lengths)
+    def _composition_pred(self, x, lengths):
+        """Per-row composition index (intercept + bow_features @ beta) and the bin
+        index each row falls in."""
         codes = x.argmax(-1).cpu().numpy()
         lens = lengths.cpu().numpy()
         middles = [
@@ -136,12 +137,17 @@ class CompositionResidualScore(nn.Module):
         ]
         feats = torch.as_tensor(
             bow_features(middles, self._n_max),
-            device=raw.device,
+            device=self._betas.device,
             dtype=self._betas.dtype,
         )
         idx = self._bin_indices(lengths.to(self._edge0.device))
         pred = self._intercepts[idx] + (feats * self._betas[idx]).sum(-1)
-        return raw - pred.to(raw.dtype)
+        return pred, idx
+
+    def forward(self, x, lengths):
+        raw = self.score_model(x, lengths)
+        pred, _ = self._composition_pred(x, lengths)
+        return raw - pred.to(raw.device).to(raw.dtype)
 
 
 def _fit_bin(feats, scores):
