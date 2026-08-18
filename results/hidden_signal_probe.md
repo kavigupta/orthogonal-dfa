@@ -116,3 +116,16 @@ closure/merging is not just a diagnostic score but an operation that separates t
 finite-memory skeleton from the shift-register tail.
 
 Reproduce with `python -m orthogonal_dfa.analysis.hidden_signal`.
+
+### Acting on it during synthesis: the ladder gate
+
+Core-extraction above is a post-hoc transform on the exported DFA. The same merging
+signal can act *during* synthesis, so the ladder never runs unbounded in the first
+place: `synthesize_direct_lstar_fnr(..., ladder_budget=k)` (off by default) ends a
+discovery pass once `k` splits in a row produce a state that does **not** merge back
+into the automaton — no resolved edge to an earlier state and no edge from one into it
+(`DirectLStarLearner._merges_into_existing`). A regular target's splits close and merge,
+so the run resets and never trips it (verified: parity still converges with the gate on,
+`tests/test_ladder_gate.py`); a non-regular prepend-ladder unrolls a shift register and
+does, bounding the growth. Because it can only fire when `ladder_budget` is passed, it is
+inert for every existing caller.

@@ -78,6 +78,9 @@ class DirectLStarLearner:
         self.sifter = Sifter(self.tree, self.family)
         self.indecisive: Set[Tuple[int, ...]] = set()
 
+        # The id of the leaf the most recent split created, for the ladder gate.
+        self.last_split_state: Optional[int] = None
+
         # Strings resting at tree nodes, pulled toward a leaf on demand.  Seeded
         # with the fixed prefix pool at the root (the empty string leads, pinning
         # the initial state); probe-seen members are added at the leaf they sift
@@ -257,11 +260,24 @@ class DirectLStarLearner:
         """Split leaf ``s1`` on ``distinguisher`` and record the two prefixes the
         disagreement separated as members of whichever side they land on -- they
         are the first strings known to reach the new leaves."""
-        self.split(s1, distinguisher)
+        self.last_split_state = self.split(s1, distinguisher)
         for p in (witness, sprime):
             st = self.sifter.sift(p)
             if st is not None:
                 self.population.add(list(p), at=self.tree.path_of(st))
+
+    def _merges_into_existing(self, state: int) -> bool:
+        """Whether the freshly-split leaf ``state`` connects back into the older
+        automaton -- a resolved edge to an earlier state, or an edge from one into
+        it.  A finite-memory state does (its transitions close onto states already
+        known); a shift-register ladder rung does neither -- it only ever flows
+        forward into a still-newer distinction.  The ladder gate counts the runs of
+        the latter (see :meth:`counterexample_pass`)."""
+        alphabet = range(self.pst.alphabet_size)
+        out_back = any(
+            (t := self.dfa.target(state, c)) is not None and t < state for c in alphabet
+        )
+        return out_back or any(src < state for src, _ in self.dfa.edges_into(state))
 
     # -- driver -------------------------------------------------------------
 
@@ -291,16 +307,26 @@ class DirectLStarLearner:
         )
         return delta
 
-    def counterexample_pass(self, *, max_probes: int, patience: int) -> int:
+    def counterexample_pass(
+        self, *, max_probes: int, patience: int, ladder_budget: Optional[int] = None
+    ) -> int:
         """Hunt counterexamples until they dry up.  Returns the split count.
 
         Each sampled string is walked through :meth:`process`: a walk that
         disagrees with a direct sift exposes a split, applied at the break point,
         and every ``sift -> None`` prefix it passes is collected as a boundary
         string.  Stops after ``patience`` consecutive clean probes -- see
-        :func:`counterexample_synthesis._default_patience` for what that buys."""
+        :func:`counterexample_synthesis._default_patience` for what that buys.
+
+        ``ladder_budget`` (off when ``None``) is the *ladder gate*: after that many
+        splits in a row whose new state does not merge back into the existing
+        automaton (see :meth:`_merges_into_existing`), the pass stops.  A regular
+        target's splits close and merge, so the run resets and never trips it; a
+        non-regular prepend-ladder unrolls a shift register and does, bounding the
+        otherwise unbounded growth."""
         splits = 0
         since_split = 0
+        nonmerging = 0
         delta = self._total_delta()
         for w in self._probe_blocks(max_probes):
             status = self.process(w, delta)
@@ -309,6 +335,17 @@ class DirectLStarLearner:
                 since_split = 0
                 self.close_edges()
                 delta = self._total_delta()  # the split rewrote the state set
+                if ladder_budget is not None:
+                    if self._merges_into_existing(self.last_split_state):
+                        nonmerging = 0
+                    else:
+                        nonmerging += 1
+                        if nonmerging >= ladder_budget:
+                            print(
+                                f"direct_lstar: {nonmerging} consecutive non-merging "
+                                "splits -- ladder gate, ending discovery pass"
+                            )
+                            break
             elif status == _UNDECIDED:
                 since_split = 0  # a leaf is still resolving -- keep sifting it
             else:
