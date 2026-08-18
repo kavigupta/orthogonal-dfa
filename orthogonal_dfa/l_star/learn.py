@@ -58,7 +58,6 @@ def build_pst(
     config = SearchConfig(
         suffix_family_size=n,
         evidence_margin=eps,
-        decision_rule_fpr=0.01,
         suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
             0.01, effective_p_acc
         ),
