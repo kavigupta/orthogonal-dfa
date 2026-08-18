@@ -1,21 +1,11 @@
-"""Composition-deconfounded oracle via the repo's monotonic **gate**, run backwards.
-
-:mod:`composition_residual` subtracts a per-length-bin *linear* bag-of-k-mers
-prediction from the score.  This module keeps that linear model as the composition
-feature phi, then puts a :class:`Monotonic1D` on top -- the same monotonic the
-residual gates use -- fit to the score, and subtracts *its* output:
+"""Like :mod:`composition_residual`, but subtracts a monotonic function of the linear
+composition prediction rather than the linear prediction itself:
 
     resid = raw_score - monotonic_bin( intercept_bin + bow_features(middle) @ beta_bin )
 
-This is the residual gate's ``compute_input`` (r_prev = r_next - monotonic(phi)) in
-form only: the monotonic here is fit by MSE directly to the score, not by the gate's
-BCE-against-oracle-labels training, so it lands in score units with no ad-hoc rescaling.
-The monotonic removes
-composition strictly more thoroughly than the linear fit (a monotonic reshaping of the
-composition index), so its residual is a purer test of non-compositional structure.
-
-Everything is per length bin, exactly like :func:`_fit_composition_bins`, because the
-score-to-composition map drifts with length even though the frequency features do not.
+The monotonic (a :class:`Monotonic1D`) is fit per length bin by MSE against the score,
+so its output is already in score units.  It can only reshape the composition index
+monotonically, so it removes at least as much composition as the linear fit.
 """
 
 import numpy as np
@@ -38,7 +28,7 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
 from orthogonal_dfa.module.monotonic import Monotonic1D
 from orthogonal_dfa.spliceai.exon_score import device_of
 
-# Gate hyperparameters, matching train_monotonic_for_manual_dfa's defaults.
+# Monotonic hyperparameters, matching train_monotonic_for_manual_dfa's defaults.
 MAX_Z_ABS = 4.0
 NUM_INPUT_BREAKS = 1000
 
@@ -46,10 +36,7 @@ NUM_INPUT_BREAKS = 1000
 def _fit_monotonic(pred_lin, scores, device, *, epochs, lr=1e-2, batch=2000, seed=0):
     """Fit a Monotonic1D mapping the linear composition prediction -> score (MSE).
 
-    pred_lin already predicts the score (it is the OLS fit), so the monotonic only
-    adds a nonlinear, order-preserving recalibration -- but being trained against the
-    score, its output is in score units, so ``raw - monotonic(pred_lin)`` needs no
-    ad-hoc coefficient."""
+    Returns the fitted state dict."""
     torch.manual_seed(seed)
     mono = Monotonic1D(MAX_Z_ABS, NUM_INPUT_BREAKS, batch_norm=True).to(device)
     x = torch.as_tensor(pred_lin, dtype=torch.float32, device=device).view(-1, 1)
@@ -94,7 +81,7 @@ def _fit_gate_bins(
     chunk=1024,
 ):
     """Linear composition fit (reused from composition_residual) plus a per-bin
-    monotonic gate fit to the score.  Returns the linear fit dict augmented with a
+    monotonic fit to the score.  Returns the linear fit dict augmented with a
     list of per-bin monotonic state dicts."""
     lin = _fit_composition_bins(
         score_model, exon, n_max=n_max, len_lo=len_lo, len_hi=len_hi,
@@ -118,9 +105,8 @@ def _fit_gate_bins(
 
 
 class GateCompositionResidualScore(CompositionResidualScore):
-    """CompositionResidualScore whose per-bin composition index is reshaped by a
-    monotonic gate (fit to the score) before being subtracted: the composition gate
-    run backwards, ``raw - monotonic(pred_lin)``."""
+    """CompositionResidualScore that subtracts ``monotonic_bin(pred_lin)`` instead of
+    the bare composition index ``pred_lin``."""
 
     def __init__(self, score_model, *, monotonics, **kw):
         super().__init__(score_model, **kw)
