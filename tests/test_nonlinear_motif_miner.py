@@ -6,9 +6,11 @@ import numpy as np
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
     additive_prediction,
+    context_motif_significance,
     harvest,
     motif_effects,
     sample_backgrounds,
+    sample_contexts,
     single_base_ism,
 )
 
@@ -81,6 +83,31 @@ class TestHarvest(unittest.TestCase):
         self.assertEqual(top.motif, "ACG")
         self.assertEqual(top.position, P0)
         self.assertGreater(top.nonlinear, 3.0)
+
+
+class TestContextMotifSignificance(unittest.TestCase):
+    def test_a_context_independent_motif_is_significant_anywhere(self):
+        # A score that adds a bonus whenever "GTA" appears ANYWHERE (position-agnostic,
+        # context-defined) plus per-position additive noise.  The in-context test should
+        # flag GTA as significantly raising the score vs alternatives, at any position.
+        target = (2, 3, 0)  # GTA
+        W = np.random.default_rng(0).standard_normal((L, 4))
+
+        def score(middles):
+            out = []
+            for m in middles:
+                v = float(sum(W[i, m[i]] for i in range(len(m))))
+                if any(tuple(m[j : j + 3]) == target for j in range(len(m) - 2)):
+                    v += 3.0
+                out.append(v)
+            return np.array(out)
+
+        contexts = sample_contexts(L, 3, 2000, seed=1)
+        stats = context_motif_significance(score, contexts, 3)
+        top = max(stats, key=lambda s: s.tstat)
+        self.assertEqual(top.motif, "GTA")
+        self.assertGreater(top.tstat, 5.0)  # clearly significant
+        self.assertGreater(top.effect, 0)
 
 
 if __name__ == "__main__":

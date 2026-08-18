@@ -28,7 +28,6 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
-import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.composition_residual import fit_composition_residual
@@ -44,16 +43,29 @@ def build_controlled_score(
     *,
     device=None,
     chunk: int = 1024,
+    use_gate: bool = False,
     **fit_kw,
 ) -> Callable[[Sequence[Sequence[int]]], np.ndarray]:
-    """A function ``middles -> controlled scores`` for the *linear* residual oracle.
+    """A function ``middles -> controlled scores`` for the residual oracle.
 
-    ``middles`` is a list of equal-length int sequences (A=0,C=1,G=2,T=3).  The residual
-    fit is permacached; ``fit_kw`` (``len_lo``, ``len_hi``, ``n_max`` ...) forwards to
-    ``fit_composition_residual``.
+    ``middles`` is a list of equal-length int sequences (A=0,C=1,G=2,T=3).  With
+    ``use_gate=False`` (default) composition is removed by the *linear* bag-of-k-mers
+    fit (``fit_composition_residual``); with ``use_gate=True`` by the *monotonic gate*
+    (``fit_gate_composition_residual``), which also removes monotone-nonlinear
+    composition, so any motif that survives it is not just leftover composition.  The
+    fit is permacached; ``fit_kw`` (``len_lo``, ``len_hi``, ``n_max`` ...) forwards on.
     """
     score_model = SpliceAIExonScore(spliceai_model).eval()
-    residual = fit_composition_residual(score_model, exon, device=device, **fit_kw)
+    if use_gate:
+        # optional: the monotonic-gate oracle (PR #194); only needed for the linear-vs-
+        # gate comparison, so imported lazily and tolerated if it is not on this branch.
+        from orthogonal_dfa.l_star.examples.gate_composition_residual import (  # pylint: disable=import-error,import-outside-toplevel
+            fit_gate_composition_residual,
+        )
+
+        residual = fit_gate_composition_residual(score_model, exon, device=device, **fit_kw)
+    else:
+        residual = fit_composition_residual(score_model, exon, device=device, **fit_kw)
     dev = device_of(score_model, device)
     flank_l, flank_r = flanks(exon)
 
@@ -154,6 +166,109 @@ def additive_prediction(
     return float(sum(ism[position + j, motif[j]] for j in range(len(motif))))
 
 
+# --- in-context motif significance (position-agnostic) ----------------------------
+
+
+def sample_contexts(
+    length: int,
+    motif_k: int,
+    n_contexts: int,
+    *,
+    seed: int = 0,
+    pos_range: Optional[Tuple[int, int]] = None,
+) -> List[Tuple[List[int], int]]:
+    """``n_contexts`` ``(background, position)`` pairs -- a consistent background and a
+    spot to perturb.  ``position`` is drawn uniformly from ``pos_range`` (default: every
+    valid interior position), so aggregating over contexts is position-agnostic."""
+    rng = np.random.default_rng(seed)
+    lo, hi = pos_range if pos_range is not None else (0, length - motif_k + 1)
+    return [
+        (rng.integers(0, 4, size=length).tolist(), int(rng.integers(lo, hi)))
+        for _ in range(n_contexts)
+    ]
+
+
+@dataclass
+class ContextMotifStat:
+    motif: str
+    effect: float      # SIGNED mean, over contexts, of the motif's effect relative to
+    #                    the average k-mer at the same (background, position)
+    tstat: float       # effect / SE across contexts -- directional significance
+    magnitude: float   # mean |relative effect| -- how big an effect it makes REGARDLESS
+    #                    of sign (captures context-dependent, sign-flipping motifs that
+    #                    the signed mean cancels out)
+    mag_z: float       # (magnitude - mean over motifs) / std over motifs -- how much
+    #                    LARGER an effect than the alternative k-mers, in magnitude
+    n: int
+
+    def __repr__(self):
+        return (
+            f"{self.motif}  |effect|={self.magnitude:.4f} (mag_z={self.mag_z:+5.1f})  "
+            f"signed={self.effect:+.4f} (t={self.tstat:+6.1f})  n={self.n}"
+        )
+
+
+def context_motif_significance(
+    score: Callable,
+    contexts: List[Tuple[List[int], int]],
+    motif_k: int,
+    *,
+    chunk_contexts: int = 200,
+) -> List[ContextMotifStat]:
+    """For every k-mer, its **in-context** effect measured *against the alternatives*.
+
+    At each context we overwrite ``[p, p+k)`` with every k-mer and record the score
+    change ``delta``.  The removed background bases and the position are shared by all
+    k-mers at that context, so subtracting the per-context mean over k-mers,
+    ``rel = delta - mean_kmers(delta)``, isolates the *identity* of the inserted motif --
+    how much more (or less) it moves the score than a typical substitution at that exact
+    spot.
+
+    Two summaries per motif, because direction matters:
+
+    - ``effect`` / ``tstat``: the SIGNED mean of ``rel`` across contexts.  Flags motifs
+      with a consistent-direction effect; a motif whose sign flips by context cancels.
+    - ``magnitude`` / ``mag_z``: ``mean|rel|``, the size of the effect regardless of
+      sign, and how many standard deviations that exceeds the average k-mer's.  This is
+      the one to rank by for "creates an effect larger than alternatives", because it
+      does not cancel a context-dependent (sign-flipping) motif.
+    """
+    motifs = [list(m) for m in itertools.product(range(4), repeat=motif_k)]
+    m_count = len(motifs)
+    rel_rows: List[np.ndarray] = []
+    for i in range(0, len(contexts), chunk_contexts):
+        chunk = contexts[i : i + chunk_contexts]
+        base = score([bg for bg, _ in chunk])
+        perturbed: List[List[int]] = []
+        for bg, p in chunk:
+            for m in motifs:
+                new = list(bg)
+                new[p : p + motif_k] = m
+                perturbed.append(new)
+        delta = score(perturbed).reshape(len(chunk), m_count) - base[:, None]
+        rel_rows.append(delta - delta.mean(1, keepdims=True))
+    rel = np.concatenate(rel_rows, axis=0)  # (n_contexts, m_count)
+
+    mean_rel = rel.mean(0)
+    se = rel.std(0, ddof=1) / np.sqrt(rel.shape[0])
+    tstat = np.divide(mean_rel, se, out=np.zeros_like(mean_rel), where=se > 0)
+
+    magnitude = np.abs(rel).mean(0)  # direction-agnostic effect size per motif
+    mag_z = (magnitude - magnitude.mean()) / magnitude.std()
+
+    return [
+        ContextMotifStat(
+            motif="".join(BASES[c] for c in m),
+            effect=float(mean_rel[i]),
+            tstat=float(tstat[i]),
+            magnitude=float(magnitude[i]),
+            mag_z=float(mag_z[i]),
+            n=rel.shape[0],
+        )
+        for i, m in enumerate(motifs)
+    ]
+
+
 @dataclass
 class MotifHit:
     motif: str
@@ -212,38 +327,41 @@ def harvest(
 
 
 def _main():
-    """Harvest nonlinear motifs from the linear-controlled SpliceAI-400 oracle."""
+    """Harvest in-context motifs from the linear-controlled SpliceAI-400 oracle:
+    perturbations whose effect, over consistent backgrounds, is statistically larger
+    than alternative substitutions at the same spot -- position-agnostic."""
     import os
 
     from orthogonal_dfa.data.exon import default_exon
     from orthogonal_dfa.spliceai.load_model import load_spliceai
 
-    n_bg = int(os.environ.get("N_BG", "200"))
+    n_ctx = int(os.environ.get("N_CTX", "3000"))
     motif_k = int(os.environ.get("MOTIF_K", "3"))
-    top_positions = int(os.environ.get("TOP_POS", "20"))
+    use_gate = os.environ.get("USE_GATE", "") not in ("", "0", "false")
     length = default_exon.random_text_length
+    # optionally restrict positions to the interior, away from the position-locked
+    # donor/acceptor edges, so what surfaces is genuinely context- not edge-driven
+    margin = int(os.environ.get("EDGE_MARGIN", "0"))
+    pos_range = (margin, length - motif_k + 1 - margin) if margin else None
 
-    print(f"building linear-controlled score (SpliceAI-400)  length={length}", flush=True)
-    score = build_controlled_score(default_exon, load_spliceai(400, 0))
-
-    print(f"harvesting: {n_bg} backgrounds, {motif_k}-mers, top {top_positions} positions",
+    kind = "GATE" if use_gate else "linear"
+    print(f"building {kind}-controlled score (SpliceAI-400)  exon length={length}",
           flush=True)
-    ism, hits = harvest(score, length, n_backgrounds=n_bg, motif_k=motif_k,
-                        top_positions=top_positions)
+    score = build_controlled_score(default_exon, load_spliceai(400, 0), use_gate=use_gate)
 
-    saliency = ism.max(1) - ism.min(1)
-    print("\ntop-10 saliency positions (in-silico mutagenesis range):")
-    for p in np.argsort(-saliency)[:10]:
-        dom = BASES[int(ism[p].argmax())]
-        print(f"  pos {int(p):>3}: range={saliency[p]:.3f}  favours {dom}")
+    print(f"in-context harvest: {n_ctx} contexts, {motif_k}-mers, "
+          f"pos_range={pos_range or 'all'}", flush=True)
+    contexts = sample_contexts(length, motif_k, n_ctx, pos_range=pos_range)
+    stats = context_motif_significance(score, contexts, motif_k)
 
-    print("\ntop-15 NONLINEAR (epistatic) motifs -- effect exceeds the additive prediction:")
-    for h in sorted(hits, key=lambda h: -abs(h.nonlinear))[:15]:
-        print("  " + repr(h))
+    print("\nmotifs that create the LARGEST in-context effect vs alternatives "
+          "(by |effect|, direction-agnostic):")
+    for s in sorted(stats, key=lambda s: -s.magnitude)[:15]:
+        print("  " + repr(s))
 
-    print("\ntop-15 STRONGEST perturbations (by |effect|):")
-    for h in sorted(hits, key=lambda h: -abs(h.effect))[:15]:
-        print("  " + repr(h))
+    print("\n(for reference) most consistent-DIRECTION effects, by signed t:")
+    for s in sorted(stats, key=lambda s: -abs(s.tstat))[:8]:
+        print("  " + repr(s))
 
 
 if __name__ == "__main__":
