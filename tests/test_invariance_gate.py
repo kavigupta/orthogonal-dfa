@@ -1,0 +1,93 @@
+"""The invariance gate: refuse a split whose distinguisher encodes absolute position
+(a positional / shift-register ladder), while leaving a regular target -- whose
+distinguishers are translation-invariant -- untouched.
+
+The pathology is a target the learner cannot represent as a compact DFA because its
+decision depends on absolute position (a positional score), so the discrimination
+tree grows an unbounded ladder of ever-longer distinguishers. A genuine finite-memory
+feature is transportable -- the same feature wherever it occurs -- so appending its
+distinguisher has a position-invariant effect; a positional feature does not. The gate
+measures exactly that per distinguisher and refuses the position-encoding ones.
+
+Unit tests pin the signal (regular low, positional high); the integration test checks
+the gate leaves a regular target converging (the safety property -- the gate is
+otherwise dead code, active only when ``invariance_threshold`` is passed)."""
+
+import unittest
+
+import numpy as np
+
+from orthogonal_dfa.l_star.counterexample_synthesis import (
+    do_counterexample_driven_synthesis,
+)
+from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.structures import Oracle
+from orthogonal_dfa.l_star.transition_resolver import distinguisher_position_dependence
+
+# Between the regular targets (<= ~0.017) and the positional one (>= ~0.067).
+THRESHOLD = 0.04
+
+
+class ParityOracle(Oracle):
+    """Regular, 2-state cycle: parity of the count of symbol 0 (~50/50)."""
+
+    alphabet_size = 4
+
+    def membership_query(self, string):
+        return sum(1 for x in string if x == 0) % 2 == 0
+
+
+class PositionalScoreOracle(Oracle):
+    """Non-regular: accept iff ``sum_i W[i, string[i]] > 0`` for a fixed random,
+    position-specific, per-position-centered weight table (so ~50/50 balanced).  The
+    score is positional, so there is no compact automaton to close on."""
+
+    alphabet_size = 4
+
+    def __init__(self, *, n_max=400, seed=42):
+        w = np.random.default_rng(seed).normal(size=(n_max, 4))
+        self._w = w - w.mean(axis=1, keepdims=True)
+
+    def membership_query(self, string):
+        seq = list(string)
+        return bool(sum(self._w[i, seq[i]] for i in range(len(seq))) > 0.0)
+
+
+class TestPositionDependenceSignal(unittest.TestCase):
+    def test_regular_distinguishers_are_invariant(self):
+        parity = ParityOracle()
+        for d in ([1], [2, 1], [3, 0, 0]):
+            self.assertLess(distinguisher_position_dependence(parity, d, 4), THRESHOLD)
+
+    def test_positional_distinguishers_encode_position(self):
+        positional = PositionalScoreOracle()
+        scores = [
+            distinguisher_position_dependence(positional, d, 4)
+            for d in ([1], [2, 1], [3, 0, 0])
+        ]
+        self.assertGreater(max(scores), THRESHOLD)
+
+
+class TestInvarianceGate(unittest.TestCase):
+    def test_regular_target_still_converges_with_the_gate(self):
+        # Parity's distinguishers are position-invariant, so the gate never fires
+        # and the learner recovers the compact automaton (the safety property).
+        oracle = ParityOracle()
+        pst = build_pst(
+            lambda _n, _s: oracle,
+            min_signal_strength=0.06,
+            seed=0,
+            sample_length=12,
+        )
+        dfa, _ = do_counterexample_driven_synthesis(
+            pst, acc_threshold=0.98, invariance_threshold=THRESHOLD
+        )
+        held = np.random.default_rng(1).integers(0, 4, (2000, 12))
+        call = np.array([bool(dfa.accepts_input(s.tolist())) for s in held])
+        truth = np.array([oracle.membership_query(s.tolist()) for s in held])
+        self.assertGreaterEqual(float((call == truth).mean()), 0.95)
+        self.assertLessEqual(len(dfa.states), 6)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -26,6 +26,7 @@ MidfixTree.split), so state ids stay a dense range(num_states) and need no
 remapping on export.
 """
 
+import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -45,9 +46,64 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 #: Probes sifted per batched pass.
 _PROBE_BLOCK = 16
 
+# The invariance gate's probe: string lengths (which set the distinguisher's absolute
+# position) and how many random strings to average at each, per candidate split.
+_GATE_LENGTHS = tuple(range(8, 28, 2))
+_GATE_SAMPLES = 1500
+
+
+def distinguisher_position_dependence(
+    oracle,
+    distinguisher,
+    alphabet_size,
+    *,
+    lengths=_GATE_LENGTHS,
+    samples=_GATE_SAMPLES,
+    seed=0,
+):
+    """How much appending ``distinguisher`` shifts the oracle's accept-rate with the
+    absolute position it sits at (set by the string length).
+
+    ``g(d, L)`` is the mean label of ``s + d`` over random length-``L`` strings;
+    averaging over the random prefix marginalises out the DFA state, so the only thing
+    left is position.  A translation-invariant (regular) feature has a flat or
+    small-period ``g(d, .)``; a position-encoding (positional) one is aperiodic.  The
+    score is the residual std of ``g(d, .)`` after removing a linear length trend (a
+    base-rate drift is not position information) and the best small period -- near zero
+    for a regular feature, large for a positional one."""
+    rng = np.random.default_rng(seed)
+    tail = np.broadcast_to(
+        np.asarray(distinguisher, dtype=int), (samples, len(distinguisher))
+    )
+    prof = []
+    for length in lengths:
+        s = rng.integers(0, alphabet_size, (samples, length))
+        queries = np.concatenate([s, tail], axis=1).tolist()
+        prof.append(float(np.mean(oracle.membership_queries(queries))))
+    prof = np.array(prof)
+    ls = np.array(lengths, dtype=float)
+    slope, intercept = np.polyfit(ls, prof, 1)
+    resid = prof - (slope * ls + intercept)
+    best = float(np.std(resid))
+    for period in range(2, 7):
+        phase_mean = np.array(
+            [
+                resid[
+                    [
+                        j
+                        for j, l in enumerate(lengths)
+                        if l % period == lengths[i] % period
+                    ]
+                ].mean()
+                for i in range(len(lengths))
+            ]
+        )
+        best = min(best, float(np.std(resid - phase_mean)))
+    return best
+
 
 class TransitionResolver:
-    def __init__(self, pst):
+    def __init__(self, pst, *, invariance_threshold=None):
         self.pst = pst
         self.tree = None
         self.family = None
@@ -57,6 +113,12 @@ class TransitionResolver:
         self.dfa = None  # the partial transition function
         self.edges = None  # resolves (leaf, symbol) edges against the population
         self.indecisive = set()  # boundary strings the family could not place
+
+        # The invariance gate (off when None): refuse a split whose distinguisher
+        # encodes absolute position -- its position-dependence exceeds this.  Scores
+        # are cached per distinguisher (the probe is the same each time).
+        self.invariance_threshold = invariance_threshold
+        self._pos_dep_cache = {}
 
     # -- membership / population -------------------------------------------
 
@@ -180,10 +242,27 @@ class TransitionResolver:
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
-        if verdict == SPLIT:
-            self._apply_split(s1, distinguisher, witness, sprime)
-            return _SPLIT
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        if verdict != SPLIT:
+            return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        # The invariance gate: refuse a distinguisher that encodes absolute position
+        # rather than a transportable finite-memory feature.  A regular target's
+        # distinguishers are position-invariant and pass; a positional target's are
+        # aperiodic in position and are refused, so the shift-register ladder never
+        # forms.  Only would-be splits pay for the probe, and it is cached per
+        # distinguisher.
+        if self.invariance_threshold is not None:
+            if self._position_dependence(distinguisher) > self.invariance_threshold:
+                return _RESOLVED
+        self._apply_split(s1, distinguisher, witness, sprime)
+        return _SPLIT
+
+    def _position_dependence(self, distinguisher):
+        key = tuple(distinguisher)
+        if key not in self._pos_dep_cache:
+            self._pos_dep_cache[key] = distinguisher_position_dependence(
+                self.pst.oracle, key, self.pst.alphabet_size
+            )
+        return self._pos_dep_cache[key]
 
     def _first_bad_edge(self, w, states, lo, hi):
         """Binary-search the first index where the followed state diverges from a
