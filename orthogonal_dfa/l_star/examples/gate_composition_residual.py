@@ -8,6 +8,8 @@ so its output is already in score units.  It can only reshape the composition in
 monotonically, so it removes at least as much composition as the linear fit.
 """
 
+# pylint: disable=duplicate-code
+
 import numpy as np
 import torch
 from permacache import drop_if_equal, permacache, stable_hash
