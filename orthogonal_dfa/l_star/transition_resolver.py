@@ -60,28 +60,61 @@ def distinguisher_position_dependence(
     lengths=_GATE_LENGTHS,
     samples=_GATE_SAMPLES,
     seed=0,
+    base_rates=None,
 ):
-    """Position-dependence of distinguisher d.
+    """Position-dependence of distinguisher d: the between-position SD of its effect.
 
-        g(L) = E[oracle(s + d) | len(s) = L]
+    d's marginal log-odds effect at prefix length L, against a same-length control (a
+    random |d|-tail in place of d, so the length base-rate cancels), is a random effect
+    over positions:
 
-    Score = std of g across the sampled lengths after removing a linear fit in L (a
-    length trend is a base-rate drift, not d's position). Near 0 when d's effect is
-    translation-invariant (regular); large when it depends on where d sits (positional
-    -- the ladder pathology)."""
-    rng = np.random.default_rng(seed)
-    tail = np.broadcast_to(
-        np.asarray(distinguisher, dtype=int), (samples, len(distinguisher))
-    )
-    prof = []
+        e_L = logit P(accept | s + d) - logit P(accept | random),  |s| = L
+        e_hat_L ~ Normal(e_L, v_L),   e_L ~ Normal(mu, tau^2)
+
+    Returns the DerSimonian-Laird estimate of tau -- the SD of d's log-odds effect
+    across positions, net of the within-position sampling variance v_L. tau = 0 when
+    the effect is the same at every position (translation-invariant / regular); tau > 0
+    when it depends on where d sits (positional -- the ladder pathology).  ``base_rates``
+    caches the control accept-counts by total length so it is shared across
+    distinguishers."""
+    rng_d = np.random.default_rng(seed)
+    rng_c = np.random.default_rng(seed + 1)
+    d = list(distinguisher)
+    n = samples
+    dtail = np.broadcast_to(np.asarray(d, dtype=int), (n, len(d)))
+    effects, variances = [], []
     for length in lengths:
-        s = rng.integers(0, alphabet_size, (samples, length))
-        queries = np.concatenate([s, tail], axis=1).tolist()
-        prof.append(float(np.mean(oracle.membership_queries(queries))))
-    prof = np.array(prof)
-    ls = np.array(lengths, dtype=float)
-    slope, intercept = np.polyfit(ls, prof, 1)
-    return float(np.std(prof - (slope * ls + intercept)))
+        s = rng_d.integers(0, alphabet_size, (n, length))
+        kd = int(
+            np.sum(oracle.membership_queries(np.concatenate([s, dtail], 1).tolist()))
+        )
+        total = length + len(d)
+        if base_rates is not None and total in base_rates:
+            kc = base_rates[total]
+        else:
+            c = rng_c.integers(0, alphabet_size, (n, total)).tolist()
+            kc = int(np.sum(oracle.membership_queries(c)))
+            if base_rates is not None:
+                base_rates[total] = kc
+        # Haldane-Anscombe correction keeps the logit and its variance finite at 0/n.
+        p_d = (kd + 0.5) / (n + 1)
+        p_c = (kc + 0.5) / (n + 1)
+        effects.append(np.log(p_d / (1 - p_d)) - np.log(p_c / (1 - p_c)))
+        variances.append(1 / (n * p_d * (1 - p_d)) + 1 / (n * p_c * (1 - p_c)))
+    return _between_position_sd(np.array(effects), np.array(variances))
+
+
+def _between_position_sd(effects, variances):
+    """DerSimonian-Laird estimate of the between-group SD from per-group effect
+    estimates ``effects`` and their sampling variances -- the excess of the observed
+    spread over what sampling noise alone explains, or 0 if there is none."""
+    w = 1.0 / variances
+    mean = float(np.sum(w * effects) / np.sum(w))
+    q = float(np.sum(w * (effects - mean) ** 2))
+    df = len(effects) - 1
+    c = float(np.sum(w) - np.sum(w**2) / np.sum(w))
+    tau2 = max(0.0, (q - df) / c) if c > 0 else 0.0
+    return float(np.sqrt(tau2))
 
 
 class TransitionResolver:
@@ -101,6 +134,7 @@ class TransitionResolver:
         # are cached per distinguisher (the probe is the same each time).
         self.invariance_threshold = invariance_threshold
         self._pos_dep_cache = {}
+        self._base_rate_cache = {}  # control accept-counts by length, shared
 
     # -- membership / population -------------------------------------------
 
@@ -242,7 +276,10 @@ class TransitionResolver:
         key = tuple(distinguisher)
         if key not in self._pos_dep_cache:
             self._pos_dep_cache[key] = distinguisher_position_dependence(
-                self.pst.oracle, key, self.pst.alphabet_size
+                self.pst.oracle,
+                key,
+                self.pst.alphabet_size,
+                base_rates=self._base_rate_cache,
             )
         return self._pos_dep_cache[key]
 

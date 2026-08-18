@@ -24,8 +24,9 @@ from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.structures import Oracle
 from orthogonal_dfa.l_star.transition_resolver import distinguisher_position_dependence
 
-# Between the regular targets (<= ~0.017) and the positional one (>= ~0.067).
-THRESHOLD = 0.04
+# tau in log-odds: refuse when d's effect varies by more than this across positions.
+# Between the regular targets (<= ~0.06) and the positional one (>= ~0.38).
+THRESHOLD = 0.15
 
 
 class ParityOracle(Oracle):
