@@ -10,10 +10,7 @@ from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     fit_gate_composition_residual,
     gate_residual_oracle,
 )
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (
-    flanks,
-    run_over_middles,
-)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 from tests.spliceai_small import QUERY_LENGTH, small_module_and_exon
 
@@ -67,7 +64,9 @@ class TestGateCompositionResidualScore(unittest.TestCase):
         order = np.argsort(self._pred_lin(residual, middles))
         diffs = np.diff(subtracted[order])
         # monotone non-decreasing up to float error
-        self.assertGreaterEqual(diffs.min(), -1e-3, "subtracted not monotone in pred_lin")
+        self.assertGreaterEqual(
+            diffs.min(), -1e-3, "subtracted not monotone in pred_lin"
+        )
         # and genuinely varying (the gate actually subtracts something)
         self.assertGreater(subtracted.std(), 0)
 
@@ -93,16 +92,28 @@ class TestGateCompositionResidualScore(unittest.TestCase):
     def test_oracle_is_balanced(self):
         with no_cache_global():
             oracle = gate_residual_oracle(
-                self.exon, self.module, length=QUERY_LENGTH,
-                len_lo=25, len_hi=40, bin_width=5, **FAST,
+                self.exon,
+                self.module,
+                length=QUERY_LENGTH,
+                len_lo=25,
+                len_hi=40,
+                bin_width=5,
+                **FAST,
             )
-        fresh = np.random.default_rng(7).integers(0, 4, size=(256, QUERY_LENGTH)).tolist()
+        fresh = (
+            np.random.default_rng(7).integers(0, 4, size=(256, QUERY_LENGTH)).tolist()
+        )
         self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.2)
 
     def test_fit_gate_bins_augments_the_linear_fit_with_monotonics(self):
         with no_cache_global():
             fit = _fit_gate_bins.function(
-                self.score_model, self.exon, len_lo=25, len_hi=40, bin_width=5, **FAST,
+                self.score_model,
+                self.exon,
+                len_lo=25,
+                len_hi=40,
+                bin_width=5,
+                **FAST,
             )
         n_bins = len(fit["betas"])
         self.assertEqual(len(fit["monotonics"]), n_bins)

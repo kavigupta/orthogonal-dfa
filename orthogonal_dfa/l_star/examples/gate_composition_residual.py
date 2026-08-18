@@ -28,9 +28,18 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
 from orthogonal_dfa.module.monotonic import Monotonic1D
 from orthogonal_dfa.spliceai.exon_score import device_of
 
+
 def _fit_monotonic(
-    pred_lin, scores, device, *, epochs, max_z_abs, num_input_breaks,
-    lr=1e-2, batch=2000, seed=0,
+    pred_lin,
+    scores,
+    device,
+    *,
+    epochs,
+    max_z_abs,
+    num_input_breaks,
+    lr=1e-2,
+    batch=2000,
+    seed=0,
 ):
     """Fit a Monotonic1D mapping the linear composition prediction -> score (MSE).
 
@@ -86,8 +95,16 @@ def _fit_gate_bins(
     monotonic fit to the score.  Returns the linear fit dict augmented with a
     list of per-bin monotonic state dicts."""
     lin = _fit_composition_bins(
-        score_model, exon, n_max=n_max, len_lo=len_lo, len_hi=len_hi,
-        bin_width=bin_width, per_bin=per_bin, seed=seed, device=device, chunk=chunk,
+        score_model,
+        exon,
+        n_max=n_max,
+        len_lo=len_lo,
+        len_hi=len_hi,
+        bin_width=bin_width,
+        per_bin=per_bin,
+        seed=seed,
+        device=device,
+        chunk=chunk,
     )
     flank_l, flank_r = flanks(exon)
     dev = device_of(score_model, device)
@@ -102,13 +119,22 @@ def _fit_gate_bins(
         ).astype(np.float64)
         feats = bow_features(mids, n_max).astype(np.float64)
         pred_lin = lin["intercepts"][bi] + feats @ lin["betas"][bi]
-        monotonics.append(_fit_monotonic(
-            pred_lin, scores, dev, epochs=epochs, seed=seed + bi,
-            max_z_abs=max_z_abs, num_input_breaks=num_input_breaks,
-        ))
+        monotonics.append(
+            _fit_monotonic(
+                pred_lin,
+                scores,
+                dev,
+                epochs=epochs,
+                seed=seed + bi,
+                max_z_abs=max_z_abs,
+                num_input_breaks=num_input_breaks,
+            )
+        )
     return dict(
-        **lin, monotonics=monotonics,
-        max_z_abs=max_z_abs, num_input_breaks=num_input_breaks,
+        **lin,
+        monotonics=monotonics,
+        max_z_abs=max_z_abs,
+        num_input_breaks=num_input_breaks,
     )
 
 
@@ -116,7 +142,9 @@ class GateCompositionResidualScore(CompositionResidualScore):
     """CompositionResidualScore that subtracts ``monotonic_bin(pred_lin)`` instead of
     the bare composition index ``pred_lin``."""
 
-    def __init__(self, score_model, *, monotonics, max_z_abs=4.0, num_input_breaks=1000, **kw):
+    def __init__(
+        self, score_model, *, monotonics, max_z_abs=4.0, num_input_breaks=1000, **kw
+    ):
         super().__init__(score_model, **kw)
         monos = []
         for sd in monotonics:
@@ -131,7 +159,9 @@ class GateCompositionResidualScore(CompositionResidualScore):
         out = raw.clone()
         for b in torch.unique(idx):
             sel = (idx == b).nonzero(as_tuple=True)[0]
-            m = self.monotonics[int(b)](pred_lin[sel].view(-1, 1).to(raw.device)).view(-1)
+            m = self.monotonics[int(b)](pred_lin[sel].view(-1, 1).to(raw.device)).view(
+                -1
+            )
             out[sel] = raw[sel] - m.to(raw.dtype)
         return out
 
@@ -151,12 +181,22 @@ def fit_gate_composition_residual(score_model, exon, *, device=None, **kw):
     fit = _fit_gate_bins(score_model, exon, device=device, **kw)
     flank_l, _ = flanks(exon)
     module = GateCompositionResidualScore(
-        score_model, flank_l_len=len(flank_l), n_max=kw.get("n_max", 4), **{
-            k: fit[k] for k in (
-                "edge0", "step", "intercepts", "betas", "r2s",
-                "monotonics", "max_z_abs", "num_input_breaks",
+        score_model,
+        flank_l_len=len(flank_l),
+        n_max=kw.get("n_max", 4),
+        **{
+            k: fit[k]
+            for k in (
+                "edge0",
+                "step",
+                "intercepts",
+                "betas",
+                "r2s",
+                "monotonics",
+                "max_z_abs",
+                "num_input_breaks",
             )
-        }
+        },
     )
     return module.to(device_of(score_model, device)).eval()
 
