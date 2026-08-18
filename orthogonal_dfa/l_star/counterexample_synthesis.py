@@ -204,7 +204,7 @@ def counterexample_driven_synthesis(
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
-    invariance_threshold=None,
+    invariance_gate=False,
 ):
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
@@ -218,7 +218,7 @@ def counterexample_driven_synthesis(
     best_acc = -1.0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        resolver = TransitionResolver(pst, invariance_threshold=invariance_threshold)
+        resolver = TransitionResolver(pst, invariance_gate=invariance_gate)
         resolver.build()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
@@ -280,7 +280,7 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float, invariance_threshold=None
+    pst, *, acc_threshold: float, invariance_gate=False
 ) -> DFA:
     # Rounds are not monotone -- rebuilding the representative pool re-clusters,
     # so a later family can classify worse -- so keep the most accurate
@@ -288,7 +288,7 @@ def do_counterexample_driven_synthesis(
     # reads the tree against it.
     best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
     for dfa, dt, true_acc, boundary in counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold, invariance_threshold=invariance_threshold
+        pst, acc_threshold=acc_threshold, invariance_gate=invariance_gate
     ):
         if true_acc > best_acc:
             best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary

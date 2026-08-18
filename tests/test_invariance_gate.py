@@ -9,9 +9,10 @@ feature is transportable -- the same feature wherever it occurs -- so appending 
 distinguisher has a position-invariant effect; a positional feature does not. The gate
 measures exactly that per distinguisher and refuses the position-encoding ones.
 
-Unit tests pin the signal (regular low, positional high); the integration test checks
-the gate leaves a regular target converging (the safety property -- the gate is
-otherwise dead code, active only when ``invariance_threshold`` is passed)."""
+Unit tests pin the signal (a regular distinguisher's Bayes factor favours invariance,
+a positional one favours position-dependence); the integration test checks the gate
+leaves a regular target converging (the safety property -- the gate is otherwise dead
+code, active only when ``invariance_gate=True``)."""
 
 import unittest
 
@@ -22,11 +23,9 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
 )
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.l_star.transition_resolver import distinguisher_position_dependence
-
-# tau in log-odds: refuse when d's effect varies by more than this across positions.
-# Between the regular targets (<= ~0.06) and the positional one (>= ~0.38).
-THRESHOLD = 0.15
+from orthogonal_dfa.l_star.transition_resolver import (
+    distinguisher_position_log_bayes_factor,
+)
 
 
 class ParityOracle(Oracle):
@@ -55,18 +54,18 @@ class PositionalScoreOracle(Oracle):
 
 
 class TestPositionDependenceSignal(unittest.TestCase):
-    def test_regular_distinguishers_are_invariant(self):
+    def test_regular_distinguishers_favour_invariance(self):
         parity = ParityOracle()
         for d in ([1], [2, 1], [3, 0, 0]):
-            self.assertLess(distinguisher_position_dependence(parity, d, 4), THRESHOLD)
+            self.assertLess(distinguisher_position_log_bayes_factor(parity, d, 4), 0.0)
 
-    def test_positional_distinguishers_encode_position(self):
+    def test_positional_distinguishers_favour_position_dependence(self):
         positional = PositionalScoreOracle()
         scores = [
-            distinguisher_position_dependence(positional, d, 4)
+            distinguisher_position_log_bayes_factor(positional, d, 4)
             for d in ([1], [2, 1], [3, 0, 0])
         ]
-        self.assertGreater(max(scores), THRESHOLD)
+        self.assertGreater(max(scores), 0.0)
 
 
 class TestInvarianceGate(unittest.TestCase):
@@ -81,7 +80,7 @@ class TestInvarianceGate(unittest.TestCase):
             sample_length=12,
         )
         dfa, _ = do_counterexample_driven_synthesis(
-            pst, acc_threshold=0.98, invariance_threshold=THRESHOLD
+            pst, acc_threshold=0.98, invariance_gate=True
         )
         held = np.random.default_rng(1).integers(0, 4, (2000, 12))
         call = np.array([bool(dfa.accepts_input(s.tolist())) for s in held])

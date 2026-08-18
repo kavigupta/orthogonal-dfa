@@ -52,31 +52,13 @@ _GATE_LENGTHS = tuple(range(8, 28, 2))
 _GATE_SAMPLES = 1500
 
 
-def distinguisher_position_dependence(
-    oracle,
-    distinguisher,
-    alphabet_size,
-    *,
-    lengths=_GATE_LENGTHS,
-    samples=_GATE_SAMPLES,
-    seed=0,
-    base_rates=None,
+def _position_effects(
+    oracle, distinguisher, alphabet_size, *, lengths, samples, seed, base_rates
 ):
-    """Position-dependence of distinguisher d: the between-position SD of its effect.
-
-    d's marginal log-odds effect at prefix length L, against a same-length control (a
-    random |d|-tail in place of d, so the length base-rate cancels), is a random effect
-    over positions:
-
-        e_L = logit P(accept | s + d) - logit P(accept | random),  |s| = L
-        e_hat_L ~ Normal(e_L, v_L),   e_L ~ Normal(mu, tau^2)
-
-    Returns the DerSimonian-Laird estimate of tau -- the SD of d's log-odds effect
-    across positions, net of the within-position sampling variance v_L. tau = 0 when
-    the effect is the same at every position (translation-invariant / regular); tau > 0
-    when it depends on where d sits (positional -- the ladder pathology).  ``base_rates``
-    caches the control accept-counts by total length so it is shared across
-    distinguishers."""
+    """Per prefix length L: d's marginal log-odds effect against a same-length control
+    (a random |d|-tail in place of d, so the length base-rate cancels), and that
+    estimate's sampling variance.  ``base_rates`` caches the control accept-counts by
+    total length so it is shared across distinguishers."""
     rng_d = np.random.default_rng(seed)
     rng_c = np.random.default_rng(seed + 1)
     d = list(distinguisher)
@@ -101,24 +83,76 @@ def distinguisher_position_dependence(
         p_c = (kc + 0.5) / (n + 1)
         effects.append(np.log(p_d / (1 - p_d)) - np.log(p_c / (1 - p_c)))
         variances.append(1 / (n * p_d * (1 - p_d)) + 1 / (n * p_c * (1 - p_c)))
-    return _between_position_sd(np.array(effects), np.array(variances))
+    return np.array(effects), np.array(variances)
 
 
-def _between_position_sd(effects, variances):
-    """DerSimonian-Laird estimate of the between-group SD from per-group effect
-    estimates ``effects`` and their sampling variances -- the excess of the observed
-    spread over what sampling noise alone explains, or 0 if there is none."""
-    w = 1.0 / variances
-    mean = float(np.sum(w * effects) / np.sum(w))
-    q = float(np.sum(w * (effects - mean) ** 2))
-    df = len(effects) - 1
-    c = float(np.sum(w) - np.sum(w**2) / np.sum(w))
-    tau2 = max(0.0, (q - df) / c) if c > 0 else 0.0
-    return float(np.sqrt(tau2))
+def _log_bayes_factor(effects, variances, prior_scale):
+    """log BF(tau>0 : tau=0) for effects ~ Normal(mu, tau^2) observed with known
+    within-group variances.  The shared mean mu is marginalised under a flat prior (its
+    improper constant cancels in the ratio) and tau under a half-normal(prior_scale);
+    the tau integral is a 400-point grid quadrature."""
+    e = np.asarray(effects, dtype=float)
+    v = np.asarray(variances, dtype=float)
+
+    def log_marginal(tau2):
+        s2 = v + tau2
+        w = 1.0 / s2
+        mu = np.sum(w * e) / np.sum(w)
+        return (
+            -0.5 * np.sum(np.log(2 * np.pi * s2))
+            - 0.5 * np.sum(w * (e - mu) ** 2)
+            + 0.5 * np.log(2 * np.pi / np.sum(w))
+        )
+
+    lm0 = log_marginal(0.0)
+    taus = np.linspace(0.0, 8.0 * prior_scale, 400)
+    log_prior = np.log(np.sqrt(2 / np.pi) / prior_scale) - taus**2 / (
+        2 * prior_scale**2
+    )
+    terms = np.array([log_marginal(t * t) for t in taus]) - lm0 + log_prior
+    hi = float(np.max(terms))
+    return hi + float(np.log(np.sum(np.exp(terms - hi)) * (taus[1] - taus[0])))
+
+
+def distinguisher_position_log_bayes_factor(
+    oracle,
+    distinguisher,
+    alphabet_size,
+    *,
+    lengths=_GATE_LENGTHS,
+    samples=_GATE_SAMPLES,
+    seed=0,
+    prior_scale=1.0,
+    base_rates=None,
+):
+    """log Bayes factor that distinguisher d encodes absolute position rather than a
+    transportable finite-memory feature.
+
+    d's marginal log-odds effect at prefix length L, against a same-length control (a
+    random |d|-tail), is a random effect over positions:
+
+        e_L = logit P(accept | s + d) - logit P(accept | random),  |s| = L
+        e_hat_L ~ Normal(e_L, v_L),   e_L ~ Normal(mu, tau^2)
+
+    Returns log P(data | tau > 0) - log P(data | tau = 0), marginalising mu (flat) and
+    tau (half-normal, scale ``prior_scale`` log-odds).  > 0 means the evidence favours a
+    position-dependent effect (the positional-ladder pathology); < 0 favours a
+    translation-invariant, regular feature.  The gate refuses a split when this is > 0 --
+    no threshold, just which model the data prefer."""
+    effects, variances = _position_effects(
+        oracle,
+        distinguisher,
+        alphabet_size,
+        lengths=lengths,
+        samples=samples,
+        seed=seed,
+        base_rates=base_rates,
+    )
+    return _log_bayes_factor(effects, variances, prior_scale)
 
 
 class TransitionResolver:
-    def __init__(self, pst, *, invariance_threshold=None):
+    def __init__(self, pst, *, invariance_gate=False):
         self.pst = pst
         self.tree = None
         self.family = None
@@ -129,12 +163,13 @@ class TransitionResolver:
         self.edges = None  # resolves (leaf, symbol) edges against the population
         self.indecisive = set()  # boundary strings the family could not place
 
-        # The invariance gate (off when None): refuse a split whose distinguisher
-        # encodes absolute position -- its position-dependence exceeds this.  Scores
-        # are cached per distinguisher (the probe is the same each time).
-        self.invariance_threshold = invariance_threshold
-        self._pos_dep_cache = {}
-        self._base_rate_cache = {}  # control accept-counts by length, shared
+        # The invariance gate (off by default): refuse a split whose distinguisher the
+        # Bayes factor says encodes absolute position rather than a transportable
+        # feature.  Scores are cached per distinguisher (the probe is the same each
+        # time), and the control base-rates are shared across them.
+        self.invariance_gate = invariance_gate
+        self._log_bf_cache = {}
+        self._base_rate_cache = {}
 
     # -- membership / population -------------------------------------------
 
@@ -260,28 +295,26 @@ class TransitionResolver:
         verdict = self.splits.verdict(s1, distinguisher)
         if verdict != SPLIT:
             return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
-        # The invariance gate: refuse a distinguisher that encodes absolute position
-        # rather than a transportable finite-memory feature.  A regular target's
-        # distinguishers are position-invariant and pass; a positional target's are
-        # aperiodic in position and are refused, so the shift-register ladder never
-        # forms.  Only would-be splits pay for the probe, and it is cached per
-        # distinguisher.
-        if self.invariance_threshold is not None:
-            if self._position_dependence(distinguisher) > self.invariance_threshold:
-                return _RESOLVED
+        # The invariance gate: refuse a distinguisher whose effect the Bayes factor
+        # says encodes absolute position rather than a transportable finite-memory
+        # feature.  A regular target's distinguishers are position-invariant and pass;
+        # a positional target's are refused, so the shift-register ladder never forms.
+        # Only would-be splits pay for the probe, and it is cached per distinguisher.
+        if self.invariance_gate and self._encodes_position(distinguisher):
+            return _RESOLVED
         self._apply_split(s1, distinguisher, witness, sprime)
         return _SPLIT
 
-    def _position_dependence(self, distinguisher):
+    def _encodes_position(self, distinguisher):
         key = tuple(distinguisher)
-        if key not in self._pos_dep_cache:
-            self._pos_dep_cache[key] = distinguisher_position_dependence(
+        if key not in self._log_bf_cache:
+            self._log_bf_cache[key] = distinguisher_position_log_bayes_factor(
                 self.pst.oracle,
                 key,
                 self.pst.alphabet_size,
                 base_rates=self._base_rate_cache,
             )
-        return self._pos_dep_cache[key]
+        return self._log_bf_cache[key] > 0
 
     def _first_bad_edge(self, w, states, lo, hi):
         """Binary-search the first index where the followed state diverges from a
