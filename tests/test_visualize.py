@@ -37,7 +37,7 @@ class _StubPst:
 
 
 class _StubLearner:
-    """The duck type ``visualize`` consumes -- no DirectLStarLearner needed."""
+    """The duck type ``visualize`` consumes -- no TransitionResolver needed."""
 
     pst = _StubPst()
     num_states = 2

@@ -34,7 +34,7 @@ from .sifting import Sifter
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
-# Outcome of processing one probe (see DirectLStarLearner.process):
+# Outcome of processing one probe (see TransitionResolver.process):
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
@@ -43,7 +43,7 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 _PROBE_BLOCK = 16
 
 
-class DirectLStarLearner:
+class TransitionResolver:
     """Learns a DFA from random probe strings via transition/tree disagreement.
 
     Parameters
@@ -141,7 +141,7 @@ class DirectLStarLearner:
     def close_edges(self) -> int:
         return self.edges.close()
 
-    def split(self, state: int, distinguisher: tuple) -> int:
+    def _split(self, state: int, distinguisher: tuple) -> int:
         """Refine leaf ``state`` into ``{True: state, False: new_state}`` under
         ``distinguisher`` and return the new state id.
 
@@ -157,7 +157,7 @@ class DirectLStarLearner:
 
     # -- one probe ----------------------------------------------------------
 
-    def _first_disagreement(
+    def _first_bad_edge(
         self, w: List[int], states: List[Optional[int]], lo: int, hi: int
     ) -> Optional[int]:
         """Binary-search the first index where the *followed* state ``states[i]``
@@ -173,10 +173,10 @@ class DirectLStarLearner:
         if states[mid] is None:
             return None
         if actual == states[mid]:
-            return self._first_disagreement(w, states, mid, hi)
-        return self._first_disagreement(w, states, lo, mid)
+            return self._first_bad_edge(w, states, mid, hi)
+        return self._first_bad_edge(w, states, lo, mid)
 
-    def process(self, w: List[int], delta) -> int:
+    def _process(self, w: List[int], delta) -> int:
         """Walk one probe string through ``delta`` and act on the disagreement it
         exposes.
 
@@ -226,7 +226,7 @@ class DirectLStarLearner:
         actual = self._sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
-        fd = self._first_disagreement(w, states, agree_point, len(w))
+        fd = self._first_bad_edge(w, states, agree_point, len(w))
         if fd is None:
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
@@ -258,7 +258,7 @@ class DirectLStarLearner:
         """Split leaf ``s1`` on ``distinguisher`` and record the two prefixes the
         disagreement separated as members of whichever side they land on -- they
         are the first strings known to reach the new leaves."""
-        self.split(s1, distinguisher)
+        self._split(s1, distinguisher)
         for p in (witness, sprime):
             st = self._sift(p)
             if st is not None:
@@ -304,7 +304,7 @@ class DirectLStarLearner:
         since_split = 0
         delta = self._total_delta()
         for w in self._probe_blocks(max_probes):
-            status = self.process(w, delta)
+            status = self._process(w, delta)
             if status == _SPLIT:
                 splits += 1
                 since_split = 0
@@ -340,7 +340,7 @@ def export_dfa(tree, partial, family, pst, decisive_target) -> Tuple[DFA, Midfix
     transitions, unresolved = partial.totalise(range(tree.num_states), decisive_target)
     for state, c in unresolved:
         print(
-            f"direct_lstar: no decisive edge for (state {state}, symbol {c}); "
+            f"transition_resolver: no decisive edge for (state {state}, symbol {c}); "
             "falling back to a self-loop"
         )
 

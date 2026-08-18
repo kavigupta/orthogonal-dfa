@@ -20,7 +20,7 @@ from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .dfa_utils import per_state_sample
-from .direct_lstar import DirectLStarLearner
+from .transition_resolver import TransitionResolver
 from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
 
@@ -204,7 +204,7 @@ def _discover(pst, vs, *, max_probes: int, patience: int):
     (sift -> None) strings that feed the FNR gate -- densely and targeted, so a
     probe need not end at the boundary.  One pass therefore both finds the splits
     and gathers what the next round's family must resolve."""
-    learner = DirectLStarLearner(pst, vs)
+    learner = TransitionResolver(pst, vs)
     learner.close_edges()
     learner.counterexample_pass(max_probes=max_probes, patience=patience)
     learner.close_edges()

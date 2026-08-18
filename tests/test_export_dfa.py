@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.direct_lstar import DirectLStarLearner, export_dfa
+from orthogonal_dfa.l_star.transition_resolver import TransitionResolver, export_dfa
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.partial_dfa import PartialDFA
 from tests.direct_lstar_stubs import make_pst
@@ -59,7 +59,7 @@ class TestLearnerExport(unittest.TestCase):
         # *callback*, so an arity change that every direct call site absorbs can
         # still break here -- and only when the worklist left an edge open, which
         # the quick benchmarks never do.
-        learner = DirectLStarLearner(make_pst(), [0, 1])
+        learner = TransitionResolver(make_pst(), [0, 1])
         learner.population.add([], at=learner.tree.path_of(0))
         learner.population.add([1], at=learner.tree.path_of(1))
         dfa, _ = learner.to_dfa_and_tree()  # every edge still open

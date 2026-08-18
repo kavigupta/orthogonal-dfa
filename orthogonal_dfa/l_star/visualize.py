@@ -1,4 +1,4 @@
-"""Diagnostics renderer for a :class:`DirectLStarLearner` against a known DFA.
+"""Diagnostics renderer for a :class:`TransitionResolver` against a known DFA.
 
 Produces three panels, all keyed by one colour per learned Myhill-Nerode class:
 

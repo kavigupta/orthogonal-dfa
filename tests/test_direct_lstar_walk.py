@@ -1,4 +1,4 @@
-"""Where :meth:`DirectLStarLearner.process` anchors its walk.
+"""Where :meth:`TransitionResolver.process` anchors its walk.
 
 Driven by stubs rather than synthesis: the anchor is a property of the walk, and
 the end-to-end targets that depend on it are noisy enough that a regression shows
@@ -8,7 +8,7 @@ up as a state count that also moves for unrelated reasons.
 import unittest
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.direct_lstar import _RESOLVED, DirectLStarLearner
+from orthogonal_dfa.l_star.transition_resolver import _RESOLVED, TransitionResolver
 
 
 class _StubSifter:
@@ -34,7 +34,7 @@ class _StubPopulation:
         self.recorded.append((at, tuple(string)))
 
 
-class _Learner(DirectLStarLearner):
+class _Learner(TransitionResolver):
     """Captures what the walk hands to the disagreement test."""
 
     # pylint: disable=super-init-not-called
@@ -60,7 +60,7 @@ class TestProcessAnchor(unittest.TestCase):
         """The empty string is the one the family places worst, so a probe that
         cannot start there must still be walked, from deeper in."""
         learner = _Learner(_StubSifter(places_at=2))
-        learner.process([0, 1, 0, 1], DELTA)
+        learner._process([0, 1, 0, 1], DELTA)
 
         w, states, agree_point = learner.acted
         self.assertEqual(agree_point, 2)
@@ -70,19 +70,19 @@ class TestProcessAnchor(unittest.TestCase):
 
     def test_records_the_anchor_not_the_empty_string(self):
         learner = _Learner(_StubSifter(places_at=2))
-        learner.process([0, 1, 0, 1], DELTA)
+        learner._process([0, 1, 0, 1], DELTA)
 
         self.assertEqual(learner.population.recorded, [(7, (0, 1))])
 
     def test_harvests_every_prefix_it_could_not_place(self):
         learner = _Learner(_StubSifter(places_at=2))
-        learner.process([0, 1, 0, 1], DELTA)
+        learner._process([0, 1, 0, 1], DELTA)
 
         self.assertEqual(learner.indecisive, {("bail",), (0, "bail")})
 
     def test_walks_from_the_empty_string_when_it_places(self):
         learner = _Learner(_StubSifter(places_at=0))
-        learner.process([0, 1], DELTA)
+        learner._process([0, 1], DELTA)
 
         _, states, agree_point = learner.acted
         self.assertEqual(agree_point, 0)
@@ -92,7 +92,7 @@ class TestProcessAnchor(unittest.TestCase):
         sifter = _StubSifter(places_at=99)
         learner = _Learner(sifter)
 
-        self.assertEqual(learner.process([0, 1, 0], DELTA), _RESOLVED)
+        self.assertEqual(learner._process([0, 1, 0], DELTA), _RESOLVED)
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])

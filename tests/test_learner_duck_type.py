@@ -7,7 +7,7 @@ exactly that.  These assert the real class, not a duck.
 
 import unittest
 
-from orthogonal_dfa.l_star.direct_lstar import DirectLStarLearner
+from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
 from orthogonal_dfa.l_star.visualize import (
     _prefill_fn,
     _resolved_edges,
@@ -18,7 +18,7 @@ from tests.direct_lstar_stubs import make_pst
 
 
 def _learner():
-    return DirectLStarLearner(make_pst(), [0, 1])
+    return TransitionResolver(make_pst(), [0, 1])
 
 
 class TestVisualizeDuckType(unittest.TestCase):
