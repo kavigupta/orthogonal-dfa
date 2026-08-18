@@ -1,11 +1,12 @@
-"""Nonlinear motif harvesting on the linearly-controlled SpliceAI oracle.
+"""Nonlinear motif harvesting on the gate-controlled SpliceAI oracle.
 
-The linear composition-residual oracle (``composition_residual``) is SpliceAI's exon
-score with a per-length-bin *linear* bag-of-k-mers prediction subtracted.  First-order
-composition is therefore removed; what remains is positional and higher-order structure.
-This module finds that structure by **perturbation analysis** -- in-silico mutagenesis
-plus motif-insertion scans -- and, crucially, separates genuinely **nonlinear** motifs
-from leftover additive (composition-like) effects via an epistasis test.
+The gate composition-residual oracle (``gate_composition_residual``) is SpliceAI's exon
+score with a per-length-bin *monotonic-gate* bag-of-k-mers prediction subtracted.  Both
+first-order and monotone-nonlinear composition are therefore removed; what remains is
+positional and higher-order structure.  This module finds that structure by
+**perturbation analysis** -- in-silico mutagenesis plus motif-insertion scans -- and,
+crucially, separates genuinely **nonlinear** motifs from leftover additive
+(composition-like) effects via an epistasis test.
 
 The pipeline (``harvest``):
 
@@ -16,8 +17,8 @@ The pipeline (``harvest``):
    change.  Perturbations with large effects are the candidate motifs.
 4. ``nonlinear_component`` -- each motif's observed effect minus the sum of its single-
    base ISM effects.  A motif whose effect equals the additive prediction is an additive
-   (composition-like, what the *gate* would also remove) effect; a large residual is a
-   genuine nonlinear/epistatic motif -- the harvest target.
+   (composition-like) effect; a large residual is a genuine nonlinear/epistatic motif --
+   the harvest target.
 
 All scoring is batched through ``run_over_middles`` (one GPU pass per chunk).
 """
@@ -30,7 +31,9 @@ from typing import Callable, List, Optional, Sequence, Tuple
 import numpy as np
 
 from orthogonal_dfa.data.exon import RawExon
-from orthogonal_dfa.l_star.examples.composition_residual import fit_composition_residual
+from orthogonal_dfa.l_star.examples.gate_composition_residual import (
+    fit_gate_composition_residual,
+)
 from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore, device_of
 
@@ -43,29 +46,18 @@ def build_controlled_score(
     *,
     device=None,
     chunk: int = 1024,
-    use_gate: bool = False,
     **fit_kw,
 ) -> Callable[[Sequence[Sequence[int]]], np.ndarray]:
-    """A function ``middles -> controlled scores`` for the residual oracle.
+    """A function ``middles -> controlled scores`` for the gate-residual oracle.
 
-    ``middles`` is a list of equal-length int sequences (A=0,C=1,G=2,T=3).  With
-    ``use_gate=False`` (default) composition is removed by the *linear* bag-of-k-mers
-    fit (``fit_composition_residual``); with ``use_gate=True`` by the *monotonic gate*
-    (``fit_gate_composition_residual``), which also removes monotone-nonlinear
-    composition, so any motif that survives it is not just leftover composition.  The
-    fit is permacached; ``fit_kw`` (``len_lo``, ``len_hi``, ``n_max`` ...) forwards on.
+    ``middles`` is a list of equal-length int sequences (A=0,C=1,G=2,T=3).  Composition
+    is removed by the *monotonic gate* (``fit_gate_composition_residual``), which also
+    removes monotone-nonlinear composition, so any motif that survives it is not just
+    leftover composition.  The fit is permacached; ``fit_kw`` (``len_lo``, ``len_hi``,
+    ``n_max`` ...) forwards on.
     """
     score_model = SpliceAIExonScore(spliceai_model).eval()
-    if use_gate:
-        # optional: the monotonic-gate oracle (PR #194); only needed for the linear-vs-
-        # gate comparison, so imported lazily and tolerated if it is not on this branch.
-        from orthogonal_dfa.l_star.examples.gate_composition_residual import (  # pylint: disable=import-error,import-outside-toplevel
-            fit_gate_composition_residual,
-        )
-
-        residual = fit_gate_composition_residual(score_model, exon, device=device, **fit_kw)
-    else:
-        residual = fit_composition_residual(score_model, exon, device=device, **fit_kw)
+    residual = fit_gate_composition_residual(score_model, exon, device=device, **fit_kw)
     dev = device_of(score_model, device)
     flank_l, flank_r = flanks(exon)
 
@@ -337,17 +329,15 @@ def _main():
 
     n_ctx = int(os.environ.get("N_CTX", "3000"))
     motif_k = int(os.environ.get("MOTIF_K", "3"))
-    use_gate = os.environ.get("USE_GATE", "") not in ("", "0", "false")
     length = default_exon.random_text_length
     # optionally restrict positions to the interior, away from the position-locked
     # donor/acceptor edges, so what surfaces is genuinely context- not edge-driven
     margin = int(os.environ.get("EDGE_MARGIN", "0"))
     pos_range = (margin, length - motif_k + 1 - margin) if margin else None
 
-    kind = "GATE" if use_gate else "linear"
-    print(f"building {kind}-controlled score (SpliceAI-400)  exon length={length}",
+    print(f"building gate-controlled score (SpliceAI-400)  exon length={length}",
           flush=True)
-    score = build_controlled_score(default_exon, load_spliceai(400, 0), use_gate=use_gate)
+    score = build_controlled_score(default_exon, load_spliceai(400, 0))
 
     print(f"in-context harvest: {n_ctx} contexts, {motif_k}-mers, "
           f"pos_range={pos_range or 'all'}", flush=True)

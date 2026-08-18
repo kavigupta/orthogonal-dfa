@@ -124,9 +124,7 @@ Three methodological points were each necessary to see this:
 ## Reproduce
 
 ```
-python -m orthogonal_dfa.analysis.nonlinear_motif_miner            # in-context, linear residual
-USE_GATE=1 python -m orthogonal_dfa.analysis.nonlinear_motif_miner # gate residual (needs the
-                                                                   # gate oracle, PR #194)
+python -m orthogonal_dfa.analysis.nonlinear_motif_miner  # in-context, gate residual
 ```
 Env: `N_CTX` (contexts, default 3000), `MOTIF_K` (k, default 3), `EDGE_MARGIN` (drop
 positions within this many of the edges — use it to exclude the donor edge and confirm
@@ -138,9 +136,6 @@ what is context- vs edge-driven).
   frame when it is in-frame, position ≡ start mod 3). Sampling positions uniformly *dilutes*
   it (`TAA` signed t only −1.8). Fixing / stratifying position mod 3 should sharpen the
   frame signal and let the *signed* ranking recover it too.
-- **`USE_GATE` depends on PR #194** (the monotonic-gate oracle). The gate import is lazy
-  and pylint-guarded; the linear path works on `main` alone. Rebase/merge order:
-  #194 → #196 to make the gate path importable on `main`.
 - **Wider scans:** `MOTIF_K=2,4`; larger `N_CTX`; `EDGE_MARGIN` to isolate context- from
   edge-driven effects; and follow up the position-specific epistatic donor motifs
   (`GGT`/`GTA`@184–185).
