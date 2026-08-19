@@ -108,6 +108,34 @@ class InteractionOracle(Oracle):
         return bool(self._score(list(string)) > self._thr)
 
 
+class FrameOracle(Oracle):
+    """Regular (finite-memory) reading-frame feature: accept iff at least ``thr`` of the
+    three reading frames contain a stop codon (TAA/TAG/TGA over A=0,C=1,G=2,T=3).  This is
+    the synthetic analogue of the real oracle's frame signal -- a *transportable* feature
+    the learner recovers exactly (accuracy ~1.000), NOT a positional ladder.  It is the
+    synthetic witness of the over-block in
+    docs/invariance_gate_overblocks_on_real_oracle.md: at ``thr=2`` the stop-codon
+    distinguishers are rare enough that appending one has a strongly phase-dependent
+    *marginal* effect the control arm cannot cancel, so the marginal-effect gate refuses
+    them even though the split is transportable."""
+
+    alphabet_size = 4
+    _STOPS = frozenset({(3, 0, 0), (3, 0, 2), (3, 2, 0)})
+
+    def __init__(self, *, thr=2):
+        self._thr = thr
+
+    def membership_query(self, string):
+        seq = list(string)
+        hit = [False, False, False]
+        for f in range(3):
+            for k in range(f, len(seq) - 2, 3):
+                if (seq[k], seq[k + 1], seq[k + 2]) in self._STOPS:
+                    hit[f] = True
+                    break
+        return sum(hit) >= self._thr
+
+
 class TestPositionDependenceSignal(unittest.TestCase):
     def test_regular_distinguishers_favour_invariance(self):
         parity = ParityOracle()
@@ -152,6 +180,24 @@ class TestPositionDependenceSignal(unittest.TestCase):
         for d in ([1, 1], [2, 1], [1, 1, 1]):
             self.assertGreater(
                 distinguisher_position_log_bayes_factor(oracle, d, 4, sample_length=16),
+                0.0,
+            )
+
+    @unittest.expectedFailure
+    def test_gate_should_not_refuse_a_regular_frame_target(self):
+        # KNOWN LIMITATION (docs/invariance_gate_overblocks_on_real_oracle.md): the gate
+        # scores a distinguisher's phase-dependent *marginal* effect, not whether the
+        # split it induces is *transportable*.  FrameOracle(thr=2) is regular and the
+        # learner recovers it exactly, so its stop-codon distinguishers should pass the
+        # gate (logBF < 0).  But at thr=2 the motif is rare, so appending it has a
+        # strongly phase-dependent marginal effect the control cannot cancel, and the
+        # gate refuses TAA/TAG (logBF ~ +19) -- a false positive.  This asserts the
+        # correct (transportable) verdict and is marked expectedFailure until the gate
+        # measures split transportability rather than the marginal-effect proxy.
+        oracle = FrameOracle(thr=2)
+        for d in ([3, 0, 0], [3, 0, 2]):  # TAA, TAG -- complete stop codons
+            self.assertLess(
+                distinguisher_position_log_bayes_factor(oracle, d, 4, sample_length=40),
                 0.0,
             )
 
