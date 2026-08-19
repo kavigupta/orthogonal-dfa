@@ -15,11 +15,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
-from tests.lstar_common import (
-    assertDFA,
-    assertion_allowed_error,
-    compute_dfa_accuracy,
-)
+from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
 
 
 class TestLStar(unittest.TestCase):
