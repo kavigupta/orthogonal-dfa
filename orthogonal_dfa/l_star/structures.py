@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
@@ -39,12 +40,9 @@ class AsymmetricBernoulli(NoiseModel):
     p_1: float  # Probability of returning 1 when model output is 1
 
     def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
-        from permacache import stable_hash
-
         def uniform_random(seed_obj: object) -> float:
-            hash_value = stable_hash(seed_obj)
-            hash_value = (int(hash_value, 16) % 100) / 100
-            return hash_value
+            digest = hashlib.blake2b(repr(seed_obj).encode(), digest_size=8).digest()
+            return int.from_bytes(digest, "big") / 2**64
 
         hash_input = uniform_random((string, seed))
         if correct_value:
