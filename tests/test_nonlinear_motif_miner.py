@@ -1,39 +1,41 @@
-"""The in-context significance math is validated against a mock score with a *known*
+"""The marginal-benefit ranking is validated against a mock score with a *known*
 context-defined motif -- no SpliceAI, no GPU."""
 import unittest
 
 import numpy as np
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
-    context_motif_significance,
+    marginal_motif_records,
     sample_contexts,
 )
 
 L = 24
 
 
-class TestContextMotifSignificance(unittest.TestCase):
-    def test_a_context_defined_motif_has_the_largest_magnitude_anywhere(self):
-        # A score that adds a bonus whenever "GTA" appears ANYWHERE (position-agnostic,
-        # context-defined) plus per-position additive noise.  The in-context test should
-        # flag GTA as having the largest effect magnitude vs alternatives, at any position.
-        target = (2, 3, 0)  # GTA
+class TestMarginalMotifRecords(unittest.TestCase):
+    def test_a_longer_motif_that_only_extends_a_shorter_one_sinks(self):
+        # Score adds a bonus whenever "CG" (1,2) appears ANYWHERE, plus per-position noise.
+        # CG carries the whole effect, so 3-mers that merely contain it (ACG, CGT) add no
+        # marginal benefit and must rank BELOW CG.
+        target = (1, 2)  # CG
         W = np.random.default_rng(0).standard_normal((L, 4))
 
         def score(middles):
             out = []
             for m in middles:
                 v = float(sum(W[i, m[i]] for i in range(len(m))))
-                if any(tuple(m[j : j + 3]) == target for j in range(len(m) - 2)):
+                if any(tuple(m[j : j + 2]) == target for j in range(len(m) - 1)):
                     v += 3.0
                 out.append(v)
             return np.array(out)
 
-        contexts = sample_contexts(L, 3, 2000, seed=1)
-        stats = context_motif_significance(score, contexts, 3)
-        top = max(stats, key=lambda s: s.magnitude)
-        self.assertEqual(top.motif, "GTA")
-        self.assertGreater(top.mag_z, 3.0)  # clearly above the average k-mer
+        contexts = sample_contexts(L, 3, 1500, seed=1)
+        records = marginal_motif_records(score, contexts, max_k=3)
+        rank = {r.motif: i for i, r in enumerate(records)}  # 0 = highest marginal
+        self.assertLess(rank["CG"], rank["ACG"])
+        self.assertLess(rank["CG"], rank["CGT"])
+        # CG itself should be at (or very near) the top by marginal benefit
+        self.assertLess(rank["CG"], 3)
 
 
 if __name__ == "__main__":
