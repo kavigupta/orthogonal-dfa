@@ -19,21 +19,9 @@ from typing import Dict, List, Optional, Tuple
 
 from .statistics import binomial_side_of_boundary
 
-#: Family sizes at which the sequential :meth:`SuffixFamily.is_accept` test looks
-#: for a decision, smallest first.  A prefix far from the threshold settles in the
-#: first block; only genuine boundary prefixes walk the whole family.
-_SIFT_BLOCK = 16
-
-#: Seed for the content-independent order the sequential test reveals suffixes in.
-#: Fixed, and independent of the pipeline rng, so it neither perturbs downstream
-#: sampling nor correlates with any structure in the family's own ordering -- each
-#: block is then a representative sample of the whole family.
-_SIFT_ORDER_SEED = 0
-
-#: Chance the sequential test stops early on the wrong side of the boundary.  Set
-#: small: an early stop trades the exact full-family mean for a decision from a
-#: prefix of it, so it must be confident the full family would agree.
-_SIFT_ALPHA = 1e-4
+_SIFT_BLOCK = 16  # family suffixes the sequential is_accept test draws per step
+_SIFT_ORDER_SEED = 0  # fixes the shuffle below; independent of the pipeline rng
+_SIFT_ALPHA = 1e-4  # tolerated chance is_accept early-stops on the wrong side
 
 _MISSING = object()
 
@@ -46,15 +34,13 @@ class SuffixFamily:
         self.vs = list(vs)
         self.assign_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
-        # The order the sequential test reveals suffixes in -- a fixed shuffle, so
-        # each block samples the whole family even when the family's own order
-        # carries structure (screening admits suffixes in correlated batches).
+        # A fixed shuffle: screening admits suffixes in correlated batches, so a
+        # contiguous prefix of vs is not a representative sample; this makes the
+        # sequential test's blocks ones.
         self._sift_order = random.Random(_SIFT_ORDER_SEED).sample(
             range(len(self.vs)), len(self.vs)
         )
-        # Sift verdicts, memoized per (seq, midfix).  Per-round, because the
-        # verdict depends on which family is in play; the underlying cells live in
-        # the table, which persists across rounds.
+        # Sift verdicts memoized per (seq, midfix), per-round like the family.
         self._verdicts: Dict[Tuple[tuple, tuple], Optional[bool]] = {}
 
     def bits(self, base) -> List[int]:
@@ -98,12 +84,9 @@ class SuffixFamily:
         and ``None`` in the indecisive band between them.  That band is what keeps
         a single leaf from being split twice on the same noise.
 
-        The rate is estimated sequentially: family suffixes are drawn a block at a
-        time and the test stops as soon as a binomial test is confident the full
-        family would land past a threshold, spending the whole family only on the
-        boundary prefixes that genuinely need it.  The full-family mean is used
-        exactly once the family is exhausted, so an exhausted verdict matches a
-        plain full-family decision."""
+        The rate is estimated sequentially (:meth:`_sequential_decide`), so only
+        the boundary prefixes pay for the whole family; an exhausted verdict is the
+        exact full-family decision."""
         key = (tuple(seq), tuple(midfix))
         cached = self._verdicts.get(key, _MISSING)
         if cached is not _MISSING:
@@ -113,6 +96,8 @@ class SuffixFamily:
         return verdict
 
     def _sequential_decide(self, base) -> Optional[bool]:
+        """Draw the family a block at a time, stopping once a binomial test is
+        confident which side of the band the full family's rate falls on."""
         n = len(self.vs)
         accepts = 0
         drawn = 0
@@ -124,9 +109,8 @@ class SuffixFamily:
             drawn = upto
             if upto >= n:
                 return self._decide(accepts / n, margin=0.0)
-            # Confident the full-family rate is past a threshold?  Sampling the
-            # family without replacement is tighter than the binomial models, so
-            # this only ever stops later than strictly necessary, never sooner.
+            # Drawing without replacement is tighter than these binomial tests, so
+            # a confident stop errs late, never early.
             if binomial_side_of_boundary(
                 accepts, upto, self.pst.accept_thresh, failure_prob=_SIFT_ALPHA
             ):
