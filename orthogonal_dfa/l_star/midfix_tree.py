@@ -244,9 +244,13 @@ def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: 
     """
 
     def decide_level(pairs) -> List[Optional[bool]]:
-        bases = [list(seq) + list(midfix) for seq, midfix in pairs]
+        strings = [list(seq) + list(midfix) for seq, midfix in pairs]
         return sequential_decisions(
-            bases, base_family, oracle.membership_queries, accept=accept, reject=reject
+            strings,
+            base_family,
+            oracle.membership_queries,
+            accept=accept,
+            reject=reject,
         )
 
     def decide(seq, midfix) -> Optional[bool]:

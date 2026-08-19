@@ -14,23 +14,23 @@ DEFAULT_ALPHA = 1e-3
 
 
 def sequential_decisions(
-    bases: List[list],
-    family: List[list],
-    membership: Callable[[List[list]], List[int]],
+    strings: List[List[int]],
+    suffix_family: List[List[int]],
+    membership: Callable[[List[List[int]]], List[int]],
     *,
     accept: float,
     reject: float,
     alpha: float = DEFAULT_ALPHA,
     block: int = DEFAULT_BLOCK,
 ) -> List[Optional[bool]]:
-    """Classify each ``base`` by its accept-rate over ``family``: ``True`` above
-    ``accept``, ``False`` below ``reject``, ``None`` in the band between.
+    """Classify each ``string`` by its accept-rate over ``suffix_family``: ``True``
+    above ``accept``, ``False`` below ``reject``, ``None`` in the band between.
 
-    The family is drawn ``block`` at a time in a fixed shuffle; a base is settled as
-    soon as a binomial test at confidence ``alpha`` clears a threshold, else it reads
-    the whole family and takes the exact mean's verdict. Each block batches across
-    every base still undecided. ``membership`` returns one 0/1 per string; a base's
-    query for a suffix is ``base + suffix``.
+    The family is drawn ``block`` at a time in a fixed shuffle; a string is settled
+    as soon as a binomial test at confidence ``alpha`` clears a threshold, else it
+    reads the whole family and takes the exact mean's verdict. Each block batches
+    across every string still undecided. ``membership`` returns one 0/1 per query;
+    a string's query for a suffix is ``string + suffix``.
     """
 
     def verdict(mean: float) -> Optional[bool]:
@@ -50,18 +50,20 @@ def sequential_decisions(
             return False
         return None
 
-    n = len(family)
+    n = len(suffix_family)
     order = random.Random(0).sample(range(n), n)
-    results: List[Optional[bool]] = [None] * len(bases)
-    accepts = [0] * len(bases)
-    active = list(range(len(bases)))
+    results: List[Optional[bool]] = [None] * len(strings)
+    accepts = [0] * len(strings)
+    active = list(range(len(strings)))
     drawn = 0
     upto = min(block, n)
     while active:
         queries, spans = [], []
         for i in active:
             lo = len(queries)
-            queries.extend(bases[i] + family[order[k]] for k in range(drawn, upto))
+            queries.extend(
+                strings[i] + suffix_family[order[k]] for k in range(drawn, upto)
+            )
             spans.append((i, lo, len(queries)))
         answers = np.asarray(membership(queries))
         for i, lo, hi in spans:
