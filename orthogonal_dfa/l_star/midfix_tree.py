@@ -6,9 +6,17 @@ membership of s + p + v over the round's base suffixes v, so p sits between the
 string and each suffix, hence the name. Leaves are DFA state ids.
 """
 
+import random
 from typing import Callable, Iterator, List, Optional, Tuple
 
 import numpy as np
+
+from .statistics import binomial_side_of_boundary
+
+#: Base suffixes oracle_decider draws per sequential block.
+_DECIDE_BLOCK = 16
+#: Tolerated chance a sequential decide stops on the wrong side of the threshold.
+_DECIDE_ALPHA = 1e-3
 
 # A leaf is an int state id; an internal node is
 # (midfix, {True: accept_child, False: reject_child}).
@@ -245,18 +253,73 @@ def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: 
             return False
         return None
 
-    def decide(seq, midfix) -> Optional[bool]:
-        vs = [list(seq) + list(midfix) + v for v in base_family]
-        return verdict(float(np.mean(oracle.membership_queries(vs))))
+    def confident_side(accepts: int, drawn: int) -> Optional[bool]:
+        """Whether ``accepts/drawn`` is confidently past a threshold: ``True`` above
+        ``accept``, ``False`` below ``reject``, ``None`` if neither yet."""
+        if binomial_side_of_boundary(
+            accepts, drawn, accept, failure_prob=_DECIDE_ALPHA
+        ):
+            return True
+        if (
+            binomial_side_of_boundary(
+                accepts, drawn, reject, failure_prob=_DECIDE_ALPHA
+            )
+            is False
+        ):
+            return False
+        return None
+
+    n = len(base_family)
+    # A fixed shuffle so each sequential block is a representative sample of the
+    # family, independent of the order it was screened in.
+    order = random.Random(0).sample(range(n), n)
 
     def decide_level(pairs) -> List[Optional[bool]]:
-        queries, spans = [], []
-        for seq, midfix in pairs:
-            lo = len(queries)
-            queries.extend(list(seq) + list(midfix) + v for v in base_family)
-            spans.append((lo, len(queries)))
-        answers = np.asarray(oracle.membership_queries(queries))
-        assert len(answers) == len(queries), "oracle dropped answers"
-        return [verdict(float(answers[lo:hi].mean())) for lo, hi in spans]
+        """Classify a whole tree level, drawing the family a block at a time and
+        dropping each pair as soon as a binomial test is confident which side of
+        the threshold it is on -- so a string far from the boundary (the common
+        case for the accuracy estimate's random samples) settles in the first
+        block.  Each block still batches its queries across every pair still
+        undecided, and an exhausted pair falls back to the exact full-family mean.
+        """
+        results: List[Optional[bool]] = [None] * len(pairs)
+        accepts = [0] * len(pairs)
+        active = list(range(len(pairs)))
+        drawn = 0
+        upto = min(_DECIDE_BLOCK, n)
+        while active:
+            queries, spans = [], []
+            for i in active:
+                seq, midfix = pairs[i]
+                lo = len(queries)
+                queries.extend(
+                    list(seq) + list(midfix) + base_family[order[k]]
+                    for k in range(drawn, upto)
+                )
+                spans.append((i, lo, len(queries)))
+            answers = np.asarray(oracle.membership_queries(queries))
+            for i, lo, hi in spans:
+                accepts[i] += int(answers[lo:hi].sum())
+            drawn = upto
+            if drawn >= n:
+                for i in active:
+                    results[i] = verdict(accepts[i] / n)
+                break
+            still = []
+            for i in active:
+                side = confident_side(accepts[i], drawn)
+                if side is None:
+                    still.append(i)
+                else:
+                    results[i] = side
+            active = still
+            upto = min(upto * 2, n)
+        return results
+
+    def decide(seq, midfix) -> Optional[bool]:
+        # Reuse the level path for one string, so the single and batched readers
+        # early-stop identically -- callers that mix them (the accuracy estimate's
+        # batched s_end plus its per-y binary search) must never disagree.
+        return decide_level([(seq, midfix)])[0]
 
     return decide, decide_level
