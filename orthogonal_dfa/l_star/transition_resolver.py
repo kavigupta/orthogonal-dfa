@@ -219,8 +219,6 @@ class TransitionResolver:
         actual = self._sift(w[:mid])
         if actual is None:
             return None
-        if states[mid] is None:
-            return None
         if actual == states[mid]:
             return self._first_bad_edge(w, states, mid, hi)
         return self._first_bad_edge(w, states, lo, mid)
