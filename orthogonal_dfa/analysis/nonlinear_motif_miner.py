@@ -1,18 +1,13 @@
 """In-context motif significance on the gate-controlled SpliceAI oracle.
 
-The gate composition-residual oracle (``gate_composition_residual``) is SpliceAI's exon
-score with a per-length-bin *monotonic-gate* bag-of-k-mers prediction subtracted, so both
-first-order and monotone-nonlinear composition are removed; what remains is positional and
-higher-order structure.
-
-``context_motif_significance`` measures, for every k-mer, how much it moves the residual
-score *in context*: at each of many consistent-background ``(background, position)``
-contexts we overwrite ``[p, p+k)`` with every k-mer and, relative to the average k-mer at
-that same spot, take the **magnitude** of the change (``mean|rel|``).  Ranking by magnitude
--- not the signed mean -- surfaces context-dependent, sign-flipping motifs (the reading-
-frame stop codons) that a signed average cancels out.
-
-All scoring is batched through ``run_over_middles`` (one GPU pass per chunk).
+The gate composition-residual oracle is SpliceAI's exon score with a per-length-bin
+monotonic-gate bag-of-k-mers prediction subtracted, removing both first-order and
+monotone-nonlinear composition.  For every k-mer we measure the *magnitude* of its
+in-context effect: at many consistent-background ``(background, position)`` contexts we
+overwrite ``[p, p+k)`` with every k-mer and, relative to the average k-mer at that spot,
+take ``mean|rel|``.  Ranking by magnitude rather than the signed mean surfaces context-
+dependent, sign-flipping motifs -- the reading-frame stop codons -- that a signed average
+cancels out.  The top-motif table is permacached, so a notebook re-runs instantly.
 """
 from __future__ import annotations
 
@@ -21,13 +16,15 @@ from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
+from permacache import permacache
 
-from orthogonal_dfa.data.exon import RawExon
+from orthogonal_dfa.data.exon import RawExon, default_exon
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
     fit_gate_composition_residual,
 )
 from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore, device_of
+from orthogonal_dfa.spliceai.load_model import load_spliceai
 
 BASES = "ACGT"
 
@@ -40,14 +37,9 @@ def build_controlled_score(
     chunk: int = 1024,
     **fit_kw,
 ) -> Callable[[Sequence[Sequence[int]]], np.ndarray]:
-    """A function ``middles -> controlled scores`` for the gate-residual oracle.
-
-    ``middles`` is a list of equal-length int sequences (A=0,C=1,G=2,T=3).  Composition
-    is removed by the *monotonic gate* (``fit_gate_composition_residual``), which also
-    removes monotone-nonlinear composition, so any motif that survives it is not just
-    leftover composition.  The fit is permacached; ``fit_kw`` (``len_lo``, ``len_hi``,
-    ``n_max`` ...) forwards on.
-    """
+    """``middles -> gate-residual scores`` (A=0,C=1,G=2,T=3).  Composition is removed by
+    the monotonic gate (``fit_gate_composition_residual``, permacached); ``fit_kw`` (e.g.
+    ``len_lo``, ``len_hi``, ``n_max``) forwards on."""
     score_model = SpliceAIExonScore(spliceai_model).eval()
     residual = fit_gate_composition_residual(score_model, exon, device=device, **fit_kw)
     dev = device_of(score_model, device)
@@ -70,9 +62,9 @@ def sample_contexts(
     seed: int = 0,
     pos_range: Optional[Tuple[int, int]] = None,
 ) -> List[Tuple[List[int], int]]:
-    """``n_contexts`` ``(background, position)`` pairs -- a consistent background and a
-    spot to perturb.  ``position`` is drawn uniformly from ``pos_range`` (default: every
-    valid interior position), so aggregating over contexts is position-agnostic."""
+    """``n_contexts`` ``(background, position)`` pairs; ``position`` is uniform over
+    ``pos_range`` (default: every valid interior position), so aggregating is
+    position-agnostic."""
     rng = np.random.default_rng(seed)
     lo, hi = pos_range if pos_range is not None else (0, length - motif_k + 1)
     return [
@@ -83,10 +75,11 @@ def sample_contexts(
 
 @dataclass
 class ContextMotifStat:
+    """A k-mer's in-context effect size vs the alternatives at the same spot."""
+
     motif: str
-    magnitude: float   # mean |relative effect| -- effect size REGARDLESS of sign
-    mag_z: float       # (magnitude - mean over motifs) / std over motifs -- how much
-    #                    LARGER an effect than the alternative k-mers, in magnitude
+    magnitude: float  # mean|rel|: effect size regardless of sign
+    mag_z: float      # SDs by which magnitude exceeds the average k-mer's
     n: int
 
     def __repr__(self):
@@ -103,16 +96,13 @@ def context_motif_significance(
     *,
     chunk_contexts: int = 200,
 ) -> List[ContextMotifStat]:
-    """For every k-mer, the magnitude of its **in-context** effect vs the alternatives.
+    """Each k-mer's in-context effect magnitude vs the alternatives.
 
-    At each context we overwrite ``[p, p+k)`` with every k-mer and record the score
-    change ``delta``.  The removed background bases and the position are shared by all
-    k-mers at that context, so subtracting the per-context mean over k-mers,
-    ``rel = delta - mean_kmers(delta)``, isolates the *identity* of the inserted motif --
-    how much more (or less) it moves the score than a typical substitution at that exact
-    spot.  ``magnitude = mean|rel|`` is the effect size regardless of sign, and ``mag_z``
-    is how many standard deviations that exceeds the average k-mer's -- rank by it, because
-    a context-dependent (sign-flipping) motif is invisible to a signed mean.
+    At each context we overwrite ``[p, p+k)`` with every k-mer; subtracting the per-context
+    mean over k-mers, ``rel = delta - mean_kmers(delta)``, isolates the inserted motif's
+    identity (controlling for the removed bases and the position).  ``magnitude = mean|rel|``
+    is the sign-agnostic effect size and ``mag_z`` its z-score across motifs -- rank by it,
+    since a sign-flipping motif is invisible to a signed mean.
     """
     motifs = [list(m) for m in itertools.product(range(4), repeat=motif_k)]
     m_count = len(motifs)
@@ -128,11 +118,10 @@ def context_motif_significance(
                 perturbed.append(new)
         delta = score(perturbed).reshape(len(chunk), m_count) - base[:, None]
         rel_rows.append(delta - delta.mean(1, keepdims=True))
-    rel = np.concatenate(rel_rows, axis=0)  # (n_contexts, m_count)
+    rel = np.concatenate(rel_rows, axis=0)
 
-    magnitude = np.abs(rel).mean(0)  # direction-agnostic effect size per motif
+    magnitude = np.abs(rel).mean(0)
     mag_z = (magnitude - magnitude.mean()) / magnitude.std()
-
     return [
         ContextMotifStat(
             motif="".join(BASES[c] for c in m),
@@ -144,37 +133,34 @@ def context_motif_significance(
     ]
 
 
-def _main():
-    """Harvest in-context motifs from the gate-controlled SpliceAI-400 oracle:
-    perturbations whose effect magnitude, over consistent backgrounds, is larger than
-    alternative substitutions at the same spot -- position-agnostic."""
-    import os
+@permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/context_motif_stats_v1")
+def context_motif_stats(*, n_contexts=3000, motif_k=3, edge_margin=0, seed=0):
+    """Every k-mer's in-context stats on the gate-controlled SpliceAI-400 oracle, sorted by
+    magnitude (largest effect vs alternatives first).  Permacached.
 
-    from orthogonal_dfa.data.exon import default_exon
-    from orthogonal_dfa.spliceai.load_model import load_spliceai
-
-    n_ctx = int(os.environ.get("N_CTX", "3000"))
-    motif_k = int(os.environ.get("MOTIF_K", "3"))
-    length = default_exon.random_text_length
-    # optionally restrict positions to the interior, away from the position-locked
-    # donor/acceptor edges, so what surfaces is genuinely context- not edge-driven
-    margin = int(os.environ.get("EDGE_MARGIN", "0"))
-    pos_range = (margin, length - motif_k + 1 - margin) if margin else None
-
-    print(f"building gate-controlled score (SpliceAI-400)  exon length={length}",
-          flush=True)
+    ``edge_margin`` drops positions within that many nt of either exon edge (excludes the
+    position-locked donor/acceptor edges to confirm a signal is context- not edge-driven).
+    """
     score = build_controlled_score(default_exon, load_spliceai(400, 0))
-
-    print(f"in-context harvest: {n_ctx} contexts, {motif_k}-mers, "
-          f"pos_range={pos_range or 'all'}", flush=True)
-    contexts = sample_contexts(length, motif_k, n_ctx, pos_range=pos_range)
+    length = default_exon.random_text_length
+    pos_range = (
+        (edge_margin, length - motif_k + 1 - edge_margin) if edge_margin else None
+    )
+    contexts = sample_contexts(length, motif_k, n_contexts, seed=seed, pos_range=pos_range)
     stats = context_motif_significance(score, contexts, motif_k)
-
-    print("\nmotifs that create the LARGEST in-context effect vs alternatives "
-          "(by |effect|, direction-agnostic):")
-    for s in sorted(stats, key=lambda s: -s.magnitude)[:15]:
-        print("  " + repr(s))
+    return sorted(stats, key=lambda s: -s.magnitude)
 
 
-if __name__ == "__main__":
-    _main()
+def plot_top_motifs(stats, *, top=15, ax=None):
+    """Horizontal bar chart of the top motifs by in-context effect magnitude."""
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(5, 4))
+    top_stats = sorted(stats, key=lambda s: -s.magnitude)[:top]
+    ax.barh(range(len(top_stats)), [s.magnitude for s in top_stats], color="#4c72b0")
+    ax.set_yticks(range(len(top_stats)))
+    ax.set_yticklabels([s.motif for s in top_stats])
+    ax.invert_yaxis()
+    ax.set_xlabel("in-context effect magnitude  |rel|")
+    return ax
