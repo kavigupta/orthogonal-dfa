@@ -1,17 +1,8 @@
-"""The partial transition function the resolver builds alongside its tree.
+"""
+The partial transition function the resolver builds alongside its tree.
 
-``delta`` under construction: the edges resolved so far and the witness prefix
-that justified each one.  Keeping it here is what lets a split invalidate
-*precisely* the edges it made ambiguous instead of rebuilding the hypothesis: an
-edge that does not touch the split leaf keeps a valid witness, because its sift
-path never passed through that leaf.
-
-The object owns bookkeeping only.  *Deciding* where an edge points needs the
-oracle, so the caller supplies ``resolve(state, symbol)`` when closing and
-``decisive_target(state, symbol)`` when totalising.  Neither the edges pointing at
-a state nor the edges still to resolve are indexed: a split needs the former only
-~once per state, and an unresolved edge is just one missing from ``transitions``
--- both are scanned on demand.
+Also contains methods for splitting a state and for totalising the partial delta
+into a complete transition function for export.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -20,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 class PartialDFA:
     def __init__(self, alphabet_size: int, *, num_states: int):
         self.alphabet_size = alphabet_size
-        #: ``transitions[s][c]`` -- the current best guess for ``delta(s, c)``.
+        #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
         #: witnesses[s, c] = A prefix x such that dfa(x) = s and dfa(x + [c]) = transitions[s][c]
         self.witnesses: Dict[Tuple[int, int], List[int]] = {}
@@ -62,12 +53,11 @@ class PartialDFA:
         ]
 
     def split_state(self, state: int, new_state: int) -> None:
-        """Account for ``state`` having bifurcated into ``state`` and ``new_state``.
+        """
+        Account for state bifurcating into (state, new_state).
 
-        Only edges incident to the old leaf become ambiguous: its outgoing edges
-        vanish (the source is now two states) and every edge into it must be
-        re-classified.  Both sets are dropped; they and the new leaf's edges then
-        read as unresolved and get re-resolved."""
+        All relevant edges are removed, both outgoing from and incoming to state.
+        """
         self.transitions[new_state] = {}
         for c in range(self.alphabet_size):
             self.clear_edge(state, c)

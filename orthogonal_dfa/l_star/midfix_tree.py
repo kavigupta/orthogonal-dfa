@@ -4,16 +4,6 @@ The discrimination tree the transition resolver builds.
 Internal nodes are midfixes. A node's midfix p classifies a string s by the family
 membership of s + p + v over the round's base suffixes v, so p sits between the
 string and each suffix, hence the name. Leaves are DFA state ids.
-
-The tree owns structure only: which midfix cuts where, and which leaf a branch lands
-in. Reading a node is delegated to a caller-supplied decision callback, against the
-oracle for a fresh string or against the cached mask matrix for the whole prefix
-pool, so the thresholds and the query mechanism stay with the caller.
-
-Splitting only ever refines a leaf. The accept side of the root stays the accept side
-forever, so accepting_leaves needs no per-node labels; and the accept branch reuses
-the split leaf's id, so every id in range(num_states) is always a live leaf and the
-ids need no remapping on export.
 """
 
 from typing import Callable, Iterator, List, Optional, Tuple
@@ -56,10 +46,6 @@ def _depth(node: Node) -> int:
 class MidfixTree:
     """
     Discrimination tree over midfixes; see the module docstring.
-
-    base_family is the suffix family the midfixes are read against. The learner
-    classifies through its own decide callback and does not need it, so it defaults
-    to empty; the resolver and the accuracy estimate read it via suffixes().
     """
 
     def __init__(self, base_family: List[List[int]] = ()):
@@ -154,6 +140,12 @@ class MidfixTree:
             node = lookup[decision]
         return node, None
 
+    def classify(self, seq, decide: Decide) -> Optional[int]:
+        """
+        Route seq to a leaf, or None when a node's decide callback abstains.
+        """
+        return self.sift(seq, decide)[0]
+
     def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
         """
         The midfix separating s and sprime, or None.
@@ -175,12 +167,6 @@ class MidfixTree:
                 return full
             node = lookup[d]
         return None
-
-    def classify(self, seq, decide: Decide) -> Optional[int]:
-        """
-        Route seq to a leaf, or None when a node's decide callback abstains.
-        """
-        return self.sift(seq, decide)[0]
 
     def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
         """
