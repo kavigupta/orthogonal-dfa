@@ -90,11 +90,13 @@ def _fmt(motif):
     return "".join(BASES[c] for c in motif)
 
 
-def _kmer_effects(score, contexts, k, *, chunk_contexts=200):
+def _kmer_effects(score, contexts, k, *, max_seqs=100_000):
     """``(n_contexts, 4**k)`` raw effect ``e = score(insert k-mer at [p, p+k)) - score(bg)``
-    for every length-k motif (rows in ``_kmers(k)`` order)."""
+    for every length-k motif (rows in ``_kmers(k)`` order).  Chunked so each ``score()``
+    call sees about ``max_seqs`` sequences, bounding memory for large k (4**6 = 4096)."""
     motifs = _kmers(k)
     n = len(motifs)
+    chunk_contexts = max(1, max_seqs // n)
     rows = []
     for i in range(0, len(contexts), chunk_contexts):
         chunk = contexts[i : i + chunk_contexts]
