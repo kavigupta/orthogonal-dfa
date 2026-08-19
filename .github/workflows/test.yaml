@@ -7,9 +7,15 @@ env:
   # unused nvidia-*-cu12 wheels. The CPU build is ~180 MB and pulls none.
   UV_TORCH_BACKEND: cpu
 
+# Cancel superseded runs on a branch, but let every main commit finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   discover-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       test-files: ${{ steps.discover-files.outputs.files }}
       lstar-tests: ${{ steps.discover-lstar.outputs.tests }}
@@ -22,8 +28,6 @@ jobs:
           cache-dependency-glob: |
             requirements.txt
             setup.py
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
         run: |
           uv venv --python 3.12
@@ -43,6 +47,7 @@ jobs:
   test-file:
     needs: discover-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -56,8 +61,6 @@ jobs:
           cache-dependency-glob: |
             requirements.txt
             setup.py
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
         run: |
           uv venv --python 3.12
@@ -69,6 +72,7 @@ jobs:
   lstar-test:
     needs: discover-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -82,8 +86,6 @@ jobs:
           cache-dependency-glob: |
             requirements.txt
             setup.py
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
         run: |
           uv venv --python 3.12
@@ -95,6 +97,7 @@ jobs:
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
@@ -104,8 +107,6 @@ jobs:
           cache-dependency-glob: |
             requirements.txt
             setup.py
-      - name: Set up Python
-        run: uv python install 3.12
       - name: Install dependencies
         run: |
           uv venv --python 3.12
@@ -119,6 +120,7 @@ jobs:
 
   check-docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
