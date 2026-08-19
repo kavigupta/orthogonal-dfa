@@ -43,9 +43,6 @@ jobs:
         uses: astral-sh/setup-uv@v4
       - name: Set up Python
         run: uv python install 3.12
-      - name: Install graphviz
-        # `dot` lays out the diagnostics graphs in orthogonal_dfa.l_star.visualize.
-        run: sudo apt-get update && sudo apt-get install -y graphviz
       - name: Install dependencies
         run: |
           uv venv --python 3.12
