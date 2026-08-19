@@ -6,15 +6,13 @@ membership of s + p + v over the round's base suffixes v, so p sits between the
 string and each suffix, hence the name. Leaves are DFA state ids.
 """
 
-import random
 from typing import Callable, Iterator, List, Optional, Tuple
 
 import numpy as np
 
+from .sequential_decide import sequential_decisions
 from .statistics import binomial_side_of_boundary
 
-#: Base suffixes oracle_decider draws per sequential block.
-_DECIDE_BLOCK = 16
 #: Tolerated chance a sequential decide stops on the wrong side of the threshold.
 _DECIDE_ALPHA = 1e-3
 
@@ -241,9 +239,13 @@ class MidfixTree:
 def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: float):
     """
     A (decide, decide_level) pair that reads a midfix node against the oracle. Both
-    query s + midfix + v over base_family and threshold the mean the same way
+    query s + midfix + v over base_family and threshold the accept-rate the same way
     (> accept accepts, < reject rejects, the band between abstains); decide scores one
-    string, decide_level scores a whole level in one batched call for classify_many.
+    string, decide_level a whole level.
+
+    The rate is read sequentially (see :func:`sequential_decisions`): a string far
+    from the threshold -- the common case for the accuracy estimate's random samples
+    -- settles in the first block rather than spending the whole family.
     """
 
     def verdict(mean: float) -> Optional[bool]:
@@ -269,52 +271,11 @@ def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: 
             return False
         return None
 
-    n = len(base_family)
-    # A fixed shuffle so each sequential block is a representative sample of the
-    # family, independent of the order it was screened in.
-    order = random.Random(0).sample(range(n), n)
-
     def decide_level(pairs) -> List[Optional[bool]]:
-        """Classify a whole tree level, drawing the family a block at a time and
-        dropping each pair as soon as a binomial test is confident which side of
-        the threshold it is on -- so a string far from the boundary (the common
-        case for the accuracy estimate's random samples) settles in the first
-        block.  Each block still batches its queries across every pair still
-        undecided, and an exhausted pair falls back to the exact full-family mean.
-        """
-        results: List[Optional[bool]] = [None] * len(pairs)
-        accepts = [0] * len(pairs)
-        active = list(range(len(pairs)))
-        drawn = 0
-        upto = min(_DECIDE_BLOCK, n)
-        while active:
-            queries, spans = [], []
-            for i in active:
-                seq, midfix = pairs[i]
-                lo = len(queries)
-                queries.extend(
-                    list(seq) + list(midfix) + base_family[order[k]]
-                    for k in range(drawn, upto)
-                )
-                spans.append((i, lo, len(queries)))
-            answers = np.asarray(oracle.membership_queries(queries))
-            for i, lo, hi in spans:
-                accepts[i] += int(answers[lo:hi].sum())
-            drawn = upto
-            if drawn >= n:
-                for i in active:
-                    results[i] = verdict(accepts[i] / n)
-                break
-            still = []
-            for i in active:
-                side = confident_side(accepts[i], drawn)
-                if side is None:
-                    still.append(i)
-                else:
-                    results[i] = side
-            active = still
-            upto = min(upto * 2, n)
-        return results
+        bases = [list(seq) + list(midfix) for seq, midfix in pairs]
+        return sequential_decisions(
+            bases, base_family, oracle.membership_queries, verdict, confident_side
+        )
 
     def decide(seq, midfix) -> Optional[bool]:
         # Reuse the level path for one string, so the single and batched readers
