@@ -70,6 +70,44 @@ class LatePositionalOracle(Oracle):
         return bool(sum(self._w[i, seq[i]] for i in range(self._start, len(seq))) > 0.0)
 
 
+class InteractionOracle(Oracle):
+    """Non-regular, and harder than PositionalScoreOracle: a dense positional score
+    plus prefix-boundary interaction terms (a random ``W2[.,.]`` for pairs of positions
+    near ``length``), median-thresholded.  Its distinguishers are only *mildly*
+    position-dependent per length -- enough that a fixed-threshold position score misses
+    them (the old residual-std gate scored them ~0.038, under its 0.04 threshold) -- but
+    the Bayes factor, pooling evidence across probe lengths, still refuses them."""
+
+    alphabet_size = 4
+
+    def __init__(self, *, length=16, n_pairs=32, seed=7):
+        rng = np.random.default_rng(seed)
+        self._m = 4 * length
+        w1 = rng.normal(size=(self._m, 4))
+        self._w1 = w1 - w1.mean(1, keepdims=True)
+        self._pairs = [
+            (
+                int(rng.integers(0, length)),
+                int(rng.integers(length - 4, length + 4)),
+                rng.normal(size=(4, 4)),
+            )
+            for _ in range(n_pairs)
+        ]
+        sample = rng.integers(0, 4, (4000, 2 * length))
+        self._thr = float(np.median([self._score(r.tolist()) for r in sample]))
+
+    def _score(self, seq):
+        n = min(len(seq), self._m)
+        score = sum(self._w1[i, seq[i]] for i in range(n))
+        for i, j, w in self._pairs:
+            if i < n and j < n:
+                score += 4.0 * w[seq[i], seq[j]]
+        return score
+
+    def membership_query(self, string):
+        return bool(self._score(list(string)) > self._thr)
+
+
 class TestPositionDependenceSignal(unittest.TestCase):
     def test_regular_distinguishers_favour_invariance(self):
         parity = ParityOracle()
@@ -104,6 +142,18 @@ class TestPositionDependenceSignal(unittest.TestCase):
         )
         self.assertGreater(at_40, 0.0)
         self.assertLess(at_24, 0.0)
+
+    def test_interaction_distinguishers_favour_position_dependence(self):
+        # The interaction oracle is the case the old fixed-threshold gate missed: its
+        # C/G-run distinguishers (1=C, 2=G) are only mildly position-dependent per
+        # length, so a fixed threshold under-measures them -- but the Bayes factor,
+        # accumulating evidence across probe lengths, refuses them.
+        oracle = InteractionOracle()
+        for d in ([1, 1], [2, 1], [1, 1, 1]):
+            self.assertGreater(
+                distinguisher_position_log_bayes_factor(oracle, d, 4, sample_length=16),
+                0.0,
+            )
 
 
 class TestInvarianceGate(unittest.TestCase):
