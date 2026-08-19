@@ -11,3 +11,4 @@ build
 # Seed 1 is checked in (the only seed the oracle uses); 2..5 stay regenerable.
 data/pretrained_models/fm-*.traced.pt
 !data/pretrained_models/fm-1.traced.pt
+scratchpad/
