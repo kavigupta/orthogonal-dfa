@@ -13,7 +13,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     sample_random_dfa,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
-from tests.test_lstar import compute_dfa_accuracy
+from tests.lstar_common import compute_dfa_accuracy
 
 NUM_DFAS = 600
 ETA = 0.05
