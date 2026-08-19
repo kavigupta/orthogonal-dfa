@@ -75,34 +75,34 @@ There is already a batched path — `Sifter.prefill` / `MidfixTree.classify_many
 probe loop cannot use it: each probe may split the tree, so probes are processed one at a
 time, and the batching that would amortize the family across many strings never happens.
 
-## Proposed fixes (in rough order of payoff)
+## Fix
 
-1. **Early-stopping `is_accept`.** Replace the fixed full-family mean with a sequential
-   test: draw family suffixes incrementally and stop as soon as the running mean is
-   decisively past `accept_thresh`/`reject_thresh` at the required confidence (or return
-   `None` if the budget is exhausted in the indecisive band). Deterministic oracles settle
-   in a handful of suffixes; only genuine boundary prefixes pay the full cost. Expected
-   ~100× fewer oracle calls on the common case.
+**Early-stopping `is_accept`** (`suffix_family.py`). The fixed full-family mean is
+replaced with a sequential binomial test: family suffixes are drawn a block at a time
+and the test stops as soon as `binomial_side_of_boundary` is confident the *full* family
+would land past `accept_thresh` / `reject_thresh`. The full family is spent only once a
+prefix is exhausted without a decision — the genuine boundary prefixes — so an exhausted
+verdict is exactly the old full-family decision, and every other verdict matches it with
+probability `1 - _SIFT_ALPHA`. A prefix far from the threshold settles in the first
+16-suffix block: ~300× fewer queries on the common case at `len(vs) ≈ 4809`.
 
-2. **Per-sift subsample.** Cheaper to implement: cap each `is_accept` at a fixed `k ≪
-   len(vs)` suffixes (e.g. sized from the evidence margin), keeping the full family only
-   for the FNR-gate computation. Loses the sequential test's adaptivity but removes the
-   4809× factor.
+Suffixes are revealed in a fixed content-independent shuffle (`_sift_order`), not the
+family's own order, so each block is a representative sample even though screening admits
+suffixes in correlated batches — a contiguous prefix of the raw order can be badly biased.
 
-3. **Cache-aware ordering.** Sift `seq[:mid]` for the binary search reuses overlapping
-   prefixes but distinct full strings, so `MemoizedOracle` misses on almost all of them.
-   Evaluating shared `seq + midfix` bases across the family in one batched call (rather
-   than string-by-string through the memo) would at least batch each `is_accept` into its
-   ~5 passes deterministically.
+`Sifter.prefill` warms only that first block (`SuffixFamily.warm_sift`) rather than the
+whole family; deeper blocks are pulled per-string, for the minority that need them, so a
+tree level's easy sifts still settle in one batched call while the full-family warm no
+longer dominates. The FNR gate and the split test (`votes`) keep the whole family — sizing
+the family so the *population* is resolvable is a different job from classifying one string.
 
-None of these change the learner's decisions — only how many oracle queries back each
-membership test. For cheap in-memory oracles the current code is fine; the cost only bites
-when `membership_query` is expensive (a neural oracle), which is exactly where E-L\* /
-direct-L\* is most interesting to run.
+Two fixes from the original write-up were **not** taken: a fixed per-sift subsample loses
+the sequential test's adaptivity for no extra saving, and cache-aware batching of the
+binary-search sifts is subsumed — early-stopping removes the volume the batching was meant
+to amortize.
 
 ## Repro
 
 Run any `synthesize_direct_lstar_fnr` on an oracle whose `membership_queries` is slow,
 with a family the FNR gate grows large (low `fnr_limit`), and time the discovery phase;
-instrument `SuffixFamily.mean` to count oracle strings per call to see the ~4809× factor
-directly.
+count oracle strings per sift to see the first-block early stop on the common case.

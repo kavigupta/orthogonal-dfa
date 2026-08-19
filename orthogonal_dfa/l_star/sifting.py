@@ -32,12 +32,14 @@ class Sifter:
         level rather than one per node visited.
 
         Uses ``classify_many`` purely for its per-level walk: each level's
-        ``decide`` first warms the whole level's family cells in one batched call,
-        then reads them back (now cached) to descend.  The returned leaves are
-        discarded -- only the warmed cache matters."""
+        ``decide`` first warms the level's first-block family cells in one batched
+        call, then reads them back (now cached) to descend.  ``is_accept``
+        early-stops on that first block for most strings; only boundary strings
+        pull deeper blocks, per-string.  The returned leaves are discarded -- only
+        the warmed cache matters."""
 
         def warm(pairs):
-            self.family.prefill([list(s) + list(m) for s, m in pairs])
+            self.family.warm_sift([list(s) + list(m) for s, m in pairs])
             return [self.family.is_accept(s, m) for s, m in pairs]
 
         self.tree.classify_many(seqs, warm)
