@@ -53,7 +53,7 @@ class TransitionResolver:
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
-        self.population = LeafPopulation(self.tree, self._classify)  # pool prefixes, per leaf
+        self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
             self.population.add(list(p))
         self.splits = SplitEvidence(
