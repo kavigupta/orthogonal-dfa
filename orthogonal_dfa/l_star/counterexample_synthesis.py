@@ -17,6 +17,7 @@ import math
 import numpy as np
 from automata.fa.dfa import DFA
 
+from .cluster import sample_suffix_family
 from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .statistics import binomial_side_of_boundary
@@ -218,12 +219,14 @@ def counterexample_driven_synthesis(
     best_acc = -1.0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        resolver = TransitionResolver(pst, invariance_gate=invariance_gate)
-        resolver.build()
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
+        pst.decision_boundary = boundary
+        resolver = TransitionResolver(pst, vs, invariance_gate=invariance_gate)
+        resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
-        dfa, dt = resolver.export()
+        dfa, dt = resolver.to_dfa_and_tree()
         print(f"Resolved DFA with {dt.num_states} states")
         assert dt.num_states >= 2
         print(dfa)

@@ -160,16 +160,32 @@ def distinguisher_position_log_bayes_factor(
 
 
 class TransitionResolver:
-    def __init__(self, pst, *, invariance_gate=False):
+    def __init__(self, pst, vs, *, invariance_gate=False):
+        # The invariance gate (off by default): refuse a split whose distinguisher the
+        # Bayes factor says encodes absolute position rather than a transportable
+        # feature.  Scores are cached per distinguisher, and the control base-rates are
+        # shared across them.
+        self.invariance_gate = invariance_gate
+        self._log_bf_cache = {}
+        self._base_rate_cache = {}
         self.pst = pst
-        self.tree = None
-        self.family = None
-        self.sifter = None
-        self.splits = None
-        self.population = None  # pool prefixes, per leaf
-        self.dfa = None  # the partial transition function
-        self.edges = None  # resolves (leaf, symbol) edges against the population
         self.indecisive = set()  # boundary strings the family could not place
+        self.family = SuffixFamily(pst, vs)
+        self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
+        self.sifter = Sifter(self.tree, self.family)
+        self.population = LeafPopulation(self.tree, self._classify)
+        for p in pst.table.prefixes:
+            self.population.add(list(p))
+        self.splits = SplitEvidence(
+            pst,
+            self.family,
+            population=self.population,
+            tree=self.tree,
+        )
+        self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
+        self.edges = EdgeResolver(
+            self.dfa, self.sifter, self.indecisive, population=self.population
+        )
 
         # The invariance gate (off by default): refuse a split whose distinguisher the
         # Bayes factor says encodes absolute position rather than a transportable
@@ -346,34 +362,14 @@ class TransitionResolver:
             if st is not None:
                 self.population.add(list(p), at=self.tree.path_of(st))
 
-    # -- driver -------------------------------------------------------------
+    # -- edge closing -------------------------------------------------------
 
-    def build(self):
-        pst = self.pst
-        v_idx = pst.table.intern_suffix([])
-        vs, boundary = sample_suffix_family(pst, v_idx)
-        pst.decision_boundary = boundary
-        self.family = SuffixFamily(pst, vs)
-        self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
-        self.sifter = Sifter(self.tree, self.family)
-        self.population = LeafPopulation(self.tree, self._classify)
-        for p in pst.table.prefixes:
-            self.population.add(list(p))
-        self.splits = SplitEvidence(
-            pst,
-            self.family,
-            population=self.population,
-            tree=self.tree,
-        )
-        self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
-        self.edges = EdgeResolver(
-            self.dfa, self.sifter, self.indecisive, population=self.population
-        )
+    def close_edges(self):
         self.edges.close()
 
     # -- output -------------------------------------------------------------
 
-    def export(self):
+    def to_dfa_and_tree(self):
         pst = self.pst
         n = self.tree.num_states
 
@@ -411,6 +407,9 @@ def resolve_dfa(pst):
     """
     Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
     """
-    resolver = TransitionResolver(pst)
-    resolver.build()
-    return resolver.export()
+    v_idx = pst.table.intern_suffix([])
+    vs, boundary = sample_suffix_family(pst, v_idx)
+    pst.decision_boundary = boundary
+    resolver = TransitionResolver(pst, vs)
+    resolver.close_edges()
+    return resolver.to_dfa_and_tree()
