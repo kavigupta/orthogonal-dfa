@@ -13,6 +13,8 @@ The learner itself knows nothing about any of this; it is one way of driving it.
 """
 
 import math
+import os
+import pickle
 from typing import List, Optional, Set, Tuple
 
 import numpy as np
@@ -23,6 +25,40 @@ from .dfa_utils import per_state_sample
 from .transition_resolver import TransitionResolver
 from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
+
+
+def _dump_round(dump_dir, *, round_idx, dfa, dt, est, decision_boundary):
+    """Opt-in per-round snapshot (active only when ``DLSTAR_DUMP_DIR`` is set), for
+    offline round-by-round analysis -- e.g. measuring phi(round DFA, oracle) to see
+    the shatter -> collapse trajectory.  Dumps only picklable structure: the class
+    DFA and discrimination tree (midfixes are int-lists) plus the decision boundary,
+    NOT the learner (it holds pst -> oracle -> the SpliceAI model and the membership
+    cache, which are huge / unpicklable).  A dump failure never kills the run."""
+    os.makedirs(dump_dir, exist_ok=True)
+    path = os.path.join(dump_dir, f"round_{round_idx:02d}.pkl")
+    state = dict(
+        round=round_idx,
+        est=est,
+        num_states=len(dfa.states),
+        dfa=dfa,
+        dt=dt,
+        tree=dt,
+        final_states=sorted(dfa.final_states),
+        decision_boundary=decision_boundary,
+    )
+    try:
+        with open(path, "wb") as f:
+            pickle.dump(state, f)
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        # never let a dump failure kill the run
+        with open(path, "wb") as f:
+            pickle.dump(
+                dict(round=round_idx, est=est, num_states=len(dfa.states),
+                     dump_error=repr(exc)),
+                f,
+            )
+        print(f"[dump] round {round_idx}: full-state dump failed ({exc!r}); "
+              "wrote metadata-only fallback", flush=True)
 
 
 def classify_pool(pst, tree, *, accept, reject):
@@ -288,6 +324,16 @@ def synthesize_direct_lstar_fnr(
         )
         true_acc = _estimate_accuracy(pst, dfa, dt, acc_threshold)
         best.offer(true_acc, dfa, dt, pst.decision_boundary)
+        _dump_dir = os.environ.get("DLSTAR_DUMP_DIR")
+        if _dump_dir:
+            _dump_round(
+                _dump_dir,
+                round_idx=round_idx,
+                dfa=dfa,
+                dt=dt,
+                est=true_acc,
+                decision_boundary=pst.decision_boundary,
+            )
         if true_acc >= acc_threshold:
             print(
                 f"[direct-lstar/fnr] round {round_idx}: converged, "
