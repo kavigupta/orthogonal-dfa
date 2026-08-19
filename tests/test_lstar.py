@@ -341,17 +341,13 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    @unittest.expectedFailure  # learns a 3-of-9 abstraction here (see docstring)
+    @unittest.expectedFailure
     def test_boundary_near_zero(self):
         """Both noise rates near 0, boundary far from 0.5.
-
-        With the true boundary at 0.22 the clustering threshold is so low that
-        true-reject prefixes (mean ~0.02) get mixed into the "accept" group on
-        noisy suffix samples, contaminating the boundary estimate downward to
-        ~0.11, so only 3 states are found instead of 9.  Direct-L* resolves
-        boundary states via the FNR gate rather than a single clustering pass,
-        but the contaminated boundary still starves it here, so this stays an
-        expected failure."""
+        Fails: finds only 3 states instead of 9. With the true boundary at
+        0.22, the clustering threshold is so low that true-reject prefixes
+        (mean ~0.02) get mixed into the "accept" group on noisy suffix
+        samples, contaminating the boundary estimate downward to ~0.11."""
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
