@@ -156,14 +156,17 @@ class InteractionOracle(Oracle):
         qlen = 2 * length
         rng = np.random.default_rng(seed)
         w1 = rng.normal(size=(self._max_len, 4))
-        self._w1 = w1 - w1.mean(axis=1, keepdims=True)  # dense linear (spreads propensity)
+        self._w1 = w1 - w1.mean(
+            axis=1, keepdims=True
+        )  # dense linear (spreads propensity)
         # interaction pairs: prefix position i x boundary position j near `length`
         self._pairs = []
         for _ in range(n_pairs):
             i = int(rng.integers(0, length))
             j = int(
                 rng.integers(
-                    max(0, length - boundary_window), min(qlen, length + boundary_window)
+                    max(0, length - boundary_window),
+                    min(qlen, length + boundary_window),
                 )
             )
             self._pairs.append((i, j, rng.normal(size=(4, 4))))
@@ -201,7 +204,9 @@ class InteractionOracle(Oracle):
         in_range = cols[None, :] < used[:, None]
         # masked-out columns contribute 0, so clip the w1 row index into bounds.
         linear = np.where(
-            in_range, self._w1[np.minimum(cols, self._max_len - 1)[None, :], packed], 0.0
+            in_range,
+            self._w1[np.minimum(cols, self._max_len - 1)[None, :], packed],
+            0.0,
         ).sum(1)
         inter = np.zeros(len(rows))
         for i, j, w in self._pairs:
