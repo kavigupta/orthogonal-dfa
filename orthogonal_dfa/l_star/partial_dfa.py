@@ -26,7 +26,6 @@ class PartialDFA:
         return self.witnesses.get((state, c))
 
     def set_edge(self, state: int, c: int, target: int, witness) -> None:
-        assert c not in self.transitions[state]
         self.transitions[state][c] = target
         self.witnesses[state, c] = list(witness)
 
