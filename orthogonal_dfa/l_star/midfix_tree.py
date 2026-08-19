@@ -11,10 +11,6 @@ from typing import Callable, Iterator, List, Optional, Tuple
 import numpy as np
 
 from .sequential_decide import sequential_decisions
-from .statistics import binomial_side_of_boundary
-
-#: Tolerated chance a sequential decide stops on the wrong side of the threshold.
-_DECIDE_ALPHA = 1e-3
 
 # A leaf is an int state id; an internal node is
 # (midfix, {True: accept_child, False: reject_child}).
@@ -238,43 +234,19 @@ class MidfixTree:
 
 def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: float):
     """
-    A (decide, decide_level) pair that reads a midfix node against the oracle. Both
-    query s + midfix + v over base_family and threshold the accept-rate the same way
-    (> accept accepts, < reject rejects, the band between abstains); decide scores one
-    string, decide_level a whole level.
+    A (decide, decide_level) pair that classifies a midfix node by the accept-rate
+    of s + midfix + v over base_family (> accept accepts, < reject rejects, the band
+    between abstains); decide scores one string, decide_level a whole level.
 
     The rate is read sequentially (see :func:`sequential_decisions`): a string far
     from the threshold -- the common case for the accuracy estimate's random samples
     -- settles in the first block rather than spending the whole family.
     """
 
-    def verdict(mean: float) -> Optional[bool]:
-        if mean > accept:
-            return True
-        if mean < reject:
-            return False
-        return None
-
-    def confident_side(accepts: int, drawn: int) -> Optional[bool]:
-        """Whether ``accepts/drawn`` is confidently past a threshold: ``True`` above
-        ``accept``, ``False`` below ``reject``, ``None`` if neither yet."""
-        if binomial_side_of_boundary(
-            accepts, drawn, accept, failure_prob=_DECIDE_ALPHA
-        ):
-            return True
-        if (
-            binomial_side_of_boundary(
-                accepts, drawn, reject, failure_prob=_DECIDE_ALPHA
-            )
-            is False
-        ):
-            return False
-        return None
-
     def decide_level(pairs) -> List[Optional[bool]]:
         bases = [list(seq) + list(midfix) for seq, midfix in pairs]
         return sequential_decisions(
-            bases, base_family, oracle.membership_queries, verdict, confident_side
+            bases, base_family, oracle.membership_queries, accept=accept, reject=reject
         )
 
     def decide(seq, midfix) -> Optional[bool]:
