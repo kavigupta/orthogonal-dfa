@@ -14,99 +14,15 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, SymmetricBernoulli
-
-us = UniformSampler(40)
-
-# assertDFA tolerance — slightly looser than the synthesis target so we don't
-# flake when synthesis converges near the threshold.  See GitHub issue on
-# tightening synthesis output.
-assertion_allowed_error = 0.03
-
-
-def sample_with_exclusion(exclude_pattern, *, symbols, count):
-    rng = np.random.default_rng(0x1234)
-    results = []
-    while len(results) < count:
-        s = us.sample(rng, symbols)
-        if exclude_pattern is None or not exclude_pattern(s):
-            results.append(s)
-    return results
-
-
-def compute_dfa_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
-):
-    """Evaluate dfa against a noiseless oracle. Returns (accuracy, false_positives, false_negatives)."""
-    oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    false_positives, false_negatives = [], []
-    for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
-        expected = oracle.membership_query(s)
-        actual = dfa.accepts_input(s)
-        if expected and not actual:
-            false_negatives.append(s)
-        elif not expected and actual:
-            false_positives.append(s)
-    accuracy = 1 - (len(false_positives) + len(false_negatives)) / count
-    return accuracy, false_positives, false_negatives
-
-
-def evaluate_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
-):
-    """Return accuracy of dfa against a noiseless oracle."""
-    accuracy, _, _ = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
-    )
-    return accuracy
-
-
-def assertDFA(
-    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
-):
-    accuracy, false_positives, false_negatives = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
-    )
-    if accuracy < 1 - assertion_allowed_error:
-        print("DFA is incorrect!")
-        print(dfa)
-        print(f"False positives: {false_positives}")
-        print(f"False negatives: {false_negatives}")
-        testcase.fail(
-            f"DFA incorrect. False positives: {len(false_positives)}, False negatives: {len(false_negatives)}"
-        )
-
-
-def assertDoesNotMeetProperty(
-    testcase, oracle_creator, counterexample_generator, count=10_000
-):
-    rng = np.random.default_rng(0)
-    oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    valid = []
-    for _ in range(count):
-        suffix = us.sample(rng, 2)
-        prefix = counterexample_generator(suffix)
-        s = prefix + suffix
-        if oracle.membership_query(s) == oracle.membership_query(prefix):
-            valid.append((suffix, prefix))
-    if len(valid) / count < 0.001:
-        return
-    for suffix, prefix in valid[:10]:
-        print(f"Counterexample: prefix={prefix}, suffix={suffix}")
-    testcase.fail(
-        f"Oracle meets property; found {len(valid)} / {count} counterexamples."
-    )
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
+from tests.lstar_common import (
+    assertDFA,
+    assertion_allowed_error,
+    compute_dfa_accuracy,
+)
 
 
 class TestLStar(unittest.TestCase):
-    def test_modulo(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
-        )
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
-
     def test_modulo_harder(self):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
@@ -121,20 +37,6 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
-    def test_specific_subsequence(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1010101.*"
-        )
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
-
-    def test_two_subsequences(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1111.*1111.*"
-        )
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
-
     def test_two_subsequences_with_alternation(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*1111.*(1111|0000)11.*"
@@ -142,67 +44,12 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
-    def test_specific_alternation(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(1111|0000)11.*"
-        )
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
-
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*(111|000).*", alphabet_size=3
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3)
-
-    def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(11111|00000).*"
-        )
-
-        def counterexample_generator(suffix):
-            if suffix[0] == 1:
-                return [1, 1, 1, 1]
-            return [0, 0, 0, 0]
-
-        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
-
-    def test_specific_alternation_with_only_one_at_end_does_not_meet_property(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(11111|00000)1.*"
-        )
-
-        def counterexample_generator(suffix):
-            if suffix[0] == 1:
-                return [1, 1, 1, 1, 1]
-            return [0, 0, 0, 0]
-
-        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
-
-    def test_counterexample_poor_case(self):
-        dfa = DFA(
-            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-            input_symbols={0, 1},
-            transitions={
-                0: {1: 9, 0: 9},
-                1: {1: 1, 0: 1},
-                2: {1: 1, 0: 8},
-                3: {1: 2, 0: 8},
-                4: {1: 5, 0: 3},
-                5: {1: 6, 0: 3},
-                6: {1: 1, 0: 3},
-                7: {1: 4, 0: 8},
-                8: {1: 7, 0: 8},
-                9: {1: 8, 0: 8},
-            },
-            initial_state=0,
-            final_states={1},
-            allow_partial=False,
-        )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
 
     def test_another_countexample_poor_case(self):
         dfa = DFA(
@@ -228,72 +75,7 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
-    def test_transient_states_terminate(self):
-        # Regression for issue #128. This target -- {w : |w| >= 3 and
-        # w[2] == '0'} -- has transient states (0, 1, 2) that a fixed-length
-        # prefix sampler never lands on, so they are unresolvable and the DFA
-        # is not learnable with this sampler. Synthesis must still *terminate*
-        # rather than grow the prefix set forever. We assert only that it
-        # returns within a generous timeout, not what it returns: the learned
-        # DFA is expected to be imperfect, so there is no correct output to
-        # check.
-        dfa = DFA(
-            states={0, 1, 2, 3, 4},
-            input_symbols={0, 1},
-            transitions={
-                0: {0: 1, 1: 1},
-                1: {0: 2, 1: 2},
-                2: {0: 3, 1: 4},
-                3: {0: 3, 1: 3},
-                4: {0: 4, 1: 4},
-            },
-            initial_state=0,
-            final_states={3},
-            allow_partial=False,
-        )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
-
-        # Imported locally: a module-level `import signal` would shadow the
-        # `signal` (signal-strength) parameter other tests in this file use.
-        import signal
-
-        def _timeout(signum, frame):
-            raise AssertionError(
-                "synthesis did not terminate within the timeout (issue #128)"
-            )
-
-        previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
-        try:
-            learn_dfa(oracle_creator, min_signal_strength=0.45, seed=0)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, previous)
-
-
 class TestLStarAsymmetric(unittest.TestCase):
-    def test_modulo_asymmetric(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
-        )
-        noise_model = AsymmetricBernoulli(p_0=0.05, p_1=0.85)
-        # signal = (0.85 - 0.05) / 2 = 0.4, but for now we're using 0.35 to be safe.
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.35, seed=0, noise_model=noise_model
-        )
-        assertDFA(self, dfa, oracle_creator)
-
-    def test_modulo_asymmetric_skewed(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
-        )
-        noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
-        # signal = (0.95 - 0.25) / 2 = 0.35, but for now we're using 0.25 to be safe.
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
-        )
-        assertDFA(self, dfa, oracle_creator)
-
     def test_regex_asymmetric(self):
         oracle_creator = lambda noise_model, seed: BernoulliRegex(
             noise_model, seed, regex=r".*1010101.*"
@@ -328,36 +110,6 @@ class TestLStarAsymmetric(unittest.TestCase):
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
-
-    def test_rare_accept_class(self):
-        """Only 1 of 7 states is accepting, so boundary estimation sees mostly rejects."""
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=7, allowed_moduluses=(3,)
-        )
-        noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.75)
-        # signal = 0.30, boundary = 0.45
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
-        )
-        assertDFA(self, dfa, oracle_creator)
-
-    @unittest.expectedFailure
-    def test_boundary_near_zero(self):
-        """Both noise rates near 0, boundary far from 0.5.
-        Fails: finds only 3 states instead of 9. With the true boundary at
-        0.22, the clustering threshold is so low that true-reject prefixes
-        (mean ~0.02) get mixed into the "accept" group on noisy suffix
-        samples, contaminating the boundary estimate downward to ~0.11."""
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
-        )
-        noise_model = AsymmetricBernoulli(p_0=0.02, p_1=0.42)
-        # signal = 0.20, boundary = 0.22
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
-        )
-        assertDFA(self, dfa, oracle_creator)
-
 
 class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
