@@ -51,6 +51,30 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3)
 
+    def test_counterexample_poor_case(self):
+        dfa = DFA(
+            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+            input_symbols={0, 1},
+            transitions={
+                0: {1: 9, 0: 9},
+                1: {1: 1, 0: 1},
+                2: {1: 1, 0: 8},
+                3: {1: 2, 0: 8},
+                4: {1: 5, 0: 3},
+                5: {1: 6, 0: 3},
+                6: {1: 1, 0: 3},
+                7: {1: 4, 0: 8},
+                8: {1: 7, 0: 8},
+                9: {1: 8, 0: 8},
+            },
+            initial_state=0,
+            final_states={1},
+            allow_partial=False,
+        )
+        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        assertDFA(self, dfa, oracle_creator)
+
     def test_another_countexample_poor_case(self):
         dfa = DFA(
             states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
@@ -74,6 +98,7 @@ class TestLStar(unittest.TestCase):
         oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
+
 
 class TestLStarAsymmetric(unittest.TestCase):
     def test_regex_asymmetric(self):
@@ -110,6 +135,7 @@ class TestLStarAsymmetric(unittest.TestCase):
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
         assertDFA(self, dfa, oracle_creator)
+
 
 class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])

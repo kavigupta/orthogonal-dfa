@@ -72,30 +72,6 @@ class TestLStarFast(unittest.TestCase):
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
-    def test_counterexample_poor_case(self):
-        dfa = DFA(
-            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-            input_symbols={0, 1},
-            transitions={
-                0: {1: 9, 0: 9},
-                1: {1: 1, 0: 1},
-                2: {1: 1, 0: 8},
-                3: {1: 2, 0: 8},
-                4: {1: 5, 0: 3},
-                5: {1: 6, 0: 3},
-                6: {1: 1, 0: 3},
-                7: {1: 4, 0: 8},
-                8: {1: 7, 0: 8},
-                9: {1: 8, 0: 8},
-            },
-            initial_state=0,
-            final_states={1},
-            allow_partial=False,
-        )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
-
     def test_transient_states_terminate(self):
         # Regression for issue #128. This target -- {w : |w| >= 3 and
         # w[2] == '0'} -- has transient states (0, 1, 2) that a fixed-length
