@@ -1,4 +1,4 @@
-"""Diagnostics renderer for a :class:`TransitionResolver` against a known DFA.
+"""Diagnostics renderer for a :class:`DirectLStarLearner` against a known DFA.
 
 Produces three panels, all keyed by one colour per learned Myhill-Nerode class:
 
@@ -306,12 +306,6 @@ def _walk_tree(node, colors, nodes, edges, labels, *, uid=None):
     return name
 
 
-def _tree_root(learner):
-    """The learner's discrimination-tree root, however it stores its tree."""
-    tree = getattr(learner, "tree", None)
-    return learner.dt if tree is None else tree.root
-
-
 def _panel_tree(ax, dt, colors):
     nodes, edges, labels = {}, [], {}
     _walk_tree(dt, colors, nodes, edges, labels)
@@ -368,43 +362,11 @@ def _panel_tree(ax, dt, colors):
     _finish(ax, layout, pad=0.3)
 
 
-def _sift_fn(learner):
-    """The learner's classifier, wherever it keeps it."""
-    for holder in (learner, getattr(learner, "sifter", None)):
-        fn = getattr(holder, "sift", None)
-        if fn is not None:
-            return fn
-    raise AttributeError("learner exposes no sift")
-
-
-def _prefill_fn(learner):
-    """The batched warm-up for a whole set of strings, if there is one."""
-    for holder, name in ((learner, "_sift_prefill"), (learner, "sifter")):
-        if name == "sifter":
-            sifter = getattr(learner, "sifter", None)
-            if sifter is not None:
-                return getattr(sifter, "prefill", None)
-        else:
-            fn = getattr(holder, name, None)
-            if fn is not None:
-                return fn
-    return None
-
-
-def _resolved_edges(learner):
-    """The learner's transition function, wherever it keeps it."""
-    for attr in ("dfa", None):
-        holder = learner if attr is None else getattr(learner, attr, None)
-        edges = getattr(holder, "transitions", None)
-        if edges is not None:
-            return edges
-    raise AttributeError("learner exposes no transition function")
-
-
 def _panel_class_dfa(ax, learner, colors, final_states, flipped):
-    # Whatever edges the learner has resolved so far, which is all a diagnostic
-    # needs -- however it happens to store them.
-    transitions = _resolved_edges(learner)
+    # Prefer the learner's totalised transition function; fall back to whatever
+    # edges it has resolved so far, which is all a diagnostic needs.
+    complete = getattr(learner, "_completed_transitions", None)
+    transitions = complete() if complete is not None else learner.transitions
     finals = set(final_states or ())
     r = 0.26
     nodes = {str(s): (2 * r, 2 * r) for s in sorted(transitions)}
@@ -491,13 +453,13 @@ def render_diagnostics(
     import matplotlib.pyplot as plt  # pylint: disable=import-outside-toplevel
 
     dist = sample_class_distribution(
-        _sift_fn(learner),
+        learner.sift,
         true_dfa,
         pst=pst if pst is not None else learner.pst,
         rng=rng,
         num_samples=num_samples,
         per_state=per_state,
-        prefill=_prefill_fn(learner),
+        prefill=getattr(learner, "_sift_prefill", None),
     )
     colors = _class_colors(set(range(learner.num_states)))
     panels = [
@@ -507,7 +469,7 @@ def render_diagnostics(
         ),
         (
             "discrimination tree — every internal node is a midfix",
-            lambda a: _panel_tree(a, _tree_root(learner), colors),
+            lambda a: _panel_tree(a, learner.dt, colors),
         ),
         (
             "learned Myhill–Nerode classes",

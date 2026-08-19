@@ -1,6 +1,6 @@
-"""Run a learner against an oracle: the configuration entry point.
+"""Run E-L* against an oracle: the configuration entry point.
 
-`synthesize_direct_lstar_fnr` in `counterexample_synthesis` learns from a populated
+`counterexample_driven_synthesis` in `lstar` learns from a populated
 PrefixSuffixTracker. Getting to one means sizing the suffix population, the
 evidence margin and the prefix count from the noise level, which is what this
 module does -- so a caller only has to say how much signal the oracle carries.
@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from .counterexample_synthesis import synthesize_direct_lstar_fnr
+from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import UniformSampler
 from .statistics import (
@@ -39,7 +39,6 @@ def build_pst(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
-    fnr_limit: float = 0.02,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -64,7 +63,6 @@ def build_pst(
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
-        fnr_limit=fnr_limit,
     )
     return PrefixSuffixTracker.create(
         UniformSampler(sample_length),
@@ -84,7 +82,6 @@ def learn_dfa(
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
-    fnr_limit: float = 0.02,
 ):
     """Learn a DFA from `oracle_creator`, and return it.
 
@@ -99,7 +96,6 @@ def learn_dfa(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
         sample_length=sample_length,
-        fnr_limit=fnr_limit,
     )
-    dfa, _ = synthesize_direct_lstar_fnr(pst, acc_threshold=acc_threshold)
+    dfa, _ = do_counterexample_driven_synthesis(pst, acc_threshold=acc_threshold)
     return dfa
