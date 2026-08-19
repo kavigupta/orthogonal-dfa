@@ -1,12 +1,6 @@
-"""Early-stopping batched read of a suffix family.
-
-Classifying a string by its mean membership over a suffix family only needs the
-whole family when the string sits near the decision threshold.  This reads the
-family a block at a time and drops each string as soon as a binomial test is
-confident which side of the threshold its rate falls on -- so a string far from
-the threshold settles in the first block -- while every block still batches its
-queries across all the strings still undecided.
-"""
+"""Classify strings by their accept-rate over a suffix family, reading the family
+only as far as a binomial test needs to decide which side of the threshold a
+string falls on."""
 
 import random
 from typing import Callable, List, Optional
@@ -15,9 +9,7 @@ import numpy as np
 
 from .statistics import binomial_side_of_boundary
 
-#: Suffixes drawn per sequential block.
 DEFAULT_BLOCK = 16
-#: Per-decision chance of stopping early on the wrong side of the threshold.
 DEFAULT_ALPHA = 1e-3
 
 
@@ -31,17 +23,14 @@ def sequential_decisions(
     alpha: float = DEFAULT_ALPHA,
     block: int = DEFAULT_BLOCK,
 ) -> List[Optional[bool]]:
-    """Classify each ``base`` by its accept-rate over the suffix ``family``: ``True``
-    above ``accept``, ``False`` below ``reject``, ``None`` in the band between.
+    """Classify each ``base`` by its accept-rate over ``family``: ``True`` above
+    ``accept``, ``False`` below ``reject``, ``None`` in the band between.
 
-    Draw the family a ``block`` at a time in a fixed shuffle, accumulating each
-    base's accept count, and drop a base as soon as a binomial test at confidence
-    ``alpha`` is sure its rate is past a threshold.  A base that never becomes
-    confident reads the whole family and takes the exact full-family verdict.
-    Every block batches its queries across all bases still undecided.
-
-    ``membership(strings)`` returns one 0/1 per string; the query for a base and a
-    suffix is ``base + suffix``.
+    The family is drawn ``block`` at a time in a fixed shuffle; a base is settled as
+    soon as a binomial test at confidence ``alpha`` clears a threshold, else it reads
+    the whole family and takes the exact mean's verdict. Each block batches across
+    every base still undecided. ``membership`` returns one 0/1 per string; a base's
+    query for a suffix is ``base + suffix``.
     """
 
     def verdict(mean: float) -> Optional[bool]:
@@ -54,10 +43,7 @@ def sequential_decisions(
     def confident_side(accepts: int, drawn: int) -> Optional[bool]:
         if binomial_side_of_boundary(accepts, drawn, accept, failure_prob=alpha):
             return True
-        if (
-            binomial_side_of_boundary(accepts, drawn, reject, failure_prob=alpha)
-            is False
-        ):
+        if binomial_side_of_boundary(accepts, drawn, reject, failure_prob=alpha) is False:
             return False
         return None
 
