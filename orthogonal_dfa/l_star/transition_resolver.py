@@ -34,7 +34,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, oracle_decider
 from .partial_dfa import PartialDFA
 from .sifting import Sifter
-from .split_evidence import NO_SPLIT, SPLIT, SplitEvidence
+from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
 # Outcome of processing one probe (see TransitionResolver.counterexample_pass).
@@ -74,6 +74,21 @@ class TransitionResolver:
         between the thresholds returns None and drops out of the population."""
         self.family.prefill([list(s) + list(midfix) for s in strings])
         return [self.family.is_accept(s, midfix) for s in strings]
+
+    @property
+    def num_states(self):
+        """Leaf count; the tree allocates the ids as it splits."""
+        return self.tree.num_states
+
+    @property
+    def access(self):
+        """Canonical access string per state, for renderers -- the shortest known
+        member reaching each leaf, or nothing where none is known."""
+        reps = (
+            (s, self.population.representative(self.tree.path_of(s), _MEMBER_LIMIT))
+            for s in range(self.num_states)
+        )
+        return {s: rep for s, rep in reps if rep is not None}
 
     def _sift(self, seq):
         """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.

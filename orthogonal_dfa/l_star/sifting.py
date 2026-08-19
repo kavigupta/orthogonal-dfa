@@ -20,6 +20,12 @@ class Sifter:
         when some node cannot place it."""
         return self.tree.sift(seq, self.family.is_accept)
 
+    def sift(self, seq) -> Optional[int]:
+        """The leaf ``seq`` sifts to, or ``None`` -- the boundary discarded.  A
+        non-harvesting classifier, used by the diagnostics renderer (which must not
+        pollute ``indecisive`` while drawing)."""
+        return self.sift_and_boundary(seq)[0]
+
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
         level rather than one per node visited.
