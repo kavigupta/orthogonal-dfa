@@ -12,3 +12,5 @@ build
 data/pretrained_models/fm-*.traced.pt
 !data/pretrained_models/fm-1.traced.pt
 scratchpad/
+.coverage
+.coverage.*
