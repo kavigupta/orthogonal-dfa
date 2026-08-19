@@ -230,7 +230,7 @@ def _marginal_bound(acc, k, delta):
 
 
 def marginal_records_until(score, make_contexts, max_k, target_error, *,
-                           delta=0.05, batch=500, max_contexts=200_000):
+                           delta=0.05, batch=500, max_contexts=200_000, on_batch=None):
     """Stream context batches, accumulating marginal statistics, until the winner's-curse
     bound on every length's top marginal is <= ``target_error`` (prob >= ``1 - delta``), or
     ``max_contexts`` contexts have been used.
@@ -265,6 +265,8 @@ def marginal_records_until(score, make_contexts, max_k, target_error, *,
             a["s1"] = a["s1"] + rl.sum(0)
             a["ss1"] = a["ss1"] + (rl ** 2).sum(0)
         bounds = {k: _marginal_bound(acc[k], k, delta) for k in acc}
+        if on_batch is not None:
+            on_batch(n, bounds)
         if max(bounds.values()) <= target_error or n >= max_contexts:
             break
 
@@ -280,13 +282,18 @@ def marginal_records_until(score, make_contexts, max_k, target_error, *,
     return records, {"n_contexts": n, "bounds": bounds}
 
 
-@permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/marginal_motif_stats_adaptive_v1")
+@permacache(
+    "orthogonal_dfa/analysis/nonlinear_motif_miner/marginal_motif_stats_adaptive_v1",
+    key_function=dict(on_batch=lambda _: None),  # progress callback: not part of the key
+)
 def marginal_motif_stats_adaptive(*, max_k=4, target_error=0.01, delta=0.05,
-                                  batch=500, max_contexts=200_000, edge_margin=0):
+                                  batch=500, max_contexts=200_000, edge_margin=0,
+                                  on_batch=None):
     """:func:`marginal_motif_stats` on the gate-controlled SpliceAI-400 oracle, but keep
     sampling fresh contexts until the winner's-curse bound on every length's top marginal
     is <= ``target_error`` (prob >= ``1 - delta``) rather than fixing ``n_contexts``.
-    Returns ``(records, info)``.  Permacached."""
+    ``on_batch(n, bounds)`` is called after each batch (progress only).  Returns
+    ``(records, info)``.  Permacached."""
     score = build_controlled_score(default_exon, load_spliceai(400, 0))
     length = default_exon.random_text_length
     pos_range = (
@@ -297,4 +304,5 @@ def marginal_motif_stats_adaptive(*, max_k=4, target_error=0.01, delta=0.05,
         return sample_contexts(length, max_k, n, seed=seed, pos_range=pos_range)
 
     return marginal_records_until(score, make_contexts, max_k, target_error,
-                                  delta=delta, batch=batch, max_contexts=max_contexts)
+                                  delta=delta, batch=batch, max_contexts=max_contexts,
+                                  on_batch=on_batch)
