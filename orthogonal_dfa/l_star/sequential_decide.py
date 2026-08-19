@@ -43,7 +43,10 @@ def sequential_decisions(
     def confident_side(accepts: int, drawn: int) -> Optional[bool]:
         if binomial_side_of_boundary(accepts, drawn, accept, failure_prob=alpha):
             return True
-        if binomial_side_of_boundary(accepts, drawn, reject, failure_prob=alpha) is False:
+        if (
+            binomial_side_of_boundary(accepts, drawn, reject, failure_prob=alpha)
+            is False
+        ):
             return False
         return None
 
