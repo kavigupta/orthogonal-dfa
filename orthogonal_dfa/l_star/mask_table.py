@@ -72,8 +72,8 @@ class MaskTable:
         return np.array([not c for c in self._core], dtype=bool)
 
     def set_representative(self, prefixes: List[List[int]]) -> None:
-        """Make *exactly* ``prefixes`` the representative set (all others become
-        non-representative), realigning the mask to the current prefixes."""
+        """Make *exactly* ``prefixes`` the representative set (every other prefix
+        becomes non-representative), realigning the mask to the current prefixes."""
         keys = {tuple(p) for p in prefixes}
         self._representative = [tuple(p) in keys for p in self._prefixes]
 
@@ -108,8 +108,8 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(list(p) for p in new_prefixes)
         self._prefix_keys.update(tuple(p) for p in new_prefixes)
-        # Prefixes added after construction (counterexamples, curated sample)
-        # are full-length probe prefixes, so representative and never core.
+        # Prefixes added after construction (feed / curated sample) are full-length
+        # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
         self._core.extend([False] * len(new_prefixes))
 

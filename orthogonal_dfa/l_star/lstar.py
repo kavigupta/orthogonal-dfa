@@ -1,10 +1,10 @@
 """
-Shared classification and accuracy machinery for the direct-L* learner.
+Shared classification and accuracy machinery.
 
-``estimate_agreement_rate`` is the termination test -- how well the exported DFA
+``estimate_agreement_rate`` is the termination test -- how well an exported DFA
 agrees with the tree read decisively -- and ``denoise_accept_labels`` corrects
-noise-flipped accept labels at the end of a run.  Both are driven by
-``counterexample_synthesis``; the learner itself is in ``transition_resolver``.
+noise-flipped accept labels at the end of a run.  The synthesis loop that drives
+them lives in ``counterexample_synthesis``.
 """
 
 from automata.fa.dfa import DFA
@@ -153,7 +153,7 @@ def _batch_before_possible_stop(agreements, valid, boundary, min_valid, remainin
 
 def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_threshold):
     """
-    Estimate the DFA's true agreement rate with the tree on fresh random strings,
+    Estimate the DFA's true agreement rate with the DT on fresh random strings,
     starting from the empty prefix (so the DFA simulates from its actual
     initial_state).  Classification failures are excluded from the denominator.
 
@@ -162,7 +162,8 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     to decide ``true_acc >= acc_threshold`` (the termination test), so settling
     that decision is all the precision required.  When the true rate is far from
     the threshold a few dozen samples settle it, but near the threshold it can run
-    to the full *num_samples* budget, which is why that budget caps the cost.
+    to the full *num_samples* budget (e.g. on the poor_case guard it hits the cap
+    on most calls), which is why that budget caps the cost.
 
     Samples whose ``y`` classifications are independent are drawn in a chunk and
     classified through ``classify_many`` -- one oracle call per tree level for the

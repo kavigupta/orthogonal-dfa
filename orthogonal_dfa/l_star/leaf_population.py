@@ -1,16 +1,13 @@
 """On-demand population of the discrimination tree's leaves.
 
-Each string rests at the deepest tree node it has so far been classified to, and
-is pulled further down only when a leaf below it is asked for more members than
-it already holds.  So the prefix pool is sifted lazily and incrementally -- a
-chunk at a time, toward the leaf being asked about -- rather than re-sifted from
-the root on every query.
+Each string rests at the deepest node it has been classified to, and is pulled
+further down only when a leaf below it is asked for more members than it holds --
+so the pool is sifted lazily, a chunk at a time, not re-sifted from the root.
 
-Keyed by *path*: the tuple of accept/reject branches from the root to a node.  A
-path is stable across splits (a split only appends two child paths below the
-split leaf), so this companion never has to be told the tree changed -- a former
-leaf simply becomes an internal node whose resting strings get flushed through it
-on the next pull.
+Keyed by *path*, the accept/reject branches from the root to a node.  A path is
+stable across splits (a split only appends child paths below the split leaf), so
+this companion never has to be told the tree changed: a former leaf becomes an
+internal node whose resting strings flush through it on the next pull.
 """
 
 from typing import Callable, Dict, List, Optional, Tuple

@@ -1,9 +1,9 @@
 """
-The discrimination tree the direct-L* learner and the transition resolver build.
+The discrimination tree the transition resolver builds.
 
 Internal nodes are midfixes. A node's midfix p classifies a string s by the family
-membership of s + p + v over the base suffixes v, so p sits between the string and
-each suffix, hence the name. Leaves are DFA state ids.
+membership of s + p + v over the round's base suffixes v, so p sits between the
+string and each suffix, hence the name. Leaves are DFA state ids.
 
 The tree owns structure only: which midfix cuts where, and which leaf a branch lands
 in. Reading a node is delegated to a caller-supplied decision callback, against the
@@ -81,10 +81,8 @@ class MidfixTree:
         return _leaves(self._root)
 
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
-        """The branches from the root to leaf ``state`` (True = accept child).
-
-        A path names a node stably across splits, so a companion that tracks
-        strings by node keys off this rather than the rebuilt node objects."""
+        """The branches from the root to leaf ``state`` (True = accept child); a
+        stable node key, unlike the node objects a split rebuilds."""
 
         def find(node: Node, path: Tuple[bool, ...]) -> Optional[Tuple[bool, ...]]:
             if isinstance(node, int):
@@ -136,16 +134,16 @@ class MidfixTree:
         """
         return [list(midfix) + v for v in self.base_family]
 
-    # -- classification (learner: sift, with boundary reporting) ------------
+    # -- classification -----------------------------------------------------
 
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[tuple]]:
         """
-        Route seq to a leaf. Returns (state, None) when it lands decisively, or
+        Route seq to a leaf: (state, None) when it lands decisively, or
         (None, boundary) when some node cannot place it.
 
-        The boundary is seq + midfix, not seq: the indecision is over seq + midfix + v,
-        so it is seq + midfix that the family failed on and that the caller can enrich
-        the next family against.
+        The boundary is seq + midfix, not seq: the indecision is over
+        seq + midfix + v, so it is seq + midfix that the family failed on and
+        that a caller can force the next family to resolve.
         """
         node = self._root
         while not isinstance(node, int):
@@ -160,11 +158,11 @@ class MidfixTree:
         """
         The midfix separating s and sprime, or None.
 
-        Both currently sift to the same leaf, but s + prefix and sprime + prefix are
-        known to reach different leaves. Walk down the branch where they still agree;
-        the first node where they disagree yields the separating midfix prefix + node
-        midfix. None when a needed classification is indecisive, or when they agree all
-        the way to a leaf.
+        s and sprime currently sift to the same leaf, but s + prefix and
+        sprime + prefix are known to reach different leaves. Walk down the branch
+        where they still agree; the first node where they disagree yields the
+        separating midfix prefix + node midfix. None when a needed classification
+        is indecisive, or when they agree all the way to a leaf.
         """
         node = self._root
         while not isinstance(node, int):
@@ -177,8 +175,6 @@ class MidfixTree:
                 return full
             node = lookup[d]
         return None
-
-    # -- classification (resolver: classify, leaf ids only) -----------------
 
     def classify(self, seq, decide: Decide) -> Optional[int]:
         """
@@ -250,8 +246,8 @@ class MidfixTree:
 
 def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: float):
     """
-    Reads a midfix node against the oracle, returning a (decide, decide_level) pair.
-    Both query s + midfix + v over base_family and threshold the mean the same way
+    A (decide, decide_level) pair that reads a midfix node against the oracle. Both
+    query s + midfix + v over base_family and threshold the mean the same way
     (> accept accepts, < reject rejects, the band between abstains); decide scores one
     string, decide_level scores a whole level in one batched call for classify_many.
     """
