@@ -1,24 +1,16 @@
-"""Nonlinear motif harvesting on the gate-controlled SpliceAI oracle.
+"""In-context motif significance on the gate-controlled SpliceAI oracle.
 
 The gate composition-residual oracle (``gate_composition_residual``) is SpliceAI's exon
-score with a per-length-bin *monotonic-gate* bag-of-k-mers prediction subtracted.  Both
-first-order and monotone-nonlinear composition are therefore removed; what remains is
-positional and higher-order structure.  This module finds that structure by
-**perturbation analysis** -- in-silico mutagenesis plus motif-insertion scans -- and,
-crucially, separates genuinely **nonlinear** motifs from leftover additive
-(composition-like) effects via an epistasis test.
+score with a per-length-bin *monotonic-gate* bag-of-k-mers prediction subtracted, so both
+first-order and monotone-nonlinear composition are removed; what remains is positional and
+higher-order structure.
 
-The pipeline (``harvest``):
-
-1. ``single_base_ism`` -- for every (position, base) substitution, the mean change in
-   the controlled score over a background sample: an ``(L, 4)`` saliency map.
-2. Pick the highest-saliency positions.
-3. ``motif_effects`` -- insert every k-mer at those positions; measure the mean score
-   change.  Perturbations with large effects are the candidate motifs.
-4. ``nonlinear_component`` -- each motif's observed effect minus the sum of its single-
-   base ISM effects.  A motif whose effect equals the additive prediction is an additive
-   (composition-like) effect; a large residual is a genuine nonlinear/epistatic motif --
-   the harvest target.
+``context_motif_significance`` measures, for every k-mer, how much it moves the residual
+score *in context*: at each of many consistent-background ``(background, position)``
+contexts we overwrite ``[p, p+k)`` with every k-mer and, relative to the average k-mer at
+that same spot, take the **magnitude** of the change (``mean|rel|``).  Ranking by magnitude
+-- not the signed mean -- surfaces context-dependent, sign-flipping motifs (the reading-
+frame stop codons) that a signed average cancels out.
 
 All scoring is batched through ``run_over_middles`` (one GPU pass per chunk).
 """
@@ -70,97 +62,6 @@ def build_controlled_score(
     return score
 
 
-def sample_backgrounds(length: int, n: int, seed: int = 0) -> List[List[int]]:
-    """``n`` random background middles of the given length."""
-    rng = np.random.default_rng(seed)
-    return [rng.integers(0, 4, size=length).tolist() for _ in range(n)]
-
-
-def _score_perturbations(
-    score: Callable, backgrounds: List[List[int]], perturb, jobs
-) -> np.ndarray:
-    """Mean over backgrounds of ``score(perturbed) - score(background)`` for each job.
-
-    ``jobs`` is a list of specs; ``perturb(background, spec) -> new_middle``.  Only
-    backgrounds actually changed by a job contribute (a no-op substitution has effect 0
-    and is skipped), and the divisor is the number of backgrounds, so a job that rarely
-    changes anything gets a correspondingly small mean.  One batched score() call.
-    """
-    base = score(backgrounds)
-    n = len(backgrounds)
-    perturbed: List[List[int]] = []
-    index: List[Tuple[int, int]] = []  # (job_id, background_id)
-    for j, spec in enumerate(jobs):
-        for b, bg in enumerate(backgrounds):
-            new = perturb(bg, spec)
-            if new is not None:
-                perturbed.append(new)
-                index.append((j, b))
-    if not perturbed:
-        return np.zeros(len(jobs))
-    delta = score(perturbed) - base[[b for _, b in index]]
-    out = np.zeros(len(jobs))
-    counts = np.zeros(len(jobs))  # kept for reference; divisor is n (population mean)
-    for (j, _), d in zip(index, delta):
-        out[j] += d
-        counts[j] += 1
-    return out / n
-
-
-def single_base_ism(
-    score: Callable, backgrounds: List[List[int]]
-) -> np.ndarray:
-    """``(L, 4)`` saliency: mean change in the controlled score from forcing each base
-    at each position (in-silico mutagenesis)."""
-    L = len(backgrounds[0])
-    jobs = [(i, b) for i in range(L) for b in range(4)]
-
-    def perturb(bg, spec):
-        i, b = spec
-        if bg[i] == b:
-            return None
-        new = list(bg)
-        new[i] = b
-        return new
-
-    flat = _score_perturbations(score, backgrounds, perturb, jobs)
-    return flat.reshape(L, 4)
-
-
-def motif_effects(
-    score: Callable,
-    backgrounds: List[List[int]],
-    motifs: Sequence[Sequence[int]],
-    positions: Sequence[int],
-) -> np.ndarray:
-    """``(len(motifs), len(positions))`` mean score change from substituting each motif
-    at each position (the motif overwrites ``[p, p+len(motif))``)."""
-    L = len(backgrounds[0])
-    jobs = [(tuple(m), p) for m in motifs for p in positions]
-
-    def perturb(bg, spec):
-        m, p = spec
-        if p + len(m) > L:
-            return None
-        new = list(bg)
-        new[p : p + len(m)] = m
-        return new
-
-    flat = _score_perturbations(score, backgrounds, perturb, jobs)
-    return flat.reshape(len(motifs), len(positions))
-
-
-def additive_prediction(
-    ism: np.ndarray, motif: Sequence[int], position: int
-) -> float:
-    """The sum of the single-base ISM effects for a motif at a position -- what the
-    motif's effect would be if its bases acted independently."""
-    return float(sum(ism[position + j, motif[j]] for j in range(len(motif))))
-
-
-# --- in-context motif significance (position-agnostic) ----------------------------
-
-
 def sample_contexts(
     length: int,
     motif_k: int,
@@ -183,12 +84,7 @@ def sample_contexts(
 @dataclass
 class ContextMotifStat:
     motif: str
-    effect: float      # SIGNED mean, over contexts, of the motif's effect relative to
-    #                    the average k-mer at the same (background, position)
-    tstat: float       # effect / SE across contexts -- directional significance
-    magnitude: float   # mean |relative effect| -- how big an effect it makes REGARDLESS
-    #                    of sign (captures context-dependent, sign-flipping motifs that
-    #                    the signed mean cancels out)
+    magnitude: float   # mean |relative effect| -- effect size REGARDLESS of sign
     mag_z: float       # (magnitude - mean over motifs) / std over motifs -- how much
     #                    LARGER an effect than the alternative k-mers, in magnitude
     n: int
@@ -196,7 +92,7 @@ class ContextMotifStat:
     def __repr__(self):
         return (
             f"{self.motif}  |effect|={self.magnitude:.4f} (mag_z={self.mag_z:+5.1f})  "
-            f"signed={self.effect:+.4f} (t={self.tstat:+6.1f})  n={self.n}"
+            f"n={self.n}"
         )
 
 
@@ -207,23 +103,16 @@ def context_motif_significance(
     *,
     chunk_contexts: int = 200,
 ) -> List[ContextMotifStat]:
-    """For every k-mer, its **in-context** effect measured *against the alternatives*.
+    """For every k-mer, the magnitude of its **in-context** effect vs the alternatives.
 
     At each context we overwrite ``[p, p+k)`` with every k-mer and record the score
     change ``delta``.  The removed background bases and the position are shared by all
     k-mers at that context, so subtracting the per-context mean over k-mers,
     ``rel = delta - mean_kmers(delta)``, isolates the *identity* of the inserted motif --
     how much more (or less) it moves the score than a typical substitution at that exact
-    spot.
-
-    Two summaries per motif, because direction matters:
-
-    - ``effect`` / ``tstat``: the SIGNED mean of ``rel`` across contexts.  Flags motifs
-      with a consistent-direction effect; a motif whose sign flips by context cancels.
-    - ``magnitude`` / ``mag_z``: ``mean|rel|``, the size of the effect regardless of
-      sign, and how many standard deviations that exceeds the average k-mer's.  This is
-      the one to rank by for "creates an effect larger than alternatives", because it
-      does not cancel a context-dependent (sign-flipping) motif.
+    spot.  ``magnitude = mean|rel|`` is the effect size regardless of sign, and ``mag_z``
+    is how many standard deviations that exceeds the average k-mer's -- rank by it, because
+    a context-dependent (sign-flipping) motif is invisible to a signed mean.
     """
     motifs = [list(m) for m in itertools.product(range(4), repeat=motif_k)]
     m_count = len(motifs)
@@ -241,18 +130,12 @@ def context_motif_significance(
         rel_rows.append(delta - delta.mean(1, keepdims=True))
     rel = np.concatenate(rel_rows, axis=0)  # (n_contexts, m_count)
 
-    mean_rel = rel.mean(0)
-    se = rel.std(0, ddof=1) / np.sqrt(rel.shape[0])
-    tstat = np.divide(mean_rel, se, out=np.zeros_like(mean_rel), where=se > 0)
-
     magnitude = np.abs(rel).mean(0)  # direction-agnostic effect size per motif
     mag_z = (magnitude - magnitude.mean()) / magnitude.std()
 
     return [
         ContextMotifStat(
             motif="".join(BASES[c] for c in m),
-            effect=float(mean_rel[i]),
-            tstat=float(tstat[i]),
             magnitude=float(magnitude[i]),
             mag_z=float(mag_z[i]),
             n=rel.shape[0],
@@ -261,67 +144,10 @@ def context_motif_significance(
     ]
 
 
-@dataclass
-class MotifHit:
-    motif: str
-    position: int
-    effect: float          # observed mean score change
-    additive: float        # sum of single-base ISM effects
-    nonlinear: float       # effect - additive (epistasis)
-
-    def __repr__(self):
-        return (
-            f"{self.motif}@{self.position:>3}  effect={self.effect:+.3f}  "
-            f"additive={self.additive:+.3f}  nonlinear={self.nonlinear:+.3f}"
-        )
-
-
-def harvest(
-    score: Callable,
-    length: int,
-    *,
-    n_backgrounds: int = 200,
-    motif_k: int = 3,
-    top_positions: int = 20,
-    seed: int = 0,
-) -> Tuple[np.ndarray, List[MotifHit]]:
-    """Run the full pipeline and return ``(ism_saliency, hits)``.
-
-    ``hits`` are every (k-mer, high-saliency position) pair with their observed effect,
-    additive prediction and nonlinear (epistatic) component -- unsorted; sort by
-    ``abs(h.nonlinear)`` for the nonlinear harvest or ``abs(h.effect)`` for the strongest
-    perturbations.
-    """
-    backgrounds = sample_backgrounds(length, n_backgrounds, seed=seed)
-    ism = single_base_ism(score, backgrounds)
-
-    # positions where mutagenesis moves the score most (max range over bases)
-    saliency = ism.max(1) - ism.min(1)
-    positions = sorted(int(p) for p in np.argsort(-saliency)[:top_positions]
-                       if p + motif_k <= length)
-
-    motifs = [list(m) for m in itertools.product(range(4), repeat=motif_k)]
-    eff = motif_effects(score, backgrounds, motifs, positions)
-
-    hits: List[MotifHit] = []
-    for mi, m in enumerate(motifs):
-        for pj, p in enumerate(positions):
-            add = additive_prediction(ism, m, p)
-            observed = float(eff[mi, pj])
-            hits.append(MotifHit(
-                motif="".join(BASES[c] for c in m),
-                position=p,
-                effect=observed,
-                additive=add,
-                nonlinear=observed - add,
-            ))
-    return ism, hits
-
-
 def _main():
-    """Harvest in-context motifs from the linear-controlled SpliceAI-400 oracle:
-    perturbations whose effect, over consistent backgrounds, is statistically larger
-    than alternative substitutions at the same spot -- position-agnostic."""
+    """Harvest in-context motifs from the gate-controlled SpliceAI-400 oracle:
+    perturbations whose effect magnitude, over consistent backgrounds, is larger than
+    alternative substitutions at the same spot -- position-agnostic."""
     import os
 
     from orthogonal_dfa.data.exon import default_exon
@@ -347,10 +173,6 @@ def _main():
     print("\nmotifs that create the LARGEST in-context effect vs alternatives "
           "(by |effect|, direction-agnostic):")
     for s in sorted(stats, key=lambda s: -s.magnitude)[:15]:
-        print("  " + repr(s))
-
-    print("\n(for reference) most consistent-DIRECTION effects, by signed t:")
-    for s in sorted(stats, key=lambda s: -abs(s.tstat))[:8]:
         print("  " + repr(s))
 
 
