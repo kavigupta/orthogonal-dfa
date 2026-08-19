@@ -6,6 +6,7 @@ import numpy as np
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
     marginal_motif_records,
+    marginal_records_until,
     replicates_for_max_error,
     sample_contexts,
 )
@@ -53,6 +54,43 @@ class TestReplicatesForMaxError(unittest.TestCase):
         self.assertGreater(replicates_for_max_error(1.0, 4096, 0.02), base)  # bigger std
         self.assertGreater(replicates_for_max_error(0.5, 4 ** 8, 0.02), base)  # more motifs
         self.assertLess(replicates_for_max_error(0.5, 64, 0.02), base)  # fewer motifs
+
+
+class TestMarginalRecordsUntil(unittest.TestCase):
+    def _cg_score(self):
+        W = np.random.default_rng(0).standard_normal((L, 4))
+
+        def score(middles):
+            out = []
+            for m in middles:
+                v = float(sum(W[i, m[i]] for i in range(len(m))))
+                if any(tuple(m[j : j + 2]) == (1, 2) for j in range(len(m) - 1)):
+                    v += 3.0
+                out.append(v)
+            return np.array(out)
+
+        return score
+
+    def test_stops_at_max_contexts_and_still_ranks_cg_top(self):
+        score = self._cg_score()
+        make = lambda seed, n: sample_contexts(L, 3, n, seed=seed)
+        records, info = marginal_records_until(
+            score, make, max_k=3, target_error=1e-6, batch=400, max_contexts=800
+        )
+        self.assertEqual(info["n_contexts"], 800)  # unreachable target -> hits the cap
+        rank = {r.motif: i for i, r in enumerate(records)}
+        self.assertLess(rank["CG"], rank["ACG"])
+
+    def test_looser_target_uses_no_more_contexts(self):
+        score = self._cg_score()
+        make = lambda seed, n: sample_contexts(L, 3, n, seed=seed)
+        _, loose = marginal_records_until(
+            score, make, max_k=3, target_error=1.0, batch=400, max_contexts=4000
+        )
+        _, tight = marginal_records_until(
+            score, make, max_k=3, target_error=1e-6, batch=400, max_contexts=4000
+        )
+        self.assertLessEqual(loose["n_contexts"], tight["n_contexts"])
 
 
 if __name__ == "__main__":

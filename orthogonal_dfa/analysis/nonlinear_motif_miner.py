@@ -167,6 +167,12 @@ def marginal_motif_records(score, contexts, max_k):
 # --- sample size for the marginal scan --------------------------------------------
 
 
+def _maximal_z(n_motifs, delta):
+    """Gaussian maximal-bound factor: the max of ``n_motifs`` estimates exceeds the truth
+    by at most ``SE * _maximal_z`` with probability >= ``1 - delta``."""
+    return math.sqrt(2 * math.log(n_motifs)) + math.sqrt(2 * math.log(1 / delta))
+
+
 def replicates_for_max_error(residual_std, n_motifs, target_error, *, delta=0.05):
     """Context replicates so the winner's-curse inflation of the *largest* marginal over
     ``n_motifs`` motifs is at most ``target_error`` with probability >= ``1 - delta``.
@@ -183,7 +189,7 @@ def replicates_for_max_error(residual_std, n_motifs, target_error, *, delta=0.05
 
     Ignoring the positive correlation between overlapping motifs makes this conservative.
     """
-    z = math.sqrt(2 * math.log(n_motifs)) + math.sqrt(2 * math.log(1 / delta))
+    z = _maximal_z(n_motifs, delta)
     return int(math.ceil((residual_std * z / target_error) ** 2))
 
 
@@ -209,3 +215,84 @@ def replicates_for_marginal_scan(score, contexts, max_k, target_error, *, delta=
         )
         for k in range(1, max_k + 1)
     }
+
+
+def _marginal_bound(acc, k, delta):
+    """Current winner's-curse bound on the top length-k marginal from streaming sums."""
+    n = acc["n"]
+    m0, m1 = acc["s0"] / n, acc["s1"] / n
+    se0 = np.sqrt(np.maximum(acc["ss0"] / n - m0 ** 2, 0.0) / n)
+    se1 = np.sqrt(np.maximum(acc["ss1"] / n - m1 ** 2, 0.0) / n)
+    se = np.maximum(se0, se1)  # conservative SE for the min-selected marginal
+    return float(se.max() * _maximal_z(4 ** k, delta))
+
+
+def marginal_records_until(score, make_contexts, max_k, target_error, *,
+                           delta=0.05, batch=500, max_contexts=200_000):
+    """Stream context batches, accumulating marginal statistics, until the winner's-curse
+    bound on every length's top marginal is <= ``target_error`` (prob >= ``1 - delta``), or
+    ``max_contexts`` contexts have been used.
+
+    ``make_contexts(seed, n)`` returns ``n`` fresh ``(background, position)`` contexts;
+    successive integer seeds give independent batches.  Only per-motif running sums are
+    kept, never the full effect matrix, so memory is constant in the total context count.
+    Stopping is on the *standard error*, not the effect, so the marginal estimates are not
+    biased by the stopping rule.  Returns ``(records, info)`` with
+    ``info = {"n_contexts", "bounds": {k: bound}}``.
+    """
+    acc = {}
+    n = 0
+    seed = 0
+    while True:
+        contexts = make_contexts(seed, batch)
+        seed += 1
+        n += len(contexts)
+        for k in range(1, max_k + 1):
+            _, E = _kmer_effects(score, contexts, k)
+            rel = np.abs(E - E.mean(1, keepdims=True))
+            T = E.reshape((E.shape[0],) + (4,) * k)
+            rf = np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1)
+            rl = np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1)
+            a = acc.setdefault(
+                k, dict(n=0, mag=0.0, s0=0.0, ss0=0.0, s1=0.0, ss1=0.0)
+            )
+            a["n"] += E.shape[0]
+            a["mag"] = a["mag"] + rel.sum(0)
+            a["s0"] = a["s0"] + rf.sum(0)
+            a["ss0"] = a["ss0"] + (rf ** 2).sum(0)
+            a["s1"] = a["s1"] + rl.sum(0)
+            a["ss1"] = a["ss1"] + (rl ** 2).sum(0)
+        bounds = {k: _marginal_bound(acc[k], k, delta) for k in acc}
+        if max(bounds.values()) <= target_error or n >= max_contexts:
+            break
+
+    records = []
+    for k in range(1, max_k + 1):
+        a = acc[k]
+        marginal = np.minimum(a["s0"] / a["n"], a["s1"] / a["n"])
+        magnitude = a["mag"] / a["n"]
+        for mi, m in enumerate(_kmers(k)):
+            records.append(MotifRecord(_fmt(m), k, float(marginal[mi]),
+                                       float(magnitude[mi]), a["n"]))
+    records.sort(key=lambda r: -r.marginal)
+    return records, {"n_contexts": n, "bounds": bounds}
+
+
+@permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/marginal_motif_stats_adaptive_v1")
+def marginal_motif_stats_adaptive(*, max_k=4, target_error=0.01, delta=0.05,
+                                  batch=500, max_contexts=200_000, edge_margin=0):
+    """:func:`marginal_motif_stats` on the gate-controlled SpliceAI-400 oracle, but keep
+    sampling fresh contexts until the winner's-curse bound on every length's top marginal
+    is <= ``target_error`` (prob >= ``1 - delta``) rather than fixing ``n_contexts``.
+    Returns ``(records, info)``.  Permacached."""
+    score = build_controlled_score(default_exon, load_spliceai(400, 0))
+    length = default_exon.random_text_length
+    pos_range = (
+        (edge_margin, length - max_k + 1 - edge_margin) if edge_margin else None
+    )
+
+    def make_contexts(seed, n):
+        return sample_contexts(length, max_k, n, seed=seed, pos_range=pos_range)
+
+    return marginal_records_until(score, make_contexts, max_k, target_error,
+                                  delta=delta, batch=batch, max_contexts=max_contexts)
