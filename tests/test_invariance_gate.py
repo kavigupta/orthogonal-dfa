@@ -53,19 +53,57 @@ class PositionalScoreOracle(Oracle):
         return bool(sum(self._w[i, seq[i]] for i in range(len(seq))) > 0.0)
 
 
+class LatePositionalOracle(Oracle):
+    """Positional score over only positions >= ``start`` -- position-dependence that
+    lives beyond a short fixed probe window, so it is caught only when the window
+    reaches the operating length."""
+
+    alphabet_size = 4
+
+    def __init__(self, *, start, n_max=400, seed=3):
+        w = np.random.default_rng(seed).normal(size=(n_max, 4))
+        self._w = w - w.mean(axis=1, keepdims=True)
+        self._start = start
+
+    def membership_query(self, string):
+        seq = list(string)
+        return bool(sum(self._w[i, seq[i]] for i in range(self._start, len(seq))) > 0.0)
+
+
 class TestPositionDependenceSignal(unittest.TestCase):
     def test_regular_distinguishers_favour_invariance(self):
         parity = ParityOracle()
         for d in ([1], [2, 1], [3, 0, 0]):
-            self.assertLess(distinguisher_position_log_bayes_factor(parity, d, 4), 0.0)
+            self.assertLess(
+                distinguisher_position_log_bayes_factor(parity, d, 4, sample_length=16),
+                0.0,
+            )
 
     def test_positional_distinguishers_favour_position_dependence(self):
         positional = PositionalScoreOracle()
         scores = [
-            distinguisher_position_log_bayes_factor(positional, d, 4)
+            distinguisher_position_log_bayes_factor(positional, d, 4, sample_length=16)
             for d in ([1], [2, 1], [3, 0, 0])
         ]
         self.assertGreater(max(scores), 0.0)
+
+    def test_probe_window_tracks_the_operating_length(self):
+        # Position-dependence living beyond a short fixed window (positions >= 28) is
+        # caught when the learner operates where it lives (length 40), and correctly
+        # not flagged where those positions do not exist (length 24) -- so the window
+        # must follow sample_length, not a hardcoded range.
+        late = LatePositionalOracle(start=28)
+        ds = ([1], [2, 1], [1, 1, 1])
+        at_40 = max(
+            distinguisher_position_log_bayes_factor(late, d, 4, sample_length=40)
+            for d in ds
+        )
+        at_24 = max(
+            distinguisher_position_log_bayes_factor(late, d, 4, sample_length=24)
+            for d in ds
+        )
+        self.assertGreater(at_40, 0.0)
+        self.assertLess(at_24, 0.0)
 
 
 class TestInvarianceGate(unittest.TestCase):

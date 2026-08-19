@@ -46,10 +46,17 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 #: Probes sifted per batched pass.
 _PROBE_BLOCK = 16
 
-# The invariance gate's probe: string lengths (which set the distinguisher's absolute
-# position) and how many random strings to average at each, per candidate split.
-_GATE_LENGTHS = tuple(range(8, 28, 2))
+# The invariance gate averages this many random strings at each probe length.
 _GATE_SAMPLES = 1500
+
+
+def _probe_lengths(sample_length, count=10):
+    """Prefix lengths at which to probe a distinguisher's effect -- the absolute
+    positions it sits at.  Tied to the operating regime: spread over ``[floor,
+    sample_length]``, where distinguishers actually get applied, rather than a fixed
+    window (which would miss position-dependence living beyond it)."""
+    floor = max(4, sample_length // 8)
+    return tuple(sorted({int(x) for x in np.linspace(floor, sample_length, count)}))
 
 
 def _position_effects(
@@ -119,7 +126,7 @@ def distinguisher_position_log_bayes_factor(
     distinguisher,
     alphabet_size,
     *,
-    lengths=_GATE_LENGTHS,
+    sample_length,
     samples=_GATE_SAMPLES,
     seed=0,
     prior_scale=1.0,
@@ -129,7 +136,8 @@ def distinguisher_position_log_bayes_factor(
     transportable finite-memory feature.
 
     d's marginal log-odds effect at prefix length L, against a same-length control (a
-    random |d|-tail), is a random effect over positions:
+    random |d|-tail), is a random effect over the positions it sits at -- probed across
+    ``_probe_lengths(sample_length)``, i.e. the operating regime:
 
         e_L = logit P(accept | s + d) - logit P(accept | random),  |s| = L
         e_hat_L ~ Normal(e_L, v_L),   e_L ~ Normal(mu, tau^2)
@@ -143,7 +151,7 @@ def distinguisher_position_log_bayes_factor(
         oracle,
         distinguisher,
         alphabet_size,
-        lengths=lengths,
+        lengths=_probe_lengths(sample_length),
         samples=samples,
         seed=seed,
         base_rates=base_rates,
@@ -312,6 +320,7 @@ class TransitionResolver:
                 self.pst.oracle,
                 key,
                 self.pst.alphabet_size,
+                sample_length=self.pst.sampler.length,
                 base_rates=self._base_rate_cache,
             )
         return self._log_bf_cache[key] > 0
