@@ -17,6 +17,7 @@ top.  The table is permacached, so a notebook re-runs instantly.
 from __future__ import annotations
 
 import itertools
+import math
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Sequence, Tuple
 
@@ -161,3 +162,50 @@ def marginal_motif_records(score, contexts, max_k):
                                        float(magnitude[mi]), E.shape[0]))
     records.sort(key=lambda r: -r.marginal)
     return records
+
+
+# --- sample size for the marginal scan --------------------------------------------
+
+
+def replicates_for_max_error(residual_std, n_motifs, target_error, *, delta=0.05):
+    """Context replicates so the winner's-curse inflation of the *largest* marginal over
+    ``n_motifs`` motifs is at most ``target_error`` with probability >= ``1 - delta``.
+
+    Reading the top of a length-k list means selecting the max over ``n_motifs = 4**k``
+    marginals, and the maximum of many noisy estimates is biased upward.  Each motif's
+    marginal is a context-mean of a residual with per-context standard deviation
+    ``residual_std``, so its standard error is ``residual_std / sqrt(n)``.  Treating the
+    estimates as approximately normal, the maximum exceeds the truth by at most
+    ``SE * (sqrt(2 ln n_motifs) + sqrt(2 ln(1/delta)))`` with probability >= ``1 - delta``
+    (a Gaussian maximal bound).  Setting that <= ``target_error`` and solving for ``n``:
+
+        n = ceil( (residual_std * (sqrt(2 ln n_motifs) + sqrt(2 ln(1/delta))) / target_error)^2 )
+
+    Ignoring the positive correlation between overlapping motifs makes this conservative.
+    """
+    z = math.sqrt(2 * math.log(n_motifs)) + math.sqrt(2 * math.log(1 / delta))
+    return int(math.ceil((residual_std * z / target_error) ** 2))
+
+
+def marginal_residual_std(score, contexts, k):
+    """Conservative per-context std of the marginal residual for length-k motifs: the
+    largest, over all length-k motifs and both drop ends, of ``std_ctx|r|`` -- the
+    ``residual_std`` that :func:`replicates_for_max_error` needs.  ``contexts`` is a pilot."""
+    _, E = _kmer_effects(score, contexts, k)
+    T = E.reshape((E.shape[0],) + (4,) * k)
+    r_first = np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1)
+    r_last = np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1)
+    return float(np.maximum(r_first.std(0), r_last.std(0)).max())
+
+
+def replicates_for_marginal_scan(score, contexts, max_k, target_error, *, delta=0.05):
+    """For each length k in 1..``max_k``, the context replicates needed to bound the
+    winner's-curse error of the top length-k marginal at ``target_error`` (prob >=
+    ``1 - delta``), using ``contexts`` as a pilot to estimate the residual std.  Returns
+    ``{k: n_replicates}``."""
+    return {
+        k: replicates_for_max_error(
+            marginal_residual_std(score, contexts, k), 4 ** k, target_error, delta=delta
+        )
+        for k in range(1, max_k + 1)
+    }

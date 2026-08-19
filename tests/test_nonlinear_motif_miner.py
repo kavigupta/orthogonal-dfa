@@ -6,6 +6,7 @@ import numpy as np
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
     marginal_motif_records,
+    replicates_for_max_error,
     sample_contexts,
 )
 
@@ -36,6 +37,22 @@ class TestMarginalMotifRecords(unittest.TestCase):
         self.assertLess(rank["CG"], rank["CGT"])
         # CG itself should be at (or very near) the top by marginal benefit
         self.assertLess(rank["CG"], 3)
+
+
+class TestReplicatesForMaxError(unittest.TestCase):
+    def test_matches_the_closed_form(self):
+        import math
+        std, M, eps, delta = 0.5, 4096, 0.02, 0.05
+        z = math.sqrt(2 * math.log(M)) + math.sqrt(2 * math.log(1 / delta))
+        expected = math.ceil((std * z / eps) ** 2)
+        self.assertEqual(replicates_for_max_error(std, M, eps, delta=delta), expected)
+
+    def test_monotonicities(self):
+        base = replicates_for_max_error(0.5, 4096, 0.02)
+        self.assertGreater(replicates_for_max_error(0.5, 4096, 0.01), base)  # tighter target
+        self.assertGreater(replicates_for_max_error(1.0, 4096, 0.02), base)  # bigger std
+        self.assertGreater(replicates_for_max_error(0.5, 4 ** 8, 0.02), base)  # more motifs
+        self.assertLess(replicates_for_max_error(0.5, 64, 0.02), base)  # fewer motifs
 
 
 if __name__ == "__main__":
