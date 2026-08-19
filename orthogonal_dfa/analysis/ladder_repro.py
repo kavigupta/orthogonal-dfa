@@ -183,6 +183,32 @@ class InteractionOracle(Oracle):
     def membership_query(self, string):
         return bool(self._score(list(string)) > self._threshold)
 
+    def membership_queries(self, strings):
+        """Vectorised batch of :meth:`membership_query` (numerically identical, ~10x
+        faster) -- the synthesiser and the position-dependence probe both query in
+        bulk, and the per-string Python ``_score`` loop is what makes the repro slow."""
+        rows = [list(s) for s in strings]
+        if not rows:
+            return np.zeros(0, dtype=bool)
+        lengths = np.array([len(s) for s in rows])
+        pair_span = max((max(i, j) for i, j, _ in self._pairs), default=-1) + 1
+        width = max(int(lengths.max()), pair_span)
+        packed = np.zeros((len(rows), width), dtype=np.int64)
+        for k, s in enumerate(rows):
+            packed[k, : len(s)] = s
+        used = np.minimum(lengths, self._max_len)  # positions _score sums over
+        cols = np.arange(width)
+        in_range = cols[None, :] < used[:, None]
+        # masked-out columns contribute 0, so clip the w1 row index into bounds.
+        linear = np.where(
+            in_range, self._w1[np.minimum(cols, self._max_len - 1)[None, :], packed], 0.0
+        ).sum(1)
+        inter = np.zeros(len(rows))
+        for i, j, w in self._pairs:
+            valid = (i < used) & (j < used)
+            inter += np.where(valid, self._alpha * w[packed[:, i], packed[:, j]], 0.0)
+        return (linear + inter) > self._threshold
+
 
 def distinguishers(tree):
     """Every internal-node midfix of the discrimination tree, root (ε) excluded."""
