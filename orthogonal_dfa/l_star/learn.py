@@ -39,6 +39,7 @@ def build_pst(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
+    sampler: Optional[Any] = None,
     fnr_limit: float = 0.02,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
@@ -66,8 +67,10 @@ def build_pst(
         min_suffix_frequency=min_suffix_frequency,
         fnr_limit=fnr_limit,
     )
+    if sampler is None:
+        sampler = UniformSampler(sample_length)
     return PrefixSuffixTracker.create(
-        UniformSampler(sample_length),
+        sampler,
         np.random.default_rng(0),
         oracle,
         config,
@@ -83,6 +86,7 @@ def learn_dfa(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
+    sampler: Optional[Any] = None,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     fnr_limit: float = 0.02,
 ):
@@ -99,6 +103,7 @@ def learn_dfa(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
         sample_length=sample_length,
+        sampler=sampler,
         fnr_limit=fnr_limit,
     )
     dfa, _ = synthesize_direct_lstar_fnr(pst, acc_threshold=acc_threshold)
