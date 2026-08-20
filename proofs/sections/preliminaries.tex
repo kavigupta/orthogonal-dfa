@@ -31,9 +31,9 @@ $\Pr_{x\sim D}[A(x)=A^\star(x)]\ge 1 - \epsilon$ with probability $\ge 1 - \delt
 \subsection{The midfix discrimination tree (noiseless)}
 
 \begin{definition}[Midfix and cut]\label{def:cut}
-A midfix's cut corresponds to a midfix $p\in\Sigma^*$ and is the set of states
+A midfix's cut corresponds to a midfix $m\in\Sigma^*$ and is the set of states
 \[
-  q \in D_p \iff\mathbf 1[x_q\,p\in L],
+  q \in D_p \iff\mathbf 1[x_q\,m\in L],
 \]
 which is well defined because of the Myhill--Nerode property.
 \end{definition}
@@ -42,5 +42,5 @@ which is well defined because of the Myhill--Nerode property.
 A midfix tree $T$ is a binary tree whose internal nodes are labelled by midfixes
 and whose leaves are classes, that is, sets of states that the tree cannot distinguish.
 
-We route a state $q$ down the tree by evaluating the cuts at each node: if $q\in D_p$ we go left, else right. The leaf we reach is the class of $q$.
+We route a state $q$ down the tree by evaluating the cuts at each node $m$: if $q\in D_m$ we go left, else right. The leaf we reach is the class of $q$.
 \end{definition}
