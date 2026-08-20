@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
-from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, build_pst
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
 
 
@@ -27,9 +27,17 @@ def _oracle(noise_model, seed):
 
 
 class TestCustomSampler(unittest.TestCase):
-    def test_defaults_to_uniform_over_sample_length(self):
-        pst = build_pst(_oracle, min_signal_strength=0.3, seed=0, sample_length=15)
+    def test_defaults_to_uniform(self):
+        pst = build_pst(_oracle, min_signal_strength=0.3, seed=0)
         self.assertIsInstance(pst.sampler, UniformSampler)
+        self.assertEqual(pst.sampler.length, DEFAULT_SAMPLE_LENGTH)
+
+    def test_length_is_varied_through_the_sampler(self):
+        # There is one knob, not two: a different probe length is a different
+        # UniformSampler.
+        pst = build_pst(
+            _oracle, min_signal_strength=0.3, seed=0, sampler=UniformSampler(15)
+        )
         self.assertEqual(pst.sampler.length, 15)
 
     def test_custom_sampler_is_used(self):
@@ -42,17 +50,6 @@ class TestCustomSampler(unittest.TestCase):
         self.assertTrue(sampled, "no prefix of the sampler's length was drawn")
         for prefix in sampled:
             self.assertEqual(prefix, [0] * sampler.length)
-
-    def test_sample_length_ignored_when_sampler_given(self):
-        sampler = _ZeroRunSampler(7)
-        pst = build_pst(
-            _oracle,
-            min_signal_strength=0.3,
-            seed=0,
-            sample_length=40,
-            sampler=sampler,
-        )
-        self.assertEqual(pst.sampler.length, 7)
 
     def test_sampler_length_is_part_of_the_interface(self):
         # The learner reads `length` off whatever sampler it is given.
