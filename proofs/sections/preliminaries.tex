@@ -1,0 +1,46 @@
+\section{Problem definition and preliminaries}
+
+\subsection{The target and the noisy oracle}
+
+\begin{definition}[Target]
+we target a regular language $L\subseteq\Sigma^*$, recognised by a minimal DFA
+$A^\star=(Q^\star,\Sigma,t,q_0,F)$. Let $q^\star(u)$ be the state that $u$
+is assigned by the DFA.
+
+One important property (Myhill--Nerode) is that two states are equal iff no suffix separates them:
+$$q=q'\iff \forall w,\ \mathbf 1[x_q w\in L]=\mathbf 1[x_{q'} w\in L]$$
+\end{definition}
+
+\begin{definition}[Persistent Bernoulli oracle]
+Let $s \in (0, \tfrac12]$ be a signal level, with $\frac 12$ meaning a perfect
+signal. Let $f(x)\sim\mathrm{Bernoulli}(s)$ be a random function where each $f(x)$ is
+independent. The oracle returns
+$$\mathrm{MQ}(x)=\left\{\begin{array}{ll}
+\mathbf 1(1 \in L) & \text{if } f(x)=1 \\
+\mathbf 1(1 \not \in L) & \text{if } f(x)=0
+\end{array}\right.$$
+Note that this means the noise is persistent: there is no way to re-query $x$ gain more information.
+\end{definition}
+
+\begin{definition}[Access and goal]
+The learner may only call $\mathrm{MQ}$, but can call it on any string $x\in\Sigma^*$. It has
+access to a distribution $D$ over $\Sigma^*$, and can sample from it. The goal is to output a DFA $A$ that satisfies
+$\Pr_{x\sim D}[A(x)=A^\star(x)]\ge 1 - \epsilon$ with probability $\ge 1 - \delta$.
+\end{definition}
+
+\subsection{The midfix discrimination tree (noiseless)}
+
+\begin{definition}[Midfix and cut]\label{def:cut}
+A midfix is a string $m\in\Sigma^*$. Its cut is the set of states
+\[
+  D_m \;=\; \{\,q : x_q\,m\in L\,\},
+\]
+which is well defined because $x_q\,m\in L$ is invariant to $x$ by the Myhill--Nerode property.
+\end{definition}
+
+\begin{definition}[Midfix tree]\label{def:tree}
+A midfix tree $T$ is a binary tree whose internal nodes are labelled by midfixes
+and whose leaves are classes, that is, sets of states that the tree cannot distinguish.
+
+We route a state $q$ down the tree by evaluating the cuts at each node $m$: if $q\in D_m$ we go left, else right. The leaf we reach is the class of $q$.
+\end{definition}
