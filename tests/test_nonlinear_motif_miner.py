@@ -82,7 +82,7 @@ class TestMarginalRecordsUntil(unittest.TestCase):
         score = self._cg_score()
         make = lambda seed, n: sample_contexts(L, len(BASES), 3, n, seed=seed)
         records, info = marginal_records_until(
-            score, make, 3, 1e-6, BASES, batch=400, max_contexts=800
+            score, make, 3, 1e-6, BASES, contexts_per_round=400, max_contexts=800
         )
         self.assertEqual(info["n_contexts"], 800)  # unreachable target -> hits the cap
         rank = {r.motif: i for i, r in enumerate(records)}
@@ -92,10 +92,10 @@ class TestMarginalRecordsUntil(unittest.TestCase):
         score = self._cg_score()
         make = lambda seed, n: sample_contexts(L, len(BASES), 3, n, seed=seed)
         _, loose = marginal_records_until(
-            score, make, 3, 1.0, BASES, batch=400, max_contexts=4000
+            score, make, 3, 1.0, BASES, contexts_per_round=400, max_contexts=4000
         )
         _, tight = marginal_records_until(
-            score, make, 3, 1e-6, BASES, batch=400, max_contexts=4000
+            score, make, 3, 1e-6, BASES, contexts_per_round=400, max_contexts=4000
         )
         self.assertLessEqual(loose["n_contexts"], tight["n_contexts"])
 

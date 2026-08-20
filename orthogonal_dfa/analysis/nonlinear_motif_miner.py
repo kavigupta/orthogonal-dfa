@@ -2,15 +2,21 @@
 
 Contextual motif mining of an oracle.
 
-The oracle is any callable from sequences of symbol indices to scores. Nothing here knows
-what the symbols mean; the alphabet is passed in and used only to size the k-mer space and
-to label the results.
-
-Every k-mer is ranked by marginal benefit: the part of its in-context effect not already
+Every k-mer (sequence of symbols from the underyling language) is
+ranked by marginal benefit: the part of its in-context effect not already
 explained by its best contained (k-1)-mer.
 
-So a longer motif that merely extends a strong shorter one, GTAA over TAA, adds little
-and sinks.
+The marginal effect is defined as follows
+
+substPred(kmer | bg, pos) = prediction(bg[:pos] + kmer + bg[pos+k:])
+marginEff(kmer, 'start' | bg, pos) = substPred(kmer | bg, pos) - substPred(kmer[1:] | bg, pos + 1)
+marginEff(kmer, 'end' | bg, pos) = substPred(kmer | bg, pos) - substPred(kmer[:-1] | bg, pos)
+
+meanAbsMArgEff(kmer, side) = E_{pos, bg} [ | marginEff(kmer, side | bg, pos) | ]
+meanAbsMargEff(kmer) = min_{side} meanAbsMargEff(kmer, side)
+
+The reason for computing a marginal effect is that a contained (k-1)-mer may already explain the effect of a k-mer,
+so the marginal effect is a better measure of the k-mer's unique contribution.
 """
 
 from __future__ import annotations
@@ -45,9 +51,6 @@ def sample_contexts(
     ]
 
 
-# --- marginal-benefit ranking across motif lengths --------------------------------
-
-
 def _kmers(k, n_symbols):
     return [list(m) for m in itertools.product(range(n_symbols), repeat=k)]
 
@@ -56,15 +59,15 @@ def _fmt(motif, alphabet):
     return "".join(alphabet[c] for c in motif)
 
 
-def _kmer_effects(score, contexts, k, n_symbols, *, max_seqs=100_000):
+def _kmer_effects(score, contexts, k, n_symbols, *, score_batch=100_000):
     """The effect of writing each k-mer into [p, p+k), shaped (n_contexts, n_symbols**k)
     in _kmers order.
 
-    Chunked to keep each score() call near max_seqs sequences.
+    Chunked to keep each score() call near score_batch sequences.
     """
     motifs = _kmers(k, n_symbols)
     n = len(motifs)
-    chunk_contexts = max(1, max_seqs // n)
+    chunk_contexts = max(1, score_batch // n)
     rows = []
     for i in range(0, len(contexts), chunk_contexts):
         chunk = contexts[i : i + chunk_contexts]
@@ -199,9 +202,9 @@ def marginal_records_until(
     alphabet: Sequence[str],
     *,
     delta=0.05,
-    batch=500,
+    contexts_per_round=500,
     max_contexts=200_000,
-    on_batch=None,
+    on_round=None,
 ):
     """Stream batches from make_contexts(seed, n) until every length's bound is at most
     target_error, or max_contexts is reached.
@@ -214,15 +217,15 @@ def marginal_records_until(
     n = 0
     seed = 0
     while True:
-        contexts = make_contexts(seed, batch)
+        contexts = make_contexts(seed, contexts_per_round)
         seed += 1
         n += len(contexts)
         for k, a in acc.items():
             _, E = _kmer_effects(score, contexts, k, n_symbols)
             a.update(E, k)
         bounds = {k: a.bound(k, delta) for k, a in acc.items()}
-        if on_batch is not None:
-            on_batch(n, bounds)
+        if on_round is not None:
+            on_round(n, bounds)
         if max(bounds.values()) <= target_error or n >= max_contexts:
             break
 
