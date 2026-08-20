@@ -1,4 +1,4 @@
-"""Plotting for the nonlinear motif miner (see :mod:`nonlinear_motif_miner`)."""
+"""Plotting for the nonlinear motif miner."""
 
 from matplotlib import pyplot as plt
 
@@ -6,8 +6,8 @@ from matplotlib import pyplot as plt
 def plot_top_motifs(
     stats, *, top=15, value="marginal", xlabel="marginal benefit", ax=None
 ):
-    """Horizontal bar chart of the top motifs by the ``value`` attribute (e.g. ``marginal``
-    or ``magnitude``) of the ``MotifRecord``\\ s in ``stats``."""
+    """Horizontal bar chart of the top motifs in stats, by the named MotifRecord
+    attribute: marginal or magnitude."""
     if ax is None:
         _, ax = plt.subplots(figsize=(5, 4))
     top_stats = sorted(stats, key=lambda s: -getattr(s, value))[:top]
