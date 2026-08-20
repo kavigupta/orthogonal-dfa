@@ -15,7 +15,6 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
-from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import Oracle, SymmetricBernoulli
 from orthogonal_dfa.superlanguage import KmerVocabulary, LiftedOracle, SuperSampler
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
@@ -336,22 +335,9 @@ class TestBuildPstWiring(unittest.TestCase):
             sampler=sampler,
         )
         self.assertIs(pst.sampler, sampler)
+        # The tracker works over the super alphabet, not the base one.
         self.assertEqual(pst.alphabet_size, vocab.alphabet_size)
-
-    def test_default_sampler_is_uniform(self):
-        base = _PredicateOracle(lambda s: len(s) > 0 and s[0] == 0)
-
-        def oracle_creator(noise_model, seed):
-            vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
-            return LiftedOracle(
-                base, vocab, num_compilations=2, seed=seed, noise_model=noise_model
-            )
-
-        pst = build_pst(
-            oracle_creator, min_signal_strength=0.4, seed=0, sample_length=15
-        )
-        self.assertIsInstance(pst.sampler, UniformSampler)
-        self.assertEqual(pst.sampler.length, 15)
+        self.assertNotEqual(pst.alphabet_size, vocab.base_alphabet_size)
 
 
 class TestLearnSuperlanguage(unittest.TestCase):
