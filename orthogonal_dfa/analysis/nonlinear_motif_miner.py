@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import itertools
 import math
-from dataclasses import dataclass
-from typing import Callable, List, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 from permacache import permacache
@@ -118,6 +118,23 @@ def _kmer_effects(score, contexts, k, *, max_seqs=100_000):
     return motifs, np.concatenate(rows, 0)
 
 
+def _marginal_residuals(E, k):
+    """The three per-context residual arrays behind a length-k scan, each shaped like
+    ``E`` -- ``(n_contexts, 4**k)``, in ``_kmers(k)`` order.
+
+    ``rel`` is the motif's effect against the alternatives at the same spot.  ``drop_first``
+    and ``drop_last`` are what is left after the best contained ``(k-1)``-mer explanation:
+    backgrounds are uniform-random bases, so a contained ``(k-1)``-mer's effect is ``E``
+    averaged over the free end base, and the residual is the deviation from that average.
+    For a 1-mer both reduce to ``rel``.
+    """
+    T = E.reshape((E.shape[0],) + (4,) * k)
+    rel = np.abs(E - E.mean(1, keepdims=True))
+    drop_first = np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1)
+    drop_last = np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1)
+    return rel, drop_first, drop_last
+
+
 @dataclass
 class MotifRecord:
     motif: str
@@ -149,21 +166,18 @@ def marginal_motif_records(score, contexts, max_k):
     records = []
     for k in range(1, max_k + 1):
         motifs, E = _kmer_effects(score, contexts, k)
-        magnitude = np.abs(E - E.mean(1, keepdims=True)).mean(0)
-        T = E.reshape((E.shape[0],) + (4,) * k)
-        drop_first = (
-            np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1).mean(0)
-        )
-        drop_last = (
-            np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1).mean(0)
-        )
-        marginal = np.minimum(drop_first, drop_last)  # 1-mer: both equal mean|rel|
-        for mi, m in enumerate(motifs):
-            records.append(
-                MotifRecord(_fmt(m), k, float(marginal[mi]), float(magnitude[mi]))
-            )
+        rel, drop_first, drop_last = _marginal_residuals(E, k)
+        marginal = np.minimum(drop_first.mean(0), drop_last.mean(0))
+        records += _records_for_length(motifs, k, marginal, rel.mean(0))
     records.sort(key=lambda r: -r.marginal)
     return records
+
+
+def _records_for_length(motifs, k, marginal, magnitude):
+    return [
+        MotifRecord(_fmt(m), k, float(marginal[mi]), float(magnitude[mi]))
+        for mi, m in enumerate(motifs)
+    ]
 
 
 # --- winner's-curse bound on the top marginal --------------------------------------------
@@ -175,14 +189,60 @@ def _maximal_z(n_motifs, delta):
     return math.sqrt(2 * math.log(n_motifs)) + math.sqrt(2 * math.log(1 / delta))
 
 
-def _marginal_bound(acc, k, delta):
-    """Current winner's-curse bound on the top length-k marginal from streaming sums."""
-    n = acc["n"]
-    m0, m1 = acc["s0"] / n, acc["s1"] / n
-    se0 = np.sqrt(np.maximum(acc["ss0"] / n - m0**2, 0.0) / n)
-    se1 = np.sqrt(np.maximum(acc["ss1"] / n - m1**2, 0.0) / n)
-    se = np.maximum(se0, se1)  # conservative SE for the min-selected marginal
-    return float(se.max() * _maximal_z(4**k, delta))
+@dataclass
+class _RunningMoments:
+    """Streaming per-motif mean and standard error of a per-context residual.  ``total``
+    and ``total_sq`` start as scalar zeros and become ``(4**k,)`` arrays on first update,
+    so memory is constant in the number of contexts seen."""
+
+    n: int = 0
+    total: Any = 0.0
+    total_sq: Any = 0.0
+
+    def update(self, residual):
+        self.n += residual.shape[0]
+        self.total = self.total + residual.sum(0)
+        self.total_sq = self.total_sq + (residual**2).sum(0)
+
+    @property
+    def mean(self):
+        return self.total / self.n
+
+    @property
+    def stderr(self):
+        var = np.maximum(self.total_sq / self.n - self.mean**2, 0.0)
+        return np.sqrt(var / self.n)
+
+
+@dataclass
+class _MarginalAccumulator:
+    """The streaming statistics for one motif length: the two ``(k-1)``-mer explanations
+    whose smaller mean is the marginal benefit, and the magnitude carried for reporting.
+    """
+
+    drop_first: _RunningMoments = field(default_factory=_RunningMoments)
+    drop_last: _RunningMoments = field(default_factory=_RunningMoments)
+    magnitude: _RunningMoments = field(default_factory=_RunningMoments)
+
+    def update(self, E, k):
+        rel, drop_first, drop_last = _marginal_residuals(E, k)
+        self.drop_first.update(drop_first)
+        self.drop_last.update(drop_last)
+        self.magnitude.update(rel)
+
+    @property
+    def marginal(self):
+        """The best shorter explanation leaves the least unexplained."""
+        return np.minimum(self.drop_first.mean, self.drop_last.mean)
+
+    def bound(self, k, delta):
+        """Current winner's-curse bound on the *top* length-k marginal: reading the top of
+        a ``4**k``-long list selects a maximum, which sits above the truth by at most
+        ``SE * _maximal_z``.  Both the max over the two drop ends (the min-selected
+        marginal is no noisier than the noisier of them) and the max over motifs are
+        conservative."""
+        se = np.maximum(self.drop_first.stderr, self.drop_last.stderr)
+        return float(se.max() * _maximal_z(4**k, delta))
 
 
 def marginal_records_until(
@@ -207,41 +267,25 @@ def marginal_records_until(
     biased by the stopping rule.  Returns ``(records, info)`` with
     ``info = {"n_contexts", "bounds": {k: bound}}``.
     """
-    acc = {}
+    acc = {k: _MarginalAccumulator() for k in range(1, max_k + 1)}
     n = 0
     seed = 0
     while True:
         contexts = make_contexts(seed, batch)
         seed += 1
         n += len(contexts)
-        for k in range(1, max_k + 1):
+        for k, a in acc.items():
             _, E = _kmer_effects(score, contexts, k)
-            rel = np.abs(E - E.mean(1, keepdims=True))
-            T = E.reshape((E.shape[0],) + (4,) * k)
-            rf = np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1)
-            rl = np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1)
-            a = acc.setdefault(k, dict(n=0, mag=0.0, s0=0.0, ss0=0.0, s1=0.0, ss1=0.0))
-            a["n"] += E.shape[0]
-            a["mag"] = a["mag"] + rel.sum(0)
-            a["s0"] = a["s0"] + rf.sum(0)
-            a["ss0"] = a["ss0"] + (rf**2).sum(0)
-            a["s1"] = a["s1"] + rl.sum(0)
-            a["ss1"] = a["ss1"] + (rl**2).sum(0)
-        bounds = {k: _marginal_bound(a, k, delta) for k, a in acc.items()}
+            a.update(E, k)
+        bounds = {k: a.bound(k, delta) for k, a in acc.items()}
         if on_batch is not None:
             on_batch(n, bounds)
         if max(bounds.values()) <= target_error or n >= max_contexts:
             break
 
     records = []
-    for k in range(1, max_k + 1):
-        a = acc[k]
-        marginal = np.minimum(a["s0"] / a["n"], a["s1"] / a["n"])
-        magnitude = a["mag"] / a["n"]
-        for mi, m in enumerate(_kmers(k)):
-            records.append(
-                MotifRecord(_fmt(m), k, float(marginal[mi]), float(magnitude[mi]))
-            )
+    for k, a in acc.items():
+        records += _records_for_length(_kmers(k), k, a.marginal, a.magnitude.mean)
     records.sort(key=lambda r: -r.marginal)
     return records, {"n_contexts": n, "bounds": bounds}
 
