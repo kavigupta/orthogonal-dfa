@@ -4,9 +4,13 @@ from matplotlib import pyplot as plt
 
 
 def plot_top_motifs(stats, *, top=15, ax=None):
-    """Horizontal bar chart of the top motifs in stats by marginal benefit."""
+    """Horizontal bar chart of the top motifs in stats by marginal benefit.
+
+    Draws on the current axes when ax is not given, so the caller can set the figure up
+    (size, subplots) first.
+    """
     if ax is None:
-        _, ax = plt.subplots(figsize=(5, 4))
+        ax = plt.gca()
     top_stats = sorted(stats, key=lambda s: -s.marginal)[:top]
     ax.barh(range(len(top_stats)), [s.marginal for s in top_stats], color="#4c72b0")
     ax.set_yticks(range(len(top_stats)))
