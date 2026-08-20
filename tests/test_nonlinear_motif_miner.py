@@ -4,100 +4,113 @@ context-defined motif -- no SpliceAI, no GPU."""
 import unittest
 
 import numpy as np
+from permacache import no_cache_global
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
-    marginal_motif_records,
+    ScoreOracle,
     marginal_records_until,
-    sample_contexts,
 )
 
 L = 24
-BASES = "ACGT"
 
 
-class TestMarginalMotifRecords(unittest.TestCase):
-    def test_a_longer_motif_that_only_extends_a_shorter_one_sinks(self):
-        # Score adds a bonus whenever "CG" (1,2) appears ANYWHERE, plus per-position noise.
-        # CG carries the whole effect, so 3-mers that merely contain it (ACG, CGT) add no
-        # marginal benefit and must rank BELOW CG.
-        target = (1, 2)  # CG
-        W = np.random.default_rng(0).standard_normal((L, 4))
+class PlantedMotifOracle(ScoreOracle):
+    """Per-position weights plus a bonus whenever `motif` appears anywhere."""
 
-        def score(middles):
-            out = []
-            for m in middles:
-                v = float(sum(W[i, m[i]] for i in range(len(m))))
-                if any(tuple(m[j : j + 2]) == target for j in range(len(m) - 1)):
-                    v += 3.0
-                out.append(v)
-            return np.array(out)
+    def __init__(self, motif, alphabet="ACGT", bonus=3.0):
+        self._alphabet = alphabet
+        self.motif = motif
+        self.bonus = bonus
+        self.weights = np.random.default_rng(0).standard_normal((L, len(alphabet)))
 
-        contexts = sample_contexts(L, len(BASES), 3, 1500, seed=1)
-        records = marginal_motif_records(score, contexts, 3, BASES)
-        rank = {r.motif: i for i, r in enumerate(records)}  # 0 = highest marginal
-        self.assertLess(rank["CG"], rank["ACG"])
-        self.assertLess(rank["CG"], rank["CGT"])
-        # CG itself should be at (or very near) the top by marginal benefit
-        self.assertLess(rank["CG"], 3)
+    @property
+    def alphabet(self):
+        return self._alphabet
 
+    @property
+    def length(self):
+        return L
 
-class TestNonDNAAlphabet(unittest.TestCase):
-    def test_binary_alphabet(self):
-        # "ab" instead of "ACGT": a planted "ab" must outrank the 3-mers containing it.
-        W = np.random.default_rng(0).standard_normal((L, 2))
+    def scores(self, seqs):
+        out = []
+        for s in seqs:
+            v = float(sum(self.weights[i, s[i]] for i in range(len(s))))
+            width = len(self.motif)
+            if any(
+                tuple(s[j : j + width]) == self.motif for j in range(len(s) - width + 1)
+            ):
+                v += self.bonus
+            out.append(v)
+        return np.array(out)
 
-        def score(middles):
-            out = []
-            for m in middles:
-                v = float(sum(W[i, m[i]] for i in range(len(m))))
-                if any(tuple(m[j : j + 2]) == (0, 1) for j in range(len(m) - 1)):
-                    v += 3.0
-                out.append(v)
-            return np.array(out)
-
-        contexts = sample_contexts(L, 2, 3, 1500, seed=1)
-        records = marginal_motif_records(score, contexts, 3, "ab")
-        self.assertEqual(len(records), 2 + 4 + 8)
-        rank = {r.motif: i for i, r in enumerate(records)}
-        self.assertLess(rank["ab"], rank["aab"])
-        self.assertLess(rank["ab"], rank["abb"])
+    def __permacache_hash__(self):
+        return [self._alphabet, self.motif, self.bonus]
 
 
-class TestMarginalRecordsUntil(unittest.TestCase):
-    def _cg_score(self):
-        W = np.random.default_rng(0).standard_normal((L, 4))
+class MinerTestCase(unittest.TestCase):
+    """Scans here must recompute; a cached round would let a broken change pass."""
 
-        def score(middles):
-            out = []
-            for m in middles:
-                v = float(sum(W[i, m[i]] for i in range(len(m))))
-                if any(tuple(m[j : j + 2]) == (1, 2) for j in range(len(m) - 1)):
-                    v += 3.0
-                out.append(v)
-            return np.array(out)
+    def setUp(self):
+        self.enterContext(no_cache_global())
 
-        return score
-
-    def test_stops_at_max_contexts_and_still_ranks_cg_top(self):
-        score = self._cg_score()
-        make = lambda seed, n: sample_contexts(L, len(BASES), 3, n, seed=seed)
+    def rank(self, oracle, max_k, n_contexts):
+        # 1e-9 is unreachable, so the scan runs to exactly n_contexts.
         records, info = marginal_records_until(
-            score, make, 3, 1e-6, BASES, contexts_per_round=400, max_contexts=800
+            oracle,
+            max_k,
+            1e-9,
+            contexts_per_round=n_contexts,
+            max_contexts=n_contexts,
         )
-        self.assertEqual(info["n_contexts"], 800)  # unreachable target -> hits the cap
-        rank = {r.motif: i for i, r in enumerate(records)}
-        self.assertLess(rank["CG"], rank["ACG"])
+        return {r.motif: i for i, r in enumerate(records)}, records, info
 
-    def test_looser_target_uses_no_more_contexts(self):
-        score = self._cg_score()
-        make = lambda seed, n: sample_contexts(L, len(BASES), 3, n, seed=seed)
-        _, loose = marginal_records_until(
-            score, make, 3, 1.0, BASES, contexts_per_round=400, max_contexts=4000
+
+class TestMarginalRanking(MinerTestCase):
+    def test_a_longer_motif_that_only_extends_a_shorter_one_sinks(self):
+        # CG carries the whole effect, so 3-mers that merely contain it add no marginal
+        # benefit and must rank BELOW CG.
+        order, _, _ = self.rank(PlantedMotifOracle((1, 2)), 3, 1500)
+        self.assertLess(order["CG"], order["ACG"])
+        self.assertLess(order["CG"], order["CGT"])
+        self.assertLess(order["CG"], 3)
+
+
+class TestNonDNAAlphabet(MinerTestCase):
+    def test_binary_alphabet(self):
+        order, records, _ = self.rank(
+            PlantedMotifOracle((0, 1), alphabet="ab"), 3, 1500
         )
-        _, tight = marginal_records_until(
-            score, make, 3, 1e-6, BASES, contexts_per_round=400, max_contexts=4000
+        self.assertEqual(len(records), 2 + 4 + 8)
+        self.assertLess(order["ab"], order["aab"])
+        self.assertLess(order["ab"], order["abb"])
+
+
+class TestStopping(MinerTestCase):
+    def test_stops_at_max_contexts(self):
+        _, _, info = self.rank(PlantedMotifOracle((1, 2)), 3, 800)
+        self.assertEqual(info["n_contexts"], 800)
+        self.assertGreater(info["bound"], 1e-9)  # cap hit, target not met
+
+    def test_a_reachable_target_stops_early(self):
+        _, info = marginal_records_until(
+            PlantedMotifOracle((1, 2)),
+            3,
+            10.0,
+            contexts_per_round=200,
+            max_contexts=4000,
         )
-        self.assertLessEqual(loose["n_contexts"], tight["n_contexts"])
+        self.assertEqual(info["n_contexts"], 200)
+        self.assertLessEqual(info["bound"], 10.0)
+
+
+class TestOracleIsHashable(MinerTestCase):
+    def test_permacache_hash_distinguishes_oracles(self):
+        from permacache import stable_hash
+
+        self.assertNotEqual(
+            stable_hash(PlantedMotifOracle((1, 2))),
+            stable_hash(PlantedMotifOracle((0, 1))),
+        )
 
 
 if __name__ == "__main__":
