@@ -7,6 +7,7 @@ is invertible, ``X`` never spells a stop codon, so the all-frames-closed label i
 deterministic (X-insensitive) function of the super-string.
 """
 
+import itertools
 import unittest
 
 import numpy as np
@@ -150,20 +151,47 @@ class TestParseCompile(unittest.TestCase):
         self.assertEqual(a, b)
 
     def test_compile_of_parse_is_uniform(self):
-        """``compile(parse(x))`` recovers a uniform base string for uniform ``x``.
-
-        The Perron weights make this exact in the interior of a wildcard run, so
-        only a small boundary term survives -- weighting the legal symbols equally
-        instead lands ~0.04 off, well outside this bound.
-        """
+        """``compile(parse(x))`` recovers a uniform base string for uniform ``x``."""
         rng = np.random.default_rng(1)
-        counts = np.zeros(4)
-        for _ in range(2000):
-            x = [int(rng.integers(4)) for _ in range(24)]
-            for c in self.vocab.compile(self.vocab.parse(x), rng):
-                counts[c] += 1
+        xs = [rng.integers(4, size=24).tolist() for _ in range(2000)]
+        compiled = self.vocab.compile_many(
+            [self.vocab.parse(x) for x in xs],
+            [np.random.default_rng(i) for i in range(len(xs))],
+        )
+        counts = np.bincount(np.concatenate(compiled), minlength=4)
         freqs = counts / counts.sum()
-        self.assertLess(np.abs(freqs - 0.25).max(), 0.015)
+        self.assertLess(np.abs(freqs - 0.25).max(), 0.01)
+
+    def test_compile_is_uniform_over_the_whole_fiber(self):
+        """Every base string that parses back to ``s`` must come out equally often.
+
+        Brute-forces the fiber of one super-string and chi-squares the sampler
+        against it -- the sharp version of the marginal check above, and what the
+        fiber-counting weights buy: drawing uniformly among the *locally* legal
+        symbols instead skews this badly (chi2 ~ 11x the degrees of freedom).
+        """
+        x = self.vocab.unknown_symbol
+        s = [x, x, 0, x, x, x]  # five wildcards around one TAG -> 8 base symbols
+        want = self.vocab.canonicalize(s)
+        length = sum(self.vocab.compiled_length(sym) for sym in s)
+        fiber = {}
+        for candidate in itertools.product(range(4), repeat=length):
+            if self.vocab.parse(list(candidate)) == want:
+                fiber[candidate] = len(fiber)
+
+        count = 40 * len(fiber)
+        compiled = self.vocab.compile_many(
+            [s] * count, [np.random.default_rng(i) for i in range(count)]
+        )
+        counts = np.zeros(len(fiber))
+        for base_string in compiled:
+            key = tuple(base_string)
+            self.assertIn(key, fiber, "compiled outside the fiber")
+            counts[fiber[key]] += 1
+        chi2 = ((counts - count / len(fiber)) ** 2 / (count / len(fiber))).sum()
+        # Under uniformity chi2 ~ dof; allow a wide margin so the test is about
+        # systematic skew, not luck. Equal weighting would land near 11 * dof.
+        self.assertLess(chi2, 2 * (len(fiber) - 1))
 
     def test_compile_never_spells_a_stop_in_wildcard_regions(self):
         # A wildcard-only string must never compile to a base string containing a

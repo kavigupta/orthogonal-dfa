@@ -57,13 +57,17 @@ class LiftedOracle(Oracle):
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # Flatten (string, compilation) into one base-oracle batch, so a batched
-        # base model is called once.
-        flat: List[List[int]] = []
+        # Flatten (string, compilation) into one batch, so both the compilation and
+        # the base oracle -- which may be an expensive batched model -- run once.
+        repeated: List[List[int]] = []
+        rngs: List[np.random.Generator] = []
         for string in strings:
             for j in range(self._num_compilations):
-                rng = np.random.default_rng(_compilation_seed(string, self._seed, j))
-                flat.append(self._vocab.compile(string, rng))
+                repeated.append(string)
+                rngs.append(
+                    np.random.default_rng(_compilation_seed(string, self._seed, j))
+                )
+        flat = self._vocab.compile_many(repeated, rngs)
         base = np.asarray(self._base.membership_queries(flat), dtype=bool)
         assert base.shape == (len(flat),), "base oracle dropped answers"
         votes = base.reshape(len(strings), self._num_compilations).mean(axis=1) >= 0.5

@@ -10,14 +10,11 @@ original super-string -- ``parse(compile(s)) == canonicalize(s)`` (the wildcards
 compile identically, so parse cannot tell which one was used).
 
 A wildcard may emit any base symbol that does not start a kmer given what follows
-it, so :meth:`compile` works right to left (what follows is then already decided)
-and draws from a precomputed per-state table.  The table holds the *Perron* weights
-of the fiber-counting transfer matrix, which is the exact uniform law over
-``parse**-1(s)`` in the interior of a wildcard run -- see
-:func:`_transfer_tables`.  Only within a few positions of a kmer or the string end
-does it deviate, geometrically.  So ``compile(parse(x))`` is uniform on the base
-alphabet up to that boundary term, at the cost of a table lookup per symbol rather
-than a per-string DP.  The kmers must be prefix-free so the parse is unambiguous.
+it.  Those choices are coupled, and :meth:`compile` weights them so that the result
+is drawn *uniformly over the fiber* ``parse**-1(s)`` -- which makes
+``compile(parse(x))`` exactly uniform when ``x`` is a uniform base string.  That
+costs a pass over the string, so :meth:`compile_many` runs the pass for a whole
+batch at once.  The kmers must be prefix-free so the parse is unambiguous.
 
 Several wildcards exist for the learner's benefit: wildcard-only suffixes have the
 same membership column as the empty suffix, so they are what the suffix-family
@@ -25,7 +22,6 @@ clustering locks onto -- and with a single wildcard there is only *one* such
 suffix per length, too few to fill a family.
 """
 
-import bisect
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
@@ -34,6 +30,11 @@ from typing import Iterable, List, Sequence, Tuple
 import numpy as np
 
 Kmer = Tuple[int, ...]
+
+# Template slots that hold no fixed base symbol: a wildcard to fill, and padding
+# left of a right-aligned string in a batch.
+_FREE = -1
+_PAD = -2
 
 
 def _prefix_related(a: Sequence[int], b: Sequence[int]) -> bool:
@@ -48,63 +49,87 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
 
     A state encodes the ``w = max_kmer_length - 1`` base symbols *following* a
     position, in radix ``base + 1`` so that ``base`` itself can act as an
-    end-of-string sentinel (it matches no kmer).  ``shift[c][state]`` is the state
-    seen one position to the left after emitting ``c``, and ``choice[state]`` is
-    ``(symbols, cumulative_weights)`` for the symbols a wildcard may emit there.
-
-    The weights come from the transfer matrix ``T`` of the counting recurrence
-    ``ways[p][s] = sum over allowed c of ways[p-1][shift(c, s)]``: a run of ``L``
-    wildcards applies ``T**L``, and since ``T`` is primitive, ``T**L`` grows like
-    ``lambda_1**L w`` with ``w`` its right Perron eigenvector.  The ``lambda_1**L``
-    cancels between candidates, so the exact fiber-uniform law in the interior of a
-    run is just ``p(c | state) proportional to w[shift(c, state)]`` -- one table,
-    no per-string DP.  (Weighting the candidates *equally* instead is the ``w ==
-    const`` approximation, which visibly skews the base composition.)  Only within
-    a few positions of a kmer block or the string end does the truth differ, and
-    there by a factor decaying like ``(lambda_2 / lambda_1)`` per position.
-
-    Plain lists, not arrays: compiling is a tight loop where numpy indexing costs
-    more than it saves.
+    end-of-string sentinel (it matches no kmer).  ``shift[c, state]`` is the state
+    seen one position to the left after emitting ``c``, and ``allowed[state, c]``
+    says whether a wildcard may emit ``c`` there without starting a kmer.
     """
     w = max((len(k) for k in kmers), default=1) - 1
     radix = base + 1
     num_states = radix**w
 
-    shift = [
+    shift = np.array(
         [
-            c + radix * (state % radix ** (w - 1)) if w >= 1 else 0
-            for state in range(num_states)
-        ]
-        for c in range(base)
-    ]
+            [
+                c + radix * (state % radix ** (w - 1)) if w >= 1 else 0
+                for state in range(num_states)
+            ]
+            for c in range(base)
+        ],
+        dtype=np.int64,
+    )
 
-    allowed = []
+    allowed = np.ones((num_states, base), dtype=bool)
     for state in range(num_states):
         following = [(state // radix**i) % radix for i in range(w)]
-        starts = {k[0] for k in kmers if following[: len(k) - 1] == list(k[1:])}
-        allowed.append([c for c in range(base) if c not in starts])
-
-    transfer = np.zeros((num_states, num_states))
-    for state in range(num_states):
-        for c in allowed[state]:
-            transfer[state, shift[c][state]] += 1.0
-    values, vectors = np.linalg.eig(transfer)
-    perron = np.abs(vectors[:, int(np.argmax(values.real))].real)
-
-    choice = []
-    for state in range(num_states):
-        options = allowed[state]
-        weights = np.array([perron[shift[c][state]] for c in options])
-        total = weights.sum()
-        # A degenerate vocabulary can leave a state with nothing legal to emit;
-        # compile asserts on it rather than silently emitting a kmer.
-        cumulative = (
-            np.cumsum(weights / total).tolist() if options and total > 0 else []
-        )
-        choice.append((options, cumulative))
+        for kmer in kmers:
+            if following[: len(kmer) - 1] == list(kmer[1:]):
+                allowed[state, kmer[0]] = False
 
     initial = num_states - 1 if w else 0  # all sentinels: nothing follows the end
-    return initial, choice, shift
+    return initial, allowed, shift
+
+
+def _compile_chunk(templates, rngs, tables):
+    """One batch of :meth:`KmerVocabulary.compile_many`.
+
+    Templates are right-aligned into a ``(batch, width)`` grid padded with ``_PAD``
+    so every string's last position lands in the final column; the sampling pass
+    then starts them all in the same end-of-string state and walks left in lockstep.
+    """
+    initial, allowed, shift = tables
+    base, num_states = shift.shape
+    size = len(templates)
+    width = max(len(t) for t in templates)
+    grid = np.full((size, width), _PAD, dtype=np.int64)
+    start = np.empty(size, dtype=np.int64)
+    draws = np.zeros((size, width))
+    for row, (template, rng) in enumerate(zip(templates, rngs)):
+        start[row] = width - len(template)
+        grid[row, start[row] :] = template
+        draws[row, start[row] :] = rng.random(len(template))
+
+    # ways[j][row, s]: number of fillings of the columns left of j, given that the
+    # window following column j-1 is s.  Rescaled per step; the true counts grow
+    # like the transfer matrix's leading eigenvalue and would overflow.
+    ways = np.ones((width + 1, size, num_states))
+    for j in range(width):
+        previous, column = ways[j], grid[:, j]
+        free = (previous[:, shift] * allowed.T[None]).sum(axis=1)
+        fixed = np.take_along_axis(
+            previous, shift[np.where(column >= 0, column, 0)], axis=1
+        )
+        row = np.where((column == _FREE)[:, None], free, fixed)
+        row = np.where((column == _PAD)[:, None], previous, row)
+        peak = np.max(row, axis=1)[:, None]
+        ways[j + 1] = np.divide(row, peak, out=row.copy(), where=peak > 0)
+
+    state = np.full(size, initial, dtype=np.int64)
+    out = np.zeros((size, width), dtype=np.int64)
+    for j in range(width - 1, -1, -1):
+        column = grid[:, j]
+        live = column != _PAD
+        weights = (
+            np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
+        )
+        running = np.cumsum(weights, axis=1)
+        assert (running[live, -1] > 0).all(), "super-string has no valid compilation"
+        picked = (running < (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
+        chosen = np.where(
+            column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
+        )
+        out[:, j] = chosen
+        state = np.where(live, shift[chosen, state], state)
+    return [out[row, start[row] :].tolist() for row in range(size)]
 
 
 @dataclass(frozen=True)
@@ -220,36 +245,59 @@ class KmerVocabulary:
     def compile(
         self, super_string: Iterable[int], rng: np.random.Generator
     ) -> List[int]:
-        """Compile a super-string to a base string that :meth:`parse` reads back as
-        the original (up to which wildcard was used).
+        """Compile one super-string; see :meth:`compile_many`, which this calls.
 
-        Kmer symbols emit their kmer; each wildcard emits one base symbol that does
-        not start a kmer given what follows it, drawn with the Perron weights of
-        :func:`_transfer_tables` so the result is fiber-uniform away from the
-        boundaries.  Going right to left makes "what follows" already known, so this
-        is a single pass of table lookups.
+        Prefer :meth:`compile_many` when compiling a batch: the work per string is
+        a pass over its length, and batching amortizes it.
         """
-        template = self._template(super_string)
-        state, choice, shift = _transfer_tables(self.kmers, self.base_alphabet_size)
-        out: List[int] = [0] * len(template)
-        draws = rng.random(len(template))
-        for pos in range(len(template) - 1, -1, -1):
-            chosen = template[pos]
-            if chosen == -1:
-                options, cumulative = choice[state]
-                assert cumulative, "super-string has no valid compilation"
-                chosen = options[bisect.bisect_left(cumulative, draws[pos])]
-            out[pos] = chosen
-            state = shift[chosen][state]
-        return out
+        return self.compile_many([super_string], [rng])[0]
+
+    def compile_many(
+        self,
+        super_strings: Sequence[Iterable[int]],
+        rngs: Sequence[np.random.Generator],
+    ) -> List[List[int]]:
+        """Compile super-strings to base strings that :meth:`parse` reads back as
+        the originals (up to which wildcard was used), each drawn **uniformly over
+        its fiber** ``parse**-1(s)`` -- so ``compile(parse(x))`` is uniform when
+        ``x`` is.
+
+        Kmer symbols emit their kmer; a wildcard may emit any symbol that does not
+        start a kmer given what follows it.  Those choices are coupled, and the
+        uniform law weights each by how many ways the rest can then be filled, so a
+        backward pass counts fillings (``ways[j][s]``, renormalized per step since
+        the true counts overflow) and a forward pass samples right to left against
+        those counts.
+
+        Both passes are a loop over *positions*, so the whole batch advances
+        together and the per-step cost is paid once rather than once per string.
+        """
+        assert len(super_strings) == len(rngs), "need one rng per super-string"
+        tables = _transfer_tables(self.kmers, self.base_alphabet_size)
+        num_states = tables[2].shape[1]
+        templates = [self._template(s) for s in super_strings]
+        if not templates:
+            return []
+        width = max(len(t) for t in templates)
+        # Cap the backward pass's (width, chunk, num_states) table at ~64MB.
+        chunk = int(np.clip(8_000_000 // max((width + 1) * num_states, 1), 1, 4096))
+
+        out_all: List[List[int]] = []
+        for lo in range(0, len(templates), chunk):
+            out_all.extend(
+                _compile_chunk(
+                    templates[lo : lo + chunk], rngs[lo : lo + chunk], tables
+                )
+            )
+        return out_all
 
     def _template(self, super_string: Iterable[int]) -> List[int]:
-        """Base-string layout: the fixed symbol at each kmer position, ``-1`` at
-        each free wildcard slot."""
+        """Base-string layout: the fixed symbol at each kmer position, ``_FREE`` at
+        each wildcard slot."""
         template: List[int] = []
         for symbol in super_string:
             if self.is_unknown(symbol):
-                template.append(-1)
+                template.append(_FREE)
             else:
                 template.extend(self.kmers[symbol])
         return template
