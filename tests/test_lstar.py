@@ -13,9 +13,9 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
 from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
 class TestLStar(unittest.TestCase):
