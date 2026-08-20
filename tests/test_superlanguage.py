@@ -53,33 +53,10 @@ class TestKmerVocabulary(unittest.TestCase):
         self.assertTrue(v.is_unknown(3))
         self.assertFalse(v.is_unknown(0))
 
-    def test_wildcards_share_the_remaining_mass(self):
-        v = KmerVocabulary(kmers=(TAG,), base_alphabet_size=4, num_wildcards=2)
-        probs = v.probabilities()
-        self.assertAlmostEqual(probs[0], 1 / 64)
-        # the two wildcards split what is left evenly
-        self.assertEqual(v.wildcard_symbols, (1, 2))
-        for w in v.wildcard_symbols:
-            self.assertAlmostEqual(probs[w], (1 - 1 / 64) / 2)
-        self.assertAlmostEqual(probs.sum(), 1.0)
-
-    def test_probabilities_fresh_position(self):
+    def test_single_wildcard_vocabulary(self):
         v = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4, num_wildcards=1)
-        probs = v.probabilities()
-        # each length-3 kmer under the uniform null: 4**-3 = 1/64.
-        np.testing.assert_allclose(probs[:3], 1 / 64)
-        self.assertAlmostEqual(probs[v.unknown_symbol], 1 - 3 / 64)
-        self.assertAlmostEqual(probs.sum(), 1.0)
-
-    def test_probabilities_variable_length(self):
-        # A short and a long kmer that are not prefix-related: both keep mass.
-        v = KmerVocabulary(
-            kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4, num_wildcards=1
-        )
-        probs = v.probabilities()
-        self.assertAlmostEqual(probs[0], 1 / 16)  # length 2
-        self.assertAlmostEqual(probs[1], 1 / 64)  # length 3
-        self.assertAlmostEqual(probs[v.unknown_symbol], 1 - 1 / 16 - 1 / 64)
+        self.assertEqual(v.alphabet_size, 4)
+        self.assertEqual(v.wildcard_symbols, (3,))
 
     def test_compiled_length(self):
         v = KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)
@@ -269,6 +246,24 @@ class TestLiftedOracle(unittest.TestCase):
         np.testing.assert_array_equal(
             one.membership_queries(strings), many.membership_queries(strings)
         )
+
+    def test_majority_vote_over_compilations(self):
+        """A base oracle that *does* read the wildcard fill is answered by the
+        majority of ``num_compilations`` draws, which is what more than one
+        compilation buys.  Here a lone wildcard compiles to a uniform base symbol,
+        so ~3/4 of the draws are non-A and the vote lands on accept; the mirrored
+        oracle votes reject.
+        """
+        vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
+        x = vocab.unknown_symbol
+        mostly = LiftedOracle(
+            _PredicateOracle(lambda s: s[0] != 0), vocab, num_compilations=64, seed=0
+        )
+        rarely = LiftedOracle(
+            _PredicateOracle(lambda s: s[0] == 0), vocab, num_compilations=64, seed=0
+        )
+        self.assertTrue(mostly.membership_query([x]))
+        self.assertFalse(rarely.membership_query([x]))
 
     def test_wildcard_suffixes_preserve_the_label(self):
         """Appending wildcards cannot create a stop codon, so a wildcard-only

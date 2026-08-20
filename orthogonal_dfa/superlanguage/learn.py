@@ -13,7 +13,7 @@ size itself against, exactly as for a base-alphabet oracle.
 
 # pylint: disable=duplicate-code  # forwarding build_pst's kwargs, not copied logic
 
-from typing import Any, Iterable, Optional, Sequence, Tuple
+from typing import Any, Optional, Tuple
 
 from orthogonal_dfa.l_star.learn import (
     DEFAULT_ACC_THRESHOLD,
@@ -70,31 +70,3 @@ def learn_superlanguage(
         acc_threshold=acc_threshold,
     )
     return dfa, vocabulary
-
-
-def learn_superlanguage_from_corpus(
-    corpus: Iterable[Sequence[int]],
-    base_oracle: Oracle,
-    *,
-    min_signal_strength: float,
-    seed: int,
-    lengths: Sequence[int] = (3, 4, 5, 6),
-    top_n: int = 10,
-    **kwargs,
-) -> Tuple[Any, KmerVocabulary]:
-    """Build a :class:`KmerVocabulary` from ``corpus`` (top-``top_n`` kmers over
-    ``lengths``) and learn its superlanguage.  ``**kwargs`` are forwarded to
-    :func:`learn_superlanguage`."""
-    vocabulary = KmerVocabulary.from_corpus(
-        corpus,
-        base_alphabet_size=base_oracle.alphabet_size,
-        lengths=lengths,
-        top_n=top_n,
-    )
-    return learn_superlanguage(
-        base_oracle,
-        vocabulary,
-        min_signal_strength=min_signal_strength,
-        seed=seed,
-        **kwargs,
-    )

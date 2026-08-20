@@ -10,11 +10,11 @@ The pieces compose:
   uniform base stream).
 * :class:`LiftedOracle` -- answers super-string membership by compiling to the
   base alphabet and majority-voting a base oracle over several compilations.
-* :func:`learn_superlanguage` / :func:`learn_superlanguage_from_corpus` -- wire
-  those into E-L* and return ``(dfa, vocabulary)``.
+* :func:`learn_superlanguage` -- wires those into E-L* and returns
+  ``(dfa, vocabulary)``.
 """
 
-from .learn import learn_superlanguage, learn_superlanguage_from_corpus
+from .learn import learn_superlanguage
 from .oracle import LiftedOracle
 from .sampler import SuperSampler
 from .vocabulary import KmerVocabulary
@@ -24,5 +24,4 @@ __all__ = [
     "SuperSampler",
     "LiftedOracle",
     "learn_superlanguage",
-    "learn_superlanguage_from_corpus",
 ]

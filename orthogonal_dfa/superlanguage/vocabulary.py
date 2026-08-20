@@ -197,24 +197,6 @@ class KmerVocabulary:
         exact only up to this relabelling."""
         return [self.unknown_symbol if self.is_unknown(s) else s for s in super_string]
 
-    # -- distribution --------------------------------------------------------
-
-    def probabilities(self) -> np.ndarray:
-        """The per-position emission law at a fresh parse position: a uniform base
-        string starts with ``kmers[i]`` with probability ``base ** -len``, and the
-        wildcards split the remainder evenly.  (This is the conditional at one
-        position, not the marginal of :class:`SuperSampler`, a Markov process.)
-        """
-        base = self.base_alphabet_size
-        probs = np.zeros(self.alphabet_size)
-        for i, kmer in enumerate(self.kmers):
-            probs[i] = base ** (-len(kmer))
-        # max guards against floating-point rounding pushing the sum over 1.
-        remainder = max(0.0, 1.0 - probs[: self.num_kmers].sum())
-        for w in self.wildcard_symbols:
-            probs[w] = remainder / self.num_wildcards
-        return probs
-
     # -- parse / compile -----------------------------------------------------
 
     def compiled_length(self, symbol: int) -> int:
