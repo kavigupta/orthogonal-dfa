@@ -32,11 +32,7 @@ from permacache import permacache
 
 
 class ScoreOracle(ABC):
-    """What the miner mines: something that scores sequences and knows its own shape.
-
-    Implementations must hash stably so a scan over one can be cached; permacache picks
-    __permacache_hash__ up off the type.
-    """
+    """What the miner mines: something that scores sequences and knows its own shape."""
 
     @property
     @abstractmethod
@@ -53,8 +49,15 @@ class ScoreOracle(ABC):
         """(n_seqs, length) of symbol indices -> (n_seqs,) of scores."""
 
     @abstractmethod
+    def hash_payload(self):
+        """Stable identity of this oracle, distinguishing instances of the same class."""
+
     def __permacache_hash__(self):
-        """Stable identity of this oracle, standing in for it in a cache key."""
+        # permacache does not mix the class into a custom hash, so we do it here
+        return [
+            type(self).__module__ + "." + type(self).__name__,
+            self.hash_payload(),
+        ]
 
     @property
     def n_symbols(self) -> int:
@@ -294,7 +297,7 @@ class _MarginalAccumulator:
         )
 
 
-@permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/round_accumulator_v1")
+@permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/round_accumulator_v2")
 def _round_accumulator(oracle, max_k, contexts_per_round, seed, round_index):
     """One round's statistics, cached on its own so a rerun with a tighter target_error
     reuses every round it already paid for instead of starting over."""

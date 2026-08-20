@@ -43,7 +43,7 @@ class PlantedMotifOracle(ScoreOracle):
             out.append(v)
         return np.array(out)
 
-    def __permacache_hash__(self):
+    def hash_payload(self):
         return [self._alphabet, self.motif, self.bonus]
 
 
