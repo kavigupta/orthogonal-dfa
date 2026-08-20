@@ -1,7 +1,10 @@
-"""In-context motif mining on the gate-controlled SpliceAI oracle.
+"""
 
-The oracle is SpliceAI's exon score minus a per-length-bin monotonic-gate bag-of-k-mers
-prediction, so composition is removed but positional structure is not.
+Contextual motif mining of an oracle.
+
+The oracle is any callable from sequences of symbol indices to scores. Nothing here knows
+what the symbols mean; the alphabet is passed in and used only to size the k-mer space and
+to label the results.
 
 Every k-mer is ranked by marginal benefit: the part of its in-context effect not already
 explained by its best contained (k-1)-mer.
@@ -15,54 +18,14 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 import numpy as np
-from permacache import permacache
-
-from orthogonal_dfa.data.exon import RawExon, default_exon
-from orthogonal_dfa.l_star.examples.gate_composition_residual import (
-    fit_gate_composition_residual,
-)
-from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
-from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore, device_of
-from orthogonal_dfa.spliceai.load_model import load_spliceai
-
-BASES = "ACGT"
-
-
-def build_controlled_score(
-    exon: RawExon,
-    spliceai_model,
-    *,
-    device=None,
-    chunk: int = 1024,
-    **fit_kw,
-) -> Callable[[Sequence[Sequence[int]]], np.ndarray]:
-    """Maps middles, over the alphabet A=0 C=1 G=2 T=3, to gate-residual scores.
-
-    fit_kw forwards to the gate fit: len_lo, len_hi, n_max.
-    """
-    score_model = SpliceAIExonScore(spliceai_model).eval()
-    residual = fit_gate_composition_residual(score_model, exon, device=device, **fit_kw)
-    dev = device_of(score_model, device)
-    flank_l, flank_r = flanks(exon)
-
-    def score(middles: Sequence[Sequence[int]]) -> np.ndarray:
-        return run_over_middles(
-            residual,
-            flank_l,
-            flank_r,
-            [list(m) for m in middles],
-            device=dev,
-            chunk=chunk,
-        )
-
-    return score
 
 
 def sample_contexts(
     length: int,
+    n_symbols: int,
     motif_k: int,
     n_contexts: int,
     *,
@@ -77,7 +40,7 @@ def sample_contexts(
     rng = np.random.default_rng(seed)
     lo, hi = pos_range if pos_range is not None else (0, length - motif_k + 1)
     return [
-        (rng.integers(0, 4, size=length).tolist(), int(rng.integers(lo, hi)))
+        (rng.integers(0, n_symbols, size=length).tolist(), int(rng.integers(lo, hi)))
         for _ in range(n_contexts)
     ]
 
@@ -85,21 +48,21 @@ def sample_contexts(
 # --- marginal-benefit ranking across motif lengths --------------------------------
 
 
-def _kmers(k):
-    return [list(m) for m in itertools.product(range(4), repeat=k)]
+def _kmers(k, n_symbols):
+    return [list(m) for m in itertools.product(range(n_symbols), repeat=k)]
 
 
-def _fmt(motif):
-    return "".join(BASES[c] for c in motif)
+def _fmt(motif, alphabet):
+    return "".join(alphabet[c] for c in motif)
 
 
-def _kmer_effects(score, contexts, k, *, max_seqs=100_000):
-    """The effect of writing each k-mer into [p, p+k), shaped (n_contexts, 4**k) in
-    _kmers(k) order.
+def _kmer_effects(score, contexts, k, n_symbols, *, max_seqs=100_000):
+    """The effect of writing each k-mer into [p, p+k), shaped (n_contexts, n_symbols**k)
+    in _kmers order.
 
     Chunked to keep each score() call near max_seqs sequences.
     """
-    motifs = _kmers(k)
+    motifs = _kmers(k, n_symbols)
     n = len(motifs)
     chunk_contexts = max(1, max_seqs // n)
     rows = []
@@ -116,14 +79,14 @@ def _kmer_effects(score, contexts, k, *, max_seqs=100_000):
     return motifs, np.concatenate(rows, 0)
 
 
-def _marginal_residuals(E, k):
+def _marginal_residuals(E, k, n_symbols):
     """rel is the motif's effect against the alternatives at the same spot.
 
     drop_first and drop_last are what each contained (k-1)-mer leaves unexplained.
-    Backgrounds are uniform-random bases, so a contained (k-1)-mer's effect is just E
-    averaged over the free end base.
+    Backgrounds are uniform over the alphabet, so a contained (k-1)-mer's effect is just E
+    averaged over the free end symbol.
     """
-    T = E.reshape((E.shape[0],) + (4,) * k)
+    T = E.reshape((E.shape[0],) + (n_symbols,) * k)
     rel = np.abs(E - E.mean(1, keepdims=True))
     drop_first = np.abs(T - T.mean(1, keepdims=True)).reshape(E.shape[0], -1)
     drop_last = np.abs(T - T.mean(-1, keepdims=True)).reshape(E.shape[0], -1)
@@ -144,25 +107,25 @@ class MotifRecord:
         )
 
 
-def marginal_motif_records(score, contexts, max_k):
+def marginal_motif_records(score, contexts, max_k, alphabet: Sequence[str]):
     """Records over a fixed context set.
 
-    This is the non-streaming reference for marginal_records_until, testable without the
-    oracle.
+    This is the non-streaming reference for marginal_records_until, testable without a
+    real oracle.
     """
     records = []
     for k in range(1, max_k + 1):
-        motifs, E = _kmer_effects(score, contexts, k)
-        rel, drop_first, drop_last = _marginal_residuals(E, k)
+        motifs, E = _kmer_effects(score, contexts, k, len(alphabet))
+        rel, drop_first, drop_last = _marginal_residuals(E, k, len(alphabet))
         marginal = np.minimum(drop_first.mean(0), drop_last.mean(0))
-        records += _records_for_length(motifs, k, marginal, rel.mean(0))
+        records += _records_for_length(motifs, k, marginal, rel.mean(0), alphabet)
     records.sort(key=lambda r: -r.marginal)
     return records
 
 
-def _records_for_length(motifs, k, marginal, magnitude):
+def _records_for_length(motifs, k, marginal, magnitude, alphabet):
     return [
-        MotifRecord(_fmt(m), k, float(marginal[mi]), float(magnitude[mi]))
+        MotifRecord(_fmt(m, alphabet), k, float(marginal[mi]), float(magnitude[mi]))
         for mi, m in enumerate(motifs)
     ]
 
@@ -203,12 +166,13 @@ class _RunningMoments:
 class _MarginalAccumulator:
     """Streaming statistics for one motif length."""
 
+    n_symbols: int
     drop_first: _RunningMoments = field(default_factory=_RunningMoments)
     drop_last: _RunningMoments = field(default_factory=_RunningMoments)
     magnitude: _RunningMoments = field(default_factory=_RunningMoments)
 
     def update(self, E, k):
-        rel, drop_first, drop_last = _marginal_residuals(E, k)
+        rel, drop_first, drop_last = _marginal_residuals(E, k, self.n_symbols)
         self.drop_first.update(drop_first)
         self.drop_last.update(drop_last)
         self.magnitude.update(rel)
@@ -221,10 +185,10 @@ class _MarginalAccumulator:
     def bound(self, k, delta):
         """Winner's-curse bound on the top length-k marginal.
 
-        Selecting the max of 4**k estimates inflates it by at most SE * _maximal_z.
+        Selecting the max of n_symbols**k estimates inflates it by at most SE * _maximal_z.
         """
         se = np.maximum(self.drop_first.stderr, self.drop_last.stderr)  # conservative
-        return float(se.max() * _maximal_z(4**k, delta))
+        return float(se.max() * _maximal_z(self.n_symbols**k, delta))
 
 
 def marginal_records_until(
@@ -232,6 +196,7 @@ def marginal_records_until(
     make_contexts,
     max_k,
     target_error,
+    alphabet: Sequence[str],
     *,
     delta=0.05,
     batch=500,
@@ -244,7 +209,8 @@ def marginal_records_until(
     Stopping is on the standard error, not the effect, so the estimates are not biased by
     the stopping rule.
     """
-    acc = {k: _MarginalAccumulator() for k in range(1, max_k + 1)}
+    n_symbols = len(alphabet)
+    acc = {k: _MarginalAccumulator(n_symbols) for k in range(1, max_k + 1)}
     n = 0
     seed = 0
     while True:
@@ -252,7 +218,7 @@ def marginal_records_until(
         seed += 1
         n += len(contexts)
         for k, a in acc.items():
-            _, E = _kmer_effects(score, contexts, k)
+            _, E = _kmer_effects(score, contexts, k, n_symbols)
             a.update(E, k)
         bounds = {k: a.bound(k, delta) for k, a in acc.items()}
         if on_batch is not None:
@@ -262,40 +228,8 @@ def marginal_records_until(
 
     records = []
     for k, a in acc.items():
-        records += _records_for_length(_kmers(k), k, a.marginal, a.magnitude.mean)
+        records += _records_for_length(
+            _kmers(k, n_symbols), k, a.marginal, a.magnitude.mean, alphabet
+        )
     records.sort(key=lambda r: -r.marginal)
     return records, {"n_contexts": n, "bounds": bounds}
-
-
-@permacache(
-    "orthogonal_dfa/analysis/nonlinear_motif_miner/marginal_motif_stats_adaptive_v1",
-    key_function=dict(on_batch=lambda _: None),  # progress only: not part of the key
-)
-def marginal_motif_stats_adaptive(
-    *,
-    max_k=4,
-    target_error=0.01,
-    delta=0.05,
-    batch=500,
-    max_contexts=200_000,
-    edge_margin=0,
-    on_batch=None,
-):
-    """marginal_records_until on the gate-controlled SpliceAI-400 oracle."""
-    score = build_controlled_score(default_exon, load_spliceai(400, 0))
-    length = default_exon.random_text_length
-    pos_range = (edge_margin, length - max_k + 1 - edge_margin) if edge_margin else None
-
-    def make_contexts(seed, n):
-        return sample_contexts(length, max_k, n, seed=seed, pos_range=pos_range)
-
-    return marginal_records_until(
-        score,
-        make_contexts,
-        max_k,
-        target_error,
-        delta=delta,
-        batch=batch,
-        max_contexts=max_contexts,
-        on_batch=on_batch,
-    )
