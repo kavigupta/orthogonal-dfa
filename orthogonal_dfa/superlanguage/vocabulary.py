@@ -22,7 +22,6 @@ clustering locks onto -- and with a single wildcard there is only *one* such
 suffix per length, too few to fill a family.
 """
 
-from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Iterable, List, Sequence, Tuple
@@ -137,8 +136,7 @@ class KmerVocabulary:
     """A frozen, prefix-free kmer vocabulary over a base alphabet.
 
     ``kmers`` are ordered (the order fixes the super-symbol indices), each a tuple
-    of base symbols, and no kmer may be a prefix of another.  Construct one from a
-    corpus with :meth:`from_corpus`, or directly when the kmers are already known.
+    of base symbols, and no kmer may be a prefix of another.
     """
 
     kmers: Tuple[Kmer, ...]
@@ -283,37 +281,3 @@ class KmerVocabulary:
             else:
                 template.extend(self.kmers[symbol])
         return template
-
-    # -- construction --------------------------------------------------------
-
-    @classmethod
-    def from_corpus(
-        cls,
-        corpus: Iterable[Sequence[int]],
-        base_alphabet_size: int,
-        *,
-        lengths: Sequence[int] = (3, 4, 5, 6),
-        top_n: int = 10,
-    ) -> "KmerVocabulary":
-        """Pick the ``top_n`` most frequent kmers over ``corpus``, pruned prefix-free.
-
-        Every contiguous substring with length in ``lengths`` is counted and the
-        kmers are ranked by count (ties broken by the kmer, for determinism).  A
-        candidate prefix-related to an already-kept kmer is skipped, keeping the
-        vocabulary prefix-free (the higher-count member of a conflict wins).
-        """
-        counts: Counter = Counter()
-        for string in corpus:
-            symbols = list(string)
-            for k in lengths:
-                for i in range(len(symbols) - k + 1):
-                    counts[tuple(symbols[i : i + k])] += 1
-        ranked = sorted(counts, key=lambda km: (-counts[km], km))
-        selected: List[Kmer] = []
-        for kmer in ranked:
-            if len(selected) >= top_n:
-                break
-            if any(_prefix_related(kmer, o) for o in selected):
-                continue
-            selected.append(kmer)
-        return cls(kmers=tuple(selected), base_alphabet_size=base_alphabet_size)
