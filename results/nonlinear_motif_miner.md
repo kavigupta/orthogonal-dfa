@@ -5,8 +5,9 @@ Perturbation analysis of the composition-deconfounded SpliceAI-400 oracle, on th
 of its real genomic context on each side (SpliceAI context `cl=400`). Position 0 is the
 acceptor/exon-start, position 188 the donor/exon-end.
 
-`context_motif_significance` measures, for every k-mer, the **magnitude** of its effect
-*in context* vs the alternatives, aggregated over contexts (position-agnostic).
+`marginal_motif_stats_adaptive` measures, for every k-mer, the **magnitude** of its effect
+*in context* vs the alternatives, aggregated over contexts (position-agnostic); it is the
+`magnitude` field of each `MotifRecord`.
 
 ## Method
 
@@ -47,17 +48,22 @@ signal in this oracle is reading-frame closure.)
 
 ## Reproduce
 
+```python
+from orthogonal_dfa.analysis.nonlinear_motif_miner import marginal_motif_stats_adaptive
+
+records, info = marginal_motif_stats_adaptive(max_k=3, target_error=0.04, batch=200)
+for r in sorted(records, key=lambda r: -r.magnitude)[:10]:
+    print(r)
 ```
-python -m orthogonal_dfa.analysis.nonlinear_motif_miner  # in-context, gate residual
-```
-Env: `N_CTX` (contexts, default 3000), `MOTIF_K` (k, default 3), `EDGE_MARGIN` (drop
-positions within this many of the edges — use it to exclude the donor edge and confirm
-what is context- vs edge-driven).
+`notebooks/nonlinear_motif_miner.ipynb` runs this (and the marginal-benefit ranking the
+records are sorted by) for `max_k=4` and `max_k=6`. Sampling is adaptive, so `target_error`
+replaces a fixed context count; `edge_margin` drops positions within that many of the edges
+— use it to exclude the donor edge and confirm what is context- vs edge-driven.
 
 ## Open follow-ups (for the next session)
 
 - **Phase-aware contexts.** The frame signal is phase-locked (a stop codon only closes a
   frame when it is in-frame, position ≡ start mod 3). Sampling positions uniformly *dilutes*
   it. Fixing / stratifying position mod 3 should sharpen the frame signal.
-- **Wider scans:** `MOTIF_K=2,4`; larger `N_CTX`; `EDGE_MARGIN` to isolate context- from
-  edge-driven effects.
+- **Wider scans:** larger `max_k`; tighter `target_error`; `edge_margin` to isolate
+  context- from edge-driven effects.
