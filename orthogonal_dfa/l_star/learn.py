@@ -14,7 +14,7 @@ import numpy as np
 
 from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
-from .sampler import UniformSampler
+from .sampler import Sampler, UniformSampler
 from .statistics import (
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_margin,
@@ -39,6 +39,7 @@ def build_pst(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
+    sampler: Optional[Sampler] = None,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -46,6 +47,10 @@ def build_pst(
     and every population size here is derived from that: too small and the
     row statistics cannot separate states, too large and every query is spent
     on evidence nobody needs.
+
+    `sampler` supplies the probe strings; when omitted it defaults to
+    `UniformSampler(sample_length)`. Pass a custom one to learn over a different
+    string distribution -- `sample_length` is then ignored.
     """
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
@@ -64,8 +69,10 @@ def build_pst(
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
     )
+    if sampler is None:
+        sampler = UniformSampler(sample_length)
     return PrefixSuffixTracker.create(
-        UniformSampler(sample_length),
+        sampler,
         np.random.default_rng(0),
         oracle,
         config,
@@ -81,13 +88,15 @@ def learn_dfa(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sample_length: int = DEFAULT_SAMPLE_LENGTH,
+    sampler: Optional[Sampler] = None,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ):
     """Learn a DFA from `oracle_creator`, and return it.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
-    Returns None when synthesis produced no hypothesis.
+    `sampler` overrides the default `UniformSampler(sample_length)` (see
+    `build_pst`).  Returns None when synthesis produced no hypothesis.
     """
     pst = build_pst(
         oracle_creator,
@@ -96,6 +105,7 @@ def learn_dfa(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
         sample_length=sample_length,
+        sampler=sampler,
     )
     dfa, _ = do_counterexample_driven_synthesis(pst, acc_threshold=acc_threshold)
     return dfa

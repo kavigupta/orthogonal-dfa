@@ -6,6 +6,10 @@ import numpy as np
 
 
 class Sampler(ABC):
+    #: Number of symbols per sampled string; the learner reads it for
+    #: state-reaching sampling and counterexample sizing.
+    length: int
+
     @abstractmethod
     def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
         pass
