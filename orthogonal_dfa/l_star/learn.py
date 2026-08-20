@@ -38,7 +38,7 @@ def build_pst(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
-    sampler: Optional[Sampler] = None,
+    sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -47,8 +47,7 @@ def build_pst(
     row statistics cannot separate states, too large and every query is spent
     on evidence nobody needs.
 
-    `sampler` supplies the probe strings, defaulting to a
-    `UniformSampler(DEFAULT_SAMPLE_LENGTH)`; pass one to learn over a different
+    `sampler` supplies the probe strings; pass one to learn over a different
     string distribution, or to vary the length.
     """
     effective_p_acc = 0.5 + min_signal_strength
@@ -68,8 +67,6 @@ def build_pst(
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
     )
-    if sampler is None:
-        sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH)
     return PrefixSuffixTracker.create(
         sampler,
         np.random.default_rng(0),
@@ -86,7 +83,7 @@ def learn_dfa(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
-    sampler: Optional[Sampler] = None,
+    sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ):
     """Learn a DFA from `oracle_creator`, and return it.
