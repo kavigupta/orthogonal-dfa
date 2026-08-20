@@ -24,7 +24,7 @@ from __future__ import annotations
 import itertools
 import math
 from dataclasses import dataclass, field
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, List, Sequence, Tuple
 
 import numpy as np
 
@@ -36,17 +36,18 @@ def sample_contexts(
     n_contexts: int,
     *,
     seed: int = 0,
-    pos_range: Optional[Tuple[int, int]] = None,
 ) -> List[Tuple[List[int], int]]:
     """n_contexts random (background, position) pairs.
 
-    pos_range defaults to every valid position, so aggregating over contexts is
-    position-agnostic.
+    Positions are uniform over every position the motif fits in, so aggregating over
+    contexts is position-agnostic.
     """
     rng = np.random.default_rng(seed)
-    lo, hi = pos_range if pos_range is not None else (0, length - motif_k + 1)
     return [
-        (rng.integers(0, n_symbols, size=length).tolist(), int(rng.integers(lo, hi)))
+        (
+            rng.integers(0, n_symbols, size=length).tolist(),
+            int(rng.integers(0, length - motif_k + 1)),
+        )
         for _ in range(n_contexts)
     ]
 
