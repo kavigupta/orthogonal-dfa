@@ -6,10 +6,8 @@ import numpy as np
 
 
 class Sampler(ABC):
-    #: Number of symbols in each sampled string.  Part of the contract: the
-    #: learner reads it for state-reaching sampling and counterexample sizing
-    #: (see ``lstar`` and ``counterexample_synthesis``), so every Sampler must
-    #: expose it.  Concrete samplers are dataclasses that supply it as a field.
+    #: Number of symbols per sampled string; the learner reads it for
+    #: state-reaching sampling and counterexample sizing.
     length: int
 
     @abstractmethod

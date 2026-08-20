@@ -1,20 +1,14 @@
 """Lift a base-alphabet oracle to the super alphabet.
 
-:class:`LiftedOracle` answers membership for super-strings by *compiling* each one
-back to the base alphabet and asking a base oracle.  Because compilation is
-nondeterministic (every ``X`` becomes an independent uniform base symbol), a
-single super-string maps to a distribution over base strings; the oracle draws
-``num_compilations`` of them, queries the base oracle on all of them, and returns
-the majority vote.  Averaging the compilations is the "sample several strings and
-take the mean to boost signal" step -- for a super-string whose base-label
-probability sits away from 1/2 it sharpens the answer, at a cost linear in
-``num_compilations``.
+:class:`LiftedOracle` answers a super-string by compiling it back to the base
+alphabet ``num_compilations`` times, querying the base oracle on each, and
+returning the majority vote.  Compilation randomizes the ``X`` symbols (uniformly
+over the fiber ``parse**-1``), so the vote sharpens the answer for any base label
+that varies across those realizations.  When the base oracle only reads features
+the kmers already carry, every compilation agrees and one compilation suffices.
 
-Compilation randomness is a deterministic function of the super-string and
-``seed`` (hashed exactly the way the noise models in ``structures`` hash), so the
-lifted oracle is a reproducible, memoizable function: querying the same
-super-string twice gives the same answer, and different super-strings get
-independent compilation draws.
+The compilation randomness is a deterministic hash of the super-string and
+``seed``, so the oracle is reproducible and memoizable.
 """
 
 import hashlib
@@ -28,8 +22,7 @@ from .vocabulary import KmerVocabulary
 
 
 def _compilation_seed(string: List[int], seed: int, index: int) -> int:
-    """A 64-bit seed for the ``index``-th compilation of ``string`` under
-    ``seed``.  Deterministic in its inputs so the oracle is a pure function."""
+    """A 64-bit seed for the ``index``-th compilation of ``string`` under ``seed``."""
     digest = hashlib.blake2b(
         repr((list(string), seed, index)).encode(), digest_size=8
     ).digest()
@@ -64,14 +57,12 @@ class LiftedOracle(Oracle):
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # Flatten (string, compilation) into a single base-oracle batch so the
-        # base oracle -- which may be an expensive batched model -- is called once.
+        # Flatten (string, compilation) into one base-oracle batch, so a batched
+        # base model is called once.
         flat: List[List[int]] = []
         for string in strings:
             for j in range(self._num_compilations):
-                rng = np.random.default_rng(
-                    _compilation_seed(string, self._seed, j)
-                )
+                rng = np.random.default_rng(_compilation_seed(string, self._seed, j))
                 flat.append(self._vocab.compile(string, rng))
         base = np.asarray(self._base.membership_queries(flat), dtype=bool)
         assert base.shape == (len(flat),), "base oracle dropped answers"

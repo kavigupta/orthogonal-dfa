@@ -1,31 +1,26 @@
 """Learn a DFA over the superlanguage of a vocabulary.
 
-This ties the three pieces together: a :class:`SuperSampler` draws probe strings
-over the super alphabet, a :class:`LiftedOracle` answers membership by compiling
-them back to the base alphabet and querying ``base_oracle``, and E-L*'s
-``learn_dfa`` does the rest.  The returned DFA's transitions are labelled with
-super-symbols; the vocabulary is returned alongside so they can be read back as
-kmers / ``X``.
+A :class:`SuperSampler` draws probe strings over the super alphabet, a
+:class:`LiftedOracle` answers membership against ``base_oracle``, and ``learn_dfa``
+does the rest.  Returns ``(dfa, vocabulary)`` so the super-symbol transitions can
+be read back as kmers / ``X``.
 
-The lifted oracle is already stochastic (compilation realizes each ``X``
-randomly, so different strings reaching the same state disagree), and that
-variation *is* the noise E-L* denoises over.  So no extra symmetric noise is
-injected by default -- ``noise_model`` defaults to the identity and
-``min_signal_strength`` is the independent knob that sizes the search for the
-lifted oracle's effective signal.  Raise ``num_compilations`` to sharpen that
-signal (majority-voting more compilations per query) at proportional query cost.
+Compile is invertible, so the lifted oracle is a deterministic function of the
+super-string; the framework's symmetric noise (``SymmetricBernoulli(0.5 +
+min_signal_strength)``) is injected as usual so E-L*'s screening has signal to
+size itself against, exactly as for a base-alphabet oracle.
 """
 
-# The learn_dfa call below forwards the same configuration kwargs build_pst
-# already names, which pylint flags as duplicate-code; the overlap is inherent
-# to forwarding, not copied logic.
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code  # forwarding build_pst's kwargs, not copied logic
 
 from typing import Any, Iterable, Optional, Sequence, Tuple
 
-from orthogonal_dfa.l_star.learn import DEFAULT_ACC_THRESHOLD, DEFAULT_SAMPLE_LENGTH
-from orthogonal_dfa.l_star.learn import learn_dfa
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle, SymmetricBernoulli
+from orthogonal_dfa.l_star.learn import (
+    DEFAULT_ACC_THRESHOLD,
+    DEFAULT_SAMPLE_LENGTH,
+    learn_dfa,
+)
+from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 
 from .oracle import LiftedOracle
 from .sampler import SuperSampler
@@ -39,7 +34,7 @@ def learn_superlanguage(
     min_signal_strength: float,
     seed: int,
     num_symbols: int = DEFAULT_SAMPLE_LENGTH,
-    num_compilations: int = 8,
+    num_compilations: int = 1,
     noise_model: Optional[NoiseModel] = None,
     min_suffix_frequency: float = 0.02,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
@@ -48,13 +43,13 @@ def learn_superlanguage(
 
     ``num_symbols`` is the number of super-symbols per sampled string;
     ``num_compilations`` is how many base compilations are majority-voted per
-    membership query.  Returns ``(dfa, vocabulary)`` (``dfa`` is ``None`` when
-    synthesis produced no hypothesis).
+    membership query; one is enough whenever the base oracle only reads features
+    the kmers carry (compilation cannot forge them), which is the usual case.
+    ``noise_model`` defaults to the framework's symmetric
+    noise (see :func:`~orthogonal_dfa.l_star.learn.build_pst`).  Returns
+    ``(dfa, vocabulary)`` (``dfa`` is ``None`` when synthesis produced no
+    hypothesis).
     """
-    # Identity noise: the lifted oracle carries its own compilation noise, so
-    # the framework's symmetric-noise default would double-count it.
-    if noise_model is None:
-        noise_model = SymmetricBernoulli(p_correct=1.0)
 
     def oracle_creator(nm, s):
         return LiftedOracle(

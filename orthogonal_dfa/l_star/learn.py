@@ -48,10 +48,9 @@ def build_pst(
     row statistics cannot separate states, too large and every query is spent
     on evidence nobody needs.
 
-    `sampler` supplies the random probe strings; when omitted it defaults to a
-    `UniformSampler(sample_length)` over the base alphabet.  Pass a custom
-    sampler (e.g. a superlanguage `SuperSampler`) to learn over a different
-    alphabet or string distribution -- `sample_length` is then ignored.
+    `sampler` supplies the probe strings; when omitted it defaults to
+    `UniformSampler(sample_length)`. Pass a custom sampler (e.g. a `SuperSampler`)
+    to learn over a different distribution -- `sample_length` is then ignored.
     """
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
