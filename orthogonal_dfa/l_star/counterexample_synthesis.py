@@ -13,6 +13,8 @@ in the next round.
 """
 
 import math
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -22,6 +24,38 @@ from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
+
+
+@dataclass
+class RoundClassifier:
+    """One synthesis round's empty-seeded family, as it classifies that round's
+    representative prefixes -- the round's attempt at the accept-preserving cut.
+    ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family."""
+
+    prefixes: List[List[int]]
+    votes: np.ndarray
+    boundary: float
+    margin: float
+
+    @property
+    def accept(self) -> np.ndarray:
+        return self.votes >= self.boundary + self.margin
+
+    @property
+    def reject(self) -> np.ndarray:
+        return self.votes < self.boundary - self.margin
+
+    @property
+    def decisive(self) -> np.ndarray:
+        return self.accept | self.reject
+
+
+def _round_classifier(pst, vs) -> RoundClassifier:
+    mask = pst.table.representative
+    prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
+    votes = pst.table.observed_masks(vs, mask).mean(0)
+    return RoundClassifier(prefixes, votes, pst.decision_boundary, pst.evidence_margin)
+
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
@@ -220,6 +254,7 @@ def counterexample_driven_synthesis(
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
         pst.decision_boundary = boundary
+        classifier = _round_classifier(pst, vs)
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
@@ -241,7 +276,7 @@ def counterexample_driven_synthesis(
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         uncoverable = uncoverable_access_strings(pst, dt)
         if uncoverable:
@@ -254,7 +289,7 @@ def counterexample_driven_synthesis(
                 f"{pst.sampler.length} (e.g. {examples}); the target is not "
                 f"learnable with this prefix sampler."
             )
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         _grow_representative_pool(
             pst,
@@ -276,9 +311,9 @@ def counterexample_driven_synthesis(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
                 "-- pool churning without resolving; stopping synthesis"
             )
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        yield dfa, dt, true_acc, pst.decision_boundary
+        yield dfa, dt, true_acc, pst.decision_boundary, classifier
 
 
 def do_counterexample_driven_synthesis(pst, *, acc_threshold: float) -> DFA:
@@ -287,13 +322,15 @@ def do_counterexample_driven_synthesis(pst, *, acc_threshold: float) -> DFA:
     # hypothesis, not the last. The boundary is kept with it because denoising
     # reads the tree against it.
     best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
-    for dfa, dt, true_acc, boundary in counterexample_driven_synthesis(
+    classifiers = []
+    for dfa, dt, true_acc, boundary, classifier in counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold
     ):
+        classifiers.append(classifier)
         if true_acc > best_acc:
             best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
     dfa, dt = best_dfa, best_dt
     if dfa is not None:
         pst.decision_boundary = best_boundary
         dfa = denoise_accept_labels(pst, dfa)
-    return dfa, dt
+    return dfa, dt, classifiers

@@ -254,7 +254,7 @@ class TestLStarBimodalReproducer(unittest.TestCase):
         # non-accept-preserving cut and relies on denoise_accept_labels to fix the
         # resulting labels -- hence learn_dfa_unchecked (verify_rounds skipped).
         self.assertEqual(P.class_preserving_fraction(self.DFA, length=40), 0.0)
-        dfa = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
+        dfa, _ = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
