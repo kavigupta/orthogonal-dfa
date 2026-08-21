@@ -14,7 +14,7 @@ in the next round.
 
 import math
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -22,6 +22,7 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
@@ -30,20 +31,23 @@ from .transition_resolver import TransitionResolver
 class RoundClassifier:
     """One synthesis round's empty-seeded family, as it classifies that round's
     representative prefixes -- the round's attempt at the accept-preserving cut.
-    ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family."""
+    ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family.
+
+    The thresholds are the tracker's own, so the cut recorded here is the one
+    synthesis made."""
 
     prefixes: List[List[int]]
     votes: np.ndarray
-    boundary: float
-    margin: float
+    accept_thresh: float
+    reject_thresh: float
 
     @property
     def accept(self) -> np.ndarray:
-        return self.votes >= self.boundary + self.margin
+        return self.votes >= self.accept_thresh
 
     @property
     def reject(self) -> np.ndarray:
-        return self.votes < self.boundary - self.margin
+        return self.votes < self.reject_thresh
 
     @property
     def decisive(self) -> np.ndarray:
@@ -53,8 +57,12 @@ class RoundClassifier:
 def _round_classifier(pst, vs) -> RoundClassifier:
     mask = pst.table.representative
     prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
-    votes = pst.table.observed_masks(vs, mask).mean(0)
-    return RoundClassifier(prefixes, votes, pst.decision_boundary, pst.evidence_margin)
+    return RoundClassifier(
+        prefixes,
+        pst.compute_decision(vs, mask),
+        pst.accept_thresh,
+        pst.reject_thresh,
+    )
 
 
 #: Probes drawn per counterexample pass.
@@ -316,7 +324,9 @@ def counterexample_driven_synthesis(
         yield dfa, dt, true_acc, pst.decision_boundary, classifier
 
 
-def do_counterexample_driven_synthesis(pst, *, acc_threshold: float) -> DFA:
+def do_counterexample_driven_synthesis(
+    pst, *, acc_threshold: float
+) -> Tuple[Optional[DFA], Optional[MidfixTree], List[RoundClassifier]]:
     # Rounds are not monotone -- rebuilding the representative pool re-clusters,
     # so a later family can classify worse -- so keep the most accurate
     # hypothesis, not the last. The boundary is kept with it because denoising
