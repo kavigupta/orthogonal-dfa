@@ -1,26 +1,19 @@
-"""The superlanguage vocabulary: ``K`` prefix-free kmers plus interchangeable
-wildcards (``X``, ``Y``, ...), with a compilation to the base alphabet
-(``0 .. base-1``) that is invertible and distribution-preserving.
+"""An alphabet of K prefix-free kmers plus interchangeable wildcards, built over
+a base alphabet, with a translation to and from it that is invertible and
+preserves uniformity.
 
-Super-symbol ``i < K`` is ``kmers[i]``; the rest are wildcards.  A base string is
-read back with :meth:`parse` (greedy longest match: a kmer if one starts here,
-else one wildcard).  :meth:`compile` is its inverse: kmers emit their symbols, and
-each wildcard emits a single base symbol chosen so the greedy parse reproduces the
-original super-string -- ``parse(compile(s)) == canonicalize(s)`` (the wildcards
-compile identically, so parse cannot tell which one was used).
+parse reads a base string back by greedy longest match. compile is its inverse,
+up to which wildcard was used: the wildcards translate identically, so parse
+cannot tell them apart and only canonicalize(s) is recovered.
 
 A wildcard may emit any base symbol that does not start a kmer given what follows
-it.  Those choices are coupled, and :meth:`compile` weights them so that the result
-is drawn *uniformly over the fiber* ``parse**-1(s)`` -- which makes
-``compile(parse(x))`` exactly uniform when ``x`` is a uniform base string.  That
-costs a pass over the string, so :meth:`compile_many` runs the pass for a whole
-batch at once.  The kmers must be prefix-free so the parse is unambiguous.
+it. Which symbols those are varies by position, so drawing evenly among them
+would over-represent the constrained ones; compile instead weights each by how
+many ways the rest of the string can then be filled, which is the uniform law on
+the fiber and makes compile(parse(x)) uniform whenever x is.
 
-The wildcards are interchangeable, so more than one of them adds no expressive
-power -- what it adds is *strings*: there is exactly one wildcard-only
-super-string of a given length per wildcard count of one, and exponentially many
-beyond that.  A consumer that needs a supply of distinct super-strings which all
-translate to the same thing wants several.
+Extra wildcards buy no expressive power, only strings: with one wildcard there is
+a single wildcard-only super-string of each length, with two there are 2**n.
 """
 
 from dataclasses import dataclass
@@ -31,27 +24,24 @@ import numpy as np
 
 Kmer = Tuple[int, ...]
 
-# Template slots that hold no fixed base symbol: a wildcard to fill, and padding
-# left of a right-aligned string in a batch.
-_FREE = -1
-_PAD = -2
+_FREE = -1  # a wildcard, to be filled in
+_PAD = -2  # not part of this string: it is shorter than others in its batch
 
 
 def _prefix_related(a: Sequence[int], b: Sequence[int]) -> bool:
-    """True when the shorter of ``a``/``b`` is a prefix of the longer."""
+    """True when one of a, b is a prefix of the other, so both cannot be kmers."""
     m = min(len(a), len(b))
     return tuple(a[:m]) == tuple(b[:m])
 
 
 @lru_cache(maxsize=None)
 def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
-    """Compilation tables, built once per vocabulary.
+    """Whether a wildcard may emit a symbol depends on the symbols after it, so a
+    state here is the next max_kmer_length - 1 of them, packed in radix base + 1.
+    The extra digit is a sentinel for running off the end of the string, which
+    matches no kmer.
 
-    A state encodes the ``w = max_kmer_length - 1`` base symbols *following* a
-    position, in radix ``base + 1`` so that ``base`` itself can act as an
-    end-of-string sentinel (it matches no kmer).  ``shift[c, state]`` is the state
-    seen one position to the left after emitting ``c``, and ``allowed[state, c]``
-    says whether a wildcard may emit ``c`` there without starting a kmer.
+    shift[c, state] is the state one position further left after emitting c.
     """
     w = max((len(k) for k in kmers), default=1) - 1
     radix = base + 1
@@ -80,11 +70,9 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
 
 
 def _compile_chunk(templates, rngs, tables):
-    """One batch of :meth:`KmerVocabulary.compile_many`.
-
-    Templates are right-aligned into a ``(batch, width)`` grid padded with ``_PAD``
-    so every string's last position lands in the final column; the sampling pass
-    then starts them all in the same end-of-string state and walks left in lockstep.
+    """Templates are right-aligned so that every string's last position shares the
+    final column: sampling runs right to left, so they then all start in the
+    end-of-string state and stay in step.
     """
     initial, allowed, shift = tables
     base, num_states = shift.shape
@@ -98,9 +86,9 @@ def _compile_chunk(templates, rngs, tables):
         grid[row, start[row] :] = template
         draws[row, start[row] :] = rng.random(len(template))
 
-    # ways[j][row, s]: number of fillings of the columns left of j, given that the
-    # window following column j-1 is s.  Rescaled per step; the true counts grow
-    # like the transfer matrix's leading eigenvalue and would overflow.
+    # ways[j][row, s] counts the fillings of the columns left of j when s follows
+    # column j-1. Rescaled each step: the true counts grow geometrically and
+    # overflow, and only ratios within a row are ever read.
     ways = np.ones((width + 1, size, num_states))
     for j in range(width):
         previous, column = ways[j], grid[:, j]
@@ -134,10 +122,8 @@ def _compile_chunk(templates, rngs, tables):
 
 @dataclass(frozen=True)
 class KmerVocabulary:
-    """A frozen, prefix-free kmer vocabulary over a base alphabet.
-
-    ``kmers`` are ordered (the order fixes the super-symbol indices), each a tuple
-    of base symbols, and no kmer may be a prefix of another.
+    """Super-symbol i is kmers[i]; the symbols past those are the wildcards, so
+    the kmer order fixes the encoding.
     """
 
     kmers: Tuple[Kmer, ...]
@@ -157,28 +143,24 @@ class KmerVocabulary:
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
 
-    # -- shape ---------------------------------------------------------------
-
     @property
     def num_kmers(self) -> int:
         return len(self.kmers)
 
     @property
     def unknown_symbol(self) -> int:
-        """The canonical wildcard (``X``) -- the first of the wildcard symbols."""
+        """The wildcard that parse emits, and that canonicalize maps the rest to."""
         return self.num_kmers
 
     @property
     def wildcard_symbols(self) -> Tuple[int, ...]:
-        """All wildcard indices.  They are interchangeable -- each compiles the
-        same way, so nothing reading the base string can tell them apart -- and
-        exist in the plural only to make wildcard-only super-strings plentiful.
+        """Interchangeable: each compiles the same way, so nothing reading the base
+        string can distinguish them.
         """
         return tuple(range(self.num_kmers, self.alphabet_size))
 
     @property
     def alphabet_size(self) -> int:
-        """Size of the *super* alphabet: one symbol per kmer, plus the wildcards."""
         return self.num_kmers + self.num_wildcards
 
     @property
@@ -189,21 +171,18 @@ class KmerVocabulary:
         return symbol >= self.num_kmers
 
     def canonicalize(self, super_string: Iterable[int]) -> List[int]:
-        """Map every wildcard to the canonical one.  :meth:`parse` cannot recover
-        which wildcard was used (they compile identically), so round-tripping is
-        exact only up to this relabelling."""
+        """Collapse the wildcards, which is as much as parse can recover."""
         return [self.unknown_symbol if self.is_unknown(s) else s for s in super_string]
 
-    # -- parse / compile -----------------------------------------------------
-
     def compiled_length(self, symbol: int) -> int:
-        """How many base symbols ``symbol`` compiles to (``X`` -> 1)."""
         return 1 if self.is_unknown(symbol) else len(self.kmers[symbol])
 
     def parse(self, base_string: Sequence[int]) -> List[int]:
-        """Read a base string back into super-symbols by greedy longest match:
-        at each position emit the kmer that starts there (unique, since prefix-free)
-        or else one ``X``."""
+        """At each position take the kmer starting there, or else one wildcard.
+        Prefix-freeness makes at most one kmer match, so this is unambiguous, but
+        it is still leftmost-first: an occurrence overlapping an earlier match is
+        not seen.
+        """
         b = list(base_string)
         out: List[int] = []
         i, n = 0, len(b)
@@ -224,10 +203,8 @@ class KmerVocabulary:
     def compile(
         self, super_string: Iterable[int], rng: np.random.Generator
     ) -> List[int]:
-        """Compile one super-string; see :meth:`compile_many`, which this calls.
-
-        Prefer :meth:`compile_many` when compiling a batch: the work per string is
-        a pass over its length, and batching amortizes it.
+        """Prefer compile_many for more than one: the cost is a pass over the
+        string, which batching amortizes.
         """
         return self.compile_many([super_string], [rng])[0]
 
@@ -236,20 +213,13 @@ class KmerVocabulary:
         super_strings: Sequence[Iterable[int]],
         rngs: Sequence[np.random.Generator],
     ) -> List[List[int]]:
-        """Compile super-strings to base strings that :meth:`parse` reads back as
-        the originals (up to which wildcard was used), each drawn **uniformly over
-        its fiber** ``parse**-1(s)`` -- so ``compile(parse(x))`` is uniform when
-        ``x`` is.
+        """Each result is drawn uniformly over the base strings that parse back to
+        its super-string, so compile(parse(x)) is uniform when x is.
 
-        Kmer symbols emit their kmer; a wildcard may emit any symbol that does not
-        start a kmer given what follows it.  Those choices are coupled, and the
-        uniform law weights each by how many ways the rest can then be filled, so a
-        backward pass counts fillings (``ways[j][s]``, renormalized per step since
-        the true counts overflow) and a forward pass samples right to left against
-        those counts.
-
-        Both passes are a loop over *positions*, so the whole batch advances
-        together and the per-step cost is paid once rather than once per string.
+        Reaching that uniformity means weighting a wildcard's choices by how many
+        ways the rest of the string can then be filled, which a backward pass
+        counts and a forward pass samples against. Both walk positions, not
+        strings, so a batch advances in step and pays the per-position cost once.
         """
         assert len(super_strings) == len(rngs), "need one rng per super-string"
         tables = _transfer_tables(self.kmers, self.base_alphabet_size)
@@ -271,8 +241,7 @@ class KmerVocabulary:
         return out_all
 
     def _template(self, super_string: Iterable[int]) -> List[int]:
-        """Base-string layout: the fixed symbol at each kmer position, ``_FREE`` at
-        each wildcard slot."""
+        """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
         for symbol in super_string:
             if self.is_unknown(symbol):
