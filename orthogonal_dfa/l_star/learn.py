@@ -86,12 +86,14 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ):
-    """Learn a DFA from `oracle_creator`, and return it.
+    """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
-    `sampler` draws the probe strings (see `build_pst`).  Returns None when
-    synthesis produced no hypothesis.
+    `sampler` draws the probe strings (see `build_pst`).  ``dfa`` is None when
+    synthesis produced no hypothesis. ``round_classifiers`` is the per-round
+    empty-seeded family classifier (see ``RoundClassifier``), exposed so callers
+    can inspect what each round decided over its pool.
     """
     pst = build_pst(
         oracle_creator,
@@ -101,5 +103,7 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
     )
-    dfa, _ = do_counterexample_driven_synthesis(pst, acc_threshold=acc_threshold)
-    return dfa
+    dfa, _, classifiers = do_counterexample_driven_synthesis(
+        pst, acc_threshold=acc_threshold
+    )
+    return dfa, classifiers
