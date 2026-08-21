@@ -9,8 +9,11 @@ explained by its best contained (k-1)-mer.
 The marginal effect is defined as follows
 
 substPred(kmer | bg, pos) = prediction(bg[:pos] + kmer + bg[pos+k:])
-absMarginEff(kmer, 'start' | bg, pos) = | substPred(kmer | bg, pos) - substPred(kmer[1:] | bg, pos + 1) |
-absMarginEff(kmer, 'end' | bg, pos) = | substPred(kmer | bg, pos) - substPred(kmer[:-1] | bg, pos) |
+absMarginEff(kmer, 'start' | bg, pos) = | substPred(kmer | bg, pos) - E_s substPred(s + kmer[1:] | bg, pos) |
+absMarginEff(kmer, 'end' | bg, pos) = | substPred(kmer | bg, pos) - E_s substPred(kmer[:-1] + s | bg, pos) |
+
+where s is a uniformly random symbol, so the subtracted term is the (k-1)-mer's effect
+averaged over the dropped end.
 
 meanAbsMArgEff(kmer, side) = E_{pos, bg} [ absMarginEff(kmer, side | bg, pos) ]
 meanAbsMargEff(kmer) = min_{side} meanAbsMargEff(kmer, side)
@@ -92,7 +95,7 @@ def _fmt(motif, alphabet):
 
 def _kmer_scores(oracle, contexts, k, *, score_batch=100_000):
     """
-    Output is (motifs, E) where E[i, j] is the mean score of motif j in context i.
+    Output is (motifs, E) where E[i, j] is the score of motif j in context i.
 
     """
     motifs = _kmers(k, oracle.n_symbols)
@@ -113,7 +116,7 @@ def _kmer_scores(oracle, contexts, k, *, score_batch=100_000):
 
 def _abs_marginal_residuals(E, k, n_symbols):
     """
-    E: shape (n_contexts, n_motifs) array of mean scores for each motif in each context
+    E: shape (n_contexts, n_motifs) array of scores for each motif in each context
     k: length of the motifs
     n_symbols: size of the alphabet
 
@@ -343,7 +346,9 @@ def marginal_records_until(
 
     records = [
         MotifRecord(motif, float(v))
-        for motif, v in zip(_all_motifs(max_k, oracle.alphabet), acc.marginal)
+        for motif, v in zip(
+            _all_motifs(max_k, oracle.alphabet), acc.marginal, strict=True
+        )
     ]
     records.sort(key=lambda r: -r.marginal)
     return records, {"n_contexts": acc.n_contexts, "bound": bound}
