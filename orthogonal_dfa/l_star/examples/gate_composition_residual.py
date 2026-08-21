@@ -67,7 +67,7 @@ def _fit_monotonic(
 
 
 @permacache(
-    "orthogonal_dfa/l_star/examples/gate_composition_residual/fit_gate_bins_1",
+    "orthogonal_dfa/l_star/examples/gate_composition_residual/fit_gate_bins_2",
     key_function=dict(
         score_model=lambda m: stable_hash(m, version=2),
         exon=stable_hash,
