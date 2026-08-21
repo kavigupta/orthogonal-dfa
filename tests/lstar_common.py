@@ -103,9 +103,11 @@ round_verify_alpha = 1e-4  # binomial significance for flagging a round
 
 
 def _round_accept_preserving_counts(classifier, truth_oracle):
-    """``(decisive, misclassified)`` counts over the prefixes ``classifier``
-    decides, or None when it decides none of them."""
-    decisive = classifier.decisive
+    """``(decisive, misclassified)`` counts over the calibrated-population prefixes
+    ``classifier`` decides, or None when it decides none of them. Off-length prefixes
+    (boundary strings, per-state samples) are excluded: the family was never
+    calibrated on them, so its cut is not expected to hold there."""
+    decisive = classifier.decisive & classifier.calibrated
     if not decisive.any():
         return None
     truth = np.array(

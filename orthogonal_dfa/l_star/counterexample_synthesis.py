@@ -34,12 +34,16 @@ class RoundClassifier:
     ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family.
 
     The thresholds are the tracker's own, so the cut recorded here is the one
-    synthesis made."""
+    synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
+    population the family was clustered on. Off-length prefixes (boundary strings,
+    per-state samples) reach the family off its calibration, so a consumer checking
+    the recorded cut should restrict to the calibrated ones."""
 
     prefixes: List[List[int]]
     votes: np.ndarray
     accept_thresh: float
     reject_thresh: float
+    calibrated: np.ndarray
 
     @property
     def accept(self) -> np.ndarray:
@@ -57,11 +61,13 @@ class RoundClassifier:
 def _round_classifier(pst, vs) -> RoundClassifier:
     mask = pst.table.representative
     prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
+    calibrated = np.array([len(p) == pst.sampler.length for p in prefixes], dtype=bool)
     return RoundClassifier(
         prefixes,
         pst.compute_decision(vs, mask),
         pst.accept_thresh,
         pst.reject_thresh,
+        calibrated,
     )
 
 
