@@ -28,10 +28,10 @@ import itertools
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-import tqdm.auto as tqdm
 from typing import Any, List, Sequence, Tuple
 
 import numpy as np
+import tqdm.auto as tqdm
 from permacache import permacache
 
 
@@ -194,15 +194,9 @@ def _all_motifs(max_k, alphabet):
     ]
 
 
-def _maximal_z_per_motif(max_k, n_symbols, delta):
-    """_maximal_z for each column of the concatenated motif axis; the selection a column
-    belongs to is the 4**k list of its own length."""
-    return np.concatenate(
-        [
-            np.full(n_symbols**k, _maximal_z(n_symbols**k, delta))
-            for k in range(1, max_k + 1)
-        ]
-    )
+def _n_motifs(max_k, n_symbols):
+    """How many motifs the concatenated motif axis ranks against each other."""
+    return sum(n_symbols**k for k in range(1, max_k + 1))
 
 
 def _maximal_z(n_motifs, delta):
@@ -293,12 +287,14 @@ class _MarginalAccumulator:
     def bound(self, delta):
         """Winner's-curse bound on the top marginal.
 
-        Selecting the max of n_symbols**k estimates inflates it by at most SE * _maximal_z.
+        The top motif is picked across every length at once, so the selection is over all
+        _n_motifs of them, and being the max inflates the estimate by at most
+
+            SE * _maximal_z
         """
         se = np.maximum(self.drop_first.stderr, self.drop_last.stderr)  # conservative
-        return float(
-            (se * _maximal_z_per_motif(self.max_k, self.n_symbols, delta)).max()
-        )
+        z = _maximal_z(_n_motifs(self.max_k, self.n_symbols), delta)
+        return float(se.max() * z)
 
 
 @permacache("orthogonal_dfa/analysis/nonlinear_motif_miner/round_accumulator_v2")
@@ -336,15 +332,18 @@ def marginal_records_until(
     """
     acc = _MarginalAccumulator(oracle.n_symbols, max_k)
     round_index = 0
-    while True:
-        acc = acc + _round_accumulator(
-            oracle, max_k, contexts_per_round, seed, round_index
-        )
-        print(f"round {round_index}  n_contexts={acc.n_contexts}  bound={acc.bound(delta):.4f}")
-        round_index += 1
-        bound = acc.bound(delta)
-        if bound <= target_error or acc.n_contexts >= max_contexts:
-            break
+    # delay so short scans (tests, small oracles) stay silent
+    with tqdm.tqdm(total=max_contexts, unit="ctx", delay=5) as pbar:
+        while True:
+            acc = acc + _round_accumulator(
+                oracle, max_k, contexts_per_round, seed, round_index
+            )
+            round_index += 1
+            bound = acc.bound(delta)
+            pbar.n = acc.n_contexts
+            pbar.set_postfix(bound=f"{bound:.4f}")
+            if bound <= target_error or acc.n_contexts >= max_contexts:
+                break
 
     records = [
         MotifRecord(motif, float(v))
