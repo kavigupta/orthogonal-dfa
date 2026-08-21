@@ -3,7 +3,7 @@
 Contextual motif mining of an oracle.
 
 Every k-mer (sequence of symbols from the underyling language) is
-ranked by marginal benefit: the part of its in-context effect not already
+ranked by marginal effect: the part of its in-context effect not already
 explained by its best contained (k-1)-mer.
 
 The marginal effect is defined as follows
@@ -28,6 +28,7 @@ import itertools
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+import tqdm.auto as tqdm
 from typing import Any, List, Sequence, Tuple
 
 import numpy as np
@@ -102,7 +103,7 @@ def _kmer_scores(oracle, contexts, k, *, score_batch=100_000):
     n = len(motifs)
     chunk_contexts = max(1, score_batch // n)
     rows = []
-    for i in range(0, len(contexts), chunk_contexts):
+    for i in tqdm.trange(0, len(contexts), chunk_contexts):
         chunk = contexts[i : i + chunk_contexts]
         backgrounds = np.array([bg for bg, _ in chunk])
         # seqs[context, motif] = sequence
@@ -339,6 +340,7 @@ def marginal_records_until(
         acc = acc + _round_accumulator(
             oracle, max_k, contexts_per_round, seed, round_index
         )
+        print(f"round {round_index}  n_contexts={acc.n_contexts}  bound={acc.bound(delta):.4f}")
         round_index += 1
         bound = acc.bound(delta)
         if bound <= target_error or acc.n_contexts >= max_contexts:

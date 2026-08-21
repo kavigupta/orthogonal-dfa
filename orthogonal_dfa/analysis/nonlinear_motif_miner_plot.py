@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 
 
 def plot_top_motifs(stats, *, top=15, ax=None):
-    """Horizontal bar chart of the top motifs in stats by marginal benefit.
+    """Horizontal bar chart of the top motifs in stats by marginal effect.
 
     Draws on the current axes when ax is not given, so the caller can set the figure up
     (size, subplots) first.
@@ -16,5 +16,5 @@ def plot_top_motifs(stats, *, top=15, ax=None):
     ax.set_yticks(range(len(top_stats)))
     ax.set_yticklabels([s.motif for s in top_stats])
     ax.invert_yaxis()
-    ax.set_xlabel("marginal benefit")
+    ax.set_xlabel("marginal effect")
     return ax
