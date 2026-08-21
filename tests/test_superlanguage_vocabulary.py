@@ -2,7 +2,7 @@
 invertible, fiber-uniform compilation to and from the base alphabet.
 
 Uses the genomic stop codons as the kmers, since they are what the superlanguage
-is built for, but nothing here needs a learner or an oracle.
+is built for, but nothing here needs anything beyond the vocabulary itself.
 """
 
 import itertools
@@ -141,6 +141,82 @@ class TestParseCompile(unittest.TestCase):
             self.assertFalse(
                 any(tuple(b[i : i + 3]) in stops for i in range(len(b) - 2))
             )
+
+
+class TestOverlappingKmers(unittest.TestCase):
+    """Kmers that can overlap each other, or themselves, are where the wildcard
+    constraint stops being per-symbol: whether a wildcard may emit something
+    depends on the symbols after it, which may belong to a kmer."""
+
+    def test_wildcard_may_not_complete_a_kmer_with_the_next_kmer(self):
+        # A wildcard sitting before CG must not emit A: the parse would take the
+        # ACG and never see the CG the super-string asked for.
+        vocab = KmerVocabulary(kmers=((0, 1, 2), (1, 2)), base_alphabet_size=4)
+        x = vocab.unknown_symbol
+        for seed in range(200):
+            out = vocab.compile([x, 1], np.random.default_rng(seed))
+            self.assertNotEqual(out[0], 0, out)
+            self.assertEqual(vocab.parse(out), [x, 1])
+
+    def test_wildcard_may_not_extend_a_self_overlapping_kmer(self):
+        # AA overlaps itself, so a wildcard before it cannot emit A either.
+        vocab = KmerVocabulary(kmers=((0, 0),), base_alphabet_size=4)
+        x = vocab.unknown_symbol
+        for seed in range(200):
+            out = vocab.compile([x, 0], np.random.default_rng(seed))
+            self.assertNotEqual(out[0], 0, out)
+            self.assertEqual(vocab.parse(out), [x, 0])
+
+    def test_parse_is_leftmost_when_occurrences_overlap(self):
+        # AA occurs at 0 and at 1 in AAA; the leftmost wins and the odd symbol
+        # is left over as a wildcard.
+        vocab = KmerVocabulary(kmers=((0, 0),), base_alphabet_size=4)
+        self.assertEqual(vocab.parse([0, 0, 0]), [0, vocab.unknown_symbol])
+        self.assertEqual(vocab.parse([0, 0, 0, 0]), [0, 0])
+
+    def test_roundtrip_with_overlapping_kmers(self):
+        for kmers in [
+            ((0, 0),),
+            ((0, 1, 2), (1, 2)),
+            ((0, 1), (1, 0)),
+            ((0, 1, 0), (1, 0, 1)),
+        ]:
+            vocab = KmerVocabulary(kmers=kmers, base_alphabet_size=4)
+            rng = np.random.default_rng(0)
+            for _ in range(300):
+                n = int(rng.integers(1, 10))
+                s = [int(rng.integers(vocab.alphabet_size)) for _ in range(n)]
+                self.assertEqual(
+                    vocab.parse(vocab.compile(s, rng)),
+                    vocab.canonicalize(s),
+                    f"{kmers} {s}",
+                )
+
+    def test_uniform_over_the_fiber_with_a_self_overlapping_kmer(self):
+        # Self-overlap makes the legal symbols differ sharply between positions,
+        # which is exactly what an unweighted draw would get wrong.
+        vocab = KmerVocabulary(kmers=((0, 0),), base_alphabet_size=2)
+        x = vocab.unknown_symbol
+        s = [x, x, 0, x, x]
+        want = vocab.canonicalize(s)
+        length = sum(vocab.compiled_length(sym) for sym in s)
+        fiber = {}
+        for candidate in itertools.product(range(2), repeat=length):
+            if vocab.parse(list(candidate)) == want:
+                fiber[candidate] = len(fiber)
+        self.assertGreater(len(fiber), 1, "need a fiber with room to be non-uniform")
+
+        count = 400 * len(fiber)
+        compiled = vocab.compile_many(
+            [s] * count, [np.random.default_rng(i) for i in range(count)]
+        )
+        counts = np.zeros(len(fiber))
+        for base_string in compiled:
+            self.assertIn(tuple(base_string), fiber, "compiled outside the fiber")
+            counts[fiber[tuple(base_string)]] += 1
+        expected = count / len(fiber)
+        chi2 = ((counts - expected) ** 2 / expected).sum()
+        self.assertLess(chi2, 4 * max(len(fiber) - 1, 1))
 
 
 if __name__ == "__main__":

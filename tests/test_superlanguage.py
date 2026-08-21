@@ -16,8 +16,10 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.structures import Oracle, SymmetricBernoulli
-from orthogonal_dfa.superlanguage import KmerVocabulary, LiftedOracle, SuperSampler
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
+from orthogonal_dfa.superlanguage.oracle import LiftedOracle
+from orthogonal_dfa.superlanguage.sampler import SuperSampler
+from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
 # ACGT base alphabet: A=0, C=1, G=2, T=3.
 TAG, TGA, TAA = (3, 0, 2), (3, 2, 0), (3, 0, 0)
