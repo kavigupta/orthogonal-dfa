@@ -44,3 +44,14 @@ and whose leaves are classes, that is, sets of states that the tree cannot disti
 
 We route a state $q$ down the tree by evaluating the cuts at each node $m$: if $q\in D_m$ we go left, else right. The leaf we reach is the class of $q$.
 \end{definition}
+
+\subsection{Accept-preserving suffixes}
+
+\begin{definition}[Accept-preserving]\label{def:accept-preserving}
+A suffix $v$ is accept-preserving if it maps accept states to accept states and reject states to reject states, that is,
+$$\forall x,\ xv\in L\iff x\in L$$
+\end{definition}
+
+\begin{assumption}[Findable accept-preserving family]\label{ass:preserve}
+Under the distribution that the learner can sample from, the probability that an accept-preserving suffix is drawn is at least $p_{\mathrm{preserve}}>0$.
+\end{assumption}
