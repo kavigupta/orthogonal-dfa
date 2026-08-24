@@ -32,6 +32,22 @@ class TestKmerVocabulary(unittest.TestCase):
         self.assertEqual(v.alphabet_size, 4)
         self.assertEqual(v.wildcard_symbols, (3,))
 
+    def test_vocabulary_with_no_kmers(self):
+        # All wildcard, no kmers: every super-symbol is one base symbol, which is
+        # what max_kmer_length reports so callers can size a base string for it.
+        v = KmerVocabulary(kmers=(), base_alphabet_size=4, num_wildcards=2)
+        self.assertEqual(v.max_kmer_length, 1)
+        self.assertEqual(v.alphabet_size, 2)
+        rng = np.random.default_rng(0)
+        s = [v.unknown_symbol, v.wildcard_symbols[1], v.unknown_symbol]
+        out = v.compile(s, rng)
+        self.assertEqual(len(out), 3)
+        self.assertEqual(v.parse(out), v.canonicalize(s))
+
+    def test_max_kmer_length(self):
+        v = KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)
+        self.assertEqual(v.max_kmer_length, 3)
+
     def test_compiled_length(self):
         v = KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)
         self.assertEqual(v.compiled_length(0), 2)
