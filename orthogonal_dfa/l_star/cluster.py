@@ -42,9 +42,15 @@ def identify_cluster_around(
     available = np.ones(len(candidate), dtype=bool)
     while True:
         cluster = _converge(masks, available, seed_local, count, decision_boundary)
-        if seed_local in cluster or available.sum() <= count:
+        if seed_local in cluster:
             break
         available[cluster] = False
+        if available.sum() <= count:
+            # Nothing left to separate epsilon from: take the remainder, which
+            # still holds epsilon.  Breaking on the converged cluster here would
+            # return a family epsilon is not in at all.
+            cluster = np.flatnonzero(available)
+            break
     cluster_center = masks[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
