@@ -120,7 +120,7 @@ def _compile_chunk(templates, rngs, tables):
             np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
         )
         running = np.cumsum(weights, axis=1)
-        picked = (running < (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
+        picked = (running <= (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
         chosen = np.where(
             column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
         )
@@ -152,6 +152,13 @@ class KmerVocabulary:
         # kmer can grow it into a longer one and the super-string it came from is
         # then unencodable; without the second there is a run of symbols before
         # which no wildcard can go, since every symbol would start a kmer.
+        #
+        # Both are sufficient rather than necessary, and the second is the loose
+        # one: it asks that no context block every symbol, where compile only
+        # needs the contexts it cannot steer around to stay clear. So a vocabulary
+        # like (0,0) with (1,0,1) is turned away despite compiling fine. Tightening
+        # it would move the failure from here to compile, which the caller is far
+        # less placed to handle.
         for i, a in enumerate(self.kmers):
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
@@ -262,6 +269,10 @@ class KmerVocabulary:
         """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
         for symbol in super_string:
+            # a negative symbol is not a wildcard, and would index kmers from the end
+            assert (
+                0 <= symbol < self.alphabet_size
+            ), f"{symbol} is outside the super alphabet"
             if self.is_unknown(symbol):
                 template.append(_FREE)
             else:
