@@ -17,6 +17,8 @@ class StubTable:
 
 
 class StubOracle:
+    alphabet_size = 2
+
     def membership_queries(self, strings):
         # Accept everything, so a decisive re-read picks the accept side.
         return [1] * len(strings)
