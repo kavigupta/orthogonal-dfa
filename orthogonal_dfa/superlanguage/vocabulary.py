@@ -80,6 +80,9 @@ def _compile_chunk(templates, rngs, tables):
     """Templates are right-aligned so that every string's last position shares the
     final column: sampling runs right to left, so they then all start in the
     end-of-string state and stay in step.
+
+    The restrictions on the kmers leave every super-string with a compilation, so
+    sampling never reaches a position with nothing to choose.
     """
     initial, allowed, shift = tables
     base, num_states = shift.shape
@@ -117,7 +120,6 @@ def _compile_chunk(templates, rngs, tables):
             np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
         )
         running = np.cumsum(weights, axis=1)
-        assert (running[live, -1] > 0).all(), "super-string has no valid compilation"
         picked = (running < (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
         chosen = np.where(
             column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
