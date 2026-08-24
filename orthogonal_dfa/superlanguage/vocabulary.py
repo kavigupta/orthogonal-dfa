@@ -1,19 +1,25 @@
-"""An alphabet of K prefix-free kmers plus interchangeable wildcards, built over
-a base alphabet, with a translation to and from it that is invertible and
-preserves uniformity.
+"""
+An alphabet of K prefix-free kmers plus interchangeable wildcards, that abstracts
+a base alphabet, with a "compiler" that moves from the abstracted language to the
+original, and a "parser" that moves back.
 
-parse reads a base string back by greedy longest match. compile is its inverse,
-up to which wildcard was used: the wildcards translate identically, so parse
-cannot tell them apart and only canonicalize(s) is recovered.
+The compiler is a randomized function that fills in the wildcards with base symbols
+so that the result parses back to the original super-string.
 
-A wildcard may emit any base symbol that does not start a kmer given what follows
-it. Which symbols those are varies by position, so drawing evenly among them
-would over-represent the constrained ones; compile instead weights each by how
-many ways the rest of the string can then be filled, which is the uniform law on
-the fiber and makes compile(parse(x)) uniform whenever x is.
+The parser is deterministic and greedy: it reads the base string left to right, taking
+the first kmer it sees, or else a wildcard.
 
-Extra wildcards buy no expressive power, only strings: with one wildcard there is
-a single wildcard-only super-string of each length, with two there are 2**n.
+We guarantee that parse(compile(y)) = y up to wildcard identity, and that compile(y) is
+uniform over the base strings that parse back to y.
+
+We require two restrictions on the kmers: they must be prefix-free, and they must not leave any
+position in the base string with no symbol a wildcard could take. E.g., over the
+alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA} are not allowed, because
+the string X AAA can't be compiled, as whatever X resolves to will get merged with
+AA from AAA.
+
+We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
+in fact, interchangeable.
 """
 
 from dataclasses import dataclass
