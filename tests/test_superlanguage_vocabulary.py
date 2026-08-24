@@ -144,9 +144,10 @@ class TestParseCompile(unittest.TestCase):
         """Every base string that parses back to ``s`` must come out equally often.
 
         Brute-forces the fiber of one super-string and chi-squares the sampler
-        against it -- the sharp version of the marginal check above, and what the
-        fiber-counting weights buy: drawing uniformly among the *locally* legal
-        symbols instead skews this badly (chi2 ~ 11x the degrees of freedom).
+        against it. Sized so that dropping the fiber counts and drawing evenly
+        among the legal symbols lands near 6x the degrees of freedom against 0.9x
+        for the real one; at a tenth of these samples it only reaches 1.5x and
+        slips under the bound.
         """
         x = self.vocab.unknown_symbol
         s = [x, x, 0, x, x, x]  # five wildcards around one TAG -> 8 base symbols
@@ -157,7 +158,7 @@ class TestParseCompile(unittest.TestCase):
             if self.vocab.parse(list(candidate)) == want:
                 fiber[candidate] = len(fiber)
 
-        count = 40 * len(fiber)
+        count = 400 * len(fiber)
         compiled = self.vocab.compile_many(
             [s] * count, [np.random.default_rng(i) for i in range(count)]
         )
@@ -167,8 +168,6 @@ class TestParseCompile(unittest.TestCase):
             self.assertIn(key, fiber, "compiled outside the fiber")
             counts[fiber[key]] += 1
         chi2 = ((counts - count / len(fiber)) ** 2 / (count / len(fiber))).sum()
-        # Under uniformity chi2 ~ dof; allow a wide margin so the test is about
-        # systematic skew, not luck. Equal weighting would land near 11 * dof.
         self.assertLess(chi2, 2 * (len(fiber) - 1))
 
     def test_compile_never_spells_a_stop_in_wildcard_regions(self):
