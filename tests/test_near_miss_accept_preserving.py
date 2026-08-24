@@ -2,21 +2,22 @@
 
 ``.*1010101.*`` is monotone -- acceptance is a sink, so no suffix can un-accept a
 string.  A prefix ending in ``101010`` therefore rejects on its own but accepts
-under every suffix starting with ``1``, and the clustered family is almost
-entirely such suffixes, because that is what separates the near-miss state from
-the rest.  So the family's cut calls those prefixes accept while the noiseless
-oracle calls them reject, and ``learn_dfa_verified``'s per-round check counts
-every one of them as a misclassification -- about 20% of the decisive population
-here, against a 1% budget.
+under every suffix starting with ``1``, and a family made of such suffixes calls
+those prefixes accept while the noiseless oracle calls them reject.  Every one of
+them then counts as a misclassification in ``learn_dfa_verified``'s per-round
+check -- about 20% of the decisive population here, against a 1% budget.
 
-``TestLStarAsymmetric::test_regex_asymmetric`` hits the same thing, but only when
-enough near-miss prefixes happen to land in one round's decisive population --
-roughly one seed in six.  Here the sampler puts them there on purpose.
+The family used to come out that way because ``identify_cluster_around`` refined
+onto a cluster epsilon was not in and spliced epsilon back afterwards.  Since
+epsilon's column *is* the accept-preserving split (membership of ``p + eps`` is
+membership of ``p``), a family that outvotes it fails this check by
+construction.  The clustering now returns the cluster epsilon actually belongs
+to, so the family agrees with it.
 
-The learner is not wrong: it gives the near-miss prefixes their own state and
-reaches accuracy 1.0 on this target.  The round check asks whether the prefix
-*alone* is in the language, which is a different question from the one the
-family answers.
+``TestLStarAsymmetric::test_regex_asymmetric`` hits the same thing on about one
+seed in six, depending on how many near-miss prefixes land in a round's decisive
+population.  This puts them there on purpose, so the regression is pinned rather
+than left to the draw.
 """
 
 import unittest
@@ -32,12 +33,12 @@ NEAR_MISS = MOTIF[:-1]
 
 #: Fraction of sampled strings forced to be near misses.  The effect needs the
 #: state to be *sparse*: past roughly 0.3 the family calibrates against it and
-#: the cut comes out right, so a fix has to be checked around this share rather
-#: than at one where the state is well populated.
+#: the cut comes out right even without the fix, so this share is what keeps the
+#: test honest.
 NEAR_MISS_SHARE = 0.2
 
-#: Seeds to check.  Individually 7 of 8 fire, so no single seed is load-bearing;
-#: the property under test is that the round check holds whatever the draw.
+#: Seeds to check.  Before the fix 7 of 8 failed individually, so no single seed
+#: is load-bearing; the property is that the round check holds whatever the draw.
 SEEDS = (0, 1, 2, 3)
 
 
@@ -72,7 +73,6 @@ def _oracle(noise_model, seed):
 
 
 class TestNearMissAcceptPreserving(unittest.TestCase):
-    @unittest.expectedFailure
     def test_near_miss_prefixes_do_not_break_the_round_check(self):
         for seed in SEEDS:
             with self.subTest(seed=seed):

@@ -5,6 +5,21 @@ import numpy as np
 from .statistics import evidence_margin_for_population_size
 
 
+def _converge(masks, available, seed_local, count, decision_boundary):
+    """One clustering run from ``seed_local``, restricted to ``available`` rows."""
+    cluster = np.array([seed_local])
+    loss = float("inf")
+    while True:
+        cluster_center = masks[cluster].mean(0) > decision_boundary
+        losses = (masks != cluster_center).sum(1).astype(float)
+        losses[~available] = np.inf
+        nearest = np.argsort(losses)[: min(count, int(available.sum()))]
+        new_loss = losses[nearest].sum()
+        if not np.isfinite(new_loss) or new_loss >= loss:
+            return cluster
+        cluster, loss = nearest, new_loss
+
+
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
@@ -19,18 +34,18 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
-    cluster = [seed_local]
-    loss = float("inf")
+    # Cluster as usual, but return the cluster epsilon actually belongs to.
+    # Refinement can converge onto a group that agrees with itself and not with
+    # epsilon; splicing epsilon back in gives a family whose cut disagrees with
+    # it.  When that happens the converged group is simply a different cluster,
+    # so peel it off and cluster again from epsilon over what is left.
+    available = np.ones(len(candidate), dtype=bool)
     while True:
-        cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = (masks != cluster_center).sum(1)
-        cluster = losses.argsort()[:count]
-        if seed_local not in cluster:
-            cluster = np.concatenate([[seed_local], cluster[: count - 1]])
-        new_loss = losses[cluster].sum()
-        if new_loss >= loss:
+        cluster = _converge(masks, available, seed_local, count, decision_boundary)
+        if seed_local in cluster or available.sum() <= count:
             break
-        loss = new_loss
+        available[cluster] = False
+    cluster_center = masks[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)
