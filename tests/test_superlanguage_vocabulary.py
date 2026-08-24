@@ -9,11 +9,26 @@ import itertools
 import unittest
 
 import numpy as np
+from parameterized import parameterized
 
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
 # ACGT base alphabet: A=0, C=1, G=2, T=3.
 TAG, TGA, TAA = (3, 0, 2), (3, 2, 0), (3, 0, 0)
+
+# The stop codons alone are a mild shape to test on: same length, and all
+# starting on T, so no other symbol is ever the one a wildcard cannot take.
+SHAPES = [
+    ("stops", KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)),
+    ("ragged", KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)),
+    ("on_symbol_0", KmerVocabulary(kmers=((0, 0), (1, 2)), base_alphabet_size=4)),
+    ("binary", KmerVocabulary(kmers=((0, 0),), base_alphabet_size=2)),
+    (
+        "one_wildcard",
+        KmerVocabulary(kmers=(TAG,), base_alphabet_size=4, num_wildcards=1),
+    ),
+    ("no_kmers", KmerVocabulary(kmers=(), base_alphabet_size=3)),
+]
 
 
 class TestKmerVocabulary(unittest.TestCase):
@@ -108,37 +123,54 @@ class TestParseCompile(unittest.TestCase):
         base = list(TAG) + [0] + list(TGA)
         self.assertEqual(self.vocab.parse(base), [0, self.X, 1])
 
-    def test_roundtrip_parse_of_compile(self):
+    @parameterized.expand(SHAPES)
+    def test_roundtrip_parse_of_compile(self, _name, vocab):
         # The wildcards compile identically, so the round trip recovers the
         # super-string up to which wildcard was used.
         rng = np.random.default_rng(0)
-        for _ in range(2000):
-            n = int(rng.integers(1, 12))
-            s = [int(rng.integers(self.vocab.alphabet_size)) for _ in range(n)]
-            self.assertEqual(
-                self.vocab.parse(self.vocab.compile(s, rng)),
-                self.vocab.canonicalize(s),
-            )
+        strings = [
+            [int(rng.integers(vocab.alphabet_size)) for _ in range(rng.integers(1, 12))]
+            for _ in range(2000)
+        ]
+        compiled = vocab.compile_many(
+            strings, [np.random.default_rng(i) for i in range(len(strings))]
+        )
+        for s, base in zip(strings, compiled):
+            self.assertEqual(vocab.parse(base), vocab.canonicalize(s))
 
-    def test_wildcards_compile_identically(self):
-        # X and Y are interchangeable: swapping them leaves the fiber unchanged,
-        # so the base oracle cannot distinguish them.
-        x, y = self.vocab.wildcard_symbols[:2]
-        a = self.vocab.compile([0, x, 1, x], np.random.default_rng(4))
-        b = self.vocab.compile([0, y, 1, y], np.random.default_rng(4))
+    @parameterized.expand(SHAPES)
+    def test_compile_never_spells_a_kmer_in_wildcard_regions(self, _name, vocab):
+        wild = vocab.wildcard_symbols
+        rng = np.random.default_rng(2)
+        strings = [[int(rng.choice(wild)) for _ in range(20)] for _ in range(300)]
+        for base in vocab.compile_many(
+            strings, [np.random.default_rng(i) for i in range(len(strings))]
+        ):
+            self.assertEqual(vocab.parse(base), [vocab.unknown_symbol] * len(base))
+
+    @parameterized.expand([sh for sh in SHAPES if sh[1].num_wildcards > 1])
+    def test_wildcards_compile_identically(self, _name, vocab):
+        # Swapping which wildcard is asked for leaves the base string alone, so
+        # nothing downstream can tell them apart.
+        x, y = vocab.wildcard_symbols[:2]
+        n = vocab.num_kmers
+        a = vocab.compile([0, x, x] if n else [x, x], np.random.default_rng(4))
+        b = vocab.compile([0, y, y] if n else [y, y], np.random.default_rng(4))
         self.assertEqual(a, b)
 
-    def test_compile_of_parse_is_uniform(self):
-        """``compile(parse(x))`` recovers a uniform base string for uniform ``x``."""
+    @parameterized.expand(SHAPES)
+    def test_compile_of_parse_is_uniform(self, _name, vocab):
+        """compile(parse(x)) recovers a uniform base string for uniform x."""
+        base = vocab.base_alphabet_size
         rng = np.random.default_rng(1)
-        xs = [rng.integers(4, size=24).tolist() for _ in range(2000)]
-        compiled = self.vocab.compile_many(
-            [self.vocab.parse(x) for x in xs],
+        xs = [rng.integers(base, size=24).tolist() for _ in range(4000)]
+        compiled = vocab.compile_many(
+            [vocab.parse(x) for x in xs],
             [np.random.default_rng(i) for i in range(len(xs))],
         )
-        counts = np.bincount(np.concatenate(compiled), minlength=4)
+        counts = np.bincount(np.concatenate(compiled), minlength=base)
         freqs = counts / counts.sum()
-        self.assertLess(np.abs(freqs - 0.25).max(), 0.01)
+        self.assertLess(np.abs(freqs - 1 / base).max(), 0.015)
 
     def test_compile_is_uniform_over_the_whole_fiber(self):
         """Every base string that parses back to ``s`` must come out equally often.
@@ -169,19 +201,6 @@ class TestParseCompile(unittest.TestCase):
             counts[fiber[key]] += 1
         chi2 = ((counts - count / len(fiber)) ** 2 / (count / len(fiber))).sum()
         self.assertLess(chi2, 2 * (len(fiber) - 1))
-
-    def test_compile_never_spells_a_stop_in_wildcard_regions(self):
-        # A wildcard-only string must never compile to a base string containing a
-        # stop codon (that is exactly what invertibility guarantees).
-        rng = np.random.default_rng(2)
-        stops = {TAG, TGA, TAA}
-        wild = self.vocab.wildcard_symbols
-        for _ in range(3000):
-            s = [int(rng.choice(wild)) for _ in range(20)]
-            b = self.vocab.compile(s, rng)
-            self.assertFalse(
-                any(tuple(b[i : i + 3]) in stops for i in range(len(b) - 2))
-            )
 
 
 class TestOverlappingKmers(unittest.TestCase):
