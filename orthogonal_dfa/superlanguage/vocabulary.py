@@ -12,11 +12,12 @@ the first kmer it sees, or else a wildcard.
 We guarantee that parse(compile(y)) = y up to wildcard identity, and that compile(y) is
 uniform over the base strings that parse back to y.
 
-We require two restrictions on the kmers: they must be prefix-free, and they must not leave any
-position in the base string with no symbol a wildcard could take. E.g., over the
-alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA} are not allowed, because
-the string X AAA can't be compiled, as whatever X resolves to will get merged with
-AA from AAA.
+We require two restrictions on the kmers: they must be prefix-free, and no context --
+no run of the next max_kmer_length - 1 symbols -- may leave a wildcard with no symbol
+it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
+are not allowed, because the string X AAA can't be compiled, as whatever X resolves
+to will get merged with AA from AAA. Both restrictions are stricter than strictly
+necessary; the second rules out contexts that could never come up.
 
 We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
 in fact, interchangeable.
@@ -72,6 +73,9 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
             if following[: len(kmer) - 1] == list(kmer[1:]):
                 allowed[state, kmer[0]] = False
 
+    # Cached and shared between vocabularies with the same kmers.
+    allowed.flags.writeable = False
+    shift.flags.writeable = False
     initial = num_states - 1 if w else 0  # all sentinels: nothing follows the end
     return initial, allowed, shift
 
@@ -148,17 +152,24 @@ class KmerVocabulary:
                 0 <= c < self.base_alphabet_size for c in kmer
             ), f"kmer {kmer} has symbols outside the base alphabet"
         assert len(set(self.kmers)) == len(self.kmers), "duplicate kmers"
-        # Together these two make compile total. Without the first, what follows a
-        # kmer can grow it into a longer one and the super-string it came from is
-        # then unencodable; without the second there is a run of symbols before
-        # which no wildcard can go, since every symbol would start a kmer.
+        # These two are what let compile get away with the model it has, which
+        # only ever asks whether a wildcard would START a kmer.
         #
-        # Both are sufficient rather than necessary, and the second is the loose
-        # one: it asks that no context block every symbol, where compile only
-        # needs the contexts it cannot steer around to stay clear. So a vocabulary
-        # like (0,0) with (1,0,1) is turned away despite compiling fine. Tightening
-        # it would move the failure from here to compile, which the caller is far
-        # less placed to handle.
+        # Nothing in it asks whether a wildcard would EXTEND the kmer to its left
+        # into a longer one, so with prefix-related kmers compile quietly returns a
+        # string that parses as something else: over (0,1,2) and (0,1), the
+        # super-string (0,1) then a wildcard comes back wrong on a quarter of
+        # seeds, though 0,1,3 would have encoded it. Prefix-freeness is what makes
+        # that case impossible rather than merely unlikely.
+        #
+        # And a wildcard needs somewhere to go at all, or a super-string using one
+        # in that context has no encoding.
+        #
+        # Both are sufficient rather than necessary, the second more loosely: it
+        # asks that no context block every symbol, where compile only needs that of
+        # the contexts it cannot steer around. So (0,0) with (1,0,1) is turned away
+        # despite compiling fine. Tightening it would move the failure from here to
+        # compile, which the caller is far less placed to handle.
         for i, a in enumerate(self.kmers):
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
