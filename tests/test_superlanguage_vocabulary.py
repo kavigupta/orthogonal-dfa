@@ -52,8 +52,34 @@ class TestKmerVocabulary(unittest.TestCase):
         with self.assertRaises(AssertionError):
             KmerVocabulary(kmers=((0,), (0,)), base_alphabet_size=4)  # duplicate
         with self.assertRaises(AssertionError):
-            # prefix-related: (0,1) is a prefix of (0,1,2)
+            # prefix-related: (0,1) is a prefix of (0,1,2), so what follows the
+            # short one could grow it into the long one
             KmerVocabulary(kmers=((0, 1), (0, 1, 2)), base_alphabet_size=4)
+
+    def test_rejects_kmers_that_crowd_out_the_wildcards(self):
+        # Before 000 every symbol starts a kmer -- 0 spells (0,0,0), 1 spells
+        # (1,0,0), 2 spells (2,0) -- so a wildcard could not be placed there and
+        # any super-string with one there would have no compilation.
+        with self.assertRaises(AssertionError):
+            KmerVocabulary(kmers=((1, 0, 0), (2, 0), (0, 0, 0)), base_alphabet_size=3)
+
+    def test_accepted_vocabularies_can_compile_anything(self):
+        """The two constructor checks are there to make compile total, so whatever
+        can be built compiles every super-string over it."""
+        for kmers in [
+            (TAG, TGA, TAA),
+            ((0, 0),),
+            ((0, 1), (1, 0)),
+            ((0, 1, 2), (1, 2)),
+        ]:
+            vocab = KmerVocabulary(kmers=kmers, base_alphabet_size=4)
+            rng = np.random.default_rng(0)
+            for n in (1, 2, 3):
+                for s in itertools.product(range(vocab.alphabet_size), repeat=n):
+                    out = vocab.compile(list(s), rng)
+                    self.assertEqual(
+                        vocab.parse(out), vocab.canonicalize(list(s)), (kmers, s)
+                    )
 
 
 class TestParseCompile(unittest.TestCase):

@@ -41,7 +41,8 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
     The extra digit is a sentinel for running off the end of the string, which
     matches no kmer.
 
-    shift[c, state] is the state one position further left after emitting c.
+    shift[c, state] is the state one position further left after emitting c, and
+    allowed[state, c] whether a wildcard may emit c there.
     """
     w = max((len(k) for k in kmers), default=1) - 1
     radix = base + 1
@@ -139,9 +140,18 @@ class KmerVocabulary:
                 0 <= c < self.base_alphabet_size for c in kmer
             ), f"kmer {kmer} has symbols outside the base alphabet"
         assert len(set(self.kmers)) == len(self.kmers), "duplicate kmers"
+        # Together these two make compile total. Without the first, what follows a
+        # kmer can grow it into a longer one and the super-string it came from is
+        # then unencodable; without the second there is a run of symbols before
+        # which no wildcard can go, since every symbol would start a kmer.
         for i, a in enumerate(self.kmers):
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
+        _, allowed, _ = _transfer_tables(self.kmers, self.base_alphabet_size)
+        assert allowed.any(axis=1).all(), (
+            "the kmers leave some position with no symbol a wildcard could take, "
+            "so a super-string using one there could not be compiled"
+        )
 
     @property
     def num_kmers(self) -> int:
