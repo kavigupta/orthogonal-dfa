@@ -51,6 +51,9 @@ class TestKmerVocabulary(unittest.TestCase):
             KmerVocabulary(kmers=((),), base_alphabet_size=4)  # empty kmer
         with self.assertRaises(AssertionError):
             KmerVocabulary(kmers=((0,), (0,)), base_alphabet_size=4)  # duplicate
+        with self.assertRaises(AssertionError):
+            # prefix-related: (0,1) is a prefix of (0,1,2)
+            KmerVocabulary(kmers=((0, 1), (0, 1, 2)), base_alphabet_size=4)
 
 
 class TestParseCompile(unittest.TestCase):
@@ -214,107 +217,6 @@ class TestOverlappingKmers(unittest.TestCase):
         expected = count / len(fiber)
         chi2 = ((counts - expected) ** 2 / expected).sum()
         self.assertLess(chi2, 4 * max(len(fiber) - 1, 1))
-
-
-class TestPrefixRelatedKmers(unittest.TestCase):
-    """A kmer may be a prefix of another. parse then has to prefer the longer one,
-    and compile has to keep what follows a kmer from growing it into that longer
-    one -- which is not always possible, so compile is partial here."""
-
-    def setUp(self):
-        self.vocab = KmerVocabulary(
-            kmers=((0, 1), (0, 1, 2)), base_alphabet_size=4, num_wildcards=2
-        )
-        self.short, self.long = 0, 1
-        self.X = self.vocab.unknown_symbol
-
-    def test_parse_takes_the_longer_kmer(self):
-        self.assertEqual(self.vocab.parse([0, 1, 2]), [self.long])
-        self.assertEqual(self.vocab.parse([0, 1, 3]), [self.short, self.X])
-
-    def test_parse_does_not_depend_on_kmer_order(self):
-        flipped = KmerVocabulary(kmers=((0, 1, 2), (0, 1)), base_alphabet_size=4)
-        # same string, same reading, even though the indices are swapped
-        self.assertEqual(self.vocab.kmers[self.vocab.parse([0, 1, 2])[0]], (0, 1, 2))
-        self.assertEqual(flipped.kmers[flipped.parse([0, 1, 2])[0]], (0, 1, 2))
-
-    def test_wildcard_may_not_grow_the_kmer_it_follows(self):
-        # (0,1) then a wildcard: emitting 2 would spell (0,1,2) and lose the short
-        # kmer, so the wildcard never takes it.
-        for seed in range(300):
-            out = self.vocab.compile([self.short, self.X], np.random.default_rng(seed))
-            self.assertNotEqual(out[2], 2, out)
-            self.assertEqual(
-                self.vocab.parse(out), self.vocab.canonicalize([self.short, self.X])
-            )
-
-    def test_roundtrip_on_encodable_super_strings(self):
-        # Anything parse produces came from a real base string, so it is encodable.
-        rng = np.random.default_rng(0)
-        for _ in range(400):
-            x = rng.integers(4, size=int(rng.integers(1, 16))).tolist()
-            s = self.vocab.parse(x)
-            self.assertEqual(
-                self.vocab.parse(self.vocab.compile(s, rng)),
-                self.vocab.canonicalize(s),
-            )
-
-    def test_unencodable_super_string_is_refused(self):
-        # (0,1) then (2,0) can only spell 0,1,2,0, which reads back as (0,1,2).
-        vocab = KmerVocabulary(kmers=((0, 1), (0, 1, 2), (2, 0)), base_alphabet_size=4)
-        with self.assertRaises(ValueError):
-            vocab.compile([0, 2], np.random.default_rng(0))
-
-    def test_still_uniform_over_the_fiber(self):
-        s = [self.X, self.short, self.X, self.X]
-        want = self.vocab.canonicalize(s)
-        length = sum(self.vocab.compiled_length(sym) for sym in s)
-        fiber = {}
-        for candidate in itertools.product(range(4), repeat=length):
-            if self.vocab.parse(list(candidate)) == want:
-                fiber[candidate] = len(fiber)
-        self.assertGreater(len(fiber), 1)
-
-        count = 60 * len(fiber)
-        compiled = self.vocab.compile_many(
-            [s] * count, [np.random.default_rng(i) for i in range(count)]
-        )
-        counts = np.zeros(len(fiber))
-        for base_string in compiled:
-            self.assertIn(tuple(base_string), fiber, "compiled outside the fiber")
-            counts[fiber[tuple(base_string)]] += 1
-        expected = count / len(fiber)
-        chi2 = ((counts - expected) ** 2 / expected).sum()
-        self.assertLess(chi2, 3 * (len(fiber) - 1))
-
-    def test_compile_succeeds_exactly_on_what_parse_can_produce(self):
-        """The encodable super-strings are precisely parse's image: every string
-        some base string reads as can be compiled, and every one refused is a
-        string no base string reads as. Checked exhaustively on a small alphabet.
-        """
-        vocab = KmerVocabulary(
-            kmers=((0, 1), (0, 1, 2), (2, 0)), base_alphabet_size=3, num_wildcards=1
-        )
-        rng = np.random.default_rng(0)
-        # Super-strings of up to three symbols compile to at most nine base
-        # symbols, so enumerating that far settles which of them are reachable.
-        reachable = {
-            tuple(vocab.parse(list(b)))
-            for n in range(10)
-            for b in itertools.product(range(3), repeat=n)
-        }
-        refused = 0
-        for n in range(1, 4):
-            for s in itertools.product(range(vocab.alphabet_size), repeat=n):
-                try:
-                    out = vocab.compile(list(s), rng)
-                except ValueError:
-                    refused += 1
-                    self.assertNotIn(s, reachable, f"refused reachable {s}")
-                    continue
-                self.assertIn(s, reachable, f"compiled unreachable {s}")
-                self.assertEqual(vocab.parse(out), vocab.canonicalize(list(s)))
-        self.assertGreater(refused, 0, "this vocabulary should have gaps")
 
 
 if __name__ == "__main__":
