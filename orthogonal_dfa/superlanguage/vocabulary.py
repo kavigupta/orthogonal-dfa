@@ -120,7 +120,7 @@ def _compile_chunk(templates, rngs, tables):
             np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
         )
         running = np.cumsum(weights, axis=1)
-        picked = (running < (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
+        picked = (running <= (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
         chosen = np.where(
             column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
         )
@@ -262,6 +262,10 @@ class KmerVocabulary:
         """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
         for symbol in super_string:
+            # a negative symbol is not a wildcard, and would index kmers from the end
+            assert (
+                0 <= symbol < self.alphabet_size
+            ), f"{symbol} is outside the super alphabet"
             if self.is_unknown(symbol):
                 template.append(_FREE)
             else:
