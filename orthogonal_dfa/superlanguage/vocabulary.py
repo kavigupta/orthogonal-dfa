@@ -17,7 +17,8 @@ no run of the next max_kmer_length - 1 symbols -- may leave a wildcard with no s
 it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
 are not allowed, because the string X AAA can't be compiled, as whatever X resolves
 to will get merged with AA from AAA. Both restrictions are stricter than strictly
-necessary; the second rules out contexts that could never come up.
+necessary; the second rules out contexts compile would never have had to put a
+wildcard in.
 
 We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
 in fact, interchangeable.
