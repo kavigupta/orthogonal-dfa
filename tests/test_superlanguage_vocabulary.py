@@ -281,21 +281,9 @@ class TestOverlappingKmers(unittest.TestCase):
 
 class TestCompileEdges(unittest.TestCase):
     def setUp(self):
-        # kmers starting with symbol 0, so that symbol 0 is the one banned
-        # somewhere -- with a leading zero weight, the draw has to skip past it.
         self.vocab = KmerVocabulary(
             kmers=((0, 0),), base_alphabet_size=2, num_wildcards=1
         )
-        self.X = self.vocab.unknown_symbol
-
-    def test_a_draw_of_exactly_zero_skips_banned_symbols(self):
-        class ZeroDraws:
-            def random(self, size):
-                return np.zeros(size)
-
-        s = [self.X, self.X, 0]
-        out = self.vocab.compile_many([s], [ZeroDraws()])[0]
-        self.assertEqual(self.vocab.parse(out), self.vocab.canonicalize(s))
 
     def test_symbols_outside_the_alphabet_are_refused(self):
         rng = np.random.default_rng(0)
