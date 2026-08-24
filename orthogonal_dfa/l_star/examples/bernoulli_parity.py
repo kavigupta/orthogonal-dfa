@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Tuple
 
 from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 

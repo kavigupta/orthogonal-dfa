@@ -7,7 +7,6 @@ against the orthonormal L* approach.
 """
 
 import random
-from typing import List
 
 from aalpy.base import SUL
 from aalpy.oracles import RandomWordEqOracle

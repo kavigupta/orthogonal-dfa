@@ -17,7 +17,7 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     median_threshold,
     run_over_middles,
 )
-from tests.spliceai_small import small_score_model_and_exon
+from tests.spliceai_small import random_middles, small_score_model_and_exon
 
 
 def every_kmer_frequency(strings, k_max):
@@ -32,13 +32,6 @@ def every_kmer_frequency(strings, k_max):
             row.append(np.bincount(ids, minlength=4**k) / (len(s) - k + 1))
         rows.append(np.concatenate(row))
     return np.array(rows)
-
-
-def random_middles(n, length, seed):
-    rng = np.random.default_rng(seed)
-    return [
-        rng.integers(0, 4, size=length, dtype=np.uint8).tobytes() for _ in range(n)
-    ], rng
 
 
 class TestBowFeatures(unittest.TestCase):
@@ -145,12 +138,7 @@ class TestCompositionResidualScore(unittest.TestCase):
 
     def test_forward_subtracts_a_linear_function_of_composition(self):
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = [
-            row.tobytes()
-            for row in np.random.default_rng(1).integers(
-                0, 4, size=(256, 30), dtype=np.uint8
-            )
-        ]
+        middles, _ = random_middles(256, 30, seed=1)
         subtracted = self._scores(self.score_model, middles) - self._scores(
             residual, middles
         )
@@ -162,12 +150,7 @@ class TestCompositionResidualScore(unittest.TestCase):
 
     def test_fit_survives_state_dict_round_trip(self):
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = [
-            row.tobytes()
-            for row in np.random.default_rng(2).integers(
-                0, 4, size=(8, 30), dtype=np.uint8
-            )
-        ]
+        middles, _ = random_middles(8, 30, seed=2)
         before = self._scores(residual, middles)
         zeroed = _residual_module(
             self.score_model,

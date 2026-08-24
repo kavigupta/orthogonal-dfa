@@ -23,7 +23,7 @@ drawn uniformly from *Q*.  This is uniform over the unconstrained degrees of
 freedom.
 """
 
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
