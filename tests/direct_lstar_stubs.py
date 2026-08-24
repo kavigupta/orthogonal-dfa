@@ -13,7 +13,7 @@ class StubTable:
         self.memo = MemoizedOracle(oracle)
 
     def suffix(self, v):
-        return [v]
+        return bytes([v])
 
 
 class StubOracle:

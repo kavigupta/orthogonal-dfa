@@ -27,12 +27,12 @@ DEFAULT_NUM_SAMPLES = 2000
 DEFAULT_MIN_COVERAGE = 0.01
 
 
-def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> List[int]:
+def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> bytes:
     """A uniform random string of ``length`` symbols over the DFA's alphabet."""
-    return rng.choice(sorted(dfa.input_symbols), size=length).tolist()
+    return rng.choice(sorted(dfa.input_symbols), size=length).astype(np.uint8).tobytes()
 
 
-def _endpoint(dfa: DFA, string: List[int], start=None):
+def _endpoint(dfa: DFA, string: bytes, start=None):
     """The state reached by running ``string`` from ``start`` (default q0)."""
     q = dfa.initial_state if start is None else start
     for c in string:

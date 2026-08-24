@@ -73,24 +73,24 @@ def sample_class_distribution(
     -- one no string of that length can end in -- would otherwise draw no samples
     at all and its classes would vanish from the picture.  Buckets are deduped and
     capped so a rare state is represented as well as a common one."""
-    buckets: Dict[int, List[tuple]] = {s: [] for s in true_dfa.states}
+    buckets: Dict[int, List[bytes]] = {s: [] for s in true_dfa.states}
     seen: Dict[int, set] = {s: set() for s in true_dfa.states}
     for _ in range(num_samples):
-        w = list(pst.sampler.sample(rng, pst.alphabet_size))
+        w = pst.sampler.sample(rng, pst.alphabet_size)
         state = true_dfa.initial_state
-        for i, c in enumerate([None] + w):
+        for i, c in enumerate([None, *w]):
             if c is not None:
                 state = true_dfa.transitions[state][c]
-            key = tuple(w[:i])
+            key = w[:i]
             if len(buckets[state]) < per_state and key not in seen[state]:
                 seen[state].add(key)
                 buckets[state].append(key)
     if prefill is not None:
-        prefill([list(p) for ps in buckets.values() for p in ps])
+        prefill([p for ps in buckets.values() for p in ps])
     dist: Dict[int, Counter] = {s: Counter() for s in true_dfa.states}
     for state, ps in buckets.items():
         for p in ps:
-            dist[state][classify(list(p))] += 1
+            dist[state][classify(p)] += 1
     return dist
 
 

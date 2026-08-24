@@ -61,9 +61,9 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             block = []
             while len(block) < target:
                 string = sample_string_reaching_state(dfa, counts, pst.rng)
-                if tuple(string) in seen:
+                if string in seen:
                     continue  # need distinct strings for independent oracle draws
-                seen.add(tuple(string))
+                seen.add(string)
                 block.append(string)
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
@@ -189,7 +189,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     # across the loop; compute it once instead of re-querying the oracle on each
     # sample.  On multi-iteration benchmarks this empty-prefix reclassification was
     # ~24% of all oracle queries (it recurs on up to num_samples draws per call).
-    s0 = classify([])
+    s0 = classify(b"")
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0
@@ -202,7 +202,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
         ends = classify_many(ys)
         for y, s_end in zip(ys, ends):
             prefix, reason = locate_incorrect_point(
-                classify, dfa, [], y, s0=s0, s_end=s_end
+                classify, dfa, b"", y, s0=s0, s_end=s_end
             )
             if prefix is None and reason == "no inconsistency":
                 agreements += 1

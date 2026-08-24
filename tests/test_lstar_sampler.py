@@ -19,7 +19,7 @@ class _ZeroRunSampler(Sampler):
 
     def sample(self, rng, alphabet_size):
         assert alphabet_size >= 1
-        return [0] * self.length
+        return bytes(self.length)
 
 
 def _oracle(noise_model, seed):
@@ -49,7 +49,7 @@ class TestCustomSampler(unittest.TestCase):
         sampled = [p for p in pst.table.prefixes if len(p) == sampler.length]
         self.assertTrue(sampled, "no prefix of the sampler's length was drawn")
         for prefix in sampled:
-            self.assertEqual(prefix, [0] * sampler.length)
+            self.assertEqual(prefix, bytes(sampler.length))
 
     def test_sampler_length_is_part_of_the_interface(self):
         # The learner reads `length` off whatever sampler it is given.

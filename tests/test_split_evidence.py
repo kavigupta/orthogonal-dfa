@@ -87,27 +87,28 @@ class TestVerdict(unittest.TestCase):
         # Half the members on each side, every one decisive: the two-rate model
         # beats the pooled one by a mile.
         family = _StubFamily(side_of=lambda p: p[-1] == 0)
-        ev = _evidence(family, members=[[i, i % 2] for i in range(40)])
-        self.assertEqual(SPLIT, ev.verdict(0, (1,)))
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+        self.assertEqual(SPLIT, ev.verdict(0, b"\x01"))
 
     def test_a_one_sided_population_settles_the_leaf(self):
         # Every member on the same side: scores stay 0 (no second rate), so the
         # one-state test decides it -- a zero minority over enough members rules
         # a split out.
         ev = _evidence(
-            _StubFamily(side_of=lambda p: True), members=[[i] for i in range(200)]
+            _StubFamily(side_of=lambda p: True),
+            members=[bytes([i]) for i in range(200)],
         )
-        a1, r1, a2, r2, n_a, n_b = ev._tally(0, (1,))
+        a1, r1, a2, r2, n_a, n_b = ev._tally(0, b"\x01")
         self.assertEqual((200, 0), (n_a, n_b))
         self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
-        self.assertEqual(NO_SPLIT, ev.verdict(0, (1,)))
+        self.assertEqual(NO_SPLIT, ev.verdict(0, b"\x01"))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):
         # The same agreement, too few members to rule a split out: UNDECIDED.
         ev = _evidence(
-            _StubFamily(side_of=lambda p: True), members=[[i] for i in range(5)]
+            _StubFamily(side_of=lambda p: True), members=[bytes([i]) for i in range(5)]
         )
-        self.assertEqual(UNDECIDED, ev.verdict(0, (1,)))
+        self.assertEqual(UNDECIDED, ev.verdict(0, b"\x01"))
 
 
 if __name__ == "__main__":

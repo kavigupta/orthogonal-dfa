@@ -64,7 +64,7 @@ class RecordingScore(torch.nn.Module):
 
 class TestWrapWithFlanks(unittest.TestCase):
     def test_wraps_pads_and_reports_lengths(self):
-        strings = [[1, 2], [3], []]
+        strings = [b"\x01\x02", b"\x03", b""]
         wrapped, lengths = wrap_with_flanks(
             np.array(FLANK_L), np.array(FLANK_R), strings
         )
@@ -89,7 +89,9 @@ class TestSpliceModelOracle(unittest.TestCase):
 
     def test_membership_batching_and_wrapping(self):
         oracle = self._oracle(threshold=1.5, chunk=2)
-        result = oracle.membership_queries([[1, 2], [3], [0, 1, 2, 3, 0], []])
+        result = oracle.membership_queries(
+            [b"\x01\x02", b"\x03", b"\x00\x01\x02\x03\x00", b""]
+        )
 
         # the score is the middle length, so length > 1.5 -> [T, F, T, F]
         np.testing.assert_array_equal(result, [True, False, True, False])
@@ -107,8 +109,8 @@ class TestSpliceModelOracle(unittest.TestCase):
 
     def test_membership_query_singular(self):
         oracle = self._oracle(threshold=1.5)
-        self.assertTrue(oracle.membership_query([0, 0, 0]))  # length 3 > 1.5
-        self.assertFalse(oracle.membership_query([0]))  # length 1 < 1.5
+        self.assertTrue(oracle.membership_query(b"\x00\x00\x00"))  # length 3 > 1.5
+        self.assertFalse(oracle.membership_query(b"\x00"))  # length 1 < 1.5
 
     def test_empty_batch(self):
         result = self._oracle().membership_queries([])
@@ -121,7 +123,7 @@ class TestSpliceModelOracle(unittest.TestCase):
         oracle = self._oracle()
         self.model.train()
         with self.assertRaises(AssertionError):
-            oracle.membership_queries([[1, 2]])
+            oracle.membership_queries([b"\x01\x02"])
 
 
 class TestSpliceaiExonScore(unittest.TestCase):
@@ -147,7 +149,10 @@ class TestSpliceaiExonScore(unittest.TestCase):
     def test_matches_first_and_last_output_positions(self):
         """On full-length rows the score is the acceptor at output position 0 and
         the donor at the last, which is what oracle.run_model has always read."""
-        middles = self.rng.integers(0, 4, size=(4, FULL_LENGTH)).tolist()
+        middles = [
+            row.tobytes()
+            for row in self.rng.integers(0, 4, size=(4, FULL_LENGTH), dtype=np.uint8)
+        ]
         wrapped, _ = wrap_with_flanks(self.flank_l, self.flank_r, middles)
         logits = forward_batch(self.model, wrapped, device="cpu")
         self.assertEqual(logits.shape[1], FULL_LENGTH + 2 * FLANK_MARGIN)
@@ -164,7 +169,8 @@ class TestSpliceaiExonScore(unittest.TestCase):
         """A short middle scores the same whether or not it is padded up to a
         longer row's width."""
         middles = [
-            self.rng.integers(0, 4, size=n).tolist() for n in [FULL_LENGTH, 17, 5, 1, 0]
+            self.rng.integers(0, 4, size=n, dtype=np.uint8).tobytes()
+            for n in [FULL_LENGTH, 17, 5, 1, 0]
         ]
         ragged = self._scores(middles)
         one_at_a_time = np.concatenate([self._scores([m]) for m in middles])
@@ -180,7 +186,7 @@ class TestSpliceaiExonScore(unittest.TestCase):
                 self.score_model,
                 flank_l,
                 flank_r,
-                [[0] * FULL_LENGTH],
+                [bytes(FULL_LENGTH)],
                 device="cpu",
                 chunk=64,
             )
@@ -200,13 +206,18 @@ class TestCalibration(unittest.TestCase):
         oracle = SpliceModelOracle(
             self.exon, self.score_model, threshold, device="cpu", chunk=64
         )
-        fresh = np.random.default_rng(7).integers(0, 4, size=(count, length)).tolist()
+        fresh = [
+            row.tobytes()
+            for row in np.random.default_rng(7).integers(
+                0, 4, size=(count, length), dtype=np.uint8
+            )
+        ]
         self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.15)
 
     def test_oracle_accepts_exactly_the_scores_above_the_threshold(self):
         flank_l, flank_r = flanks(self.exon)
         middles = [
-            np.random.default_rng(3).integers(0, 4, size=n).tolist()
+            np.random.default_rng(3).integers(0, 4, size=n, dtype=np.uint8).tobytes()
             for n in [FULL_LENGTH, 9, 2]
         ]
         kw = dict(device="cpu", chunk=64)
@@ -232,7 +243,7 @@ class TestComputeExonScores(unittest.TestCase):
             SpliceAIExonScore(self.model).eval(),
             flank_l,
             flank_r,
-            middles.tolist(),
+            [row.tobytes() for row in middles.astype(np.uint8)],
             device="cpu",
             chunk=64,
         )

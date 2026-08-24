@@ -10,7 +10,7 @@ class NoiseModel(ABC):
     """Base class for noise models that add noise to oracle queries."""
 
     @abstractmethod
-    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+    def apply_noise(self, correct_value: bool, string: bytes, seed: int) -> bool:
         """
         Apply noise to a correct oracle value.
 
@@ -39,7 +39,7 @@ class AsymmetricBernoulli(NoiseModel):
     p_0: float  # Probability of returning 1 when model output is 0
     p_1: float  # Probability of returning 1 when model output is 1
 
-    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+    def apply_noise(self, correct_value: bool, string: bytes, seed: int) -> bool:
         def uniform_random(seed_obj: object) -> float:
             digest = hashlib.blake2b(repr(seed_obj).encode(), digest_size=8).digest()
             return int.from_bytes(digest, "big") / 2**64
@@ -66,7 +66,7 @@ class SymmetricBernoulli(NoiseModel):
 
     p_correct: float
 
-    def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
+    def apply_noise(self, correct_value: bool, string: bytes, seed: int) -> bool:
         # Use AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct
         # This satisfies: accuracy = p_1 = 1 - p_0 = p_correct
         asymmetric = AsymmetricBernoulli(p_0=1 - self.p_correct, p_1=self.p_correct)
@@ -80,10 +80,10 @@ class Oracle(ABC):
         pass
 
     @abstractmethod
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         pass
 
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         """
         Query multiple strings at once. Implementations can choose to override this
         and provide a more efficient batch query method. This does not have a cap

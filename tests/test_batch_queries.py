@@ -28,12 +28,16 @@ class HashOracle(Oracle):
         return super().membership_queries(strings)
 
 
+def _word(rng, length) -> bytes:
+    return rng.integers(0, 2, size=length, dtype=np.uint8).tobytes()
+
+
 def random_midfix_tree(rng, num_splits):
-    base = [list(rng.integers(0, 2, size=int(rng.integers(1, 4)))) for _ in range(5)]
+    base = [_word(rng, int(rng.integers(1, 4))) for _ in range(5)]
     tree = MidfixTree(base)
     for _ in range(num_splits):
         state = int(rng.choice(list(tree.leaves())))
-        midfix = list(rng.integers(0, 2, size=int(rng.integers(0, 3))))
+        midfix = _word(rng, int(rng.integers(0, 3)))
         tree.split(state, midfix)
     return tree
 
@@ -47,10 +51,7 @@ class TestClassifyMany(unittest.TestCase):
             # Half decisive, half tri-state, so the None ("could not classify")
             # path is hit.
             accept, reject = (0.5, 0.5) if rng.random() < 0.5 else (0.7, 0.3)
-            strings = [
-                list(rng.integers(0, 2, size=int(rng.integers(0, 8))))
-                for _ in range(40)
-            ]
+            strings = [_word(rng, int(rng.integers(0, 8))) for _ in range(40)]
             per_string, batched = HashOracle(), HashOracle()
             decide, _ = oracle_decider(per_string, tree.base_family, accept, reject)
             _, decide_level = oracle_decider(batched, tree.base_family, accept, reject)
@@ -76,7 +77,7 @@ class TestMaskTableBatching(unittest.TestCase):
     # pylint: disable=protected-access
     def _table(self):
         oracle = HashOracle()
-        table = MaskTable(oracle, [[0], [1], [0, 1]], [True, True, False])
+        table = MaskTable(oracle, [b"\x00", b"\x01", b"\x00\x01"], [True, True, False])
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):
@@ -87,7 +88,7 @@ class TestMaskTableBatching(unittest.TestCase):
                 if observed != UNOBSERVED:
                     self.assertEqual(
                         bool(observed),
-                        oracle.membership_query(list(prefix) + suffix),
+                        oracle.membership_query(prefix + suffix),
                         (prefix, suffix),
                     )
 
@@ -98,12 +99,15 @@ class TestMaskTableBatching(unittest.TestCase):
         # swapped no longer fits), and the block is checked to be order-sensitive (a
         # swapped comprehension order changes the values, not just the layout).
         oracle, table = self._table()
-        full = [table.intern_suffix([1, 1]), table.intern_suffix([0, 1, 0])]
-        partial = table.intern_suffix([0])
+        full = [
+            table.intern_suffix(b"\x01\x01"),
+            table.intern_suffix(b"\x00\x01\x00"),
+        ]
+        partial = table.intern_suffix(b"\x00")
         for row in full:
             table.column(row)
         table._ensure([partial], np.array([True, False, True]))
-        new_prefixes = [[1, 1], [0, 0, 1], [1, 0, 0]]
+        new_prefixes = [b"\x01\x01", b"\x00\x00\x01", b"\x01\x00\x00"]
         block = [
             [oracle.membership_query(p + table.suffix(r)) for p in new_prefixes]
             for r in full
@@ -132,7 +136,7 @@ class TestMaskTableBatching(unittest.TestCase):
         # suffixes clustering could pick, and with them the whole search path,
         # surfacing only as a distant end-to-end timeout.
         oracle, table = self._table()  # prefix 2 is core: non-representative
-        row = table.intern_suffix([1, 1])
+        row = table.intern_suffix(b"\x01\x01")
 
         # Observing just the representative cells leaves a prefix unobserved, so
         # the column is not a candidate yet.
@@ -148,7 +152,7 @@ class TestMaskTableBatching(unittest.TestCase):
 
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
-        rows = [table.intern_suffix([1]), table.intern_suffix([0, 0])]
+        rows = [table.intern_suffix(b"\x01"), table.intern_suffix(b"\x00\x00")]
         narrow = np.array([True, False, True])
         wide = np.ones(table.num_prefixes, dtype=bool)
         table._ensure(rows, narrow)
@@ -168,7 +172,7 @@ class TestMaskTableBatching(unittest.TestCase):
         # The scatter-back is a zip over a flat result list; a misordered zip is only
         # visible if the cells being filled disagree with each other.
         oracle, table = self._table()
-        rows = [table.intern_suffix([1]), table.intern_suffix([0, 0])]
+        rows = [table.intern_suffix(b"\x01"), table.intern_suffix(b"\x00\x00")]
         table._ensure(rows, np.ones(table.num_prefixes, dtype=bool))
         filled = np.array([table._masks[r] for r in rows])
         self.assertNotEqual(filled.min(), filled.max(), "fixture is order-blind")
@@ -222,7 +226,7 @@ class TestMemoizedOracle(unittest.TestCase):
     def test_caches_batches_and_dedupes(self):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
-        strings = [[1, 0, 1], [0, 0], [1, 0, 1]]  # note the repeat
+        strings = [b"\x01\x00\x01", b"\x00\x00", b"\x01\x00\x01"]  # note the repeat
         bits = memo.membership_queries(strings)
         self.assertEqual([oracle.membership_query(s) for s in strings], bits)
         self.assertEqual([2], oracle.calls, "one batched call, deduped")
@@ -232,7 +236,8 @@ class TestMemoizedOracle(unittest.TestCase):
         # the single-string query rides the same cache
         oracle.calls.clear()
         self.assertEqual(
-            oracle.membership_query([1, 0, 1]), memo.membership_query([1, 0, 1])
+            oracle.membership_query(b"\x01\x00\x01"),
+            memo.membership_query(b"\x01\x00\x01"),
         )
         self.assertEqual([], oracle.calls, "cached, no new call")
 
@@ -242,9 +247,7 @@ class TestMemoizedOracle(unittest.TestCase):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
         rng = np.random.default_rng(0)
-        strings = [
-            list(rng.integers(0, 2, size=int(rng.integers(1, 40)))) for _ in range(2000)
-        ]
+        strings = [_word(rng, int(rng.integers(1, 40))) for _ in range(2000)]
         self.assertEqual(
             [oracle.membership_query(s) for s in strings],
             memo.membership_queries(strings),
@@ -253,18 +256,18 @@ class TestMemoizedOracle(unittest.TestCase):
     def test_prefixes_and_permutations_are_distinct_keys(self):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
-        strings = [[1], [1, 0], [0, 1], [1, 0, 0], [0, 0, 1], [1, 0, 0, 0]]
+        strings = [
+            b"\x01",
+            b"\x01\x00",
+            b"\x00\x01",
+            b"\x01\x00\x00",
+            b"\x00\x00\x01",
+            b"\x01\x00\x00\x00",
+        ]
         self.assertEqual(
             [oracle.membership_query(s) for s in strings],
             memo.membership_queries(strings),
         )
-
-    def test_alphabet_too_wide_for_a_byte_is_rejected(self):
-        class Wide(HashOracle):
-            alphabet_size = 257
-
-        with self.assertRaisesRegex(AssertionError, "257"):
-            MemoizedOracle(Wide())
 
 
 if __name__ == "__main__":

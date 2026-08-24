@@ -14,9 +14,9 @@ DEFAULT_ALPHA = 1e-3
 
 
 def sequential_decisions(
-    strings: List[List[int]],
-    suffix_family: List[List[int]],
-    membership: Callable[[List[List[int]]], List[int]],
+    strings: List[bytes],
+    suffix_family: List[bytes],
+    membership: Callable[[List[bytes]], List[int]],
     *,
     accept: float,
     reject: float,

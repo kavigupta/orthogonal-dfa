@@ -13,7 +13,7 @@ class BernoulliParityOracle(Oracle):
     allowed_moduluses: Tuple[int] = (0,)
     alphabet_size: int = 2
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         correct = sum(string) % self.modulo in self.allowed_moduluses
         return self.noise_model.apply_noise(correct, string, self.seed)
 
@@ -25,7 +25,7 @@ class BernoulliRegex(Oracle):
     regex: str
     alphabet_size: int = 2
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         string_str = "".join(map(str, string))
         # print(string_str)
         correct = re.fullmatch(self.regex, string_str) is not None
@@ -39,7 +39,7 @@ class AllFramesClosedOracle(Oracle):
     stops: Tuple[int] = ("TAG", "TGA", "TAA")
     alphabet_size: int = 4
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         string_str = "".join("ACGT"[i] for i in string)
         correct = all(self.phase_closed(string_str, phase) for phase in range(3))
         return self.noise_model.apply_noise(correct, string, self.seed)

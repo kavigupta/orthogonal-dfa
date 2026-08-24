@@ -39,7 +39,7 @@ class RoundClassifier:
     per-state samples) reach the family off its calibration, so a consumer checking
     the recorded cut should restrict to the calibrated ones."""
 
-    prefixes: List[List[int]]
+    prefixes: List[bytes]
     votes: np.ndarray
     accept_thresh: float
     reject_thresh: float
@@ -60,7 +60,7 @@ class RoundClassifier:
 
 def _round_classifier(pst, vs) -> RoundClassifier:
     mask = pst.table.representative
-    prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
+    prefixes = [p for p, keep in zip(pst.table.prefixes, mask) if keep]
     calibrated = np.array([len(p) == pst.sampler.length for p in prefixes], dtype=bool)
     return RoundClassifier(
         prefixes,
@@ -107,9 +107,9 @@ def _take_indecisive(resolver, target):
     The set is sorted then shuffled with a fixed rng, so the
     cap picks the same unbiased sample every run.
     """
-    ordered = sorted(tuple(b) for b in resolver.indecisive)
+    ordered = sorted(resolver.indecisive)
     np.random.default_rng(0).shuffle(ordered)
-    return [list(t) for t in ordered[:target]]
+    return ordered[:target]
 
 
 class _PoolState:
@@ -119,7 +119,7 @@ class _PoolState:
     boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
 
     def __init__(self, baseline):
-        self.baseline = [list(p) for p in baseline]
+        self.baseline = list(baseline)
         self.accumulated = []
         self.seen = set()
         self.sampled = []
@@ -137,20 +137,14 @@ def _grow_representative_pool(
 ):
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
-        key = tuple(t)
-        if key not in state.seen:
-            state.seen.add(key)
+        if t not in state.seen:
+            state.seen.add(t)
             state.accumulated.append(t)
     state.sampled = per_state_sample(
         dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
     )
     representative = state.baseline + state.accumulated + state.sampled
-    fresh = [
-        list(p)
-        for p in sorted(
-            set(tuple(p) for p in representative if not pst.table.contains_prefix(p))
-        )
-    ]
+    fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
@@ -200,7 +194,7 @@ def uncoverable_access_strings(pst, tree):
         # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
         nearest = int((repr_masks != mask_i).sum(1).min())
         if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
-            flagged.append((list(prefixes[i]), nearest / n))
+            flagged.append((prefixes[i], nearest / n))
     return flagged
 
 
@@ -266,7 +260,7 @@ def counterexample_driven_synthesis(
     best_acc = -1.0
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
         resolver = TransitionResolver(pst, vs)

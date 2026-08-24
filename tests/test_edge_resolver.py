@@ -21,7 +21,7 @@ class _AlwaysIndecisiveSifter:
         pass
 
     def sift_and_boundary(self, seq):
-        return None, tuple(seq)
+        return None, seq
 
 
 class _StubPopulation:
@@ -29,10 +29,10 @@ class _StubPopulation:
     resolve each edge (rather than skipping it as unreachable)."""
 
     def representative(self, _path, _limit):
-        return [0]
+        return b"\x00"
 
     def members(self, _path, _limit):
-        return [[0]]
+        return [b"\x00"]
 
 
 class TestEdgeResolverCloseTerminates(unittest.TestCase):

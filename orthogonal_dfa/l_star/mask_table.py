@@ -28,22 +28,22 @@ UNOBSERVED = np.int8(-1)
 
 
 class MaskTable:
-    def __init__(self, oracle, prefixes: List[List[int]], representative: List[bool]):
+    def __init__(self, oracle, prefixes: List[bytes], representative: List[bool]):
         assert len(prefixes) == len(representative)
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
-        self._prefixes = [list(p) for p in prefixes]
-        self._prefix_keys = {tuple(p) for p in self._prefixes}
+        self._prefixes = list(prefixes)
+        self._prefix_keys = set(self._prefixes)
         self._representative = list(representative)
         #: The short prefix-closed core -- the access strings -- fixed at
         #: construction.  Unlike ``representative`` (which a caller may re-scope to
         #: focus clustering) this never changes, so coverage tests stay stable.
         self._core = [not r for r in representative]
-        self._suffixes: List[List[int]] = []
-        self._suffix_index = {}  # tuple(suffix) -> row
+        self._suffixes: List[bytes] = []
+        self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
 
     # -- sizes / prefix side ------------------------------------------------
@@ -71,20 +71,20 @@ class MaskTable:
         ``set_representative``."""
         return np.array([not c for c in self._core], dtype=bool)
 
-    def set_representative(self, prefixes: List[List[int]]) -> None:
+    def set_representative(self, prefixes: List[bytes]) -> None:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
         becomes non-representative), realigning the mask to the current prefixes."""
-        keys = {tuple(p) for p in prefixes}
-        self._representative = [tuple(p) in keys for p in self._prefixes]
+        keys = set(prefixes)
+        self._representative = [p in keys for p in self._prefixes]
 
-    def contains_prefix(self, prefix: List[int]) -> bool:
-        return tuple(prefix) in self._prefix_keys
+    def contains_prefix(self, prefix: bytes) -> bool:
+        return prefix in self._prefix_keys
 
-    def add_prefixes(self, new_prefixes: List[List[int]]) -> None:
+    def add_prefixes(self, new_prefixes: List[bytes]) -> None:
         assert new_prefixes, "No new prefixes to add"
         assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
             new_prefixes
-        ) == len({tuple(p) for p in new_prefixes}), "Prefixes must be unique"
+        ) == len(set(new_prefixes)), "Prefixes must be unique"
         # A column that is already fully observed is a family suffix: keep it
         # fully observed by querying the new prefixes, so it stays a clustering
         # candidate.  A partially-observed column (a transition distinguisher)
@@ -106,8 +106,8 @@ class MaskTable:
             np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
         ]
         self._masks = updated
-        self._prefixes.extend(list(p) for p in new_prefixes)
-        self._prefix_keys.update(tuple(p) for p in new_prefixes)
+        self._prefixes.extend(new_prefixes)
+        self._prefix_keys.update(new_prefixes)
         # Prefixes added after construction (feed / curated sample) are full-length
         # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
@@ -115,22 +115,21 @@ class MaskTable:
 
     # -- suffix side --------------------------------------------------------
 
-    def intern_suffix(self, v: List[int]) -> int:
+    def intern_suffix(self, v: bytes) -> int:
         """Return the row index for suffix ``v``, registering it (with an
         all-``UNOBSERVED`` column, no queries) if it is new."""
-        key = tuple(v)
-        if key in self._suffix_index:
-            return self._suffix_index[key]
+        if v in self._suffix_index:
+            return self._suffix_index[v]
         row = len(self._suffixes)
-        self._suffixes.append(list(v))
+        self._suffixes.append(v)
         self._masks.append(np.full(self.num_prefixes, UNOBSERVED, dtype=np.int8))
-        self._suffix_index[key] = row
+        self._suffix_index[v] = row
         return row
 
-    def contains_suffix(self, v: List[int]) -> bool:
-        return tuple(v) in self._suffix_index
+    def contains_suffix(self, v: bytes) -> bool:
+        return v in self._suffix_index
 
-    def suffix(self, row: int) -> List[int]:
+    def suffix(self, row: int) -> bytes:
         return self._suffixes[row]
 
     # -- observation / reads ------------------------------------------------

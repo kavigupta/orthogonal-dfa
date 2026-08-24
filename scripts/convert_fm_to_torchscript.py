@@ -22,7 +22,8 @@ def _load_eager(seed):
     if FM_REPO not in sys.path:
         sys.path.insert(0, FM_REPO)
     # modular_splicing lives in FM_REPO (on sys.path above), not in this package.
-    from modular_splicing.utils.io import load_model  # pylint: disable=import-error
+    from modular_splicing.utils.io import \
+        load_model  # pylint: disable=import-error
 
     _, model = load_model(f"{FM_MODEL_PREFIX}_{seed}")  # picks the latest step
     return model.eval().cuda()

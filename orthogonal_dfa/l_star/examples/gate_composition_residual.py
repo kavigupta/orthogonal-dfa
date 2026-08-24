@@ -115,7 +115,7 @@ def _fit_gate_bins(
     monotonics = []
     for bi, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
         lens = rng.integers(lo, hi, size=per_bin)
-        mids = [rng.integers(0, 4, size=int(m)).tolist() for m in lens]
+        mids = [rng.integers(0, 4, size=int(m), dtype=np.uint8).tobytes() for m in lens]
         scores = run_over_middles(
             score_model, flank_l, flank_r, mids, device=dev, chunk=chunk
         ).astype(np.float64)

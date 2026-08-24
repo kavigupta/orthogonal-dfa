@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 
@@ -11,7 +10,7 @@ class Sampler(ABC):
     length: int
 
     @abstractmethod
-    def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
+    def sample(self, rng: np.random.Generator, alphabet_size: int) -> bytes:
         pass
 
 
@@ -19,5 +18,7 @@ class Sampler(ABC):
 class UniformSampler(Sampler):
     length: int
 
-    def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
-        return rng.integers(0, alphabet_size, size=self.length).tolist()
+    def sample(self, rng: np.random.Generator, alphabet_size: int) -> bytes:
+        return rng.integers(
+            0, alphabet_size, size=self.length, dtype=np.uint8
+        ).tobytes()

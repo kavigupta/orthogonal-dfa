@@ -59,7 +59,7 @@ class SplitEvidence:
     def _members(self, state: int):
         return self._population.members(self._tree.path_of(state), _MEMBER_LIMIT)
 
-    def verdict(self, state: int, distinguisher: tuple) -> str:
+    def verdict(self, state: int, distinguisher: bytes) -> str:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
@@ -71,7 +71,7 @@ class SplitEvidence:
             return NO_SPLIT
         return UNDECIDED
 
-    def _tally(self, state: int, distinguisher: tuple):
+    def _tally(self, state: int, distinguisher: bytes):
         """
         Group the leaf's members by the train half and count the disjoint
         test half per side:
@@ -83,7 +83,7 @@ class SplitEvidence:
         Indecisive members contribute nothing.
         """
         members = self._members(state)
-        self.family.prefill([member + list(distinguisher) for member in members])
+        self.family.prefill([member + distinguisher for member in members])
         a1 = r1 = a2 = r2 = n_a = n_b = 0
         test = self.family.test_idx
         for member in members:
