@@ -26,6 +26,7 @@ MidfixTree.split), so state ids stay a dense range(num_states) and need no
 remapping on export.
 """
 
+import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -45,9 +46,128 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 #: Probes sifted per batched pass.
 _PROBE_BLOCK = 16
 
+# The invariance gate averages this many random strings at each probe length.
+_GATE_SAMPLES = 1500
+
+
+def _probe_lengths(sample_length, count=10):
+    """Prefix lengths at which to probe a distinguisher's effect -- the absolute
+    positions it sits at.  Tied to the operating regime: spread over ``[floor,
+    sample_length]``, where distinguishers actually get applied, rather than a fixed
+    window (which would miss position-dependence living beyond it)."""
+    floor = max(4, sample_length // 8)
+    return tuple(sorted({int(x) for x in np.linspace(floor, sample_length, count)}))
+
+
+def _position_effects(
+    oracle, distinguisher, alphabet_size, *, lengths, samples, seed, base_rates
+):
+    """Per prefix length L: d's marginal log-odds effect against a same-length control
+    (a random |d|-tail in place of d, so the length base-rate cancels), and that
+    estimate's sampling variance.  ``base_rates`` caches the control accept-counts by
+    total length so it is shared across distinguishers."""
+    rng_d = np.random.default_rng(seed)
+    rng_c = np.random.default_rng(seed + 1)
+    d = list(distinguisher)
+    n = samples
+    dtail = np.broadcast_to(np.asarray(d, dtype=int), (n, len(d)))
+    effects, variances = [], []
+    for length in lengths:
+        s = rng_d.integers(0, alphabet_size, (n, length))
+        kd = int(
+            np.sum(oracle.membership_queries(np.concatenate([s, dtail], 1).tolist()))
+        )
+        total = length + len(d)
+        if base_rates is not None and total in base_rates:
+            kc = base_rates[total]
+        else:
+            c = rng_c.integers(0, alphabet_size, (n, total)).tolist()
+            kc = int(np.sum(oracle.membership_queries(c)))
+            if base_rates is not None:
+                base_rates[total] = kc
+        # Haldane-Anscombe correction keeps the logit and its variance finite at 0/n.
+        p_d = (kd + 0.5) / (n + 1)
+        p_c = (kc + 0.5) / (n + 1)
+        effects.append(np.log(p_d / (1 - p_d)) - np.log(p_c / (1 - p_c)))
+        variances.append(1 / (n * p_d * (1 - p_d)) + 1 / (n * p_c * (1 - p_c)))
+    return np.array(effects), np.array(variances)
+
+
+def _log_bayes_factor(effects, variances, prior_scale):
+    """log BF(tau>0 : tau=0) for effects ~ Normal(mu, tau^2) observed with known
+    within-group variances.  The shared mean mu is marginalised under a flat prior (its
+    improper constant cancels in the ratio) and tau under a half-normal(prior_scale);
+    the tau integral is a 400-point grid quadrature."""
+    e = np.asarray(effects, dtype=float)
+    v = np.asarray(variances, dtype=float)
+
+    def log_marginal(tau2):
+        s2 = v + tau2
+        w = 1.0 / s2
+        mu = np.sum(w * e) / np.sum(w)
+        return (
+            -0.5 * np.sum(np.log(2 * np.pi * s2))
+            - 0.5 * np.sum(w * (e - mu) ** 2)
+            + 0.5 * np.log(2 * np.pi / np.sum(w))
+        )
+
+    lm0 = log_marginal(0.0)
+    taus = np.linspace(0.0, 8.0 * prior_scale, 400)
+    log_prior = np.log(np.sqrt(2 / np.pi) / prior_scale) - taus**2 / (
+        2 * prior_scale**2
+    )
+    terms = np.array([log_marginal(t * t) for t in taus]) - lm0 + log_prior
+    hi = float(np.max(terms))
+    return hi + float(np.log(np.sum(np.exp(terms - hi)) * (taus[1] - taus[0])))
+
+
+def distinguisher_position_log_bayes_factor(
+    oracle,
+    distinguisher,
+    alphabet_size,
+    *,
+    sample_length,
+    samples=_GATE_SAMPLES,
+    seed=0,
+    prior_scale=1.0,
+    base_rates=None,
+):
+    """log Bayes factor that distinguisher d encodes absolute position rather than a
+    transportable finite-memory feature.
+
+    d's marginal log-odds effect at prefix length L, against a same-length control (a
+    random |d|-tail), is a random effect over the positions it sits at -- probed across
+    ``_probe_lengths(sample_length)``, i.e. the operating regime:
+
+        e_L = logit P(accept | s + d) - logit P(accept | random),  |s| = L
+        e_hat_L ~ Normal(e_L, v_L),   e_L ~ Normal(mu, tau^2)
+
+    Returns log P(data | tau > 0) - log P(data | tau = 0), marginalising mu (flat) and
+    tau (half-normal, scale ``prior_scale`` log-odds).  > 0 means the evidence favours a
+    position-dependent effect (the positional-ladder pathology); < 0 favours a
+    translation-invariant, regular feature.  The gate refuses a split when this is > 0 --
+    no threshold, just which model the data prefer."""
+    effects, variances = _position_effects(
+        oracle,
+        distinguisher,
+        alphabet_size,
+        lengths=_probe_lengths(sample_length),
+        samples=samples,
+        seed=seed,
+        base_rates=base_rates,
+    )
+    return _log_bayes_factor(effects, variances, prior_scale)
+
 
 class TransitionResolver:
-    def __init__(self, pst, vs):
+    def __init__(self, pst, vs, *, invariance_gate=False):
+        # The invariance gate (off by default): refuse a split whose distinguisher the
+        # Bayes factor says encodes absolute position rather than a transportable
+        # feature.  Scores are cached per distinguisher, and the control base-rates are
+        # shared across them.
+        self.invariance_gate = invariance_gate
+        self._log_bf_cache = {}
+        self._base_rate_cache = {}
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
         self.family = SuffixFamily(pst, vs)
@@ -66,6 +186,14 @@ class TransitionResolver:
         self.edges = EdgeResolver(
             self.dfa, self.sifter, self.indecisive, population=self.population
         )
+
+        # The invariance gate (off by default): refuse a split whose distinguisher the
+        # Bayes factor says encodes absolute position rather than a transportable
+        # feature.  Scores are cached per distinguisher (the probe is the same each
+        # time), and the control base-rates are shared across them.
+        self.invariance_gate = invariance_gate
+        self._log_bf_cache = {}
+        self._base_rate_cache = {}
 
     # -- membership / population -------------------------------------------
 
@@ -204,10 +332,29 @@ class TransitionResolver:
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
-        if verdict == SPLIT:
-            self._apply_split(s1, distinguisher, witness, sprime)
-            return _SPLIT
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        if verdict != SPLIT:
+            return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        # The invariance gate: refuse a distinguisher whose effect the Bayes factor
+        # says encodes absolute position rather than a transportable finite-memory
+        # feature.  A regular target's distinguishers are position-invariant and pass;
+        # a positional target's are refused, so the shift-register ladder never forms.
+        # Only would-be splits pay for the probe, and it is cached per distinguisher.
+        if self.invariance_gate and self._encodes_position(distinguisher):
+            return _RESOLVED
+        self._apply_split(s1, distinguisher, witness, sprime)
+        return _SPLIT
+
+    def _encodes_position(self, distinguisher):
+        key = tuple(distinguisher)
+        if key not in self._log_bf_cache:
+            self._log_bf_cache[key] = distinguisher_position_log_bayes_factor(
+                self.pst.oracle,
+                key,
+                self.pst.alphabet_size,
+                sample_length=self.pst.sampler.length,
+                base_rates=self._base_rate_cache,
+            )
+        return self._log_bf_cache[key] > 0
 
     def _first_bad_edge(self, w, states, lo, hi):
         """Binary-search the first index where the followed state diverges from a
