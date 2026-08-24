@@ -1,25 +1,16 @@
-"""An alphabet of K kmers plus interchangeable wildcards, built over a base
-alphabet, with a translation to and from it that is invertible and preserves
-uniformity.
+"""An alphabet of K prefix-free kmers plus interchangeable wildcards, built over
+a base alphabet, with a translation to and from it that is invertible and
+preserves uniformity.
 
-parse reads a base string back by longest match. compile is its inverse, up to
-which wildcard was used: the wildcards translate identically, so parse cannot
-tell them apart and only canonicalize(s) is recovered.
+parse reads a base string back by greedy longest match. compile is its inverse,
+up to which wildcard was used: the wildcards translate identically, so parse
+cannot tell them apart and only canonicalize(s) is recovered.
 
-Two things have to hold for a base string to parse back to the super-string that
-produced it: a wildcard must not emit a symbol that starts a kmer, and a kmer
-must not be extended by what follows it into a longer kmer. Both are conditions
-on the symbols after a position, so compile fills the string right to left, where
-those are already decided.
-
-Which symbols are legal varies by position, so drawing evenly among them would
-over-represent the constrained ones. compile instead weights each by how many
-ways the rest of the string can then be filled, which is the uniform law on the
-fiber and makes compile(parse(x)) uniform whenever x is.
-
-When no kmer is a prefix of another, every super-string is encodable. When one
-is, some are not -- (0,1) then (2,0) is forced to spell 0,1,2,0, which reads back
-as the longer kmer (0,1,2) -- and compile raises for those.
+A wildcard may emit any base symbol that does not start a kmer given what follows
+it. Which symbols those are varies by position, so drawing evenly among them
+would over-represent the constrained ones; compile instead weights each by how
+many ways the rest of the string can then be filled, which is the uniform law on
+the fiber and makes compile(parse(x)) uniform whenever x is.
 
 Extra wildcards buy no expressive power, only strings: with one wildcard there is
 a single wildcard-only super-string of each length, with two there are 2**n.
@@ -37,6 +28,12 @@ _FREE = -1  # a wildcard, to be filled in
 _PAD = -2  # not part of this string: it is shorter than others in its batch
 
 
+def _prefix_related(a: Sequence[int], b: Sequence[int]) -> bool:
+    """True when one of a, b is a prefix of the other, so both cannot be kmers."""
+    m = min(len(a), len(b))
+    return tuple(a[:m]) == tuple(b[:m])
+
+
 @lru_cache(maxsize=None)
 def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
     """Whether a wildcard may emit a symbol depends on the symbols after it, so a
@@ -44,9 +41,8 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
     The extra digit is a sentinel for running off the end of the string, which
     matches no kmer.
 
-    shift[c, state] is the state one position further left after emitting c,
-    allowed[state, c] whether a wildcard may emit c there, and extendable[k, state]
-    whether placing kmer k there would let a longer kmer swallow it.
+    shift[c, state] is the state one position further left after emitting c, and
+    allowed[state, c] whether a wildcard may emit c there.
     """
     w = max((len(k) for k in kmers), default=1) - 1
     radix = base + 1
@@ -70,20 +66,8 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
             if following[: len(kmer) - 1] == list(kmer[1:]):
                 allowed[state, kmer[0]] = False
 
-    # A kmer is only safe where no longer one matches the same position, since
-    # parse takes the longest. Only kmers extending it can, so the check needs
-    # its first symbol and the window, which is exactly what is on hand.
-    extendable = np.zeros((max(len(kmers), 1), num_states), dtype=bool)
-    for index, kmer in enumerate(kmers):
-        for state in range(num_states):
-            ahead = [kmer[0]] + [(state // radix**i) % radix for i in range(w)]
-            extendable[index, state] = any(
-                len(other) > len(kmer) and ahead[: len(other)] == list(other)
-                for other in kmers
-            )
-
     initial = num_states - 1 if w else 0  # all sentinels: nothing follows the end
-    return initial, allowed, shift, extendable
+    return initial, allowed, shift
 
 
 def _compile_chunk(templates, rngs, tables):
@@ -91,18 +75,16 @@ def _compile_chunk(templates, rngs, tables):
     final column: sampling runs right to left, so they then all start in the
     end-of-string state and stay in step.
     """
-    initial, allowed, shift, extendable = tables
+    initial, allowed, shift = tables
     base, num_states = shift.shape
     size = len(templates)
-    width = max(len(t) for t, _ in templates)
+    width = max(len(t) for t in templates)
     grid = np.full((size, width), _PAD, dtype=np.int64)
-    heads = np.full((size, width), -1, dtype=np.int64)
     start = np.empty(size, dtype=np.int64)
     draws = np.zeros((size, width))
-    for row, ((template, kmer_starts), rng) in enumerate(zip(templates, rngs)):
+    for row, (template, rng) in enumerate(zip(templates, rngs)):
         start[row] = width - len(template)
         grid[row, start[row] :] = template
-        heads[row, start[row] :] = kmer_starts
         draws[row, start[row] :] = rng.random(len(template))
 
     # ways[j][row, s] counts the fillings of the columns left of j when s follows
@@ -115,41 +97,24 @@ def _compile_chunk(templates, rngs, tables):
         fixed = np.take_along_axis(
             previous, shift[np.where(column >= 0, column, 0)], axis=1
         )
-        # Where a kmer starts, the states a longer kmer would swallow it in are
-        # dead ends, so they count nothing.
-        head = heads[:, j]
-        fixed = np.where(
-            (head >= 0)[:, None] & extendable[np.where(head >= 0, head, 0)], 0.0, fixed
-        )
         row = np.where((column == _FREE)[:, None], free, fixed)
         row = np.where((column == _PAD)[:, None], previous, row)
         peak = np.max(row, axis=1)[:, None]
         ways[j + 1] = np.divide(row, peak, out=row.copy(), where=peak > 0)
-
-    # Nothing follows the last column, so that is where a whole string's count
-    # sits. Zero there means the constraints cannot all be met at once.
-    impossible = np.flatnonzero(ways[width][:, initial] <= 0)
-    if impossible.size:
-        raise ValueError(
-            f"super-string {impossible[0]} of this batch has no compilation that "
-            "parses back to it: a kmer in it is a prefix of a longer one that "
-            "what follows completes"
-        )
 
     state = np.full(size, initial, dtype=np.int64)
     out = np.zeros((size, width), dtype=np.int64)
     for j in range(width - 1, -1, -1):
         column = grid[:, j]
         live = column != _PAD
-        free_here = column == _FREE
         weights = (
             np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
         )
         running = np.cumsum(weights, axis=1)
-        assert (running[free_here, -1] > 0).all(), "sampled into a dead end"
+        assert (running[live, -1] > 0).all(), "super-string has no valid compilation"
         picked = (running < (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
         chosen = np.where(
-            free_here, np.clip(picked, 0, base - 1), np.where(live, column, 0)
+            column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
         )
         out[:, j] = chosen
         state = np.where(live, shift[chosen, state], state)
@@ -175,6 +140,18 @@ class KmerVocabulary:
                 0 <= c < self.base_alphabet_size for c in kmer
             ), f"kmer {kmer} has symbols outside the base alphabet"
         assert len(set(self.kmers)) == len(self.kmers), "duplicate kmers"
+        # Together these two make compile total. Without the first, what follows a
+        # kmer can grow it into a longer one and the super-string it came from is
+        # then unencodable; without the second there is a run of symbols before
+        # which no wildcard can go, since every symbol would start a kmer.
+        for i, a in enumerate(self.kmers):
+            for b in self.kmers[i + 1 :]:
+                assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
+        _, allowed, _ = _transfer_tables(self.kmers, self.base_alphabet_size)
+        assert allowed.any(axis=1).all(), (
+            "the kmers leave some position with no symbol a wildcard could take, "
+            "so a super-string using one there could not be compiled"
+        )
 
     @property
     def num_kmers(self) -> int:
@@ -211,25 +188,26 @@ class KmerVocabulary:
         return 1 if self.is_unknown(symbol) else len(self.kmers[symbol])
 
     def parse(self, base_string: Sequence[int]) -> List[int]:
-        """At each position take the longest kmer starting there, or else one
-        wildcard. Longest rather than first keeps this independent of the order
-        the kmers were given in, but it is still leftmost-first: an occurrence
-        overlapping an earlier match is not seen.
+        """At each position take the kmer starting there, or else one wildcard.
+        Prefix-freeness makes at most one kmer match, so this is unambiguous, but
+        it is still leftmost-first: an occurrence overlapping an earlier match is
+        not seen.
         """
         b = list(base_string)
         out: List[int] = []
         i, n = 0, len(b)
         while i < n:
-            index, size = None, 0
+            matched = None
             for idx, km in enumerate(self.kmers):
-                if len(km) > size and b[i : i + len(km)] == list(km):
-                    index, size = idx, len(km)
-            if index is None:
+                if b[i : i + len(km)] == list(km):
+                    matched = (idx, len(km))
+                    break
+            if matched is not None:
+                out.append(matched[0])
+                i += matched[1]
+            else:
                 out.append(self.unknown_symbol)
                 i += 1
-            else:
-                out.append(index)
-                i += size
         return out
 
     def compile(
@@ -259,7 +237,7 @@ class KmerVocabulary:
         templates = [self._template(s) for s in super_strings]
         if not templates:
             return []
-        width = max(len(t) for t, _ in templates)
+        width = max(len(t) for t in templates)
         # Cap the backward pass's (width, chunk, num_states) table at ~64MB.
         chunk = int(np.clip(8_000_000 // max((width + 1) * num_states, 1), 1, 4096))
 
@@ -273,16 +251,11 @@ class KmerVocabulary:
         return out_all
 
     def _template(self, super_string: Iterable[int]) -> List[int]:
-        """The base string with the kmers filled in and the wildcards left open,
-        alongside which column each kmer starts at -- the only columns where a
-        kmer could be swallowed by a longer one."""
+        """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
-        starts: List[int] = []
         for symbol in super_string:
             if self.is_unknown(symbol):
                 template.append(_FREE)
-                starts.append(-1)
             else:
-                starts.extend([symbol] + [-1] * (len(self.kmers[symbol]) - 1))
                 template.extend(self.kmers[symbol])
-        return template, starts
+        return template
