@@ -152,6 +152,13 @@ class KmerVocabulary:
         # kmer can grow it into a longer one and the super-string it came from is
         # then unencodable; without the second there is a run of symbols before
         # which no wildcard can go, since every symbol would start a kmer.
+        #
+        # Both are sufficient rather than necessary, and the second is the loose
+        # one: it asks that no context block every symbol, where compile only
+        # needs the contexts it cannot steer around to stay clear. So a vocabulary
+        # like (0,0) with (1,0,1) is turned away despite compiling fine. Tightening
+        # it would move the failure from here to compile, which the caller is far
+        # less placed to handle.
         for i, a in enumerate(self.kmers):
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
