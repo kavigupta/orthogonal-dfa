@@ -81,12 +81,9 @@ def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
 
 
 def _compile_chunk(templates, rngs, tables):
-    """Templates are right-aligned so that every string's last position shares the
-    final column: sampling runs right to left, so they then all start in the
-    end-of-string state and stay in step.
-
-    The restrictions on the kmers leave every super-string with a compilation, so
-    sampling never reaches a position with nothing to choose.
+    """Templates are right-aligned, so that sampling right to left starts every
+    string in the end-of-string state. The kmer restrictions leave every position
+    something to choose, so this never has to back out.
     """
     initial, allowed, shift = tables
     base, num_states = shift.shape
@@ -152,27 +149,12 @@ class KmerVocabulary:
                 0 <= c < self.base_alphabet_size for c in kmer
             ), f"kmer {kmer} has symbols outside the base alphabet"
         assert len(set(self.kmers)) == len(self.kmers), "duplicate kmers"
-        # These two are what let compile get away with the model it has, which
-        # only ever asks whether a wildcard would START a kmer.
-        #
-        # Nothing in it asks whether a wildcard would EXTEND the kmer to its left
-        # into a longer one, so with prefix-related kmers compile quietly returns a
-        # string that parses as something else: over (0,1,2) and (0,1), the
-        # super-string (0,1) then a wildcard comes back wrong on a quarter of
-        # seeds, though 0,1,3 would have encoded it. Prefix-freeness is what makes
-        # that case impossible rather than merely unlikely.
-        #
-        # And a wildcard needs somewhere to go at all, or a super-string using one
-        # in that context has no encoding.
-        #
-        # Both are sufficient rather than necessary, the second more loosely: it
-        # asks that no context block every symbol, where compile only needs that of
-        # the contexts it cannot steer around. So (0,0) with (1,0,1) is turned away
-        # despite compiling fine. Tightening it would move the failure from here to
-        # compile, which the caller is far less placed to handle.
+        # compile asks only whether a wildcard starts a kmer, never whether it
+        # extends the kmer to its left, which is what prefix-related ones need.
         for i, a in enumerate(self.kmers):
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
+        # Stricter than needed: some rejected contexts compile could steer around.
         _, allowed, _ = _transfer_tables(self.kmers, self.base_alphabet_size)
         assert allowed.any(axis=1).all(), (
             "the kmers leave some position with no symbol a wildcard could take, "
@@ -239,9 +221,7 @@ class KmerVocabulary:
     def compile(
         self, super_string: Iterable[int], rng: np.random.Generator
     ) -> List[int]:
-        """Prefer compile_many for more than one: the cost is a pass over the
-        string, which batching amortizes.
-        """
+        """Prefer compile_many for more than one; the per-string pass amortizes."""
         return self.compile_many([super_string], [rng])[0]
 
     def compile_many(
@@ -249,13 +229,10 @@ class KmerVocabulary:
         super_strings: Sequence[Iterable[int]],
         rngs: Sequence[np.random.Generator],
     ) -> List[List[int]]:
-        """Each result is drawn uniformly over the base strings that parse back to
-        its super-string, so compile(parse(x)) is uniform when x is.
-
-        Reaching that uniformity means weighting a wildcard's choices by how many
-        ways the rest of the string can then be filled, which a backward pass
-        counts and a forward pass samples against. Both walk positions, not
-        strings, so a batch advances in step and pays the per-position cost once.
+        """Draws each result uniformly over the base strings parsing back to its
+        super-string, by weighting a wildcard's choices by how many ways the rest
+        can then be filled. Drawing evenly instead skews toward the constrained
+        positions. The passes walk positions, so the batch advances in step.
         """
         assert len(super_strings) == len(rngs), "need one rng per super-string"
         tables = _transfer_tables(self.kmers, self.base_alphabet_size)
