@@ -70,16 +70,14 @@ def recompute_evidence_margin(
     return eps
 
 
-#: Consecutive rejections after which no family is believed to exist.  More
-#: suffixes is the audit's only remedy, and where epsilon's signature class is
-#: smaller than the family size no amount of them helps.  That is a target the
-#: learner cannot serve; it says so rather than spinning, or quietly returning a
-#: family it has just shown to be wrong.
+#: Rejections in a row after which no such family is believed to exist.  More
+#: suffixes is the audit's only remedy, and none help where epsilon's signature
+#: class is empty.
 EPSILON_AUDIT_GIVE_UP = 20
 
 #: Significance at which a family is held to disagree with epsilon.  A rejection
-#: costs a resample rather than a failure, so this is set against the resample
-#: budget -- the families a run evaluates -- not a family-wise error rate.
+#: costs a resample rather than a failure, so this is a resample budget and not
+#: an error rate.
 EPSILON_AUDIT_ALPHA = 1e-3
 
 
@@ -90,16 +88,11 @@ class NoEpsilonConsistentFamily(Exception):
 def epsilon_audit_pvalue(pst, vs, decision_boundary, seed_row) -> float:
     """Exact two-sided binomial test of the family's cut against epsilon's column.
 
-    Membership of ``p + eps`` is membership of ``p``, so epsilon's column *is* the
-    accept-preserving split.  Under the null that the family realises that split,
-    epsilon reads 1 at the accept rate on the prefixes the family accepts and at
-    the reject rate on those it rejects.  A family that has settled into a
-    neighbouring signature class -- still containing epsilon, but outvoting it --
-    depletes the one and enriches the other, which the FNR gate cannot see because
-    such a family is perfectly decisive.
-
-    The true rates are unknown; ``min_signal_strength`` bounds them away from the
-    boundary, and substituting a bound only makes the test conservative.
+    Membership of ``p + eps`` is membership of ``p``, so epsilon's column is the
+    accept-preserving split itself: under the null, epsilon reads 1 at the accept
+    rate on the prefixes the family accepts and at the reject rate on the rest.
+    The rates are unknown, and ``min_signal_strength`` bounds both away from the
+    boundary -- a bound only makes the test reject less.
     """
     mask = pst.table.representative
     decision = pst.compute_decision(vs, mask)
