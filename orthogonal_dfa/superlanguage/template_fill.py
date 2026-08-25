@@ -8,8 +8,7 @@ Such an s is legal when no forbidden pattern starts at a hole:
 
     s[j : j + |p|] != p   for every hole j and every p in forbidden.
 
-The quantifier runs over holes only, so a pattern starting at a fixed position
-survives; a caller that wants one puts it in the template.
+(note that this only applies to strings that start in hole locations j).
 
 Legality at j therefore constrains s only through s[j] and the w symbols after it,
 
@@ -29,12 +28,22 @@ Pattern = Tuple[int, ...]
 
 @lru_cache(maxsize=None)
 def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
-    """Whether a hole may take a symbol depends on the symbols after it, so a state
-    here is the next max_pattern_length - 1 of them, packed in radix base + 1. The
-    extra digit is a sentinel for running off the end, which matches no pattern.
+    """A state is the window of w symbols following a position j, packed in radix
+    r = base + 1 with the nearest symbol as the least significant digit:
 
-    shift[c, state] is the state one position further left after taking c, and
-    allowed[state, c] whether a hole may take c there.
+        state(j) = sum_{0 <= i < w} r^i * s[j + 1 + i].
+
+    The digit `base` is a sentinel for j + 1 + i running past the end of the string.
+    It is not in A, so it equals no symbol of any pattern.
+
+    shift[c, state] is state(j - 1) once s[j] = c is chosen: c becomes digit 0 and
+    the far symbol falls off,
+
+        shift[c, state] = c + r * (state mod r^(w - 1)).
+
+    allowed[state, c] is False exactly when c would start a forbidden pattern at j,
+
+        p[0] = c and p[1:] = s[j + 1 : j + |p|]   for some p in forbidden.
     """
     w = max((len(p) for p in forbidden), default=1) - 1
     radix = base + 1
