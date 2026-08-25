@@ -57,10 +57,7 @@ class TestTransferTables(unittest.TestCase):
     def test_shift_takes_the_window_one_position_left(self):
         for forbidden, base in SHAPES:
             _, _, shift = tables(forbidden, base)
-            w = (
-                shift.shape[1].bit_length()
-                and max((len(p) for p in forbidden), default=1) - 1
-            )
+            w = context_width(forbidden)
             for win in self.windows(forbidden, base):
                 for c in range(base):
                     with self.subTest(forbidden=forbidden, window=win, symbol=c):
