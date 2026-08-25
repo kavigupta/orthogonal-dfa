@@ -51,17 +51,21 @@ def _oracle(noise_model, seed):
     return BernoulliRegex(noise_model, seed, regex=r".*1010101.*")
 
 
+def learn_with_near_misses(seed: int, share: float = NEAR_MISS_SHARE):
+    return learn_dfa_verified(
+        _oracle,
+        min_signal_strength=0.2,
+        seed=seed,
+        noise_model=AsymmetricBernoulli(p_0=0.15, p_1=0.7),
+        sampler=NearMissSampler(share=share),
+    )
+
+
 class TestNearMissAcceptPreserving(unittest.TestCase):
     def test_near_miss_prefixes_do_not_break_the_round_check(self):
         for seed in SEEDS:
             with self.subTest(seed=seed):
-                learn_dfa_verified(
-                    _oracle,
-                    min_signal_strength=0.2,
-                    seed=seed,
-                    noise_model=AsymmetricBernoulli(p_0=0.15, p_1=0.7),
-                    sampler=NearMissSampler(),
-                )
+                learn_with_near_misses(seed)
 
 
 if __name__ == "__main__":
