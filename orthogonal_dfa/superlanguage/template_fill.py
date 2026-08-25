@@ -182,6 +182,14 @@ class TemplateFiller:
         assert len(templates) == len(rngs), "need one rng per template"
         if not templates:
             return []
+        # _PAD is one past FREE, so an unchecked -2 reads as a column this template
+        # does not occupy: emitted as symbol 0, and not advancing the window that
+        # its neighbouring holes are sampled against.
+        outside = {s for t in templates for s in t} - {
+            FREE,
+            *range(self.base_alphabet_size),
+        }
+        assert not outside, f"{sorted(outside)} is neither FREE nor a base symbol"
         _, _, shift = self._tables
         width = max(len(t) for t in templates)
         # Batch to keep the backward pass's (width, chunk, num_states) table near

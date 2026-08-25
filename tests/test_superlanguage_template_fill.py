@@ -179,6 +179,14 @@ class TestConstruction(unittest.TestCase):
         with self.assertRaises(AssertionError):
             TemplateFiller(forbidden=(), base_alphabet_size=0)
 
+    def test_rejects_template_symbols_off_the_alphabet(self):
+        # -2 is _PAD: unchecked it reads as a column the template does not occupy,
+        # and AA.fill([FREE, -2]) returns 00, a forbidden pattern at a hole.
+        for bad in (-2, -3, 2):
+            with self.assertRaises(AssertionError):
+                AA.fill([FREE, bad], np.random.default_rng(0))
+        self.assertEqual(len(AA.fill([FREE, 1, FREE], np.random.default_rng(0))), 3)
+
     def test_rejects_bad_patterns(self):
         with self.assertRaises(AssertionError):
             TemplateFiller(forbidden=((0, 9),), base_alphabet_size=4)
