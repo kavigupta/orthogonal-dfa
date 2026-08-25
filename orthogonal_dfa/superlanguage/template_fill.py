@@ -74,10 +74,9 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
 
 @dataclass(frozen=True)
 class TemplateFiller:
-    """forbidden need not be prefix-free, or even duplicate-free: each pattern is
-    an independent ban, and allowed is their conjunction.
-    """
 
+    #: forbidden need not be prefix-free, or even duplicate-free: each pattern is
+    #: an independent ban, and allowed is their conjunction.
     forbidden: Tuple[Pattern, ...]
     base_alphabet_size: int
 
@@ -94,7 +93,8 @@ class TemplateFiller:
 
     @property
     def every_context_is_fillable(self) -> bool:
-        """Whether every context leaves a hole some symbol it could take. Sufficient
+        """
+        Whether every context leaves a hole some symbol it could take. Sufficient
         for every template to be fillable, not necessary: a context no template ever
         puts a hole in front of still counts against it here.
         """
