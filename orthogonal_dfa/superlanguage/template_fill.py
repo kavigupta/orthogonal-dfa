@@ -1,14 +1,20 @@
 """
-Uniform sampling over the ways to fill the holes in a template.
+Over a base alphabet A = {0, ..., base - 1}, a template is a string t over A + {hole},
+and a filling of it is an s in A^|t| agreeing with t off the holes:
 
-A template is a list of base symbols with FREE marking each hole. A filling is legal
-when no forbidden pattern starts at a hole; patterns starting at a fixed position are
-none of our business, so a caller that wants one to survive puts it in the template.
+    s[j] = t[j]   wherever t[j] != hole.
 
-Legality at a hole turns only on the next max_pattern_length - 1 symbols, so a
-backward pass can count the legal fillings of every prefix and a forward pass sample
-against those counts. Both walk positions rather than strings, which is what lets a
-batch of templates advance in step.
+Such an s is legal when no forbidden pattern starts at a hole:
+
+    s[j : j + |p|] != p   for every hole j and every p in forbidden.
+
+(note that this only applies to strings that start in hole locations j).
+
+Legality at j therefore constrains s only through s[j] and the w symbols after it,
+
+    w = max |p| - 1,
+
+and the tables here give the transitions on that window and the symbols it permits.
 """
 
 from dataclasses import dataclass
@@ -25,34 +31,43 @@ _PAD = -2  # not part of this template: it is shorter than others in its batch
 
 @lru_cache(maxsize=None)
 def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
-    """Whether a hole may take a symbol depends on the symbols after it, so a state
-    here is the next max_pattern_length - 1 of them, packed in radix base + 1. The
-    extra digit is a sentinel for running off the end, which matches no pattern.
-
-    shift[c, state] is the state one position further left after taking c, and
-    allowed[state, c] whether a hole may take c there.
     """
-    w = max((len(p) for p in forbidden), default=1) - 1
+    Effectively a DFA that traverses through windows of size w, backwards
+    through the string, telling you when prepending a specific symbol would start
+    a forbidden pattern.
+
+    Let a state be the window of w symbols following a position j.
+        We pack this into a radix r = base + 1 number so we can handle running past
+        the end of the string.
+
+    initial is the state at the end of the string, which is all sentinels.
+
+    shift[c, state] is state(j - 1) once s[j] = c is chosen.
+
+    allowed[c, state] is False exactly when c would start a forbidden pattern at j.
+    """
+    w = max((len(p) - 1 for p in forbidden), default=0)
     radix = base + 1
     num_states = radix**w
 
-    shift = np.array(
-        [
+    if w == 0:
+        # the window is empty, so there is one state and nothing to shift out of it
+        shift = np.zeros((base, 1), dtype=np.int64)
+    else:
+        shift = np.array(
             [
-                c + radix * (state % radix ** (w - 1)) if w >= 1 else 0
-                for state in range(num_states)
-            ]
-            for c in range(base)
-        ],
-        dtype=np.int64,
-    )
+                [c + radix * (state % radix ** (w - 1)) for state in range(num_states)]
+                for c in range(base)
+            ],
+            dtype=np.int64,
+        )
 
-    allowed = np.ones((num_states, base), dtype=bool)
+    allowed = np.ones((base, num_states), dtype=bool)
     for state in range(num_states):
         following = [(state // radix**i) % radix for i in range(w)]
         for pattern in forbidden:
             if following[: len(pattern) - 1] == list(pattern[1:]):
-                allowed[state, pattern[0]] = False
+                allowed[pattern[0], state] = False
 
     # Cached and shared between fillers over the same patterns.
     allowed.flags.writeable = False
@@ -83,7 +98,7 @@ def _fill_chunk(templates, rngs, tables):
     ways = np.ones((width + 1, size, num_states))
     for j in range(width):
         previous, column = ways[j], grid[:, j]
-        free = (previous[:, shift] * allowed.T[None]).sum(axis=1)
+        free = (previous[:, shift] * allowed[None]).sum(axis=1)
         fixed = np.take_along_axis(
             previous, shift[np.where(column >= 0, column, 0)], axis=1
         )
@@ -98,7 +113,7 @@ def _fill_chunk(templates, rngs, tables):
         column = grid[:, j]
         live = column != _PAD
         weights = (
-            np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
+            np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[:, state].T
         )
         running = np.cumsum(weights, axis=1)
         # Only holes are constrained, so only they can run out of choices. Asking
@@ -115,14 +130,16 @@ def _fill_chunk(templates, rngs, tables):
 
 @dataclass(frozen=True)
 class TemplateFiller:
-    """Nothing here reads the patterns as anything but strings to keep out of the
-    holes, so duplicate or prefix-related ones are fine.
-    """
 
+    #: forbidden need not be prefix-free, or even duplicate-free: each pattern is
+    #: an independent ban, and allowed is their conjunction.
     forbidden: Tuple[Pattern, ...]
     base_alphabet_size: int
 
     def __post_init__(self):
+        # frozen, so the caller's lists would survive as unhashable fields and only
+        # fail once _tables tried to key the cache on them
+        object.__setattr__(self, "forbidden", tuple(tuple(p) for p in self.forbidden))
         assert self.base_alphabet_size >= 1, "base alphabet must be non-empty"
         for pattern in self.forbidden:
             assert len(pattern) >= 1, "patterns must be non-empty"
@@ -132,12 +149,13 @@ class TemplateFiller:
 
     @property
     def every_context_is_fillable(self) -> bool:
-        """Whether every context of that many symbols leaves a hole something to
-        take. Sufficient for every template to be fillable, not necessary: a context
-        no template forces the sampler into still counts against it here.
+        """
+        Whether every context leaves a hole some symbol it could take. Sufficient
+        for every template to be fillable, not necessary: a context no template ever
+        puts a hole in front of still counts against it here.
         """
         _, allowed, _ = self._tables
-        return bool(allowed.any(axis=1).all())
+        return bool(allowed.any(axis=0).all())
 
     def fill(self, template: Sequence[int], rng: np.random.Generator) -> List[int]:
         """Prefer fill_many for more than one; the per-template pass amortizes."""
