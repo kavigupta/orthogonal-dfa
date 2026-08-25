@@ -87,7 +87,7 @@ class NoEpsilonConsistentFamily(Exception):
     """No suffix family agreeing with epsilon could be sampled for this target."""
 
 
-def epsilon_audit_pvalue(pst, vs, decision_boundary) -> float:
+def epsilon_audit_pvalue(pst, vs, decision_boundary, seed_row) -> float:
     """Exact two-sided binomial test of the family's cut against epsilon's column.
 
     Membership of ``p + eps`` is membership of ``p``, so epsilon's column *is* the
@@ -103,7 +103,7 @@ def epsilon_audit_pvalue(pst, vs, decision_boundary) -> float:
     """
     mask = pst.table.representative
     decision = pst.compute_decision(vs, mask)
-    eps = pst.table.column(pst.table.intern_suffix([]))[mask]
+    eps = pst.table.column(seed_row)[mask]
     signal = pst.config.min_signal_strength
     worst = 1.0
     for side, rate in (
@@ -144,7 +144,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        audit = epsilon_audit_pvalue(pst, vs, decision_boundary)
+        audit = epsilon_audit_pvalue(pst, vs, decision_boundary, v)
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
         if audit < EPSILON_AUDIT_ALPHA:
             audit_rejections += 1
