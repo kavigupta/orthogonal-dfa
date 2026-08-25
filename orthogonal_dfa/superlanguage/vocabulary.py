@@ -13,8 +13,8 @@ We guarantee that parse(compile(y)) = y up to wildcard identity, and that compil
 uniform over the base strings that parse back to y.
 
 We require two restrictions on the kmers: they must be prefix-free, and no context --
-no run of the next max_kmer_length - 1 symbols -- may leave a wildcard with no symbol
-it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
+no run of the next (longest kmer - 1) symbols -- may leave a wildcard with no
+symbol it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
 are not allowed, because the string X AAA can't be compiled, as whatever X resolves
 to will get merged with AA from AAA. Both restrictions are stricter than strictly
 necessary; the second rules out contexts compile would never have had to put a
@@ -87,19 +87,8 @@ class KmerVocabulary:
         return self.num_kmers
 
     @property
-    def wildcard_symbols(self) -> Tuple[int, ...]:
-        """Interchangeable: each compiles the same way, so nothing reading the base
-        string can distinguish them.
-        """
-        return tuple(range(self.num_kmers, self.alphabet_size))
-
-    @property
     def alphabet_size(self) -> int:
         return self.num_kmers + self.num_wildcards
-
-    @property
-    def max_kmer_length(self) -> int:
-        return max((len(k) for k in self.kmers), default=1)
 
     def is_unknown(self, symbol: int) -> bool:
         return symbol >= self.num_kmers
@@ -107,9 +96,6 @@ class KmerVocabulary:
     def canonicalize(self, super_string: Iterable[int]) -> List[int]:
         """Collapse the wildcards, which is as much as parse can recover."""
         return [self.unknown_symbol if self.is_unknown(s) else s for s in super_string]
-
-    def compiled_length(self, symbol: int) -> int:
-        return 1 if self.is_unknown(symbol) else len(self.kmers[symbol])
 
     def parse(self, base_string: Sequence[int]) -> List[int]:
         """At each position take the kmer starting there, or else one wildcard.

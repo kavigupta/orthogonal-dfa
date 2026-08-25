@@ -171,18 +171,6 @@ class TestFillability(unittest.TestCase):
         crowded = TemplateFiller(forbidden=((0, 0), (1, 0)), base_alphabet_size=2)
         self.assertFalse(crowded.every_context_is_fillable)
 
-    def test_context_length(self):
-        self.assertEqual(AA.context_length, 1)
-        self.assertEqual(
-            TemplateFiller(
-                forbidden=((0, 1, 2), (1, 2)), base_alphabet_size=4
-            ).context_length,
-            2,
-        )
-        self.assertEqual(
-            TemplateFiller(forbidden=(), base_alphabet_size=4).context_length, 0
-        )
-
     def test_a_template_with_no_legal_filling_is_refused(self):
         crowded = TemplateFiller(forbidden=((0, 0), (1, 0)), base_alphabet_size=2)
         self.assertEqual(legal_fillings(crowded, [FREE, 0]), [])

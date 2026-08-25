@@ -131,11 +131,6 @@ class TemplateFiller:
             ), f"pattern {pattern} has symbols outside the base alphabet"
 
     @property
-    def context_length(self) -> int:
-        """How far past a hole its legality can reach."""
-        return max((len(p) for p in self.forbidden), default=1) - 1
-
-    @property
     def every_context_is_fillable(self) -> bool:
         """Whether every context of that many symbols leaves a hole something to
         take. Sufficient for every template to be fillable, not necessary: a context
@@ -165,7 +160,8 @@ class TemplateFiller:
             return []
         _, _, shift = self._tables
         width = max(len(t) for t in templates)
-        # Cap the backward pass's (width, chunk, num_states) table at ~64MB.
+        # Batch to keep the backward pass's (width, chunk, num_states) table near
+        # ~64MB. A single template wider than that is still passed through whole.
         chunk = int(np.clip(8_000_000 // max((width + 1) * shift.shape[1], 1), 1, 4096))
 
         out: List[List[int]] = []

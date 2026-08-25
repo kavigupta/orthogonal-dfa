@@ -31,13 +31,21 @@ SHAPES = [
 ]
 
 
+def wildcards(vocab):
+    return tuple(range(vocab.num_kmers, vocab.alphabet_size))
+
+
+def compiled_length(vocab, super_string):
+    return sum(1 if vocab.is_unknown(s) else len(vocab.kmers[s]) for s in super_string)
+
+
 class TestKmerVocabulary(unittest.TestCase):
     def test_alphabet_shape(self):
         v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4, num_wildcards=2)
         self.assertEqual(v.num_kmers, 2)
         self.assertEqual(v.alphabet_size, 4)  # two kmers + X + Y
         self.assertEqual(v.unknown_symbol, 2)
-        self.assertEqual(v.wildcard_symbols, (2, 3))
+        self.assertEqual(wildcards(v), (2, 3))
         self.assertTrue(v.is_unknown(2))
         self.assertTrue(v.is_unknown(3))
         self.assertFalse(v.is_unknown(0))
@@ -45,29 +53,16 @@ class TestKmerVocabulary(unittest.TestCase):
     def test_single_wildcard_vocabulary(self):
         v = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4, num_wildcards=1)
         self.assertEqual(v.alphabet_size, 4)
-        self.assertEqual(v.wildcard_symbols, (3,))
+        self.assertEqual(wildcards(v), (3,))
 
     def test_vocabulary_with_no_kmers(self):
-        # All wildcard, no kmers: every super-symbol is one base symbol, which is
-        # what max_kmer_length reports so callers can size a base string for it.
         v = KmerVocabulary(kmers=(), base_alphabet_size=4, num_wildcards=2)
-        self.assertEqual(v.max_kmer_length, 1)
         self.assertEqual(v.alphabet_size, 2)
         rng = np.random.default_rng(0)
-        s = [v.unknown_symbol, v.wildcard_symbols[1], v.unknown_symbol]
+        s = [v.unknown_symbol, wildcards(v)[1], v.unknown_symbol]
         out = v.compile(s, rng)
         self.assertEqual(len(out), 3)
         self.assertEqual(v.parse(out), v.canonicalize(s))
-
-    def test_max_kmer_length(self):
-        v = KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)
-        self.assertEqual(v.max_kmer_length, 3)
-
-    def test_compiled_length(self):
-        v = KmerVocabulary(kmers=((0, 1), (2, 3, 0)), base_alphabet_size=4)
-        self.assertEqual(v.compiled_length(0), 2)
-        self.assertEqual(v.compiled_length(1), 3)
-        self.assertEqual(v.compiled_length(v.unknown_symbol), 1)
 
     def test_compile_all_kmer_is_concatenation(self):
         # No X slots -> compile is deterministic concatenation of the kmers.
@@ -140,7 +135,7 @@ class TestParseCompile(unittest.TestCase):
 
     @parameterized.expand(SHAPES)
     def test_compile_never_spells_a_kmer_in_wildcard_regions(self, _name, vocab):
-        wild = vocab.wildcard_symbols
+        wild = wildcards(vocab)
         rng = np.random.default_rng(2)
         strings = [[int(rng.choice(wild)) for _ in range(20)] for _ in range(300)]
         for base in vocab.compile_many(
@@ -152,7 +147,7 @@ class TestParseCompile(unittest.TestCase):
     def test_wildcards_compile_identically(self, _name, vocab):
         # Swapping which wildcard is asked for leaves the base string alone, so
         # nothing downstream can tell them apart.
-        x, y = vocab.wildcard_symbols[:2]
+        x, y = wildcards(vocab)[:2]
         n = vocab.num_kmers
         a = vocab.compile([0, x, x] if n else [x, x], np.random.default_rng(4))
         b = vocab.compile([0, y, y] if n else [y, y], np.random.default_rng(4))
@@ -184,7 +179,7 @@ class TestParseCompile(unittest.TestCase):
         x = self.vocab.unknown_symbol
         s = [x, x, 0, x, x, x]  # five wildcards around one TAG -> 8 base symbols
         want = self.vocab.canonicalize(s)
-        length = sum(self.vocab.compiled_length(sym) for sym in s)
+        length = compiled_length(self.vocab, s)
         fiber = {}
         for candidate in itertools.product(range(4), repeat=length):
             if self.vocab.parse(list(candidate)) == want:
@@ -259,7 +254,7 @@ class TestOverlappingKmers(unittest.TestCase):
         x = vocab.unknown_symbol
         s = [x, x, 0, x, x]
         want = vocab.canonicalize(s)
-        length = sum(vocab.compiled_length(sym) for sym in s)
+        length = compiled_length(vocab, s)
         fiber = {}
         for candidate in itertools.product(range(2), repeat=length):
             if vocab.parse(list(candidate)) == want:
