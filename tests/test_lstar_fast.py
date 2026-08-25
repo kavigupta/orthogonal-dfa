@@ -150,13 +150,16 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    @unittest.expectedFailure
     def test_boundary_near_zero(self):
         """Both noise rates near 0, boundary far from 0.5.
-        Fails: finds only 3 states instead of 9. With the true boundary at
-        0.22, the clustering threshold is so low that true-reject prefixes
-        (mean ~0.02) get mixed into the "accept" group on noisy suffix
-        samples, contaminating the boundary estimate downward to ~0.11."""
+
+        Used to find 3 states instead of 9: with the true boundary at 0.22 the
+        clustering threshold is low enough that true-reject prefixes (mean ~0.02)
+        join the "accept" group on noisy suffix samples and drag the boundary
+        estimate down to ~0.11.  That is the epsilon audit's failure mode, and it
+        recovers this target on 7 of 8 seeds against 4 of 8 before -- this one
+        included, though seed 0 still fails without the bytes representation's
+        draws."""
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
         )
