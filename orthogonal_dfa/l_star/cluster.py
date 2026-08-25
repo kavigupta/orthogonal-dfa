@@ -39,7 +39,6 @@ def identify_cluster_around(
         if new_loss >= loss:
             break
         cluster, loss = nearest, new_loss
-    cluster_center = masks[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)
