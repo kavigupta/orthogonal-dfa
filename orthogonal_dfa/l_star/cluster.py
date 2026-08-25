@@ -19,14 +19,9 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
-    # Refine only while epsilon still belongs to what the refinement selects.
-    # Each pass recentres on the current cluster and takes the nearest `count`,
-    # so it walks toward whichever behaviour is most common among the candidates.
-    # Where that is not epsilon's, the old code spliced epsilon back in as one
-    # vote among `count` and the family's cut stopped matching epsilon's -- and
-    # epsilon's column *is* the accept-preserving split, since membership of
-    # ``p + eps`` is membership of ``p``.  Stopping instead keeps the last
-    # cluster epsilon was genuinely part of, and costs no extra queries.
+    # Only keep clustering while the seed belongs to the cluster.
+    # We want to avoid drifting the cluster center away from the seed, which can
+    # happen if the seed has a very small cluster relative to `count`.
     cluster = [seed_local]
     loss = float("inf")
     while True:
