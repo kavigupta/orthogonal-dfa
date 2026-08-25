@@ -1,23 +1,8 @@
-"""The accept-preserving round check against prefixes one symbol short of accepting.
+"""The round check against prefixes one symbol short of accepting.
 
-``.*1010101.*`` is monotone -- acceptance is a sink, so no suffix can un-accept a
-string.  A prefix ending in ``101010`` therefore rejects on its own but accepts
-under every suffix starting with ``1``, and a family made of such suffixes calls
-those prefixes accept while the noiseless oracle calls them reject.  Every one of
-them then counts as a misclassification in ``learn_dfa_verified``'s per-round
-check -- about 20% of the decisive population here, against a 1% budget.
-
-The family used to come out that way because ``identify_cluster_around`` refined
-onto a cluster epsilon was not in and spliced epsilon back afterwards.  Since
-epsilon's column *is* the accept-preserving split (membership of ``p + eps`` is
-membership of ``p``), a family that outvotes it fails this check by
-construction.  The clustering now returns the cluster epsilon actually belongs
-to, so the family agrees with it.
-
-``TestLStarAsymmetric::test_regex_asymmetric`` hits the same thing on about one
-seed in six, depending on how many near-miss prefixes land in a round's decisive
-population.  This puts them there on purpose, so the regression is pinned rather
-than left to the draw.
+``.*1010101.*`` is monotone, so a prefix ending in ``101010`` rejects on its own
+but accepts under every suffix starting with ``1``.  A family built from those
+suffixes calls such prefixes accept where the noiseless oracle calls them reject.
 """
 
 import unittest
@@ -28,17 +13,12 @@ from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
 from tests.lstar_common import learn_dfa_verified
 
 MOTIF = [1, 0, 1, 0, 1, 0, 1]
-#: One symbol short of the motif.
 NEAR_MISS = MOTIF[:-1]
 
-#: Fraction of sampled strings forced to be near misses.  The effect needs the
-#: state to be *sparse*: past roughly 0.3 the family calibrates against it and
-#: the cut comes out right even without the fix, so this share is what keeps the
-#: test honest.
+#: The effect needs the state to be sparse: past roughly 0.3 the family
+#: calibrates against these prefixes and the cut comes out right regardless.
 NEAR_MISS_SHARE = 0.2
 
-#: Seeds to check.  Before the fix 7 of 8 failed individually, so no single seed
-#: is load-bearing; the property is that the round check holds whatever the draw.
 SEEDS = (0, 1, 2, 3)
 
 
@@ -59,8 +39,7 @@ class NearMissSampler(Sampler):
 
         if rng.random() >= self.share:
             return draw(self.length)
-        # Redraw the head until the motif is absent: the point is a string one
-        # symbol away from accepting, not one that already accepts.
+        # A string one symbol from accepting, not one that already accepts.
         for _ in range(50):
             candidate = draw(self.length - len(NEAR_MISS)) + NEAR_MISS
             if not _contains_motif(candidate):
