@@ -1,7 +1,5 @@
 """
-The state a template's holes are filled against.
-
-A template is a list of base symbols with holes punched in it. A filling is legal
+A template is a list of base symbols with holes punched in it, and a filling is legal
 when no forbidden pattern starts at a hole; patterns starting at a fixed position are
 none of our business, so a caller that wants one to survive puts it in the template.
 
