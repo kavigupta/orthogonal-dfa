@@ -1,11 +1,21 @@
 """
-A template is a list of base symbols with holes punched in it, and a filling is legal
-when no forbidden pattern starts at a hole; patterns starting at a fixed position are
-none of our business, so a caller that wants one to survive puts it in the template.
+Over a base alphabet A = {0, ..., base - 1}, a template is a string t over A + {hole},
+and a filling of it is an s in A^|t| agreeing with t off the holes:
 
-Legality at a hole turns only on the next max_pattern_length - 1 symbols, so that run
-is all a filler has to carry along, and the tables here say how it moves and what it
-permits.
+    s[j] = t[j]   wherever t[j] != hole.
+
+Such an s is legal when no forbidden pattern starts at a hole:
+
+    s[j : j + |p|] != p   for every hole j and every p in forbidden.
+
+The quantifier runs over holes only, so a pattern starting at a fixed position
+survives; a caller that wants one puts it in the template.
+
+Legality at j therefore constrains s only through s[j] and the w symbols after it,
+
+    w = max |p| - 1,
+
+and the tables here give the transitions on that window and the symbols it permits.
 """
 
 from dataclasses import dataclass
