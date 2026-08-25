@@ -30,7 +30,7 @@ Pattern = Tuple[int, ...]
 def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
     """
     Effectively a DFA that traverses through windows of size w, backwards
-    through the string, telling you when prepending a speciifc symbol would start
+    through the string, telling you when prepending a specific symbol would start
     a forbidden pattern.
 
     Let a state be the window of w symbols following a position j.
@@ -41,7 +41,7 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
 
     shift[c, state] is state(j - 1) once s[j] = c is chosen.
 
-    allowed[state, c] is False exactly when c would start a forbidden pattern at j,
+    allowed[c, state] is False exactly when c would start a forbidden pattern at j.
     """
     w = max((len(p) - 1 for p in forbidden), default=0)
     radix = base + 1
@@ -58,12 +58,12 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
         dtype=np.int64,
     )
 
-    allowed = np.ones((num_states, base), dtype=bool)
+    allowed = np.ones((base, num_states), dtype=bool)
     for state in range(num_states):
         following = [(state // radix**i) % radix for i in range(w)]
         for pattern in forbidden:
             if following[: len(pattern) - 1] == list(pattern[1:]):
-                allowed[state, pattern[0]] = False
+                allowed[pattern[0], state] = False
 
     # Cached and shared between fillers over the same patterns.
     allowed.flags.writeable = False
@@ -99,7 +99,7 @@ class TemplateFiller:
         puts a hole in front of still counts against it here.
         """
         _, allowed, _ = self._tables
-        return bool(allowed.any(axis=1).all())
+        return bool(allowed.any(axis=0).all())
 
     @property
     def _tables(self):

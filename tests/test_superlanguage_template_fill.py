@@ -51,8 +51,8 @@ class TestTransferTables(unittest.TestCase):
             packed = sorted(
                 window_state(win, base + 1) for win in self.windows(forbidden, base)
             )
-            self.assertEqual(packed, list(range(allowed.shape[0])), forbidden)
-            self.assertEqual(shift.shape, (base, allowed.shape[0]), forbidden)
+            self.assertEqual(packed, list(range(allowed.shape[1])), forbidden)
+            self.assertEqual(shift.shape, allowed.shape, forbidden)
 
     def test_shift_takes_the_window_one_position_left(self):
         for forbidden, base in SHAPES:
@@ -77,7 +77,7 @@ class TestTransferTables(unittest.TestCase):
                     )
                     with self.subTest(forbidden=forbidden, window=win, symbol=c):
                         self.assertEqual(
-                            allowed[window_state(win, base + 1), c], not banned
+                            allowed[c, window_state(win, base + 1)], not banned
                         )
 
     def test_the_initial_state_is_all_sentinel(self):
@@ -89,7 +89,7 @@ class TestTransferTables(unittest.TestCase):
             )
             # the sentinel is outside the alphabet, so only length-1 patterns bite
             self.assertEqual(
-                {c for c in range(base) if not allowed[initial, c]},
+                {c for c in range(base) if not allowed[c, initial]},
                 {p[0] for p in forbidden if len(p) == 1},
                 forbidden,
             )
