@@ -1,18 +1,12 @@
 import numpy as np
 import scipy.stats
-from automata.fa.dfa import DFA
-from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
-from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int
 
 us = UniformSampler(40)
-
-#: Stands in for "ran off the end of a partial DFA".
-_DEAD = object()
 
 # assertDFA tolerance — slightly looser than the synthesis target so we don't
 # flake when synthesis converges near the threshold.  See GitHub issue on
@@ -97,16 +91,16 @@ def assertDoesNotMeetProperty(
 # Every synthesis round's family is seeded at the empty suffix, so its decisive
 # classifications should realise the accept-preserving split: the noiseless
 # membership 1[x in L]. learn_dfa returns each round's RoundClassifier, and
-# learn_dfa_verified checks it over the prefixes the round decides (indecisive ones
-# are boundary strings, excluded).
+# learn_dfa_verified checks it a state at a time over the prefixes the round
+# decides (indecisive ones are boundary strings, excluded).
 #
-# A round fails only when its misclassification count is, by a binomial test,
-# significantly above the calibration's own per-decision error budget -- not against
-# a hand-picked fraction. This is sample-size-aware: a handful of near-boundary
-# misses on a few-hundred-prefix pool is within the fpr floor, while a family that
-# computes the wrong cut misclassifies far more than the floor predicts.
+# These two bound the *within-state* disagreement: a round is entitled to
+# `round_verify_fpr` wrong decisions per prefix, so a state whose minority side is
+# larger than that explains -- by a binomial test at `round_verify_alpha` -- was
+# not cut by a family holding one opinion about it.  Neither is a budget over the
+# pool as a whole; nothing sums misclassifications across states any more.
 round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
-round_verify_alpha = 1e-4  # binomial significance for flagging a round
+round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
 #: A state is *common in prefixes* when enough of the round's prefixes reach it
@@ -131,103 +125,107 @@ def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
     return z**2 * (0.25 - signal**2) / signal**2
 
 
-def _target_dfa(oracle):
-    """The target's DFA, where the oracle can hand one over.
-
-    A DFA-backed oracle already holds it.  A regex one is compiled the same way
-    ``capal_official.build_regex_dfa`` does, over the same int-as-str symbols
-    ``BernoulliRegex`` matches on.  Anything else has no states to offer.
-    """
-    held = getattr(oracle, "_dfa", None)
-    if held is not None:
-        return held
-    regex = getattr(oracle, "regex", None)
-    if regex is None:
-        return None
-    symbols = {str(i) for i in range(oracle.alphabet_size)}
-    nfa = NFA.from_regex(regex, input_symbols=symbols)
-    return al_dfa_symbols_to_int(DFA.from_nfa(nfa, minify=True))
-
-
 def _reached_states(prefixes, true_dfa):
     """The state each prefix reaches in ``true_dfa``."""
 
     def end(prefix):
         state = true_dfa.initial_state
         for symbol in prefix:
-            # A compiled regex DFA can be partial; a missing edge is a dead end,
-            # which is a state like any other for counting purposes.
-            state = true_dfa.transitions[state].get(symbol, _DEAD)
-            if state is _DEAD:
-                break
+            state = true_dfa.transitions[state][symbol]
         return state
 
     return [end(p) for p in prefixes]
 
 
-def _round_accept_preserving_counts(classifier, truth_oracle, signal, true_dfa):
-    """``(decisive, misclassified)`` counts over the calibrated-population prefixes
-    ``classifier`` decides, or None when it decides none of them. Off-length prefixes
-    (boundary strings, per-state samples) are excluded: the family was never
-    calibrated on them, so its cut is not expected to hold there.
+def _state_cuts(classifier, true_dfa):
+    """How the round cut each state: ``state -> (accepted, rejected)`` counts.
 
-    Only states that are *common in prefixes* are held to the cut, and states
-    that are not are excused only where the round is consistent on them.  Too
-    few prefixes reach a rare state for the evidence separating a correct cut
-    from a wrong one to be anything but a coin flip, so holding the round to it
-    tests the sampler rather than the learner.  A round that cuts one such state
-    both ways has no such excuse and still counts.  This needs the target's
-    states, so without ``true_dfa`` every decisive prefix is held, as before.
+    Every prefix reaching a state is the same string as far as the language is
+    concerned, so the round should cut them all the same way, and the way it
+    should cut them is whether the state accepts.  Prefixes the round left
+    undecided are boundary strings; off-length ones reach the family outside its
+    calibration.  Neither says anything about the cut, so neither is counted.
     """
-    decisive = classifier.decisive & classifier.calibrated
-    if not decisive.any():
-        return None
-    truth = np.array(
-        [bool(truth_oracle.membership_query(p)) for p in classifier.prefixes]
-    )
-    if true_dfa is None:
-        return int(decisive.sum()), int(
-            np.sum(classifier.accept[decisive] != truth[decisive])
+    counted = classifier.decisive & classifier.calibrated
+    cuts = {}
+    for state, keep, accept in zip(
+        _reached_states(classifier.prefixes, true_dfa), counted, classifier.accept
+    ):
+        if keep:
+            tally = cuts.setdefault(state, [0, 0])
+            tally[0 if accept else 1] += 1
+    return cuts
+
+
+def _split_states(cuts):
+    """States the round cut both ways by more than its own error budget allows.
+
+    A round is entitled to ``round_verify_fpr`` wrong decisions per prefix, so a
+    state whose minority side is bigger than that explains was not cut by a
+    family with one opinion about it.
+    """
+    return [
+        (state, accepted, rejected)
+        for state, (accepted, rejected) in cuts.items()
+        if binomial_side_of_boundary(
+            min(accepted, rejected),
+            accepted + rejected,
+            round_verify_fpr,
+            failure_prob=round_verify_alpha,
         )
-    states = _reached_states(classifier.prefixes, true_dfa)
-    threshold = _common_in_prefixes_threshold(signal, common_in_prefixes_fpr)
-    held = np.zeros(len(states), dtype=bool)
-    for state in set(states):
-        reaching = decisive & np.array([s == state for s in states])
-        common_in_prefixes = reaching.sum() >= threshold
-        consistent = len(set(classifier.accept[reaching])) <= 1
-        if common_in_prefixes or not consistent:
-            held |= reaching
-    if not held.any():
-        return None
-    return int(held.sum()), int(np.sum(classifier.accept[held] != truth[held]))
+    ]
 
 
-def learn_dfa_verified(oracle_creator, *, true_dfa=None, **kwargs):
+def _wrongly_cut_states(cuts, true_dfa, threshold):
+    """States the round cut against the language, that it had the prefixes to know.
+
+    Below ``threshold`` prefixes the state's label is a coin flip whichever way
+    the round called it, so being wrong there is the sampler's doing.  Above it,
+    the round had the evidence and still cut the other way.
+    """
+    return [
+        (state, accepted + rejected)
+        for state, (accepted, rejected) in cuts.items()
+        if (accepted >= rejected) != (state in true_dfa.final_states)
+        and accepted + rejected >= threshold
+    ]
+
+
+def learn_dfa_verified(oracle_creator, **kwargs):
     """``learn_dfa``, asserting the per-round accept-preserving invariant.
 
-    ``true_dfa`` lets the check see which state each prefix reaches, so it can
-    skip the states too rare in the pool to label; an oracle carrying its own DFA
-    supplies it without the caller saying anything."""
+    Each round's family is seeded at the empty suffix, so its decisive
+    classifications should realise the accept-preserving split.  Checked a state
+    at a time: tally how the round cut each one, require it to have had a single
+    opinion about each, and require the ones it got backwards to be states its
+    prefixes barely reached.
+    """
     dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    if true_dfa is None:
-        true_dfa = _target_dfa(truth_oracle)
-    signal = kwargs["min_signal_strength"]
+    true_dfa = truth_oracle.target_dfa()
+    threshold = _common_in_prefixes_threshold(
+        kwargs["min_signal_strength"], common_in_prefixes_fpr
+    )
     for classifier in classifiers:
-        counts = _round_accept_preserving_counts(
-            classifier, truth_oracle, signal, true_dfa
-        )
-        if counts is None:
-            continue
-        decisive, wrong = counts
-        if binomial_side_of_boundary(
-            wrong, decisive, round_verify_fpr, failure_prob=round_verify_alpha
-        ):
+        cuts = _state_cuts(classifier, true_dfa)
+
+        split = _split_states(cuts)
+        if split:
+            state, accepted, rejected = split[0]
             raise AssertionError(
-                f"a synthesis round misclassified {wrong}/{decisive} of its decisive "
-                f"prefixes against the noiseless accept-preserving split -- "
-                f"significantly above the fpr budget {round_verify_fpr} "
-                f"(binomial test, alpha={round_verify_alpha})"
+                f"a synthesis round cut state {state} both ways "
+                f"({accepted} accept / {rejected} reject) -- more disagreement than "
+                f"its {round_verify_fpr} per-prefix budget explains, so the family "
+                f"had no single opinion about the state"
+            )
+
+        wrong = _wrongly_cut_states(cuts, true_dfa, threshold)
+        if wrong:
+            state, reached = wrong[0]
+            raise AssertionError(
+                f"a synthesis round cut state {state} against the language, on "
+                f"{reached} prefixes -- at or above the {threshold:.1f} needed for "
+                f"the state's label to be more than a coin flip, so the round had "
+                f"the evidence and still cut the other way"
             )
     return dfa
