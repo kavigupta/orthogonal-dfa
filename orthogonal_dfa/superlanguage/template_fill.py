@@ -47,16 +47,17 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
     radix = base + 1
     num_states = radix**w
 
-    shift = np.array(
-        [
+    if w == 0:
+        # the window is empty, so there is one state and nothing to shift out of it
+        shift = np.zeros((base, 1), dtype=np.int64)
+    else:
+        shift = np.array(
             [
-                c + radix * (state % radix ** (w - 1)) if w >= 1 else 0
-                for state in range(num_states)
-            ]
-            for c in range(base)
-        ],
-        dtype=np.int64,
-    )
+                [c + radix * (state % radix ** (w - 1)) for state in range(num_states)]
+                for c in range(base)
+            ],
+            dtype=np.int64,
+        )
 
     allowed = np.ones((base, num_states), dtype=bool)
     for state in range(num_states):
