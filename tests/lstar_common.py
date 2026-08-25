@@ -3,6 +3,11 @@ import scipy.stats
 from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
+from orthogonal_dfa.l_star.examples.bernoulli_parity import (
+    AllFramesClosedOracle,
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
@@ -128,26 +133,97 @@ def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
     return z**2 * (0.25 - signal**2) / signal**2
 
 
-def _target_dfa(oracle):
-    """The target's DFA, where the oracle can hand one over.
-
-    A DFA-backed oracle already holds it.  A regex one is compiled the same way
-    ``capal_official.build_regex_dfa`` does, over the same int-as-str symbols
-    ``BernoulliRegex`` matches on.  Anything else has no states to offer.
-    """
-    held = getattr(oracle, "_dfa", None)
-    if held is not None:
-        return held
-    regex = getattr(oracle, "regex", None)
-    if regex is None:
-        return None
-    symbols = {str(i) for i in range(oracle.alphabet_size)}
+def _regex_dfa(regex, alphabet_size):
+    """``regex`` as a DFA, over the int-as-str symbols BernoulliRegex matches on."""
+    symbols = {str(i) for i in range(alphabet_size)}
     nfa = NFA.from_regex(regex, input_symbols=symbols)
     # A language with a dead end (``1*``, say) compiles to a partial DFA, whose
     # missing edges would be a second thing to mean "rejected".  ``to_complete``
     # routes them to a trap state, so every prefix simply ends somewhere.
-    compiled = DFA.from_nfa(nfa, minify=True).to_complete()
-    return al_dfa_symbols_to_int(compiled)
+    return al_dfa_symbols_to_int(DFA.from_nfa(nfa, minify=True).to_complete())
+
+
+def _modulo_dfa(modulo, allowed, alphabet_size):
+    """The "symbol sum mod ``modulo`` is in ``allowed``" DFA."""
+    return DFA(
+        states=set(range(modulo)),
+        input_symbols=set(range(alphabet_size)),
+        transitions={
+            q: {s: (q + s) % modulo for s in range(alphabet_size)}
+            for q in range(modulo)
+        },
+        initial_state=0,
+        final_states=set(allowed),
+        allow_partial=False,
+    )
+
+
+def _all_frames_closed_dfa(stops):
+    """The "every one of the 3 reading frames holds a stop codon" DFA.
+
+    A codon starting at index j lies in frame ``j % 3`` and finishes at ``j + 2``,
+    so tracking the position mod 3, the last two bases, and which frames have
+    closed is enough to decide it.
+    """
+    letters, stopset = "ACGT", set(stops)
+    states, index = {}, {}
+
+    def sid(state):
+        if state not in index:
+            index[state] = len(index)
+            states[index[state]] = state
+        return index[state]
+
+    start = sid((0, (), frozenset()))
+    transitions, frontier = {}, [start]
+    while frontier:
+        q = frontier.pop()
+        position, last, closed = states[q]
+        row = {}
+        for symbol in range(4):
+            following = (last + (symbol,))[-2:]
+            closes = closed
+            if len(last) == 2:
+                codon = "".join(letters[c] for c in last + (symbol,))
+                if codon in stopset:
+                    closes = closed | {(position - 2) % 3}
+            row[symbol] = sid(((position + 1) % 3, following, closes))
+            if row[symbol] == len(index) - 1:
+                frontier.append(row[symbol])
+        transitions[q] = row
+    return DFA(
+        states=set(states),
+        input_symbols=set(range(4)),
+        transitions=transitions,
+        initial_state=start,
+        final_states={q for q, (_, _, c) in states.items() if len(c) == 3},
+        allow_partial=False,
+    ).minify()
+
+
+def _target_dfa(oracle):
+    """The DFA of the language ``oracle`` answers for.
+
+    The check needs to know which state a prefix reaches, so every oracle the
+    suite learns from has to be able to say.  Adding a new one means teaching
+    this how to build its DFA, rather than quietly falling back to holding the
+    round to states its prefixes never reach.
+    """
+    held = getattr(oracle, "_dfa", None)
+    if held is not None:
+        return held
+    if isinstance(oracle, BernoulliRegex):
+        return _regex_dfa(oracle.regex, oracle.alphabet_size)
+    if isinstance(oracle, BernoulliParityOracle):
+        return _modulo_dfa(
+            oracle.modulo, oracle.allowed_moduluses, oracle.alphabet_size
+        )
+    if isinstance(oracle, AllFramesClosedOracle):
+        return _all_frames_closed_dfa(oracle.stops)
+    raise TypeError(
+        f"no DFA known for {type(oracle).__name__}; the accept-preserving check "
+        f"needs one to tell which state each prefix reaches"
+    )
 
 
 def _reached_states(prefixes, true_dfa):
@@ -173,8 +249,7 @@ def _round_accept_preserving_counts(classifier, truth_oracle, signal, true_dfa):
     few prefixes reach a rare state for the evidence separating a correct cut
     from a wrong one to be anything but a coin flip, so holding the round to it
     tests the sampler rather than the learner.  A round that cuts one such state
-    both ways has no such excuse and still counts.  This needs the target's
-    states, so without ``true_dfa`` every decisive prefix is held, as before.
+    both ways has no such excuse and still counts.
     """
     decisive = classifier.decisive & classifier.calibrated
     if not decisive.any():
@@ -182,10 +257,6 @@ def _round_accept_preserving_counts(classifier, truth_oracle, signal, true_dfa):
     truth = np.array(
         [bool(truth_oracle.membership_query(p)) for p in classifier.prefixes]
     )
-    if true_dfa is None:
-        return int(decisive.sum()), int(
-            np.sum(classifier.accept[decisive] != truth[decisive])
-        )
     states = _reached_states(classifier.prefixes, true_dfa)
     threshold = _common_in_prefixes_threshold(signal, common_in_prefixes_fpr)
     held = np.zeros(len(states), dtype=bool)
@@ -200,16 +271,11 @@ def _round_accept_preserving_counts(classifier, truth_oracle, signal, true_dfa):
     return int(held.sum()), int(np.sum(classifier.accept[held] != truth[held]))
 
 
-def learn_dfa_verified(oracle_creator, *, true_dfa=None, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant.
-
-    ``true_dfa`` lets the check see which state each prefix reaches, so it can
-    skip the states too rare in the pool to label; an oracle carrying its own DFA
-    supplies it without the caller saying anything."""
+def learn_dfa_verified(oracle_creator, **kwargs):
+    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
     dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    if true_dfa is None:
-        true_dfa = _target_dfa(truth_oracle)
+    true_dfa = _target_dfa(truth_oracle)
     signal = kwargs["min_signal_strength"]
     for classifier in classifiers:
         counts = _round_accept_preserving_counts(
