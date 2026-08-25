@@ -4,8 +4,7 @@ a base alphabet, with a "parser" that moves a base string into it.
 
 The parser is deterministic and greedy: it reads the base string left to right, taking
 the first kmer it sees, or else a wildcard. Prefix-freeness is what makes that
-unambiguous; a later commit adds the compiler that inverts it, which needs a second
-restriction on the kmers.
+unambiguous.
 
 We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
 in fact, interchangeable.
