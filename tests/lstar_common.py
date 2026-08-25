@@ -11,9 +11,6 @@ from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int
 
 us = UniformSampler(40)
 
-#: Stands in for "ran off the end of a partial DFA".
-_DEAD = object()
-
 # assertDFA tolerance — slightly looser than the synthesis target so we don't
 # flake when synthesis converges near the threshold.  See GitHub issue on
 # tightening synthesis output.
@@ -146,7 +143,11 @@ def _target_dfa(oracle):
         return None
     symbols = {str(i) for i in range(oracle.alphabet_size)}
     nfa = NFA.from_regex(regex, input_symbols=symbols)
-    return al_dfa_symbols_to_int(DFA.from_nfa(nfa, minify=True))
+    # A language with a dead end (``1*``, say) compiles to a partial DFA, whose
+    # missing edges would be a second thing to mean "rejected".  ``to_complete``
+    # routes them to a trap state, so every prefix simply ends somewhere.
+    compiled = DFA.from_nfa(nfa, minify=True).to_complete()
+    return al_dfa_symbols_to_int(compiled)
 
 
 def _reached_states(prefixes, true_dfa):
@@ -155,11 +156,7 @@ def _reached_states(prefixes, true_dfa):
     def end(prefix):
         state = true_dfa.initial_state
         for symbol in prefix:
-            # A compiled regex DFA can be partial; a missing edge is a dead end,
-            # which is a state like any other for counting purposes.
-            state = true_dfa.transitions[state].get(symbol, _DEAD)
-            if state is _DEAD:
-                break
+            state = true_dfa.transitions[state][symbol]
         return state
 
     return [end(p) for p in prefixes]
