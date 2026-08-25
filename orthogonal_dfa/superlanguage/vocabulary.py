@@ -7,128 +7,37 @@ The compiler is a randomized function that fills in the wildcards with base symb
 so that the result parses back to the original super-string.
 
 The parser is deterministic and greedy: it reads the base string left to right, taking
-the first kmer it sees, or else a wildcard.
+the first kmer it sees, or else a wildcard. Prefix-freeness is what makes that
+unambiguous.
 
 We guarantee that parse(compile(y)) = y up to wildcard identity, and that compile(y) is
 uniform over the base strings that parse back to y.
 
-We require two restrictions on the kmers: they must be prefix-free, and no context --
-no run of the next max_kmer_length - 1 symbols -- may leave a wildcard with no symbol
-it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
-are not allowed, because the string X AAA can't be compiled, as whatever X resolves
-to will get merged with AA from AAA. Both restrictions are stricter than strictly
-necessary; the second rules out contexts compile would never have had to put a
-wildcard in.
+Compile needs a second restriction beyond prefix-freeness: no context -- no run of the
+next (longest kmer - 1) symbols -- may leave a wildcard with no symbol it could take.
+E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA} are not allowed,
+because the string X AAA can't be compiled, as whatever X resolves to will get merged
+with AA from AAA. Both restrictions are stricter than strictly necessary; the second
+rules out contexts compile would never have had to put a wildcard in.
 
 We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
 in fact, interchangeable.
 """
 
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Iterable, List, Sequence, Tuple
 
 import numpy as np
 
-Kmer = Tuple[int, ...]
+from .template_fill import FREE, TemplateFiller
 
-_FREE = -1  # a wildcard, to be filled in
-_PAD = -2  # not part of this string: it is shorter than others in its batch
+Kmer = Tuple[int, ...]
 
 
 def _prefix_related(a: Sequence[int], b: Sequence[int]) -> bool:
     """True when one of a, b is a prefix of the other, so both cannot be kmers."""
     m = min(len(a), len(b))
     return tuple(a[:m]) == tuple(b[:m])
-
-
-@lru_cache(maxsize=None)
-def _transfer_tables(kmers: Tuple[Kmer, ...], base: int):
-    """Whether a wildcard may emit a symbol depends on the symbols after it, so a
-    state here is the next max_kmer_length - 1 of them, packed in radix base + 1.
-    The extra digit is a sentinel for running off the end of the string, which
-    matches no kmer.
-
-    shift[c, state] is the state one position further left after emitting c, and
-    allowed[state, c] whether a wildcard may emit c there.
-    """
-    w = max((len(k) for k in kmers), default=1) - 1
-    radix = base + 1
-    num_states = radix**w
-
-    shift = np.array(
-        [
-            [
-                c + radix * (state % radix ** (w - 1)) if w >= 1 else 0
-                for state in range(num_states)
-            ]
-            for c in range(base)
-        ],
-        dtype=np.int64,
-    )
-
-    allowed = np.ones((num_states, base), dtype=bool)
-    for state in range(num_states):
-        following = [(state // radix**i) % radix for i in range(w)]
-        for kmer in kmers:
-            if following[: len(kmer) - 1] == list(kmer[1:]):
-                allowed[state, kmer[0]] = False
-
-    # Cached and shared between vocabularies with the same kmers.
-    allowed.flags.writeable = False
-    shift.flags.writeable = False
-    initial = num_states - 1 if w else 0  # all sentinels: nothing follows the end
-    return initial, allowed, shift
-
-
-def _compile_chunk(templates, rngs, tables):
-    """Templates are right-aligned, so that sampling right to left starts every
-    string in the end-of-string state. The kmer restrictions leave every position
-    something to choose, so this never has to back out.
-    """
-    initial, allowed, shift = tables
-    base, num_states = shift.shape
-    size = len(templates)
-    width = max(len(t) for t in templates)
-    grid = np.full((size, width), _PAD, dtype=np.int64)
-    start = np.empty(size, dtype=np.int64)
-    draws = np.zeros((size, width))
-    for row, (template, rng) in enumerate(zip(templates, rngs)):
-        start[row] = width - len(template)
-        grid[row, start[row] :] = template
-        draws[row, start[row] :] = rng.random(len(template))
-
-    # ways[j][row, s] counts the fillings of the columns left of j when s follows
-    # column j-1. Rescaled each step: the true counts grow geometrically and
-    # overflow, and only ratios within a row are ever read.
-    ways = np.ones((width + 1, size, num_states))
-    for j in range(width):
-        previous, column = ways[j], grid[:, j]
-        free = (previous[:, shift] * allowed.T[None]).sum(axis=1)
-        fixed = np.take_along_axis(
-            previous, shift[np.where(column >= 0, column, 0)], axis=1
-        )
-        row = np.where((column == _FREE)[:, None], free, fixed)
-        row = np.where((column == _PAD)[:, None], previous, row)
-        peak = np.max(row, axis=1)[:, None]
-        ways[j + 1] = np.divide(row, peak, out=row.copy(), where=peak > 0)
-
-    state = np.full(size, initial, dtype=np.int64)
-    out = np.zeros((size, width), dtype=np.int64)
-    for j in range(width - 1, -1, -1):
-        column = grid[:, j]
-        live = column != _PAD
-        weights = (
-            np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[state]
-        )
-        running = np.cumsum(weights, axis=1)
-        picked = (running <= (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
-        chosen = np.where(
-            column == _FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
-        )
-        out[:, j] = chosen
-        state = np.where(live, shift[chosen, state], state)
-    return [out[row, start[row] :].tolist() for row in range(size)]
 
 
 @dataclass(frozen=True)
@@ -142,6 +51,9 @@ class KmerVocabulary:
     num_wildcards: int = 2
 
     def __post_init__(self):
+        # frozen, so the caller's lists would survive as unhashable fields and only
+        # fail once something tried to cache on the vocabulary
+        object.__setattr__(self, "kmers", tuple(tuple(k) for k in self.kmers))
         assert self.base_alphabet_size >= 1, "base alphabet must be non-empty"
         assert self.num_wildcards >= 1, "need at least one wildcard"
         for kmer in self.kmers:
@@ -156,11 +68,17 @@ class KmerVocabulary:
             for b in self.kmers[i + 1 :]:
                 assert not _prefix_related(a, b), f"{a} and {b} are prefix-related"
         # Stricter than needed: some rejected contexts compile could steer around.
-        _, allowed, _ = _transfer_tables(self.kmers, self.base_alphabet_size)
-        assert allowed.any(axis=1).all(), (
+        assert self._filler.every_context_is_fillable, (
             "the kmers leave some position with no symbol a wildcard could take, "
             "so a super-string using one there could not be compiled"
         )
+
+    @property
+    def _filler(self) -> TemplateFiller:
+        """A wildcard is a hole that must not start a kmer; everything about how one
+        gets filled lives there.
+        """
+        return TemplateFiller(self.kmers, self.base_alphabet_size)
 
     @property
     def num_kmers(self) -> int:
@@ -172,29 +90,18 @@ class KmerVocabulary:
         return self.num_kmers
 
     @property
-    def wildcard_symbols(self) -> Tuple[int, ...]:
-        """Interchangeable: each compiles the same way, so nothing reading the base
-        string can distinguish them.
-        """
-        return tuple(range(self.num_kmers, self.alphabet_size))
-
-    @property
     def alphabet_size(self) -> int:
         return self.num_kmers + self.num_wildcards
 
-    @property
-    def max_kmer_length(self) -> int:
-        return max((len(k) for k in self.kmers), default=1)
-
     def is_unknown(self, symbol: int) -> bool:
+        assert (
+            0 <= symbol < self.alphabet_size
+        ), f"{symbol} is outside the super alphabet"
         return symbol >= self.num_kmers
 
     def canonicalize(self, super_string: Iterable[int]) -> List[int]:
         """Collapse the wildcards, which is as much as parse can recover."""
         return [self.unknown_symbol if self.is_unknown(s) else s for s in super_string]
-
-    def compiled_length(self, symbol: int) -> int:
-        return 1 if self.is_unknown(symbol) else len(self.kmers[symbol])
 
     def parse(self, base_string: Sequence[int]) -> List[int]:
         """At each position take the kmer starting there, or else one wildcard.
@@ -230,40 +137,18 @@ class KmerVocabulary:
         super_strings: Sequence[Iterable[int]],
         rngs: Sequence[np.random.Generator],
     ) -> List[List[int]]:
-        """Draws each result uniformly over the base strings parsing back to its
-        super-string, by weighting a wildcard's choices by how many ways the rest
-        can then be filled. Drawing evenly instead skews toward the constrained
-        positions. The passes walk positions, so the batch advances in step.
+        """Each result is uniform over the base strings that parse back to its
+        super-string.
         """
-        assert len(super_strings) == len(rngs), "need one rng per super-string"
-        tables = _transfer_tables(self.kmers, self.base_alphabet_size)
-        num_states = tables[2].shape[1]
         templates = [self._template(s) for s in super_strings]
-        if not templates:
-            return []
-        width = max(len(t) for t in templates)
-        # Cap the backward pass's (width, chunk, num_states) table at ~64MB.
-        chunk = int(np.clip(8_000_000 // max((width + 1) * num_states, 1), 1, 4096))
-
-        out_all: List[List[int]] = []
-        for lo in range(0, len(templates), chunk):
-            out_all.extend(
-                _compile_chunk(
-                    templates[lo : lo + chunk], rngs[lo : lo + chunk], tables
-                )
-            )
-        return out_all
+        return self._filler.fill_many(templates, rngs)
 
     def _template(self, super_string: Iterable[int]) -> List[int]:
         """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
         for symbol in super_string:
-            # a negative symbol is not a wildcard, and would index kmers from the end
-            assert (
-                0 <= symbol < self.alphabet_size
-            ), f"{symbol} is outside the super alphabet"
             if self.is_unknown(symbol):
-                template.append(_FREE)
+                template.append(FREE)
             else:
                 template.extend(self.kmers[symbol])
         return template

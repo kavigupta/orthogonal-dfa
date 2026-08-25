@@ -13,6 +13,8 @@ in the next round.
 """
 
 import math
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -20,8 +22,54 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
+
+
+@dataclass
+class RoundClassifier:
+    """One synthesis round's empty-seeded family, as it classifies that round's
+    representative prefixes -- the round's attempt at the accept-preserving cut.
+    ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family.
+
+    The thresholds are the tracker's own, so the cut recorded here is the one
+    synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
+    population the family was clustered on. Off-length prefixes (boundary strings,
+    per-state samples) reach the family off its calibration, so a consumer checking
+    the recorded cut should restrict to the calibrated ones."""
+
+    prefixes: List[List[int]]
+    votes: np.ndarray
+    accept_thresh: float
+    reject_thresh: float
+    calibrated: np.ndarray
+
+    @property
+    def accept(self) -> np.ndarray:
+        return self.votes >= self.accept_thresh
+
+    @property
+    def reject(self) -> np.ndarray:
+        return self.votes < self.reject_thresh
+
+    @property
+    def decisive(self) -> np.ndarray:
+        return self.accept | self.reject
+
+
+def _round_classifier(pst, vs) -> RoundClassifier:
+    mask = pst.table.representative
+    prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
+    calibrated = np.array([len(p) == pst.sampler.length for p in prefixes], dtype=bool)
+    return RoundClassifier(
+        prefixes,
+        pst.compute_decision(vs, mask),
+        pst.accept_thresh,
+        pst.reject_thresh,
+        calibrated,
+    )
+
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
@@ -220,6 +268,7 @@ def counterexample_driven_synthesis(
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
         pst.decision_boundary = boundary
+        classifier = _round_classifier(pst, vs)
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
@@ -241,7 +290,7 @@ def counterexample_driven_synthesis(
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         uncoverable = uncoverable_access_strings(pst, dt)
         if uncoverable:
@@ -254,7 +303,7 @@ def counterexample_driven_synthesis(
                 f"{pst.sampler.length} (e.g. {examples}); the target is not "
                 f"learnable with this prefix sampler."
             )
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         _grow_representative_pool(
             pst,
@@ -276,24 +325,28 @@ def counterexample_driven_synthesis(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
                 "-- pool churning without resolving; stopping synthesis"
             )
-            yield dfa, dt, true_acc, pst.decision_boundary
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        yield dfa, dt, true_acc, pst.decision_boundary
+        yield dfa, dt, true_acc, pst.decision_boundary, classifier
 
 
-def do_counterexample_driven_synthesis(pst, *, acc_threshold: float) -> DFA:
+def do_counterexample_driven_synthesis(
+    pst, *, acc_threshold: float
+) -> Tuple[Optional[DFA], Optional[MidfixTree], List[RoundClassifier]]:
     # Rounds are not monotone -- rebuilding the representative pool re-clusters,
     # so a later family can classify worse -- so keep the most accurate
     # hypothesis, not the last. The boundary is kept with it because denoising
     # reads the tree against it.
     best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
-    for dfa, dt, true_acc, boundary in counterexample_driven_synthesis(
+    classifiers = []
+    for dfa, dt, true_acc, boundary, classifier in counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold
     ):
+        classifiers.append(classifier)
         if true_acc > best_acc:
             best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
     dfa, dt = best_dfa, best_dt
     if dfa is not None:
         pst.decision_boundary = best_boundary
         dfa = denoise_accept_labels(pst, dfa)
-    return dfa, dt
+    return dfa, dt, classifiers

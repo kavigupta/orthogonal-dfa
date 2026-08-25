@@ -154,7 +154,7 @@ def _measure(root: str, names: list[str]) -> dict:
         t0 = time.time()
         # Silence the synthesis chatter; we only want the JSON on stdout.
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            dfa = learn_dfa(
+            dfa, _ = learn_dfa(
                 counting_creator, min_signal_strength=bench["signal"], seed=0,
                 noise_model=noise_model)
             acc = evaluate_accuracy(dfa, creator, symbols=bench["symbols"])
