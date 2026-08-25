@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import numpy as np
+import scipy.stats
 
 from .statistics import evidence_margin_for_population_size
 
@@ -69,6 +70,48 @@ def recompute_evidence_margin(
     return eps
 
 
+#: Significance at which a family is held to disagree with epsilon.  A rejection
+#: costs a resample rather than a failure, so this is set against the resample
+#: budget -- the families a run evaluates -- not a family-wise error rate.
+EPSILON_AUDIT_ALPHA = 1e-3
+
+
+def epsilon_audit_pvalue(pst, vs, decision_boundary) -> float:
+    """Exact two-sided binomial test of the family's cut against epsilon's column.
+
+    Membership of ``p + eps`` is membership of ``p``, so epsilon's column *is* the
+    accept-preserving split.  Under the null that the family realises that split,
+    epsilon reads 1 at the accept rate on the prefixes the family accepts and at
+    the reject rate on those it rejects.  A family that has settled into a
+    neighbouring signature class -- still containing epsilon, but outvoting it --
+    depletes the one and enriches the other, which the FNR gate cannot see because
+    such a family is perfectly decisive.
+
+    The true rates are unknown; ``min_signal_strength`` bounds them away from the
+    boundary, and substituting a bound only makes the test conservative.
+    """
+    mask = pst.table.representative
+    decision = pst.compute_decision(vs, mask)
+    eps = pst.table.column(pst.table.intern_suffix([]))[mask]
+    signal = pst.config.min_signal_strength
+    worst = 1.0
+    for side, rate in (
+        (decision >= pst.accept_thresh, min(decision_boundary + signal, 1 - 1e-9)),
+        (decision < pst.reject_thresh, max(decision_boundary - signal, 1e-9)),
+    ):
+        n = int(side.sum())
+        if n < 2:
+            continue
+        hits = int(eps[side].sum())
+        tail = (
+            scipy.stats.binom.cdf(hits, n, rate)
+            if rate > 0.5
+            else scipy.stats.binom.sf(hits - 1, n, rate)
+        )
+        worst = min(worst, float(tail))
+    return min(1.0, 2 * worst)
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
@@ -89,8 +132,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
+        audit = epsilon_audit_pvalue(pst, vs, decision_boundary)
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
-        if fnr <= pst.config.fnr_limit:
+        if audit < EPSILON_AUDIT_ALPHA:
+            print(f"family disagrees with epsilon (p={audit:.2e}), resampling")
+        elif fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"

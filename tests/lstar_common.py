@@ -103,11 +103,11 @@ round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
-#: A state is *common in prefixes* when enough of the round's prefixes reach it
-#: for its accept/reject label to be more than a coin flip.  We decide that from
-#: the count alone, so this is the rate at which we call a state common in
-#: prefixes while its label is in fact undetermined.
-common_in_prefixes_fpr = 0.01
+#: Rate at which a whole verified run is expected to fail spuriously.  Set well
+#: below the 0.01 you would pick for a single decision because the run tests
+#: every state in every round, and the suite runs on the order of a hundred runs
+#: -- uncorrected, a red CI on a healthy learner is close to certain.
+round_check_run_fpr = 1e-4
 
 
 def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
@@ -203,11 +203,15 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     true_dfa = truth_oracle.target_dfa()
+    per_round = [_state_cuts(c, true_dfa) for c in classifiers]
+    # One comparison per state per round.  Counted over every state the round
+    # reached rather than only those above the threshold, so the count does not
+    # depend on the threshold it is used to compute.
+    comparisons = max(1, sum(len(c) for c in per_round))
     threshold = _common_in_prefixes_threshold(
-        kwargs["min_signal_strength"], common_in_prefixes_fpr
+        kwargs["min_signal_strength"], round_check_run_fpr / comparisons
     )
-    for classifier in classifiers:
-        cuts = _state_cuts(classifier, true_dfa)
+    for cuts in per_round:
 
         split = _split_states(cuts)
         if split:
