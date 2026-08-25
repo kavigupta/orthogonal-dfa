@@ -43,6 +43,23 @@ class TestKmerVocabulary(unittest.TestCase):
         x, y = wildcards(v)
         self.assertEqual(v.canonicalize([0, x, 1, y]), [0, x, 1, x])
 
+    def test_symbols_outside_the_super_alphabet_are_refused(self):
+        v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4, num_wildcards=2)
+        for bad in (-1, v.alphabet_size):
+            with self.assertRaises(AssertionError):
+                v.is_unknown(bad)
+            with self.assertRaises(AssertionError):
+                v.canonicalize([0, bad])
+
+    def test_kmers_are_normalized_to_tuples(self):
+        # frozen dataclasses are hashable, and callers cache on the vocabulary
+        v = KmerVocabulary(kmers=[[3, 0, 2], [3, 2, 0]], base_alphabet_size=4)
+        self.assertEqual(v.kmers, (TAG, TGA))
+        self.assertEqual(
+            hash(v), hash(KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4))
+        )
+        self.assertEqual(v.parse(list(TAG) + [0]), [0, v.unknown_symbol])
+
     def test_rejects_bad_kmers(self):
         with self.assertRaises(AssertionError):
             KmerVocabulary(kmers=((0, 9),), base_alphabet_size=4)  # 9 out of range

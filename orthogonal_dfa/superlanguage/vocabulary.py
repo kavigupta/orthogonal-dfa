@@ -33,6 +33,9 @@ class KmerVocabulary:
     num_wildcards: int = 2
 
     def __post_init__(self):
+        # frozen, so the caller's lists would survive as unhashable fields and only
+        # fail once something tried to cache on the vocabulary
+        object.__setattr__(self, "kmers", tuple(tuple(k) for k in self.kmers))
         assert self.base_alphabet_size >= 1, "base alphabet must be non-empty"
         assert self.num_wildcards >= 1, "need at least one wildcard"
         for kmer in self.kmers:
@@ -59,6 +62,9 @@ class KmerVocabulary:
         return self.num_kmers + self.num_wildcards
 
     def is_unknown(self, symbol: int) -> bool:
+        assert (
+            0 <= symbol < self.alphabet_size
+        ), f"{symbol} is outside the super alphabet"
         return symbol >= self.num_kmers
 
     def canonicalize(self, super_string: Iterable[int]) -> List[int]:
