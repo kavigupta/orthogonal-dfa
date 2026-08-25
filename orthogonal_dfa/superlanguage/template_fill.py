@@ -14,7 +14,13 @@ Legality at j therefore constrains s only through s[j] and the w symbols after i
 
     w = max |p| - 1,
 
-and the tables here give the transitions on that window and the symbols it permits.
+and the transfer tables give the transitions on that window and the symbols it
+permits.
+
+Counting legal fillings over that window is what makes the draw uniform: a backward
+pass counts, for every position and window, how many legal fillings the rest admits,
+and a forward pass draws each hole against those counts. Both walk positions rather
+than strings, which is what lets a batch of templates advance in step.
 """
 
 from dataclasses import dataclass
@@ -176,6 +182,14 @@ class TemplateFiller:
         assert len(templates) == len(rngs), "need one rng per template"
         if not templates:
             return []
+        # _PAD is one past FREE, so an unchecked -2 reads as a column this template
+        # does not occupy: emitted as symbol 0, and not advancing the window that
+        # its neighbouring holes are sampled against.
+        outside = {s for t in templates for s in t} - {
+            FREE,
+            *range(self.base_alphabet_size),
+        }
+        assert not outside, f"{sorted(outside)} is neither FREE nor a base symbol"
         _, _, shift = self._tables
         width = max(len(t) for t in templates)
         # Batch to keep the backward pass's (width, chunk, num_states) table near
