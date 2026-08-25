@@ -28,6 +28,14 @@ def starts_a_pattern(filler, string, position):
     )
 
 
+def contains(string, gram):
+    """Whether gram occurs anywhere in string, at a hole or not."""
+    return any(
+        tuple(string[i : i + len(gram)]) == tuple(gram)
+        for i in range(len(string) - len(gram) + 1)
+    )
+
+
 def legal_fillings(filler, template):
     """Brute force, from the definition rather than from the sampler's tables."""
     holes = [j for j, c in enumerate(template) if c == FREE]
@@ -315,6 +323,14 @@ class TestBatching(unittest.TestCase):
         solo = [AA.fill(t, np.random.default_rng(i)) for i, t in enumerate(templates)]
         self.assertEqual(chunked, solo)
 
+    def test_a_long_template_does_not_overflow_the_counts(self):
+        # The fiber grows like phi^width here, so past ~1500 the unrescaled counts
+        # leave float64 and every weight becomes inf or nan.
+        out = AA.fill([FREE] * 2000, np.random.default_rng(0))
+        self.assertEqual(len(out), 2000)
+        for j in range(len(out) - 1):
+            self.assertFalse(out[j] == 0 and out[j + 1] == 0, j)
+
     def test_a_draw_of_exactly_zero_skips_banned_symbols(self):
         # Next to 00 the hole may not take 0, and 0 leads the cumulative weights,
         # so a draw at the very bottom has to step past a zero-weight entry.
@@ -324,6 +340,62 @@ class TestBatching(unittest.TestCase):
 
         out = AA.fill_many([[FREE, FREE, 0, 0]], [ZeroDraws()])[0]
         self.assertEqual(out, [0, 1, 0, 0])
+
+
+class TestNgramFrequencyFuzz(unittest.TestCase):
+    """Random patterns, random template, random n-gram: the rate at which the
+    sampler draws a string containing that n-gram has to match the rate over the
+    template's legal fillings, which is what uniformity over them means.
+
+    The n-gram is taken out of a filling that is actually legal, so every trial
+    tests a live probability rather than an impossible one.
+    """
+
+    trials = 40
+    draws = 3000
+    sigmas = 5
+
+    def random_case(self, rng):
+        base = int(rng.integers(2, 4))
+        forbidden = tuple(
+            tuple(int(c) for c in rng.integers(base, size=int(rng.integers(1, 4))))
+            for _ in range(int(rng.integers(1, 4)))
+        )
+        filler = TemplateFiller(forbidden=forbidden, base_alphabet_size=base)
+        holes = int(rng.integers(1, 7))
+        fixed = int(rng.integers(0, 5))
+        template = [FREE] * holes + [int(c) for c in rng.integers(base, size=fixed)]
+        rng.shuffle(template)
+        return filler, template
+
+    def test_an_ngram_appears_at_its_exact_fiber_rate(self):
+        rng = np.random.default_rng(0)
+        tested = 0
+        for trial in range(self.trials):
+            filler, template = self.random_case(rng)
+            legal = legal_fillings(filler, template)
+            if len(legal) < 2:
+                continue
+            source = legal[int(rng.integers(len(legal)))]
+            n = int(rng.integers(1, min(3, len(source)) + 1))
+            at = int(rng.integers(len(source) - n + 1))
+            gram = source[at : at + n]
+
+            expected = np.mean([contains(one, gram) for one in legal])
+            drawn = filler.fill_many(
+                [template] * self.draws,
+                [np.random.default_rng(i) for i in range(self.draws)],
+            )
+            seen = np.mean([contains(tuple(one), gram) for one in drawn])
+
+            with self.subTest(trial=trial, forbidden=filler.forbidden, gram=gram):
+                if expected in (0.0, 1.0):
+                    self.assertEqual(seen, expected)
+                else:
+                    spread = (expected * (1 - expected) / self.draws) ** 0.5
+                    self.assertLess(abs(seen - expected), self.sigmas * spread)
+            tested += 1
+        self.assertGreater(tested, self.trials // 2, "too many degenerate templates")
 
 
 if __name__ == "__main__":
