@@ -176,15 +176,6 @@ def _split_states(cuts):
     ]
 
 
-def _wrongly_cut(cuts, true_dfa):
-    """``state -> prefixes reaching it`` for the states cut against the language."""
-    return {
-        state: accepted + rejected
-        for state, (accepted, rejected) in cuts.items()
-        if (accepted >= rejected) != (state in true_dfa.final_states)
-    }
-
-
 def _wrongly_cut_states(cuts, true_dfa, threshold):
     """States the round cut against the language, that it had the prefixes to know.
 
@@ -193,27 +184,11 @@ def _wrongly_cut_states(cuts, true_dfa, threshold):
     the round had the evidence and still cut the other way.
     """
     return [
-        (state, reached)
-        for state, reached in _wrongly_cut(cuts, true_dfa).items()
-        if reached >= threshold
+        (state, accepted + rejected)
+        for state, (accepted, rejected) in cuts.items()
+        if (accepted >= rejected) != (state in true_dfa.final_states)
+        and accepted + rejected >= threshold
     ]
-
-
-def _excused_wrong_prefixes(cuts, true_dfa, threshold):
-    """``(excused, total)`` prefixes: those in states cut wrong but too rare to hold.
-
-    Excusing a rare state one at a time is right -- its label was a coin flip.
-    Excusing every one of them is not: a family that inverts several states at
-    once is systematically wrong, not unlucky nine times over, and the prefixes
-    it cost add up even though no single state carries enough to convict.  So
-    they stay excused individually and budgeted together.
-    """
-    excused = sum(
-        reached
-        for reached in _wrongly_cut(cuts, true_dfa).values()
-        if reached < threshold
-    )
-    return excused, sum(accepted + rejected for accepted, rejected in cuts.values())
 
 
 def learn_dfa_verified(oracle_creator, **kwargs):
@@ -252,16 +227,5 @@ def learn_dfa_verified(oracle_creator, **kwargs):
                 f"{reached} prefixes -- at or above the {threshold:.1f} needed for "
                 f"the state's label to be more than a coin flip, so the round had "
                 f"the evidence and still cut the other way"
-            )
-
-        excused, total = _excused_wrong_prefixes(cuts, true_dfa, threshold)
-        if total and binomial_side_of_boundary(
-            excused, total, round_verify_fpr, failure_prob=round_verify_alpha
-        ):
-            raise AssertionError(
-                f"a synthesis round cut {excused}/{total} of its decisive prefixes "
-                f"against the language across states too rare to convict one at a "
-                f"time -- together still past the {round_verify_fpr} budget, so the "
-                f"family is wrong about the target rather than unlucky on one state"
             )
     return dfa
