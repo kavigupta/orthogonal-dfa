@@ -110,6 +110,39 @@ class TestLiftedOracle(unittest.TestCase):
         self.assertTrue(mostly.membership_query([x]))
         self.assertFalse(rarely.membership_query([x]))
 
+    def test_the_noise_model_reaches_the_answer(self):
+        # p_correct=0 inverts every label, so a noised oracle must contradict a
+        # clean one everywhere.
+        sampler = SuperSampler(self.vocab, 20)
+        rng = np.random.default_rng(7)
+        strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(50)]
+        clean = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
+        flipped = LiftedOracle(
+            self.base,
+            self.vocab,
+            num_compilations=1,
+            seed=0,
+            noise_model=SymmetricBernoulli(p_correct=0.0),
+        )
+        np.testing.assert_array_equal(
+            flipped.membership_queries(strings), ~clean.membership_queries(strings)
+        )
+
+    def test_the_seed_picks_out_a_different_compilation(self):
+        # Which base string a wildcard compiles to is the seed's business, so an
+        # oracle that reads the fill answers differently under a different one.
+        vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
+        x = vocab.unknown_symbol
+        base = _PredicateOracle(lambda s: s[0] != 0)
+        strings = [[x] * n for n in range(1, 40)]
+        first = LiftedOracle(base, vocab, num_compilations=1, seed=0)
+        second = LiftedOracle(base, vocab, num_compilations=1, seed=1)
+        self.assertTrue(
+            (
+                first.membership_queries(strings) != second.membership_queries(strings)
+            ).any()
+        )
+
     def test_wildcard_suffixes_preserve_the_label(self):
         """Wildcard-only suffixes share the empty suffix's column, which is the one
         the suffix-family clustering seeds on.
