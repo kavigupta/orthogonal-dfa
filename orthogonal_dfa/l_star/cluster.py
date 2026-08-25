@@ -72,8 +72,9 @@ def recompute_evidence_margin(
 
 
 #: Rounds of extra suffix sampling to spend trying to get a cluster that holds
-#: epsilon naturally.  Bounded: on a target where no such cluster exists, the
-#: spliced family is still the best available and the FNR gate takes over.
+#: epsilon naturally.  PROBE: exceeding this raises instead of falling back, so
+#: CI reports which targets never converge rather than silently paying for the
+#: regrowths and then using the spliced family anyway.
 MAX_DRIFT_REGROWTHS = 5
 
 
@@ -98,8 +99,13 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        if drifted and regrowths < MAX_DRIFT_REGROWTHS:
+        if drifted:
             regrowths += 1
+            if regrowths > MAX_DRIFT_REGROWTHS:
+                raise RuntimeError(
+                    f"suffix clustering drifted off the empty suffix "
+                    f"{regrowths} times without converging"
+                )
             print(
                 f"cluster refined away from the empty suffix; sampling more "
                 f"suffixes ({regrowths}/{MAX_DRIFT_REGROWTHS})"
