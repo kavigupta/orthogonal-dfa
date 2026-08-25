@@ -1,14 +1,3 @@
-"""Sampling super-strings for the learner.
-
-:class:`SuperSampler` is the super-alphabet counterpart of
-:class:`~orthogonal_dfa.l_star.sampler.UniformSampler`: it draws E-L*'s probe
-strings.  A super-string is drawn by generating a uniform random base stream and
-:meth:`~orthogonal_dfa.superlanguage.vocabulary.KmerVocabulary.parse`-ing it until
-``length`` super-symbols have been read, so the compiled base strings are exactly
-uniform.  This is a Markov process, not i.i.d.: its per-symbol marginal is close
-to but not equal to the fresh-position ``probabilities()``.
-"""
-
 from dataclasses import dataclass
 from typing import List
 
@@ -21,6 +10,10 @@ from .vocabulary import KmerVocabulary
 
 @dataclass(frozen=True)
 class SuperSampler(Sampler):
+    """Draws by parsing a uniform base stream, which is what leaves the compiled
+    strings uniform; drawing super-symbols independently would not.
+    """
+
     vocabulary: KmerVocabulary
     length: int
 
@@ -36,8 +29,8 @@ class SuperSampler(Sampler):
         longest = max((len(k) for k in vocab.kmers), default=1)
         stream = rng.integers(vocab.base_alphabet_size, size=self.length * longest)
         parsed = vocab.parse(stream.tolist())[: self.length]
-        # parse emits the canonical wildcard; spread neutral positions over all of
-        # them, which is what makes wildcard-only suffixes plentiful.
+        # parse only ever emits the canonical wildcard. Spreading the neutral
+        # positions over all of them is what makes such strings plentiful.
         wildcards = rng.integers(vocab.num_wildcards, size=self.length)
         return [
             vocab.num_kmers + int(w) if vocab.is_unknown(symbol) else symbol

@@ -1,16 +1,3 @@
-"""Lift a base-alphabet oracle to the super alphabet.
-
-:class:`LiftedOracle` answers a super-string by compiling it back to the base
-alphabet ``num_compilations`` times, querying the base oracle on each, and
-returning the majority vote.  Compilation randomizes the ``X`` symbols (uniformly
-over the fiber ``parse**-1``), so the vote sharpens the answer for any base label
-that varies across those realizations.  When the base oracle only reads features
-the kmers already carry, every compilation agrees and one compilation suffices.
-
-The compilation randomness is a deterministic hash of the super-string and
-``seed``, so the oracle is reproducible and memoizable.
-"""
-
 import hashlib
 from typing import List, Optional
 
@@ -22,7 +9,7 @@ from .vocabulary import KmerVocabulary
 
 
 def _compilation_seed(string: List[int], seed: int, index: int) -> int:
-    """A 64-bit seed for the ``index``-th compilation of ``string`` under ``seed``."""
+    """Deterministic in its arguments, so a query can be cached."""
     digest = hashlib.blake2b(
         repr((list(string), seed, index)).encode(), digest_size=8
     ).digest()
@@ -30,6 +17,10 @@ def _compilation_seed(string: List[int], seed: int, index: int) -> int:
 
 
 class LiftedOracle(Oracle):
+    """Majority vote over several compilations, which only moves the answer for
+    a base oracle that can see how the wildcards were filled.
+    """
+
     def __init__(
         self,
         base_oracle: Oracle,
@@ -57,8 +48,8 @@ class LiftedOracle(Oracle):
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # Flatten (string, compilation) into one batch, so both the compilation and
-        # the base oracle -- which may be an expensive batched model -- run once.
+        # One batch for the whole cross product: the base oracle may be a model
+        # that is far cheaper called once.
         repeated: List[List[int]] = []
         rngs: List[np.random.Generator] = []
         for string in strings:

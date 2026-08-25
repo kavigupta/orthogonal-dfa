@@ -1,16 +1,3 @@
-"""Learn a DFA over the superlanguage of a vocabulary.
-
-A :class:`SuperSampler` draws probe strings over the super alphabet, a
-:class:`LiftedOracle` answers membership against ``base_oracle``, and ``learn_dfa``
-does the rest.  Returns ``(dfa, vocabulary)`` so the super-symbol transitions can
-be read back as kmers / ``X``.
-
-Compile is invertible, so the lifted oracle is a deterministic function of the
-super-string; the framework's symmetric noise (``SymmetricBernoulli(0.5 +
-min_signal_strength)``) is injected as usual so E-L*'s screening has signal to
-size itself against, exactly as for a base-alphabet oracle.
-"""
-
 # pylint: disable=duplicate-code  # forwarding build_pst's kwargs, not copied logic
 
 from typing import Any, Optional, Tuple
@@ -39,16 +26,10 @@ def learn_superlanguage(
     min_suffix_frequency: float = 0.02,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ) -> Tuple[Any, KmerVocabulary]:
-    """Learn a DFA over ``vocabulary``'s superlanguage against ``base_oracle``.
-
-    ``num_symbols`` is the number of super-symbols per sampled string;
-    ``num_compilations`` is how many base compilations are majority-voted per
-    membership query; one is enough whenever the base oracle only reads features
-    the kmers carry (compilation cannot forge them), which is the usual case.
-    ``noise_model`` defaults to the framework's symmetric
-    noise (see :func:`~orthogonal_dfa.l_star.learn.build_pst`).  Returns
-    ``(dfa, vocabulary)`` (``dfa`` is ``None`` when synthesis produced no
-    hypothesis).
+    """Noise reaches the learner only through noise_model, compile being invertible
+    and the lifted oracle therefore deterministic. Raising num_compilations pays
+    only when the base oracle can see the wildcard fill. dfa is None if synthesis
+    reached no hypothesis.
     """
 
     def oracle_creator(nm, s):

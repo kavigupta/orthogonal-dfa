@@ -1,11 +1,6 @@
-"""Tests for the superlanguage stack: sampler, lifted oracle, the ``build_pst``
-wiring, and end-to-end learning.  The vocabulary itself is covered separately, in
-``test_superlanguage_vocabulary``.
-
-The oracle and learning tests use the real :class:`AllFramesClosedOracle` with the
-vocabulary's kmers set to the stop codons ``TAG``/``TGA``/``TAA``.  Because compile
-is invertible, ``X`` never spells a stop codon, so the all-frames-closed label is a
-deterministic (X-insensitive) function of the super-string.
+"""The kmers are the stop codons, so all_frames_closed reads exactly what they
+carry and a wildcard can never forge one. Its label is then a function of the
+super-string alone, which is what lets these assert equality rather than a rate.
 """
 
 import unittest
@@ -26,7 +21,7 @@ TAG, TGA, TAA = (3, 0, 2), (3, 2, 0), (3, 0, 0)
 
 
 class _PredicateOracle(Oracle):
-    """Base oracle accepting a base string iff ``predicate(string)``."""
+    """Accepts a base string iff predicate(string)."""
 
     def __init__(self, predicate, alphabet_size=4):
         self._predicate = predicate
@@ -57,10 +52,7 @@ class TestSuperSampler(unittest.TestCase):
         self.assertEqual(self.sampler.length, 25)
 
     def test_samples_parse_of_uniform(self):
-        # The sampler compiles back to a uniform base stream, so the induced base
-        # marginal is flat and no super-string contains a spurious structure.
         out = self.sampler.sample(np.random.default_rng(3), self.vocab.alphabet_size)
-        # every sampled super-string round-trips (up to which wildcard was used)
         rng = np.random.default_rng(3)
         self.assertEqual(
             self.vocab.parse(self.vocab.compile(out, rng)),
@@ -94,9 +86,7 @@ class TestLiftedOracle(unittest.TestCase):
         np.testing.assert_array_equal(a, b)
 
     def test_x_insensitive_label(self):
-        # Because compile is invertible, one compilation already gives the final
-        # answer -- the vote is unanimous no matter how many compilations, which
-        # is why num_compilations defaults to 1.
+        # Invertibility makes the vote unanimous, so one compilation settles it.
         one = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
         many = LiftedOracle(self.base, self.vocab, num_compilations=16, seed=0)
         sampler = SuperSampler(self.vocab, 40)
@@ -107,12 +97,8 @@ class TestLiftedOracle(unittest.TestCase):
         )
 
     def test_majority_vote_over_compilations(self):
-        """A base oracle that *does* read the wildcard fill is answered by the
-        majority of ``num_compilations`` draws, which is what more than one
-        compilation buys.  Here a lone wildcard compiles to a uniform base symbol,
-        so ~3/4 of the draws are non-A and the vote lands on accept; the mirrored
-        oracle votes reject.
-        """
+        # A lone wildcard is uniform over the base alphabet, so three draws in four
+        # are non-A and the vote goes that way; the mirrored oracle goes the other.
         vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
         x = vocab.unknown_symbol
         mostly = LiftedOracle(
@@ -125,11 +111,8 @@ class TestLiftedOracle(unittest.TestCase):
         self.assertFalse(rarely.membership_query([x]))
 
     def test_wildcard_suffixes_preserve_the_label(self):
-        """Appending wildcards cannot create a stop codon, so a wildcard-only
-        suffix leaves the all-frames-closed label alone -- these suffixes have the
-        same membership column as the empty suffix, which is what the learner's
-        suffix-family clustering locks onto.  Several wildcards exist precisely so
-        there are many *distinct* such suffixes to fill a family with.
+        """Wildcard-only suffixes share the empty suffix's column, which is the one
+        the suffix-family clustering seeds on.
         """
         wild = range(self.vocab.num_kmers, self.vocab.alphabet_size)
         sampler = SuperSampler(self.vocab, 30)
@@ -143,8 +126,8 @@ class TestLiftedOracle(unittest.TestCase):
             )
 
     def test_many_distinct_wildcard_only_suffixes(self):
-        # With one wildcard there is exactly one wildcard-only suffix per length,
-        # too few to fill a suffix family; with two there are plenty.
+        # One wildcard would give a single such suffix per length, far under the
+        # family size; two give plenty.
         sampler = SuperSampler(self.vocab, 40)
         rng = np.random.default_rng(12)
         seen = set()
@@ -176,7 +159,7 @@ class TestLiftedOracle(unittest.TestCase):
 
 
 class TestBuildPstWiring(unittest.TestCase):
-    """``build_pst`` must thread a custom sampler through to the tracker."""
+    """build_pst must thread a custom sampler through to the tracker."""
 
     def test_super_sampler_flows_through_build_pst(self):
         vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
@@ -201,11 +184,9 @@ class TestBuildPstWiring(unittest.TestCase):
 
 
 class TestLearnSuperlanguage(unittest.TestCase):
-    """End-to-end: learn a DFA over the stop-codon superlanguage against the real
-    all-frames-closed oracle -- the superlanguage analogue of ``test_no_orf``.
-
-    The induced DFA is smaller than the base-alphabet one (a stop codon is a
-    single super-symbol rather than a three-symbol path).
+    """The superlanguage counterpart of test_no_orf. A stop codon is one
+    super-symbol rather than a three-symbol path, so the DFA is smaller than the
+    base-alphabet one.
     """
 
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
