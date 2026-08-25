@@ -1,12 +1,18 @@
 import numpy as np
 import scipy.stats
+from automata.fa.dfa import DFA
+from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int
 
 us = UniformSampler(40)
+
+#: Stands in for "ran off the end of a partial DFA".
+_DEAD = object()
 
 # assertDFA tolerance — slightly looser than the synthesis target so we don't
 # flake when synthesis converges near the threshold.  See GitHub issue on
@@ -125,13 +131,35 @@ def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
     return z**2 * (0.25 - signal**2) / signal**2
 
 
+def _target_dfa(oracle):
+    """The target's DFA, where the oracle can hand one over.
+
+    A DFA-backed oracle already holds it.  A regex one is compiled the same way
+    ``capal_official.build_regex_dfa`` does, over the same int-as-str symbols
+    ``BernoulliRegex`` matches on.  Anything else has no states to offer.
+    """
+    held = getattr(oracle, "_dfa", None)
+    if held is not None:
+        return held
+    regex = getattr(oracle, "regex", None)
+    if regex is None:
+        return None
+    symbols = {str(i) for i in range(oracle.alphabet_size)}
+    nfa = NFA.from_regex(regex, input_symbols=symbols)
+    return al_dfa_symbols_to_int(DFA.from_nfa(nfa, minify=True))
+
+
 def _reached_states(prefixes, true_dfa):
     """The state each prefix reaches in ``true_dfa``."""
 
     def end(prefix):
         state = true_dfa.initial_state
         for symbol in prefix:
-            state = true_dfa.transitions[state][symbol]
+            # A compiled regex DFA can be partial; a missing edge is a dead end,
+            # which is a state like any other for counting purposes.
+            state = true_dfa.transitions[state].get(symbol, _DEAD)
+            if state is _DEAD:
+                break
         return state
 
     return [end(p) for p in prefixes]
@@ -184,7 +212,7 @@ def learn_dfa_verified(oracle_creator, *, true_dfa=None, **kwargs):
     dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     if true_dfa is None:
-        true_dfa = getattr(truth_oracle, "_dfa", None)
+        true_dfa = _target_dfa(truth_oracle)
     signal = kwargs["min_signal_strength"]
     for classifier in classifiers:
         counts = _round_accept_preserving_counts(
