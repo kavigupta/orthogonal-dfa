@@ -28,22 +28,20 @@ Pattern = Tuple[int, ...]
 
 @lru_cache(maxsize=None)
 def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
-    """A state is the window of w symbols following a position j, packed in radix
-    r = base + 1 with the nearest symbol as the least significant digit:
+    """
+    Effectively a DFA that traverses through windows of size w, backwards
+    through the string, telling you when prepending a speciifc symbol would start
+    a forbidden pattern.
 
-        state(j) = sum_{0 <= i < w} r^i * s[j + 1 + i].
+    Let a state be the window of w symbols following a position j.
+        We pack this into a radix r = base + 1 number so we can handle running past
+        the end of the string.
 
-    The digit `base` is a sentinel for j + 1 + i running past the end of the string.
-    It is not in A, so it equals no symbol of any pattern.
+    initial is the state at the end of the string, which is all sentinels.
 
-    shift[c, state] is state(j - 1) once s[j] = c is chosen: c becomes digit 0 and
-    the far symbol falls off,
-
-        shift[c, state] = c + r * (state mod r^(w - 1)).
+    shift[c, state] is state(j - 1) once s[j] = c is chosen.
 
     allowed[state, c] is False exactly when c would start a forbidden pattern at j,
-
-        p[0] = c and p[1:] = s[j + 1 : j + |p|]   for some p in forbidden.
     """
     w = max((len(p) for p in forbidden), default=1) - 1
     radix = base + 1
@@ -76,8 +74,8 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
 
 @dataclass(frozen=True)
 class TemplateFiller:
-    """Nothing here reads the patterns as anything but strings to keep out of the
-    holes, so duplicate or prefix-related ones are fine.
+    """forbidden need not be prefix-free, or even duplicate-free: each pattern is
+    an independent ban, and allowed is their conjunction.
     """
 
     forbidden: Tuple[Pattern, ...]
@@ -96,9 +94,9 @@ class TemplateFiller:
 
     @property
     def every_context_is_fillable(self) -> bool:
-        """Whether every context of that many symbols leaves a hole something to
-        take. Sufficient for every template to be fillable, not necessary: a context
-        no template forces the sampler into still counts against it here.
+        """Whether every context leaves a hole some symbol it could take. Sufficient
+        for every template to be fillable, not necessary: a context no template ever
+        puts a hole in front of still counts against it here.
         """
         _, allowed, _ = self._tables
         return bool(allowed.any(axis=1).all())
