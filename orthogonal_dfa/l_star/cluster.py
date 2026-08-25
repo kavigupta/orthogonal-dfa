@@ -19,18 +19,27 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    # Refine only while epsilon still belongs to what the refinement selects.
+    # Each pass recentres on the current cluster and takes the nearest `count`,
+    # so it walks toward whichever behaviour is most common among the candidates.
+    # Where that is not epsilon's, the old code spliced epsilon back in as one
+    # vote among `count` and the family's cut stopped matching epsilon's -- and
+    # epsilon's column *is* the accept-preserving split, since membership of
+    # ``p + eps`` is membership of ``p``.  Stopping instead keeps the last
+    # cluster epsilon was genuinely part of, and costs no extra queries.
     cluster = [seed_local]
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
-        cluster = losses.argsort()[:count]
-        if seed_local not in cluster:
-            cluster = np.concatenate([[seed_local], cluster[: count - 1]])
-        new_loss = losses[cluster].sum()
+        nearest = losses.argsort()[:count]
+        if seed_local not in nearest:
+            break
+        new_loss = losses[nearest].sum()
         if new_loss >= loss:
             break
-        loss = new_loss
+        cluster, loss = nearest, new_loss
+    cluster_center = masks[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)
