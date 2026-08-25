@@ -1,4 +1,4 @@
-"""Tests for the superlanguage vocabulary: the kmer + wildcard alphabet and its
+"""Tests for the superlanguage vocabulary: the kmer + wildcard alphabet and the
 invertible, fiber-uniform compilation to and from the base alphabet.
 
 Uses the genomic stop codons as the kmers, since they are what the superlanguage
@@ -58,17 +58,33 @@ class TestKmerVocabulary(unittest.TestCase):
     def test_vocabulary_with_no_kmers(self):
         v = KmerVocabulary(kmers=(), base_alphabet_size=4, num_wildcards=2)
         self.assertEqual(v.alphabet_size, 2)
-        rng = np.random.default_rng(0)
+        self.assertEqual(v.parse([0, 3, 1]), [v.unknown_symbol] * 3)
         s = [v.unknown_symbol, wildcards(v)[1], v.unknown_symbol]
-        out = v.compile(s, rng)
+        out = v.compile(s, np.random.default_rng(0))
         self.assertEqual(len(out), 3)
         self.assertEqual(v.parse(out), v.canonicalize(s))
 
-    def test_compile_all_kmer_is_concatenation(self):
-        # No X slots -> compile is deterministic concatenation of the kmers.
-        v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4)
-        rng = np.random.default_rng(0)
-        self.assertEqual(v.compile([0, 1, 0], rng), list(TAG) + list(TGA) + list(TAG))
+    def test_canonicalize_collapses_the_wildcards(self):
+        v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4, num_wildcards=2)
+        x, y = wildcards(v)
+        self.assertEqual(v.canonicalize([0, x, 1, y]), [0, x, 1, x])
+
+    def test_symbols_outside_the_super_alphabet_are_refused(self):
+        v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4, num_wildcards=2)
+        for bad in (-1, v.alphabet_size):
+            with self.assertRaises(AssertionError):
+                v.is_unknown(bad)
+            with self.assertRaises(AssertionError):
+                v.canonicalize([0, bad])
+
+    def test_kmers_are_normalized_to_tuples(self):
+        # frozen dataclasses are hashable, and callers cache on the vocabulary
+        v = KmerVocabulary(kmers=[[3, 0, 2], [3, 2, 0]], base_alphabet_size=4)
+        self.assertEqual(v.kmers, (TAG, TGA))
+        self.assertEqual(
+            hash(v), hash(KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4))
+        )
+        self.assertEqual(v.parse(list(TAG) + [0]), [0, v.unknown_symbol])
 
     def test_rejects_bad_kmers(self):
         with self.assertRaises(AssertionError):
@@ -78,9 +94,15 @@ class TestKmerVocabulary(unittest.TestCase):
         with self.assertRaises(AssertionError):
             KmerVocabulary(kmers=((0,), (0,)), base_alphabet_size=4)  # duplicate
         with self.assertRaises(AssertionError):
-            # prefix-related: (0,1) is a prefix of (0,1,2), so what follows the
-            # short one could grow it into the long one
+            # prefix-related: (0,1) is a prefix of (0,1,2), so parse could not tell
+            # which of the two a base string starting 0 1 2 spells
             KmerVocabulary(kmers=((0, 1), (0, 1, 2)), base_alphabet_size=4)
+
+    def test_compile_all_kmer_is_concatenation(self):
+        # No X slots -> compile is deterministic concatenation of the kmers.
+        v = KmerVocabulary(kmers=(TAG, TGA), base_alphabet_size=4)
+        rng = np.random.default_rng(0)
+        self.assertEqual(v.compile([0, 1, 0], rng), list(TAG) + list(TGA) + list(TAG))
 
     def test_rejects_kmers_that_crowd_out_the_wildcards(self):
         # Before 000 every symbol starts a kmer -- 0 spells (0,0,0), 1 spells
@@ -108,7 +130,7 @@ class TestKmerVocabulary(unittest.TestCase):
                     )
 
 
-class TestParseCompile(unittest.TestCase):
+class TestParse(unittest.TestCase):
     def setUp(self):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         self.X = self.vocab.unknown_symbol
@@ -117,6 +139,31 @@ class TestParseCompile(unittest.TestCase):
         # TAG then a lone A (not a stop) then TGA.
         base = list(TAG) + [0] + list(TGA)
         self.assertEqual(self.vocab.parse(base), [0, self.X, 1])
+
+    def test_parse_of_the_empty_string(self):
+        self.assertEqual(self.vocab.parse([]), [])
+
+    def test_a_partial_kmer_at_the_end_is_wildcards(self):
+        self.assertEqual(self.vocab.parse([3, 0]), [self.X, self.X])
+
+    def test_parse_is_leftmost_when_occurrences_overlap(self):
+        # AA occurs at 0 and at 1 in AAA; the leftmost wins and the odd symbol
+        # is left over as a wildcard.
+        vocab = KmerVocabulary(kmers=((0, 0),), base_alphabet_size=4)
+        self.assertEqual(vocab.parse([0, 0, 0]), [0, vocab.unknown_symbol])
+        self.assertEqual(vocab.parse([0, 0, 0, 0]), [0, 0])
+
+    def test_a_kmer_inside_an_earlier_match_is_not_seen(self):
+        # ACG is taken whole, so the CG starting one symbol in is never looked at.
+        vocab = KmerVocabulary(kmers=((0, 1, 2), (1, 2)), base_alphabet_size=4)
+        self.assertEqual(vocab.parse([0, 1, 2]), [0])
+        self.assertEqual(vocab.parse([3, 1, 2]), [vocab.unknown_symbol, 1])
+
+
+class TestParseCompile(unittest.TestCase):
+    def setUp(self):
+        self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
+        self.X = self.vocab.unknown_symbol
 
     @parameterized.expand(SHAPES)
     def test_roundtrip_parse_of_compile(self, _name, vocab):
@@ -221,13 +268,6 @@ class TestOverlappingKmers(unittest.TestCase):
             out = vocab.compile([x, 0], np.random.default_rng(seed))
             self.assertNotEqual(out[0], 0, out)
             self.assertEqual(vocab.parse(out), [x, 0])
-
-    def test_parse_is_leftmost_when_occurrences_overlap(self):
-        # AA occurs at 0 and at 1 in AAA; the leftmost wins and the odd symbol
-        # is left over as a wildcard.
-        vocab = KmerVocabulary(kmers=((0, 0),), base_alphabet_size=4)
-        self.assertEqual(vocab.parse([0, 0, 0]), [0, vocab.unknown_symbol])
-        self.assertEqual(vocab.parse([0, 0, 0, 0]), [0, 0])
 
     def test_roundtrip_with_overlapping_kmers(self):
         for kmers in [

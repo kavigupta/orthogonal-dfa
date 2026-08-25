@@ -4,6 +4,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
+from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     sample_balanced_benchmark,
@@ -13,9 +14,10 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
 from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
 class TestLStar(unittest.TestCase):
@@ -245,7 +247,15 @@ class TestLStarBimodalReproducer(unittest.TestCase):
 
     def test_bimodal_reproducer(self):
         oracle_creator = lambda nm, s, _dfa=self.DFA: DFAOracle(nm, s, _dfa)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        # Accept state 9 is absorbing and reachable from the reject cluster, so a
+        # random suffix almost always drives a reject prefix into it: no suffix is
+        # accept-preserving, so no accept-preserving family exists for the round
+        # check to recover. Synthesis instead settles on a coherent
+        # non-accept-preserving cut and relies on denoise_accept_labels to fix the
+        # resulting labels -- hence learn_dfa_unchecked rather than the verified
+        # learner the other tests use.
+        self.assertLess(P.class_preserving_fraction(self.DFA, length=40), 0.01)
+        dfa, _ = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(

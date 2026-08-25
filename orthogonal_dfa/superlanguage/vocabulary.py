@@ -7,18 +7,18 @@ The compiler is a randomized function that fills in the wildcards with base symb
 so that the result parses back to the original super-string.
 
 The parser is deterministic and greedy: it reads the base string left to right, taking
-the first kmer it sees, or else a wildcard.
+the first kmer it sees, or else a wildcard. Prefix-freeness is what makes that
+unambiguous.
 
 We guarantee that parse(compile(y)) = y up to wildcard identity, and that compile(y) is
 uniform over the base strings that parse back to y.
 
-We require two restrictions on the kmers: they must be prefix-free, and no context --
-no run of the next (longest kmer - 1) symbols -- may leave a wildcard with no
-symbol it could take. E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA}
-are not allowed, because the string X AAA can't be compiled, as whatever X resolves
-to will get merged with AA from AAA. Both restrictions are stricter than strictly
-necessary; the second rules out contexts compile would never have had to put a
-wildcard in.
+Compile needs a second restriction beyond prefix-freeness: no context -- no run of the
+next (longest kmer - 1) symbols -- may leave a wildcard with no symbol it could take.
+E.g., over the alphabet {A, C, G, T} the kmers {AAA, CAA, GAA, TAA} are not allowed,
+because the string X AAA can't be compiled, as whatever X resolves to will get merged
+with AA from AAA. Both restrictions are stricter than strictly necessary; the second
+rules out contexts compile would never have had to put a wildcard in.
 
 We allow multiple wildcards to ensure we can simulate a diversity of strings, they are,
 in fact, interchangeable.
@@ -51,6 +51,9 @@ class KmerVocabulary:
     num_wildcards: int = 2
 
     def __post_init__(self):
+        # frozen, so the caller's lists would survive as unhashable fields and only
+        # fail once something tried to cache on the vocabulary
+        object.__setattr__(self, "kmers", tuple(tuple(k) for k in self.kmers))
         assert self.base_alphabet_size >= 1, "base alphabet must be non-empty"
         assert self.num_wildcards >= 1, "need at least one wildcard"
         for kmer in self.kmers:
@@ -91,6 +94,9 @@ class KmerVocabulary:
         return self.num_kmers + self.num_wildcards
 
     def is_unknown(self, symbol: int) -> bool:
+        assert (
+            0 <= symbol < self.alphabet_size
+        ), f"{symbol} is outside the super alphabet"
         return symbol >= self.num_kmers
 
     def canonicalize(self, super_string: Iterable[int]) -> List[int]:
@@ -141,10 +147,6 @@ class KmerVocabulary:
         """The base string with the kmers filled in and the wildcards left open."""
         template: List[int] = []
         for symbol in super_string:
-            # a negative symbol is not a wildcard, and would index kmers from the end
-            assert (
-                0 <= symbol < self.alphabet_size
-            ), f"{symbol} is outside the super alphabet"
             if self.is_unknown(symbol):
                 template.append(FREE)
             else:
