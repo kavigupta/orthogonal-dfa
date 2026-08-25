@@ -91,16 +91,16 @@ def assertDoesNotMeetProperty(
 # Every synthesis round's family is seeded at the empty suffix, so its decisive
 # classifications should realise the accept-preserving split: the noiseless
 # membership 1[x in L]. learn_dfa returns each round's RoundClassifier, and
-# learn_dfa_verified checks it over the prefixes the round decides (indecisive ones
-# are boundary strings, excluded).
+# learn_dfa_verified checks it a state at a time over the prefixes the round
+# decides (indecisive ones are boundary strings, excluded).
 #
-# A round fails only when its misclassification count is, by a binomial test,
-# significantly above the calibration's own per-decision error budget -- not against
-# a hand-picked fraction. This is sample-size-aware: a handful of near-boundary
-# misses on a few-hundred-prefix pool is within the fpr floor, while a family that
-# computes the wrong cut misclassifies far more than the floor predicts.
+# These two bound the *within-state* disagreement: a round is entitled to
+# `round_verify_fpr` wrong decisions per prefix, so a state whose minority side is
+# larger than that explains -- by a binomial test at `round_verify_alpha` -- was
+# not cut by a family holding one opinion about it.  Neither is a budget over the
+# pool as a whole; nothing sums misclassifications across states any more.
 round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
-round_verify_alpha = 1e-4  # binomial significance for flagging a round
+round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
 #: A state is *common in prefixes* when enough of the round's prefixes reach it
@@ -176,6 +176,15 @@ def _split_states(cuts):
     ]
 
 
+def _wrongly_cut(cuts, true_dfa):
+    """``state -> prefixes reaching it`` for the states cut against the language."""
+    return {
+        state: accepted + rejected
+        for state, (accepted, rejected) in cuts.items()
+        if (accepted >= rejected) != (state in true_dfa.final_states)
+    }
+
+
 def _wrongly_cut_states(cuts, true_dfa, threshold):
     """States the round cut against the language, that it had the prefixes to know.
 
@@ -184,11 +193,27 @@ def _wrongly_cut_states(cuts, true_dfa, threshold):
     the round had the evidence and still cut the other way.
     """
     return [
-        (state, accepted + rejected)
-        for state, (accepted, rejected) in cuts.items()
-        if (accepted >= rejected) != (state in true_dfa.final_states)
-        and accepted + rejected >= threshold
+        (state, reached)
+        for state, reached in _wrongly_cut(cuts, true_dfa).items()
+        if reached >= threshold
     ]
+
+
+def _excused_wrong_prefixes(cuts, true_dfa, threshold):
+    """``(excused, total)`` prefixes: those in states cut wrong but too rare to hold.
+
+    Excusing a rare state one at a time is right -- its label was a coin flip.
+    Excusing every one of them is not: a family that inverts several states at
+    once is systematically wrong, not unlucky nine times over, and the prefixes
+    it cost add up even though no single state carries enough to convict.  So
+    they stay excused individually and budgeted together.
+    """
+    excused = sum(
+        reached
+        for reached in _wrongly_cut(cuts, true_dfa).values()
+        if reached < threshold
+    )
+    return excused, sum(accepted + rejected for accepted, rejected in cuts.values())
 
 
 def learn_dfa_verified(oracle_creator, **kwargs):
@@ -227,5 +252,16 @@ def learn_dfa_verified(oracle_creator, **kwargs):
                 f"{reached} prefixes -- at or above the {threshold:.1f} needed for "
                 f"the state's label to be more than a coin flip, so the round had "
                 f"the evidence and still cut the other way"
+            )
+
+        excused, total = _excused_wrong_prefixes(cuts, true_dfa, threshold)
+        if total and binomial_side_of_boundary(
+            excused, total, round_verify_fpr, failure_prob=round_verify_alpha
+        ):
+            raise AssertionError(
+                f"a synthesis round cut {excused}/{total} of its decisive prefixes "
+                f"against the language across states too rare to convict one at a "
+                f"time -- together still past the {round_verify_fpr} budget, so the "
+                f"family is wrong about the target rather than unlucky on one state"
             )
     return dfa
