@@ -118,10 +118,8 @@ def _round_accept_preserving_counts(classifier, truth_oracle):
     )
 
 
-def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
-    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
-    truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
+def assert_rounds_accept_preserving(classifiers, truth_oracle):
+    """The per-round invariant, against whatever alphabet truth_oracle answers on."""
     for classifier in classifiers:
         counts = _round_accept_preserving_counts(classifier, truth_oracle)
         if counts is None:
@@ -136,4 +134,12 @@ def learn_dfa_verified(oracle_creator, **kwargs):
                 f"significantly above the fpr budget {round_verify_fpr} "
                 f"(binomial test, alpha={round_verify_alpha})"
             )
+
+
+def learn_dfa_verified(oracle_creator, **kwargs):
+    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
+    assert_rounds_accept_preserving(
+        classifiers, oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
+    )
     return dfa
