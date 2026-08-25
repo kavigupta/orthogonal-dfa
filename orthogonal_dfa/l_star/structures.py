@@ -90,3 +90,12 @@ class Oracle(ABC):
         on `strings`'s length.
         """
         return np.array([self.membership_query(s) for s in strings], dtype=bool)
+
+    def target_dfa(self):
+        """The DFA of the language this oracle answers for, over int symbols.
+
+        ``None`` where there is no such DFA -- the language is not regular, or is
+        a neural model we cannot write one for.  Answering is what lets a caller
+        reason about the target's *states* rather than only its strings.
+        """
+        return None
