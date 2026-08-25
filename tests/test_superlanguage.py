@@ -10,6 +10,7 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.statistics import population_size_and_evidence_margin
 from orthogonal_dfa.l_star.structures import NoiseModel, Oracle, SymmetricBernoulli
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
@@ -288,6 +289,60 @@ class TestLearnForwarding(unittest.TestCase):
     def test_the_noise_model_reaches_the_tracker(self):
         _, noise = self._first_batch(num_symbols=7)
         self.assertGreater(noise.calls, 0)
+
+
+class TestSuffixFamily(unittest.TestCase):
+    """A wildcard-only suffix leaves a label alone, which is only worth anything if
+    a family of them then tells the prefixes apart. That is what the learner builds
+    its family from, and why one wildcard is not enough to build one."""
+
+    def _tracker(self, vocab, num_symbols=20):
+        base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        return build_pst(
+            lambda nm, s: LiftedOracle(
+                base, vocab, num_compilations=1, seed=s, noise_model=nm
+            ),
+            min_signal_strength=0.3,
+            seed=0,
+            sampler=SuperSampler(vocab, num_symbols),
+        )
+
+    def test_a_wildcard_only_family_separates_the_prefixes(self):
+        vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
+        pst = self._tracker(vocab)
+        sampler = SuperSampler(vocab, 20)
+        rng = np.random.default_rng(1)
+        family, seen = [], set()
+        # Bounded: if the wildcard-only suffixes ever stop being plentiful this
+        # should report that, not search for them forever.
+        for _ in range(2000):
+            s = sampler.sample(rng, vocab.alphabet_size)
+            if all(vocab.is_unknown(y) for y in s) and tuple(s) not in seen:
+                seen.add(tuple(s))
+                family.append(pst.table.intern_suffix(s))
+                if len(family) == pst.config.suffix_family_size:
+                    break
+        self.assertEqual(len(family), pst.config.suffix_family_size)
+        pst.table.observed_masks(family, np.ones(pst.num_prefixes, dtype=bool))
+        # An uninformative family scores 1, so this is the whole question.
+        self.assertLessEqual(pst.compute_fnr(family), pst.config.fnr_limit)
+
+    def test_one_wildcard_leaves_nothing_to_build_a_family_from(self):
+        vocab = KmerVocabulary(
+            kmers=(TAG, TGA, TAA), base_alphabet_size=4, num_wildcards=1
+        )
+        sampler = SuperSampler(vocab, 20)
+        rng = np.random.default_rng(1)
+        seen = set()
+        for _ in range(400):
+            s = sampler.sample(rng, vocab.alphabet_size)
+            if all(vocab.is_unknown(y) for y in s):
+                seen.add(tuple(s))
+        self.assertEqual(len(seen), 1)
+        wanted, _ = population_size_and_evidence_margin(
+            signal_strength=0.3, acceptable_fpr=0.01, acceptable_fnr=0.01
+        )
+        self.assertGreater(wanted, len(seen))
 
 
 class TestLearnSuperlanguage(unittest.TestCase):
