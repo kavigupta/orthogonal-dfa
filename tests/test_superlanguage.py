@@ -131,7 +131,7 @@ class TestLiftedOracle(unittest.TestCase):
         suffix-family clustering locks onto.  Several wildcards exist precisely so
         there are many *distinct* such suffixes to fill a family with.
         """
-        wild = self.vocab.wildcard_symbols
+        wild = range(self.vocab.num_kmers, self.vocab.alphabet_size)
         sampler = SuperSampler(self.vocab, 30)
         rng = np.random.default_rng(11)
         for _ in range(50):

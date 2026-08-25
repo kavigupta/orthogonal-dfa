@@ -31,11 +31,10 @@ class SuperSampler(Sampler):
             f"for {alphabet_size}"
         )
         vocab = self.vocabulary
-        # Each super-symbol eats at most max_kmer_length base symbols, so this many
-        # always parses to at least `length` of them; the tail is discarded.
-        stream = rng.integers(
-            vocab.base_alphabet_size, size=self.length * vocab.max_kmer_length
-        )
+        # A super-symbol eats at most one kmer's worth of base symbols, so this
+        # many always parses to at least `length` of them; the tail is discarded.
+        longest = max((len(k) for k in vocab.kmers), default=1)
+        stream = rng.integers(vocab.base_alphabet_size, size=self.length * longest)
         parsed = vocab.parse(stream.tolist())[: self.length]
         # parse emits the canonical wildcard; spread neutral positions over all of
         # them, which is what makes wildcard-only suffixes plentiful.
