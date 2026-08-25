@@ -14,16 +14,25 @@ Legality at j therefore constrains s only through s[j] and the w symbols after i
 
     w = max |p| - 1,
 
-and the tables here give the transitions on that window and the symbols it permits.
+and the transfer tables give the transitions on that window and the symbols it
+permits.
+
+Counting legal fillings over that window is what makes the draw uniform: a backward
+pass counts, for every position and window, how many legal fillings the rest admits,
+and a forward pass draws each hole against those counts. Both walk positions rather
+than strings, which is what lets a batch of templates advance in step.
 """
 
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Tuple
+from typing import List, Sequence, Tuple
 
 import numpy as np
 
 Pattern = Tuple[int, ...]
+
+FREE = -1  # a hole, to be filled in
+_PAD = -2  # not part of this template: it is shorter than others in its batch
 
 
 @lru_cache(maxsize=None)
@@ -73,6 +82,58 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
     return initial, allowed, shift
 
 
+def _fill_chunk(templates, rngs, tables):
+    """Templates are right-aligned, so that sampling right to left starts every one
+    in the end-of-string state.
+    """
+    initial, allowed, shift = tables
+    base, num_states = shift.shape
+    size = len(templates)
+    width = max(len(t) for t in templates)
+    grid = np.full((size, width), _PAD, dtype=np.int64)
+    start = np.empty(size, dtype=np.int64)
+    draws = np.zeros((size, width))
+    for row, (template, rng) in enumerate(zip(templates, rngs)):
+        start[row] = width - len(template)
+        grid[row, start[row] :] = template
+        draws[row, start[row] :] = rng.random(len(template))
+
+    # ways[j][row, s] counts the fillings of the columns left of j when s follows
+    # column j-1. Rescaled each step: the true counts grow geometrically and
+    # overflow, and only ratios within a row are ever read.
+    ways = np.ones((width + 1, size, num_states))
+    for j in range(width):
+        previous, column = ways[j], grid[:, j]
+        free = (previous[:, shift] * allowed[None]).sum(axis=1)
+        fixed = np.take_along_axis(
+            previous, shift[np.where(column >= 0, column, 0)], axis=1
+        )
+        row = np.where((column == FREE)[:, None], free, fixed)
+        row = np.where((column == _PAD)[:, None], previous, row)
+        peak = np.max(row, axis=1)[:, None]
+        ways[j + 1] = np.divide(row, peak, out=row.copy(), where=peak > 0)
+
+    state = np.full(size, initial, dtype=np.int64)
+    out = np.zeros((size, width), dtype=np.int64)
+    for j in range(width - 1, -1, -1):
+        column = grid[:, j]
+        live = column != _PAD
+        weights = (
+            np.take_along_axis(ways[j], shift[:, state].T, axis=1) * allowed[:, state].T
+        )
+        running = np.cumsum(weights, axis=1)
+        # Only holes are constrained, so only they can run out of choices. Asking
+        # this of a fixed column would reject templates that are perfectly fillable.
+        assert (running[column == FREE, -1] > 0).all(), "template has no legal filling"
+        picked = (running <= (draws[:, j] * running[:, -1])[:, None]).sum(axis=1)
+        chosen = np.where(
+            column == FREE, np.clip(picked, 0, base - 1), np.where(live, column, 0)
+        )
+        out[:, j] = chosen
+        state = np.where(live, shift[chosen, state], state)
+    return [out[row, start[row] :].tolist() for row in range(size)]
+
+
 @dataclass(frozen=True)
 class TemplateFiller:
 
@@ -101,6 +162,40 @@ class TemplateFiller:
         """
         _, allowed, _ = self._tables
         return bool(allowed.any(axis=0).all())
+
+    def fill(self, template: Sequence[int], rng: np.random.Generator) -> List[int]:
+        """Prefer fill_many for more than one; the per-template pass amortizes."""
+        return self.fill_many([template], [rng])[0]
+
+    def fill_many(
+        self,
+        templates: Sequence[Sequence[int]],
+        rngs: Sequence[np.random.Generator],
+    ) -> List[List[int]]:
+        """Draws each result uniformly over its template's legal fillings, by
+        weighting a hole's choices by how many ways the rest can then be filled.
+        Drawing evenly instead skews toward the constrained continuations.
+
+        One rng per template, spent one draw per position, so a result does not
+        depend on what it was batched with.
+        """
+        assert len(templates) == len(rngs), "need one rng per template"
+        if not templates:
+            return []
+        _, _, shift = self._tables
+        width = max(len(t) for t in templates)
+        # Batch to keep the backward pass's (width, chunk, num_states) table near
+        # ~64MB. A single template wider than that is still passed through whole.
+        chunk = int(np.clip(8_000_000 // max((width + 1) * shift.shape[1], 1), 1, 4096))
+
+        out: List[List[int]] = []
+        for lo in range(0, len(templates), chunk):
+            out.extend(
+                _fill_chunk(
+                    templates[lo : lo + chunk], rngs[lo : lo + chunk], self._tables
+                )
+            )
+        return out
 
     @property
     def _tables(self):
