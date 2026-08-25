@@ -43,7 +43,7 @@ def _transfer_tables(forbidden: Tuple[Pattern, ...], base: int):
 
     allowed[state, c] is False exactly when c would start a forbidden pattern at j,
     """
-    w = max((len(p) for p in forbidden), default=1) - 1
+    w = max((len(p) - 1 for p in forbidden), default=0)
     radix = base + 1
     num_states = radix**w
 
