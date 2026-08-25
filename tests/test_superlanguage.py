@@ -277,9 +277,13 @@ class TestLearnForwarding(unittest.TestCase):
         self.assertTrue(7 <= max(lengths) <= 21, max(lengths))
 
     def test_num_compilations_reaches_the_oracle(self):
-        lengths, _ = self._first_batch(num_symbols=7, num_compilations=3)
-        self.assertEqual(len(lengths) % 3, 0)
-        self.assertGreater(len(lengths), 3)
+        # What a super-string compiles to varies, but how long it is does not, and
+        # the compilations of one arrive together. Three of them is the same batch
+        # as one with every entry tripled.
+        once, _ = self._first_batch(num_symbols=7, num_compilations=1)
+        thrice, _ = self._first_batch(num_symbols=7, num_compilations=3)
+        self.assertTrue(once)
+        self.assertEqual(thrice, [n for n in once for _ in range(3)])
 
     def test_the_noise_model_reaches_the_tracker(self):
         _, noise = self._first_batch(num_symbols=7)
