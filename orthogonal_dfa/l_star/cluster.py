@@ -7,7 +7,7 @@ from .statistics import evidence_margin_for_population_size
 
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
-) -> Tuple[List[int], float, bool]:
+) -> Tuple[List[int], float]:
     # Cluster only over fully-observed suffix columns -- the sampled acceptance-
     # family suffixes -- to avoid forcing a bunch of additional computation on the
     # partially-observed transition distinguishers.
@@ -21,16 +21,11 @@ def identify_cluster_around(
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
     cluster = [seed_local]
     loss = float("inf")
-    drifted = False
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
         cluster = losses.argsort()[:count]
-        # Epsilon's column is the accept-preserving split itself: membership of
-        # ``p + eps`` is membership of ``p``.  A cluster that has refined away
-        # from it will outvote it, so record that and let the caller regrow.
-        drifted = seed_local not in cluster
-        if drifted:
+        if seed_local not in cluster:
             cluster = np.concatenate([[seed_local], cluster[: count - 1]])
         new_loss = losses[cluster].sum()
         if new_loss >= loss:
@@ -56,7 +51,7 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
-    return candidate[cluster].tolist(), decision_boundary, drifted
+    return candidate[cluster].tolist(), decision_boundary
 
 
 def recompute_evidence_margin(
@@ -71,25 +66,17 @@ def recompute_evidence_margin(
     return eps
 
 
-#: Rounds of extra suffix sampling to spend trying to get a cluster that holds
-#: epsilon naturally.  PROBE: exceeding this raises instead of falling back, so
-#: CI reports which targets never converge rather than silently paying for the
-#: regrowths and then using the spliced family anyway.
-MAX_DRIFT_REGROWTHS = 5
-
-
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    regrowths = 0
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
-        vs, decision_boundary, drifted = identify_cluster_around(
+        vs, decision_boundary = identify_cluster_around(
             pst, v, pst.config.suffix_family_size, decision_boundary
         )
         pst.decision_boundary = decision_boundary
@@ -98,20 +85,6 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst.config.suffix_family_size,
             decision_boundary,
         )
-
-        if drifted:
-            regrowths += 1
-            if regrowths > MAX_DRIFT_REGROWTHS:
-                raise RuntimeError(
-                    f"suffix clustering drifted off the empty suffix "
-                    f"{regrowths} times without converging"
-                )
-            print(
-                f"cluster refined away from the empty suffix; sampling more "
-                f"suffixes ({regrowths}/{MAX_DRIFT_REGROWTHS})"
-            )
-            pst.sample_more_suffixes(amount=pst.config.suffix_family_size, reference=v)
-            continue
 
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
         if fnr <= pst.config.fnr_limit:
