@@ -103,52 +103,53 @@ round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
 round_verify_alpha = 1e-4  # binomial significance for flagging a round
 
 
-#: Confidence at which a state's accept/reject label has to be pinned down before
-#: a round is held to it.
-round_verify_state_confidence = 0.99
-
-#: Suffixes used to group prefixes by the state they reach.  Two prefixes reaching
-#: the same state answer identically on every suffix, so their noiseless answers
-#: recover the partition; the count only guards against two states agreeing on all
-#: of them by chance.
-_STATE_PROBES = 32
+#: A state is *common in prefixes* when enough of the round's prefixes reach it
+#: for its accept/reject label to be more than a coin flip.  We decide that from
+#: the count alone, so this is the rate at which we call a state common in
+#: prefixes while its label is in fact undetermined.
+common_in_prefixes_fpr = 0.01
 
 
-def _min_prefixes_per_state(signal: float, confidence: float) -> float:
-    """Prefixes a state needs before a round's cut on it is better than a guess.
+def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
+    """Prefixes a state needs before it counts as common in prefixes.
 
     A family that labels state q correctly and one that does not differ only on
     the prefixes that *reach* q -- everywhere else both predict the same thing.
-    Each such prefix votes correctly with probability 1/2 + signal, so the label
-    is a binomial vote over m_q of them, decided at ``confidence`` only when
+    Each such prefix votes correctly with probability 1/2 + signal, so q's label
+    is a binomial vote over m_q of them, and lands the wrong way more often than
+    ``fpr`` unless
 
-        m_q >= z^2 (1/4 - signal^2) / signal^2
+        m_q >= z^2 (1/4 - signal^2) / signal^2,   z = Phi^-1(1 - fpr)
     """
-    z = scipy.stats.norm.ppf(confidence)
+    z = scipy.stats.norm.ppf(1 - fpr)
     return z**2 * (0.25 - signal**2) / signal**2
 
 
-def _reached_states(prefixes, truth_oracle):
-    """Group ``prefixes`` by the state each reaches, from noiseless answers alone."""
-    rng = np.random.default_rng(0)
-    probes = [us.sample(rng, truth_oracle.alphabet_size) for _ in range(_STATE_PROBES)]
-    return [
-        tuple(bool(truth_oracle.membership_query(list(p) + v)) for v in probes)
-        for p in prefixes
-    ]
+def _reached_states(prefixes, true_dfa):
+    """The state each prefix reaches in ``true_dfa``."""
+
+    def end(prefix):
+        state = true_dfa.initial_state
+        for symbol in prefix:
+            state = true_dfa.transitions[state][symbol]
+        return state
+
+    return [end(p) for p in prefixes]
 
 
-def _round_accept_preserving_counts(classifier, truth_oracle, signal):
+def _round_accept_preserving_counts(classifier, truth_oracle, signal, true_dfa):
     """``(decisive, misclassified)`` counts over the calibrated-population prefixes
     ``classifier`` decides, or None when it decides none of them. Off-length prefixes
     (boundary strings, per-state samples) are excluded: the family was never
     calibrated on them, so its cut is not expected to hold there.
 
-    States too rare in this round's pool are excluded as well, but only where the
-    round is *consistent* on them.  Below ``_min_prefixes_per_state`` the evidence
-    separating a correct cut from a wrong one on that state is a coin flip, so
-    holding the round to it tests the sampler rather than the learner.  A round
-    that cuts one such state both ways has no such excuse and still counts.
+    Only states that are *common in prefixes* are held to the cut, and states
+    that are not are excused only where the round is consistent on them.  Too
+    few prefixes reach a rare state for the evidence separating a correct cut
+    from a wrong one to be anything but a coin flip, so holding the round to it
+    tests the sampler rather than the learner.  A round that cuts one such state
+    both ways has no such excuse and still counts.  This needs the target's
+    states, so without ``true_dfa`` every decisive prefix is held, as before.
     """
     decisive = classifier.decisive & classifier.calibrated
     if not decisive.any():
@@ -156,26 +157,39 @@ def _round_accept_preserving_counts(classifier, truth_oracle, signal):
     truth = np.array(
         [bool(truth_oracle.membership_query(p)) for p in classifier.prefixes]
     )
-    states = _reached_states(classifier.prefixes, truth_oracle)
-    needed = _min_prefixes_per_state(signal, round_verify_state_confidence)
+    if true_dfa is None:
+        return int(decisive.sum()), int(
+            np.sum(classifier.accept[decisive] != truth[decisive])
+        )
+    states = _reached_states(classifier.prefixes, true_dfa)
+    threshold = _common_in_prefixes_threshold(signal, common_in_prefixes_fpr)
     held = np.zeros(len(states), dtype=bool)
     for state in set(states):
         reaching = decisive & np.array([s == state for s in states])
+        common_in_prefixes = reaching.sum() >= threshold
         consistent = len(set(classifier.accept[reaching])) <= 1
-        if reaching.sum() >= needed or not consistent:
+        if common_in_prefixes or not consistent:
             held |= reaching
     if not held.any():
         return None
     return int(held.sum()), int(np.sum(classifier.accept[held] != truth[held]))
 
 
-def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+def learn_dfa_verified(oracle_creator, *, true_dfa=None, **kwargs):
+    """``learn_dfa``, asserting the per-round accept-preserving invariant.
+
+    ``true_dfa`` lets the check see which state each prefix reaches, so it can
+    skip the states too rare in the pool to label; an oracle carrying its own DFA
+    supplies it without the caller saying anything."""
     dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
+    if true_dfa is None:
+        true_dfa = getattr(truth_oracle, "_dfa", None)
     signal = kwargs["min_signal_strength"]
     for classifier in classifiers:
-        counts = _round_accept_preserving_counts(classifier, truth_oracle, signal)
+        counts = _round_accept_preserving_counts(
+            classifier, truth_oracle, signal, true_dfa
+        )
         if counts is None:
             continue
         decisive, wrong = counts
