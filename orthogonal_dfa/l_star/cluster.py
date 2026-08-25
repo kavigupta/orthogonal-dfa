@@ -70,10 +70,21 @@ def recompute_evidence_margin(
     return eps
 
 
+#: Consecutive rejections after which no family is believed to exist.  More
+#: suffixes is the audit's only remedy, and where epsilon's signature class is
+#: smaller than the family size no amount of them helps.  That is a target the
+#: learner cannot serve; it says so rather than spinning, or quietly returning a
+#: family it has just shown to be wrong.
+EPSILON_AUDIT_GIVE_UP = 20
+
 #: Significance at which a family is held to disagree with epsilon.  A rejection
 #: costs a resample rather than a failure, so this is set against the resample
 #: budget -- the families a run evaluates -- not a family-wise error rate.
 EPSILON_AUDIT_ALPHA = 1e-3
+
+
+class NoEpsilonConsistentFamily(Exception):
+    """No suffix family agreeing with epsilon could be sampled for this target."""
 
 
 def epsilon_audit_pvalue(pst, vs, decision_boundary) -> float:
@@ -116,6 +127,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
+    audit_rejections = 0
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -135,23 +147,34 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         audit = epsilon_audit_pvalue(pst, vs, decision_boundary)
         fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
         if audit < EPSILON_AUDIT_ALPHA:
+            audit_rejections += 1
+            if audit_rejections >= EPSILON_AUDIT_GIVE_UP:
+                raise NoEpsilonConsistentFamily(
+                    f"{audit_rejections} families running disagreed with epsilon "
+                    f"(last p={audit:.2e}); no family of "
+                    f"{pst.config.suffix_family_size} suffixes realises the "
+                    f"accept-preserving split on this target"
+                )
             print(f"family disagrees with epsilon (p={audit:.2e}), resampling")
-        elif fnr <= pst.config.fnr_limit:
-            print(
-                f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
-                f"margin: {pst.evidence_margin:.4f}"
-            )
-            return vs, decision_boundary
+        else:
+            audit_rejections = 0
+            if fnr <= pst.config.fnr_limit:
+                print(
+                    f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
+                    f"margin: {pst.evidence_margin:.4f}"
+                )
+                return vs, decision_boundary
 
         if fnr >= prev_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
         prev_fnr = fnr
 
-        print(
-            f"FNR {fnr:.4f} too high, sampling more suffixes; "
-            f"decision_boundary: {decision_boundary:.4f}"
-        )
+        if audit >= EPSILON_AUDIT_ALPHA:
+            print(
+                f"FNR {fnr:.4f} too high, sampling more suffixes; "
+                f"decision_boundary: {decision_boundary:.4f}"
+            )
 
         if strategy == "suffix":
             kept = pst.sample_more_suffixes(

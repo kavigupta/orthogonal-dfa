@@ -103,11 +103,10 @@ round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
-#: Rate at which a whole verified run is expected to fail spuriously.  Set well
-#: below the 0.01 you would pick for a single decision because the run tests
-#: every state in every round, and the suite runs on the order of a hundred runs
-#: -- uncorrected, a red CI on a healthy learner is close to certain.
-round_check_run_fpr = 1e-4
+#: Rate at which one verified run is expected to fail spuriously.  A run tests
+#: every state in every round, so the rate a single state is held to is this
+#: divided by the comparisons the run makes.
+round_check_run_fpr = 0.01
 
 
 def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
@@ -205,8 +204,9 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     true_dfa = truth_oracle.target_dfa()
     per_round = [_state_cuts(c, true_dfa) for c in classifiers]
     # One comparison per state per round.  Counted over every state the round
-    # reached rather than only those above the threshold, so the count does not
-    # depend on the threshold it is used to compute.
+    # reached rather than only those held to the threshold: that keeps the count
+    # from depending on the threshold it computes, and pads it, since the states
+    # too rare to be held cannot raise anything.
     comparisons = max(1, sum(len(c) for c in per_round))
     threshold = _common_in_prefixes_threshold(
         kwargs["min_signal_strength"], round_check_run_fpr / comparisons
