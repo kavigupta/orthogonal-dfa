@@ -246,3 +246,6 @@ class DFAOracle(Oracle):
     def membership_query(self, string: bytes) -> bool:
         correct = self._dfa.accepts_input(string)
         return self._noise_model.apply_noise(correct, string, self._seed)
+
+    def target_dfa(self):
+        return self._dfa
