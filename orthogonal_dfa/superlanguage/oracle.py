@@ -17,8 +17,10 @@ def _compilation_seed(string: List[int], seed: int, index: int) -> int:
 
 
 class LiftedOracle(Oracle):
-    """Majority vote over several compilations, which only moves the answer for
-    a base oracle that can see how the wildcards were filled.
+    """Majority vote over num_compilations compilations, which only moves the
+    answer for a base oracle that can see how the wildcards were filled. No
+    default, since only the caller knows whether theirs can. An even count breaks
+    ties toward accept.
     """
 
     def __init__(
@@ -26,7 +28,7 @@ class LiftedOracle(Oracle):
         base_oracle: Oracle,
         vocabulary: KmerVocabulary,
         *,
-        num_compilations: int = 8,
+        num_compilations: int,
         seed: int = 0,
         noise_model: Optional[NoiseModel] = None,
     ):

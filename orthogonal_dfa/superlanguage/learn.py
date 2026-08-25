@@ -1,7 +1,8 @@
 # pylint: disable=duplicate-code  # forwarding build_pst's kwargs, not copied logic
 
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
+from orthogonal_dfa.l_star.counterexample_synthesis import RoundClassifier
 from orthogonal_dfa.l_star.learn import (
     DEFAULT_ACC_THRESHOLD,
     DEFAULT_SAMPLE_LENGTH,
@@ -25,11 +26,11 @@ def learn_superlanguage(
     noise_model: Optional[NoiseModel] = None,
     min_suffix_frequency: float = 0.02,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
-) -> Tuple[Any, KmerVocabulary]:
-    """Noise reaches the learner only through noise_model, compile being invertible
-    and the lifted oracle therefore deterministic. Raising num_compilations pays
-    only when the base oracle can see the wildcard fill. dfa is None if synthesis
-    reached no hypothesis.
+) -> Tuple[Any, List[RoundClassifier]]:
+    """Where base_oracle is deterministic and blind to how the wildcards were
+    filled, so is the lifted one, and noise reaches the learner through noise_model
+    alone. Raising num_compilations is what a base_oracle that does read the fill
+    needs instead. dfa is None if synthesis reached no hypothesis.
     """
 
     def oracle_creator(nm, s):
@@ -41,7 +42,7 @@ def learn_superlanguage(
             noise_model=nm,
         )
 
-    dfa, _ = learn_dfa(
+    dfa, classifiers = learn_dfa(
         oracle_creator,
         min_signal_strength=min_signal_strength,
         seed=seed,
@@ -50,4 +51,4 @@ def learn_superlanguage(
         sampler=SuperSampler(vocabulary, num_symbols),
         acc_threshold=acc_threshold,
     )
-    return dfa, vocabulary
+    return dfa, classifiers

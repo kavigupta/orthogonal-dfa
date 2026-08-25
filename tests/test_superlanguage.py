@@ -215,7 +215,11 @@ class TestLiftedOracle(unittest.TestCase):
 
     def test_base_alphabet_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
-            LiftedOracle(_PredicateOracle(lambda s: True, alphabet_size=2), self.vocab)
+            LiftedOracle(
+                _PredicateOracle(lambda s: True, alphabet_size=2),
+                self.vocab,
+                num_compilations=1,
+            )
 
     def test_needs_at_least_one_compilation(self):
         with self.assertRaises(AssertionError):
