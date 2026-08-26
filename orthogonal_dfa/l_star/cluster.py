@@ -165,6 +165,8 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         decision = pst.compute_decision(vs, pst.table.representative)
         fnr = pst.fnr_from_decision(decision)
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+        # An undersized family is unusable whatever its FNR measures, and testing
+        # it would spend a budget that means no accept-preserving family exists.
         if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
         elif not gate.admits(pst, decision, decision_boundary, v):
