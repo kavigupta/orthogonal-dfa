@@ -55,9 +55,8 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
-    # A round whose cluster is all on one side estimates a boundary far from even,
-    # and the rates it implies -- boundary +/- the signal -- stop being
-    # probabilities. Nothing downstream can size a band around such a boundary.
+    # A cluster all on one side estimates a boundary whose implied rates,
+    # boundary +/- the signal, are no longer probabilities.
     signal = pst.config.min_signal_strength
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
@@ -65,25 +64,14 @@ def identify_cluster_around(
 
 
 def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
-    """Suffixes to read, and the band to read them with, at the boundary the round
-    estimated.
+    """Suffixes to read and the band to read them with, together.
 
-    Solved together: how many suffixes a decision needs depends on where the
-    boundary sits, because the two classes draw from binomials whose variance
-    differs once it leaves 0.5.
+    How many a decision needs depends on where the boundary sits: the two classes
+    draw from binomials whose variance differs once it leaves 0.5.
     """
     return population_size_and_evidence_margin(
         min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
-
-
-def _sizes_from(size: int, reach: int = 64):
-    """``size`` first, then outwards from it, larger before smaller."""
-    yield size
-    for delta in range(1, reach + 1):
-        yield size + delta
-        if size - delta >= 2:
-            yield size - delta
 
 
 #: Rejections in a row after which no accept-preserving family is believed to

@@ -71,15 +71,14 @@ class NoUsableEvidenceMargin(Exception):
 def candidate_margins(N: int, center: float) -> np.ndarray:
     """Ascending margins at which the accept/reject counts change.
 
-    The test only depends on ``eps`` through ``floor(N(center - eps))`` and
-    ``ceil(N(center + eps))``, so it takes at most ``2N`` distinct forms and these
-    are the smallest margin producing each.  A grid over ``eps`` instead samples
-    the same test repeatedly and can step over the only form that qualifies.
+    The test reaches ``eps`` only through the two counts, so it takes at most
+    ``2N`` forms; an even grid samples them unevenly and can miss the only one
+    that qualifies.
     """
     ks = np.arange(N + 1) / N
     eps = np.concatenate([center - ks, ks - center])
-    # Just past each crossing: at it exactly the floor and the ceiling land on the
-    # narrower pair, which is a different test from the one this margin denotes.
+    # Just past each crossing: at it the floor and ceiling land on the narrower
+    # pair, which is a different test from the one this margin denotes.
     return np.unique(eps[eps > 0]) + 1e-9
 
 
@@ -93,11 +92,8 @@ def evidence_margin_for_population_size(
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        # Both classes, not just the accepting one.  A band symmetric in rate is
-        # not symmetric in variance unless it sits at 0.5: at a centre of 0.75 the
-        # accepting class draws around 0.9 and the rejecting one around 0.6, whose
-        # variance is 2.7x larger, so a band the accepting class clears easily can
-        # leave the rejecting one indecisive many times over the bound.
+        # Both classes: a band symmetric in rate is not symmetric in variance
+        # away from 0.5, and the wider class is the one that has to clear it.
         fnr = max(
             _binom_cdf(k_high - 1, N, center + side)
             - _binom_cdf(k_low, N, center + side)
