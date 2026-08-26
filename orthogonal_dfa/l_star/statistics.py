@@ -77,8 +77,9 @@ def candidate_margins(N: int, center: float) -> np.ndarray:
     """
     ks = np.arange(N + 1) / N
     eps = np.concatenate([center - ks, ks - center])
-    # Just past each crossing: at it the floor and ceiling land on the narrower
-    # pair, which is a different test from the one this margin denotes.
+    # Step off each crossing: on one, a threshold sits exactly on an integer, where
+    # the floor and ceiling below and the runtime's `mean >= center + eps` can round
+    # to opposite sides -- calibrating against a test that is never the one run.
     return np.unique(eps[eps > 0]) + 1e-9
 
 
