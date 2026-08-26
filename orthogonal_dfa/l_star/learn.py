@@ -39,6 +39,7 @@ def build_pst(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
+    audit_epsilon: bool = True,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -66,6 +67,7 @@ def build_pst(
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
+        audit_epsilon=audit_epsilon,
     )
     return PrefixSuffixTracker.create(
         sampler,
@@ -85,6 +87,7 @@ def learn_dfa(
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
+    audit_epsilon: bool = True,
 ):
     """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
 
@@ -102,6 +105,7 @@ def learn_dfa(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
+        audit_epsilon=audit_epsilon,
     )
     dfa, _, classifiers = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold

@@ -56,6 +56,10 @@ class SearchConfig:
     #: Chance of screening out a suffix that does belong, spent across the
     #: whole staircase rather than per test.
     screening_alpha: float = 0.1
+    #: Hold the suffix family to agreeing with epsilon.  Only meaningful where a
+    #: family agreeing with epsilon exists, which is the class-preserving
+    #: precondition; a caller learning a target that fails it turns this off.
+    audit_epsilon: bool = True
 
 
 @dataclass
