@@ -114,11 +114,39 @@ def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> floa
     return min(1.0, 2 * worst)
 
 
+class AcceptPreservingGate:
+    """Holds each suffix family to the accept-preserving split, across the loop
+    that resamples until one passes.  Carries the give-up budget, which is spent
+    only on families that were actually tested."""
+
+    def __init__(self, config):
+        self.enabled = config.require_accept_preserving
+        self.family_size = config.suffix_family_size
+        self.rejections = 0
+
+    def admits(self, pst, decision, decision_boundary, seed_row) -> bool:
+        if not self.enabled:
+            return True
+        p = accept_preserving_pvalue(pst, decision, decision_boundary, seed_row)
+        if p >= ACCEPT_PRESERVING_ALPHA:
+            self.rejections = 0
+            return True
+        self.rejections += 1
+        if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
+            raise NoAcceptPreservingFamily(
+                f"{self.rejections} families running were not accept-preserving "
+                f"(last p={p:.2e}); no family of {self.family_size} suffixes "
+                f"realises the accept-preserving split on this target"
+            )
+        print(f"family is not accept-preserving (p={p:.2e}), resampling")
+        return False
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    rejections = 0
+    gate = AcceptPreservingGate(pst.config)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -136,41 +164,24 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
-        # An undersized family is rejected either way, and counting its rejection
-        # would spend the give-up budget, which means "no accept-preserving family
-        # exists" and not "this one was too small".
         undersized = len(vs) < pst.config.suffix_family_size
         fnr = 1 if undersized else pst.fnr_from_decision(decision)
-        preserving_p = (
-            accept_preserving_pvalue(pst, decision, decision_boundary, v)
-            if pst.config.require_accept_preserving and not undersized
-            else 1.0
-        )
-        if preserving_p < ACCEPT_PRESERVING_ALPHA:
-            rejections += 1
-            if rejections >= ACCEPT_PRESERVING_GIVE_UP:
-                raise NoAcceptPreservingFamily(
-                    f"{rejections} families running were not accept-preserving "
-                    f"(last p={preserving_p:.2e}); no family of "
-                    f"{pst.config.suffix_family_size} suffixes realises the "
-                    f"accept-preserving split on this target"
-                )
-            print(f"family is not accept-preserving (p={preserving_p:.2e}), resampling")
-        else:
-            rejections = 0
-            if fnr <= pst.config.fnr_limit:
-                print(
-                    f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
-                    f"margin: {pst.evidence_margin:.4f}"
-                )
-                return vs, decision_boundary
+        # An undersized family fails on its FNR anyway, and testing it would spend
+        # a budget that means no accept-preserving family exists at all.
+        admitted = undersized or gate.admits(pst, decision, decision_boundary, v)
+        if admitted and fnr <= pst.config.fnr_limit:
+            print(
+                f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
+                f"margin: {pst.evidence_margin:.4f}"
+            )
+            return vs, decision_boundary
 
         if fnr >= prev_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
         prev_fnr = fnr
 
-        if preserving_p >= ACCEPT_PRESERVING_ALPHA:
+        if admitted:
             print(
                 f"FNR {fnr:.4f} too high, sampling more suffixes; "
                 f"decision_boundary: {decision_boundary:.4f}"
