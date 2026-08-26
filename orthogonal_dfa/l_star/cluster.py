@@ -70,29 +70,29 @@ def recompute_evidence_margin(
     return eps
 
 
-#: Rejections in a row after which no such family is believed to exist.  More
-#: suffixes is the audit's only remedy, and none help where epsilon's signature
-#: class is empty.
-EPSILON_AUDIT_GIVE_UP = 20
+#: Rejections in a row after which no accept-preserving family is believed to
+#: exist.  More suffixes is the only remedy, and none help against a target where
+#: no suffix preserves the accept/reject classes.
+ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: Significance at which a family is held to disagree with epsilon.  A rejection
-#: costs a resample rather than a failure, so this is a resample budget and not
-#: an error rate.
-EPSILON_AUDIT_ALPHA = 1e-3
-
-
-class NoEpsilonConsistentFamily(Exception):
-    """No suffix family agreeing with epsilon could be sampled for this target."""
+#: Significance at which a family is held not to be accept-preserving.  A
+#: rejection costs a resample rather than a failure, so this is a resample budget
+#: and not an error rate.
+ACCEPT_PRESERVING_ALPHA = 1e-3
 
 
-def epsilon_audit_pvalue(pst, decision, decision_boundary, seed_row) -> float:
-    """Exact two-sided binomial test of the family's cut against epsilon's column.
+class NoAcceptPreservingFamily(Exception):
+    """No accept-preserving suffix family could be sampled for this target."""
 
-    Membership of ``p + eps`` is membership of ``p``, so epsilon's column is the
-    accept-preserving split itself: under the null, epsilon reads 1 at the accept
-    rate on the prefixes the family accepts and at the reject rate on the rest.
-    The rates are unknown, and ``min_signal_strength`` bounds both away from the
-    boundary -- a bound only makes the test reject less.
+
+def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> float:
+    """Exact two-sided binomial test that the family's cut is accept-preserving.
+
+    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
+    column is the accept-preserving split itself: under the null it reads 1 at the
+    accept rate on the prefixes the family accepts and at the reject rate on the
+    rest.  The rates are unknown, and ``min_signal_strength`` bounds both away
+    from the boundary -- a bound only makes the test reject less.
     """
     eps = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
@@ -118,7 +118,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    audit_rejections = 0
+    rejections = 0
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -135,31 +135,29 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        # Reading the decision observes cells, which promotes suffixes into
-        # fully_observed() and so changes what the next pass clusters over.  An
-        # undersized family is rejected on sight, so it must not be read at all.
-        if len(vs) < pst.config.suffix_family_size:
-            audit, fnr = 1.0, 1
-        else:
-            decision = pst.compute_decision(vs, pst.table.representative)
-            audit = (
-                epsilon_audit_pvalue(pst, decision, decision_boundary, v)
-                if pst.config.audit_epsilon
-                else 1.0
-            )
-            fnr = pst.fnr_from_decision(decision)
-        if audit < EPSILON_AUDIT_ALPHA:
-            audit_rejections += 1
-            if audit_rejections >= EPSILON_AUDIT_GIVE_UP:
-                raise NoEpsilonConsistentFamily(
-                    f"{audit_rejections} families running disagreed with epsilon "
-                    f"(last p={audit:.2e}); no family of "
+        decision = pst.compute_decision(vs, pst.table.representative)
+        # An undersized family is rejected either way, and counting its rejection
+        # would spend the give-up budget, which means "no accept-preserving family
+        # exists" and not "this one was too small".
+        undersized = len(vs) < pst.config.suffix_family_size
+        fnr = 1 if undersized else pst.fnr_from_decision(decision)
+        preserving_p = (
+            accept_preserving_pvalue(pst, decision, decision_boundary, v)
+            if pst.config.require_accept_preserving and not undersized
+            else 1.0
+        )
+        if preserving_p < ACCEPT_PRESERVING_ALPHA:
+            rejections += 1
+            if rejections >= ACCEPT_PRESERVING_GIVE_UP:
+                raise NoAcceptPreservingFamily(
+                    f"{rejections} families running were not accept-preserving "
+                    f"(last p={preserving_p:.2e}); no family of "
                     f"{pst.config.suffix_family_size} suffixes realises the "
                     f"accept-preserving split on this target"
                 )
-            print(f"family disagrees with epsilon (p={audit:.2e}), resampling")
+            print(f"family is not accept-preserving (p={preserving_p:.2e}), resampling")
         else:
-            audit_rejections = 0
+            rejections = 0
             if fnr <= pst.config.fnr_limit:
                 print(
                     f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
@@ -172,7 +170,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
 
         prev_fnr = fnr
 
-        if audit >= EPSILON_AUDIT_ALPHA:
+        if preserving_p >= ACCEPT_PRESERVING_ALPHA:
             print(
                 f"FNR {fnr:.4f} too high, sampling more suffixes; "
                 f"decision_boundary: {decision_boundary:.4f}"

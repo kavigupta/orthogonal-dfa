@@ -253,11 +253,15 @@ class TestLStarBimodalReproducer(unittest.TestCase):
         # check to recover. Synthesis instead settles on a coherent
         # non-accept-preserving cut and relies on denoise_accept_labels to fix the
         # resulting labels -- hence learn_dfa_unchecked rather than the verified
-        # learner the other tests use, and the epsilon audit off: it holds the
-        # family to a split that here does not exist, so it would reject every one.
+        # learner the other tests use, and the accept-preserving requirement off:
+        # there is no accept-preserving family here for it to find, so it only
+        # spends resamples looking (36 minutes against 8 with it off).
         self.assertLess(P.class_preserving_fraction(self.DFA, length=40), 0.01)
         dfa, _ = learn_dfa_unchecked(
-            oracle_creator, min_signal_strength=0.3, seed=0, audit_epsilon=False
+            oracle_creator,
+            min_signal_strength=0.3,
+            seed=0,
+            require_accept_preserving=False,
         )
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:

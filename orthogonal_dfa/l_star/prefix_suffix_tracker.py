@@ -56,10 +56,10 @@ class SearchConfig:
     #: Chance of screening out a suffix that does belong, spent across the
     #: whole staircase rather than per test.
     screening_alpha: float = 0.1
-    #: Hold the suffix family to agreeing with epsilon.  Only meaningful where a
-    #: family agreeing with epsilon exists, which is the class-preserving
-    #: precondition; a caller learning a target that fails it turns this off.
-    audit_epsilon: bool = True
+    #: Require the suffix family to be accept-preserving.  Only meaningful where
+    #: such a family exists, which is the class-preserving precondition; a caller
+    #: learning a target that fails it turns this off.
+    require_accept_preserving: bool = True
 
 
 @dataclass
