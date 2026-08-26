@@ -129,7 +129,6 @@ class AcceptPreservingGate:
 
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
-        self.family_size = config.suffix_family_size
         self.rejections = 0
 
     def admits(self, pst, decision, decision_boundary, seed_row) -> bool:
@@ -143,8 +142,8 @@ class AcceptPreservingGate:
         if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
             raise NoAcceptPreservingFamily(
                 f"{self.rejections} families running were not accept-preserving "
-                f"(last p={p:.2e}); no family of {self.family_size} suffixes "
-                f"realises the accept-preserving split on this target"
+                f"(last p={p:.2e}); no suffix family realises the "
+                f"accept-preserving split on this target"
             )
         return False
 
@@ -153,7 +152,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    family_size = pst.config.suffix_family_size
+    family_size, _ = recompute_family_size_and_margin(
+        pst.config.min_signal_strength, decision_boundary
+    )
     gate = AcceptPreservingGate(pst.config)
 
     while True:
