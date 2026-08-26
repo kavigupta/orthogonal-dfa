@@ -74,7 +74,14 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
         k_low, k_high = (ends - width) // 2, (ends + width) // 2
         if k_low < 0 or k_high > N:
             return
-        yield k_low, k_high, (width - 1) / (2 * N)
+        eps = (width - 1) / (2 * N)
+        # Bands whose interval of margins is narrower than the float error in its
+        # own ends survive the test above, and no margin names them. Ask directly
+        # whether this one does, in the comparison the runtime will make.
+        if k_low / N < center - eps <= (k_low + 1) / N and (
+            (k_high - 1) / N < center + eps <= k_high / N
+        ):
+            yield k_low, k_high, eps
 
 
 def evidence_margin_for_population_size(
