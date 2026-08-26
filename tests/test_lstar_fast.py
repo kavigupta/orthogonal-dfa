@@ -150,12 +150,15 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    @unittest.expectedFailure
+    @unittest.skip(
+        "Trimodal over seeds -- 4/8 resolve 9 states, 2/8 collapse to 3, 2/8 raise "
+        "from synthesis -- so no single-seed assertion holds either way. See #230."
+    )
     def test_boundary_near_zero(self):
         """Both noise rates near 0, boundary far from 0.5.
-        Fails: finds only 3 states instead of 9. With the true boundary at
-        0.22, the clustering threshold is so low that true-reject prefixes
-        (mean ~0.02) get mixed into the "accept" group on noisy suffix
+        The mode this pins: finds only 3 states instead of 9. With the true
+        boundary at 0.22, the clustering threshold is so low that true-reject
+        prefixes (mean ~0.02) get mixed into the "accept" group on noisy suffix
         samples, contaminating the boundary estimate downward to ~0.11."""
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)

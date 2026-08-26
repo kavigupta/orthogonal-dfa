@@ -3,6 +3,21 @@ from typing import Optional, Tuple
 
 import numpy as np
 import scipy
+import scipy.special
+
+
+def _binom_cdf(k, n, p):
+    """``scipy.stats.binom.cdf(k, n, p)``, ~30x faster on scalars.
+
+    The generic ``rv_discrete.cdf`` broadcasts and masks its arguments on every
+    call, which dominates the hot statistical tests here. ``bdtr`` is the same
+    function without that; it returns nan rather than clamping off-support ``k``.
+    """
+    if k < 0:
+        return 0.0
+    if k >= n:
+        return 1.0
+    return scipy.special.bdtr(k, n, p)
 
 
 def population_size_and_evidence_margin(
@@ -47,12 +62,10 @@ def evidence_margin_for_population_size(
     for eps in np.linspace(0.01, signal_strength, 100):
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
-        fpr = scipy.stats.binom.cdf(k_low, N, center) + (
-            1 - scipy.stats.binom.cdf(k_high - 1, N, center)
+        fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
+        fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
+            k_low, N, signal_strength + center
         )
-        fnr = scipy.stats.binom.cdf(
-            k_high - 1, N, signal_strength + center
-        ) - scipy.stats.binom.cdf(k_low, N, signal_strength + center)
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
     return None
@@ -130,7 +143,7 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     to match the naming convention of other hyperparameter generators.
     """
     for n in itertools.count(start=1):
-        if scipy.stats.binom.cdf(n // 2, n, noise_level) < acceptable_misclassification:
+        if _binom_cdf(n // 2, n, noise_level) < acceptable_misclassification:
             return n
     raise ValueError("not reachable")
 
@@ -142,10 +155,10 @@ def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_pro
     significantly below, and None if neither tail clears ``failure_prob`` (including
     small ``num_samples``).
     """
-    above = 1 - scipy.stats.binom.cdf(num_accepts - 1, num_samples, boundary)
+    above = 1 - _binom_cdf(num_accepts - 1, num_samples, boundary)
     if above < failure_prob:
         return True
-    below = scipy.stats.binom.cdf(num_accepts, num_samples, boundary)
+    below = _binom_cdf(num_accepts, num_samples, boundary)
     if below < failure_prob:
         return False
     return None
