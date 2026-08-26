@@ -13,45 +13,13 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  discover-tests:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      test-files: ${{ steps.discover-files.outputs.files }}
-      lstar-tests: ${{ steps.discover-lstar.outputs.tests }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Discover test files (excluding lstar)
-        id: discover-files
-        run: |
-          files=$(find tests -name 'test_*.py' ! -name 'test_lstar.py' | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "files=$files" >> "$GITHUB_OUTPUT"
-      - name: Discover lstar tests
-        id: discover-lstar
-        run: |
-          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "tests=$tests" >> "$GITHUB_OUTPUT"
-
   test-file:
-    needs: discover-tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.discover-tests.outputs.test-files) }}
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
@@ -66,17 +34,22 @@ jobs:
           uv venv --python 3.12
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Run ${{ matrix.file }}
-        run: uv run python -m pytest "${{ matrix.file }}" -sv
+      - name: Run shard ${{ matrix.shard }}
+        run: |
+          files=$(uv run python scripts/shard_tests.py --mode files \
+            --shard ${{ matrix.shard }} --num-shards 6)
+          echo "$files"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$files" ] || exit 0
+          uv run python -m pytest $files -sv
 
   lstar-test:
-    needs: discover-tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        test: ${{ fromJson(needs.discover-tests.outputs.lstar-tests) }}
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
@@ -91,9 +64,14 @@ jobs:
           uv venv --python 3.12
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Run ${{ matrix.test }}
+      - name: Run shard ${{ matrix.shard }}
         run: |
-          uv run python -m pytest "${{ matrix.test }}" -sv
+          tests=$(uv run python scripts/shard_tests.py --mode lstar \
+            --shard ${{ matrix.shard }} --num-shards 10)
+          echo "$tests"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$tests" ] || exit 0
+          uv run python -m pytest $tests -sv
 
   lint:
     runs-on: ubuntu-latest
