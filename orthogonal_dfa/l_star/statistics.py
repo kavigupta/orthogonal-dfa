@@ -20,8 +20,13 @@ def _binom_cdf(k, n, p):
     return scipy.special.bdtr(k, n, p)
 
 
+#: A population this large means no band separates the signal at the requested
+#: error rates; say so rather than doubling until it overflows.
+MAX_POPULATION_SIZE = 10**7
+
+
 def population_size_and_evidence_margin(
-    signal_strength, acceptable_fpr, acceptable_fnr
+    signal_strength, acceptable_fpr, acceptable_fnr, *, center=0.5
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -37,20 +42,44 @@ def population_size_and_evidence_margin(
     while N_high is None or N_low < N_high:
         if N_high is None:
             N_try = N_low * 2
+            if N_try > MAX_POPULATION_SIZE:
+                raise NoUsableEvidenceMargin(
+                    f"no band over a population up to {MAX_POPULATION_SIZE} holds "
+                    f"fpr {acceptable_fpr} and fnr {acceptable_fnr} for a signal of "
+                    f"{signal_strength} around {center}"
+                )
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_margin_for_population_size(
-            signal_strength, acceptable_fpr, acceptable_fnr, N_try
+            signal_strength, acceptable_fpr, acceptable_fnr, N_try, center=center
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
     res = evidence_margin_for_population_size(
-        signal_strength, acceptable_fpr, acceptable_fnr, N_high
+        signal_strength, acceptable_fpr, acceptable_fnr, N_high, center=center
     )
     assert res is not None
     return res
+
+
+class NoUsableEvidenceMargin(Exception):
+    """No accept/reject band meets both error rates at any population size."""
+
+
+def candidate_margins(N: int, center: float) -> np.ndarray:
+    """Ascending margins at which the accept/reject counts change.
+
+    The test reaches ``eps`` only through the two counts, so it takes at most
+    ``2N`` forms; an even grid samples them unevenly and can miss the only one
+    that qualifies.
+    """
+    ks = np.arange(N + 1) / N
+    eps = np.concatenate([center - ks, ks - center])
+    # Just past each crossing: at it the floor and ceiling land on the narrower
+    # pair, which is a different test from the one this margin denotes.
+    return np.unique(eps[eps > 0]) + 1e-9
 
 
 def evidence_margin_for_population_size(
@@ -59,12 +88,16 @@ def evidence_margin_for_population_size(
     """
     See population_size_and_evidence_margin for context.
     """
-    for eps in np.linspace(0.01, signal_strength, 100):
+    for eps in candidate_margins(N, center):
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
-            k_low, N, signal_strength + center
+        # Both classes: a band symmetric in rate is not symmetric in variance
+        # away from 0.5, and the wider class is the one that has to clear it.
+        fnr = max(
+            _binom_cdf(k_high - 1, N, center + side)
+            - _binom_cdf(k_low, N, center + side)
+            for side in (signal_strength, -signal_strength)
         )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
