@@ -33,6 +33,12 @@ def population_size_and_evidence_margin(
     the true distribution) at most acceptable_fnr.
     """
     assert signal_strength > 0
+    # Both class rates have to be probabilities. Otherwise no band ever meets the
+    # FNR and the search below doubles N forever rather than failing.
+    assert 0 <= center - signal_strength and center + signal_strength <= 1, (
+        center,
+        signal_strength,
+    )
     N_low = 1
     N_high = None
     while N_high is None or N_low < N_high:
