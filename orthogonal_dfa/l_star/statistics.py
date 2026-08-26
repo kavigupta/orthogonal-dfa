@@ -21,11 +21,6 @@ def _binom_cdf(k, n, p):
     return scipy.special.bdtr(k, n, p)
 
 
-#: A population this large means no band separates the signal at the requested
-#: error rates; say so rather than doubling until it overflows.
-MAX_POPULATION_SIZE = 10**7
-
-
 def population_size_and_evidence_margin(
     signal_strength, acceptable_fpr, acceptable_fnr, *, center=0.5
 ) -> Tuple[int, float]:
@@ -43,12 +38,6 @@ def population_size_and_evidence_margin(
     while N_high is None or N_low < N_high:
         if N_high is None:
             N_try = N_low * 2
-            if N_try > MAX_POPULATION_SIZE:
-                raise NoUsableEvidenceMargin(
-                    f"no band over a population up to {MAX_POPULATION_SIZE} holds "
-                    f"fpr {acceptable_fpr} and fnr {acceptable_fnr} for a signal of "
-                    f"{signal_strength} around {center}"
-                )
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_margin_for_population_size(
@@ -63,10 +52,6 @@ def population_size_and_evidence_margin(
     )
     assert res is not None
     return res
-
-
-class NoUsableEvidenceMargin(Exception):
-    """No accept/reject band meets both error rates at any population size."""
 
 
 def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
