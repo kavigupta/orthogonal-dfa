@@ -1,5 +1,6 @@
 import itertools
-from typing import Optional, Tuple
+import math
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -68,19 +69,27 @@ class NoUsableEvidenceMargin(Exception):
     """No accept/reject band meets both error rates at any population size."""
 
 
-def candidate_margins(N: int, center: float) -> np.ndarray:
-    """Ascending margins at which the accept/reject counts change.
+def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
+    """Every test over N samples, ascending in margin, as (k_low, k_high, eps):
+    reject at counts <= k_low, accept at counts >= k_high, undecided between.
 
-    The test reaches ``eps`` only through the two counts, so it takes at most
-    ``2N`` forms; an even grid samples them unevenly and can miss the only one
-    that qualifies.
+    The runtime spends the margin as `count / N` against `center +/- eps`, so it can
+    only name a band whose ends straddle N * center to within one count:
+
+        |2 * N * center - (k_low + k_high)| < 1
+
+    Each such band is named by a whole interval of margins, and eps is its midpoint.
     """
-    ks = np.arange(N + 1) / N
-    eps = np.concatenate([center - ks, ks - center])
-    # Step off each crossing: on one, a threshold sits exactly on an integer, where
-    # the floor and ceiling below and the runtime's `mean >= center + eps` can round
-    # to opposite sides -- calibrating against a test that is never the one run.
-    return np.unique(eps[eps > 0]) + 1e-9
+    two_a = 2 * N * center
+    floor = math.floor(two_a)
+    for width in itertools.count(1):
+        ends = floor + (width - floor) % 2
+        if not two_a - 1 < ends < two_a + 1:
+            continue
+        k_low, k_high = (ends - width) // 2, (ends + width) // 2
+        if k_low < 0 or k_high > N:
+            return
+        yield k_low, k_high, (width - 1) / (2 * N)
 
 
 def evidence_margin_for_population_size(
@@ -89,9 +98,7 @@ def evidence_margin_for_population_size(
     """
     See population_size_and_evidence_margin for context.
     """
-    for eps in candidate_margins(N, center):
-        k_low = int(np.floor(N * (center - eps)))
-        k_high = int(np.ceil(N * (center + eps)))
+    for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
         # Both classes: a band symmetric in rate is not symmetric in variance
         # away from 0.5, and the wider class is the one that has to clear it.
