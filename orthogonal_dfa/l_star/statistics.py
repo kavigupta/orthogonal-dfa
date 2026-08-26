@@ -148,6 +148,25 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
+#: Chance ``denoise_accept_labels`` moves a label the evidence does not support.
+DENOISE_FAILURE_PROB = 1e-5
+
+
+def denoise_sample_size(signal_strength, failure_prob=DENOISE_FAILURE_PROB):
+    r"""Samples one state needs before a test at ``failure_prob`` can move its label.
+
+    The test moves a label once the accept count clears z sqrt(1/4n) of the
+    boundary, while the truth sits ``signal_strength`` away from it, so
+
+        n = z^2 / (4 signal^2),   z = Phi^-1(1 - failure_prob)
+
+    puts the expected count exactly on the bar -- deciding half the time.  Four
+    times that puts it a further z above, which decides.
+    """
+    z = scipy.stats.norm.ppf(1 - failure_prob)
+    return int(np.ceil(z**2 / signal_strength**2))
+
+
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
     """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
 

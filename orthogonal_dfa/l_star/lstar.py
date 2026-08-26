@@ -15,7 +15,15 @@ from .dfa_utils import (
     states_intermediate,
 )
 from .midfix_tree import oracle_decider
-from .statistics import binomial_side_of_boundary
+from .statistics import (
+    DENOISE_FAILURE_PROB,
+    binomial_side_of_boundary,
+    denoise_sample_size,
+)
+
+#: Samples denoise_accept_labels draws whatever the signal, so a strong one still
+#: gets enough draws for the binomial test to have somewhere to land.
+MIN_DENOISE_SAMPLES = 200
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
@@ -32,7 +40,7 @@ def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     )
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
+def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -43,8 +51,17 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     labels never reach significance on the wrong side, so only noise-flips get corrected;
     a state that can't decide within ``max_samples`` distinct strings keeps its discovery
     label. Labels change, transitions don't.
+
+    ``max_samples`` defaults to the size that test needs at this oracle's signal.  A
+    fixed cap silently stops correcting anything once the signal is weak enough to
+    need more than it allows -- below signal 0.15 for the 200 this used to take.
     """
     length = pst.sampler.length
+    if max_samples is None:
+        max_samples = max(
+            MIN_DENOISE_SAMPLES,
+            denoise_sample_size(pst.config.min_signal_strength),
+        )
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
@@ -68,7 +85,12 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
                 n += 1
-                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
+                decision = binomial_side_of_boundary(
+                    accepts,
+                    n,
+                    pst.decision_boundary,
+                    failure_prob=DENOISE_FAILURE_PROB,
+                )
                 if decision is not None:
                     return decision
         return None

@@ -3,7 +3,11 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.lstar import denoise_accept_labels
+from orthogonal_dfa.l_star.lstar import MIN_DENOISE_SAMPLES, denoise_accept_labels
+from orthogonal_dfa.l_star.statistics import (
+    binomial_side_of_boundary,
+    denoise_sample_size,
+)
 from tests.dfas import PARITY, parity_membership
 
 
@@ -30,6 +34,11 @@ class _StubSampler:
     length = 8
 
 
+class _StubConfig:
+    # Strong enough that the derived cap falls back on the floor.
+    min_signal_strength = 0.3
+
+
 class _StubTable:
     # Two prefixes, one reaching each state, so both get relabelled.
     prefixes = ([0], [1])
@@ -42,6 +51,7 @@ class _StubPst:
         self.table = _StubTable()
         self.rng = np.random.default_rng(seed)
         self.decision_boundary = 0.5
+        self.config = _StubConfig()
 
 
 class TestDenoiseAcceptLabels(unittest.TestCase):
@@ -84,6 +94,42 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         denoise_accept_labels(pst, PARITY, max_samples=40, block_size=16)
         for size in pst.oracle.batches:
             self.assertIn(size, (16, 8))  # a full block, or the 40 - 2*16 remainder
+
+
+class TestDenoiseSampleSize(unittest.TestCase):
+    def test_the_cap_admits_the_test_it_gates(self):
+        # The old fixed 200 sat below this from signal 0.15 down, so no state
+        # could ever be relabelled there.
+        for signal in (0.3, 0.2, 0.15, 0.1, 0.05):
+            n = max(MIN_DENOISE_SAMPLES, denoise_sample_size(signal))
+            decisive = [
+                i
+                for i in range(1, n + 1)
+                if binomial_side_of_boundary(
+                    int(round((0.5 + signal) * i)), i, 0.5, failure_prob=1e-5
+                )
+                is True
+            ]
+            self.assertTrue(decisive, f"no n up to {n} decides at signal {signal}")
+
+    def test_sized_for_power_not_just_reachability(self):
+        # A state sitting exactly at 0.5 + signal decides essentially always,
+        # rather than the coin flip the bare minimum would give.
+        rng = np.random.default_rng(0)
+        for signal in (0.15, 0.1):
+            n = denoise_sample_size(signal)
+            draws = rng.binomial(n, 0.5 + signal, size=2000)
+            decided = np.mean(
+                [
+                    binomial_side_of_boundary(int(a), n, 0.5, failure_prob=1e-5) is True
+                    for a in draws
+                ]
+            )
+            self.assertGreater(decided, 0.99, f"signal {signal} decided {decided}")
+
+    def test_weaker_signal_needs_more(self):
+        sizes = [denoise_sample_size(s) for s in (0.3, 0.2, 0.15, 0.1)]
+        self.assertEqual(sizes, sorted(sizes))
 
 
 if __name__ == "__main__":
