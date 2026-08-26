@@ -47,7 +47,7 @@ class TestGateCompositionResidualScore(unittest.TestCase):
         # pylint: disable=protected-access
         self.assertEqual(residual._betas.shape[0], 1)
         self.assertEqual(len(residual.monotonics), 1)
-        scored = self._scores(residual, [b"\x00\x01\x02" * 10])
+        scored = self._scores(residual, [bytes([0, 1, 2]) * 10])
         self.assertEqual(scored.shape, (1,))
         self.assertFalse(np.isnan(scored).any())
 

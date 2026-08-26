@@ -64,7 +64,7 @@ class RecordingScore(torch.nn.Module):
 
 class TestWrapWithFlanks(unittest.TestCase):
     def test_wraps_pads_and_reports_lengths(self):
-        strings = [b"\x01\x02", b"\x03", b""]
+        strings = [bytes([1, 2]), bytes([3]), b""]
         wrapped, lengths = wrap_with_flanks(
             np.array(FLANK_L), np.array(FLANK_R), strings
         )
@@ -90,7 +90,7 @@ class TestSpliceModelOracle(unittest.TestCase):
     def test_membership_batching_and_wrapping(self):
         oracle = self._oracle(threshold=1.5, chunk=2)
         result = oracle.membership_queries(
-            [b"\x01\x02", b"\x03", b"\x00\x01\x02\x03\x00", b""]
+            [bytes([1, 2]), bytes([3]), bytes([0, 1, 2, 3, 0]), b""]
         )
 
         # the score is the middle length, so length > 1.5 -> [T, F, T, F]
@@ -109,8 +109,8 @@ class TestSpliceModelOracle(unittest.TestCase):
 
     def test_membership_query_singular(self):
         oracle = self._oracle(threshold=1.5)
-        self.assertTrue(oracle.membership_query(b"\x00\x00\x00"))  # length 3 > 1.5
-        self.assertFalse(oracle.membership_query(b"\x00"))  # length 1 < 1.5
+        self.assertTrue(oracle.membership_query(bytes([0, 0, 0])))  # length 3 > 1.5
+        self.assertFalse(oracle.membership_query(bytes([0])))  # length 1 < 1.5
 
     def test_empty_batch(self):
         result = self._oracle().membership_queries([])
@@ -123,7 +123,7 @@ class TestSpliceModelOracle(unittest.TestCase):
         oracle = self._oracle()
         self.model.train()
         with self.assertRaises(AssertionError):
-            oracle.membership_queries([b"\x01\x02"])
+            oracle.membership_queries([bytes([1, 2])])
 
 
 class TestSpliceaiExonScore(unittest.TestCase):

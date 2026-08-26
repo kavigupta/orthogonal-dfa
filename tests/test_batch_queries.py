@@ -77,7 +77,9 @@ class TestMaskTableBatching(unittest.TestCase):
     # pylint: disable=protected-access
     def _table(self):
         oracle = HashOracle()
-        table = MaskTable(oracle, [b"\x00", b"\x01", b"\x00\x01"], [True, True, False])
+        table = MaskTable(
+            oracle, [bytes([0]), bytes([1]), bytes([0, 1])], [True, True, False]
+        )
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):
@@ -100,14 +102,14 @@ class TestMaskTableBatching(unittest.TestCase):
         # swapped comprehension order changes the values, not just the layout).
         oracle, table = self._table()
         full = [
-            table.intern_suffix(b"\x01\x01"),
-            table.intern_suffix(b"\x00\x01\x00"),
+            table.intern_suffix(bytes([1, 1])),
+            table.intern_suffix(bytes([0, 1, 0])),
         ]
-        partial = table.intern_suffix(b"\x00")
+        partial = table.intern_suffix(bytes([0]))
         for row in full:
             table.column(row)
         table._ensure([partial], np.array([True, False, True]))
-        new_prefixes = [b"\x01\x01", b"\x00\x00\x01", b"\x01\x00\x00"]
+        new_prefixes = [bytes([1, 1]), bytes([0, 0, 1]), bytes([1, 0, 0])]
         block = [
             [oracle.membership_query(p + table.suffix(r)) for p in new_prefixes]
             for r in full
@@ -136,7 +138,7 @@ class TestMaskTableBatching(unittest.TestCase):
         # suffixes clustering could pick, and with them the whole search path,
         # surfacing only as a distant end-to-end timeout.
         oracle, table = self._table()  # prefix 2 is core: non-representative
-        row = table.intern_suffix(b"\x01\x01")
+        row = table.intern_suffix(bytes([1, 1]))
 
         # Observing just the representative cells leaves a prefix unobserved, so
         # the column is not a candidate yet.
@@ -152,7 +154,7 @@ class TestMaskTableBatching(unittest.TestCase):
 
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()
-        rows = [table.intern_suffix(b"\x01"), table.intern_suffix(b"\x00\x00")]
+        rows = [table.intern_suffix(bytes([1])), table.intern_suffix(bytes([0, 0]))]
         narrow = np.array([True, False, True])
         wide = np.ones(table.num_prefixes, dtype=bool)
         table._ensure(rows, narrow)
@@ -172,7 +174,7 @@ class TestMaskTableBatching(unittest.TestCase):
         # The scatter-back is a zip over a flat result list; a misordered zip is only
         # visible if the cells being filled disagree with each other.
         oracle, table = self._table()
-        rows = [table.intern_suffix(b"\x01"), table.intern_suffix(b"\x00\x00")]
+        rows = [table.intern_suffix(bytes([1])), table.intern_suffix(bytes([0, 0]))]
         table._ensure(rows, np.ones(table.num_prefixes, dtype=bool))
         filled = np.array([table._masks[r] for r in rows])
         self.assertNotEqual(filled.min(), filled.max(), "fixture is order-blind")
@@ -226,7 +228,7 @@ class TestMemoizedOracle(unittest.TestCase):
     def test_caches_batches_and_dedupes(self):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
-        strings = [b"\x01\x00\x01", b"\x00\x00", b"\x01\x00\x01"]  # note the repeat
+        strings = [bytes([1, 0, 1]), bytes([0, 0]), bytes([1, 0, 1])]  # note the repeat
         bits = memo.membership_queries(strings)
         self.assertEqual([oracle.membership_query(s) for s in strings], bits)
         self.assertEqual([2], oracle.calls, "one batched call, deduped")
@@ -236,8 +238,8 @@ class TestMemoizedOracle(unittest.TestCase):
         # the single-string query rides the same cache
         oracle.calls.clear()
         self.assertEqual(
-            oracle.membership_query(b"\x01\x00\x01"),
-            memo.membership_query(b"\x01\x00\x01"),
+            oracle.membership_query(bytes([1, 0, 1])),
+            memo.membership_query(bytes([1, 0, 1])),
         )
         self.assertEqual([], oracle.calls, "cached, no new call")
 
@@ -257,12 +259,12 @@ class TestMemoizedOracle(unittest.TestCase):
         oracle = HashOracle()
         memo = MemoizedOracle(oracle)
         strings = [
-            b"\x01",
-            b"\x01\x00",
-            b"\x00\x01",
-            b"\x01\x00\x00",
-            b"\x00\x00\x01",
-            b"\x01\x00\x00\x00",
+            bytes([1]),
+            bytes([1, 0]),
+            bytes([0, 1]),
+            bytes([1, 0, 0]),
+            bytes([0, 0, 1]),
+            bytes([1, 0, 0, 0]),
         ]
         self.assertEqual(
             [oracle.membership_query(s) for s in strings],

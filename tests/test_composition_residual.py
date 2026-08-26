@@ -36,7 +36,7 @@ def every_kmer_frequency(strings, k_max):
 
 class TestBowFeatures(unittest.TestCase):
     def test_shape_and_frequencies(self):
-        features = bow_features([b"\x00\x01\x02\x03", b"\x03\x03\x03"], k_max=2)
+        features = bow_features([bytes([0, 1, 2, 3]), bytes([3, 3, 3])], k_max=2)
         self.assertEqual(features.shape, (2, 3 + 15))  # last k-mer of each k omitted
         np.testing.assert_allclose(features[0, :3], 0.25)  # ACGT -> A, C, G each 1/4
         np.testing.assert_allclose(features[1, :3], 0)  # TTT is all of the omitted T
@@ -104,7 +104,7 @@ class TestCompositionResidualScore(unittest.TestCase):
         # the documented single-length form: len_hi = len_lo + 1 (len_hi exclusive).
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
         self.assertEqual(residual._betas.shape[0], 1)
-        scored = self._scores(residual, [b"\x00\x01\x02" * 10])
+        scored = self._scores(residual, [bytes([0, 1, 2]) * 10])
         self.assertEqual(scored.shape, (1,))
         self.assertEqual(residual.composition_r2s.shape, (1,))
         self.assertFalse(np.isnan(residual.composition_r2))

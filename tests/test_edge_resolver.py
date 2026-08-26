@@ -29,10 +29,10 @@ class _StubPopulation:
     resolve each edge (rather than skipping it as unreachable)."""
 
     def representative(self, _path, _limit):
-        return b"\x00"
+        return bytes([0])
 
     def members(self, _path, _limit):
-        return [b"\x00"]
+        return [bytes([0])]
 
 
 class TestEdgeResolverCloseTerminates(unittest.TestCase):

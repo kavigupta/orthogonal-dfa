@@ -55,8 +55,8 @@ class TestLStarFast(unittest.TestCase):
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return b"\x01" * 4
-            return b"\x00" * 4
+                return bytes([1]) * 4
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
@@ -67,8 +67,8 @@ class TestLStarFast(unittest.TestCase):
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return b"\x01" * 5
-            return b"\x00" * 4
+                return bytes([1]) * 5
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
