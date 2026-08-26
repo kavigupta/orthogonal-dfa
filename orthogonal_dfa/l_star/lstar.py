@@ -21,10 +21,6 @@ from .statistics import (
     denoise_sample_size,
 )
 
-#: Samples denoise_accept_labels draws whatever the signal, so a strong one still
-#: gets enough draws for the binomial test to have somewhere to land.
-MIN_DENOISE_SAMPLES = 200
-
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     """
@@ -61,10 +57,7 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     # too few strings reaching them to have had a chance.
     exhausted = []
     if max_samples is None:
-        max_samples = max(
-            MIN_DENOISE_SAMPLES,
-            denoise_sample_size(pst.config.min_signal_strength),
-        )
+        max_samples = denoise_sample_size(pst.config.min_signal_strength)
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).

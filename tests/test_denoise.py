@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.lstar import MIN_DENOISE_SAMPLES, denoise_accept_labels
+from orthogonal_dfa.l_star.lstar import denoise_accept_labels
 from orthogonal_dfa.l_star.statistics import (
     binomial_side_of_boundary,
     denoise_sample_size,
@@ -134,8 +134,8 @@ class TestDenoiseSampleSize(unittest.TestCase):
     def test_the_cap_admits_the_test_it_gates(self):
         # The old fixed 200 sat below this from signal 0.15 down, so no state
         # could ever be relabelled there.
-        for signal in (0.3, 0.2, 0.15, 0.1, 0.05):
-            n = max(MIN_DENOISE_SAMPLES, denoise_sample_size(signal))
+        for signal in (0.5, 0.3, 0.2, 0.15, 0.1, 0.05):
+            n = denoise_sample_size(signal)
             decisive = [
                 i
                 for i in range(1, n + 1)
