@@ -70,7 +70,7 @@ def recompute_evidence_margin(
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
-    prev_fnr = 1.0
+    prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
 
@@ -89,21 +89,26 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
-        if fnr <= pst.config.fnr_limit:
+        fnr = pst.compute_fnr(vs)
+        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+        # An undersized family is unusable whatever its FNR measures.
+        if len(vs) < pst.config.suffix_family_size:
+            effective_fnr, reason = 1.0, "undersized"
+
+        if effective_fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return vs, decision_boundary
 
-        if fnr >= prev_fnr or strategy == "prefix":
+        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
-        prev_fnr = fnr
+        prev_effective_fnr = effective_fnr
 
         print(
-            f"FNR {fnr:.4f} too high, sampling more suffixes; "
+            f"{reason}, sampling more {strategy}es; "
             f"decision_boundary: {decision_boundary:.4f}"
         )
 
