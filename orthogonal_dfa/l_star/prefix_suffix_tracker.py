@@ -199,7 +199,12 @@ class PrefixSuffixTracker:
         core exists to give transient states discovery rows, not to recalibrate
         the family against an unrepresentative population.
         """
-        decision = self.compute_decision(vs, self.table.representative)
+        return self.fnr_from_decision(
+            self.compute_decision(vs, self.table.representative)
+        )
+
+    def fnr_from_decision(self, decision) -> float:
+        """``compute_fnr`` for a decision vector already in hand."""
         arr = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
         ).mean(1)
