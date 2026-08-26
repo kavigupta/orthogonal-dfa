@@ -93,8 +93,15 @@ def evidence_margin_for_population_size(
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
-            k_low, N, signal_strength + center
+        # Both classes, not just the accepting one.  A band symmetric in rate is
+        # not symmetric in variance unless it sits at 0.5: at a centre of 0.75 the
+        # accepting class draws around 0.9 and the rejecting one around 0.6, whose
+        # variance is 2.7x larger, so a band the accepting class clears easily can
+        # leave the rejecting one indecisive many times over the bound.
+        fnr = max(
+            _binom_cdf(k_high - 1, N, center + side)
+            - _binom_cdf(k_low, N, center + side)
+            for side in (signal_strength, -signal_strength)
         )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps

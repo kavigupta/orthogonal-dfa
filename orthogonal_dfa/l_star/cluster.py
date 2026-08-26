@@ -3,7 +3,7 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import NoUsableEvidenceMargin, evidence_margin_for_population_size
+from .statistics import population_size_and_evidence_margin
 
 
 def identify_cluster_around(
@@ -64,33 +64,16 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-#: Suffixes the margin search may ask for beyond the family size before giving up.
-#: One is enough wherever it is needed at all; the rest is slack.
-EVIDENCE_MARGIN_REACH = 64
-
-
-def recompute_family_size_and_margin(
-    min_signal_strength, suffix_family_size, decision_boundary
-):
+def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
     """Suffixes to read, and the band to read them with, at the boundary the round
     estimated.
 
-    The size is a cost -- every suffix is a query against every prefix -- and the
-    band follows from it, since averaging more of them concentrates the estimate
-    and so admits a narrower band.  Where the size in hand admits no band, the
-    remedy is more of them: a smaller sample cannot meet a bound a larger one
-    misses.
+    Solved together: how many suffixes a decision needs depends on where the
+    boundary sits, because the two classes draw from binomials whose variance
+    differs once it leaves 0.5.
     """
-    for size in range(suffix_family_size, suffix_family_size + EVIDENCE_MARGIN_REACH):
-        found = evidence_margin_for_population_size(
-            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
-        )
-        if found is not None:
-            return size, found[1]
-    raise NoUsableEvidenceMargin(
-        f"no band around {decision_boundary:.4f} holds both error rates at 0.01 "
-        f"over anything from {suffix_family_size} to "
-        f"{suffix_family_size + EVIDENCE_MARGIN_REACH} suffixes"
+    return population_size_and_evidence_margin(
+        min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
 
 
@@ -196,7 +179,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
         pst.decision_boundary = decision_boundary
         family_size, pst.evidence_margin = recompute_family_size_and_margin(
-            pst.config.min_signal_strength, family_size, decision_boundary
+            pst.config.min_signal_strength, decision_boundary
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
