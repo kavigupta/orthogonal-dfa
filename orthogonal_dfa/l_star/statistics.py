@@ -91,8 +91,8 @@ def evidence_margin_for_population_size(
     """
     for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        # Both classes: a band symmetric in rate is not symmetric in variance
-        # away from 0.5, and the wider class is the one that has to clear it.
+        # Consider the false-negative rate for both elements
+        # at margin above and below the center.
         fnr = max(
             _binom_cdf(k_high - 1, N, center + side)
             - _binom_cdf(k_low, N, center + side)
