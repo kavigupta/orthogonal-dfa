@@ -191,8 +191,8 @@ def _wrongly_cut_states(cuts, true_dfa, threshold):
     ]
 
 
-def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant.
+def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
+    """The per-round accept-preserving invariant.
 
     Each round's family is seeded at the empty suffix, so its decisive
     classifications should realise the accept-preserving split.  Checked a state
@@ -200,11 +200,8 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     opinion about each, and require the ones it got backwards to be states its
     prefixes barely reached.
     """
-    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
-    truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    true_dfa = truth_oracle.target_dfa()
     threshold = _common_in_prefixes_threshold(
-        kwargs["min_signal_strength"], common_in_prefixes_fpr
+        min_signal_strength, common_in_prefixes_fpr
     )
     for classifier in classifiers:
         cuts = _state_cuts(classifier, true_dfa)
@@ -229,43 +226,12 @@ def learn_dfa_verified(oracle_creator, **kwargs):
                 f"the evidence and still cut the other way"
             )
 
+
+def learn_dfa_verified(oracle_creator, **kwargs):
+    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
+    truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
+    assert_rounds_accept_preserving(
+        classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
+    )
     return dfa
-
-
-def _round_accept_preserving_counts(classifier, truth_oracle):
-    """``(decisive, misclassified)`` counts over the calibrated-population prefixes
-    ``classifier`` decides, or None when it decides none of them. Off-length prefixes
-    (boundary strings, per-state samples) are excluded: the family was never
-    calibrated on them, so its cut is not expected to hold there."""
-    decisive = classifier.decisive & classifier.calibrated
-    if not decisive.any():
-        return None
-    truth = np.array(
-        [bool(truth_oracle.membership_query(p)) for p in classifier.prefixes]
-    )
-    return int(decisive.sum()), int(
-        np.sum(classifier.accept[decisive] != truth[decisive])
-    )
-
-
-def assert_rounds_accept_preserving(classifiers, truth_oracle):
-    """The same invariant for a learner whose alphabet has no target DFA to state
-    it per state -- the superlanguage, where ``target_dfa`` answers over the base
-    alphabet and the rounds run over the super one. Pooled rather than per state,
-    so it is the weaker check; prefer ``learn_dfa_verified`` where a target DFA
-    exists.
-    """
-    for classifier in classifiers:
-        counts = _round_accept_preserving_counts(classifier, truth_oracle)
-        if counts is None:
-            continue
-        decisive, wrong = counts
-        if binomial_side_of_boundary(
-            wrong, decisive, round_verify_fpr, failure_prob=round_verify_alpha
-        ):
-            raise AssertionError(
-                f"a synthesis round misclassified {wrong}/{decisive} of its decisive "
-                f"prefixes against the noiseless accept-preserving split -- "
-                f"significantly above the fpr budget {round_verify_fpr} "
-                f"(binomial test, alpha={round_verify_alpha})"
-            )

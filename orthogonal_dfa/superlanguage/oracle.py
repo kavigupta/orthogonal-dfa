@@ -5,6 +5,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
 
+from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
 
 
@@ -76,3 +77,7 @@ class LiftedOracle(Oracle):
 
     def membership_query(self, string: List[int]) -> bool:
         return bool(self.membership_queries([string])[0])
+
+    def target_dfa(self):
+        base = self._base.target_dfa()
+        return None if base is None else super_target_dfa(self._vocab, base)

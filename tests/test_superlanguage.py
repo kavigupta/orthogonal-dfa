@@ -365,7 +365,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
 
         oracle = LiftedOracle(base, vocab, num_compilations=1, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
-        assert_rounds_accept_preserving(classifiers, oracle)
+        assert_rounds_accept_preserving(classifiers, oracle.target_dfa(), signal)
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)
         strings = [sampler.sample(rng, vocab.alphabet_size) for _ in range(3000)]
