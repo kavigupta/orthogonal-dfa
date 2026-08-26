@@ -85,7 +85,7 @@ class NoEpsilonConsistentFamily(Exception):
     """No suffix family agreeing with epsilon could be sampled for this target."""
 
 
-def epsilon_audit_pvalue(pst, vs, decision_boundary, seed_row) -> float:
+def epsilon_audit_pvalue(pst, decision, decision_boundary, seed_row) -> float:
     """Exact two-sided binomial test of the family's cut against epsilon's column.
 
     Membership of ``p + eps`` is membership of ``p``, so epsilon's column is the
@@ -94,9 +94,7 @@ def epsilon_audit_pvalue(pst, vs, decision_boundary, seed_row) -> float:
     The rates are unknown, and ``min_signal_strength`` bounds both away from the
     boundary -- a bound only makes the test reject less.
     """
-    mask = pst.table.representative
-    decision = pst.compute_decision(vs, mask)
-    eps = pst.table.column(seed_row)[mask]
+    eps = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
     worst = 1.0
     for side, rate in (
@@ -137,8 +135,15 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        audit = epsilon_audit_pvalue(pst, vs, decision_boundary, v)
-        fnr = 1 if len(vs) < pst.config.suffix_family_size else pst.compute_fnr(vs)
+        # One decision vector for both gates: recomputing it doubled the cost of
+        # every pass through a loop that can run dozens of times.
+        decision = pst.compute_decision(vs, pst.table.representative)
+        audit = epsilon_audit_pvalue(pst, decision, decision_boundary, v)
+        fnr = (
+            1
+            if len(vs) < pst.config.suffix_family_size
+            else pst.fnr_from_decision(decision)
+        )
         if audit < EPSILON_AUDIT_ALPHA:
             audit_rejections += 1
             if audit_rejections >= EPSILON_AUDIT_GIVE_UP:
