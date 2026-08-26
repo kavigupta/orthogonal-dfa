@@ -55,6 +55,12 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
+    # A round whose cluster is all on one side estimates a boundary far from even,
+    # and the rates it implies -- boundary +/- the signal -- stop being
+    # probabilities. Nothing downstream can size a band around such a boundary.
+    signal = pst.config.min_signal_strength
+    decision_boundary = min(max(decision_boundary, signal), 1 - signal)
+
     return candidate[cluster].tolist(), decision_boundary
 
 

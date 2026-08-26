@@ -19,6 +19,7 @@ def _binom_cdf(k, n, p):
         return 1.0
     return scipy.special.bdtr(k, n, p)
 
+
 #: A population this large means no band separates the signal at the requested
 #: error rates; say so rather than doubling until it overflows.
 MAX_POPULATION_SIZE = 10**7
