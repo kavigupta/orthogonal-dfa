@@ -103,11 +103,9 @@ round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
-#: A state is *common in prefixes* when enough of the round's prefixes reach it
-#: for its accept/reject label to be more than a coin flip.  We decide that from
-#: the count alone, so this is the rate at which we call a state common in
-#: prefixes while its label is in fact undetermined.
-common_in_prefixes_fpr = 0.01
+#: Rate at which one verified run is expected to fail spuriously, divided by the
+#: comparisons it makes to get the rate any single state is held to.
+round_check_run_fpr = 0.01
 
 
 def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
@@ -200,11 +198,14 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
     opinion about each, and require the ones it got backwards to be states its
     prefixes barely reached.
     """
+    per_round = [_state_cuts(c, true_dfa) for c in classifiers]
+    # Every state the round reached, not just those held to the threshold: the
+    # count must not depend on the threshold it is used to compute.
+    comparisons = max(1, sum(len(c) for c in per_round))
     threshold = _common_in_prefixes_threshold(
-        min_signal_strength, common_in_prefixes_fpr
+        min_signal_strength, round_check_run_fpr / comparisons
     )
-    for classifier in classifiers:
-        cuts = _state_cuts(classifier, true_dfa)
+    for cuts in per_round:
 
         split = _split_states(cuts)
         if split:
