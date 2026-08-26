@@ -136,6 +136,34 @@ def compute_prefix_set_size(delta, noise_level, acceptable_misclassification):
     return int(np.ceil(k))
 
 
+def common_in_prefixes_threshold(signal_strength, acceptable_fpr):
+    r"""Prefixes that must reach a state before its label beats a coin flip.
+
+    A family that labels state q correctly and one that does not differ only on
+    the prefixes that reach q.  Each votes correctly with probability
+    1/2 + signal_strength, so q's label is a binomial vote over m_q of them, and
+    lands the wrong way more often than acceptable_fpr unless
+
+        m_q >= z^2 (1/4 - signal_strength^2) / signal_strength^2,
+        z = Phi^-1(1 - acceptable_fpr)
+    """
+    z = scipy.stats.norm.ppf(1 - acceptable_fpr)
+    return z**2 * (0.25 - signal_strength**2) / signal_strength**2
+
+
+def compute_prefix_pool_size(signal_strength, num_states, acceptable_fpr):
+    """Prefixes to draw so each of ``num_states`` states clears
+    ``common_in_prefixes_threshold``, spending ``acceptable_fpr`` across them.
+
+    Counts on the pool spreading evenly over the states, so a target that hides
+    one behind a rare transition still gets fewer votes there than this asks for.
+    """
+    per_state = common_in_prefixes_threshold(
+        signal_strength, acceptable_fpr / num_states
+    )
+    return int(np.ceil(per_state * num_states))
+
+
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
     """
     Computes the suffix size to use for counterexample generation.

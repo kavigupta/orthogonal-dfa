@@ -1,9 +1,11 @@
 import numpy as np
-import scipy.stats
 
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.statistics import (
+    binomial_side_of_boundary,
+    common_in_prefixes_threshold,
+)
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
 us = UniformSampler(40)
@@ -108,21 +110,6 @@ round_verify_alpha = 1e-4  # binomial significance for flagging a state
 round_check_run_fpr = 0.01
 
 
-def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
-    """Prefixes a state needs before it counts as common in prefixes.
-
-    A family that labels state q correctly and one that does not differ only on
-    the prefixes that *reach* q -- everywhere else both predict the same thing.
-    Each such prefix votes correctly with probability 1/2 + signal, so q's label
-    is a binomial vote over m_q of them, and lands the wrong way more often than
-    ``fpr`` unless
-
-        m_q >= z^2 (1/4 - signal^2) / signal^2,   z = Phi^-1(1 - fpr)
-    """
-    z = scipy.stats.norm.ppf(1 - fpr)
-    return z**2 * (0.25 - signal**2) / signal**2
-
-
 def _reached_states(prefixes, true_dfa):
     """The state each prefix reaches in ``true_dfa``."""
 
@@ -205,7 +192,7 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     # Every state the round reached, not just those held to the threshold: the
     # count must not depend on the threshold it is used to compute.
     comparisons = max(1, sum(len(c) for c in per_round))
-    threshold = _common_in_prefixes_threshold(
+    threshold = common_in_prefixes_threshold(
         kwargs["min_signal_strength"], round_check_run_fpr / comparisons
     )
     for cuts in per_round:

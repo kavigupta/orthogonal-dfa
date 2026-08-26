@@ -16,6 +16,7 @@ from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
 from .statistics import (
+    compute_prefix_pool_size,
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_margin,
 )
@@ -27,8 +28,14 @@ DEFAULT_SAMPLE_LENGTH = 40
 #: Accuracy the synthesis loop drives the hypothesis to before stopping.
 DEFAULT_ACC_THRESHOLD = 0.98
 
-#: Prefixes to start from.
-NUM_PREFIXES = 200
+#: Prefixes to start from where the signal is strong enough that the derived
+#: pool would be smaller.
+MIN_PREFIXES = 200
+
+#: Target size the prefix pool is sized for.  A target with more states than
+#: this splits the same pool further, giving each state fewer votes than
+#: `common_in_prefixes_threshold` asks for.
+DEFAULT_MAX_STATES = 8
 
 
 def build_pst(
@@ -40,6 +47,7 @@ def build_pst(
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     require_accept_preserving: bool = True,
+    max_states: int = DEFAULT_MAX_STATES,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -50,11 +58,19 @@ def build_pst(
 
     `sampler` supplies the probe strings; pass one to learn over a different
     string distribution, or to vary the length.
+
+    The prefix pool is sized for a target of up to `max_states` states: a state's
+    label is a vote among the prefixes reaching it, so the pool a weak signal
+    needs grows as 1/`min_signal_strength`^2 alongside the suffix family.
     """
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
+    num_prefixes = max(
+        MIN_PREFIXES,
+        compute_prefix_pool_size(min_signal_strength, max_states, acceptable_fpr=0.01),
+    )
     n, eps = population_size_and_evidence_margin(
         signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
     )
@@ -65,7 +81,7 @@ def build_pst(
             0.01, effective_p_acc
         ),
         min_signal_strength=min_signal_strength,
-        num_addtl_prefixes=NUM_PREFIXES,
+        num_addtl_prefixes=num_prefixes,
         min_suffix_frequency=min_suffix_frequency,
         require_accept_preserving=require_accept_preserving,
     )
@@ -74,7 +90,7 @@ def build_pst(
         np.random.default_rng(0),
         oracle,
         config,
-        num_prefixes=NUM_PREFIXES,
+        num_prefixes=num_prefixes,
     )
 
 
@@ -88,6 +104,7 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     require_accept_preserving: bool = True,
+    max_states: int = DEFAULT_MAX_STATES,
 ):
     """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
 
@@ -106,6 +123,7 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
         require_accept_preserving=require_accept_preserving,
+        max_states=max_states,
     )
     dfa, _, classifiers = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold
