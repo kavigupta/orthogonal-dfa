@@ -15,6 +15,7 @@ length of uniform sampling:
 
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -27,9 +28,25 @@ DEFAULT_NUM_SAMPLES = 2000
 DEFAULT_MIN_COVERAGE = 0.01
 
 
-def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> bytes:
-    """A uniform random string of ``length`` symbols over the DFA's alphabet."""
-    return rng.choice(sorted(dfa.input_symbols), size=length).astype(np.uint8).tobytes()
+@lru_cache(maxsize=None)
+def _sample_strings(
+    symbols: Tuple[int, ...], length: int, num_samples: int
+) -> Tuple[bytes, ...]:
+    """The uniform length-``length`` sample the checks below all read.
+
+    Seeded at 0 and drawn from the alphabet alone, so it is the same sample for
+    every DFA over that alphabet -- and each check used to redraw it per DFA,
+    which was most of the cost of screening a population.
+    """
+    rng = np.random.default_rng(0)
+    return tuple(
+        rng.choice(symbols, size=length).astype(np.uint8).tobytes()
+        for _ in range(num_samples)
+    )
+
+
+def _samples(dfa: DFA, length: int, num_samples: int) -> Tuple[bytes, ...]:
+    return _sample_strings(tuple(sorted(dfa.input_symbols)), length, num_samples)
 
 
 def _endpoint(dfa: DFA, string: bytes, start=None):
@@ -44,10 +61,9 @@ def acceptance_rate(
     dfa: DFA, *, length: int, num_samples: int = DEFAULT_NUM_SAMPLES
 ) -> float:
     """Fraction of random length-``length`` strings the DFA accepts."""
-    rng = np.random.default_rng(0)
     accepts = sum(
-        _endpoint(dfa, _random_string(dfa, length, rng)) in dfa.final_states
-        for _ in range(num_samples)
+        _endpoint(dfa, s) in dfa.final_states
+        for s in _samples(dfa, length, num_samples)
     )
     return accepts / num_samples
 
@@ -58,12 +74,11 @@ def class_preserving_fraction(
     """Fraction of random length-``length`` strings ``s`` for which *every*
     state ``q`` satisfies ``(q in F) == (delta*(q, s) in F)`` -- the suffixes
     that reset the whole state set into a single accept/reject class."""
-    rng = np.random.default_rng(0)
     finals = dfa.final_states
     states = list(dfa.states)
     preserving = sum(
         all((q in finals) == (_endpoint(dfa, s, q) in finals) for q in states)
-        for s in (_random_string(dfa, length, rng) for _ in range(num_samples))
+        for s in _samples(dfa, length, num_samples)
     )
     return preserving / num_samples
 
@@ -78,10 +93,7 @@ def covered_states(
     """
     The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
     """
-    rng = np.random.default_rng(0)
-    counts = Counter(
-        _endpoint(dfa, _random_string(dfa, length, rng)) for _ in range(num_samples)
-    )
+    counts = Counter(_endpoint(dfa, s) for s in _samples(dfa, length, num_samples))
     return {q for q, c in counts.items() if c / num_samples >= min_coverage}
 
 
@@ -101,8 +113,7 @@ def covered_accuracy_ceiling(
     it cannot represent it. Only the start is constrained, from there we follow
     the target's true transitions and read off the endpoint's true accept label.
     """
-    rng = np.random.default_rng(0)
-    strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
+    strings = _samples(dfa, length, num_samples)
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
     counts = Counter(_endpoint(dfa, s) for s in strings)
     covered = {q for q, c in counts.items() if c / num_samples >= min_coverage}

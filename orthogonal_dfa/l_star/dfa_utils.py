@@ -1,6 +1,3 @@
-import numpy as np
-
-
 def states_intermediate(s0, y, dfa):
     states = [s0]
     for symbol in y:
@@ -39,12 +36,26 @@ def sample_string_reaching_state(dfa, counts, rng):
         return None
     string = bytearray()
     for remaining in range(length, 0, -1):
-        weights = np.array(
-            [counts[remaining - 1][dfa.transitions[state][s]] for s in syms], float
-        )
-        symbol = syms[rng.choice(len(syms), p=weights / weights.sum())]
+        row = counts[remaining - 1]
+        transitions = dfa.transitions[state]
+        weights = [row[transitions[s]] for s in syms]
+        # One uniform draw walked against the weights rather than rng.choice(p=),
+        # which spends ~20us normalising and building a CDF for what is usually a
+        # two-way split, once per symbol of every sampled string.
+        target = rng.random() * sum(weights)
+        cumulative = 0
+        symbol = syms[0]
+        for candidate, weight in zip(syms, weights):
+            if not weight:
+                continue
+            # Never leaves a zero-weight symbol selected, and a draw that overruns
+            # the total on rounding lands on the last symbol that had mass.
+            symbol = candidate
+            cumulative += weight
+            if target < cumulative:
+                break
         string.append(symbol)
-        state = dfa.transitions[state][symbol]
+        state = transitions[symbol]
     return bytes(string)
 
 
