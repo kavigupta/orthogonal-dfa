@@ -86,28 +86,32 @@ class NoAcceptPreservingFamily(Exception):
 
 
 def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> float:
-    """Exact two-sided binomial test that the family's cut is accept-preserving.
+    """Bonferroni over one one-sided binomial test per side of the family's cut.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
     column is the accept-preserving split itself: under the null it reads 1 at the
     accept rate on the prefixes the family accepts and at the reject rate on the
     rest.  The rates are unknown, and ``min_signal_strength`` bounds both away
     from the boundary -- a bound only makes the test reject less.
+
+    A cut that mixes the classes depletes the accept side and enriches the reject
+    side, so the tail is fixed by the side and never by where its rate falls.
     """
     eps = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
     worst = 1.0
-    for side, rate in (
-        (decision >= pst.accept_thresh, min(decision_boundary + signal, 1 - 1e-9)),
-        (decision < pst.reject_thresh, max(decision_boundary - signal, 1e-9)),
+    for side, rate, depletes in (
+        (decision >= pst.accept_thresh, decision_boundary + signal, True),
+        (decision < pst.reject_thresh, decision_boundary - signal, False),
     ):
         n = int(side.sum())
-        if n < 2:
+        # A bound outside [0, 1] carries no evidence, so the side cannot reject.
+        if n < 2 or not 0 < rate < 1:
             continue
         hits = int(eps[side].sum())
         tail = (
             scipy.stats.binom.cdf(hits, n, rate)
-            if rate > 0.5
+            if depletes
             else scipy.stats.binom.sf(hits - 1, n, rate)
         )
         worst = min(worst, float(tail))
