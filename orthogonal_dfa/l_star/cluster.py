@@ -89,13 +89,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        # An undersized family is unusable whatever its FNR, so it takes the
-        # value that keeps the loop going rather than being measured.
+        fnr = pst.compute_fnr(vs)
+        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+        # An undersized family is unusable whatever its FNR measures.
         if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
-        else:
-            fnr = pst.compute_fnr(vs)
-            effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
 
         if effective_fnr <= pst.config.fnr_limit:
             print(
