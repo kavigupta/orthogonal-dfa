@@ -6,8 +6,10 @@ super-string alone, which is what lets these assert equality rather than a rate.
 import unittest
 
 import numpy as np
+from automata.fa.dfa import DFA
 from parameterized import parameterized
 
+from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.statistics import population_size_and_evidence_margin
@@ -373,6 +375,41 @@ class TestLearnSuperlanguage(unittest.TestCase):
         self.assertGreaterEqual(
             accuracy, 0.97, f"signal={signal} accuracy {accuracy:.3f}"
         )
+
+
+class TestPreconditionsOverTheSuperAlphabet(unittest.TestCase):
+    """The preconditions are measured over a sampling distribution, and the
+    superlanguage's is nowhere near uniform: a wildcard is ~95% of what
+    SuperSampler draws, against 2/5 of what uniform does. Every kmer-reading
+    target is therefore degenerate under uniform and informative under the
+    sampler the learner actually runs.
+    """
+
+    def setUp(self):
+        self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
+        wild = {3: 0, 4: 0}
+        self.contains_a_kmer = DFA(
+            states={0, 1},
+            input_symbols=set(range(self.vocab.alphabet_size)),
+            transitions={0: {0: 1, 1: 1, 2: 1, **wild}, 1: {s: 1 for s in range(5)}},
+            initial_state=0,
+            final_states={1},
+            allow_partial=False,
+        )
+        self.sampler = SuperSampler(self.vocab, 40)
+
+    def test_passes_under_the_learners_sampler(self):
+        report = preconditions.satisfies_preconditions(
+            self.contains_a_kmer, length=40, num_samples=400, sampler=self.sampler
+        )
+        self.assertTrue(report, report.reasons)
+
+    def test_uniform_default_calls_it_degenerate(self):
+        report = preconditions.satisfies_preconditions(
+            self.contains_a_kmer, length=40, num_samples=400
+        )
+        self.assertFalse(report)
+        self.assertEqual(report.acceptance_rate, 1.0)
 
 
 if __name__ == "__main__":
