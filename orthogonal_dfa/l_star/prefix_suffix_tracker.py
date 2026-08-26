@@ -44,6 +44,10 @@ def short_prefix_closure(
     return [list(p) for p in ordered[:max_count]]
 
 
+#: Below this a signal is not worth sizing a population for.
+MIN_SIGNAL_STRENGTH = 0.001
+
+
 @dataclass
 class SearchConfig:
     suffix_family_size: int
@@ -61,6 +65,11 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+
+    def __post_init__(self):
+        # Population size goes as 1/signal^2, so a signal much below this asks for
+        # one no suffix family could hold, and the search doubles N looking for it.
+        assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
 
 
 @dataclass
