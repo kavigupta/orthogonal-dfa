@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import numpy as np
+import scipy.stats
 
 from .statistics import population_size_and_evidence_margin
 
@@ -71,11 +72,87 @@ def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
     )
 
 
+#: Rejections in a row after which no accept-preserving family is believed to
+#: exist.  More suffixes is the only remedy, and none help against a target where
+#: no suffix preserves the accept/reject classes.
+ACCEPT_PRESERVING_GIVE_UP = 20
+
+#: Significance at which a family is held not to be accept-preserving.  A
+#: rejection costs a resample rather than a failure, so this is a resample budget
+#: and not an error rate.
+ACCEPT_PRESERVING_ALPHA = 1e-3
+
+
+class NoAcceptPreservingFamily(Exception):
+    """No accept-preserving suffix family could be sampled for this target."""
+
+
+def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> float:
+    """Bonferroni over one one-sided binomial test per side of the family's cut.
+
+    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
+    column is the accept-preserving split itself: under the null it reads 1 at the
+    accept rate on the prefixes the family accepts and at the reject rate on the
+    rest.  The rates are unknown, and ``min_signal_strength`` bounds both away
+    from the boundary -- a bound only makes the test reject less.
+
+    A cut that mixes the classes depletes the accept side and enriches the reject
+    side, so the tail is fixed by the side and never by where its rate falls.
+    """
+    eps = pst.table.column(seed_row)[pst.table.representative]
+    signal = pst.config.min_signal_strength
+    worst = 1.0
+    for side, rate, depletes in (
+        (decision >= pst.accept_thresh, decision_boundary + signal, True),
+        (decision < pst.reject_thresh, decision_boundary - signal, False),
+    ):
+        n = int(side.sum())
+        # A bound outside [0, 1] carries no evidence, so the side cannot reject.
+        if n < 2 or not 0 < rate < 1:
+            continue
+        hits = int(eps[side].sum())
+        tail = (
+            scipy.stats.binom.cdf(hits, n, rate)
+            if depletes
+            else scipy.stats.binom.sf(hits - 1, n, rate)
+        )
+        worst = min(worst, float(tail))
+    return min(1.0, 2 * worst)
+
+
+class AcceptPreservingGate:
+    """Holds each suffix family to the accept-preserving split, across the loop
+    that resamples until one passes.  Carries the give-up budget, which is spent
+    only on families that were actually tested."""
+
+    def __init__(self, config):
+        self.enabled = config.require_accept_preserving
+        self.family_size = config.suffix_family_size
+        self.rejections = 0
+
+    def admits(self, pst, decision, decision_boundary, seed_row) -> bool:
+        if not self.enabled:
+            return True
+        p = accept_preserving_pvalue(pst, decision, decision_boundary, seed_row)
+        if p >= ACCEPT_PRESERVING_ALPHA:
+            self.rejections = 0
+            return True
+        self.rejections += 1
+        if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
+            raise NoAcceptPreservingFamily(
+                f"{self.rejections} families running were not accept-preserving "
+                f"(last p={p:.2e}); no family of {self.family_size} suffixes "
+                f"realises the accept-preserving split on this target"
+            )
+        return False
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     family_size = pst.config.suffix_family_size
+    gate = AcceptPreservingGate(pst.config)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -91,11 +168,15 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst.config.min_signal_strength, decision_boundary
         )
 
-        fnr = pst.compute_fnr(vs)
+        decision = pst.compute_decision(vs, pst.table.representative)
+        fnr = pst.fnr_from_decision(decision)
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
-        # An undersized family is unusable whatever its FNR measures.
+        # An undersized family is unusable whatever its FNR measures, and testing
+        # it would spend a budget that means no accept-preserving family exists.
         if len(vs) < requested:
             effective_fnr, reason = 1.0, "undersized"
+        elif not gate.admits(pst, decision, decision_boundary, v):
+            effective_fnr, reason = 1.0, "not accept-preserving"
 
         if effective_fnr <= pst.config.fnr_limit:
             print(
