@@ -9,6 +9,7 @@
 import configparser
 import os
 
+
 config = configparser.ConfigParser()
 with open(os.path.join(os.path.dirname(__file__), "..", "..", "setup.cfg")) as f:
     config.read_file(f)

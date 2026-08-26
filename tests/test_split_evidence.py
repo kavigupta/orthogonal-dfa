@@ -88,7 +88,7 @@ class TestVerdict(unittest.TestCase):
         # beats the pooled one by a mile.
         family = _StubFamily(side_of=lambda p: p[-1] == 0)
         ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
-        self.assertEqual(SPLIT, ev.verdict(0, b"\x01"))
+        self.assertEqual(SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_one_sided_population_settles_the_leaf(self):
         # Every member on the same side: scores stay 0 (no second rate), so the
@@ -98,17 +98,17 @@ class TestVerdict(unittest.TestCase):
             _StubFamily(side_of=lambda p: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, r1, a2, r2, n_a, n_b = ev._tally(0, b"\x01")
+        a1, r1, a2, r2, n_a, n_b = ev._tally(0, bytes([1]))
         self.assertEqual((200, 0), (n_a, n_b))
         self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
-        self.assertEqual(NO_SPLIT, ev.verdict(0, b"\x01"))
+        self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):
         # The same agreement, too few members to rule a split out: UNDECIDED.
         ev = _evidence(
             _StubFamily(side_of=lambda p: True), members=[bytes([i]) for i in range(5)]
         )
-        self.assertEqual(UNDECIDED, ev.verdict(0, b"\x01"))
+        self.assertEqual(UNDECIDED, ev.verdict(0, bytes([1])))
 
 
 if __name__ == "__main__":
