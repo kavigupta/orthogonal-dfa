@@ -2,7 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .statistics import evidence_margin_for_population_size
+from .statistics import population_size_and_evidence_margin
 
 
 def identify_cluster_around(
@@ -57,50 +57,44 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-class NoUsableEvidenceMargin(Exception):
-    """No accept/reject band around the boundary meets both error rates."""
+def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
+    """Suffixes to cluster and the band to read them with, for the boundary the
+    round actually estimated.
 
-
-def recompute_evidence_margin(
-    min_signal_strength, suffix_family_size, decision_boundary
-):
-    result = evidence_margin_for_population_size(
-        min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
+    Both move together: whether a band exists at all is not monotone in the number
+    of suffixes, so holding that number at the value derived for an even boundary
+    leaves boundaries with no usable band, when a slightly different number has
+    one.
+    """
+    return population_size_and_evidence_margin(
+        min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
-    if result is None:
-        raise NoUsableEvidenceMargin(
-            f"no band around {decision_boundary:.4f} over {suffix_family_size} "
-            f"suffixes holds both error rates at 0.01; the band is symmetric, and "
-            f"a boundary this far from even may only be servable by a lopsided one"
-        )
-    _, eps = result
-    return eps
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
+    family_size = pst.config.suffix_family_size
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
+        requested = family_size
         vs, decision_boundary = identify_cluster_around(
-            pst, v, pst.config.suffix_family_size, decision_boundary
+            pst, v, requested, decision_boundary
         )
         pst.decision_boundary = decision_boundary
-        pst.evidence_margin = recompute_evidence_margin(
-            pst.config.min_signal_strength,
-            pst.config.suffix_family_size,
-            decision_boundary,
+        family_size, pst.evidence_margin = recompute_family_size_and_margin(
+            pst.config.min_signal_strength, decision_boundary
         )
 
         fnr = pst.compute_fnr(vs)
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
         # An undersized family is unusable whatever its FNR measures.
-        if len(vs) < pst.config.suffix_family_size:
+        if len(vs) < requested:
             effective_fnr, reason = 1.0, "undersized"
 
         if effective_fnr <= pst.config.fnr_limit:
@@ -121,9 +115,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         if strategy == "suffix":
-            kept = pst.sample_more_suffixes(
-                amount=pst.config.suffix_family_size, reference=v
-            )
-            print(f"  kept {kept}/{pst.config.suffix_family_size} after screening")
+            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  kept {kept}/{family_size} after screening")
         else:
             pst.sample_more_prefixes()
