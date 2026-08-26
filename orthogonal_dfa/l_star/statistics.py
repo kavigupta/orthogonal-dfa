@@ -75,9 +75,9 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
         if k_low < 0 or k_high > N:
             return
         eps = (width - 1) / (2 * N)
-        # Bands whose interval of margins is narrower than the float error in its
-        # own ends survive the test above, and no margin names them. Ask directly
-        # whether this one does, in the comparison the runtime will make.
+        # An offset within float error of 1 passes the test above on an interval
+        # too narrow to hold any margin. It takes a center that is a near-exact
+        # rational over 2N, so it is rare and silent rather than loud.
         if k_low / N < center - eps <= (k_low + 1) / N and (
             (k_high - 1) / N < center + eps <= k_high / N
         ):
