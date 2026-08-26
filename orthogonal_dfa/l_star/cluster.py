@@ -57,6 +57,10 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
+class NoUsableEvidenceMargin(Exception):
+    """No accept/reject band around the boundary meets both error rates."""
+
+
 def recompute_evidence_margin(
     min_signal_strength, suffix_family_size, decision_boundary
 ):
@@ -64,7 +68,11 @@ def recompute_evidence_margin(
         min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
     )
     if result is None:
-        return min_signal_strength * 0.5
+        raise NoUsableEvidenceMargin(
+            f"no band around {decision_boundary:.4f} over {suffix_family_size} "
+            f"suffixes holds both error rates at 0.01; the band is symmetric, and "
+            f"a boundary this far from even may only be servable by a lopsided one"
+        )
     _, eps = result
     return eps
 

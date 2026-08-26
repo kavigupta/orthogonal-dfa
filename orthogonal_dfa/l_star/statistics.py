@@ -38,13 +38,28 @@ def population_size_and_evidence_margin(
     return res
 
 
+def candidate_margins(N: int, center: float) -> np.ndarray:
+    """Ascending margins at which the accept/reject counts change.
+
+    The test only depends on ``eps`` through ``floor(N(center - eps))`` and
+    ``ceil(N(center + eps))``, so it takes at most ``2N`` distinct forms and these
+    are the smallest margin producing each.  A grid over ``eps`` instead samples
+    the same test repeatedly and can step over the only form that qualifies.
+    """
+    ks = np.arange(N + 1) / N
+    eps = np.concatenate([center - ks, ks - center])
+    # Just past each crossing: at it exactly the floor and the ceiling land on the
+    # narrower pair, which is a different test from the one this margin denotes.
+    return np.unique(eps[eps > 0]) + 1e-9
+
+
 def evidence_margin_for_population_size(
     signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
     """
-    for eps in np.linspace(0.01, signal_strength, 100):
+    for eps in candidate_margins(N, center):
         k_low = int(np.floor(N * (center - eps)))
         k_high = int(np.ceil(N * (center + eps)))
         fpr = scipy.stats.binom.cdf(k_low, N, center) + (
