@@ -135,15 +135,15 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        # One decision vector for both gates: recomputing it doubled the cost of
-        # every pass through a loop that can run dozens of times.
-        decision = pst.compute_decision(vs, pst.table.representative)
-        audit = epsilon_audit_pvalue(pst, decision, decision_boundary, v)
-        fnr = (
-            1
-            if len(vs) < pst.config.suffix_family_size
-            else pst.fnr_from_decision(decision)
-        )
+        # Reading the decision observes cells, which promotes suffixes into
+        # fully_observed() and so changes what the next pass clusters over.  An
+        # undersized family is rejected on sight, so it must not be read at all.
+        if len(vs) < pst.config.suffix_family_size:
+            audit, fnr = 1.0, 1
+        else:
+            decision = pst.compute_decision(vs, pst.table.representative)
+            audit = epsilon_audit_pvalue(pst, decision, decision_boundary, v)
+            fnr = pst.fnr_from_decision(decision)
         if audit < EPSILON_AUDIT_ALPHA:
             audit_rejections += 1
             if audit_rejections >= EPSILON_AUDIT_GIVE_UP:
