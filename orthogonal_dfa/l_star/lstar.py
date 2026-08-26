@@ -57,6 +57,9 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     need more than it allows -- below signal 0.15 for the 200 this used to take.
     """
     length = pst.sampler.length
+    # States that used the whole budget without deciding, as opposed to those with
+    # too few strings reaching them to have had a chance.
+    exhausted = []
     if max_samples is None:
         max_samples = max(
             MIN_DENOISE_SAMPLES,
@@ -66,7 +69,8 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
         counts = count_paths_to_state(dfa, state, length)
-        cap = min(max_samples, counts[length][dfa.initial_state])
+        reachable = counts[length][dfa.initial_state]
+        cap = min(max_samples, reachable)
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read
@@ -93,6 +97,8 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
                 )
                 if decision is not None:
                     return decision
+        if reachable >= max_samples:
+            exhausted.append(state)
         return None
 
     label = {
@@ -100,6 +106,11 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
         for prefix in pst.table.prefixes
     }
     label = {state: relabel(state) for state in label}
+    if exhausted:
+        print(
+            f"Denoise spent {max_samples} samples on {sorted(exhausted)} without "
+            f"reaching significance either side of {pst.decision_boundary:.4f}"
+        )
 
     def is_final(s):
         # Decided states use the new label; the rest keep the discovery label.

@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 
 import numpy as np
@@ -28,6 +30,20 @@ class _CountingOracle:
     def membership_queries(self, strings):
         self.batches.append(len(strings))
         return [parity_membership(s) for s in strings]
+
+
+class _CoinFlipOracle:
+    """Answers by a hash of the string, so no sample size reaches significance."""
+
+    @property
+    def alphabet_size(self):
+        return 2
+
+    def membership_query(self, string):
+        return hash(tuple(string)) % 2 == 0
+
+    def membership_queries(self, strings):
+        return [self.membership_query(s) for s in strings]
 
 
 class _StubSampler:
@@ -94,6 +110,24 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         denoise_accept_labels(pst, PARITY, max_samples=40, block_size=16)
         for size in pst.oracle.batches:
             self.assertIn(size, (16, 8))  # a full block, or the 40 - 2*16 remainder
+
+
+class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
+    def test_says_so_when_the_budget_decides_nothing(self):
+        # The silence this replaces is how a cap below the test's requirement
+        # went unnoticed: every state undecided, and nothing said so.
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(pst, PARITY, max_samples=64)
+        self.assertIn("without reaching significance", out.getvalue())
+
+    def test_quiet_when_every_state_decides(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(_StubPst(), PARITY)
+        self.assertNotIn("without reaching significance", out.getvalue())
 
 
 class TestDenoiseSampleSize(unittest.TestCase):
