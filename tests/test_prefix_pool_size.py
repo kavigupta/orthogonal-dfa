@@ -65,3 +65,9 @@ class TestPoolIsSizedForTheSignal(unittest.TestCase):
         self.assertGreater(
             many.config.num_addtl_prefixes, few.config.num_addtl_prefixes
         )
+
+    def test_a_clean_oracle_still_gets_a_pool(self):
+        # The derived pool prices denoising, which a clean oracle needs none of.
+        self.assertEqual(compute_prefix_pool_size(0.5, 8, 0.01), 0)
+        pst = build_pst(_oracle, min_signal_strength=0.5, seed=0)
+        self.assertEqual(pst.config.num_addtl_prefixes, MIN_PREFIXES)

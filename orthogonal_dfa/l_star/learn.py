@@ -28,8 +28,9 @@ DEFAULT_SAMPLE_LENGTH = 40
 #: Accuracy the synthesis loop drives the hypothesis to before stopping.
 DEFAULT_ACC_THRESHOLD = 0.98
 
-#: Prefixes to start from where the signal is strong enough that the derived
-#: pool would be smaller.
+#: Prefixes to start from whatever the signal.  The derived pool prices
+#: denoising alone, which reaches zero as the oracle approaches clean, while
+#: suffix screening and counterexample generation still need rows to work over.
 MIN_PREFIXES = 200
 
 #: Target size the prefix pool is sized for.  A target with more states than
