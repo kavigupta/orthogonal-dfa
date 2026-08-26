@@ -19,36 +19,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5]
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Run shard ${{ matrix.shard }}
-        run: |
-          files=$(uv run python scripts/shard_tests.py --mode files \
-            --shard ${{ matrix.shard }} --num-shards 6)
-          echo "$files"
-          # Bare pytest would run the whole suite, so an empty shard must not reach it.
-          [ -n "$files" ] || exit 0
-          uv run python -m pytest $files -sv
-
-  lstar-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
         shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v3
@@ -66,8 +36,38 @@ jobs:
           uv pip install -r requirements.txt
       - name: Run shard ${{ matrix.shard }}
         run: |
-          tests=$(uv run python scripts/shard_tests.py --mode lstar \
-            --shard ${{ matrix.shard }} --num-shards 10)
+          files=$(find tests -name 'test_*.py' ! -name 'test_lstar.py' \
+            | sort | awk 'NR % 10 == ${{ matrix.shard }}')
+          echo "$files"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$files" ] || exit 0
+          uv run python -m pytest $files -sv
+
+  lstar-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
+      - name: Install dependencies
+        run: |
+          uv venv --python 3.12
+          uv pip install "setuptools>=68.0" "wheel>=0.41"
+          uv pip install -r requirements.txt
+      - name: Run shard ${{ matrix.shard }}
+        run: |
+          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q \
+            | grep '::' | awk 'NR % 14 == ${{ matrix.shard }}')
           echo "$tests"
           # Bare pytest would run the whole suite, so an empty shard must not reach it.
           [ -n "$tests" ] || exit 0
