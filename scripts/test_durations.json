@@ -23,7 +23,7 @@
  "tests/test_lstar.py::TestLStarAsymmetric::test_modulo_asymmetric_non_straddling_1": 145,
  "tests/test_lstar.py::TestLStarAsymmetric::test_one_sided_noise": 40,
  "tests/test_lstar.py::TestLStarAsymmetric::test_regex_asymmetric": 22,
- "tests/test_lstar.py::TestLStarBimodalReproducer::test_bimodal_reproducer": 534,
+ "tests/test_lstar.py::TestLStarBimodalReproducer::test_bimodal_reproducer": 1,
  "tests/test_lstar.py::TestLStarDeepCounter::test_contains_run_of_k_zeros_0": 18,
  "tests/test_lstar.py::TestLStarDeepCounter::test_contains_run_of_k_zeros_1": 23,
  "tests/test_lstar.py::TestLStarIndistinguishablePair::test_extreme_worst_pair_still_learned": 51,
