@@ -138,12 +138,11 @@ class AcceptPreservingGate:
                 f"(last p={p:.2e}); no family of {self.family_size} suffixes "
                 f"realises the accept-preserving split on this target"
             )
-        print(f"family is not accept-preserving (p={p:.2e}), resampling")
         return False
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
-    prev_fnr = 1.0
+    prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     gate = AcceptPreservingGate(pst.config)
@@ -164,28 +163,29 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
-        undersized = len(vs) < pst.config.suffix_family_size
-        fnr = 1 if undersized else pst.fnr_from_decision(decision)
-        # An undersized family fails on its FNR anyway, and testing it would spend
-        # a budget that means no accept-preserving family exists at all.
-        admitted = undersized or gate.admits(pst, decision, decision_boundary, v)
-        if admitted and fnr <= pst.config.fnr_limit:
+        fnr = pst.fnr_from_decision(decision)
+        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+        if len(vs) < pst.config.suffix_family_size:
+            effective_fnr, reason = 1.0, "undersized"
+        elif not gate.admits(pst, decision, decision_boundary, v):
+            effective_fnr, reason = 1.0, "not accept-preserving"
+
+        if effective_fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return vs, decision_boundary
 
-        if fnr >= prev_fnr or strategy == "prefix":
+        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
-        prev_fnr = fnr
+        prev_effective_fnr = effective_fnr
 
-        if admitted:
-            print(
-                f"FNR {fnr:.4f} too high, sampling more suffixes; "
-                f"decision_boundary: {decision_boundary:.4f}"
-            )
+        print(
+            f"{reason}, sampling more {strategy}es; "
+            f"decision_boundary: {decision_boundary:.4f}"
+        )
 
         if strategy == "suffix":
             kept = pst.sample_more_suffixes(
