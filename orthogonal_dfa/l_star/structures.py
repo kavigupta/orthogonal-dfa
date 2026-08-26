@@ -69,17 +69,18 @@ class SymmetricBernoulli(NoiseModel):
     With probability p_correct, returns the correct value.
     With probability 1 - p_correct, returns the flipped value.
 
-    Implemented in terms of AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct.
-    This satisfies: accuracy = p_1 = 1 - p_0 = p_correct.
+    The AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct, inlined:
+    this runs once per membership query, and constructing that dataclass here cost
+    more than the draw it wrapped.
     """
 
     p_correct: float
 
     def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
-        # Use AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct
-        # This satisfies: accuracy = p_1 = 1 - p_0 = p_correct
-        asymmetric = AsymmetricBernoulli(p_0=1 - self.p_correct, p_1=self.p_correct)
-        return asymmetric.apply_noise(correct_value, string, seed)
+        hash_input = _uniform_random(string, seed)
+        if correct_value:
+            return hash_input < self.p_correct
+        return hash_input < 1 - self.p_correct
 
 
 class Oracle(ABC):
