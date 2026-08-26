@@ -15,7 +15,7 @@ Otherwise the verdict is undecided and more members accumulate before the next.
 
 import math
 
-import scipy.stats
+from .statistics import _binom_cdf
 
 #: The chance of accepting a leaf as one state when a split (of size at least _MIN_DETECTABLE_SPLIT) really exists.
 DEFAULT_SPLIT_MISS_RATE = 0.02
@@ -106,7 +106,7 @@ class SplitEvidence:
         if total == 0:
             return False
         return (
-            scipy.stats.binom.cdf(min(n_a, n_b), total, _MIN_DETECTABLE_SPLIT)
+            _binom_cdf(min(n_a, n_b), total, _MIN_DETECTABLE_SPLIT)
             <= self._split_miss_rate
         )
 

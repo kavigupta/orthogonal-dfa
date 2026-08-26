@@ -86,28 +86,32 @@ class NoAcceptPreservingFamily(Exception):
 
 
 def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> float:
-    """Exact two-sided binomial test that the family's cut is accept-preserving.
+    """Bonferroni over one one-sided binomial test per side of the family's cut.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
     column is the accept-preserving split itself: under the null it reads 1 at the
     accept rate on the prefixes the family accepts and at the reject rate on the
     rest.  The rates are unknown, and ``min_signal_strength`` bounds both away
     from the boundary -- a bound only makes the test reject less.
+
+    A cut that mixes the classes depletes the accept side and enriches the reject
+    side, so the tail is fixed by the side and never by where its rate falls.
     """
     eps = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
     worst = 1.0
-    for side, rate in (
-        (decision >= pst.accept_thresh, min(decision_boundary + signal, 1 - 1e-9)),
-        (decision < pst.reject_thresh, max(decision_boundary - signal, 1e-9)),
+    for side, rate, depletes in (
+        (decision >= pst.accept_thresh, decision_boundary + signal, True),
+        (decision < pst.reject_thresh, decision_boundary - signal, False),
     ):
         n = int(side.sum())
-        if n < 2:
+        # A bound outside [0, 1] carries no evidence, so the side cannot reject.
+        if n < 2 or not 0 < rate < 1:
             continue
         hits = int(eps[side].sum())
         tail = (
             scipy.stats.binom.cdf(hits, n, rate)
-            if rate > 0.5
+            if depletes
             else scipy.stats.binom.sf(hits - 1, n, rate)
         )
         worst = min(worst, float(tail))
@@ -138,12 +142,11 @@ class AcceptPreservingGate:
                 f"(last p={p:.2e}); no family of {self.family_size} suffixes "
                 f"realises the accept-preserving split on this target"
             )
-        print(f"family is not accept-preserving (p={p:.2e}), resampling")
         return False
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
-    prev_fnr = 1.0
+    prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     gate = AcceptPreservingGate(pst.config)
@@ -164,28 +167,31 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
-        undersized = len(vs) < pst.config.suffix_family_size
-        fnr = 1 if undersized else pst.fnr_from_decision(decision)
-        # An undersized family fails on its FNR anyway, and testing it would spend
-        # a budget that means no accept-preserving family exists at all.
-        admitted = undersized or gate.admits(pst, decision, decision_boundary, v)
-        if admitted and fnr <= pst.config.fnr_limit:
+        fnr = pst.fnr_from_decision(decision)
+        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+        # An undersized family is unusable whatever its FNR measures, and testing
+        # it would spend a budget that means no accept-preserving family exists.
+        if len(vs) < pst.config.suffix_family_size:
+            effective_fnr, reason = 1.0, "undersized"
+        elif not gate.admits(pst, decision, decision_boundary, v):
+            effective_fnr, reason = 1.0, "not accept-preserving"
+
+        if effective_fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return vs, decision_boundary
 
-        if fnr >= prev_fnr or strategy == "prefix":
+        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
-        prev_fnr = fnr
+        prev_effective_fnr = effective_fnr
 
-        if admitted:
-            print(
-                f"FNR {fnr:.4f} too high, sampling more suffixes; "
-                f"decision_boundary: {decision_boundary:.4f}"
-            )
+        print(
+            f"{reason}, sampling more {strategy}es; "
+            f"decision_boundary: {decision_boundary:.4f}"
+        )
 
         if strategy == "suffix":
             kept = pst.sample_more_suffixes(

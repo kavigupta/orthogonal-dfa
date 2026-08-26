@@ -24,6 +24,19 @@ class NoiseModel(ABC):
         """
 
 
+def _uniform_random(string: bytes, seed: int) -> float:
+    """A uniform draw on [0, 1) keyed by ``(string, seed)``.
+
+    Hashes the symbols as bytes rather than their repr: this runs once per
+    membership query, and formatting the list dominated it.  A symbol wider than
+    a byte raises here, as it already does in MemoizedOracle.
+    """
+    digest = hashlib.blake2b(
+        bytes(string) + seed.to_bytes(8, "big", signed=True), digest_size=8
+    ).digest()
+    return int.from_bytes(digest, "big") / 2**64
+
+
 @dataclass(frozen=True)
 class AsymmetricBernoulli(NoiseModel):
     """
@@ -40,11 +53,7 @@ class AsymmetricBernoulli(NoiseModel):
     p_1: float  # Probability of returning 1 when model output is 1
 
     def apply_noise(self, correct_value: bool, string: bytes, seed: int) -> bool:
-        def uniform_random(seed_obj: object) -> float:
-            digest = hashlib.blake2b(repr(seed_obj).encode(), digest_size=8).digest()
-            return int.from_bytes(digest, "big") / 2**64
-
-        hash_input = uniform_random((string, seed))
+        hash_input = _uniform_random(string, seed)
         if correct_value:
             # When model output is 1, return 1 with probability p_1
             return hash_input < self.p_1
