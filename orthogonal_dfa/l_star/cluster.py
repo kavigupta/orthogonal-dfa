@@ -164,6 +164,18 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
+        import numpy as _np  # DIAG
+
+        _acc = float((decision >= pst.accept_thresh).mean())
+        _rej = float((decision < pst.reject_thresh).mean())
+        print(
+            f"DIAG iter cand={len(pst.table.fully_observed())} vs={len(vs)} "
+            f"prefixes={pst.num_prefixes} repr={int(_np.sum(pst.table.representative))} "
+            f"bnd={decision_boundary:.6f} margin={pst.evidence_margin:.6f} "
+            f"acc_t={pst.accept_thresh:.6f} rej_t={pst.reject_thresh:.6f} "
+            f"acc%={_acc:.4f} rej%={_rej:.4f} indec%={1 - _acc - _rej:.4f}",
+            flush=True,
+        )
         undersized = len(vs) < pst.config.suffix_family_size
         fnr = 1 if undersized else pst.fnr_from_decision(decision)
         # An undersized family fails on its FNR anyway, and testing it would spend

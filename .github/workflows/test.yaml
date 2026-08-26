@@ -1,24 +1,18 @@
-name: Python package
+name: ORF diagnostic
 
 on: [push]
 
 env:
-  # CI runners are CPU-only; the default CUDA torch build pulls ~2.5 GB of
-  # unused nvidia-*-cu12 wheels. The CPU build is ~180 MB and pulls none.
   UV_TORCH_BACKEND: cpu
 
-# Cancel superseded runs on a branch, but let every main commit finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
-  discover-tests:
+  orf:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    outputs:
-      test-files: ${{ steps.discover-files.outputs.files }}
-      lstar-tests: ${{ steps.discover-lstar.outputs.tests }}
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
@@ -33,107 +27,10 @@ jobs:
           uv venv --python 3.12
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Discover test files (excluding lstar)
-        id: discover-files
+      - name: Environment
         run: |
-          files=$(find tests -name 'test_*.py' ! -name 'test_lstar.py' | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "files=$files" >> "$GITHUB_OUTPUT"
-      - name: Discover lstar tests
-        id: discover-lstar
-        run: |
-          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "tests=$tests" >> "$GITHUB_OUTPUT"
-
-  test-file:
-    needs: discover-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        file: ${{ fromJson(needs.discover-tests.outputs.test-files) }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Run ${{ matrix.file }}
-        run: uv run python -m pytest "${{ matrix.file }}" -sv
-
-  lstar-test:
-    needs: discover-tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        test: ${{ fromJson(needs.discover-tests.outputs.lstar-tests) }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Run ${{ matrix.test }}
-        run: |
-          uv run python -m pytest "${{ matrix.test }}" -sv
-
-  lint:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Lint with pylint
-        run: uv run python -m pylint orthogonal_dfa setup.py tests
-      - name: Check formatting
-        run: |
-          uv run isort orthogonal_dfa tests; uv run black orthogonal_dfa tests; bash -c '[ $(git status --porcelain --untracked-files=no | wc -c) -eq 0 ]  || (git status; git diff; exit 1)'
-
-  check-docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-          cache-dependency-glob: |
-            requirements.txt
-            setup.py
-      - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install -r requirements.txt
-      - name: Check that the docs build
-        run: |
-          cd docs && uv run make html
+          uv run python -c "import numpy, scipy, platform, os; print('numpy', numpy.__version__); print('scipy', scipy.__version__); print('platform', platform.platform()); print('machine', platform.machine()); print('cpus', os.cpu_count())"
+          uv run python -c "import numpy; numpy.show_config()" || true
+          cat /proc/cpuinfo | grep -m1 'model name' || true
+      - name: Run the one test
+        run: uv run python -m pytest "tests/test_lstar.py::TestLStarORF::test_no_orf_1" -s -q
