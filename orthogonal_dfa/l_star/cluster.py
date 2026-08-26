@@ -3,7 +3,10 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import population_size_and_evidence_margin
+from .statistics import (
+    evidence_margin_for_population_size,
+    population_size_and_evidence_margin,
+)
 
 
 def identify_cluster_around(
@@ -167,16 +170,34 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst, v, requested, decision_boundary
         )
         pst.decision_boundary = decision_boundary
-        family_size, pst.evidence_margin = recompute_family_size_and_margin(
+        clustered = len(vs)
+        family_size, margin_for_size = recompute_family_size_and_margin(
             pst.config.min_signal_strength, decision_boundary
         )
+        # Both rates are properties of the population the test runs over, so read
+        # the family at a size calibrated for it. Sizes just above the minimum can
+        # admit no band at all -- one more suffix shifts every operating point off
+        # the integer lattice -- so step down to the nearest that does.
+        margin = None
+        for size in range(len(vs), family_size - 1, -1):
+            found = evidence_margin_for_population_size(
+                pst.config.min_signal_strength,
+                0.01,
+                0.01,
+                size,
+                center=decision_boundary,
+            )
+            if found is not None:
+                vs, margin = vs[:size], found[1]
+                break
+        pst.evidence_margin = margin_for_size if margin is None else margin
 
         decision = pst.compute_decision(vs, pst.table.representative)
         fnr = pst.fnr_from_decision(decision)
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
         # An undersized family is unusable whatever its FNR measures, and testing
         # it would spend a budget that means no accept-preserving family exists.
-        if len(vs) < requested:
+        if margin is None or clustered < requested:
             effective_fnr, reason = 1.0, "undersized"
         elif not gate.admits(pst, decision, decision_boundary, v):
             effective_fnr, reason = 1.0, "not accept-preserving"
