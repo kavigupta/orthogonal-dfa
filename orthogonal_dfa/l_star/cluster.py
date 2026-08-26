@@ -142,7 +142,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             audit, fnr = 1.0, 1
         else:
             decision = pst.compute_decision(vs, pst.table.representative)
-            audit = epsilon_audit_pvalue(pst, decision, decision_boundary, v)
+            audit = (
+                epsilon_audit_pvalue(pst, decision, decision_boundary, v)
+                if pst.config.audit_epsilon
+                else 1.0
+            )
             fnr = pst.fnr_from_decision(decision)
         if audit < EPSILON_AUDIT_ALPHA:
             audit_rejections += 1
