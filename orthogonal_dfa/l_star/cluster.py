@@ -107,6 +107,12 @@ def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float
     return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
 
 
+def _share(displacement: float, signal: float) -> float:
+    """The displacement of a side's rate, as the share of it that is the other
+    class: a share of ``f`` moves the rate by ``2 * signal * f``."""
+    return min(1.0, max(0.0, displacement / (2 * signal)))
+
+
 def _rate_interval(hits: int, n: int) -> Tuple[float, float]:
     """Clopper-Pearson interval for ``hits``/``n``."""
     conf = ACCEPT_PRESERVING_CONFIDENCE
@@ -140,10 +146,10 @@ def accept_preserving_drift(
         (decision < pst.reject_thresh, decision_boundary - signal, False),
     ):
         n = int(side.sum())
-        # A rate at 0 or 1 is the boundary sitting on its clamp, where the side
-        # carries no evidence either way. Read the other one rather than hold the
-        # family against a side nothing could ever certify.
-        if n == 0 or not 0 < rate < 1:
+        # Nothing to read. A rate of 0 or 1 is readable, and sharper than any
+        # other: the boundary is on its clamp, so every prefix on the side has to
+        # agree, and one that does not is already drift.
+        if n == 0:
             continue
         read = True
         rate_low, rate_high = _rate_interval(int(column[side].sum()), n)
@@ -151,12 +157,12 @@ def accept_preserving_drift(
             side_low, side_high = rate - rate_high, rate - rate_low
         else:
             side_low, side_high = rate_low - rate, rate_high - rate
-        low = max(low, side_low / (2 * signal))
-        high = max(high, side_high / (2 * signal))
+        low = max(low, _share(side_low, signal))
+        high = max(high, _share(side_high, signal))
     # Neither side readable: uncertified, rather than certified clean.
     if not read:
         return 0.0, 1.0
-    return max(0.0, low), min(1.0, high)
+    return low, max(low, high)
 
 
 class AcceptPreservingGate:
