@@ -237,7 +237,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         verdict = ADMITTED
         if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
-        else:
+        elif fnr <= pst.config.fnr_limit:
+            # Only a family the round would otherwise return is worth certifying.
+            # One still failing the FNR is being resampled whatever the split
+            # looks like, and asking anyway spends the budget for a verdict on a
+            # family that never had to have one.
             verdict = gate.verdict(pst, decision, decision_boundary, v)
             if verdict is DRIFTED:
                 effective_fnr, reason = 1.0, "not accept-preserving"
