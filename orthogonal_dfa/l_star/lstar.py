@@ -72,11 +72,7 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
         counts = count_paths_to_state(dfa, state, length)
         reachable = counts[length][dfa.initial_state]
         cap = min(max_samples, reachable)
-        drawn_from = (
-            counts
-            if weights is None
-            else count_paths_to_state(dfa, state, length, weights)
-        )
+        drawn_from = count_paths_to_state(dfa, state, length, weights)
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read

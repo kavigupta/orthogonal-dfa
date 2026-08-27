@@ -56,9 +56,30 @@ def _rate_of_symbol_zero(strings):
 
 
 class TestSymbolWeights(unittest.TestCase):
-    def test_uniform_declares_itself_even(self):
-        # None is what keeps the path counts integers and the walk untouched.
-        self.assertIsNone(UniformSampler(LENGTH).symbol_weights(None, 3))
+    def test_uniform_weighs_every_symbol_the_same(self):
+        # Integers, so the path counts stay a count of strings.
+        self.assertEqual(UniformSampler(LENGTH).symbol_weights(None, 3), [1, 1, 1])
+
+    def test_only_the_ratios_of_the_weights_are_read(self):
+        # Scaling every weight scales the mass at each depth by the same factor,
+        # which the walk divides out -- so weights need not be probabilities.
+        rng = np.random.default_rng(0)
+        scaled = [3 * w for w in _RareFirstSymbol(LENGTH).symbol_weights(rng, 3)]
+        plain = _RareFirstSymbol(LENGTH).symbol_weights(np.random.default_rng(0), 3)
+        walk = lambda ws, seed: [
+            sample_string_reaching_state(
+                _sink(3),
+                count_paths_to_state(_sink(3), 0, LENGTH, ws),
+                np.random.default_rng(seed),
+                ws,
+            )
+            for _ in range(200)
+        ]
+        self.assertAlmostEqual(
+            _rate_of_symbol_zero(walk(scaled, 1)),
+            _rate_of_symbol_zero(walk(plain, 1)),
+            delta=0.01,
+        )
 
     def test_weights_recover_the_samplers_own_rate(self):
         sampler = _RareFirstSymbol(LENGTH)

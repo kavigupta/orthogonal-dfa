@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
@@ -16,8 +16,8 @@ class Sampler(ABC):
 
     def symbol_weights(
         self, rng: np.random.Generator, alphabet_size: int, num_strings: int = 200
-    ) -> Optional[List[float]]:
-        """How often this sampler puts each symbol at a position, or None for evenly.
+    ) -> List[float]:
+        """How often this sampler puts each symbol at a position, up to scale.
 
         Sampling a string that reaches a given state walks the DFA against these,
         so a learner drawing from a skewed distribution asks its oracle about the
@@ -39,5 +39,6 @@ class UniformSampler(Sampler):
         return rng.integers(0, alphabet_size, size=self.length).tolist()
 
     def symbol_weights(self, rng, alphabet_size, num_strings=200):
-        """Exactly even, so the path counts stay integers and no draw is spent."""
-        return None
+        """Ones: even needs no draw to measure, and integer weights keep the path
+        counts integers, which is what makes them a count of strings."""
+        return [1] * alphabet_size
