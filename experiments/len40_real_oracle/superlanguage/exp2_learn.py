@@ -54,6 +54,8 @@ def main():
     ap.add_argument("--len-lo", type=int, default=35)
     ap.add_argument("--len-hi", type=int, default=85)
     ap.add_argument("--num-symbols", type=int, default=36)
+    ap.add_argument("--kmers", default="TAG,TAA,TGA",
+                    help="comma-separated ACGT kmers (prefix-free)")
     ap.add_argument("--min-signal-strength", type=float, default=0.05)
     ap.add_argument("--fnr-limit", type=float, default=0.10)
     ap.add_argument("--max-rounds", type=int, default=8)
@@ -70,8 +72,9 @@ def main():
         default_exon, load_spliceai(400, 0),
         length=args.length, len_lo=args.len_lo, len_hi=args.len_hi,
     )
-    vocab = KmerVocabulary(kmers=(TAG, TAA, TGA), base_alphabet_size=4)
-    print(f"vocab kmers={vocab.kmers}, alphabet_size={vocab.alphabet_size} "
+    kmers = tuple(tuple("ACGT".index(c) for c in k) for k in args.kmers.split(","))
+    vocab = KmerVocabulary(kmers=kmers, base_alphabet_size=4)
+    print(f"vocab kmers={args.kmers} = {vocab.kmers}, alphabet_size={vocab.alphabet_size} "
           f"(wildcards {vocab.wildcard_symbols})", flush=True)
 
     # No synthetic noise on the real oracle (ignore _nm).

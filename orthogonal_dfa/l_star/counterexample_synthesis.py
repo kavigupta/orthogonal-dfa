@@ -27,13 +27,16 @@ from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
 
 
-def _dump_round(dump_dir, *, round_idx, dfa, dt, est, decision_boundary):
+def _dump_round(dump_dir, *, round_idx, dfa, dt, est, decision_boundary, pst=None):
     """Opt-in per-round snapshot (active only when ``DLSTAR_DUMP_DIR`` is set), for
     offline round-by-round analysis -- e.g. measuring phi(round DFA, oracle) to see
     the shatter -> collapse trajectory.  Dumps only picklable structure: the class
-    DFA and discrimination tree (midfixes are int-lists) plus the decision boundary,
-    NOT the learner (it holds pst -> oracle -> the SpliceAI model and the membership
-    cache, which are huge / unpicklable).  A dump failure never kills the run."""
+    DFA and discrimination tree (midfixes are int-lists), the decision boundary, and
+    -- when ``pst`` is passed -- the prefix pool and its representative mask (plain
+    int-lists / bools), so the grown boundary prefixes can be inspected offline.  It
+    does NOT dump the learner itself (it holds pst -> oracle -> the SpliceAI model
+    and the membership cache, which are huge / unpicklable).  A dump failure never
+    kills the run."""
     os.makedirs(dump_dir, exist_ok=True)
     path = os.path.join(dump_dir, f"round_{round_idx:02d}.pkl")
     state = dict(
@@ -45,6 +48,10 @@ def _dump_round(dump_dir, *, round_idx, dfa, dt, est, decision_boundary):
         tree=dt,
         final_states=sorted(dfa.final_states),
         decision_boundary=decision_boundary,
+        prefixes=[list(p) for p in pst.table.prefixes] if pst is not None else None,
+        representative=[bool(x) for x in pst.table.representative]
+        if pst is not None
+        else None,
     )
     try:
         with open(path, "wb") as f:
@@ -333,6 +340,7 @@ def synthesize_direct_lstar_fnr(
                 dt=dt,
                 est=true_acc,
                 decision_boundary=pst.decision_boundary,
+                pst=pst,
             )
         if true_acc >= acc_threshold:
             print(

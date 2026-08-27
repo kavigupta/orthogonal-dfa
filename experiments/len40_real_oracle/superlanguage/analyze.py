@@ -25,9 +25,7 @@ from orthogonal_dfa.l_star.examples.gate_composition_residual import gate_residu
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 from orthogonal_dfa.superlanguage import KmerVocabulary, SuperSampler
 
-TAG, TAA, TGA = (3, 0, 2), (3, 0, 0), (3, 2, 0)
-STOPS = {TAG, TAA, TGA}
-NAME = {0: "TAG", 1: "TAA", 2: "TGA", 3: "X", 4: "Y"}
+STOPS = {(3, 0, 2), (3, 0, 0), (3, 2, 0)}  # TAG/TAA/TGA -- frame closure is biological
 
 
 def frame_closed(seq, ph):
@@ -54,12 +52,12 @@ def mi_bits(x, y):
     return float(np.nansum(t))
 
 
-def print_dfa(dfa):
+def print_dfa(dfa, name):
     print(f"  states {sorted(dfa.states)}, initial {dfa.initial_state}, "
           f"accepting {sorted(dfa.final_states)}")
     for s in sorted(dfa.states):
         row = dfa.transitions[s]
-        parts = [f"{NAME.get(int(k), k)}->{row[k]}" for k in sorted(row, key=lambda k: int(k))]
+        parts = [f"{name.get(int(k), k)}->{row[k]}" for k in sorted(row, key=lambda k: int(k))]
         mark = "ACCEPT" if s in dfa.final_states else "reject"
         init = " (init)" if s == dfa.initial_state else ""
         print(f"    {s}{init} [{mark}]: " + "  ".join(parts))
@@ -72,6 +70,8 @@ def main():
     ap.add_argument("--len-lo", type=int, default=35)
     ap.add_argument("--len-hi", type=int, default=85)
     ap.add_argument("--num-symbols", type=int, default=36)
+    ap.add_argument("--kmers", default="TAG,TAA,TGA",
+                    help="comma-separated ACGT kmers (must match the run)")
     ap.add_argument("--n-eval", type=int, default=8000)
     ap.add_argument("--seed", type=int, default=2024)
     args = ap.parse_args()
@@ -80,7 +80,12 @@ def main():
         default_exon, load_spliceai(400, 0),
         length=args.length, len_lo=args.len_lo, len_hi=args.len_hi,
     )
-    vocab = KmerVocabulary(kmers=(TAG, TAA, TGA), base_alphabet_size=4)
+    kmer_names = args.kmers.split(",")
+    kmers = tuple(tuple("ACGT".index(c) for c in k) for k in kmer_names)
+    vocab = KmerVocabulary(kmers=kmers, base_alphabet_size=4)
+    name = {i: kmer_names[i] for i in range(len(kmer_names))}
+    for j, w in enumerate(vocab.wildcard_symbols):
+        name[w] = "XYZWVU"[j]
     samp = SuperSampler(vocab, args.num_symbols)
     rng = np.random.default_rng(args.seed)
     ws = [samp.sample(rng, vocab.alphabet_size) for _ in range(args.n_eval)]
@@ -109,7 +114,7 @@ def main():
         return
     path, _, dfa, call = best
     print(f"\n=== best round: {os.path.basename(path)} ===")
-    print_dfa(dfa)
+    print_dfa(dfa, name)
 
     # which sets of closed frames does it reject?
     key = fc[:, 0] * 4 + fc[:, 1] * 2 + fc[:, 2]
