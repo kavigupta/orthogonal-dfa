@@ -1,5 +1,6 @@
 import itertools
-from typing import Optional, Tuple
+import math
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -53,15 +54,43 @@ def population_size_and_evidence_margin(
     return res
 
 
+def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
+    """Every test over N samples, ascending in margin, as (k_low, k_high, eps):
+    reject at counts <= k_low, accept at counts >= k_high, undecided between.
+
+    The runtime spends the margin as `count / N` against `center +/- eps`, so it can
+    only name a band whose ends straddle N * center to within one count:
+
+        |2 * N * center - (k_low + k_high)| < 1
+
+    Each such band is named by a whole interval of margins, and eps is its midpoint.
+    """
+    two_a = 2 * N * center
+    floor = math.floor(two_a)
+    for width in itertools.count(1):
+        ends = floor + (width - floor) % 2
+        if not two_a - 1 < ends < two_a + 1:
+            continue
+        k_low, k_high = (ends - width) // 2, (ends + width) // 2
+        if k_low < 0 or k_high > N:
+            return
+        eps = (width - 1) / (2 * N)
+        # An offset within float error of 1 passes the test above on an interval
+        # too narrow to hold any margin. It takes a center that is a near-exact
+        # rational over 2N, so it is rare and silent rather than loud.
+        if k_low / N < center - eps <= (k_low + 1) / N and (
+            (k_high - 1) / N < center + eps <= k_high / N
+        ):
+            yield k_low, k_high, eps
+
+
 def evidence_margin_for_population_size(
     signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
     """
-    for eps in np.linspace(0.01, signal_strength, 100):
-        k_low = int(np.floor(N * (center - eps)))
-        k_high = int(np.ceil(N * (center + eps)))
+    for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
         fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
             k_low, N, signal_strength + center
