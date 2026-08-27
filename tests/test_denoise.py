@@ -165,22 +165,23 @@ class TestDenoiseSampleSize(unittest.TestCase):
         sizes = [denoise_sample_size(s) for s in (0.3, 0.2, 0.15, 0.1)]
         self.assertEqual(sizes, sorted(sizes))
 
-    def test_a_boundary_off_centre_costs_samples(self):
-        # The rates stay at 1/2 +- signal, so a boundary that moves towards one
-        # of them leaves that side less to clear.
+    def test_the_boundary_carries_the_rates_with_it(self):
+        # The boundary is the midpoint of the two groups, not a fixed 1/2 the
+        # rates sit either side of, so moving it costs nothing.
         centred = denoise_sample_size(0.1, 0.5)
-        for boundary in (0.4867, 0.47, 0.45):
-            self.assertGreater(denoise_sample_size(0.1, boundary), centred)
+        for boundary in (0.4867, 0.47, 0.45, 0.55):
+            self.assertLess(
+                abs(denoise_sample_size(0.1, boundary) - centred) / centred, 0.02
+            )
 
-    def test_none_when_the_boundary_passes_a_rate(self):
-        # Below 1/2 - signal every accept rate is above the boundary.
-        self.assertIsNone(denoise_sample_size(0.1, 0.39))
-        self.assertIsNone(denoise_sample_size(0.1, 0.61))
+    def test_none_when_a_rate_leaves_the_unit_interval(self):
+        self.assertIsNone(denoise_sample_size(0.1, 0.95))
+        self.assertIsNone(denoise_sample_size(0.1, 0.05))
 
     def test_skips_rather_than_sampling_a_hopeless_boundary(self):
         pst = _StubPst()
         pst.config.min_signal_strength = 0.1
-        pst.decision_boundary = 0.39
+        pst.decision_boundary = 0.95
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             result = denoise_accept_labels(pst, PARITY)

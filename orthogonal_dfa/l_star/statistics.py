@@ -187,8 +187,8 @@ def _decides(num_samples, signal_strength, boundary, failure_prob):
     low = _lower_threshold(num_samples, boundary, failure_prob)
     if high is None or low is None:
         return False
-    accepts = 1 - _binom_cdf(high - 1, num_samples, 0.5 + signal_strength)
-    rejects = _binom_cdf(low, num_samples, 0.5 - signal_strength)
+    accepts = 1 - _binom_cdf(high - 1, num_samples, boundary + signal_strength)
+    rejects = _binom_cdf(low, num_samples, boundary - signal_strength)
     return min(accepts, rejects) >= 1 - failure_prob
 
 
@@ -197,14 +197,12 @@ def denoise_sample_size(
 ):
     """Samples one state needs before its own accept rate decides its label.
 
-    The oracle accepts with probability 1/2 + signal_strength on a state whose
-    strings are accepted and 1/2 - signal_strength on one whose strings are not,
-    wherever ``boundary`` sits -- so a boundary off 1/2 leaves the side it moved
-    towards less room, and that side sets the size.  Sized so failing to decide
-    is as unlikely as deciding wrongly.  None where the boundary has moved past
-    one of the two rates, which no sample size recovers from.
+    A state whose strings are accepted answers at ``boundary + signal_strength``
+    and one whose strings are not at ``boundary - signal_strength``, the same
+    reading of the boundary the accept-preserving test takes.  Sized so failing
+    to decide is as unlikely as deciding wrongly.
     """
-    if not 0.5 - signal_strength < boundary < 0.5 + signal_strength:
+    if not 0 < boundary - signal_strength and boundary + signal_strength < 1:
         return None
     n = 1
     while not _decides(n, signal_strength, boundary, failure_prob):
