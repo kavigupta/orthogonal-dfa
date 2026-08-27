@@ -3,10 +3,7 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import (
-    evidence_margin_for_population_size,
-    population_size_and_evidence_margin,
-)
+from .statistics import population_size_and_evidence_margin
 
 
 def identify_cluster_around(
@@ -66,34 +63,15 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def smallest_readable_family(min_signal_strength, decision_boundary):
-    """Fewest suffixes a decision at this boundary can be read over.
+def family_size_and_margin(min_signal_strength, decision_boundary):
+    """Suffixes a decision at this boundary needs, and the margin to read them with.
 
     How many it needs depends on where the boundary sits: the two classes draw
     from binomials whose variance differs once it leaves 0.5.
     """
-    size, _ = population_size_and_evidence_margin(
+    return population_size_and_evidence_margin(
         min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
-    return size
-
-
-def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
-    """The largest size at or below ``have`` whose band holds both error rates, and
-    the margin that reads it.  ``have`` must be at least ``smallest``.
-
-    Sizes just above the minimum can admit no band at all -- one more suffix shifts
-    every operating point off the integer lattice -- so step down rather than call
-    a family that is large enough undersized. ``smallest`` always admits one, so
-    the walk cannot run off the end.
-    """
-    for size in range(have, smallest - 1, -1):
-        found = evidence_margin_for_population_size(
-            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
-        )
-        if found is not None:
-            return size, found[1]
-    raise AssertionError(f"{smallest} suffixes was supposed to be readable")
 
 
 #: Rejections in a row after which no accept-preserving family is believed to
@@ -174,7 +152,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    family_size = smallest_readable_family(
+    family_size, _ = family_size_and_margin(
         pst.config.min_signal_strength, decision_boundary
     )
     gate = AcceptPreservingGate(pst.config)
@@ -188,7 +166,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst, v, family_size, decision_boundary
         )
         pst.decision_boundary = decision_boundary
-        family_size = smallest_readable_family(
+        family_size, margin = family_size_and_margin(
             pst.config.min_signal_strength, decision_boundary
         )
         # The cluster is capped at the size asked for, so a boundary that moved
@@ -200,10 +178,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
                 pst, v, family_size, decision_boundary
             )
             pst.decision_boundary = decision_boundary
-            family_size = smallest_readable_family(
+            family_size, margin = family_size_and_margin(
                 pst.config.min_signal_strength, decision_boundary
             )
         clustered = len(vs)
+        assert clustered <= family_size, (clustered, family_size)
 
         # An undersized family is unusable whatever its FNR would measure, and
         # testing it would spend a budget that means no accept-preserving family
@@ -211,18 +190,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         if clustered < family_size:
             effective_fnr, reason = 1.0, "undersized"
         else:
-            # Both rates are properties of the population the test runs over, so
-            # read the family at a size calibrated for it.
-            size, pst.evidence_margin = readable_size_and_margin(
-                pst.config.min_signal_strength,
-                decision_boundary,
-                clustered,
-                family_size,
-            )
-            # By loss rank, and the seed's rank is arbitrary, so put it back: the
-            # round check and the accept-preserving null are both stated about a
-            # family seeded at this suffix.
-            vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
+            pst.evidence_margin = margin
             decision = pst.compute_decision(vs, pst.table.representative)
             fnr = pst.fnr_from_decision(decision)
             effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
