@@ -85,6 +85,12 @@ ACCEPT_PRESERVING_GIVE_UP = 20
 #: buys a good deal of evidence for the strength it gives up.
 ACCEPT_PRESERVING_CONFIDENCE = 0.05
 
+#: Prefixes drawn to settle a split the pool could not.  The interval closes as
+#: their square root, and only the minority class carries it, so this is several
+#: times the pool's own round -- which it can afford to be, costing a query per
+#: family member where a pooled prefix costs one per column.
+CERTIFY_SAMPLE = 1600
+
 #: What the gate was able to conclude about a family.
 ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
 
@@ -121,7 +127,27 @@ def _rate_interval(hits: int, n: int) -> Tuple[float, float]:
     return float(low), float(high)
 
 
-def accept_preserving_drift(pst, decision, seed_row) -> Tuple[float, float]:
+def certification_sample(pst, vs, amount: int):
+    """Prefixes drawn only to read the split on, and never added to the table.
+
+    Reading one costs a query per family member, plus the one for the split
+    itself.  Adding it to the table instead costs a query per fully observed
+    column -- an order of magnitude more once the pool has grown -- and it
+    unsettles the FNR the round has only just met, which is bought back with a
+    fresh cohort of suffixes that every later prefix is then read against.
+    """
+    prefixes = [
+        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
+        for _ in range(amount)
+    ]
+    suffixes = [pst.table.suffix(v) for v in vs]
+    pairs = [list(p) + list(sfx) for p in prefixes for sfx in suffixes]
+    read = pst.table.memo.membership_queries(pairs + [list(p) for p in prefixes])
+    family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
+    return family.mean(1), np.asarray(read[len(pairs) :])
+
+
+def accept_preserving_drift(pst, decision, seed_row, extra=None) -> Tuple[float, float]:
     """Interval on the share of the family's cut that is the other class.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
@@ -136,6 +162,10 @@ def accept_preserving_drift(pst, decision, seed_row) -> Tuple[float, float]:
     see it where a pair of rates does.
     """
     column = pst.table.column(seed_row)[pst.table.representative]
+    if extra is not None:
+        extra_decision, extra_column = extra
+        decision = np.concatenate([decision, extra_decision])
+        column = np.concatenate([column, extra_column])
     signal = pst.config.min_signal_strength
     sides = []
     for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
@@ -146,7 +176,8 @@ def accept_preserving_drift(pst, decision, seed_row) -> Tuple[float, float]:
         hits = int(column[side].sum())
         low, high = _rate_interval(hits, n)
         sides.append((hits / n, low, high))
-    (acc, acc_low, acc_high), (rej, rej_low, rej_high) = sides
+    acc, acc_low, acc_high = sides[0]
+    rej, rej_low, rej_high = sides[1]
     # Newcombe: each side carries its own error into the difference.
     gap = acc - rej
     below = ((acc - acc_low) ** 2 + (rej_high - rej) ** 2) ** 0.5
@@ -167,10 +198,10 @@ class AcceptPreservingGate:
         self.rejections = 0
         self.uncertified = 0
 
-    def verdict(self, pst, decision, decision_boundary, seed_row) -> str:
+    def verdict(self, pst, decision, seed_row, extra=None) -> str:
         if not self.enabled:
             return ADMITTED
-        low, high = accept_preserving_drift(pst, decision, seed_row)
+        low, high = accept_preserving_drift(pst, decision, seed_row, extra)
         tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
         if high <= tolerated:
             self.rejections = self.uncertified = 0
@@ -234,7 +265,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             # One still failing the FNR is being resampled whatever the split
             # looks like, and asking anyway spends the budget for a verdict on a
             # family that never had to have one.
-            verdict = gate.verdict(pst, decision, decision_boundary, v)
+            verdict = gate.verdict(pst, decision, v)
+            if verdict is UNCERTIFIED:
+                verdict = gate.verdict(
+                    pst, decision, v, certification_sample(pst, vs, CERTIFY_SAMPLE)
+                )
             if verdict is DRIFTED:
                 effective_fnr, reason = 1.0, "not accept-preserving"
             elif verdict is UNCERTIFIED:
