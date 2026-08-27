@@ -80,9 +80,10 @@ def recompute_evidence_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: Confidence the drift bounds below are read at, the same rate the population
-#: sizing is designed to.
-ACCEPT_PRESERVING_CONFIDENCE = 0.01
+#: Confidence the drift bounds below are read at.  A bound that is loose only
+#: costs prefixes, and the interval narrows as the square root of them, so this
+#: buys a good deal of evidence for the strength it gives up.
+ACCEPT_PRESERVING_CONFIDENCE = 0.05
 
 #: What the gate was able to conclude about a family.
 ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
