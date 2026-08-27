@@ -80,74 +80,106 @@ def recompute_evidence_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: Significance at which a family is held not to be accept-preserving.  A
-#: rejection costs a resample rather than a failure, so this is a resample budget
-#: and not an error rate.
-ACCEPT_PRESERVING_ALPHA = 1e-3
+#: Confidence the drift bounds below are read at, the same rate the population
+#: sizing is designed to.
+ACCEPT_PRESERVING_CONFIDENCE = 0.01
+
+#: What the gate was able to conclude about a family.
+ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
 
 
 class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def accept_preserving_pvalue(pst, decision, decision_boundary, seed_row) -> float:
-    """Bonferroni over one one-sided binomial test per side of the family's cut.
+def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float:
+    """Share of a side that may be the other class before the family stops reading
+    its own classes correctly.
+
+    A side carrying a fraction ``f`` of the other class reads, on the empty suffix,
+
+        boundary + signal * (1 - 2 * f)
+
+    and the decision only calls that side accepting while it stays at or past
+    ``boundary + evidence_margin``, which bounds f.
+    """
+    return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
+
+
+def _rate_interval(hits: int, n: int) -> Tuple[float, float]:
+    """Clopper-Pearson interval for ``hits``/``n``."""
+    conf = ACCEPT_PRESERVING_CONFIDENCE
+    low = scipy.stats.beta.ppf(conf, hits, n - hits + 1) if hits else 0.0
+    high = scipy.stats.beta.ppf(1 - conf, hits + 1, n - hits) if hits < n else 1.0
+    return float(low), float(high)
+
+
+def accept_preserving_drift(
+    pst, decision, decision_boundary, seed_row
+) -> Tuple[float, float]:
+    """Interval on the share of a side that is the other class, worst side first.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
-    column is the accept-preserving split itself: under the null it reads 1 at the
-    accept rate on the prefixes the family accepts and at the reject rate on the
-    rest.  The rates are unknown, and ``min_signal_strength`` bounds both away
-    from the boundary -- a bound only makes the test reject less.
+    column is the accept-preserving split itself: a family realising the split
+    reads 1 there at the accept rate on the prefixes it accepts and at the reject
+    rate on the rest.  Mixing the classes moves that rate toward the boundary by
+    an amount linear in the share mixed in, so an interval on the rate inverts to
+    one on the share.
 
-    A cut that mixes the classes depletes the accept side and enriches the reject
-    side, so the tail is fixed by the side and never by where its rate falls.
+    An interval is a statement about the family.  Failing to reject a null is only
+    a statement about the evidence, which is how a family too small to measure
+    used to pass for one that had been checked.
     """
-    eps = pst.table.column(seed_row)[pst.table.representative]
+    column = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
-    worst = 1.0
-    for side, rate, depletes in (
+    low = high = 0.0
+    for side, rate, mixes_down in (
         (decision >= pst.accept_thresh, decision_boundary + signal, True),
         (decision < pst.reject_thresh, decision_boundary - signal, False),
     ):
         n = int(side.sum())
-        # A bound outside [0, 1] carries no evidence, so the side cannot reject.
-        if n < 2 or not 0 < rate < 1:
-            continue
-        hits = int(eps[side].sum())
-        tail = (
-            scipy.stats.binom.cdf(hits, n, rate)
-            if depletes
-            else scipy.stats.binom.sf(hits - 1, n, rate)
-        )
-        worst = min(worst, float(tail))
-    return min(1.0, 2 * worst)
+        # Nothing to read: uncertified, rather than certified clean.
+        if n == 0 or not 0 < rate < 1:
+            return 0.0, 1.0
+        rate_low, rate_high = _rate_interval(int(column[side].sum()), n)
+        if mixes_down:
+            side_low, side_high = rate - rate_high, rate - rate_low
+        else:
+            side_low, side_high = rate_low - rate, rate_high - rate
+        low = max(low, side_low / (2 * signal))
+        high = max(high, side_high / (2 * signal))
+    return max(0.0, low), min(1.0, high)
 
 
 class AcceptPreservingGate:
     """Holds each suffix family to the accept-preserving split, across the loop
-    that resamples until one passes.  Carries the give-up budget, which is spent
-    only on families that were actually tested."""
+    that resamples until one passes.  Spends the give-up budget only on families
+    shown to have drifted, never on ones there was not the evidence to judge."""
 
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
-        self.family_size = config.suffix_family_size
         self.rejections = 0
 
-    def admits(self, pst, decision, decision_boundary, seed_row) -> bool:
+    def verdict(self, pst, decision, decision_boundary, seed_row) -> str:
         if not self.enabled:
-            return True
-        p = accept_preserving_pvalue(pst, decision, decision_boundary, seed_row)
-        if p >= ACCEPT_PRESERVING_ALPHA:
+            return ADMITTED
+        low, high = accept_preserving_drift(pst, decision, decision_boundary, seed_row)
+        tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
+        if high <= tolerated:
             self.rejections = 0
-            return True
+            return ADMITTED
+        # Drift this far is consistent with the evidence but so is none of it.
+        if low <= tolerated:
+            return UNCERTIFIED
         self.rejections += 1
         if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
             raise NoAcceptPreservingFamily(
-                f"{self.rejections} families running were not accept-preserving "
-                f"(last p={p:.2e}); no family of {self.family_size} suffixes "
+                f"{self.rejections} families running carried at least "
+                f"{low:.0%} of each class on the other's side, past the "
+                f"{tolerated:.0%} the decision can absorb; no suffix family "
                 f"realises the accept-preserving split on this target"
             )
-        return False
+        return DRIFTED
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
@@ -176,10 +208,15 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
         # An undersized family is unusable whatever its FNR measures, and testing
         # it would spend a budget that means no accept-preserving family exists.
+        verdict = ADMITTED
         if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
-        elif not gate.admits(pst, decision, decision_boundary, v):
-            effective_fnr, reason = 1.0, "not accept-preserving"
+        else:
+            verdict = gate.verdict(pst, decision, decision_boundary, v)
+            if verdict is DRIFTED:
+                effective_fnr, reason = 1.0, "not accept-preserving"
+            elif verdict is UNCERTIFIED:
+                effective_fnr, reason = 1.0, "accept-preserving not established"
 
         if effective_fnr <= pst.config.fnr_limit:
             print(
@@ -188,7 +225,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             )
             return vs, decision_boundary
 
-        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
+        if verdict is UNCERTIFIED:
+            # The bound is wide because the prefixes are few, and prefixes are
+            # what the split is read against.
+            strategy = "prefix"
+        elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
         prev_effective_fnr = effective_fnr
