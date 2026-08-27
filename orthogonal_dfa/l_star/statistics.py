@@ -80,7 +80,14 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
         k_low, k_high = (ends - width) // 2, (ends + width) // 2
         if k_low < 0 or k_high > N:
             return
-        yield k_low, k_high, (width - 1) / (2 * N)
+        eps = (width - 1) / (2 * N)
+        # An offset within float error of 1 passes the test above on an interval
+        # too narrow to hold any margin. It takes a center that is a near-exact
+        # rational over 2N, so it is rare and silent rather than loud.
+        if k_low / N < center - eps <= (k_low + 1) / N and (
+            (k_high - 1) / N < center + eps <= k_high / N
+        ):
+            yield k_low, k_high, eps
 
 
 def evidence_margin_for_population_size(
