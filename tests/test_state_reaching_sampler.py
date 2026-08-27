@@ -1,0 +1,165 @@
+"""Sampling a string that reaches a state, for a learner that does not sample
+evenly.
+
+``denoise_accept_labels`` decides a state's label from strings reaching it, so
+those strings have to be the ones the learner will meet: a walk that is uniform
+over them answers about a population the learner never draws.
+"""
+
+import unittest
+
+import numpy as np
+from automata.fa.dfa import DFA
+
+from orthogonal_dfa.l_star.dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+)
+from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
+
+LENGTH = 30
+RARE = 0.02
+
+
+class _RareFirstSymbol(Sampler):
+    """Symbol 0 at ``RARE`` of positions, the rest sharing the remainder.
+
+    Stands in for any learner whose alphabet is not drawn evenly -- one symbol
+    standing for a motif that is rare in the strings it draws, say.
+    """
+
+    def __init__(self, length: int, alphabet_size: int = 3):
+        self.length = length
+        self._alphabet_size = alphabet_size
+
+    def sample(self, rng, alphabet_size):
+        rest = (1 - RARE) / (alphabet_size - 1)
+        probs = [RARE] + [rest] * (alphabet_size - 1)
+        return rng.choice(alphabet_size, size=self.length, p=probs).tolist()
+
+
+def _sink(alphabet_size):
+    """One state, so a walk over it is the raw distribution and nothing else."""
+    return DFA(
+        states={0},
+        input_symbols=set(range(alphabet_size)),
+        transitions={0: {s: 0 for s in range(alphabet_size)}},
+        initial_state=0,
+        final_states={0},
+        allow_partial=False,
+    )
+
+
+def _rate_of_symbol_zero(strings):
+    return np.mean([[s == 0 for s in w] for w in strings])
+
+
+class TestSymbolWeights(unittest.TestCase):
+    def test_uniform_declares_itself_even(self):
+        # None is what keeps the path counts integers and the walk untouched.
+        self.assertIsNone(UniformSampler(LENGTH).symbol_weights(None, 3))
+
+    def test_weights_recover_the_samplers_own_rate(self):
+        sampler = _RareFirstSymbol(LENGTH)
+        weights = sampler.symbol_weights(np.random.default_rng(0), 3)
+        self.assertAlmostEqual(weights[0], RARE, delta=0.01)
+
+
+class TestWeightedWalk(unittest.TestCase):
+    def test_the_walk_matches_the_sampler(self):
+        sampler = _RareFirstSymbol(LENGTH)
+        rng = np.random.default_rng(0)
+        weights = sampler.symbol_weights(rng, 3)
+        counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
+        walked = [
+            sample_string_reaching_state(_sink(3), counts, rng, weights)
+            for _ in range(400)
+        ]
+        drawn = [sampler.sample(rng, 3) for _ in range(400)]
+        self.assertAlmostEqual(
+            _rate_of_symbol_zero(walked), _rate_of_symbol_zero(drawn), delta=0.02
+        )
+
+    def test_an_even_walk_does_not(self):
+        # The failure this guards: 1/3 of positions where the learner puts 2%.
+        rng = np.random.default_rng(0)
+        counts = count_paths_to_state(_sink(3), 0, LENGTH)
+        walked = [
+            sample_string_reaching_state(_sink(3), counts, rng) for _ in range(400)
+        ]
+        self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
+
+    def test_the_weights_have_to_reach_the_walk(self):
+        # Counts alone score a symbol by the state it leads to, so where every
+        # symbol leads to the same state they cannot express a preference.
+        sampler = _RareFirstSymbol(LENGTH)
+        rng = np.random.default_rng(0)
+        weights = sampler.symbol_weights(rng, 3)
+        counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
+        walked = [
+            sample_string_reaching_state(_sink(3), counts, rng) for _ in range(400)
+        ]
+        self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
+
+    def test_it_matches_drawing_and_keeping_what_reaches(self):
+        """Against ground truth: draw from the sampler, keep the strings that
+        reach the state.  A branch leading somewhere with many completions is
+        not more likely for it -- the sampler has to reach it too."""
+        mod3 = DFA(
+            states={0, 1, 2},
+            input_symbols={0, 1},
+            transitions={q: {0: (q + 1) % 3, 1: q} for q in range(3)},
+            initial_state=0,
+            final_states={1},
+            allow_partial=False,
+        )
+        length, target = 12, 1
+        sampler = _RareFirstSymbol(length, 2)
+        rng = np.random.default_rng(0)
+        weights = sampler.symbol_weights(rng, 2)
+
+        def endpoint(w):
+            q = 0
+            for c in w:
+                q = mod3.transitions[q][c]
+            return q
+
+        kept = []
+        while len(kept) < 3000:
+            w = sampler.sample(rng, 2)
+            if endpoint(w) == target:
+                kept.append(w)
+        counts = count_paths_to_state(mod3, target, length, weights)
+        walked = [
+            sample_string_reaching_state(mod3, counts, rng, weights)
+            for _ in range(3000)
+        ]
+        # Tight enough to separate this from weighting only the walk, which
+        # leaves the completions behind a branch counted evenly and lands at
+        # 1.05 where the sampler gives 1.00.
+        self.assertAlmostEqual(
+            np.mean([sum(1 for s in w if s == 0) for w in walked]),
+            np.mean([sum(1 for s in w if s == 0) for w in kept]),
+            delta=0.03,
+        )
+
+    def test_a_reachability_constraint_still_holds(self):
+        # Weighting changes which strings are likely, never which are possible.
+        parity = DFA(
+            states={0, 1},
+            input_symbols={0, 1},
+            transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 0}},
+            initial_state=0,
+            final_states={0},
+            allow_partial=False,
+        )
+        rng = np.random.default_rng(0)
+        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(rng, 2)
+        counts = count_paths_to_state(parity, 1, LENGTH, weights)
+        for _ in range(200):
+            string = sample_string_reaching_state(parity, counts, rng, weights)
+            self.assertEqual(sum(string) % 2, 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -6,28 +6,38 @@ def states_intermediate(s0, y, dfa):
     return states
 
 
-def count_paths_to_state(dfa, target, length):
-    """``counts[m][q]`` = number of length-``m`` strings ``w`` with ``run(q, w) == target``.
+def count_paths_to_state(dfa, target, length, weights=None):
+    """``counts[m][q]`` = the mass of length-``m`` strings ``w`` with ``run(q, w) == target``.
 
-    Standard path-counting DP, for ``m`` in ``0..length``: enough to sample a uniform
+    Standard path-counting DP, for ``m`` in ``0..length``: enough to sample a
     length-``length`` string reaching ``target`` via :func:`sample_string_reaching_state`.
+    Unweighted the mass is the number of such strings and the sampling is uniform
+    over them; ``weights[s]`` -- how often the learner's sampler puts symbol ``s``
+    at a position -- makes it a probability and the sampling match that sampler.
     """
     syms = sorted(dfa.input_symbols)
-    counts = [{q: int(q == target) for q in dfa.states}]
+    if weights is None:
+        counts = [{q: int(q == target) for q in dfa.states}]
+        step = lambda prev, q: sum(prev[dfa.transitions[q][s]] for s in syms)
+    else:
+        counts = [{q: float(q == target) for q in dfa.states}]
+        step = lambda prev, q: sum(
+            weights[s] * prev[dfa.transitions[q][s]] for s in syms
+        )
     for _ in range(length):
         prev = counts[-1]
-        counts.append(
-            {q: sum(prev[dfa.transitions[q][s]] for s in syms) for q in dfa.states}
-        )
+        counts.append({q: step(prev, q) for q in dfa.states})
     return counts
 
 
-def sample_string_reaching_state(dfa, counts, rng):
-    """Uniform random length-``len(counts)-1`` string from ``dfa.initial_state`` to the
+def sample_string_reaching_state(dfa, counts, rng, weights=None):
+    """Random length-``len(counts)-1`` string from ``dfa.initial_state`` to the
     target ``counts`` was built for, or ``None`` if no such string exists.
 
     The recursive sampling method: walk forward choosing each symbol with probability
-    proportional to the number of completions that still reach the target.
+    proportional to the completions that still reach the target.  Uniform over those
+    strings unless ``weights`` -- the same ones ``counts`` was built with -- says how
+    often the learner's sampler puts each symbol at a position.
     """
     syms = sorted(dfa.input_symbols)
     length = len(counts) - 1
@@ -38,14 +48,16 @@ def sample_string_reaching_state(dfa, counts, rng):
     for remaining in range(length, 0, -1):
         row = counts[remaining - 1]
         transitions = dfa.transitions[state]
-        weights = [row[transitions[s]] for s in syms]
+        masses = [
+            row[transitions[s]] * (1 if weights is None else weights[s]) for s in syms
+        ]
         # One uniform draw walked against the weights rather than rng.choice(p=),
         # which spends ~20us normalising and building a CDF for what is usually a
         # two-way split, once per symbol of every sampled string.
-        target = rng.random() * sum(weights)
+        target = rng.random() * sum(masses)
         cumulative = 0
         symbol = syms[0]
-        for candidate, weight in zip(syms, weights):
+        for candidate, weight in zip(syms, masses):
             if not weight:
                 continue
             # Never leaves a zero-weight symbol selected, and a draw that overruns

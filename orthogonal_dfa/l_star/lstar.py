@@ -62,12 +62,21 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             f"{pst.decision_boundary:.4f}"
         )
         return dfa
+    # The strings reaching a state are not equally likely to be drawn unless the
+    # learner samples evenly, and it is the ones it will meet that its label has
+    # to be right about.
+    weights = pst.sampler.symbol_weights(pst.rng, pst.alphabet_size)
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
         counts = count_paths_to_state(dfa, state, length)
         reachable = counts[length][dfa.initial_state]
         cap = min(max_samples, reachable)
+        drawn_from = (
+            counts
+            if weights is None
+            else count_paths_to_state(dfa, state, length, weights)
+        )
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read
@@ -78,7 +87,7 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             target = min(block_size, cap - len(seen))
             block = []
             while len(block) < target:
-                string = sample_string_reaching_state(dfa, counts, pst.rng)
+                string = sample_string_reaching_state(dfa, drawn_from, pst.rng, weights)
                 if tuple(string) in seen:
                     continue  # need distinct strings for independent oracle draws
                 seen.add(tuple(string))

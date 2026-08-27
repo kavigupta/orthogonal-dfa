@@ -8,6 +8,7 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.lstar import denoise_accept_labels
+from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import denoise_sample_size
 from tests.dfas import PARITY, parity_membership
 
@@ -59,10 +60,6 @@ class _CoinFlipOracle:
         return [self.membership_query(s) for s in strings]
 
 
-class _StubSampler:
-    length = 20
-
-
 class _StubConfig:
     min_signal_strength = 0.3
 
@@ -75,11 +72,12 @@ class _StubTable:
 class _StubPst:
     def __init__(self, seed=0):
         self.oracle = _CountingOracle()
-        self.sampler = _StubSampler()
+        self.sampler = UniformSampler(20)
         self.table = _StubTable()
         self.rng = np.random.default_rng(seed)
         self.decision_boundary = 0.5
         self.config = _StubConfig()
+        self.alphabet_size = 2
 
 
 class TestDenoiseAcceptLabels(unittest.TestCase):
