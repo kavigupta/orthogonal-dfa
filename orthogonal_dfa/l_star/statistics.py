@@ -1,5 +1,6 @@
 import itertools
-from typing import Optional, Tuple
+import math
+from typing import Iterator, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -53,15 +54,43 @@ def population_size_and_evidence_margin(
     return res
 
 
+def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
+    """Every test over N samples, ascending in margin, as (k_low, k_high, eps):
+    reject at counts <= k_low, accept at counts >= k_high, undecided between.
+
+    The runtime spends the margin as `count / N` against `center +/- eps`, so it can
+    only name a band whose ends straddle N * center to within one count:
+
+        |2 * N * center - (k_low + k_high)| < 1
+
+    Each such band is named by a whole interval of margins, and eps is its midpoint.
+    """
+    two_a = 2 * N * center
+    floor = math.floor(two_a)
+    for width in itertools.count(1):
+        ends = floor + (width - floor) % 2
+        if not two_a - 1 < ends < two_a + 1:
+            continue
+        k_low, k_high = (ends - width) // 2, (ends + width) // 2
+        if k_low < 0 or k_high > N:
+            return
+        eps = (width - 1) / (2 * N)
+        # An offset within float error of 1 passes the test above on an interval
+        # too narrow to hold any margin. It takes a center that is a near-exact
+        # rational over 2N, so it is rare and silent rather than loud.
+        if k_low / N < center - eps <= (k_low + 1) / N and (
+            (k_high - 1) / N < center + eps <= k_high / N
+        ):
+            yield k_low, k_high, eps
+
+
 def evidence_margin_for_population_size(
     signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
     """
-    for eps in np.linspace(0.01, signal_strength, 100):
-        k_low = int(np.floor(N * (center - eps)))
-        k_high = int(np.ceil(N * (center + eps)))
+    for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
         fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
             k_low, N, signal_strength + center
@@ -146,6 +175,59 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
         if _binom_cdf(n // 2, n, noise_level) < acceptable_misclassification:
             return n
     raise ValueError("not reachable")
+
+
+#: Chance ``denoise_accept_labels`` moves a label the evidence does not support,
+#: and equally the chance it fails to move one it should.
+DENOISE_FAILURE_PROB = 1e-5
+
+
+def _decides(num_samples, signal_strength, boundary, failure_prob):
+    """Whether a state either side of the boundary reaches significance at this size.
+
+    ``isf``/``ppf`` invert the tails ``binomial_side_of_boundary`` tests, so
+    ``high`` and ``low`` are exactly the counts it calls significant.  An off the
+    end of the range gives a zero-probability tail, which decides nothing.
+    """
+    binom = scipy.stats.binom
+    high = binom.isf(failure_prob, num_samples, boundary) + 1
+    low = binom.ppf(failure_prob, num_samples, boundary) - 1
+    return (
+        min(
+            binom.sf(high - 1, num_samples, boundary + signal_strength),
+            binom.cdf(low, num_samples, boundary - signal_strength),
+        )
+        >= 1 - failure_prob
+    )
+
+
+def denoise_sample_size(
+    signal_strength, boundary=0.5, *, failure_prob=DENOISE_FAILURE_PROB
+):
+    """Samples one state needs before its own accept rate decides its label.
+
+    A state whose strings are accepted answers at ``boundary + signal_strength``
+    and one whose strings are not at ``boundary - signal_strength``, the same
+    reading of the boundary the accept-preserving test takes.  Sized so failing
+    to decide is as unlikely as deciding wrongly.
+    """
+    if not 0 <= boundary - signal_strength or not boundary + signal_strength <= 1:
+        return None
+
+    def decides(n):
+        return _decides(n, signal_strength, boundary, failure_prob)
+
+    n = 1
+    while not decides(n):
+        n *= 2
+    lo, hi = n // 2, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if decides(mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
 
 
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):

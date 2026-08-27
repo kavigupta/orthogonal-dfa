@@ -15,7 +15,11 @@ from .dfa_utils import (
     states_intermediate,
 )
 from .midfix_tree import oracle_decider
-from .statistics import binomial_side_of_boundary
+from .statistics import (
+    DENOISE_FAILURE_PROB,
+    binomial_side_of_boundary,
+    denoise_sample_size,
+)
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
@@ -32,7 +36,7 @@ def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     )
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
+def denoise_accept_labels(pst, dfa, *, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -41,15 +45,29 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     sampler) and query the oracle, flipping the label only when a binomial test of the
     accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
     labels never reach significance on the wrong side, so only noise-flips get corrected;
-    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
-    label. Labels change, transitions don't.
+    a state that can't decide within the samples that test needs at this oracle's signal
+    keeps its discovery label. Labels change, transitions don't.
     """
     length = pst.sampler.length
+    # States that used the whole budget without deciding, as opposed to those with
+    # too few strings reaching them to have had a chance.
+    exhausted = []
+    max_samples = denoise_sample_size(
+        pst.config.min_signal_strength, pst.decision_boundary
+    )
+    if max_samples is None:
+        print(
+            f"Denoise skipped: no sample size decides at signal "
+            f"{pst.config.min_signal_strength} around a boundary of "
+            f"{pst.decision_boundary:.4f}"
+        )
+        return dfa
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
         counts = count_paths_to_state(dfa, state, length)
-        cap = min(max_samples, counts[length][dfa.initial_state])
+        reachable = counts[length][dfa.initial_state]
+        cap = min(max_samples, reachable)
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read
@@ -68,9 +86,16 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
                 n += 1
-                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
+                decision = binomial_side_of_boundary(
+                    accepts,
+                    n,
+                    pst.decision_boundary,
+                    failure_prob=DENOISE_FAILURE_PROB,
+                )
                 if decision is not None:
                     return decision
+        if reachable >= max_samples:
+            exhausted.append(state)
         return None
 
     label = {
@@ -78,6 +103,11 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
         for prefix in pst.table.prefixes
     }
     label = {state: relabel(state) for state in label}
+    if exhausted:
+        print(
+            f"Denoise spent {max_samples} samples on {sorted(exhausted)} without "
+            f"reaching significance either side of {pst.decision_boundary:.4f}"
+        )
 
     def is_final(s):
         # Decided states use the new label; the rest keep the discovery label.

@@ -55,6 +55,11 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
+    # A cluster all on one side estimates a boundary whose implied rates,
+    # boundary +/- the signal, are no longer probabilities.
+    signal = pst.config.min_signal_strength
+    decision_boundary = min(max(decision_boundary, signal), 1 - signal)
+
     return candidate[cluster].tolist(), decision_boundary
 
 
