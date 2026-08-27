@@ -148,23 +148,77 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
-#: Chance ``denoise_accept_labels`` moves a label the evidence does not support.
+#: Chance ``denoise_accept_labels`` moves a label the evidence does not support,
+#: and equally the chance it fails to move one it should.
 DENOISE_FAILURE_PROB = 1e-5
 
+#: Where a state needs more draws than this, the boundary has left it too little
+#: room to be worth sampling for.
+MAX_DENOISE_SAMPLES = 10**6
 
-def denoise_sample_size(signal_strength, failure_prob=DENOISE_FAILURE_PROB):
-    r"""Samples one state needs before a test at ``failure_prob`` can move its label.
 
-    The test moves a label once the accept count clears z sqrt(1/4n) of the
-    boundary, while the truth sits ``signal_strength`` away from it, so
+def _upper_threshold(num_samples, boundary, failure_prob):
+    """Smallest accept count ``binomial_side_of_boundary`` calls significantly high."""
+    lo, hi = 0, num_samples + 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if 1 - _binom_cdf(mid - 1, num_samples, boundary) < failure_prob:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo if lo <= num_samples else None
 
-        n = z^2 / (4 signal^2),   z = Phi^-1(1 - failure_prob)
 
-    puts the expected count exactly on the bar -- deciding half the time.  Four
-    times that puts it a further z above, which decides.
+def _lower_threshold(num_samples, boundary, failure_prob):
+    """Largest accept count ``binomial_side_of_boundary`` calls significantly low."""
+    lo, hi = -1, num_samples
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if _binom_cdf(mid, num_samples, boundary) < failure_prob:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo if lo >= 0 else None
+
+
+def _decides(num_samples, signal_strength, boundary, failure_prob):
+    """Whether both a pure accept and a pure reject state decide at this size."""
+    high = _upper_threshold(num_samples, boundary, failure_prob)
+    low = _lower_threshold(num_samples, boundary, failure_prob)
+    if high is None or low is None:
+        return False
+    accepts = 1 - _binom_cdf(high - 1, num_samples, 0.5 + signal_strength)
+    rejects = _binom_cdf(low, num_samples, 0.5 - signal_strength)
+    return min(accepts, rejects) >= 1 - failure_prob
+
+
+def denoise_sample_size(
+    signal_strength, boundary=0.5, *, failure_prob=DENOISE_FAILURE_PROB
+):
+    """Samples one state needs before its own accept rate decides its label.
+
+    The oracle accepts with probability 1/2 + signal_strength on a state whose
+    strings are accepted and 1/2 - signal_strength on one whose strings are not,
+    wherever ``boundary`` sits -- so a boundary off 1/2 leaves the side it moved
+    towards less room, and that side sets the size.  Sized so failing to decide
+    is as unlikely as deciding wrongly.  None where the boundary has moved past
+    one of the two rates, which no sample size recovers from.
     """
-    z = scipy.stats.norm.ppf(1 - failure_prob)
-    return int(np.ceil(z**2 / signal_strength**2))
+    if not 0.5 - signal_strength < boundary < 0.5 + signal_strength:
+        return None
+    n = 1
+    while not _decides(n, signal_strength, boundary, failure_prob):
+        n *= 2
+        if n > MAX_DENOISE_SAMPLES:
+            return None
+    lo, hi = n // 2, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if _decides(mid, signal_strength, boundary, failure_prob):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
 
 
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):

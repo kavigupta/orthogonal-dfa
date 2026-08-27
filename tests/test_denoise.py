@@ -165,6 +165,28 @@ class TestDenoiseSampleSize(unittest.TestCase):
         sizes = [denoise_sample_size(s) for s in (0.3, 0.2, 0.15, 0.1)]
         self.assertEqual(sizes, sorted(sizes))
 
+    def test_a_boundary_off_centre_costs_samples(self):
+        # The rates stay at 1/2 +- signal, so a boundary that moves towards one
+        # of them leaves that side less to clear.
+        centred = denoise_sample_size(0.1, 0.5)
+        for boundary in (0.4867, 0.47, 0.45):
+            self.assertGreater(denoise_sample_size(0.1, boundary), centred)
+
+    def test_none_when_the_boundary_passes_a_rate(self):
+        # Below 1/2 - signal every accept rate is above the boundary.
+        self.assertIsNone(denoise_sample_size(0.1, 0.39))
+        self.assertIsNone(denoise_sample_size(0.1, 0.61))
+
+    def test_skips_rather_than_sampling_a_hopeless_boundary(self):
+        pst = _StubPst()
+        pst.config.min_signal_strength = 0.1
+        pst.decision_boundary = 0.39
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            result = denoise_accept_labels(pst, PARITY)
+        self.assertIn("Denoise skipped", out.getvalue())
+        self.assertIs(result, PARITY)
+
 
 if __name__ == "__main__":
     unittest.main()
