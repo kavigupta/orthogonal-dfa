@@ -184,18 +184,12 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
-        vs, decision_boundary = identify_cluster_around(
-            pst, v, family_size, decision_boundary
-        )
-        pst.decision_boundary = decision_boundary
-        family_size = smallest_readable_family(
-            pst.config.min_signal_strength, decision_boundary
-        )
-        # The cluster is capped at the size asked for, so a boundary that moved
-        # far enough to want more leaves it short by construction.  The pool
-        # usually already holds them; ask again at the new size before spending a
-        # cohort of oracle queries on suffixes to cover a handful.
-        if len(vs) < family_size:
+        # The cluster is capped at the size asked for, and the boundary it
+        # estimates decides the size wanted, so a boundary that moves far enough
+        # leaves it short by construction.  The pool usually already holds the
+        # rest: ask again at the new size before spending a cohort of oracle
+        # queries on suffixes to cover a handful.
+        for _ in range(2):
             vs, decision_boundary = identify_cluster_around(
                 pst, v, family_size, decision_boundary
             )
@@ -203,6 +197,8 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             family_size = smallest_readable_family(
                 pst.config.min_signal_strength, decision_boundary
             )
+            if len(vs) >= family_size:
+                break
         clustered = len(vs)
 
         # An undersized family is unusable whatever its FNR would measure, and
