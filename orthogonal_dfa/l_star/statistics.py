@@ -157,39 +157,23 @@ DENOISE_FAILURE_PROB = 1e-5
 MAX_DENOISE_SAMPLES = 10**6
 
 
-def _upper_threshold(num_samples, boundary, failure_prob):
-    """Smallest accept count ``binomial_side_of_boundary`` calls significantly high."""
-    lo, hi = 0, num_samples + 1
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if 1 - _binom_cdf(mid - 1, num_samples, boundary) < failure_prob:
-            hi = mid
-        else:
-            lo = mid + 1
-    return lo if lo <= num_samples else None
-
-
-def _lower_threshold(num_samples, boundary, failure_prob):
-    """Largest accept count ``binomial_side_of_boundary`` calls significantly low."""
-    lo, hi = -1, num_samples
-    while lo < hi:
-        mid = (lo + hi + 1) // 2
-        if _binom_cdf(mid, num_samples, boundary) < failure_prob:
-            lo = mid
-        else:
-            hi = mid - 1
-    return lo if lo >= 0 else None
-
-
 def _decides(num_samples, signal_strength, boundary, failure_prob):
-    """Whether both a pure accept and a pure reject state decide at this size."""
-    high = _upper_threshold(num_samples, boundary, failure_prob)
-    low = _lower_threshold(num_samples, boundary, failure_prob)
-    if high is None or low is None:
-        return False
-    accepts = 1 - _binom_cdf(high - 1, num_samples, boundary + signal_strength)
-    rejects = _binom_cdf(low, num_samples, boundary - signal_strength)
-    return min(accepts, rejects) >= 1 - failure_prob
+    """Whether a state either side of the boundary reaches significance at this size.
+
+    ``isf``/``ppf`` invert the tails ``binomial_side_of_boundary`` tests, so
+    ``high`` and ``low`` are exactly the counts it calls significant.  An off the
+    end of the range gives a zero-probability tail, which decides nothing.
+    """
+    binom = scipy.stats.binom
+    high = binom.isf(failure_prob, num_samples, boundary) + 1
+    low = binom.ppf(failure_prob, num_samples, boundary) - 1
+    return (
+        min(
+            binom.sf(high - 1, num_samples, boundary + signal_strength),
+            binom.cdf(low, num_samples, boundary - signal_strength),
+        )
+        >= 1 - failure_prob
+    )
 
 
 def denoise_sample_size(
@@ -204,15 +188,19 @@ def denoise_sample_size(
     """
     if not 0 < boundary - signal_strength and boundary + signal_strength < 1:
         return None
+
+    def decides(n):
+        return _decides(n, signal_strength, boundary, failure_prob)
+
     n = 1
-    while not _decides(n, signal_strength, boundary, failure_prob):
+    while not decides(n):
         n *= 2
         if n > MAX_DENOISE_SAMPLES:
             return None
     lo, hi = n // 2, n
     while lo < hi:
         mid = (lo + hi) // 2
-        if _decides(mid, signal_strength, boundary, failure_prob):
+        if decides(mid):
             hi = mid
         else:
             lo = mid + 1
