@@ -16,6 +16,7 @@ from orthogonal_dfa.l_star.dfa_utils import (
     sample_string_reaching_state,
 )
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
+from tests.dfas import PARITY
 
 LENGTH = 30
 RARE = 0.02
@@ -145,19 +146,11 @@ class TestWeightedWalk(unittest.TestCase):
 
     def test_a_reachability_constraint_still_holds(self):
         # Weighting changes which strings are likely, never which are possible.
-        parity = DFA(
-            states={0, 1},
-            input_symbols={0, 1},
-            transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 0}},
-            initial_state=0,
-            final_states={0},
-            allow_partial=False,
-        )
         rng = np.random.default_rng(0)
         weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(rng, 2)
-        counts = count_paths_to_state(parity, 1, LENGTH, weights)
+        counts = count_paths_to_state(PARITY, 1, LENGTH, weights)
         for _ in range(200):
-            string = sample_string_reaching_state(parity, counts, rng, weights)
+            string = sample_string_reaching_state(PARITY, counts, rng, weights)
             self.assertEqual(sum(string) % 2, 1)
 
 
