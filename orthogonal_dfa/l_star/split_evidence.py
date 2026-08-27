@@ -63,7 +63,7 @@ class SplitEvidence:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
-        assert self.family.test_idx  # vs is sized to the family size, never empty
+        assert self.family.test_idx  # vs is sized >= suffix_family_size, never empty
         a1, r1, a2, r2, n_a, n_b = self._tally(state, distinguisher)
         if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold():
             return SPLIT

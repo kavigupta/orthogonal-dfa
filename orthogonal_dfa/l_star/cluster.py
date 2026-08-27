@@ -3,7 +3,7 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import population_size_and_evidence_margin
+from .statistics import evidence_margin_for_population_size
 
 
 def identify_cluster_around(
@@ -55,23 +55,19 @@ def identify_cluster_around(
         # symmetric to above
         decision_boundary = reject_mean
 
-    # A cluster all on one side estimates a boundary whose implied rates,
-    # boundary +/- the signal, are no longer probabilities.
-    signal = pst.config.min_signal_strength
-    decision_boundary = min(max(decision_boundary, signal), 1 - signal)
-
     return candidate[cluster].tolist(), decision_boundary
 
 
-def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
-    """Suffixes to read and the band to read them with, together.
-
-    How many a decision needs depends on where the boundary sits: the two classes
-    draw from binomials whose variance differs once it leaves 0.5.
-    """
-    return population_size_and_evidence_margin(
-        min_signal_strength, 0.01, 0.01, center=decision_boundary
+def recompute_evidence_margin(
+    min_signal_strength, suffix_family_size, decision_boundary
+):
+    result = evidence_margin_for_population_size(
+        min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
     )
+    if result is None:
+        return min_signal_strength * 0.5
+    _, eps = result
+    return eps
 
 
 #: Rejections in a row after which no accept-preserving family is believed to
@@ -129,6 +125,7 @@ class AcceptPreservingGate:
 
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
+        self.family_size = config.suffix_family_size
         self.rejections = 0
 
     def admits(self, pst, decision, decision_boundary, seed_row) -> bool:
@@ -142,8 +139,8 @@ class AcceptPreservingGate:
         if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
             raise NoAcceptPreservingFamily(
                 f"{self.rejections} families running were not accept-preserving "
-                f"(last p={p:.2e}); no suffix family realises the "
-                f"accept-preserving split on this target"
+                f"(last p={p:.2e}); no family of {self.family_size} suffixes "
+                f"realises the accept-preserving split on this target"
             )
         return False
 
@@ -152,9 +149,6 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    family_size, _ = recompute_family_size_and_margin(
-        pst.config.min_signal_strength, decision_boundary
-    )
     gate = AcceptPreservingGate(pst.config)
 
     while True:
@@ -162,13 +156,14 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
-        requested = family_size
         vs, decision_boundary = identify_cluster_around(
-            pst, v, requested, decision_boundary
+            pst, v, pst.config.suffix_family_size, decision_boundary
         )
         pst.decision_boundary = decision_boundary
-        family_size, pst.evidence_margin = recompute_family_size_and_margin(
-            pst.config.min_signal_strength, decision_boundary
+        pst.evidence_margin = recompute_evidence_margin(
+            pst.config.min_signal_strength,
+            pst.config.suffix_family_size,
+            decision_boundary,
         )
 
         decision = pst.compute_decision(vs, pst.table.representative)
@@ -176,7 +171,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
         # An undersized family is unusable whatever its FNR measures, and testing
         # it would spend a budget that means no accept-preserving family exists.
-        if len(vs) < requested:
+        if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
         elif not gate.admits(pst, decision, decision_boundary, v):
             effective_fnr, reason = 1.0, "not accept-preserving"
@@ -199,7 +194,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         if strategy == "suffix":
-            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
-            print(f"  kept {kept}/{family_size} after screening")
+            kept = pst.sample_more_suffixes(
+                amount=pst.config.suffix_family_size, reference=v
+            )
+            print(f"  kept {kept}/{pst.config.suffix_family_size} after screening")
         else:
             pst.sample_more_prefixes()

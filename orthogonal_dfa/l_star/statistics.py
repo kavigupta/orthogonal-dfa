@@ -22,7 +22,7 @@ def _binom_cdf(k, n, p):
 
 
 def population_size_and_evidence_margin(
-    signal_strength, acceptable_fpr, acceptable_fnr, *, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -41,14 +41,14 @@ def population_size_and_evidence_margin(
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_margin_for_population_size(
-            signal_strength, acceptable_fpr, acceptable_fnr, N_try, center=center
+            signal_strength, acceptable_fpr, acceptable_fnr, N_try
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
     res = evidence_margin_for_population_size(
-        signal_strength, acceptable_fpr, acceptable_fnr, N_high, center=center
+        signal_strength, acceptable_fpr, acceptable_fnr, N_high
     )
     assert res is not None
     return res
@@ -74,7 +74,14 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
         k_low, k_high = (ends - width) // 2, (ends + width) // 2
         if k_low < 0 or k_high > N:
             return
-        yield k_low, k_high, (width - 1) / (2 * N)
+        eps = (width - 1) / (2 * N)
+        # An offset within float error of 1 passes the test above on an interval
+        # too narrow to hold any margin. It takes a center that is a near-exact
+        # rational over 2N, so it is rare and silent rather than loud.
+        if k_low / N < center - eps <= (k_low + 1) / N and (
+            (k_high - 1) / N < center + eps <= k_high / N
+        ):
+            yield k_low, k_high, eps
 
 
 def evidence_margin_for_population_size(
@@ -85,12 +92,8 @@ def evidence_margin_for_population_size(
     """
     for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        # Both classes: a band symmetric in rate is not symmetric in variance
-        # away from 0.5, and the wider class is the one that has to clear it.
-        fnr = max(
-            _binom_cdf(k_high - 1, N, center + side)
-            - _binom_cdf(k_low, N, center + side)
-            for side in (signal_strength, -signal_strength)
+        fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
+            k_low, N, signal_strength + center
         )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps

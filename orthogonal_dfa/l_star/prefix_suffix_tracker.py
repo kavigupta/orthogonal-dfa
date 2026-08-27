@@ -45,6 +45,7 @@ def short_prefix_closure(
 
 @dataclass
 class SearchConfig:
+    suffix_family_size: int
     evidence_margin: float
     suffix_size_counterexample_gen: int
     min_signal_strength: float

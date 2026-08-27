@@ -25,25 +25,20 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-    BernoulliParityOracle, BernoulliRegex)
-from orthogonal_dfa.l_star.learn import learn_dfa
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.structures import Oracle
+from orthogonal_dfa.l_star.learn import learn_dfa
 from tests.lstar_common import evaluate_accuracy
 
 _ANOTHER_POOR_DFA = DFA(
     states=set(range(10)),
     input_symbols={0, 1},
     transitions={
-        0: {1: 8, 0: 0},
-        1: {1: 1, 0: 1},
-        2: {1: 1, 0: 6},
-        3: {1: 9, 0: 2},
-        4: {1: 3, 0: 8},
-        5: {1: 8, 0: 4},
-        6: {1: 3, 0: 9},
-        7: {1: 8, 0: 6},
-        8: {1: 8, 0: 5},
-        9: {1: 3, 0: 7},
+        0: {1: 8, 0: 0}, 1: {1: 1, 0: 1}, 2: {1: 1, 0: 6}, 3: {1: 9, 0: 2},
+        4: {1: 3, 0: 8}, 5: {1: 8, 0: 4}, 6: {1: 3, 0: 9}, 7: {1: 8, 0: 6},
+        8: {1: 8, 0: 5}, 9: {1: 3, 0: 7},
     },
     initial_state=0,
     final_states={1},
@@ -54,23 +49,16 @@ _ANOTHER_POOR_DFA = DFA(
 BENCHMARKS = {
     "modulo": (
         lambda nm, s: BernoulliParityOracle(nm, s, modulo=9, allowed_moduluses=(3, 6)),
-        0.3,
-        2,
+        0.3, 2,
     ),
     "subseq": (
-        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"),
-        0.3,
-        2,
+        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"), 0.3, 2,
     ),
     "two_subseq": (
-        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1111.*1111.*"),
-        0.3,
-        2,
+        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1111.*1111.*"), 0.3, 2,
     ),
     "poor_case": (
-        lambda nm, s: DFAOracle(nm, s, _ANOTHER_POOR_DFA),
-        0.3,
-        2,
+        lambda nm, s: DFAOracle(nm, s, _ANOTHER_POOR_DFA), 0.3, 2,
     ),
 }
 
@@ -196,41 +184,29 @@ def profile_one(name: str) -> None:
     acc = evaluate_accuracy(dfa, oracle_creator, symbols=symbols)
     o = holder["o"]
 
-    print(
-        f"\n\n===== QUERY ORIGINS: {name} "
-        f"(states={len(dfa.states)}, acc={acc:.3f}) ====="
-    )
+    print(f"\n\n===== QUERY ORIGINS: {name} "
+          f"(states={len(dfa.states)}, acc={acc:.3f}) =====")
     print(f"total queries: {o.total:,}\n")
     # A call of n strings costs ceil(n / cap) passes, so a site issuing many
     # small calls costs far more than its query share suggests. Sorted by fp at
     # the largest cap, where under-filled batches hurt most.
     caps = (32, 128, 1024)
-    fp = {
-        lab: {c: sum(math.ceil(n / c) * k for n, k in sz.items()) for c in caps}
-        for lab, sz in o.sizes.items()
-    }
-    head = (
-        f"{'queries':>12}{'':7}{'calls':>9}{'avg sz':>8}"
-        + "".join(f"{f'fp@{c}':>10}" for c in caps)
-        + "  site"
-    )
+    fp = {lab: {c: sum(math.ceil(n / c) * k for n, k in sz.items()) for c in caps}
+          for lab, sz in o.sizes.items()}
+    head = (f"{'queries':>12}{'':7}{'calls':>9}{'avg sz':>8}"
+            + "".join(f"{f'fp@{c}':>10}" for c in caps) + "  site")
     print(head)
     for label in sorted(o.sizes, key=lambda lab: -fp[lab][caps[-1]]):
         sz = o.sizes[label]
         strings, calls = sum(n * k for n, k in sz.items()), sum(sz.values())
-        print(
-            f"{strings:>12,}{100 * strings / o.total:6.1f}%{calls:>9,}"
-            f"{strings / calls:>8.0f}"
-            + "".join(f"{fp[label][c]:>10,}" for c in caps)
-            + f"  {label}"
-        )
+        print(f"{strings:>12,}{100 * strings / o.total:6.1f}%{calls:>9,}"
+              f"{strings / calls:>8.0f}"
+              + "".join(f"{fp[label][c]:>10,}" for c in caps) + f"  {label}")
     for c in caps:
         actual = sum(fp[lab][c] for lab in fp)
         ideal = math.ceil(o.total / c)
-        print(
-            f"fp@{c}: {actual:,} (ideal {ideal:,}, "
-            f"{100 * ideal / actual:.0f}% packed)"
-        )
+        print(f"fp@{c}: {actual:,} (ideal {ideal:,}, "
+              f"{100 * ideal / actual:.0f}% packed)")
 
 
 def main():
