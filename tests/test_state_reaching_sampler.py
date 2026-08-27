@@ -13,6 +13,7 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.dfa_utils import (
     count_paths_to_state,
+    per_state_sample,
     sample_string_reaching_state,
     uniform_weights,
 )
@@ -184,3 +185,33 @@ class TestWeightedWalk(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPerStateSampleFollowsTheSampler(unittest.TestCase):
+    def test_a_skewed_sampler_gets_skewed_strings(self):
+        # Long enough that asking for distinct strings is not itself most of the
+        # story: 40 of 2**19 leaves the weighting room to show.
+        rng = np.random.default_rng(0)
+        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(rng, 2)
+        skewed = per_state_sample(PARITY, rng, LENGTH, 40, weights=weights)
+        even = per_state_sample(
+            PARITY, rng, LENGTH, 40, weights=uniform_weights(PARITY)
+        )
+        self.assertLess(_rate_of_symbol_zero(skewed), 4 * RARE)
+        self.assertGreater(_rate_of_symbol_zero(even), 0.4)
+
+    def test_an_even_sampler_still_draws_by_index(self):
+        # The cheap path is only right where the two agree, so it must still be
+        # taken: same pool from the same seed as before weights existed.
+        rng = np.random.default_rng(7)
+        pool = per_state_sample(
+            PARITY, rng, LENGTH, 40, weights=uniform_weights(PARITY)
+        )
+        again = per_state_sample(
+            PARITY,
+            np.random.default_rng(7),
+            LENGTH,
+            40,
+            weights=uniform_weights(PARITY),
+        )
+        self.assertEqual(sorted(map(tuple, pool)), sorted(map(tuple, again)))

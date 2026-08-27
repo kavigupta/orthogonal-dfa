@@ -111,14 +111,19 @@ def unrank_string_reaching_state(dfa, counts, index):
     return string
 
 
-def per_state_sample(dfa, rng, length, per_state, existing=()):
+def per_state_sample(dfa, rng, length, per_state, *, weights, existing=()):
     """
     Sample strings of length ``length`` such that when these strings are
     added to the list of strings already in ``existing``, each state of ``dfa``
     has at least ``per_state`` strings.
+
+    ``weights`` is how often the learner's sampler puts each symbol at a position,
+    since the strings are there to stand for the ones it draws.
     """
-    # Ranking indexes strings by these, so they have to count them.
-    weights = uniform_weights(dfa)
+    # Two different things: strings are deduplicated by their index among those
+    # reaching a state, which counts them, and drawn by how likely the learner is
+    # to meet each, which does not.
+    counting = uniform_weights(dfa)
     have = {}
     for s in existing:
         if len(s) == length:
@@ -127,7 +132,7 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             ).append(tuple(s))
     pool = []
     for state in sorted(dfa.states):
-        counts = count_paths_to_state(dfa, state, length, weights)
+        counts = count_paths_to_state(dfa, state, length, counting)
         reachable = counts[length][dfa.initial_state]
         if reachable == 0:
             continue
@@ -137,16 +142,20 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             if len(used) >= target:
                 break
             used.add(rank_string_reaching_state(dfa, counts, s))
-        fits_int64 = reachable <= 2**63 - 1
+        even = weights == counting
+        # An index drawn evenly is an evenly drawn string, and cheaper than
+        # walking for one; any other weighting has to walk.
+        by_index = even and reachable <= 2**63 - 1
+        mass = counts if even else count_paths_to_state(dfa, state, length, weights)
         while len(used) < target:
-            if fits_int64:
+            if by_index:
                 used.add(int(rng.integers(reachable)))
             else:
                 used.add(
                     rank_string_reaching_state(
                         dfa,
                         counts,
-                        sample_string_reaching_state(dfa, counts, rng, weights),
+                        sample_string_reaching_state(dfa, mass, rng, weights),
                     )
                 )
         pool.extend(unrank_string_reaching_state(dfa, counts, r) for r in used)
