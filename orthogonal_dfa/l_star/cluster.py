@@ -121,48 +121,40 @@ def _rate_interval(hits: int, n: int) -> Tuple[float, float]:
     return float(low), float(high)
 
 
-def accept_preserving_drift(
-    pst, decision, decision_boundary, seed_row
-) -> Tuple[float, float]:
-    """Interval on the share of a side that is the other class, worst side first.
+def accept_preserving_drift(pst, decision, seed_row) -> Tuple[float, float]:
+    """Interval on the share of the family's cut that is the other class.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
-    column is the accept-preserving split itself: a family realising the split
-    reads 1 there at the accept rate on the prefixes it accepts and at the reject
-    rate on the rest.  Mixing the classes moves that rate toward the boundary by
-    an amount linear in the share mixed in, so an interval on the rate inverts to
-    one on the share.
+    column is the accept-preserving split itself: a family that realises the
+    split reads it ``2 * signal`` apart across its own cut, and mixing the
+    classes closes that gap in proportion to the share mixed in.
 
-    An interval is a statement about the family.  Failing to reject a null is only
-    a statement about the evidence, which is how a family too small to measure
-    used to pass for one that had been checked.
+    Read as the gap, rather than as two rates about ``decision_boundary``.  That
+    boundary is estimated from the family's decision, a mean over all its
+    suffixes, while this is a single column of one; whatever displaces the two
+    together belongs to that difference and not to the split, and a gap does not
+    see it where a pair of rates does.
     """
     column = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
-    low = high = 0.0
-    read = False
-    for side, rate, mixes_down in (
-        (decision >= pst.accept_thresh, decision_boundary + signal, True),
-        (decision < pst.reject_thresh, decision_boundary - signal, False),
-    ):
+    sides = []
+    for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
         n = int(side.sum())
-        # Nothing to read. A rate of 0 or 1 is readable, and sharper than any
-        # other: the boundary is on its clamp, so every prefix on the side has to
-        # agree, and one that does not is already drift.
+        # One side on its own says nothing about a gap.
         if n == 0:
-            continue
-        read = True
-        rate_low, rate_high = _rate_interval(int(column[side].sum()), n)
-        if mixes_down:
-            side_low, side_high = rate - rate_high, rate - rate_low
-        else:
-            side_low, side_high = rate_low - rate, rate_high - rate
-        low = max(low, _share(side_low, signal))
-        high = max(high, _share(side_high, signal))
-    # Neither side readable: uncertified, rather than certified clean.
-    if not read:
-        return 0.0, 1.0
-    return low, max(low, high)
+            return 0.0, 1.0
+        hits = int(column[side].sum())
+        low, high = _rate_interval(hits, n)
+        sides.append((hits / n, low, high))
+    (acc, acc_low, acc_high), (rej, rej_low, rej_high) = sides
+    # Newcombe: each side carries its own error into the difference.
+    gap = acc - rej
+    below = ((acc - acc_low) ** 2 + (rej_high - rej) ** 2) ** 0.5
+    above = ((acc_high - acc) ** 2 + (rej - rej_low) ** 2) ** 0.5
+    return (
+        _share(2 * signal - (gap + above), signal),
+        _share(2 * signal - (gap - below), signal),
+    )
 
 
 class AcceptPreservingGate:
@@ -178,7 +170,7 @@ class AcceptPreservingGate:
     def verdict(self, pst, decision, decision_boundary, seed_row) -> str:
         if not self.enabled:
             return ADMITTED
-        low, high = accept_preserving_drift(pst, decision, decision_boundary, seed_row)
+        low, high = accept_preserving_drift(pst, decision, seed_row)
         tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
         if high <= tolerated:
             self.rejections = self.uncertified = 0
