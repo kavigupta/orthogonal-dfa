@@ -181,8 +181,6 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
 #: and equally the chance it fails to move one it should.
 DENOISE_FAILURE_PROB = 1e-5
 
-MAX_DENOISE_SAMPLES = 10**6
-
 
 def _decides(num_samples, signal_strength, boundary, failure_prob):
     """Whether a state either side of the boundary reaches significance at this size.
@@ -222,8 +220,6 @@ def denoise_sample_size(
     n = 1
     while not decides(n):
         n *= 2
-        if n > MAX_DENOISE_SAMPLES:
-            return None
     lo, hi = n // 2, n
     while lo < hi:
         mid = (lo + hi) // 2

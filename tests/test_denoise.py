@@ -4,6 +4,7 @@ import unittest
 import unittest.mock
 
 import numpy as np
+import scipy.stats
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.lstar import denoise_accept_labels
@@ -46,6 +47,9 @@ class _CountingOracle:
 class _CoinFlipOracle:
     """Answers by a hash of the string, so no sample size reaches significance."""
 
+    def __init__(self):
+        self.batches = []
+
     @property
     def alphabet_size(self):
         return 2
@@ -54,6 +58,7 @@ class _CoinFlipOracle:
         return hash(tuple(string)) % 2 == 0
 
     def membership_queries(self, strings):
+        self.batches.append(len(strings))
         return [self.membership_query(s) for s in strings]
 
 
@@ -62,7 +67,6 @@ class _StubSampler:
 
 
 class _StubConfig:
-    # Strong enough that the derived cap falls back on the floor.
     min_signal_strength = 0.3
 
 
@@ -105,6 +109,20 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         batched = denoise_accept_labels(_StubPst(), PARITY, block_size=32)
         self.assertEqual(set(batched.final_states), set(one_at_a_time.final_states))
 
+    def test_the_last_block_takes_only_what_the_budget_has_left(self):
+        # Regression: the inner bound was re-read as the block filled, so a block
+        # near the cap took only half its remaining allowance and the tail
+        # degraded into a series of shrinking calls.  Needs an oracle that never
+        # decides, or the budget is never approached.
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        denoise_accept_labels(pst, PARITY, block_size=32)
+        budget = denoise_sample_size(
+            pst.config.min_signal_strength, pst.decision_boundary
+        )
+        full, remainder = divmod(budget, 32)
+        self.assertEqual(pst.oracle.batches[: full + 1], [32] * full + [remainder])
+
     def test_queries_are_issued_in_blocks(self):
         pst = _StubPst()
         denoise_accept_labels(pst, PARITY, block_size=32)
@@ -146,14 +164,21 @@ class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
 
 
 def _decisions(num_samples, rate, boundary, failure_prob, *, trials, seed):
-    """What ``binomial_side_of_boundary`` says about a state answering at ``rate``."""
+    """Verdicts from the rule denoise runs: the test is read after every sample,
+    so a state stops at the first count clearing either tail rather than being
+    read once at ``num_samples``."""
+    binom = scipy.stats.binom
+    sizes = np.arange(1, num_samples + 1)
+    high = binom.isf(failure_prob, sizes, boundary) + 1
+    low = binom.ppf(failure_prob, sizes, boundary) - 1
     rng = np.random.default_rng(seed)
-    counts = rng.binomial(num_samples, rate, size=trials)
+    counts = np.cumsum(rng.random((trials, num_samples)) < rate, axis=1)
+    above, below = counts >= high, counts <= low
+    decided = above | below
+    first = np.argmax(decided, axis=1)
     return [
-        binomial_side_of_boundary(
-            int(c), num_samples, boundary, failure_prob=failure_prob
-        )
-        for c in counts
+        None if not ever else bool(hit)
+        for ever, hit in zip(decided.any(axis=1), above[np.arange(trials), first])
     ]
 
 
@@ -251,7 +276,7 @@ class TestDenoiseSampleSizeSimulated(unittest.TestCase):
                 self.assertIsNotNone(denoise_sample_size(signal, boundary))
 
     def test_denoise_skips_what_it_cannot_size_for(self):
-        for signal, boundary in ((0.1, 0.95), (0.005, 0.5)):
+        for signal, boundary in ((0.1, 0.95), (0.1, 0.05)):
             pst = _StubPst()
             pst.config.min_signal_strength = signal
             pst.decision_boundary = boundary
