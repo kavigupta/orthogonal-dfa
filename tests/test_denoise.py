@@ -1,10 +1,25 @@
+import contextlib
+import io
 import unittest
+import unittest.mock
 
 import numpy as np
+import scipy.stats
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.lstar import denoise_accept_labels
+from orthogonal_dfa.l_star.statistics import denoise_sample_size
 from tests.dfas import PARITY, parity_membership
+
+#: One state reachable by a single string of any length, the other by the rest.
+ALL_ONES = DFA(
+    states={0, 1},
+    input_symbols={0, 1},
+    transitions={0: {0: 1, 1: 0}, 1: {0: 1, 1: 1}},
+    initial_state=0,
+    final_states={0},
+    allow_partial=False,
+)
 
 
 class _CountingOracle:
@@ -26,8 +41,30 @@ class _CountingOracle:
         return [parity_membership(s) for s in strings]
 
 
+class _CoinFlipOracle:
+    """Answers by a hash of the string, so no sample size reaches significance."""
+
+    def __init__(self):
+        self.batches = []
+
+    @property
+    def alphabet_size(self):
+        return 2
+
+    def membership_query(self, string):
+        return hash(tuple(string)) % 2 == 0
+
+    def membership_queries(self, strings):
+        self.batches.append(len(strings))
+        return [self.membership_query(s) for s in strings]
+
+
 class _StubSampler:
-    length = 8
+    length = 20
+
+
+class _StubConfig:
+    min_signal_strength = 0.3
 
 
 class _StubTable:
@@ -42,6 +79,7 @@ class _StubPst:
         self.table = _StubTable()
         self.rng = np.random.default_rng(seed)
         self.decision_boundary = 0.5
+        self.config = _StubConfig()
 
 
 class TestDenoiseAcceptLabels(unittest.TestCase):
@@ -68,6 +106,20 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         batched = denoise_accept_labels(_StubPst(), PARITY, block_size=32)
         self.assertEqual(set(batched.final_states), set(one_at_a_time.final_states))
 
+    def test_the_last_block_takes_only_what_the_budget_has_left(self):
+        # Regression: the inner bound was re-read as the block filled, so a block
+        # near the cap took only half its remaining allowance and the tail
+        # degraded into a series of shrinking calls.  Needs an oracle that never
+        # decides, or the budget is never approached.
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        denoise_accept_labels(pst, PARITY, block_size=32)
+        budget = denoise_sample_size(
+            pst.config.min_signal_strength, pst.decision_boundary
+        )
+        full, remainder = divmod(budget, 32)
+        self.assertEqual(pst.oracle.batches[: full + 1], [32] * full + [remainder])
+
     def test_queries_are_issued_in_blocks(self):
         pst = _StubPst()
         denoise_accept_labels(pst, PARITY, block_size=32)
@@ -76,14 +128,160 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
         # Every call is a batch, and none of them is a lone string.
         self.assertNotIn(1, batches)
 
-    def test_block_fills_to_the_target(self):
-        # Regression: the inner bound was re-read as the block filled, so a block
-        # near the cap took only half its remaining allowance and the tail
-        # degraded into a series of shrinking calls.
+
+class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
+    def test_says_so_when_the_budget_decides_nothing(self):
+        # The silence this replaces is how a cap below the test's requirement
+        # went unnoticed: every state undecided, and nothing said so.
         pst = _StubPst()
-        denoise_accept_labels(pst, PARITY, max_samples=40, block_size=16)
-        for size in pst.oracle.batches:
-            self.assertIn(size, (16, 8))  # a full block, or the 40 - 2*16 remainder
+        pst.oracle = _CoinFlipOracle()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(pst, PARITY)
+        self.assertIn("without reaching significance", out.getvalue())
+
+    def test_a_state_too_small_to_have_had_a_chance_is_not_named(self):
+        # ALL_ONES reaches its accepting state only by the single all-1s string,
+        # so it runs out of strings rather than out of budget -- the condition
+        # the report turns on, and the reason it is not just "undecided".
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(pst, ALL_ONES)
+        # State 1 takes every other string and runs out of budget; state 0 takes
+        # only the all-1s string and never had one to run out of.
+        self.assertIn("on [1] without reaching significance", out.getvalue())
+
+    def test_quiet_when_every_state_decides(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(_StubPst(), PARITY)
+        self.assertNotIn("without reaching significance", out.getvalue())
+
+
+def _decisions(num_samples, rate, boundary, failure_prob, *, trials, seed):
+    """Verdicts from the rule denoise runs: the test is read after every sample,
+    so a state stops at the first count clearing either tail rather than being
+    read once at ``num_samples``."""
+    binom = scipy.stats.binom
+    sizes = np.arange(1, num_samples + 1)
+    high = binom.isf(failure_prob, sizes, boundary) + 1
+    low = binom.ppf(failure_prob, sizes, boundary) - 1
+    rng = np.random.default_rng(seed)
+    counts = np.cumsum(rng.random((trials, num_samples)) < rate, axis=1)
+    above, below = counts >= high, counts <= low
+    decided = above | below
+    first = np.argmax(decided, axis=1)
+    return [
+        None if not ever else bool(hit)
+        for ever, hit in zip(decided.any(axis=1), above[np.arange(trials), first])
+    ]
+
+
+# Verifying a rate of 1 - 1e-5 needs millions of draws, so the contract is
+# simulated at failure probabilities a few thousand can resolve; the size is
+# searched by the same code at any of them.
+CASES = [(0.3, 0.5), (0.15, 0.5), (0.1, 0.4867), (0.1, 0.55), (0.2, 0.45)]
+TRIALS = 4000
+
+
+class TestDenoiseSampleSizeSimulated(unittest.TestCase):
+    def test_a_state_decides_at_the_size_returned(self):
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                for rate, expected in (
+                    (boundary + signal, True),
+                    (boundary - signal, False),
+                ):
+                    calls = _decisions(
+                        n, rate, boundary, failure_prob, trials=TRIALS, seed=0
+                    )
+                    got = np.mean([c is expected for c in calls])
+                    # 3 sigma of Monte Carlo error below the rate asked for.
+                    floor = (
+                        1
+                        - failure_prob
+                        - 3 * np.sqrt(failure_prob * (1 - failure_prob) / TRIALS)
+                    )
+                    self.assertGreater(
+                        got,
+                        floor,
+                        f"signal {signal} boundary {boundary} fp {failure_prob} "
+                        f"n {n} rate {rate}: decided {got:.4f}",
+                    )
+
+    def test_a_smaller_size_would_not_do(self):
+        # Without this the size could be any large number and still pass above.
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                worst = min(
+                    np.mean(
+                        [
+                            c is expected
+                            for c in _decisions(
+                                n // 2,
+                                rate,
+                                boundary,
+                                failure_prob,
+                                trials=TRIALS,
+                                seed=1,
+                            )
+                        ]
+                    )
+                    for rate, expected in (
+                        (boundary + signal, True),
+                        (boundary - signal, False),
+                    )
+                )
+                self.assertLess(
+                    worst,
+                    1 - failure_prob,
+                    f"half of {n} already decides at signal {signal}",
+                )
+
+    def test_the_wrong_call_stays_inside_the_failure_probability(self):
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                for rate, wrong in (
+                    (boundary + signal, False),
+                    (boundary - signal, True),
+                ):
+                    calls = _decisions(
+                        n, rate, boundary, failure_prob, trials=TRIALS, seed=2
+                    )
+                    self.assertLess(np.mean([c is wrong for c in calls]), failure_prob)
+
+    def test_none_when_a_rate_leaves_the_unit_interval(self):
+        # Refused before any size is tried, rather than by a search running out:
+        # an out-of-range rate makes every tail nan, which would also end in None.
+        with unittest.mock.patch(
+            "orthogonal_dfa.l_star.statistics._decides",
+            side_effect=AssertionError("searched a boundary it should have refused"),
+        ):
+            self.assertIsNone(denoise_sample_size(0.1, 0.95))
+            self.assertIsNone(denoise_sample_size(0.1, 0.05))
+
+    def test_the_range_the_boundary_is_clamped_to_is_sizable(self):
+        # identify_cluster_around holds the boundary in [signal, 1 - signal], so
+        # neither end of it may come back unsizable.
+        for signal in (0.1, 0.3, 0.45):
+            for boundary in (signal, 1 - signal):
+                self.assertIsNotNone(denoise_sample_size(signal, boundary))
+
+    def test_denoise_skips_what_it_cannot_size_for(self):
+        for signal, boundary in ((0.1, 0.95), (0.1, 0.05)):
+            pst = _StubPst()
+            pst.config.min_signal_strength = signal
+            pst.decision_boundary = boundary
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                result = denoise_accept_labels(pst, PARITY)
+            self.assertIn("Denoise skipped", out.getvalue())
+            self.assertIs(result, PARITY)
 
 
 if __name__ == "__main__":
