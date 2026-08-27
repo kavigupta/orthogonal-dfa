@@ -4,7 +4,9 @@ Preconditions for E-L* learnability of a target DFA.
 satisfies_preconditions(dfa, *, length, ...) is the main check. It returns a
 PreconditionReport -- truthy iff the DFA is admitted, and carrying the measured
 values and a reason per failed condition. The conditions, for a particular
-length of uniform sampling:
+length and a particular way of sampling it -- uniform unless a sampler says
+otherwise, since a condition is a property of the target under the distribution
+the learner will draw from:
 
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
