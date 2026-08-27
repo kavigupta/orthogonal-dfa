@@ -77,6 +77,23 @@ def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
     )
 
 
+def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
+    """The largest size at or below ``have`` whose band holds both error rates, and
+    the margin that reads it; ``(None, None)`` if no size down to ``smallest`` does.
+
+    Sizes just above the minimum can admit no band at all -- one more suffix shifts
+    every operating point off the integer lattice -- so step down rather than call
+    a family that is large enough undersized.
+    """
+    for size in range(have, smallest - 1, -1):
+        found = evidence_margin_for_population_size(
+            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
+        )
+        if found is not None:
+            return size, found[1]
+    return None, None
+
+
 #: Rejections in a row after which no accept-preserving family is believed to
 #: exist.  More suffixes is the only remedy, and none help against a target where
 #: no suffix preserves the accept/reject classes.
@@ -175,22 +192,14 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             pst.config.min_signal_strength, decision_boundary
         )
         # Both rates are properties of the population the test runs over, so read
-        # the family at a size calibrated for it. Sizes just above the minimum can
-        # admit no band at all -- one more suffix shifts every operating point off
-        # the integer lattice -- so step down to the nearest that does.
-        margin = None
-        for size in range(len(vs), family_size - 1, -1):
-            found = evidence_margin_for_population_size(
-                pst.config.min_signal_strength,
-                0.01,
-                0.01,
-                size,
-                center=decision_boundary,
-            )
-            if found is not None:
-                vs, margin = vs[:size], found[1]
-                break
-        pst.evidence_margin = margin_for_size if margin is None else margin
+        # the family at a size calibrated for it.
+        size, margin = readable_size_and_margin(
+            pst.config.min_signal_strength, decision_boundary, clustered, family_size
+        )
+        if margin is None:
+            pst.evidence_margin = margin_for_size
+        else:
+            vs, pst.evidence_margin = vs[:size], margin
 
         decision = pst.compute_decision(vs, pst.table.representative)
         fnr = pst.fnr_from_decision(decision)

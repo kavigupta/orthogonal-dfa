@@ -22,7 +22,7 @@ def _binom_cdf(k, n, p):
 
 
 def population_size_and_evidence_margin(
-    signal_strength, acceptable_fpr, acceptable_fnr, *, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr, *, center
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -91,7 +91,7 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
 
 
 def evidence_margin_for_population_size(
-    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
