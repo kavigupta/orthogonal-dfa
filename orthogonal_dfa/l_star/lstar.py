@@ -36,7 +36,7 @@ def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     )
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
+def denoise_accept_labels(pst, dfa, *, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -45,26 +45,24 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     sampler) and query the oracle, flipping the label only when a binomial test of the
     accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
     labels never reach significance on the wrong side, so only noise-flips get corrected;
-    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
-    label. Labels change, transitions don't.
+    a state that can't decide within the samples that test needs at this oracle's signal
+    keeps its discovery label. Labels change, transitions don't.
 
-    ``max_samples`` defaults to the size that test needs at this oracle's signal.  A
-    fixed cap silently stops correcting anything once the signal is weak enough to
-    need more than it allows -- below signal 0.15 for the 200 this used to take.
+    A budget fixed instead of derived silently stops correcting anything once the signal
+    is weak enough to need more than it allows -- below signal 0.15 for the 200 this
+    used to take.
     """
     length = pst.sampler.length
     # States that used the whole budget without deciding, as opposed to those with
     # too few strings reaching them to have had a chance.
     exhausted = []
-    if max_samples is None:
-        sized = denoise_sample_size(
-            pst.config.min_signal_strength, pst.decision_boundary
-        )
-        assert sized is not None, (
-            f"a decision boundary of {pst.decision_boundary:.4f} puts a rate "
-            f"outside [0, 1] at signal {pst.config.min_signal_strength}"
-        )
-        max_samples = sized
+    max_samples = denoise_sample_size(
+        pst.config.min_signal_strength, pst.decision_boundary
+    )
+    assert max_samples is not None, (
+        f"a decision boundary of {pst.decision_boundary:.4f} puts a rate "
+        f"outside [0, 1] at signal {pst.config.min_signal_strength}"
+    )
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
