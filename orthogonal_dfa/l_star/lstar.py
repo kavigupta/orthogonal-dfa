@@ -47,10 +47,6 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
     labels never reach significance on the wrong side, so only noise-flips get corrected;
     a state that can't decide within the samples that test needs at this oracle's signal
     keeps its discovery label. Labels change, transitions don't.
-
-    A budget fixed instead of derived silently stops correcting anything once the signal
-    is weak enough to need more than it allows -- below signal 0.15 for the 200 this
-    used to take.
     """
     length = pst.sampler.length
     # States that used the whole budget without deciding, as opposed to those with
