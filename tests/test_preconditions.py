@@ -4,6 +4,7 @@ import unittest
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star import preconditions as P
+from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
 
 # mod-3 counter on 1s: strongly connected, balanced under uniform sampling.
 MOD3 = DFA(
@@ -201,3 +202,34 @@ class TestSatisfiesPreconditions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _ZeroRunSampler(Sampler):
+    """Emits ``0`` everywhere, so MOD3 never leaves its initial state."""
+
+    def __init__(self, length: int):
+        self.length = length
+
+    def sample(self, rng, alphabet_size):
+        return [0] * self.length
+
+
+class TestSampler(unittest.TestCase):
+    """The conditions are properties of the target under a sampling distribution,
+    so a caller learning over a different one has to measure over that one."""
+
+    def test_verdict_follows_the_sampler(self):
+        self.assertTrue(P.satisfies_preconditions(MOD3, length=40))
+        report = P.satisfies_preconditions(MOD3, length=40, sampler=_ZeroRunSampler(40))
+        self.assertFalse(report)
+        self.assertEqual(report.acceptance_rate, 0.0)
+
+    def test_default_is_the_uniform_sampler(self):
+        self.assertEqual(
+            P.acceptance_rate(MOD3, length=40, sampler=UniformSampler(40)),
+            P.acceptance_rate(MOD3, length=40),
+        )
+
+    def test_length_mismatch_asserts(self):
+        with self.assertRaises(AssertionError):
+            P.satisfies_preconditions(MOD3, length=40, sampler=UniformSampler(15))
