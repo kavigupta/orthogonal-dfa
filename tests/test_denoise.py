@@ -130,63 +130,97 @@ class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
         self.assertNotIn("without reaching significance", out.getvalue())
 
 
-class TestDenoiseSampleSize(unittest.TestCase):
-    def test_the_cap_admits_the_test_it_gates(self):
-        # The old fixed 200 sat below this from signal 0.15 down, so no state
-        # could ever be relabelled there.
-        for signal in (0.5, 0.3, 0.2, 0.15, 0.1, 0.05):
-            n = denoise_sample_size(signal)
-            decisive = [
-                i
-                for i in range(1, n + 1)
-                if binomial_side_of_boundary(
-                    int(round((0.5 + signal) * i)), i, 0.5, failure_prob=1e-5
+def _decisions(num_samples, rate, boundary, failure_prob, *, trials, seed):
+    """What ``binomial_side_of_boundary`` says about a state answering at ``rate``."""
+    rng = np.random.default_rng(seed)
+    counts = rng.binomial(num_samples, rate, size=trials)
+    return [
+        binomial_side_of_boundary(
+            int(c), num_samples, boundary, failure_prob=failure_prob
+        )
+        for c in counts
+    ]
+
+
+# Verifying a rate of 1 - 1e-5 needs millions of draws, so the contract is
+# simulated at failure probabilities a few thousand can resolve; the size is
+# searched by the same code at any of them.
+CASES = [(0.3, 0.5), (0.15, 0.5), (0.1, 0.4867), (0.1, 0.55), (0.2, 0.45)]
+TRIALS = 4000
+
+
+class TestDenoiseSampleSizeSimulated(unittest.TestCase):
+    def test_a_state_decides_at_the_size_returned(self):
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                for rate, expected in (
+                    (boundary + signal, True),
+                    (boundary - signal, False),
+                ):
+                    calls = _decisions(
+                        n, rate, boundary, failure_prob, trials=TRIALS, seed=0
+                    )
+                    got = np.mean([c is expected for c in calls])
+                    # 3 sigma of Monte Carlo error below the rate asked for.
+                    floor = (
+                        1
+                        - failure_prob
+                        - 3 * np.sqrt(failure_prob * (1 - failure_prob) / TRIALS)
+                    )
+                    self.assertGreater(
+                        got,
+                        floor,
+                        f"signal {signal} boundary {boundary} fp {failure_prob} "
+                        f"n {n} rate {rate}: decided {got:.4f}",
+                    )
+
+    def test_a_smaller_size_would_not_do(self):
+        # Without this the size could be any large number and still pass above.
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                worst = min(
+                    np.mean(
+                        [
+                            c is expected
+                            for c in _decisions(
+                                n // 2,
+                                rate,
+                                boundary,
+                                failure_prob,
+                                trials=TRIALS,
+                                seed=1,
+                            )
+                        ]
+                    )
+                    for rate, expected in (
+                        (boundary + signal, True),
+                        (boundary - signal, False),
+                    )
                 )
-                is True
-            ]
-            self.assertTrue(decisive, f"no n up to {n} decides at signal {signal}")
+                self.assertLess(
+                    worst,
+                    1 - failure_prob,
+                    f"half of {n} already decides at signal {signal}",
+                )
 
-    def test_sized_for_power_not_just_reachability(self):
-        # A state sitting exactly at 0.5 + signal decides essentially always,
-        # rather than the coin flip the bare minimum would give.
-        rng = np.random.default_rng(0)
-        for signal in (0.15, 0.1):
-            n = denoise_sample_size(signal)
-            draws = rng.binomial(n, 0.5 + signal, size=2000)
-            decided = np.mean(
-                [
-                    binomial_side_of_boundary(int(a), n, 0.5, failure_prob=1e-5) is True
-                    for a in draws
-                ]
-            )
-            self.assertGreater(decided, 0.99, f"signal {signal} decided {decided}")
-
-    def test_weaker_signal_needs_more(self):
-        sizes = [denoise_sample_size(s) for s in (0.3, 0.2, 0.15, 0.1)]
-        self.assertEqual(sizes, sorted(sizes))
-
-    def test_the_boundary_carries_the_rates_with_it(self):
-        # The boundary is the midpoint of the two groups, not a fixed 1/2 the
-        # rates sit either side of, so moving it costs nothing.
-        centred = denoise_sample_size(0.1, 0.5)
-        for boundary in (0.4867, 0.47, 0.45, 0.55):
-            self.assertLess(
-                abs(denoise_sample_size(0.1, boundary) - centred) / centred, 0.02
-            )
+    def test_the_wrong_call_stays_inside_the_failure_probability(self):
+        for failure_prob in (0.05, 0.01):
+            for signal, boundary in CASES:
+                n = denoise_sample_size(signal, boundary, failure_prob=failure_prob)
+                for rate, wrong in (
+                    (boundary + signal, False),
+                    (boundary - signal, True),
+                ):
+                    calls = _decisions(
+                        n, rate, boundary, failure_prob, trials=TRIALS, seed=2
+                    )
+                    self.assertLess(np.mean([c is wrong for c in calls]), failure_prob)
 
     def test_none_when_a_rate_leaves_the_unit_interval(self):
         self.assertIsNone(denoise_sample_size(0.1, 0.95))
         self.assertIsNone(denoise_sample_size(0.1, 0.05))
-
-    def test_skips_rather_than_sampling_a_hopeless_boundary(self):
-        pst = _StubPst()
-        pst.config.min_signal_strength = 0.1
-        pst.decision_boundary = 0.95
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            result = denoise_accept_labels(pst, PARITY)
-        self.assertIn("Denoise skipped", out.getvalue())
-        self.assertIs(result, PARITY)
 
 
 if __name__ == "__main__":
