@@ -173,6 +173,7 @@ class AcceptPreservingGate:
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
         self.rejections = 0
+        self.uncertified = 0
 
     def verdict(self, pst, decision, decision_boundary, seed_row) -> str:
         if not self.enabled:
@@ -180,10 +181,21 @@ class AcceptPreservingGate:
         low, high = accept_preserving_drift(pst, decision, decision_boundary, seed_row)
         tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
         if high <= tolerated:
-            self.rejections = 0
+            self.rejections = self.uncertified = 0
             return ADMITTED
         # Drift this far is consistent with the evidence but so is none of it.
         if low <= tolerated:
+            self.uncertified += 1
+            # The interval narrows with the prefixes, so a family still straddling
+            # the tolerance after this many rounds of them is sitting on it, and
+            # more will not settle what it is.
+            if self.uncertified >= ACCEPT_PRESERVING_GIVE_UP:
+                raise NoAcceptPreservingFamily(
+                    f"{self.uncertified} rounds of prefixes left the family's "
+                    f"drift somewhere in [{low:.0%}, {high:.0%}], astride the "
+                    f"{tolerated:.0%} the decision can absorb; no suffix family "
+                    f"realises the accept-preserving split on this target"
+                )
             return UNCERTIFIED
         self.rejections += 1
         if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
