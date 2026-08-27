@@ -213,7 +213,7 @@ def denoise_sample_size(
     reading of the boundary the accept-preserving test takes.  Sized so failing
     to decide is as unlikely as deciding wrongly.
     """
-    if not 0 < boundary - signal_strength and boundary + signal_strength < 1:
+    if not 0 <= boundary - signal_strength or not boundary + signal_strength <= 1:
         return None
 
     def decides(n):

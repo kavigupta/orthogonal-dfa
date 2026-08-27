@@ -1,6 +1,7 @@
 import contextlib
 import io
 import unittest
+import unittest.mock
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -186,8 +187,21 @@ class TestDenoiseSampleSizeSimulated(unittest.TestCase):
                     self.assertLess(np.mean([c is wrong for c in calls]), failure_prob)
 
     def test_none_when_a_rate_leaves_the_unit_interval(self):
-        self.assertIsNone(denoise_sample_size(0.1, 0.95))
-        self.assertIsNone(denoise_sample_size(0.1, 0.05))
+        # Refused before any size is tried, rather than by a search running out:
+        # an out-of-range rate makes every tail nan, which would also end in None.
+        with unittest.mock.patch(
+            "orthogonal_dfa.l_star.statistics._decides",
+            side_effect=AssertionError("searched a boundary it should have refused"),
+        ):
+            self.assertIsNone(denoise_sample_size(0.1, 0.95))
+            self.assertIsNone(denoise_sample_size(0.1, 0.05))
+
+    def test_the_range_the_boundary_is_clamped_to_is_sizable(self):
+        # identify_cluster_around holds the boundary in [signal, 1 - signal], so
+        # neither end of it may come back unsizable.
+        for signal in (0.1, 0.3, 0.45):
+            for boundary in (signal, 1 - signal):
+                self.assertIsNotNone(denoise_sample_size(signal, boundary))
 
     def test_denoise_refuses_a_boundary_it_cannot_size_for(self):
         pst = _StubPst()
