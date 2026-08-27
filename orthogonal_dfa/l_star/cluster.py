@@ -204,8 +204,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         # An undersized family is unusable whatever its FNR would measure, and
         # testing it would spend a budget that means no accept-preserving family
         # exists.
-        undersized = clustered < family_size
-        if undersized:
+        if clustered < family_size:
             effective_fnr, reason = 1.0, "undersized"
         else:
             # Both rates are properties of the population the test runs over, so
@@ -233,18 +232,10 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             )
             return vs, decision_boundary
 
-        if undersized:
-            # Suffixes are the only thing that fills a short pool. The
-            # alternation reads the 1.0 as a stalled FNR and would answer it with
-            # a round of prefixes, which cannot add a single one.
-            strategy = "suffix"
-        elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
+        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
-        if not undersized:
-            # An undersized round measured no FNR, so it is not the thing the next
-            # one should be judged against.
-            prev_effective_fnr = effective_fnr
+        prev_effective_fnr = effective_fnr
 
         print(
             f"{reason}, sampling more {strategy}es; "
