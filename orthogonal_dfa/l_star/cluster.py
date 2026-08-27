@@ -133,14 +133,18 @@ def accept_preserving_drift(
     column = pst.table.column(seed_row)[pst.table.representative]
     signal = pst.config.min_signal_strength
     low = high = 0.0
+    read = False
     for side, rate, mixes_down in (
         (decision >= pst.accept_thresh, decision_boundary + signal, True),
         (decision < pst.reject_thresh, decision_boundary - signal, False),
     ):
         n = int(side.sum())
-        # Nothing to read: uncertified, rather than certified clean.
+        # A rate at 0 or 1 is the boundary sitting on its clamp, where the side
+        # carries no evidence either way. Read the other one rather than hold the
+        # family against a side nothing could ever certify.
         if n == 0 or not 0 < rate < 1:
-            return 0.0, 1.0
+            continue
+        read = True
         rate_low, rate_high = _rate_interval(int(column[side].sum()), n)
         if mixes_down:
             side_low, side_high = rate - rate_high, rate - rate_low
@@ -148,6 +152,9 @@ def accept_preserving_drift(
             side_low, side_high = rate_low - rate, rate_high - rate
         low = max(low, side_low / (2 * signal))
         high = max(high, side_high / (2 * signal))
+    # Neither side readable: uncertified, rather than certified clean.
+    if not read:
+        return 0.0, 1.0
     return max(0.0, low), min(1.0, high)
 
 
