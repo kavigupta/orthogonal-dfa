@@ -66,24 +66,26 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def recompute_family_size_and_margin(min_signal_strength, decision_boundary):
-    """Suffixes to read and the band to read them with, together.
+def smallest_readable_family(min_signal_strength, decision_boundary):
+    """Fewest suffixes a decision at this boundary can be read over.
 
-    How many a decision needs depends on where the boundary sits: the two classes
-    draw from binomials whose variance differs once it leaves 0.5.
+    How many it needs depends on where the boundary sits: the two classes draw
+    from binomials whose variance differs once it leaves 0.5.
     """
-    return population_size_and_evidence_margin(
+    size, _ = population_size_and_evidence_margin(
         min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
+    return size
 
 
 def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
     """The largest size at or below ``have`` whose band holds both error rates, and
-    the margin that reads it; ``(None, None)`` if no size down to ``smallest`` does.
+    the margin that reads it.  ``have`` must be at least ``smallest``.
 
     Sizes just above the minimum can admit no band at all -- one more suffix shifts
     every operating point off the integer lattice -- so step down rather than call
-    a family that is large enough undersized.
+    a family that is large enough undersized. ``smallest`` always admits one, so
+    the walk cannot run off the end.
     """
     for size in range(have, smallest - 1, -1):
         found = evidence_margin_for_population_size(
@@ -91,7 +93,7 @@ def readable_size_and_margin(min_signal_strength, decision_boundary, have, small
         )
         if found is not None:
             return size, found[1]
-    return None, None
+    raise AssertionError(f"{smallest} suffixes was supposed to be readable")
 
 
 #: Rejections in a row after which no accept-preserving family is believed to
@@ -172,7 +174,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
-    family_size, _ = recompute_family_size_and_margin(
+    family_size = smallest_readable_family(
         pst.config.min_signal_strength, decision_boundary
     )
     gate = AcceptPreservingGate(pst.config)
@@ -188,28 +190,30 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
         pst.decision_boundary = decision_boundary
         clustered = len(vs)
-        family_size, margin_for_size = recompute_family_size_and_margin(
+        family_size = smallest_readable_family(
             pst.config.min_signal_strength, decision_boundary
         )
-        # Both rates are properties of the population the test runs over, so read
-        # the family at a size calibrated for it.
-        size, margin = readable_size_and_margin(
-            pst.config.min_signal_strength, decision_boundary, clustered, family_size
-        )
-        if margin is None:
-            pst.evidence_margin = margin_for_size
-        else:
-            vs, pst.evidence_margin = vs[:size], margin
 
-        decision = pst.compute_decision(vs, pst.table.representative)
-        fnr = pst.fnr_from_decision(decision)
-        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
-        # An undersized family is unusable whatever its FNR measures, and testing
-        # it would spend a budget that means no accept-preserving family exists.
-        if margin is None or clustered < requested:
+        # An undersized family is unusable whatever its FNR would measure, and
+        # testing it would spend a budget that means no accept-preserving family
+        # exists.  Short of what was asked for, or of what this boundary now needs.
+        if clustered < requested or clustered < family_size:
             effective_fnr, reason = 1.0, "undersized"
-        elif not gate.admits(pst, decision, decision_boundary, v):
-            effective_fnr, reason = 1.0, "not accept-preserving"
+        else:
+            # Both rates are properties of the population the test runs over, so
+            # read the family at a size calibrated for it.
+            size, pst.evidence_margin = readable_size_and_margin(
+                pst.config.min_signal_strength,
+                decision_boundary,
+                clustered,
+                family_size,
+            )
+            vs = vs[:size]
+            decision = pst.compute_decision(vs, pst.table.representative)
+            fnr = pst.fnr_from_decision(decision)
+            effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
+            if not gate.admits(pst, decision, decision_boundary, v):
+                effective_fnr, reason = 1.0, "not accept-preserving"
 
         if effective_fnr <= pst.config.fnr_limit:
             print(
