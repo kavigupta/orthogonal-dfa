@@ -11,6 +11,7 @@ from orthogonal_dfa.l_star.dfa_utils import (
     per_state_sample,
     rank_string_reaching_state,
     states_intermediate,
+    uniform_weights,
     unrank_string_reaching_state,
 )
 
@@ -98,7 +99,7 @@ class TestRankUnrank(unittest.TestCase):
     def test_rank_unrank_is_a_bijection(self, _name, dfa, length):
         by_state = enumerate_by_end_state(dfa, length)
         for state in sorted(dfa.states):
-            counts = count_paths_to_state(dfa, state, length)
+            counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
             reachable = counts[length][dfa.initial_state]
             strings = by_state.get(state, [])
             self.assertEqual(len(strings), reachable)
@@ -120,7 +121,7 @@ class TestRankUnrank(unittest.TestCase):
     def test_rank_unrank_beyond_int64(self):
         # 2 ** 70 length-70 strings reach the single state -- well past int64.
         length = 70
-        counts = count_paths_to_state(SELF_LOOP, 0, length)
+        counts = count_paths_to_state(SELF_LOOP, 0, length, uniform_weights(SELF_LOOP))
         reachable = counts[length][SELF_LOOP.initial_state]
         self.assertEqual(reachable, 2**length)
         for index in [0, 1, 2**63, 2**63 + 1, 2**70 - 1, 12345678901234567890]:

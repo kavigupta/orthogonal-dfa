@@ -6,17 +6,22 @@ def states_intermediate(s0, y, dfa):
     return states
 
 
-def count_paths_to_state(dfa, target, length, weights=None):
+def uniform_weights(dfa):
+    """Every symbol weighed the same, which is what leaves the mass below an
+    integer count of the strings -- what ranking them needs it to be."""
+    return {s: 1 for s in sorted(dfa.input_symbols)}
+
+
+def count_paths_to_state(dfa, target, length, weights):
     """``counts[m][q]`` = the mass of length-``m`` strings ``w`` with ``run(q, w) == target``.
 
     Standard path-counting DP, for ``m`` in ``0..length``: enough to sample a
     length-``length`` string reaching ``target`` via :func:`sample_string_reaching_state`.
     ``weights[s]`` is how often the learner's sampler puts symbol ``s`` at a
-    position, and only its ratios are read, so the default of ones is the even
-    case and leaves the mass an integer count of strings.
+    position; only its ratios are read, so any positive scaling of them is the
+    same distribution.
     """
     syms = sorted(dfa.input_symbols)
-    weights = {s: 1 for s in syms} if weights is None else weights
     counts = [{q: int(q == target) for q in dfa.states}]
     for _ in range(length):
         prev = counts[-1]
@@ -29,17 +34,16 @@ def count_paths_to_state(dfa, target, length, weights=None):
     return counts
 
 
-def sample_string_reaching_state(dfa, counts, rng, weights=None):
+def sample_string_reaching_state(dfa, counts, rng, weights):
     """Random length-``len(counts)-1`` string from ``dfa.initial_state`` to the
     target ``counts`` was built for, or ``None`` if no such string exists.
 
     The recursive sampling method: walk forward choosing each symbol with probability
     proportional to the completions that still reach the target, weighted by how
     often the learner's sampler puts that symbol at a position.  ``weights`` are the
-    ones ``counts`` was built with; ones, the default, is the even case.
+    ones ``counts`` was built with.
     """
     syms = sorted(dfa.input_symbols)
-    weights = {s: 1 for s in syms} if weights is None else weights
     length = len(counts) - 1
     state = dfa.initial_state
     if counts[length][state] == 0:
@@ -113,6 +117,8 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
     added to the list of strings already in ``existing``, each state of ``dfa``
     has at least ``per_state`` strings.
     """
+    # Ranking indexes strings by these, so they have to count them.
+    weights = uniform_weights(dfa)
     have = {}
     for s in existing:
         if len(s) == length:
@@ -121,7 +127,7 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             ).append(tuple(s))
     pool = []
     for state in sorted(dfa.states):
-        counts = count_paths_to_state(dfa, state, length)
+        counts = count_paths_to_state(dfa, state, length, weights)
         reachable = counts[length][dfa.initial_state]
         if reachable == 0:
             continue
@@ -138,7 +144,9 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             else:
                 used.add(
                     rank_string_reaching_state(
-                        dfa, counts, sample_string_reaching_state(dfa, counts, rng)
+                        dfa,
+                        counts,
+                        sample_string_reaching_state(dfa, counts, rng, weights),
                     )
                 )
         pool.extend(unrank_string_reaching_state(dfa, counts, r) for r in used)

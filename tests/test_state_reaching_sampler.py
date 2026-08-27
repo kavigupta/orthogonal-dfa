@@ -14,6 +14,7 @@ from automata.fa.dfa import DFA
 from orthogonal_dfa.l_star.dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
+    uniform_weights,
 )
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
 from tests.dfas import PARITY
@@ -105,9 +106,12 @@ class TestWeightedWalk(unittest.TestCase):
     def test_an_even_walk_does_not(self):
         # The failure this guards: 1/3 of positions where the learner puts 2%.
         rng = np.random.default_rng(0)
-        counts = count_paths_to_state(_sink(3), 0, LENGTH)
+        counts = count_paths_to_state(_sink(3), 0, LENGTH, uniform_weights(_sink(3)))
         walked = [
-            sample_string_reaching_state(_sink(3), counts, rng) for _ in range(400)
+            sample_string_reaching_state(
+                _sink(3), counts, rng, uniform_weights(_sink(3))
+            )
+            for _ in range(400)
         ]
         self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
 
@@ -119,7 +123,10 @@ class TestWeightedWalk(unittest.TestCase):
         weights = sampler.symbol_weights(rng, 3)
         counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
         walked = [
-            sample_string_reaching_state(_sink(3), counts, rng) for _ in range(400)
+            sample_string_reaching_state(
+                _sink(3), counts, rng, uniform_weights(_sink(3))
+            )
+            for _ in range(400)
         ]
         self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
 
