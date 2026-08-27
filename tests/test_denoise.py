@@ -8,10 +8,7 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.lstar import denoise_accept_labels
-from orthogonal_dfa.l_star.statistics import (
-    binomial_side_of_boundary,
-    denoise_sample_size,
-)
+from orthogonal_dfa.l_star.statistics import denoise_sample_size
 from tests.dfas import PARITY, parity_membership
 
 #: One state reachable by a single string of any length, the other by the rest.
