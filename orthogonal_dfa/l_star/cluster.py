@@ -255,11 +255,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             )
             return vs, decision_boundary
 
-        if verdict is UNCERTIFIED:
-            # The bound is wide because the prefixes are few, and prefixes are
-            # what the split is read against.
-            strategy = "prefix"
-        elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
+        if effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
         prev_effective_fnr = effective_fnr
