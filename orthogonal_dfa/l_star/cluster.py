@@ -184,20 +184,31 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
-        requested = family_size
         vs, decision_boundary = identify_cluster_around(
-            pst, v, requested, decision_boundary
+            pst, v, family_size, decision_boundary
         )
         pst.decision_boundary = decision_boundary
-        clustered = len(vs)
         family_size = smallest_readable_family(
             pst.config.min_signal_strength, decision_boundary
         )
+        # The cluster is capped at the size asked for, so a boundary that moved
+        # far enough to want more leaves it short by construction.  The pool
+        # usually already holds them; ask again at the new size before spending a
+        # cohort of oracle queries on suffixes to cover a handful.
+        if len(vs) < family_size:
+            vs, decision_boundary = identify_cluster_around(
+                pst, v, family_size, decision_boundary
+            )
+            pst.decision_boundary = decision_boundary
+            family_size = smallest_readable_family(
+                pst.config.min_signal_strength, decision_boundary
+            )
+        clustered = len(vs)
 
         # An undersized family is unusable whatever its FNR would measure, and
         # testing it would spend a budget that means no accept-preserving family
-        # exists.  Short of what was asked for, or of what this boundary now needs.
-        if clustered < requested or clustered < family_size:
+        # exists.
+        if clustered < family_size:
             effective_fnr, reason = 1.0, "undersized"
         else:
             # Both rates are properties of the population the test runs over, so
@@ -208,7 +219,10 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
                 clustered,
                 family_size,
             )
-            vs = vs[:size]
+            # By loss rank, and the seed's rank is arbitrary, so put it back: the
+            # round check and the accept-preserving null are both stated about a
+            # family seeded at this suffix.
+            vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
             decision = pst.compute_decision(vs, pst.table.representative)
             fnr = pst.fnr_from_decision(decision)
             effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
