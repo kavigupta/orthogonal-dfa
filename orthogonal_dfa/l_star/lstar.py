@@ -57,15 +57,14 @@ def denoise_accept_labels(pst, dfa, *, max_samples=None, block_size=32):
     # too few strings reaching them to have had a chance.
     exhausted = []
     if max_samples is None:
-        max_samples = denoise_sample_size(
+        sized = denoise_sample_size(
             pst.config.min_signal_strength, pst.decision_boundary
         )
-        if max_samples is None:
-            print(
-                f"Denoise skipped: a boundary of {pst.decision_boundary:.4f} leaves "
-                f"no room at signal {pst.config.min_signal_strength}"
-            )
-            return dfa
+        assert sized is not None, (
+            f"a decision boundary of {pst.decision_boundary:.4f} puts a rate "
+            f"outside [0, 1] at signal {pst.config.min_signal_strength}"
+        )
+        max_samples = sized
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).

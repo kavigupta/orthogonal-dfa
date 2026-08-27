@@ -222,6 +222,13 @@ class TestDenoiseSampleSizeSimulated(unittest.TestCase):
         self.assertIsNone(denoise_sample_size(0.1, 0.95))
         self.assertIsNone(denoise_sample_size(0.1, 0.05))
 
+    def test_denoise_refuses_a_boundary_it_cannot_size_for(self):
+        pst = _StubPst()
+        pst.config.min_signal_strength = 0.1
+        pst.decision_boundary = 0.95
+        with self.assertRaises(AssertionError):
+            denoise_accept_labels(pst, PARITY)
+
 
 if __name__ == "__main__":
     unittest.main()
