@@ -13,6 +13,16 @@ from orthogonal_dfa.l_star.statistics import (
 )
 from tests.dfas import PARITY, parity_membership
 
+#: One state reachable by a single string of any length, the other by the rest.
+ALL_ONES = DFA(
+    states={0, 1},
+    input_symbols={0, 1},
+    transitions={0: {0: 1, 1: 0}, 1: {0: 1, 1: 1}},
+    initial_state=0,
+    final_states={0},
+    allow_partial=False,
+)
+
 
 class _CountingOracle:
     """Noiseless parity oracle that records the size of every call it receives."""
@@ -33,8 +43,22 @@ class _CountingOracle:
         return [parity_membership(s) for s in strings]
 
 
+class _CoinFlipOracle:
+    """Answers by a hash of the string, so no sample size reaches significance."""
+
+    @property
+    def alphabet_size(self):
+        return 2
+
+    def membership_query(self, string):
+        return hash(tuple(string)) % 2 == 0
+
+    def membership_queries(self, strings):
+        return [self.membership_query(s) for s in strings]
+
+
 class _StubSampler:
-    length = 8
+    length = 20
 
 
 class _StubConfig:
@@ -91,6 +115,29 @@ class TestDenoiseAcceptLabels(unittest.TestCase):
 
 
 class TestDenoiseReportsAnExhaustedBudget(unittest.TestCase):
+    def test_says_so_when_the_budget_decides_nothing(self):
+        # The silence this replaces is how a cap below the test's requirement
+        # went unnoticed: every state undecided, and nothing said so.
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(pst, PARITY)
+        self.assertIn("without reaching significance", out.getvalue())
+
+    def test_a_state_too_small_to_have_had_a_chance_is_not_named(self):
+        # ALL_ONES reaches its accepting state only by the single all-1s string,
+        # so it runs out of strings rather than out of budget -- the condition
+        # the report turns on, and the reason it is not just "undecided".
+        pst = _StubPst()
+        pst.oracle = _CoinFlipOracle()
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            denoise_accept_labels(pst, ALL_ONES)
+        # State 1 takes every other string and runs out of budget; state 0 takes
+        # only the all-1s string and never had one to run out of.
+        self.assertIn("on [1] without reaching significance", out.getvalue())
+
     def test_quiet_when_every_state_decides(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -203,12 +250,16 @@ class TestDenoiseSampleSizeSimulated(unittest.TestCase):
             for boundary in (signal, 1 - signal):
                 self.assertIsNotNone(denoise_sample_size(signal, boundary))
 
-    def test_denoise_refuses_a_boundary_it_cannot_size_for(self):
-        pst = _StubPst()
-        pst.config.min_signal_strength = 0.1
-        pst.decision_boundary = 0.95
-        with self.assertRaises(AssertionError):
-            denoise_accept_labels(pst, PARITY)
+    def test_denoise_skips_what_it_cannot_size_for(self):
+        for signal, boundary in ((0.1, 0.95), (0.005, 0.5)):
+            pst = _StubPst()
+            pst.config.min_signal_strength = signal
+            pst.decision_boundary = boundary
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                result = denoise_accept_labels(pst, PARITY)
+            self.assertIn("Denoise skipped", out.getvalue())
+            self.assertIs(result, PARITY)
 
 
 if __name__ == "__main__":

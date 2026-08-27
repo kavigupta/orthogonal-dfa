@@ -55,10 +55,13 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
     max_samples = denoise_sample_size(
         pst.config.min_signal_strength, pst.decision_boundary
     )
-    assert max_samples is not None, (
-        f"a decision boundary of {pst.decision_boundary:.4f} puts a rate "
-        f"outside [0, 1] at signal {pst.config.min_signal_strength}"
-    )
+    if max_samples is None:
+        print(
+            f"Denoise skipped: no sample size decides at signal "
+            f"{pst.config.min_signal_strength} around a boundary of "
+            f"{pst.decision_boundary:.4f}"
+        )
+        return dfa
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
