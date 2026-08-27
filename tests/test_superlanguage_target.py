@@ -5,6 +5,10 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
+from orthogonal_dfa.l_star.dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+)
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.structures import Oracle, SymmetricBernoulli
@@ -86,3 +90,61 @@ class TestSuperTargetDfa(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDenoiseDrawsFromTheLearnersDistribution(unittest.TestCase):
+    """Relabelling asks the oracle about strings reaching a state, and a learner
+    that does not sample evenly meets a different set of them than a uniform walk
+    over that state's strings would."""
+
+    def test_the_walk_follows_the_super_samplers_kmer_rate(self):
+        vocab = KmerVocabulary(kmers=((3, 0, 2),), base_alphabet_size=4)
+        sampler = SuperSampler(vocab, 40)
+        rng = np.random.default_rng(0)
+        weights = sampler.symbol_weights(rng, vocab.alphabet_size)
+        self.assertIsNotNone(weights)
+
+        # A one-state DFA reaches its only state on every string, so the walk is
+        # sampling the raw distribution and nothing else.
+        anything = DFA(
+            states={0},
+            input_symbols=set(range(vocab.alphabet_size)),
+            transitions={0: {s: 0 for s in range(vocab.alphabet_size)}},
+            initial_state=0,
+            final_states={0},
+            allow_partial=False,
+        )
+        counts = count_paths_to_state(anything, 0, 40, weights)
+        walked = [
+            sample_string_reaching_state(anything, counts, rng, weights)
+            for _ in range(400)
+        ]
+        drawn = [sampler.sample(rng, vocab.alphabet_size) for _ in range(400)]
+
+        def kmer_rate(strings):
+            return np.mean([[not vocab.is_unknown(s) for s in w] for w in strings])
+
+        self.assertAlmostEqual(kmer_rate(walked), kmer_rate(drawn), delta=0.02)
+
+    def test_an_even_walk_would_not(self):
+        vocab = KmerVocabulary(kmers=((3, 0, 2),), base_alphabet_size=4)
+        sampler = SuperSampler(vocab, 40)
+        rng = np.random.default_rng(0)
+        anything = DFA(
+            states={0},
+            input_symbols=set(range(vocab.alphabet_size)),
+            transitions={0: {s: 0 for s in range(vocab.alphabet_size)}},
+            initial_state=0,
+            final_states={0},
+            allow_partial=False,
+        )
+        counts = count_paths_to_state(anything, 0, 40)
+        walked = [
+            sample_string_reaching_state(anything, counts, rng) for _ in range(400)
+        ]
+        drawn = [sampler.sample(rng, vocab.alphabet_size) for _ in range(400)]
+
+        def kmer_rate(strings):
+            return np.mean([[not vocab.is_unknown(s) for s in w] for w in strings])
+
+        self.assertGreater(kmer_rate(walked), kmer_rate(drawn) * 2)
