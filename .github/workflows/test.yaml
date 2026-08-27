@@ -2,88 +2,89 @@ name: Python package
 
 on: [push]
 
-jobs:
-  discover-tests:
-    runs-on: ubuntu-latest
-    outputs:
-      test-files: ${{ steps.discover-files.outputs.files }}
-      lstar-tests: ${{ steps.discover-lstar.outputs.tests }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install dependencies
-        run: |
-          uv venv --python 3.12
-          uv pip install "setuptools>=68.0" "wheel>=0.41"
-          uv pip install -r requirements.txt
-      - name: Discover test files (excluding lstar)
-        id: discover-files
-        run: |
-          files=$(find tests -name 'test_*.py' ! -name 'test_lstar.py' | sort | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "files=$files" >> "$GITHUB_OUTPUT"
-      - name: Discover lstar tests
-        id: discover-lstar
-        run: |
-          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q 2>/dev/null | grep '::' | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+env:
+  # CI runners are CPU-only; the default CUDA torch build pulls ~2.5 GB of
+  # unused nvidia-*-cu12 wheels. The CPU build is ~180 MB and pulls none.
+  UV_TORCH_BACKEND: cpu
 
+# Cancel superseded runs on a branch, but let every main commit finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
   test-file:
-    needs: discover-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        file: ${{ fromJson(needs.discover-tests.outputs.test-files) }}
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
-      - name: Install graphviz
-        # `dot` lays out the diagnostics graphs in orthogonal_dfa.l_star.visualize.
-        run: sudo apt-get update && sudo apt-get install -y graphviz
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
       - name: Install dependencies
         run: |
           uv venv --python 3.12
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Run ${{ matrix.file }}
-        run: uv run python -m pytest "${{ matrix.file }}" -sv
+      - name: Run shard ${{ matrix.shard }}
+        run: |
+          files=$(find tests -name 'test_*.py' ! -name 'test_lstar.py' \
+            | sort | awk 'NR % 10 == ${{ matrix.shard }}')
+          echo "$files"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$files" ] || exit 0
+          uv run python -m pytest $files -sv
 
   lstar-test:
-    needs: discover-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        test: ${{ fromJson(needs.discover-tests.outputs.lstar-tests) }}
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
       - name: Install dependencies
         run: |
           uv venv --python 3.12
           uv pip install "setuptools>=68.0" "wheel>=0.41"
           uv pip install -r requirements.txt
-      - name: Run ${{ matrix.test }}
+      - name: Run shard ${{ matrix.shard }}
         run: |
-          uv run python -m pytest "${{ matrix.test }}" -sv
+          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q \
+            | grep '::' | awk 'NR % 14 == ${{ matrix.shard }}')
+          echo "$tests"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$tests" ] || exit 0
+          uv run python -m pytest $tests -sv
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
         uses: astral-sh/setup-uv@v4
-      - name: Set up Python
-        run: uv python install 3.12
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
       - name: Install dependencies
         run: |
           uv venv --python 3.12
@@ -97,10 +98,16 @@ jobs:
 
   check-docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
         uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
       - name: Install dependencies
         run: |
           uv venv

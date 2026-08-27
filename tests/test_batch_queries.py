@@ -232,6 +232,36 @@ class TestMemoizedOracle(unittest.TestCase):
         self.assertEqual(bits, memo.membership_queries(strings))
         self.assertEqual([], oracle.calls)
 
+    def test_distinct_strings_do_not_share_an_answer(self):
+        # The cache keys on a digest, so a collision would be invisible: it
+        # would hand one string another's bit rather than fail.
+        oracle = HashOracle()
+        memo = MemoizedOracle(oracle)
+        rng = np.random.default_rng(0)
+        strings = [
+            list(rng.integers(0, 2, size=int(rng.integers(1, 40)))) for _ in range(2000)
+        ]
+        self.assertEqual(
+            [oracle.membership_query(s) for s in strings],
+            memo.membership_queries(strings),
+        )
+
+    def test_prefixes_and_permutations_are_distinct_keys(self):
+        oracle = HashOracle()
+        memo = MemoizedOracle(oracle)
+        strings = [[1], [1, 0], [0, 1], [1, 0, 0], [0, 0, 1], [1, 0, 0, 0]]
+        self.assertEqual(
+            [oracle.membership_query(s) for s in strings],
+            memo.membership_queries(strings),
+        )
+
+    def test_alphabet_too_wide_for_a_byte_is_rejected(self):
+        class Wide(HashOracle):
+            alphabet_size = 257
+
+        with self.assertRaisesRegex(AssertionError, "257"):
+            MemoizedOracle(Wide())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -95,7 +95,7 @@ def _measure(root: str, names: list[str]) -> dict:
     )
     from orthogonal_dfa.l_star.structures import Oracle, AsymmetricBernoulli
     from orthogonal_dfa.l_star.learn import learn_dfa
-    from tests.test_lstar import evaluate_accuracy
+    from tests.lstar_common import evaluate_accuracy
 
     class CountingOracle(Oracle):
         def __init__(self, inner):
@@ -154,7 +154,7 @@ def _measure(root: str, names: list[str]) -> dict:
         t0 = time.time()
         # Silence the synthesis chatter; we only want the JSON on stdout.
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            dfa = learn_dfa(
+            dfa, _ = learn_dfa(
                 counting_creator, min_signal_strength=bench["signal"], seed=0,
                 noise_model=noise_model)
             acc = evaluate_accuracy(dfa, creator, symbols=bench["symbols"])

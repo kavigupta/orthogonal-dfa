@@ -30,7 +30,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.structures import Oracle
 from orthogonal_dfa.l_star.learn import learn_dfa
-from tests.test_lstar import evaluate_accuracy
+from tests.lstar_common import evaluate_accuracy
 
 _ANOTHER_POOR_DFA = DFA(
     states=set(range(10)),
@@ -175,7 +175,7 @@ def profile_one(name: str) -> None:
         holder["o"] = o
         return o
 
-    dfa = learn_dfa(creator, min_signal_strength=signal, seed=0)
+    dfa, _ = learn_dfa(creator, min_signal_strength=signal, seed=0)
     acc = evaluate_accuracy(dfa, oracle_creator, symbols=symbols)
     o = holder["o"]
 

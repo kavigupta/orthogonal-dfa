@@ -57,6 +57,10 @@ class SearchConfig:
     #: Chance of screening out a suffix that does belong, spent across the
     #: whole staircase rather than per test.
     screening_alpha: float = 0.1
+    #: Require the suffix family to be accept-preserving.  Only meaningful where
+    #: such a family exists, which is the class-preserving precondition; a caller
+    #: learning a target that fails it turns this off.
+    require_accept_preserving: bool = True
 
 
 @dataclass
@@ -200,7 +204,12 @@ class PrefixSuffixTracker:
         core exists to give transient states discovery rows, not to recalibrate
         the family against an unrepresentative population.
         """
-        decision = self.compute_decision(vs, self.table.representative)
+        return self.fnr_from_decision(
+            self.compute_decision(vs, self.table.representative)
+        )
+
+    def fnr_from_decision(self, decision) -> float:
+        """``compute_fnr`` for a decision vector already in hand."""
         arr = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
         ).mean(1)

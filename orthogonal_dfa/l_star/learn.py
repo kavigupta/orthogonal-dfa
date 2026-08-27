@@ -1,6 +1,6 @@
-"""Run a learner against an oracle: the configuration entry point.
+"""Run E-L* against an oracle: the configuration entry point.
 
-`synthesize_direct_lstar_fnr` in `counterexample_synthesis` learns from a populated
+`counterexample_driven_synthesis` in `lstar` learns from a populated
 PrefixSuffixTracker. Getting to one means sizing the suffix population, the
 evidence margin and the prefix count from the noise level, which is what this
 module does -- so a caller only has to say how much signal the oracle carries.
@@ -12,9 +12,9 @@ from typing import Any, Callable, Optional
 
 import numpy as np
 
-from .counterexample_synthesis import synthesize_direct_lstar_fnr
+from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
-from .sampler import UniformSampler
+from .sampler import Sampler, UniformSampler
 from .statistics import (
     compute_suffix_size_counterexample_gen,
     population_size_and_evidence_margin,
@@ -38,9 +38,8 @@ def build_pst(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
-    sample_length: int = DEFAULT_SAMPLE_LENGTH,
-    sampler: Optional[Any] = None,
-    fnr_limit: float = 0.02,
+    sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
+    require_accept_preserving: bool = True,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -48,6 +47,9 @@ def build_pst(
     and every population size here is derived from that: too small and the
     row statistics cannot separate states, too large and every query is spent
     on evidence nobody needs.
+
+    `sampler` supplies the probe strings; pass one to learn over a different
+    string distribution, or to vary the length.
     """
     effective_p_acc = 0.5 + min_signal_strength
     if noise_model is None:
@@ -65,10 +67,8 @@ def build_pst(
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
-        fnr_limit=fnr_limit,
+        require_accept_preserving=require_accept_preserving,
     )
-    if sampler is None:
-        sampler = UniformSampler(sample_length)
     return PrefixSuffixTracker.create(
         sampler,
         np.random.default_rng(0),
@@ -85,16 +85,18 @@ def learn_dfa(
     seed: int,
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
-    sample_length: int = DEFAULT_SAMPLE_LENGTH,
-    sampler: Optional[Any] = None,
+    sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
-    fnr_limit: float = 0.02,
+    require_accept_preserving: bool = True,
 ):
-    """Learn a DFA from `oracle_creator`, and return it.
+    """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
-    Returns None when synthesis produced no hypothesis.
+    `sampler` draws the probe strings (see `build_pst`).  ``dfa`` is None when
+    synthesis produced no hypothesis. ``round_classifiers`` is the per-round
+    empty-seeded family classifier (see ``RoundClassifier``), exposed so callers
+    can inspect what each round decided over its pool.
     """
     pst = build_pst(
         oracle_creator,
@@ -102,9 +104,10 @@ def learn_dfa(
         seed=seed,
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
-        sample_length=sample_length,
         sampler=sampler,
-        fnr_limit=fnr_limit,
+        require_accept_preserving=require_accept_preserving,
     )
-    dfa, _ = synthesize_direct_lstar_fnr(pst, acc_threshold=acc_threshold)
-    return dfa
+    dfa, _, classifiers = do_counterexample_driven_synthesis(
+        pst, acc_threshold=acc_threshold
+    )
+    return dfa, classifiers

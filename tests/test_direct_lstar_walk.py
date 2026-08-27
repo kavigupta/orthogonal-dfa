@@ -1,9 +1,12 @@
-"""Where :meth:`TransitionResolver.process` anchors its walk.
+"""Where :meth:`TransitionResolver._process` anchors its walk.
 
 Driven by stubs rather than synthesis: the anchor is a property of the walk, and
 the end-to-end targets that depend on it are noisy enough that a regression shows
 up as a state count that also moves for unrelated reasons.
 """
+
+# The tests exercise the walk internals directly.
+# pylint: disable=protected-access
 
 import unittest
 from types import SimpleNamespace

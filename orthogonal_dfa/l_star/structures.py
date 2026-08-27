@@ -1,3 +1,4 @@
+import hashlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List
@@ -23,6 +24,19 @@ class NoiseModel(ABC):
         """
 
 
+def _uniform_random(string: List[int], seed: int) -> float:
+    """A uniform draw on [0, 1) keyed by ``(string, seed)``.
+
+    Hashes the symbols as bytes rather than their repr: this runs once per
+    membership query, and formatting the list dominated it.  A symbol wider than
+    a byte raises here, as it already does in MemoizedOracle.
+    """
+    digest = hashlib.blake2b(
+        bytes(string) + seed.to_bytes(8, "big", signed=True), digest_size=8
+    ).digest()
+    return int.from_bytes(digest, "big") / 2**64
+
+
 @dataclass(frozen=True)
 class AsymmetricBernoulli(NoiseModel):
     """
@@ -39,14 +53,7 @@ class AsymmetricBernoulli(NoiseModel):
     p_1: float  # Probability of returning 1 when model output is 1
 
     def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
-        from permacache import stable_hash
-
-        def uniform_random(seed_obj: object) -> float:
-            hash_value = stable_hash(seed_obj)
-            hash_value = (int(hash_value, 16) % 100) / 100
-            return hash_value
-
-        hash_input = uniform_random((string, seed))
+        hash_input = _uniform_random(string, seed)
         if correct_value:
             # When model output is 1, return 1 with probability p_1
             return hash_input < self.p_1
@@ -62,17 +69,18 @@ class SymmetricBernoulli(NoiseModel):
     With probability p_correct, returns the correct value.
     With probability 1 - p_correct, returns the flipped value.
 
-    Implemented in terms of AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct.
-    This satisfies: accuracy = p_1 = 1 - p_0 = p_correct.
+    The AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct, inlined:
+    this runs once per membership query, and constructing that dataclass here cost
+    more than the draw it wrapped.
     """
 
     p_correct: float
 
     def apply_noise(self, correct_value: bool, string: List[int], seed: int) -> bool:
-        # Use AsymmetricBernoulli with p_0 = 1 - p_correct and p_1 = p_correct
-        # This satisfies: accuracy = p_1 = 1 - p_0 = p_correct
-        asymmetric = AsymmetricBernoulli(p_0=1 - self.p_correct, p_1=self.p_correct)
-        return asymmetric.apply_noise(correct_value, string, seed)
+        hash_input = _uniform_random(string, seed)
+        if correct_value:
+            return hash_input < self.p_correct
+        return hash_input < 1 - self.p_correct
 
 
 class Oracle(ABC):
@@ -92,3 +100,12 @@ class Oracle(ABC):
         on `strings`'s length.
         """
         return np.array([self.membership_query(s) for s in strings], dtype=bool)
+
+    def target_dfa(self):
+        """The DFA of the language this oracle answers for, over int symbols.
+
+        ``None`` where there is no such DFA -- the language is not regular, or is
+        a neural model we cannot write one for.  Answering is what lets a caller
+        reason about the target's *states* rather than only its strings.
+        """
+        return None
