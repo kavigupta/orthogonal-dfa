@@ -142,7 +142,12 @@ def _grow_representative_pool(
             state.seen.add(key)
             state.accumulated.append(t)
     state.sampled = per_state_sample(
-        dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
+        dfa,
+        pst.rng,
+        pst.sampler.length,
+        per_state,
+        weights=pst.sampler.symbol_weights(pst.alphabet_size),
+        existing=state.sampled,
     )
     representative = state.baseline + state.accumulated + state.sampled
     fresh = [

@@ -200,10 +200,6 @@ class TestSatisfiesPreconditions(unittest.TestCase):
         self.assertFalse(P.satisfies_preconditions(RECURRENT_BUT_UNCOVERED, length=40))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class _ZeroRunSampler(Sampler):
     """Emits ``0`` everywhere, so MOD3 never leaves its initial state."""
 
@@ -212,6 +208,9 @@ class _ZeroRunSampler(Sampler):
 
     def sample(self, rng, alphabet_size):
         return [0] * self.length
+
+    def symbol_weights(self, alphabet_size):
+        return [1] + [0] * (alphabet_size - 1)
 
 
 class TestSampler(unittest.TestCase):
@@ -233,3 +232,7 @@ class TestSampler(unittest.TestCase):
     def test_length_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
             P.satisfies_preconditions(MOD3, length=40, sampler=UniformSampler(15))
+
+
+if __name__ == "__main__":
+    unittest.main()

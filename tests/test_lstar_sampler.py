@@ -21,6 +21,9 @@ class _ZeroRunSampler(Sampler):
         assert alphabet_size >= 1
         return [0] * self.length
 
+    def symbol_weights(self, alphabet_size):
+        return [1] + [0] * (alphabet_size - 1)
+
 
 def _oracle(noise_model, seed):
     return BernoulliParityOracle(noise_model, seed)
