@@ -91,26 +91,6 @@ class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float:
-    """Share of a side that may be the other class before the family stops reading
-    its own classes correctly.
-
-    A side carrying a fraction ``f`` of the other class reads, on the empty suffix,
-
-        boundary + signal * (1 - 2 * f)
-
-    and the decision only calls that side accepting while it stays at or past
-    ``boundary + evidence_margin``, which bounds f.
-
-    Per side, but the gap the drift is read from closes by the two sides added
-    together and cannot say which of them it came off.  So the sum is held to
-    this, which is what it takes for either side alone to be: the other could be
-    carrying none of it.  Two sides carrying half of it each are refused for the
-    same reason -- from the gap they read as one side carrying all of it.
-    """
-    return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
-
-
 def certification_sample(pst, vs, amount: int):
     """Prefixes drawn only to read the split on, and never added to the table.
 
@@ -146,63 +126,45 @@ def _split_counts(pst, decision, seed_row, extra=None):
     counts = []
     for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
         n = int(side.sum())
-        assert n, "a gap needs both sides of the cut"
+        assert n, "the split needs both sides of the cut"
         counts.append((int(column[side].sum()), n))
     return tuple(counts)
 
 
-def observed_drift(counts, signal: float) -> float:
-    """The two sides' shares of the other class added together, as the counts
-    read it.  The gap closes by ``2 * signal`` times that sum, and cannot say
-    which side it came off."""
-    (hits_a, n_a), (hits_r, n_r) = counts
-    return _clamp(1 - (hits_a / n_a - hits_r / n_r) / (2 * signal))
+def drift_verdict(pst, counts) -> str:
+    """Whether each side of the cut reads as its own class on the split, or as
+    the other's, or whether the counts do not say.
 
+    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
+    split's column says what the oracle makes of the prefixes themselves.  A
+    family realises the accept-preserving split when the prefixes it calls
+    accepting read there as accepting -- by the same thresholds the family is
+    read with, since it is that reading being checked and not another.
 
-def _gap_pvalue(counts, gap: float, wider: bool, reject_rate_grid_size=201) -> float:
-    """Chance of a gap at least (or at most) the observed one, were the true gap
-    exactly ``gap``.
-
-    Exact throughout: the accept count is summed over its binomial and each term
-    weighted by the reject side's own binomial tail.  Where the reject side's
-    rate itself sits is unknown, and the answer has to hold wherever that is, so
-    it is read at the rate that makes the gap hardest to call and not at an
-    estimate.  A difference of two binomials is not normal at these counts and is
-    not treated as one.
+    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
+    Neither is a rate anything has to be estimated against, which is what a gap
+    between the sides would have needed, and would have had to name a signal for.
     """
-    (hits_a, n_a), (hits_r, n_r) = counts
-    observed = hits_a / n_a - hits_r / n_r
-    accepts = np.arange(n_a + 1)
-    edge = n_r * (accepts / n_a - observed)
-    worst = 0.0
-    for rate in np.linspace(0, max(0.0, 1 - gap), reject_rate_grid_size):
-        weight = scipy.stats.binom.pmf(accepts, n_a, min(1.0, rate + gap))
-        reject_side = (
-            scipy.stats.binom.cdf(np.floor(edge), n_r, rate)
-            if wider
-            else scipy.stats.binom.sf(np.ceil(edge) - 1, n_r, rate)
-        )
-        worst = max(worst, float((weight * reject_side).sum()))
-    return worst
-
-
-def _clamp(share: float) -> float:
-    return min(1.0, max(0.0, share))
-
-
-def drift_verdict(counts, signal: float, tolerated: float) -> str:
-    """Whether the cut carries more of each class on the other's side than the
-    decision can absorb, or less, or whether the counts do not say."""
-    # The gap a family drifted exactly to the tolerance would read.
-    gap = 2 * signal * (1 - tolerated)
-    if _gap_pvalue(counts, gap, wider=True) <= ACCEPT_PRESERVING_ERROR_RATE:
+    hits_a, n_a = counts[0]
+    hits_r, n_r = counts[1]
+    alpha = ACCEPT_PRESERVING_ERROR_RATE
+    # Both sides must clear their own test, so between them they cannot exceed
+    # the rate either one spends.
+    if (
+        scipy.stats.binom.sf(hits_a - 1, n_a, pst.accept_thresh) <= alpha
+        and scipy.stats.binom.cdf(hits_r, n_r, pst.reject_thresh) <= alpha
+    ):
         return ADMITTED
-    if _gap_pvalue(counts, gap, wider=False) <= ACCEPT_PRESERVING_ERROR_RATE:
+    # Either side drifting on its own is enough to say so, so they share.
+    if (
+        scipy.stats.binom.cdf(hits_a, n_a, pst.accept_thresh) <= alpha / 2
+        or scipy.stats.binom.sf(hits_r - 1, n_r, pst.reject_thresh) <= alpha / 2
+    ):
         return DRIFTED
     return UNCERTIFIED
 
 
-def prefixes_to_certify(pst, counts, vs, tolerated: float) -> int:
+def prefixes_to_certify(pst, counts, vs) -> int:
     """How many prefixes to draw for the split alone, to settle a verdict the
     prefixes in hand left undecided.
 
@@ -222,10 +184,9 @@ def prefixes_to_certify(pst, counts, vs, tolerated: float) -> int:
     drawn = max(1, int(pst.table.representative.sum()))
     columns = max(1, len(pst.table.fully_observed()))
     budget = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
-    signal = pst.config.min_signal_strength
     for multiple in range(2, 2 + budget // drawn):
         supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
-        if drift_verdict(supposed, signal, tolerated) is not UNCERTIFIED:
+        if drift_verdict(pst, supposed) is not UNCERTIFIED:
             return drawn * (multiple - 1)
     return budget
 
@@ -245,29 +206,28 @@ class AcceptPreservingGate:
     def verdict(self, pst, decision, seed_row, vs) -> str:
         if not self.enabled:
             return ADMITTED
-        signal = pst.config.min_signal_strength
-        tolerated = tolerated_drift(signal, pst.evidence_margin)
         counts = _split_counts(pst, decision, seed_row)
-        verdict = drift_verdict(counts, signal, tolerated)
+        verdict = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            # Undecided on what the pool holds, and the pool is the dear way to
-            # ask: draw prefixes for the split alone and read it again.
-            wanted = prefixes_to_certify(pst, counts, vs, tolerated)
+            wanted = prefixes_to_certify(pst, counts, vs)
             counts = _split_counts(
                 pst, decision, seed_row, certification_sample(pst, vs, wanted)
             )
-            verdict = drift_verdict(counts, signal, tolerated)
+            verdict = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            drift = observed_drift(counts, signal)
-            settled = "past" if verdict is DRIFTED else "neither inside nor past"
+            hits_a, n_a = counts[0]
+            hits_r, n_r = counts[1]
+            read = "read" if verdict is DRIFTED else "could not be read"
             raise NoAcceptPreservingFamily(
-                f"{self.refusals} families running put {drift:.0%} of each class "
-                f"on the other's side between them, {settled} the {tolerated:.0%} "
-                f"a side may carry; no suffix family realises the "
-                f"accept-preserving split on this target"
+                f"{self.refusals} families running {read} as cutting against the "
+                f"classes: the last put {hits_a / n_a:.0%} of the prefixes it "
+                f"accepts and {hits_r / n_r:.0%} of those it rejects on the "
+                f"accepting side of the empty suffix, against thresholds of "
+                f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
+                f"family realises the accept-preserving split on this target"
             )
         return verdict
 
