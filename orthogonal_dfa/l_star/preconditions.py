@@ -23,13 +23,29 @@ from typing import List, Optional, Tuple
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .sampler import Sampler
+from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
 #: Bar for coverage by prefixes of the given length before we consider a state
 #: "covered" by it.
 DEFAULT_MIN_COVERAGE = 0.01
+
+
+def _drawn_with(
+    sampler: Sampler, symbols: Tuple[int, ...], num_samples: int
+) -> Tuple[Tuple[int, ...], ...]:
+    """``num_samples`` strings over ``symbols``, as ``sampler`` draws them from a
+    seed of 0.
+
+    The only place the checks draw, so asking with the sampler they already
+    default to cannot answer differently from leaving it off.
+    """
+    rng = np.random.default_rng(0)
+    return tuple(
+        tuple(symbols[i] for i in sampler.sample(rng, len(symbols)))
+        for _ in range(num_samples)
+    )
 
 
 @lru_cache(maxsize=None)
@@ -42,10 +58,7 @@ def _sample_strings(
     every DFA over that alphabet -- and each check used to redraw it per DFA,
     which was most of the cost of screening a population.
     """
-    rng = np.random.default_rng(0)
-    return tuple(
-        tuple(rng.choice(symbols, size=length).tolist()) for _ in range(num_samples)
-    )
+    return _drawn_with(UniformSampler(length), symbols, num_samples)
 
 
 def _samples(
@@ -64,11 +77,7 @@ def _samples(
         f"sampler draws {sampler.length} symbols but the preconditions were "
         f"asked for length {length}"
     )
-    rng = np.random.default_rng(0)
-    return tuple(
-        tuple(symbols[i] for i in sampler.sample(rng, len(symbols)))
-        for _ in range(num_samples)
-    )
+    return _drawn_with(sampler, symbols, num_samples)
 
 
 def _endpoint(dfa: DFA, string: List[int], start=None):
