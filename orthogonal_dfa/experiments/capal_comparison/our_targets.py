@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import List
 
 from orthogonal_dfa.capal_official import build_modulo_dfa, build_regex_dfa
+from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_OURS, Benchmark
 
@@ -31,8 +32,8 @@ def our_benchmarks() -> List[Benchmark]:
             family=FAMILY_OURS,
             target=target,
             oracle_creator=(
-                lambda nm, s, _r=regex, _k=symbols: BernoulliRegex(
-                    nm, s, regex=_r, alphabet_size=_k
+                lambda nm, s, _r=regex, _k=symbols: NoisyOracle(
+                    BernoulliRegex(regex=_r, alphabet_size=_k), nm, s
                 )
             ),
             alphabet=[str(i) for i in range(symbols)],
@@ -46,8 +47,8 @@ def our_benchmarks() -> List[Benchmark]:
             name="parity_mod9_allowed_3_6",
             family=FAMILY_OURS,
             target=modulo_target,
-            oracle_creator=lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            oracle_creator=lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             ),
             alphabet=["0", "1"],
             symbols=2,

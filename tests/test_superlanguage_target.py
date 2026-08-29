@@ -6,7 +6,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 from orthogonal_dfa.superlanguage.target import super_target_dfa
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
@@ -30,8 +30,8 @@ FIRST_IS_A = DFA(
 class TestSuperTargetDfa(unittest.TestCase):
     def setUp(self):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
-        self.base = AllFramesClosedOracle(
-            noise_model=SymmetricBernoulli(1.0), seed=0
+        self.base = NoisyOracle(
+            AllFramesClosedOracle(), SymmetricBernoulli(1.0), 0
         ).target_dfa()
         self.dfa = super_target_dfa(self.vocab, self.base)
 

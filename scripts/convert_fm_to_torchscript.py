@@ -1,7 +1,7 @@
 """Convert the fixed-motif (FM) model to self-contained TorchScript artifacts.
 
-    python scripts/convert_fm_to_torchscript.py           # seeds 1..5
-    python scripts/convert_fm_to_torchscript.py 1 3       # specific seeds
+python scripts/convert_fm_to_torchscript.py           # seeds 1..5
+python scripts/convert_fm_to_torchscript.py 1 3       # specific seeds
 """
 
 import os

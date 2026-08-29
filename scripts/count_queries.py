@@ -36,6 +36,8 @@ import sys
 import time
 from pathlib import Path
 
+from orthogonal_dfa.l_star.structures import NoisyOracle
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # name -> spec. `oracle` is a serialisable description the measurer turns into an
@@ -43,29 +45,61 @@ ROOT = Path(__file__).resolve().parent.parent
 # p_correct=0.5+signal) or an asymmetric {p_0, p_1}. `slow` marks the high-cost
 # guard tasks so `--fast` can skip them.
 BENCHMARKS = {
-    "modulo":     {"oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
-                   "signal": 0.3, "symbols": 2, "noise": None},
-    "subseq":     {"oracle": {"kind": "regex", "regex": r".*1010101.*"},
-                   "signal": 0.3, "symbols": 2, "noise": None},
-    "two_subseq": {"oracle": {"kind": "regex", "regex": r".*1111.*1111.*"},
-                   "signal": 0.3, "symbols": 2, "noise": None},
-    "poor_case":  {"oracle": {"kind": "poor_case"},
-                   "signal": 0.3, "symbols": 2, "noise": None},
+    "modulo": {
+        "oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
+        "signal": 0.3,
+        "symbols": 2,
+        "noise": None,
+    },
+    "subseq": {
+        "oracle": {"kind": "regex", "regex": r".*1010101.*"},
+        "signal": 0.3,
+        "symbols": 2,
+        "noise": None,
+    },
+    "two_subseq": {
+        "oracle": {"kind": "regex", "regex": r".*1111.*1111.*"},
+        "signal": 0.3,
+        "symbols": 2,
+        "noise": None,
+    },
+    "poor_case": {
+        "oracle": {"kind": "poor_case"},
+        "signal": 0.3,
+        "symbols": 2,
+        "noise": None,
+    },
     # --- guard tasks: the cells only ortho-L* solves; a query win must not break these ---
-    "modulo_hard": {"oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
-                    "signal": 0.2, "symbols": 2, "noise": None, "slow": True},  # η=0.30 wall
-    "modulo_asym": {"oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
-                    "signal": 0.15, "symbols": 2,
-                    "noise": {"p_0": 0.10, "p_1": 0.40}, "slow": True},  # non-straddling
+    "modulo_hard": {
+        "oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
+        "signal": 0.2,
+        "symbols": 2,
+        "noise": None,
+        "slow": True,
+    },  # η=0.30 wall
+    "modulo_asym": {
+        "oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
+        "signal": 0.15,
+        "symbols": 2,
+        "noise": {"p_0": 0.10, "p_1": 0.40},
+        "slow": True,
+    },  # non-straddling
 }
 
 # The 10-state adversarial DFA used by the `poor_case` task (kept in-script so the
 # measurer can rebuild it against whichever branch's DFAOracle it imports).
 POOR_CASE_DFA = {
     "transitions": {
-        0: {1: 8, 0: 0}, 1: {1: 1, 0: 1}, 2: {1: 1, 0: 6}, 3: {1: 9, 0: 2},
-        4: {1: 3, 0: 8}, 5: {1: 8, 0: 4}, 6: {1: 3, 0: 9}, 7: {1: 8, 0: 6},
-        8: {1: 8, 0: 5}, 9: {1: 3, 0: 7},
+        0: {1: 8, 0: 0},
+        1: {1: 1, 0: 1},
+        2: {1: 1, 0: 6},
+        3: {1: 9, 0: 2},
+        4: {1: 3, 0: 8},
+        5: {1: 8, 0: 4},
+        6: {1: 3, 0: 9},
+        7: {1: 8, 0: 6},
+        8: {1: 8, 0: 5},
+        9: {1: 3, 0: 7},
     },
     "initial": 0,
     "final": [1],
@@ -89,12 +123,14 @@ BATCH_CAPS = (32, 128, 1024)
 def _measure(root: str, names: list[str]) -> dict:
     sys.path.insert(0, root)
     from automata.fa.dfa import DFA
+
     from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-        BernoulliParityOracle, BernoulliRegex,
+        BernoulliParityOracle,
+        BernoulliRegex,
     )
-    from orthogonal_dfa.l_star.structures import Oracle, AsymmetricBernoulli
     from orthogonal_dfa.l_star.learn import learn_dfa
+    from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, Oracle
     from tests.lstar_common import evaluate_accuracy
 
     class CountingOracle(Oracle):
@@ -123,17 +159,25 @@ def _measure(root: str, names: list[str]) -> dict:
     def build_creator(spec):
         kind = spec["kind"]
         if kind == "modulo":
-            return lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=spec["modulo"], allowed_moduluses=tuple(spec["allowed"]))
+            return lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(
+                    modulo=spec["modulo"], allowed_moduluses=tuple(spec["allowed"])
+                ),
+                nm,
+                s,
+            )
         if kind == "regex":
-            return lambda nm, s: BernoulliRegex(nm, s, regex=spec["regex"])
+            return lambda nm, s: NoisyOracle(BernoulliRegex(regex=spec["regex"]), nm, s)
         if kind == "poor_case":
             dfa = DFA(
-                states=set(range(10)), input_symbols={0, 1},
+                states=set(range(10)),
+                input_symbols={0, 1},
                 transitions=POOR_CASE_DFA["transitions"],
                 initial_state=POOR_CASE_DFA["initial"],
-                final_states=set(POOR_CASE_DFA["final"]), allow_partial=False)
-            return lambda nm, s: DFAOracle(nm, s, dfa)
+                final_states=set(POOR_CASE_DFA["final"]),
+                allow_partial=False,
+            )
+            return lambda nm, s: NoisyOracle(DFAOracle(dfa), nm, s)
         raise ValueError(f"unknown oracle kind {kind!r}")
 
     results = {}
@@ -153,10 +197,15 @@ def _measure(root: str, names: list[str]) -> dict:
 
         t0 = time.time()
         # Silence the synthesis chatter; we only want the JSON on stdout.
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(
+            io.StringIO()
+        ):
             dfa, _ = learn_dfa(
-                counting_creator, min_signal_strength=bench["signal"], seed=0,
-                noise_model=noise_model)
+                counting_creator,
+                min_signal_strength=bench["signal"],
+                seed=0,
+                noise_model=noise_model,
+            )
             acc = evaluate_accuracy(dfa, creator, symbols=bench["symbols"])
         all_batches = [n for c in counters for n in c.batches]
         results[name] = {
@@ -165,7 +214,8 @@ def _measure(root: str, names: list[str]) -> dict:
             "batches": len(all_batches),
             "forward_passes": {
                 str(cap): sum(math.ceil(n / cap) for n in all_batches)
-                for cap in BATCH_CAPS},
+                for cap in BATCH_CAPS
+            },
             "states": len(dfa.states),
             "accuracy": acc,
             "seconds": time.time() - t0,
@@ -187,7 +237,10 @@ def rev_parse(ref: str):
     """Commit SHA ``ref`` resolves to, or None if it doesn't exist."""
     res = subprocess.run(
         ["git", "rev-parse", "--verify", "--quiet", ref],
-        cwd=ROOT, capture_output=True, text=True)
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
     return res.stdout.strip() or None
 
 
@@ -201,27 +254,32 @@ def preflight(base: str, *, allow_stale: bool):
     stale-main run during development showed.
     """
     dirty = subprocess.check_output(
-        ["git", "status", "--porcelain"], cwd=ROOT, text=True).strip()
+        ["git", "status", "--porcelain"], cwd=ROOT, text=True
+    ).strip()
     if dirty:
         raise SystemExit(
             "count_queries: working tree is not clean — commit or stash before a "
-            "base-vs-PR run (or use --local to measure the working tree).\n" + dirty)
+            "base-vs-PR run (or use --local to measure the working tree).\n" + dirty
+        )
     if allow_stale:
         return
     if rev_parse(base) is None:
         raise SystemExit(f"count_queries: baseline ref `{base}` does not exist locally")
     fetch = subprocess.run(
-        ["git", "fetch", "origin", base], cwd=ROOT, capture_output=True, text=True)
+        ["git", "fetch", "origin", base], cwd=ROOT, capture_output=True, text=True
+    )
     if fetch.returncode != 0:
         raise SystemExit(
             f"count_queries: `git fetch origin {base}` failed (pass --allow-stale-base "
-            f"to skip this check when offline):\n{fetch.stderr.strip()}")
+            f"to skip this check when offline):\n{fetch.stderr.strip()}"
+        )
     local, remote = rev_parse(base), rev_parse("FETCH_HEAD")
     if local != remote:
         raise SystemExit(
             f"count_queries: local `{base}` ({local[:12]}) is behind "
             f"`origin/{base}` ({(remote or '?')[:12]}); run `git pull` on `{base}` "
-            f"first, or pass --allow-stale-base")
+            f"first, or pass --allow-stale-base"
+        )
 
 
 def setup_worktree(ref: str, wt_dir: Path):
@@ -230,16 +288,27 @@ def setup_worktree(ref: str, wt_dir: Path):
 
 
 def teardown_worktree(wt_dir: Path):
-    subprocess.run(["git", "worktree", "remove", "--force", str(wt_dir)],
-                   cwd=ROOT, check=False)
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(wt_dir)], cwd=ROOT, check=False
+    )
 
 
 def measure_worktree(root: Path, names: list[str]) -> dict:
     """Run this script as an in-worktree measurer; parse the JSON it prints."""
     out = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()), "--emit-json",
-         "--root", str(root), "--tasks", *names],
-        cwd=root, text=True, capture_output=True)
+        [
+            sys.executable,
+            str(Path(__file__).resolve()),
+            "--emit-json",
+            "--root",
+            str(root),
+            "--tasks",
+            *names,
+        ],
+        cwd=root,
+        text=True,
+        capture_output=True,
+    )
     if out.returncode != 0:
         raise SystemExit(f"count_queries: measurer failed in {root}:\n{out.stderr}")
     return json.loads(out.stdout)
@@ -255,8 +324,9 @@ def _emoji(ratio: float, acc_ok: bool, states_ok: bool) -> str:
     return "⚪"
 
 
-def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
-                      names: list[str]) -> str:
+def comparison_report(
+    base_ref: str, pr_ref: str, base: dict, pr: dict, names: list[str]
+) -> str:
     lines = [
         f"## Query count — `{pr_ref}` vs `{base_ref}`",
         "",
@@ -279,24 +349,32 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
         lines.append(
             f"| {emoji} | {name} | {b['queries']:,} | {p['queries']:,} | "
             f"{_ratio_str(ratio)} | "
-            f"{b['accuracy']:.3f} | {p['accuracy']:.3f} | {st} |")
+            f"{b['accuracy']:.3f} | {p['accuracy']:.3f} | {st} |"
+        )
     geo = math.prod(ratios) ** (1 / len(ratios)) if ratios else float("nan")
     lines.append(
         f"| {'🟢' if geo < 1 - QUERY_BAND else '🔴' if geo > 1 + QUERY_BAND else '⚪'} "
-        f"| **geomean** |  |  | **{_ratio_str(geo)}** |  |  |  |")
+        f"| **geomean** |  |  | **{_ratio_str(geo)}** |  |  |  |"
+    )
     lines.append("")
-    lines.append("**❌ REGRESSION** (queries up or accuracy/states broke on ≥1 task)"
-                 if any_regression else
-                 "**✅ no regressions** (accuracy held, no task's queries rose beyond band)")
+    lines.append(
+        "**❌ REGRESSION** (queries up or accuracy/states broke on ≥1 task)"
+        if any_regression
+        else "**✅ no regressions** (accuracy held, no task's queries rose beyond band)"
+    )
 
     lines.append("")
-    lines.append(f"### Forward passes — `{pr_ref}` vs `{base_ref}` "
-                 "(neural passes at each batch cap; `base → pr (ratio, pr packing)`)")
+    lines.append(
+        f"### Forward passes — `{pr_ref}` vs `{base_ref}` "
+        "(neural passes at each batch cap; `base → pr (ratio, pr packing)`)"
+    )
     lines.append("")
-    lines.append("*Packing is `ceil(pr queries / cap) / pr fp` — the floor if every "
-                 "call filled its batch. Below 100% the remaining passes are "
-                 "under-filled calls, i.e. headroom from co-batching more call sites, "
-                 "not irreducible work.*")
+    lines.append(
+        "*Packing is `ceil(pr queries / cap) / pr fp` — the floor if every "
+        "call filled its batch. Below 100% the remaining passes are "
+        "under-filled calls, i.e. headroom from co-batching more call sites, "
+        "not irreducible work.*"
+    )
     lines.append("")
     lines.append("| task | " + " | ".join(f"fp@{c}" for c in BATCH_CAPS) + " |")
     lines.append("|---|" + "|".join(["---:"] * len(BATCH_CAPS)) + "|")
@@ -307,8 +385,9 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
             bf, pf = b["forward_passes"][str(cap)], p["forward_passes"][str(cap)]
             packed = math.ceil(p["queries"] / cap) / pf if pf else float("nan")
             ratio = pf / bf if bf else float("inf")
-            cells.append(f"{bf:,} → {pf:,} ({_ratio_str(ratio)}, "
-                         f"{100 * packed:.0f}% packed)")
+            cells.append(
+                f"{bf:,} → {pf:,} ({_ratio_str(ratio)}, " f"{100 * packed:.0f}% packed)"
+            )
         lines.append(f"| {name} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
 
@@ -324,60 +403,95 @@ def update_pr_report(pr_ref: str, report: str):
     try:
         body = subprocess.check_output(
             ["gh", "pr", "view", pr_ref, "--json", "body", "-q", ".body"],
-            cwd=ROOT, text=True, stderr=subprocess.PIPE)
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.PIPE,
+        )
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         msg = getattr(e, "stderr", "") or str(e)
-        print(f"\ncount_queries: no PR found for {pr_ref!r}, skipping PR update.\n  {msg}")
+        print(
+            f"\ncount_queries: no PR found for {pr_ref!r}, skipping PR update.\n  {msg}"
+        )
         return
     import re
+
     body = body.rstrip("\n")
     pattern = re.compile(r"(?m)^## Query count\b.*?(?=^## |\Z)", re.DOTALL)
     if pattern.search(body):
         new_body = pattern.sub(lambda _: report.rstrip() + "\n\n", body).rstrip() + "\n"
     else:
-        new_body = (body + ("\n\n" if body else "") + report.rstrip() + "\n")
-    res = subprocess.run(["gh", "pr", "edit", pr_ref, "--body-file", "-"],
-                         cwd=ROOT, input=new_body, text=True, capture_output=True)
-    print(f"\ncount_queries: {'updated' if res.returncode == 0 else 'FAILED to update'}"
-          f" the Query count section on PR {pr_ref}."
-          + ("" if res.returncode == 0 else f"\n{res.stderr}"))
+        new_body = body + ("\n\n" if body else "") + report.rstrip() + "\n"
+    res = subprocess.run(
+        ["gh", "pr", "edit", pr_ref, "--body-file", "-"],
+        cwd=ROOT,
+        input=new_body,
+        text=True,
+        capture_output=True,
+    )
+    print(
+        f"\ncount_queries: {'updated' if res.returncode == 0 else 'FAILED to update'}"
+        f" the Query count section on PR {pr_ref}."
+        + ("" if res.returncode == 0 else f"\n{res.stderr}")
+    )
 
 
 def print_local_table(results: dict, names: list[str]):
     print("\n===== QUERY COUNT SUMMARY =====")
     caps = "".join(f"{f'fp@{cap}':>11}" for cap in BATCH_CAPS)
-    header = (f"{'task':<14}{'queries':>12}{'distinct':>11}{'batches':>10}{caps}"
-              f"{'states':>8}{'acc':>8}{'sec':>8}")
+    header = (
+        f"{'task':<14}{'queries':>12}{'distinct':>11}{'batches':>10}{caps}"
+        f"{'states':>8}{'acc':>8}{'sec':>8}"
+    )
     print(header)
     print("-" * len(header))
     for name in names:
         r = results[name]
         fps = "".join(f"{r['forward_passes'][str(cap)]:>11,}" for cap in BATCH_CAPS)
-        print(f"{name:<14}{r['queries']:>12,}{r['distinct']:>11,}{r['batches']:>10,}"
-              f"{fps}{r['states']:>8}{r['accuracy']:>8.3f}{r['seconds']:>8.1f}")
+        print(
+            f"{name:<14}{r['queries']:>12,}{r['distinct']:>11,}{r['batches']:>10,}"
+            f"{fps}{r['states']:>8}{r['accuracy']:>8.3f}{r['seconds']:>8.1f}"
+        )
     queries = sum(results[n]["queries"] for n in names)
     print(f"\nTOTAL queries: {queries:,}")
     for cap in BATCH_CAPS:
         total = sum(results[n]["forward_passes"][str(cap)] for n in names)
         ideal = math.ceil(queries / cap)
-        print(f"TOTAL forward passes @ batch {cap}: {total:,} "
-              f"(ideal {ideal:,}, {100 * ideal / total:.0f}% packed)")
+        print(
+            f"TOTAL forward passes @ batch {cap}: {total:,} "
+            f"(ideal {ideal:,}, {100 * ideal / total:.0f}% packed)"
+        )
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("base", nargs="?", default="main", help="baseline ref (default: main)")
-    p.add_argument("pr", nargs="?", default=None, help="PR ref (default: current branch)")
-    p.add_argument("--local", action="store_true",
-                   help="measure the working tree only; print a table, no comparison")
+    p.add_argument(
+        "base", nargs="?", default="main", help="baseline ref (default: main)"
+    )
+    p.add_argument(
+        "pr", nargs="?", default=None, help="PR ref (default: current branch)"
+    )
+    p.add_argument(
+        "--local",
+        action="store_true",
+        help="measure the working tree only; print a table, no comparison",
+    )
     p.add_argument("--fast", action="store_true", help="skip the slow guard tasks")
-    p.add_argument("--no-pr", action="store_true", help="compare but don't edit the PR body")
-    p.add_argument("--allow-stale-base", action="store_true",
-                   help="skip the 'base up to date with origin' check (e.g. offline)")
+    p.add_argument(
+        "--no-pr", action="store_true", help="compare but don't edit the PR body"
+    )
+    p.add_argument(
+        "--allow-stale-base",
+        action="store_true",
+        help="skip the 'base up to date with origin' check (e.g. offline)",
+    )
     p.add_argument("--emit-json", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--root", default=str(ROOT), help=argparse.SUPPRESS)
-    p.add_argument("--tasks", nargs="*", default=None,
-                   help="task names to run (default: all, or all-but-slow with --fast)")
+    p.add_argument(
+        "--tasks",
+        nargs="*",
+        default=None,
+        help="task names to run (default: all, or all-but-slow with --fast)",
+    )
     a = p.parse_args()
 
     # Positional base/pr double as task names in --local/--emit-json usage
@@ -399,8 +513,13 @@ def main():
 
     # Comparison mode: base vs PR over worktrees.
     base = a.base if a.base not in BENCHMARKS else "main"
-    pr = a.pr if (a.pr and a.pr not in BENCHMARKS) else subprocess.check_output(
-        ["git", "branch", "--show-current"], cwd=ROOT, text=True).strip()
+    pr = (
+        a.pr
+        if (a.pr and a.pr not in BENCHMARKS)
+        else subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=ROOT, text=True
+        ).strip()
+    )
     preflight(base, allow_stale=a.allow_stale_base)
     session = time.strftime("%Y-%m-%d_%H-%M-%S")
     wt_root = Path(f"/tmp/count_queries_{session}")

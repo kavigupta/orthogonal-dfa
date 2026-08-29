@@ -15,36 +15,36 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
-from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
 class TestLStar(unittest.TestCase):
     def test_modulo_harder(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.2, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_even_harder(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences_with_alternation(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1111.*(1111|0000)11.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1111.*(1111|0000)11.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(111|000).*", alphabet_size=3
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*(111|000).*", alphabet_size=3), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=3)
@@ -69,7 +69,7 @@ class TestLStar(unittest.TestCase):
             final_states={1},
             allow_partial=False,
         )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
@@ -93,15 +93,15 @@ class TestLStar(unittest.TestCase):
             final_states={1},
             allow_partial=False,
         )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
 
 class TestLStarAsymmetric(unittest.TestCase):
     def test_regex_asymmetric(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1010101.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.7)
         # signal = (0.7 - 0.15) / 2 = 0.275, but for now we're using 0.2 to be safe.
@@ -112,8 +112,8 @@ class TestLStarAsymmetric(unittest.TestCase):
 
     @parameterized.expand([(0.10, 0.40), (0.60, 0.90)])
     def test_modulo_asymmetric_non_straddling(self, p_0, p_1):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=p_0, p_1=p_1)
         # signal = (p_1 - p_0) / 2, so 0.15 in both cases.
@@ -124,8 +124,8 @@ class TestLStarAsymmetric(unittest.TestCase):
 
     def test_one_sided_noise(self):
         """One class is pure coin-flip (p_0=0.50), only the other carries signal."""
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.50, p_1=0.80)
         # signal = 0.15, boundary = 0.65
@@ -138,7 +138,7 @@ class TestLStarAsymmetric(unittest.TestCase):
 class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
     def test_no_orf(self, signal):
-        oracle_creator = AllFramesClosedOracle
+        oracle_creator = lambda nm, s: NoisyOracle(AllFramesClosedOracle(), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=signal, seed=0)
         assertDFA(self, dfa, oracle_creator, symbols=4)
 
@@ -155,7 +155,7 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             min_accept_or_reject=0.15,
         )
         print(outer)
-        oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
@@ -185,7 +185,7 @@ class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
             max_attempts=50000,
         )
         print(outer)
-        oracle_creator = lambda nm, s, _dfa=outer: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
@@ -251,7 +251,9 @@ class TestLStarBimodalReproducer(unittest.TestCase):
     )
 
     def test_bimodal_reproducer(self):
-        oracle_creator = lambda nm, s, _dfa=self.DFA: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=self.DFA: NoisyOracle(
+            DFAOracle(_dfa), nm, s
+        )
         # Accept state 9 is absorbing and reachable from the reject cluster, so a
         # random suffix almost always drives a reject prefix into it: no suffix is
         # accept-preserving, so no accept-preserving family exists for the round
@@ -295,7 +297,7 @@ class TestLStarDeepCounter(unittest.TestCase):
             final_states={k},
             allow_partial=False,
         )
-        oracle_creator = lambda nm, s, _d=dfa: DFAOracle(nm, s, _d)
+        oracle_creator = lambda nm, s, _d=dfa: NoisyOracle(DFAOracle(_d), nm, s)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
 
@@ -367,6 +369,6 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
                 "no benchmark with a pair distinguishable by < "
                 f"{self.HARD_PAIR_FRACTION} of length-40 suffixes in 10000 seeds"
             )
-        oracle_creator = lambda nm, s, _d=outer: DFAOracle(nm, s, _d)
+        oracle_creator = lambda nm, s, _d=outer: NoisyOracle(DFAOracle(_d), nm, s)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
