@@ -22,22 +22,19 @@ def learn_superlanguage(
     min_signal_strength: float,
     seed: int,
     num_symbols: int = DEFAULT_SAMPLE_LENGTH,
-    num_compilations: int = 1,
     noise_model: Optional[NoiseModel] = None,
     min_suffix_frequency: float = 0.02,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
 ) -> Tuple[Any, List[RoundClassifier]]:
     """Where base_oracle is deterministic and blind to how the wildcards were
     filled, so is the lifted one, and noise reaches the learner through noise_model
-    alone. Raising num_compilations is what a base_oracle that does read the fill
-    needs instead. dfa is None if synthesis reached no hypothesis.
+    alone. dfa is None if synthesis reached no hypothesis.
     """
 
     def oracle_creator(nm, s):
         return LiftedOracle(
             base_oracle,
             vocabulary,
-            num_compilations=num_compilations,
             seed=s,
             noise_model=nm,
         )

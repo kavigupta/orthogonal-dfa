@@ -9,19 +9,19 @@ from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
 
 
-def _compilation_seed(string: List[int], seed: int, index: int) -> int:
+def _compilation_seed(string: List[int], seed: int) -> int:
     """Deterministic in its arguments, so a query can be cached."""
-    digest = hashlib.blake2b(
-        repr((list(string), seed, index)).encode(), digest_size=8
-    ).digest()
+    digest = hashlib.blake2b(repr((list(string), seed)).encode(), digest_size=8).digest()
     return int.from_bytes(digest, "big")
 
 
 class LiftedOracle(Oracle):
-    """Majority vote over num_compilations compilations, which only moves the
-    answer for a base oracle that can see how the wildcards were filled. No
-    default, since only the caller knows whether theirs can. An even count breaks
-    ties toward accept.
+    """Labels a super-string by what one of its compilations is labelled.
+
+    Which one is fixed by the string and the seed, so the answer is a function of
+    the query.  That is the whole language only where the base oracle cannot see
+    how the wildcards were filled -- where it can, ``super_target_dfa`` says so
+    rather than there being an answer to average.
     """
 
     def __init__(
@@ -29,18 +29,15 @@ class LiftedOracle(Oracle):
         base_oracle: Oracle,
         vocabulary: KmerVocabulary,
         *,
-        num_compilations: int,
         seed: int = 0,
         noise_model: Optional[NoiseModel] = None,
     ):
-        assert num_compilations >= 1, "need at least one compilation to vote on"
         assert base_oracle.alphabet_size == vocabulary.base_alphabet_size, (
             f"base oracle alphabet ({base_oracle.alphabet_size}) does not match "
             f"the vocabulary's base alphabet ({vocabulary.base_alphabet_size})"
         )
         self._base = base_oracle
         self._vocab = vocabulary
-        self._num_compilations = num_compilations
         self._seed = seed
         self._noise_model = noise_model
 
@@ -51,20 +48,15 @@ class LiftedOracle(Oracle):
     def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # One batch for the whole cross product: the base oracle may be a model
-        # that is far cheaper called once.
-        repeated: List[List[int]] = []
-        rngs: List[np.random.Generator] = []
-        for string in strings:
-            for j in range(self._num_compilations):
-                repeated.append(string)
-                rngs.append(
-                    np.random.default_rng(_compilation_seed(string, self._seed, j))
-                )
-        flat = self._vocab.compile_many(repeated, rngs)
-        base = np.asarray(self._base.membership_queries(flat), dtype=bool)
-        assert base.shape == (len(flat),), "base oracle dropped answers"
-        votes = base.reshape(len(strings), self._num_compilations).mean(axis=1) >= 0.5
+        # One batch for all of them: the base oracle may be a model that is far
+        # cheaper called once.
+        rngs = [
+            np.random.default_rng(_compilation_seed(string, self._seed))
+            for string in strings
+        ]
+        compiled = self._vocab.compile_many(strings, rngs)
+        votes = np.asarray(self._base.membership_queries(compiled), dtype=bool)
+        assert votes.shape == (len(strings),), "base oracle dropped answers"
         if self._noise_model is not None:
             votes = np.array(
                 [

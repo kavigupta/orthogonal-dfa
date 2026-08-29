@@ -78,7 +78,7 @@ class TestLiftedOracle(unittest.TestCase):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         self.X = self.vocab.unknown_symbol
         self.base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
-        self.oracle = LiftedOracle(self.base, self.vocab, num_compilations=6, seed=0)
+        self.oracle = LiftedOracle(self.base, self.vocab, seed=0)
 
     def test_alphabet_size_is_super(self):
         self.assertEqual(self.oracle.alphabet_size, self.vocab.alphabet_size)
@@ -94,42 +94,16 @@ class TestLiftedOracle(unittest.TestCase):
         b = self.oracle.membership_queries(query)
         np.testing.assert_array_equal(a, b)
 
-    def test_x_insensitive_label(self):
-        # Invertibility makes the vote unanimous, so one compilation settles it.
-        one = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
-        many = LiftedOracle(self.base, self.vocab, num_compilations=16, seed=0)
-        sampler = SuperSampler(self.vocab, 40)
-        rng = np.random.default_rng(5)
-        strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(200)]
-        np.testing.assert_array_equal(
-            one.membership_queries(strings), many.membership_queries(strings)
-        )
-
-    def test_majority_vote_over_compilations(self):
-        # A lone wildcard is uniform over the base alphabet, so three draws in four
-        # are non-A and the vote goes that way; the mirrored oracle goes the other.
-        vocab = KmerVocabulary(kmers=((0, 1),), base_alphabet_size=4)
-        x = vocab.unknown_symbol
-        mostly = LiftedOracle(
-            _PredicateOracle(lambda s: s[0] != 0), vocab, num_compilations=64, seed=0
-        )
-        rarely = LiftedOracle(
-            _PredicateOracle(lambda s: s[0] == 0), vocab, num_compilations=64, seed=0
-        )
-        self.assertTrue(mostly.membership_query([x]))
-        self.assertFalse(rarely.membership_query([x]))
-
     def test_the_noise_model_reaches_the_answer(self):
         # p_correct=0 inverts every label, so a noised oracle must contradict a
         # clean one everywhere.
         sampler = SuperSampler(self.vocab, 20)
         rng = np.random.default_rng(7)
         strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(50)]
-        clean = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
+        clean = LiftedOracle(self.base, self.vocab, seed=0)
         flipped = LiftedOracle(
             self.base,
             self.vocab,
-            num_compilations=1,
             seed=0,
             noise_model=SymmetricBernoulli(p_correct=0.0),
         )
@@ -144,8 +118,8 @@ class TestLiftedOracle(unittest.TestCase):
         x = vocab.unknown_symbol
         base = _PredicateOracle(lambda s: s[0] != 0)
         strings = [[x] * n for n in range(1, 40)]
-        first = LiftedOracle(base, vocab, num_compilations=1, seed=0)
-        second = LiftedOracle(base, vocab, num_compilations=1, seed=1)
+        first = LiftedOracle(base, vocab, seed=0)
+        second = LiftedOracle(base, vocab, seed=1)
         self.assertTrue(
             (
                 first.membership_queries(strings) != second.membership_queries(strings)
@@ -196,12 +170,7 @@ class TestLiftedOracle(unittest.TestCase):
             LiftedOracle(
                 _PredicateOracle(lambda s: True, alphabet_size=2),
                 self.vocab,
-                num_compilations=1,
             )
-
-    def test_needs_at_least_one_compilation(self):
-        with self.assertRaises(AssertionError):
-            LiftedOracle(self.base, self.vocab, num_compilations=0)
 
 
 class TestBuildPstWiring(unittest.TestCase):
@@ -213,9 +182,7 @@ class TestBuildPstWiring(unittest.TestCase):
         base = _PredicateOracle(lambda s: len(s) > 0 and s[0] == 0)
 
         def oracle_creator(noise_model, seed):
-            return LiftedOracle(
-                base, vocab, num_compilations=2, seed=seed, noise_model=noise_model
-            )
+            return LiftedOracle(base, vocab, seed=seed, noise_model=noise_model)
 
         pst = build_pst(
             oracle_creator,
@@ -254,15 +221,6 @@ class TestLearnForwarding(unittest.TestCase):
         lengths, _ = self._first_batch(num_symbols=7)
         self.assertTrue(7 <= max(lengths) <= 21, max(lengths))
 
-    def test_num_compilations_reaches_the_oracle(self):
-        # What a super-string compiles to varies, but how long it is does not, and
-        # the compilations of one arrive together. Three of them is the same batch
-        # as one with every entry tripled.
-        once, _ = self._first_batch(num_symbols=7, num_compilations=1)
-        thrice, _ = self._first_batch(num_symbols=7, num_compilations=3)
-        self.assertTrue(once)
-        self.assertEqual(thrice, [n for n in once for _ in range(3)])
-
     def test_the_noise_model_reaches_the_tracker(self):
         _, noise = self._first_batch(num_symbols=7)
         self.assertGreater(noise.calls, 0)
@@ -276,9 +234,7 @@ class TestSuffixFamily(unittest.TestCase):
     def _tracker(self, vocab, num_symbols=20):
         base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
         return build_pst(
-            lambda nm, s: LiftedOracle(
-                base, vocab, num_compilations=1, seed=s, noise_model=nm
-            ),
+            lambda nm, s: LiftedOracle(base, vocab, seed=s, noise_model=nm),
             min_signal_strength=0.3,
             seed=0,
             sampler=SuperSampler(vocab, num_symbols),
@@ -337,7 +293,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
         )
         self.assertIsNotNone(dfa)
 
-        oracle = LiftedOracle(base, vocab, num_compilations=1, seed=0)
+        oracle = LiftedOracle(base, vocab, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
         assert_rounds_accept_preserving(classifiers, oracle.target_dfa(), signal)
         sampler = SuperSampler(vocab, 40)
@@ -404,7 +360,7 @@ class TestLiftedTargetDfa(unittest.TestCase):
     def setUp(self):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         self.base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
-        self.oracle = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
+        self.oracle = LiftedOracle(self.base, self.vocab, seed=0)
 
     def test_agrees_with_what_the_oracle_answers(self):
         dfa = self.oracle.target_dfa()
@@ -417,7 +373,7 @@ class TestLiftedTargetDfa(unittest.TestCase):
         )
 
     def test_none_when_the_base_has_no_target(self):
-        oracle = LiftedOracle(_NoTargetOracle(), self.vocab, num_compilations=1, seed=0)
+        oracle = LiftedOracle(_NoTargetOracle(), self.vocab, seed=0)
         self.assertIsNone(oracle.target_dfa())
 
 
