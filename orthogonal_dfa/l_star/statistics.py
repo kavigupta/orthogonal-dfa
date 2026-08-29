@@ -22,7 +22,7 @@ def _binom_cdf(k, n, p):
 
 
 def population_size_and_evidence_margin(
-    signal_strength, acceptable_fpr, acceptable_fnr
+    signal_strength, acceptable_fpr, acceptable_fnr, *, center
 ) -> Tuple[int, float]:
     """
     Decisions will be made by taking N samples and seeing if the proportion is outside
@@ -33,6 +33,12 @@ def population_size_and_evidence_margin(
     the true distribution) at most acceptable_fnr.
     """
     assert signal_strength > 0
+    # Both class rates have to be probabilities. Otherwise no band ever meets the
+    # FNR and the search below doubles N forever rather than failing.
+    assert 0 <= center - signal_strength and center + signal_strength <= 1, (
+        center,
+        signal_strength,
+    )
     N_low = 1
     N_high = None
     while N_high is None or N_low < N_high:
@@ -41,14 +47,14 @@ def population_size_and_evidence_margin(
         else:
             N_try = (N_low + N_high) // 2
         result = evidence_margin_for_population_size(
-            signal_strength, acceptable_fpr, acceptable_fnr, N_try
+            signal_strength, acceptable_fpr, acceptable_fnr, N_try, center=center
         )
         if result is None:
             N_low = N_try + 1
         else:
             N_high = N_try
     res = evidence_margin_for_population_size(
-        signal_strength, acceptable_fpr, acceptable_fnr, N_high
+        signal_strength, acceptable_fpr, acceptable_fnr, N_high, center=center
     )
     assert res is not None
     return res
@@ -85,15 +91,19 @@ def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
 
 
 def evidence_margin_for_population_size(
-    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center=0.5
+    signal_strength, acceptable_fpr, acceptable_fnr, N, *, center
 ) -> Optional[Tuple[int, float]]:
     """
     See population_size_and_evidence_margin for context.
     """
     for k_low, k_high, eps in candidate_tests(N, center):
         fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
-        fnr = _binom_cdf(k_high - 1, N, signal_strength + center) - _binom_cdf(
-            k_low, N, signal_strength + center
+        # Consider the false-negative rate for both elements
+        # at margin above and below the center.
+        fnr = max(
+            _binom_cdf(k_high - 1, N, center + side)
+            - _binom_cdf(k_low, N, center + side)
+            for side in (signal_strength, -signal_strength)
         )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
             return N, eps
