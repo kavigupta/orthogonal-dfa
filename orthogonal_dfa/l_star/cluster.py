@@ -131,9 +131,13 @@ def certification_sample(pst, vs, amount: int):
     return family.mean(1), np.asarray(read[len(pairs) :])
 
 
-def _split_counts(pst, decision, seed_row, extra):
+def _split_counts(pst, decision, seed_row, extra=None):
     """``((hits, n), (hits, n))`` for the accept and reject sides of the cut,
-    counted on the split's own column, or ``None`` if a side is empty."""
+    counted on the split's own column.
+
+    Both sides carry prefixes: a family that leaves one empty has an FNR of 1,
+    and is resampled without ever reaching the gate.
+    """
     column = pst.table.column(seed_row)[pst.table.representative]
     if extra is not None:
         extra_decision, extra_column = extra
@@ -142,9 +146,7 @@ def _split_counts(pst, decision, seed_row, extra):
     counts = []
     for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
         n = int(side.sum())
-        # One side on its own says nothing about a gap.
-        if n == 0:
-            return None
+        assert n, "a gap needs both sides of the cut"
         counts.append((int(column[side].sum()), n))
     return tuple(counts)
 
@@ -216,9 +218,7 @@ def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
     held = len(pst.table.prefixes)
     columns = max(1, len(pst.table.fully_observed()))
     budget = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
-    counts = _split_counts(pst, decision, seed_row, None)
-    if counts is None:
-        return budget
+    counts = _split_counts(pst, decision, seed_row)
     signal = pst.config.min_signal_strength
     for multiple in range(2, 2 + budget // max(held, 1)):
         supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
@@ -230,7 +230,10 @@ def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
 class AcceptPreservingGate:
     """Holds each suffix family to the accept-preserving split, across the loop
     that resamples until one passes.  Carries the give-up budget, spent on every
-    round that does not produce a family the split can be certified on."""
+    round that does not produce a family the split can be certified on.
+
+    Nothing resets that budget: admitting a family is the round returning, and
+    the gate is made afresh for the next search."""
 
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
@@ -241,28 +244,21 @@ class AcceptPreservingGate:
             return ADMITTED
         signal = pst.config.min_signal_strength
         tolerated = tolerated_drift(signal, pst.evidence_margin)
-        counts = _split_counts(pst, decision, seed_row, None)
-        verdict = (
-            ADMITTED if counts is None else drift_verdict(counts, signal, tolerated)
-        )
-        if counts is None or verdict is UNCERTIFIED:
+        counts = _split_counts(pst, decision, seed_row)
+        verdict = drift_verdict(counts, signal, tolerated)
+        if verdict is UNCERTIFIED:
             # Undecided on what the pool holds, and the pool is the dear way to
             # ask: draw prefixes for the split alone and read it again.
             wanted = prefixes_to_certify(pst, decision, seed_row, vs, tolerated)
             counts = _split_counts(
                 pst, decision, seed_row, certification_sample(pst, vs, wanted)
             )
-            verdict = (
-                UNCERTIFIED
-                if counts is None
-                else drift_verdict(counts, signal, tolerated)
-            )
+            verdict = drift_verdict(counts, signal, tolerated)
         if verdict is ADMITTED:
-            self.refusals = 0
             return ADMITTED
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            drift = 1.0 if counts is None else observed_drift(counts, signal)
+            drift = observed_drift(counts, signal)
             settled = "past" if verdict is DRIFTED else "neither inside nor past"
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running put {drift:.0%} of each class "
