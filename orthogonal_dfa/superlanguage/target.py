@@ -1,11 +1,16 @@
-"""The lifted oracle's language, as a DFA over the super alphabet.
+"""The language a base DFA induces over the super alphabet, as a DFA.
 
-A super-string's compilations are the base strings that parse back to it, so a
-fill may not start a kmer.  Whether it does depends on the symbols after it, which
-a left-to-right walk has not read yet, so an element carries the last
-``max kmer length - 1`` base symbols and which of them a wildcard produced; a fill
-dies when a kmer completes over one of those.  The super state is the set of base
-states the surviving fills are in, and it accepts when they all do.
+A super-string's compilations are the base strings that parse back to it, so no
+wildcard's fill is allowed to start a kmer: such a string parses to that kmer
+instead, making it a compilation of some other super-string.
+
+Whether a fill starts one depends on the symbols after it, which a left-to-right
+walk has not read yet.  So an element carries the last ``max kmer length - 1``
+base symbols and which of them a wildcard produced, and drops a fill once a kmer
+completes over one of those.
+
+A super state is the set of base states the surviving fills are in, and accepts
+when they all do.
 """
 
 from typing import Optional, Tuple
