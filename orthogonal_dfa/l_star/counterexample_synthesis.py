@@ -146,7 +146,7 @@ def _grow_representative_pool(
         pst.rng,
         pst.sampler.length,
         per_state,
-        weights=pst.sampler.symbol_weights(pst.rng, pst.alphabet_size),
+        weights=pst.sampler.symbol_weights(pst.alphabet_size),
         existing=state.sampled,
     )
     representative = state.baseline + state.accumulated + state.sampled

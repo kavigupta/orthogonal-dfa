@@ -35,10 +35,13 @@ class _RareFirstSymbol(Sampler):
         self.length = length
         self._alphabet_size = alphabet_size
 
+    def symbol_weights(self, alphabet_size):
+        return [RARE] + [(1 - RARE) / (alphabet_size - 1)] * (alphabet_size - 1)
+
     def sample(self, rng, alphabet_size):
-        rest = (1 - RARE) / (alphabet_size - 1)
-        probs = [RARE] + [rest] * (alphabet_size - 1)
-        return rng.choice(alphabet_size, size=self.length, p=probs).tolist()
+        return rng.choice(
+            alphabet_size, size=self.length, p=self.symbol_weights(alphabet_size)
+        ).tolist()
 
 
 def _sink(alphabet_size):
@@ -60,14 +63,13 @@ def _rate_of_symbol_zero(strings):
 class TestSymbolWeights(unittest.TestCase):
     def test_uniform_weighs_every_symbol_the_same(self):
         # Integers, so the path counts stay a count of strings.
-        self.assertEqual(UniformSampler(LENGTH).symbol_weights(None, 3), [1, 1, 1])
+        self.assertEqual(UniformSampler(LENGTH).symbol_weights(3), [1, 1, 1])
 
     def test_only_the_ratios_of_the_weights_are_read(self):
         # Scaling every weight scales the mass at each depth by the same factor,
         # which the walk divides out -- so weights need not be probabilities.
-        rng = np.random.default_rng(0)
-        scaled = [3 * w for w in _RareFirstSymbol(LENGTH).symbol_weights(rng, 3)]
-        plain = _RareFirstSymbol(LENGTH).symbol_weights(np.random.default_rng(0), 3)
+        scaled = [3 * w for w in _RareFirstSymbol(LENGTH).symbol_weights(3)]
+        plain = _RareFirstSymbol(LENGTH).symbol_weights(3)
         walk = lambda ws, seed: [
             sample_string_reaching_state(
                 _sink(3),
@@ -85,7 +87,7 @@ class TestSymbolWeights(unittest.TestCase):
 
     def test_weights_recover_the_samplers_own_rate(self):
         sampler = _RareFirstSymbol(LENGTH)
-        weights = sampler.symbol_weights(np.random.default_rng(0), 3)
+        weights = sampler.symbol_weights(3)
         self.assertAlmostEqual(weights[0], RARE, delta=0.01)
 
 
@@ -93,7 +95,7 @@ class TestWeightedWalk(unittest.TestCase):
     def test_the_walk_matches_the_sampler(self):
         sampler = _RareFirstSymbol(LENGTH)
         rng = np.random.default_rng(0)
-        weights = sampler.symbol_weights(rng, 3)
+        weights = sampler.symbol_weights(3)
         counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
         walked = [
             sample_string_reaching_state(_sink(3), counts, rng, weights)
@@ -121,7 +123,7 @@ class TestWeightedWalk(unittest.TestCase):
         # symbol leads to the same state they cannot express a preference.
         sampler = _RareFirstSymbol(LENGTH)
         rng = np.random.default_rng(0)
-        weights = sampler.symbol_weights(rng, 3)
+        weights = sampler.symbol_weights(3)
         counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
         walked = [
             sample_string_reaching_state(
@@ -146,7 +148,7 @@ class TestWeightedWalk(unittest.TestCase):
         length, target = 12, 1
         sampler = _RareFirstSymbol(length, 2)
         rng = np.random.default_rng(0)
-        weights = sampler.symbol_weights(rng, 2)
+        weights = sampler.symbol_weights(2)
 
         def endpoint(w):
             q = 0
@@ -176,7 +178,7 @@ class TestWeightedWalk(unittest.TestCase):
     def test_a_reachability_constraint_still_holds(self):
         # Weighting changes which strings are likely, never which are possible.
         rng = np.random.default_rng(0)
-        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(rng, 2)
+        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(2)
         counts = count_paths_to_state(PARITY, 1, LENGTH, weights)
         for _ in range(200):
             string = sample_string_reaching_state(PARITY, counts, rng, weights)
@@ -192,7 +194,7 @@ class TestPerStateSampleFollowsTheSampler(unittest.TestCase):
         # Long enough that asking for distinct strings is not itself most of the
         # story: 40 of 2**19 leaves the weighting room to show.
         rng = np.random.default_rng(0)
-        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(rng, 2)
+        weights = _RareFirstSymbol(LENGTH, 2).symbol_weights(2)
         skewed = per_state_sample(PARITY, rng, LENGTH, 40, weights=weights)
         even = per_state_sample(
             PARITY, rng, LENGTH, 40, weights=uniform_weights(PARITY)

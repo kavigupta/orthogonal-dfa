@@ -209,6 +209,9 @@ class _ZeroRunSampler(Sampler):
     def sample(self, rng, alphabet_size):
         return [0] * self.length
 
+    def symbol_weights(self, alphabet_size):
+        return [1] + [0] * (alphabet_size - 1)
+
 
 class TestSampler(unittest.TestCase):
     """The conditions are properties of the target under a sampling distribution,
