@@ -233,6 +233,13 @@ class AcceptPreservingGate:
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
+    """A suffix family clustered around ``v``, held to the accept-preserving
+    split before it is returned.
+
+    ``v`` is the empty suffix from either caller, and the gate reads the split
+    off its column on the strength of that: membership of ``p + v`` is
+    membership of ``p`` only while ``v`` is empty.
+    """
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
