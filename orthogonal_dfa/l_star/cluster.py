@@ -101,6 +101,12 @@ def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float
 
     and the decision only calls that side accepting while it stays at or past
     ``boundary + evidence_margin``, which bounds f.
+
+    Per side, but the gap the drift is read from closes by the two sides added
+    together and cannot say which of them it came off.  So the sum is held to
+    this, which is what it takes for either side alone to be: the other could be
+    carrying none of it.  Two sides carrying half of it each are refused for the
+    same reason -- from the gap they read as one side carrying all of it.
     """
     return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
 
@@ -144,7 +150,9 @@ def _split_counts(pst, decision, seed_row, extra):
 
 
 def observed_drift(counts, signal: float) -> float:
-    """Share of the cut that is the other class, as the counts read it."""
+    """The two sides' shares of the other class added together, as the counts
+    read it.  The gap closes by ``2 * signal`` times that sum, and cannot say
+    which side it came off."""
     (hits_a, n_a), (hits_r, n_r) = counts
     return _clamp(1 - (hits_a / n_a - hits_r / n_r) / (2 * signal))
 
@@ -257,10 +265,10 @@ class AcceptPreservingGate:
             drift = 1.0 if counts is None else observed_drift(counts, signal)
             settled = "past" if verdict is DRIFTED else "neither inside nor past"
             raise NoAcceptPreservingFamily(
-                f"{self.refusals} families running read {drift:.0%} of each class "
-                f"on the other's side, {settled} the {tolerated:.0%} the decision "
-                f"can absorb; no suffix family realises the accept-preserving "
-                f"split on this target"
+                f"{self.refusals} families running put {drift:.0%} of each class "
+                f"on the other's side between them, {settled} the {tolerated:.0%} "
+                f"a side may carry; no suffix family realises the "
+                f"accept-preserving split on this target"
             )
         return verdict
 
