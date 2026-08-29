@@ -202,28 +202,31 @@ def drift_verdict(counts, signal: float, tolerated: float) -> str:
     return UNCERTIFIED
 
 
-def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
+def prefixes_to_certify(pst, counts, vs, tolerated: float) -> int:
     """How many prefixes to draw for the split alone, to settle a verdict the
     prefixes in hand left undecided.
 
     How many it takes depends on the rates, so the rates in hand are the guess:
-    if the same ones held over twice the prefixes, or three times, would the
+    if the same ones held over twice the counts, or three times, would the
     verdict come out decided?  The first multiple that would is the answer.
+
+    Drawn against the representative prefixes, which are what the sampler
+    returns, so a draw of that size again brings a side of that size again --
+    the core is not drawn and does not count toward it.
 
     Never more than the round of pooled prefixes this stands in for would have
     cost.  One of those spends a query on every fully observed column, where one
     read for the split spends a query per family member and one for the split
     itself, so the budget in prefixes is the ratio between them.
     """
-    held = len(pst.table.prefixes)
+    drawn = max(1, int(pst.table.representative.sum()))
     columns = max(1, len(pst.table.fully_observed()))
     budget = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
-    counts = _split_counts(pst, decision, seed_row)
     signal = pst.config.min_signal_strength
-    for multiple in range(2, 2 + budget // max(held, 1)):
+    for multiple in range(2, 2 + budget // drawn):
         supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
         if drift_verdict(supposed, signal, tolerated) is not UNCERTIFIED:
-            return held * (multiple - 1)
+            return drawn * (multiple - 1)
     return budget
 
 
@@ -249,7 +252,7 @@ class AcceptPreservingGate:
         if verdict is UNCERTIFIED:
             # Undecided on what the pool holds, and the pool is the dear way to
             # ask: draw prefixes for the split alone and read it again.
-            wanted = prefixes_to_certify(pst, decision, seed_row, vs, tolerated)
+            wanted = prefixes_to_certify(pst, counts, vs, tolerated)
             counts = _split_counts(
                 pst, decision, seed_row, certification_sample(pst, vs, wanted)
             )
