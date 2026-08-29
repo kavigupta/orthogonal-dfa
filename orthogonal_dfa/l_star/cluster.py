@@ -107,18 +107,10 @@ def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float
     return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
 
 
-def _share(displacement: float, signal: float) -> float:
-    """The displacement of a side's rate, as the share of it that is the other
-    class: a share of ``f`` moves the rate by ``2 * signal * f``."""
-    return min(1.0, max(0.0, displacement / (2 * signal)))
-
-
-def _rate_interval(hits: int, n: int) -> Tuple[float, float]:
-    """Clopper-Pearson interval for ``hits``/``n``."""
-    conf = ACCEPT_PRESERVING_CONFIDENCE
-    low = scipy.stats.beta.ppf(conf, hits, n - hits + 1) if hits else 0.0
-    high = scipy.stats.beta.ppf(1 - conf, hits + 1, n - hits) if hits < n else 1.0
-    return float(low), float(high)
+#: Nuisance rates tried when maximising the p-value below.  The reject side's own
+#: rate is unknown and the test has to hold whatever it is, so it is maximised
+#: over rather than estimated.
+NUISANCE_GRID = 201
 
 
 def certification_sample(pst, vs, amount: int):
@@ -159,47 +151,57 @@ def _split_counts(pst, decision, seed_row, extra):
     return tuple(counts)
 
 
-def _gap_interval(counts, signal: float) -> Tuple[float, float]:
-    """Interval on the share of the cut that is the other class, from the gap the
-    split's column reads across it."""
-    rates = [(h / n,) + _rate_interval(h, n) for h, n in counts]
-    (acc, acc_low, acc_high), (rej, rej_low, rej_high) = rates
-    # Newcombe: each side carries its own error into the difference.
-    gap = acc - rej
-    below = ((acc - acc_low) ** 2 + (rej_high - rej) ** 2) ** 0.5
-    above = ((acc_high - acc) ** 2 + (rej - rej_low) ** 2) ** 0.5
-    return (
-        _share(2 * signal - (gap + above), signal),
-        _share(2 * signal - (gap - below), signal),
-    )
+def observed_drift(counts, signal: float) -> float:
+    """Share of the cut that is the other class, as the counts read it."""
+    (hits_a, n_a), (hits_r, n_r) = counts
+    return _clamp(1 - (hits_a / n_a - hits_r / n_r) / (2 * signal))
 
 
-def accept_preserving_drift(pst, decision, seed_row, extra=None) -> Tuple[float, float]:
-    """Interval on the share of the family's cut that is the other class.
+def _gap_pvalue(counts, gap: float, wider: bool) -> float:
+    """Chance of a gap at least (or at most) the observed one, were the true gap
+    exactly ``gap``.
 
-    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so its
-    column is the accept-preserving split itself: a family that realises the
-    split reads it ``2 * signal`` apart across its own cut, and mixing the
-    classes closes that gap in proportion to the share mixed in.
-
-    Read as the gap, rather than as two rates about ``decision_boundary``.  That
-    boundary is estimated from the family's decision, a mean over all its
-    suffixes, while this is a single column of one; whatever displaces the two
-    together belongs to that difference and not to the split, and a gap does not
-    see it where a pair of rates does.
+    Exact throughout: the accept count is summed over its binomial and each term
+    weighted by the reject side's own binomial tail, then maximised over the
+    reject rate, which is a nuisance the test has to hold for whatever it is.
+    A difference of two binomials is not normal at these counts and is not
+    treated as one.
     """
-    counts = _split_counts(pst, decision, seed_row, extra)
-    if counts is None:
-        return 0.0, 1.0
-    return _gap_interval(counts, pst.config.min_signal_strength)
+    (hits_a, n_a), (hits_r, n_r) = counts
+    observed = hits_a / n_a - hits_r / n_r
+    accepts = np.arange(n_a + 1)
+    edge = n_r * (accepts / n_a - observed)
+    worst = 0.0
+    for rate in np.linspace(0, max(0.0, 1 - gap), NUISANCE_GRID):
+        weight = scipy.stats.binom.pmf(accepts, n_a, min(1.0, rate + gap))
+        reject_side = (
+            scipy.stats.binom.cdf(np.floor(edge), n_r, rate)
+            if wider
+            else scipy.stats.binom.sf(np.ceil(edge) - 1, n_r, rate)
+        )
+        worst = max(worst, float((weight * reject_side).sum()))
+    return worst
+
+
+def _clamp(share: float) -> float:
+    return min(1.0, max(0.0, share))
+
+
+def drift_verdict(counts, signal: float, tolerated: float) -> str:
+    """Whether the cut carries more of each class on the other's side than the
+    decision can absorb, or less, or whether the counts do not say."""
+    # The gap a family drifted exactly to the tolerance would read.
+    gap = 2 * signal * (1 - tolerated)
+    if _gap_pvalue(counts, gap, wider=True) <= ACCEPT_PRESERVING_CONFIDENCE:
+        return ADMITTED
+    if _gap_pvalue(counts, gap, wider=False) <= ACCEPT_PRESERVING_CONFIDENCE:
+        return DRIFTED
+    return UNCERTIFIED
 
 
 def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
-    """Prefixes to draw for the split alone, enough that the gap it reads closes
-    on ``tolerated`` at the rates the evidence in hand already shows.
-
-    Grown against the interval itself rather than a normal's square root: it is a
-    Clopper-Pearson interval, and at these counts the two do not agree.
+    """Prefixes to draw for the split alone, enough to admit the family at the
+    rates the evidence in hand already shows.
 
     Capped where the draw costs what the round it stands in for would have.
     Growing the pool spends a query on every fully observed column; a prefix read
@@ -213,11 +215,11 @@ def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
     if counts is None:
         return parity
     signal = pst.config.min_signal_strength
-    # Scale the counts as drawing more of the same would, and stop where the
-    # interval clears; beyond parity the pool round was the cheaper way to ask.
+    # Scale the counts as drawing more of the same would, and stop where that
+    # would settle it; past parity the pool round was the cheaper way to ask.
     for scale in range(2, 2 + parity // max(held, 1)):
-        grown = tuple((h * scale, n * scale) for h, n in counts)
-        if _gap_interval(grown, signal)[1] <= tolerated:
+        grown = tuple((hits * scale, n * scale) for hits, n in counts)
+        if drift_verdict(grown, signal, tolerated) is not UNCERTIFIED:
             return held * (scale - 1)
     return parity
 
@@ -236,19 +238,28 @@ class AcceptPreservingGate:
         if not self.enabled:
             return ADMITTED
         tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
-        low, high = accept_preserving_drift(pst, decision, seed_row)
-        if tolerated < high:
+        signal = pst.config.min_signal_strength
+        counts = _split_counts(pst, decision, seed_row, None)
+        verdict = (
+            ADMITTED if counts is None else drift_verdict(counts, signal, tolerated)
+        )
+        if counts is None or verdict is UNCERTIFIED:
             # Undecided on what the pool holds, and the pool is the dear way to
             # ask: draw prefixes for the split alone and read it again.
             wanted = prefixes_to_certify(pst, decision, seed_row, vs, tolerated)
-            low, high = accept_preserving_drift(
+            counts = _split_counts(
                 pst, decision, seed_row, certification_sample(pst, vs, wanted)
             )
-        if high <= tolerated:
+            verdict = (
+                UNCERTIFIED
+                if counts is None
+                else drift_verdict(counts, signal, tolerated)
+            )
+        drift = 1.0 if counts is None else observed_drift(counts, signal)
+        if verdict is ADMITTED:
             self.rejections = self.uncertified = 0
             return ADMITTED
-        # Drift this far is consistent with the evidence but so is none of it.
-        if low <= tolerated:
+        if verdict is UNCERTIFIED:
             self.uncertified += 1
             # The interval narrows with the prefixes, so a family still straddling
             # the tolerance after this many rounds of them is sitting on it, and
@@ -256,16 +267,16 @@ class AcceptPreservingGate:
             if self.uncertified >= ACCEPT_PRESERVING_GIVE_UP:
                 raise NoAcceptPreservingFamily(
                     f"{self.uncertified} rounds of prefixes left the family's "
-                    f"drift somewhere in [{low:.0%}, {high:.0%}], astride the "
-                    f"{tolerated:.0%} the decision can absorb; no suffix family "
-                    f"realises the accept-preserving split on this target"
+                    f"drift, {drift:.0%} as they read it, neither inside the "
+                    f"{tolerated:.0%} the decision can absorb nor out; no suffix "
+                    f"family realises the accept-preserving split on this target"
                 )
             return UNCERTIFIED
         self.rejections += 1
         if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
             raise NoAcceptPreservingFamily(
-                f"{self.rejections} families running carried at least "
-                f"{low:.0%} of each class on the other's side, past the "
+                f"{self.rejections} families running carried {drift:.0%} "
+                f"of each class on the other's side, past the "
                 f"{tolerated:.0%} the decision can absorb; no suffix family "
                 f"realises the accept-preserving split on this target"
             )
