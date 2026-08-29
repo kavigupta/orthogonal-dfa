@@ -221,19 +221,18 @@ def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
 
 class AcceptPreservingGate:
     """Holds each suffix family to the accept-preserving split, across the loop
-    that resamples until one passes.  Spends the give-up budget only on families
-    shown to have drifted, never on ones there was not the evidence to judge."""
+    that resamples until one passes.  Carries the give-up budget, spent on every
+    round that does not produce a family the split can be certified on."""
 
     def __init__(self, config):
         self.enabled = config.require_accept_preserving
-        self.rejections = 0
-        self.uncertified = 0
+        self.refusals = 0
 
     def verdict(self, pst, decision, seed_row, vs) -> str:
         if not self.enabled:
             return ADMITTED
-        tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
         signal = pst.config.min_signal_strength
+        tolerated = tolerated_drift(signal, pst.evidence_margin)
         counts = _split_counts(pst, decision, seed_row, None)
         verdict = (
             ADMITTED if counts is None else drift_verdict(counts, signal, tolerated)
@@ -250,32 +249,20 @@ class AcceptPreservingGate:
                 if counts is None
                 else drift_verdict(counts, signal, tolerated)
             )
-        drift = 1.0 if counts is None else observed_drift(counts, signal)
         if verdict is ADMITTED:
-            self.rejections = self.uncertified = 0
+            self.refusals = 0
             return ADMITTED
-        if verdict is UNCERTIFIED:
-            self.uncertified += 1
-            # The interval narrows with the prefixes, so a family still straddling
-            # the tolerance after this many rounds of them is sitting on it, and
-            # more will not settle what it is.
-            if self.uncertified >= ACCEPT_PRESERVING_GIVE_UP:
-                raise NoAcceptPreservingFamily(
-                    f"{self.uncertified} rounds of prefixes left the family's "
-                    f"drift, {drift:.0%} as they read it, neither inside the "
-                    f"{tolerated:.0%} the decision can absorb nor out; no suffix "
-                    f"family realises the accept-preserving split on this target"
-                )
-            return UNCERTIFIED
-        self.rejections += 1
-        if self.rejections >= ACCEPT_PRESERVING_GIVE_UP:
+        self.refusals += 1
+        if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
+            drift = 1.0 if counts is None else observed_drift(counts, signal)
+            settled = "past" if verdict is DRIFTED else "neither inside nor past"
             raise NoAcceptPreservingFamily(
-                f"{self.rejections} families running carried {drift:.0%} "
-                f"of each class on the other's side, past the "
-                f"{tolerated:.0%} the decision can absorb; no suffix family "
-                f"realises the accept-preserving split on this target"
+                f"{self.refusals} families running read {drift:.0%} of each class "
+                f"on the other's side, {settled} the {tolerated:.0%} the decision "
+                f"can absorb; no suffix family realises the accept-preserving "
+                f"split on this target"
             )
-        return DRIFTED
+        return verdict
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
@@ -308,10 +295,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         if len(vs) < pst.config.suffix_family_size:
             effective_fnr, reason = 1.0, "undersized"
         elif fnr <= pst.config.fnr_limit:
-            # Only a family the round would otherwise return is worth certifying.
-            # One still failing the FNR is being resampled whatever the split
-            # looks like, and asking anyway spends the budget for a verdict on a
-            # family that never had to have one.
+            # Certify only right before returning, as certifying is expensive.
             verdict = gate.verdict(pst, decision, v, vs)
             if verdict is DRIFTED:
                 effective_fnr, reason = 1.0, "not accept-preserving"
@@ -326,8 +310,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             return vs, decision_boundary
 
         if verdict is UNCERTIFIED:
-            # The bound is wide because the prefixes are few, and prefixes are
-            # what the split is read against.
+            # More suffixes will not change the fact that these ones are
+            # decisive but wrong; more prefixes will, by changing the distance
+            # the cluster is drawn on.
             strategy = "prefix"
         elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
