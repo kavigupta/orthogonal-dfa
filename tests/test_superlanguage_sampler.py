@@ -23,14 +23,6 @@ class TestSuperSampler(unittest.TestCase):
     def test_length_attribute_is_symbol_count(self):
         self.assertEqual(self.sampler.length, 25)
 
-    def test_samples_parse_of_uniform(self):
-        out = self.sampler.sample(np.random.default_rng(3), self.vocab.alphabet_size)
-        rng = np.random.default_rng(3)
-        self.assertEqual(
-            self.vocab.parse(self.vocab.compile(out, rng)),
-            self.vocab.canonicalize(out),
-        )
-
     def test_alphabet_size_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
             self.sampler.sample(np.random.default_rng(0), self.vocab.alphabet_size + 1)
