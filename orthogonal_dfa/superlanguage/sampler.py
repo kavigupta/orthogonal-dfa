@@ -18,9 +18,11 @@ class SuperSampler(Sampler):
     length: int
 
     def symbol_weights(self, alphabet_size: int) -> List[float]:
-        """A kmer lands where its own base symbols do, so a prefix-free kmer of
-        length L over B base symbols gets B**-L; parse emits a wildcard for every
-        base symbol that started no kmer, and they share what is left.
+        """How often parse emits each symbol, the base stream it reads being uniform.
+
+        A kmer of length L over B base symbols is emitted when the next L base
+        symbols happen to be it, so B**-L.  Everywhere else parse emits a
+        wildcard, and the wildcards share that evenly.
         """
         vocab = self.vocabulary
         assert alphabet_size == vocab.alphabet_size, (
