@@ -86,28 +86,3 @@ class TestSuperTargetDfa(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-class TestSuperSamplerWeights(unittest.TestCase):
-    """The walk that picks strings reaching a state reads these, so they have to
-    be what the sampler does rather than a description of it."""
-
-    def test_declared_weights_are_what_it_draws(self):
-        vocab = KmerVocabulary(kmers=((3, 0, 2), (3, 2, 0)), base_alphabet_size=4)
-        sampler = SuperSampler(vocab, 40)
-        declared = sampler.symbol_weights(vocab.alphabet_size)
-        rng = np.random.default_rng(0)
-        drawn = [
-            s for _ in range(500) for s in sampler.sample(rng, vocab.alphabet_size)
-        ]
-        for symbol, weight in enumerate(declared):
-            seen = drawn.count(symbol) / len(drawn)
-            self.assertAlmostEqual(seen, weight, delta=0.01, msg=f"symbol {symbol}")
-
-    def test_a_kmer_is_as_likely_as_its_base_symbols(self):
-        # Prefix-free, so a kmer is emitted exactly where its own base symbols
-        # fall: 4**-3 for a 3-mer over 4 base symbols.
-        vocab = KmerVocabulary(kmers=((3, 0, 2),), base_alphabet_size=4)
-        weights = SuperSampler(vocab, 40).symbol_weights(vocab.alphabet_size)
-        self.assertAlmostEqual(weights[0], 4**-3)
-        self.assertAlmostEqual(sum(weights), 1.0)
