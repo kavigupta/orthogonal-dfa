@@ -56,6 +56,23 @@ def _sink(alphabet_size):
     )
 
 
+def _mod3():
+    """Counts symbol 0 mod 3, so which state a symbol leads to depends on how
+    many of them came before -- the branch structure a sink DFA has none of."""
+    return DFA(
+        states={0, 1, 2},
+        input_symbols={0, 1},
+        transitions={q: {0: (q + 1) % 3, 1: q} for q in range(3)},
+        initial_state=0,
+        final_states={1},
+        allow_partial=False,
+    )
+
+
+def _zeros_per_string(strings):
+    return np.mean([sum(1 for s in w if s == 0) for w in strings])
+
+
 def _rate_of_symbol_zero(strings):
     return np.mean([[s == 0 for s in w] for w in strings])
 
@@ -67,22 +84,20 @@ class TestSymbolWeights(unittest.TestCase):
     def test_only_the_ratios_of_the_weights_are_read(self):
         # Scaling every weight scales the mass at each depth by the same factor,
         # which the walk divides out -- so weights need not be probabilities.
-        scaled = [3 * w for w in _RareFirstSymbol(LENGTH).symbol_weights(3)]
         plain = _RareFirstSymbol(LENGTH).symbol_weights(3)
-        walk = lambda ws, seed: [
-            sample_string_reaching_state(
-                _sink(3),
-                count_paths_to_state(_sink(3), 0, LENGTH, ws),
-                np.random.default_rng(seed),
-                ws,
-            )
-            for _ in range(200)
-        ]
-        self.assertAlmostEqual(
-            _rate_of_symbol_zero(walk(scaled, 1)),
-            _rate_of_symbol_zero(walk(plain, 1)),
-            delta=0.01,
-        )
+        scaled = [3 * w for w in plain]
+
+        def walk(ws):
+            rng = np.random.default_rng(1)
+            counts = count_paths_to_state(_sink(3), 0, LENGTH, ws)
+            return [
+                sample_string_reaching_state(_sink(3), counts, rng, ws)
+                for _ in range(200)
+            ]
+
+        drawn = walk(plain)
+        self.assertGreater(len(set(map(tuple, drawn))), 100, "draws are not varying")
+        self.assertEqual(walk(scaled), drawn)
 
     def test_weights_recover_the_samplers_own_rate(self):
         sampler = _RareFirstSymbol(LENGTH)
@@ -118,33 +133,24 @@ class TestWeightedWalk(unittest.TestCase):
         self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
 
     def test_the_weights_have_to_reach_the_walk(self):
-        # Counts alone score a symbol by the state it leads to, so where every
-        # symbol leads to the same state they cannot express a preference.
-        sampler = _RareFirstSymbol(LENGTH)
+        # Counts alone score a symbol by the state it leads to, which on a DFA
+        # whose branches differ is not nothing -- but it is not the sampler
+        # either, so the walk has to weigh the symbol itself as well.
+        mod3, length = _mod3(), 12
         rng = np.random.default_rng(0)
-        weights = sampler.symbol_weights(3)
-        counts = count_paths_to_state(_sink(3), 0, LENGTH, weights)
-        walked = [
-            sample_string_reaching_state(
-                _sink(3), counts, rng, uniform_weights(_sink(3))
-            )
-            for _ in range(400)
+        weights = _RareFirstSymbol(length, 2).symbol_weights(2)
+        counts = count_paths_to_state(mod3, 1, length, weights)
+        half_weighted = [
+            sample_string_reaching_state(mod3, counts, rng, uniform_weights(mod3))
+            for _ in range(3000)
         ]
-        self.assertGreater(_rate_of_symbol_zero(walked), 10 * RARE)
+        self.assertGreater(_zeros_per_string(half_weighted), 1.15)
 
     def test_it_matches_drawing_and_keeping_what_reaches(self):
         """Against ground truth: draw from the sampler, keep the strings that
         reach the state.  A branch leading somewhere with many completions is
         not more likely for it -- the sampler has to reach it too."""
-        mod3 = DFA(
-            states={0, 1, 2},
-            input_symbols={0, 1},
-            transitions={q: {0: (q + 1) % 3, 1: q} for q in range(3)},
-            initial_state=0,
-            final_states={1},
-            allow_partial=False,
-        )
-        length, target = 12, 1
+        mod3, length, target = _mod3(), 12, 1
         sampler = _RareFirstSymbol(length, 2)
         rng = np.random.default_rng(0)
         weights = sampler.symbol_weights(2)
@@ -169,9 +175,7 @@ class TestWeightedWalk(unittest.TestCase):
         # leaves the completions behind a branch counted evenly and lands at
         # 1.05 where the sampler gives 1.00.
         self.assertAlmostEqual(
-            np.mean([sum(1 for s in w if s == 0) for w in walked]),
-            np.mean([sum(1 for s in w if s == 0) for w in kept]),
-            delta=0.03,
+            _zeros_per_string(walked), _zeros_per_string(kept), delta=0.03
         )
 
     def test_a_reachability_constraint_still_holds(self):
