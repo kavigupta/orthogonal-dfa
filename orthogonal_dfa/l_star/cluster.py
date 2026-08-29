@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
@@ -232,6 +233,37 @@ class AcceptPreservingGate:
         return verdict
 
 
+@dataclass
+class Judged:
+    """What the round makes of the family it clustered."""
+
+    #: What to hold against the FNR limit: what the family measures, or 1 for
+    #: one that cannot be used whatever it would measure.
+    fnr: float
+    reason: str
+    verdict: str
+
+
+def judge_family(pst, gate, v, vs) -> Judged:
+    """Read the clustered family, and say what stands against using it."""
+    decision = pst.compute_decision(vs, pst.table.representative)
+    fnr = pst.fnr_from_decision(decision)
+    too_high = f"FNR {fnr:.4f} too high"
+    # An undersized family is unusable whatever its FNR measures, and testing it
+    # would spend a budget that means no accept-preserving family exists.
+    if len(vs) < pst.config.suffix_family_size:
+        return Judged(1.0, "undersized", ADMITTED)
+    if fnr > pst.config.fnr_limit:
+        return Judged(fnr, too_high, ADMITTED)
+    # Certify only right before returning, as certifying is expensive.
+    verdict = gate.verdict(pst, decision, v, vs)
+    if verdict is DRIFTED:
+        return Judged(1.0, "not accept-preserving", verdict)
+    if verdict is UNCERTIFIED:
+        return Judged(1.0, "accept-preserving not established", verdict)
+    return Judged(fnr, too_high, verdict)
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
@@ -260,41 +292,27 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             decision_boundary,
         )
 
-        decision = pst.compute_decision(vs, pst.table.representative)
-        fnr = pst.fnr_from_decision(decision)
-        effective_fnr, reason = fnr, f"FNR {fnr:.4f} too high"
-        # An undersized family is unusable whatever its FNR measures, and testing
-        # it would spend a budget that means no accept-preserving family exists.
-        verdict = ADMITTED
-        if len(vs) < pst.config.suffix_family_size:
-            effective_fnr, reason = 1.0, "undersized"
-        elif fnr <= pst.config.fnr_limit:
-            # Certify only right before returning, as certifying is expensive.
-            verdict = gate.verdict(pst, decision, v, vs)
-            if verdict is DRIFTED:
-                effective_fnr, reason = 1.0, "not accept-preserving"
-            elif verdict is UNCERTIFIED:
-                effective_fnr, reason = 1.0, "accept-preserving not established"
+        judged = judge_family(pst, gate, v, vs)
 
-        if effective_fnr <= pst.config.fnr_limit:
+        if judged.fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return vs, decision_boundary
 
-        if verdict is UNCERTIFIED:
+        if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so
             # sampling more of them with the same prefixes picks a family much
             # like this one. Only more prefixes change which suffixes group.
             strategy = "prefix"
-        elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
+        elif judged.fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
 
-        prev_effective_fnr = effective_fnr
+        prev_effective_fnr = judged.fnr
 
         print(
-            f"{reason}, sampling more {strategy}es; "
+            f"{judged.reason}, sampling more {strategy}es; "
             f"decision_boundary: {decision_boundary:.4f}"
         )
 
