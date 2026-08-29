@@ -314,9 +314,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             return vs, decision_boundary
 
         if verdict is UNCERTIFIED:
-            # More suffixes will not change the fact that these ones are
-            # decisive but wrong; more prefixes will, by changing the distance
-            # the cluster is drawn on.
+            # Suffixes are clustered by how they read across the prefixes, so
+            # sampling more of them with the same prefixes picks a family much
+            # like this one. Only more prefixes change which suffixes group.
             strategy = "prefix"
         elif effective_fnr >= prev_effective_fnr or strategy == "prefix":
             strategy = "prefix" if strategy == "suffix" else "suffix"
