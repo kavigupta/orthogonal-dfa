@@ -63,9 +63,6 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             f"{pst.decision_boundary:.4f}"
         )
         return dfa
-    # The strings reaching a state are not equally likely to be drawn unless the
-    # learner samples evenly, and it is the ones it will meet that its label has
-    # to be right about.
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
 
     def relabel(state):
