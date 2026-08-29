@@ -80,10 +80,8 @@ def recompute_evidence_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: Confidence the drift bounds below are read at.  A bound that is loose only
-#: costs prefixes, and the interval narrows as the square root of them, so this
-#: buys a good deal of evidence for the strength it gives up.
-ACCEPT_PRESERVING_CONFIDENCE = 0.05
+#: Chance of calling a family drifted when it is not, or clean when it is not.
+ACCEPT_PRESERVING_ERROR_RATE = 0.05
 
 #: What the gate was able to conclude about a family.
 ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
@@ -187,36 +185,38 @@ def drift_verdict(counts, signal: float, tolerated: float) -> str:
     decision can absorb, or less, or whether the counts do not say."""
     # The gap a family drifted exactly to the tolerance would read.
     gap = 2 * signal * (1 - tolerated)
-    if _gap_pvalue(counts, gap, wider=True) <= ACCEPT_PRESERVING_CONFIDENCE:
+    if _gap_pvalue(counts, gap, wider=True) <= ACCEPT_PRESERVING_ERROR_RATE:
         return ADMITTED
-    if _gap_pvalue(counts, gap, wider=False) <= ACCEPT_PRESERVING_CONFIDENCE:
+    if _gap_pvalue(counts, gap, wider=False) <= ACCEPT_PRESERVING_ERROR_RATE:
         return DRIFTED
     return UNCERTIFIED
 
 
 def prefixes_to_certify(pst, decision, seed_row, vs, tolerated: float) -> int:
-    """Prefixes to draw for the split alone, enough to admit the family at the
-    rates the evidence in hand already shows.
+    """How many prefixes to draw for the split alone, to settle a verdict the
+    prefixes in hand left undecided.
 
-    Capped where the draw costs what the round it stands in for would have.
-    Growing the pool spends a query on every fully observed column; a prefix read
-    only for the split spends one per family member and one for the split, so
-    parity between them is the ratio.
+    How many it takes depends on the rates, so the rates in hand are the guess:
+    if the same ones held over twice the prefixes, or three times, would the
+    verdict come out decided?  The first multiple that would is the answer.
+
+    Never more than the round of pooled prefixes this stands in for would have
+    cost.  One of those spends a query on every fully observed column, where one
+    read for the split spends a query per family member and one for the split
+    itself, so the budget in prefixes is the ratio between them.
     """
     held = len(pst.table.prefixes)
-    counts = _split_counts(pst, decision, seed_row, None)
     columns = max(1, len(pst.table.fully_observed()))
-    parity = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
+    budget = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
+    counts = _split_counts(pst, decision, seed_row, None)
     if counts is None:
-        return parity
+        return budget
     signal = pst.config.min_signal_strength
-    # Scale the counts as drawing more of the same would, and stop where that
-    # would settle it; past parity the pool round was the cheaper way to ask.
-    for scale in range(2, 2 + parity // max(held, 1)):
-        grown = tuple((hits * scale, n * scale) for hits, n in counts)
-        if drift_verdict(grown, signal, tolerated) is not UNCERTIFIED:
-            return held * (scale - 1)
-    return parity
+    for multiple in range(2, 2 + budget // max(held, 1)):
+        supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
+        if drift_verdict(supposed, signal, tolerated) is not UNCERTIFIED:
+            return held * (multiple - 1)
+    return budget
 
 
 class AcceptPreservingGate:
