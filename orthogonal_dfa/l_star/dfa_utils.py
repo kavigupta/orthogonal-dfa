@@ -6,28 +6,42 @@ def states_intermediate(s0, y, dfa):
     return states
 
 
-def count_paths_to_state(dfa, target, length):
-    """``counts[m][q]`` = number of length-``m`` strings ``w`` with ``run(q, w) == target``.
+def uniform_weights(dfa):
+    """Every symbol weighed the same, which is what leaves the mass below an
+    integer count of the strings -- what ranking them needs it to be."""
+    return {s: 1 for s in sorted(dfa.input_symbols)}
 
-    Standard path-counting DP, for ``m`` in ``0..length``: enough to sample a uniform
+
+def count_paths_to_state(dfa, target, length, weights):
+    """``counts[m][q]`` = the mass of length-``m`` strings ``w`` with ``run(q, w) == target``.
+
+    Standard path-counting DP, for ``m`` in ``0..length``: enough to sample a
     length-``length`` string reaching ``target`` via :func:`sample_string_reaching_state`.
+    ``weights[s]`` is how often the learner's sampler puts symbol ``s`` at a
+    position; only its ratios are read, so any positive scaling of them is the
+    same distribution.
     """
     syms = sorted(dfa.input_symbols)
     counts = [{q: int(q == target) for q in dfa.states}]
     for _ in range(length):
         prev = counts[-1]
         counts.append(
-            {q: sum(prev[dfa.transitions[q][s]] for s in syms) for q in dfa.states}
+            {
+                q: sum(weights[s] * prev[dfa.transitions[q][s]] for s in syms)
+                for q in dfa.states
+            }
         )
     return counts
 
 
-def sample_string_reaching_state(dfa, counts, rng):
-    """Uniform random length-``len(counts)-1`` string from ``dfa.initial_state`` to the
+def sample_string_reaching_state(dfa, counts, rng, weights):
+    """Random length-``len(counts)-1`` string from ``dfa.initial_state`` to the
     target ``counts`` was built for, or ``None`` if no such string exists.
 
     The recursive sampling method: walk forward choosing each symbol with probability
-    proportional to the number of completions that still reach the target.
+    proportional to the completions that still reach the target, weighted by how
+    often the learner's sampler puts that symbol at a position.  ``weights`` are the
+    ones ``counts`` was built with.
     """
     syms = sorted(dfa.input_symbols)
     length = len(counts) - 1
@@ -38,14 +52,14 @@ def sample_string_reaching_state(dfa, counts, rng):
     for remaining in range(length, 0, -1):
         row = counts[remaining - 1]
         transitions = dfa.transitions[state]
-        weights = [row[transitions[s]] for s in syms]
+        masses = [row[transitions[s]] * weights[s] for s in syms]
         # One uniform draw walked against the weights rather than rng.choice(p=),
         # which spends ~20us normalising and building a CDF for what is usually a
         # two-way split, once per symbol of every sampled string.
-        target = rng.random() * sum(weights)
+        target = rng.random() * sum(masses)
         cumulative = 0
         symbol = syms[0]
-        for candidate, weight in zip(syms, weights):
+        for candidate, weight in zip(syms, masses):
             if not weight:
                 continue
             # Never leaves a zero-weight symbol selected, and a draw that overruns
@@ -97,12 +111,19 @@ def unrank_string_reaching_state(dfa, counts, index):
     return bytes(string)
 
 
-def per_state_sample(dfa, rng, length, per_state, existing=()):
+def per_state_sample(dfa, rng, length, per_state, *, weights, existing=()):
     """
     Sample strings of length ``length`` such that when these strings are
     added to the list of strings already in ``existing``, each state of ``dfa``
     has at least ``per_state`` strings.
+
+    ``weights`` is how often the learner's sampler puts each symbol at a position,
+    since the strings are there to stand for the ones it draws.
     """
+    # Two different things: strings are deduplicated by their index among those
+    # reaching a state, which counts them, and drawn by how likely the learner is
+    # to meet each, which does not.
+    counting = uniform_weights(dfa)
     have = {}
     for s in existing:
         if len(s) == length:
@@ -111,7 +132,7 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             ).append(s)
     pool = []
     for state in sorted(dfa.states):
-        counts = count_paths_to_state(dfa, state, length)
+        counts = count_paths_to_state(dfa, state, length, counting)
         reachable = counts[length][dfa.initial_state]
         if reachable == 0:
             continue
@@ -121,14 +142,20 @@ def per_state_sample(dfa, rng, length, per_state, existing=()):
             if len(used) >= target:
                 break
             used.add(rank_string_reaching_state(dfa, counts, s))
-        fits_int64 = reachable <= 2**63 - 1
+        even = weights == counting
+        # An index drawn evenly is an evenly drawn string, and cheaper than
+        # walking for one; any other weighting has to walk.
+        by_index = even and reachable <= 2**63 - 1
+        mass = counts if even else count_paths_to_state(dfa, state, length, weights)
         while len(used) < target:
-            if fits_int64:
+            if by_index:
                 used.add(int(rng.integers(reachable)))
             else:
                 used.add(
                     rank_string_reaching_state(
-                        dfa, counts, sample_string_reaching_state(dfa, counts, rng)
+                        dfa,
+                        counts,
+                        sample_string_reaching_state(dfa, mass, rng, weights),
                     )
                 )
         pool.extend(unrank_string_reaching_state(dfa, counts, r) for r in used)

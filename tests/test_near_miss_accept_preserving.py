@@ -35,6 +35,10 @@ class NearMissSampler(Sampler):
         self.length = length
         self.share = share
 
+    def symbol_weights(self, alphabet_size):
+        # The near misses are a share of whole strings, not a per-position bias.
+        return [1] * alphabet_size
+
     def sample(self, rng, alphabet_size):
         def draw(n):
             return rng.integers(0, alphabet_size, size=n, dtype=np.uint8).tobytes()
