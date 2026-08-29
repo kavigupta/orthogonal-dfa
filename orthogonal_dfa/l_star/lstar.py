@@ -13,6 +13,7 @@ from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     states_intermediate,
+    uniform_weights,
 )
 from .midfix_tree import oracle_decider
 from .statistics import (
@@ -62,12 +63,17 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             f"{pst.decision_boundary:.4f}"
         )
         return dfa
+    weights = pst.sampler.symbol_weights(pst.alphabet_size)
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
-        counts = count_paths_to_state(dfa, state, length)
-        reachable = counts[length][dfa.initial_state]
+        # How many distinct strings there are to draw, as against how likely the
+        # learner is to draw each: the cap is the first, the walk the second.
+        reachable = count_paths_to_state(dfa, state, length, uniform_weights(dfa))[
+            length
+        ][dfa.initial_state]
         cap = min(max_samples, reachable)
+        drawn_from = count_paths_to_state(dfa, state, length, weights)
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read
@@ -78,7 +84,7 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
             target = min(block_size, cap - len(seen))
             block = []
             while len(block) < target:
-                string = sample_string_reaching_state(dfa, counts, pst.rng)
+                string = sample_string_reaching_state(dfa, drawn_from, pst.rng, weights)
                 if tuple(string) in seen:
                     continue  # need distinct strings for independent oracle draws
                 seen.add(tuple(string))
