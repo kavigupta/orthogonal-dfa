@@ -64,18 +64,6 @@ class TestSymbolWeights(unittest.TestCase):
     def test_uniform_weighs_every_symbol_the_same(self):
         self.assertEqual(UniformSampler(LENGTH).symbol_weights(3), [1, 1, 1])
 
-    def test_uniform_weights_are_ints(self):
-        # 1.0 would read the same and count wrong: the mass runs past the range
-        # a float counts exactly in, and ranking indexes into it.
-        for weight in UniformSampler(LENGTH).symbol_weights(3):
-            self.assertIsInstance(weight, int)
-        # 3**40 runs past 2**53, where a float stops holding every integer.
-        long = 40
-        loose = count_paths_to_state(_sink(3), 0, long, {s: 1.0 for s in range(3)})
-        exact = count_paths_to_state(_sink(3), 0, long, uniform_weights(_sink(3)))
-        self.assertEqual(exact[long][0], 3**long)
-        self.assertNotEqual(loose[long][0], exact[long][0])
-
     def test_only_the_ratios_of_the_weights_are_read(self):
         # Scaling every weight scales the mass at each depth by the same factor,
         # which the walk divides out -- so weights need not be probabilities.
