@@ -107,12 +107,6 @@ def tolerated_drift(min_signal_strength: float, evidence_margin: float) -> float
     return (min_signal_strength - evidence_margin) / (2 * min_signal_strength)
 
 
-#: Nuisance rates tried when maximising the p-value below.  The reject side's own
-#: rate is unknown and the test has to hold whatever it is, so it is maximised
-#: over rather than estimated.
-NUISANCE_GRID = 201
-
-
 def certification_sample(pst, vs, amount: int):
     """Prefixes drawn only to read the split on, and never added to the table.
 
@@ -157,22 +151,23 @@ def observed_drift(counts, signal: float) -> float:
     return _clamp(1 - (hits_a / n_a - hits_r / n_r) / (2 * signal))
 
 
-def _gap_pvalue(counts, gap: float, wider: bool) -> float:
+def _gap_pvalue(counts, gap: float, wider: bool, reject_rate_grid_size=201) -> float:
     """Chance of a gap at least (or at most) the observed one, were the true gap
     exactly ``gap``.
 
     Exact throughout: the accept count is summed over its binomial and each term
-    weighted by the reject side's own binomial tail, then maximised over the
-    reject rate, which is a nuisance the test has to hold for whatever it is.
-    A difference of two binomials is not normal at these counts and is not
-    treated as one.
+    weighted by the reject side's own binomial tail.  Where the reject side's
+    rate itself sits is unknown, and the answer has to hold wherever that is, so
+    it is read at the rate that makes the gap hardest to call and not at an
+    estimate.  A difference of two binomials is not normal at these counts and is
+    not treated as one.
     """
     (hits_a, n_a), (hits_r, n_r) = counts
     observed = hits_a / n_a - hits_r / n_r
     accepts = np.arange(n_a + 1)
     edge = n_r * (accepts / n_a - observed)
     worst = 0.0
-    for rate in np.linspace(0, max(0.0, 1 - gap), NUISANCE_GRID):
+    for rate in np.linspace(0, max(0.0, 1 - gap), reject_rate_grid_size):
         weight = scipy.stats.binom.pmf(accepts, n_a, min(1.0, rate + gap))
         reject_side = (
             scipy.stats.binom.cdf(np.floor(edge), n_r, rate)
