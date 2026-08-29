@@ -386,5 +386,40 @@ class TestPreconditionsOverTheSuperAlphabet(unittest.TestCase):
         self.assertEqual(report.acceptance_rate, 1.0)
 
 
+class _NoTargetOracle(Oracle):
+    """Keeps ``Oracle``'s default ``target_dfa``, which answers None."""
+
+    @property
+    def alphabet_size(self):
+        return 4
+
+    def membership_query(self, string):
+        return False
+
+
+class TestLiftedTargetDfa(unittest.TestCase):
+    """What the oracle answers, read as a DFA.  ``super_target_dfa`` is tested on
+    its own; these are the two things the oracle adds to it."""
+
+    def setUp(self):
+        self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
+        self.base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        self.oracle = LiftedOracle(self.base, self.vocab, num_compilations=1, seed=0)
+
+    def test_agrees_with_what_the_oracle_answers(self):
+        dfa = self.oracle.target_dfa()
+        sampler = SuperSampler(self.vocab, 40)
+        rng = np.random.default_rng(11)
+        strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(1000)]
+        np.testing.assert_array_equal(
+            np.array([dfa.accepts_input(s) for s in strings], dtype=bool),
+            self.oracle.membership_queries(strings),
+        )
+
+    def test_none_when_the_base_has_no_target(self):
+        oracle = LiftedOracle(_NoTargetOracle(), self.vocab, num_compilations=1, seed=0)
+        self.assertIsNone(oracle.target_dfa())
+
+
 if __name__ == "__main__":
     unittest.main()
