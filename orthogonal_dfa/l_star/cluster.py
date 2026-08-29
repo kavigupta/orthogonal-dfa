@@ -232,14 +232,18 @@ class AcceptPreservingGate:
         self.rejections = 0
         self.uncertified = 0
 
-    def tolerated(self, pst) -> float:
-        return tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
-
-    def verdict(self, pst, decision, seed_row, extra=None) -> str:
+    def verdict(self, pst, decision, seed_row, vs) -> str:
         if not self.enabled:
             return ADMITTED
-        low, high = accept_preserving_drift(pst, decision, seed_row, extra)
-        tolerated = self.tolerated(pst)
+        tolerated = tolerated_drift(pst.config.min_signal_strength, pst.evidence_margin)
+        low, high = accept_preserving_drift(pst, decision, seed_row)
+        if tolerated < high:
+            # Undecided on what the pool holds, and the pool is the dear way to
+            # ask: draw prefixes for the split alone and read it again.
+            wanted = prefixes_to_certify(pst, decision, seed_row, vs, tolerated)
+            low, high = accept_preserving_drift(
+                pst, decision, seed_row, certification_sample(pst, vs, wanted)
+            )
         if high <= tolerated:
             self.rejections = self.uncertified = 0
             return ADMITTED
@@ -302,18 +306,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             # One still failing the FNR is being resampled whatever the split
             # looks like, and asking anyway spends the budget for a verdict on a
             # family that never had to have one.
-            verdict = gate.verdict(pst, decision, v)
-            if verdict is UNCERTIFIED:
-                verdict = gate.verdict(
-                    pst,
-                    decision,
-                    v,
-                    certification_sample(
-                        pst,
-                        vs,
-                        prefixes_to_certify(pst, decision, v, vs, gate.tolerated(pst)),
-                    ),
-                )
+            verdict = gate.verdict(pst, decision, v, vs)
             if verdict is DRIFTED:
                 effective_fnr, reason = 1.0, "not accept-preserving"
             elif verdict is UNCERTIFIED:
