@@ -187,6 +187,59 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     raise ValueError("not reachable")
 
 
+#: Chance ``denoise_accept_labels`` moves a label the evidence does not support,
+#: and equally the chance it fails to move one it should.
+DENOISE_FAILURE_PROB = 1e-5
+
+
+def _decides(num_samples, signal_strength, boundary, failure_prob):
+    """Whether a state either side of the boundary reaches significance at this size.
+
+    ``isf``/``ppf`` invert the tails ``binomial_side_of_boundary`` tests, so
+    ``high`` and ``low`` are exactly the counts it calls significant.  An off the
+    end of the range gives a zero-probability tail, which decides nothing.
+    """
+    binom = scipy.stats.binom
+    high = binom.isf(failure_prob, num_samples, boundary) + 1
+    low = binom.ppf(failure_prob, num_samples, boundary) - 1
+    return (
+        min(
+            binom.sf(high - 1, num_samples, boundary + signal_strength),
+            binom.cdf(low, num_samples, boundary - signal_strength),
+        )
+        >= 1 - failure_prob
+    )
+
+
+def denoise_sample_size(
+    signal_strength, boundary=0.5, *, failure_prob=DENOISE_FAILURE_PROB
+):
+    """Samples one state needs before its own accept rate decides its label.
+
+    A state whose strings are accepted answers at ``boundary + signal_strength``
+    and one whose strings are not at ``boundary - signal_strength``, the same
+    reading of the boundary the accept-preserving test takes.  Sized so failing
+    to decide is as unlikely as deciding wrongly.
+    """
+    if not 0 <= boundary - signal_strength or not boundary + signal_strength <= 1:
+        return None
+
+    def decides(n):
+        return _decides(n, signal_strength, boundary, failure_prob)
+
+    n = 1
+    while not decides(n):
+        n *= 2
+    lo, hi = n // 2, n
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if decides(mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
 def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_prob=1e-5):
     """Binomial test of num_accepts/num_samples against accept rate ``boundary``.
 

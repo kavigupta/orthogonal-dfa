@@ -189,8 +189,8 @@ def _wrongly_cut_states(cuts, true_dfa, threshold):
     ]
 
 
-def learn_dfa_verified(oracle_creator, **kwargs):
-    """``learn_dfa``, asserting the per-round accept-preserving invariant.
+def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
+    """The per-round accept-preserving invariant.
 
     Each round's family is seeded at the empty suffix, so its decisive
     classifications should realise the accept-preserving split.  Checked a state
@@ -198,15 +198,12 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     opinion about each, and require the ones it got backwards to be states its
     prefixes barely reached.
     """
-    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
-    truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    true_dfa = truth_oracle.target_dfa()
     per_round = [_state_cuts(c, true_dfa) for c in classifiers]
     # Every state the round reached, not just those held to the threshold: the
     # count must not depend on the threshold it is used to compute.
     comparisons = max(1, sum(len(c) for c in per_round))
     threshold = _common_in_prefixes_threshold(
-        kwargs["min_signal_strength"], round_check_run_fpr / comparisons
+        min_signal_strength, round_check_run_fpr / comparisons
     )
     for cuts in per_round:
 
@@ -229,4 +226,13 @@ def learn_dfa_verified(oracle_creator, **kwargs):
                 f"the state's label to be more than a coin flip, so the round had "
                 f"the evidence and still cut the other way"
             )
+
+
+def learn_dfa_verified(oracle_creator, **kwargs):
+    """``learn_dfa``, asserting the per-round accept-preserving invariant."""
+    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
+    truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
+    assert_rounds_accept_preserving(
+        classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
+    )
     return dfa
