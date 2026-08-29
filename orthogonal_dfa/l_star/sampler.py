@@ -33,5 +33,8 @@ class UniformSampler(Sampler):
         return rng.integers(0, alphabet_size, size=self.length).tolist()
 
     def symbol_weights(self, alphabet_size):
-        """Integers, so a mass built from them counts the strings it is over."""
+        """Ones, and ints rather than floats: a mass built from them counts the
+        strings it is over, and past 2**53 a float stops counting them exactly --
+        which ranking, and drawing an index into that count, both need.
+        """
         return [1] * alphabet_size
