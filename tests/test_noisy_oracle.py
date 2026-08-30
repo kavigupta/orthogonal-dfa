@@ -77,6 +77,18 @@ class TestNoisyOracle(unittest.TestCase):
         inner = _Parity()
         self.assertEqual(NoisyOracle(inner, NOISY, 0).target_dfa(), inner.target_dfa())
 
+    def test_the_string_length_is_what_it_was(self):
+        # SetDifferenceOracle reads this off its operands, so a noised operand
+        # has to keep answering it.
+        from orthogonal_dfa.l_star.examples.set_difference import SetDifferenceOracle
+
+        class _Fixed(_Parity):
+            string_length = 12
+
+        wrapped = NoisyOracle(_Fixed(), NOISY, 0)
+        self.assertEqual(wrapped.string_length, 12)
+        self.assertEqual(SetDifferenceOracle(wrapped, _Fixed()).string_length, 12)
+
     def test_the_alphabet_is_what_it_was(self):
         self.assertEqual(NoisyOracle(_Parity(), NOISY, 0).alphabet_size, 2)
 
