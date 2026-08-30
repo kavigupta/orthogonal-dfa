@@ -136,12 +136,12 @@ class KmerVocabulary:
         self,
         super_strings: Sequence[Iterable[int]],
         rngs: Sequence[np.random.Generator],
-    ) -> List[List[int]]:
+    ) -> List[bytes]:
         """Each result is uniform over the base strings that parse back to its
         super-string.
         """
         templates = [self._template(s) for s in super_strings]
-        return self._filler.fill_many(templates, rngs)
+        return [bytes(f) for f in self._filler.fill_many(templates, rngs)]
 
     def _template(self, super_string: Iterable[int]) -> List[int]:
         """The base string with the kmers filled in and the wildcards left open."""
