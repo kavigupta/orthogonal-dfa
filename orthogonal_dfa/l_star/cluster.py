@@ -4,7 +4,10 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import evidence_margin_for_population_size
+from .statistics import (
+    evidence_margin_for_population_size,
+    population_size_and_evidence_margin,
+)
 
 
 def identify_cluster_around(
@@ -64,16 +67,34 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def recompute_evidence_margin(
-    min_signal_strength, suffix_family_size, decision_boundary
-):
-    result = evidence_margin_for_population_size(
-        min_signal_strength, 0.01, 0.01, suffix_family_size, center=decision_boundary
+def smallest_readable_family(min_signal_strength, decision_boundary):
+    """Fewest suffixes a decision at this boundary can be read over.
+
+    How many it needs depends on where the boundary sits: the two classes draw
+    from binomials whose variance differs once it leaves 0.5.
+    """
+    size, _ = population_size_and_evidence_margin(
+        min_signal_strength, 0.01, 0.01, center=decision_boundary
     )
-    if result is None:
-        return min_signal_strength * 0.5
-    _, eps = result
-    return eps
+    return size
+
+
+def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
+    """The largest size at or below ``have`` whose band holds both error rates, and
+    the margin that reads it.  ``have`` must be at least ``smallest``.
+
+    Sizes just above the minimum can admit no band at all -- one more suffix shifts
+    every operating point off the integer lattice -- so step down rather than call
+    a family that is large enough undersized. ``smallest`` always admits one, so
+    the walk cannot run off the end.
+    """
+    for size in range(have, smallest - 1, -1):
+        found = evidence_margin_for_population_size(
+            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
+        )
+        if found is not None:
+            return size, found[1]
+    raise AssertionError(f"{smallest} suffixes was supposed to be readable")
 
 
 #: Rejections in a row after which no accept-preserving family is believed to
@@ -235,33 +256,51 @@ class AcceptPreservingGate:
 
 @dataclass
 class Judged:
-    """What the round makes of the family it clustered."""
+    """A clustered family and what the round makes of it."""
 
-    #: What to hold against the FNR limit: what the family measures, or 1 for
-    #: one that cannot be used whatever it would measure.
+    #: Read down to the size its band was calibrated for, and seeded.
+    vs: List[int]
+    #: What to hold against the FNR limit: what the family measures, or 1 for one
+    #: that cannot be used whatever it would measure.
     fnr: float
     reason: str
     verdict: str
 
 
-def judge_family(pst, gate, v, vs) -> Judged:
-    """Read the clustered family, and say what stands against using it."""
+def judge_family(pst, gate, v, vs, family_size) -> Judged:
+    """Read the clustered family, and say what stands against using it.
+
+    Sets the margin the family is read with, which the caller reports.
+    """
+    # An undersized family is unusable whatever its FNR would measure, and
+    # testing it would spend a budget that means no accept-preserving family
+    # exists.
+    if len(vs) < family_size:
+        return Judged(vs, 1.0, "undersized", ADMITTED)
+    # Both rates are properties of the population the test runs over, so read
+    # the family at a size calibrated for it.
+    size, pst.evidence_margin = readable_size_and_margin(
+        pst.config.min_signal_strength,
+        pst.decision_boundary,
+        len(vs),
+        family_size,
+    )
+    # By loss rank, and the seed's rank is arbitrary, so put it back: the round
+    # check and the accept-preserving null are both stated about a family seeded
+    # at this suffix.
+    vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
-    # An undersized family is unusable whatever its FNR measures, and testing it
-    # would spend a budget that means no accept-preserving family exists.
-    if len(vs) < pst.config.suffix_family_size:
-        return Judged(1.0, "undersized", ADMITTED)
     if fnr > pst.config.fnr_limit:
-        return Judged(fnr, too_high, ADMITTED)
+        return Judged(vs, fnr, too_high, ADMITTED)
     # Certify only right before returning, as certifying is expensive.
     verdict = gate.verdict(pst, decision, v, vs)
     if verdict is DRIFTED:
-        return Judged(1.0, "not accept-preserving", verdict)
+        return Judged(vs, 1.0, "not accept-preserving", verdict)
     if verdict is UNCERTIFIED:
-        return Judged(1.0, "accept-preserving not established", verdict)
-    return Judged(fnr, too_high, verdict)
+        return Judged(vs, 1.0, "accept-preserving not established", verdict)
+    return Judged(vs, fnr, too_high, verdict)
 
 
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
@@ -275,6 +314,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     prev_effective_fnr = 1.0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
+    family_size = smallest_readable_family(
+        pst.config.min_signal_strength, decision_boundary
+    )
     gate = AcceptPreservingGate(pst.config)
 
     while True:
@@ -282,24 +324,30 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         # requires of it. Redone each round, since more prefixes may have
         # arrived since the last one.
         pst.table.column(v)
-        vs, decision_boundary = identify_cluster_around(
-            pst, v, pst.config.suffix_family_size, decision_boundary
-        )
-        pst.decision_boundary = decision_boundary
-        pst.evidence_margin = recompute_evidence_margin(
-            pst.config.min_signal_strength,
-            pst.config.suffix_family_size,
-            decision_boundary,
-        )
+        # The cluster is capped at the size asked for, and the boundary it
+        # estimates decides the size wanted, so a boundary that moves far enough
+        # leaves it short by construction.  The pool usually already holds the
+        # rest: ask again at the new size before spending a cohort of oracle
+        # queries on suffixes to cover a handful.
+        for _ in range(2):
+            vs, decision_boundary = identify_cluster_around(
+                pst, v, family_size, decision_boundary
+            )
+            pst.decision_boundary = decision_boundary
+            family_size = smallest_readable_family(
+                pst.config.min_signal_strength, decision_boundary
+            )
+            if len(vs) >= family_size:
+                break
 
-        judged = judge_family(pst, gate, v, vs)
+        judged = judge_family(pst, gate, v, vs, family_size)
 
         if judged.fnr <= pst.config.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
             )
-            return vs, decision_boundary
+            return judged.vs, decision_boundary
 
         if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so
@@ -317,9 +365,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         if strategy == "suffix":
-            kept = pst.sample_more_suffixes(
-                amount=pst.config.suffix_family_size, reference=v
-            )
-            print(f"  kept {kept}/{pst.config.suffix_family_size} after screening")
+            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  kept {kept}/{family_size} after screening")
         else:
             pst.sample_more_prefixes()

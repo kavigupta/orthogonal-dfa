@@ -46,8 +46,6 @@ def short_prefix_closure(
 
 @dataclass
 class SearchConfig:
-    suffix_family_size: int
-    evidence_margin: float
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
@@ -80,10 +78,6 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-
-    def __post_init__(self):
-        if self.evidence_margin == 0.0:
-            self.evidence_margin = self.config.evidence_margin
 
     @property
     def num_prefixes(self) -> int:
