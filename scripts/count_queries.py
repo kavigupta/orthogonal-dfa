@@ -35,7 +35,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from orthogonal_dfa.l_star.structures import NoisyOracle
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -94,6 +93,7 @@ def _measure(root: str, names: list[str]) -> dict:
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
         BernoulliParityOracle, BernoulliRegex,
     )
+    from orthogonal_dfa.l_star.structures import NoisyOracle
     from orthogonal_dfa.l_star.structures import Oracle, AsymmetricBernoulli
     from orthogonal_dfa.l_star.learn import learn_dfa
     from tests.lstar_common import evaluate_accuracy

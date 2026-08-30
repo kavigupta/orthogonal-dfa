@@ -20,7 +20,7 @@ class _Parity(Oracle):
         return sum(string) % 2 == 0
 
     def target_dfa(self):
-        return NoisyOracle(BernoulliParityOracle(), CLEAN, 0).target_dfa()
+        return BernoulliParityOracle().target_dfa()
 
 
 def _strings(count=400, length=8, seed=0):
