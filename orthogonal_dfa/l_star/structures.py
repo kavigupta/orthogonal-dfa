@@ -123,7 +123,7 @@ class NoisyOracle(Oracle):
 
     inner: Oracle
     noise_model: NoiseModel
-    seed: int = 0
+    seed: int
 
     @property
     def alphabet_size(self) -> int:
