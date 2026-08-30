@@ -142,6 +142,12 @@ class NoisyOracle(Oracle):
     def alphabet_size(self) -> int:
         return self.inner.alphabet_size
 
+    @property
+    def string_length(self) -> int:
+        # Not on Oracle, but SetDifferenceOracle reads it off what it is given,
+        # so a wrapper standing where an oracle stood has to pass it on.
+        return self.inner.string_length
+
     def membership_query(self, string: List[int]) -> bool:
         return self.noise_model.apply_noise(
             self.inner.membership_query(string), string, self.seed
