@@ -75,7 +75,9 @@ jobs:
 
   # One slow test per job.  Their searches have a long tail -- the same test runs
   # anywhere from 13 to 92 rounds depending only on the draw -- so sharing a shard
-  # means two tails on one clock, and the clock has to cover the sum.
+  # means two tails on one clock, and the clock has to cover the sum.  The matrix
+  # therefore needs an entry per slow test, which the shard checks below rather
+  # than leaving to whoever marks the next one.
   lstar-slow-test:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -104,6 +106,11 @@ jobs:
           echo "$tests"
           # Bare pytest would run the whole suite, so an empty shard must not reach it.
           [ -n "$tests" ] || exit 0
+          if [ "$(echo "$tests" | wc -l)" -ne 1 ]; then
+            echo "This shard holds more than one slow test, so they share a clock."
+            echo "Add a shard to the matrix for every slow test marked since."
+            exit 1
+          fi
           uv run python -m pytest $tests -sv
 
   lint:
