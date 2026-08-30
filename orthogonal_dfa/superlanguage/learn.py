@@ -60,7 +60,7 @@ def learn_superlanguage(
             noise_model=nm,
         )
 
-    dfa = learn_dfa(
+    dfa, _classifiers = learn_dfa(
         oracle_creator,
         min_signal_strength=min_signal_strength,
         seed=seed,

@@ -24,7 +24,7 @@ import os
 import numpy as np
 
 from orthogonal_dfa.data.exon import default_exon
-from orthogonal_dfa.l_star.counterexample_synthesis import synthesize_direct_lstar_fnr
+from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_driven_synthesis
 from orthogonal_dfa.l_star.examples.gate_composition_residual import gate_residual_oracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.spliceai.load_model import load_spliceai
@@ -83,30 +83,45 @@ def main():
 
     pst = build_pst(
         oracle_creator, min_signal_strength=args.min_signal_strength, seed=args.seed,
-        sample_length=args.num_symbols, sampler=SuperSampler(vocab, args.num_symbols),
-        fnr_limit=args.fnr_limit,
+        sampler=SuperSampler(vocab, args.num_symbols),
     )
-    print(f"synthesizing (fnr_limit={args.fnr_limit}, max_rounds={args.max_rounds})...", flush=True)
-    dfa, _ = synthesize_direct_lstar_fnr(
-        pst, acc_threshold=args.acc_threshold, max_rounds=args.max_rounds
-    )
-    if dfa is None:
-        print("[done] no DFA produced")
-        return
+    # main hardcodes SearchConfig.fnr_limit=0.02 and build_pst exposes no knob; this
+    # oracle's family-FNR floor is ~0.06-0.085, so sample_suffix_family's uncapped
+    # `while True` never clears 0.02 and spins to OOM.  Give it the same headroom the
+    # branch used so round 0 can actually form (score with phi, not est).
+    pst.config.fnr_limit = args.fnr_limit
+    print(f"synthesizing (fnr_limit={args.fnr_limit}, max_rounds={args.max_rounds}) via "
+          f"main's counterexample_driven_synthesis...", flush=True)
 
-    # phi-score the learned super-DFA on a fresh eval set (score with phi, not est).
+    # Fresh eval set, shared across rounds (score with phi, not est).
     samp = SuperSampler(vocab, args.num_symbols)
     rng = np.random.default_rng(args.seed + 999)
     supers = [samp.sample(rng, vocab.alphabet_size) for _ in range(args.n_eval)]
     bases = vocab.compile_many(supers, [np.random.default_rng(i) for i in range(args.n_eval)])
     ora = np.asarray(base.membership_queries(bases)).astype(float)
     afc = np.array([n_frames_closed(b) == 3 for b in bases], dtype=float)
-    call = np.array([bool(dfa.accepts_input(w)) for w in supers], dtype=float)
-    tag = (" ACCEPT-ALL" if call.mean() > 0.5 else " REJECT-ALL") if call.std() == 0 else ""
-    print(f"\n[done] final DFA: {len(dfa.states)} states, accept-rate {call.mean():.3f}{tag}")
-    print(f"  phi(DFA, oracle)            = {phi(call, ora):+.3f}")
-    print(f"  phi(DFA, all-frames-closed) = {phi(call, afc):+.3f}")
-    print(f"  phi(oracle, all-frames-closed) = {phi(ora, afc):+.3f}  [baseline ceiling]")
+
+    def evaluate(dfa, label):
+        call = np.array([bool(dfa.accepts_input(w)) for w in supers], dtype=float)
+        tag = (" ACCEPT-ALL" if call.mean() > 0.5 else " REJECT-ALL") if call.std() == 0 else ""
+        print(f"\n[{label}] DFA: {len(dfa.states)} states, accept-rate {call.mean():.3f}{tag}")
+        print(f"  phi(DFA, oracle)            = {phi(call, ora):+.3f}")
+        print(f"  phi(DFA, all-frames-closed) = {phi(call, afc):+.3f}")
+
+    # main's generator yields (dfa, dt, true_acc, boundary, classifier) per round;
+    # round 0 is the first yield.
+    got = False
+    for i, (dfa, dt, true_acc, boundary, _cls) in enumerate(
+        counterexample_driven_synthesis(pst, acc_threshold=args.acc_threshold)
+    ):
+        got = True
+        evaluate(dfa, f"round {i} (est={true_acc:.3f})")
+        if i + 1 >= args.max_rounds:
+            break
+    if not got:
+        print("[done] no DFA produced")
+        return
+    print(f"\n  phi(oracle, all-frames-closed) = {phi(ora, afc):+.3f}  [baseline ceiling]")
 
 
 if __name__ == "__main__":
