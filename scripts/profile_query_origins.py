@@ -74,14 +74,11 @@ BENCHMARKS = {
 COL_SITES = ("_query", "intern_suffix", "_ensure", "observed_masks", "column")
 
 # For a tree classify, the enclosing high-level phase (searched outward, first match
-# wins). "export" catches the resolver's initial-state classify, which otherwise
-# falls to "other".
+# wins). "build" catches the resolver's initial-state classify in _to_dfa_and_tree,
+# which otherwise falls to "other".
 CLASSIFY_PHASES = [
     "estimate_agreement_rate",
-    "counterexample_pass",
-    "_grow_representative_pool",
     "build",
-    "export",
 ]
 
 # For a new-suffix column, the method that needed the suffix (searched outward,
@@ -93,7 +90,6 @@ SUFFIX_TRIGGERS = [
     "compute_fnr",
     "_resolve",
     "_split",
-    "classify_pool",
     "_sample_suffix",
     "sample_more_suffixes",
     "sample_suffix_family",
@@ -105,7 +101,6 @@ SUFFIX_TRIGGERS = [
 
 # For a new-prefix row (add_prefixes), what added the prefixes.
 ROW_TRIGGERS = [
-    "_grow_representative_pool",
     "sample_more_prefixes",
 ]
 

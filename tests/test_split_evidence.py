@@ -69,7 +69,7 @@ def _evidence(family=None, members=(), state=0):
     pull-down (and thus no classification) happens -- that path is exercised in
     test_leaf_population.
     """
-    tree = MidfixTree(())
+    tree = MidfixTree()
     population = LeafPopulation(tree, lambda strings, midfix: [None] * len(strings))
     for member in members:
         population.add(member, at=tree.path_of(state))

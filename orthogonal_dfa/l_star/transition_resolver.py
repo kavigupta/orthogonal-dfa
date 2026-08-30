@@ -118,18 +118,35 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
+        _dbg = __import__("os").environ.get("TR_PROGRESS")
+        _seen = 0
+        _splits = 0
         for w in self._probe_blocks(max_probes):
             status = self._process(w, delta)
             if status == _SPLIT:
                 since_split = 0
+                _splits += 1
                 self.edges.close()  # the split dropped edges; refill
                 delta = self._total_delta()  # the split rewrote the state set
             elif status == _UNDECIDED:
                 since_split = 0
             else:
                 since_split += 1
+            _seen += 1
+            if _dbg and _seen % 100 == 0:
+                print(
+                    f"  [ce_pass] probe {_seen}/{max_probes}, states {self.tree.num_states}, "
+                    f"splits {_splits}, since_split {since_split}/{patience}",
+                    flush=True,
+                )
             if since_split >= patience:
                 break
+        if _dbg:
+            print(
+                f"  [ce_pass] DONE after {_seen} probes, {_splits} splits, "
+                f"{self.tree.num_states} states",
+                flush=True,
+            )
 
     def _total_delta(self):
         """A total transition function to walk.  Edge resolution cannot always

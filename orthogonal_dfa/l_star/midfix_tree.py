@@ -50,7 +50,7 @@ class MidfixTree:
     Discrimination tree over midfixes; see the module docstring.
     """
 
-    def __init__(self, base_family: List[List[int]]):
+    def __init__(self, base_family: List[List[int]] = ()):
         self.base_family = [list(v) for v in base_family]
         # The empty midfix splits accept (state 0) from reject (state 1).
         self._root: Node = ((), {True: 0, False: 1})
