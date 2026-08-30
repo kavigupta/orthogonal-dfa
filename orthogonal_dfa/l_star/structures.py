@@ -144,8 +144,6 @@ class NoisyOracle(Oracle):
 
     @property
     def string_length(self) -> int:
-        # Not on Oracle, but SetDifferenceOracle reads it off what it is given,
-        # so a wrapper standing where an oracle stood has to pass it on.
         return self.inner.string_length
 
     def membership_query(self, string: List[int]) -> bool:
