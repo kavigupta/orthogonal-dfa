@@ -9,7 +9,7 @@ from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
 
 
-def _compilation_seed(string: List[int], seed: int) -> int:
+def _compilation_seed(string: bytes, seed: int) -> int:
     """Deterministic in its arguments, so a query can be cached."""
     digest = hashlib.blake2b(
         repr((list(string), seed)).encode(), digest_size=8
@@ -60,7 +60,7 @@ class LiftedOracle(Oracle):
         assert labels.shape == (len(strings),), "base oracle dropped answers"
         return labels
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
 
     def target_dfa(self):

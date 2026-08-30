@@ -145,12 +145,12 @@ class NoisyOracle(Oracle):
     def string_length(self) -> int:
         return self.inner.string_length
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return self.noise_model.apply_noise(
             self.inner.membership_query(string), string, self.seed
         )
 
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         answers = self.inner.membership_queries(strings)
         return np.array(
             [
