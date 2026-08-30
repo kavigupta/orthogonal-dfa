@@ -10,7 +10,7 @@ class _StubTree:
     (False,)  -> bit 1 : True -> leaf (False, True), False -> (False, False)
     """
 
-    _midfix = {(): (), (False,): ("m",)}
+    _midfix = {(): b"", (False,): b"m"}
 
     def midfix_at(self, path):
         return self._midfix[path]
@@ -23,7 +23,7 @@ def _classifier():
     def classify(strings, midfix):
         calls["batches"] += 1
         calls["strings"] += len(strings)
-        idx = 0 if midfix == () else 1
+        idx = 0 if midfix == b"" else 1
         return [bool(s[idx]) for s in strings]
 
     return classify, calls
@@ -33,18 +33,20 @@ class TestLeafPopulation(unittest.TestCase):
     def test_pulls_matching_strings_to_each_leaf(self):
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        for s in ([1, 0], [1, 1], [0, 1], [0, 0]):
+        for s in (bytes([1, 0]), bytes([1, 1]), bytes([0, 1]), bytes([0, 0])):
             pop.add(s)
-        self.assertEqual(sorted(pop.members((True,), 10)), [[1, 0], [1, 1]])
-        self.assertEqual(pop.members((False, True), 10), [[0, 1]])
-        self.assertEqual(pop.members((False, False), 10), [[0, 0]])
+        self.assertEqual(
+            sorted(pop.members((True,), 10)), [bytes([1, 0]), bytes([1, 1])]
+        )
+        self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
+        self.assertEqual(pop.members((False, False), 10), [bytes([0, 0])])
 
     def test_count_bounds_the_pull(self):
         # 100 strings all route to leaf (True,); asking for 3 pulls one chunk, not all.
         classify, calls = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
         for i in range(100):
-            pop.add([1, i % 2])
+            pop.add(bytes([1, i % 2]))
         got = pop.members((True,), 3)
         self.assertEqual(len(got), 3)
         self.assertLessEqual(calls["strings"], 16)
@@ -54,17 +56,17 @@ class TestLeafPopulation(unittest.TestCase):
         # reclassify the root -- the sibling's strings are already resting below it.
         classify, calls = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=64)
-        for s in ([1, 0], [0, 1], [1, 1], [0, 0]):
+        for s in (bytes([1, 0]), bytes([0, 1]), bytes([1, 1]), bytes([0, 0])):
             pop.add(s)
         pop.members((True,), 10)
-        self.assertEqual(pop.members((False, True), 10), [[0, 1]])
+        self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
         self.assertEqual(calls["batches"], 2)  # root once, then (False,) once
 
     def test_add_at_a_known_leaf_skips_classification(self):
         classify, calls = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        pop.add([7, 7], at=(True,))
-        self.assertEqual(pop.members((True,), 10), [[7, 7]])
+        pop.add(bytes([7, 7]), at=(True,))
+        self.assertEqual(pop.members((True,), 10), [bytes([7, 7])])
         self.assertEqual(calls["batches"], 0)
 
     def test_cold_query_of_a_grandchild_cascades(self):
@@ -72,24 +74,34 @@ class TestLeafPopulation(unittest.TestCase):
         # (False,) -> (False, True) in one call.
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        for s in ([1, 0], [0, 1], [1, 1], [0, 0], [0, 1]):
+        for s in (
+            bytes([1, 0]),
+            bytes([0, 1]),
+            bytes([1, 1]),
+            bytes([0, 0]),
+            bytes([0, 1]),
+        ):
             pop.add(s)
-        self.assertEqual(sorted(pop.members((False, True), 10)), [[0, 1], [0, 1]])
+        self.assertEqual(
+            sorted(pop.members((False, True), 10)), [bytes([0, 1]), bytes([0, 1])]
+        )
 
     def test_exhausted_ancestors_return_what_is_there(self):
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        for s in ([1, 0], [1, 1]):
+        for s in (bytes([1, 0]), bytes([1, 1])):
             pop.add(s)
         # Only two strings reach (True,); asking for more just returns those two.
-        self.assertEqual(sorted(pop.members((True,), 50)), [[1, 0], [1, 1]])
+        self.assertEqual(
+            sorted(pop.members((True,), 50)), [bytes([1, 0]), bytes([1, 1])]
+        )
 
     def test_representative_is_the_shortest_member(self):
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        for s in ([3, 3, 3], [7], [1, 2]):
+        for s in (bytes([3, 3, 3]), bytes([7]), bytes([1, 2])):
             pop.add(s, at=(True,))
-        self.assertEqual(pop.representative((True,), 10), [7])
+        self.assertEqual(pop.representative((True,), 10), bytes([7]))
 
     def test_representative_is_none_when_no_members_reach_the_leaf(self):
         classify, _ = _classifier()

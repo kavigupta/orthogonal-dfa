@@ -11,6 +11,7 @@ from orthogonal_dfa.l_star.dfa_utils import (
     per_state_sample,
     rank_string_reaching_state,
     states_intermediate,
+    uniform_weights,
     unrank_string_reaching_state,
 )
 
@@ -87,7 +88,7 @@ def enumerate_by_end_state(dfa, length):
     by_state = {}
     for string in itertools.product(syms, repeat=length):
         end = states_intermediate(dfa.initial_state, string, dfa)[-1]
-        by_state.setdefault(end, []).append(list(string))
+        by_state.setdefault(end, []).append(bytes(string))
     return by_state
 
 
@@ -98,7 +99,9 @@ class TestRankUnrank(unittest.TestCase):
     def test_rank_unrank_is_a_bijection(self, _name, dfa, length):
         by_state = enumerate_by_end_state(dfa, length)
         for state in sorted(dfa.states):
-            counts = count_paths_to_state(dfa, state, length)
+            counts = count_paths_to_state(
+                dfa, state, length, weights=uniform_weights(dfa)
+            )
             reachable = counts[length][dfa.initial_state]
             strings = by_state.get(state, [])
             self.assertEqual(len(strings), reachable)
@@ -120,7 +123,9 @@ class TestRankUnrank(unittest.TestCase):
     def test_rank_unrank_beyond_int64(self):
         # 2 ** 70 length-70 strings reach the single state -- well past int64.
         length = 70
-        counts = count_paths_to_state(SELF_LOOP, 0, length)
+        counts = count_paths_to_state(
+            SELF_LOOP, 0, length, weights=uniform_weights(SELF_LOOP)
+        )
         reachable = counts[length][SELF_LOOP.initial_state]
         self.assertEqual(reachable, 2**length)
         for index in [0, 1, 2**63, 2**63 + 1, 2**70 - 1, 12345678901234567890]:
@@ -140,11 +145,13 @@ class TestPerStateSample(unittest.TestCase):
     )
     def test_coverage_and_distinctness(self, _name, dfa, length, per_state):
         rng = np.random.default_rng(0)
-        pool = per_state_sample(dfa, rng, length, per_state)
+        pool = per_state_sample(
+            dfa, rng, length, per_state, weights=uniform_weights(dfa)
+        )
 
         # Every string has the requested length and is globally distinct.
         self.assertTrue(all(len(s) == length for s in pool))
-        self.assertEqual(len(pool), len({tuple(s) for s in pool}))
+        self.assertEqual(len(pool), len(set(pool)))
 
         by_state = enumerate_by_end_state(dfa, length)
         counts_in_pool = {}
@@ -162,10 +169,14 @@ class TestPerStateSample(unittest.TestCase):
         length, per_state = 4, 6
         rng = np.random.default_rng(1)
 
-        existing = per_state_sample(dfa, rng, length, per_state)
+        existing = per_state_sample(
+            dfa, rng, length, per_state, weights=uniform_weights(dfa)
+        )
         # Feeding the previous pool back in must not grow it: the quota is
         # already met, so nothing new is added.
-        again = per_state_sample(dfa, rng, length, per_state, existing=existing)
+        again = per_state_sample(
+            dfa, rng, length, per_state, weights=uniform_weights(dfa), existing=existing
+        )
 
         def by_state_counts(pool):
             out = {}
@@ -181,7 +192,14 @@ class TestPerStateSample(unittest.TestCase):
         length, per_state = 3, 4
         rng = np.random.default_rng(2)
         junk = [[0, 1]]  # length 2, not 3
-        pool = per_state_sample(PARITY, rng, length, per_state, existing=junk)
+        pool = per_state_sample(
+            PARITY,
+            rng,
+            length,
+            per_state,
+            weights=uniform_weights(PARITY),
+            existing=junk,
+        )
         self.assertTrue(all(len(s) == length for s in pool))
         by_state = enumerate_by_end_state(PARITY, length)
         counts_in_pool = {}
@@ -202,23 +220,30 @@ class TestPerStateSample(unittest.TestCase):
         by_state = enumerate_by_end_state(PARITY, length)
         # Two length-3 strings that end in state 1 (odd number of 1s).
         existing = by_state[1][:2]
-        pool = per_state_sample(PARITY, rng, length, per_state, existing=existing)
+        pool = per_state_sample(
+            PARITY,
+            rng,
+            length,
+            per_state,
+            weights=uniform_weights(PARITY),
+            existing=existing,
+        )
         pool_reaching_1 = [
             s
             for s in pool
             if states_intermediate(PARITY.initial_state, s, PARITY)[-1] == 1
         ]
-        self.assertEqual(
-            {tuple(s) for s in pool_reaching_1}, {tuple(s) for s in existing}
-        )
+        self.assertEqual(set(pool_reaching_1), set(existing))
 
     def test_large_space_uses_string_sampler_branch(self):
         # reachable = 2 ** 70 forces the > int64 fallback; still returns the
         # requested count of distinct, correct-length strings.
         rng = np.random.default_rng(4)
-        pool = per_state_sample(SELF_LOOP, rng, 70, 8)
+        pool = per_state_sample(
+            SELF_LOOP, rng, 70, 8, weights=uniform_weights(SELF_LOOP)
+        )
         self.assertEqual(len(pool), 8)
-        self.assertEqual(len({tuple(s) for s in pool}), 8)
+        self.assertEqual(len(set(pool)), 8)
         self.assertTrue(all(len(s) == 70 for s in pool))
 
     def test_sampling_is_uniform_without_replacement(self):
@@ -226,14 +251,16 @@ class TestPerStateSample(unittest.TestCase):
         # string should appear about half the time.  Loose bound -- this checks
         # the distribution, not any single seed.
         length, per_state, runs = 3, 4, 8000
-        space = list(itertools.product((0, 1), repeat=length))
+        space = [bytes(s) for s in itertools.product((0, 1), repeat=length)]
         rng = np.random.default_rng(5)
         appearances = {s: 0 for s in space}
         for _ in range(runs):
-            pool = per_state_sample(SELF_LOOP, rng, length, per_state)
+            pool = per_state_sample(
+                SELF_LOOP, rng, length, per_state, weights=uniform_weights(SELF_LOOP)
+            )
             self.assertEqual(len(pool), per_state)
             for s in pool:
-                appearances[tuple(s)] += 1
+                appearances[s] += 1
         for s in space:
             freq = appearances[s] / runs
             self.assertAlmostEqual(freq, per_state / len(space), delta=0.05)

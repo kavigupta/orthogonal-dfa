@@ -11,8 +11,8 @@ from .structures import Oracle
 
 
 def short_prefix_closure(
-    prefixes: List[List[int]], max_length: int, max_count: int
-) -> List[List[int]]:
+    prefixes: List[bytes], max_length: int, max_count: int
+) -> List[bytes]:
     """The ``max_count`` shortest distinct prefixes (including the empty string)
     of length at most ``max_length`` of any string in ``prefixes``.
 
@@ -35,13 +35,12 @@ def short_prefix_closure(
     closure = set()
     for prefix in prefixes:
         for k in range(min(len(prefix), max_length) + 1):
-            closure.add(tuple(prefix[:k]))
-    # Sort for a deterministic order: set-iteration order of tuples varies with
-    # the CPython version (tuple hashing changed across 3.x), which would make
-    # the prefix list — and the noisy statistics computed over it — depend on
-    # the interpreter.  Order by (length, contents) so the empty string is first.
-    ordered = sorted(closure, key=lambda p: (len(p), p))
-    return [list(p) for p in ordered[:max_count]]
+            closure.add(prefix[:k])
+    # Sort for a deterministic order: set-iteration order varies with the
+    # CPython version, which would make the prefix list — and the noisy
+    # statistics computed over it — depend on the interpreter.  Order by
+    # (length, contents) so the empty string is first.
+    return sorted(closure, key=lambda p: (len(p), p))[:max_count]
 
 
 #: Below this a signal is not worth sizing a population for.
@@ -50,8 +49,6 @@ MIN_SIGNAL_STRENGTH = 0.001
 
 @dataclass
 class SearchConfig:
-    suffix_family_size: int
-    evidence_margin: float
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
@@ -90,10 +87,6 @@ class PrefixSuffixTracker:
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
 
-    def __post_init__(self):
-        if self.evidence_margin == 0.0:
-            self.evidence_margin = self.config.evidence_margin
-
     @property
     def num_prefixes(self) -> int:
         return self.table.num_prefixes
@@ -122,6 +115,10 @@ class PrefixSuffixTracker:
         prefix_core_length: int = 4,
         prefix_core_size: int = 32,
     ) -> "PrefixSuffixTracker":
+        # A string here is a byte per symbol, so a wider alphabet has nothing to
+        # be written down in.  Said once, and before the first draw, rather than
+        # left to surface as whichever byte conversion is reached first.
+        assert oracle.alphabet_size <= 256, oracle.alphabet_size
         prefixes = [
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
@@ -133,13 +130,13 @@ class PrefixSuffixTracker:
         # it; state discovery still uses every prefix so transient states split.
         representative = [True] * len(prefixes)
         if prefix_core_length > 0 and prefix_core_size > 0:
-            existing = {tuple(p) for p in prefixes}
+            existing = set(prefixes)
             core = [
                 p
                 for p in short_prefix_closure(
                     prefixes, prefix_core_length, prefix_core_size
                 )
-                if tuple(p) not in existing
+                if p not in existing
             ]
             prefixes = prefixes + core
             representative = representative + [False] * len(core)
@@ -230,13 +227,11 @@ class PrefixSuffixTracker:
         # Sample random prefixes and add them
         new_prefixes = set()
         while len(new_prefixes) < self.config.num_addtl_prefixes:
-            prefix = tuple(
-                self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-            )
-            if prefix in new_prefixes or self.table.contains_prefix(list(prefix)):
+            prefix = self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
+            if prefix in new_prefixes or self.table.contains_prefix(prefix):
                 continue
             new_prefixes.add(prefix)
-        self.table.add_prefixes(sorted(list(x) for x in new_prefixes))
+        self.table.add_prefixes(sorted(new_prefixes))
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
@@ -268,7 +263,7 @@ class PrefixSuffixTracker:
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
 
     def compute_decision_from_strings(
-        self, vs: List[List[int]], subset_prefixes=None
+        self, vs: List[bytes], subset_prefixes=None
     ) -> np.ndarray:
         if subset_prefixes is None:
             subset_prefixes = np.ones(self.num_prefixes, dtype=bool)

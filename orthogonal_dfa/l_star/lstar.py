@@ -13,9 +13,14 @@ from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     states_intermediate,
+    uniform_weights,
 )
 from .midfix_tree import oracle_decider
-from .statistics import binomial_side_of_boundary
+from .statistics import (
+    DENOISE_FAILURE_PROB,
+    binomial_side_of_boundary,
+    denoise_sample_size,
+)
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
@@ -32,7 +37,7 @@ def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):
     )
 
 
-def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
+def denoise_accept_labels(pst, dfa, *, block_size=32):
     """Recompute each reachable state's accept/reject label from fresh oracle samples.
 
     Discovery can noise-flip a low-support reject state to accept, leaking ~2% false
@@ -41,15 +46,34 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
     sampler) and query the oracle, flipping the label only when a binomial test of the
     accept rate lands significantly on one side of ``pst.decision_boundary``. Correct
     labels never reach significance on the wrong side, so only noise-flips get corrected;
-    a state that can't decide within ``max_samples`` distinct strings keeps its discovery
-    label. Labels change, transitions don't.
+    a state that can't decide within the samples that test needs at this oracle's signal
+    keeps its discovery label. Labels change, transitions don't.
     """
     length = pst.sampler.length
+    # States that used the whole budget without deciding, as opposed to those with
+    # too few strings reaching them to have had a chance.
+    exhausted = []
+    max_samples = denoise_sample_size(
+        pst.config.min_signal_strength, pst.decision_boundary
+    )
+    if max_samples is None:
+        print(
+            f"Denoise skipped: no sample size decides at signal "
+            f"{pst.config.min_signal_strength} around a boundary of "
+            f"{pst.decision_boundary:.4f}"
+        )
+        return dfa
+    weights = pst.sampler.symbol_weights(pst.alphabet_size)
 
     def relabel(state):
         # True=accept, False=reject, None=undecided (keep the discovery label).
-        counts = count_paths_to_state(dfa, state, length)
-        cap = min(max_samples, counts[length][dfa.initial_state])
+        # How many distinct strings there are to draw, as against how likely the
+        # learner is to draw each: the cap is the first, the walk the second.
+        reachable = count_paths_to_state(dfa, state, length, uniform_weights(dfa))[
+            length
+        ][dfa.initial_state]
+        cap = min(max_samples, reachable)
+        drawn_from = count_paths_to_state(dfa, state, length, weights)
         seen, accepts, n = set(), 0, 0
         while len(seen) < cap:
             # Draw and query a block at a time.  The stopping rule is still read
@@ -60,17 +84,24 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
             target = min(block_size, cap - len(seen))
             block = []
             while len(block) < target:
-                string = sample_string_reaching_state(dfa, counts, pst.rng)
-                if tuple(string) in seen:
+                string = sample_string_reaching_state(dfa, drawn_from, pst.rng, weights)
+                if string in seen:
                     continue  # need distinct strings for independent oracle draws
-                seen.add(tuple(string))
+                seen.add(string)
                 block.append(string)
             for bit in pst.oracle.membership_queries(block):
                 accepts += int(bit)
                 n += 1
-                decision = binomial_side_of_boundary(accepts, n, pst.decision_boundary)
+                decision = binomial_side_of_boundary(
+                    accepts,
+                    n,
+                    pst.decision_boundary,
+                    failure_prob=DENOISE_FAILURE_PROB,
+                )
                 if decision is not None:
                     return decision
+        if reachable >= max_samples:
+            exhausted.append(state)
         return None
 
     label = {
@@ -78,6 +109,11 @@ def denoise_accept_labels(pst, dfa, *, max_samples=200, block_size=32):
         for prefix in pst.table.prefixes
     }
     label = {state: relabel(state) for state in label}
+    if exhausted:
+        print(
+            f"Denoise spent {max_samples} samples on {sorted(exhausted)} without "
+            f"reaching significance either side of {pst.decision_boundary:.4f}"
+        )
 
     def is_final(s):
         # Decided states use the new label; the rest keep the discovery label.
@@ -189,7 +225,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     # across the loop; compute it once instead of re-querying the oracle on each
     # sample.  On multi-iteration benchmarks this empty-prefix reclassification was
     # ~24% of all oracle queries (it recurs on up to num_samples draws per call).
-    s0 = classify([])
+    s0 = classify(b"")
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0
@@ -202,7 +238,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
         ends = classify_many(ys)
         for y, s_end in zip(ys, ends):
             prefix, reason = locate_incorrect_point(
-                classify, dfa, [], y, s0=s0, s_end=s_end
+                classify, dfa, b"", y, s0=s0, s_end=s_end
             )
             if prefix is None and reason == "no inconsistency":
                 agreements += 1

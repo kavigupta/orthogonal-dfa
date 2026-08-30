@@ -13,7 +13,7 @@ class StubTable:
         self.memo = MemoizedOracle(oracle)
 
     def suffix(self, v):
-        return [v]
+        return bytes([v])
 
 
 class StubOracle:
@@ -34,7 +34,5 @@ def make_pst():
         evidence_margin=0.0,
         table=StubTable(oracle),
         oracle=oracle,
-        config=SimpleNamespace(
-            split_pval=0.001, min_signal_strength=0.3, suffix_family_size=2
-        ),
+        config=SimpleNamespace(split_pval=0.001, min_signal_strength=0.3),
     )
