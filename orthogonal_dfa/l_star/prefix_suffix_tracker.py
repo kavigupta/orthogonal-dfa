@@ -106,6 +106,10 @@ class PrefixSuffixTracker:
         prefix_core_length: int = 4,
         prefix_core_size: int = 32,
     ) -> "PrefixSuffixTracker":
+        # A string here is a byte per symbol, so a wider alphabet has nothing to
+        # be written down in.  Said once, and before the first draw, rather than
+        # left to surface as whichever byte conversion is reached first.
+        assert oracle.alphabet_size <= 256, oracle.alphabet_size
         prefixes = [
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)

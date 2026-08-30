@@ -27,9 +27,8 @@ class NoiseModel(ABC):
 def _uniform_random(string: bytes, seed: int) -> float:
     """A uniform draw on [0, 1) keyed by ``(string, seed)``.
 
-    Hashes the symbols as bytes rather than their repr: this runs once per
-    membership query, and formatting the list dominated it.  A symbol wider than
-    a byte raises here, as it already does in MemoizedOracle.
+    Hashes the string itself rather than its repr: this runs once per membership
+    query, and formatting dominated it.
     """
     digest = hashlib.blake2b(
         bytes(string) + seed.to_bytes(8, "big", signed=True), digest_size=8

@@ -30,6 +30,20 @@ def _oracle(noise_model, seed):
     return NoisyOracle(BernoulliParityOracle(), noise_model, seed)
 
 
+class TestAlphabetFitsAByte(unittest.TestCase):
+    """A string is a byte per symbol, so the learner has nothing to write a wider
+    alphabet down in."""
+
+    def test_too_wide_is_rejected(self):
+        wide = BernoulliParityOracle(alphabet_size=257)
+        with self.assertRaisesRegex(AssertionError, "257"):
+            build_pst(
+                lambda nm, s: NoisyOracle(wide, nm, s),
+                min_signal_strength=0.3,
+                seed=0,
+            )
+
+
 class TestCustomSampler(unittest.TestCase):
     def test_defaults_to_uniform(self):
         pst = build_pst(_oracle, min_signal_strength=0.3, seed=0)

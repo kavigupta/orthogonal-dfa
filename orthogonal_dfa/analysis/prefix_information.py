@@ -109,6 +109,13 @@ def _membership_matrix(oracle, prefixes, suffixes, prefix_batch=32):
     return np.concatenate(rows, axis=0)
 
 
+def _random_strings(rng, count: int, length: int):
+    """``count`` uniform strings of ``length`` symbols over the four bases."""
+    return [
+        row.tobytes() for row in rng.integers(0, 4, (count, length), dtype=np.uint8)
+    ]
+
+
 @permacache("orthogonal_dfa/analysis/prefix_information/measure_v1")
 def measure_prefix_information(
     oracle_name, *, length=95, n_prefixes=512, n_suffixes=256, seed=0
@@ -117,8 +124,8 @@ def measure_prefix_information(
     ``oracle_name`` over random length-``length`` prefixes and suffixes."""
     oracle = _build_oracle(oracle_name, length)
     rng = np.random.default_rng(seed)
-    prefixes = rng.integers(0, 4, (n_prefixes, length)).tolist()
-    suffixes = rng.integers(0, 4, (n_suffixes, length)).tolist()
+    prefixes = _random_strings(rng, n_prefixes, length)
+    suffixes = _random_strings(rng, n_suffixes, length)
     matrix = _membership_matrix(oracle, prefixes, suffixes)
     return dict(
         prefix_explained=prefix_explained_variance(matrix),
