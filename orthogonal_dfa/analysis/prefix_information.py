@@ -111,9 +111,10 @@ def _membership_matrix(oracle, prefixes, suffixes, prefix_batch=32):
 
 def _random_strings(rng, count: int, length: int):
     """``count`` uniform strings of ``length`` symbols over the four bases."""
-    return [
-        row.tobytes() for row in rng.integers(0, 4, (count, length), dtype=np.uint8)
-    ]
+    # astype, not dtype=np.uint8: the dtype changes the values drawn, and this
+    # value is permacached.
+    raw = rng.integers(0, 4, (count, length)).astype(np.uint8)
+    return [row.tobytes() for row in raw]
 
 
 @permacache("orthogonal_dfa/analysis/prefix_information/measure_v1")

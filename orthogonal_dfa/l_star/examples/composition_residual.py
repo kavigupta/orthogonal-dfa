@@ -228,8 +228,10 @@ def _fit_composition_bins(
     intercepts, betas, r2s = [], [], []
     for lo, hi in zip(edges[:-1], edges[1:]):
         lens = rng.integers(lo, hi, size=per_bin)
+        # astype, not dtype=np.uint8: the dtype changes the values drawn, and
+        # this value is permacached.
         mids = [
-            rng.integers(0, 4, size=int(length), dtype=np.uint8).tobytes()
+            rng.integers(0, 4, size=int(length)).astype(np.uint8).tobytes()
             for length in lens
         ]
         scores = run_over_middles(

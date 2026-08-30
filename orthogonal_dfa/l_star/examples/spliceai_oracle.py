@@ -143,8 +143,12 @@ def median_threshold(
     ``score_model`` must already be in eval mode; a permacache hit skips the check
     along with the rest of the body."""
     flank_l, flank_r = flanks(exon)
-    raw = np.random.default_rng(seed).integers(
-        0, 4, size=(count, length), dtype=np.uint8
+    # astype, not dtype=np.uint8: the dtype changes the values drawn, and this
+    # value is permacached.
+    raw = (
+        np.random.default_rng(seed)
+        .integers(0, 4, size=(count, length))
+        .astype(np.uint8)
     )
     mids = [row.tobytes() for row in raw]
     scores = run_over_middles(
