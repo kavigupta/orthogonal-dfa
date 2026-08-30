@@ -35,7 +35,7 @@ DEFAULT_MIN_COVERAGE = 0.01
 @lru_cache(maxsize=None)
 def _sample_strings(
     sampler: Sampler, symbols: Tuple[int, ...], num_samples: int
-) -> Tuple[Tuple[int, ...], ...]:
+) -> Tuple[bytes, ...]:
     """The sample every check below reads, as ``sampler`` draws it from a seed
     of 0.
 
@@ -45,14 +45,14 @@ def _sample_strings(
     """
     rng = np.random.default_rng(0)
     return tuple(
-        tuple(symbols[i] for i in sampler.sample(rng, len(symbols)))
+        bytes(symbols[i] for i in sampler.sample(rng, len(symbols)))
         for _ in range(num_samples)
     )
 
 
 def _samples(
     dfa: DFA, length: int, num_samples: int, sampler: Optional[Sampler] = None
-) -> Tuple[Tuple[int, ...], ...]:
+) -> Tuple[bytes, ...]:
     """The strings every check below reads, over the DFA's own symbols.
 
     ``sampler`` is for a target whose learner does not draw uniformly: the checks
@@ -66,10 +66,14 @@ def _samples(
         f"sampler draws {sampler.length} symbols but the preconditions were "
         f"asked for length {length}"
     )
-    return _sample_strings(sampler, tuple(sorted(dfa.input_symbols)), num_samples)
+    symbols = tuple(sorted(dfa.input_symbols))
+    # A string here is a byte per symbol, so that is what the DFA's symbols have to
+    # be, whatever else a DFA is allowed to be labelled with.
+    assert all(isinstance(s, int) and 0 <= s < 256 for s in symbols), symbols
+    return _sample_strings(sampler, symbols, num_samples)
 
 
-def _endpoint(dfa: DFA, string: List[int], start=None):
+def _endpoint(dfa: DFA, string: bytes, start=None):
     """The state reached by running ``string`` from ``start`` (default q0)."""
     q = dfa.initial_state if start is None else start
     for c in string:

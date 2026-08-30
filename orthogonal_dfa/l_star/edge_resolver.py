@@ -27,16 +27,16 @@ class EdgeResolver:
         self.indecisive = indecisive
         self._population = population
 
-    def leaf_members(self, state: int) -> List[List[int]]:
+    def leaf_members(self, state: int) -> List[bytes]:
         return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
 
     def decisive_target(
         self, state: int, c: int
-    ) -> Tuple[Optional[int], Optional[List[int]]]:
+    ) -> Tuple[Optional[int], Optional[bytes]]:
         for member in self.leaf_members(state):
-            target, boundary = self.sifter.sift_and_boundary(list(member) + [c])
+            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
-                return target, list(member)
+                return target, member
             self.indecisive.add(boundary)
         return None, None
 

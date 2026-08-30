@@ -19,32 +19,30 @@ class SuffixFamily:
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
-        self._means: Dict[Tuple[tuple, tuple], float] = {}
+        self._means: Dict[Tuple[bytes, bytes], float] = {}
 
     def bits(self, base) -> List[int]:
         """Membership of ``base`` under each family suffix, through the table's
         shared memo so cells the mask already holds cost no new query."""
         table = self.pst.table
-        return table.memo.membership_queries(
-            [list(base) + table.suffix(v) for v in self.vs]
-        )
+        return table.memo.membership_queries([base + table.suffix(v) for v in self.vs])
 
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs
         one oracle call rather than one per member."""
         table = self.pst.table
         table.memo.membership_queries(
-            [list(b) + table.suffix(v) for b in bases for v in self.vs]
+            [b + table.suffix(v) for b in bases for v in self.vs]
         )
 
     def mean(self, seq, midfix) -> float:
         """Mean family membership of ``seq`` under the distinguishers
         ``midfix + v``."""
-        key = (tuple(seq), tuple(midfix))
+        key = (seq, midfix)
         cached = self._means.get(key)
         if cached is not None:
             return cached
-        value = sum(self.bits(list(seq) + list(midfix))) / len(self.vs)
+        value = sum(self.bits(seq + midfix)) / len(self.vs)
         self._means[key] = value
         return value
 
@@ -61,7 +59,7 @@ class SuffixFamily:
 
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""
-        return self.bits(list(seq) + list(midfix))
+        return self.bits(seq + midfix)
 
     def train_side(self, votes) -> Optional[bool]:
         """

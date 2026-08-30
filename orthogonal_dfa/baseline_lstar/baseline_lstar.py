@@ -7,7 +7,6 @@ against the orthonormal L* approach.
 """
 
 import random
-from typing import List
 
 from aalpy.base import SUL
 from aalpy.oracles import RandomWordEqOracle
@@ -24,10 +23,10 @@ class OracleSUL(SUL):
     def __init__(self, oracle: Oracle):
         super().__init__()
         self.oracle = oracle
-        self.current_word: List[int] = []
+        self.current_word = bytearray()
 
     def pre(self):
-        self.current_word = []
+        self.current_word = bytearray()
 
     def post(self):
         pass
@@ -35,7 +34,7 @@ class OracleSUL(SUL):
     def step(self, letter):
         if letter is not None:
             self.current_word.append(letter)
-        return self.oracle.membership_query(list(self.current_word))
+        return self.oracle.membership_query(bytes(self.current_word))
 
 
 def run_baseline_lstar(oracle: Oracle, *, max_states=None):

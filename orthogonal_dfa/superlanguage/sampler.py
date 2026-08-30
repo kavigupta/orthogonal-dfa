@@ -72,7 +72,7 @@ class SuperSampler(Sampler):
         kmers = list(_stationary_kmer_rates(vocab))
         return kmers + [(1 - sum(kmers)) / vocab.num_wildcards] * vocab.num_wildcards
 
-    def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
+    def sample(self, rng: np.random.Generator, alphabet_size: int) -> bytes:
         assert alphabet_size == self.vocabulary.alphabet_size, (
             f"alphabet size mismatch: the vocabulary has "
             f"{self.vocabulary.alphabet_size} super-symbols but the learner asked "
@@ -87,7 +87,7 @@ class SuperSampler(Sampler):
         # parse only ever emits the canonical wildcard. Spreading the neutral
         # positions over all of them is what makes such strings plentiful.
         wildcards = rng.integers(vocab.num_wildcards, size=self.length)
-        return [
+        return bytes(
             vocab.num_kmers + int(w) if vocab.is_unknown(symbol) else symbol
             for symbol, w in zip(parsed, wildcards)
-        ]
+        )

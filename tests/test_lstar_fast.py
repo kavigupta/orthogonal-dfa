@@ -46,7 +46,9 @@ class TestLStarFast(unittest.TestCase):
             BernoulliRegex(regex=r".*(1111|0000)11.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
+        assertDFA(
+            self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == bytes([1] * 5)
+        )
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -55,8 +57,8 @@ class TestLStarFast(unittest.TestCase):
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return [1, 1, 1, 1]
-            return [0, 0, 0, 0]
+                return bytes([1]) * 4
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
@@ -67,8 +69,8 @@ class TestLStarFast(unittest.TestCase):
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return [1, 1, 1, 1, 1]
-            return [0, 0, 0, 0]
+                return bytes([1]) * 5
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 

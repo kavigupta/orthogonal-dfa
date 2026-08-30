@@ -23,7 +23,7 @@ drawn uniformly from *Q*.  This is uniform over the unconstrained degrees of
 freedom.
 """
 
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -241,7 +241,7 @@ class DFAOracle(Oracle):
     def alphabet_size(self) -> int:
         return self._alphabet_size
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return self._dfa.accepts_input(string)
 
     def target_dfa(self):

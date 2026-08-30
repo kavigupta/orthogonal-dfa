@@ -17,7 +17,7 @@ class Sampler(ABC):
     length: int
 
     @abstractmethod
-    def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
+    def sample(self, rng: np.random.Generator, alphabet_size: int) -> bytes:
         pass
 
     @abstractmethod
@@ -35,8 +35,10 @@ class Sampler(ABC):
 class UniformSampler(Sampler):
     length: int
 
-    def sample(self, rng: np.random.Generator, alphabet_size: int) -> List[int]:
-        return rng.integers(0, alphabet_size, size=self.length).tolist()
+    def sample(self, rng: np.random.Generator, alphabet_size: int) -> bytes:
+        return rng.integers(
+            0, alphabet_size, size=self.length, dtype=np.uint8
+        ).tobytes()
 
     def symbol_weights(self, alphabet_size):
         return [1] * alphabet_size
