@@ -101,6 +101,19 @@ class Oracle(ABC):
         """
         return np.array([self.membership_query(s) for s in strings], dtype=bool)
 
+    @property
+    def string_length(self) -> int:
+        """The one length this oracle answers about, where it answers about one.
+
+        Not every oracle is over strings of a fixed length -- a regex or a parity
+        is over all of them -- so this raises rather than answering for those.  A
+        caller reading it is one that needs the length, and an oracle that has
+        none cannot serve it.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} answers about strings of any length"
+        )
+
     def target_dfa(self):
         """The DFA of the language this oracle answers for, over int symbols.
 
