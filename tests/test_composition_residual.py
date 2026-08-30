@@ -17,14 +17,14 @@ from orthogonal_dfa.l_star.examples.spliceai_oracle import (
     median_threshold,
     run_over_middles,
 )
-from tests.spliceai_small import small_score_model_and_exon
+from tests.spliceai_small import random_middles, small_score_model_and_exon
 
 
 def every_kmer_frequency(strings, k_max):
     """All 4**k frequencies per k, including the ones bow_features omits."""
     rows = []
     for s in strings:
-        s, row = np.asarray(s), []
+        s, row = np.frombuffer(s, dtype=np.uint8).astype(np.int64), []
         for k in range(1, k_max + 1):
             ids = np.zeros(len(s) - k + 1, dtype=np.int64)
             for j in range(k):
@@ -34,14 +34,9 @@ def every_kmer_frequency(strings, k_max):
     return np.array(rows)
 
 
-def random_middles(n, length, seed):
-    rng = np.random.default_rng(seed)
-    return [rng.integers(0, 4, size=length).tolist() for _ in range(n)], rng
-
-
 class TestBowFeatures(unittest.TestCase):
     def test_shape_and_frequencies(self):
-        features = bow_features([[0, 1, 2, 3], [3, 3, 3]], k_max=2)
+        features = bow_features([bytes([0, 1, 2, 3]), bytes([3, 3, 3])], k_max=2)
         self.assertEqual(features.shape, (2, 3 + 15))  # last k-mer of each k omitted
         np.testing.assert_allclose(features[0, :3], 0.25)  # ACGT -> A, C, G each 1/4
         np.testing.assert_allclose(features[1, :3], 0)  # TTT is all of the omitted T
@@ -109,7 +104,7 @@ class TestCompositionResidualScore(unittest.TestCase):
         # the documented single-length form: len_hi = len_lo + 1 (len_hi exclusive).
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
         self.assertEqual(residual._betas.shape[0], 1)
-        scored = self._scores(residual, [[0, 1, 2] * 10])
+        scored = self._scores(residual, [bytes([0, 1, 2]) * 10])
         self.assertEqual(scored.shape, (1,))
         self.assertEqual(residual.composition_r2s.shape, (1,))
         self.assertFalse(np.isnan(residual.composition_r2))
@@ -139,11 +134,11 @@ class TestCompositionResidualScore(unittest.TestCase):
     def test_out_of_band_query_length_warns(self):
         residual = self._fit(len_lo=30, len_hi=35, bin_width=5)
         with self.assertWarns(UserWarning):
-            self._scores(residual, [[0] * 60])
+            self._scores(residual, [bytes(60)])
 
     def test_forward_subtracts_a_linear_function_of_composition(self):
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = np.random.default_rng(1).integers(0, 4, size=(256, 30)).tolist()
+        middles, _ = random_middles(256, 30, seed=1)
         subtracted = self._scores(self.score_model, middles) - self._scores(
             residual, middles
         )
@@ -155,7 +150,7 @@ class TestCompositionResidualScore(unittest.TestCase):
 
     def test_fit_survives_state_dict_round_trip(self):
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = np.random.default_rng(2).integers(0, 4, size=(8, 30)).tolist()
+        middles, _ = random_middles(8, 30, seed=2)
         before = self._scores(residual, middles)
         zeroed = _residual_module(
             self.score_model,
@@ -186,11 +181,12 @@ class TestCompositionResidualScore(unittest.TestCase):
             self.exon, residual, threshold, device="cpu", chunk=64
         )
         for length in (25, 35):
-            fresh = (
-                np.random.default_rng(length)
-                .integers(0, 4, size=(256, length))
-                .tolist()
-            )
+            fresh = [
+                row.tobytes()
+                for row in np.random.default_rng(length).integers(
+                    0, 4, size=(256, length), dtype=np.uint8
+                )
+            ]
             self.assertAlmostEqual(
                 oracle.membership_queries(fresh).mean(), 0.5, delta=0.2
             )

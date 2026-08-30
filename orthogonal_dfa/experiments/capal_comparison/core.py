@@ -349,7 +349,7 @@ def run_elstar_cell(
         def alphabet_size(self) -> int:
             return self._inner.alphabet_size
 
-        def membership_query(self, string: List[int]) -> bool:
+        def membership_query(self, string: bytes) -> bool:
             self.count += 1
             return self._inner.membership_query(string)
 

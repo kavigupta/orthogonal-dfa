@@ -93,6 +93,7 @@ def _measure(root: str, names: list[str]) -> dict:
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
         BernoulliParityOracle, BernoulliRegex,
     )
+    from orthogonal_dfa.l_star.structures import NoisyOracle
     from orthogonal_dfa.l_star.structures import Oracle, AsymmetricBernoulli
     from orthogonal_dfa.l_star.learn import learn_dfa
     from tests.lstar_common import evaluate_accuracy
@@ -123,17 +124,16 @@ def _measure(root: str, names: list[str]) -> dict:
     def build_creator(spec):
         kind = spec["kind"]
         if kind == "modulo":
-            return lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=spec["modulo"], allowed_moduluses=tuple(spec["allowed"]))
+            return lambda nm, s: NoisyOracle(BernoulliParityOracle(modulo=spec["modulo"], allowed_moduluses=tuple(spec["allowed"])), nm, s)
         if kind == "regex":
-            return lambda nm, s: BernoulliRegex(nm, s, regex=spec["regex"])
+            return lambda nm, s: NoisyOracle(BernoulliRegex(regex=spec["regex"]), nm, s)
         if kind == "poor_case":
             dfa = DFA(
                 states=set(range(10)), input_symbols={0, 1},
                 transitions=POOR_CASE_DFA["transitions"],
                 initial_state=POOR_CASE_DFA["initial"],
                 final_states=set(POOR_CASE_DFA["final"]), allow_partial=False)
-            return lambda nm, s: DFAOracle(nm, s, dfa)
+            return lambda nm, s: NoisyOracle(DFAOracle(dfa), nm, s)
         raise ValueError(f"unknown oracle kind {kind!r}")
 
     results = {}

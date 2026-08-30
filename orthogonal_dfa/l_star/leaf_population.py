@@ -15,7 +15,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 Path = Tuple[bool, ...]
 #: Classify a batch of strings against one node's midfix, decisions aligned with
 #: the input (``None`` = indecisive, dropped).
-Classify = Callable[[List[list], tuple], List[Optional[bool]]]
+Classify = Callable[[List[bytes], bytes], List[Optional[bool]]]
 
 
 class LeafPopulation:
@@ -30,7 +30,7 @@ class LeafPopulation:
         self._classify = classify
         self._chunk = chunk
         # path -> strings currently resting at that node.
-        self._at: Dict[Path, List[tuple]] = {}
+        self._at: Dict[Path, List[bytes]] = {}
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
@@ -41,18 +41,17 @@ class LeafPopulation:
         copies that the split test would then miscount as independent members.
         The root pool keeps every add, so a prefix's multiplicity is preserved."""
         bucket = self._at.setdefault(at, [])
-        entry = tuple(string)
-        if at and entry in bucket:
+        if at and string in bucket:
             return
-        bucket.append(entry)
+        bucket.append(string)
 
-    def members(self, at: Path, count: int) -> List[list]:
+    def members(self, at: Path, count: int) -> List[bytes]:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
         needed and stopping as soon as ``count`` are in hand."""
         self._fill(at, count)
-        return [list(s) for s in self._at.get(at, [])[:count]]
+        return self._at.get(at, [])[:count]
 
-    def representative(self, at: Path, count: int) -> Optional[list]:
+    def representative(self, at: Path, count: int) -> Optional[bytes]:
         """The canonical member reaching leaf ``at`` -- the shortest, ties broken
         lexicographically -- or ``None`` if none do. ``count`` bounds how many
         members are pulled to choose among."""
@@ -78,7 +77,7 @@ class LeafPopulation:
         bucket = self._at[parent]
         chunk, self._at[parent] = bucket[: self._chunk], bucket[self._chunk :]
         midfix = self._tree.midfix_at(parent)
-        decisions = self._classify([list(s) for s in chunk], midfix)
+        decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
             if decision is not None:
                 self._at.setdefault(parent + (decision,), []).append(string)

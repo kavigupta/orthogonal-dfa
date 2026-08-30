@@ -14,7 +14,7 @@ class PartialDFA:
         #: transitions[s][c] = s'
         self.transitions: Dict[int, Dict[int, int]] = {s: {} for s in range(num_states)}
         #: witnesses[s, c] = A prefix x such that dfa(x) = s and dfa(x + [c]) = transitions[s][c]
-        self.witnesses: Dict[Tuple[int, int], List[int]] = {}
+        self.witnesses: Dict[Tuple[int, int], bytes] = {}
 
     def target(self, state: int, c: int) -> Optional[int]:
         return self.transitions[state].get(c)
@@ -22,13 +22,13 @@ class PartialDFA:
     def has_edge(self, state: int, c: int) -> bool:
         return c in self.transitions[state]
 
-    def witness(self, state: int, c: int) -> Optional[List[int]]:
+    def witness(self, state: int, c: int) -> Optional[bytes]:
         return self.witnesses.get((state, c))
 
     def set_edge(self, state: int, c: int, target: int, witness) -> None:
         assert c not in self.transitions[state]
         self.transitions[state][c] = target
-        self.witnesses[state, c] = list(witness)
+        self.witnesses[state, c] = witness
 
     def clear_edge(self, state: int, c: int) -> None:
         self.transitions[state].pop(c, None)

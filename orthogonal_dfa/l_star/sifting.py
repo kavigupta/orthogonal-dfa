@@ -15,7 +15,7 @@ class Sifter:
         self.tree = tree
         self.family = family
 
-    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[tuple]]:
+    def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
         """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
         when some node cannot place it."""
         return self.tree.sift(seq, self.family.is_accept)
@@ -36,12 +36,12 @@ class Sifter:
         discarded -- only the warmed cache matters."""
 
         def warm(pairs):
-            self.family.prefill([list(s) + list(m) for s, m in pairs])
+            self.family.prefill([s + m for s, m in pairs])
             return [self.family.is_accept(s, m) for s, m in pairs]
 
         self.tree.classify_many(seqs, warm)
 
-    def disagreement(self, s, sprime, prefix) -> Optional[tuple]:
+    def disagreement(self, s, sprime, prefix) -> Optional[bytes]:
         """A midfix separating ``s`` and ``sprime`` (see
         :meth:`MidfixTree.first_disagreement`), or ``None``.
 

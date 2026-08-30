@@ -20,6 +20,11 @@ def flanks(exon: RawExon):
     )
 
 
+def symbols(string: bytes) -> np.ndarray:
+    """``string``'s symbols as an int array -- the one place bytes meet numpy."""
+    return np.frombuffer(string, dtype=np.uint8).astype(np.int64)
+
+
 def wrap_with_flanks(flank_l, flank_r, strings):
     """Wrap each middle as flank_l+middle+flank_r, right-pad to a rectangle, and
     return (wrapped, middle_lengths).
@@ -34,7 +39,7 @@ def wrap_with_flanks(flank_l, flank_r, strings):
     width = int(flank + (lengths.max() if len(strings) else 0))
     wrapped = np.zeros((len(strings), width), dtype=np.int64)
     for i, s in enumerate(strings):
-        row = np.concatenate([flank_l, np.asarray(s, dtype=np.int64), flank_r])
+        row = np.concatenate([flank_l, symbols(s), flank_r])
         wrapped[i, : len(row)] = row
     return wrapped, lengths
 
@@ -93,7 +98,7 @@ class SpliceModelOracle(Oracle):
     def string_length(self) -> int:
         return self._length
 
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         scores = run_over_middles(
             self._score_model,
             self._flank_l,
@@ -104,7 +109,7 @@ class SpliceModelOracle(Oracle):
         )
         return scores > self._threshold
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
 
 
@@ -138,7 +143,14 @@ def median_threshold(
     ``score_model`` must already be in eval mode; a permacache hit skips the check
     along with the rest of the body."""
     flank_l, flank_r = flanks(exon)
-    mids = np.random.default_rng(seed).integers(0, 4, size=(count, length)).tolist()
+    # astype, not dtype=np.uint8: the dtype changes the values drawn, and this
+    # value is permacached.
+    raw = (
+        np.random.default_rng(seed)
+        .integers(0, 4, size=(count, length))
+        .astype(np.uint8)
+    )
+    mids = [row.tobytes() for row in raw]
     scores = run_over_middles(
         score_model,
         flank_l,

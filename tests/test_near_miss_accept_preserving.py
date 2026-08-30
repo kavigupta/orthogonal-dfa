@@ -7,12 +7,14 @@ suffixes calls such prefixes accept where the noiseless oracle calls them reject
 
 import unittest
 
+import numpy as np
+
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
 from orthogonal_dfa.l_star.sampler import Sampler
-from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import learn_dfa_verified
 
-MOTIF = [1, 0, 1, 0, 1, 0, 1]
+MOTIF = bytes([1, 0, 1, 0, 1, 0, 1])
 NEAR_MISS = MOTIF[:-1]
 
 #: The effect needs the state to be sparse: past roughly 0.3 the family
@@ -22,8 +24,8 @@ NEAR_MISS_SHARE = 0.2
 SEEDS = (0, 1, 2, 3)
 
 
-def _contains_motif(word) -> bool:
-    return "".join(map(str, MOTIF)) in "".join(map(str, word))
+def _contains_motif(word: bytes) -> bool:
+    return MOTIF in word
 
 
 class NearMissSampler(Sampler):
@@ -33,9 +35,13 @@ class NearMissSampler(Sampler):
         self.length = length
         self.share = share
 
+    def symbol_weights(self, alphabet_size):
+        # The near misses are a share of whole strings, not a per-position bias.
+        return [1] * alphabet_size
+
     def sample(self, rng, alphabet_size):
         def draw(n):
-            return rng.integers(0, alphabet_size, size=n).tolist()
+            return rng.integers(0, alphabet_size, size=n, dtype=np.uint8).tobytes()
 
         if rng.random() >= self.share:
             return draw(self.length)
@@ -48,7 +54,7 @@ class NearMissSampler(Sampler):
 
 
 def _oracle(noise_model, seed):
-    return BernoulliRegex(noise_model, seed, regex=r".*1010101.*")
+    return NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), noise_model, seed)
 
 
 def learn_with_near_misses(seed: int, share: float = NEAR_MISS_SHARE):

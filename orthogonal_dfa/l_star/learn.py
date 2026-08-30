@@ -15,10 +15,7 @@ import numpy as np
 from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
-from .statistics import (
-    compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_margin,
-)
+from .statistics import compute_suffix_size_counterexample_gen
 from .structures import SymmetricBernoulli
 
 #: All of E-L*'s signal comes from words drawn at this length.
@@ -55,12 +52,7 @@ def build_pst(
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
-    n, eps = population_size_and_evidence_margin(
-        signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
-    )
     config = SearchConfig(
-        suffix_family_size=n,
-        evidence_margin=eps,
         suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
             0.01, effective_p_acc
         ),
