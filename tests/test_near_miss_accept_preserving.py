@@ -11,7 +11,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
 from orthogonal_dfa.l_star.sampler import Sampler
-from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import learn_dfa_verified
 
 MOTIF = bytes([1, 0, 1, 0, 1, 0, 1])
@@ -54,7 +54,7 @@ class NearMissSampler(Sampler):
 
 
 def _oracle(noise_model, seed):
-    return BernoulliRegex(noise_model, seed, regex=r".*1010101.*")
+    return NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), noise_model, seed)
 
 
 def learn_with_near_misses(seed: int, share: float = NEAR_MISS_SHARE):

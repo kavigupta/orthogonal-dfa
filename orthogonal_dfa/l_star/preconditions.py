@@ -32,28 +32,22 @@ DEFAULT_NUM_SAMPLES = 2000
 DEFAULT_MIN_COVERAGE = 0.01
 
 
-def _drawn_with(sampler, symbols: Tuple[int, ...], num_samples: int):
-    """``num_samples`` strings over ``symbols``, drawn by ``sampler`` from a seed
-    of 0.  The only place the checks draw, so passing the sampler they already
-    default to cannot come out different from leaving it off."""
+@lru_cache(maxsize=None)
+def _sample_strings(
+    sampler: Sampler, symbols: Tuple[int, ...], num_samples: int
+) -> Tuple[bytes, ...]:
+    """The sample every check below reads, as ``sampler`` draws it from a seed
+    of 0.
+
+    Held onto rather than redrawn, which each check used to do per DFA and was
+    most of the cost of screening a population.  Keyed on the sampler, so a
+    caller supplying one is spared the redrawing too.
+    """
     rng = np.random.default_rng(0)
     return tuple(
         bytes(symbols[i] for i in sampler.sample(rng, len(symbols)))
         for _ in range(num_samples)
     )
-
-
-@lru_cache(maxsize=None)
-def _sample_strings(
-    symbols: Tuple[int, ...], length: int, num_samples: int
-) -> Tuple[bytes, ...]:
-    """The uniform length-``length`` sample the checks below all read.
-
-    Seeded at 0 and drawn from the alphabet alone, so it is the same sample for
-    every DFA over that alphabet -- and each check used to redraw it per DFA,
-    which was most of the cost of screening a population.
-    """
-    return _drawn_with(UniformSampler(length), symbols, num_samples)
 
 
 def _samples(
@@ -63,19 +57,19 @@ def _samples(
 
     ``sampler`` is for a target whose learner does not draw uniformly: the checks
     have to ask about the distribution it will actually see, or they measure a
-    language nobody learns.  Only the uniform default is shared between DFAs.
+    language nobody learns.  Leaving it off asks for the uniform one, which is
+    the same call and cannot answer differently.
     """
-    symbols = tuple(sorted(dfa.input_symbols))
     if sampler is None:
-        return _sample_strings(symbols, length, num_samples)
+        sampler = UniformSampler(length)
     assert sampler.length == length, (
         f"sampler draws {sampler.length} symbols but the preconditions were "
         f"asked for length {length}"
     )
-    return _drawn_with(sampler, symbols, num_samples)
+    return _sample_strings(sampler, tuple(sorted(dfa.input_symbols)), num_samples)
 
 
-def _endpoint(dfa: DFA, string: bytes, start=None):
+def _endpoint(dfa: DFA, string: List[int], start=None):
     """The state reached by running ``string`` from ``start`` (default q0)."""
     q = dfa.initial_state if start is None else start
     for c in string:

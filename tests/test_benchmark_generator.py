@@ -10,7 +10,6 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     sample_inner_dfa,
     sample_star_l_star,
 )
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
 # ===================================================================
 # Inner DFA sampling
@@ -128,7 +127,7 @@ class TestDFAOracle(unittest.TestCase):
     def test_noiseless_matches_dfa(self):
         rng = np.random.default_rng(0)
         outer, _, _ = sample_star_l_star(rng, alphabet_size=2)
-        oracle = DFAOracle(SymmetricBernoulli(p_correct=1.0), seed=0, dfa=outer)
+        oracle = DFAOracle(dfa=outer)
         self.assertEqual(oracle.alphabet_size, 2)
         test_rng = np.random.default_rng(1)
         for _ in range(500):

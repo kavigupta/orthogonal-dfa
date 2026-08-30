@@ -6,6 +6,12 @@ import numpy as np
 
 
 class Sampler(ABC):
+    """Draws the strings a learner asks its oracle about.
+
+    Implementations are hashed: the preconditions hold onto the sample a sampler
+    draws rather than redrawing it per DFA.
+    """
+
     #: Number of symbols per sampled string; the learner reads it for
     #: state-reaching sampling and counterexample sizing.
     length: int
