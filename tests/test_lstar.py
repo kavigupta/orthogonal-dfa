@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pytest
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
@@ -28,6 +29,7 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.2, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
+    @pytest.mark.slow
     def test_modulo_even_harder(self):
         oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
             noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
@@ -135,6 +137,7 @@ class TestLStarAsymmetric(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator)
 
 
+@pytest.mark.slow
 class TestLStarORF(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
     def test_no_orf(self, signal):
@@ -165,6 +168,7 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             )
 
 
+@pytest.mark.slow
 class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
     """Like ``TestLStarOnGeneratedBenchmarks`` but with larger 18-state outer
     DFAs (vs 10). Balanced ``Sigma*LSigma*`` benchmarks of this size are rarer to

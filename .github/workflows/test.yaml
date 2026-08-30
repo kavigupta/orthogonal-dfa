@@ -67,7 +67,40 @@ jobs:
       - name: Run shard ${{ matrix.shard }}
         run: |
           tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q \
-            | grep '::' | awk 'NR % 14 == ${{ matrix.shard }}')
+            -m 'not slow' | grep '::' | awk 'NR % 14 == ${{ matrix.shard }}')
+          echo "$tests"
+          # Bare pytest would run the whole suite, so an empty shard must not reach it.
+          [ -n "$tests" ] || exit 0
+          uv run python -m pytest $tests -sv
+
+  # One slow test per job.  Their searches have a long tail -- the same test runs
+  # anywhere from 13 to 92 rounds depending only on the draw -- so sharing a shard
+  # means two tails on one clock, and the clock has to cover the sum.
+  lstar-slow-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            requirements.txt
+            setup.py
+      - name: Install dependencies
+        run: |
+          uv venv --python 3.12
+          uv pip install "setuptools>=68.0" "wheel>=0.41"
+          uv pip install -r requirements.txt
+      - name: Run slow shard ${{ matrix.shard }}
+        run: |
+          tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q \
+            -m slow | grep '::' | awk 'NR % 8 == ${{ matrix.shard }}')
           echo "$tests"
           # Bare pytest would run the whole suite, so an empty shard must not reach it.
           [ -n "$tests" ] || exit 0
