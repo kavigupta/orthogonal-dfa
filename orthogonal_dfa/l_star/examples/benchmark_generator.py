@@ -30,7 +30,7 @@ from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star import preconditions
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
+from orthogonal_dfa.l_star.structures import Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
 
@@ -233,9 +233,7 @@ def sample_balanced_benchmark(
 class DFAOracle(Oracle):
     """Oracle backed by a pre-built DFA (e.g. from ``build_star_l_star_dfa``)."""
 
-    def __init__(self, noise_model: NoiseModel, seed: int, dfa: DFA):
-        self._noise_model = noise_model
-        self._seed = seed
+    def __init__(self, dfa: DFA):
         self._dfa = dfa
         self._alphabet_size = len(dfa.input_symbols)
 
@@ -244,8 +242,7 @@ class DFAOracle(Oracle):
         return self._alphabet_size
 
     def membership_query(self, string: List[int]) -> bool:
-        correct = self._dfa.accepts_input(string)
-        return self._noise_model.apply_noise(correct, string, self._seed)
+        return self._dfa.accepts_input(string)
 
     def target_dfa(self):
         return self._dfa

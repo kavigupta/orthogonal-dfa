@@ -122,3 +122,44 @@ class Oracle(ABC):
         reason about the target's *states* rather than only its strings.
         """
         return None
+
+
+@dataclass(frozen=True)
+class NoisyOracle(Oracle):
+    """``inner``'s answers with ``noise_model`` applied to each.
+
+    An oracle that defines a language does not also have to own the noise on it,
+    which is a property of how it is being read rather than of the language.  The
+    target DFA passes through for the same reason: noise moves answers, not the
+    language they are answers about.
+    """
+
+    inner: Oracle
+    noise_model: NoiseModel
+    seed: int
+
+    @property
+    def alphabet_size(self) -> int:
+        return self.inner.alphabet_size
+
+    @property
+    def string_length(self) -> int:
+        return self.inner.string_length
+
+    def membership_query(self, string: List[int]) -> bool:
+        return self.noise_model.apply_noise(
+            self.inner.membership_query(string), string, self.seed
+        )
+
+    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+        answers = self.inner.membership_queries(strings)
+        return np.array(
+            [
+                self.noise_model.apply_noise(bool(answer), string, self.seed)
+                for answer, string in zip(answers, strings)
+            ],
+            dtype=bool,
+        )
+
+    def target_dfa(self):
+        return self.inner.target_dfa()
