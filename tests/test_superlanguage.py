@@ -10,10 +10,15 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions
+from orthogonal_dfa.l_star.cluster import smallest_readable_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
-from orthogonal_dfa.l_star.statistics import population_size_and_evidence_margin
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle, SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import (
+    NoiseModel,
+    NoisyOracle,
+    Oracle,
+    SymmetricBernoulli,
+)
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
@@ -77,7 +82,7 @@ class TestLiftedOracle(unittest.TestCase):
     def setUp(self):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         self.X = self.vocab.unknown_symbol
-        self.base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        self.base = AllFramesClosedOracle()
         self.oracle = LiftedOracle(self.base, self.vocab, seed=0)
 
     def test_alphabet_size_is_super(self):
@@ -101,12 +106,7 @@ class TestLiftedOracle(unittest.TestCase):
         rng = np.random.default_rng(7)
         strings = [sampler.sample(rng, self.vocab.alphabet_size) for _ in range(50)]
         clean = LiftedOracle(self.base, self.vocab, seed=0)
-        flipped = LiftedOracle(
-            self.base,
-            self.vocab,
-            seed=0,
-            noise_model=SymmetricBernoulli(p_correct=0.0),
-        )
+        flipped = NoisyOracle(clean, SymmetricBernoulli(p_correct=0.0), 0)
         np.testing.assert_array_equal(
             flipped.membership_queries(strings), ~clean.membership_queries(strings)
         )
@@ -170,6 +170,7 @@ class TestLiftedOracle(unittest.TestCase):
             LiftedOracle(
                 _PredicateOracle(lambda s: True, alphabet_size=2),
                 self.vocab,
+                seed=0,
             )
 
 
@@ -182,7 +183,7 @@ class TestBuildPstWiring(unittest.TestCase):
         base = _PredicateOracle(lambda s: len(s) > 0 and s[0] == 0)
 
         def oracle_creator(noise_model, seed):
-            return LiftedOracle(base, vocab, seed=seed, noise_model=noise_model)
+            return NoisyOracle(LiftedOracle(base, vocab, seed=seed), noise_model, seed)
 
         pst = build_pst(
             oracle_creator,
@@ -232,9 +233,9 @@ class TestSuffixFamily(unittest.TestCase):
     its family from, and why one wildcard is not enough to build one."""
 
     def _tracker(self, vocab, num_symbols=20):
-        base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        base = AllFramesClosedOracle()
         return build_pst(
-            lambda nm, s: LiftedOracle(base, vocab, seed=s, noise_model=nm),
+            lambda nm, s: NoisyOracle(LiftedOracle(base, vocab, seed=s), nm, s),
             min_signal_strength=0.3,
             seed=0,
             sampler=SuperSampler(vocab, num_symbols),
@@ -245,6 +246,9 @@ class TestSuffixFamily(unittest.TestCase):
         pst = self._tracker(vocab)
         sampler = SuperSampler(vocab, 20)
         rng = np.random.default_rng(1)
+        wanted = smallest_readable_family(
+            pst.config.min_signal_strength, pst.decision_boundary
+        )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this
         # should report that, not search for them forever.
@@ -253,9 +257,9 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s) and tuple(s) not in seen:
                 seen.add(tuple(s))
                 family.append(pst.table.intern_suffix(s))
-                if len(family) == pst.config.suffix_family_size:
+                if len(family) == wanted:
                     break
-        self.assertEqual(len(family), pst.config.suffix_family_size)
+        self.assertEqual(len(family), wanted)
         pst.table.observed_masks(family, np.ones(pst.num_prefixes, dtype=bool))
         # An uninformative family scores 1, so this is the whole question.
         self.assertLessEqual(pst.compute_fnr(family), pst.config.fnr_limit)
@@ -272,9 +276,7 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s):
                 seen.add(tuple(s))
         self.assertEqual(len(seen), 1)
-        wanted, _ = population_size_and_evidence_margin(
-            signal_strength=0.3, acceptable_fpr=0.01, acceptable_fnr=0.01
-        )
+        wanted = smallest_readable_family(0.3, 0.5)
         self.assertGreater(wanted, len(seen))
 
 
@@ -287,7 +289,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
     @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
     def test_learns_all_frames_closed(self, signal):
         vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
-        base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        base = AllFramesClosedOracle()
         dfa, classifiers = learn_superlanguage(
             base, vocab, min_signal_strength=signal, seed=0
         )
@@ -359,7 +361,7 @@ class TestLiftedTargetDfa(unittest.TestCase):
 
     def setUp(self):
         self.vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
-        self.base = AllFramesClosedOracle(noise_model=SymmetricBernoulli(1.0), seed=0)
+        self.base = AllFramesClosedOracle()
         self.oracle = LiftedOracle(self.base, self.vocab, seed=0)
 
     def test_agrees_with_what_the_oracle_answers(self):

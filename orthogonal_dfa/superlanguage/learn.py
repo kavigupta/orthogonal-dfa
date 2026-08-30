@@ -8,7 +8,7 @@ from orthogonal_dfa.l_star.learn import (
     DEFAULT_SAMPLE_LENGTH,
     learn_dfa,
 )
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
+from orthogonal_dfa.l_star.structures import NoiseModel, NoisyOracle, Oracle
 
 from .oracle import LiftedOracle
 from .sampler import SuperSampler
@@ -32,12 +32,7 @@ def learn_superlanguage(
     """
 
     def oracle_creator(nm, s):
-        return LiftedOracle(
-            base_oracle,
-            vocabulary,
-            seed=s,
-            noise_model=nm,
-        )
+        return NoisyOracle(LiftedOracle(base_oracle, vocabulary, seed=s), nm, s)
 
     dfa, classifiers = learn_dfa(
         oracle_creator,

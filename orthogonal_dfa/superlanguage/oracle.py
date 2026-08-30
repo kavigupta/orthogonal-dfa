@@ -1,9 +1,9 @@
 import hashlib
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
+from orthogonal_dfa.l_star.structures import Oracle
 
 from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
@@ -11,7 +11,9 @@ from .vocabulary import KmerVocabulary
 
 def _compilation_seed(string: List[int], seed: int) -> int:
     """Deterministic in its arguments, so a query can be cached."""
-    digest = hashlib.blake2b(repr((list(string), seed)).encode(), digest_size=8).digest()
+    digest = hashlib.blake2b(
+        repr((list(string), seed)).encode(), digest_size=8
+    ).digest()
     return int.from_bytes(digest, "big")
 
 
@@ -29,8 +31,7 @@ class LiftedOracle(Oracle):
         base_oracle: Oracle,
         vocabulary: KmerVocabulary,
         *,
-        seed: int = 0,
-        noise_model: Optional[NoiseModel] = None,
+        seed: int,
     ):
         assert base_oracle.alphabet_size == vocabulary.base_alphabet_size, (
             f"base oracle alphabet ({base_oracle.alphabet_size}) does not match "
@@ -39,7 +40,6 @@ class LiftedOracle(Oracle):
         self._base = base_oracle
         self._vocab = vocabulary
         self._seed = seed
-        self._noise_model = noise_model
 
     @property
     def alphabet_size(self) -> int:
@@ -55,17 +55,9 @@ class LiftedOracle(Oracle):
             for string in strings
         ]
         compiled = self._vocab.compile_many(strings, rngs)
-        votes = np.asarray(self._base.membership_queries(compiled), dtype=bool)
-        assert votes.shape == (len(strings),), "base oracle dropped answers"
-        if self._noise_model is not None:
-            votes = np.array(
-                [
-                    self._noise_model.apply_noise(bool(v), s, self._seed)
-                    for v, s in zip(votes, strings)
-                ],
-                dtype=bool,
-            )
-        return votes
+        labels = np.asarray(self._base.membership_queries(compiled), dtype=bool)
+        assert labels.shape == (len(strings),), "base oracle dropped answers"
+        return labels
 
     def membership_query(self, string: List[int]) -> bool:
         return bool(self.membership_queries([string])[0])
