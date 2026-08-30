@@ -12,7 +12,7 @@ from orthogonal_dfa.l_star.examples.gate_composition_residual import (
 )
 from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
-from tests.spliceai_small import QUERY_LENGTH, small_module_and_exon
+from tests.spliceai_small import QUERY_LENGTH, random_middles, small_module_and_exon
 
 # small monotonic fit so the tests stay fast on CPU
 FAST = dict(n_max=2, per_bin=400, epochs=30, device="cpu", chunk=64)
@@ -47,7 +47,7 @@ class TestGateCompositionResidualScore(unittest.TestCase):
         # pylint: disable=protected-access
         self.assertEqual(residual._betas.shape[0], 1)
         self.assertEqual(len(residual.monotonics), 1)
-        scored = self._scores(residual, [[0, 1, 2] * 10])
+        scored = self._scores(residual, [bytes([0, 1, 2]) * 10])
         self.assertEqual(scored.shape, (1,))
         self.assertFalse(np.isnan(scored).any())
 
@@ -57,7 +57,7 @@ class TestGateCompositionResidualScore(unittest.TestCase):
         # composition index.  (Contrast composition_residual, which subtracts a *linear*
         # function.)  In one bin, sorting middles by pred_lin makes subtracted monotone.
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = np.random.default_rng(1).integers(0, 4, size=(256, 30)).tolist()
+        middles, _ = random_middles(256, 30, seed=1)
         subtracted = self._scores(self.score_model, middles) - self._scores(
             residual, middles
         )
@@ -72,7 +72,12 @@ class TestGateCompositionResidualScore(unittest.TestCase):
 
     def test_fit_survives_state_dict_round_trip(self):
         residual = self._fit(len_lo=30, len_hi=31, bin_width=1)
-        middles = np.random.default_rng(3).integers(0, 4, size=(8, 30)).tolist()
+        middles = [
+            row.tobytes()
+            for row in np.random.default_rng(3).integers(
+                0, 4, size=(8, 30), dtype=np.uint8
+            )
+        ]
         before = self._scores(residual, middles)
         # a fresh module with the same architecture but re-initialised monotonics
         fresh = GateCompositionResidualScore(
@@ -100,9 +105,12 @@ class TestGateCompositionResidualScore(unittest.TestCase):
                 bin_width=5,
                 **FAST,
             )
-        fresh = (
-            np.random.default_rng(7).integers(0, 4, size=(256, QUERY_LENGTH)).tolist()
-        )
+        fresh = [
+            row.tobytes()
+            for row in np.random.default_rng(7).integers(
+                0, 4, size=(256, QUERY_LENGTH), dtype=np.uint8
+            )
+        ]
         self.assertAlmostEqual(oracle.membership_queries(fresh).mean(), 0.5, delta=0.2)
 
     def test_fit_gate_bins_augments_the_linear_fit_with_monotonics(self):

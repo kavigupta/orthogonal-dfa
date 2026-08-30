@@ -88,7 +88,7 @@ def enumerate_by_end_state(dfa, length):
     by_state = {}
     for string in itertools.product(syms, repeat=length):
         end = states_intermediate(dfa.initial_state, string, dfa)[-1]
-        by_state.setdefault(end, []).append(list(string))
+        by_state.setdefault(end, []).append(bytes(string))
     return by_state
 
 
@@ -151,7 +151,7 @@ class TestPerStateSample(unittest.TestCase):
 
         # Every string has the requested length and is globally distinct.
         self.assertTrue(all(len(s) == length for s in pool))
-        self.assertEqual(len(pool), len({tuple(s) for s in pool}))
+        self.assertEqual(len(pool), len(set(pool)))
 
         by_state = enumerate_by_end_state(dfa, length)
         counts_in_pool = {}
@@ -233,9 +233,7 @@ class TestPerStateSample(unittest.TestCase):
             for s in pool
             if states_intermediate(PARITY.initial_state, s, PARITY)[-1] == 1
         ]
-        self.assertEqual(
-            {tuple(s) for s in pool_reaching_1}, {tuple(s) for s in existing}
-        )
+        self.assertEqual(set(pool_reaching_1), set(existing))
 
     def test_large_space_uses_string_sampler_branch(self):
         # reachable = 2 ** 70 forces the > int64 fallback; still returns the
@@ -245,7 +243,7 @@ class TestPerStateSample(unittest.TestCase):
             SELF_LOOP, rng, 70, 8, weights=uniform_weights(SELF_LOOP)
         )
         self.assertEqual(len(pool), 8)
-        self.assertEqual(len({tuple(s) for s in pool}), 8)
+        self.assertEqual(len(set(pool)), 8)
         self.assertTrue(all(len(s) == 70 for s in pool))
 
     def test_sampling_is_uniform_without_replacement(self):
@@ -253,7 +251,7 @@ class TestPerStateSample(unittest.TestCase):
         # string should appear about half the time.  Loose bound -- this checks
         # the distribution, not any single seed.
         length, per_state, runs = 3, 4, 8000
-        space = list(itertools.product((0, 1), repeat=length))
+        space = [bytes(s) for s in itertools.product((0, 1), repeat=length)]
         rng = np.random.default_rng(5)
         appearances = {s: 0 for s in space}
         for _ in range(runs):
@@ -262,7 +260,7 @@ class TestPerStateSample(unittest.TestCase):
             )
             self.assertEqual(len(pool), per_state)
             for s in pool:
-                appearances[tuple(s)] += 1
+                appearances[s] += 1
         for s in space:
             freq = appearances[s] / runs
             self.assertAlmostEqual(freq, per_state / len(space), delta=0.05)

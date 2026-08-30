@@ -23,7 +23,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .sampler import Sampler
+from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
@@ -34,44 +34,46 @@ DEFAULT_MIN_COVERAGE = 0.01
 
 @lru_cache(maxsize=None)
 def _sample_strings(
-    symbols: Tuple[int, ...], length: int, num_samples: int
-) -> Tuple[Tuple[int, ...], ...]:
-    """The uniform length-``length`` sample the checks below all read.
+    sampler: Sampler, symbols: Tuple[int, ...], num_samples: int
+) -> Tuple[bytes, ...]:
+    """The sample every check below reads, as ``sampler`` draws it from a seed
+    of 0.
 
-    Seeded at 0 and drawn from the alphabet alone, so it is the same sample for
-    every DFA over that alphabet -- and each check used to redraw it per DFA,
-    which was most of the cost of screening a population.
+    Held onto rather than redrawn, which each check used to do per DFA and was
+    most of the cost of screening a population.  Keyed on the sampler, so a
+    caller supplying one is spared the redrawing too.
     """
     rng = np.random.default_rng(0)
     return tuple(
-        tuple(rng.choice(symbols, size=length).tolist()) for _ in range(num_samples)
+        bytes(symbols[i] for i in sampler.sample(rng, len(symbols)))
+        for _ in range(num_samples)
     )
 
 
 def _samples(
     dfa: DFA, length: int, num_samples: int, sampler: Optional[Sampler] = None
-) -> Tuple[Tuple[int, ...], ...]:
+) -> Tuple[bytes, ...]:
     """The strings every check below reads, over the DFA's own symbols.
 
     ``sampler`` is for a target whose learner does not draw uniformly: the checks
     have to ask about the distribution it will actually see, or they measure a
-    language nobody learns.  Only the uniform default is shared between DFAs.
+    language nobody learns.  Leaving it off asks for the uniform one, which is
+    the same call and cannot answer differently.
     """
-    symbols = tuple(sorted(dfa.input_symbols))
     if sampler is None:
-        return _sample_strings(symbols, length, num_samples)
+        sampler = UniformSampler(length)
     assert sampler.length == length, (
         f"sampler draws {sampler.length} symbols but the preconditions were "
         f"asked for length {length}"
     )
-    rng = np.random.default_rng(0)
-    return tuple(
-        tuple(symbols[i] for i in sampler.sample(rng, len(symbols)))
-        for _ in range(num_samples)
-    )
+    symbols = tuple(sorted(dfa.input_symbols))
+    # A string here is a byte per symbol, so that is what the DFA's symbols have to
+    # be, whatever else a DFA is allowed to be labelled with.
+    assert all(isinstance(s, int) and 0 <= s < 256 for s in symbols), symbols
+    return _sample_strings(sampler, symbols, num_samples)
 
 
-def _endpoint(dfa: DFA, string: List[int], start=None):
+def _endpoint(dfa: DFA, string: bytes, start=None):
     """The state reached by running ``string`` from ``start`` (default q0)."""
     q = dfa.initial_state if start is None else start
     for c in string:

@@ -42,7 +42,10 @@ from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_driven
 from orthogonal_dfa.l_star.examples.gate_composition_residual import gate_residual_oracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.spliceai.load_model import load_spliceai
-from orthogonal_dfa.superlanguage import KmerVocabulary, SuperSampler, LiftedOracle
+# main's #209 superlanguage keeps __init__ empty; import from the submodules.
+from orthogonal_dfa.superlanguage.oracle import LiftedOracle
+from orthogonal_dfa.superlanguage.sampler import SuperSampler
+from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
 TAG, TAA, TGA = (3, 0, 2), (3, 0, 0), (3, 2, 0)
 STOPS = {TAG, TAA, TGA}
@@ -93,11 +96,13 @@ def main():
     kmers = tuple(tuple("ACGT".index(c) for c in k) for k in args.kmers.split(","))
     vocab = KmerVocabulary(kmers=kmers, base_alphabet_size=4)
     print(f"vocab kmers={args.kmers} = {vocab.kmers}, alphabet_size={vocab.alphabet_size} "
-          f"(wildcards {vocab.wildcard_symbols})", flush=True)
+          f"(wildcards {tuple(range(vocab.num_kmers, vocab.alphabet_size))})", flush=True)
 
-    # No synthetic noise on the real oracle (ignore _nm).
+    # No synthetic noise on the real oracle (ignore _nm).  Main's #251 moved noise to
+    # a separate wrapper and #209's LiftedOracle no longer takes num_compilations /
+    # noise_model, so a bare LiftedOracle is the deterministic num_compilations=1 case.
     def oracle_creator(_nm, s):
-        return LiftedOracle(base, vocab, num_compilations=1, seed=s, noise_model=None)
+        return LiftedOracle(base, vocab, seed=s)
 
     pst = build_pst(
         oracle_creator, min_signal_strength=args.min_signal_strength, seed=args.seed,
@@ -116,7 +121,8 @@ def main():
     rng = np.random.default_rng(args.seed + 999)
     supers = [samp.sample(rng, vocab.alphabet_size) for _ in range(args.n_eval)]
     bases = vocab.compile_many(supers, [np.random.default_rng(i) for i in range(args.n_eval)])
-    ora = np.asarray(base.membership_queries(bases)).astype(float)
+    # #219 made oracles answer in bytes; compile_many still returns int lists.
+    ora = np.asarray(base.membership_queries([bytes(b) for b in bases])).astype(float)
     fpat = [frames_closed(b) for b in bases]                 # (f0,f1,f2) per eval string
     nfc = np.array([sum(p) for p in fpat])
     afc = (nfc == 3).astype(float)

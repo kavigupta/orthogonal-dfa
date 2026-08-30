@@ -55,7 +55,7 @@ class TransitionResolver:
         self.sifter = Sifter(self.tree, self.family)
         self.population = LeafPopulation(self.tree, self._classify)
         for p in pst.table.prefixes:
-            self.population.add(list(p))
+            self.population.add(p)
         self.splits = SplitEvidence(
             pst,
             self.family,
@@ -72,7 +72,7 @@ class TransitionResolver:
     def _classify(self, strings, midfix):
         """Which side of ``midfix`` each string sits on; the indecisive band
         between the thresholds returns None and drops out of the population."""
-        self.family.prefill([list(s) + list(midfix) for s in strings])
+        self.family.prefill([s + midfix for s in strings])
         return [self.family.is_accept(s, midfix) for s in strings]
 
     @property
@@ -96,7 +96,7 @@ class TransitionResolver:
         Every string the tree cannot place is harvested into ``indecisive``: it is
         a boundary string the current family straddles, and the driver feeds these
         back so the next family is forced to resolve them."""
-        leaf, boundary = self.sifter.sift_and_boundary(list(seq))
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self.indecisive.add(boundary)
         return leaf
@@ -173,7 +173,6 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Anchor at the shortest prefix the tree places, follow the total delta,
         then act on where the walk and a fresh sift disagree."""
-        w = list(w)
         state = None
         start = 0
         while start < len(w):
@@ -217,7 +216,7 @@ class TransitionResolver:
         sprime = w[: fd - 1]
         if self._sift(witness) != s1 or self._sift(sprime) != s1:
             return _RESOLVED
-        distinguisher = self.sifter.disagreement(witness, sprime, [c])
+        distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
@@ -245,7 +244,7 @@ class TransitionResolver:
         for p in (witness, sprime):
             st = self._sift(p)
             if st is not None:
-                self.population.add(list(p), at=self.tree.path_of(st))
+                self.population.add(p, at=self.tree.path_of(st))
 
     # -- edge closing -------------------------------------------------------
 
@@ -273,7 +272,7 @@ class TransitionResolver:
         decide, _ = oracle_decider(
             pst.oracle, self.tree.base_family, boundary, boundary
         )
-        initial = self.tree.classify([], decide)
+        initial = self.tree.classify(b"", decide)
         if initial is None:
             initial = 0
 
@@ -292,7 +291,7 @@ def resolve_dfa(pst):
     """
     Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
     """
-    v_idx = pst.table.intern_suffix([])
+    v_idx = pst.table.intern_suffix(b"")
     vs, boundary = sample_suffix_family(pst, v_idx)
     pst.decision_boundary = boundary
     resolver = TransitionResolver(pst, vs)

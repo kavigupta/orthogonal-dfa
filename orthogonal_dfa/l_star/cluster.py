@@ -127,8 +127,8 @@ def certification_sample(pst, vs, amount: int):
         for _ in range(amount)
     ]
     suffixes = [pst.table.suffix(v) for v in vs]
-    pairs = [list(p) + list(sfx) for p in prefixes for sfx in suffixes]
-    read = pst.table.memo.membership_queries(pairs + [list(p) for p in prefixes])
+    pairs = [p + sfx for p in prefixes for sfx in suffixes]
+    read = pst.table.memo.membership_queries(pairs + prefixes)
     family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
     return family.mean(1), np.asarray(read[len(pairs) :])
 

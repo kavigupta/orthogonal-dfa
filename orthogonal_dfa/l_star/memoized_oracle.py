@@ -12,14 +12,11 @@ class MemoizedOracle(Oracle):
     """Membership of arbitrary strings, memoized per string and batched.
 
     Keyed by a digest of the string rather than the string: at low signal
-    strength this cache holds tens of millions of entries and is most of the
-    run's memory, and a digest is a third cheaper per entry than the string.
+    strength this cache holds tens of millions of entries, and a digest is a
+    third cheaper per entry than the string.
     """
 
     def __init__(self, oracle):
-        assert (
-            oracle.alphabet_size <= 256
-        ), f"alphabet of {oracle.alphabet_size} does not fit a byte per symbol"
         self._oracle = oracle
         self._cache: dict = {}
 
@@ -27,7 +24,7 @@ class MemoizedOracle(Oracle):
     def alphabet_size(self) -> int:
         return self._oracle.alphabet_size
 
-    def membership_queries(self, strings: List[List[int]]) -> List[int]:
+    def membership_queries(self, strings: List[bytes]) -> List[int]:
         cache = self._cache
         keys = [_key(s) for s in strings]
         # Valued by the string the key came from: a digest cannot be inverted,
@@ -40,13 +37,13 @@ class MemoizedOracle(Oracle):
                 cache[key] = int(bit)
         return [cache[k] for k in keys]
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
 
 
-def _key(string: List[int]) -> int:
+def _key(string: bytes) -> int:
     """An int rather than the digest bytes: same object size at 128 bits, and
     smaller than the equivalent ``bytes``."""
     return int.from_bytes(
-        hashlib.blake2b(bytes(string), digest_size=DIGEST_SIZE).digest(), "big"
+        hashlib.blake2b(string, digest_size=DIGEST_SIZE).digest(), "big"
     )

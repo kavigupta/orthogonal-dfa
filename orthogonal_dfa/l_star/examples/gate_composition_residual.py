@@ -105,7 +105,11 @@ def _fit_gate_bins(
     monotonics = []
     for bi, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
         lens = rng.integers(lo, hi, size=per_bin)
-        mids = [rng.integers(0, 4, size=int(m)).tolist() for m in lens]
+        # astype, not dtype=np.uint8: the dtype changes the values drawn, and
+        # this value is permacached.
+        mids = [
+            rng.integers(0, 4, size=int(m)).astype(np.uint8).tobytes() for m in lens
+        ]
         scores = run_over_middles(
             score_model, flank_l, flank_r, mids, device=dev, chunk=chunk
         ).astype(np.float64)
@@ -146,8 +150,11 @@ class GateCompositionResidualScore(nn.Module):
         raw = self.score_model(x, lengths)
         codes = x.argmax(-1).cpu().numpy()
         lens = lengths.cpu().numpy()
+        # #219 made bow_features/symbols read bytes (np.frombuffer), not int lists.
         middles = [
-            codes[i, self._flank_l_len : self._flank_l_len + int(m)].tolist()
+            codes[i, self._flank_l_len : self._flank_l_len + int(m)]
+            .astype(np.uint8)
+            .tobytes()
             for i, m in enumerate(lens)
         ]
         feats = torch.as_tensor(

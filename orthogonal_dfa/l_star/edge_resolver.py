@@ -13,17 +13,9 @@ where its successor under the edge's character goes.
       string and leave the edge open.
 """
 
-import os
-
 from typing import List, Optional, Tuple
 
 from .split_evidence import _MEMBER_LIMIT
-
-# Opt-in instrumentation: when DLSTAR_MEMBERLOG is set, log how many member
-# access-strings backed each undecidable (self-loop-bound) edge, and how many of
-# them were individually indecisive.  Answers "is a self-loop a confidently
-# unconfident decision, or one made on a handful of members?"
-_MEMBERLOG = os.environ.get("DLSTAR_MEMBERLOG")
 
 
 class EdgeResolver:
@@ -35,26 +27,17 @@ class EdgeResolver:
         self.indecisive = indecisive
         self._population = population
 
-    def leaf_members(self, state: int) -> List[List[int]]:
+    def leaf_members(self, state: int) -> List[bytes]:
         return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
 
     def decisive_target(
         self, state: int, c: int
-    ) -> Tuple[Optional[int], Optional[List[int]]]:
-        members = self.leaf_members(state)
-        n_indecisive = 0
-        for member in members:
-            target, boundary = self.sifter.sift_and_boundary(list(member) + [c])
+    ) -> Tuple[Optional[int], Optional[bytes]]:
+        for member in self.leaf_members(state):
+            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
-                return target, list(member)
+                return target, member
             self.indecisive.add(boundary)
-            n_indecisive += 1
-        if _MEMBERLOG:
-            print(
-                f"[memberlog] self-loop (state {state}, symbol {c}): "
-                f"{len(members)} members, all {n_indecisive} indecisive",
-                flush=True,
-            )
         return None, None
 
     def resolve(self, state: int, c: int) -> None:

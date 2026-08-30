@@ -8,6 +8,7 @@ import numpy as np
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, build_pst
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
+from orthogonal_dfa.l_star.structures import NoisyOracle
 
 
 class _ZeroRunSampler(Sampler):
@@ -19,14 +20,28 @@ class _ZeroRunSampler(Sampler):
 
     def sample(self, rng, alphabet_size):
         assert alphabet_size >= 1
-        return [0] * self.length
+        return bytes(self.length)
 
     def symbol_weights(self, alphabet_size):
         return [1] + [0] * (alphabet_size - 1)
 
 
 def _oracle(noise_model, seed):
-    return BernoulliParityOracle(noise_model, seed)
+    return NoisyOracle(BernoulliParityOracle(), noise_model, seed)
+
+
+class TestAlphabetFitsAByte(unittest.TestCase):
+    """A string is a byte per symbol, so the learner has nothing to write a wider
+    alphabet down in."""
+
+    def test_too_wide_is_rejected(self):
+        wide = BernoulliParityOracle(alphabet_size=257)
+        with self.assertRaisesRegex(AssertionError, "257"):
+            build_pst(
+                lambda nm, s: NoisyOracle(wide, nm, s),
+                min_signal_strength=0.3,
+                seed=0,
+            )
 
 
 class TestCustomSampler(unittest.TestCase):
@@ -52,7 +67,7 @@ class TestCustomSampler(unittest.TestCase):
         sampled = [p for p in pst.table.prefixes if len(p) == sampler.length]
         self.assertTrue(sampled, "no prefix of the sampler's length was drawn")
         for prefix in sampled:
-            self.assertEqual(prefix, [0] * sampler.length)
+            self.assertEqual(prefix, bytes(sampler.length))
 
     def test_sampler_length_is_part_of_the_interface(self):
         # The learner reads `length` off whatever sampler it is given.

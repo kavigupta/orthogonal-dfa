@@ -16,27 +16,33 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.examples.spliceai_oracle import SpliceModelOracle
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 
 NOISELESS = SymmetricBernoulli(p_correct=1.0)
 
 
 def _oracles():
     """One of each oracle that claims a DFA, named for the failure message."""
-    yield "parity_mod2", BernoulliParityOracle(NOISELESS, 0)
-    yield "parity_mod9", BernoulliParityOracle(
-        NOISELESS, 0, modulo=9, allowed_moduluses=(3, 6)
+    yield "parity_mod2", NoisyOracle(BernoulliParityOracle(), NOISELESS, 0)
+    yield "parity_mod9", NoisyOracle(
+        BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), NOISELESS, 0
     )
-    yield "regex_subsequence", BernoulliRegex(NOISELESS, 0, regex=r".*1010101.*")
-    yield "regex_two_runs", BernoulliRegex(NOISELESS, 0, regex=r".*1111.*1111.*")
+    yield "regex_subsequence", NoisyOracle(
+        BernoulliRegex(regex=r".*1010101.*"), NOISELESS, 0
+    )
+    yield "regex_two_runs", NoisyOracle(
+        BernoulliRegex(regex=r".*1111.*1111.*"), NOISELESS, 0
+    )
     # A dead end, so the compiled DFA is partial before it is completed.
-    yield "regex_dead_end", BernoulliRegex(NOISELESS, 0, regex=r"1*")
-    yield "regex_three_symbols", BernoulliRegex(
-        NOISELESS, 0, regex=r".*(111|000).*", alphabet_size=3
+    yield "regex_dead_end", NoisyOracle(BernoulliRegex(regex=r"1*"), NOISELESS, 0)
+    yield "regex_three_symbols", NoisyOracle(
+        BernoulliRegex(regex=r".*(111|000).*", alphabet_size=3), NOISELESS, 0
     )
-    yield "all_frames_closed", AllFramesClosedOracle(NOISELESS, 0)
-    yield "dfa_backed", DFAOracle(
-        NOISELESS, 0, sample_random_dfa(np.random.default_rng(0), num_states=6)
+    yield "all_frames_closed", NoisyOracle(AllFramesClosedOracle(), NOISELESS, 0)
+    yield "dfa_backed", NoisyOracle(
+        DFAOracle(sample_random_dfa(np.random.default_rng(0), num_states=6)),
+        NOISELESS,
+        0,
     )
 
 

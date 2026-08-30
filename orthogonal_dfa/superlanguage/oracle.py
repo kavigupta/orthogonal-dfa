@@ -1,85 +1,68 @@
-"""Lift a base-alphabet oracle to the super alphabet.
-
-:class:`LiftedOracle` answers a super-string by compiling it back to the base
-alphabet ``num_compilations`` times, querying the base oracle on each, and
-returning the majority vote.  Compilation randomizes the ``X`` symbols (uniformly
-over the fiber ``parse**-1``), so the vote sharpens the answer for any base label
-that varies across those realizations.  When the base oracle only reads features
-the kmers already carry, every compilation agrees and one compilation suffices.
-
-The compilation randomness is a deterministic hash of the super-string and
-``seed``, so the oracle is reproducible and memoizable.
-"""
-
 import hashlib
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
+from orthogonal_dfa.l_star.structures import Oracle
 
+from .target import super_target_dfa
 from .vocabulary import KmerVocabulary
 
 
-def _compilation_seed(string: List[int], seed: int, index: int) -> int:
-    """A 64-bit seed for the ``index``-th compilation of ``string`` under ``seed``."""
+def _compilation_seed(string: bytes, seed: int) -> int:
+    """Deterministic in its arguments, so a query can be cached."""
     digest = hashlib.blake2b(
-        repr((list(string), seed, index)).encode(), digest_size=8
+        repr((list(string), seed)).encode(), digest_size=8
     ).digest()
     return int.from_bytes(digest, "big")
 
 
 class LiftedOracle(Oracle):
+    """Labels a super-string by what one of its compilations is labelled.
+
+    Which one is fixed by the string and the seed, so the answer is a function of
+    the query.  That is the whole language only where the base oracle cannot see
+    how the wildcards were filled -- where it can, ``super_target_dfa`` says so
+    rather than there being an answer to average.
+    """
+
     def __init__(
         self,
         base_oracle: Oracle,
         vocabulary: KmerVocabulary,
         *,
-        num_compilations: int = 8,
-        seed: int = 0,
-        noise_model: Optional[NoiseModel] = None,
+        seed: int,
     ):
-        assert num_compilations >= 1, "need at least one compilation to vote on"
         assert base_oracle.alphabet_size == vocabulary.base_alphabet_size, (
             f"base oracle alphabet ({base_oracle.alphabet_size}) does not match "
             f"the vocabulary's base alphabet ({vocabulary.base_alphabet_size})"
         )
         self._base = base_oracle
         self._vocab = vocabulary
-        self._num_compilations = num_compilations
         self._seed = seed
-        self._noise_model = noise_model
 
     @property
     def alphabet_size(self) -> int:
         return self._vocab.alphabet_size
 
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         if not strings:
             return np.array([], dtype=bool)
-        # Flatten (string, compilation) into one batch, so both the compilation and
-        # the base oracle -- which may be an expensive batched model -- run once.
-        repeated: List[List[int]] = []
-        rngs: List[np.random.Generator] = []
-        for string in strings:
-            for j in range(self._num_compilations):
-                repeated.append(string)
-                rngs.append(
-                    np.random.default_rng(_compilation_seed(string, self._seed, j))
-                )
-        flat = self._vocab.compile_many(repeated, rngs)
-        base = np.asarray(self._base.membership_queries(flat), dtype=bool)
-        assert base.shape == (len(flat),), "base oracle dropped answers"
-        votes = base.reshape(len(strings), self._num_compilations).mean(axis=1) >= 0.5
-        if self._noise_model is not None:
-            votes = np.array(
-                [
-                    self._noise_model.apply_noise(bool(v), s, self._seed)
-                    for v, s in zip(votes, strings)
-                ],
-                dtype=bool,
-            )
-        return votes
+        # One batch for all of them: the base oracle may be a model that is far
+        # cheaper called once.
+        rngs = [
+            np.random.default_rng(_compilation_seed(string, self._seed))
+            for string in strings
+        ]
+        # The vocabulary deals in symbol sequences; an oracle is asked in bytes.
+        compiled = [bytes(c) for c in self._vocab.compile_many(strings, rngs)]
+        labels = np.asarray(self._base.membership_queries(compiled), dtype=bool)
+        assert labels.shape == (len(strings),), "base oracle dropped answers"
+        return labels
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
+
+    def target_dfa(self):
+        base = self._base.target_dfa()
+        return None if base is None else super_target_dfa(self._vocab, base)

@@ -14,61 +14,63 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.structures import AsymmetricBernoulli
+from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import assertDFA, assertDoesNotMeetProperty
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
 class TestLStarFast(unittest.TestCase):
     def test_modulo(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_subsequence(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1010101.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_two_subsequences(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*1111.*1111.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1111.*1111.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
     def test_specific_alternation(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(1111|0000)11.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*(1111|0000)11.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == [1] * 5)
+        assertDFA(
+            self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == bytes([1] * 5)
+        )
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(11111|00000).*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*(11111|00000).*"), noise_model, seed
         )
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return [1, 1, 1, 1]
-            return [0, 0, 0, 0]
+                return bytes([1]) * 4
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
     def test_specific_alternation_with_only_one_at_end_does_not_meet_property(self):
-        oracle_creator = lambda noise_model, seed: BernoulliRegex(
-            noise_model, seed, regex=r".*(11111|00000)1.*"
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*(11111|00000)1.*"), noise_model, seed
         )
 
         def counterexample_generator(suffix):
             if suffix[0] == 1:
-                return [1, 1, 1, 1, 1]
-            return [0, 0, 0, 0]
+                return bytes([1]) * 5
+            return bytes([0]) * 4
 
         assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
 
@@ -95,7 +97,7 @@ class TestLStarFast(unittest.TestCase):
             final_states={3},
             allow_partial=False,
         )
-        oracle_creator = lambda nm, s, _dfa=dfa: DFAOracle(nm, s, _dfa)
+        oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
 
         # Imported locally: a module-level `import signal` would shadow the
         # `signal` (signal-strength) parameter other tests in this file use.
@@ -117,8 +119,8 @@ class TestLStarFast(unittest.TestCase):
 
 class TestLStarAsymmetricFast(unittest.TestCase):
     def test_modulo_asymmetric(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.05, p_1=0.85)
         # signal = (0.85 - 0.05) / 2 = 0.4, but for now we're using 0.35 to be safe.
@@ -128,8 +130,8 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator)
 
     def test_modulo_asymmetric_skewed(self):
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
         # signal = (0.95 - 0.25) / 2 = 0.35, but for now we're using 0.25 to be safe.
@@ -140,8 +142,8 @@ class TestLStarAsymmetricFast(unittest.TestCase):
 
     def test_rare_accept_class(self):
         """Only 1 of 7 states is accepting, so boundary estimation sees mostly rejects."""
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=7, allowed_moduluses=(3,)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=7, allowed_moduluses=(3,)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.15, p_1=0.75)
         # signal = 0.30, boundary = 0.45
@@ -160,8 +162,8 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         boundary at 0.22, the clustering threshold is so low that true-reject
         prefixes (mean ~0.02) get mixed into the "accept" group on noisy suffix
         samples, contaminating the boundary estimate downward to ~0.11."""
-        oracle_creator = lambda noise_model, seed: BernoulliParityOracle(
-            noise_model, seed, modulo=9, allowed_moduluses=(3, 6)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         noise_model = AsymmetricBernoulli(p_0=0.02, p_1=0.42)
         # signal = 0.20, boundary = 0.22

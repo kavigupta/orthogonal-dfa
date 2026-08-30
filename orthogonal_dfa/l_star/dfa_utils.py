@@ -48,7 +48,7 @@ def sample_string_reaching_state(dfa, counts, rng, weights):
     state = dfa.initial_state
     if counts[length][state] == 0:
         return None
-    string = []
+    string = bytearray()
     for remaining in range(length, 0, -1):
         row = counts[remaining - 1]
         transitions = dfa.transitions[state]
@@ -70,7 +70,7 @@ def sample_string_reaching_state(dfa, counts, rng, weights):
                 break
         string.append(symbol)
         state = transitions[symbol]
-    return string
+    return bytes(string)
 
 
 def rank_string_reaching_state(dfa, counts, string):
@@ -99,7 +99,7 @@ def unrank_string_reaching_state(dfa, counts, index):
     syms = sorted(dfa.input_symbols)
     length = len(counts) - 1
     state = dfa.initial_state
-    string = []
+    string = bytearray()
     for remaining in range(length, 0, -1):
         for s in syms:
             block = counts[remaining - 1][dfa.transitions[state][s]]
@@ -108,7 +108,7 @@ def unrank_string_reaching_state(dfa, counts, index):
                 state = dfa.transitions[state][s]
                 break
             index -= block
-    return string
+    return bytes(string)
 
 
 def per_state_sample(dfa, rng, length, per_state, *, weights, existing=()):
@@ -129,7 +129,7 @@ def per_state_sample(dfa, rng, length, per_state, *, weights, existing=()):
         if len(s) == length:
             have.setdefault(
                 states_intermediate(dfa.initial_state, s, dfa)[-1], []
-            ).append(tuple(s))
+            ).append(s)
     pool = []
     for state in sorted(dfa.states):
         counts = count_paths_to_state(dfa, state, length, counting)

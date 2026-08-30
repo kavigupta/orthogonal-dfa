@@ -28,7 +28,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliParityOracle,
     BernoulliRegex,
 )
-from orthogonal_dfa.l_star.structures import Oracle
+from orthogonal_dfa.l_star.structures import NoisyOracle, Oracle
 from orthogonal_dfa.l_star.learn import learn_dfa
 from tests.lstar_common import evaluate_accuracy
 
@@ -48,17 +48,17 @@ _ANOTHER_POOR_DFA = DFA(
 # name -> (oracle_creator, min_signal_strength, symbols)
 BENCHMARKS = {
     "modulo": (
-        lambda nm, s: BernoulliParityOracle(nm, s, modulo=9, allowed_moduluses=(3, 6)),
+        lambda nm, s: NoisyOracle(BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s),
         0.3, 2,
     ),
     "subseq": (
-        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"), 0.3, 2,
+        lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), nm, s), 0.3, 2,
     ),
     "two_subseq": (
-        lambda nm, s: BernoulliRegex(nm, s, regex=r".*1111.*1111.*"), 0.3, 2,
+        lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1111.*1111.*"), nm, s), 0.3, 2,
     ),
     "poor_case": (
-        lambda nm, s: DFAOracle(nm, s, _ANOTHER_POOR_DFA), 0.3, 2,
+        lambda nm, s: NoisyOracle(DFAOracle(_ANOTHER_POOR_DFA), nm, s), 0.3, 2,
     ),
 }
 

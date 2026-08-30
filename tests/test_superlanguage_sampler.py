@@ -44,7 +44,7 @@ class TestSymbolWeights(unittest.TestCase):
         counts = np.zeros(vocab.alphabet_size)
         for _ in range(5):
             counts += np.bincount(
-                sampler.sample(rng, vocab.alphabet_size),
+                np.frombuffer(sampler.sample(rng, vocab.alphabet_size), np.uint8),
                 minlength=vocab.alphabet_size,
             )
         drawn, total = counts / counts.sum(), counts.sum()
