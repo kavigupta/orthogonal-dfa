@@ -115,7 +115,7 @@ class TestCapalBridge(unittest.TestCase):
             0,
         )
         for word in _all_words("01", 8):
-            truth = oracle.membership_query([int(c) for c in word])
+            truth = oracle.membership_query(bytes(int(c) for c in word))
             self.assertEqual(dfa.run(word), truth, word)
 
     def test_defaults_match_the_upstream_benchmark_script(self):

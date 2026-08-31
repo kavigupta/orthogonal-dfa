@@ -207,7 +207,7 @@ class _ZeroRunSampler(Sampler):
         self.length = length
 
     def sample(self, rng, alphabet_size):
-        return [0] * self.length
+        return bytes(self.length)
 
     def symbol_weights(self, alphabet_size):
         return [1] + [0] * (alphabet_size - 1)

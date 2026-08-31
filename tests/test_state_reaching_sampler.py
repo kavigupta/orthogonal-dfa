@@ -39,9 +39,13 @@ class _RareFirstSymbol(Sampler):
         return [RARE] + [(1 - RARE) / (alphabet_size - 1)] * (alphabet_size - 1)
 
     def sample(self, rng, alphabet_size):
-        return rng.choice(
-            alphabet_size, size=self.length, p=self.symbol_weights(alphabet_size)
-        ).tolist()
+        return (
+            rng.choice(
+                alphabet_size, size=self.length, p=self.symbol_weights(alphabet_size)
+            )
+            .astype(np.uint8)
+            .tobytes()
+        )
 
 
 def _sink(alphabet_size):
