@@ -46,7 +46,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, calls = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
         for i in range(100):
-            pop.add(bytes([1, i % 2]))
+            pop.add(bytes([1, i]))
         got = pop.members((True,), 3)
         self.assertEqual(len(got), 3)
         self.assertLessEqual(calls["strings"], 16)
@@ -74,17 +74,17 @@ class TestLeafPopulation(unittest.TestCase):
         # (False,) -> (False, True) in one call.
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
-        for s in (
-            bytes([1, 0]),
-            bytes([0, 1]),
-            bytes([1, 1]),
-            bytes([0, 0]),
-            bytes([0, 1]),
-        ):
+        for s in (bytes([1, 0]), bytes([0, 1]), bytes([1, 1]), bytes([0, 0])):
             pop.add(s)
-        self.assertEqual(
-            sorted(pop.members((False, True), 10)), [bytes([0, 1]), bytes([0, 1])]
-        )
+        self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
+
+    def test_a_string_added_twice_is_one_member(self):
+        classify, _ = _classifier()
+        pop = LeafPopulation(_StubTree(), classify, chunk=16)
+        for _ in range(5):
+            pop.add(bytes([0, 1]))
+        pop.add(bytes([0, 1]), at=(False, True))
+        self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
 
     def test_exhausted_ancestors_return_what_is_there(self):
         classify, _ = _classifier()

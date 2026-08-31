@@ -10,7 +10,7 @@ this companion never has to be told the tree changed: a former leaf becomes an
 internal node whose resting strings flush through it on the next pull.
 """
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 Path = Tuple[bool, ...]
 #: Classify a batch of strings against one node's midfix, decisions aligned with
@@ -31,19 +31,22 @@ class LeafPopulation:
         self._chunk = chunk
         # path -> strings currently resting at that node.
         self._at: Dict[Path, List[bytes]] = {}
+        # Everything the population holds, wherever it rests.  A membership test
+        # per add, which a scan of the node would make quadratic in the pool.
+        self._held: Set[bytes] = set()
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
         default (pooled, leaf unknown), or a leaf the caller has already sifted.
 
-        A leaf-targeted add is deduped: seeding the same string at one leaf twice
-        does no work, so a repeatedly re-anchored prefix cannot flood it with
-        copies that the split test would then miscount as independent members.
-        The root pool keeps every add, so a prefix's multiplicity is preserved."""
-        bucket = self._at.setdefault(at, [])
-        if at and string in bucket:
+        A string the population already holds is dropped.  Members are counted as
+        independent evidence about a state, so a second copy is not a second
+        member however it arrived: seeded twice at one leaf, or added twice at the
+        root and pushed down together."""
+        if string in self._held:
             return
-        bucket.append(string)
+        self._held.add(string)
+        self._at.setdefault(at, []).append(string)
 
     def members(self, at: Path, count: int) -> List[bytes]:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
