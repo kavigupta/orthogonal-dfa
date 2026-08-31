@@ -151,7 +151,7 @@ def _short_states(resolver, per_state):
     return held, [s for s, m in held.items() if len(m) < per_state]
 
 
-def _aimed_at(dfa, state, length, weights, rng, count):
+def _aimed_at(dfa, state, count, *, length, weights, rng):
     """``count`` strings the hypothesis says reach ``state``; empty where it says
     none do at this length."""
     counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
@@ -185,7 +185,9 @@ def _per_state_members(pst, resolver, dfa, per_state):
             # Aimed first, and at the last attempt drawn plainly: a state the
             # hypothesis has the wrong shape for is one it cannot aim at.
             fresh = (
-                _aimed_at(dfa, leaf, length, weights, pst.rng, wanted)
+                _aimed_at(
+                    dfa, leaf, wanted, length=length, weights=weights, rng=pst.rng
+                )
                 if attempt < TOP_UP_ROUNDS - 1
                 else [
                     pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
