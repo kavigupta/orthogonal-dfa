@@ -42,8 +42,8 @@ class MaskTable:
         #: construction.  Unlike ``representative`` (which a caller may re-scope to
         #: focus clustering) this never changes, so coverage tests stay stable.
         self._core = [not r for r in representative]
-        #: Which population each prefix was drawn from, for the per-stratum FNR.
-        #: One label until a caller re-scopes with ``set_representative``.
+        #: Which population each prefix was drawn from.  The FNR is stated over
+        #: each separately, so this is what says which prefixes share a rate.
         self._stratum = ["baseline"] * len(prefixes)
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
@@ -88,14 +88,6 @@ class MaskTable:
             for prefix, label in zip(prefixes, strata):
                 first.setdefault(prefix, label)
             self._stratum = [first.get(p, "baseline") for p in self._prefixes]
-
-    #: The population the FNR gate is stated over.  Neither of the other two is
-    #: drawn from the sampler: the boundary strings are picked for reaching
-    #: states the hypothesis has not resolved, and the per-state sample is
-    #: skewed to reach each one.  A run converges with half the boundary
-    #: strings still indecisive, so holding either to a rate would ask the
-    #: family for something convergence does not need.
-    GATED_STRATUM = "baseline"
 
     def strata_masks(self):
         """``label -> mask`` over the representative prefixes, in table order."""

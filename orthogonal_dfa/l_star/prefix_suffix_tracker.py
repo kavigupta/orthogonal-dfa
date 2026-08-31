@@ -48,8 +48,8 @@ class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    #: A rate the sampled pool has to meet, not an average over every prefix
-    #: the round happens to hold.
+    #: A rate every prefix population has to meet on its own, not an average
+    #: across them.
     fnr_limit: float = 0.10
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
@@ -210,11 +210,12 @@ class PrefixSuffixTracker:
     def fnr_from_decision(self, decision) -> float:
         """``compute_fnr`` for a decision vector already in hand.
 
-        Read over the sampled pool alone rather than the whole representative
-        set.  The three populations land at rates an order of magnitude apart,
-        so a pooled rate is carried by whichever is largest -- and the pool is,
-        by a factor that grows every round, because drawing more of it is how
-        the search answers this number being too high.
+        The worst population rather than the rate across all of them.  Whether a
+        prefix is decisive against a family is a property of the state it
+        reaches, so a population reaching states the family does not separate
+        reads high however many prefixes reaching easy ones are averaged in --
+        and the pool of those grows every round, because drawing more of it is
+        how the search answers this number being too high.
         """
         decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
@@ -222,10 +223,10 @@ class PrefixSuffixTracker:
         if decided.mean(1).min() == 0:
             return 1
         indecisive = ~decided.any(0)
-        pool = self.table.strata_masks().get(self.table.GATED_STRATUM)
-        if pool is None or not pool.any():
+        masks = [m for m in self.table.strata_masks().values() if m.any()]
+        if not masks:
             return float(indecisive.mean())
-        return float(indecisive[pool].mean())
+        return max(float(indecisive[m].mean()) for m in masks)
 
     def sample_more_prefixes(self):
         # Sample random prefixes and add them
