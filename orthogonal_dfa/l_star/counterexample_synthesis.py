@@ -87,17 +87,23 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def classify_pool(pst, tree, *, accept, reject):
+def classify_pool(pst, tree, *, accept, reject, prefixes):
     """
-    Classify every prefix in the pool to its leaf (or -1 if undecided), from
-    the cached mask matrix. Uses accept and reject thresholds.
+    Classify the prefixes selected by the boolean mask ``prefixes`` to their leaf
+    (or -1 if undecided), indexed by position within the mask.  Uses accept and
+    reject thresholds.
+
+    A prefix's leaf is read off its own column alone, so masking here gives the
+    same leaves as classifying everything and indexing after.  Asking only for
+    the prefixes the caller reads keeps the tree's distinguishers partially
+    observed, which is what excludes them from the clustering candidates.
     """
 
     def decide_columns(midfix):
-        decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
+        decision = pst.compute_decision_from_strings(tree.suffixes(midfix), prefixes)
         return decision >= accept, decision < reject
 
-    return tree.classify_pool(pst.num_prefixes, decide_columns)
+    return tree.classify_pool(int(prefixes.sum()), decide_columns)
 
 
 def _take_indecisive(resolver, target):
@@ -185,12 +191,13 @@ def uncoverable_access_strings(pst, tree):
     n = len(fam)
 
     repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
+    core = ~sampled
     leaves = classify_pool(
-        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
+        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh, prefixes=core
     )
-    potentially_problematic = np.flatnonzero(
-        (~sampled) & (leaves == -1)
-    )  # only unclassifiable core prefixes
+    potentially_problematic = np.flatnonzero(core)[
+        leaves == -1
+    ]  # only unclassifiable core prefixes
     flagged = []
     for i in potentially_problematic:
         col = np.zeros(len(prefixes), dtype=bool)

@@ -263,9 +263,7 @@ class PrefixSuffixTracker:
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
 
     def compute_decision_from_strings(
-        self, vs: List[bytes], subset_prefixes=None
+        self, vs: List[bytes], subset_prefixes
     ) -> np.ndarray:
-        if subset_prefixes is None:
-            subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
         vs_idxs = [self.table.intern_suffix(v) for v in vs]
         return self.compute_decision(vs_idxs, subset_prefixes)
