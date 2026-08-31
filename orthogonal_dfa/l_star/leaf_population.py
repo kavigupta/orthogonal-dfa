@@ -10,9 +10,13 @@ this companion never has to be told the tree changed: a former leaf becomes an
 internal node whose resting strings flush through it on the next pull.
 """
 
+from itertools import islice
 from typing import Callable, Dict, List, Optional, Tuple
 
 Path = Tuple[bool, ...]
+#: An insertion-ordered set of strings; Python has no such builtin, and the order
+#: matters because members() hands out a prefix of one.
+OrderedSet = Dict[bytes, None]
 #: Classify a batch of strings against one node's midfix, decisions aligned with
 #: the input (``None`` = indecisive, dropped).
 Classify = Callable[[List[bytes], bytes], List[Optional[bool]]]
@@ -30,26 +34,32 @@ class LeafPopulation:
         self._classify = classify
         self._chunk = chunk
         # path -> strings currently resting at that node.
-        self._at: Dict[Path, List[bytes]] = {}
+        self._at: Dict[Path, OrderedSet] = {}
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
         default (pooled, leaf unknown), or a leaf the caller has already sifted.
 
-        A leaf-targeted add is deduped: seeding the same string at one leaf twice
-        does no work, so a repeatedly re-anchored prefix cannot flood it with
-        copies that the split test would then miscount as independent members.
-        The root pool keeps every add, so a prefix's multiplicity is preserved."""
-        bucket = self._at.setdefault(at, [])
-        if at and string in bucket:
+        A string the population already holds is never held twice.  Members are
+        counted as independent evidence about a state, so a second copy is not a
+        second member however it arrived: seeded twice at one leaf, or added twice
+        at the root and pushed down together.  A leaf-targeted add of a held
+        string moves it there instead, the caller having sifted it further than
+        the pull has."""
+        resting = self._resting_at(string)
+        if resting == at:
             return
-        bucket.append(string)
+        if resting is not None:
+            if not at:
+                return  # a root add never drags a sifted string back up
+            del self._at[resting][string]
+        self._at.setdefault(at, {})[string] = None
 
     def members(self, at: Path, count: int) -> List[bytes]:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
         needed and stopping as soon as ``count`` are in hand."""
         self._fill(at, count)
-        return self._at.get(at, [])[:count]
+        return list(islice(self._at.get(at, ()), count))
 
     def representative(self, at: Path, count: int) -> Optional[bytes]:
         """The canonical member reaching leaf ``at`` -- the shortest, ties broken
@@ -57,6 +67,11 @@ class LeafPopulation:
         members are pulled to choose among."""
         members = self.members(at, count)
         return min(members, key=lambda m: (len(m), m)) if members else None
+
+    def _resting_at(self, string) -> Optional[Path]:
+        """Where ``string`` rests, or ``None`` if the population does not hold it
+        -- never added, or dropped as indecisive."""
+        return next((p for p, held in self._at.items() if string in held), None)
 
     def _fill(self, at: Path, count: int) -> None:
         """Pull strings down into ``at`` until it holds ``count`` or its ancestors
@@ -75,9 +90,11 @@ class LeafPopulation:
         """Classify one chunk of ``parent``'s strings and drop each into its
         child; indecisive strings fall out of the population."""
         bucket = self._at[parent]
-        chunk, self._at[parent] = bucket[: self._chunk], bucket[self._chunk :]
+        chunk = list(islice(bucket, self._chunk))
+        for string in chunk:
+            del bucket[string]
         midfix = self._tree.midfix_at(parent)
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
             if decision is not None:
-                self._at.setdefault(parent + (decision,), []).append(string)
+                self._at.setdefault(parent + (decision,), {})[string] = None
