@@ -10,7 +10,7 @@ this companion never has to be told the tree changed: a former leaf becomes an
 internal node whose resting strings flush through it on the next pull.
 """
 
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 Path = Tuple[bool, ...]
 #: Classify a batch of strings against one node's midfix, decisions aligned with
@@ -31,21 +31,28 @@ class LeafPopulation:
         self._chunk = chunk
         # path -> strings currently resting at that node.
         self._at: Dict[Path, List[bytes]] = {}
-        # Everything the population holds, wherever it rests.  A membership test
-        # per add, which a scan of the node would make quadratic in the pool.
-        self._held: Set[bytes] = set()
+        # Where each string the population holds is resting.  A lookup per add,
+        # which a scan of the node would make quadratic in the pool.
+        self._held: Dict[bytes, Path] = {}
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
         default (pooled, leaf unknown), or a leaf the caller has already sifted.
 
-        A string the population already holds is dropped.  Members are counted as
-        independent evidence about a state, so a second copy is not a second
-        member however it arrived: seeded twice at one leaf, or added twice at the
-        root and pushed down together."""
-        if string in self._held:
+        A string the population already holds is never held twice.  Members are
+        counted as independent evidence about a state, so a second copy is not a
+        second member however it arrived: seeded twice at one leaf, or added twice
+        at the root and pushed down together.  A leaf-targeted add of a held
+        string moves it there instead, the caller having sifted it further than
+        the pull has."""
+        resting = self._held.get(string)
+        if resting == at:
             return
-        self._held.add(string)
+        if resting is not None:
+            if not at:
+                return  # a root add never drags a sifted string back up
+            self._at[resting].remove(string)
+        self._held[string] = at
         self._at.setdefault(at, []).append(string)
 
     def members(self, at: Path, count: int) -> List[bytes]:
@@ -82,5 +89,9 @@ class LeafPopulation:
         midfix = self._tree.midfix_at(parent)
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
-            if decision is not None:
-                self._at.setdefault(parent + (decision,), []).append(string)
+            if decision is None:
+                del self._held[string]
+            else:
+                child = parent + (decision,)
+                self._held[string] = child
+                self._at.setdefault(child, []).append(string)

@@ -86,6 +86,22 @@ class TestLeafPopulation(unittest.TestCase):
         pop.add(bytes([0, 1]), at=(False, True))
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
 
+    def test_an_indecisive_string_can_be_added_again(self):
+        pop = LeafPopulation(_StubTree(), lambda ss, m: [None] * len(ss), chunk=16)
+        pop.add(bytes([1, 1]))
+        self.assertEqual(pop.members((True,), 10), [])
+        pop.add(bytes([1, 1]), at=(True,))
+        self.assertEqual(pop.members((True,), 10), [bytes([1, 1])])
+
+    def test_seeding_a_held_string_at_a_leaf_moves_it_there(self):
+        classify, calls = _classifier()
+        pop = LeafPopulation(_StubTree(), classify, chunk=16)
+        pop.add(bytes([0, 1]))
+        pop.add(bytes([0, 1]), at=(False, True))
+        self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
+        self.assertEqual(calls["batches"], 0)
+        self.assertEqual(pop.members((), 10), [])
+
     def test_exhausted_ancestors_return_what_is_there(self):
         classify, _ = _classifier()
         pop = LeafPopulation(_StubTree(), classify, chunk=16)
