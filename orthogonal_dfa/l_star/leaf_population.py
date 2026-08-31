@@ -14,6 +14,9 @@ from itertools import islice
 from typing import Callable, Dict, List, Optional, Tuple
 
 Path = Tuple[bool, ...]
+#: An insertion-ordered set of strings; Python has no such builtin, and the order
+#: matters because members() hands out a prefix of one.
+OrderedSet = Dict[bytes, None]
 #: Classify a batch of strings against one node's midfix, decisions aligned with
 #: the input (``None`` = indecisive, dropped).
 Classify = Callable[[List[bytes], bytes], List[Optional[bool]]]
@@ -30,10 +33,8 @@ class LeafPopulation:
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
-        # path -> the strings resting at that node, as an insertion-ordered set.
-        # Order steers the learner, since members() hands out a prefix of it, and
-        # a set of bytes does not iterate the same way twice.
-        self._at: Dict[Path, Dict[bytes, None]] = {}
+        # path -> strings currently resting at that node.
+        self._at: Dict[Path, OrderedSet] = {}
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
