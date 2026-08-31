@@ -127,6 +127,9 @@ class _PoolState:
         self.accumulated = []
         self.seen = set()
         self.sampled = []
+        self.by_state = []
+        #: Raised when a state's own rate is what the family is failing.
+        self.per_state = None
 
 
 #: Rounds of topping a short state up before it is left short.  Each one draws
@@ -200,6 +203,44 @@ def _per_state_members(pst, resolver, dfa, per_state):
     return held
 
 
+def _publish(pst, state):
+    """Install the pools as the representative set, each labelled with its own.
+
+    A state of its own for each state's sample: the point of drawing them is
+    that every state is reachable enough to be read, which nineteen easy states
+    can cover for if they share a rate with the twentieth.  Labelled by the leaf
+    the member rests at, which is the same answer that put it there.
+    """
+    representative = state.baseline + state.accumulated + state.sampled
+    strata = (
+        ["baseline"] * len(state.baseline)
+        + ["boundary"] * len(state.accumulated)
+        + [("state", leaf) for leaf, _ in state.by_state]
+    )
+    fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
+    if fresh:
+        pst.table.add_prefixes(fresh)
+    pst.table.set_representative(representative, strata)
+
+
+def _harvest_boundary(pst, resolver, state, *, indecisive_fraction, min_indecisive):
+    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+    for t in _take_indecisive(resolver, target):
+        if t not in state.seen:
+            state.seen.add(t)
+            state.accumulated.append(t)
+
+
+def _refresh_states(pst, resolver, dfa, state, per_state):
+    if state.per_state is None:
+        state.per_state = per_state
+    by_state = _per_state_members(pst, resolver, dfa, state.per_state)
+    state.by_state = [
+        (leaf, m) for leaf, members in sorted(by_state.items()) for m in members
+    ]
+    state.sampled = [m for _, m in state.by_state]
+
+
 def _grow_representative_pool(
     pst,
     resolver,
@@ -210,30 +251,48 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
-        if t not in state.seen:
-            state.seen.add(t)
-            state.accumulated.append(t)
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
-    # A state of its own for each state's sample: the point of drawing them is
-    # that every state is reachable enough to be read, which nineteen easy
-    # states can cover for if they share a rate with the twentieth.  Labelled by
-    # the leaf the member rests at, which is the same answer that put it there.
-    per_state_labelled = [
-        (leaf, m) for leaf, members in sorted(by_state.items()) for m in members
-    ]
-    state.sampled = [m for _, m in per_state_labelled]
-    representative = state.baseline + state.accumulated + state.sampled
-    strata = (
-        ["baseline"] * len(state.baseline)
-        + ["boundary"] * len(state.accumulated)
-        + [("state", leaf) for leaf, _ in per_state_labelled]
+    _harvest_boundary(
+        pst,
+        resolver,
+        state,
+        indecisive_fraction=indecisive_fraction,
+        min_indecisive=min_indecisive,
     )
-    fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative, strata)
+    _refresh_states(pst, resolver, dfa, state, per_state)
+    _publish(pst, state)
+
+
+def pool_grower(
+    pst, resolver, dfa, state, *, indecisive_fraction, min_indecisive, per_state
+):
+    """Grow one prefix population, named by the label the FNR came back with.
+
+    The populations are this round's, and the next round's family search is what
+    calls this: a rate is only answered by more of the population it is the rate
+    of, so the search has to be able to reach back for them.
+    """
+
+    def grow(label):
+        if label == "boundary":
+            _harvest_boundary(
+                pst,
+                resolver,
+                state,
+                indecisive_fraction=indecisive_fraction,
+                min_indecisive=min_indecisive,
+            )
+        elif isinstance(label, tuple) and label[0] == "state":
+            # Asking for more than it holds is what makes the top-up draw.
+            state.per_state = (state.per_state or per_state) + PER_STATE_STEP
+            _refresh_states(pst, resolver, dfa, state, per_state)
+        else:
+            pst.sample_more_prefixes()
+            state.baseline = [
+                p for p, r in zip(pst.table.prefixes, pst.table.noncore) if r
+            ]
+        _publish(pst, state)
+
+    return grow
 
 
 def uncoverable_access_strings(pst, tree):
@@ -325,6 +384,10 @@ class _StallDetector:
 #: than growing every round.
 PER_STATE = 20
 
+#: How much further a state's pool is asked for when its own rate is what the
+#: family is failing.
+PER_STATE_STEP = 20
+
 
 def counterexample_driven_synthesis(
     pst,
@@ -344,9 +407,12 @@ def counterexample_driven_synthesis(
     state = _PoolState(baseline)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
+    # No previous round, so the first family search has no populations to reach
+    # back for and answers everything by drawing uniformly.
+    grow = None
     while True:
         print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), grow)
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
         resolver = TransitionResolver(pst, vs)
@@ -386,6 +452,17 @@ def counterexample_driven_synthesis(
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         _grow_representative_pool(
+            pst,
+            resolver,
+            dfa,
+            state,
+            indecisive_fraction=indecisive_fraction,
+            min_indecisive=min_indecisive,
+            per_state=per_state,
+        )
+        # Handed to the next round's family search, which is the thing that
+        # finds out a population is too indecisive to read.
+        grow = pool_grower(
             pst,
             resolver,
             dfa,

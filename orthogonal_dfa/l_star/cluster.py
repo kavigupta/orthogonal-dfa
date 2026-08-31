@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
@@ -265,6 +265,9 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
+    #: The prefix population ``fnr`` is the rate of, and so the one to grow to
+    #: answer it.  ``None`` where no population in particular is at fault.
+    worst: Optional[object] = None
 
 
 def judge_family(pst, gate, v, vs, family_size) -> Judged:
@@ -290,26 +293,31 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
     decision = pst.compute_decision(vs, pst.table.representative)
-    fnr = pst.fnr_from_decision(decision)
+    fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
-        return Judged(vs, fnr, too_high, ADMITTED)
+        return Judged(vs, fnr, too_high, ADMITTED, worst)
     # Certify only right before returning, as certifying is expensive.
     verdict = gate.verdict(pst, decision, v, vs)
     if verdict is DRIFTED:
         return Judged(vs, 1.0, "not accept-preserving", verdict)
     if verdict is UNCERTIFIED:
         return Judged(vs, 1.0, "accept-preserving not established", verdict)
-    return Judged(vs, fnr, too_high, verdict)
+    return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
     ``v`` is the empty suffix from either caller, and the gate reads the split
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
+
+    ``grow_pool(label)`` grows one prefix population, the one the FNR is the
+    rate of.  The populations are the previous round's -- that is what defines
+    them -- so the caller supplies this; without one every population is
+    answered by drawing uniformly, which only the uniform one answers to.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -367,5 +375,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         if strategy == "suffix":
             kept = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  kept {kept}/{family_size} after screening")
-        else:
+        elif grow_pool is None or judged.worst is None:
             pst.sample_more_prefixes()
+        else:
+            grow_pool(judged.worst)
