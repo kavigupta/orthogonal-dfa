@@ -44,6 +44,8 @@ class MaskTable:
         self._core = [not r for r in representative]
         #: Which population each prefix was drawn from.  The FNR is stated over
         #: each separately, so this is what says which prefixes share a rate.
+        #: Any hashable will do as a label; the pool is one, and each state's
+        #: sample is one of its own.
         self._stratum = ["baseline"] * len(prefixes)
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row

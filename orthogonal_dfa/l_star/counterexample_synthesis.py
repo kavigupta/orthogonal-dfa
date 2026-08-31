@@ -20,7 +20,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import per_state_sample
+from .dfa_utils import per_state_sample, states_intermediate
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
 from .statistics import binomial_side_of_boundary
@@ -149,10 +149,16 @@ def _grow_representative_pool(
         existing=state.sampled,
     )
     representative = state.baseline + state.accumulated + state.sampled
+    # A state of its own for each state's sample: the point of drawing them is
+    # that every state is reachable enough to be read, which nineteen easy
+    # states can cover for if they share a rate with the twentieth.
     strata = (
         ["baseline"] * len(state.baseline)
         + ["boundary"] * len(state.accumulated)
-        + ["per_state"] * len(state.sampled)
+        + [
+            ("state", states_intermediate(dfa.initial_state, p, dfa)[-1])
+            for p in state.sampled
+        ]
     )
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
