@@ -48,7 +48,9 @@ class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    fnr_limit: float = 0.02
+    #: A rate the sampled pool has to meet, not an average over every prefix
+    #: the round happens to hold.
+    fnr_limit: float = 0.10
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
@@ -206,13 +208,24 @@ class PrefixSuffixTracker:
         )
 
     def fnr_from_decision(self, decision) -> float:
-        """``compute_fnr`` for a decision vector already in hand."""
-        arr = np.array(
+        """``compute_fnr`` for a decision vector already in hand.
+
+        Read over the sampled pool alone rather than the whole representative
+        set.  The three populations land at rates an order of magnitude apart,
+        so a pooled rate is carried by whichever is largest -- and the pool is,
+        by a factor that grows every round, because drawing more of it is how
+        the search answers this number being too high.
+        """
+        decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
-        ).mean(1)
-        if arr.min() == 0:
+        )
+        if decided.mean(1).min() == 0:
             return 1
-        return 1 - arr.sum()
+        indecisive = ~decided.any(0)
+        pool = self.table.strata_masks().get(self.table.GATED_STRATUM)
+        if pool is None or not pool.any():
+            return float(indecisive.mean())
+        return float(indecisive[pool].mean())
 
     def sample_more_prefixes(self):
         # Sample random prefixes and add them

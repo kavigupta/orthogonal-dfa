@@ -42,6 +42,9 @@ class MaskTable:
         #: construction.  Unlike ``representative`` (which a caller may re-scope to
         #: focus clustering) this never changes, so coverage tests stay stable.
         self._core = [not r for r in representative]
+        #: Which population each prefix was drawn from, for the per-stratum FNR.
+        #: One label until a caller re-scopes with ``set_representative``.
+        self._stratum = ["baseline"] * len(prefixes)
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -71,11 +74,37 @@ class MaskTable:
         ``set_representative``."""
         return np.array([not c for c in self._core], dtype=bool)
 
-    def set_representative(self, prefixes: List[bytes]) -> None:
+    def set_representative(self, prefixes: List[bytes], strata=None) -> None:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
-        becomes non-representative), realigning the mask to the current prefixes."""
+        becomes non-representative), realigning the mask to the current prefixes.
+
+        ``strata`` labels each of ``prefixes`` with the population it came from.
+        A prefix in more than one keeps the first, so the labels partition."""
         keys = set(prefixes)
         self._representative = [p in keys for p in self._prefixes]
+        if strata is not None:
+            assert len(strata) == len(prefixes), (len(strata), len(prefixes))
+            first = {}
+            for prefix, label in zip(prefixes, strata):
+                first.setdefault(prefix, label)
+            self._stratum = [first.get(p, "baseline") for p in self._prefixes]
+
+    #: The population the FNR gate is stated over.  Neither of the other two is
+    #: drawn from the sampler: the boundary strings are picked for reaching
+    #: states the hypothesis has not resolved, and the per-state sample is
+    #: skewed to reach each one.  A run converges with half the boundary
+    #: strings still indecisive, so holding either to a rate would ask the
+    #: family for something convergence does not need.
+    GATED_STRATUM = "baseline"
+
+    def strata_masks(self):
+        """``label -> mask`` over the representative prefixes, in table order."""
+        rep = self.representative
+        labels = [l for l, r in zip(self._stratum, rep) if r]
+        out = {}
+        for label in dict.fromkeys(labels):
+            out[label] = np.array([l == label for l in labels], dtype=bool)
+        return out
 
     def contains_prefix(self, prefix: bytes) -> bool:
         return prefix in self._prefix_keys
@@ -112,6 +141,7 @@ class MaskTable:
         # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
         self._core.extend([False] * len(new_prefixes))
+        self._stratum.extend(["baseline"] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
 

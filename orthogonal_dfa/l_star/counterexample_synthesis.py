@@ -149,10 +149,15 @@ def _grow_representative_pool(
         existing=state.sampled,
     )
     representative = state.baseline + state.accumulated + state.sampled
+    strata = (
+        ["baseline"] * len(state.baseline)
+        + ["boundary"] * len(state.accumulated)
+        + ["per_state"] * len(state.sampled)
+    )
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative)
+    pst.table.set_representative(representative, strata)
 
 
 def uncoverable_access_strings(pst, tree):
