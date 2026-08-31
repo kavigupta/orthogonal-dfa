@@ -150,7 +150,9 @@ def _short_states(resolver, per_state):
         path = resolver.tree.path_of(leaf)
         if path is None:
             continue
-        held[leaf] = resolver.population.members(path, per_state)
+        # Distinct: the root pool keeps a string's multiplicity on purpose, and
+        # copies of one string are one string's worth of evidence about a state.
+        held[leaf] = list(dict.fromkeys(resolver.population.members(path, per_state)))
     return held, [s for s, m in held.items() if len(m) < per_state]
 
 
@@ -180,6 +182,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
     length = pst.sampler.length
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     held, short = _short_states(resolver, per_state)
+    known = {m for members in held.values() for m in members}
     for attempt in range(TOP_UP_ROUNDS):
         if not short:
             break
@@ -197,8 +200,13 @@ def _per_state_members(pst, resolver, dfa, per_state):
                     for _ in range(wanted)
                 ]
             )
+            # A state reachable by few strings of this length draws the same ones
+            # again; adding them would fill its quota with copies and retire it
+            # from ``short`` without ever reaching the plain draws.
             for f in fresh:
-                resolver.population.add(f)
+                if f not in known:
+                    known.add(f)
+                    resolver.population.add(f)
         held, short = _short_states(resolver, per_state)
     return held
 
@@ -378,10 +386,10 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-#: Target number of representative strings per DFA state.  Each round tops the
-#: sampled pool up to this per state (see ``per_state_sample``); states the
-#: original prefixes already cover need no top-up, so the pool converges rather
-#: than growing every round.
+#: Target number of distinct strings resting at each state.  Each round tops the
+#: pool up to this per state (see ``_per_state_members``); states the population
+#: already covers need no top-up, so the pool converges rather than growing every
+#: round.
 PER_STATE = 20
 
 #: How much further a state's pool is asked for when its own rate is what the
