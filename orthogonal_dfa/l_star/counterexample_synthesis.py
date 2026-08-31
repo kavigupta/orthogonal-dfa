@@ -165,8 +165,8 @@ def _aimed_at(dfa, state, count, *, length, weights, rng):
 
 
 def _per_state_members(pst, resolver, dfa, per_state):
-    """Up to ``per_state`` strings resting at each state, topped up until they
-    are there or the tries run out.
+    """``state -> members``, up to ``per_state`` of them resting at each state,
+    topped up until they are there or the tries run out.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
     settles where it goes.  So candidates are pushed through the population and
@@ -197,7 +197,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
             for f in fresh:
                 resolver.population.add(f)
         held, short = _short_states(resolver, per_state)
-    return sorted({m for members in held.values() for m in members})
+    return held
 
 
 def _grow_representative_pool(
@@ -215,7 +215,8 @@ def _grow_representative_pool(
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    state.sampled = _per_state_members(pst, resolver, dfa, per_state)
+    by_state = _per_state_members(pst, resolver, dfa, per_state)
+    state.sampled = sorted({m for members in by_state.values() for m in members})
     representative = state.baseline + state.accumulated + state.sampled
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
