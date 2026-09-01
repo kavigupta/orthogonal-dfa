@@ -138,7 +138,7 @@ class TestLiftedOracle(unittest.TestCase):
             suffix = [int(rng.choice(wild)) for _ in range(20)]
             self.assertEqual(
                 self.oracle.membership_query(prefix),
-                self.oracle.membership_query(list(prefix) + suffix),
+                self.oracle.membership_query(prefix + bytes(suffix)),
             )
 
     def test_many_distinct_wildcard_only_suffixes(self):
@@ -156,14 +156,14 @@ class TestLiftedOracle(unittest.TestCase):
     def test_stop_codons_accept_when_all_frames_closed(self):
         # [TAG, X, TAG, X, TAG] places stops at base positions 0, 4, 8 -- one in
         # each reading frame -- so all frames are closed for every X realization.
-        self.assertTrue(self.oracle.membership_query([0, self.X, 0, self.X, 0]))
+        self.assertTrue(self.oracle.membership_query(bytes([0, self.X, 0, self.X, 0])))
 
     def test_stop_codons_reject_when_a_frame_is_open(self):
         # Only frames 0 and 1 get a stop; frame 2 stays open, and X cannot forge one.
-        self.assertFalse(self.oracle.membership_query([0, self.X, 0]))
+        self.assertFalse(self.oracle.membership_query(bytes([0, self.X, 0])))
 
     def test_all_kmer_string_leaves_two_frames_open(self):
-        self.assertFalse(self.oracle.membership_query([0, 1, 2]))
+        self.assertFalse(self.oracle.membership_query(bytes([0, 1, 2])))
 
     def test_base_alphabet_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
