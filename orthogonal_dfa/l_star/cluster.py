@@ -24,6 +24,14 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    # A prefix is decisive or not according to the suffixes picked here, so a
+    # population with no say in the picking is one the family is not chosen to
+    # separate -- and the FNR is then read over it population by population.
+    # Weighted so each contributes the same however many prefixes it holds.
+    weights = np.zeros(masks.shape[1])
+    for population in pst.table.strata_masks().values():
+        if population.any():
+            weights[population] = 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -31,7 +39,7 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = (masks != cluster_center).sum(1)
+        losses = ((masks != cluster_center) * weights).sum(1)
         nearest = losses.argsort()[:count]
         if seed_local not in nearest:
             break
@@ -377,5 +385,11 @@ def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]
             print(f"  kept {kept}/{family_size} after screening")
         elif grow_pool is None or judged.worst is None:
             pst.sample_more_prefixes()
-        else:
-            grow_pool(judged.worst)
+        elif not grow_pool(judged.worst):
+            # A population that cannot be grown is not answered by asking again.
+            # What is left that moves its rate is the family read over it, so
+            # buy suffixes rather than spend the round re-measuring the same
+            # prefixes.
+            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  {judged.worst} is all there is; kept {kept}/{family_size}")
+            strategy = "suffix"

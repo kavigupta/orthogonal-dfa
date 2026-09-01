@@ -274,13 +274,21 @@ def pool_grower(
     pst, resolver, dfa, state, *, indecisive_fraction, min_indecisive, per_state
 ):
     """Grow one prefix population, named by the label the FNR came back with.
+    Returns whether it grew.
 
     The populations are this round's, and the next round's family search is what
     calls this: a rate is only answered by more of the population it is the rate
     of, so the search has to be able to reach back for them.
+
+    Not every population can answer.  The boundary strings are whatever the round
+    that made them could not place, a set and not a source, so once they are all
+    harvested there are no more until a round produces some -- and a state has
+    only as many strings as the tree will place there.  Saying so is what keeps
+    the caller from asking again forever.
     """
 
     def grow(label):
+        before = (len(state.accumulated), len(state.sampled), pst.num_prefixes)
         if label == "boundary":
             _harvest_boundary(
                 pst,
@@ -299,6 +307,7 @@ def pool_grower(
                 p for p, r in zip(pst.table.prefixes, pst.table.noncore) if r
             ]
         _publish(pst, state)
+        return (len(state.accumulated), len(state.sampled), pst.num_prefixes) != before
 
     return grow
 
