@@ -207,22 +207,15 @@ def _per_state_members(pst, resolver, dfa, per_state):
 
 
 def _drop_thin_populations(representative, strata, floor):
-    """``strata`` with any population under ``floor`` prefixes unlabelled.
-
-    Counted the way the table resolves them: a prefix in two populations counts
-    for the first, so a leaf's members can be spread across the others and leave
-    it holding one.  What is left over is read against like any other prefix, and
-    is not a population the family is chosen to separate or held to a rate.
+    """``strata`` with any population of under ``floor`` prefixes unlabelled.
 
     A state whose members the family reads indecisively loses them on the way
     down to its leaf, so a population this thin is the family's indecision rather
     than the state's rarity -- which the boundary strings carry, now that the
-    push-down harvests them too.
+    push-down harvests them too.  Its prefixes are still read against; they are
+    just not a population the family is chosen to separate or held to a rate.
     """
-    first = {}
-    for prefix, label in zip(representative, strata):
-        first.setdefault(prefix, label)
-    held = Counter(first.values())
+    held = Counter(label for _, label in dict.fromkeys(zip(representative, strata)))
     return [None if held[label] < floor else label for label in strata]
 
 
