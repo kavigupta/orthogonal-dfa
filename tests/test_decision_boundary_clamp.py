@@ -26,6 +26,9 @@ class _Table:
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]
 
+    def strata_masks(self):
+        return {"baseline": self.representative}
+
 
 def _boundary(masks, signal=SIGNAL):
     pst = SimpleNamespace(
