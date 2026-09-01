@@ -13,7 +13,6 @@ in the next round.
 """
 
 import math
-from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -21,13 +20,16 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
+from .prefix_sources import (
+    WANTED,
+    IndecisiveSource,
+    StateSource,
+    UniformSource,
+    collect,
+    draw_for_split,
+)
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
@@ -117,228 +119,93 @@ def _take_indecisive(resolver, target):
     return ordered[:target]
 
 
-class _PoolState:
-    """The pool state carried across rounds: the initial uniform sample (kept in
-    the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), the accumulated
-    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
+class Pools:
+    """The prefix populations, as a source apiece rather than a list apiece.
 
-    def __init__(self, baseline):
-        self.baseline = list(baseline)
-        self.accumulated = []
-        self.seen = set()
-        self.sampled = []
-        self.by_state = []
-        #: Raised when a state's own rate is what the family is failing.
-        self.per_state = None
-
-
-#: Rounds of topping a short state up before it is left short.  Each one draws
-#: and sifts, so this is the give-up: a state the tree will not place strings at
-#: does not get an unbounded number of tries.
-TOP_UP_ROUNDS = 3
-
-
-def _short_states(resolver, per_state):
-    """``state -> members`` for every state, and which of them are still short.
-
-    The members are whatever the population has already placed at that state's
-    leaf, which is the only evidence that a string reaches it: the hypothesis
-    says where a string *should* land, the tree says where it does.
+    A round hands the next one these.  What a later round needs more of it draws
+    more of -- the gate wanting enough prefixes to read a rate over is a draw and
+    not a special case -- and a source that cannot fill its population has that
+    population dropped, which is what there is to say about a state nothing
+    reaches.
     """
-    held = {}
-    for leaf in range(resolver.num_states):
-        path = resolver.tree.path_of(leaf)
-        if path is None:
-            continue
-        # Distinct: the root pool keeps a string's multiplicity on purpose, and
-        # copies of one string are one string's worth of evidence about a state.
-        held[leaf] = list(dict.fromkeys(resolver.population.members(path, per_state)))
-    return held, [s for s, m in held.items() if len(m) < per_state]
 
+    def __init__(self, pst):
+        self._pst = pst
+        self._indecisive = IndecisiveSource(
+            refill=lambda: pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
+        )
+        self._sources = {"baseline": UniformSource(pst)}
+        self.held = {}
 
-def _aimed_at(dfa, state, count, *, length, weights, rng):
-    """``count`` strings the hypothesis says reach ``state``; empty where it says
-    none do at this length."""
-    counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
-    if counts[length][dfa.initial_state] == 0:
-        return []
-    mass = count_paths_to_state(dfa, state, length, weights)
-    drawn = (
-        sample_string_reaching_state(dfa, mass, rng, weights) for _ in range(count)
-    )
-    return [d for d in drawn if d is not None]
+    def offer_indecisive(self, string) -> None:
+        self._indecisive.offer(string)
 
-
-def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out.
-
-    Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  So candidates are pushed through the population and
-    counted where they land, which is also what makes a state that stays short
-    worth knowing about -- it is one the round cannot reach rather than one the
-    sampler was unlucky about.
-    """
-    length = pst.sampler.length
-    weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    held, short = _short_states(resolver, per_state)
-    for attempt in range(TOP_UP_ROUNDS):
-        if not short:
-            break
-        for leaf in short:
-            wanted = per_state - len(held[leaf])
-            # Aimed first, and at the last attempt drawn plainly: a state the
-            # hypothesis has the wrong shape for is one it cannot aim at.
-            fresh = (
-                _aimed_at(
-                    dfa, leaf, wanted, length=length, weights=weights, rng=pst.rng
-                )
-                if attempt < TOP_UP_ROUNDS - 1
-                else [
-                    pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-                    for _ in range(wanted)
-                ]
+    def rebuild(self, resolver, dfa) -> None:
+        """Take the sources this round defines, and fill what they can fill."""
+        for string in resolver.indecisive:
+            self._indecisive.offer(string)
+        self._sources = {
+            "baseline": UniformSource(self._pst),
+            "boundary": self._indecisive,
+        }
+        for leaf in range(resolver.num_states):
+            source = StateSource(
+                self._pst, resolver, dfa, leaf, sink=self._indecisive.offer
             )
-            for f in fresh:
-                resolver.population.add(f)
-        held, short = _short_states(resolver, per_state)
-    return held
+            self._sources[source.label] = source
+        self.held = {}
+        for label, source in self._sources.items():
+            drawn = collect(source)
+            if drawn is not None:
+                self.held[label] = drawn
+        self.publish()
+
+    def for_split(self, label, wanted: int):
+        """Prefixes for one population, to read the split on and not to keep."""
+        source = self._sources.get(label)
+        return draw_for_split(source, wanted) if source is not None else []
+
+    def more(self, label, wanted: int) -> bool:
+        """Draw ``wanted`` further prefixes for one population.  Says whether it
+        could: a source that has stopped delivering ends its population."""
+        source = self._sources.get(label)
+        if source is None:
+            return False
+        drawn = collect(source, wanted=wanted)
+        if drawn is None:
+            self.held.pop(label, None)
+            self.publish()
+            return False
+        self.held[label] = self.held.get(label, []) + drawn
+        self.publish()
+        return True
+
+    def publish(self) -> None:
+        """Install the populations as the representative set."""
+        representative, strata = [], []
+        for label, prefixes in self.held.items():
+            representative.extend(prefixes)
+            strata.extend([label] * len(prefixes))
+        fresh = sorted(
+            {p for p in representative if not self._pst.table.contains_prefix(p)}
+        )
+        if fresh:
+            self._pst.table.add_prefixes(fresh)
+        self._pst.table.set_representative(representative, strata)
 
 
-def _drop_thin_populations(representative, strata, floor):
-    """``strata`` with any population of under ``floor`` prefixes unlabelled.
+class _PoolAccess:
+    """What the next round's family search may ask of this round's populations:
+    more prefixes for one of them, or prefixes to read the split on."""
 
-    A state whose members the family reads indecisively loses them on the way
-    down to its leaf, so a population this thin is the family's indecision rather
-    than the state's rarity -- which the boundary strings carry, now that the
-    push-down harvests them too.  Its prefixes are still read against; they are
-    just not a population the family is chosen to separate or held to a rate.
-    """
-    held = Counter(label for _, label in dict.fromkeys(zip(representative, strata)))
-    return [None if held[label] < floor else label for label in strata]
+    def __init__(self, pools):
+        self._pools = pools
 
+    def __call__(self, label):
+        return self._pools.more(label, WANTED)
 
-def _publish(pst, state):
-    """Install the pools as the representative set, each labelled with its own.
-
-    A state of its own for each state's sample: the point of drawing them is
-    that every state is reachable enough to be read, which nineteen easy states
-    can cover for if they share a rate with the twentieth.  Labelled by the leaf
-    the member rests at, which is the same answer that put it there.
-    """
-    representative = state.baseline + state.accumulated + state.sampled
-    strata = (
-        ["baseline"] * len(state.baseline)
-        + ["boundary"] * len(state.accumulated)
-        + [("state", leaf) for leaf, _ in state.by_state]
-    )
-    strata = _drop_thin_populations(
-        representative, strata, _readable_population(pst.config.fnr_limit)
-    )
-    fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative, strata)
-
-
-def _harvest_boundary(pst, resolver, state, *, indecisive_fraction, min_indecisive):
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
-        if t not in state.seen:
-            state.seen.add(t)
-            state.accumulated.append(t)
-
-
-def _readable_population(fnr_limit: float) -> int:
-    """Fewest prefixes a population can be held to ``fnr_limit`` over.
-
-        rate in {0, 1/n, 2/n, ...},  so  n < 1/limit  =>  the only passing rate is 0
-
-    A population under this cannot report a rate the limit distinguishes, and its
-    prefixes are few enough that weighing it equally with the rest hands them the
-    whole family search.
-    """
-    return math.ceil(1 / fnr_limit)
-
-
-def _refresh_states(pst, resolver, dfa, state, per_state):
-    if state.per_state is None:
-        state.per_state = per_state
-    by_state = _per_state_members(pst, resolver, dfa, state.per_state)
-    state.by_state = [
-        (leaf, m) for leaf, members in sorted(by_state.items()) for m in members
-    ]
-    state.sampled = [m for _, m in state.by_state]
-
-
-#: Rounds of topping a short state up before it is left short.  Each one draws
-#: and sifts, so this is the give-up: a state the tree will not place strings at
-#: does not get an unbounded number of tries.
-TOP_UP_ROUNDS = 3
-
-
-def _grow_representative_pool(
-    pst,
-    resolver,
-    dfa,
-    state,
-    *,
-    indecisive_fraction,
-    min_indecisive,
-    per_state,
-):
-    _harvest_boundary(
-        pst,
-        resolver,
-        state,
-        indecisive_fraction=indecisive_fraction,
-        min_indecisive=min_indecisive,
-    )
-    _refresh_states(pst, resolver, dfa, state, per_state)
-    _publish(pst, state)
-
-
-def pool_grower(
-    pst, resolver, dfa, state, *, indecisive_fraction, min_indecisive, per_state
-):
-    """Grow one prefix population, named by the label the FNR came back with.
-    Returns whether it grew.
-
-    The populations are this round's, and the next round's family search is what
-    calls this: a rate is only answered by more of the population it is the rate
-    of, so the search has to be able to reach back for them.
-
-    Not every population can answer.  The boundary strings are whatever the round
-    that made them could not place, a set and not a source, so once they are all
-    harvested there are no more until a round produces some -- and a state has
-    only as many strings as the tree will place there.  Saying so is what keeps
-    the caller from asking again forever.
-    """
-
-    def grow(label):
-        before = (len(state.accumulated), len(state.sampled), pst.num_prefixes)
-        if label == "boundary":
-            _harvest_boundary(
-                pst,
-                resolver,
-                state,
-                indecisive_fraction=indecisive_fraction,
-                min_indecisive=min_indecisive,
-            )
-        elif isinstance(label, tuple) and label[0] == "state":
-            # Asking for more than it holds is what makes the top-up draw.
-            state.per_state = (state.per_state or per_state) + PER_STATE_STEP
-            _refresh_states(pst, resolver, dfa, state, per_state)
-        else:
-            pst.sample_more_prefixes()
-            state.baseline = [
-                p for p, r in zip(pst.table.prefixes, pst.table.noncore) if r
-            ]
-        _publish(pst, state)
-        return (len(state.accumulated), len(state.sampled), pst.num_prefixes) != before
-
-    return grow
+    def for_split(self, label, wanted):
+        return self._pools.for_split(label, wanted)
 
 
 def uncoverable_access_strings(pst, tree):
@@ -424,33 +291,9 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-#: Target number of distinct strings resting at each state.  Each round tops the
-#: pool up to this per state (see ``_per_state_members``); states the population
-#: already covers need no top-up, so the pool converges rather than growing every
-#: round.
-PER_STATE = 20
-
-#: How much further a state's pool is asked for when its own rate is what the
-#: family is failing.
-PER_STATE_STEP = 20
-
-
-def counterexample_driven_synthesis(
-    pst,
-    *,
-    acc_threshold: float,
-    per_state: int = PER_STATE,
-    indecisive_fraction: float = 0.1,
-    min_indecisive: int = 200,
-):
+def counterexample_driven_synthesis(pst, *, acc_threshold: float):
     patience = _default_patience(acc_threshold)
-    # Kept across rounds: the FNR gate resolves the chain one state per round, so
-    # earlier rounds' boundary strings keep the family honest about the whole
-    # chain (they turn decisive once their state is resolved).
-    baseline = [
-        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-    ]
-    state = _PoolState(baseline)
+    pools = Pools(pst)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
     # No previous round, so the first family search has no populations to reach
@@ -497,32 +340,16 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        _grow_representative_pool(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
-        )
-        # Handed to the next round's family search, which is the thing that
-        # finds out a population is too indecisive to read.
-        grow = pool_grower(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
-        )
+        pools.rebuild(resolver, dfa)
+        # Handed to the next round's family search, which is the thing that finds
+        # out a population needs more prefixes than it holds.
+        grow = _PoolAccess(pools)
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=len(state.accumulated),
+            boundary_strings=len(pools.held.get("boundary", ())),
         ):
             print(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
