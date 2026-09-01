@@ -92,12 +92,16 @@ class MaskTable:
             self._stratum = [first.get(p, "baseline") for p in self._prefixes]
 
     def strata_masks(self):
-        """``label -> mask`` over the representative prefixes, in table order."""
+        """``label -> mask`` over the representative prefixes, in table order.
+
+        A prefix labelled ``None`` belongs to no population: it is read like any
+        other, and is not something the family is held to on its own."""
         rep = self.representative
         labels = [l for l, r in zip(self._stratum, rep) if r]
         out = {}
         for label in dict.fromkeys(labels):
-            out[label] = np.array([l == label for l in labels], dtype=bool)
+            if label is not None:
+                out[label] = np.array([l == label for l in labels], dtype=bool)
         return out
 
     def contains_prefix(self, prefix: bytes) -> bool:

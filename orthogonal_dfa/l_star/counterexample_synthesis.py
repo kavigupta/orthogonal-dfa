@@ -13,6 +13,7 @@ in the next round.
 """
 
 import math
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -205,6 +206,26 @@ def _per_state_members(pst, resolver, dfa, per_state):
     return held
 
 
+def _drop_thin_populations(representative, strata, floor):
+    """``strata`` with any population under ``floor`` prefixes unlabelled.
+
+    Counted the way the table resolves them: a prefix in two populations counts
+    for the first, so a leaf's members can be spread across the others and leave
+    it holding one.  What is left over is read against like any other prefix, and
+    is not a population the family is chosen to separate or held to a rate.
+
+    A state whose members the family reads indecisively loses them on the way
+    down to its leaf, so a population this thin is the family's indecision rather
+    than the state's rarity -- which the boundary strings carry, now that the
+    push-down harvests them too.
+    """
+    first = {}
+    for prefix, label in zip(representative, strata):
+        first.setdefault(prefix, label)
+    held = Counter(first.values())
+    return [None if held[label] < floor else label for label in strata]
+
+
 def _publish(pst, state):
     """Install the pools as the representative set, each labelled with its own.
 
@@ -219,6 +240,9 @@ def _publish(pst, state):
         + ["boundary"] * len(state.accumulated)
         + [("state", leaf) for leaf, _ in state.by_state]
     )
+    strata = _drop_thin_populations(
+        representative, strata, _readable_population(pst.config.fnr_limit)
+    )
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
@@ -231,6 +255,18 @@ def _harvest_boundary(pst, resolver, state, *, indecisive_fraction, min_indecisi
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
+
+
+def _readable_population(fnr_limit: float) -> int:
+    """Fewest prefixes a population can be held to ``fnr_limit`` over.
+
+        rate in {0, 1/n, 2/n, ...},  so  n < 1/limit  =>  the only passing rate is 0
+
+    A population under this cannot report a rate the limit distinguishes, and its
+    prefixes are few enough that weighing it equally with the rest hands them the
+    whole family search.
+    """
+    return math.ceil(1 / fnr_limit)
 
 
 def _refresh_states(pst, resolver, dfa, state, per_state):
