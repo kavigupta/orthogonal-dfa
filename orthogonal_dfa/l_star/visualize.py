@@ -369,11 +369,18 @@ def _panel_tree(ax, dt, colors):
 
 
 def _sift_fn(learner):
-    """The learner's classifier, wherever it keeps it."""
-    for holder in (learner, getattr(learner, "sifter", None)):
-        fn = getattr(holder, "sift", None)
-        if fn is not None:
-            return fn
+    """The learner's classifier, wherever it keeps it.
+
+    A sifter reports the boundary along with the leaf, which every other caller
+    wants and a render does not, so the discarding happens here rather than as a
+    second method on the sifter for this one caller to find.
+    """
+    fn = getattr(learner, "sift", None)
+    if fn is not None:
+        return fn
+    sifter = getattr(learner, "sifter", None)
+    if sifter is not None:
+        return lambda seq: sifter.sift_and_boundary(seq)[0]
     raise AttributeError("learner exposes no sift")
 
 
