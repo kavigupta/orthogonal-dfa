@@ -24,7 +24,7 @@ class _AlwaysIndecisiveSifter:
     def sift_and_boundary(self, seq):
         return None, seq
 
-    def sift_decisive(self, seq):
+    def sift_decisive(self, _seq):
         return 0
 
 
