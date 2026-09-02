@@ -155,7 +155,6 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
             num_inner_states=12,
             num_outer_states=10,
             probe_length=40,
-            min_accept_or_reject=0.15,
         )
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
@@ -185,8 +184,7 @@ class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
             num_inner_states=20,
             num_outer_states=18,
             probe_length=40,
-            min_accept_or_reject=0.15,
-            max_attempts=50000,
+            max_attempts=200000,
         )
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
@@ -364,7 +362,6 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
                 num_inner_states=12,
                 num_outer_states=10,
                 probe_length=40,
-                min_accept_or_reject=0.15,
             )
             if _worst_pair_distinguishing_fraction(outer) < self.HARD_PAIR_FRACTION:
                 break
