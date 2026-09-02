@@ -19,7 +19,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
 from .prefix_sources import (
@@ -159,10 +159,7 @@ class Pools:
         # the next family is made to resolve.
         for string in sorted(resolver.indecisive):
             self._harvest.offer(string)
-        fresh = self._harvest.take()
-        if fresh:
-            self._sealed += 1
-            self._boundaries[("boundary", self._sealed)] = fresh
+        self.seal_ready_harvest()
 
         self._sources = {"baseline": UniformSource(self._pst)}
         for leaf in range(resolver.num_states):
@@ -176,6 +173,33 @@ class Pools:
             if got is not None:
                 self.held[label] = got
         self.publish()
+
+    def seal_ready_harvest(self) -> None:
+        """Make a pool of the buffered harvest, once there is enough of it.
+
+        Under ``1 / fnr_limit`` strings the gate could admit the pool only with
+        nothing straddling at all, which is a bar no sampling clears and which
+        nothing can grow it past -- a sealed pool has no source.  So they keep
+        instead, and buffering across rounds is what the harvest is a source for.
+        """
+        if limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
+            self._sealed += 1
+            self._boundaries[("boundary", self._sealed)] = self._harvest.take()
+
+    @property
+    def sealed_pools(self) -> int:
+        """Boundary pools made so far, each a round's worth of harvest."""
+        return len(self._boundaries)
+
+    @property
+    def boundary_strings(self) -> int:
+        """Unplaceable strings held, sealed into pools or still buffering.
+
+        Counts both because the stall detector asks whether the round harvested
+        anything, and a round whose harvest was too small to seal still found
+        something.
+        """
+        return sum(len(pool) for pool in self._boundaries.values()) + len(self._harvest)
 
     def for_split(self, label, wanted: int):
         """Prefixes for one population, to read the split on and not to keep."""
@@ -371,7 +395,7 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=len(pools.held.get("boundary", ())),
+            boundary_strings=pools.boundary_strings,
         ):
             print(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "

@@ -6,10 +6,12 @@ to the limit on its own.  These are the properties that makes rest on.
 """
 
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 
 from orthogonal_dfa.l_star.cluster import limit_is_expressible
+from orthogonal_dfa.l_star.counterexample_synthesis import Pools
 from orthogonal_dfa.l_star.mask_table import MaskTable
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
@@ -101,6 +103,34 @@ class TestLimitIsExpressible(unittest.TestCase):
     def test_a_pool_of_one_can_never_express_a_rate(self):
         self.assertFalse(limit_is_expressible(1, 0.5))
         self.assertTrue(limit_is_expressible(2, 0.5))
+
+
+class TestSealingHoldsBackASmallHarvest(unittest.TestCase):
+    """A round that harvests too little leaves it buffered for the next one."""
+
+    def _pools(self):
+        # Construction reads nothing else; sealing reads only the limit.
+        return Pools(SimpleNamespace(config=SimpleNamespace(fnr_limit=0.10)))
+
+    def _harvest(self, pools, count, offset=0):
+        for word in _words(count, offset=offset):
+            pools.offer_indecisive(word)
+
+    def test_a_harvest_under_the_limit_is_not_sealed(self):
+        pools = self._pools()
+        self._harvest(pools, 9)
+        pools.seal_ready_harvest()
+        self.assertEqual(pools.sealed_pools, 0, "9 is too few to state 0.10 with")
+        self.assertEqual(pools.boundary_strings, 9, "but they are still held")
+
+    def test_it_seals_once_a_later_round_brings_enough(self):
+        pools = self._pools()
+        self._harvest(pools, 9)
+        pools.seal_ready_harvest()
+        self._harvest(pools, 1, offset=9)
+        pools.seal_ready_harvest()
+        self.assertEqual(pools.sealed_pools, 1)
+        self.assertEqual(pools.boundary_strings, 10, "the held 9 went in with it")
 
 
 if __name__ == "__main__":
