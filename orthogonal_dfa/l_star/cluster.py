@@ -464,5 +464,12 @@ def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]
             print(f"  kept {kept}/{family_size} after screening")
         elif grow_pool is None or judged.worst is None:
             pst.sample_more_prefixes()
-        else:
-            grow_pool(judged.worst)
+        elif not grow_pool(judged.worst):
+            # Nothing more of that population to be had -- the strings some
+            # round could not place are the ones there are, not a draw from
+            # somewhere.  What is left to move its rate is the family read over
+            # it, so buy suffixes rather than ask again for prefixes that will
+            # not come.
+            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  {judged.worst} is all of it; kept {kept}/{family_size}")
+            strategy = "suffix"

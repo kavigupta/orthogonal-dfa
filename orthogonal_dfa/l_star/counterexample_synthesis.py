@@ -184,7 +184,12 @@ class Pools:
 
     def more(self, label, wanted: int) -> bool:
         """Draw ``wanted`` further prefixes for one population.  Says whether it
-        could: a source that has stopped delivering ends its population."""
+        could: a source that has stopped delivering ends its population.
+
+        A sealed pool of unplaceable strings has no source and never grows -- it
+        is the strings a round could not place, all of them, and asking for more
+        is asking the wrong question.  Saying so is what stops the caller asking
+        again."""
         source = self._sources.get(label)
         if source is None:
             return False
