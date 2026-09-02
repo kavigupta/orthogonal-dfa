@@ -91,9 +91,9 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def classify_pool(pst, tree, *, accept, reject, prefixes):
+def classify_pool(pst, tree, *, accept, reject, prefix_mask):
     """
-    Classify the prefixes selected by the boolean mask ``prefixes`` to their leaf
+    Classify the prefixes selected by the boolean ``prefix_mask`` to their leaf
     (or -1 if undecided), indexed by position within the mask.  Uses accept and
     reject thresholds.
 
@@ -104,10 +104,10 @@ def classify_pool(pst, tree, *, accept, reject, prefixes):
     """
 
     def decide_columns(midfix):
-        decision = pst.compute_decision_from_strings(tree.suffixes(midfix), prefixes)
+        decision = pst.compute_decision_from_strings(tree.suffixes(midfix), prefix_mask)
         return decision >= accept, decision < reject
 
-    return tree.classify_pool(int(prefixes.sum()), decide_columns)
+    return tree.classify_pool(int(prefix_mask.sum()), decide_columns)
 
 
 def _take_indecisive(resolver, target):
@@ -262,7 +262,7 @@ def uncoverable_access_strings(pst, tree):
     repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
     core = ~sampled
     leaves = classify_pool(
-        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh, prefixes=core
+        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh, prefix_mask=core
     )
     potentially_problematic = np.flatnonzero(core)[
         leaves == -1

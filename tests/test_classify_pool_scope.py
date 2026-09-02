@@ -34,7 +34,7 @@ def _tree():
 
 def _classify(mask):
     pst = _StubTracker()
-    leaves = classify_pool(pst, _tree(), accept=ACCEPT, reject=REJECT, prefixes=mask)
+    leaves = classify_pool(pst, _tree(), accept=ACCEPT, reject=REJECT, prefix_mask=mask)
     return leaves, pst.asked
 
 
