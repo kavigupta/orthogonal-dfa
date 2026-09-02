@@ -6,12 +6,17 @@ themselves, so what a later round needs more of it can draw more of.
 
 import unittest
 
+from automata.fa.dfa import DFA
+
+from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     ATTEMPTS_PER_PREFIX,
     WANTED,
     IndecisiveSource,
+    StateSource,
     collect,
 )
+from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
 class _Counted:
@@ -85,6 +90,72 @@ class TestTheIndecisiveSource(unittest.TestCase):
         source = IndecisiveSource(refill=refill)
         self.assertEqual(source.draw(), bytes([9]))
         self.assertEqual(drawn, [0])
+
+
+class _Tree:
+    """One split at the root: the accept child is leaf 1, the reject child 0."""
+
+    def midfix_at(self, path):
+        assert path == (), path
+        return b""
+
+    def path_of(self, leaf):
+        return (leaf == 1,)
+
+
+class _Resolver:
+    def __init__(self, population):
+        self.population = population
+        self.tree = _Tree()
+
+
+class _Pst:
+    alphabet_size = 2
+    rng = None
+
+    def __init__(self, length):
+        self.sampler = UniformSampler(length)
+
+
+#: State 1 loops on itself and nothing enters it, so no string of any length
+#: reaches it and there is nothing for the hypothesis to aim.
+_UNREACHABLE = DFA(
+    states={0, 1},
+    input_symbols={0, 1},
+    transitions={0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}},
+    initial_state=0,
+    final_states={1},
+)
+
+
+class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
+    """Aiming is how a leaf nothing has reached gets its first prefixes, not how
+    it gets every prefix.  A leaf the population already rests strings at can be
+    read without drawing anything."""
+
+    def _source(self, resting):
+        population = LeafPopulation(
+            _Tree(), lambda strings, midfix: [True] * len(strings)
+        )
+        for prefix in resting:
+            population.add(prefix, at=(True,))
+        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1)
+
+    def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
+        resting = [bytes([1, i]) for i in range(20)]
+        drawn = collect(self._source(resting), wanted=20)
+        self.assertIsNotNone(drawn)
+        self.assertEqual(sorted(drawn), sorted(resting))
+
+    def test_a_leaf_short_of_what_is_wanted_is_given_up_on(self):
+        # Nothing to aim and too few resting: the population is not one to hold
+        # to a rate, which is what the indecisive strings are for.
+        self.assertIsNone(collect(self._source([bytes([1, 0])]), wanted=20))
+
+    def test_each_member_is_served_once(self):
+        source = self._source([bytes([1, 0]), bytes([1, 1])])
+        self.assertEqual(len([x for x in (source.draw(), source.draw()) if x]), 2)
+        self.assertIsNone(source.draw())
 
 
 if __name__ == "__main__":

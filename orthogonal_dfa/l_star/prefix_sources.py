@@ -22,6 +22,10 @@ from .dfa_utils import (
 
 #: Prefixes a population is asked for.
 WANTED = 100
+#: Members of a leaf read back before a source starts aiming.  Loose: what it
+#: bounds is the cost of asking, and a leaf with more than this to offer is not
+#: one that needs aiming at all.
+_RESTING_LIMIT = 2000
 #: Draws allowed per prefix wanted before a source is given up on.  One that
 #: survives yields at least a fifth of what it draws, so asking it for more later
 #: costs about what asking it for these did.
@@ -48,10 +52,16 @@ class StateSource:
     The hypothesis says where to aim; the tree says where the string went.  Only
     the tree's answer counts, so a draw the tree places elsewhere -- or cannot
     place at all -- is not a prefix for this population.
+
+    What the population already rests at the leaf comes first.  Those are the
+    same answer from the same arbiter, already paid for, and a leaf holding
+    hundreds of them is not one to go aiming at: aiming is how a leaf nothing has
+    reached yet gets its first prefixes, not how a leaf gets every prefix.
     """
 
     def __init__(self, pst, resolver, dfa, leaf, *, sink=None):
         self.label = ("state", leaf)
+        self._resting = None
         self._pst = pst
         self._resolver = resolver
         self._dfa = dfa
@@ -70,7 +80,17 @@ class StateSource:
         self._weights = weights
 
     def draw(self) -> Optional[bytes]:
-        if not self._reachable or self._path is None:
+        if self._path is None:
+            return None
+        if self._resting is None:
+            # Read once: settling a later draw only adds to the leaf, and a
+            # string served twice is not two prefixes.
+            self._resting = list(
+                self._resolver.population.members(self._path, _RESTING_LIMIT)
+            )
+        if self._resting:
+            return self._resting.pop()
+        if not self._reachable:
             return None
         aimed = sample_string_reaching_state(
             self._dfa, self._mass, self._pst.rng, self._weights
