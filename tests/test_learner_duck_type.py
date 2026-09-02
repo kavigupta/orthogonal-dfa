@@ -33,27 +33,27 @@ class TestVisualizeDuckType(unittest.TestCase):
 
     def test_access_maps_states_to_strings(self):
         learner = _learner()
-        learner.population.add([], at=learner.tree.path_of(0))
-        learner.population.add([1], at=learner.tree.path_of(1))
+        learner.population.add(b"", at=learner.tree.path_of(0))
+        learner.population.add(bytes([1]), at=learner.tree.path_of(1))
 
-        self.assertEqual(learner.access, {0: [], 1: [1]})
+        self.assertEqual(learner.access, {0: b"", 1: bytes([1])})
 
     def test_access_omits_states_nothing_is_known_to_reach(self):
         """A leaf with no member and no pool prefix has no access string, and the
         renderer skips it rather than inventing one."""
         learner = _learner()
-        learner.population.add([], at=learner.tree.path_of(0))
+        learner.population.add(b"", at=learner.tree.path_of(0))
 
-        self.assertEqual(learner.access, {0: []})
+        self.assertEqual(learner.access, {0: b""})
 
     def test_access_prefers_the_shortest_member(self):
         # Leaf 1: the empty string reaches the initial state (leaf 0), so it does
         # not shadow the shortest recorded member here.
         learner = _learner()
-        for member in ([1, 0, 1], [1], [0, 0]):
+        for member in (bytes([1, 0, 1]), bytes([1]), bytes([0, 0])):
             learner.population.add(member, at=learner.tree.path_of(1))
 
-        self.assertEqual(learner.access[1], [1])
+        self.assertEqual(learner.access[1], bytes([1]))
 
 
 if __name__ == "__main__":
