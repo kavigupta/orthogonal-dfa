@@ -53,7 +53,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         self.assertAlmostEqual(
             float(np.mean((decision >= 0.4) & (decision < 0.6))), 10 / 110
         )
-        rate, worst, _ = pst.fnr_from_decision(decision)
+        rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual((rate, worst), (1.0, ("state", 0)))
 
     def test_the_rate_names_the_population_it_belongs_to(self):
@@ -64,7 +64,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         # A fifth of ``b`` straddles and none of ``a`` does.
         decision = np.array([0.9] * 10 + [0.1] * 10 + [0.5] * 4 + [0.9] * 8 + [0.1] * 8)
 
-        rate, worst, _ = pst.fnr_from_decision(decision)
+        rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual(worst, ("state", 3))
         self.assertAlmostEqual(rate, 0.2)
 

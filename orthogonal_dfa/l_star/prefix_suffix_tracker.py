@@ -216,11 +216,9 @@ class PrefixSuffixTracker:
             self.compute_decision(vs, self.table.representative)
         )[0]
 
-    def fnr_from_decision(
-        self, decision
-    ) -> Tuple[float, Optional[object], Optional[int]]:
-        """``compute_fnr`` for a decision vector already in hand, which
-        population it is the rate of, and how many prefixes that population holds.
+    def fnr_from_decision(self, decision) -> Tuple[float, Optional[object]]:
+        """``compute_fnr`` for a decision vector already in hand, and which
+        population it is the rate of.
 
         The worst population rather than the rate across all of them.  Whether a
         prefix is decisive against a family is a property of the state it
@@ -228,26 +226,24 @@ class PrefixSuffixTracker:
         reads high however many prefixes reaching easy ones are averaged in.
 
         The label comes back because the caller has to grow *that* population to
-        answer it; growing another one only moves the average.  The size comes
-        back because a rate over a handful is not the same claim as a rate over
-        a hundred, and only the caller knows what it is about to do with it.
+        answer it; growing another one only moves the average.
         """
         decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
         )
         if decided.mean(1).min() == 0:
-            return 1, None, None
+            return 1, None
         indecisive = ~decided.any(0)
         rates = [
-            (float(indecisive[m].mean()), label, int(m.sum()))
+            (float(indecisive[m].mean()), label)
             for label, m in self.table.strata_masks().items()
             if m.any()
         ]
         if not rates:
-            return float(indecisive.mean()), None, None
+            return float(indecisive.mean()), None
         # Keyed on the rate: the labels are not of one type and a tie between
         # two populations is not a question about their names.
-        return max(rates, key=lambda rate_label_size: rate_label_size[0])
+        return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
     def sample_more_prefixes(self):
         # Sample random prefixes and add them
