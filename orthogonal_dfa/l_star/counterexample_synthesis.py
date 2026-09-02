@@ -131,7 +131,8 @@ class Pools:
 
     def __init__(self, pst):
         self._pst = pst
-        self._round = 0
+        #: Boundary pools sealed so far, which is what names them.
+        self._sealed = 0
         #: What this round could not place, offered to the pool it will become.
         self._harvest = IndecisiveSource()
         self._sources = {"baseline": UniformSource(pst)}
@@ -158,11 +159,10 @@ class Pools:
         # the next family is made to resolve.
         for string in sorted(resolver.indecisive):
             self._harvest.offer(string)
-        self._round += 1
-        drawn = collect(self._harvest)
-        if drawn is not None:
-            self._boundaries[("boundary", self._round)] = drawn
-        self._harvest = IndecisiveSource()
+        fresh = self._harvest.take()
+        if fresh:
+            self._sealed += 1
+            self._boundaries[("boundary", self._sealed)] = fresh
 
         self._sources = {"baseline": UniformSource(self._pst)}
         for leaf in range(resolver.num_states):

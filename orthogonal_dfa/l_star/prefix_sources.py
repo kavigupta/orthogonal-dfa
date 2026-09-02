@@ -12,6 +12,7 @@ cannot place is not thrown away, since a string no family could place is what
 the indecisive source serves.
 """
 
+from collections import deque
 from typing import Optional
 
 from .dfa_utils import (
@@ -63,6 +64,9 @@ class StateSource:
         self.label = ("state", leaf)
         self._resting = None
         self._served = set()
+        #: Draws a collection gave up on.  Aiming is expensive and the leaf is
+        #: still where they rest, so they are the next ask's cheapest prefixes.
+        self._spare = deque()
         self._pst = pst
         self._resolver = resolver
         self._dfa = dfa
@@ -90,6 +94,8 @@ class StateSource:
         """
         if self._path is None:
             return None
+        if self._spare:
+            return self._spare.popleft()
         population = self._resolver.population
         if self._reachable:
             aimed = sample_string_reaching_state(
@@ -113,34 +119,60 @@ class StateSource:
                 return resting
         return None
 
+    def unused(self, drawn) -> None:
+        """Take back draws that did not become a population."""
+        self._spare.extend(drawn)
+
 
 class IndecisiveSource:
-    """Strings no family could place, served from what the round already found.
+    """Strings no family could place, buffered until there are enough to read.
 
     Kept rather than redrawn: they are the by-product of every other source's
     validation, and a string that straddles is expensive to find on purpose and
     free to notice in passing.
+
+    The supply is finite and arrives over rounds, so unlike a source that
+    generates on demand this one has something to lose.  A draw it hands out and
+    that is then not used comes back (see ``collect``), or a caller asking for
+    more than the buffer holds would empty it and leave nothing behind.
     """
 
     label = "boundary"
 
     def __init__(self, reservoir=()):
-        self._held = list(reservoir)
-        self._served = set()
+        self._held = deque(reservoir)
+        self._seen = set(self._held)
 
     def offer(self, string) -> None:
-        if string not in self._served:
+        """Buffer ``string``, unless it has been buffered before."""
+        if string not in self._seen:
+            self._seen.add(string)
             self._held.append(string)
 
     def draw(self) -> Optional[bytes]:
-        while self._held:
-            string = self._held.pop()
-            if string not in self._served:
-                self._served.add(string)
-                return string
-        # Nothing left, and nothing else will do: a string drawn some other way
-        # is one no family failed on, which is not what this population is.
-        return None
+        # Oldest first, so a population sealed from a run of draws is the run of
+        # strings some family failed on together.
+        return self._held.popleft() if self._held else None
+
+    def take(self):
+        """Everything buffered, emptied.
+
+        However few, they are a population: each is a string some family already
+        failed on, so a handful that must all come good asks the same of the next
+        family as a hundred that mostly must.  More could be had by drawing and
+        sifting until some come back unplaceable; they are cheap enough to notice
+        in passing that it has not been worth doing.
+        """
+        out, self._held = list(self._held), deque()
+        return out
+
+    def unused(self, drawn) -> None:
+        """Take back draws that did not become a population, oldest first."""
+        for string in reversed(list(drawn)):
+            self._held.appendleft(string)
+
+    def __len__(self) -> int:
+        return len(self._held)
 
 
 def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):
@@ -157,7 +189,15 @@ def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFI
         if drawn is not None and drawn not in seen:
             seen.add(drawn)
             held.append(drawn)
-    return held if len(held) >= wanted else None
+    if len(held) >= wanted:
+        return held
+    # Taking is only earned by a population coming of it.  A source that holds
+    # nothing has nothing to take back; one that buffers a finite supply would
+    # otherwise be emptied by every ask it could not meet.
+    give_back = getattr(source, "unused", None)
+    if give_back is not None:
+        give_back(held)
+    return None
 
 
 def draw_for_split(source, wanted: int):
