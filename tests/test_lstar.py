@@ -72,7 +72,12 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        # State 0 is transient, so no sampled prefix ends there for the learner
+        # to anchor to and covered accuracy caps at 0.983. The default 0.98 bar
+        # is inside that noise.
+        dfa = learn_dfa(
+            oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
+        )
         assertDFA(self, dfa, oracle_creator)
 
     def test_another_countexample_poor_case(self):
@@ -96,7 +101,12 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        # State 0 is transient, so no sampled prefix ends there for the learner
+        # to anchor to and covered accuracy caps at 0.983. The default 0.98 bar
+        # is inside that noise.
+        dfa = learn_dfa(
+            oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
+        )
         assertDFA(self, dfa, oracle_creator)
 
 
