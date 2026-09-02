@@ -29,13 +29,14 @@ class LeafPopulation:
     for ``strings`` at ``midfix`` and return one decision per string.
     """
 
-    def __init__(self, tree, classify: Classify, *, chunk: int = 128, harvest=None):
+    def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
         #: Called with each string a node could not place.  Sifting reports those
         #: so the next family is made to resolve them; a string pushed down here
-        #: fails in exactly the same way and is worth the same.
+        #: fails in exactly the same way and is worth the same.  Required: a
+        #: population that drops them silently is the bug this replaced.
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
@@ -102,7 +103,7 @@ class LeafPopulation:
         for string, decision in zip(chunk, decisions):
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
-            elif self._harvest is not None:
+            else:
                 # ``string + midfix``, as sifting reports it: the indecision is
                 # over string + midfix + v, so that is what the family failed on.
                 self._harvest(string + midfix)
