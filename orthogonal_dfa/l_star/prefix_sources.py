@@ -124,10 +124,9 @@ class IndecisiveSource:
 
     label = "boundary"
 
-    def __init__(self, reservoir=(), refill=None):
+    def __init__(self, reservoir=()):
         self._held = list(reservoir)
         self._served = set()
-        self._refill = refill
 
     def offer(self, string) -> None:
         if string not in self._served:
@@ -139,7 +138,9 @@ class IndecisiveSource:
             if string not in self._served:
                 self._served.add(string)
                 return string
-        return self._refill() if self._refill is not None else None
+        # Nothing left, and nothing else will do: a string drawn some other way
+        # is one no family failed on, which is not what this population is.
+        return None
 
 
 def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):

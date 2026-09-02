@@ -131,33 +131,50 @@ class Pools:
 
     def __init__(self, pst):
         self._pst = pst
-        self._indecisive = IndecisiveSource(
-            refill=lambda: pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        )
+        self._round = 0
+        #: What this round could not place, offered to the pool it will become.
+        self._harvest = IndecisiveSource()
         self._sources = {"baseline": UniformSource(pst)}
+        #: One per round that produced any: the strings that round could not
+        #: place, kept as they were.
+        self._boundaries = {}
         self.held = {}
 
     def offer_indecisive(self, string) -> None:
-        self._indecisive.offer(string)
+        self._harvest.offer(string)
 
     def rebuild(self, resolver, dfa) -> None:
-        """Take the sources this round defines, and fill what they can fill."""
-        for string in resolver.indecisive:
-            self._indecisive.offer(string)
-        self._sources = {
-            "baseline": UniformSource(self._pst),
-            "boundary": self._indecisive,
-        }
+        """Take the sources this round defines, and fill what they can fill.
+
+        Each round's unplaceable strings become a population of their own and
+        stay one.  Merged into a single pool they would be whichever state was
+        worst last round and no other, so a family made decisive on that state
+        could let the states an earlier round settled come undone -- the pool
+        that settled them having been spent.  Kept apart, every one of them goes
+        on being a rate the family has to meet.
+        """
+        # Sorted: a set of bytes iterates in hash order, which python varies per
+        # process, and which of these reach a boundary population decides what
+        # the next family is made to resolve.
+        for string in sorted(resolver.indecisive):
+            self._harvest.offer(string)
+        self._round += 1
+        drawn = collect(self._harvest)
+        if drawn is not None:
+            self._boundaries[("boundary", self._round)] = drawn
+        self._harvest = IndecisiveSource()
+
+        self._sources = {"baseline": UniformSource(self._pst)}
         for leaf in range(resolver.num_states):
             source = StateSource(
-                self._pst, resolver, dfa, leaf, sink=self._indecisive.offer
+                self._pst, resolver, dfa, leaf, sink=self._harvest.offer
             )
             self._sources[source.label] = source
-        self.held = {}
+        self.held = dict(self._boundaries)
         for label, source in self._sources.items():
-            drawn = collect(source)
-            if drawn is not None:
-                self.held[label] = drawn
+            got = collect(source)
+            if got is not None:
+                self.held[label] = got
         self.publish()
 
     def for_split(self, label, wanted: int):

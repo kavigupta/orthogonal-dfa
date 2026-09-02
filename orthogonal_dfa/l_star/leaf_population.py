@@ -72,6 +72,10 @@ class LeafPopulation:
         members = self.members(at, count)
         return min(members, key=lambda m: (len(m), m)) if members else None
 
+    def __len__(self) -> int:
+        """Strings the population holds, wherever they rest."""
+        return sum(len(held) for held in self._at.values())
+
     def resting_at(self, string) -> Optional[Path]:
         """Where ``string`` rests, or ``None`` if the population does not hold it
         -- never added, or dropped as indecisive."""

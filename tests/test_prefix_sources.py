@@ -81,17 +81,6 @@ class TestTheIndecisiveSource(unittest.TestCase):
         source.offer(bytes([3]))
         self.assertEqual(source.draw(), bytes([3]))
 
-    def test_it_refills_when_it_runs_out(self):
-        drawn = []
-
-        def refill():
-            drawn.append(len(drawn))
-            return bytes([9])
-
-        source = IndecisiveSource(refill=refill)
-        self.assertEqual(source.draw(), bytes([9]))
-        self.assertEqual(drawn, [0])
-
 
 class _Tree:
     """One split at the root: the accept child is leaf 1, the reject child 0."""
@@ -172,10 +161,10 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             population.add(bytes([1, i, 0, 0, 0, 0, 0, 0]), at=(True,))
         source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
 
-        held = sum(len(v) for v in population._at.values())
+        held = len(population)
         collect(source, wanted=20)
         self.assertGreater(
-            sum(len(v) for v in population._at.values()),
+            len(population),
             held,
             "drawing served resting members without aiming anything new",
         )
