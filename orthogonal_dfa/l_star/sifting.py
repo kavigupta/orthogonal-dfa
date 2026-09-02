@@ -16,17 +16,21 @@ class Sifter:
         self.family = family
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
-        """Route ``seq`` to a leaf.  Uses the decisive :meth:`SuffixFamily.side`,
-        so every node descends on the side of the ``decision_boundary`` its mean
-        falls on and a leaf is always reached: the result is ``(state, None)``.
+        """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)`` when
+        a node lands in the confident band and cannot place it.  The banded sift
+        runs first so the boundary is harvested for the next round; a caller that
+        must commit anyway falls back to :meth:`sift_decisive`."""
+        return self.tree.sift(seq, self.family.is_accept)
 
-        Routing has to place a string somewhere; abstaining in the confident band
-        (as :meth:`is_accept` does) only leaves the caller to self-loop the edge or
-        drop the string, which strands and misroutes it.  The confident band is
-        kept where it belongs -- the FNR gate and the split-evidence verdict -- not
-        in the routing.  The ``None`` second element is retained for callers that
-        harvest a boundary string, which now never fires."""
-        return self.tree.sift(seq, self.family.side)
+    def sift_decisive(self, seq) -> Optional[int]:
+        """Route ``seq`` to a leaf with the zero-band decisive classifier
+        (:meth:`SuffixFamily.side`), so every node descends and a leaf is always
+        reached.  This is the routing *fallback* for when :meth:`sift_and_boundary`
+        abstains: the string still has to go somewhere, and a self-loop is no
+        better a guess than the side of the ``decision_boundary`` its mean falls
+        on.  The banded sift runs first, so the boundary is still harvested; only a
+        string the confident sift could not place is forced to decide here."""
+        return self.tree.sift(seq, self.family.side)[0]
 
     def sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to, or ``None`` -- the boundary discarded.  A
@@ -53,10 +57,12 @@ class Sifter:
         """A midfix separating ``s`` and ``sprime`` (see
         :meth:`MidfixTree.first_disagreement`), or ``None``.
 
-        This only *proposes* a distinguisher; whether the split fires is decided
-        by the population evidence (:class:`SplitEvidence`), so proposing on the
-        decisive :meth:`SuffixFamily.side` -- rather than requiring both members to
-        clear the confident band -- costs nothing but lets a distinguisher that
-        separates two borderline states still be found; the split test remains the
-        gate on whether it is real."""
+        The confident classifier runs first; if it finds nothing -- which includes
+        a needed classification landing in the band -- it falls back to the
+        decisive :meth:`SuffixFamily.side`, so a distinguisher separating two
+        borderline states can still be *proposed*.  It only proposes;
+        :class:`SplitEvidence` remains the gate on whether the split is real."""
+        found = self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+        if found is not None:
+            return found
         return self.tree.first_disagreement(s, sprime, self.family.side, prefix)

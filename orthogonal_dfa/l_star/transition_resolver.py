@@ -91,14 +91,18 @@ class TransitionResolver:
         return {s: rep for s, rep in reps if rep is not None}
 
     def _sift(self, seq):
-        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
+        """The leaf ``seq`` sifts to.
 
-        Every string the tree cannot place is harvested into ``indecisive``: it is
-        a boundary string the current family straddles, and the driver feeds these
-        back so the next family is forced to resolve them."""
+        The confident sift runs first, and every string it cannot place is
+        harvested into ``indecisive``: a boundary string the current family
+        straddles, which the driver feeds back so the next family is forced to
+        resolve it.  A harvested string is then still placed by the decisive
+        fallback rather than left unplaced -- the walk and edge resolution route it
+        this round instead of stranding it, while the family resolves it the next."""
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self.indecisive.add(boundary)
+            leaf = self.sifter.sift_decisive(seq)
         return leaf
 
     def _split(self, state_id, midfix):

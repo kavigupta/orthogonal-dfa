@@ -11,8 +11,9 @@ class _StubTree:
 
 
 class _AlwaysIndecisiveSifter:
-    """A sifter that can never place a string: every ``member + symbol`` sifts to
-    ``None``, so every edge the resolver tries is left open."""
+    """A sifter whose confident sift can never place a string -- every
+    ``member + symbol`` sifts to ``None``, harvesting the boundary -- but whose
+    decisive fallback always lands a leaf, as :meth:`SuffixFamily.side` does."""
 
     def __init__(self):
         self.tree = _StubTree()
@@ -22,6 +23,9 @@ class _AlwaysIndecisiveSifter:
 
     def sift_and_boundary(self, seq):
         return None, seq
+
+    def sift_decisive(self, seq):
+        return 0
 
 
 class _StubPopulation:
@@ -36,11 +40,14 @@ class _StubPopulation:
 
 
 class TestEdgeResolverCloseTerminates(unittest.TestCase):
-    def test_close_is_single_pass_when_every_edge_is_left_open(self):
+    def test_close_places_indecisive_edges_by_the_decisive_fallback(self):
         # Regression: close() drained edges until none were missing, but resolve()
-        # leaves an edge open when the whole leaf is indecisive -- and an open edge
+        # left an edge open when the whole leaf was indecisive -- and an open edge
         # is still "missing", so the drain retried it forever (a hang that surfaced
         # only under a different numpy float path). close() must be a single pass.
+        # The decisive fallback now places such an edge instead of leaving it open,
+        # so nothing is missing -- while the confident sift still harvests each
+        # boundary for the next round.
         partial = PartialDFA(alphabet_size=2, num_states=2)
         resolver = EdgeResolver(
             partial,
@@ -57,10 +64,10 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
             signal.alarm(0)
             signal.signal(signal.SIGALRM, previous)
 
-        # Nothing could be placed, so every edge is left open for the export
-        # fallback -- and, crucially, close() returned instead of spinning.
-        self.assertEqual(resolved, 0)
-        self.assertEqual(partial.unresolved_edges(), [(0, 0), (0, 1), (1, 0), (1, 1)])
+        # The confident sift harvested every boundary; the decisive fallback then
+        # placed every edge, so none is left open and close() returned in one pass.
+        self.assertEqual(resolved, 4)
+        self.assertEqual(partial.unresolved_edges(), [])
         self.assertTrue(resolver.indecisive)
 
     @staticmethod
