@@ -173,12 +173,13 @@ def sample_balanced_benchmark(
     num_probe_samples: int = 200,
     max_attempts: int = 100_000,
     min_class_preserving_frac: float = 0.05,
-    num_class_preserving_samples: int = 2000,
+    num_precondition_samples: int = 2000,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
     Tries successive sub-seeds derived from *seed* until one produces a DFA
-    with exactly ``num_outer_states`` states and a balanced accept rate.
+    with exactly ``num_outer_states`` states, a balanced accept rate, and every
+    E-L* learnability precondition.
 
     Each candidate gets a fresh RNG so that the filtering process does not
     contaminate the randomness of the chosen benchmark.
@@ -195,11 +196,9 @@ def sample_balanced_benchmark(
         ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
     num_probe_samples : how many strings to sample when estimating the rate.
     max_attempts : maximum number of candidate benchmarks to try.
-    min_class_preserving_frac : minimum fraction of random length-``probe_length``
-        suffixes that must map every DFA state to a state of the same
-        accept/reject class. Candidates below this threshold are rejected.
-    num_class_preserving_samples : number of random suffixes used to estimate
-        the class-preserving fraction.
+    min_class_preserving_frac : the precondition gate's class-preserving bar,
+        raised here above the gate's own default.
+    num_precondition_samples : how many strings the precondition gate reads.
 
     Raises
     ------
@@ -214,15 +213,20 @@ def sample_balanced_benchmark(
         )
         if len(outer.states) != num_outer_states:
             continue
+        # Balance is this generator's requirement and not a precondition -- the
+        # gate rejects only a language that is constant over the sample -- so it
+        # is asked separately, and first, being much the cheaper of the two.
         rate = preconditions.acceptance_rate(
             outer, length=probe_length, num_samples=num_probe_samples
         )
         if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
             continue
-        cp_frac = preconditions.class_preserving_fraction(
-            outer, length=probe_length, num_samples=num_class_preserving_samples
-        )
-        if cp_frac < min_class_preserving_frac:
+        if not preconditions.satisfies_preconditions(
+            outer,
+            length=probe_length,
+            min_class_preserving_frac=min_class_preserving_frac,
+            num_samples=num_precondition_samples,
+        ):
             continue
         return outer, inner, sep
     raise RuntimeError(

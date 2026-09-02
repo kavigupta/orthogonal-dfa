@@ -7,9 +7,11 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     build_star_l_star_dfa,
+    sample_balanced_benchmark,
     sample_inner_dfa,
     sample_star_l_star,
 )
+from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 
 # ===================================================================
 # Inner DFA sampling
@@ -159,3 +161,20 @@ def _trivial_dfa(*, accepting_initial, alphabet_size, make_empty=False):
         initial_state=0,
         final_states={0} if accepting_initial else {1},
     )
+
+
+class TestSampleBalancedBenchmark(unittest.TestCase):
+    @parameterized.expand([(seed,) for seed in range(10)])
+    def test_admitted(self, seed):
+        outer, _, _ = sample_balanced_benchmark(
+            seed,
+            alphabet_size=2,
+            num_inner_states=12,
+            num_outer_states=10,
+            probe_length=40,
+            min_accept_or_reject=0.15,
+        )
+        report = satisfies_preconditions(
+            outer, length=40, min_class_preserving_frac=0.05, short_circuit=False
+        )
+        self.assertTrue(report.satisfied, report.reasons)
