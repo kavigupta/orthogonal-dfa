@@ -172,7 +172,6 @@ class TestSampleBalancedBenchmark(unittest.TestCase):
             num_inner_states=12,
             num_outer_states=10,
             probe_length=40,
-            min_accept_or_reject=0.15,
         )
         report = satisfies_preconditions(
             outer, length=40, min_class_preserving_frac=0.05, short_circuit=False
