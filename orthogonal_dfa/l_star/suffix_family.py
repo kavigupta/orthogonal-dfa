@@ -57,6 +57,16 @@ class SuffixFamily:
             return False
         return None
 
+    def side(self, seq, midfix) -> bool:
+        """The decisive counterpart of :meth:`is_accept`: which side of the
+        ``decision_boundary`` the family mean falls on, with a zero-width
+        indecisive band so it never abstains.  Routing (:class:`Sifter`) and
+        distinguisher proposal use this so a string is always placed and a
+        borderline pair can still be separated; the confident band is kept for the
+        statistical gates (the FNR gate and the split-evidence verdict), which are
+        what decide whether a family is admitted and whether a split is real."""
+        return self.mean(seq, midfix) >= self.pst.decision_boundary
+
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""
         return self.bits(seq + midfix)
