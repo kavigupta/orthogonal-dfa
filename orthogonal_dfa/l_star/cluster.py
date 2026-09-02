@@ -102,6 +102,12 @@ def readable_size_and_margin(min_signal_strength, decision_boundary, have, small
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
+#: Rounds the FNR loop spends without bettering its own best before it settles
+#: for the family it has.  The limit is the only thing the loop otherwise waits
+#: for, and nothing guarantees a family reaches it: what judges the DFA that
+#: comes out is the accuracy estimate, which has its own patience.
+FNR_GIVE_UP = 20
+
 #: Chance of calling a family drifted when it is not, or clean when it is not.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
 
@@ -267,10 +273,14 @@ class Judged:
     verdict: str
 
 
-def judge_family(pst, gate, v, vs, family_size) -> Judged:
+def judge_family(pst, gate, v, vs, family_size, *, settling=False) -> Judged:
     """Read the clustered family, and say what stands against using it.
 
     Sets the margin the family is read with, which the caller reports.
+
+    ``settling`` asks for the accept-preserving verdict even where the FNR
+    would have answered first.  A caller about to keep a family whose rate it
+    could not improve still may not keep an uncertified one.
     """
     # An undersized family is unusable whatever its FNR would measure, and
     # testing it would spend a budget that means no accept-preserving family
@@ -292,7 +302,9 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
-    if fnr > pst.config.fnr_limit:
+    if fnr > pst.config.fnr_limit and not settling:
+        # ADMITTED names what has not been ruled out, not a gate that has run:
+        # certifying is expensive and the rate already sends this round back.
         return Judged(vs, fnr, too_high, ADMITTED)
     # Certify only right before returning, as certifying is expensive.
     verdict = gate.verdict(pst, decision, v, vs)
@@ -312,6 +324,9 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     membership of ``p`` only while ``v`` is empty.
     """
     prev_effective_fnr = 1.0
+    # Rounds since the FNR last bettered anything seen, which is what the loop
+    # running out of ideas looks like from here.
+    best_fnr, stalled = float("inf"), 0
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     family_size = smallest_readable_family(
@@ -348,6 +363,28 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
                 f"margin: {pst.evidence_margin:.4f}"
             )
             return judged.vs, decision_boundary
+
+        if stalled >= FNR_GIVE_UP:
+            # Judged again because settling wants the accept-preserving verdict
+            # the rate answered ahead of: the round check holds every family the
+            # learner keeps to the split, whatever its FNR. Paid only here.
+            settled = judge_family(pst, gate, v, vs, family_size, settling=True)
+            # A rate of 1 is the sentinel for a family that cannot be read at
+            # all, which is not one to settle for however long it has stood.
+            if settled.verdict is ADMITTED and settled.fnr < 1:
+                print(
+                    f"WARNING: settling for a family the FNR gate refuses -- "
+                    f"{settled.fnr:.4f} did not better {best_fnr:.4f} in "
+                    f"{FNR_GIVE_UP} rounds, so the DFA that results is judged on "
+                    f"accuracy alone. decision boundary: {decision_boundary:.4f}, "
+                    f"margin: {pst.evidence_margin:.4f}"
+                )
+                return settled.vs, decision_boundary
+
+        if judged.fnr < best_fnr:
+            best_fnr, stalled = judged.fnr, 0
+        else:
+            stalled += 1
 
         if judged.verdict is UNCERTIFIED:
             # Suffixes are clustered by how they read across the prefixes, so
