@@ -9,6 +9,7 @@ import unittest
 
 import numpy as np
 
+from orthogonal_dfa.l_star.cluster import limit_is_expressible
 from orthogonal_dfa.l_star.mask_table import MaskTable
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
@@ -50,7 +51,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         self.assertAlmostEqual(
             float(np.mean((decision >= 0.4) & (decision < 0.6))), 10 / 110
         )
-        rate, worst = pst.fnr_from_decision(decision)
+        rate, worst, _ = pst.fnr_from_decision(decision)
         self.assertEqual((rate, worst), (1.0, ("state", 0)))
 
     def test_the_rate_names_the_population_it_belongs_to(self):
@@ -61,7 +62,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         # A fifth of ``b`` straddles and none of ``a`` does.
         decision = np.array([0.9] * 10 + [0.1] * 10 + [0.5] * 4 + [0.9] * 8 + [0.1] * 8)
 
-        rate, worst = pst.fnr_from_decision(decision)
+        rate, worst, _ = pst.fnr_from_decision(decision)
         self.assertEqual(worst, ("state", 3))
         self.assertAlmostEqual(rate, 0.2)
 
@@ -81,6 +82,25 @@ class TestPopulationsOverlap(unittest.TestCase):
         self.assertEqual(int(masks[("state", 0)].sum()), 8)
         # Which is more than the table holds, because five are in both.
         self.assertEqual(table.num_prefixes, 8)
+
+
+class TestLimitIsExpressible(unittest.TestCase):
+    """A population too small to state the limit is not one that missed it."""
+
+    def test_the_boundary_is_one_over_the_limit(self):
+        # Under 10 prefixes the smallest non-zero rate a population can report
+        # is already over 0.10, so the limit admits it only with nothing
+        # straddling -- which is a bar, not a measurement.
+        self.assertFalse(limit_is_expressible(9, 0.10))
+        self.assertTrue(limit_is_expressible(10, 0.10))
+
+    def test_it_follows_the_limit(self):
+        self.assertFalse(limit_is_expressible(10, 0.02))
+        self.assertTrue(limit_is_expressible(50, 0.02))
+
+    def test_a_pool_of_one_can_never_express_a_rate(self):
+        self.assertFalse(limit_is_expressible(1, 0.5))
+        self.assertTrue(limit_is_expressible(2, 0.5))
 
 
 if __name__ == "__main__":
