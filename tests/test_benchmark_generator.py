@@ -163,16 +163,17 @@ def _trivial_dfa(*, accepting_initial, alphabet_size, make_empty=False):
     )
 
 
+#: What the learnability suite generates its 10-state benchmarks with, so this
+#: admits the benchmarks that suite actually runs.
+SUITE_BENCHMARK = dict(
+    alphabet_size=2, num_inner_states=12, num_outer_states=10, probe_length=40
+)
+
+
 class TestSampleBalancedBenchmark(unittest.TestCase):
     @parameterized.expand([(seed,) for seed in range(10)])
     def test_admitted(self, seed):
-        outer, _, _ = sample_balanced_benchmark(
-            seed,
-            alphabet_size=2,
-            num_inner_states=12,
-            num_outer_states=10,
-            probe_length=40,
-        )
+        outer, _, _ = sample_balanced_benchmark(seed, **SUITE_BENCHMARK)
         report = satisfies_preconditions(
             outer, length=40, min_class_preserving_frac=0.05, short_circuit=False
         )
