@@ -33,10 +33,6 @@ class LeafPopulation:
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
-        #: Called with each string a node could not place.  Sifting reports those
-        #: so the next family is made to resolve them; a string pushed down here
-        #: fails in exactly the same way and is worth the same.  Required: a
-        #: population that drops them silently is the bug this replaced.
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
@@ -93,7 +89,7 @@ class LeafPopulation:
 
     def _push_chunk(self, parent: Path) -> None:
         """Classify one chunk of ``parent``'s strings and drop each into its
-        child; a string the node cannot place leaves the population, harvested."""
+        child; indecisive strings leave the population, harvested."""
         bucket = self._at[parent]
         chunk = list(islice(bucket, self._chunk))
         for string in chunk:
@@ -104,6 +100,6 @@ class LeafPopulation:
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
             else:
-                # ``string + midfix``, as sifting reports it: the indecision is
-                # over string + midfix + v, so that is what the family failed on.
+                # The indecision is over string + midfix + v, so string + midfix
+                # is what failed, not string.
                 self._harvest(string + midfix)
