@@ -20,6 +20,29 @@ from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
+#: Shared by the two tests below: one learns it at a threshold it can reach,
+#: the other checks the default threshold still exits rather than hunting for
+#: accuracy the target does not have.
+POOR_CASE_TARGET = DFA(
+    states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+    input_symbols={0, 1},
+    transitions={
+        0: {1: 9, 0: 9},
+        1: {1: 1, 0: 1},
+        2: {1: 1, 0: 8},
+        3: {1: 2, 0: 8},
+        4: {1: 5, 0: 3},
+        5: {1: 6, 0: 3},
+        6: {1: 1, 0: 3},
+        7: {1: 4, 0: 8},
+        8: {1: 7, 0: 8},
+        9: {1: 8, 0: 8},
+    },
+    initial_state=0,
+    final_states={1},
+    allow_partial=False,
+)
+
 
 class TestLStar(unittest.TestCase):
     def test_modulo_harder(self):
@@ -52,33 +75,47 @@ class TestLStar(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, symbols=3)
 
     def test_counterexample_poor_case(self):
-        dfa = DFA(
-            states={0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-            input_symbols={0, 1},
-            transitions={
-                0: {1: 9, 0: 9},
-                1: {1: 1, 0: 1},
-                2: {1: 1, 0: 8},
-                3: {1: 2, 0: 8},
-                4: {1: 5, 0: 3},
-                5: {1: 6, 0: 3},
-                6: {1: 1, 0: 3},
-                7: {1: 4, 0: 8},
-                8: {1: 7, 0: 8},
-                9: {1: 8, 0: 8},
-            },
-            initial_state=0,
-            final_states={1},
-            allow_partial=False,
-        )
+        dfa = POOR_CASE_TARGET
         oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
-        # State 0 is transient, so no sampled prefix ends there for the learner
-        # to anchor to and covered accuracy caps at 0.983. The default 0.98 bar
-        # is inside that noise.
+        # No other state transitions into state 0, so a prefix ends there only
+        # by never leaving it, and none of length 40 does. E-L* names a state by
+        # the prefixes that end in it, so it cannot anchor one here and must
+        # re-root where it can, misclassifying whatever state 0 decides
+        # differently. That caps accuracy just above the default 0.98 stopping
+        # bar -- close enough that the rounds spent reaching for it land or not
+        # by noise, hence the lowered threshold, which is where assertDFA's own
+        # tolerance already sat.
+        self.assertLess(P.covered_accuracy_ceiling(dfa, length=40), 0.99)
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
         )
         assertDFA(self, dfa, oracle_creator)
+
+    def test_counterexample_poor_case_terminates_at_the_default_bar(self):
+        # The lowered threshold above is what this target can reach, not what
+        # the learner needs to survive: asked for accuracy the target does not
+        # have, synthesis must run out of patience and return rather than keep
+        # buying prefixes for a gate it will never satisfy. Only termination is
+        # asserted -- the DFA it settles on is expected to be imperfect, so
+        # there is nothing correct to check against.
+        oracle_creator = lambda nm, s, _dfa=POOR_CASE_TARGET: NoisyOracle(
+            DFAOracle(_dfa), nm, s
+        )
+
+        # Imported locally: a module-level `import signal` would shadow the
+        # `signal` (signal-strength) parameter other tests in this file use.
+        import signal
+
+        def _timeout(signum, frame):
+            raise AssertionError("synthesis did not terminate within the timeout")
+
+        previous = signal.signal(signal.SIGALRM, _timeout)
+        signal.alarm(60)
+        try:
+            learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous)
 
     def test_another_countexample_poor_case(self):
         dfa = DFA(
@@ -101,9 +138,15 @@ class TestLStar(unittest.TestCase):
             allow_partial=False,
         )
         oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
-        # State 0 is transient, so no sampled prefix ends there for the learner
-        # to anchor to and covered accuracy caps at 0.983. The default 0.98 bar
-        # is inside that noise.
+        # No other state transitions into state 0, so a prefix ends there only
+        # by never leaving it, and none of length 40 does. E-L* names a state by
+        # the prefixes that end in it, so it cannot anchor one here and must
+        # re-root where it can, misclassifying whatever state 0 decides
+        # differently. That caps accuracy just above the default 0.98 stopping
+        # bar -- close enough that the rounds spent reaching for it land or not
+        # by noise, hence the lowered threshold, which is where assertDFA's own
+        # tolerance already sat.
+        self.assertLess(P.covered_accuracy_ceiling(dfa, length=40), 0.99)
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
         )
