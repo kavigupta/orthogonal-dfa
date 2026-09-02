@@ -125,5 +125,40 @@ class TestLeafPopulation(unittest.TestCase):
         self.assertIsNone(pop.representative((True,), 10))
 
 
+class TestWhatANodeCannotPlace(unittest.TestCase):
+    """Sifting reports a string it cannot place so the next family is made to
+    resolve it.  A string pushed down here fails the same way."""
+
+    def test_an_indecisive_string_is_harvested(self):
+        harvested = []
+        pop = LeafPopulation(
+            _StubTree(),
+            lambda strings, midfix: [None] * len(strings),
+            chunk=16,
+            harvest=harvested.append,
+        )
+        pop.add(bytes([1, 0]))
+
+        self.assertEqual(pop.members((True,), 10), [])
+        # ``string + midfix``; the root's midfix is empty.
+        self.assertEqual(harvested, [bytes([1, 0])])
+
+    def test_a_placed_string_is_not_harvested(self):
+        harvested = []
+        classify, _ = _classifier()
+        pop = LeafPopulation(_StubTree(), classify, chunk=16, harvest=harvested.append)
+        pop.add(bytes([1, 0]))
+
+        self.assertEqual(pop.members((True,), 10), [bytes([1, 0])])
+        self.assertEqual(harvested, [])
+
+    def test_the_harvest_is_optional(self):
+        pop = LeafPopulation(
+            _StubTree(), lambda strings, midfix: [None] * len(strings), chunk=16
+        )
+        pop.add(bytes([1, 0]))
+        self.assertEqual(pop.members((True,), 10), [])
+
+
 if __name__ == "__main__":
     unittest.main()
