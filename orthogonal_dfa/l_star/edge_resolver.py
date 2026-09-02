@@ -33,11 +33,22 @@ class EdgeResolver:
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
-        for member in self.leaf_members(state):
+        members = self.leaf_members(state)
+        for member in members:
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
                 return target, member
             self.indecisive.add(boundary)
+        # Every member's successor sifts into the confident band -- their
+        # boundaries are harvested above for the next round.  Rather than leave the
+        # edge open, which the export self-loops (stranding the state and
+        # misrouting every string through it), place it by the decisive fallback:
+        # a self-loop is no better a guess than the side of the boundary these
+        # successors already fall on.  sift_decisive never abstains, so any member
+        # settles it; only a memberless leaf leaves the edge open.
+        if members:
+            member = members[0]
+            return self.sifter.sift_decisive(member + bytes([c])), member
         return None, None
 
     def resolve(self, state: int, c: int) -> None:

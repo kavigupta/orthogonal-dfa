@@ -16,9 +16,21 @@ class Sifter:
         self.family = family
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
-        """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
-        when some node cannot place it."""
+        """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)`` when
+        a node lands in the confident band and cannot place it.  The banded sift
+        runs first so the boundary is harvested for the next round; a caller that
+        must commit anyway falls back to :meth:`sift_decisive`."""
         return self.tree.sift(seq, self.family.is_accept)
+
+    def sift_decisive(self, seq) -> Optional[int]:
+        """Route ``seq`` to a leaf with the zero-band decisive classifier
+        (:meth:`SuffixFamily.side`), so every node descends and a leaf is always
+        reached.  This is the routing *fallback* for when :meth:`sift_and_boundary`
+        abstains: the string still has to go somewhere, and a self-loop is no
+        better a guess than the side of the ``decision_boundary`` its mean falls
+        on.  The banded sift runs first, so the boundary is still harvested; only a
+        string the confident sift could not place is forced to decide here."""
+        return self.tree.sift(seq, self.family.side)[0]
 
     def sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to, or ``None`` -- the boundary discarded.  A
@@ -45,7 +57,12 @@ class Sifter:
         """A midfix separating ``s`` and ``sprime`` (see
         :meth:`MidfixTree.first_disagreement`), or ``None``.
 
-        This only *proposes* a distinguisher; whether the split fires is decided
-        by the population evidence, so the pair need only clear the ordinary
-        decisive band, not a wide split margin."""
-        return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+        The confident classifier runs first; if it finds nothing -- which includes
+        a needed classification landing in the band -- it falls back to the
+        decisive :meth:`SuffixFamily.side`, so a distinguisher separating two
+        borderline states can still be *proposed*.  It only proposes;
+        :class:`SplitEvidence` remains the gate on whether the split is real."""
+        found = self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+        if found is not None:
+            return found
+        return self.tree.first_disagreement(s, sprime, self.family.side, prefix)
