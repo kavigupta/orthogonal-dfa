@@ -44,11 +44,11 @@ class EdgeResolver:
         # edge open, which the export self-loops (stranding the state and
         # misrouting every string through it), place it by the decisive fallback:
         # a self-loop is no better a guess than the side of the boundary these
-        # successors already fall on.
-        for member in members:
-            target = self.sifter.sift_decisive(member + bytes([c]))
-            if target is not None:
-                return target, member
+        # successors already fall on.  sift_decisive never abstains, so any member
+        # settles it; only a memberless leaf leaves the edge open.
+        if members:
+            member = members[0]
+            return self.sifter.sift_decisive(member + bytes([c])), member
         return None, None
 
     def resolve(self, state: int, c: int) -> None:

@@ -103,7 +103,9 @@ class TestDecisiveRouting(unittest.TestCase):
             samp = SuperSampler(vocab, LENGTH)
             ev = [list(samp.sample(rng, vocab.alphabet_size)) for _ in range(2000)]
             call = np.array([bool(dfa.accepts_input(w)) for w in ev])
-            rule = np.array([not _frame(w)[0] for w in ev])  # accept iff not both closed
+            rule = np.array(
+                [not _frame(w)[0] for w in ev]
+            )  # accept iff not both closed
             agree = float(np.mean(call == rule))
             accept_rate = float(call.mean())
             # The collapse either accepts everything or tangles the routing; both
