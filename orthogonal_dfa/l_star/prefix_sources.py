@@ -62,6 +62,7 @@ class StateSource:
     def __init__(self, pst, resolver, dfa, leaf, *, sink=None):
         self.label = ("state", leaf)
         self._resting = None
+        self._served = set()
         self._pst = pst
         self._resolver = resolver
         self._dfa = dfa
@@ -80,30 +81,36 @@ class StateSource:
         self._weights = weights
 
     def draw(self) -> Optional[bytes]:
+        """One aimed string, or one already resting at the leaf if that misses.
+
+        Aiming comes first for what it leaves behind rather than what it returns:
+        a string pushed toward the leaf is a string the population then holds,
+        and the split test reads the population.  Serve a resting member in its
+        place and this population fills while the tree gains nothing to split.
+        """
         if self._path is None:
             return None
-        if self._resting is None:
-            # Read once: settling a later draw only adds to the leaf, and a
-            # string served twice is not two prefixes.
-            self._resting = list(
-                self._resolver.population.members(self._path, _RESTING_LIMIT)
-            )
-        if self._resting:
-            return self._resting.pop()
-        if not self._reachable:
-            return None
-        aimed = sample_string_reaching_state(
-            self._dfa, self._mass, self._pst.rng, self._weights
-        )
-        if aimed is None:
-            return None
         population = self._resolver.population
-        population.add(aimed)
-        # Where it rests, not where it was aimed.
-        if population.settle(aimed, self._path):
-            return aimed
-        if self._sink is not None and population.resting_at(aimed) is None:
-            self._sink(aimed)
+        if self._reachable:
+            aimed = sample_string_reaching_state(
+                self._dfa, self._mass, self._pst.rng, self._weights
+            )
+            if aimed is not None:
+                population.add(aimed)
+                # Where it rests, not where it was aimed.
+                if population.settle(aimed, self._path):
+                    return aimed
+                if self._sink is not None and population.resting_at(aimed) is None:
+                    self._sink(aimed)
+        # Aiming misses most of the time, and the leaf's own members are what
+        # this population is made of anyway.
+        if self._resting is None:
+            self._resting = list(population.members(self._path, _RESTING_LIMIT))
+        while self._resting:
+            resting = self._resting.pop()
+            if resting not in self._served:
+                self._served.add(resting)
+                return resting
         return None
 
 

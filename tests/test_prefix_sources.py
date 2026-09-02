@@ -6,6 +6,7 @@ themselves, so what a later round needs more of it can draw more of.
 
 import unittest
 
+import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
@@ -111,10 +112,10 @@ class _Resolver:
 
 class _Pst:
     alphabet_size = 2
-    rng = None
 
     def __init__(self, length):
         self.sampler = UniformSampler(length)
+        self.rng = np.random.default_rng(0)
 
 
 #: State 1 loops on itself and nothing enters it, so no string of any length
@@ -151,6 +152,33 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         # Nothing to aim and too few resting: the population is not one to hold
         # to a rate, which is what the indecisive strings are for.
         self.assertIsNone(collect(self._source([bytes([1, 0])]), wanted=20))
+
+    def test_it_aims_before_serving_what_rests(self):
+        """Aiming is what puts new strings in front of the tree, so a leaf that
+        can be aimed at is aimed at even when it has members to hand."""
+        reachable = DFA(
+            states={0, 1},
+            input_symbols={0, 1},
+            transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}},
+            initial_state=0,
+            final_states={1},
+        )
+        # Length 8, so aiming has room to land somewhere the leaf does not
+        # already hold; the point is that it aims at all.
+        population = LeafPopulation(
+            _Tree(), lambda strings, midfix: [True] * len(strings)
+        )
+        for i in range(20):
+            population.add(bytes([1, i, 0, 0, 0, 0, 0, 0]), at=(True,))
+        source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
+
+        held = sum(len(v) for v in population._at.values())
+        collect(source, wanted=20)
+        self.assertGreater(
+            sum(len(v) for v in population._at.values()),
+            held,
+            "drawing served resting members without aiming anything new",
+        )
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
