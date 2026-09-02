@@ -91,14 +91,23 @@ class TransitionResolver:
         return {s: rep for s, rep in reps if rep is not None}
 
     def _sift(self, seq):
-        """The leaf ``seq`` sifts to.
+        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
 
-        The confident sift runs first, and every string it cannot place is
-        harvested into ``indecisive``: a boundary string the current family
-        straddles, which the driver feeds back so the next family is forced to
-        resolve it.  A harvested string is then still placed by the decisive
-        fallback rather than left unplaced -- the walk and edge resolution route it
-        this round instead of stranding it, while the family resolves it the next."""
+        Every string the tree cannot place is harvested into ``indecisive``: it is
+        a boundary string the current family straddles, and the driver feeds these
+        back so the next family is forced to resolve them."""
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
+        if leaf is None:
+            self.indecisive.add(boundary)
+        return leaf
+
+    def _place(self, seq):
+        """Like :meth:`_sift`, but never abstains: the confident sift runs first
+        (harvesting the boundary just the same), then the decisive fallback places
+        the string.  Used where the counterexample walk must *commit* -- detecting
+        a disagreement -- rather than skip an indecisive probe, which is what let
+        two borderline states go unsplit.  Anchoring keeps :meth:`_sift`, which
+        abstains so it can look for the next-shortest placeable prefix."""
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self.indecisive.add(boundary)
@@ -181,7 +190,7 @@ class TransitionResolver:
 
     def _act_on_disagreement(self, w, states, agree_point):
         state = states[-1]
-        actual = self._sift(w)
+        actual = self._place(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
         fd = self._first_bad_edge(w, states, agree_point, len(w))
@@ -201,7 +210,7 @@ class TransitionResolver:
         if witness is None:
             return _RESOLVED
         sprime = w[: fd - 1]
-        if self._sift(witness) != s1 or self._sift(sprime) != s1:
+        if self._place(witness) != s1 or self._place(sprime) != s1:
             return _RESOLVED
         distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
@@ -214,14 +223,12 @@ class TransitionResolver:
 
     def _first_bad_edge(self, w, states, lo, hi):
         """Binary-search the first index where the followed state diverges from a
-        fresh sift of ``w[:i]``; ``None`` on an indecisive sift.  Invariant: the
-        sift agrees at ``lo`` and disagrees at ``hi``."""
+        fresh placement of ``w[:i]``.  Invariant: the placement agrees at ``lo``
+        (the anchor, a confidently-placed prefix) and disagrees at ``hi``."""
         if lo + 1 == hi:
             return hi
         mid = (lo + hi) // 2
-        actual = self._sift(w[:mid])
-        if actual is None:
-            return None
+        actual = self._place(w[:mid])
         if actual == states[mid]:
             return self._first_bad_edge(w, states, mid, hi)
         return self._first_bad_edge(w, states, lo, mid)
@@ -229,7 +236,7 @@ class TransitionResolver:
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
         for p in (witness, sprime):
-            st = self._sift(p)
+            st = self._place(p)
             if st is not None:
                 self.population.add(p, at=self.tree.path_of(st))
 
