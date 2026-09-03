@@ -36,6 +36,11 @@ class LeafPopulation:
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
+        #: Strings a node placed, and strings it could not, over every push so
+        #: far.  One push is one node's decision, so this is the rate the FNR
+        #: limit is stated about, read where it is actually spent.
+        self.placed = 0
+        self.unplaced = 0
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
@@ -105,8 +110,10 @@ class LeafPopulation:
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
             if decision is not None:
+                self.placed += 1
                 self._at.setdefault(parent + (decision,), {})[string] = None
             else:
+                self.unplaced += 1
                 # The indecision is over string + midfix + v, so string + midfix
                 # is what failed, not string.
                 self._harvest(string + midfix)

@@ -27,6 +27,7 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
+from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
 
@@ -183,7 +184,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
             for f in fresh:
                 resolver.population.add(f)
         held, short = _short_states(resolver, per_state)
-    return held
+    return held, not short
 
 
 def _grow_representative_pool(
@@ -201,13 +202,40 @@ def _grow_representative_pool(
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
+    by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     representative = state.baseline + state.accumulated + state.sampled
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
+    return every_state_full
+
+
+def tree_is_saturated(pst, resolver, every_state_full) -> bool:
+    """Whether the round found everything its prefixes can say.
+
+    Two things have to hold.  Every state is full: a state the round could not
+    fill is one more prefixes would say more about.  And the nodes are placing
+    all but the rate the FNR limit allows: pushing a string down is one node
+    deciding, which is what that limit is stated over, so indecision no higher
+    than it is the residue a working gate leaves rather than a distinction the
+    round has missed.
+    """
+    if not every_state_full:
+        return False
+    population = resolver.population
+    read = population.placed + population.unplaced
+    if not read:
+        return False
+    # One-sided: only indecision *above* the limit is evidence of something
+    # left to resolve.  Below it there is nothing to find.
+    return (
+        binomial_side_of_boundary(
+            population.unplaced, read, pst.config.fnr_limit, failure_prob=0.01
+        )
+        is not True
+    )
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -298,7 +326,7 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        _grow_representative_pool(
+        every_state_full = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -307,6 +335,18 @@ def counterexample_driven_synthesis(
             min_indecisive=min_indecisive,
             per_state=per_state,
         )
+        if tree_is_saturated(pst, resolver, every_state_full):
+            population = resolver.population
+            print(
+                f"WARNING: stopping synthesis at {dt.num_states} states and "
+                f"accuracy {true_acc:.4f} -- every state is full and the tree "
+                f"placed {population.placed} of "
+                f"{population.placed + population.unplaced} strings, no worse "
+                f"than the {pst.config.fnr_limit} the gate allows, so more "
+                f"prefixes have nothing left to say."
+            )
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
+            return
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(
