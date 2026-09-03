@@ -97,8 +97,6 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(new_prefixes)
         self._prefix_keys.update(new_prefixes)
-        # Prefixes added after construction (feed / curated sample) are full-length
-        # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------

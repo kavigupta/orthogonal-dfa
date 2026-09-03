@@ -156,9 +156,8 @@ class PrefixSuffixTracker:
         A special case is that if the family classifies all prefixes as positive or negative,
         then the FNR is 1 rather than 0 (since the prediction is uninformative).
 
-        Computed over the representative prefixes only: the short prefix-closed
-        core exists to give transient states discovery rows, not to recalibrate
-        the family against an unrepresentative population.
+        Computed over the representative prefixes only, which a caller may
+        re-scope to focus the family.
         """
         return self.fnr_from_decision(
             self.compute_decision(vs, self.table.representative)
