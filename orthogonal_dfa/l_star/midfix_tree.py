@@ -8,8 +8,6 @@ string and each suffix, hence the name. Leaves are DFA state ids.
 
 from typing import Callable, Iterator, List, Optional, Tuple
 
-import numpy as np
-
 from .sequential_decide import sequential_decisions
 
 # A leaf is an int state id; an internal node is
@@ -197,26 +195,6 @@ class MidfixTree:
                     nxt.append((lookup[decision], i))
             active = nxt
         return out
-
-    def classify_pool(self, num_prefixes: int, decide_columns) -> np.ndarray:
-        """
-        Classify a whole fixed population at once. decide_columns(midfix) returns the
-        (accept, reject) boolean columns over all num_prefixes for that node's family,
-        read straight off a cached mask matrix with no oracle. A prefix an ancestor
-        abstained on stays -1.
-        """
-
-        def recurse(node: Node) -> np.ndarray:
-            if isinstance(node, int):
-                return np.full(num_prefixes, node)
-            midfix, lookup = node
-            acc, rej = decide_columns(midfix)
-            results = np.full(num_prefixes, -1)
-            results[rej] = recurse(lookup[False])[rej]
-            results[acc] = recurse(lookup[True])[acc]
-            return results
-
-        return recurse(self._root)
 
     def render(self, render_midfix, indent=0) -> List[str]:
         def recurse(node: Node, indent: int) -> List[str]:
