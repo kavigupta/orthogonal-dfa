@@ -27,7 +27,7 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(list(table.strata_masks()), ["baseline"])
         self.assertEqual(int(table.strata_masks()["baseline"].sum()), 6)
 
-    def test_one_population_named_for_every_prefix_is_the_simple_case(self):
+    def test_one_population_scopes_the_table_to_it(self):
         words = _words(6)
         table = _table(words)
         table.set_representative(words[:4], ["baseline"] * 4)
