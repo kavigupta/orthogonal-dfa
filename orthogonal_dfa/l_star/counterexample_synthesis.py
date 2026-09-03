@@ -212,6 +212,7 @@ def _grow_representative_pool(
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
+    return len(representative)
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -288,7 +289,7 @@ def counterexample_driven_synthesis(
         dfa, dt = resolver.to_dfa_and_tree()
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
-            f"{len(vs)} suffixes in {time.monotonic() - started:.0f}s"
+            f"{len(vs)} suffixes in {time.monotonic() - started:.1f}s"
         )
         assert dt.num_states >= 2
         print(dfa)
@@ -305,11 +306,11 @@ def counterexample_driven_synthesis(
         if true_acc >= acc_threshold:
             print(
                 f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold}; stopping synthesis"
+                f"{acc_threshold:.4f}; stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        _grow_representative_pool(
+        pool = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -319,8 +320,9 @@ def counterexample_driven_synthesis(
             per_state=per_state,
         )
         print(
-            f"[round {index}] pool grown to {len(state.accumulated)} boundary "
-            f"strings and {len(state.sampled)} per-state samples"
+            f"[round {index}] pool now {pool} representative prefixes "
+            f"({len(state.accumulated)} boundary strings, "
+            f"{len(state.sampled)} per-state samples)"
         )
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)

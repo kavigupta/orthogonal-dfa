@@ -109,8 +109,8 @@ class TransitionResolver:
         new_id = self.tree.split(state_id, midfix)
         self.dfa.split_state(state_id, new_id)
         write(
-            f"  split state {state_id} on {fmt_seq(midfix)} -> "
-            f"{state_id}, {new_id} ({self.tree.num_states} states)"
+            f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
+            f"reject {new_id} ({self.tree.num_states} states)"
         )
 
     # -- counterexamples ----------------------------------------------------
@@ -125,8 +125,7 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
-        # Undelayed because each split writes a line under it; see progress.write.
-        with counter(max_probes, "Probing for counterexamples", delay=0) as pbar:
+        with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
                 if status == _SPLIT:
@@ -260,8 +259,8 @@ class TransitionResolver:
         )
         for state, c in unresolved:
             print(
-                f"transition_resolver: no decisive edge for (state {state}, symbol "
-                f"{c}); falling back to a self-loop"
+                f"  no decisive edge for (state {state}, symbol {c}); "
+                "falling back to a self-loop"
             )
 
         accepting = self.tree.accepting_leaves()

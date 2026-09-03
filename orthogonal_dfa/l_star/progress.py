@@ -6,8 +6,8 @@ import tqdm.auto as tqdm
 DELAY = 5
 
 
-def counter(total, desc, *, delay=DELAY):
-    return tqdm.tqdm(total=total, desc=desc, leave=False, delay=delay)
+def counter(total, desc):
+    return tqdm.tqdm(total=total, desc=desc, leave=False, delay=DELAY)
 
 
 def track(iterable, desc):
@@ -17,7 +17,8 @@ def track(iterable, desc):
 def write(line):
     """Print without tearing whatever bar is on screen.
 
-    Only safe under a bar built with ``delay=0``: this redraws every live bar
-    whatever its delay, and one redrawn before its delay elapses is one
-    ``close`` then leaves on screen, still believing it never displayed."""
+    A bar this forces up before its delay elapses is one ``close`` would leave
+    there, still believing it never displayed, so mark them all displayed."""
     tqdm.tqdm.write(line)
+    for bar in list(tqdm.tqdm._instances):  # pylint: disable=protected-access
+        bar.last_print_t = max(bar.last_print_t, bar.start_t + bar.delay)

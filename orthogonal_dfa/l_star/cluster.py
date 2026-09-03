@@ -365,6 +365,6 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
 
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
-            print(f"  wanted {family_size} suffixes, kept {kept} of {drawn} drawn")
+            print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         else:
             pst.sample_more_prefixes()
