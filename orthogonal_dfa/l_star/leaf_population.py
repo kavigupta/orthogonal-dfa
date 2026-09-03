@@ -29,13 +29,10 @@ class LeafPopulation:
     for ``strings`` at ``midfix`` and return one decision per string.
     """
 
-    def __init__(self, tree, classify: Classify, *, chunk: int = 128, harvest=None):
+    def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
-        #: Called with each string a node could not place.  Sifting reports those
-        #: so the next family is made to resolve them; a string pushed down here
-        #: fails in exactly the same way and is worth the same.
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
@@ -63,14 +60,21 @@ class LeafPopulation:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
         needed and stopping as soon as ``count`` are in hand."""
         self._fill(at, count)
-        return list(islice(self._at.get(at, ()), count))
+        return self._held(at, count)
 
     def representative(self, at: Path, count: int) -> Optional[bytes]:
-        """The canonical member reaching leaf ``at`` -- the shortest, ties broken
-        lexicographically -- or ``None`` if none do. ``count`` bounds how many
-        members are pulled to choose among."""
-        members = self.members(at, count)
-        return min(members, key=lambda m: (len(m), m)) if members else None
+        """The canonical member already resting at leaf ``at`` -- the shortest,
+        ties broken lexicographically -- or ``None`` if none are. ``count``
+        bounds how many are read to choose among.
+
+        Reads rather than descends: descending harvests, and a render must not
+        decide what the next round samples.
+        """
+        resting = self._held(at, count)
+        return min(resting, key=lambda m: (len(m), m)) if resting else None
+
+    def _held(self, at: Path, count: int) -> List[bytes]:
+        return list(islice(self._at.get(at, ()), count))
 
     def __len__(self) -> int:
         """Strings the population holds, wherever they rest."""
@@ -111,7 +115,7 @@ class LeafPopulation:
 
     def _push_chunk(self, parent: Path) -> None:
         """Classify one chunk of ``parent``'s strings and drop each into its
-        child; a string the node cannot place leaves the population, harvested."""
+        child; indecisive strings leave the population, harvested."""
         bucket = self._at[parent]
         chunk = list(islice(bucket, self._chunk))
         for string in chunk:
@@ -121,7 +125,7 @@ class LeafPopulation:
         for string, decision in zip(chunk, decisions):
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
-            elif self._harvest is not None:
-                # ``string + midfix``, as sifting reports it: the indecision is
-                # over string + midfix + v, so that is what failed.
+            else:
+                # The indecision is over string + midfix + v, so string + midfix
+                # is what failed, not string.
                 self._harvest(string + midfix)

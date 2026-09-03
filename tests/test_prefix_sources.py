@@ -125,7 +125,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def _source(self, resting):
         population = LeafPopulation(
-            _Tree(), lambda strings, midfix: [True] * len(strings)
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
@@ -155,7 +157,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         # Length 8, so aiming has room to land somewhere the leaf does not
         # already hold; the point is that it aims at all.
         population = LeafPopulation(
-            _Tree(), lambda strings, midfix: [True] * len(strings)
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
         )
         for i in range(20):
             population.add(bytes([1, i, 0, 0, 0, 0, 0, 0]), at=(True,))

@@ -70,7 +70,9 @@ def _evidence(family=None, members=(), state=0):
     test_leaf_population.
     """
     tree = MidfixTree(())
-    population = LeafPopulation(tree, lambda strings, midfix: [None] * len(strings))
+    population = LeafPopulation(
+        tree, lambda strings, midfix: [None] * len(strings), harvest=lambda _s: None
+    )
     for member in members:
         population.add(member, at=tree.path_of(state))
     return SplitEvidence(

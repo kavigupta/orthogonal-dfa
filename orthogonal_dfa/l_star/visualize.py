@@ -370,10 +370,12 @@ def _panel_tree(ax, dt, colors):
 
 def _sift_fn(learner):
     """The learner's classifier, wherever it keeps it."""
-    for holder in (learner, getattr(learner, "sifter", None)):
-        fn = getattr(holder, "sift", None)
-        if fn is not None:
-            return fn
+    fn = getattr(learner, "sift", None)
+    if fn is not None:
+        return fn
+    sifter = getattr(learner, "sifter", None)
+    if sifter is not None:
+        return lambda seq: sifter.sift_and_boundary(seq)[0]
     raise AttributeError("learner exposes no sift")
 
 
