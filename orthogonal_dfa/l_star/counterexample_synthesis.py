@@ -213,14 +213,13 @@ def _grow_representative_pool(
 
 
 def tree_is_saturated(pst, resolver, every_state_full) -> bool:
-    """Whether the round found everything its prefixes can say.
+    """Whether this round's prefixes had nothing left to say.
 
-    Two things have to hold.  Every state is full: a state the round could not
-    fill is one more prefixes would say more about.  And the nodes are placing
-    all but the rate the FNR limit allows: pushing a string down is one node
-    deciding, which is what that limit is stated over, so indecision no higher
-    than it is the residue a working gate leaves rather than a distinction the
-    round has missed.
+    A state the round could not fill is one more prefixes would say more about.
+    Past that the yardstick is the FNR limit itself: pushing a string down is
+    one node deciding, which is the rate that limit is stated over, so
+    indecision no higher than it is the residue a working gate leaves rather
+    than a distinction the round missed.
     """
     if not every_state_full:
         return False
@@ -228,8 +227,8 @@ def tree_is_saturated(pst, resolver, every_state_full) -> bool:
     read = population.placed + population.unplaced
     if not read:
         return False
-    # One-sided: only indecision *above* the limit is evidence of something
-    # left to resolve.  Below it there is nothing to find.
+    # One-sided, and an inconclusive test reads as saturated: only indecision
+    # we can show is *above* the limit is evidence of something left to find.
     return (
         binomial_side_of_boundary(
             population.unplaced, read, pst.config.fnr_limit, failure_prob=0.01
@@ -247,7 +246,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No new boundary strings have been harvested
+    3. The tree is saturated (see `tree_is_saturated`)
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -259,17 +258,12 @@ class _StallDetector:
     def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
-        self._boundary_strings = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
-        progressed = (
-            states > self._states
-            or improved
-            or boundary_strings > self._boundary_strings
-        )
+    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
+        progressed = states > self._states or improved or not saturated
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states, self._boundary_strings = states, boundary_strings
+        self._states = states
         return self._stalled >= self._patience
 
 
@@ -335,24 +329,12 @@ def counterexample_driven_synthesis(
             min_indecisive=min_indecisive,
             per_state=per_state,
         )
-        if tree_is_saturated(pst, resolver, every_state_full):
-            population = resolver.population
-            print(
-                f"WARNING: stopping synthesis at {dt.num_states} states and "
-                f"accuracy {true_acc:.4f} -- every state is full and the tree "
-                f"placed {population.placed} of "
-                f"{population.placed + population.unplaced} strings, no worse "
-                f"than the {pst.config.fnr_limit} the gate allows, so more "
-                f"prefixes have nothing left to say."
-            )
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=len(state.accumulated),
+            saturated=tree_is_saturated(pst, resolver, every_state_full),
         ):
             print(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "

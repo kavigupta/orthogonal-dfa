@@ -36,9 +36,8 @@ class LeafPopulation:
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
-        #: Strings a node placed, and strings it could not, over every push so
-        #: far.  One push is one node's decision, so this is the rate the FNR
-        #: limit is stated about, read where it is actually spent.
+        #: One push is one node's decision, so the unplaced fraction is on the
+        #: same footing as the FNR limit.
         self.placed = 0
         self.unplaced = 0
 
