@@ -81,7 +81,7 @@ class TestMaskTableBatching(unittest.TestCase):
         table = MaskTable(oracle, prefixes)
         # Narrowed after construction, which is the only way to scope: prefix 2
         # is in the table and in no population.
-        table.set_representative(prefixes[:2], ["baseline"] * 2)
+        table.set_populations({"uniform": prefixes[:2]})
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):

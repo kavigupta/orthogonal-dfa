@@ -16,7 +16,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
 import numpy as np
 
@@ -36,7 +36,7 @@ class MaskTable:
         self._oracle = self.memo
         self._prefixes = list(prefixes)
         self._prefix_keys = set(self._prefixes)
-        self._populations: Dict[object, set] = {"baseline": set(prefixes)}
+        self._populations: Dict[object, set] = {"uniform": set(prefixes)}
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -56,24 +56,19 @@ class MaskTable:
     def representative(self) -> np.ndarray:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
         some population, which a caller re-scopes by naming new ones (see
-        ``set_representative``)."""
+        ``set_populations``)."""
         scoped = set().union(*self._populations.values())
         return np.array([p in scoped for p in self._prefixes], dtype=bool)
 
-    def set_representative(self, prefixes: List[bytes], strata) -> None:
-        """Make *exactly* ``prefixes`` the representative set, every other prefix
-        becoming non-representative.
+    def set_populations(self, populations: Dict[object, Iterable[bytes]]) -> None:
+        """Scope the table to these populations, keyed by why their prefixes were
+        drawn.  Every other prefix becomes non-representative.
 
-        ``strata`` names the population each entry of ``prefixes`` was drawn
-        for, and is required because there is no population a prefix belongs to
-        by default -- a caller knows why it drew each one.  A prefix listed
-        under several joins all of them: being a uniform draw does not stop it
-        also being what is known about a state."""
-        assert len(strata) == len(prefixes), (len(strata), len(prefixes))
-        populations: Dict[object, set] = {}
-        for prefix, label in zip(prefixes, strata):
-            populations.setdefault(label, set()).add(prefix)
-        self._populations = populations
+        A prefix under several labels joins all of them: being a uniform draw
+        does not stop it also being what is known about a state."""
+        self._populations = {
+            label: set(prefixes) for label, prefixes in populations.items()
+        }
 
     def strata_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
@@ -119,7 +114,7 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(new_prefixes)
         self._prefix_keys.update(new_prefixes)
-        self._populations.setdefault("baseline", set()).update(new_prefixes)
+        self._populations.setdefault("uniform", set()).update(new_prefixes)
 
     # -- suffix side --------------------------------------------------------
 
