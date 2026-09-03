@@ -98,7 +98,6 @@ SUFFIX_TRIGGERS = [
     "sample_suffix_family",
     "build",
     "discover_states",
-    "compute_decision_from_strings",
     "compute_decision",
 ]
 

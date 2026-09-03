@@ -210,11 +210,3 @@ class PrefixSuffixTracker:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
         to ``subset_prefixes``; the table fills any cells not yet observed."""
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
-
-    def compute_decision_from_strings(
-        self, vs: List[bytes], subset_prefixes=None
-    ) -> np.ndarray:
-        if subset_prefixes is None:
-            subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
-        vs_idxs = [self.table.intern_suffix(v) for v in vs]
-        return self.compute_decision(vs_idxs, subset_prefixes)

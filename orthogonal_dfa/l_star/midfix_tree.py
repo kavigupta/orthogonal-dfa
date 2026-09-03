@@ -114,12 +114,6 @@ class MidfixTree:
         )
         return new_state
 
-    def suffixes(self, midfix) -> List[bytes]:
-        """
-        The node's distinguisher family: each base suffix behind midfix.
-        """
-        return [midfix + v for v in self.base_family]
-
     # -- classification -----------------------------------------------------
 
     def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[bytes]]:
