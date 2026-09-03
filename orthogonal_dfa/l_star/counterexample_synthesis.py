@@ -277,10 +277,11 @@ def counterexample_driven_synthesis(
     best_acc = -1.0
     for index in itertools.count():
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
-        started = time.monotonic()
+        sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
@@ -289,7 +290,8 @@ def counterexample_driven_synthesis(
         dfa, dt = resolver.to_dfa_and_tree()
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
-            f"{len(vs)} suffixes in {time.monotonic() - started:.1f}s"
+            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
+            f"{time.monotonic() - sampled:.1f}s resolving)"
         )
         assert dt.num_states >= 2
         print(dfa)
@@ -320,9 +322,8 @@ def counterexample_driven_synthesis(
             per_state=per_state,
         )
         print(
-            f"[round {index}] pool now {pool} representative prefixes "
-            f"({len(state.accumulated)} boundary strings, "
-            f"{len(state.sampled)} per-state samples)"
+            f"[round {index}] pool now {pool} representative prefixes, "
+            f"{len(state.accumulated)} boundary strings harvested so far"
         )
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
