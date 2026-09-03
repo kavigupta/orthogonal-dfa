@@ -217,16 +217,15 @@ def tree_is_saturated(pst, resolver, every_state_full) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
     A state the round could not fill is one more prefixes would say more about.
-    Past that we ask whether the nodes left less indecision than a working gate
-    does.  The rate here pools every node at every depth, so it is not the
-    root-level fraction ``fnr_limit`` is checked against in the gate itself;
-    the limit is the closest honest yardstick for it, not the same quantity.
+    Past that we ask whether the family left less indecision than a working gate
+    does.  Each decision is one Bernoulli trial at one node, the unit
+    ``fnr_limit`` is stated in, so the limit is the yardstick -- though pooling
+    over nodes can average away a single node that is well above it.
     """
     if not every_state_full:
         return False
-    population = resolver.population
-    read = population.placed + population.unplaced
-    if not read:
+    decisions = resolver.decisions
+    if not decisions.total:
         return False
     # Saturated only on positive evidence the rate is *below* the limit.  The
     # other direction -- saturated unless we can prove the rate too high --
@@ -234,7 +233,10 @@ def tree_is_saturated(pst, resolver, every_state_full) -> bool:
     # job is to decide the round found nothing.
     return (
         binomial_side_of_boundary(
-            population.unplaced, read, pst.config.fnr_limit, failure_prob=0.01
+            decisions.unplaced,
+            decisions.total,
+            pst.config.fnr_limit,
+            failure_prob=0.01,
         )
         is False
     )

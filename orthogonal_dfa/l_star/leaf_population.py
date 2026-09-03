@@ -29,17 +29,16 @@ class LeafPopulation:
     for ``strings`` at ``midfix`` and return one decision per string.
     """
 
-    def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
+    def __init__(
+        self, tree, classify: Classify, *, harvest, decisions, chunk: int = 128
+    ):
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
         self._harvest = harvest
+        self._decisions = decisions
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
-        #: Node decisions, pooled over every depth -- not the root-level
-        #: fraction the FNR gate itself is stated over.
-        self.placed = 0
-        self.unplaced = 0
 
     def add(self, string, at: Path = ()) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
@@ -108,11 +107,10 @@ class LeafPopulation:
         midfix = self._tree.midfix_at(parent)
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
+            self._decisions.record(decision is not None)
             if decision is not None:
-                self.placed += 1
                 self._at.setdefault(parent + (decision,), {})[string] = None
             else:
-                self.unplaced += 1
                 # The indecision is over string + midfix + v, so string + midfix
                 # is what failed, not string.
                 self._harvest(string + midfix)

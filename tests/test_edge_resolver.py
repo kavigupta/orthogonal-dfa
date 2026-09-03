@@ -1,6 +1,7 @@
 import signal
 import unittest
 
+from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.edge_resolver import EdgeResolver
 from orthogonal_dfa.l_star.partial_dfa import PartialDFA
 
@@ -47,6 +48,7 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
             _AlwaysIndecisiveSifter(),
             set(),
             population=_StubPopulation(),
+            decisions=Decisions(),
         )
 
         previous = signal.signal(signal.SIGALRM, self._timeout)

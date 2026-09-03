@@ -21,11 +21,12 @@ from .split_evidence import _MEMBER_LIMIT
 class EdgeResolver:
     """Closes the hypothesis: see the module docstring."""
 
-    def __init__(self, partial, sifter, indecisive, *, population):
+    def __init__(self, partial, sifter, indecisive, *, population, decisions):
         self.dfa = partial
         self.sifter = sifter
         self.indecisive = indecisive
         self._population = population
+        self._decisions = decisions
 
     def leaf_members(self, state: int) -> List[bytes]:
         return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
@@ -35,6 +36,7 @@ class EdgeResolver:
     ) -> Tuple[Optional[int], Optional[bytes]]:
         for member in self.leaf_members(state):
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
+            self._decisions.record(target is not None)
             if target is not None:
                 return target, member
             self.indecisive.add(boundary)

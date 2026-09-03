@@ -1,5 +1,6 @@
 import unittest
 
+from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 
 
@@ -23,6 +24,7 @@ def _population(classify, **kwargs):
     fails to; the ones that care pass their own ``harvest``.
     """
     kwargs.setdefault("harvest", lambda _string: None)
+    kwargs.setdefault("decisions", Decisions())
     return LeafPopulation(_StubTree(), classify, **kwargs)
 
 
