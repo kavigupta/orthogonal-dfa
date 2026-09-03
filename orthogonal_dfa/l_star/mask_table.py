@@ -37,15 +37,9 @@ class MaskTable:
         self._oracle = self.memo
         self._prefixes = list(prefixes)
         self._prefix_keys = set(self._prefixes)
-        #: population label -> its prefixes, and the only record of which
-        #: prefixes the table is scoped to: ``representative`` is their union.
-        #: They overlap -- a string drawn uniformly and then found to reach a
-        #: state is evidence about both populations, and joins both.
         self._populations: Dict[object, set] = {
             "baseline": {p for p, r in zip(prefixes, representative) if r}
         }
-        self._representative: List[bool] = []
-        self._scope_to_populations()
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -66,11 +60,13 @@ class MaskTable:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
         some population, which a caller re-scopes by naming new ones (see
         ``set_representative``)."""
-        return np.array(self._representative, dtype=bool)
+        # Not inlined below: the union per prefix would be quadratic.
+        scoped = set().union(*self._populations.values())
+        return np.array([p in scoped for p in self._prefixes], dtype=bool)
 
     def set_representative(self, prefixes: List[bytes], strata=None) -> None:
-        """Make *exactly* ``prefixes`` the representative set (every other prefix
-        becomes non-representative), realigning the mask to the current prefixes.
+        """Make *exactly* ``prefixes`` the representative set, every other prefix
+        becoming non-representative.
 
         ``strata`` names the population each entry of ``prefixes`` was drawn for.
         A prefix listed under several joins all of them: being a uniform draw
@@ -85,14 +81,6 @@ class MaskTable:
             for prefix, label in zip(prefixes, strata):
                 populations.setdefault(label, set()).add(prefix)
             self._populations = populations
-        self._scope_to_populations()
-
-    def _scope_to_populations(self) -> None:
-        """Re-derive the representative mask from the populations."""
-        scoped = (
-            set().union(*self._populations.values()) if self._populations else set()
-        )
-        self._representative = [p in scoped for p in self._prefixes]
 
     def strata_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
@@ -139,7 +127,6 @@ class MaskTable:
         self._prefixes.extend(new_prefixes)
         self._prefix_keys.update(new_prefixes)
         self._populations.setdefault("baseline", set()).update(new_prefixes)
-        self._scope_to_populations()
 
     # -- suffix side --------------------------------------------------------
 

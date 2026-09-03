@@ -27,16 +27,15 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(list(table.strata_masks()), ["baseline"])
         self.assertEqual(int(table.strata_masks()["baseline"].sum()), 6)
 
-    def test_setting_the_representative_set_without_strata_leaves_them_alone(self):
+    def test_naming_no_strata_makes_the_whole_set_one_population(self):
         words = _words(6)
         table = _table(words)
         table.set_representative(words[:4])
 
         masks = table.strata_masks()
         self.assertEqual(list(masks), ["baseline"])
-        # Only the representative ones are in the mask, but the population is
-        # still every prefix the table was built with.
         self.assertEqual(int(masks["baseline"].sum()), 4)
+        self.assertEqual(int(table.representative.sum()), 4)
 
     def test_strata_name_the_population_each_prefix_was_drawn_for(self):
         baseline, state = _words(4), _words(3, offset=4)
@@ -65,9 +64,6 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(table.num_prefixes, 8)
 
     def test_the_representative_set_is_the_union_of_the_populations(self):
-        # There is one record of what the table is scoped to, so the two cannot
-        # disagree: a prefix is representative exactly when some population
-        # holds it.
         baseline, state = _words(4), _words(3, offset=4)
         table = _table(baseline + state + _words(2, offset=7))
         table.set_representative(
@@ -87,12 +83,14 @@ class TestPopulations(unittest.TestCase):
         table.set_representative(words[:2], ["baseline"] * 2)
         self.assertEqual(int(table.representative.sum()), 2)
 
-    def test_an_empty_population_is_not_reported(self):
+    def test_a_population_of_prefixes_the_table_lacks_is_not_reported(self):
         words = _words(4)
         table = _table(words)
-        table.set_representative(words, ["baseline"] * 4)
-        # Re-scoped to prefixes none of which the second population holds.
-        table.set_representative(words[:2], ["baseline"] * 2)
+        # The state label names a prefix nobody added, so there is no column to
+        # read a rate over and nothing to report.
+        table.set_representative(
+            words[:2] + _words(1, offset=9), ["baseline"] * 2 + [("state", 0)]
+        )
 
         self.assertEqual(list(table.strata_masks()), ["baseline"])
 
