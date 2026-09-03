@@ -16,6 +16,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .midfix_tree import oracle_decider
+from .progress import counter
 from .statistics import (
     DENOISE_FAILURE_PROB,
     binomial_side_of_boundary,
@@ -229,29 +230,33 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0
-    while drawn < num_samples:
-        size = _batch_before_possible_stop(
-            agreements, valid, acc_threshold, min_valid, num_samples - drawn
-        )
-        ys = [us.sample(pst.rng, pst.alphabet_size) for _ in range(size)]
-        drawn += size
-        ends = classify_many(ys)
-        for y, s_end in zip(ys, ends):
-            prefix, reason = locate_incorrect_point(
-                classify, dfa, b"", y, s0=s0, s_end=s_end
+    with counter("Estimating DFA/DT consistency", num_samples) as pbar:
+        while drawn < num_samples:
+            size = _batch_before_possible_stop(
+                agreements, valid, acc_threshold, min_valid, num_samples - drawn
             )
-            if prefix is None and reason == "no inconsistency":
-                agreements += 1
-                valid += 1
-            elif prefix is not None:
-                valid += 1
-            else:
-                # Could-not-classify samples leave the decision unchanged; don't test.
-                continue
-            if (
-                valid >= min_valid
-                and binomial_side_of_boundary(agreements, valid, acc_threshold)
-                is not None
-            ):
-                return agreements / valid
+            ys = [us.sample(pst.rng, pst.alphabet_size) for _ in range(size)]
+            drawn += size
+            ends = classify_many(ys)
+            for y, s_end in zip(ys, ends):
+                pbar.update(1)
+                prefix, reason = locate_incorrect_point(
+                    classify, dfa, b"", y, s0=s0, s_end=s_end
+                )
+                if prefix is None and reason == "no inconsistency":
+                    agreements += 1
+                    valid += 1
+                elif prefix is not None:
+                    valid += 1
+                else:
+                    # Could-not-classify samples leave the decision unchanged;
+                    # don't test.
+                    continue
+                pbar.set_postfix(consistent=f"{agreements / valid:.3f}", refresh=False)
+                if (
+                    valid >= min_valid
+                    and binomial_side_of_boundary(agreements, valid, acc_threshold)
+                    is not None
+                ):
+                    return agreements / valid
     return agreements / valid if valid else 0.0

@@ -12,7 +12,9 @@ These drive the suffix-family FNR gate to re-cluster and resolve them
 in the next round.
 """
 
+import itertools
 import math
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -27,6 +29,7 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
+from .progress import track
 from .transition_resolver import TransitionResolver
 
 
@@ -166,7 +169,8 @@ def _per_state_members(pst, resolver, dfa, per_state):
     for attempt in range(TOP_UP_ROUNDS):
         if not short:
             break
-        for leaf in short:
+        desc = f"Topping up short states (try {attempt + 1}/{TOP_UP_ROUNDS})"
+        for leaf in track(short, desc):
             wanted = per_state - len(held[leaf])
             # Aimed first, and at the last attempt drawn plainly: a state the
             # hypothesis has the wrong shape for is one it cannot aim at.
@@ -270,8 +274,9 @@ def counterexample_driven_synthesis(
     state = _PoolState(baseline)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
-    while True:
-        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+    for index in itertools.count(0):
+        started = time.monotonic()
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
@@ -281,7 +286,10 @@ def counterexample_driven_synthesis(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
-        print(f"Resolved DFA with {dt.num_states} states")
+        print(
+            f"[round {index}] resolved {dt.num_states} states over a family of "
+            f"{len(vs)} suffixes in {time.monotonic() - started:.0f}s"
+        )
         assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -293,9 +301,12 @@ def counterexample_driven_synthesis(
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
-            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            print(
+                f"Reached the target DFA/DT consistency of {acc_threshold}; "
+                "stopping synthesis"
+            )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         _grow_representative_pool(
@@ -306,6 +317,10 @@ def counterexample_driven_synthesis(
             indecisive_fraction=indecisive_fraction,
             min_indecisive=min_indecisive,
             per_state=per_state,
+        )
+        print(
+            f"[round {index}] pool grown to {len(state.accumulated)} boundary "
+            f"strings and {len(state.sampled)} per-state samples"
         )
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)

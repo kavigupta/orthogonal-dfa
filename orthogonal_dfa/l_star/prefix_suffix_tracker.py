@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-import tqdm.auto as tqdm
 
 from .mask_table import MaskTable
+from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
 from .structures import Oracle
@@ -181,12 +181,15 @@ class PrefixSuffixTracker:
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
-        survive screening against ``reference``."""
+        survive screening against ``reference``, returning ``(kept, drawn)``.
+
+        A cohort is screened whole, so the last one can carry ``kept`` past
+        ``amount``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         every = np.ones(self.num_prefixes, dtype=bool)
-        with tqdm.tqdm(total=amount, desc="Completing suffix family", delay=1) as pbar:
+        with counter("Completing suffix family", amount) as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
@@ -201,7 +204,7 @@ class PrefixSuffixTracker:
                     self.table.observed_masks(survivors, every)
                 kept += len(survivors)
                 pbar.update(len(survivors))
-        return kept
+        return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted

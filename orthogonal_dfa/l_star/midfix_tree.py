@@ -232,3 +232,8 @@ def oracle_decider(oracle, base_family: List[bytes], accept: float, reject: floa
         return decide_level([(seq, midfix)])[0]
 
     return decide, decide_level
+
+
+def fmt_seq(seq) -> str:
+    """A midfix/access string as text; the empty string renders as epsilon."""
+    return "".join(str(c) for c in seq) if len(seq) else "\u03b5"

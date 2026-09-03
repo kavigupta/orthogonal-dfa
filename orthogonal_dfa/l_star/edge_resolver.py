@@ -15,6 +15,7 @@ where its successor under the edge's character goes.
 
 from typing import List, Optional, Tuple
 
+from .progress import track
 from .split_evidence import _MEMBER_LIMIT
 
 
@@ -53,6 +54,6 @@ class EdgeResolver:
         open for the export to totalise.
         """
         edges = self.dfa.unresolved_edges()
-        for state, c in edges:
+        for state, c in track(edges, "Closing edges"):
             self.resolve(state, c)
         return sum(1 for state, c in edges if self.dfa.has_edge(state, c))
