@@ -212,7 +212,7 @@ def _grow_representative_pool(
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
-    return len(representative)
+    return int(pst.table.representative.sum())
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
