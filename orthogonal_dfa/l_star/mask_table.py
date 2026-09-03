@@ -38,10 +38,6 @@ class MaskTable:
         self._prefixes = list(prefixes)
         self._prefix_keys = set(self._prefixes)
         self._representative = list(representative)
-        #: The short prefix-closed core -- the access strings -- fixed at
-        #: construction.  Unlike ``representative`` (which a caller may re-scope to
-        #: focus clustering) this never changes, so coverage tests stay stable.
-        self._core = [not r for r in representative]
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -63,13 +59,6 @@ class MaskTable:
         population by default, but a caller may re-scope it (see
         ``set_representative``) to focus the family."""
         return np.array(self._representative, dtype=bool)
-
-    @property
-    def noncore(self) -> np.ndarray:
-        """Boolean mask selecting the non-core (sampled) prefixes -- the stable
-        complement of the short prefix-closed core, unaffected by
-        ``set_representative``."""
-        return np.array([not c for c in self._core], dtype=bool)
 
     def set_representative(self, prefixes: List[bytes]) -> None:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
@@ -108,10 +97,7 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(new_prefixes)
         self._prefix_keys.update(new_prefixes)
-        # Prefixes added after construction (feed / curated sample) are full-length
-        # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
-        self._core.extend([False] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
 

@@ -9,40 +9,6 @@ from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
 from .structures import Oracle
 
-
-def short_prefix_closure(
-    prefixes: List[bytes], max_length: int, max_count: int
-) -> List[bytes]:
-    """The ``max_count`` shortest distinct prefixes (including the empty string)
-    of length at most ``max_length`` of any string in ``prefixes``.
-
-    State discovery represents each state by the prefixes that *end* in it, and
-    denoises by aggregating over that population.  Random length-L probe strings
-    almost never end in a *transient* state (one only reachable near the start of
-    a string) — e.g. the initial state, reachable only by the empty string — so
-    such states get zero rows and are never discovered, capping synthesis below
-    the true state count.  Seeding the prefix set with this short prefix-closed
-    core gives those transient states access strings, using only short prefixes
-    (the membership queries themselves remain ``prefix + suffix``, i.e. full
-    length); the recurrent states are already covered by the probe strings.
-
-    The shortest ``max_count`` are kept: every core prefix is queried against
-    every suffix, so a large core multiplies synthesis cost, while transient
-    states are shallow (reachable in a few steps), so the short prefixes are both
-    the cheap and the useful ones.  Keeping the shortest prefixes preserves the
-    prefix-closure property (all shorter prefixes are retained).
-    """
-    closure = set()
-    for prefix in prefixes:
-        for k in range(min(len(prefix), max_length) + 1):
-            closure.add(prefix[:k])
-    # Sort for a deterministic order: set-iteration order varies with the
-    # CPython version, which would make the prefix list — and the noisy
-    # statistics computed over it — depend on the interpreter.  Order by
-    # (length, contents) so the empty string is first.
-    return sorted(closure, key=lambda p: (len(p), p))[:max_count]
-
-
 #: Below this a signal is not worth sizing a population for.
 MIN_SIGNAL_STRENGTH = 0.001
 
@@ -112,8 +78,6 @@ class PrefixSuffixTracker:
         config: "SearchConfig",
         *,
         num_prefixes: int,
-        prefix_core_length: int = 4,
-        prefix_core_size: int = 32,
     ) -> "PrefixSuffixTracker":
         # A string here is a byte per symbol, so a wider alphabet has nothing to
         # be written down in.  Said once, and before the first draw, rather than
@@ -123,29 +87,12 @@ class PrefixSuffixTracker:
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
         ]
-        # Per-prefix flag: True for "representative" probe prefixes (drawn from
-        # the sampler), False for the short prefix-closed core.  Global
-        # calibration (decision boundary, FNR) is computed over representative
-        # prefixes only, so the statistically-unrepresentative core does not bias
-        # it; state discovery still uses every prefix so transient states split.
-        representative = [True] * len(prefixes)
-        if prefix_core_length > 0 and prefix_core_size > 0:
-            existing = set(prefixes)
-            core = [
-                p
-                for p in short_prefix_closure(
-                    prefixes, prefix_core_length, prefix_core_size
-                )
-                if p not in existing
-            ]
-            prefixes = prefixes + core
-            representative = representative + [False] * len(core)
         return cls(
             sampler=sampler,
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes, representative),
+            table=MaskTable(oracle, prefixes, [True] * len(prefixes)),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
@@ -206,9 +153,8 @@ class PrefixSuffixTracker:
         A special case is that if the family classifies all prefixes as positive or negative,
         then the FNR is 1 rather than 0 (since the prediction is uninformative).
 
-        Computed over the representative prefixes only: the short prefix-closed
-        core exists to give transient states discovery rows, not to recalibrate
-        the family against an unrepresentative population.
+        Computed over the representative prefixes only, which a caller may
+        re-scope to focus the family.
         """
         return self.fnr_from_decision(
             self.compute_decision(vs, self.table.representative)
@@ -261,11 +207,3 @@ class PrefixSuffixTracker:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
         to ``subset_prefixes``; the table fills any cells not yet observed."""
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
-
-    def compute_decision_from_strings(
-        self, vs: List[bytes], subset_prefixes=None
-    ) -> np.ndarray:
-        if subset_prefixes is None:
-            subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
-        vs_idxs = [self.table.intern_suffix(v) for v in vs]
-        return self.compute_decision(vs_idxs, subset_prefixes)

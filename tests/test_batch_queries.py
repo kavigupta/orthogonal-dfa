@@ -133,11 +133,11 @@ class TestMaskTableBatching(unittest.TestCase):
 
     def test_every_prefix_gates_a_columns_candidacy(self):
         # Regression: scoping "fully observed" to the *representative* rows made a
-        # column a clustering candidate while its core cells -- non-representative,
-        # but still prefixes -- were unobserved.  That silently changed which
-        # suffixes clustering could pick, and with them the whole search path,
-        # surfacing only as a distant end-to-end timeout.
-        oracle, table = self._table()  # prefix 2 is core: non-representative
+        # column a clustering candidate while its non-representative cells -- still
+        # prefixes -- were unobserved.  That silently changed which suffixes
+        # clustering could pick, and with them the whole search path, surfacing
+        # only as a distant end-to-end timeout.
+        oracle, table = self._table()  # prefix 2 is non-representative
         row = table.intern_suffix(bytes([1, 1]))
 
         # Observing just the representative cells leaves a prefix unobserved, so

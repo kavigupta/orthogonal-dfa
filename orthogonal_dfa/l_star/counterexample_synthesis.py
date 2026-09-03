@@ -27,7 +27,6 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
-from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
 
@@ -89,19 +88,6 @@ def _default_patience(acc_threshold: float) -> int:
     if acc_threshold >= 1:
         return COUNTEREXAMPLE_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
-
-
-def classify_pool(pst, tree, *, accept, reject):
-    """
-    Classify every prefix in the pool to its leaf (or -1 if undecided), from
-    the cached mask matrix. Uses accept and reject thresholds.
-    """
-
-    def decide_columns(midfix):
-        decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
-        return decision >= accept, decision < reject
-
-    return tree.classify_pool(pst.num_prefixes, decide_columns)
 
 
 def _take_indecisive(resolver, target):
@@ -224,54 +210,6 @@ def _grow_representative_pool(
     pst.table.set_representative(representative)
 
 
-def uncoverable_access_strings(pst, tree):
-    """Access strings the hypothesis cannot resolve and can never be covered.
-
-    The short prefix-closed core is the set of access strings, it reaches
-    every state, including transient ones that a fixed-length prefix sampler
-    never lands on.
-
-    We can use this to detect when the underlying DFA is not learnable in
-    our model. Specifically, when a state in the access strings is not also
-    reached by any representative (longer) prefix. This prevents us from
-    averaging across multiple prefixes to get a representative set for this state
-    implying that the state is only reached by a small number of strings
-    overall.
-    """
-    prefixes = list(pst.table.prefixes)
-    # Coverage is measured against the stable non-core (sampled) prefixes, not the
-    # representative set, the driver re-scopes representative to focus clustering,
-    # which must not narrow what counts as "covered".
-    sampled = pst.table.noncore
-    fam = pst.table.fully_observed()
-    if len(fam) == 0 or not sampled.any():
-        return []
-
-    eta = 0.5 - pst.config.min_signal_strength
-    # Two prefixes at the same state agree on every suffix up to independent
-    # per-cell noise, so their expected mask-disagreement rate is 2*eta*(1-eta).
-    same_state_rate = 2 * eta * (1 - eta)
-    n = len(fam)
-
-    repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
-    leaves = classify_pool(
-        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
-    )
-    potentially_problematic = np.flatnonzero(
-        (~sampled) & (leaves == -1)
-    )  # only unclassifiable core prefixes
-    flagged = []
-    for i in potentially_problematic:
-        col = np.zeros(len(prefixes), dtype=bool)
-        col[i] = True
-        mask_i = pst.table.observed_masks(fam, col).T[0]
-        # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
-        nearest = int((repr_masks != mask_i).sum(1).min())
-        if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
-            flagged.append((prefixes[i], nearest / n))
-    return flagged
-
-
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
@@ -358,19 +296,6 @@ def counterexample_driven_synthesis(
         print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        uncoverable = uncoverable_access_strings(pst, dt)
-        if uncoverable:
-            examples = ", ".join(
-                "".join(map(str, p)) or "eps" for p, _ in uncoverable[:5]
-            )
-            print(
-                f"Stopping synthesis: {len(uncoverable)} access string(s) reach "
-                f"states no sampled prefix can cover at length "
-                f"{pst.sampler.length} (e.g. {examples}); the target is not "
-                f"learnable with this prefix sampler."
-            )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         _grow_representative_pool(
