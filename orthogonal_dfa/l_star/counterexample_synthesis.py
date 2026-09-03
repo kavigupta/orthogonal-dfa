@@ -274,12 +274,12 @@ def counterexample_driven_synthesis(
     state = _PoolState(baseline)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
-    for index in itertools.count(0):
-        started = time.monotonic()
+    for index in itertools.count():
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
+        started = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
@@ -304,8 +304,8 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
             print(
-                f"Reached the target DFA/DT consistency of {acc_threshold}; "
-                "stopping synthesis"
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold}; stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
@@ -330,8 +330,9 @@ def counterexample_driven_synthesis(
             boundary_strings=len(state.accumulated),
         ):
             print(
-                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
-                "-- pool churning without resolving; stopping synthesis"
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return

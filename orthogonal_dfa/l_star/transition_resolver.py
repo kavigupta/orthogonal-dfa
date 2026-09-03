@@ -125,7 +125,8 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
-        with counter("Probing for counterexamples", max_probes) as pbar:
+        # Undelayed because each split writes a line under it; see progress.write.
+        with counter(max_probes, "Probing for counterexamples", delay=0) as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
                 if status == _SPLIT:

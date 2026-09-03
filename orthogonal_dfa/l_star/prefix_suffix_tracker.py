@@ -189,7 +189,7 @@ class PrefixSuffixTracker:
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         every = np.ones(self.num_prefixes, dtype=bool)
-        with counter("Completing suffix family", amount) as pbar:
+        with counter(amount, "Completing suffix family") as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)

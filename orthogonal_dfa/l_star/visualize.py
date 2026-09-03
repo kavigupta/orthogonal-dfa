@@ -44,11 +44,6 @@ _INK = "#1a1a1a"
 _MUTED = "#6d6d68"
 
 
-def _fmt(seq) -> str:
-    """A midfix/access string as text; the empty string renders as epsilon."""
-    return "".join(str(c) for c in seq) if len(seq) else "ε"
-
-
 def _class_colors(classes) -> Dict[int, str]:
     return {
         c: (_PALETTE[i] if i < len(_PALETTE) else _OTHER)

@@ -1,8 +1,4 @@
-"""Progress bars for the phases of a synthesis round.
-
-Transient and delayed: the round prints its own summary lines, and a phase that
-finishes quickly should not flash a bar at all.
-"""
+"""Transient, delayed progress bars for the phases of a synthesis round."""
 
 import tqdm.auto as tqdm
 
@@ -10,8 +6,8 @@ import tqdm.auto as tqdm
 DELAY = 5
 
 
-def counter(desc, total):
-    return tqdm.tqdm(total=total, desc=desc, leave=False, delay=DELAY)
+def counter(total, desc, *, delay=DELAY):
+    return tqdm.tqdm(total=total, desc=desc, leave=False, delay=delay)
 
 
 def track(iterable, desc):
@@ -19,5 +15,9 @@ def track(iterable, desc):
 
 
 def write(line):
-    """Print without tearing whatever bar is on screen."""
+    """Print without tearing whatever bar is on screen.
+
+    Only safe under a bar built with ``delay=0``: this redraws every live bar
+    whatever its delay, and one redrawn before its delay elapses is one
+    ``close`` then leaves on screen, still believing it never displayed."""
     tqdm.tqdm.write(line)

@@ -230,7 +230,7 @@ def estimate_agreement_rate(pst, us, oracle, tree, dfa, *, num_samples, acc_thre
     if s0 is None:
         return 0.0  # every sample would fail to classify
     drawn = 0
-    with counter("Estimating DFA/DT consistency", num_samples) as pbar:
+    with counter(num_samples, "Estimating DFA/DT consistency") as pbar:
         while drawn < num_samples:
             size = _batch_before_possible_stop(
                 agreements, valid, acc_threshold, min_valid, num_samples - drawn
