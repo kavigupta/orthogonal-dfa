@@ -28,8 +28,7 @@ UNOBSERVED = np.int8(-1)
 
 
 class MaskTable:
-    def __init__(self, oracle, prefixes: List[bytes], representative: List[bool]):
-        assert len(prefixes) == len(representative)
+    def __init__(self, oracle, prefixes: List[bytes]):
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
@@ -37,9 +36,7 @@ class MaskTable:
         self._oracle = self.memo
         self._prefixes = list(prefixes)
         self._prefix_keys = set(self._prefixes)
-        self._populations: Dict[object, set] = {
-            "baseline": {p for p, r in zip(prefixes, representative) if r}
-        }
+        self._populations: Dict[object, set] = {"baseline": set(prefixes)}
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -60,27 +57,23 @@ class MaskTable:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
         some population, which a caller re-scopes by naming new ones (see
         ``set_representative``)."""
-        # Not inlined below: the union per prefix would be quadratic.
         scoped = set().union(*self._populations.values())
         return np.array([p in scoped for p in self._prefixes], dtype=bool)
 
-    def set_representative(self, prefixes: List[bytes], strata=None) -> None:
+    def set_representative(self, prefixes: List[bytes], strata) -> None:
         """Make *exactly* ``prefixes`` the representative set, every other prefix
         becoming non-representative.
 
-        ``strata`` names the population each entry of ``prefixes`` was drawn for.
-        A prefix listed under several joins all of them: being a uniform draw
-        does not stop it also being what is known about a state.  Left off, the
-        whole set is the one population, which is what a caller that does not
-        distinguish them is saying."""
-        if strata is None:
-            self._populations = {"baseline": set(prefixes)}
-        else:
-            assert len(strata) == len(prefixes), (len(strata), len(prefixes))
-            populations: Dict[object, set] = {}
-            for prefix, label in zip(prefixes, strata):
-                populations.setdefault(label, set()).add(prefix)
-            self._populations = populations
+        ``strata`` names the population each entry of ``prefixes`` was drawn
+        for, and is required because there is no population a prefix belongs to
+        by default -- a caller knows why it drew each one.  A prefix listed
+        under several joins all of them: being a uniform draw does not stop it
+        also being what is known about a state."""
+        assert len(strata) == len(prefixes), (len(strata), len(prefixes))
+        populations: Dict[object, set] = {}
+        for prefix, label in zip(prefixes, strata):
+            populations.setdefault(label, set()).add(prefix)
+        self._populations = populations
 
     def strata_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.

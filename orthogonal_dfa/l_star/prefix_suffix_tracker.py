@@ -92,7 +92,7 @@ class PrefixSuffixTracker:
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes, [True] * len(prefixes)),
+            table=MaskTable(oracle, prefixes),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:

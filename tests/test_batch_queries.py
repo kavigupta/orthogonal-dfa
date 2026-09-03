@@ -77,9 +77,11 @@ class TestMaskTableBatching(unittest.TestCase):
     # pylint: disable=protected-access
     def _table(self):
         oracle = HashOracle()
-        table = MaskTable(
-            oracle, [bytes([0]), bytes([1]), bytes([0, 1])], [True, True, False]
-        )
+        prefixes = [bytes([0]), bytes([1]), bytes([0, 1])]
+        table = MaskTable(oracle, prefixes)
+        # Narrowed after construction, which is the only way to scope: prefix 2
+        # is in the table and in no population.
+        table.set_representative(prefixes[:2], ["baseline"] * 2)
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):

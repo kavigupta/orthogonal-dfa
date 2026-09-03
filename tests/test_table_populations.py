@@ -14,7 +14,7 @@ _NO_ORACLE = None
 
 
 def _table(prefixes):
-    return MaskTable(_NO_ORACLE, prefixes, [True] * len(prefixes))
+    return MaskTable(_NO_ORACLE, prefixes)
 
 
 def _words(n, offset=0):
@@ -27,10 +27,10 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(list(table.strata_masks()), ["baseline"])
         self.assertEqual(int(table.strata_masks()["baseline"].sum()), 6)
 
-    def test_naming_no_strata_makes_the_whole_set_one_population(self):
+    def test_one_population_named_for_every_prefix_is_the_simple_case(self):
         words = _words(6)
         table = _table(words)
-        table.set_representative(words[:4])
+        table.set_representative(words[:4], ["baseline"] * 4)
 
         masks = table.strata_masks()
         self.assertEqual(list(masks), ["baseline"])

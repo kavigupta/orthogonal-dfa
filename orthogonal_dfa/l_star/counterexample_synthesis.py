@@ -203,11 +203,18 @@ def _grow_representative_pool(
             state.accumulated.append(t)
     by_state = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
-    representative = state.baseline + state.accumulated + state.sampled
+    representative, strata = [], []
+    for label, prefixes in (
+        ("baseline", state.baseline),
+        ("boundary", state.accumulated),
+        ("state", state.sampled),
+    ):
+        representative.extend(prefixes)
+        strata.extend([label] * len(prefixes))
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative)
+    pst.table.set_representative(representative, strata)
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
