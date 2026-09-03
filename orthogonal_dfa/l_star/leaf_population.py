@@ -60,7 +60,7 @@ class LeafPopulation:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
         needed and stopping as soon as ``count`` are in hand."""
         self._fill(at, count)
-        return self._resting(at, count)
+        return self._held(at, count)
 
     def representative(self, at: Path, count: int) -> Optional[bytes]:
         """The canonical member already resting at leaf ``at`` -- the shortest,
@@ -70,10 +70,10 @@ class LeafPopulation:
         Reads rather than descends: descending harvests, and a render must not
         decide what the next round samples.
         """
-        resting = self._resting(at, count)
+        resting = self._held(at, count)
         return min(resting, key=lambda m: (len(m), m)) if resting else None
 
-    def _resting(self, at: Path, count: int) -> List[bytes]:
+    def _held(self, at: Path, count: int) -> List[bytes]:
         return list(islice(self._at.get(at, ()), count))
 
     def _resting_at(self, string) -> Optional[Path]:
