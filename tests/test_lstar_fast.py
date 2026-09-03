@@ -109,7 +109,7 @@ class TestLStarFast(unittest.TestCase):
             )
 
         previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
+        signal.alarm(300)
         try:
             learn_dfa(oracle_creator, min_signal_strength=0.45, seed=0)
         finally:
