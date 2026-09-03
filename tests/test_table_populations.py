@@ -76,12 +76,21 @@ class TestPopulations(unittest.TestCase):
         table.set_populations({"uniform": words[:2]})
         self.assertEqual(int(table.representative.sum()), 2)
 
-    def test_a_population_of_prefixes_the_table_lacks_is_not_reported(self):
+    def test_naming_a_prefix_the_table_lacks_is_an_error(self):
         words = _words(4)
         table = _table(words)
-        # The state label names a prefix nobody added, so there is no column to
-        # read a rate over and nothing to report.
-        table.set_populations({"uniform": words[:2], ("state", 0): _words(1, offset=9)})
+        # Quietly dropping it would scope the table to less than the caller
+        # asked for, and report a rate over the remainder as if it were the
+        # population.
+        with self.assertRaises(AssertionError):
+            table.set_populations(
+                {"uniform": words[:2], ("state", 0): _words(1, offset=9)}
+            )
+
+    def test_an_empty_population_is_not_reported(self):
+        words = _words(4)
+        table = _table(words)
+        table.set_populations({"uniform": words[:2], ("state", 0): []})
 
         self.assertEqual(list(table.population_masks()), ["uniform"])
 

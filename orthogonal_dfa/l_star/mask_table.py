@@ -35,8 +35,12 @@ class MaskTable:
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
         self._prefixes = list(prefixes)
-        self._prefix_keys = set(self._prefixes)
-        self._populations: Dict[object, set] = {"uniform": set(prefixes)}
+        self._prefix_index: Dict[bytes, int] = {
+            p: i for i, p in enumerate(self._prefixes)
+        }
+        self._populations: Dict[object, set] = {
+            "uniform": set(self._prefix_index.values())
+        }
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -57,34 +61,49 @@ class MaskTable:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
         some population, which a caller re-scopes by naming new ones (see
         ``set_populations``)."""
-        scoped = set().union(*self._populations.values())
-        return np.array([p in scoped for p in self._prefixes], dtype=bool)
+        mask = np.zeros(len(self._prefixes), dtype=bool)
+        for columns in self._populations.values():
+            mask[list(columns)] = True
+        return mask
 
     def set_populations(self, populations: Dict[object, Iterable[bytes]]) -> None:
         """Scope the table to these populations, keyed by why their prefixes were
         drawn.  Every other prefix becomes non-representative.
 
         A prefix under several labels joins all of them: being a uniform draw
-        does not stop it also being what is known about a state."""
+        does not stop it also being what is known about a state.
+
+        Every prefix named must be one the table holds: a population it cannot
+        read is not one it can report a rate over."""
         self._populations = {
-            label: set(prefixes) for label, prefixes in populations.items()
+            label: {self._column_of(p) for p in prefixes}
+            for label, prefixes in populations.items()
         }
+
+    def _column_of(self, prefix: bytes) -> int:
+        column = self._prefix_index.get(prefix)
+        assert (
+            column is not None
+        ), f"population names a prefix not in the table: {prefix!r}"
+        return column
 
     def population_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
 
         Masks overlap where populations do, so a prefix can be evidence in more
         than one and the rates are read over all of each."""
-        prefixes = [p for p, r in zip(self._prefixes, self.representative) if r]
+        scoped = np.flatnonzero(self.representative)
+        where = {column: i for i, column in enumerate(scoped)}
         out = {}
-        for label, members in self._populations.items():
-            mask = np.array([p in members for p in prefixes], dtype=bool)
+        for label, columns in self._populations.items():
+            mask = np.zeros(len(scoped), dtype=bool)
+            mask[[where[c] for c in columns]] = True
             if mask.any():
                 out[label] = mask
         return out
 
     def contains_prefix(self, prefix: bytes) -> bool:
-        return prefix in self._prefix_keys
+        return prefix in self._prefix_index
 
     def add_prefixes(self, new_prefixes: List[bytes]) -> None:
         assert new_prefixes, "No new prefixes to add"
@@ -112,9 +131,10 @@ class MaskTable:
             np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
         ]
         self._masks = updated
+        fresh = range(len(self._prefixes), len(self._prefixes) + len(new_prefixes))
         self._prefixes.extend(new_prefixes)
-        self._prefix_keys.update(new_prefixes)
-        self._populations.setdefault("uniform", set()).update(new_prefixes)
+        self._prefix_index.update(zip(new_prefixes, fresh))
+        self._populations.setdefault("uniform", set()).update(fresh)
 
     # -- suffix side --------------------------------------------------------
 
