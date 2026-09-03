@@ -36,8 +36,8 @@ class LeafPopulation:
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
-        #: One push is one node's decision, so the unplaced fraction is on the
-        #: same footing as the FNR limit.
+        #: Node decisions, pooled over every depth -- not the root-level
+        #: fraction the FNR gate itself is stated over.
         self.placed = 0
         self.unplaced = 0
 

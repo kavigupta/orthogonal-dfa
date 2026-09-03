@@ -152,8 +152,9 @@ def _aimed_at(dfa, state, count, *, length, weights, rng):
 
 
 def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out.
+    """``state -> members`` up to ``per_state`` of them resting at each state,
+    topped up until they are there or the tries run out, and whether every
+    state got its full complement.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
     settles where it goes.  So candidates are pushed through the population and
@@ -216,10 +217,10 @@ def tree_is_saturated(pst, resolver, every_state_full) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
     A state the round could not fill is one more prefixes would say more about.
-    Past that the yardstick is the FNR limit itself: pushing a string down is
-    one node deciding, which is the rate that limit is stated over, so
-    indecision no higher than it is the residue a working gate leaves rather
-    than a distinction the round missed.
+    Past that we ask whether the nodes left less indecision than a working gate
+    does.  The rate here pools every node at every depth, so it is not the
+    root-level fraction ``fnr_limit`` is checked against in the gate itself;
+    the limit is the closest honest yardstick for it, not the same quantity.
     """
     if not every_state_full:
         return False
@@ -227,13 +228,15 @@ def tree_is_saturated(pst, resolver, every_state_full) -> bool:
     read = population.placed + population.unplaced
     if not read:
         return False
-    # One-sided, and an inconclusive test reads as saturated: only indecision
-    # we can show is *above* the limit is evidence of something left to find.
+    # Saturated only on positive evidence the rate is *below* the limit.  The
+    # other direction -- saturated unless we can prove the rate too high --
+    # stops sooner the less it has seen, which is backwards for a rule whose
+    # job is to decide the round found nothing.
     return (
         binomial_side_of_boundary(
             population.unplaced, read, pst.config.fnr_limit, failure_prob=0.01
         )
-        is not True
+        is False
     )
 
 

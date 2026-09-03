@@ -65,9 +65,8 @@ class TestSaturatedTree(unittest.TestCase):
 
     def test_synthesis_stops_rather_than_resampling_forever(self):
         # Every round meets the FNR gate, resolves the same ten states, and
-        # harvests a fresh tail of boundary strings that resolve nothing.  The
-        # stall detector reads that tail as progress, so this is the only thing
-        # that ends the run.
+        # harvests a fresh tail of boundary strings that resolve nothing.
+        # Counting that tail as progress is what ran this forever.
         oracle_creator = lambda nm, s, _d=_target(): NoisyOracle(DFAOracle(_d), nm, s)
 
         assert_terminates(
