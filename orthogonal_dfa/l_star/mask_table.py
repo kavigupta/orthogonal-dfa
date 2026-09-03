@@ -16,7 +16,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 
@@ -42,6 +42,11 @@ class MaskTable:
         #: construction.  Unlike ``representative`` (which a caller may re-scope to
         #: focus clustering) this never changes, so coverage tests stay stable.
         self._core = [not r for r in representative]
+        #: population label -> its prefixes.  The FNR is stated over each
+        #: separately, so this is what says which prefixes share a rate.  They
+        #: overlap: a string drawn uniformly and then found to reach a state
+        #: belongs to both populations, and is evidence about both.
+        self._populations: Dict[object, set] = {"baseline": set(prefixes)}
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -71,11 +76,36 @@ class MaskTable:
         ``set_representative``."""
         return np.array([not c for c in self._core], dtype=bool)
 
-    def set_representative(self, prefixes: List[bytes]) -> None:
+    def set_representative(self, prefixes: List[bytes], strata=None) -> None:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
-        becomes non-representative), realigning the mask to the current prefixes."""
+        becomes non-representative), realigning the mask to the current prefixes.
+
+        ``strata`` names the population each entry of ``prefixes`` was drawn for,
+        ``None`` for one drawn for no population in particular.  A prefix listed
+        under several joins all of them: being a uniform draw does not stop it
+        also being what is known about a state."""
         keys = set(prefixes)
         self._representative = [p in keys for p in self._prefixes]
+        if strata is not None:
+            assert len(strata) == len(prefixes), (len(strata), len(prefixes))
+            populations: Dict[object, set] = {}
+            for prefix, label in zip(prefixes, strata):
+                if label is not None:
+                    populations.setdefault(label, set()).add(prefix)
+            self._populations = populations
+
+    def strata_masks(self):
+        """``label -> mask`` over the representative prefixes, in table order.
+
+        Masks overlap where populations do, so a prefix can be evidence in more
+        than one and the rates are read over all of each."""
+        prefixes = [p for p, r in zip(self._prefixes, self.representative) if r]
+        out = {}
+        for label, members in self._populations.items():
+            mask = np.array([p in members for p in prefixes], dtype=bool)
+            if mask.any():
+                out[label] = mask
+        return out
 
     def contains_prefix(self, prefix: bytes) -> bool:
         return prefix in self._prefix_keys
@@ -112,6 +142,7 @@ class MaskTable:
         # probe prefixes, so representative and never part of the short core.
         self._representative.extend([True] * len(new_prefixes))
         self._core.extend([False] * len(new_prefixes))
+        self._populations.setdefault("baseline", set()).update(new_prefixes)
 
     # -- suffix side --------------------------------------------------------
 
