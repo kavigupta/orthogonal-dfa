@@ -136,8 +136,7 @@ class TestLeafPopulation(unittest.TestCase):
 
 
 class TestWhatANodeCannotPlace(unittest.TestCase):
-    """Sifting reports a string it cannot place so the next family is made to
-    resolve it.  A string pushed down here fails the same way."""
+    """A string a node cannot place is reported, not dropped."""
 
     def test_an_indecisive_string_is_harvested(self):
         harvested = []
@@ -150,6 +149,23 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
 
         self.assertEqual(pop.members((True,), 10), [])
         # ``string + midfix``; the root's midfix is empty.
+        self.assertEqual(harvested, [bytes([1, 0])])
+
+    def test_representative_does_not_descend_and_so_does_not_harvest(self):
+        # The string is still at the root, and reading a representative must not
+        # push it down: that would classify it, find it indecisive, and harvest.
+        harvested = []
+        pop = _population(
+            lambda strings, midfix: [None] * len(strings),
+            chunk=16,
+            harvest=harvested.append,
+        )
+        pop.add(bytes([1, 0]))
+
+        self.assertIsNone(pop.representative((True,), 10))
+        self.assertEqual(harvested, [])
+        # members() does descend, so the same read through it harvests.
+        self.assertEqual(pop.members((True,), 10), [])
         self.assertEqual(harvested, [bytes([1, 0])])
 
     def test_a_placed_string_is_not_harvested(self):
