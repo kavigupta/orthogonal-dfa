@@ -139,6 +139,8 @@ class Pools:
         #: One per round that produced any: the strings that round could not
         #: place, kept as they were.
         self._boundaries = {}
+        #: Whether the last rebuild's harvest was enough to become a pool.
+        self.sealed_a_pool = False
         self.held = {}
 
     def offer_indecisive(self, string) -> None:
@@ -159,7 +161,7 @@ class Pools:
         # the next family is made to resolve.
         for string in sorted(resolver.indecisive):
             self._harvest.offer(string)
-        self.seal_ready_harvest()
+        self.sealed_a_pool = self.seal_ready_harvest()
 
         self._sources = {"baseline": UniformSource(self._pst)}
         for leaf in range(resolver.num_states):
@@ -174,17 +176,25 @@ class Pools:
                 self.held[label] = got
         self.publish()
 
-    def seal_ready_harvest(self) -> None:
-        """Make a pool of the buffered harvest, once there is enough of it.
+    def seal_ready_harvest(self) -> bool:
+        """Make a pool of the buffered harvest, once there is enough of it, and
+        say whether that happened.
 
         Under ``1 / fnr_limit`` strings the gate could admit the pool only with
         nothing straddling at all, which is a bar no sampling clears and which
         nothing can grow it past -- a sealed pool has no source.  So they keep
         instead, and buffering across rounds is what the harvest is a source for.
         """
-        if limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
-            self._sealed += 1
-            self._boundaries[("boundary", self._sealed)] = self._harvest.take()
+        if not limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
+            return False
+        self._sealed += 1
+        self._boundaries[("boundary", self._sealed)] = self._harvest.take()
+        return True
+
+    @property
+    def pending_harvest(self) -> int:
+        """Unplaceable strings buffered, waiting for enough of them to seal."""
+        return len(self._harvest)
 
     @property
     def sealed_pools(self) -> int:
@@ -387,6 +397,16 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         pools.rebuild(resolver, dfa)
+        if not pools.sealed_a_pool:
+            print(
+                f"WARNING: stopping synthesis at {dt.num_states} states and "
+                f"accuracy {true_acc:.4f} -- the round left only "
+                f"{pools.pending_harvest} strings unplaced, too few to read a "
+                f"rate over, so there is no population left to make the next "
+                f"family resolve."
+            )
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
+            return
         # Handed to the next round's family search, which is the thing that finds
         # out a population needs more prefixes than it holds.
         grow = _PoolAccess(pools)
