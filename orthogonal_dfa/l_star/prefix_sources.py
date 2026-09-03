@@ -124,57 +124,6 @@ class StateSource:
         self._spare.extend(drawn)
 
 
-class IndecisiveSource:
-    """Strings no family could place, buffered until there are enough to read.
-
-    Kept rather than redrawn: they are the by-product of every other source's
-    validation, and a string that straddles is expensive to find on purpose and
-    free to notice in passing.
-
-    The supply is finite and arrives over rounds, so unlike a source that
-    generates on demand this one has something to lose.  A draw it hands out and
-    that is then not used comes back (see ``collect``), or a caller asking for
-    more than the buffer holds would empty it and leave nothing behind.
-    """
-
-    label = "boundary"
-
-    def __init__(self, reservoir=()):
-        self._held = deque(reservoir)
-        self._seen = set(self._held)
-
-    def offer(self, string) -> None:
-        """Buffer ``string``, unless it has been buffered before."""
-        if string not in self._seen:
-            self._seen.add(string)
-            self._held.append(string)
-
-    def draw(self) -> Optional[bytes]:
-        # Oldest first, so a population sealed from a run of draws is the run of
-        # strings some family failed on together.
-        return self._held.popleft() if self._held else None
-
-    def take(self):
-        """Everything buffered, emptied.
-
-        However few, they are a population: each is a string some family already
-        failed on, so a handful that must all come good asks the same of the next
-        family as a hundred that mostly must.  More could be had by drawing and
-        sifting until some come back unplaceable; they are cheap enough to notice
-        in passing that it has not been worth doing.
-        """
-        out, self._held = list(self._held), deque()
-        return out
-
-    def unused(self, drawn) -> None:
-        """Take back draws that did not become a population, oldest first."""
-        for string in reversed(list(drawn)):
-            self._held.appendleft(string)
-
-    def __len__(self) -> int:
-        return len(self._held)
-
-
 def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):
     """``wanted`` prefixes from ``source``, or ``None`` if it could not.
 

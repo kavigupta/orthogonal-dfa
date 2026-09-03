@@ -13,7 +13,6 @@ from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     ATTEMPTS_PER_PREFIX,
     WANTED,
-    IndecisiveSource,
     StateSource,
     collect,
 )
@@ -63,23 +62,6 @@ class TestGivingUpOnASource(unittest.TestCase):
                 return bytes([7])
 
         self.assertIsNone(collect(OneString(), wanted=3, attempts_per=5))
-
-
-class TestTheIndecisiveSource(unittest.TestCase):
-    def test_it_serves_what_it_was_given(self):
-        source = IndecisiveSource([bytes([1]), bytes([2])])
-        self.assertEqual({source.draw(), source.draw()}, {bytes([1]), bytes([2])})
-
-    def test_it_serves_each_string_once(self):
-        source = IndecisiveSource([bytes([1])])
-        self.assertEqual(source.draw(), bytes([1]))
-        self.assertIsNone(source.draw())
-
-    def test_it_takes_what_other_sources_could_not_place(self):
-        source = IndecisiveSource()
-        self.assertIsNone(source.draw())
-        source.offer(bytes([3]))
-        self.assertEqual(source.draw(), bytes([3]))
 
 
 class _Tree:

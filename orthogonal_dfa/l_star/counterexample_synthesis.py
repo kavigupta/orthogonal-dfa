@@ -14,7 +14,7 @@ in the next round.
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -22,14 +22,7 @@ from automata.fa.dfa import DFA
 from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
-from .prefix_sources import (
-    WANTED,
-    IndecisiveSource,
-    StateSource,
-    UniformSource,
-    collect,
-    draw_for_split,
-)
+from .prefix_sources import WANTED, StateSource, UniformSource, collect, draw_for_split
 from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
@@ -134,7 +127,10 @@ class Pools:
         #: Boundary pools sealed so far, which is what names them.
         self._sealed = 0
         #: What this round could not place, offered to the pool it will become.
-        self._harvest = IndecisiveSource()
+        #: This round's unplaceable strings, in the order they arrived, and
+        #: every string any round has already made a pool of.
+        self._harvest: Dict[bytes, None] = {}
+        self._pooled: set = set()
         self._sources = {"baseline": UniformSource(pst)}
         #: One per round that produced any: the strings that round could not
         #: place, kept as they were.
@@ -144,7 +140,10 @@ class Pools:
         self.held = {}
 
     def offer_indecisive(self, string) -> None:
-        self._harvest.offer(string)
+        """Hold ``string`` for the pool this round will make, unless an earlier
+        round already made one of it."""
+        if string not in self._pooled:
+            self._harvest[string] = None
 
     def rebuild(self, resolver, dfa) -> None:
         """Take the sources this round defines, and fill what they can fill.
@@ -160,40 +159,47 @@ class Pools:
         # process, and which of these reach a boundary population decides what
         # the next family is made to resolve.
         for string in sorted(resolver.indecisive):
-            self._harvest.offer(string)
-        self.sealed_a_pool = self.seal_ready_harvest()
+            self.offer_indecisive(string)
 
         self._sources = {"baseline": UniformSource(self._pst)}
         for leaf in range(resolver.num_states):
             source = StateSource(
-                self._pst, resolver, dfa, leaf, sink=self._harvest.offer
+                self._pst, resolver, dfa, leaf, sink=self.offer_indecisive
             )
             self._sources[source.label] = source
-        self.held = dict(self._boundaries)
+        collected = {}
         for label, source in self._sources.items():
             got = collect(source)
             if got is not None:
-                self.held[label] = got
+                collected[label] = got
+
+        # Sealed after the sources have run: validating an aimed draw is one of
+        # the places a string turns out to be unplaceable, so those belong to
+        # this round's pool rather than to the next one's.
+        self.sealed_a_pool = self.seal_ready_harvest()
+        self.held = dict(self._boundaries)
+        self.held.update(collected)
         self.publish()
 
     def seal_ready_harvest(self) -> bool:
-        """Make a pool of the buffered harvest, once there is enough of it, and
-        say whether that happened.
+        """Make a pool of the harvest, saying whether there was enough to.
 
-        Under ``1 / fnr_limit`` strings the gate could admit the pool only with
-        nothing straddling at all, which is a bar no sampling clears and which
-        nothing can grow it past -- a sealed pool has no source.  So they keep
-        instead, and buffering across rounds is what the harvest is a source for.
+        Under ``1 / fnr_limit`` strings a pool could be admitted only with
+        nothing straddling at all -- a bar no sampling clears, and one nothing
+        can raise it past, a sealed pool having no source.  Too few is the
+        caller's signal to stop rather than to seal one.
         """
         if not limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
             return False
         self._sealed += 1
-        self._boundaries[("boundary", self._sealed)] = self._harvest.take()
+        self._boundaries[("boundary", self._sealed)] = list(self._harvest)
+        self._pooled.update(self._harvest)
+        self._harvest = {}
         return True
 
     @property
     def pending_harvest(self) -> int:
-        """Unplaceable strings buffered, waiting for enough of them to seal."""
+        """Unplaceable strings offered since the last seal."""
         return len(self._harvest)
 
     @property
