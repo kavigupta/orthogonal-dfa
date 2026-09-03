@@ -113,7 +113,7 @@ class PrefixSuffixTracker:
         *,
         num_prefixes: int,
         prefix_core_length: int = 4,
-        prefix_core_size: int = 32,
+        prefix_core_size: int = 0,
     ) -> "PrefixSuffixTracker":
         # A string here is a byte per symbol, so a wider alphabet has nothing to
         # be written down in.  Said once, and before the first draw, rather than
