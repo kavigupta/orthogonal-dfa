@@ -70,7 +70,7 @@ class MaskTable:
             label: set(prefixes) for label, prefixes in populations.items()
         }
 
-    def strata_masks(self):
+    def population_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
 
         Masks overlap where populations do, so a prefix can be evidence in more
