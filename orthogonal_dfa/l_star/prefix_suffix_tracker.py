@@ -87,15 +87,12 @@ class PrefixSuffixTracker:
             sampler.sample(rng, alphabet_size=oracle.alphabet_size)
             for _ in range(num_prefixes)
         ]
-        # Every prefix comes from the sampler, so every one is representative:
-        # calibration reads the distribution it will be asked about.
-        representative = [True] * len(prefixes)
         return cls(
             sampler=sampler,
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes, representative),
+            table=MaskTable(oracle, prefixes, [True] * len(prefixes)),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
