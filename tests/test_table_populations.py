@@ -64,12 +64,28 @@ class TestPopulations(unittest.TestCase):
         # Which is more than the table holds, because five are in both.
         self.assertEqual(table.num_prefixes, 8)
 
-    def test_a_prefix_drawn_for_no_population_joins_none(self):
-        words = _words(4)
-        table = _table(words)
-        table.set_representative(words, ["baseline", None, "baseline", None])
+    def test_the_representative_set_is_the_union_of_the_populations(self):
+        # There is one record of what the table is scoped to, so the two cannot
+        # disagree: a prefix is representative exactly when some population
+        # holds it.
+        baseline, state = _words(4), _words(3, offset=4)
+        table = _table(baseline + state + _words(2, offset=7))
+        table.set_representative(
+            baseline + state, ["baseline"] * 4 + [("state", 1)] * 3
+        )
 
-        self.assertEqual(int(table.strata_masks()["baseline"].sum()), 2)
+        self.assertEqual(int(table.representative.sum()), 7)
+        masks = table.strata_masks()
+        union = masks["baseline"] | masks[("state", 1)]
+        self.assertEqual(int(union.sum()), int(table.representative.sum()))
+
+    def test_re_scoping_narrows_the_representative_set(self):
+        words = _words(6)
+        table = _table(words)
+        self.assertEqual(int(table.representative.sum()), 6)
+
+        table.set_representative(words[:2], ["baseline"] * 2)
+        self.assertEqual(int(table.representative.sum()), 2)
 
     def test_an_empty_population_is_not_reported(self):
         words = _words(4)

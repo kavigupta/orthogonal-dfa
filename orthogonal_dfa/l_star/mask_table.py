@@ -37,12 +37,15 @@ class MaskTable:
         self._oracle = self.memo
         self._prefixes = list(prefixes)
         self._prefix_keys = set(self._prefixes)
-        self._representative = list(representative)
-        #: population label -> its prefixes.  The FNR is stated over each
-        #: separately, so this is what says which prefixes share a rate.  They
-        #: overlap: a string drawn uniformly and then found to reach a state
-        #: belongs to both populations, and is evidence about both.
-        self._populations: Dict[object, set] = {"baseline": set(prefixes)}
+        #: population label -> its prefixes, and the only record of which
+        #: prefixes the table is scoped to: ``representative`` is their union.
+        #: They overlap -- a string drawn uniformly and then found to reach a
+        #: state is evidence about both populations, and joins both.
+        self._populations: Dict[object, set] = {
+            "baseline": {p for p, r in zip(prefixes, representative) if r}
+        }
+        self._representative: List[bool] = []
+        self._scope_to_populations()
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -60,28 +63,36 @@ class MaskTable:
 
     @property
     def representative(self) -> np.ndarray:
-        """Boolean mask selecting the prefixes clustering reads -- the sampled
-        population by default, but a caller may re-scope it (see
-        ``set_representative``) to focus the family."""
+        """Boolean mask selecting the prefixes clustering reads: every prefix in
+        some population, which a caller re-scopes by naming new ones (see
+        ``set_representative``)."""
         return np.array(self._representative, dtype=bool)
 
     def set_representative(self, prefixes: List[bytes], strata=None) -> None:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
         becomes non-representative), realigning the mask to the current prefixes.
 
-        ``strata`` names the population each entry of ``prefixes`` was drawn for,
-        ``None`` for one drawn for no population in particular.  A prefix listed
-        under several joins all of them: being a uniform draw does not stop it
-        also being what is known about a state."""
-        keys = set(prefixes)
-        self._representative = [p in keys for p in self._prefixes]
-        if strata is not None:
+        ``strata`` names the population each entry of ``prefixes`` was drawn for.
+        A prefix listed under several joins all of them: being a uniform draw
+        does not stop it also being what is known about a state.  Left off, the
+        whole set is the one population, which is what a caller that does not
+        distinguish them is saying."""
+        if strata is None:
+            self._populations = {"baseline": set(prefixes)}
+        else:
             assert len(strata) == len(prefixes), (len(strata), len(prefixes))
             populations: Dict[object, set] = {}
             for prefix, label in zip(prefixes, strata):
-                if label is not None:
-                    populations.setdefault(label, set()).add(prefix)
+                populations.setdefault(label, set()).add(prefix)
             self._populations = populations
+        self._scope_to_populations()
+
+    def _scope_to_populations(self) -> None:
+        """Re-derive the representative mask from the populations."""
+        scoped = (
+            set().union(*self._populations.values()) if self._populations else set()
+        )
+        self._representative = [p in scoped for p in self._prefixes]
 
     def strata_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
@@ -127,8 +138,8 @@ class MaskTable:
         self._masks = updated
         self._prefixes.extend(new_prefixes)
         self._prefix_keys.update(new_prefixes)
-        self._representative.extend([True] * len(new_prefixes))
         self._populations.setdefault("baseline", set()).update(new_prefixes)
+        self._scope_to_populations()
 
     # -- suffix side --------------------------------------------------------
 
