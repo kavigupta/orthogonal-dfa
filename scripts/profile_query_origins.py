@@ -93,13 +93,11 @@ SUFFIX_TRIGGERS = [
     "compute_fnr",
     "_resolve",
     "_split",
-    "classify_pool",
     "_sample_suffix",
     "sample_more_suffixes",
     "sample_suffix_family",
     "build",
     "discover_states",
-    "compute_decision_from_strings",
     "compute_decision",
 ]
 
