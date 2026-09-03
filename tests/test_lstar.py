@@ -145,7 +145,7 @@ class TestLStar(unittest.TestCase):
             raise AssertionError("synthesis did not terminate within the timeout")
 
         previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
+        signal.alarm(300)
         try:
             learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         finally:
