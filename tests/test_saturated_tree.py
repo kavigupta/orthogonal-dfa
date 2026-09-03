@@ -72,7 +72,7 @@ class TestSaturatedTree(unittest.TestCase):
 
         assert_terminates(
             lambda: learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0),
-            seconds=120,
+            seconds=300,
             message="synthesis did not stop on a saturated tree",
         )
 

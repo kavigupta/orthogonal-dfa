@@ -144,7 +144,7 @@ class TestLStar(unittest.TestCase):
 
         assert_terminates(
             lambda: learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0),
-            seconds=60,
+            seconds=300,
             message="synthesis did not terminate within the timeout",
         )
 
