@@ -22,14 +22,10 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
+from .prefix_sources import StateSource, collect
 from .progress import track
 from .transition_resolver import TransitionResolver
 
@@ -119,77 +115,25 @@ class _PoolState:
         self.sampled = []
 
 
-#: Rounds of topping a short state up before it is left short.  Each one draws
-#: and sifts, so this is the give-up: a state the tree will not place strings at
-#: does not get an unbounded number of tries.
-TOP_UP_ROUNDS = 3
+def _per_state_members(pst, resolver, dfa, per_state):
+    """``state -> members`` up to ``per_state`` of them resting at each state,
+    and whether every state had that many to give.
 
-
-def _short_states(resolver, per_state):
-    """``state -> members`` for every state, and which of them are still short.
-
-    The members are whatever the population has already placed at that state's
-    leaf, which is the only evidence that a string reaches it: the hypothesis
-    says where a string *should* land, the tree says where it does.
+    Aiming a string at a state is a guess the hypothesis makes; the tree is what
+    settles where it goes.  So a state that comes up short is one the round
+    cannot reach rather than one the sampler was unlucky about.
     """
-    held = {}
-    for leaf in range(resolver.num_states):
+    held, full = {}, True
+    for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         path = resolver.tree.path_of(leaf)
         if path is None:
             continue
-        held[leaf] = resolver.population.members(path, per_state)
-    return held, [s for s, m in held.items() if len(m) < per_state]
-
-
-def _aimed_at(dfa, state, count, *, length, weights, rng):
-    """``count`` strings the hypothesis says reach ``state``; empty where it says
-    none do at this length."""
-    counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
-    if counts[length][dfa.initial_state] == 0:
-        return []
-    mass = count_paths_to_state(dfa, state, length, weights)
-    drawn = (
-        sample_string_reaching_state(dfa, mass, rng, weights) for _ in range(count)
-    )
-    return [d for d in drawn if d is not None]
-
-
-def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members`` up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out, and whether every
-    state got its full complement.
-
-    Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  So candidates are pushed through the population and
-    counted where they land, which is also what makes a state that stays short
-    worth knowing about -- it is one the round cannot reach rather than one the
-    sampler was unlucky about.
-    """
-    length = pst.sampler.length
-    weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    held, short = _short_states(resolver, per_state)
-    for attempt in range(TOP_UP_ROUNDS):
-        if not short:
-            break
-        desc = f"Topping up short states (try {attempt + 1}/{TOP_UP_ROUNDS})"
-        for leaf in track(short, desc):
-            wanted = per_state - len(held[leaf])
-            # Aimed first, and at the last attempt drawn plainly: a state the
-            # hypothesis has the wrong shape for is one it cannot aim at.
-            fresh = (
-                _aimed_at(
-                    dfa, leaf, wanted, length=length, weights=weights, rng=pst.rng
-                )
-                if attempt < TOP_UP_ROUNDS - 1
-                else [
-                    pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-                    for _ in range(wanted)
-                ]
-            )
-            for f in fresh:
-                resolver.population.add(f)
-        held, short = _short_states(resolver, per_state)
-    return held, not short
+        drawn = collect(StateSource(pst, resolver, dfa, leaf), wanted=per_state)
+        if drawn is None:
+            full = False
+            drawn = resolver.population.members(path, per_state)
+        held[leaf] = drawn
+    return held, full
 
 
 def _grow_representative_pool(
