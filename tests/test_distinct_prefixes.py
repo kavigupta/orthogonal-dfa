@@ -1,14 +1,10 @@
 """Drawing a pool of distinct prefixes from a sampler that may not have one."""
 
-import math
 import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.prefix_suffix_tracker import (
-    DRAWS_PER_PREFIX,
-    _distinct_prefixes,
-)
+from orthogonal_dfa.l_star.prefix_suffix_tracker import _distinct_prefixes, _draw_budget
 
 
 class _Sampler:
@@ -53,11 +49,22 @@ class TestDistinctPrefixes(unittest.TestCase):
         for seed in range(20):
             self.assertEqual(len(_draw(40, 200, seed=seed)), 200)
 
-    def test_the_budget_dominates_the_barely_enough_case(self):
-        # The multiplier has to beat ln(count): that is the cost per prefix when
-        # the pool nearly exhausts the sampler, which is the worst case that can
-        # still succeed.
-        self.assertGreater(DRAWS_PER_PREFIX, math.log(10**8))
+    def test_the_budget_covers_a_sampler_half_again_the_pool(self):
+        # 300 free strings for a pool of 200 is the tightest shape the budget
+        # promises; nearer exhaustion the last string alone costs a full pass
+        # over the support, which no fixed budget covers.
+        support, held, count = 800, 500, 200
+        rng = np.random.default_rng(0)
+        worst = 0
+        for _ in range(50):
+            taken, draws = set(), 0
+            while len(taken) < count:
+                draws += 1
+                drawn = int(rng.integers(0, support))
+                if drawn >= held:
+                    taken.add(drawn)
+            worst = max(worst, draws)
+        self.assertLess(worst, _draw_budget(count))
 
 
 if __name__ == "__main__":

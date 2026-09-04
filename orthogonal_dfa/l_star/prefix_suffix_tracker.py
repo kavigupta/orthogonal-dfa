@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -35,19 +36,21 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
 
 
-#: Draws allowed per prefix wanted.  Where the support is ample, collecting
-#: ``count`` distinct takes about ``count`` draws.  Where it is barely enough --
-#: the pool nearly exhausting the sampler -- it takes about ``count * ln count``,
-#: so the multiplier has to dominate ``ln count``: 20 does for any pool under
-#: ~5e8, past which the table would not fit in memory.  Drawing until distinct
-#: instead never returns on a sampler that cannot fill the pool at all.
-DRAWS_PER_PREFIX = 20
+def _draw_budget(count: int) -> int:
+    """Draws to allow in collecting ``count`` distinct strings.
+
+    About ``count`` are needed where the sampler has far more strings than the
+    pool wants, and about ``count * ln count`` where it has only half again as
+    many.  Nearer exhaustion than that no fixed budget helps: the last string of
+    a support of ``s`` costs ``s`` draws on its own.
+    """
+    return count * (1 + math.ceil(math.log(count + 1)))
 
 
 def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
     """``count`` prefixes, distinct from each other and from ``held``."""
     drawn = set()
-    for _ in range(count * DRAWS_PER_PREFIX):
+    for _ in range(_draw_budget(count)):
         if len(drawn) == count:
             break
         prefix = sampler.sample(rng, alphabet_size=alphabet_size)
