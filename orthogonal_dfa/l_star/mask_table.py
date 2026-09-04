@@ -22,27 +22,32 @@ import numpy as np
 
 from .memoized_oracle import MemoizedOracle
 
+#: A population nothing retires grows forever, so the writers and the round that
+#: drops them share these rather than agreeing by spelling.
+UNIFORM = "uniform"
+BOUNDARY = "boundary"
+STATE = "state"
+
 # Sentinel for a not-yet-queried cell.  Private to this module: callers ask about
 # observation through ``fully_observed`` / ``observed_masks`` and never see it.
 UNOBSERVED = np.int8(-1)
 
 
 class MaskTable:
-    def __init__(self, oracle, prefixes: List[bytes], representative: List[bool]):
-        assert len(prefixes) == len(representative)
+    def __init__(self, oracle, prefixes: List[bytes], *, population):
+        # A repeat would be a column the index cannot name.
+        assert len(set(prefixes)) == len(prefixes), "Prefixes must be unique"
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
-        self._prefixes = list(prefixes)
-        self._prefix_keys = set(self._prefixes)
-        self._representative = list(representative)
-        #: population label -> its prefixes.  The FNR is stated over each
-        #: separately, so this is what says which prefixes share a rate.  They
-        #: overlap: a string drawn uniformly and then found to reach a state
-        #: belongs to both populations, and is evidence about both.
-        self._populations: Dict[object, set] = {"baseline": set(prefixes)}
+        #: prefix -> its column.  Insertion-ordered and never removed from, so
+        #: the keys are the prefixes in column order.
+        self._prefix_index: Dict[bytes, int] = {p: i for i, p in enumerate(prefixes)}
+        self._populations: Dict[object, set] = {
+            population: set(self._prefix_index.values())
+        }
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
@@ -51,59 +56,60 @@ class MaskTable:
 
     @property
     def num_prefixes(self) -> int:
-        return len(self._prefixes)
+        return len(self._prefix_index)
 
     @property
     def prefixes(self) -> tuple:
-        """The prefixes, for read-only iteration."""
-        return tuple(self._prefixes)
+        """The prefixes, for read-only iteration, in column order."""
+        return tuple(self._prefix_index)
 
     @property
     def representative(self) -> np.ndarray:
-        """Boolean mask selecting the prefixes clustering reads -- the sampled
-        population by default, but a caller may re-scope it (see
-        ``set_representative``) to focus the family."""
-        return np.array(self._representative, dtype=bool)
+        """Boolean mask selecting the prefixes clustering reads: every prefix in
+        some live population."""
+        mask = np.zeros(self.num_prefixes, dtype=bool)
+        for columns in self._populations.values():
+            mask[list(columns)] = True
+        return mask
 
-    def set_representative(self, prefixes: List[bytes], strata=None) -> None:
-        """Make *exactly* ``prefixes`` the representative set (every other prefix
-        becomes non-representative), realigning the mask to the current prefixes.
+    def drop_population(self, label) -> None:
+        """Retire a population.  Its prefixes stay in the table -- they are
+        still columns, and may be in other populations -- but nothing is held to
+        a rate over them any more."""
+        self._populations.pop(label, None)
 
-        ``strata`` names the population each entry of ``prefixes`` was drawn for,
-        ``None`` for one drawn for no population in particular.  A prefix listed
-        under several joins all of them: being a uniform draw does not stop it
-        also being what is known about a state."""
-        keys = set(prefixes)
-        self._representative = [p in keys for p in self._prefixes]
-        if strata is not None:
-            assert len(strata) == len(prefixes), (len(strata), len(prefixes))
-            populations: Dict[object, set] = {}
-            for prefix, label in zip(prefixes, strata):
-                if label is not None:
-                    populations.setdefault(label, set()).add(prefix)
-            self._populations = populations
-
-    def strata_masks(self):
+    def population_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
 
-        Masks overlap where populations do, so a prefix can be evidence in more
-        than one and the rates are read over all of each."""
-        prefixes = [p for p, r in zip(self._prefixes, self.representative) if r]
+        Masks overlap where populations do: a prefix can be in more than one."""
+        scoped = np.flatnonzero(self.representative)
+        where = {column: i for i, column in enumerate(scoped)}
         out = {}
-        for label, members in self._populations.items():
-            mask = np.array([p in members for p in prefixes], dtype=bool)
+        for label, columns in self._populations.items():
+            mask = np.zeros(len(scoped), dtype=bool)
+            mask[[where[c] for c in columns]] = True
             if mask.any():
                 out[label] = mask
         return out
 
     def contains_prefix(self, prefix: bytes) -> bool:
-        return prefix in self._prefix_keys
+        return prefix in self._prefix_index
 
-    def add_prefixes(self, new_prefixes: List[bytes]) -> None:
-        assert new_prefixes, "No new prefixes to add"
-        assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
-            new_prefixes
-        ) == len(set(new_prefixes)), "Prefixes must be unique"
+    def add_prefixes(self, prefixes: List[bytes], *, population) -> None:
+        """Put ``prefixes`` in ``population``, adding any the table lacks.
+
+        A prefix the table already holds joins the population without being
+        added again."""
+        assert prefixes, "No prefixes to add"
+        assert len(prefixes) == len(set(prefixes)), "Prefixes must be unique"
+        new_prefixes = [p for p in prefixes if not self.contains_prefix(p)]
+        if new_prefixes:
+            self._add_columns(new_prefixes)
+        self._populations.setdefault(population, set()).update(
+            self._prefix_index[p] for p in prefixes
+        )
+
+    def _add_columns(self, new_prefixes: List[bytes]) -> None:
         # A column that is already fully observed is a family suffix: keep it
         # fully observed by querying the new prefixes, so it stays a clustering
         # candidate.  A partially-observed column (a transition distinguisher)
@@ -125,10 +131,8 @@ class MaskTable:
             np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
         ]
         self._masks = updated
-        self._prefixes.extend(new_prefixes)
-        self._prefix_keys.update(new_prefixes)
-        self._representative.extend([True] * len(new_prefixes))
-        self._populations.setdefault("baseline", set()).update(new_prefixes)
+        fresh = range(self.num_prefixes, self.num_prefixes + len(new_prefixes))
+        self._prefix_index.update(zip(new_prefixes, fresh))
 
     # -- suffix side --------------------------------------------------------
 
@@ -156,13 +160,14 @@ class MaskTable:
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
         assert len(set(rows)) == len(rows), "rows must be distinct"
+        names = self.prefixes
         idx = np.flatnonzero(prefix_mask)
         strings, targets = [], []
         for r in rows:
             col = self._masks[r]
             suffix = self._suffixes[r]
             for p in idx[col[idx] == UNOBSERVED]:
-                strings.append(self._prefixes[p] + suffix)
+                strings.append(names[p] + suffix)
                 targets.append((r, p))
         if not strings:
             return

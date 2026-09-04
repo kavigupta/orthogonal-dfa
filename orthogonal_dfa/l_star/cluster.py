@@ -29,7 +29,7 @@ def identify_cluster_around(
     # separate -- and the FNR is then read over it population by population.
     # Weighted so each contributes the same however many prefixes it holds.
     weights = np.zeros(masks.shape[1])
-    for population in pst.table.strata_masks().values():
+    for population in pst.table.population_masks().values():
         if population.any():
             weights[population] = 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
@@ -177,7 +177,7 @@ def _split_counts(pst, decision, seed_row, extra=None):
     than failing -- ``drift_verdict`` reads the sides that are there.
     """
     column = pst.table.column(seed_row)[pst.table.representative]
-    populations = pst.table.strata_masks()
+    populations = pst.table.population_masks()
     for label, (extra_decision, extra_column) in (extra or {}).items():
         # Appended to the population they were drawn for, and to no other.
         grown = len(extra_decision)

@@ -128,6 +128,8 @@ class Pools:
         #: Whether the last rebuild's harvest was enough to become a pool.
         self.sealed_a_pool = False
         self.held = {}
+        #: Labels the table holds, so a round can retire what it does not renew.
+        self._published: set = set()
 
     def offer_indecisive(self, string) -> None:
         """Hold ``string`` for the pool this round will make, unless an earlier
@@ -231,24 +233,21 @@ class Pools:
         drawn = collect(source, wanted=wanted)
         if drawn is None:
             self.held.pop(label, None)
-            self.publish()
+            self._pst.table.drop_population(label)
             return False
         self.held[label] = self.held.get(label, []) + drawn
-        self.publish()
+        self._pst.table.add_prefixes(sorted(set(drawn)), population=label)
         return True
 
     def publish(self) -> None:
-        """Install the populations as the representative set."""
-        representative, strata = [], []
+        """Install this round's populations, retiring the ones it replaces."""
+        for label in self._published - self.held.keys():
+            self._pst.table.drop_population(label)
         for label, prefixes in self.held.items():
-            representative.extend(prefixes)
-            strata.extend([label] * len(prefixes))
-        fresh = sorted(
-            {p for p in representative if not self._pst.table.contains_prefix(p)}
-        )
-        if fresh:
-            self._pst.table.add_prefixes(fresh)
-        self._pst.table.set_representative(representative, strata)
+            self._pst.table.drop_population(label)
+            if prefixes:
+                self._pst.table.add_prefixes(sorted(set(prefixes)), population=label)
+        self._published = set(self.held)
 
 
 class _PoolAccess:
