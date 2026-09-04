@@ -1,6 +1,6 @@
 """How much of what a round asked the family, the family could answer."""
 
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 from .statistics import binomial_side_of_boundary
 
@@ -12,22 +12,6 @@ from .statistics import binomial_side_of_boundary
 SETTLED = 0.5
 
 _FAILURE_PROB = 0.01
-
-
-def _smallest_testable() -> int:
-    """Fewest decisions at which a node can come out below `SETTLED` at all."""
-    n = 1
-    while (
-        binomial_side_of_boundary(0, n, SETTLED, failure_prob=_FAILURE_PROB)
-        is not False
-    ):
-        n += 1
-    return n
-
-
-#: Below this a node has no verdict at any count, so testing it alone would keep
-#: the round unsettled for good.
-_TESTABLE = _smallest_testable()
 
 
 class Decisions:
@@ -45,21 +29,13 @@ class Decisions:
         counts = self._at.setdefault(node, [0, 0])
         counts[0 if placed else 1] += 1
 
-    def _buckets(self) -> List[Tuple[int, int]]:
-        """The nodes to judge: those with a verdict, plus the thin ones as one."""
-        buckets, thin = [], [0, 0]
-        for placed, unplaced in self._at.values():
-            if placed + unplaced >= _TESTABLE:
-                buckets.append((placed, unplaced))
-            else:
-                thin[0] += placed
-                thin[1] += unplaced
-        if sum(thin) >= _TESTABLE:
-            buckets.append(tuple(thin))
-        return buckets
-
     def every_node_settled(self) -> bool:
-        """Whether every node is provably below `SETTLED`."""
+        """Whether every node is provably below `SETTLED`.
+
+        Only asked of a round whose every state is full, so a node too thin for
+        the test to resolve cannot arise: filling a state pushes strings through
+        its ancestors.
+        """
         if not self._at:
             return False
         return all(
@@ -67,5 +43,5 @@ class Decisions:
                 unplaced, placed + unplaced, SETTLED, failure_prob=_FAILURE_PROB
             )
             is False
-            for placed, unplaced in self._buckets()
+            for placed, unplaced in self._at.values()
         )
