@@ -28,6 +28,10 @@ def _draw(length, count, *, held=(), seed=0):
 
 
 class TestDistinctPrefixes(unittest.TestCase):
+    """Both the initial pool and every top-up draw through this, so the pool is
+    a set of distinct strings throughout rather than only after the first
+    top-up deduped it."""
+
     def test_it_draws_the_count_asked_for_all_distinct(self):
         drawn = _draw(40, 200)
         self.assertEqual(len(drawn), 200)
