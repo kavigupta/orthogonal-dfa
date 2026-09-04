@@ -100,8 +100,49 @@ the live run amortizes; and (b) it is **ill-posed** — the family is derived fr
 so injecting a foreign family tests a configuration the learner never produces, and its
 result would not explain the real rounds. Kept for the record only.
 
+## ANSWER (seed 2): the undersplit is an incorrect edge resolution
+
+Traced with `missing_split2.py` (path-tracing, fixing the conditional-midfix flaw) and
+`funnel_edge.py` / `funnel_edge2.py` (walk-path + successor-sift on the accept-cycle).
+
+Round 0's automaton around the conflated state s10:
+- `s1` is a correct absorbing REJECT sink (self-loops on every symbol); the tree sifts
+  153/283 of s10's SINK members to it. So the SINK-reject state exists and works.
+- `s4, s10, s13` are ACCEPT states forming a phase-cycle (tracks frame phase mod 3 but
+  carries no f0/f1-closed bits, so structurally cannot tell SINK from live).
+- Edges out of s10: `0->s10 1->s10 2->s10 3->s13 4->s13` — **not one goes to s1**. A SINK
+  string that enters s10 is trapped in the accept-cycle.
+
+The mis-resolved edge, quantified (successors prefix+[c] sifted, `funnel_edge2.out`):
+```
+edge           SINK successors sift ->         live successors sift ->
+s10 --3--> s13  leaf1(REJECT) 43, s13 4         s13 58, leaf1 1
+s10 --4--> s13  leaf1(REJECT) 35, s13 10        s13 63, leaf1 2
+```
+The stop-codon edges out of s10 are resolved over a **heterogeneous** source state: SINK
+successors sift to the reject sink s1, live successors sift to the accept-cycle s13 — the
+two lineages want OPPOSITE targets through the same deterministic edge.
+`EdgeResolver.decisive_target` (`edge_resolver.py:36-39`) returns the **first**
+decisively-sifting member's target; it committed the edge to s13 (live-majority), routing
+the ~78 SINK-lineage strings (that sift to reject s1) into the accept-cycle.
+
+**Causality (correct direction):** the walk conflates SINK into s10 because an edge is
+resolved to the wrong target — arbitrary-first-member resolution over a mixed state, which
+on stop-codon symbols favors the live majority and discards the SINK exit to s1. It is NOT
+a split the counterexample pass forgot (s1 exists); a deterministic edge simply can only
+point one way, and edge resolution pointed it wrong. Round 1 avoids this because its walk
+carries the state distinction (SINK->s9, live->s6), so its stop-codon edges leave from
+pure states where the arbitrary pick is correct.
+
+Root defect exposed: **edge resolution over a heterogeneous state silently commits to one
+arbitrary member's target instead of detecting the conflict / forcing the source split.**
+
+TODO: re-confirm on another seed before treating this as the general mechanism vs a
+seed-2 instance.
+
 ## Logs
 
 `logs/` holds captured run outputs (`plen_s2.out`, `sift_walk_s2.out`, `missing_split.out`,
-etc.). The scratch `scripts/` set is exploratory and larger than the files named above; the
-scripts referenced here are the load-bearing ones.
+`missing_split2.out`, `funnel_edge.out`, `funnel_edge2.out`, etc.). The scratch `scripts/`
+set is exploratory and larger than the files named above; the scripts referenced here are
+the load-bearing ones.

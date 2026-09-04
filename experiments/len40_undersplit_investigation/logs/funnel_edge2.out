@@ -1,0 +1,14 @@
+anchor state s10 (label ACCEPT): 283 SINK + 183 live end here
+cycle labels: s1=r s4=A s10=A s13=A
+DFA edges out of s10: 0->s10 1->s10 2->s10 3->s13 4->s13
+
+sifting 359 successors (prefix+[c]) leaving s10...
+
+ c | DFA edge | SINK successors sift-> | live successors sift->
+ 0 | s10-0->s10 | SINK {} | live {3: 3, 10: 1, -1: 1}
+ 1 | s10-1->s10 | SINK {} | live {10: 5, 0: 2, -1: 3, 3: 1}
+ 2 | s10-2->s10 | SINK {1: 1} | live {14: 1, -1: 1, 10: 6}
+ 3 | s10-3->s13 | SINK {1: 43, -1: 31, 13: 4, 2: 1} | live {0: 3, 13: 58, -1: 20, 5: 1, 1: 1}
+ 4 | s10-4->s13 | SINK {-1: 28, 1: 35, 13: 10} | live {1: 2, 13: 63, 0: 3, -1: 30, 14: 1}
+
+(leaf 1 label: reject; a heterogeneous row -- SINK->1(reject) but live->cycle -- is the mis-resolved edge.)
