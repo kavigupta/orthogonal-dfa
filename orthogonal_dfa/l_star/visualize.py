@@ -24,6 +24,8 @@ import numpy as np
 from matplotlib.patches import Circle, FancyArrowPatch, PathPatch, Wedge
 from matplotlib.path import Path
 
+from .midfix_tree import fmt_seq
+
 # Categorical slots, in the fixed order that clears the CVD gates.  Classes past
 # the eighth fold into OTHER rather than inventing a hue.
 _PALETTE = [
@@ -40,11 +42,6 @@ _OTHER = "#8a8a86"
 _INDECISIVE = "#d9d9d4"  # the family can't place these -- the FN slice
 _INK = "#1a1a1a"
 _MUTED = "#6d6d68"
-
-
-def _fmt(seq) -> str:
-    """A midfix/access string as text; the empty string renders as epsilon."""
-    return "".join(str(c) for c in seq) if len(seq) else "ε"
 
 
 def _class_colors(classes) -> Dict[int, str]:
@@ -297,7 +294,7 @@ def _walk_tree(node, colors, nodes, edges, labels, *, uid=None):
         labels[name] = ("leaf", f"q{node}", colors.get(node, _OTHER))
         return name
     prepend, lookup = node
-    text = _fmt(prepend)
+    text = fmt_seq(prepend)
     nodes[name] = (max(0.52, 0.16 + 0.085 * len(text)), 0.30)
     labels[name] = ("mid", text, None)
     for side in (True, False):
@@ -456,7 +453,7 @@ def _panel_class_dfa(ax, learner, colors, final_states, flipped):
             ax.text(
                 xy[0],
                 xy[1] - r - 0.11,
-                _fmt(access)[:16],
+                fmt_seq(access)[:16],
                 fontsize=5.4,
                 color=_MUTED,
                 ha="center",

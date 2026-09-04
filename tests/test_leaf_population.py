@@ -1,5 +1,6 @@
 import unittest
 
+from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 
 
@@ -23,6 +24,7 @@ def _population(classify, **kwargs):
     fails to; the ones that care pass their own ``harvest``.
     """
     kwargs.setdefault("harvest", lambda _string: None)
+    kwargs.setdefault("decisions", Decisions())
     return LeafPopulation(_StubTree(), classify, **kwargs)
 
 
@@ -176,6 +178,68 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
 
         self.assertEqual(pop.members((True,), 10), [bytes([1, 0])])
         self.assertEqual(harvested, [])
+
+
+class TestSettle(unittest.TestCase):
+    """Pushing one string toward a leaf, rather than filling the leaf."""
+
+    def test_a_string_already_there_settles_without_classifying(self):
+        classify, calls = _classifier()
+        pop = _population(classify, chunk=16)
+        pop.add(bytes([1, 0]), at=(True,))
+
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertEqual(calls["batches"], 0)
+
+    def test_a_string_at_the_root_is_pushed_down_to_it(self):
+        classify, _ = _classifier()
+        pop = _population(classify, chunk=16)
+        pop.add(bytes([1, 0]))
+
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertEqual(pop.resting_at(bytes([1, 0])), (True,))
+
+    def test_a_string_that_lands_elsewhere_says_so(self):
+        classify, _ = _classifier()
+        pop = _population(classify, chunk=16)
+        pop.add(bytes([0, 1]))
+
+        self.assertFalse(pop.settle(bytes([0, 1]), (True,)))
+        # Left at (False,) rather than pushed on to its own leaf: one step was
+        # enough to know it will never reach (True,), and settling is asked
+        # about the target, not about where the string finally belongs.
+        self.assertEqual(pop.resting_at(bytes([0, 1])), (False,))
+
+    def test_it_stops_at_a_node_the_target_does_not_hang_below(self):
+        # Resting at (False, True) with (True,) asked for: pushing further could
+        # not reach it, so the answer is where it already is.
+        classify, calls = _classifier()
+        pop = _population(classify, chunk=16)
+        pop.add(bytes([0, 1]))
+        pop.members((False, True), 10)
+        before = calls["batches"]
+
+        self.assertFalse(pop.settle(bytes([0, 1]), (True,)))
+        self.assertEqual(calls["batches"], before, "no further classification")
+
+    def test_a_string_the_population_does_not_hold_does_not_settle(self):
+        classify, _ = _classifier()
+        pop = _population(classify, chunk=16)
+
+        self.assertFalse(pop.settle(bytes([1, 0]), (True,)))
+
+    def test_a_string_the_node_cannot_place_leaves_and_does_not_settle(self):
+        harvested = []
+        pop = _population(
+            lambda strings, midfix: [None] * len(strings),
+            chunk=16,
+            harvest=harvested.append,
+        )
+        pop.add(bytes([1, 0]))
+
+        self.assertFalse(pop.settle(bytes([1, 0]), (True,)))
+        self.assertIsNone(pop.resting_at(bytes([1, 0])))
+        self.assertEqual(harvested, [bytes([1, 0])])
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import assertDFA, assertDoesNotMeetProperty
+from tests.lstar_common import assert_terminates, assertDFA, assertDoesNotMeetProperty
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
@@ -99,22 +99,11 @@ class TestLStarFast(unittest.TestCase):
         )
         oracle_creator = lambda nm, s, _dfa=dfa: NoisyOracle(DFAOracle(_dfa), nm, s)
 
-        # Imported locally: a module-level `import signal` would shadow the
-        # `signal` (signal-strength) parameter other tests in this file use.
-        import signal
-
-        def _timeout(signum, frame):
-            raise AssertionError(
-                "synthesis did not terminate within the timeout (issue #128)"
-            )
-
-        previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
-        try:
-            learn_dfa(oracle_creator, min_signal_strength=0.45, seed=0)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, previous)
+        assert_terminates(
+            lambda: learn_dfa(oracle_creator, min_signal_strength=0.45, seed=0),
+            seconds=300,
+            message="synthesis did not terminate within the timeout (issue #128)",
+        )
 
 
 class TestLStarAsymmetricFast(unittest.TestCase):

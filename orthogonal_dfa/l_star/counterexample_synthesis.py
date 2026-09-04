@@ -12,7 +12,9 @@ These drive the suffix-family FNR gate to re-cluster and resolve them
 in the next round.
 """
 
+import itertools
 import math
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -27,6 +29,7 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
+from .progress import track
 from .transition_resolver import TransitionResolver
 
 
@@ -151,8 +154,9 @@ def _aimed_at(dfa, state, count, *, length, weights, rng):
 
 
 def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out.
+    """``state -> members`` up to ``per_state`` of them resting at each state,
+    topped up until they are there or the tries run out, and whether every
+    state got its full complement.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
     settles where it goes.  So candidates are pushed through the population and
@@ -166,7 +170,8 @@ def _per_state_members(pst, resolver, dfa, per_state):
     for attempt in range(TOP_UP_ROUNDS):
         if not short:
             break
-        for leaf in short:
+        desc = f"Topping up short states (try {attempt + 1}/{TOP_UP_ROUNDS})"
+        for leaf in track(short, desc):
             wanted = per_state - len(held[leaf])
             # Aimed first, and at the last attempt drawn plainly: a state the
             # hypothesis has the wrong shape for is one it cannot aim at.
@@ -183,7 +188,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
             for f in fresh:
                 resolver.population.add(f)
         held, short = _short_states(resolver, per_state)
-    return held
+    return held, not short
 
 
 def _grow_representative_pool(
@@ -196,12 +201,13 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
+    """Rebuild the pool, returning its size and whether every state filled."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
+    by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     populations = {
         "uniform": state.uniform,
@@ -213,6 +219,18 @@ def _grow_representative_pool(
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_populations(populations)
+    return int(pst.table.representative.sum()), every_state_full
+
+
+def tree_is_saturated(resolver, every_state_full) -> bool:
+    """Whether this round's prefixes had nothing left to say.
+
+    A state the round could not fill is one more prefixes would say more about.
+    Past that every node has to come out settled (see `Decisions`), each on its
+    own evidence, so that one node still straddling its midfix keeps the round
+    open however clean the rest are.
+    """
+    return every_state_full and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -224,7 +242,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No new boundary strings have been harvested
+    3. The tree is saturated (see `tree_is_saturated`)
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -236,17 +254,12 @@ class _StallDetector:
     def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
-        self._boundary_strings = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
-        progressed = (
-            states > self._states
-            or improved
-            or boundary_strings > self._boundary_strings
-        )
+    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
+        progressed = states > self._states or improved or not saturated
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states, self._boundary_strings = states, boundary_strings
+        self._states = states
         return self._stalled >= self._patience
 
 
@@ -275,18 +288,24 @@ def counterexample_driven_synthesis(
     state = _PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
-    while True:
-        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+    for index in itertools.count():
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
+        sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
-        print(f"Resolved DFA with {dt.num_states} states")
+        print(
+            f"[round {index}] resolved {dt.num_states} states over a family of "
+            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
+            f"{time.monotonic() - sampled:.1f}s resolving)"
+        )
         assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -298,12 +317,15 @@ def counterexample_driven_synthesis(
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
-            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            print(
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold:.4f}; stopping synthesis"
+            )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        _grow_representative_pool(
+        pool, every_state_full = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -312,16 +334,21 @@ def counterexample_driven_synthesis(
             min_indecisive=min_indecisive,
             per_state=per_state,
         )
+        print(
+            f"[round {index}] pool now {pool} representative prefixes, "
+            f"{len(state.accumulated)} boundary strings harvested so far"
+        )
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=len(state.accumulated),
+            saturated=tree_is_saturated(resolver, every_state_full),
         ):
             print(
-                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
-                "-- pool churning without resolving; stopping synthesis"
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return

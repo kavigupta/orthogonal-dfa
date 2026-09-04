@@ -17,7 +17,12 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import (
+    assert_terminates,
+    assertDFA,
+    assertion_allowed_error,
+    compute_dfa_accuracy,
+)
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
@@ -137,20 +142,11 @@ class TestLStar(unittest.TestCase):
         # there is nothing correct to check it against.
         oracle_creator = lambda nm, s, _dfa=target: NoisyOracle(DFAOracle(_dfa), nm, s)
 
-        # Imported locally: a module-level `import signal` would shadow the
-        # `signal` (signal-strength) parameter other tests in this file use.
-        import signal
-
-        def _timeout(signum, frame):
-            raise AssertionError("synthesis did not terminate within the timeout")
-
-        previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
-        try:
-            learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, previous)
+        assert_terminates(
+            lambda: learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0),
+            seconds=300,
+            message="synthesis did not terminate within the timeout",
+        )
 
 
 class TestLStarAsymmetric(unittest.TestCase):
