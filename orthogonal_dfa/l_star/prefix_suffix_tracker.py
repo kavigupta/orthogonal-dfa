@@ -92,7 +92,7 @@ class PrefixSuffixTracker:
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes),
+            table=MaskTable(oracle, prefixes, population="uniform"),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
@@ -177,7 +177,7 @@ class PrefixSuffixTracker:
             if prefix in new_prefixes or self.table.contains_prefix(prefix):
                 continue
             new_prefixes.add(prefix)
-        self.table.add_prefixes(sorted(new_prefixes))
+        self.table.add_prefixes(sorted(new_prefixes), population="uniform")
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that

@@ -16,7 +16,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
-from typing import Dict, Iterable, List
+from typing import Dict, List
 
 import numpy as np
 
@@ -28,7 +28,7 @@ UNOBSERVED = np.int8(-1)
 
 
 class MaskTable:
-    def __init__(self, oracle, prefixes: List[bytes]):
+    def __init__(self, oracle, prefixes: List[bytes], *, population):
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
@@ -39,7 +39,7 @@ class MaskTable:
             p: i for i, p in enumerate(self._prefixes)
         }
         self._populations: Dict[object, set] = {
-            "uniform": set(self._prefix_index.values())
+            population: set(self._prefix_index.values())
         }
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
@@ -59,26 +59,20 @@ class MaskTable:
     @property
     def representative(self) -> np.ndarray:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
-        some population, which a caller re-scopes by naming new ones (see
-        ``set_populations``)."""
+        some live population."""
         mask = np.zeros(len(self._prefixes), dtype=bool)
         for columns in self._populations.values():
             mask[list(columns)] = True
         return mask
 
-    def set_populations(self, populations: Dict[object, Iterable[bytes]]) -> None:
-        """Scope the table to these populations, keyed by why their prefixes were
-        drawn.  Every other prefix becomes non-representative.
+    def drop_population(self, label) -> None:
+        """Retire a population.  Its prefixes stay in the table -- they are
+        still columns, and may be in other populations -- but nothing is held to
+        a rate over them any more.
 
-        A prefix under several labels joins all of them: being a uniform draw
-        does not stop it also being what is known about a state.
-
-        Every prefix named must be one the table holds: a population it cannot
-        read is not one it can report a rate over."""
-        self._populations = {
-            label: {self._column_of(p) for p in prefixes}
-            for label, prefixes in populations.items()
-        }
+        Rounds redefine what a state is, so the population that named one has to
+        stop being live when the round that drew it ends."""
+        self._populations.pop(label, None)
 
     def _column_of(self, prefix: bytes) -> int:
         column = self._prefix_index.get(prefix)
@@ -105,11 +99,22 @@ class MaskTable:
     def contains_prefix(self, prefix: bytes) -> bool:
         return prefix in self._prefix_index
 
-    def add_prefixes(self, new_prefixes: List[bytes]) -> None:
-        assert new_prefixes, "No new prefixes to add"
-        assert all(not self.contains_prefix(p) for p in new_prefixes) and len(
-            new_prefixes
-        ) == len(set(new_prefixes)), "Prefixes must be unique"
+    def add_prefixes(self, prefixes: List[bytes], *, population) -> None:
+        """Put ``prefixes`` in ``population``, adding any the table lacks.
+
+        A prefix the table already holds joins the population without being
+        added again: being a uniform draw does not stop it also being what is
+        known about a state."""
+        assert prefixes, "No prefixes to add"
+        assert len(prefixes) == len(set(prefixes)), "Prefixes must be unique"
+        new_prefixes = [p for p in prefixes if not self.contains_prefix(p)]
+        if new_prefixes:
+            self._add_columns(new_prefixes)
+        self._populations.setdefault(population, set()).update(
+            self._prefix_index[p] for p in prefixes
+        )
+
+    def _add_columns(self, new_prefixes: List[bytes]) -> None:
         # A column that is already fully observed is a family suffix: keep it
         # fully observed by querying the new prefixes, so it stays a clustering
         # candidate.  A partially-observed column (a transition distinguisher)
@@ -134,7 +139,6 @@ class MaskTable:
         fresh = range(len(self._prefixes), len(self._prefixes) + len(new_prefixes))
         self._prefixes.extend(new_prefixes)
         self._prefix_index.update(zip(new_prefixes, fresh))
-        self._populations.setdefault("uniform", set()).update(fresh)
 
     # -- suffix side --------------------------------------------------------
 

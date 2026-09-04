@@ -209,16 +209,15 @@ def _grow_representative_pool(
             state.accumulated.append(t)
     by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
-    populations = {
-        "uniform": state.uniform,
-        "boundary": state.accumulated,
-        "state": state.sampled,
-    }
-    scoped = {p for prefixes in populations.values() for p in prefixes}
-    fresh = sorted(p for p in scoped if not pst.table.contains_prefix(p))
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    pst.table.set_populations(populations)
+    # Last round's states are not this round's, the tree having split since.
+    pst.table.drop_population("state")
+    for population, prefixes in (
+        ("uniform", state.uniform),
+        ("boundary", state.accumulated),
+        ("state", state.sampled),
+    ):
+        if prefixes:
+            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
     return int(pst.table.representative.sum()), every_state_full
 
 

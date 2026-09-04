@@ -78,10 +78,11 @@ class TestMaskTableBatching(unittest.TestCase):
     def _table(self):
         oracle = HashOracle()
         prefixes = [bytes([0]), bytes([1]), bytes([0, 1])]
-        table = MaskTable(oracle, prefixes)
-        # Narrowed after construction, which is the only way to scope: prefix 2
-        # is in the table and in no population.
-        table.set_populations({"uniform": prefixes[:2]})
+        table = MaskTable(oracle, prefixes[:2], population="uniform")
+        # Added and then retired: a prefix is named as it enters, so being in
+        # the table and in no population is what outliving a population means.
+        table.add_prefixes(prefixes[2:], population="scratch")
+        table.drop_population("scratch")
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):
@@ -123,7 +124,7 @@ class TestMaskTableBatching(unittest.TestCase):
             "fixture is order-blind",
         )
 
-        table.add_prefixes(new_prefixes)
+        table.add_prefixes(new_prefixes, population="uniform")
         self._assert_cells_correct(oracle, table)
         # The fully-observed columns stay fully observed; the partial one does not
         # acquire cells it was never asked for.
