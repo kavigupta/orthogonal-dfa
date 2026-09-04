@@ -45,6 +45,11 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 #: Probes sifted per batched pass.
 _PROBE_BLOCK = 16
 
+# Env-gated (DIS_LOG) instrumentation: why _act_on_disagreement declines to split.
+import collections as _collections  # noqa: E402
+
+_DIS_COUNTS = _collections.Counter()
+
 
 class TransitionResolver:
     def __init__(self, pst, vs):
@@ -147,6 +152,8 @@ class TransitionResolver:
                 f"{self.tree.num_states} states",
                 flush=True,
             )
+        if __import__("os").environ.get("DIS_LOG"):
+            print(f"  [dis_counts] {dict(_DIS_COUNTS)}", flush=True)
 
     def _total_delta(self):
         """A total transition function to walk.  Edge resolution cannot always
@@ -195,13 +202,20 @@ class TransitionResolver:
     def _act_on_disagreement(self, w, states, agree_point):
         state = states[-1]
         actual = self._sift(w)
-        if actual is None or state is None or actual == state:
+        if actual is None:
+            _DIS_COUNTS["bail_full_sift_indecisive"] += 1
             return _RESOLVED
+        if state is None or actual == state:
+            _DIS_COUNTS["agree_or_no_end"] += 1
+            return _RESOLVED
+        _DIS_COUNTS["disagreement"] += 1
         fd = self._first_bad_edge(w, states, agree_point, len(w))
         if fd is None:
+            _DIS_COUNTS["bail_first_bad_edge_indecisive"] += 1
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
         if s1 is None or s2 is None:
+            _DIS_COUNTS["bail_edge_endpoint_none"] += 1
             return _RESOLVED
         # The walk follows a totalised delta, so the followed edge s1 -(c)-> s2 can
         # be a gap the totaliser self-looped rather than a resolved DFA edge -- then
@@ -209,20 +223,26 @@ class TransitionResolver:
         # re-sifts need not reach s1.  Any of those means the disagreement is not
         # one we can act on.
         if self.dfa.target(s1, c) != s2:
+            _DIS_COUNTS["bail_totaliser_gap"] += 1
             return _RESOLVED
         witness = self.dfa.witness(s1, c)
         if witness is None:
+            _DIS_COUNTS["bail_no_witness"] += 1
             return _RESOLVED
         sprime = w[: fd - 1]
         if self._sift(witness) != s1 or self._sift(sprime) != s1:
+            _DIS_COUNTS["bail_witness_resift_fail"] += 1
             return _RESOLVED
         distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
+            _DIS_COUNTS["bail_no_distinguisher"] += 1
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
         if verdict == SPLIT:
+            _DIS_COUNTS["SPLIT"] += 1
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
+        _DIS_COUNTS["verdict_no_split" if verdict == NO_SPLIT else "verdict_undecided"] += 1
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
     def _first_bad_edge(self, w, states, lo, hi):

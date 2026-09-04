@@ -126,16 +126,48 @@ two lineages want OPPOSITE targets through the same deterministic edge.
 decisively-sifting member's target; it committed the edge to s13 (live-majority), routing
 the ~78 SINK-lineage strings (that sift to reject s1) into the accept-cycle.
 
-**Causality (correct direction):** the walk conflates SINK into s10 because an edge is
-resolved to the wrong target — arbitrary-first-member resolution over a mixed state, which
-on stop-codon symbols favors the live majority and discards the SINK exit to s1. It is NOT
-a split the counterexample pass forgot (s1 exists); a deterministic edge simply can only
-point one way, and edge resolution pointed it wrong. Round 1 avoids this because its walk
-carries the state distinction (SINK->s9, live->s6), so its stop-codon edges leave from
-pure states where the arbitrary pick is correct.
+### The complete mechanism (three layers) -- edge resolution is only the proximate cause
 
-Root defect exposed: **edge resolution over a heterogeneous state silently commits to one
-arbitrary member's target instead of detecting the conflict / forcing the source split.**
+An earlier version of this writeup stopped at "edge resolution commits the wrong target"
+and called that THE defect. That is incomplete: the counterexample pass is DESIGNED to
+split on exactly this walk-vs-sift disagreement and fix a mis-resolved edge. So the real
+question is why the pass declined to. Instrumenting `_act_on_disagreement`'s bail reasons
+(env `DIS_LOG`, added to `transition_resolver.py`) over round 0's real ce_pass answers it
+(`dis_s2.out`, reproduced round 0 = 15 states / 13 splits / 617 probes):
+
+```
+[dis_counts]
+  agree_or_no_end               225   walk agreed with sift (no disagreement)
+  bail_full_sift_indecisive     254   guard 1: full probe sift indecisive -> dropped
+  disagreement                  138   real disagreements detected
+    bail_first_bad_edge_indecisive  122  (88%)  guard 3: sift indecisive during localization
+    SPLIT                            13  ( 9%)
+    verdict_undecided                 2
+    bail_totaliser_gap                1
+  verdict_no_split                0    SplitEvidence rejected ZERO
+```
+
+So the three layers:
+1. **Edge resolution** (proximate): `EdgeResolver.decisive_target` commits s10's stop-codon
+   edges to the accept-cycle by one arbitrary member; by design it NEVER splits.
+2. **The pass detects** the resulting disagreements -- 138 of them, plus 254 more probes it
+   would evaluate. It is built to fix exactly this, and is not blind to it.
+3. **But it cannot act on them**: 88% (122/138) of detected disagreements bail at an
+   INDECISION guard -- `_first_bad_edge` returns None because a sift during the binary-search
+   localization lands in the band -- and 254 more probes bail at guard 1 (full sift
+   indecisive). Only 13 splits fire; SplitEvidence rejects ZERO (`verdict_no_split` = 0). So
+   the suppressor is INDECISION, not the evidence test: localizing/confirming a split needs a
+   decisive sift trajectory, and the SINK/live boundary is exactly where the family sifts
+   indecisively.
+
+**Corrected causality:** the walk mis-commits the edge (layer 1), the pass detects it
+(layer 2), but the indecision-banded split path declines to localize/confirm the split
+(layer 3), so the undersplit survives. This is the "banded indecisive-skip = regularization"
+behavior quantified at the disagreement level -- the very thing PR #262's decisive-DETECTION
+change removes (and thereby over-splits real spliceai; see
+../../MEMORY decisive-detection-oversplits-real-oracle). Round 1 avoids the undersplit
+because its walk carries the state distinction (SINK->s9, live->s6), so its stop-codon edges
+leave states pure enough that the disagreements either don't arise or localize decisively.
 
 TODO: re-confirm on another seed before treating this as the general mechanism vs a
 seed-2 instance.
