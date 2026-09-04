@@ -151,8 +151,9 @@ def _aimed_at(dfa, state, count, *, length, weights, rng):
 
 
 def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out.
+    """``state -> members`` up to ``per_state`` of them resting at each state,
+    topped up until they are there or the tries run out, and whether every
+    state got its full complement.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
     settles where it goes.  So candidates are pushed through the population and
@@ -183,7 +184,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
             for f in fresh:
                 resolver.population.add(f)
         held, short = _short_states(resolver, per_state)
-    return held
+    return held, not short
 
 
 def _grow_representative_pool(
@@ -201,13 +202,25 @@ def _grow_representative_pool(
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
+    by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     representative = state.baseline + state.accumulated + state.sampled
     fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
+    return every_state_full
+
+
+def tree_is_saturated(resolver, every_state_full) -> bool:
+    """Whether this round's prefixes had nothing left to say.
+
+    A state the round could not fill is one more prefixes would say more about.
+    Past that every node has to come out settled (see `Decisions`), each on its
+    own evidence, so that one node still straddling its midfix keeps the round
+    open however clean the rest are.
+    """
+    return every_state_full and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -219,7 +232,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No new boundary strings have been harvested
+    3. The tree is saturated (see `tree_is_saturated`)
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -231,17 +244,12 @@ class _StallDetector:
     def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
-        self._boundary_strings = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
-        progressed = (
-            states > self._states
-            or improved
-            or boundary_strings > self._boundary_strings
-        )
+    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
+        progressed = states > self._states or improved or not saturated
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states, self._boundary_strings = states, boundary_strings
+        self._states = states
         return self._stalled >= self._patience
 
 
@@ -298,7 +306,7 @@ def counterexample_driven_synthesis(
             print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        _grow_representative_pool(
+        every_state_full = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -312,7 +320,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=len(state.accumulated),
+            saturated=tree_is_saturated(resolver, every_state_full),
         ):
             print(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "

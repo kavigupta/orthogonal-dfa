@@ -1,3 +1,5 @@
+import signal
+
 import numpy as np
 import scipy.stats
 
@@ -108,19 +110,19 @@ round_verify_alpha = 1e-4  # binomial significance for flagging a state
 round_check_run_fpr = 0.01
 
 
-def _common_in_prefixes_threshold(signal: float, fpr: float) -> float:
+def _common_in_prefixes_threshold(strength: float, fpr: float) -> float:
     """Prefixes a state needs before it counts as common in prefixes.
 
     A family that labels state q correctly and one that does not differ only on
     the prefixes that *reach* q -- everywhere else both predict the same thing.
-    Each such prefix votes correctly with probability 1/2 + signal, so q's label
+    Each such prefix votes correctly with probability 1/2 + strength, so q's label
     is a binomial vote over m_q of them, and lands the wrong way more often than
     ``fpr`` unless
 
-        m_q >= z^2 (1/4 - signal^2) / signal^2,   z = Phi^-1(1 - fpr)
+        m_q >= z^2 (1/4 - strength^2) / strength^2,   z = Phi^-1(1 - fpr)
     """
     z = scipy.stats.norm.ppf(1 - fpr)
-    return z**2 * (0.25 - signal**2) / signal**2
+    return z**2 * (0.25 - strength**2) / strength**2
 
 
 def _reached_states(prefixes, true_dfa):
@@ -236,3 +238,18 @@ def learn_dfa_verified(oracle_creator, **kwargs):
         classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
     )
     return dfa
+
+
+def assert_terminates(call, *, seconds: int, message: str):
+    """Run ``call``, failing if it has not returned within ``seconds``."""
+
+    def expired(signum, frame):
+        raise AssertionError(message)
+
+    previous = signal.signal(signal.SIGALRM, expired)
+    signal.alarm(seconds)
+    try:
+        return call()
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous)
