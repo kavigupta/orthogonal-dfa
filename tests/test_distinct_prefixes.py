@@ -1,5 +1,6 @@
 """Drawing a pool of distinct prefixes from a sampler that may not have one."""
 
+import math
 import unittest
 
 import numpy as np
@@ -48,11 +49,15 @@ class TestDistinctPrefixes(unittest.TestCase):
         self.assertIn("64 distinct prefixes of 200", str(caught.exception))
 
     def test_the_budget_is_generous_where_the_support_is_ample(self):
-        # ~n log n draws suffice; the budget is 20n.  Checked over seeds rather
-        # than one, since falling short is a chance event.
+        # Falling short is a chance event, so this is over seeds, not one.
         for seed in range(20):
             self.assertEqual(len(_draw(40, 200, seed=seed)), 200)
-        self.assertGreater(DRAWS_PER_PREFIX, 6, "n log n at n=200 is ~5.3n")
+
+    def test_the_budget_dominates_the_barely_enough_case(self):
+        # The multiplier has to beat ln(count): that is the cost per prefix when
+        # the pool nearly exhausts the sampler, which is the worst case that can
+        # still succeed.
+        self.assertGreater(DRAWS_PER_PREFIX, math.log(10**8))
 
 
 if __name__ == "__main__":

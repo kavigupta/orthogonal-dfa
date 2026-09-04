@@ -35,9 +35,12 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
 
 
-#: Draws allowed per prefix wanted before the sampler is called exhausted.  A
-#: sampler whose support is smaller than the pool can never fill it, and drawing
-#: until it does never returns; ~n log n draws suffice when it can.
+#: Draws allowed per prefix wanted.  Where the support is ample, collecting
+#: ``count`` distinct takes about ``count`` draws.  Where it is barely enough --
+#: the pool nearly exhausting the sampler -- it takes about ``count * ln count``,
+#: so the multiplier has to dominate ``ln count``: 20 does for any pool under
+#: ~5e8, past which the table would not fit in memory.  Drawing until distinct
+#: instead never returns on a sampler that cannot fill the pool at all.
 DRAWS_PER_PREFIX = 20
 
 
