@@ -79,10 +79,6 @@ class LeafPopulation:
     def _held(self, at: Path, count: int) -> List[bytes]:
         return list(islice(self._at.get(at, ()), count))
 
-    def __len__(self) -> int:
-        """Strings the population holds, wherever they rest."""
-        return sum(len(held) for held in self._at.values())
-
     def resting_at(self, string) -> Optional[Path]:
         """Where ``string`` rests, or ``None`` if the population does not hold it
         -- never added, or dropped as indecisive."""

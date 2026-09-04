@@ -242,17 +242,5 @@ class TestSettle(unittest.TestCase):
         self.assertEqual(harvested, [bytes([1, 0])])
 
 
-class TestLength(unittest.TestCase):
-    def test_it_counts_every_node(self):
-        classify, _ = _classifier()
-        pop = _population(classify, chunk=16)
-        for s in (bytes([1, 0]), bytes([0, 1]), bytes([1, 1])):
-            pop.add(s)
-        self.assertEqual(len(pop), 3)
-
-        pop.members((True,), 10)
-        self.assertEqual(len(pop), 3, "pushing down moves them, it does not lose them")
-
-
 if __name__ == "__main__":
     unittest.main()
