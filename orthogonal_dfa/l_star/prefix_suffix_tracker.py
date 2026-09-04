@@ -112,10 +112,13 @@ class PrefixSuffixTracker:
         # be written down in.  Said once, and before the first draw, rather than
         # left to surface as whichever byte conversion is reached first.
         assert oracle.alphabet_size <= 256, oracle.alphabet_size
-        prefixes = [
-            sampler.sample(rng, alphabet_size=oracle.alphabet_size)
-            for _ in range(num_prefixes)
-        ]
+        prefixes = _distinct_prefixes(
+            sampler,
+            rng,
+            alphabet_size=oracle.alphabet_size,
+            count=num_prefixes,
+            held=(),
+        )
         return cls(
             sampler=sampler,
             rng=rng,
