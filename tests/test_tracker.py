@@ -1,8 +1,11 @@
 import pickle
 import unittest
 
+from orthogonal_dfa.l_star.counterexample_synthesis import (
+    counterexample_driven_synthesis,
+)
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
-from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.learn import build_pst, learn_dfa
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.l_star.tracker import RecordingTracker
 
@@ -91,3 +94,21 @@ class TestSynthesisTracker(unittest.TestCase):
         self.assertEqual(len(reloaded.classifiers), len(self.tracker.classifiers))
         self.assertEqual(reloaded.consistency, self.tracker.consistency)
         self.assertEqual(len(reloaded.hypotheses), len(self.tracker.hypotheses))
+
+
+class TestMaxRounds(unittest.TestCase):
+    """What a caller breaking out of the old generator needs instead."""
+
+    def test_stops_after_the_rounds_asked_for(self):
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
+        )
+        pst = build_pst(oracle_creator, min_signal_strength=0.3, seed=0)
+        tracker = RecordingTracker()
+        # Below the target this target reaches, so the cap is what stops it.
+        best = counterexample_driven_synthesis(
+            pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
+        )
+        self.assertEqual(len(tracker.consistency), 1)
+        self.assertIsNotNone(best.dfa)
+        self.assertEqual(best.round_index, 0)

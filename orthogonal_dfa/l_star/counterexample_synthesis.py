@@ -289,11 +289,15 @@ def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
-    tracker: SynthesisTracker,
+    tracker: Optional[SynthesisTracker] = None,
+    max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> _Best:
+    """Rounds until the hypothesis is consistent enough, the pool stalls, or
+    ``max_rounds`` of them have run."""
+    tracker = tracker if tracker is not None else SynthesisTracker()
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -377,6 +381,9 @@ def counterexample_driven_synthesis(
             )
             return best
         index += 1
+        if max_rounds is not None and index >= max_rounds:
+            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
+            return best
 
 
 def do_counterexample_driven_synthesis(
