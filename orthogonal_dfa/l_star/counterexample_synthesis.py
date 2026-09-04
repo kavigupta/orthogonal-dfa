@@ -16,21 +16,15 @@ import itertools
 import math
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
-from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .progress import track
+from .prefix_sources import WANTED, StateSource, UniformSource, collect, draw_for_split
 from .transition_resolver import TransitionResolver
 
 
@@ -106,121 +100,168 @@ def _take_indecisive(resolver, target):
     return ordered[:target]
 
 
-class _PoolState:
-    """The pool state carried across rounds: the initial uniform sample (kept in
-    the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), the accumulated
-    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
+class Pools:
+    """The prefix populations, as a source apiece rather than a list apiece.
 
-    def __init__(self, uniform):
-        self.uniform = list(uniform)
-        self.accumulated = []
-        self.seen = set()
-        self.sampled = []
-
-
-#: Rounds of topping a short state up before it is left short.  Each one draws
-#: and sifts, so this is the give-up: a state the tree will not place strings at
-#: does not get an unbounded number of tries.
-TOP_UP_ROUNDS = 3
-
-
-def _short_states(resolver, per_state):
-    """``state -> members`` for every state, and which of them are still short.
-
-    The members are whatever the population has already placed at that state's
-    leaf, which is the only evidence that a string reaches it: the hypothesis
-    says where a string *should* land, the tree says where it does.
+    A round hands the next one these.  What a later round needs more of it draws
+    more of -- the gate wanting enough prefixes to read a rate over is a draw and
+    not a special case -- and a source that cannot fill its population has that
+    population dropped, which is what there is to say about a state nothing
+    reaches.
     """
-    held = {}
-    for leaf in range(resolver.num_states):
-        path = resolver.tree.path_of(leaf)
-        if path is None:
-            continue
-        held[leaf] = resolver.population.members(path, per_state)
-    return held, [s for s, m in held.items() if len(m) < per_state]
 
+    def __init__(self, pst):
+        self._pst = pst
+        #: Boundary pools sealed so far, which is what names them.
+        self._sealed = 0
+        #: What this round could not place, offered to the pool it will become.
+        #: This round's unplaceable strings, in the order they arrived, and
+        #: every string any round has already made a pool of.
+        self._harvest: Dict[bytes, None] = {}
+        self._pooled: set = set()
+        self._sources = {"baseline": UniformSource(pst)}
+        #: One per round that produced any: the strings that round could not
+        #: place, kept as they were.
+        self._boundaries = {}
+        #: Whether every state's source filled a population last rebuild.
+        self.every_state_full = False
+        #: Whether the last rebuild's harvest was enough to become a pool.
+        self.sealed_a_pool = False
+        self.held = {}
+        #: Labels the table holds, so a round can retire what it does not renew.
+        self._published: set = set()
 
-def _aimed_at(dfa, state, count, *, length, weights, rng):
-    """``count`` strings the hypothesis says reach ``state``; empty where it says
-    none do at this length."""
-    counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
-    if counts[length][dfa.initial_state] == 0:
-        return []
-    mass = count_paths_to_state(dfa, state, length, weights)
-    drawn = (
-        sample_string_reaching_state(dfa, mass, rng, weights) for _ in range(count)
-    )
-    return [d for d in drawn if d is not None]
+    def offer_indecisive(self, string) -> None:
+        """Hold ``string`` for the pool this round will make, unless an earlier
+        round already made one of it."""
+        if string not in self._pooled:
+            self._harvest[string] = None
 
+    def rebuild(self, resolver, dfa) -> None:
+        """Take the sources this round defines, and fill what they can fill.
 
-def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members`` up to ``per_state`` of them resting at each state,
-    topped up until they are there or the tries run out, and whether every
-    state got its full complement.
+        Each round's unplaceable strings become a population of their own and
+        stay one.  Merged into a single pool they would be whichever state was
+        worst last round and no other, so a family made decisive on that state
+        could let the states an earlier round settled come undone -- the pool
+        that settled them having been spent.  Kept apart, every one of them goes
+        on being a rate the family has to meet.
+        """
+        # Sorted: a set of bytes iterates in hash order, which python varies per
+        # process, and which of these reach a boundary population decides what
+        # the next family is made to resolve.
+        for string in sorted(resolver.indecisive):
+            self.offer_indecisive(string)
 
-    Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  So candidates are pushed through the population and
-    counted where they land, which is also what makes a state that stays short
-    worth knowing about -- it is one the round cannot reach rather than one the
-    sampler was unlucky about.
-    """
-    length = pst.sampler.length
-    weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    held, short = _short_states(resolver, per_state)
-    for attempt in range(TOP_UP_ROUNDS):
-        if not short:
-            break
-        desc = f"Topping up short states (try {attempt + 1}/{TOP_UP_ROUNDS})"
-        for leaf in track(short, desc):
-            wanted = per_state - len(held[leaf])
-            # Aimed first, and at the last attempt drawn plainly: a state the
-            # hypothesis has the wrong shape for is one it cannot aim at.
-            fresh = (
-                _aimed_at(
-                    dfa, leaf, wanted, length=length, weights=weights, rng=pst.rng
-                )
-                if attempt < TOP_UP_ROUNDS - 1
-                else [
-                    pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-                    for _ in range(wanted)
-                ]
+        self._sources = {"baseline": UniformSource(self._pst)}
+        states = []
+        for leaf in range(resolver.num_states):
+            source = StateSource(
+                self._pst, resolver, dfa, leaf, sink=self.offer_indecisive
             )
-            for f in fresh:
-                resolver.population.add(f)
-        held, short = _short_states(resolver, per_state)
-    return held, not short
+            self._sources[source.label] = source
+            states.append(source.label)
+        collected = {}
+        for label, source in self._sources.items():
+            got = collect(source)
+            if got is not None:
+                collected[label] = got
+        # A state whose source could not fill a population is one more prefixes
+        # would say more about, which is what the stall detector reads.
+        self.every_state_full = all(label in collected for label in states)
+
+        # Sealed after the sources have run: validating an aimed draw is one of
+        # the places a string turns out to be unplaceable, so those belong to
+        # this round's pool rather than to the next one's.
+        self.sealed_a_pool = self.seal_ready_harvest()
+        self.held = dict(self._boundaries)
+        self.held.update(collected)
+        self.publish()
+
+    def seal_ready_harvest(self) -> bool:
+        """Make a pool of the harvest, saying whether there was enough to.
+
+        Under ``1 / fnr_limit`` strings a pool could be admitted only with
+        nothing straddling at all -- a bar no sampling clears, and one nothing
+        can raise it past, a sealed pool having no source.  Too few is the
+        caller's signal to stop rather than to seal one.
+        """
+        if not limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
+            return False
+        self._sealed += 1
+        self._boundaries[("boundary", self._sealed)] = list(self._harvest)
+        self._pooled.update(self._harvest)
+        self._harvest = {}
+        return True
+
+    @property
+    def pending_harvest(self) -> int:
+        """Unplaceable strings offered since the last seal."""
+        return len(self._harvest)
+
+    @property
+    def sealed_pools(self) -> int:
+        """Boundary pools made so far, each a round's worth of harvest."""
+        return len(self._boundaries)
+
+    @property
+    def boundary_strings(self) -> int:
+        """Unplaceable strings held, sealed into pools or still buffering.
+
+        Counts both because the stall detector asks whether the round harvested
+        anything, and a round whose harvest was too small to seal still found
+        something.
+        """
+        return sum(len(pool) for pool in self._boundaries.values()) + len(self._harvest)
+
+    def for_split(self, label, wanted: int):
+        """Prefixes for one population, to read the split on and not to keep."""
+        source = self._sources.get(label)
+        return draw_for_split(source, wanted) if source is not None else []
+
+    def more(self, label, wanted: int) -> bool:
+        """Draw ``wanted`` further prefixes for one population.  Says whether it
+        could: a source that has stopped delivering ends its population.
+
+        A sealed pool of unplaceable strings has no source and never grows -- it
+        is the strings a round could not place, all of them, and asking for more
+        is asking the wrong question.  Saying so is what stops the caller asking
+        again."""
+        source = self._sources.get(label)
+        if source is None:
+            return False
+        drawn = collect(source, wanted=wanted)
+        if drawn is None:
+            self.held.pop(label, None)
+            self._pst.table.drop_population(label)
+            return False
+        self.held[label] = self.held.get(label, []) + drawn
+        self._pst.table.add_prefixes(sorted(set(drawn)), population=label)
+        return True
+
+    def publish(self) -> None:
+        """Install this round's populations, retiring the ones it replaces."""
+        for label in self._published - self.held.keys():
+            self._pst.table.drop_population(label)
+        for label, prefixes in self.held.items():
+            self._pst.table.drop_population(label)
+            if prefixes:
+                self._pst.table.add_prefixes(sorted(set(prefixes)), population=label)
+        self._published = set(self.held)
 
 
-def _grow_representative_pool(
-    pst,
-    resolver,
-    dfa,
-    state,
-    *,
-    indecisive_fraction,
-    min_indecisive,
-    per_state,
-):
-    """Rebuild the pool, returning its size and whether every state filled."""
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
-        if t not in state.seen:
-            state.seen.add(t)
-            state.accumulated.append(t)
-    by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
-    state.sampled = sorted({m for members in by_state.values() for m in members})
-    # Retired before it is redefined, so a mid-round top-up's prefixes do not
-    # outlive the round that bought them.
-    for population, prefixes in (
-        (UNIFORM, state.uniform),
-        (BOUNDARY, state.accumulated),
-        (STATE, state.sampled),
-    ):
-        pst.table.drop_population(population)
-        if prefixes:
-            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), every_state_full
+class _PoolAccess:
+    """What the next round's family search may ask of this round's populations:
+    more prefixes for one of them, or prefixes to read the split on."""
+
+    def __init__(self, pools):
+        self._pools = pools
+
+    def __call__(self, label):
+        return self._pools.more(label, WANTED)
+
+    def for_split(self, label, wanted):
+        return self._pools.for_split(label, wanted)
 
 
 def tree_is_saturated(resolver, every_state_full) -> bool:
@@ -264,35 +305,18 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-#: Target number of representative strings per DFA state.  Each round tops the
-#: sampled pool up to this per state (see ``per_state_sample``); states the
-#: original prefixes already cover need no top-up, so the pool converges rather
-#: than growing every round.
-PER_STATE = 20
-
-
-def counterexample_driven_synthesis(
-    pst,
-    *,
-    acc_threshold: float,
-    per_state: int = PER_STATE,
-    indecisive_fraction: float = 0.1,
-    min_indecisive: int = 200,
-):
+def counterexample_driven_synthesis(pst, *, acc_threshold: float):
     patience = _default_patience(acc_threshold)
-    # Kept across rounds: the FNR gate resolves the chain one state per round, so
-    # earlier rounds' boundary strings keep the family honest about the whole
-    # chain (they turn decisive once their state is resolved).
-    uniform = [
-        p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-    ]
-    state = _PoolState(uniform)
+    pools = Pools(pst)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
+    # No previous round, so the first family search has no populations to reach
+    # back for and answers everything by drawing uniformly.
+    grow = None
     for index in itertools.count():
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), grow)
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
         sampled = time.monotonic()
@@ -326,25 +350,31 @@ def counterexample_driven_synthesis(
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        pool, every_state_full = _grow_representative_pool(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
-        )
+        pools.rebuild(resolver, dfa)
         print(
-            f"[round {index}] pool now {pool} representative prefixes, "
-            f"{len(state.accumulated)} boundary strings harvested so far"
+            f"[round {index}] pool now {pst.num_prefixes} prefixes over "
+            f"{len(pools.held)} populations, {pools.boundary_strings} boundary "
+            f"strings harvested so far"
         )
+        if not pools.sealed_a_pool:
+            print(
+                f"WARNING: stopping synthesis at {dt.num_states} states and "
+                f"accuracy {true_acc:.4f} -- the round left only "
+                f"{pools.pending_harvest} strings unplaced, too few to read a "
+                f"rate over, so there is no population left to make the next "
+                f"family resolve."
+            )
+            yield dfa, dt, true_acc, pst.decision_boundary, classifier
+            return
+        # Handed to the next round's family search, which is the thing that finds
+        # out a population needs more prefixes than it holds.
+        grow = _PoolAccess(pools)
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            saturated=tree_is_saturated(resolver, every_state_full),
+            saturated=tree_is_saturated(resolver, pools.every_state_full),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
