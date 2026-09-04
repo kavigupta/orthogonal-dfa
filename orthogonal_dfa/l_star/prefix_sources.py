@@ -12,6 +12,7 @@ cannot place is not thrown away, since a string no family could place is what
 the indecisive source serves.
 """
 
+import math
 from collections import deque
 from typing import Optional
 
@@ -21,30 +22,11 @@ from .dfa_utils import (
     uniform_weights,
 )
 
-#: Prefixes a population is asked for.
-WANTED = 100
-#: Members of a leaf read back before a source starts aiming.  Loose: what it
-#: bounds is the cost of asking, and a leaf with more than this to offer is not
-#: one that needs aiming at all.
-_RESTING_LIMIT = 2000
-#: Draws allowed per prefix wanted before a source is given up on.  One that
-#: survives yields at least a fifth of what it draws, so asking it for more later
-#: costs about what asking it for these did.
-ATTEMPTS_PER_PREFIX = 5
-
-
-class UniformSource:
-    """The learner's own sampler.  Every draw is a prefix, so this never fails."""
-
-    label = "baseline"
-
-    def __init__(self, pst):
-        self._pst = pst
-
-    def draw(self) -> Optional[bytes]:
-        return self._pst.sampler.sample(
-            self._pst.rng, alphabet_size=self._pst.alphabet_size
-        )
+#: A source landing fewer of its aims than this is one to stop waiting for.  At
+#: yield ``p`` it takes about ``1 / p`` draws per prefix, which is what bounds
+#: the asking.  A floor on patience rather than a measurement: the rate a source
+#: actually manages is what ``collect`` finds out.
+MIN_YIELD = 0.2
 
 
 class StateSource:
@@ -60,9 +42,10 @@ class StateSource:
     reached yet gets its first prefixes, not how a leaf gets every prefix.
     """
 
-    def __init__(self, pst, resolver, dfa, leaf, *, sink=None):
+    def __init__(self, pst, resolver, dfa, leaf, *, serves, sink=None):
         self.label = ("state", leaf)
-        self._resting = None
+        self._resting = []
+        self._serves = serves
         self._served = set()
         #: Draws a collection gave up on.  Aiming is expensive and the leaf is
         #: still where they rest, so they are the next ask's cheapest prefixes.
@@ -110,13 +93,20 @@ class StateSource:
                     self._sink(aimed)
         # Aiming misses most of the time, and the leaf's own members are what
         # this population is made of anyway.
-        if self._resting is None:
-            self._resting = list(population.members(self._path, _RESTING_LIMIT))
-        while self._resting:
+        if not self._resting:
+            # As many as it could still be asked for, no deeper: reading a leaf
+            # pushes strings down to it, so the count is work and not just a cap.
+            self._resting = [
+                m
+                for m in population.members(
+                    self._path, len(self._served) + self._serves
+                )
+                if m not in self._served
+            ]
+        if self._resting:
             resting = self._resting.pop()
-            if resting not in self._served:
-                self._served.add(resting)
-                return resting
+            self._served.add(resting)
+            return resting
         return None
 
     def unused(self, drawn) -> None:
@@ -124,13 +114,13 @@ class StateSource:
         self._spare.extend(drawn)
 
 
-def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):
+def collect(source, wanted: int):
     """``wanted`` prefixes from ``source``, or ``None`` if it could not.
 
     Giving up is the point: a population nothing can be drawn for is one the
     round cannot read a rate over, and saying so beats holding it to one.
     """
-    held, budget = [], wanted * attempts_per
+    held, budget = [], math.ceil(wanted / MIN_YIELD)
     seen = set()
     while len(held) < wanted and budget:
         budget -= 1
@@ -147,14 +137,3 @@ def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFI
     if give_back is not None:
         give_back(held)
     return None
-
-
-def draw_for_split(source, wanted: int):
-    """Prefixes from ``source`` to read the split on and nothing else.
-
-    A population that cannot certify on the prefixes it holds needs more of its
-    own, not more uniform ones -- and read only for the split, since adding them
-    to the table costs a query on every fully observed column and unsettles the
-    FNR the round has just met.
-    """
-    return collect(source, wanted=wanted) or []

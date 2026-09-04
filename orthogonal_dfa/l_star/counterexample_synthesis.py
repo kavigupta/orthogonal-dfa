@@ -128,7 +128,8 @@ def _per_state_members(pst, resolver, dfa, per_state):
         path = resolver.tree.path_of(leaf)
         if path is None:
             continue
-        drawn = collect(StateSource(pst, resolver, dfa, leaf), wanted=per_state)
+        source = StateSource(pst, resolver, dfa, leaf, serves=per_state)
+        drawn = collect(source, wanted=per_state)
         if drawn is None:
             full = False
             drawn = resolver.population.members(path, per_state)

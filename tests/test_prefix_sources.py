@@ -4,6 +4,7 @@ Each round hands the next one a source per population instead of the prefixes
 themselves, so what a later round needs more of it can draw more of.
 """
 
+import math
 import unittest
 
 import numpy as np
@@ -11,12 +12,7 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import (
-    ATTEMPTS_PER_PREFIX,
-    WANTED,
-    StateSource,
-    collect,
-)
+from orthogonal_dfa.l_star.prefix_sources import MIN_YIELD, StateSource, collect
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
@@ -39,30 +35,30 @@ class _Counted:
 class TestGivingUpOnASource(unittest.TestCase):
     def test_a_source_that_yields_is_collected(self):
         source = _Counted(1.0)
-        held = collect(source, wanted=20, attempts_per=5)
+        held = collect(source, wanted=20)
         self.assertEqual(len(held), 20)
         self.assertEqual(source.calls, 20)
 
     def test_a_source_that_cannot_deliver_is_given_up_on(self):
-        # One in fifty, against a budget of five per prefix wanted.
+        # One in fifty, well under the yield the budget waits for.
         source = _Counted(0.02)
-        self.assertIsNone(collect(source, wanted=20, attempts_per=5))
-        self.assertEqual(source.calls, 100)
+        self.assertIsNone(collect(source, wanted=20))
+        self.assertEqual(source.calls, math.ceil(20 / MIN_YIELD))
 
-    def test_what_survives_is_cheap_to_ask_again(self):
-        # Surviving the budget means yielding at least one draw in
-        # ``attempts_per``, which is what makes a later, larger ask affordable.
-        source = _Counted(1 / ATTEMPTS_PER_PREFIX)
-        held = collect(source, wanted=WANTED)
+    def test_a_source_at_exactly_the_yield_survives(self):
+        # The budget is 1 / MIN_YIELD draws per prefix, so a source managing
+        # exactly that rate is the slowest one that still delivers.
+        source = _Counted(MIN_YIELD)
+        held = collect(source, wanted=100)
         self.assertIsNotNone(held)
-        self.assertLessEqual(source.calls, WANTED * ATTEMPTS_PER_PREFIX)
+        self.assertLessEqual(source.calls, math.ceil(100 / MIN_YIELD))
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
             def draw(self):
                 return bytes([7])
 
-        self.assertIsNone(collect(OneString(), wanted=3, attempts_per=5))
+        self.assertIsNone(collect(OneString(), wanted=3))
 
 
 class _Tree:
@@ -115,7 +111,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1)
+        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1, serves=20)
 
     def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -149,7 +145,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
+        source = StateSource(_Pst(8), _Resolver(population), reachable, 1, serves=20)
 
         drawn = collect(source, wanted=20)
         self.assertTrue(
