@@ -125,7 +125,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
-        source = StateSource(pst, resolver, dfa, leaf, serves=per_state)
+        source = StateSource(pst, resolver, dfa, leaf)
         drawn = collect(source, wanted=per_state)
         if drawn is None:
             full = False

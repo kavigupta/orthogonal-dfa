@@ -24,7 +24,7 @@ class _Counted:
         self.calls = 0
         self._total = total
 
-    def draw(self):
+    def draw(self, _wanted):
         self.calls += 1
         keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
         return bytes([self.calls // 256, self.calls % 256]) if keep else None
@@ -53,7 +53,7 @@ class TestGivingUpOnASource(unittest.TestCase):
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
-            def draw(self):
+            def draw(self, _wanted):
                 return bytes([7])
 
         self.assertIsNone(collect(OneString(), wanted=3))
@@ -109,7 +109,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1, serves=20)
+        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1)
 
     def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -143,7 +143,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = StateSource(_Pst(8), _Resolver(population), reachable, 1, serves=20)
+        source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
 
         drawn = collect(source, wanted=20)
         self.assertTrue(
@@ -153,8 +153,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
-        self.assertEqual(len([x for x in (source.draw(), source.draw()) if x]), 2)
-        self.assertIsNone(source.draw())
+        served = [source.draw(2), source.draw(2)]
+        self.assertEqual(len([x for x in served if x]), 2)
+        self.assertIsNone(source.draw(2))
 
 
 if __name__ == "__main__":

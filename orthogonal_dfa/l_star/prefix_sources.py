@@ -39,19 +39,21 @@ def _aim_at(pst, dfa, leaf):
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, pst, resolver, dfa, leaf, *, serves):
+    def __init__(self, pst, resolver, dfa, leaf):
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = _aim_at(pst, dfa, leaf)
-        self._serves = serves
         self._served = set()
         self._resting = []
 
-    def draw(self) -> Optional[bytes]:
+    def draw(self, wanted: int) -> Optional[bytes]:
         """One string resting at the leaf, or ``None`` when there are no more.
+
+        ``wanted`` is how many the caller is collecting, which is what sizes the
+        read of what already rests there.
 
         Aims before serving for what it leaves behind rather than what it
         returns: a string pushed toward the leaf is one the population then
@@ -62,16 +64,16 @@ class StateSource:
             self._population.add(aimed)
             if self._population.settle(aimed, self._path):
                 return aimed
-        return self._resting_member()
+        return self._resting_member(wanted)
 
-    def _resting_member(self) -> Optional[bytes]:
+    def _resting_member(self, wanted: int) -> Optional[bytes]:
         if not self._resting:
             # Reading a leaf pushes strings down to it, so the count is work
             # rather than a cap: ask for what could still be served, no more.
             self._resting = [
                 m
                 for m in self._population.members(
-                    self._path, len(self._served) + self._serves
+                    self._path, len(self._served) + wanted
                 )
                 if m not in self._served
             ]
@@ -92,7 +94,7 @@ def collect(source, wanted: int) -> Optional[list]:
     for _ in range(math.ceil(wanted / MIN_YIELD)):
         if len(held) == wanted:
             return sorted(held)
-        drawn = source.draw()
+        drawn = source.draw(wanted)
         if drawn is not None:
             held.add(drawn)
     return sorted(held) if len(held) == wanted else None
