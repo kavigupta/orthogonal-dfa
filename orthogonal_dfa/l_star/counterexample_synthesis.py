@@ -12,7 +12,9 @@ These drive the suffix-family FNR gate to re-cluster and resolve them
 in the next round.
 """
 
+import itertools
 import math
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
@@ -23,7 +25,6 @@ from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
 from .prefix_sources import WANTED, StateSource, UniformSource, collect, draw_for_split
-from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
 
@@ -87,19 +88,6 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def classify_pool(pst, tree, *, accept, reject):
-    """
-    Classify every prefix in the pool to its leaf (or -1 if undecided), from
-    the cached mask matrix. Uses accept and reject thresholds.
-    """
-
-    def decide_columns(midfix):
-        decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
-        return decision >= accept, decision < reject
-
-    return tree.classify_pool(pst.num_prefixes, decide_columns)
-
-
 def _take_indecisive(resolver, target):
     """
     Take up to target of the round's boundary strings.
@@ -135,6 +123,8 @@ class Pools:
         #: One per round that produced any: the strings that round could not
         #: place, kept as they were.
         self._boundaries = {}
+        #: Whether every state's source filled a population last rebuild.
+        self.every_state_full = False
         #: Whether the last rebuild's harvest was enough to become a pool.
         self.sealed_a_pool = False
         self.held = {}
@@ -162,16 +152,21 @@ class Pools:
             self.offer_indecisive(string)
 
         self._sources = {"baseline": UniformSource(self._pst)}
+        states = []
         for leaf in range(resolver.num_states):
             source = StateSource(
                 self._pst, resolver, dfa, leaf, sink=self.offer_indecisive
             )
             self._sources[source.label] = source
+            states.append(source.label)
         collected = {}
         for label, source in self._sources.items():
             got = collect(source)
             if got is not None:
                 collected[label] = got
+        # A state whose source could not fill a population is one more prefixes
+        # would say more about, which is what the stall detector reads.
+        self.every_state_full = all(label in collected for label in states)
 
         # Sealed after the sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
@@ -270,52 +265,15 @@ class _PoolAccess:
         return self._pools.for_split(label, wanted)
 
 
-def uncoverable_access_strings(pst, tree):
-    """Access strings the hypothesis cannot resolve and can never be covered.
+def tree_is_saturated(resolver, every_state_full) -> bool:
+    """Whether this round's prefixes had nothing left to say.
 
-    The short prefix-closed core is the set of access strings, it reaches
-    every state, including transient ones that a fixed-length prefix sampler
-    never lands on.
-
-    We can use this to detect when the underlying DFA is not learnable in
-    our model. Specifically, when a state in the access strings is not also
-    reached by any representative (longer) prefix. This prevents us from
-    averaging across multiple prefixes to get a representative set for this state
-    implying that the state is only reached by a small number of strings
-    overall.
+    A state the round could not fill is one more prefixes would say more about.
+    Past that every node has to come out settled (see `Decisions`), each on its
+    own evidence, so that one node still straddling its midfix keeps the round
+    open however clean the rest are.
     """
-    prefixes = list(pst.table.prefixes)
-    # Coverage is measured against the stable non-core (sampled) prefixes, not the
-    # representative set, the driver re-scopes representative to focus clustering,
-    # which must not narrow what counts as "covered".
-    sampled = pst.table.noncore
-    fam = pst.table.fully_observed()
-    if len(fam) == 0 or not sampled.any():
-        return []
-
-    eta = 0.5 - pst.config.min_signal_strength
-    # Two prefixes at the same state agree on every suffix up to independent
-    # per-cell noise, so their expected mask-disagreement rate is 2*eta*(1-eta).
-    same_state_rate = 2 * eta * (1 - eta)
-    n = len(fam)
-
-    repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
-    leaves = classify_pool(
-        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
-    )
-    potentially_problematic = np.flatnonzero(
-        (~sampled) & (leaves == -1)
-    )  # only unclassifiable core prefixes
-    flagged = []
-    for i in potentially_problematic:
-        col = np.zeros(len(prefixes), dtype=bool)
-        col[i] = True
-        mask_i = pst.table.observed_masks(fam, col).T[0]
-        # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
-        nearest = int((repr_masks != mask_i).sum(1).min())
-        if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
-            flagged.append((prefixes[i], nearest / n))
-    return flagged
+    return every_state_full and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -327,7 +285,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No new boundary strings have been harvested
+    3. The tree is saturated (see `tree_is_saturated`)
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -339,17 +297,12 @@ class _StallDetector:
     def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
-        self._boundary_strings = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
-        progressed = (
-            states > self._states
-            or improved
-            or boundary_strings > self._boundary_strings
-        )
+    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
+        progressed = states > self._states or improved or not saturated
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states, self._boundary_strings = states, boundary_strings
+        self._states = states
         return self._stalled >= self._patience
 
 
@@ -361,18 +314,24 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
     # No previous round, so the first family search has no populations to reach
     # back for and answers everything by drawing uniformly.
     grow = None
-    while True:
-        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+    for index in itertools.count():
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), grow)
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
+        sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
-        print(f"Resolved DFA with {dt.num_states} states")
+        print(
+            f"[round {index}] resolved {dt.num_states} states over a family of "
+            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
+            f"{time.monotonic() - sampled:.1f}s resolving)"
+        )
         assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -384,25 +343,20 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
-            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        uncoverable = uncoverable_access_strings(pst, dt)
-        if uncoverable:
-            examples = ", ".join(
-                "".join(map(str, p)) or "eps" for p, _ in uncoverable[:5]
-            )
             print(
-                f"Stopping synthesis: {len(uncoverable)} access string(s) reach "
-                f"states no sampled prefix can cover at length "
-                f"{pst.sampler.length} (e.g. {examples}); the target is not "
-                f"learnable with this prefix sampler."
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold:.4f}; stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
         pools.rebuild(resolver, dfa)
+        print(
+            f"[round {index}] pool now {pst.num_prefixes} prefixes over "
+            f"{len(pools.held)} populations, {pools.boundary_strings} boundary "
+            f"strings harvested so far"
+        )
         if not pools.sealed_a_pool:
             print(
                 f"WARNING: stopping synthesis at {dt.num_states} states and "
@@ -421,11 +375,12 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            boundary_strings=pools.boundary_strings,
+            saturated=tree_is_saturated(resolver, pools.every_state_full),
         ):
             print(
-                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
-                "-- pool churning without resolving; stopping synthesis"
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return

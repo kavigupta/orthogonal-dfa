@@ -29,11 +29,14 @@ class LeafPopulation:
     for ``strings`` at ``midfix`` and return one decision per string.
     """
 
-    def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
+    def __init__(
+        self, tree, classify: Classify, *, harvest, decisions, chunk: int = 128
+    ):
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
         self._harvest = harvest
+        self._decisions = decisions
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
 
@@ -75,10 +78,6 @@ class LeafPopulation:
 
     def _held(self, at: Path, count: int) -> List[bytes]:
         return list(islice(self._at.get(at, ()), count))
-
-    def __len__(self) -> int:
-        """Strings the population holds, wherever they rest."""
-        return sum(len(held) for held in self._at.values())
 
     def resting_at(self, string) -> Optional[Path]:
         """Where ``string`` rests, or ``None`` if the population does not hold it
@@ -123,6 +122,7 @@ class LeafPopulation:
         midfix = self._tree.midfix_at(parent)
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
+            self._decisions.record(parent, decision is not None)
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
             else:

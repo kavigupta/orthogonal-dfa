@@ -9,6 +9,7 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
+from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     ATTEMPTS_PER_PREFIX,
@@ -110,6 +111,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
+            decisions=Decisions(),
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
@@ -142,16 +144,16 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
+            decisions=Decisions(),
         )
-        for i in range(20):
-            population.add(bytes([1, i, 0, 0, 0, 0, 0, 0]), at=(True,))
+        resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
+        for prefix in resting:
+            population.add(prefix, at=(True,))
         source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
 
-        held = len(population)
-        collect(source, wanted=20)
-        self.assertGreater(
-            len(population),
-            held,
+        drawn = collect(source, wanted=20)
+        self.assertTrue(
+            set(drawn) - set(resting),
             "drawing served resting members without aiming anything new",
         )
 

@@ -216,9 +216,9 @@ class TestLearnForwarding(unittest.TestCase):
         return base.lengths, noise
 
     def test_num_symbols_reaches_the_sampler(self):
-        # The batch also holds the short prefix-closed core, so the sampled length
-        # shows in the longest string: seven super-symbols, each a base symbol or a
-        # whole codon. Left at the default it would run to forty.
+        # The sampled length shows in the longest string: seven super-symbols,
+        # each a base symbol or a whole codon. Left at the default it would run
+        # to forty.
         lengths, _ = self._first_batch(num_symbols=7)
         self.assertTrue(7 <= max(lengths) <= 21, max(lengths))
 

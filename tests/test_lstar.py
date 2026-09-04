@@ -17,7 +17,12 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import assertDFA, assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import (
+    assert_terminates,
+    assertDFA,
+    assertion_allowed_error,
+    compute_dfa_accuracy,
+)
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
@@ -137,20 +142,11 @@ class TestLStar(unittest.TestCase):
         # there is nothing correct to check it against.
         oracle_creator = lambda nm, s, _dfa=target: NoisyOracle(DFAOracle(_dfa), nm, s)
 
-        # Imported locally: a module-level `import signal` would shadow the
-        # `signal` (signal-strength) parameter other tests in this file use.
-        import signal
-
-        def _timeout(signum, frame):
-            raise AssertionError("synthesis did not terminate within the timeout")
-
-        previous = signal.signal(signal.SIGALRM, _timeout)
-        signal.alarm(60)
-        try:
-            learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, previous)
+        assert_terminates(
+            lambda: learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0),
+            seconds=300,
+            message="synthesis did not terminate within the timeout",
+        )
 
 
 class TestLStarAsymmetric(unittest.TestCase):
@@ -266,8 +262,8 @@ class TestLStarBimodalReproducer(unittest.TestCase):
       * recurrent confusable reject cluster {2,3,4,5}: "00" advances toward the
         pocket, "11" launches into it; states share a continuation-accept rate
         ~0.6, so they are hard to tell apart under noise.
-      * rare pocket state 6: REJECT, shortest path 6 (so the length<=4
-        prefix-closed core never reaches it) and landing probability ~0.022, i.e.
+      * rare pocket state 6: REJECT, shortest path 6 and landing probability
+        ~0.022, i.e.
         only ~4 of the ~200 random prefixes land in it -- right at the discovery
         threshold.  It is accept-adjacent: ``6 --0--> 9`` (accept).
       * feedback 6 --1--> 7 --*--> 8 --*--> 5: a clean linear return into the
@@ -329,15 +325,12 @@ class TestLStarBimodalReproducer(unittest.TestCase):
 class TestLStarDeepCounter(unittest.TestCase):
     """``Sigma* 0^k Sigma*`` — "contains a run of k zeros".
 
-    State i counts i consecutive zeros, so its only access string is ``0^i``: for
-    k > 4 the deepest counter states sit *beyond* the short prefix-closed core and
-    are reached only via long, specific paths that random length-L probes almost
-    never hit. They are nonetheless recurrent and on the critical path to
-    acceptance. This guards that counterexample-driven discovery still finds and
-    enriches them — a misclassified ``0^k`` string yields a discriminating prefix
-    ending exactly at a deep state, which seeds it. (Regression guard for deep
-    recurrent-state learning; complements the prefix-closed core, which only
-    reaches shallow states.)
+    State i counts i consecutive zeros, so its only access string is ``0^i``, and
+    the deepest counter states are reached only via long, specific paths that
+    random length-L probes almost never hit. They are nonetheless recurrent and
+    on the critical path to acceptance. This guards that counterexample-driven
+    discovery still finds and enriches them — a misclassified ``0^k`` string
+    yields a discriminating prefix ending exactly at a deep state, which seeds it.
     """
 
     @parameterized.expand([(k,) for k in (6, 7)])
