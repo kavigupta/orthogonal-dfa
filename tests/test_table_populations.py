@@ -79,7 +79,6 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(int(table.representative.sum()), 4)
 
     def test_dropping_leaves_the_prefixes_in_the_table(self):
-        # They are still columns, and may still be in another population.
         uniform = _words(4)
         table = _table(uniform)
         table.add_prefixes(uniform + _words(3, offset=4), population=("state", 1))
@@ -89,16 +88,12 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(int(table.population_masks()["uniform"].sum()), 4)
 
     def test_a_repeated_prefix_is_refused(self):
-        # The index names a column by its prefix, so a repeat would be a column
-        # it cannot name -- and so one no population could hold, while every
-        # full read still had to observe it.
+        # The index names a column by its prefix; a repeat is one it cannot name.
         with self.assertRaises(AssertionError):
             _table(_words(3) + _words(1))
 
     def test_redefining_a_population_replaces_it_rather_than_adding_to_it(self):
-        # A round rebuilds its populations from what it drew.  Whatever else
-        # reached the table meanwhile -- a mid-round top-up buying the family
-        # search more prefixes -- is not the pool's to keep.
+        # A mid-round top-up's prefixes are not the round's to keep.
         uniform = _words(4)
         table = _table(uniform)
         table.add_prefixes(_words(200, offset=4), population="uniform")
@@ -110,9 +105,8 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(table.num_prefixes, 204, "the columns stay")
 
     def test_a_mask_is_positions_within_the_representative_set(self):
-        # Not column numbers: consumers index a decision vector that was read
-        # over the representative prefixes only.  Here the retired columns 4-6
-        # sit between the two live populations, so the two differ.
+        # Not column numbers: a consumer indexes a decision vector read over the
+        # representative prefixes only, and the retired 4-6 sit between these.
         early, retired, late = _words(4), _words(3, offset=4), _words(2, offset=7)
         table = _table(early)
         table.add_prefixes(retired, population="scratch")

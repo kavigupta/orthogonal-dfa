@@ -210,9 +210,8 @@ def _grow_representative_pool(
             state.accumulated.append(t)
     by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
-    # Each population is redefined here, so each is retired first: last round's
-    # states are not this round's, and the prefixes a mid-round top-up bought
-    # the family search are not the pool's to keep.
+    # Retired before it is redefined, so a mid-round top-up's prefixes do not
+    # outlive the round that bought them.
     for population, prefixes in (
         (UNIFORM, state.uniform),
         (BOUNDARY, state.accumulated),

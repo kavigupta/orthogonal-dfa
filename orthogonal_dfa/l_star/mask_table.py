@@ -22,9 +22,8 @@ import numpy as np
 
 from .memoized_oracle import MemoizedOracle
 
-#: The populations the round's pool is rebuilt from.  Named here rather than
-#: spelled at each writer: a label two modules agree on only by spelling is one a
-#: rename quietly splits in two, leaving the half nothing drops to grow forever.
+#: A population nothing retires grows forever, so the writers and the round that
+#: drops them share these rather than agreeing by spelling.
 UNIFORM = "uniform"
 BOUNDARY = "boundary"
 STATE = "state"
@@ -36,8 +35,7 @@ UNOBSERVED = np.int8(-1)
 
 class MaskTable:
     def __init__(self, oracle, prefixes: List[bytes], *, population):
-        # Both draw sites hand over distinct prefixes; a repeat here would be a
-        # column the index cannot name, and so one no population could hold.
+        # A repeat would be a column the index cannot name.
         assert len(set(prefixes)) == len(prefixes), "Prefixes must be unique"
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
@@ -45,8 +43,7 @@ class MaskTable:
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
         #: prefix -> its column.  Insertion-ordered and never removed from, so
-        #: the keys are the prefixes in column order and there is no second copy
-        #: to fall out of step with.
+        #: the keys are the prefixes in column order.
         self._prefix_index: Dict[bytes, int] = {p: i for i, p in enumerate(prefixes)}
         self._populations: Dict[object, set] = {
             population: set(self._prefix_index.values())
@@ -78,17 +75,13 @@ class MaskTable:
     def drop_population(self, label) -> None:
         """Retire a population.  Its prefixes stay in the table -- they are
         still columns, and may be in other populations -- but nothing is held to
-        a rate over them any more.
-
-        Rounds redefine what a state is, so the population that named one has to
-        stop being live when the round that drew it ends."""
+        a rate over them any more."""
         self._populations.pop(label, None)
 
     def population_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
 
-        Masks overlap where populations do, so a prefix can be evidence in more
-        than one and the rates are read over all of each."""
+        Masks overlap where populations do: a prefix can be in more than one."""
         scoped = np.flatnonzero(self.representative)
         where = {column: i for i, column in enumerate(scoped)}
         out = {}
@@ -106,8 +99,7 @@ class MaskTable:
         """Put ``prefixes`` in ``population``, adding any the table lacks.
 
         A prefix the table already holds joins the population without being
-        added again: being a uniform draw does not stop it also being what is
-        known about a state."""
+        added again."""
         assert prefixes, "No prefixes to add"
         assert len(prefixes) == len(set(prefixes)), "Prefixes must be unique"
         new_prefixes = [p for p in prefixes if not self.contains_prefix(p)]
@@ -168,7 +160,6 @@ class MaskTable:
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
         assert len(set(rows)) == len(rows), "rows must be distinct"
-        # Hoisted: the only place a column is read back as its prefix.
         names = self.prefixes
         idx = np.flatnonzero(prefix_mask)
         strings, targets = [], []
