@@ -19,8 +19,6 @@ from orthogonal_dfa.l_star.sampler import UniformSampler
 class _Counted:
     """Yields a prefix ``rate`` of the time, counting how often it is asked."""
 
-    label = "counted"
-
     def __init__(self, rate, total=10**6):
         self.rate = rate
         self.calls = 0
