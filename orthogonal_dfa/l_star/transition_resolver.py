@@ -32,8 +32,9 @@ from .cluster import sample_suffix_family
 from .decisions import Decisions
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
-from .midfix_tree import MidfixTree, oracle_decider
+from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
+from .progress import counter, write
 from .sifting import Sifter
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
@@ -112,6 +113,10 @@ class TransitionResolver:
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
         self.dfa.split_state(state_id, new_id)
+        write(
+            f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
+            f"reject {new_id} ({self.tree.num_states} states)"
+        )
 
     # -- counterexamples ----------------------------------------------------
 
@@ -125,18 +130,25 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
-        for w in self._probe_blocks(max_probes):
-            status = self._process(w, delta)
-            if status == _SPLIT:
-                since_split = 0
-                self.edges.close()  # the split dropped edges; refill
-                delta = self._total_delta()  # the split rewrote the state set
-            elif status == _UNDECIDED:
-                since_split = 0
-            else:
-                since_split += 1
-            if since_split >= patience:
-                break
+        with counter(max_probes, "Probing for counterexamples") as pbar:
+            for w in self._probe_blocks(max_probes):
+                status = self._process(w, delta)
+                if status == _SPLIT:
+                    since_split = 0
+                    self.edges.close()  # the split dropped edges; refill
+                    delta = self._total_delta()  # the split rewrote the state set
+                elif status == _UNDECIDED:
+                    since_split = 0
+                else:
+                    since_split += 1
+                pbar.set_postfix(
+                    states=self.tree.num_states,
+                    clean=f"{since_split}/{patience}",
+                    refresh=False,
+                )
+                pbar.update(1)
+                if since_split >= patience:
+                    break
 
     def _total_delta(self):
         """A total transition function to walk.  Edge resolution cannot always
@@ -252,8 +264,8 @@ class TransitionResolver:
         )
         for state, c in unresolved:
             print(
-                f"transition_resolver: no decisive edge for (state {state}, symbol "
-                f"{c}); falling back to a self-loop"
+                f"  no decisive edge for (state {state}, symbol {c}); "
+                "falling back to a self-loop"
             )
 
         accepting = self.tree.accepting_leaves()

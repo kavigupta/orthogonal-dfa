@@ -12,7 +12,9 @@ These drive the suffix-family FNR gate to re-cluster and resolve them
 in the next round.
 """
 
+import itertools
 import math
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -27,6 +29,7 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
+from .progress import track
 from .transition_resolver import TransitionResolver
 
 
@@ -167,7 +170,8 @@ def _per_state_members(pst, resolver, dfa, per_state):
     for attempt in range(TOP_UP_ROUNDS):
         if not short:
             break
-        for leaf in short:
+        desc = f"Topping up short states (try {attempt + 1}/{TOP_UP_ROUNDS})"
+        for leaf in track(short, desc):
             wanted = per_state - len(held[leaf])
             # Aimed first, and at the last attempt drawn plainly: a state the
             # hypothesis has the wrong shape for is one it cannot aim at.
@@ -197,6 +201,7 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
+    """Rebuild the pool, returning its size and whether every state filled."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
@@ -209,7 +214,7 @@ def _grow_representative_pool(
     if fresh:
         pst.table.add_prefixes(fresh)
     pst.table.set_representative(representative)
-    return every_state_full
+    return int(pst.table.representative.sum()), every_state_full
 
 
 def tree_is_saturated(resolver, every_state_full) -> bool:
@@ -278,18 +283,24 @@ def counterexample_driven_synthesis(
     state = _PoolState(baseline)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
-    while True:
-        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
+    for index in itertools.count():
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         classifier = _round_classifier(pst, vs)
+        sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
-        print(f"Resolved DFA with {dt.num_states} states")
+        print(
+            f"[round {index}] resolved {dt.num_states} states over a family of "
+            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
+            f"{time.monotonic() - sampled:.1f}s resolving)"
+        )
         assert dt.num_states >= 2
         print(dfa)
         true_acc = estimate_agreement_rate(
@@ -301,12 +312,15 @@ def counterexample_driven_synthesis(
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         if true_acc >= acc_threshold:
-            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
+            print(
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold:.4f}; stopping synthesis"
+            )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        every_state_full = _grow_representative_pool(
+        pool, every_state_full = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -314,6 +328,10 @@ def counterexample_driven_synthesis(
             indecisive_fraction=indecisive_fraction,
             min_indecisive=min_indecisive,
             per_state=per_state,
+        )
+        print(
+            f"[round {index}] pool now {pool} representative prefixes, "
+            f"{len(state.accumulated)} boundary strings harvested so far"
         )
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
@@ -323,8 +341,9 @@ def counterexample_driven_synthesis(
             saturated=tree_is_saturated(resolver, every_state_full),
         ):
             print(
-                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
-                "-- pool churning without resolving; stopping synthesis"
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
