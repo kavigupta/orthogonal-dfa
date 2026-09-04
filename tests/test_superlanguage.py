@@ -19,6 +19,7 @@ from orthogonal_dfa.l_star.structures import (
     Oracle,
     SymmetricBernoulli,
 )
+from orthogonal_dfa.l_star.tracker import RecordingTracker
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
@@ -290,14 +291,17 @@ class TestLearnSuperlanguage(unittest.TestCase):
     def test_learns_all_frames_closed(self, signal):
         vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         base = AllFramesClosedOracle()
-        dfa, classifiers = learn_superlanguage(
-            base, vocab, min_signal_strength=signal, seed=0
+        tracker = RecordingTracker()
+        dfa = learn_superlanguage(
+            base, vocab, min_signal_strength=signal, seed=0, tracker=tracker
         )
         self.assertIsNotNone(dfa)
 
         oracle = LiftedOracle(base, vocab, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
-        assert_rounds_accept_preserving(classifiers, oracle.target_dfa(), signal)
+        assert_rounds_accept_preserving(
+            tracker.classifiers, oracle.target_dfa(), signal
+        )
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)
         strings = [sampler.sample(rng, vocab.alphabet_size) for _ in range(3000)]

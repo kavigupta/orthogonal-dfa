@@ -7,6 +7,7 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.tracker import RecordingTracker
 
 us = UniformSampler(40)
 
@@ -232,10 +233,11 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
 
 def learn_dfa_verified(oracle_creator, **kwargs):
     """``learn_dfa``, asserting the per-round accept-preserving invariant."""
-    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
+    tracker = RecordingTracker()
+    dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     assert_rounds_accept_preserving(
-        classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
+        tracker.classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
     )
     return dfa
 

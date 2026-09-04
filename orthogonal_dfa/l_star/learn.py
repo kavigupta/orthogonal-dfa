@@ -17,6 +17,7 @@ from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
 from .statistics import compute_suffix_size_counterexample_gen
 from .structures import SymmetricBernoulli
+from .tracker import SynthesisTracker
 
 #: All of E-L*'s signal comes from words drawn at this length.
 DEFAULT_SAMPLE_LENGTH = 40
@@ -80,15 +81,15 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     require_accept_preserving: bool = True,
+    tracker: Optional[SynthesisTracker] = None,
 ):
-    """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
+    """Learn a DFA from `oracle_creator`; None when synthesis found none.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
-    `sampler` draws the probe strings (see `build_pst`).  ``dfa`` is None when
-    synthesis produced no hypothesis. ``round_classifiers`` is the per-round
-    empty-seeded family classifier (see ``RoundClassifier``), exposed so callers
-    can inspect what each round decided over its pool.
+    `sampler` draws the probe strings (see `build_pst`).  Pass a `tracker` (see
+    `SynthesisTracker`) to receive each round's family, hypothesis and
+    consistency as they are made.
     """
     pst = build_pst(
         oracle_creator,
@@ -99,7 +100,9 @@ def learn_dfa(
         sampler=sampler,
         require_accept_preserving=require_accept_preserving,
     )
-    dfa, _, classifiers = do_counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold
+    dfa, _ = do_counterexample_driven_synthesis(
+        pst,
+        acc_threshold=acc_threshold,
+        tracker=tracker if tracker is not None else SynthesisTracker(),
     )
-    return dfa, classifiers
+    return dfa
