@@ -209,13 +209,15 @@ def _grow_representative_pool(
             state.accumulated.append(t)
     by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
-    # Last round's states are not this round's, the tree having split since.
-    pst.table.drop_population("state")
+    # Each population is redefined here, so each is retired first: last round's
+    # states are not this round's, and the prefixes a mid-round top-up bought
+    # the family search are not the pool's to keep.
     for population, prefixes in (
         ("uniform", state.uniform),
         ("boundary", state.accumulated),
         ("state", state.sampled),
     ):
+        pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
     return int(pst.table.representative.sum()), every_state_full

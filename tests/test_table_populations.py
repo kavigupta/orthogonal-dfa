@@ -93,6 +93,20 @@ class TestPopulations(unittest.TestCase):
         with self.assertRaises(AssertionError):
             _table(_words(3) + _words(1))
 
+    def test_redefining_a_population_replaces_it_rather_than_adding_to_it(self):
+        # A round rebuilds its populations from what it drew.  Whatever else
+        # reached the table meanwhile -- a mid-round top-up buying the family
+        # search more prefixes -- is not the pool's to keep.
+        uniform = _words(4)
+        table = _table(uniform)
+        table.add_prefixes(_words(200, offset=4), population="uniform")
+        self.assertEqual(int(table.representative.sum()), 204)
+
+        table.drop_population("uniform")
+        table.add_prefixes(uniform, population="uniform")
+        self.assertEqual(int(table.representative.sum()), 4)
+        self.assertEqual(table.num_prefixes, 204, "the columns stay")
+
     def test_dropping_one_that_was_never_there_is_not_an_error(self):
         table = _table(_words(4))
         table.drop_population(("state", 3))
