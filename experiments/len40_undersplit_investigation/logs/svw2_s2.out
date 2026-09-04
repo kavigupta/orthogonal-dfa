@@ -1,0 +1,8 @@
+
+seed 2 round 0: 15 states, 1417/3000 indecisive on sift (47.2%), sift/walk agree 0.466 (est 0.633)
+  SINK/live homogeneity:  SIFT 0.708   WALK 0.488
+  frame-sig  homogeneity:  SIFT 0.679   WALK 0.571
+
+seed 2 round 1: 10 states, 818/3000 indecisive on sift (27.3%), sift/walk agree 0.411 (est 0.533)
+  SINK/live homogeneity:  SIFT 0.565   WALK 1.000
+  frame-sig  homogeneity:  SIFT 0.586   WALK 0.849

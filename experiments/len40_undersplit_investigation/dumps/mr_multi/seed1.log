@@ -1,0 +1,30 @@
+[seed 1] eval ready (n=4000); phi(oracle,frame01)=+0.186 phi(oracle,allframes)=-0.107
+[seed 1] round | states | accept | phi(DFA,oracle) | phi(DFA,frame01) | est | pool | |indec| | boundary | margin
+Starting synthesis iteration with 232 prefixes
+undersized, sampling more prefixes; decision_boundary: 0.5000
+undersized, sampling more suffixes; decision_boundary: 0.5000
+Completing suffix family:  99%|█████████▉| 2384/2408 [07:16<00:04,  5.47it/s]Completing suffix family: 4772it [14:25,  5.52it/s]                          Completing suffix family: 4772it [14:25,  5.51it/s]
+  kept 4772/2408 after screening
+FNR limit reached, decision boundary: 0.5490, margin: 0.0261
+  [ce_pass] probe 100/4000, states 8, splits 6, since_split 27/149
+  [ce_pass] probe 200/4000, states 8, splits 6, since_split 127/149
+  [ce_pass] DONE after 222 probes, 6 splits, 8 states
+Resolved DFA with 8 states
+DFA(states={0, 1, 2, 3, 4, 5, 6, 7}, input_symbols={0, 1, 2, 3, 4}, transitions={0: {0: 0, 1: 0, 2: 0, 3: 6, 4: 6}, 1: {0: 1, 1: 1, 2: 1, 3: 1, 4: 1}, 2: {0: 1, 1: 1, 2: 1, 3: 4, 4: 4}, 3: {0: 3, 1: 3, 2: 3, 3: 2, 4: 2}, 4: {0: 4, 1: 4, 2: 4, 3: 3, 4: 3}, 5: {0: 4, 1: 4, 2: 4, 3: 0, 4: 0}, 6: {0: 3, 1: 3, 2: 3, 3: 5, 4: 5}, 7: {0: 1, 2: 3, 3: 5, 4: 5, 1: 1}}, initial_state=6, final_states={0, 2, 3, 4, 5, 6, 7}, allow_partial=False)
+Estimated DFA accuracy on fresh samples: 0.8810
+  round 0:  8 | 0.789 | +0.186 | +1.000 | 0.881 | 771 | 243 | 0.549 | 0.026
+Starting synthesis iteration with 771 prefixes
+accept-preserving not established, sampling more prefixes; decision_boundary: 0.5957
+FNR 0.1581 too high, sampling more suffixes; decision_boundary: 0.6096
+Completing suffix family:  97%|█████████▋| 2274/2337 [11:50<00:19,  3.20it/s]Completing suffix family: 4576it [24:10,  3.15it/s]                          Completing suffix family: 4576it [24:10,  3.16it/s]
+  kept 4576/2337 after screening
+FNR 0.1135 too high, sampling more suffixes; decision_boundary: 0.6357
+Completing suffix family:  99%|█████████▊| 2257/2287 [12:08<00:09,  3.10it/s]Completing suffix family: 4494it [24:26,  3.06it/s]                          Completing suffix family: 4494it [24:26,  3.07it/s]
+  kept 4494/2287 after screening
+accept-preserving not established, sampling more prefixes; decision_boundary: 0.6514
+accept-preserving not established, sampling more prefixes; decision_boundary: 0.6529
+accept-preserving not established, sampling more prefixes; decision_boundary: 0.6706
+FNR 0.1858 too high, sampling more suffixes; decision_boundary: 0.6305
+Completing suffix family:  99%|█████████▉| 2273/2300 [19:23<00:13,  1.95it/s]Completing suffix family: 4532it [38:59,  1.93it/s]                          Completing suffix family: 4532it [38:59,  1.94it/s]
+  kept 4532/2300 after screening
+not accept-preserving, sampling more prefixes; decision_boundary: 0.6442

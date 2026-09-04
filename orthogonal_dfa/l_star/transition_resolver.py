@@ -240,6 +240,14 @@ class TransitionResolver:
         return self._first_bad_edge(w, states, lo, mid)
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
+        _sl = __import__("os").environ.get("SPLIT_LOG")
+        if _sl:
+            with open(_sl, "a") as _f:
+                _f.write(
+                    f"SPLIT n={self.tree.num_states} s1={s1} "
+                    f"witness={list(witness)} sprime={list(sprime)} "
+                    f"distinguisher={list(distinguisher)}\n"
+                )
         self._split(s1, distinguisher)
         for p in (witness, sprime):
             st = self._sift(p)

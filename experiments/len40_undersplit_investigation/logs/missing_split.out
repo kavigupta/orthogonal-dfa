@@ -1,0 +1,26 @@
+round 0 band [0.505,0.558) | round 1 band [0.581,0.633)
+
+[step1] most-conflated round-0 state s10: 283 SINK + 183 live (round-0 label: ACCEPT)
+  round-0 state SINK/live purity table (top 6 by conflation):
+    s10   283 SINK  183 live  ACCEPT
+    s4    133 SINK  291 live  ACCEPT
+    s13    52 SINK  346 live  ACCEPT
+    s9     14 SINK  181 live  ACCEPT
+    s6     13 SINK  301 live  ACCEPT
+    s11    12 SINK  194 live  ACCEPT
+
+[step2] where round 1 sends this state's members:
+    SINK -> {9: 60}
+    live -> {6: 60}
+
+[step3] at each round-1 midfix m: family decision on the conflated SINK vs live subsets
+        (mean | %Accept %Reject %Indec).  A MISSING SPLIT = round1 separates (SINK->reject, live->accept) where round0 does not.
+
+  m(len) | round-0 fam+band                       | round-1 fam+band
+         |   SINK: mean %A %R %I   live: mean %A %R %I |   SINK: mean %A %R %I   live: mean %A %R %I  | SPLIT?
+  len0   | S:0.47  13  67  20  L:0.67  83   8   8 | S:0.64  53  27  20  L:0.85  98   2   0 | round0-only
+  len0   | S:0.47  13  67  20  L:0.67  83   8   8 | S:0.64  53  27  20  L:0.85  98   2   0 | round0-only
+  len1   | S:0.45  18  70  12  L:0.60  60  23  17 | S:0.52  13  73  13  L:0.45   5  90   5 | round0-only
+  len2   | S:0.52  35  45  20  L:0.66  73  13  13 | S:0.41   3  95   2  L:0.57  28  57  15 | neither
+  len3   | S:0.48  17  65  18  L:0.68  85   7   8 | S:0.34   0 100   0  L:0.53  20  62  18 | round0-only
+  len3   | S:0.44   8  80  12  L:0.63  78  15   7 | S:0.66  62  20  18  L:0.84  97   2   2 | round0-only
