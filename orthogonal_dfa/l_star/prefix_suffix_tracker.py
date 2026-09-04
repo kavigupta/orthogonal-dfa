@@ -48,7 +48,12 @@ def _draw_budget(count: int) -> int:
 
 
 def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
-    """``count`` prefixes, distinct from each other and from ``held``."""
+    """Up to ``count`` prefixes, distinct from each other and from ``held``.
+
+    Fewer when the sampler has fewer left to give.  Drawing until it has
+    ``count`` never returns once it is out, and a pool that cannot grow is the
+    caller's business rather than an error here.
+    """
     drawn = set()
     for _ in range(_draw_budget(count)):
         if len(drawn) == count:
@@ -56,9 +61,6 @@ def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
         prefix = sampler.sample(rng, alphabet_size=alphabet_size)
         if prefix not in held:
             drawn.add(prefix)
-    assert (
-        len(drawn) == count
-    ), f"sampler yielded {len(drawn)} distinct prefixes of {count} wanted"
     return sorted(drawn)
 
 
@@ -110,13 +112,10 @@ class PrefixSuffixTracker:
         # be written down in.  Said once, and before the first draw, rather than
         # left to surface as whichever byte conversion is reached first.
         assert oracle.alphabet_size <= 256, oracle.alphabet_size
-        prefixes = _distinct_prefixes(
-            sampler,
-            rng,
-            alphabet_size=oracle.alphabet_size,
-            count=num_prefixes,
-            held=(),
-        )
+        prefixes = [
+            sampler.sample(rng, alphabet_size=oracle.alphabet_size)
+            for _ in range(num_prefixes)
+        ]
         return cls(
             sampler=sampler,
             rng=rng,
@@ -207,7 +206,8 @@ class PrefixSuffixTracker:
             count=self.config.num_addtl_prefixes,
             held=set(self.table.prefixes),
         )
-        self.table.add_prefixes(new_prefixes)
+        if new_prefixes:
+            self.table.add_prefixes(new_prefixes)
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that

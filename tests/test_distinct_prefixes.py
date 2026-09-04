@@ -37,12 +37,14 @@ class TestDistinctPrefixes(unittest.TestCase):
         held = set(_draw(12, 50))
         self.assertFalse(held & set(_draw(12, 50, held=held, seed=1)))
 
-    def test_a_sampler_too_narrow_to_fill_the_pool_says_so(self):
-        # 2^6 = 64 distinct strings, 200 wanted.  Looping until it has them
-        # never returns, so the budget is what turns a hang into a message.
-        with self.assertRaises(AssertionError) as caught:
-            _draw(6, 200)
-        self.assertIn("64 distinct prefixes of 200", str(caught.exception))
+    def test_a_sampler_too_narrow_to_fill_the_pool_gives_what_it_has(self):
+        # 2^6 = 64 distinct strings, 200 wanted.  Looping until it has 200 never
+        # returns, so the budget is what makes this finish at all.
+        self.assertEqual(len(_draw(6, 200)), 64)
+
+    def test_a_sampler_with_nothing_left_gives_nothing(self):
+        only = _draw(3, 8)
+        self.assertEqual(_draw(3, 8, held=set(only)), [])
 
     def test_the_budget_is_generous_where_the_support_is_ample(self):
         # Falling short is a chance event, so this is over seeds, not one.
