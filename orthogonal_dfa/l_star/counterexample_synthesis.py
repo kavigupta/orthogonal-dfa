@@ -125,14 +125,11 @@ def _per_state_members(pst, resolver, dfa, per_state):
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
-        path = resolver.tree.path_of(leaf)
-        if path is None:
-            continue
         source = StateSource(pst, resolver, dfa, leaf, serves=per_state)
         drawn = collect(source, wanted=per_state)
         if drawn is None:
             full = False
-            drawn = resolver.population.members(path, per_state)
+            drawn = resolver.population.members(resolver.tree.path_of(leaf), per_state)
         held[leaf] = drawn
     return held, full
 

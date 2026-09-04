@@ -20,14 +20,18 @@ MIN_YIELD = 0.2
 
 
 def _aim_at(pst, dfa, leaf):
-    """Draw a string the hypothesis says reaches ``leaf``, or ``None`` where it
-    says none does at the sampler's length."""
+    """A draw of a string the hypothesis says reaches ``leaf``.
+
+    It yields ``None`` where the hypothesis says no string of the sampler's
+    length reaches the leaf at all, which reads the same as a draw that missed:
+    either way the leaf has only what already rests there.
+    """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
     if not count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))[length][
         dfa.initial_state
     ]:
-        return None
+        return lambda: None
     mass = count_paths_to_state(dfa, leaf, length, weights)
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
@@ -38,6 +42,9 @@ class StateSource:
     def __init__(self, pst, resolver, dfa, leaf, *, serves):
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
+        # A split replaces a leaf with a node holding both ids, so every id the
+        # tree reports has a path to it.
+        assert self._path is not None, leaf
         self._aim = _aim_at(pst, dfa, leaf)
         self._serves = serves
         self._served = set()
@@ -50,14 +57,11 @@ class StateSource:
         returns: a string pushed toward the leaf is one the population then
         holds, and the split test reads the population.
         """
-        if self._path is None:
-            return None
-        if self._aim is not None:
-            aimed = self._aim()
-            if aimed is not None:
-                self._population.add(aimed)
-                if self._population.settle(aimed, self._path):
-                    return aimed
+        aimed = self._aim()
+        if aimed is not None:
+            self._population.add(aimed)
+            if self._population.settle(aimed, self._path):
+                return aimed
         return self._resting_member()
 
     def _resting_member(self) -> Optional[bytes]:
