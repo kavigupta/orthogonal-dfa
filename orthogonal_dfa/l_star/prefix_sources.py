@@ -7,11 +7,7 @@ only the tree's answer counts.
 import math
 from typing import Optional
 
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 
 #: A source landing fewer of its aims than this is one to stop waiting for.  At
 #: yield ``p`` it takes about ``1 / p`` draws per prefix, which is what bounds
@@ -22,17 +18,12 @@ MIN_YIELD = 0.2
 def _aim_at(pst, dfa, leaf):
     """A draw of a string the hypothesis says reaches ``leaf``.
 
-    It yields ``None`` where the hypothesis says no string of the sampler's
-    length reaches the leaf at all, which reads the same as a draw that missed:
-    either way the leaf has only what already rests there.
+    It yields ``None`` where the sampler cannot make one of its length -- no
+    path, or none its symbol weights would take -- which reads the same as a
+    draw that missed: either way the leaf has only what already rests there.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    length = pst.sampler.length
-    if not count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))[length][
-        dfa.initial_state
-    ]:
-        return lambda: None
-    mass = count_paths_to_state(dfa, leaf, length, weights)
+    mass = count_paths_to_state(dfa, leaf, pst.sampler.length, weights)
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
