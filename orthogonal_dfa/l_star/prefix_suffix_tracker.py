@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -35,24 +36,31 @@ class SearchConfig:
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
 
 
-#: Draws allowed per prefix wanted before the sampler is called exhausted.  A
-#: sampler whose support is smaller than the pool can never fill it, and drawing
-#: until it does never returns; ~n log n draws suffice when it can.
-DRAWS_PER_PREFIX = 20
+def _draw_budget(count: int) -> int:
+    """Draws to allow in collecting ``count`` distinct strings.
+
+    About ``count`` are needed where the sampler has far more strings than the
+    pool wants, and about ``count * ln count`` where it has only half again as
+    many.  Nearer exhaustion than that no fixed budget helps: the last string of
+    a support of ``s`` costs ``s`` draws on its own.
+    """
+    return count * (1 + math.ceil(math.log(count + 1)))
 
 
 def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
-    """``count`` prefixes, distinct from each other and from ``held``."""
+    """Up to ``count`` prefixes, distinct from each other and from ``held``.
+
+    Fewer when the sampler has fewer left to give.  Drawing until it has
+    ``count`` never returns once it is out, and a pool that cannot grow is the
+    caller's business rather than an error here.
+    """
     drawn = set()
-    for _ in range(count * DRAWS_PER_PREFIX):
+    for _ in range(_draw_budget(count)):
         if len(drawn) == count:
             break
         prefix = sampler.sample(rng, alphabet_size=alphabet_size)
         if prefix not in held:
             drawn.add(prefix)
-    assert (
-        len(drawn) == count
-    ), f"sampler yielded {len(drawn)} distinct prefixes of {count} wanted"
     return sorted(drawn)
 
 
@@ -104,13 +112,10 @@ class PrefixSuffixTracker:
         # be written down in.  Said once, and before the first draw, rather than
         # left to surface as whichever byte conversion is reached first.
         assert oracle.alphabet_size <= 256, oracle.alphabet_size
-        prefixes = _distinct_prefixes(
-            sampler,
-            rng,
-            alphabet_size=oracle.alphabet_size,
-            count=num_prefixes,
-            held=(),
-        )
+        prefixes = [
+            sampler.sample(rng, alphabet_size=oracle.alphabet_size)
+            for _ in range(num_prefixes)
+        ]
         return cls(
             sampler=sampler,
             rng=rng,
@@ -201,7 +206,8 @@ class PrefixSuffixTracker:
             count=self.config.num_addtl_prefixes,
             held=set(self.table.prefixes),
         )
-        self.table.add_prefixes(new_prefixes, population=UNIFORM)
+        if new_prefixes:
+            self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that

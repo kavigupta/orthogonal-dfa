@@ -88,12 +88,16 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(table.num_prefixes, 7)
         self.assertEqual(int(table.population_masks()["uniform"].sum()), 4)
 
-    def test_a_repeated_prefix_is_refused(self):
-        # The index keeps the last of them, so the earlier column would be in no
-        # population and never representative -- while every full read still has
-        # to observe it.
-        with self.assertRaises(AssertionError):
-            _table(_words(3) + _words(1))
+    def test_a_repeated_prefix_keeps_both_columns(self):
+        # The initial draw is i.i.d., so a repeat is the sampler saying that
+        # string is common.  The index collapses them, so the population must be
+        # built from the columns, not from it -- otherwise the repeat silently
+        # loses the weight it was drawn to carry.
+        table = _table(_words(3) + _words(1))
+
+        self.assertEqual(table.num_prefixes, 4)
+        self.assertEqual(int(table.representative.sum()), 4)
+        self.assertEqual(int(table.population_masks()["uniform"].sum()), 4)
 
     def test_redefining_a_population_replaces_it_rather_than_adding_to_it(self):
         # A round rebuilds its populations from what it drew.  Whatever else
