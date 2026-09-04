@@ -32,6 +32,9 @@ class MaskTable:
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
+        # A repeat would be a column no population holds -- the index keeps the
+        # last of them -- yet one every full read still has to observe.
+        assert len(set(prefixes)) == len(prefixes), "Prefixes must be unique"
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
         self._prefixes = list(prefixes)

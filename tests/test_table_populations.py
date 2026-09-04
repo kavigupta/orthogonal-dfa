@@ -86,6 +86,13 @@ class TestPopulations(unittest.TestCase):
         self.assertEqual(table.num_prefixes, 7)
         self.assertEqual(int(table.population_masks()["uniform"].sum()), 4)
 
+    def test_a_repeated_prefix_is_refused(self):
+        # The index keeps the last of them, so the earlier column would be in no
+        # population and never representative -- while every full read still has
+        # to observe it.
+        with self.assertRaises(AssertionError):
+            _table(_words(3) + _words(1))
+
     def test_dropping_one_that_was_never_there_is_not_an_error(self):
         table = _table(_words(4))
         table.drop_population(("state", 3))
