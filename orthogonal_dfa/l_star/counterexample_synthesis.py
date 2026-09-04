@@ -28,6 +28,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
 from .progress import track
 from .transition_resolver import TransitionResolver
@@ -111,8 +112,8 @@ class _PoolState:
     sampling distribution even if the per-state sample is skewed), the accumulated
     boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
 
-    def __init__(self, baseline):
-        self.baseline = list(baseline)
+    def __init__(self, uniform):
+        self.uniform = list(uniform)
         self.accumulated = []
         self.seen = set()
         self.sampled = []
@@ -209,11 +210,16 @@ def _grow_representative_pool(
             state.accumulated.append(t)
     by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
-    representative = state.baseline + state.accumulated + state.sampled
-    fresh = sorted({p for p in representative if not pst.table.contains_prefix(p)})
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative)
+    # Retired before it is redefined, so a mid-round top-up's prefixes do not
+    # outlive the round that bought them.
+    for population, prefixes in (
+        (UNIFORM, state.uniform),
+        (BOUNDARY, state.accumulated),
+        (STATE, state.sampled),
+    ):
+        pst.table.drop_population(population)
+        if prefixes:
+            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
     return int(pst.table.representative.sum()), every_state_full
 
 
@@ -277,10 +283,10 @@ def counterexample_driven_synthesis(
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    baseline = [
+    uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    state = _PoolState(baseline)
+    state = _PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
     for index in itertools.count():

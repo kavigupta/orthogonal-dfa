@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import numpy as np
 
-from .mask_table import MaskTable
+from .mask_table import UNIFORM, MaskTable
 from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
@@ -124,7 +124,7 @@ class PrefixSuffixTracker:
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes, [True] * len(prefixes)),
+            table=MaskTable(oracle, prefixes, population=UNIFORM),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
@@ -210,7 +210,7 @@ class PrefixSuffixTracker:
             held=set(self.table.prefixes),
         )
         if new_prefixes:
-            self.table.add_prefixes(new_prefixes)
+            self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
