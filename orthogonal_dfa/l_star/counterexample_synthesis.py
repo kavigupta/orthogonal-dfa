@@ -28,6 +28,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
 from .progress import track
 from .transition_resolver import TransitionResolver
@@ -213,9 +214,9 @@ def _grow_representative_pool(
     # states are not this round's, and the prefixes a mid-round top-up bought
     # the family search are not the pool's to keep.
     for population, prefixes in (
-        ("uniform", state.uniform),
-        ("boundary", state.accumulated),
-        ("state", state.sampled),
+        (UNIFORM, state.uniform),
+        (BOUNDARY, state.accumulated),
+        (STATE, state.sampled),
     ):
         pst.table.drop_population(population)
         if prefixes:

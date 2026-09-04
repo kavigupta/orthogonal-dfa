@@ -22,6 +22,13 @@ import numpy as np
 
 from .memoized_oracle import MemoizedOracle
 
+#: The populations the round's pool is rebuilt from.  Named here rather than
+#: spelled at each writer: a label two modules agree on only by spelling is one a
+#: rename quietly splits in two, leaving the half nothing drops to grow forever.
+UNIFORM = "uniform"
+BOUNDARY = "boundary"
+STATE = "state"
+
 # Sentinel for a not-yet-queried cell.  Private to this module: callers ask about
 # observation through ``fully_observed`` / ``observed_masks`` and never see it.
 UNOBSERVED = np.int8(-1)
@@ -29,18 +36,18 @@ UNOBSERVED = np.int8(-1)
 
 class MaskTable:
     def __init__(self, oracle, prefixes: List[bytes], *, population):
-        # Memoize membership per string.  The matrix already dedups by (prefix,
-        # suffix) cell; this additionally dedups across cells that spell the same
-        # string, and allows us to remove the matrix caching in future.
         # A repeat would be a column no population holds -- the index keeps the
         # last of them -- yet one every full read still has to observe.
         assert len(set(prefixes)) == len(prefixes), "Prefixes must be unique"
+        # Memoize membership per string.  The matrix already dedups by (prefix,
+        # suffix) cell; this additionally dedups across cells that spell the same
+        # string, and allows us to remove the matrix caching in future.
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
-        self._prefixes = list(prefixes)
-        self._prefix_index: Dict[bytes, int] = {
-            p: i for i, p in enumerate(self._prefixes)
-        }
+        #: prefix -> its column.  Insertion-ordered and never removed from, so
+        #: the keys are the prefixes in column order and there is no second copy
+        #: to fall out of step with.
+        self._prefix_index: Dict[bytes, int] = {p: i for i, p in enumerate(prefixes)}
         self._populations: Dict[object, set] = {
             population: set(self._prefix_index.values())
         }
@@ -52,18 +59,18 @@ class MaskTable:
 
     @property
     def num_prefixes(self) -> int:
-        return len(self._prefixes)
+        return len(self._prefix_index)
 
     @property
     def prefixes(self) -> tuple:
-        """The prefixes, for read-only iteration."""
-        return tuple(self._prefixes)
+        """The prefixes, for read-only iteration, in column order."""
+        return tuple(self._prefix_index)
 
     @property
     def representative(self) -> np.ndarray:
         """Boolean mask selecting the prefixes clustering reads: every prefix in
         some live population."""
-        mask = np.zeros(len(self._prefixes), dtype=bool)
+        mask = np.zeros(self.num_prefixes, dtype=bool)
         for columns in self._populations.values():
             mask[list(columns)] = True
         return mask
@@ -76,13 +83,6 @@ class MaskTable:
         Rounds redefine what a state is, so the population that named one has to
         stop being live when the round that drew it ends."""
         self._populations.pop(label, None)
-
-    def _column_of(self, prefix: bytes) -> int:
-        column = self._prefix_index.get(prefix)
-        assert (
-            column is not None
-        ), f"population names a prefix not in the table: {prefix!r}"
-        return column
 
     def population_masks(self):
         """``label -> mask`` over the representative prefixes, in table order.
@@ -139,8 +139,7 @@ class MaskTable:
             np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
         ]
         self._masks = updated
-        fresh = range(len(self._prefixes), len(self._prefixes) + len(new_prefixes))
-        self._prefixes.extend(new_prefixes)
+        fresh = range(self.num_prefixes, self.num_prefixes + len(new_prefixes))
         self._prefix_index.update(zip(new_prefixes, fresh))
 
     # -- suffix side --------------------------------------------------------
@@ -169,13 +168,15 @@ class MaskTable:
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
         assert len(set(rows)) == len(rows), "rows must be distinct"
+        # Hoisted: the only place a column is read back as its prefix.
+        names = self.prefixes
         idx = np.flatnonzero(prefix_mask)
         strings, targets = [], []
         for r in rows:
             col = self._masks[r]
             suffix = self._suffixes[r]
             for p in idx[col[idx] == UNOBSERVED]:
-                strings.append(self._prefixes[p] + suffix)
+                strings.append(names[p] + suffix)
                 targets.append((r, p))
         if not strings:
             return

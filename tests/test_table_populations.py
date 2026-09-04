@@ -8,6 +8,8 @@ named as it enters, so the table is never between a population and its members.
 
 import unittest
 
+import numpy as np
+
 from orthogonal_dfa.l_star.mask_table import MaskTable
 
 #: Anything: the table below is never asked a membership question.
@@ -106,6 +108,24 @@ class TestPopulations(unittest.TestCase):
         table.add_prefixes(uniform, population="uniform")
         self.assertEqual(int(table.representative.sum()), 4)
         self.assertEqual(table.num_prefixes, 204, "the columns stay")
+
+    def test_a_mask_is_positions_within_the_representative_set(self):
+        # Not column numbers: consumers index a decision vector that was read
+        # over the representative prefixes only.  Here the retired columns 4-6
+        # sit between the two live populations, so the two differ.
+        early, retired, late = _words(4), _words(3, offset=4), _words(2, offset=7)
+        table = _table(early)
+        table.add_prefixes(retired, population="scratch")
+        table.add_prefixes(late, population=("state", 0))
+        table.drop_population("scratch")
+
+        masks = table.population_masks()
+        self.assertEqual(table.num_prefixes, 9, "the retired columns stay")
+        for label, mask in masks.items():
+            self.assertEqual(len(mask), 6, f"{label} is over the 6 representative")
+        self.assertEqual(list(np.flatnonzero(masks["uniform"])), [0, 1, 2, 3])
+        # Columns 7 and 8, but positions 4 and 5, the gap having closed up.
+        self.assertEqual(list(np.flatnonzero(masks[("state", 0)])), [4, 5])
 
     def test_dropping_one_that_was_never_there_is_not_an_error(self):
         table = _table(_words(4))
