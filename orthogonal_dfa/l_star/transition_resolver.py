@@ -71,11 +71,7 @@ class TransitionResolver:
         )
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
         self.edges = EdgeResolver(
-            self.dfa,
-            self.sifter,
-            self.indecisive,
-            population=self.population,
-            decisions=self.decisions,
+            self.dfa, self.sifter, self.indecisive, population=self.population
         )
 
     # -- membership / population -------------------------------------------

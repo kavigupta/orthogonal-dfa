@@ -107,7 +107,7 @@ class LeafPopulation:
         midfix = self._tree.midfix_at(parent)
         decisions = self._classify(chunk, midfix)
         for string, decision in zip(chunk, decisions):
-            self._decisions.record(decision is not None)
+            self._decisions.record(parent, decision is not None)
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
             else:

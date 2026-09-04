@@ -27,7 +27,6 @@ from .dfa_utils import (
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .midfix_tree import MidfixTree
-from .statistics import binomial_side_of_boundary
 from .transition_resolver import TransitionResolver
 
 
@@ -213,33 +212,15 @@ def _grow_representative_pool(
     return every_state_full
 
 
-def tree_is_saturated(pst, resolver, every_state_full) -> bool:
+def tree_is_saturated(resolver, every_state_full) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
     A state the round could not fill is one more prefixes would say more about.
-    Past that we ask whether the family left less indecision than a working gate
-    does.  Each decision is one Bernoulli trial at one node, the unit
-    ``fnr_limit`` is stated in, so the limit is the yardstick -- though pooling
-    over nodes can average away a single node that is well above it.
+    Past that every node has to come out settled (see `Decisions`), each on its
+    own evidence, so that one node still straddling its midfix keeps the round
+    open however clean the rest are.
     """
-    if not every_state_full:
-        return False
-    decisions = resolver.decisions
-    if not decisions.total:
-        return False
-    # Saturated only on positive evidence the rate is *below* the limit.  The
-    # other direction -- saturated unless we can prove the rate too high --
-    # stops sooner the less it has seen, which is backwards for a rule whose
-    # job is to decide the round found nothing.
-    return (
-        binomial_side_of_boundary(
-            decisions.unplaced,
-            decisions.total,
-            pst.config.fnr_limit,
-            failure_prob=0.01,
-        )
-        is False
-    )
+    return every_state_full and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -339,7 +320,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=improved,
-            saturated=tree_is_saturated(pst, resolver, every_state_full),
+            saturated=tree_is_saturated(resolver, every_state_full),
         ):
             print(
                 f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
