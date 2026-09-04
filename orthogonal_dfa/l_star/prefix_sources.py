@@ -1,8 +1,7 @@
 """Drawing the prefixes that belong to one state.
 
-The hypothesis says where to aim a string; the tree says where it went.  Only
-the tree's answer counts, so a source is what turns the first into the second
-and reports what it could not do.
+The hypothesis says where to aim a string; the tree says where it landed, and
+only the tree's answer counts.
 """
 
 import math
@@ -34,12 +33,7 @@ def _aim_at(pst, dfa, leaf):
 
 
 class StateSource:
-    """Prefixes the tree places at one leaf.
-
-    Aiming is how a leaf nothing has reached gets its first prefixes, not how it
-    gets every prefix: what already rests there is the same answer from the same
-    arbiter, already paid for.
-    """
+    """Prefixes the tree places at one leaf."""
 
     def __init__(self, pst, resolver, dfa, leaf, *, serves):
         self._population = resolver.population
