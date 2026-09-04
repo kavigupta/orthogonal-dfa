@@ -4,11 +4,11 @@ from typing import Dict, List
 
 from .statistics import binomial_side_of_boundary
 
-#: A node is settled when fewer than half of its pushes are indecisive.  Past
-#: half the modal answer is "cannot place", so the node is reading the family's
-#: noise rather than a distinction.  Deliberately not ``fnr_limit``: that is the
-#: rate the gate holds a whole family to, not the point one node stops saying
-#: anything, and at a node's sample size nothing near it is provable either way.
+#: A node is settled when fewer than half of its pushes are indecisive.  Edge
+#: closure only needs each decision to come out resolvable sometimes -- it
+#: closes from whichever members do resolve -- so a node answering at least half
+#: the time still gets counterexample synthesis to the right DFA.  Sufficient,
+#: not tight: it could be lower.
 SETTLED = 0.5
 
 _FAILURE_PROB = 0.01
