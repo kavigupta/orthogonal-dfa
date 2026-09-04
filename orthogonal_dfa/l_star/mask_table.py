@@ -16,7 +16,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 
@@ -30,13 +30,16 @@ UNOBSERVED = np.int8(-1)
 class MaskTable:
     def __init__(self, oracle, prefixes: List[bytes], representative: List[bool]):
         assert len(prefixes) == len(representative)
+        # A repeat would be a column the index cannot name.
+        assert len(set(prefixes)) == len(prefixes), "Prefixes must be unique"
         # Memoize membership per string.  The matrix already dedups by (prefix,
         # suffix) cell; this additionally dedups across cells that spell the same
         # string, and allows us to remove the matrix caching in future.
         self.memo = MemoizedOracle(oracle)
         self._oracle = self.memo
-        self._prefixes = list(prefixes)
-        self._prefix_keys = set(self._prefixes)
+        #: prefix -> its column.  Insertion-ordered and never removed from, so
+        #: the keys are the prefixes in column order.
+        self._prefix_index: Dict[bytes, int] = {p: i for i, p in enumerate(prefixes)}
         self._representative = list(representative)
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
@@ -46,12 +49,12 @@ class MaskTable:
 
     @property
     def num_prefixes(self) -> int:
-        return len(self._prefixes)
+        return len(self._prefix_index)
 
     @property
     def prefixes(self) -> tuple:
-        """The prefixes, for read-only iteration."""
-        return tuple(self._prefixes)
+        """The prefixes, for read-only iteration, in column order."""
+        return tuple(self._prefix_index)
 
     @property
     def representative(self) -> np.ndarray:
@@ -64,10 +67,10 @@ class MaskTable:
         """Make *exactly* ``prefixes`` the representative set (every other prefix
         becomes non-representative), realigning the mask to the current prefixes."""
         keys = set(prefixes)
-        self._representative = [p in keys for p in self._prefixes]
+        self._representative = [p in keys for p in self.prefixes]
 
     def contains_prefix(self, prefix: bytes) -> bool:
-        return prefix in self._prefix_keys
+        return prefix in self._prefix_index
 
     def add_prefixes(self, new_prefixes: List[bytes]) -> None:
         assert new_prefixes, "No new prefixes to add"
@@ -95,8 +98,8 @@ class MaskTable:
             np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
         ]
         self._masks = updated
-        self._prefixes.extend(new_prefixes)
-        self._prefix_keys.update(new_prefixes)
+        fresh = range(self.num_prefixes, self.num_prefixes + len(new_prefixes))
+        self._prefix_index.update(zip(new_prefixes, fresh))
         self._representative.extend([True] * len(new_prefixes))
 
     # -- suffix side --------------------------------------------------------
@@ -125,13 +128,14 @@ class MaskTable:
         ``prefix_mask``.  Cells already observed are reused, so no
         ``(prefix, suffix)`` pair is queried twice."""
         assert len(set(rows)) == len(rows), "rows must be distinct"
+        names = self.prefixes
         idx = np.flatnonzero(prefix_mask)
         strings, targets = [], []
         for r in rows:
             col = self._masks[r]
             suffix = self._suffixes[r]
             for p in idx[col[idx] == UNOBSERVED]:
-                strings.append(self._prefixes[p] + suffix)
+                strings.append(names[p] + suffix)
                 targets.append((r, p))
         if not strings:
             return
