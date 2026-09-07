@@ -310,9 +310,9 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
     pools = Pools(pst)
     stall = _StallDetector(STALL_PATIENCE)
     best_acc = -1.0
-    # No previous round, so the first family search has no populations to reach
-    # back for and answers everything by drawing uniformly.
-    grow = None
+    # A view on the pools rather than on one round's sources, so the family
+    # search reaches whatever the last rebuild left behind.
+    grow = _PoolAccess(pools)
     for index in itertools.count():
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
@@ -366,9 +366,6 @@ def counterexample_driven_synthesis(pst, *, acc_threshold: float):
             )
             yield dfa, dt, true_acc, pst.decision_boundary, classifier
             return
-        # Handed to the next round's family search, which is the thing that finds
-        # out a population needs more prefixes than it holds.
-        grow = _PoolAccess(pools)
         improved = true_acc > best_acc
         best_acc = max(best_acc, true_acc)
         if stall.stalled(

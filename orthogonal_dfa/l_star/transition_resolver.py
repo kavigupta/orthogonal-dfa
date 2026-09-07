@@ -28,7 +28,6 @@ remapping on export.
 
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
 from .decisions import Decisions
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
@@ -287,15 +286,3 @@ class TransitionResolver:
             allow_partial=False,
         )
         return dfa, self.tree
-
-
-def resolve_dfa(pst):
-    """
-    Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
-    """
-    v_idx = pst.table.intern_suffix(b"")
-    vs, boundary = sample_suffix_family(pst, v_idx)
-    pst.decision_boundary = boundary
-    resolver = TransitionResolver(pst, vs)
-    resolver.close_edges()
-    return resolver.to_dfa_and_tree()

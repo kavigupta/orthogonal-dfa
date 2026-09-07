@@ -154,15 +154,6 @@ def certification_sample(pst, vs, by_population):
     return out
 
 
-def certification_sample_prefixes(pst, amount: int):
-    """Uniform prefixes, for a caller with no source to draw the population's
-    own from -- the pool is the one population that is what the sampler returns."""
-    return [
-        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        for _ in range(amount)
-    ]
-
-
 def _split_counts(pst, decision, seed_row, extra=None):
     """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
     cut counted on the split's own column, one entry per prefix population.
@@ -290,7 +281,7 @@ class AcceptPreservingGate:
     Nothing resets that budget: admitting a family is the round returning, and
     the gate is made afresh for the next search."""
 
-    def __init__(self, config, grow_pool=None):
+    def __init__(self, config, grow_pool):
         self.enabled = config.require_accept_preserving
         self.refusals = 0
         self._grow_pool = grow_pool
@@ -299,20 +290,16 @@ class AcceptPreservingGate:
         """Read the split again on more prefixes, drawn for the populations that
         left it undecided.
 
-        Each population is read over its own prefixes, so a population that
-        cannot say draws more of its own kind rather than more uniform ones,
-        which would only say something about the uniform pool.
+        Each population is read over prefixes from its own source.  One with
+        no source -- a sealed pool of the unplaceable -- draws nothing, its
+        prefixes being all of it rather than a sample of anything.
         """
         extra = {}
         for label, sides in counts.items():
             if drift_verdict(pst, {label: sides}) is not UNCERTIFIED:
                 continue
             wanted = prefixes_to_certify(pst, {label: sides}, vs)
-            drawn = (
-                self._grow_pool.for_split(label, wanted)
-                if self._grow_pool is not None
-                else certification_sample_prefixes(pst, wanted)
-            )
+            drawn = self._grow_pool.for_split(label, wanted)
             if drawn:
                 extra[label] = drawn
         if not extra:
@@ -405,7 +392,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
@@ -414,9 +401,9 @@ def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]
     membership of ``p`` only while ``v`` is empty.
 
     ``grow_pool(label)`` grows one prefix population, the one the FNR is the
-    rate of.  The populations are the previous round's -- that is what defines
-    them -- so the caller supplies this; without one every population is
-    answered by drawing uniformly, which only the uniform one answers to.
+    rate of, and ``grow_pool.for_split`` draws from it without keeping the
+    draw.  The populations are the previous round's -- that is what defines
+    them -- so the caller supplies this.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -424,7 +411,7 @@ def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]
     family_size = smallest_readable_family(
         pst.config.min_signal_strength, decision_boundary
     )
-    gate = AcceptPreservingGate(pst.config)
+    gate = AcceptPreservingGate(pst.config, grow_pool)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -474,7 +461,7 @@ def sample_suffix_family(pst, v: int, grow_pool=None) -> Tuple[List[int], float]
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
-        elif grow_pool is None or judged.worst is None:
+        elif judged.worst is None:
             pst.sample_more_prefixes()
         elif not grow_pool(judged.worst):
             # Nothing more of that population to be had -- the strings some
