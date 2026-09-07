@@ -29,7 +29,7 @@ def learn_superlanguage(
 ) -> Any:
     """Where base_oracle is deterministic and blind to how the wildcards were
     filled, so is the lifted one, and noise reaches the learner through noise_model
-    alone. dfa is None if synthesis reached no hypothesis.
+    alone.
     """
 
     def oracle_creator(nm, s):

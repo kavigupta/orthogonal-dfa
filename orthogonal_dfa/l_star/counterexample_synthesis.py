@@ -296,7 +296,8 @@ def counterexample_driven_synthesis(
     min_indecisive: int = 200,
 ) -> BestRound:
     """Rounds until the hypothesis is consistent enough, the pool stalls, or
-    ``max_rounds`` of them have run."""
+    ``max_rounds`` of them have run.  Only a caller driving the loop itself can
+    set that cap; `learn_dfa` does not forward one."""
     # The cap is read at the foot of the body, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     tracker = tracker if tracker is not None else SynthesisTracker()

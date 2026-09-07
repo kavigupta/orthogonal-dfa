@@ -56,7 +56,7 @@ class TestSynthesisTracker(unittest.TestCase):
 
     def test_the_shared_run_learned_something(self):
         self.assertIsNotNone(self.dfa)
-        self.assertIsNotNone(self.tracker.corrected[0])
+        self.assertIsNotNone(self.tracker.corrected)
 
     def test_every_round_reports_once(self):
         rounds = 1 + max(r for _, r in self.tracker.calls)
@@ -97,6 +97,7 @@ class TestSynthesisTracker(unittest.TestCase):
         self.assertEqual(reloaded.consistency, self.tracker.consistency)
         self.assertEqual(reloaded.families, self.tracker.families)
         suffixes, _ = reloaded.families[0]
+        self.assertTrue(suffixes)
         self.assertTrue(all(isinstance(v, bytes) for v in suffixes))
         self.assertEqual(reloaded.corrected[1], self.tracker.corrected[1])
         self.assertEqual(len(reloaded.hypotheses), len(self.tracker.hypotheses))

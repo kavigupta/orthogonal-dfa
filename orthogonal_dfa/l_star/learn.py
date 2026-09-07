@@ -83,7 +83,8 @@ def learn_dfa(
     require_accept_preserving: bool = True,
     tracker: Optional[SynthesisTracker] = None,
 ):
-    """Learn a DFA from `oracle_creator`; None when synthesis found none.
+    """Learn a DFA from `oracle_creator`.  Failure raises
+    `NoAcceptPreservingFamily` rather than returning.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
