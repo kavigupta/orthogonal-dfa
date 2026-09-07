@@ -125,6 +125,8 @@ class TestMaxRounds(unittest.TestCase):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         best = counterexample_driven_synthesis(pst, acc_threshold=0.98, max_rounds=1)
         self.assertIsNotNone(best.dfa)
+        # An untracked driver has no other route to the settled round's tree.
+        self.assertIsNotNone(best.tree)
 
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.
