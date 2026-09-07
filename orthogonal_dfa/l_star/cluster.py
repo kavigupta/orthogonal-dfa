@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import scipy.stats
 
+from .mask_table import UNIFORM
 from .statistics import (
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
@@ -205,23 +206,29 @@ def _sides(counts):
 
 
 def drift_verdict(pst, by_population) -> str:
-    """Whether every population reads as its own class on the split, or one of
-    them reads as the other's, or the counts do not say.
+    """Whether the family cuts with the classes, against them, or not readably.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
-    split's column says what the oracle makes of the prefixes themselves.  A
-    family realises the accept-preserving split when the prefixes it calls
-    accepting read there as accepting -- by the same thresholds the family is
-    read with, since it is that reading being checked and not another.
+    split's column says what the oracle makes of the prefixes themselves.
 
-    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
-    Neither is a rate anything has to be estimated against, which is what a gap
-    between the sides would have needed, and would have had to name a signal for.
+    The two halves read different populations.  *Drifted* is a population read
+    as the other class, which is the whole reason the rate is kept per
+    population: a family that reads one state's prefixes backwards moves a
+    pooled rate by that state's share of the draw and hides there.  That test
+    wants a population landing all on one side, which is what a state's
+    prefixes do -- they all reach the same state, so they are all one class, and
+    a backwards reading puts every one of them on a side where the oracle
+    contradicts them.
 
-    Admitting is every side of every population rejecting its own null, so the
-    chance of admitting a drifted family is bounded by the rate one side spends
-    however many are read.  Saying *drifted* is the union of them, which is why
-    that half is shared out between them.
+    *Admitted* is the opposite question -- whether the family separates the
+    classes at all -- and only the uniform pool can answer it.  A skew there is
+    a family that learned no rule.  A skew anywhere else is a population being
+    what it is.  ``accept_thresh`` also only means something against the
+    oracle's own base rate, which is the rate the uniform pool is drawn at.
+
+    So: any population may veto, only the uniform one may admit.  Drift is
+    read first, since a family can separate the classes on the pool and still
+    invert a state.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     sides = [side for counts in by_population.values() for side in _sides(counts)]
@@ -237,10 +244,13 @@ def drift_verdict(pst, by_population) -> str:
             return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
         return scipy.stats.binom.sf(hits - 1, n, pst.reject_thresh) <= level
 
-    if all(rejects_null(*side, alpha) for side in sides):
-        return ADMITTED
+    # Shared out between the sides, so saying drifted at all costs half the rate
+    # however many are read.
     if any(drifted(*side, alpha / len(sides)) for side in sides):
         return DRIFTED
+    pool = _sides(by_population.get(UNIFORM, ((0, 0), (0, 0))))
+    if pool and all(rejects_null(*side, alpha) for side in pool):
+        return ADMITTED
     return UNCERTIFIED
 
 
@@ -287,25 +297,18 @@ class AcceptPreservingGate:
         self._grow_pool = grow_pool
 
     def _certify_further(self, pst, counts, *, decision, seed_row, vs):
-        """Read the split again on more prefixes, drawn for the populations that
-        left it undecided.
+        """Read the split again on more of the uniform pool.
 
-        Each population is read over prefixes from its own source.  One with
-        no source -- a sealed pool of the unplaceable -- draws nothing, its
-        prefixes being all of it rather than a sample of anything.
+        Undecided means no population vetoed and the pool could not admit, so
+        the pool is the only one short of anything.  A population that could
+        have vetoed and did not has already said what it has to say.
         """
-        extra = {}
-        for label, sides in counts.items():
-            if drift_verdict(pst, {label: sides}) is not UNCERTIFIED:
-                continue
-            wanted = prefixes_to_certify(pst, {label: sides}, vs)
-            drawn = self._grow_pool.for_split(label, wanted)
-            if drawn:
-                extra[label] = drawn
-        if not extra:
+        wanted = prefixes_to_certify(pst, counts, vs)
+        drawn = self._grow_pool.for_split(UNIFORM, wanted)
+        if not drawn:
             return counts
         return _split_counts(
-            pst, decision, seed_row, certification_sample(pst, vs, extra)
+            pst, decision, seed_row, certification_sample(pst, vs, {UNIFORM: drawn})
         )
 
     def verdict(self, pst, decision, seed_row, vs) -> str:
