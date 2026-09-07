@@ -7,7 +7,11 @@ follow -- it can be pickled and analysed after the run.
 
 
 class SynthesisTracker:
-    """No-op; override the rounds' artefacts you care about."""
+    """No-op; override the rounds' artefacts you care about.
+
+    One instance of this class is the default argument of `learn_dfa` and
+    `learn_superlanguage`, so every untracked run shares it: it has to stay
+    stateless."""
 
     def on_family_resolved(self, suffixes, boundary, round_index):
         """The family this round clustered, and the accept rate it re-estimated

@@ -289,7 +289,7 @@ def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
-    tracker: Optional[SynthesisTracker] = None,
+    tracker: SynthesisTracker,
     max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
@@ -300,7 +300,6 @@ def counterexample_driven_synthesis(
     set that cap; `learn_dfa` does not forward one."""
     # The cap is read at the foot of the body, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
-    tracker = tracker if tracker is not None else SynthesisTracker()
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -390,9 +389,8 @@ def counterexample_driven_synthesis(
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float, tracker: Optional[SynthesisTracker] = None
+    pst, *, acc_threshold: float, tracker: SynthesisTracker
 ) -> Optional[DFA]:
-    tracker = tracker if tracker is not None else SynthesisTracker()
     best = counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker
     )

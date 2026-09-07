@@ -81,7 +81,7 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     require_accept_preserving: bool = True,
-    tracker: Optional[SynthesisTracker] = None,
+    tracker: SynthesisTracker = SynthesisTracker(),
 ):
     """Learn a DFA from `oracle_creator`.  Failure raises
     `NoAcceptPreservingFamily` rather than returning.
@@ -90,7 +90,7 @@ def learn_dfa(
     factory rather than an oracle so callers can count or wrap the queries.
     `sampler` draws the probe strings (see `build_pst`).  Pass a `tracker` (see
     `SynthesisTracker`) to receive each round's family, hypothesis and
-    consistency as they are made.
+    consistency as they are made; the default one discards them.
     """
     pst = build_pst(
         oracle_creator,

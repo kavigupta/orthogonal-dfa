@@ -25,7 +25,7 @@ def learn_superlanguage(
     noise_model: Optional[NoiseModel] = None,
     min_suffix_frequency: float = 0.02,
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
-    tracker: Optional[SynthesisTracker] = None,
+    tracker: SynthesisTracker = SynthesisTracker(),
 ) -> Any:
     """Where base_oracle is deterministic and blind to how the wildcards were
     filled, so is the lifted one, and noise reaches the learner through noise_model

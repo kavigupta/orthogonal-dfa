@@ -7,7 +7,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
 from orthogonal_dfa.l_star.learn import build_pst, learn_dfa
 from orthogonal_dfa.l_star.structures import NoisyOracle
-from orthogonal_dfa.l_star.tracker import RecordingTracker
+from orthogonal_dfa.l_star.tracker import RecordingTracker, SynthesisTracker
 
 
 class _OrderedRecorder(RecordingTracker):
@@ -119,16 +119,18 @@ class TestMaxRounds(unittest.TestCase):
         self.assertEqual(len(tracker.consistency), 1)
         self.assertEqual(best.round_index, 0)
 
-    def test_runs_untracked(self):
-        # The loop installs a no-op tracker; without it a round would call
-        # through None. Reaching the assertion at all is the test.
+    def test_drives_the_loop_with_the_base_tracker(self):
         pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
-        best = counterexample_driven_synthesis(pst, acc_threshold=0.98, max_rounds=1)
+        best = counterexample_driven_synthesis(
+            pst, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=1
+        )
         self.assertIsNotNone(best.dfa)
-        # An untracked driver has no other route to the settled round's tree.
+        # A caller recording nothing has no other route to the settled tree.
         self.assertIsNotNone(best.tree)
 
     def test_rejects_a_cap_below_one_round(self):
         # Rejected before the pst is touched, hence None here.
         with self.assertRaises(AssertionError):
-            counterexample_driven_synthesis(None, acc_threshold=0.98, max_rounds=0)
+            counterexample_driven_synthesis(
+                None, acc_threshold=0.98, tracker=SynthesisTracker(), max_rounds=0
+            )
