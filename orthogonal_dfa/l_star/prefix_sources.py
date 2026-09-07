@@ -20,6 +20,7 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
+from .mask_table import UNIFORM
 
 #: Prefixes a population is asked for.
 WANTED = 100
@@ -34,9 +35,14 @@ ATTEMPTS_PER_PREFIX = 5
 
 
 class UniformSource:
-    """The learner's own sampler.  Every draw is a prefix, so this never fails."""
+    """The learner's own sampler.  Every draw is a prefix, so this never fails.
 
-    label = "baseline"
+    Draws for the pool the table starts with and adds to, rather than for a
+    population of its own: two populations of the same sampler would be one
+    vote each however differently they had grown.
+    """
+
+    label = UNIFORM
 
     def __init__(self, pst):
         self._pst = pst

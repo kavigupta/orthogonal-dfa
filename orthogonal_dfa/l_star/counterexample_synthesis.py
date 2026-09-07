@@ -23,6 +23,7 @@ from automata.fa.dfa import DFA
 
 from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import WANTED, StateSource, UniformSource, collect, draw_for_split
 from .transition_resolver import TransitionResolver
@@ -119,7 +120,7 @@ class Pools:
         #: every string any round has already made a pool of.
         self._harvest: Dict[bytes, None] = {}
         self._pooled: set = set()
-        self._sources = {"baseline": UniformSource(pst)}
+        self._sources = {UNIFORM: UniformSource(pst)}
         #: One per round that produced any: the strings that round could not
         #: place, kept as they were.
         self._boundaries = {}
@@ -153,7 +154,7 @@ class Pools:
         for string in sorted(resolver.indecisive):
             self.offer_indecisive(string)
 
-        self._sources = {"baseline": UniformSource(self._pst)}
+        self._sources = {UNIFORM: UniformSource(self._pst)}
         states = []
         for leaf in range(resolver.num_states):
             source = StateSource(
@@ -161,9 +162,12 @@ class Pools:
             )
             self._sources[source.label] = source
             states.append(source.label)
+        # The uniform source is here to draw from, not to define a population:
+        # the table already holds one pool of it, kept across rounds rather than
+        # remade at this size every round.
         collected = {}
-        for label, source in self._sources.items():
-            got = collect(source)
+        for label in states:
+            got = collect(self._sources[label])
             if got is not None:
                 collected[label] = got
         # A state whose source could not fill a population is one more prefixes
@@ -235,7 +239,10 @@ class Pools:
             self.held.pop(label, None)
             self._pst.table.drop_population(label)
             return False
-        self.held[label] = self.held.get(label, []) + drawn
+        # A population this round did not define is not one it retires either,
+        # so the uniform pool grows without joining what `publish` resets.
+        if label in self.held:
+            self.held[label] = self.held[label] + drawn
         self._pst.table.add_prefixes(sorted(set(drawn)), population=label)
         return True
 

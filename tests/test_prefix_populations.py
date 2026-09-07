@@ -12,7 +12,7 @@ import numpy as np
 
 from orthogonal_dfa.l_star.cluster import limit_is_expressible
 from orthogonal_dfa.l_star.counterexample_synthesis import Pools
-from orthogonal_dfa.l_star.mask_table import MaskTable
+from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
 #: Anything: the table below is never asked a membership question.
@@ -50,7 +50,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         decisive, straddling = _words(100), _words(10, offset=100)
         table = _table(
             decisive + straddling,
-            {"baseline": decisive, ("state", 0): straddling},
+            {UNIFORM: decisive, ("state", 0): straddling},
         )
         pst = _tracker(table)
         # Both classes present, or the family reads as uninformative whatever
@@ -65,7 +65,7 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
 
     def test_the_rate_names_the_population_it_belongs_to(self):
         a, b = _words(20), _words(20, offset=20)
-        table = _table(a + b, {"baseline": a, ("state", 3): b})
+        table = _table(a + b, {UNIFORM: a, ("state", 3): b})
         pst = _tracker(table)
         # A fifth of ``b`` straddles and none of ``a`` does.
         decision = np.array([0.9] * 10 + [0.1] * 10 + [0.5] * 4 + [0.9] * 8 + [0.1] * 8)
