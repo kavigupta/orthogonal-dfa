@@ -100,7 +100,7 @@ def learn_dfa(
         sampler=sampler,
         require_accept_preserving=require_accept_preserving,
     )
-    dfa, _ = do_counterexample_driven_synthesis(
+    dfa = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker
     )
     return dfa

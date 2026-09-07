@@ -15,7 +15,7 @@ in the next round.
 import math
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -266,11 +266,11 @@ PER_STATE = 20
 
 
 @dataclass
-class _Best:
+class BestRound:
     """The most consistent round's hypothesis. Rounds are not monotone --
     rebuilding the representative pool re-clusters, so a later family can
     classify worse -- so the run keeps this rather than the last round's. The
-    boundary comes with it because denoising reads the tree against it."""
+    boundary comes with it because denoising reads the labels against it."""
 
     consistency: float = -1.0
     dfa: Optional[DFA] = None
@@ -294,7 +294,7 @@ def counterexample_driven_synthesis(
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
-) -> _Best:
+) -> BestRound:
     """Rounds until the hypothesis is consistent enough, the pool stalls, or
     ``max_rounds`` of them have run."""
     # The cap is read at the foot of the body, so a round always runs.
@@ -309,14 +309,14 @@ def counterexample_driven_synthesis(
     ]
     state = _PoolState(baseline)
     stall = _StallDetector(STALL_PATIENCE)
-    best = _Best()
+    best = BestRound()
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
-        tracker.on_family_resolved(vs, boundary, index)
+        tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
@@ -390,14 +390,14 @@ def counterexample_driven_synthesis(
 
 def do_counterexample_driven_synthesis(
     pst, *, acc_threshold: float, tracker: Optional[SynthesisTracker] = None
-) -> Tuple[Optional[DFA], Optional[MidfixTree]]:
+) -> Optional[DFA]:
     tracker = tracker if tracker is not None else SynthesisTracker()
     best = counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker
     )
     if best.dfa is None:
-        return None, None
+        return None
     pst.decision_boundary = best.boundary
     dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
-    return dfa, best.tree
+    return dfa

@@ -17,8 +17,8 @@ class _OrderedRecorder(RecordingTracker):
         super().__init__()
         self.calls = []
 
-    def on_family_resolved(self, vs, boundary, round_index):
-        super().on_family_resolved(vs, boundary, round_index)
+    def on_family_resolved(self, suffixes, boundary, round_index):
+        super().on_family_resolved(suffixes, boundary, round_index)
         self.calls.append(("family", round_index))
 
     def on_round_classified(self, classifier, round_index):
@@ -38,11 +38,12 @@ class _OrderedRecorder(RecordingTracker):
         self.calls.append(("corrected", round_index))
 
 
+def _oracle_creator(noise_model, seed):
+    return NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), noise_model, seed)
+
+
 def _learn(tracker):
-    oracle_creator = lambda noise_model, seed: NoisyOracle(
-        BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
-    )
-    return learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0, tracker=tracker)
+    return learn_dfa(_oracle_creator, min_signal_strength=0.3, seed=0, tracker=tracker)
 
 
 class TestSynthesisTracker(unittest.TestCase):
@@ -90,42 +91,41 @@ class TestSynthesisTracker(unittest.TestCase):
         self.assertEqual(len(self.tracker.hypotheses), rounds)
 
     def test_recording_tracker_pickles(self):
+        # The point of recording is reading it back later, so the families must
+        # survive as suffixes rather than as rows of a table that did not.
         reloaded = pickle.loads(pickle.dumps(self.tracker))
-        self.assertEqual(len(reloaded.classifiers), len(self.tracker.classifiers))
         self.assertEqual(reloaded.consistency, self.tracker.consistency)
+        self.assertEqual(reloaded.families, self.tracker.families)
+        suffixes, _ = reloaded.families[0]
+        self.assertTrue(all(isinstance(v, bytes) for v in suffixes))
+        self.assertEqual(reloaded.corrected[1], self.tracker.corrected[1])
         self.assertEqual(len(reloaded.hypotheses), len(self.tracker.hypotheses))
 
 
 class TestMaxRounds(unittest.TestCase):
-    """What a caller breaking out of the old generator needs instead."""
+    """The cap on how many rounds a run may take."""
 
     def test_stops_after_the_rounds_asked_for(self):
-        oracle_creator = lambda noise_model, seed: NoisyOracle(
-            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
-        )
-        pst = build_pst(oracle_creator, min_signal_strength=0.3, seed=0)
+        pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         tracker = RecordingTracker()
         best = counterexample_driven_synthesis(
             pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
         )
-        # Round 0 lands far short of the target on this task, and the stall
-        # detector cannot fire on a first round, so the cap is the only thing
-        # that could have stopped the loop. Without this the test passes
-        # unchanged with max_rounds deleted.
+        # Round 0 lands far short of the target here (it measures ~0.77) and
+        # the stall detector cannot fire on a first round, which leaves the cap
+        # as the only thing that could have stopped the loop.
         self.assertLess(best.consistency, 0.98)
         self.assertEqual(len(tracker.consistency), 1)
         self.assertEqual(best.round_index, 0)
 
     def test_runs_untracked(self):
-        oracle_creator = lambda noise_model, seed: NoisyOracle(
-            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
-        )
-        pst = build_pst(oracle_creator, min_signal_strength=0.3, seed=0)
+        # The loop installs a no-op tracker; without it a round would call
+        # through None. Reaching the assertion at all is the test.
+        pst = build_pst(_oracle_creator, min_signal_strength=0.3, seed=0)
         best = counterexample_driven_synthesis(pst, acc_threshold=0.98, max_rounds=1)
         self.assertIsNotNone(best.dfa)
 
     def test_rejects_a_cap_below_one_round(self):
-        # A round always runs before the cap is read, so a cap below one is a
-        # request the loop cannot honour -- rejected before it touches the pst.
+        # Rejected before the pst is touched, hence None here.
         with self.assertRaises(AssertionError):
             counterexample_driven_synthesis(None, acc_threshold=0.98, max_rounds=0)
