@@ -101,8 +101,6 @@ def learn_dfa(
         require_accept_preserving=require_accept_preserving,
     )
     dfa, _ = do_counterexample_driven_synthesis(
-        pst,
-        acc_threshold=acc_threshold,
-        tracker=tracker if tracker is not None else SynthesisTracker(),
+        pst, acc_threshold=acc_threshold, tracker=tracker
     )
     return dfa

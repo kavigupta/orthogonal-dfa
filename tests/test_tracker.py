@@ -53,8 +53,9 @@ class TestSynthesisTracker(unittest.TestCase):
         cls.tracker = _OrderedRecorder()
         cls.dfa = _learn(cls.tracker)
 
-    def test_learns_without_a_tracker(self):
-        self.assertIsNotNone(_learn(None))
+    def test_the_shared_run_learned_something(self):
+        self.assertIsNotNone(self.dfa)
+        self.assertIsNotNone(self.tracker.corrected[0])
 
     def test_every_round_reports_once(self):
         rounds = 1 + max(r for _, r in self.tracker.calls)
@@ -63,12 +64,11 @@ class TestSynthesisTracker(unittest.TestCase):
             self.assertEqual(fired, list(range(rounds)), name)
 
     def test_correction_comes_after_every_round(self):
-        # The corrected DFA is the run's, not a round's.
-        self.assertEqual(
-            [c for c in self.tracker.calls if c[0] == "corrected"],
-            [("corrected", self.tracker.corrected[1])],
-        )
-        self.assertEqual(self.tracker.calls[-1][0], "corrected")
+        # The corrected DFA is the run's, not a round's: one report, and last.
+        fired = [
+            i for i, (name, _) in enumerate(self.tracker.calls) if name == "corrected"
+        ]
+        self.assertEqual(fired, [len(self.tracker.calls) - 1])
 
     def test_a_round_reports_in_the_order_it_works(self):
         first = [
@@ -105,10 +105,27 @@ class TestMaxRounds(unittest.TestCase):
         )
         pst = build_pst(oracle_creator, min_signal_strength=0.3, seed=0)
         tracker = RecordingTracker()
-        # Below the target this target reaches, so the cap is what stops it.
         best = counterexample_driven_synthesis(
             pst, acc_threshold=0.98, tracker=tracker, max_rounds=1
         )
+        # Round 0 lands far short of the target on this task, and the stall
+        # detector cannot fire on a first round, so the cap is the only thing
+        # that could have stopped the loop. Without this the test passes
+        # unchanged with max_rounds deleted.
+        self.assertLess(best.consistency, 0.98)
         self.assertEqual(len(tracker.consistency), 1)
-        self.assertIsNotNone(best.dfa)
         self.assertEqual(best.round_index, 0)
+
+    def test_runs_untracked(self):
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
+        )
+        pst = build_pst(oracle_creator, min_signal_strength=0.3, seed=0)
+        best = counterexample_driven_synthesis(pst, acc_threshold=0.98, max_rounds=1)
+        self.assertIsNotNone(best.dfa)
+
+    def test_rejects_a_cap_below_one_round(self):
+        # A round always runs before the cap is read, so a cap below one is a
+        # request the loop cannot honour -- rejected before it touches the pst.
+        with self.assertRaises(AssertionError):
+            counterexample_driven_synthesis(None, acc_threshold=0.98, max_rounds=0)
