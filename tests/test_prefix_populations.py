@@ -101,6 +101,9 @@ class TestSealingAHarvest(unittest.TestCase):
         # Construction reads nothing else; sealing reads only the limit.
         return Pools(SimpleNamespace(config=SimpleNamespace(fnr_limit=0.10)))
 
+    #: Kept by the pool to draw more of its own kind; sealing never calls it.
+    _SIFTER = None
+
     def _harvest(self, pools, count):
         for word in _words(count):
             pools.offer_indecisive(word)
@@ -109,7 +112,7 @@ class TestSealingAHarvest(unittest.TestCase):
         pools = self._pools()
         self._harvest(pools, 9)
 
-        self.assertFalse(pools.seal_ready_harvest(), "9 cannot state 0.10")
+        self.assertFalse(pools.seal_ready_harvest(self._SIFTER), "9 cannot state 0.10")
         self.assertEqual(pools.sealed_pools, 0)
         self.assertEqual(pools.pending_harvest, 9, "and the caller is told how few")
 
@@ -117,7 +120,7 @@ class TestSealingAHarvest(unittest.TestCase):
         pools = self._pools()
         self._harvest(pools, 10)
 
-        self.assertTrue(pools.seal_ready_harvest())
+        self.assertTrue(pools.seal_ready_harvest(self._SIFTER))
         self.assertEqual(pools.sealed_pools, 1)
         self.assertEqual(pools.pending_harvest, 0, "the buffer went into the pool")
 

@@ -53,6 +53,53 @@ class UniformSource:
         )
 
 
+class BoundarySource:
+    """Strings the round's tree could not place, drawn the way that round found
+    them: a probe, then the prefixes of it, sifted until one lands.
+
+    The sifter is the round's, not the caller's.  A pool is the strings *that*
+    tree straddled, so growing it means asking that tree again -- against a
+    later one the same draw would be a different population.
+    """
+
+    def __init__(self, pst, sifter, label):
+        self.label = label
+        self._pst = pst
+        self._sifter = sifter
+        self._served = set()
+        self._pending = deque()
+
+    def draw(self) -> Optional[bytes]:
+        """One unplaced string from a fresh probe, or ``None`` if it had none.
+
+        A probe usually strands more than one, so the rest are kept for the next
+        ask rather than resifted.
+        """
+        if not self._pending:
+            self._sift_a_probe()
+        while self._pending:
+            drawn = self._pending.popleft()
+            if drawn not in self._served:
+                self._served.add(drawn)
+                return drawn
+        return None
+
+    def _sift_a_probe(self) -> None:
+        probe = self._pst.sampler.sample(
+            self._pst.rng, alphabet_size=self._pst.alphabet_size
+        )
+        # The prefix walk stops where the tree first places one, and the whole
+        # probe is read after it: the two points a round sifts at.
+        for start in range(len(probe) + 1):
+            leaf, boundary = self._sifter.sift_and_boundary(probe[:start])
+            if leaf is not None:
+                break
+            self._pending.append(boundary)
+        leaf, boundary = self._sifter.sift_and_boundary(probe)
+        if leaf is None:
+            self._pending.append(boundary)
+
+
 class StateSource:
     """Prefixes the tree places at one leaf.
 
@@ -130,20 +177,29 @@ class StateSource:
         self._spare.extend(drawn)
 
 
-def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):
-    """``wanted`` prefixes from ``source``, or ``None`` if it could not.
+def gather(source, wanted: int, attempts_per: int = ATTEMPTS_PER_PREFIX):
+    """Up to ``wanted`` distinct prefixes from ``source``, however few it gives.
 
-    Giving up is the point: a population nothing can be drawn for is one the
-    round cannot read a rate over, and saying so beats holding it to one.
+    For growing a population, where any is a gain.  Defining one is
+    ``collect``, which holds out for the whole number.
     """
-    held, budget = [], wanted * attempts_per
-    seen = set()
+    held, seen, budget = [], set(), wanted * attempts_per
     while len(held) < wanted and budget:
         budget -= 1
         drawn = source.draw()
         if drawn is not None and drawn not in seen:
             seen.add(drawn)
             held.append(drawn)
+    return held
+
+
+def collect(source, wanted: int = WANTED, attempts_per: int = ATTEMPTS_PER_PREFIX):
+    """``wanted`` prefixes from ``source``, or ``None`` if it could not.
+
+    Giving up is the point: a population nothing can be drawn for is one the
+    round cannot read a rate over, and saying so beats holding it to one.
+    """
+    held = gather(source, wanted, attempts_per)
     if len(held) >= wanted:
         return held
     # Taking is only earned by a population coming of it.  A source that holds

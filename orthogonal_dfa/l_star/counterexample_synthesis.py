@@ -25,7 +25,15 @@ from .cluster import limit_is_expressible, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import WANTED, StateSource, UniformSource, collect, draw_for_split
+from .prefix_sources import (
+    WANTED,
+    BoundarySource,
+    StateSource,
+    UniformSource,
+    collect,
+    draw_for_split,
+    gather,
+)
 from .transition_resolver import TransitionResolver
 
 
@@ -122,8 +130,9 @@ class Pools:
         self._pooled: set = set()
         self._sources = {UNIFORM: UniformSource(pst)}
         #: One per round that produced any: the strings that round could not
-        #: place, kept as they were.
+        #: place, and the source that can find that round more of them.
         self._boundaries = {}
+        self._boundary_sources = {}
         #: Whether every state's source filled a population last rebuild.
         self.every_state_full = False
         #: Whether the last rebuild's harvest was enough to become a pool.
@@ -177,23 +186,30 @@ class Pools:
         # Sealed after the sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
         # this round's pool rather than to the next one's.
-        self.sealed_a_pool = self.seal_ready_harvest()
+        self.sealed_a_pool = self.seal_ready_harvest(resolver.sifter)
+        # After sealing, so the pool this round just made is one the next family
+        # search can already ask for more of.
+        self._sources.update(self._boundary_sources)
         self.held = dict(self._boundaries)
         self.held.update(collected)
         self.publish()
 
-    def seal_ready_harvest(self) -> bool:
+    def seal_ready_harvest(self, sifter) -> bool:
         """Make a pool of the harvest, saying whether there was enough to.
 
-        Under ``1 / fnr_limit`` strings a pool could be admitted only with
-        nothing straddling at all -- a bar no sampling clears, and one nothing
-        can raise it past, a sealed pool having no source.  Too few is the
-        caller's signal to stop rather than to seal one.
+        Under ``1 / fnr_limit`` strings a pool cannot state a rate under the
+        limit other than exactly zero, so too few is the signal to stop rather
+        than to seal one.
+
+        The pool keeps ``sifter``: what named these strings is what can find
+        more of them, and a later round's would name a different population.
         """
         if not limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
             return False
         self._sealed += 1
-        self._boundaries[("boundary", self._sealed)] = list(self._harvest)
+        label = ("boundary", self._sealed)
+        self._boundary_sources[label] = BoundarySource(self._pst, sifter, label)
+        self._boundaries[label] = list(self._harvest)
         self._pooled.update(self._harvest)
         self._harvest = {}
         return True
@@ -227,22 +243,22 @@ class Pools:
         """Draw ``wanted`` further prefixes for one population.  Says whether it
         could: a source that has stopped delivering ends its population.
 
-        A sealed pool of unplaceable strings has no source and never grows -- it
-        is the strings a round could not place, all of them, and asking for more
-        is asking the wrong question.  Saying so is what stops the caller asking
-        again."""
+        A source that has stopped delivering ends its population, and saying so
+        is what stops the caller asking again."""
         source = self._sources.get(label)
         if source is None:
             return False
-        drawn = collect(source, wanted=wanted)
-        if drawn is None:
+        drawn = gather(source, wanted)
+        if not drawn:
             self.held.pop(label, None)
             self._pst.table.drop_population(label)
             return False
-        # A population this round did not define is not one it retires either,
-        # so the uniform pool grows without joining what `publish` resets.
+        # Extended, not rebound: a boundary pool's list is the one `_boundaries`
+        # holds, which is what the next round republishes it from.  And a
+        # population this round did not define is not one it retires either, so
+        # the uniform pool grows without joining what `publish` resets.
         if label in self.held:
-            self.held[label] = self.held[label] + drawn
+            self.held[label].extend(drawn)
         self._pst.table.add_prefixes(sorted(set(drawn)), population=label)
         return True
 
