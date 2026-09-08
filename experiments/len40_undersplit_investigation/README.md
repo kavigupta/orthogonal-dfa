@@ -178,3 +178,66 @@ seed-2 instance.
 `missing_split2.out`, `funnel_edge.out`, `funnel_edge2.out`, etc.). The scratch `scripts/`
 set is exploratory and larger than the files named above; the scripts referenced here are
 the load-bearing ones.
+
+## CORRECTED FINAL ANSWER (supersedes the sections above)
+
+The investigation above took several wrong turns; the confirmed answer is below, with the
+corrections it required. Question: **why does round 0 produce the misaligned automaton
+while round 1 gets the right structure, given round 0's family looks better?**
+
+### Data-integrity note (read first)
+`sift_walk_s2.out` (`sift_vs_walk2.py`) is STALE -- it ran against a since-regenerated
+dump. Its numbers (sift indecision 22.5%/38.7%, sift homogeneity 0.395/0.506, sift/walk
+agree 0.326) DISAGREE with the current dump and must not be trusted. Reconciled on the
+current `mr_dumps/seed2`: round-0 sift indecision is **47%** (confirmed by `leaf_purity.py`
+and `repro_check.out` at n=1500 and n=3000), NOT 22.5%. Any earlier claim resting on
+`sift_vs_walk2` numbers (including "round 1 is more indecisive") is void.
+
+### The confirmed chain
+1. **Round 0's family genuinely IS better** (`auc_check.py`): band-independent SINK/live
+   separation AUC **0.953 vs round 1's 0.829**. Not an abstention artifact -- the
+   lower-FPR/FNR "better labeling" is backed by real separation.
+2. **The better family makes more, finer splits** -> a **deeper sift tree**: round 0 has 15
+   states / max sift depth **9**; round 1 has 10 states / depth **4** (`per_depth_indec.py`).
+   The extra splits are on long, base-heavy (fine, non-frame) distinguishers (SPLIT_LOG).
+3. **A deeper tree accumulates more sift indecision.** Per-depth (`per_depth_indec.out`):
+   the two rounds track together to depth ~3 (~24-27%), then round 1's shallow tree bottoms
+   out at 28.6% while round 0 keeps climbing through depths 4-7 to **47%**. Round 0's deep
+   nodes are also individually harder (per-node abstain 25-43% vs round 1's steady ~9-11%).
+4. **The unplaceable (indecisive) strings -- many SINK -- are swept by edge resolution into
+   the accept-cycle.** Round 0's walk states conflate SINK/live (`structure_check.py`
+   homogeneity 0.528; `split_vs_edge.py`), while round 1 routes all SINK to one pure reject
+   state. This is the entangled classification->edge failure: `EdgeResolver.decisive_target`
+   points an edge at the first decisively-sifting member of a leaf, so unplaceable/
+   heterogeneous members yield arbitrary edges. (Tree impurity and bad edges are NOT
+   separable -- an earlier "split vs edge" dichotomy here was wrong.)
+
+### So the answer
+Round 0 splits this state *worse because its family is better*: better separation -> more &
+finer splits -> deeper sift tree with hard deep nodes -> cumulative indecision climbs to 47%
+-> unplaceable SINK swept into the accept-cycle -> impure structure. The family's quality is
+self-defeating, and the damage lives in **sift-tree depth**, which DFA minimization never
+touches (reconciling "over-splitting into pure states is benign" -- true for the resolved
+state count, not for sift depth). This is NOT chance (replicates on seed 3, `structure_check`)
+and NOT "the family is secretly worse" (AUC says it is better).
+
+### Refuted along the way (do not re-propose)
+- "over-split on noise" (Bernoulli tests prove the machinery is noise-robust)
+- "round 0's lower FPR/FNR is an abstention artifact" (AUC 0.953 > 0.829 refutes it)
+- "round 0 is more decisive" (it is MORE indecisive, 47% vs 27%)
+- "missing tree split vs mis-resolved edge" as a clean dichotomy (they are entangled:
+  impure/indecisive leaves cause arbitrary edges)
+
+### Open next: the oversplits
+The deep, fine, non-frame splits round 0 makes (step 2) are the proximate driver. Open
+question: are they legitimate Myhill-Nerode distinctions the real spliceai oracle depends
+on, or spurious? SplitEvidence accepted ALL of round 0's (verdict_no_split=0) vs rejecting
+10 in round 1. Understanding whether/why these oversplits should be prevented is the next
+thread.
+
+### Scripts (this section)
+`structure_check.py` (label-independent walk-partition quality), `split_vs_edge.py`
+(cross-tab round0/round1 walk partitions), `fam_quality.py` (FPR/FNR per round/seed),
+`leaf_purity.py` (leaf/accept-side purity + indecision), `auc_check.py` (band-independent
+separation), `per_depth_indec.py` (indecision vs sift depth), `repro_check.out` (dump
+reconciliation).

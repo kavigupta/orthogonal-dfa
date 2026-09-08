@@ -1,0 +1,5 @@
+eval: 1189 live, 311 SINK
+
+round  band             AUC(sep)  FPR    FNR    indec  meanSINK  meanLIVE 
+     0 [0.505,0.558)    0.953    20.3    0.8    8.1    0.481     0.666
+     1 [0.581,0.633)    0.829    20.6   25.2    8.0    0.494     0.705

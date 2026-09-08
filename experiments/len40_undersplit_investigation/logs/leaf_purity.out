@@ -1,0 +1,12 @@
+
+=== round 0: 15 states, band [0.505,0.558) ===
+  indecision 47.2%  |  decisive SINK/live homogeneity 0.708
+  ACCEPT-side leaves: 1188 members, SINK contamination 57 (4.8%)
+  REJECT-side leaves: 395 members, live contamination 20 (5.1%)
+  impure ACCEPT leaves (both>=5): s13(25S/188L), s10(13S/188L), s4(12S/386L), s2(6S/17L)
+
+=== round 1: 10 states, band [0.581,0.633) ===
+  indecision 27.3%  |  decisive SINK/live homogeneity 0.565
+  ACCEPT-side leaves: 1336 members, SINK contamination 97 (7.3%)
+  REJECT-side leaves: 846 members, live contamination 493 (58.3%)
+  impure ACCEPT leaves (both>=5): s6(82S/105L), s4(13S/337L)

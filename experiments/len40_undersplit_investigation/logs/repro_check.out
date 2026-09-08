@@ -1,0 +1,3 @@
+round_00 dump: n_states 15 band 0.505452126344724 0.5581929901320994 famsize 2408
+  n=1500: indecision 709/1500 = 47.3%
+  n=3000: indecision 1417/3000 = 47.2%
