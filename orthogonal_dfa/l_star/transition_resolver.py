@@ -124,6 +124,8 @@ class TransitionResolver:
         since_split = 0
         delta = self._total_delta()
         _dbg = __import__("os").environ.get("TR_PROGRESS")
+        if __import__("os").environ.get("DIS_LOG"):
+            _DIS_COUNTS.clear()  # per-pass counts so multi-round runs separate cleanly
         _seen = 0
         _splits = 0
         for w in self._probe_blocks(max_probes):
