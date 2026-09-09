@@ -94,28 +94,40 @@ class BoundarySource:
 
 
 def _aim_at(pst, dfa, leaf):
-    """A draw of a string the hypothesis says reaches ``leaf``.
-
-    It yields ``None`` where the sampler cannot make one of its length -- no
-    path, or none its symbol weights would take -- which reads the same as a
-    draw that missed: either way the leaf has only what already rests there.
+    """A draw of a string the hypothesis says reaches ``leaf``, or ``None`` where
+    it has no string of the sampler's length that does -- no path, or none its
+    symbol weights would take.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    mass = count_paths_to_state(dfa, leaf, pst.sampler.length, weights)
+    length = pst.sampler.length
+    mass = count_paths_to_state(dfa, leaf, length, weights)
+    if not mass[length][dfa.initial_state]:
+        return None
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
+
+
+def state_source(pst, resolver, dfa, leaf, *, sink):
+    """A source for ``leaf``, or ``None`` where nothing can be aimed at it.
+
+    Such a leaf gets no population rather than an empty one: it is not a state
+    more sampling says more about, so counting it as one the round came up short
+    on would be waiting for a draw that cannot come.
+    """
+    aim = _aim_at(pst, dfa, leaf)
+    return None if aim is None else StateSource(resolver, leaf, aim, sink=sink)
 
 
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, pst, resolver, dfa, leaf, *, sink):
+    def __init__(self, resolver, leaf, aim, *, sink):
         self.label = ("state", leaf)
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
         assert self._path is not None, leaf
-        self._aim = _aim_at(pst, dfa, leaf)
+        self._aim = aim
         self._sink = sink
         self._served = set()
         self._resting = []

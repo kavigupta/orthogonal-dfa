@@ -28,11 +28,11 @@ from .midfix_tree import MidfixTree
 from .prefix_sources import (
     WANTED,
     BoundarySource,
-    StateSource,
     UniformSource,
     collect,
     draw_for_split,
     gather,
+    state_source,
 )
 from .transition_resolver import TransitionResolver
 
@@ -166,9 +166,11 @@ class Pools:
         self._sources = {UNIFORM: UniformSource(self._pst)}
         states = []
         for leaf in range(resolver.num_states):
-            source = StateSource(
+            source = state_source(
                 self._pst, resolver, dfa, leaf, sink=self.offer_indecisive
             )
+            if source is None:
+                continue
             self._sources[source.label] = source
             states.append(source.label)
         # The uniform source is here to draw from, not to define a population:

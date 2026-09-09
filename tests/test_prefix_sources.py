@@ -12,7 +12,13 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import MIN_YIELD, StateSource, collect, gather
+from orthogonal_dfa.l_star.prefix_sources import (
+    MIN_YIELD,
+    StateSource,
+    collect,
+    gather,
+    state_source,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
@@ -142,9 +148,8 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(
-            _Pst(2), _Resolver(population), _UNREACHABLE, 1, sink=lambda _s: None
-        )
+        # No aim, so the read is purely of what already rests there.
+        return StateSource(_Resolver(population), 1, lambda: None, sink=lambda _s: None)
 
     def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -178,7 +183,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = StateSource(
+        source = state_source(
             _Pst(8), _Resolver(population), reachable, 1, sink=lambda _s: None
         )
 
@@ -187,6 +192,21 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             set(drawn) - set(resting),
             "drawing served resting members without aiming anything new",
         )
+
+    def test_a_leaf_nothing_reaches_gets_no_source_at_all(self):
+        # Not a state the round came up short on -- a state no draw of the
+        # sampler's length arrives at, which more sampling does not change.
+        population = LeafPopulation(
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
+            decisions=Decisions(),
+        )
+        made = state_source(
+            _Pst(2), _Resolver(population), _UNREACHABLE, 1, sink=lambda _s: None
+        )
+
+        self.assertIsNone(made)
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
