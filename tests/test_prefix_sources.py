@@ -6,6 +6,7 @@ themselves, so what a later round needs more of it can draw more of.
 
 import math
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -134,6 +135,25 @@ _UNREACHABLE = DFA(
 )
 
 
+#: State 2 is entered only on a ``1``, so weights that never draw one never
+#: reach it however long the string.
+_ONE_WAY_IN = DFA(
+    states={0, 1, 2},
+    input_symbols={0, 1},
+    transitions={0: {0: 0, 1: 2}, 1: {0: 1, 1: 1}, 2: {0: 2, 1: 2}},
+    initial_state=0,
+    final_states={2},
+)
+
+
+class _Weighted(_Pst):
+    """A sampler whose symbol weights the caller chooses."""
+
+    def __init__(self, length, weights):
+        super().__init__(length)
+        self.sampler = SimpleNamespace(length=length, symbol_weights=lambda _n: weights)
+
+
 class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
     """Aiming is how a leaf nothing has reached gets its first prefixes, not how
     it gets every prefix.  A leaf the population already rests strings at can be
@@ -207,6 +227,24 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
 
         self.assertIsNone(made)
+
+    def _made(self, pst, dfa, leaf):
+        population = LeafPopulation(
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
+            decisions=Decisions(),
+        )
+        return state_source(pst, _Resolver(population), dfa, leaf, sink=lambda _s: None)
+
+    def test_the_sampler_weights_decide_reachability_too(self):
+        # There is a path into state 2, but not one these weights would draw.
+        self.assertIsNone(self._made(_Weighted(4, [1.0, 0.0]), _ONE_WAY_IN, 2))
+        self.assertIsNotNone(self._made(_Weighted(4, [0.5, 0.5]), _ONE_WAY_IN, 2))
+
+    def test_a_length_can_put_a_state_out_of_reach(self):
+        # Nothing reaches anywhere but the initial state in zero steps.
+        self.assertIsNone(self._made(_Weighted(0, [0.5, 0.5]), _ONE_WAY_IN, 2))
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
