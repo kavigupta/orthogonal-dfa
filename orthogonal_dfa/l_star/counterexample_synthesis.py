@@ -22,11 +22,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
@@ -125,12 +121,27 @@ class _PoolState:
 TOP_UP_ROUNDS = 3
 
 
-def _short_states(resolver, per_state):
+def _unreachable_states(dfa, states, *, length, weights):
+    """Those of ``states`` no string of ``length`` reaches, under the weights the
+    sampler draws with."""
+    return {
+        s
+        for s in states
+        if not count_paths_to_state(dfa, s, length, weights)[length][dfa.initial_state]
+    }
+
+
+def _short_states(resolver, per_state, unreachable):
     """``state -> members`` for every state, and which of them are still short.
 
     The members are whatever the population has already placed at that state's
     leaf, which is the only evidence that a string reaches it: the hypothesis
     says where a string *should* land, the tree says where it does.
+
+    A state in ``unreachable`` is never short.  Short means more drawing would
+    arrive at it, and for those nothing the sampler makes ever does -- so
+    counting them would hold the saturation check open on a draw that cannot
+    come.
     """
     held = {}
     for leaf in range(resolver.num_states):
@@ -138,15 +149,14 @@ def _short_states(resolver, per_state):
         if path is None:
             continue
         held[leaf] = resolver.population.members(path, per_state)
-    return held, [s for s, m in held.items() if len(m) < per_state]
+    return held, [
+        s for s, m in held.items() if len(m) < per_state and s not in unreachable
+    ]
 
 
 def _aimed_at(dfa, state, count, *, length, weights, rng):
-    """``count`` strings the hypothesis says reach ``state``; empty where it says
-    none do at this length."""
-    counts = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
-    if counts[length][dfa.initial_state] == 0:
-        return []
+    """``count`` strings the hypothesis says reach ``state``; fewer where a draw
+    misses, and none where the sampler cannot make one of this length."""
     mass = count_paths_to_state(dfa, state, length, weights)
     drawn = (
         sample_string_reaching_state(dfa, mass, rng, weights) for _ in range(count)
@@ -167,7 +177,11 @@ def _per_state_members(pst, resolver, dfa, per_state):
     """
     length = pst.sampler.length
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
-    held, short = _short_states(resolver, per_state)
+    # Once: the hypothesis does not change while the round tops up.
+    unreachable = _unreachable_states(
+        dfa, range(resolver.num_states), length=length, weights=weights
+    )
+    held, short = _short_states(resolver, per_state, unreachable)
     for attempt in range(TOP_UP_ROUNDS):
         if not short:
             break
@@ -188,7 +202,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
             )
             for f in fresh:
                 resolver.population.add(f)
-        held, short = _short_states(resolver, per_state)
+        held, short = _short_states(resolver, per_state, unreachable)
     return held, not short
 
 
