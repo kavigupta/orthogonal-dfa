@@ -167,7 +167,12 @@ class Pools:
         states = []
         for leaf in range(resolver.num_states):
             source = state_source(
-                self._pst, resolver, dfa, leaf, sink=self.offer_indecisive
+                self._pst,
+                resolver,
+                dfa,
+                leaf,
+                wanted=WANTED,
+                sink=self.offer_indecisive,
             )
             if source is None:
                 continue

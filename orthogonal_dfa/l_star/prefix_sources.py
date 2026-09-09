@@ -38,8 +38,7 @@ class UniformSource:
     def __init__(self, pst):
         self._pst = pst
 
-    def draw(self, wanted: int) -> Optional[bytes]:
-        del wanted
+    def draw(self) -> Optional[bytes]:
         return self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
@@ -61,13 +60,12 @@ class BoundarySource:
         self._served = set()
         self._pending = deque()
 
-    def draw(self, wanted: int) -> Optional[bytes]:
+    def draw(self) -> Optional[bytes]:
         """One unplaced string from a fresh probe, or ``None`` if it had none.
 
         A probe usually strands more than one, so the rest are kept for the next
         ask rather than resifted.
         """
-        del wanted
         if not self._pending:
             self._sift_a_probe()
         while self._pending:
@@ -109,7 +107,7 @@ def _aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(pst, resolver, dfa, leaf, *, sink):
+def state_source(pst, resolver, dfa, leaf, *, wanted, sink):
     """A source for ``leaf``, or ``None`` where aiming at it does not land.
 
     Two ways it does not.  The hypothesis may have no string of the sampler's
@@ -124,14 +122,14 @@ def state_source(pst, resolver, dfa, leaf, *, sink):
     aim = _aim_at(pst, dfa, leaf)
     if aim is None:
         return None
-    source = StateSource(resolver, leaf, aim, sink=sink)
+    source = StateSource(resolver, leaf, aim, wanted=wanted, sink=sink)
     return source if source.aims_land() else None
 
 
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, resolver, leaf, aim, *, sink):
+    def __init__(self, resolver, leaf, aim, *, wanted, sink):
         self.label = ("state", leaf)
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
@@ -139,6 +137,7 @@ class StateSource:
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = aim
+        self._wanted = wanted
         self._sink = sink
         self._served = set()
         #: Resting at the leaf and not yet handed out.  Aiming is how it refills,
@@ -171,15 +170,11 @@ class StateSource:
         """
         return any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD)))
 
-    def draw(self, wanted: int) -> Optional[bytes]:
+    def draw(self) -> Optional[bytes]:
         """One prefix resting at the leaf, or ``None`` once it has no more.
 
         What the pool does not hold it aims for, so running out means the leaf's
         whole reachable support has been served -- not that a draw missed.
-
-        ``wanted`` sizes the one read of the leaf.  Reading pushes strings down
-        to it, so the count is work rather than a cap: ask for what could still
-        be served, no more.
         """
         while True:
             while self._pool:
@@ -189,8 +184,12 @@ class StateSource:
                     return member
             if not self._read_the_leaf:
                 self._read_the_leaf = True
+                # Reading a leaf pushes strings down to it, so the count is
+                # work rather than a cap: ask for what could still be served.
                 self._pool.extend(
-                    self._population.members(self._path, len(self._served) + wanted)
+                    self._population.members(
+                        self._path, len(self._served) + self._wanted
+                    )
                 )
                 continue
             # Aims that only bring back what has been served already are the
@@ -216,7 +215,7 @@ def gather(source, wanted: int) -> list:
     for _ in range(math.ceil(wanted / MIN_YIELD)):
         if len(held) == wanted:
             break
-        drawn = source.draw(wanted)
+        drawn = source.draw()
         if drawn is not None:
             held.add(drawn)
     return sorted(held)

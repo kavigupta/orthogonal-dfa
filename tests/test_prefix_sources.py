@@ -32,7 +32,7 @@ class _Counted:
         self.calls = 0
         self._total = total
 
-    def draw(self, _wanted):
+    def draw(self):
         self.calls += 1
         keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
         return bytes([self.calls // 256, self.calls % 256]) if keep else None
@@ -46,7 +46,7 @@ class _Spooled:
         self._spare = []
         self.drawn = 0
 
-    def draw(self, _wanted):
+    def draw(self):
         if self._spare:
             return self._spare.pop(0)
         if not self._words:
@@ -94,7 +94,7 @@ class TestGivingUpOnASource(unittest.TestCase):
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
-            def draw(self, _wanted):
+            def draw(self):
                 return bytes([7])
 
         self.assertIsNone(collect(OneString(), wanted=3))
@@ -182,7 +182,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Resolver(population), 1, _misses(), sink=lambda _s: None)
+        return StateSource(
+            _Resolver(population), 1, _misses(), wanted=20, sink=lambda _s: None
+        )
 
     def test_a_leaf_with_members_yields_them_when_every_aim_misses(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -217,7 +219,12 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         for prefix in resting:
             population.add(prefix, at=(True,))
         source = state_source(
-            _Pst(8), _Resolver(population), reachable, 1, sink=lambda _s: None
+            _Pst(8),
+            _Resolver(population),
+            reachable,
+            1,
+            wanted=20,
+            sink=lambda _s: None,
         )
 
         drawn = collect(source, wanted=20)
@@ -236,7 +243,12 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             decisions=Decisions(),
         )
         made = state_source(
-            _Pst(2), _Resolver(population), _UNREACHABLE, 1, sink=lambda _s: None
+            _Pst(2),
+            _Resolver(population),
+            _UNREACHABLE,
+            1,
+            wanted=20,
+            sink=lambda _s: None,
         )
 
         self.assertIsNone(made)
@@ -250,7 +262,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
-        return state_source(pst, _Resolver(population), dfa, leaf, sink=lambda _s: None)
+        return state_source(
+            pst, _Resolver(population), dfa, leaf, wanted=20, sink=lambda _s: None
+        )
 
     def test_the_sampler_weights_decide_reachability_too(self):
         # There is a path into state 1, but not one these weights would draw.
@@ -270,18 +284,18 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def test_taking_draws_back_makes_them_servable_again(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
-        first = [source.draw(2), source.draw(2)]
-        self.assertIsNone(source.draw(2), "and then it has no more")
+        first = [source.draw(), source.draw()]
+        self.assertIsNone(source.draw(), "and then it has no more")
 
         source.unused(first)
 
-        self.assertEqual(sorted([source.draw(2), source.draw(2)]), sorted(first))
+        self.assertEqual(sorted([source.draw(), source.draw()]), sorted(first))
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
-        served = [source.draw(2), source.draw(2)]
+        served = [source.draw(), source.draw()]
         self.assertEqual(len([x for x in served if x]), 2)
-        self.assertIsNone(source.draw(2))
+        self.assertIsNone(source.draw())
 
 
 if __name__ == "__main__":
