@@ -176,7 +176,7 @@ class Pools:
         # remade at this size every round.
         collected = {}
         for label in states:
-            got = collect(self._sources[label])
+            got = collect(self._sources[label], WANTED)
             if got is not None:
                 collected[label] = got
         # A state whose source could not fill a population is one more prefixes

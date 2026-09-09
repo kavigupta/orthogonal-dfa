@@ -4,6 +4,7 @@ Each round hands the next one a source per population instead of the prefixes
 themselves, so what a later round needs more of it can draw more of.
 """
 
+import math
 import unittest
 
 import numpy as np
@@ -11,58 +12,84 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import (
-    ATTEMPTS_PER_PREFIX,
-    WANTED,
-    StateSource,
-    collect,
-)
+from orthogonal_dfa.l_star.prefix_sources import MIN_YIELD, StateSource, collect, gather
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
 class _Counted:
     """Yields a prefix ``rate`` of the time, counting how often it is asked."""
 
-    label = "counted"
-
     def __init__(self, rate, total=10**6):
         self.rate = rate
         self.calls = 0
         self._total = total
 
-    def draw(self):
+    def draw(self, _wanted):
         self.calls += 1
         keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
         return bytes([self.calls // 256, self.calls % 256]) if keep else None
 
 
+class _Spooled:
+    """A finite supply, with the give-back a real source has."""
+
+    def __init__(self, words):
+        self._words = list(words)
+        self._spare = []
+        self.drawn = 0
+
+    def draw(self, _wanted):
+        if self._spare:
+            return self._spare.pop(0)
+        if not self._words:
+            return None
+        self.drawn += 1
+        return self._words.pop(0)
+
+    def unused(self, drawn):
+        self._spare.extend(drawn)
+
+
 class TestGivingUpOnASource(unittest.TestCase):
     def test_a_source_that_yields_is_collected(self):
         source = _Counted(1.0)
-        held = collect(source, wanted=20, attempts_per=5)
+        held = collect(source, wanted=20)
         self.assertEqual(len(held), 20)
         self.assertEqual(source.calls, 20)
 
     def test_a_source_that_cannot_deliver_is_given_up_on(self):
-        # One in fifty, against a budget of five per prefix wanted.
+        # One in fifty, well under the yield the budget waits for.
         source = _Counted(0.02)
-        self.assertIsNone(collect(source, wanted=20, attempts_per=5))
-        self.assertEqual(source.calls, 100)
+        self.assertIsNone(collect(source, wanted=20))
+        self.assertEqual(source.calls, math.ceil(20 / MIN_YIELD))
 
-    def test_what_survives_is_cheap_to_ask_again(self):
-        # Surviving the budget means yielding at least one draw in
-        # ``attempts_per``, which is what makes a later, larger ask affordable.
-        source = _Counted(1 / ATTEMPTS_PER_PREFIX)
-        held = collect(source, wanted=WANTED)
+    def test_a_source_at_exactly_the_yield_survives(self):
+        # The budget is 1 / MIN_YIELD draws per prefix, so a source managing
+        # exactly that rate is the slowest one that still delivers.
+        source = _Counted(MIN_YIELD)
+        held = collect(source, wanted=100)
         self.assertIsNotNone(held)
-        self.assertLessEqual(source.calls, WANTED * ATTEMPTS_PER_PREFIX)
+        self.assertLessEqual(source.calls, math.ceil(100 / MIN_YIELD))
+
+    def test_a_failed_ask_hands_its_draws_back(self):
+        # Aiming is the expensive part, so a source that buffers gets to keep
+        # what a collection could not use rather than paying for it twice.
+        source = _Spooled([bytes([i]) for i in range(4)])
+        self.assertIsNone(collect(source, wanted=6))
+        self.assertEqual(source.drawn, 4, "and it stopped once it ran dry")
+        self.assertEqual(gather(source, wanted=4), [bytes([i]) for i in range(4)])
+        self.assertEqual(source.drawn, 4, "the second ask cost nothing")
+
+    def test_gather_keeps_what_it_got(self):
+        source = _Spooled([bytes([i]) for i in range(4)])
+        self.assertEqual(gather(source, wanted=6), [bytes([i]) for i in range(4)])
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
-            def draw(self):
+            def draw(self, _wanted):
                 return bytes([7])
 
-        self.assertIsNone(collect(OneString(), wanted=3, attempts_per=5))
+        self.assertIsNone(collect(OneString(), wanted=3))
 
 
 class _Tree:
@@ -115,7 +142,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1)
+        return StateSource(
+            _Pst(2), _Resolver(population), _UNREACHABLE, 1, sink=lambda _s: None
+        )
 
     def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -149,7 +178,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
+        source = StateSource(
+            _Pst(8), _Resolver(population), reachable, 1, sink=lambda _s: None
+        )
 
         drawn = collect(source, wanted=20)
         self.assertTrue(
@@ -159,8 +190,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
-        self.assertEqual(len([x for x in (source.draw(), source.draw()) if x]), 2)
-        self.assertIsNone(source.draw())
+        served = [source.draw(2), source.draw(2)]
+        self.assertEqual(len([x for x in served if x]), 2)
+        self.assertIsNone(source.draw(2))
 
 
 if __name__ == "__main__":
