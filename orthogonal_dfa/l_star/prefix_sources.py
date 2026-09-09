@@ -16,9 +16,12 @@ MIN_YIELD = 0.2
 
 
 def _aim_at(pst, dfa, leaf):
-    """A draw of a string the hypothesis says reaches ``leaf``, or ``None`` where
-    it has no string of the sampler's length that does -- no path, or none its
+    """A callable drawing strings the hypothesis says reach ``leaf``, or ``None``
+    where it has none of the sampler's length that do -- no path, or none its
     symbol weights would take.
+
+    The callable always draws: what it refuses is the mass being zero, and that
+    is what ``None`` here reports instead.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
@@ -63,10 +66,9 @@ class StateSource:
         holds, and the split test reads the population.
         """
         aimed = self._aim()
-        if aimed is not None:
-            self._population.add(aimed)
-            if self._population.settle(aimed, self._path):
-                return aimed
+        self._population.add(aimed)
+        if self._population.settle(aimed, self._path):
+            return aimed
         return self._resting_member(wanted)
 
     def _resting_member(self, wanted: int) -> Optional[bytes]:

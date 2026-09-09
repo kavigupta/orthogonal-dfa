@@ -4,6 +4,7 @@ Each round hands the next one a source per population instead of the prefixes
 themselves, so what a later round needs more of it can draw more of.
 """
 
+import itertools
 import math
 import unittest
 from types import SimpleNamespace
@@ -101,32 +102,43 @@ _UNREACHABLE = DFA(
 )
 
 
+#: Marks a string aimed at leaf 1 that the tree rests at leaf 0 instead.  Aiming
+#: misses most of the time, so this is the ordinary case rather than a broken one.
+_MISS = b"\xff"
+
+
+def _misses():
+    """An aim that always draws, and whose draws never settle where aimed."""
+    drawn = itertools.count()
+    return lambda: _MISS + bytes([next(drawn) % 256])
+
+
 class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
     """Aiming is how a leaf nothing has reached gets its first prefixes, not how
-    it gets every prefix.  A leaf the population already rests strings at can be
-    read without drawing anything."""
+    it gets every prefix.  Most aims land somewhere else, and a leaf the
+    population already rests strings at is read from those."""
 
     def _source(self, resting):
         population = LeafPopulation(
             _Tree(),
-            lambda strings, midfix: [True] * len(strings),
+            # A miss classifies the other way, so the tree rests it at leaf 0.
+            lambda strings, midfix: [not s.startswith(_MISS) for s in strings],
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        # No aim, so the read is purely of what already rests there.
-        return StateSource(_Resolver(population), 1, lambda: None)
+        return StateSource(_Resolver(population), 1, _misses())
 
-    def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
+    def test_a_leaf_with_members_yields_them_when_every_aim_misses(self):
         resting = [bytes([1, i]) for i in range(20)]
         drawn = collect(self._source(resting), wanted=20)
         self.assertIsNotNone(drawn)
         self.assertEqual(sorted(drawn), sorted(resting))
 
     def test_a_leaf_short_of_what_is_wanted_is_given_up_on(self):
-        # Nothing to aim and too few resting: the population is not one to hold
-        # to a rate, which is what the indecisive strings are for.
+        # Every aim missing and too few resting: the population is not one to
+        # hold to a rate, which is what the indecisive strings are for.
         self.assertIsNone(collect(self._source([bytes([1, 0])]), wanted=20))
 
     def test_it_aims_before_serving_what_rests(self):
