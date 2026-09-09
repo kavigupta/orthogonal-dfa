@@ -6,13 +6,19 @@ themselves, so what a later round needs more of it can draw more of.
 
 import math
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import MIN_YIELD, StateSource, collect
+from orthogonal_dfa.l_star.prefix_sources import (
+    MIN_YIELD,
+    StateSource,
+    collect,
+    state_source,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
@@ -109,7 +115,8 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Pst(2), _Resolver(population), _UNREACHABLE, 1)
+        # No aim, so the read is purely of what already rests there.
+        return StateSource(_Resolver(population), 1, lambda: None)
 
     def test_a_leaf_with_members_yields_them_though_nothing_can_be_aimed(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -143,7 +150,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = StateSource(_Pst(8), _Resolver(population), reachable, 1)
+        source = state_source(_Pst(8), _Resolver(population), reachable, 1)
 
         drawn = collect(source, wanted=20)
         self.assertTrue(
@@ -160,3 +167,48 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+#: State 2 is entered only on a ``1``, so weights that never draw one never
+#: reach it however long the string.
+_ONE_WAY_IN = DFA(
+    states={0, 1, 2},
+    input_symbols={0, 1},
+    transitions={0: {0: 0, 1: 2}, 1: {0: 1, 1: 1}, 2: {0: 2, 1: 2}},
+    initial_state=0,
+    final_states={2},
+)
+
+
+class _Weighted(_Pst):
+    """A sampler whose symbol weights the caller chooses."""
+
+    def __init__(self, length, weights):
+        super().__init__(length)
+        self.sampler = SimpleNamespace(length=length, symbol_weights=lambda _n: weights)
+
+
+class TestALeafNothingReachesGetsNoSource(unittest.TestCase):
+    """Not a state the round came up short on: no draw of the sampler's length
+    arrives at it, so more sampling is not the answer to it."""
+
+    def _made(self, pst, dfa, leaf):
+        population = LeafPopulation(
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
+            decisions=Decisions(),
+        )
+        return state_source(pst, _Resolver(population), dfa, leaf)
+
+    def test_a_state_nothing_enters_has_no_source(self):
+        self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))
+
+    def test_the_sampler_weights_decide_it_too(self):
+        # There is a path into state 2, but not one these weights would draw.
+        self.assertIsNone(self._made(_Weighted(4, [1.0, 0.0]), _ONE_WAY_IN, 2))
+        self.assertIsNotNone(self._made(_Weighted(4, [0.5, 0.5]), _ONE_WAY_IN, 2))
+
+    def test_a_length_can_put_a_state_out_of_reach(self):
+        # Nothing reaches anywhere but the initial state in zero steps.
+        self.assertIsNone(self._made(_Weighted(0, [0.5, 0.5]), _ONE_WAY_IN, 2))

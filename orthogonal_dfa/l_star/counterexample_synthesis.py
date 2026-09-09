@@ -25,7 +25,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import StateSource, collect
+from .prefix_sources import collect, state_source
 from .progress import track
 from .transition_resolver import TransitionResolver
 
@@ -125,10 +125,14 @@ def _per_state_members(pst, resolver, dfa, per_state):
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
-        source = StateSource(pst, resolver, dfa, leaf)
-        drawn = collect(source, wanted=per_state)
+        source = state_source(pst, resolver, dfa, leaf)
+        drawn = None if source is None else collect(source, wanted=per_state)
         if drawn is None:
-            full = False
+            # Only a source that could have delivered and did not leaves the
+            # round short.  A state nothing reaches is not one more prefixes
+            # would say more about.
+            if source is not None:
+                full = False
             drawn = resolver.population.members(resolver.tree.path_of(leaf), per_state)
         held[leaf] = drawn
     return held, full
