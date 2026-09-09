@@ -25,7 +25,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import collect, state_source
+from .prefix_sources import gather, state_source
 from .progress import track
 from .transition_resolver import TransitionResolver
 
@@ -117,24 +117,20 @@ class _PoolState:
 
 def _per_state_members(pst, resolver, dfa, per_state):
     """``state -> members`` up to ``per_state`` of them resting at each state,
-    and whether every state had that many to give.
+    and whether every state with a source had that many to give.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  So a state that comes up short is one the round
-    cannot reach rather than one the sampler was unlucky about.
+    settles where it goes.  A state with no source is one nothing the sampler
+    makes ever rests at, so it is left out rather than counted short: the round
+    is not waiting on a draw that cannot come.
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         source = state_source(pst, resolver, dfa, leaf, wanted=per_state)
-        drawn = None if source is None else collect(source, wanted=per_state)
-        if drawn is None:
-            # Only a source that could have delivered and did not leaves the
-            # round short.  A state nothing reaches is not one more prefixes
-            # would say more about.
-            if source is not None:
-                full = False
-            drawn = resolver.population.members(resolver.tree.path_of(leaf), per_state)
-        held[leaf] = drawn
+        if source is None:
+            continue
+        held[leaf] = gather(source, per_state)
+        full = full and len(held[leaf]) == per_state
     return held, full
 
 

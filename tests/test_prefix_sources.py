@@ -17,7 +17,7 @@ from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     MIN_YIELD,
     StateSource,
-    collect,
+    gather,
     state_source,
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -40,22 +40,22 @@ class _Counted:
 class TestGivingUpOnASource(unittest.TestCase):
     def test_a_source_that_yields_is_collected(self):
         source = _Counted(1.0)
-        held = collect(source, wanted=20)
+        held = gather(source, wanted=20)
         self.assertEqual(len(held), 20)
         self.assertEqual(source.calls, 20)
 
     def test_a_source_that_cannot_deliver_is_given_up_on(self):
         # One in fifty, well under the yield the budget waits for.
         source = _Counted(0.02)
-        self.assertIsNone(collect(source, wanted=20))
+        self.assertLess(len(gather(source, wanted=20)), 20)
         self.assertEqual(source.calls, math.ceil(20 / MIN_YIELD))
 
     def test_a_source_at_exactly_the_yield_survives(self):
         # The budget is 1 / MIN_YIELD draws per prefix, so a source managing
         # exactly that rate is the slowest one that still delivers.
         source = _Counted(MIN_YIELD)
-        held = collect(source, wanted=100)
-        self.assertIsNotNone(held)
+        held = gather(source, wanted=100)
+        self.assertEqual(len(held), 100)
         self.assertLessEqual(source.calls, math.ceil(100 / MIN_YIELD))
 
     def test_duplicates_do_not_count_toward_the_ask(self):
@@ -63,7 +63,7 @@ class TestGivingUpOnASource(unittest.TestCase):
             def draw(self):
                 return bytes([7])
 
-        self.assertIsNone(collect(OneString(), wanted=3))
+        self.assertEqual(gather(OneString(), wanted=3), [bytes([7])])
 
 
 class _Tree:
@@ -132,14 +132,16 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def test_a_leaf_with_members_yields_them_when_every_aim_misses(self):
         resting = [bytes([1, i]) for i in range(20)]
-        drawn = collect(self._source(resting), wanted=20)
+        drawn = gather(self._source(resting), wanted=20)
         self.assertIsNotNone(drawn)
         self.assertEqual(sorted(drawn), sorted(resting))
 
     def test_a_leaf_short_of_what_is_wanted_is_given_up_on(self):
         # Every aim missing and too few resting: the population is not one to
         # hold to a rate, which is what the indecisive strings are for.
-        self.assertIsNone(collect(self._source([bytes([1, 0])]), wanted=20))
+        self.assertEqual(
+            gather(self._source([bytes([1, 0])]), wanted=20), [bytes([1, 0])]
+        )
 
     def test_it_aims_before_serving_what_rests(self):
         """Aiming is what puts new strings in front of the tree, so a leaf that
@@ -164,7 +166,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             population.add(prefix, at=(True,))
         source = state_source(_Pst(8), _Resolver(population), reachable, 1, wanted=20)
 
-        drawn = collect(source, wanted=20)
+        drawn = gather(source, wanted=20)
         self.assertTrue(
             set(drawn) - set(resting),
             "drawing served resting members without aiming anything new",

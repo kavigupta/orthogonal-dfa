@@ -117,17 +117,18 @@ class StateSource:
                 return None
 
 
-def collect(source, wanted: int) -> Optional[list]:
-    """``wanted`` distinct prefixes from ``source``, or ``None`` if it could not.
+def gather(source, wanted: int) -> list:
+    """Up to ``wanted`` distinct prefixes from ``source``, however few it gives.
 
-    Giving up is the point: a population nothing can be drawn for is one the
-    round cannot read a rate over, and saying so beats holding it to one.
+    Fewer is the source saying so: at ``MIN_YIELD`` this many asks is what
+    ``wanted`` costs, and a source that cannot fill it in that is one the round
+    cannot read a rate over.
     """
     held = set()
     for _ in range(math.ceil(wanted / MIN_YIELD)):
         if len(held) == wanted:
-            return sorted(held)
+            break
         drawn = source.draw()
         if drawn is not None:
             held.add(drawn)
-    return sorted(held) if len(held) == wanted else None
+    return sorted(held)
