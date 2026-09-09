@@ -164,7 +164,7 @@ class Pools:
             self.offer_indecisive(string)
 
         self._sources = {UNIFORM: UniformSource(self._pst)}
-        states = []
+        states, sourceless = [], False
         for leaf in range(resolver.num_states):
             source = state_source(
                 self._pst,
@@ -175,6 +175,10 @@ class Pools:
                 sink=self.offer_indecisive,
             )
             if source is None:
+                # No source at all is the round coming up short on that state,
+                # and the clearest way it can: not a draw that missed, but a
+                # state nothing the sampler makes ever rests at.
+                sourceless = True
                 continue
             self._sources[source.label] = source
             states.append(source.label)
@@ -188,7 +192,9 @@ class Pools:
                 collected[label] = got
         # A state whose source could not fill a population is one more prefixes
         # would say more about, which is what the stall detector reads.
-        self.every_state_full = all(label in collected for label in states)
+        self.every_state_full = not sourceless and all(
+            label in collected for label in states
+        )
 
         # Sealed after the sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
