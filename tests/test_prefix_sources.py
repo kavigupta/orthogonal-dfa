@@ -31,7 +31,7 @@ class _Counted:
         self.calls = 0
         self._total = total
 
-    def draw(self, _wanted):
+    def draw(self):
         self.calls += 1
         keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
         return bytes([self.calls // 256, self.calls % 256]) if keep else None
@@ -60,7 +60,7 @@ class TestGivingUpOnASource(unittest.TestCase):
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
-            def draw(self, _wanted):
+            def draw(self):
                 return bytes([7])
 
         self.assertIsNone(collect(OneString(), wanted=3))
@@ -128,7 +128,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Resolver(population), 1, _misses())
+        return StateSource(_Resolver(population), 1, _misses(), wanted=20)
 
     def test_a_leaf_with_members_yields_them_when_every_aim_misses(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -162,7 +162,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = state_source(_Pst(8), _Resolver(population), reachable, 1)
+        source = state_source(_Pst(8), _Resolver(population), reachable, 1, wanted=20)
 
         drawn = collect(source, wanted=20)
         self.assertTrue(
@@ -172,9 +172,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
-        served = [source.draw(2), source.draw(2)]
+        served = [source.draw(), source.draw()]
         self.assertEqual(len([x for x in served if x]), 2)
-        self.assertIsNone(source.draw(2))
+        self.assertIsNone(source.draw())
 
 
 if __name__ == "__main__":
@@ -214,7 +214,7 @@ class TestALeafNothingReachesGetsNoSource(unittest.TestCase):
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
-        return state_source(pst, _Resolver(population), dfa, leaf)
+        return state_source(pst, _Resolver(population), dfa, leaf, wanted=20)
 
     def test_a_state_nothing_enters_has_no_source(self):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))

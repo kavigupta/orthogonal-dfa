@@ -31,7 +31,7 @@ def _aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(pst, resolver, dfa, leaf):
+def state_source(pst, resolver, dfa, leaf, *, wanted):
     """A source for ``leaf``, or ``None`` where aiming at it does not land.
 
     Two ways it does not.  The hypothesis may have no string of the sampler's
@@ -45,20 +45,21 @@ def state_source(pst, resolver, dfa, leaf):
     aim = _aim_at(pst, dfa, leaf)
     if aim is None:
         return None
-    source = StateSource(resolver, leaf, aim)
+    source = StateSource(resolver, leaf, aim, wanted=wanted)
     return source if source.aims_land() else None
 
 
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, resolver, leaf, aim):
+    def __init__(self, resolver, leaf, aim, *, wanted):
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = aim
+        self._wanted = wanted
         self._served = set()
         #: Resting at the leaf and not yet handed out.  Aiming is how it refills,
         #: so what a probe lands is already in it before the first draw.
@@ -88,15 +89,11 @@ class StateSource:
         """
         return any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD)))
 
-    def draw(self, wanted: int) -> Optional[bytes]:
+    def draw(self) -> Optional[bytes]:
         """One prefix resting at the leaf, or ``None`` once it has no more.
 
         What the pool does not hold it aims for, so running out means the leaf's
         whole reachable support has been served -- not that a draw missed.
-
-        ``wanted`` sizes the one read of the leaf.  Reading pushes strings down
-        to it, so the count is work rather than a cap: ask for what could still
-        be served, no more.
         """
         while True:
             while self._pool:
@@ -106,8 +103,12 @@ class StateSource:
                     return member
             if not self._read_the_leaf:
                 self._read_the_leaf = True
+                # Reading a leaf pushes strings down to it, so the count is
+                # work rather than a cap: ask for what could still be served.
                 self._pool.extend(
-                    self._population.members(self._path, len(self._served) + wanted)
+                    self._population.members(
+                        self._path, len(self._served) + self._wanted
+                    )
                 )
                 continue
             # Aims that only bring back what has been served already are the
@@ -126,7 +127,7 @@ def collect(source, wanted: int) -> Optional[list]:
     for _ in range(math.ceil(wanted / MIN_YIELD)):
         if len(held) == wanted:
             return sorted(held)
-        drawn = source.draw(wanted)
+        drawn = source.draw()
         if drawn is not None:
             held.add(drawn)
     return sorted(held) if len(held) == wanted else None
