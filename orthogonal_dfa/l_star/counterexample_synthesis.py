@@ -25,7 +25,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import gather, state_source
+from .prefix_sources import aim_at, gather, state_source
 from .progress import track
 from .transition_resolver import TransitionResolver
 
@@ -120,14 +120,19 @@ def _per_state_members(pst, resolver, dfa, per_state):
     and whether every state gave that many.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  A state with no source at all is the round's clearest
-    way of coming up short: not a draw that missed, but a state nothing the
-    sampler makes ever rests at.  It has no members to hold either, so it is left
-    out of ``held`` while still counting against the round.
+    settles where it goes.  A state the hypothesis can aim at and the tree will
+    not rest anything at is the round coming up short: it has no members to hold,
+    so it is left out of ``held`` while still counting against the round.  A
+    state out of reach altogether is neither, and counts as nothing.
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
-        source = state_source(pst, resolver, dfa, leaf, wanted=per_state)
+        aim = aim_at(pst, dfa, leaf)
+        if aim is None:
+            # Out of reach rather than short: no string of the sampler's length
+            # arrives here, so the round is not waiting on a draw.
+            continue
+        source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             full = False
             continue

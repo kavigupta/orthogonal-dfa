@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     MIN_YIELD,
     StateSource,
+    aim_at,
     gather,
     state_source,
 )
@@ -164,7 +165,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
             population.add(prefix, at=(True,))
-        source = state_source(_Pst(8), _Resolver(population), reachable, 1, wanted=20)
+        source = state_source(
+            _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
+        )
 
         drawn = gather(source, wanted=20)
         self.assertTrue(
@@ -234,7 +237,10 @@ class TestALeafNothingReachesGetsNoSource(unittest.TestCase):
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
-        return state_source(pst, _Resolver(population), dfa, leaf, wanted=20)
+        aim = aim_at(pst, dfa, leaf)
+        if aim is None:
+            return None
+        return state_source(_Resolver(population), leaf, aim, wanted=20)
 
     def test_a_state_nothing_enters_has_no_source(self):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))
