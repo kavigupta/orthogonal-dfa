@@ -17,9 +17,9 @@ def identify_cluster_around(
     # family suffixes -- to avoid forcing a bunch of additional computation on the
     # partially-observed transition distinguishers.
     #
-    # Restrict to representative (non-core) prefix columns: the suffix family and
-    # the decision boundary are global calibration and must not be biased by the
-    # statistically-unrepresentative short prefix-closed core.
+    # Restrict to representative prefix columns: the suffix family and the
+    # decision boundary are global calibration, and a caller that has re-scoped
+    # them means that scope to be what calibration reads.
     candidate = pst.table.fully_observed()
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
@@ -195,8 +195,7 @@ def prefixes_to_certify(pst, counts, vs) -> int:
     verdict come out decided?  The first multiple that would is the answer.
 
     Drawn against the representative prefixes, which are what the sampler
-    returns, so a draw of that size again brings a side of that size again --
-    the core is not drawn and does not count toward it.
+    returns, so a draw of that size again brings a side of that size again.
 
     Never more than the round of pooled prefixes this stands in for would have
     cost.  One of those spends a query on every fully observed column, where one
@@ -365,7 +364,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         )
 
         if strategy == "suffix":
-            kept = pst.sample_more_suffixes(amount=family_size, reference=v)
-            print(f"  kept {kept}/{family_size} after screening")
+            kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         else:
             pst.sample_more_prefixes()

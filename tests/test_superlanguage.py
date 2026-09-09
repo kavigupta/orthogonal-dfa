@@ -19,6 +19,7 @@ from orthogonal_dfa.l_star.structures import (
     Oracle,
     SymmetricBernoulli,
 )
+from orthogonal_dfa.l_star.tracker import RecordingTracker
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
@@ -138,7 +139,7 @@ class TestLiftedOracle(unittest.TestCase):
             suffix = [int(rng.choice(wild)) for _ in range(20)]
             self.assertEqual(
                 self.oracle.membership_query(prefix),
-                self.oracle.membership_query(list(prefix) + suffix),
+                self.oracle.membership_query(prefix + bytes(suffix)),
             )
 
     def test_many_distinct_wildcard_only_suffixes(self):
@@ -156,14 +157,14 @@ class TestLiftedOracle(unittest.TestCase):
     def test_stop_codons_accept_when_all_frames_closed(self):
         # [TAG, X, TAG, X, TAG] places stops at base positions 0, 4, 8 -- one in
         # each reading frame -- so all frames are closed for every X realization.
-        self.assertTrue(self.oracle.membership_query([0, self.X, 0, self.X, 0]))
+        self.assertTrue(self.oracle.membership_query(bytes([0, self.X, 0, self.X, 0])))
 
     def test_stop_codons_reject_when_a_frame_is_open(self):
         # Only frames 0 and 1 get a stop; frame 2 stays open, and X cannot forge one.
-        self.assertFalse(self.oracle.membership_query([0, self.X, 0]))
+        self.assertFalse(self.oracle.membership_query(bytes([0, self.X, 0])))
 
     def test_all_kmer_string_leaves_two_frames_open(self):
-        self.assertFalse(self.oracle.membership_query([0, 1, 2]))
+        self.assertFalse(self.oracle.membership_query(bytes([0, 1, 2])))
 
     def test_base_alphabet_mismatch_asserts(self):
         with self.assertRaises(AssertionError):
@@ -216,9 +217,9 @@ class TestLearnForwarding(unittest.TestCase):
         return base.lengths, noise
 
     def test_num_symbols_reaches_the_sampler(self):
-        # The batch also holds the short prefix-closed core, so the sampled length
-        # shows in the longest string: seven super-symbols, each a base symbol or a
-        # whole codon. Left at the default it would run to forty.
+        # The sampled length shows in the longest string: seven super-symbols,
+        # each a base symbol or a whole codon. Left at the default it would run
+        # to forty.
         lengths, _ = self._first_batch(num_symbols=7)
         self.assertTrue(7 <= max(lengths) <= 21, max(lengths))
 
@@ -290,14 +291,17 @@ class TestLearnSuperlanguage(unittest.TestCase):
     def test_learns_all_frames_closed(self, signal):
         vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         base = AllFramesClosedOracle()
-        dfa, classifiers = learn_superlanguage(
-            base, vocab, min_signal_strength=signal, seed=0
+        tracker = RecordingTracker()
+        dfa = learn_superlanguage(
+            base, vocab, min_signal_strength=signal, seed=0, tracker=tracker
         )
         self.assertIsNotNone(dfa)
 
         oracle = LiftedOracle(base, vocab, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
-        assert_rounds_accept_preserving(classifiers, oracle.target_dfa(), signal)
+        assert_rounds_accept_preserving(
+            tracker.classifiers, oracle.target_dfa(), signal
+        )
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)
         strings = [sampler.sample(rng, vocab.alphabet_size) for _ in range(3000)]

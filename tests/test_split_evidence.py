@@ -1,6 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
+from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.split_evidence import (
@@ -69,8 +70,13 @@ def _evidence(family=None, members=(), state=0):
     pull-down (and thus no classification) happens -- that path is exercised in
     test_leaf_population.
     """
-    tree = MidfixTree()
-    population = LeafPopulation(tree, lambda strings, midfix: [None] * len(strings))
+    tree = MidfixTree(())
+    population = LeafPopulation(
+        tree,
+        lambda strings, midfix: [None] * len(strings),
+        harvest=lambda _s: None,
+        decisions=Decisions(),
+    )
     for member in members:
         population.add(member, at=tree.path_of(state))
     return SplitEvidence(

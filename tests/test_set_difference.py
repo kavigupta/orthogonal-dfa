@@ -24,7 +24,7 @@ class PredicateOracle(Oracle):
         return self._string_length
 
     def membership_queries(self, strings):
-        self.seen.append([list(s) for s in strings])
+        self.seen.append(list(strings))
         return np.array([bool(self._predicate(s)) for s in strings], dtype=bool)
 
     def membership_query(self, string):
@@ -39,19 +39,19 @@ class TestSetDifferenceOracle(unittest.TestCase):
         self.oracle = SetDifferenceOracle(self.a, self.b)
 
     def test_accepts_exactly_a_and_not_b(self):
-        strings = [[0, 1, 0], [0, 1, 1], [1, 1, 0], [1, 1, 1]]
+        strings = [bytes(s) for s in ([0, 1, 0], [0, 1, 1], [1, 1, 0], [1, 1, 1])]
         result = self.oracle.membership_queries(strings)
         # a: [T, T, F, F], b: [T, F, T, F] -> a & ~b: [F, T, F, F]
         np.testing.assert_array_equal(result, [False, True, False, False])
         self.assertEqual(result.dtype, bool)
 
     def test_membership_query_singular(self):
-        self.assertTrue(self.oracle.membership_query([0, 1, 1]))  # a yes, b no
-        self.assertFalse(self.oracle.membership_query([0, 1, 0]))  # a yes, b yes
-        self.assertFalse(self.oracle.membership_query([1, 1, 1]))  # a no
+        self.assertTrue(self.oracle.membership_query(bytes([0, 1, 1])))  # a yes, b no
+        self.assertFalse(self.oracle.membership_query(bytes([0, 1, 0])))  # a yes, b yes
+        self.assertFalse(self.oracle.membership_query(bytes([1, 1, 1])))  # a no
 
     def test_both_sub_oracles_see_every_string(self):
-        strings = [[0, 0], [1, 0]]
+        strings = [bytes([0, 0]), bytes([1, 0])]
         self.oracle.membership_queries(strings)
         self.assertEqual(self.a.seen[-1], strings)
         self.assertEqual(self.b.seen[-1], strings)

@@ -77,9 +77,12 @@ class TestMaskTableBatching(unittest.TestCase):
     # pylint: disable=protected-access
     def _table(self):
         oracle = HashOracle()
-        table = MaskTable(
-            oracle, [bytes([0]), bytes([1]), bytes([0, 1])], [True, True, False]
-        )
+        prefixes = [bytes([0]), bytes([1]), bytes([0, 1])]
+        table = MaskTable(oracle, prefixes[:2], population="uniform")
+        # Added and then retired: a prefix is named as it enters, so being in
+        # the table and in no population is what outliving a population means.
+        table.add_prefixes(prefixes[2:], population="scratch")
+        table.drop_population("scratch")
         return oracle, table
 
     def _assert_cells_correct(self, oracle, table):
@@ -121,7 +124,7 @@ class TestMaskTableBatching(unittest.TestCase):
             "fixture is order-blind",
         )
 
-        table.add_prefixes(new_prefixes)
+        table.add_prefixes(new_prefixes, population="uniform")
         self._assert_cells_correct(oracle, table)
         # The fully-observed columns stay fully observed; the partial one does not
         # acquire cells it was never asked for.
@@ -133,11 +136,11 @@ class TestMaskTableBatching(unittest.TestCase):
 
     def test_every_prefix_gates_a_columns_candidacy(self):
         # Regression: scoping "fully observed" to the *representative* rows made a
-        # column a clustering candidate while its core cells -- non-representative,
-        # but still prefixes -- were unobserved.  That silently changed which
-        # suffixes clustering could pick, and with them the whole search path,
-        # surfacing only as a distant end-to-end timeout.
-        oracle, table = self._table()  # prefix 2 is core: non-representative
+        # column a clustering candidate while its non-representative cells -- still
+        # prefixes -- were unobserved.  That silently changed which suffixes
+        # clustering could pick, and with them the whole search path, surfacing
+        # only as a distant end-to-end timeout.
+        oracle, table = self._table()  # prefix 2 is non-representative
         row = table.intern_suffix(bytes([1, 1]))
 
         # Observing just the representative cells leaves a prefix unobserved, so

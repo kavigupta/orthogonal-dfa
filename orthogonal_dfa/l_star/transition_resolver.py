@@ -29,10 +29,12 @@ remapping on export.
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
+from .decisions import Decisions
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
-from .midfix_tree import MidfixTree, oracle_decider
+from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
+from .progress import counter, write
 from .sifting import Sifter
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
@@ -55,10 +57,16 @@ class TransitionResolver:
     def __init__(self, pst, vs):
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
+        self.decisions = Decisions()
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
-        self.population = LeafPopulation(self.tree, self._classify)
+        self.population = LeafPopulation(
+            self.tree,
+            self._classify,
+            harvest=self.indecisive.add,
+            decisions=self.decisions,
+        )
         for p in pst.table.prefixes:
             self.population.add(p)
         self.splits = SplitEvidence(
@@ -110,6 +118,10 @@ class TransitionResolver:
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
         self.dfa.split_state(state_id, new_id)
+        write(
+            f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
+            f"reject {new_id} ({self.tree.num_states} states)"
+        )
 
     # -- counterexamples ----------------------------------------------------
 
@@ -123,37 +135,27 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
-        _dbg = __import__("os").environ.get("TR_PROGRESS")
         if __import__("os").environ.get("DIS_LOG"):
             _DIS_COUNTS.clear()  # per-pass counts so multi-round runs separate cleanly
-        _seen = 0
-        _splits = 0
-        for w in self._probe_blocks(max_probes):
-            status = self._process(w, delta)
-            if status == _SPLIT:
-                since_split = 0
-                _splits += 1
-                self.edges.close()  # the split dropped edges; refill
-                delta = self._total_delta()  # the split rewrote the state set
-            elif status == _UNDECIDED:
-                since_split = 0
-            else:
-                since_split += 1
-            _seen += 1
-            if _dbg and _seen % 100 == 0:
-                print(
-                    f"  [ce_pass] probe {_seen}/{max_probes}, states {self.tree.num_states}, "
-                    f"splits {_splits}, since_split {since_split}/{patience}",
-                    flush=True,
+        with counter(max_probes, "Probing for counterexamples") as pbar:
+            for w in self._probe_blocks(max_probes):
+                status = self._process(w, delta)
+                if status == _SPLIT:
+                    since_split = 0
+                    self.edges.close()  # the split dropped edges; refill
+                    delta = self._total_delta()  # the split rewrote the state set
+                elif status == _UNDECIDED:
+                    since_split = 0
+                else:
+                    since_split += 1
+                pbar.set_postfix(
+                    states=self.tree.num_states,
+                    clean=f"{since_split}/{patience}",
+                    refresh=False,
                 )
-            if since_split >= patience:
-                break
-        if _dbg:
-            print(
-                f"  [ce_pass] DONE after {_seen} probes, {_splits} splits, "
-                f"{self.tree.num_states} states",
-                flush=True,
-            )
+                pbar.update(1)
+                if since_split >= patience:
+                    break
         if __import__("os").environ.get("DIS_LOG"):
             print(f"  [dis_counts] {dict(_DIS_COUNTS)}", flush=True)
 
@@ -292,8 +294,8 @@ class TransitionResolver:
         )
         for state, c in unresolved:
             print(
-                f"transition_resolver: no decisive edge for (state {state}, symbol "
-                f"{c}); falling back to a self-loop"
+                f"  no decisive edge for (state {state}, symbol {c}); "
+                "falling back to a self-loop"
             )
 
         accepting = self.tree.accepting_leaves()

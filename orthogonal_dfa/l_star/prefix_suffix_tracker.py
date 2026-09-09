@@ -1,46 +1,17 @@
+import math
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
-import tqdm.auto as tqdm
 
-from .mask_table import MaskTable
+from .mask_table import UNIFORM, MaskTable
+from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
 from .structures import Oracle
 
-
-def short_prefix_closure(
-    prefixes: List[bytes], max_length: int, max_count: int
-) -> List[bytes]:
-    """The ``max_count`` shortest distinct prefixes (including the empty string)
-    of length at most ``max_length`` of any string in ``prefixes``.
-
-    State discovery represents each state by the prefixes that *end* in it, and
-    denoises by aggregating over that population.  Random length-L probe strings
-    almost never end in a *transient* state (one only reachable near the start of
-    a string) — e.g. the initial state, reachable only by the empty string — so
-    such states get zero rows and are never discovered, capping synthesis below
-    the true state count.  Seeding the prefix set with this short prefix-closed
-    core gives those transient states access strings, using only short prefixes
-    (the membership queries themselves remain ``prefix + suffix``, i.e. full
-    length); the recurrent states are already covered by the probe strings.
-
-    The shortest ``max_count`` are kept: every core prefix is queried against
-    every suffix, so a large core multiplies synthesis cost, while transient
-    states are shallow (reachable in a few steps), so the short prefixes are both
-    the cheap and the useful ones.  Keeping the shortest prefixes preserves the
-    prefix-closure property (all shorter prefixes are retained).
-    """
-    closure = set()
-    for prefix in prefixes:
-        for k in range(min(len(prefix), max_length) + 1):
-            closure.add(prefix[:k])
-    # Sort for a deterministic order: set-iteration order varies with the
-    # CPython version, which would make the prefix list — and the noisy
-    # statistics computed over it — depend on the interpreter.  Order by
-    # (length, contents) so the empty string is first.
-    return sorted(closure, key=lambda p: (len(p), p))[:max_count]
+#: Below this a signal is not worth sizing a population for.
+MIN_SIGNAL_STRENGTH = 0.001
 
 
 @dataclass
@@ -58,6 +29,39 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+
+    def __post_init__(self):
+        # Population size goes as 1/signal^2, so a signal much below this asks for
+        # one no suffix family could hold, and the search doubles N looking for it.
+        assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
+
+
+def _draw_budget(count: int) -> int:
+    """Draws to allow in collecting ``count`` distinct strings.
+
+    About ``count`` are needed where the sampler has far more strings than the
+    pool wants, and about ``count * ln count`` where it has only half again as
+    many.  Nearer exhaustion than that no fixed budget helps: the last string of
+    a support of ``s`` costs ``s`` draws on its own.
+    """
+    return count * (1 + math.ceil(math.log(count + 1)))
+
+
+def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
+    """Up to ``count`` prefixes, distinct from each other and from ``held``.
+
+    Fewer when the sampler has fewer left to give.  Drawing until it has
+    ``count`` never returns once it is out, and a pool that cannot grow is the
+    caller's business rather than an error here.
+    """
+    drawn = set()
+    for _ in range(_draw_budget(count)):
+        if len(drawn) == count:
+            break
+        prefix = sampler.sample(rng, alphabet_size=alphabet_size)
+        if prefix not in held:
+            drawn.add(prefix)
+    return sorted(drawn)
 
 
 @dataclass
@@ -103,40 +107,24 @@ class PrefixSuffixTracker:
         config: "SearchConfig",
         *,
         num_prefixes: int,
-        prefix_core_length: int = 4,
-        prefix_core_size: int = 32,
     ) -> "PrefixSuffixTracker":
         # A string here is a byte per symbol, so a wider alphabet has nothing to
         # be written down in.  Said once, and before the first draw, rather than
         # left to surface as whichever byte conversion is reached first.
         assert oracle.alphabet_size <= 256, oracle.alphabet_size
-        prefixes = [
-            sampler.sample(rng, alphabet_size=oracle.alphabet_size)
-            for _ in range(num_prefixes)
-        ]
-        # Per-prefix flag: True for "representative" probe prefixes (drawn from
-        # the sampler), False for the short prefix-closed core.  Global
-        # calibration (decision boundary, FNR) is computed over representative
-        # prefixes only, so the statistically-unrepresentative core does not bias
-        # it; state discovery still uses every prefix so transient states split.
-        representative = [True] * len(prefixes)
-        if prefix_core_length > 0 and prefix_core_size > 0:
-            existing = set(prefixes)
-            core = [
-                p
-                for p in short_prefix_closure(
-                    prefixes, prefix_core_length, prefix_core_size
-                )
-                if p not in existing
-            ]
-            prefixes = prefixes + core
-            representative = representative + [False] * len(core)
+        prefixes = _distinct_prefixes(
+            sampler,
+            rng,
+            alphabet_size=oracle.alphabet_size,
+            count=num_prefixes,
+            held=(),
+        )
         return cls(
             sampler=sampler,
             rng=rng,
             oracle=oracle,
             config=config,
-            table=MaskTable(oracle, prefixes, representative),
+            table=MaskTable(oracle, prefixes, population=UNIFORM),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
@@ -197,9 +185,8 @@ class PrefixSuffixTracker:
         A special case is that if the family classifies all prefixes as positive or negative,
         then the FNR is 1 rather than 0 (since the prediction is uninformative).
 
-        Computed over the representative prefixes only: the short prefix-closed
-        core exists to give transient states discovery rows, not to recalibrate
-        the family against an unrepresentative population.
+        Computed over the representative prefixes only, which a caller may
+        re-scope to focus the family.
         """
         return self.fnr_from_decision(
             self.compute_decision(vs, self.table.representative)
@@ -215,23 +202,27 @@ class PrefixSuffixTracker:
         return 1 - arr.sum()
 
     def sample_more_prefixes(self):
-        # Sample random prefixes and add them
-        new_prefixes = set()
-        while len(new_prefixes) < self.config.num_addtl_prefixes:
-            prefix = self.sampler.sample(self.rng, alphabet_size=self.alphabet_size)
-            if prefix in new_prefixes or self.table.contains_prefix(prefix):
-                continue
-            new_prefixes.add(prefix)
-        self.table.add_prefixes(sorted(new_prefixes))
+        new_prefixes = _distinct_prefixes(
+            self.sampler,
+            self.rng,
+            alphabet_size=self.alphabet_size,
+            count=self.config.num_addtl_prefixes,
+            held=set(self.table.prefixes),
+        )
+        if new_prefixes:
+            self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
     def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
-        survive screening against ``reference``."""
+        survive screening against ``reference``, returning ``(kept, drawn)``.
+
+        A cohort is screened whole, so the last one can carry ``kept`` past
+        ``amount``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         every = np.ones(self.num_prefixes, dtype=bool)
-        with tqdm.tqdm(total=amount, desc="Completing suffix family", delay=1) as pbar:
+        with counter(amount, "Completing suffix family") as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
@@ -246,17 +237,9 @@ class PrefixSuffixTracker:
                     self.table.observed_masks(survivors, every)
                 kept += len(survivors)
                 pbar.update(len(survivors))
-        return kept
+        return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
         to ``subset_prefixes``; the table fills any cells not yet observed."""
         return self.table.observed_masks(vs, subset_prefixes).mean(0)
-
-    def compute_decision_from_strings(
-        self, vs: List[bytes], subset_prefixes=None
-    ) -> np.ndarray:
-        if subset_prefixes is None:
-            subset_prefixes = np.ones(self.num_prefixes, dtype=bool)
-        vs_idxs = [self.table.intern_suffix(v) for v in vs]
-        return self.compute_decision(vs_idxs, subset_prefixes)
