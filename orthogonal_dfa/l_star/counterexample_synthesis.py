@@ -117,17 +117,19 @@ class _PoolState:
 
 def _per_state_members(pst, resolver, dfa, per_state):
     """``state -> members`` up to ``per_state`` of them resting at each state,
-    and whether every state with a source had that many to give.
+    and whether every state gave that many.
 
     Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  A state with no source is one nothing the sampler
-    makes ever rests at, so it is left out rather than counted short: the round
-    is not waiting on a draw that cannot come.
+    settles where it goes.  A state with no source at all is the round's clearest
+    way of coming up short: not a draw that missed, but a state nothing the
+    sampler makes ever rests at.  It has no members to hold either, so it is left
+    out of ``held`` while still counting against the round.
     """
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         source = state_source(pst, resolver, dfa, leaf, wanted=per_state)
         if source is None:
+            full = False
             continue
         held[leaf] = gather(source, per_state)
         full = full and len(held[leaf]) == per_state
