@@ -33,6 +33,10 @@ class _OrderedRecorder(RecordingTracker):
         super().on_consistency_estimated(consistency, round_index)
         self.calls.append(("consistency", round_index))
 
+    def on_pool_resolved(self, prefixes, indecisive, round_index):
+        super().on_pool_resolved(prefixes, indecisive, round_index)
+        self.calls.append(("pool", round_index))
+
     def on_corrected_dfa_found(self, dfa, round_index):
         super().on_corrected_dfa_found(dfa, round_index)
         self.calls.append(("corrected", round_index))
@@ -60,7 +64,7 @@ class TestSynthesisTracker(unittest.TestCase):
 
     def test_every_round_reports_once(self):
         rounds = 1 + max(r for _, r in self.tracker.calls)
-        for name in ("family", "classified", "initial", "consistency"):
+        for name in ("family", "classified", "initial", "consistency", "pool"):
             fired = [r for called, r in self.tracker.calls if called == name]
             self.assertEqual(fired, list(range(rounds)), name)
 
@@ -77,7 +81,9 @@ class TestSynthesisTracker(unittest.TestCase):
             for name, r in self.tracker.calls
             if r == 0 and name != "corrected"  # which may also name round 0
         ]
-        self.assertEqual(first, ["family", "classified", "initial", "consistency"])
+        self.assertEqual(
+            first, ["family", "classified", "initial", "pool", "consistency"]
+        )
 
     def test_corrected_names_the_most_consistent_round(self):
         consistency = self.tracker.consistency
@@ -89,6 +95,16 @@ class TestSynthesisTracker(unittest.TestCase):
         self.assertEqual(len(self.tracker.families), rounds)
         self.assertEqual(len(self.tracker.classifiers), rounds)
         self.assertEqual(len(self.tracker.hypotheses), rounds)
+        self.assertEqual(len(self.tracker.pools), rounds)
+
+    def test_pool_snapshots_are_bytes(self):
+        # The pool and its harvested boundary strings are what a later analysis
+        # of pool growth reads, so they must survive as bytes snapshots.
+        prefixes, indecisive = self.tracker.pools[0]
+        self.assertTrue(prefixes)
+        self.assertTrue(all(isinstance(p, bytes) for p in prefixes))
+        self.assertIsInstance(indecisive, set)
+        self.assertTrue(all(isinstance(s, bytes) for s in indecisive))
 
     def test_recording_tracker_pickles(self):
         # The point of recording is reading it back later, so the families must

@@ -1,34 +1,30 @@
-"""Instrumented multi-round synthesis on the len40 spliceai oracle.
+"""Instrumented multi-round synthesis on the len40 spliceai oracle, via the tracker.
 
-Runs the FULL counterexample_driven_synthesis (unfixed baseline) for several rounds
-and dumps a rich pickle per round so we can investigate later whether -- and how --
-later rounds improve the split.  Captures per round: the DFA, the discrimination
-tree, decision boundary / evidence margin / accept+reject thresholds, est accuracy,
-the prefix pool, the harvested `indecisive` boundary strings (the multi-round
-feedback), the round's suffix family, and the DFA's call / oracle labels / frame
-patterns on a FIXED eval set with phi(DFA,oracle) and phi(DFA,frame-rule).
+Runs ``counterexample_driven_synthesis`` with a ``RecordingTracker`` (no monkeypatching,
+no yield loop) and writes one ``round_{i}.pkl`` per round from the tracker's streams:
+dfa, dt, band thresholds, est, prefix pool, harvested indecisive, plus eval
+phi(DFA, oracle) / phi(DFA, frame-rule) on a fixed eval set.
+
+Depends only on the public tracker interface (``on_pool_resolved`` carries the pool and
+the harvested boundary strings), so it works off main.
 """
-import argparse, os, pickle, numpy as np
+import argparse
+import os
+import pickle
+
+import numpy as np
 
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.l_star.counterexample_synthesis import counterexample_driven_synthesis
 from orthogonal_dfa.l_star.examples.gate_composition_residual import gate_residual_oracle
 from orthogonal_dfa.l_star.learn import build_pst
-from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
+from orthogonal_dfa.l_star.tracker import RecordingTracker
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 
 STOPS = {(3, 0, 2), (3, 0, 0), (3, 2, 0)}
-
-# ---- capture each round's resolver so we can read its harvested `indecisive` ----
-_RESOLVERS = []
-_orig_init = TransitionResolver.__init__
-def _capturing_init(self, pst, vs):
-    _orig_init(self, pst, vs)
-    _RESOLVERS.append(self)
-TransitionResolver.__init__ = _capturing_init
 
 
 def frames_closed(seq):
@@ -69,7 +65,7 @@ def main():
     )
     pst.config.fnr_limit = args.fnr_limit
 
-    # fixed eval set (same every round): oracle labels, frame patterns, frame rule
+    # fixed eval set (same for every round): oracle labels, frame patterns, frame rule
     samp = SuperSampler(vocab, 36)
     rng = np.random.default_rng(args.seed + 999)
     supers = [samp.sample(rng, vocab.alphabet_size) for _ in range(args.n_eval)]
@@ -81,25 +77,31 @@ def main():
     print(f"[seed {args.seed}] eval ready (n={args.n_eval}); "
           f"phi(oracle,frame01)={phi(ora, f01):+.3f} phi(oracle,allframes)={phi(ora, afc):+.3f}", flush=True)
 
+    tracker = RecordingTracker()
+    counterexample_driven_synthesis(
+        pst, acc_threshold=args.acc_threshold, tracker=tracker, max_rounds=args.rounds
+    )
+
     print(f"[seed {args.seed}] round | states | accept | phi(DFA,oracle) | phi(DFA,frame01) | "
-          f"est | pool | |indec| | boundary | margin", flush=True)
-    for i, (dfa, dt, true_acc, boundary, classifier) in enumerate(
-        counterexample_driven_synthesis(pst, acc_threshold=args.acc_threshold)
-    ):
+          f"est | pool | |indec| | boundary", flush=True)
+    for i in range(len(tracker.consistency)):
+        dfa, dt = tracker.hypotheses[i]
+        _, boundary = tracker.families[i]
+        clf = tracker.classifiers[i]
+        prefixes, indecisive = tracker.pools[i]
         call = np.array([bool(dfa.accepts_input(w)) for w in supers], dtype=float)
-        resolver = _RESOLVERS[-1] if _RESOLVERS else None
-        indec = set(resolver.indecisive) if resolver is not None else set()
+        margin = (clf.accept_thresh - clf.reject_thresh) / 2
         rec = dict(
             round=i, seed=args.seed,
             dfa=dfa, dt=dt,
-            boundary=float(pst.decision_boundary),
-            evidence_margin=float(pst.evidence_margin),
-            accept_thresh=float(pst.accept_thresh),
-            reject_thresh=float(pst.reject_thresh),
-            true_acc=float(true_acc),
-            num_prefixes=int(pst.num_prefixes),
-            prefixes=[bytes(p) for p in pst.table.prefixes],
-            indecisive=[bytes(x) for x in indec],
+            boundary=float(boundary),
+            evidence_margin=float(margin),
+            accept_thresh=float(clf.accept_thresh),
+            reject_thresh=float(clf.reject_thresh),
+            true_acc=float(tracker.consistency[i]),
+            num_prefixes=len(prefixes),
+            prefixes=list(prefixes),
+            indecisive=list(indecisive),
             n_states=len(dfa.states),
             call=call, ora=ora, fpat=fpat,
             phi_oracle=phi(call, ora), phi_frame01=phi(call, f01),
@@ -108,10 +110,8 @@ def main():
         with open(os.path.join(args.dump_dir, f"round_{i:02d}.pkl"), "wb") as fh:
             pickle.dump(rec, fh)
         print(f"  round {i}: {len(dfa.states):2d} | {call.mean():.3f} | {phi(call, ora):+.3f} | "
-              f"{phi(call, f01):+.3f} | {true_acc:.3f} | {pst.num_prefixes} | {len(indec)} | "
-              f"{pst.decision_boundary:.3f} | {pst.evidence_margin:.3f}", flush=True)
-        if i + 1 >= args.rounds:
-            break
+              f"{phi(call, f01):+.3f} | {tracker.consistency[i]:.3f} | {len(prefixes)} | "
+              f"{len(indecisive)} | {boundary:.3f}", flush=True)
     print(f"[seed {args.seed}] DONE", flush=True)
 
 
