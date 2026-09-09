@@ -241,3 +241,30 @@ thread.
 `leaf_purity.py` (leaf/accept-side purity + indecision), `auc_check.py` (band-independent
 separation), `per_depth_indec.py` (indecision vs sift depth), `repro_check.out` (dump
 reconciliation).
+
+## The oversplits: which round-0 splits are incorrect, and in what CONTEXT
+
+A split's correctness is a property of the STATE it splits, not the midfix in isolation
+(an isolation test -- `verify_incorrect.py` -- was misframed: it flagged ~85% of BOTH
+rounds' midfixes as "cutting within a frame state," because spliceai's residual is
+everywhere, so it did not discriminate). The correct, contextual test
+(`per_node_correctness.py`): sift a population down the tree and, at each internal node
+(= a split), look only at the strings that REACH it -- is the node already frame-pure, and
+does the split cut within its dominant frame-sig?
+
+Result (seed 2): round 0 has **4/14** incorrect splits, round 1 **2/9**. Round 0's:
+```
+ depth  context                 distinguisher m              why
+   4    (00p0) dominant 61%      [TAG Y TGA]                  cuts within (00p0)  23A/53R
+   5    (00p0) 85% PURE          [X X TGA X TAG Y TGA]        subdivides a pure node  4A/85R
+   7    (00p2) 97% PURE          [TGA X TAG Y TGA]            subdivides a pure node  16A/59R
+   7    (00p1) dominant 44%      [X TGA X TAG Y TGA]          cuts within (00p1)  50A/35R
+```
+Round 1 has **zero** already-pure subdivisions. The two clearest round-0 incorrect splits
+(subdividing 85%- and 97%-pure nodes) are the DEEPEST (depth 5, 7) with the LONGEST
+midfixes -- the depth-accumulation mechanism made concrete: deeper -> purer node -> more
+clearly-wrong the split.
+
+Direct confirmation that correctness is contextual, not a midfix property: the SAME midfix
+`[TAG Y TGA]` is INCORRECT at depth 4 (on a (00p0) node, cuts within it) but OK at depth 3
+(on a (01p2) node, 13A/76R clean separation). Same midfix, opposite correctness.
