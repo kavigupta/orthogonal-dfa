@@ -141,25 +141,26 @@ class StateSource:
         self._aim = aim
         self._sink = sink
         self._served = set()
-        self._resting = []
-        #: Draws a collection gave up on.  Aiming is expensive and the leaf is
-        #: still where they rest, so they are the next ask's cheapest prefixes.
-        self._spare = deque()
+        #: Resting at the leaf and not yet handed out.  Aiming is how it refills,
+        #: so what a probe lands is already in it before the first draw.
+        self._pool = []
+        self._read_the_leaf = False
 
-    def draw(self, wanted: int) -> Optional[bytes]:
-        """One string resting at the leaf, or ``None`` when there are no more.
+    def aimed_draw(self) -> bool:
+        """Aim one string, let the tree place it, and say whether it rested here.
 
-        ``wanted`` is how many the caller is collecting, which is what sizes the
-        read of what already rests there.
-
-        Aims before serving for what it leaves behind rather than what it
-        returns: a string pushed toward the leaf is one the population then
-        holds, and the split test reads the population.
+        One that does joins the pool.  One that does not belongs to the leaf it
+        did rest at, which is the answer that counts.
         """
-        if self._spare:
-            return self._spare.popleft()
-        landed = self._aim_once()
-        return self._resting_member(wanted) if landed is None else landed
+        aimed = self._aim()
+        self._population.add(aimed)
+        # Where it rests, not where it was aimed.
+        if self._population.settle(aimed, self._path):
+            self._pool.append(aimed)
+            return True
+        if self._population.resting_at(aimed) is None:
+            self._sink(aimed)
+        return False
 
     def aims_land(self) -> bool:
         """Whether aiming at this leaf lands often enough to keep asking.
@@ -167,46 +168,42 @@ class StateSource:
         At yield ``MIN_YIELD`` one lands within ``1 / MIN_YIELD`` aims more often
         than not, so that many is what the leaf gets to prove itself in.  A floor
         on patience, like the yield itself, not a measurement of it.
-
-        The draws are kept whichever way it goes: a string pushed toward the leaf
-        is one the population then holds.
         """
-        return any(
-            self._aim_once() is not None for _ in range(math.ceil(1 / MIN_YIELD))
-        )
+        return any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD)))
 
-    def _aim_once(self) -> Optional[bytes]:
-        """An aimed string the tree rested here, or ``None`` where it rested it
-        somewhere else."""
-        aimed = self._aim()
-        self._population.add(aimed)
-        # Where it rests, not where it was aimed.
-        if self._population.settle(aimed, self._path):
-            return aimed
-        if self._population.resting_at(aimed) is None:
-            self._sink(aimed)
-        return None
+    def draw(self, wanted: int) -> Optional[bytes]:
+        """One prefix resting at the leaf, or ``None`` once it has no more.
 
-    def _resting_member(self, wanted: int) -> Optional[bytes]:
-        if not self._resting:
-            # Reading a leaf pushes strings down to it, so the count is work
-            # rather than a cap: ask for what could still be served, no more.
-            self._resting = [
-                m
-                for m in self._population.members(
-                    self._path, len(self._served) + wanted
+        What the pool does not hold it aims for, so running out means the leaf's
+        whole reachable support has been served -- not that a draw missed.
+
+        ``wanted`` sizes the one read of the leaf.  Reading pushes strings down
+        to it, so the count is work rather than a cap: ask for what could still
+        be served, no more.
+        """
+        while True:
+            while self._pool:
+                member = self._pool.pop()
+                if member not in self._served:
+                    self._served.add(member)
+                    return member
+            if not self._read_the_leaf:
+                self._read_the_leaf = True
+                self._pool.extend(
+                    self._population.members(self._path, len(self._served) + wanted)
                 )
-                if m not in self._served
-            ]
-        if not self._resting:
-            return None
-        member = self._resting.pop()
-        self._served.add(member)
-        return member
+                continue
+            # Aims that only bring back what has been served already are the
+            # leaf saying it has nothing else, which is different from missing.
+            if not any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD))):
+                return None
 
     def unused(self, drawn) -> None:
-        """Take back draws that did not become a population."""
-        self._spare.extend(drawn)
+        """Take back draws a collection did not use.  Landing one is the
+        expensive part and the leaf is still where it rests, so it goes back in
+        the pool rather than being served twice over."""
+        self._served.difference_update(drawn)
+        self._pool.extend(drawn)
 
 
 def gather(source, wanted: int) -> list:
@@ -234,9 +231,7 @@ def collect(source, wanted: int) -> Optional[list]:
     held = gather(source, wanted)
     if len(held) == wanted:
         return held
-    # Taking is only earned by a population coming of it.  A source that holds
-    # nothing has nothing to take back; one that buffers a finite supply would
-    # otherwise be emptied by every ask it could not meet.
+    # Taking is only earned by a population coming of it.
     give_back = getattr(source, "unused", None)
     if give_back is not None:
         give_back(held)

@@ -80,8 +80,8 @@ class TestGivingUpOnASource(unittest.TestCase):
         self.assertLessEqual(source.calls, math.ceil(100 / MIN_YIELD))
 
     def test_a_failed_ask_hands_its_draws_back(self):
-        # Aiming is the expensive part, so a source that buffers gets to keep
-        # what a collection could not use rather than paying for it twice.
+        # Landing a draw is the expensive part, so what a collection could not
+        # use goes back rather than being paid for twice.
         source = _Spooled([bytes([i]) for i in range(4)])
         self.assertIsNone(collect(source, wanted=6))
         self.assertEqual(source.drawn, 4, "and it stopped once it ran dry")
@@ -267,6 +267,15 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         even = _Weighted(4, [0.5, 0.5])
         self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
+
+    def test_taking_draws_back_makes_them_servable_again(self):
+        source = self._source([bytes([1, 0]), bytes([1, 1])])
+        first = [source.draw(2), source.draw(2)]
+        self.assertIsNone(source.draw(2), "and then it has no more")
+
+        source.unused(first)
+
+        self.assertEqual(sorted([source.draw(2), source.draw(2)]), sorted(first))
 
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
