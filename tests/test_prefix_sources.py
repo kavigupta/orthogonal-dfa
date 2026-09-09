@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
     MIN_YIELD,
     StateSource,
+    aim_at,
     collect,
     gather,
     state_source,
@@ -219,10 +220,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         for prefix in resting:
             population.add(prefix, at=(True,))
         source = state_source(
-            _Pst(8),
             _Resolver(population),
-            reachable,
             1,
+            aim_at(_Pst(8), reachable, 1),
             wanted=20,
             sink=lambda _s: None,
         )
@@ -234,24 +234,11 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
 
     def test_a_leaf_nothing_reaches_gets_no_source_at_all(self):
-        # Not a state the round came up short on -- a state no draw of the
-        # sampler's length arrives at, which more sampling does not change.
-        population = LeafPopulation(
-            _Tree(),
-            lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _string: None,
-            decisions=Decisions(),
-        )
-        made = state_source(
-            _Pst(2),
-            _Resolver(population),
-            _UNREACHABLE,
-            1,
-            wanted=20,
-            sink=lambda _s: None,
-        )
+        # Out of reach rather than short: no draw of the sampler's length
+        # arrives at it, which more sampling does not change.
+        made = aim_at(_Pst(2), _UNREACHABLE, 1)
 
-        self.assertIsNone(made)
+        self.assertIsNone(made, "nothing to aim, so no source to build")
 
     def _made(self, pst, dfa, leaf, *, lands=True):
         population = LeafPopulation(
@@ -262,8 +249,11 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
+        aim = aim_at(pst, dfa, leaf)
+        if aim is None:
+            return None
         return state_source(
-            pst, _Resolver(population), dfa, leaf, wanted=20, sink=lambda _s: None
+            _Resolver(population), leaf, aim, wanted=20, sink=lambda _s: None
         )
 
     def test_the_sampler_weights_decide_reachability_too(self):

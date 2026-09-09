@@ -91,7 +91,7 @@ class BoundarySource:
             self._pending.append(boundary)
 
 
-def _aim_at(pst, dfa, leaf):
+def aim_at(pst, dfa, leaf):
     """A callable drawing strings the hypothesis says reach ``leaf``, or ``None``
     where it has none of the sampler's length that do -- no path, or none its
     symbol weights would take.
@@ -107,21 +107,19 @@ def _aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(pst, resolver, dfa, leaf, *, wanted, sink):
-    """A source for ``leaf``, or ``None`` where aiming at it does not land.
+def state_source(resolver, leaf, aim, *, wanted, sink):
+    """A source drawing on ``aim``, or ``None`` where the tree does not rest what
+    it draws at ``leaf``.
 
-    Two ways it does not.  The hypothesis may have no string of the sampler's
-    length reaching the leaf at all, and then there is nothing to aim.  Or it may
-    have plenty and the tree place almost none of them there -- the hypothesis
-    says where to aim, the tree says where it lands, and they disagree.
+    The hypothesis says where to aim and the tree says where it lands, and the
+    two disagree.  A leaf almost nothing settles at has only what already rests
+    there to give, which runs out -- a finite population wearing an infinite
+    one's clothes -- so it is probed before it is kept.
 
-    Either way what is left is whatever already rests at the leaf, which runs
-    out.  That is a finite population wearing an infinite one's clothes, and the
-    round would come up short on it forever, so it is probed before it is kept.
+    Whether the hypothesis can aim there at all is ``aim_at``'s answer, asked
+    first: that one is about the leaf being out of reach rather than about
+    anything the round did.
     """
-    aim = _aim_at(pst, dfa, leaf)
-    if aim is None:
-        return None
     source = StateSource(resolver, leaf, aim, wanted=wanted, sink=sink)
     return source if source.aims_land() else None
 

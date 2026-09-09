@@ -29,6 +29,7 @@ from .prefix_sources import (
     WANTED,
     BoundarySource,
     UniformSource,
+    aim_at,
     collect,
     draw_for_split,
     gather,
@@ -166,18 +167,17 @@ class Pools:
         self._sources = {UNIFORM: UniformSource(self._pst)}
         states, sourceless = [], False
         for leaf in range(resolver.num_states):
+            aim = aim_at(self._pst, dfa, leaf)
+            if aim is None:
+                # Out of reach rather than short: no string of the sampler's
+                # length arrives here, so the round is not waiting on a draw.
+                continue
             source = state_source(
-                self._pst,
-                resolver,
-                dfa,
-                leaf,
-                wanted=WANTED,
-                sink=self.offer_indecisive,
+                resolver, leaf, aim, wanted=WANTED, sink=self.offer_indecisive
             )
             if source is None:
-                # No source at all is the round coming up short on that state,
-                # and the clearest way it can: not a draw that missed, but a
-                # state nothing the sampler makes ever rests at.
+                # Reachable, and the tree rests nothing here anyway.  That is
+                # the round coming up short on the state.
                 sourceless = True
                 continue
             self._sources[source.label] = source
