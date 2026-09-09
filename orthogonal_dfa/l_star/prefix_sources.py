@@ -171,10 +171,13 @@ class StateSource:
         return any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD)))
 
     def draw(self) -> Optional[bytes]:
-        """One prefix resting at the leaf, or ``None`` once it has no more.
+        """One prefix resting at the leaf, or ``None`` where a round of aiming
+        brought back nothing the leaf has not already given.
 
-        What the pool does not hold it aims for, so running out means the leaf's
-        whole reachable support has been served -- not that a draw missed.
+        Which covers both a run of misses and a leaf whose whole reachable
+        support is spent.  The two are not worth telling apart here: either way
+        this ask got nothing, and how hard to keep trying is the caller's budget
+        to spend, not this one's.
         """
         while True:
             while self._pool:
@@ -192,9 +195,12 @@ class StateSource:
                     )
                 )
                 continue
-            # Aims that only bring back what has been served already are the
-            # leaf saying it has nothing else, which is different from missing.
-            if not any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD))):
+            for _ in range(math.ceil(1 / MIN_YIELD)):
+                self.aimed_draw()
+            # Landing is not enough: a leaf whose support is spent goes on
+            # landing strings it has already given, and waiting for a new one
+            # would be waiting forever.
+            if all(member in self._served for member in self._pool):
                 return None
 
     def unused(self, drawn) -> None:

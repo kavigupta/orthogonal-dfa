@@ -291,6 +291,30 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
 
         self.assertEqual(sorted([source.draw(), source.draw()]), sorted(first))
 
+    def test_a_leaf_whose_support_runs_out_stops_rather_than_aiming_forever(self):
+        # Every aim lands, but only ever on the two strings the leaf has.  That
+        # it landed is not that there was another one.
+        support = [bytes([1, 0]), bytes([1, 1])]
+        turns = itertools.cycle(support)
+        population = LeafPopulation(
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
+            decisions=Decisions(),
+        )
+        source = StateSource(
+            _Resolver(population),
+            1,
+            lambda: next(turns),
+            wanted=20,
+            sink=lambda _s: None,
+        )
+
+        drawn = [source.draw(), source.draw()]
+
+        self.assertEqual(sorted(drawn), support)
+        self.assertIsNone(source.draw())
+
     def test_each_member_is_served_once(self):
         source = self._source([bytes([1, 0]), bytes([1, 1])])
         served = [source.draw(), source.draw()]
