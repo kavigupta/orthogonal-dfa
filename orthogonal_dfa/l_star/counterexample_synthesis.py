@@ -12,11 +12,10 @@ These drive the suffix-family FNR gate to re-cluster and resolve them
 in the next round.
 """
 
-import itertools
 import math
 import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
@@ -27,6 +26,7 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
 from .progress import track
+from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
 
@@ -36,7 +36,7 @@ class RoundClassifier:
     representative prefixes -- the round's attempt at the accept-preserving cut.
     ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family.
 
-    The thresholds are the tracker's own, so the cut recorded here is the one
+    The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
     population the family was clustered on. Off-length prefixes (boundary strings,
     per-state samples) reach the family off its calibration, so a consumer checking
@@ -285,14 +285,41 @@ class _StallDetector:
 PER_STATE = 20
 
 
+@dataclass
+class BestRound:
+    """The most consistent round's hypothesis. Rounds are not monotone --
+    rebuilding the representative pool re-clusters, so a later family can
+    classify worse -- so the run keeps this rather than the last round's. The
+    boundary comes with it because denoising reads the labels against it."""
+
+    consistency: float = -1.0
+    dfa: Optional[DFA] = None
+    tree: Optional[MidfixTree] = None
+    boundary: Optional[float] = None
+    round_index: Optional[int] = None
+
+    def consider(self, *, consistency, dfa, tree, boundary, round_index):
+        if consistency > self.consistency:
+            self.consistency = consistency
+            self.dfa, self.tree = dfa, tree
+            self.boundary, self.round_index = boundary, round_index
+
+
 def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
+    tracker: SynthesisTracker,
+    max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
-):
+) -> BestRound:
+    """Rounds until the hypothesis is consistent enough, the pool stalls, or
+    ``max_rounds`` of them have run.  Only a caller driving the loop itself can
+    set that cap; `learn_dfa` does not forward one."""
+    # The cap is read at the foot of the body, so a round always runs.
+    assert max_rounds is None or max_rounds >= 1, max_rounds
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
@@ -302,13 +329,16 @@ def counterexample_driven_synthesis(
     ]
     state = _PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
-    best_acc = -1.0
-    for index in itertools.count():
+    best = BestRound()
+    index = 0
+    while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
         vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
+        tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
+        tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
@@ -322,6 +352,7 @@ def counterexample_driven_synthesis(
             f"{time.monotonic() - sampled:.1f}s resolving)"
         )
         assert dt.num_states >= 2
+        tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
         true_acc = estimate_agreement_rate(
             pst,
@@ -333,13 +364,20 @@ def counterexample_driven_synthesis(
             acc_threshold=acc_threshold,
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
+        tracker.on_consistency_estimated(true_acc, index)
+        best.consider(
+            consistency=true_acc,
+            dfa=dfa,
+            tree=dt,
+            boundary=pst.decision_boundary,
+            round_index=index,
+        )
         if true_acc >= acc_threshold:
             print(
                 f"[round {index}] reached the target DFA/DT consistency of "
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
+            return best
         pool, every_state_full = _grow_representative_pool(
             pst,
             resolver,
@@ -353,11 +391,9 @@ def counterexample_driven_synthesis(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.accumulated)} boundary strings harvested so far"
         )
-        improved = true_acc > best_acc
-        best_acc = max(best_acc, true_acc)
         if stall.stalled(
             states=dt.num_states,
-            improved=improved,
+            improved=best.round_index == index,
             saturated=tree_is_saturated(resolver, every_state_full),
         ):
             print(
@@ -365,28 +401,22 @@ def counterexample_driven_synthesis(
                 f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
                 "stopping synthesis"
             )
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        yield dfa, dt, true_acc, pst.decision_boundary, classifier
+            return best
+        index += 1
+        if max_rounds is not None and index >= max_rounds:
+            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
+            return best
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float
-) -> Tuple[Optional[DFA], Optional[MidfixTree], List[RoundClassifier]]:
-    # Rounds are not monotone -- rebuilding the representative pool re-clusters,
-    # so a later family can classify worse -- so keep the most accurate
-    # hypothesis, not the last. The boundary is kept with it because denoising
-    # reads the tree against it.
-    best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
-    classifiers = []
-    for dfa, dt, true_acc, boundary, classifier in counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold
-    ):
-        classifiers.append(classifier)
-        if true_acc > best_acc:
-            best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
-    dfa, dt = best_dfa, best_dt
-    if dfa is not None:
-        pst.decision_boundary = best_boundary
-        dfa = denoise_accept_labels(pst, dfa)
-    return dfa, dt, classifiers
+    pst, *, acc_threshold: float, tracker: SynthesisTracker
+) -> Optional[DFA]:
+    best = counterexample_driven_synthesis(
+        pst, acc_threshold=acc_threshold, tracker=tracker
+    )
+    if best.dfa is None:
+        return None
+    pst.decision_boundary = best.boundary
+    dfa = denoise_accept_labels(pst, best.dfa)
+    tracker.on_corrected_dfa_found(dfa, best.round_index)
+    return dfa
