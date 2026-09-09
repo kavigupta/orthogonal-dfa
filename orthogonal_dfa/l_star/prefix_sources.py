@@ -32,14 +32,21 @@ def _aim_at(pst, dfa, leaf):
 
 
 def state_source(pst, resolver, dfa, leaf):
-    """A source for ``leaf``, or ``None`` where nothing can be aimed at it.
+    """A source for ``leaf``, or ``None`` where aiming at it does not land.
 
-    Such a leaf is not a state more sampling says more about, so the round does
-    not come up short on it -- waiting would be waiting for a draw that cannot
-    come.
+    Two ways it does not.  The hypothesis may have no string of the sampler's
+    length reaching the leaf at all, and then there is nothing to aim.  Or it may
+    have plenty and the tree place almost none of them there -- the hypothesis
+    says where to aim, the tree says where it lands, and they disagree.
+
+    Either way the leaf has only what already rests at it, and no draw of the
+    sampler's adds to that, so the round does not come up short on it.
     """
     aim = _aim_at(pst, dfa, leaf)
-    return None if aim is None else StateSource(resolver, leaf, aim)
+    if aim is None:
+        return None
+    source = StateSource(resolver, leaf, aim)
+    return source if source.aims_land() else None
 
 
 class StateSource:
@@ -65,11 +72,31 @@ class StateSource:
         returns: a string pushed toward the leaf is one the population then
         holds, and the split test reads the population.
         """
+        landed = self._aim_once()
+        return self._resting_member(wanted) if landed is None else landed
+
+    def aims_land(self) -> bool:
+        """Whether aiming at this leaf lands often enough to keep asking.
+
+        At yield ``MIN_YIELD`` one lands within ``1 / MIN_YIELD`` aims more often
+        than not, so that many is what the leaf gets to prove itself in.  A floor
+        on patience, like the yield itself, not a measurement of it.
+
+        The draws are kept whichever way it goes: a string pushed toward the leaf
+        is one the population then holds.
+        """
+        return any(
+            self._aim_once() is not None for _ in range(math.ceil(1 / MIN_YIELD))
+        )
+
+    def _aim_once(self) -> Optional[bytes]:
+        """An aimed string the tree rested here, or ``None`` where it rested it
+        somewhere else."""
         aimed = self._aim()
         self._population.add(aimed)
         if self._population.settle(aimed, self._path):
             return aimed
-        return self._resting_member(wanted)
+        return None
 
     def _resting_member(self, wanted: int) -> Optional[bytes]:
         if not self._resting:

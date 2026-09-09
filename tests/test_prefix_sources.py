@@ -181,14 +181,15 @@ if __name__ == "__main__":
     unittest.main()
 
 
-#: State 2 is entered only on a ``1``, so weights that never draw one never
-#: reach it however long the string.
+#: State 1 is entered only on a ``1``, so weights that never draw one never
+#: reach it however long the string.  It is the tree's leaf 1, so aims that get
+#: there do settle there.
 _ONE_WAY_IN = DFA(
-    states={0, 1, 2},
+    states={0, 1},
     input_symbols={0, 1},
-    transitions={0: {0: 0, 1: 2}, 1: {0: 1, 1: 1}, 2: {0: 2, 1: 2}},
+    transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}},
     initial_state=0,
-    final_states={2},
+    final_states={1},
 )
 
 
@@ -204,10 +205,12 @@ class TestALeafNothingReachesGetsNoSource(unittest.TestCase):
     """Not a state the round came up short on: no draw of the sampler's length
     arrives at it, so more sampling is not the answer to it."""
 
-    def _made(self, pst, dfa, leaf):
+    def _made(self, pst, dfa, leaf, *, lands=True):
         population = LeafPopulation(
             _Tree(),
-            lambda strings, midfix: [True] * len(strings),
+            # ``lands`` decides whether the tree rests an aimed string where it
+            # was aimed, which is the only thing that makes the leaf a source.
+            lambda strings, midfix: [lands] * len(strings),
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
@@ -217,10 +220,17 @@ class TestALeafNothingReachesGetsNoSource(unittest.TestCase):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))
 
     def test_the_sampler_weights_decide_it_too(self):
-        # There is a path into state 2, but not one these weights would draw.
-        self.assertIsNone(self._made(_Weighted(4, [1.0, 0.0]), _ONE_WAY_IN, 2))
-        self.assertIsNotNone(self._made(_Weighted(4, [0.5, 0.5]), _ONE_WAY_IN, 2))
+        # There is a path into state 1, but not one these weights would draw.
+        self.assertIsNone(self._made(_Weighted(4, [1.0, 0.0]), _ONE_WAY_IN, 1))
+        self.assertIsNotNone(self._made(_Weighted(4, [0.5, 0.5]), _ONE_WAY_IN, 1))
 
     def test_a_length_can_put_a_state_out_of_reach(self):
         # Nothing reaches anywhere but the initial state in zero steps.
-        self.assertIsNone(self._made(_Weighted(0, [0.5, 0.5]), _ONE_WAY_IN, 2))
+        self.assertIsNone(self._made(_Weighted(0, [0.5, 0.5]), _ONE_WAY_IN, 1))
+
+    def test_a_leaf_the_tree_never_rests_an_aim_at_has_no_source_either(self):
+        # The hypothesis reaches it and every aim lands elsewhere, so what the
+        # leaf holds is what it will ever hold.
+        even = _Weighted(4, [0.5, 0.5])
+        self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
+        self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
