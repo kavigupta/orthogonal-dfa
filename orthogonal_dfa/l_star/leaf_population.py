@@ -85,10 +85,14 @@ class LeafPopulation:
         return next((p for p, held in self._at.items() if string in held), None)
 
     def settle(self, string, at: Path) -> bool:
-        """Push ``string`` toward ``at`` and say whether it came to rest there.
+        """Take ``string`` into the population, push it toward ``at``, and say
+        whether it came to rest there.
 
         Asked of one string rather than a leaf, because a caller aiming at a
-        state wants to know about the string it aimed, not to fill the leaf."""
+        state wants to know about the string it aimed, not to fill the leaf.
+        Taking it in is part of that: what the caller has is a string it made,
+        and where the population would put it is the whole question."""
+        self.add(string)
         while True:
             resting = self.resting_at(string)
             if resting is None or resting == at:
