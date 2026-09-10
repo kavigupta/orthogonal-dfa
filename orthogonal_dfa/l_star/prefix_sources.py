@@ -71,7 +71,6 @@ class StateSource:
         did rest at, which is the answer that counts.
         """
         aimed = self._aim()
-        self._population.add(aimed)
         # Where it rests, not where it was aimed.
         if self._population.settle(aimed, self._path):
             self._pool.append(aimed)
