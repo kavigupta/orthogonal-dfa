@@ -8,11 +8,18 @@ import math
 from typing import Optional
 
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+from .statistics import binomial_side_of_boundary
 
 #: A source landing fewer of its aims than this is one to stop waiting for.  At
 #: yield ``p`` it takes about ``1 / p`` draws per prefix, which is what bounds
 #: the asking.  A floor on patience, not a measurement.
 MIN_YIELD = 0.2
+#: Chance of dropping a leaf whose yield is fine.
+_WRONGLY_DROPPED = 1e-5
+#: Aims a leaf gets to prove itself in: the fewest at which landing none of them
+#: is itself proof the yield is under ``MIN_YIELD``.  Derived, so the yield and
+#: the error rate are the only numbers here that were picked.
+PROVING_AIMS = math.ceil(math.log(_WRONGLY_DROPPED) / math.log(1 - MIN_YIELD))
 
 
 def aim_at(pst, dfa, leaf):
@@ -78,13 +85,22 @@ class StateSource:
         return False
 
     def aims_land(self) -> bool:
-        """Whether aiming at this leaf lands often enough to keep asking.
+        """Whether the leaf lands aims at a rate ``PROVING_AIMS`` of them cannot
+        rule out.
 
-        At yield ``MIN_YIELD`` one lands within ``1 / MIN_YIELD`` aims more often
-        than not, so that many is what the leaf gets to prove itself in.  A floor
-        on patience, like the yield itself, not a measurement of it.
+        Landing none of them is the only count that rules it out, which is what
+        ``PROVING_AIMS`` is sized for, so the read is exact rather than a guess
+        at a rate.  Nothing is wasted on a leaf that passes: an aim is a string
+        pushed at the leaf either way, and the ones that land are already in the
+        pool when the first draw asks for one.
         """
-        return any(self.aimed_draw() for _ in range(math.ceil(1 / MIN_YIELD)))
+        landed = sum(self.aimed_draw() for _ in range(PROVING_AIMS))
+        return (
+            binomial_side_of_boundary(
+                landed, PROVING_AIMS, MIN_YIELD, failure_prob=_WRONGLY_DROPPED
+            )
+            is not False
+        )
 
     def draw(self) -> Optional[bytes]:
         """One prefix resting at the leaf, or ``None`` where a round of aiming
