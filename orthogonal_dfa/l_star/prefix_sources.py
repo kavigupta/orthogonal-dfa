@@ -135,13 +135,12 @@ class StateSource:
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = aim
-        self._wanted = wanted
         self._sink = sink
         self._served = set()
-        #: Resting at the leaf and not yet handed out.  Aiming is how it refills,
-        #: so what a probe lands is already in it before the first draw.
-        self._pool = []
-        self._read_the_leaf = False
+        #: Resting at the leaf and not yet handed out.  Reading a leaf pushes
+        #: strings down to it, so the count is work rather than a cap: ask for
+        #: what this source is being built to serve.
+        self._pool = list(self._population.members(self._path, wanted))
 
     def aimed_draw(self) -> bool:
         """Aim one string, let the tree place it, and say whether it rested here.
@@ -183,16 +182,6 @@ class StateSource:
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            if not self._read_the_leaf:
-                self._read_the_leaf = True
-                # Reading a leaf pushes strings down to it, so the count is
-                # work rather than a cap: ask for what could still be served.
-                self._pool.extend(
-                    self._population.members(
-                        self._path, len(self._served) + self._wanted
-                    )
-                )
-                continue
             for _ in range(math.ceil(1 / MIN_YIELD)):
                 self.aimed_draw()
             # Landing is not enough: a leaf whose support is spent goes on
