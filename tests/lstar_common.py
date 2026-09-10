@@ -7,6 +7,7 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.tracker import RecordingTracker
 
 us = UniformSampler(40)
 
@@ -92,8 +93,8 @@ def assertDoesNotMeetProperty(
 
 # Every synthesis round's family is seeded at the empty suffix, so its decisive
 # classifications should realise the accept-preserving split: the noiseless
-# membership 1[x in L]. learn_dfa returns each round's RoundClassifier, and
-# learn_dfa_verified checks it a state at a time over the prefixes the round
+# membership 1[x in L]. learn_dfa_verified reads each round's RoundClassifier
+# off a tracker and checks it a state at a time over the prefixes the round
 # decides (indecisive ones are boundary strings, excluded).
 #
 # These two bound the *within-state* disagreement: a round is entitled to
@@ -200,6 +201,7 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
     opinion about each, and require the ones it got backwards to be states its
     prefixes barely reached.
     """
+    assert classifiers, "no rounds recorded -- did the tracker reach synthesis?"
     per_round = [_state_cuts(c, true_dfa) for c in classifiers]
     # Every state the round reached, not just those held to the threshold: the
     # count must not depend on the threshold it is used to compute.
@@ -232,10 +234,11 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
 
 def learn_dfa_verified(oracle_creator, **kwargs):
     """``learn_dfa``, asserting the per-round accept-preserving invariant."""
-    dfa, classifiers = learn_dfa(oracle_creator, **kwargs)
+    tracker = RecordingTracker()
+    dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     assert_rounds_accept_preserving(
-        classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
+        tracker.classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
     )
     return dfa
 

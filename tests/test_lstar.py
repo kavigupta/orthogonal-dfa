@@ -313,7 +313,7 @@ class TestLStarBimodalReproducer(unittest.TestCase):
         # resulting labels -- hence learn_dfa_unchecked rather than the verified
         # learner the other tests use.
         self.assertLess(P.class_preserving_fraction(self.DFA, length=40), 0.01)
-        dfa, _ = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
+        dfa = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(

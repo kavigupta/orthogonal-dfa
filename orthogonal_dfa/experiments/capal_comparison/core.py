@@ -366,7 +366,7 @@ def run_elstar_cell(
         with time_limit(timeout), contextlib.redirect_stdout(
             io.StringIO()
         ), contextlib.redirect_stderr(io.StringIO()):
-            dfa, _ = learn_dfa(
+            dfa = learn_dfa(
                 counting_creator,
                 min_signal_strength=signal_strength,
                 seed=seed,
