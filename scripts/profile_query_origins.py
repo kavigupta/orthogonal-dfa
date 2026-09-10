@@ -178,7 +178,7 @@ def profile_one(name: str) -> None:
         holder["o"] = o
         return o
 
-    dfa, _ = learn_dfa(creator, min_signal_strength=signal, seed=0)
+    dfa = learn_dfa(creator, min_signal_strength=signal, seed=0)
     acc = evaluate_accuracy(dfa, oracle_creator, symbols=symbols)
     o = holder["o"]
 

@@ -222,11 +222,14 @@ class TestSettle(unittest.TestCase):
         self.assertFalse(pop.settle(bytes([0, 1]), (True,)))
         self.assertEqual(calls["batches"], before, "no further classification")
 
-    def test_a_string_the_population_does_not_hold_does_not_settle(self):
+    def test_a_string_the_population_does_not_hold_is_taken_in(self):
+        # The caller made this string to aim it; asking where it settles is
+        # asking the population to hold it and answer.
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
 
-        self.assertFalse(pop.settle(bytes([1, 0]), (True,)))
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertEqual(pop.resting_at(bytes([1, 0])), (True,))
 
     def test_a_string_the_node_cannot_place_leaves_and_does_not_settle(self):
         harvested = []
