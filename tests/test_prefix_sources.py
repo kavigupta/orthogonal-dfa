@@ -137,66 +137,54 @@ _UNREACHABLE = DFA(
 )
 
 
-#: State 1 is entered only on a ``1``, so weights that never draw one never
-#: reach it however long the string.  It is the tree's leaf 1, so aims that get
-#: there do settle there.
-_ONE_WAY_IN = DFA(
-    states={0, 1},
-    input_symbols={0, 1},
-    transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}},
-    initial_state=0,
-    final_states={1},
-)
-
-
-class _Weighted(_Pst):
-    """A sampler whose symbol weights the caller chooses."""
-
-    def __init__(self, length, weights):
-        super().__init__(length)
-        self.sampler = SimpleNamespace(length=length, symbol_weights=lambda _n: weights)
-
-
-#: Marks a string aimed at leaf 1 that the tree rests at leaf 0 instead.  Aiming
-#: misses most of the time, so this is the ordinary case rather than a broken one.
-_MISS = b"\xff"
-
-
-def _misses():
-    """An aim that always draws, and whose draws never settle where aimed."""
+def _lands():
+    """An aim the tree rests where it was aimed, a fresh string each time."""
     drawn = itertools.count()
-    return lambda: _MISS + bytes([next(drawn) % 256])
+    return lambda: bytes([2, next(drawn) % 256])
 
 
 class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
     """Aiming is how a leaf nothing has reached gets its first prefixes, not how
-    it gets every prefix.  Most aims land somewhere else, and a leaf the
-    population already rests strings at is read from those."""
+    it gets every one: what the population already rests there is served first,
+    and aiming makes up the rest."""
 
     def _source(self, resting):
         population = LeafPopulation(
             _Tree(),
-            # A miss classifies the other way, so the tree rests it at leaf 0.
-            lambda strings, midfix: [not s.startswith(_MISS) for s in strings],
+            lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
             decisions=Decisions(),
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
         return StateSource(
-            _Resolver(population), 1, _misses(), wanted=20, sink=lambda _s: None
+            _Resolver(population), 1, _lands(), wanted=20, sink=lambda _s: None
         )
 
-    def test_a_leaf_with_members_yields_them_when_every_aim_misses(self):
+    def test_what_already_rests_there_is_served_first(self):
         resting = [bytes([1, i]) for i in range(20)]
-        drawn = collect(self._source(resting), wanted=20)
-        self.assertIsNotNone(drawn)
+
+        source = self._source(resting)
+        drawn = [source.draw() for _ in range(20)]
+
         self.assertEqual(sorted(drawn), sorted(resting))
 
-    def test_a_leaf_short_of_what_is_wanted_is_given_up_on(self):
-        # Every aim missing and too few resting: the population is not one to
-        # hold to a rate, which is what the indecisive strings are for.
-        self.assertIsNone(collect(self._source([bytes([1, 0])]), wanted=20))
+    def test_aiming_makes_up_what_the_leaf_is_short(self):
+        resting = [bytes([1, 0])]
+
+        source = self._source(resting)
+
+        drawn = [source.draw() for _ in range(20)]
+
+        self.assertEqual(len(drawn), 20, "the ask is met however little rests there")
+        self.assertIn(resting[0], drawn)
+
+    def test_each_member_is_served_once(self):
+        source = self._source([bytes([1, 0]), bytes([1, 1])])
+
+        drawn = [source.draw() for _ in range(8)]
+
+        self.assertEqual(len(set(drawn)), 8)
 
     def test_it_aims_before_serving_what_rests(self):
         """Aiming is what puts new strings in front of the tree, so a leaf that
@@ -208,8 +196,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             initial_state=0,
             final_states={1},
         )
-        # Length 8, so aiming has room to land somewhere the leaf does not
-        # already hold; the point is that it aims at all.
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
@@ -227,18 +213,76 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             sink=lambda _s: None,
         )
 
-        drawn = collect(source, wanted=20)
+        drawn = [source.draw() for _ in range(20)]
+
         self.assertTrue(
             set(drawn) - set(resting),
             "drawing served resting members without aiming anything new",
         )
 
-    def test_a_leaf_nothing_reaches_gets_no_source_at_all(self):
-        # Out of reach rather than short: no draw of the sampler's length
-        # arrives at it, which more sampling does not change.
-        made = aim_at(_Pst(2), _UNREACHABLE, 1)
 
-        self.assertIsNone(made, "nothing to aim, so no source to build")
+#: State 1 is entered only on a ``1``, so weights that never draw one never
+#: reach it however long the string.  It is the tree's leaf 1, so aims that get
+#: there do settle there.
+_ONE_WAY_IN = DFA(
+    states={0, 1},
+    input_symbols={0, 1},
+    transitions={0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}},
+    initial_state=0,
+    final_states={1},
+)
+
+
+class TestALeafThatRunsDryStops(unittest.TestCase):
+    """A yield the aims keep clearing says nothing about what is left to draw:
+    a string already served rests where it was aimed like any other."""
+
+    def test_a_leaf_with_nothing_left_to_draw_raises(self):
+        support = [bytes([9, i]) for i in range(3)]
+        population = LeafPopulation(
+            _Tree(),
+            lambda strings, midfix: [True] * len(strings),
+            harvest=lambda _string: None,
+            decisions=Decisions(),
+        )
+        aims = itertools.cycle(support)
+        source = state_source(
+            _Resolver(population),
+            1,
+            lambda: next(aims),
+            wanted=20,
+            sink=lambda _s: None,
+        )
+
+        drawn = [source.draw() for _ in range(len(support))]
+
+        self.assertEqual(sorted(drawn), support)
+        with self.assertRaisesRegex(RuntimeError, "rested nothing new"):
+            source.draw()
+
+
+#: A chain nothing but the all-ones string walks: one string of length 8 out of
+#: 256 reaches state 8, far under the 16 that the square root of them asks for.
+_ONE_STRING_IN = DFA(
+    states=set(range(10)),
+    input_symbols={0, 1},
+    transitions={**{q: {1: q + 1, 0: 9} for q in range(9)}, 9: {0: 9, 1: 9}},
+    initial_state=0,
+    final_states={8},
+)
+
+
+class _Weighted(_Pst):
+    """A sampler whose symbol weights the caller chooses."""
+
+    def __init__(self, length, weights):
+        super().__init__(length)
+        self.sampler = SimpleNamespace(length=length, symbol_weights=lambda _n: weights)
+
+
+class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
+    """Not a state the round came up short on: too few draws of the sampler's
+    length arrive at it, so more sampling is not the answer to it."""
 
     def _made(self, pst, dfa, leaf, *, lands=True):
         population = LeafPopulation(
@@ -256,60 +300,29 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             _Resolver(population), leaf, aim, wanted=20, sink=lambda _s: None
         )
 
-    def test_the_sampler_weights_decide_reachability_too(self):
+    def test_a_state_nothing_enters_has_no_source(self):
+        self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))
+
+    def test_the_sampler_weights_decide_it_too(self):
         # There is a path into state 1, but not one these weights would draw.
-        self.assertIsNone(self._made(_Weighted(4, [1.0, 0.0]), _ONE_WAY_IN, 1))
-        self.assertIsNotNone(self._made(_Weighted(4, [0.5, 0.5]), _ONE_WAY_IN, 1))
+        self.assertIsNone(self._made(_Weighted(8, [1.0, 0.0]), _ONE_WAY_IN, 1))
+        self.assertIsNotNone(self._made(_Weighted(8, [0.5, 0.5]), _ONE_WAY_IN, 1))
 
     def test_a_length_can_put_a_state_out_of_reach(self):
         # Nothing reaches anywhere but the initial state in zero steps.
         self.assertIsNone(self._made(_Weighted(0, [0.5, 0.5]), _ONE_WAY_IN, 1))
 
+    def test_a_leaf_thin_against_its_space_is_no_pool(self):
+        # Reached at all, and by so little of the space that drawing from it
+        # would be drawing the same strings again.
+        self.assertIsNone(self._made(_Weighted(8, [0.5, 0.5]), _ONE_STRING_IN, 8))
+
     def test_a_leaf_the_tree_never_rests_an_aim_at_has_no_source_either(self):
         # The hypothesis reaches it and every aim lands elsewhere, so what the
         # leaf holds is what it will ever hold.
-        even = _Weighted(4, [0.5, 0.5])
+        even = _Weighted(8, [0.5, 0.5])
         self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
-
-    def test_taking_draws_back_makes_them_servable_again(self):
-        source = self._source([bytes([1, 0]), bytes([1, 1])])
-        first = [source.draw(), source.draw()]
-        self.assertIsNone(source.draw(), "and then it has no more")
-
-        source.unused(first)
-
-        self.assertEqual(sorted([source.draw(), source.draw()]), sorted(first))
-
-    def test_a_leaf_whose_support_runs_out_stops_rather_than_aiming_forever(self):
-        # Every aim lands, but only ever on the two strings the leaf has.  That
-        # it landed is not that there was another one.
-        support = [bytes([1, 0]), bytes([1, 1])]
-        turns = itertools.cycle(support)
-        population = LeafPopulation(
-            _Tree(),
-            lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _string: None,
-            decisions=Decisions(),
-        )
-        source = StateSource(
-            _Resolver(population),
-            1,
-            lambda: next(turns),
-            wanted=20,
-            sink=lambda _s: None,
-        )
-
-        drawn = [source.draw(), source.draw()]
-
-        self.assertEqual(sorted(drawn), support)
-        self.assertIsNone(source.draw())
-
-    def test_each_member_is_served_once(self):
-        source = self._source([bytes([1, 0]), bytes([1, 1])])
-        served = [source.draw(), source.draw()]
-        self.assertEqual(len([x for x in served if x]), 2)
-        self.assertIsNone(source.draw())
 
 
 if __name__ == "__main__":

@@ -300,15 +300,15 @@ class _PoolAccess:
         return self._pools.for_split(label, wanted)
 
 
-def tree_is_saturated(resolver, every_state_full) -> bool:
+def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
-    A state the round could not fill is one more prefixes would say more about.
-    Past that every node has to come out settled (see `Decisions`), each on its
+    A state whose aims the tree rests elsewhere is one whose prefixes are
+    still moving.  Past that every node has to come out settled (see `Decisions`), each on its
     own evidence, so that one node still straddling its midfix keeps the round
     open however clean the rest are.
     """
-    return every_state_full and resolver.decisions.every_node_settled()
+    return every_state_is_aimable and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.

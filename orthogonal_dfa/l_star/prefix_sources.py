@@ -2,18 +2,22 @@
 
 A source belongs to the round that made it: it closes over that round's tree,
 which says where a string rests, and its hypothesis, which says where to aim
-one.  A later round asking the same source gets the earlier round's answers.
+one.  Only the tree's answer counts.
 """
 
-import math
 from collections import deque
+from math import ceil, isqrt, log
 from typing import Optional
 
 import scipy.stats
 
-from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .mask_table import UNIFORM
-from .statistics import _binom_cdf
+from .statistics import binom_cdf
 
 #: Prefixes a population is asked for.
 WANTED = 100
@@ -36,7 +40,7 @@ def _proving_aims():
         # The fewest landings a poor leaf is unlikely to reach; a good one has
         # to clear it for the same count to answer both questions.
         landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
-        if _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
+        if binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
             return aims, landings
 
 
@@ -110,36 +114,43 @@ class BoundarySource:
 
 
 def aim_at(pst, dfa, leaf):
-    """A callable drawing strings the hypothesis says reach ``leaf``, or ``None``
-    where it has none of the sampler's length that do -- no path, or none its
-    symbol weights would take.
+    """
+    Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
+    unreachable from the starting state, or if too few strings of the sampler's
+    length reach it to draw from without redrawing what it has already drawn.
 
-    The callable always draws: what it refuses is the mass being zero, and that
-    is what ``None`` here reports instead.
+    Aims are drawn with replacement, so a leaf that holds
+
+        sqrt(alphabet_size ** length)
+
+    of the strings of that length repeats one only after the fourth root of
+    them have been drawn.  Scaled to the space rather than to the draws asked
+    for: a leaf is thin compared to what the sampler could have put there.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
+    # Counted evenly rather than off the mass below: the sampler's weights are
+    # read as ratios, so its mass is on no scale a threshold could name.
+    reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
+    if reaching[length][dfa.initial_state] < isqrt(pst.alphabet_size**length):
+        return None
     mass = count_paths_to_state(dfa, leaf, length, weights)
-    if not mass[length][dfa.initial_state]:
+    # A symbol the sampler never places can leave a well-reached leaf with none.
+    if mass[length][dfa.initial_state] == 0:
         return None
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
 def state_source(resolver, leaf, aim, *, wanted, sink):
-    """A source drawing on ``aim``, or ``None`` where the tree does not rest what
-    it draws at ``leaf``.
+    """
+    A source that draws on `aim` and guarantees (with probability 1 - _MISREAD)
+    that at least POOR_YIELD (25%) of the strings it draws will land
+    at the given leaf, according to the tree in `resolver`.
 
-    The hypothesis says where to aim and the tree says where it lands, and the
-    two disagree.  A leaf almost nothing settles at has only what already rests
-    there to give, which runs out -- a finite population wearing an infinite
-    one's clothes -- so it is probed before it is kept.
-
-    Whether the hypothesis can aim there at all is ``aim_at``'s answer, asked
-    first: that one is about the leaf being out of reach rather than about
-    anything the round did.
+    If this guarantee cannot be made, returns None
     """
     source = StateSource(resolver, leaf, aim, wanted=wanted, sink=sink)
-    return source if source.aims_land() else None
+    return source if source.has_sufficient_yield() else None
 
 
 class StateSource:
@@ -175,39 +186,34 @@ class StateSource:
             self._sink(aimed)
         return False
 
-    def aims_land(self) -> bool:
-        """Whether this leaf lands enough of ``PROVING_AIMS`` aims to keep asking.
-
-        Read over a count sized to answer it, rather than guessed at from a
-        handful.  Nothing is wasted on a leaf that passes: an aim is a string
-        pushed at the leaf either way, and the ones that land are in the pool
-        before the first draw asks for one.
+    def has_sufficient_yield(self) -> bool:
+        """
+        Check whether there is sufficient yield.
         """
         landed = sum(self.aimed_draw() for _ in range(PROVING_AIMS))
         return landed > LANDINGS_KEPT
 
-    def draw(self) -> Optional[bytes]:
-        """One prefix resting at the leaf, or ``None`` where a round of aiming
-        brought back nothing the leaf has not already given.
+    def draw(self, false_alarm_p=1e-9) -> bytes:
+        """Provide a prefix resting at the leaf, aiming for more when the pool runs
+        dry."""
+        #: Aims in a row that rest nothing new before the leaf is called dry. Geometric distribution.
+        dry_aims = ceil(log(false_alarm_p) / log(1 - POOR_YIELD))
 
-        Which covers both a run of misses and a leaf whose whole reachable
-        support is spent.  The two are not worth telling apart here: either way
-        this ask got nothing, and how hard to keep trying is the caller's budget
-        to spend, not this one's.
-        """
-        while True:
+        # One pass more than the aims it counts: what an aim landed is read by
+        # the drain of the pass after it.
+        for _ in range(dry_aims + 1):
             while self._pool:
                 member = self._pool.pop()
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            for _ in range(math.ceil(1 / POOR_YIELD)):
-                self.aimed_draw()
-            # Landing is not enough: a leaf whose support is spent goes on
-            # landing strings it has already given, and waiting for a new one
-            # would be waiting forever.
-            if all(member in self._served for member in self._pool):
-                return None
+            self.aimed_draw()
+        # An aim that rests where it was aimed on a string already served counts
+        # as landing, so yield alone never says a leaf is spent.
+        raise RuntimeError(
+            f"leaf {self._path} rested nothing new in {dry_aims} aims "
+            f"after serving {len(self._served)}"
+        )
 
     def unused(self, drawn) -> None:
         """Take back draws a collection did not use.  Landing one is the
@@ -224,7 +230,7 @@ def gather(source, wanted: int) -> list:
     which holds out for the whole number.
     """
     held = set()
-    for _ in range(math.ceil(wanted / POOR_YIELD)):
+    for _ in range(ceil(wanted / POOR_YIELD)):
         if len(held) == wanted:
             break
         drawn = source.draw()
