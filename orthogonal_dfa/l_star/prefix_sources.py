@@ -124,19 +124,18 @@ class StateSource:
         #: Aims in a row that rest nothing new before the leaf is called dry. Geometric distribution.
         dry_aims = ceil(log(false_alarm_p) / log(1 - POOR_YIELD))
 
-        dry = 0
-        while True:
+        # One pass more than the aims it counts: what an aim landed is read by
+        # the drain of the pass after it.
+        for _ in range(dry_aims + 1):
             while self._pool:
                 member = self._pool.pop()
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            # An aim that rests where it was aimed on a string already served
-            # counts as landing, so yield alone never says a leaf is spent.
-            if dry >= dry_aims:
-                raise RuntimeError(
-                    f"leaf {self._path} rested nothing new in {dry_aims} aims "
-                    f"after serving {len(self._served)}"
-                )
             self.aimed_draw()
-            dry += 1
+        # An aim that rests where it was aimed on a string already served counts
+        # as landing, so yield alone never says a leaf is spent.
+        raise RuntimeError(
+            f"leaf {self._path} rested nothing new in {dry_aims} aims "
+            f"after serving {len(self._served)}"
+        )
