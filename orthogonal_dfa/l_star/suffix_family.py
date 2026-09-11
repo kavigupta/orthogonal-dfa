@@ -20,20 +20,38 @@ class SuffixFamily:
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
         self._means: Dict[Tuple[bytes, bytes], float] = {}
+        self._bits: Dict[bytes, bytes] = {}
 
-    def bits(self, base) -> List[int]:
-        """Membership of ``base`` under each family suffix, through the table's
-        shared memo so cells the mask already holds cost no new query."""
-        table = self.pst.table
-        return table.memo.membership_queries([base + table.suffix(v) for v in self.vs])
+    def bits(self, base) -> bytes:
+        """Membership of ``base`` under each family suffix, indexed as ``vs``.
+
+        Held per base rather than re-read: prefill has usually already observed
+        the base, and rebuilding its row means concatenating and hashing a string
+        per suffix to reach cells the memo already holds."""
+        row = self._bits.get(base)
+        if row is None:
+            self._observe([base])
+            row = self._bits[base]
+        return row
 
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs
         one oracle call rather than one per member."""
+        self._observe(list(bases))
+
+    def _observe(self, keys) -> None:
+        """Fill ``_bits`` for the bases among ``keys`` it does not already hold."""
+        fresh = list(dict.fromkeys(k for k in keys if k not in self._bits))
+        if not fresh:
+            return
         table = self.pst.table
-        table.memo.membership_queries(
-            [b + table.suffix(v) for b in bases for v in self.vs]
+        suffixes = [table.suffix(v) for v in self.vs]
+        answers = table.memo.membership_queries(
+            [k + suffix for k in fresh for suffix in suffixes]
         )
+        width = len(self.vs)
+        for i, k in enumerate(fresh):
+            self._bits[k] = bytes(answers[i * width : (i + 1) * width])
 
     def mean(self, seq, midfix) -> float:
         """Mean family membership of ``seq`` under the distinguishers
@@ -57,7 +75,7 @@ class SuffixFamily:
             return False
         return None
 
-    def votes(self, seq, midfix) -> List[int]:
+    def votes(self, seq, midfix) -> bytes:
         """Per-suffix accept bits"""
         return self.bits(seq + midfix)
 
