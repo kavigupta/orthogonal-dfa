@@ -207,10 +207,9 @@ class _StallDetector:
         return self._stalled >= self._patience
 
 
-#: Target number of representative strings per DFA state.  Each round tops the
-#: sampled pool up to this per state (see ``per_state_sample``); states the
-#: original prefixes already cover need no top-up, so the pool converges rather
-#: than growing every round.
+#: Representative strings drawn per DFA state.  Every round draws this many
+#: afresh through the state's source and replaces the last round's, so the
+#: population does not accumulate across rounds.
 PER_STATE = 20
 
 
