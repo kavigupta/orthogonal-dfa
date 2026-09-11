@@ -6,7 +6,7 @@ import scipy
 import scipy.special
 
 
-def _binom_cdf(k, n, p):
+def binom_cdf(k, n, p):
     """``scipy.stats.binom.cdf(k, n, p)``, ~30x faster on scalars.
 
     The generic ``rv_discrete.cdf`` broadcasts and masks its arguments on every
@@ -96,12 +96,11 @@ def evidence_margin_for_population_size(
     See population_size_and_evidence_margin for context.
     """
     for k_low, k_high, eps in candidate_tests(N, center):
-        fpr = _binom_cdf(k_low, N, center) + (1 - _binom_cdf(k_high - 1, N, center))
+        fpr = binom_cdf(k_low, N, center) + (1 - binom_cdf(k_high - 1, N, center))
         # Consider the false-negative rate for both elements
         # at margin above and below the center.
         fnr = max(
-            _binom_cdf(k_high - 1, N, center + side)
-            - _binom_cdf(k_low, N, center + side)
+            binom_cdf(k_high - 1, N, center + side) - binom_cdf(k_low, N, center + side)
             for side in (signal_strength, -signal_strength)
         )
         if fpr <= acceptable_fpr and fnr <= acceptable_fnr:
@@ -116,7 +115,7 @@ def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_l
     to match the naming convention of other hyperparameter generators.
     """
     for n in itertools.count(start=1):
-        if _binom_cdf(n // 2, n, noise_level) < acceptable_misclassification:
+        if binom_cdf(n // 2, n, noise_level) < acceptable_misclassification:
             return n
     raise ValueError("not reachable")
 
@@ -181,10 +180,10 @@ def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_pro
     significantly below, and None if neither tail clears ``failure_prob`` (including
     small ``num_samples``).
     """
-    above = 1 - _binom_cdf(num_accepts - 1, num_samples, boundary)
+    above = 1 - binom_cdf(num_accepts - 1, num_samples, boundary)
     if above < failure_prob:
         return True
-    below = _binom_cdf(num_accepts, num_samples, boundary)
+    below = binom_cdf(num_accepts, num_samples, boundary)
     if below < failure_prob:
         return False
     return None

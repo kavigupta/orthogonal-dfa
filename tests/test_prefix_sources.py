@@ -53,8 +53,6 @@ _UNREACHABLE = DFA(
 )
 
 
-#: Marks a string aimed at leaf 1 that the tree rests at leaf 0 instead.  Aiming
-#: misses most of the time, so this is the ordinary case rather than a broken one.
 def _lands():
     """An aim the tree rests where it was aimed, a fresh string each time."""
     drawn = itertools.count()

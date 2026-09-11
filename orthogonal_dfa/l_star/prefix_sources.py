@@ -14,7 +14,7 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
-from .statistics import _binom_cdf
+from .statistics import binom_cdf
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -35,7 +35,7 @@ def _proving_aims():
         # The fewest landings a poor leaf is unlikely to reach; a good one has
         # to clear it for the same count to answer both questions.
         landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
-        if _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
+        if binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
             return aims, landings
 
 
