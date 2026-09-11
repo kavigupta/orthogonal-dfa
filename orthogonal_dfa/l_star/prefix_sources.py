@@ -5,9 +5,6 @@ which says where a string rests, and its hypothesis, which says where to aim
 one.  Only the tree's answer counts.
 """
 
-import math
-from typing import Optional
-
 import scipy.stats
 
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
@@ -40,36 +37,28 @@ PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
 
 
 def aim_at(pst, dfa, leaf):
-    """A callable drawing strings the hypothesis says reach ``leaf``, or ``None``
-    where it has none of the sampler's length that do -- no path, or none its
-    symbol weights would take.
-
-    The callable always draws: what it refuses is the mass being zero, and that
-    is what ``None`` here reports instead.
+    """
+    Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
+    unreachable from the starting state.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
     mass = count_paths_to_state(dfa, leaf, length, weights)
-    if not mass[length][dfa.initial_state]:
+    if mass[length][dfa.initial_state] == 0:
         return None
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
 def state_source(resolver, leaf, aim, *, wanted):
-    """A source drawing on ``aim``, or ``None`` where the tree does not rest what
-    it draws at ``leaf``.
+    """
+    A source that draws on `aim` and guarantees (with probability 1 - _MISREAD)
+    that at least POOR_YIELD (25%) of the strings it draws will land
+    at the given leaf, according to the tree in `resolver`.
 
-    The hypothesis says where to aim and the tree says where it lands, and the
-    two disagree.  A leaf almost nothing settles at has only what already rests
-    there to give, which runs out -- a finite population wearing an infinite
-    one's clothes -- so it is probed before it is kept.
-
-    Whether the hypothesis can aim there at all is ``aim_at``'s answer, asked
-    first: that one is about the leaf being out of reach rather than about
-    anything the round did.
+    If this guarantee cannot be made, returns None
     """
     source = StateSource(resolver, leaf, aim, wanted=wanted)
-    return source if source.aims_land() else None
+    return source if source.has_sufficient_yield() else None
 
 
 class StateSource:
@@ -101,53 +90,20 @@ class StateSource:
             return True
         return False
 
-    def aims_land(self) -> bool:
-        """Whether this leaf lands enough of ``PROVING_AIMS`` aims to keep asking.
-
-        Read over a count sized to answer it, rather than guessed at from a
-        handful.  Nothing is wasted on a leaf that passes: an aim is a string
-        pushed at the leaf either way, and the ones that land are in the pool
-        before the first draw asks for one.
+    def has_sufficient_yield(self) -> bool:
+        """
+        Check whether there is sufficient yield.
         """
         landed = sum(self.aimed_draw() for _ in range(PROVING_AIMS))
         return landed > LANDINGS_KEPT
 
-    def draw(self) -> Optional[bytes]:
-        """One prefix resting at the leaf, or ``None`` where a round of aiming
-        brought back nothing the leaf has not already given.
-
-        Which covers both a run of misses and a leaf whose whole reachable
-        support is spent.  The two are not worth telling apart here: either way
-        this ask got nothing, and how hard to keep trying is the caller's budget
-        to spend, not this one's.
-        """
+    def draw(self) -> bytes:
+        """Provide a prefix resting at the leaf, aiming for more when the pool runs
+        dry."""
         while True:
             while self._pool:
                 member = self._pool.pop()
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            for _ in range(math.ceil(1 / POOR_YIELD)):
-                self.aimed_draw()
-            # Landing is not enough: a leaf whose support is spent goes on
-            # landing strings it has already given, and waiting for a new one
-            # would be waiting forever.
-            if all(member in self._served for member in self._pool):
-                return None
-
-
-def gather(source, wanted: int) -> list:
-    """Up to ``wanted`` distinct prefixes from ``source``, however few it gives.
-
-    Fewer is the source saying so: at ``POOR_YIELD`` this many asks is what
-    ``wanted`` costs, and a source that cannot fill it in that is one the round
-    cannot read a rate over.
-    """
-    held = set()
-    for _ in range(math.ceil(wanted / POOR_YIELD)):
-        if len(held) == wanted:
-            break
-        drawn = source.draw()
-        if drawn is not None:
-            held.add(drawn)
-    return sorted(held)
+            self.aimed_draw()

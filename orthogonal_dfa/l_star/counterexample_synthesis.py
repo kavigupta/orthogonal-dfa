@@ -24,7 +24,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import aim_at, gather, state_source
+from .prefix_sources import aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
@@ -116,8 +116,8 @@ class _PoolState:
 
 
 def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members`` up to ``per_state`` of them resting at each state,
-    and whether every state gave that many."""
+    """``state -> members``, ``per_state`` of them resting at each state that has
+    a source, and whether every state in reach had one."""
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
@@ -129,8 +129,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
         if source is None:
             full = False
             continue
-        held[leaf] = gather(source, per_state)
-        full = full and len(held[leaf]) == per_state
+        held[leaf] = sorted(source.draw() for _ in range(per_state))
     return held, full
 
 
