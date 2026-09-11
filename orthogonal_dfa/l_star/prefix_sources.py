@@ -24,14 +24,8 @@ _MISREAD = 1e-5
 
 
 def _proving_aims():
-    """The fewest aims at which a leaf at ``GOOD_YIELD`` is kept and one at
-    ``POOR_YIELD`` dropped, each but for ``_MISREAD``, and the landings that
-    separate them.
-
-    Searched rather than solved: exact binomial tails have no closed form for
-    the count, and the count that works is not monotone -- 264 aims answer both
-    questions and 265 do not -- so there is nothing here to bisect.
-    """
+    """Sizes the test so that P(reject | yield >= GOOD_YIELD) and
+    P(keep | yield <= POOR_YIELD) are both bounded by ``_MISREAD``."""
     aims = 0
     while True:
         aims += 1
