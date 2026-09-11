@@ -14,22 +14,42 @@ import math
 from collections import deque
 from typing import Optional
 
+import scipy.stats
+
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .mask_table import UNIFORM
-from .statistics import binomial_side_of_boundary
+from .statistics import _binom_cdf
 
 #: Prefixes a population is asked for.
 WANTED = 100
-#: A source landing fewer of its draws than this is one to stop waiting for.  At
-#: yield ``p`` it takes about ``1 / p`` asks per prefix, which is what bounds the
-#: asking.  A floor on patience, not a measurement.
-MIN_YIELD = 0.2
-#: Chance of dropping a leaf whose yield is fine.
-_WRONGLY_DROPPED = 1e-5
-#: Aims a leaf gets to prove itself in: the fewest at which landing none of them
-#: is itself proof the yield is under ``MIN_YIELD``.  Derived, so the yield and
-#: the error rate are the only numbers here that were picked.
-PROVING_AIMS = math.ceil(math.log(_WRONGLY_DROPPED) / math.log(1 - MIN_YIELD))
+#: A leaf landing at least this share of its aims is one worth asking again.
+GOOD_YIELD = 0.5
+#: One landing at most this share is one to stop asking.  Between the two bars
+#: either answer will do, and that indifference is what keeps the reading short:
+#: telling apart rates that close would take an unaffordable number of aims.
+POOR_YIELD = 0.25
+#: Chance of reading a leaf as either bar when it is the other.
+_MISREAD = 1e-5
+
+
+def _proving_aims():
+    """``(aims, landings)``: how many aims read a leaf's yield, and how many of
+    them it has to land to be kept.
+
+    The fewest aims at which a leaf at ``GOOD_YIELD`` is kept and one at
+    ``POOR_YIELD`` dropped, each but for ``_MISREAD``.
+    """
+    aims = 0
+    while True:
+        aims += 1
+        # The fewest landings a poor leaf is unlikely to reach; a good one has
+        # to clear it for the same count to answer both questions.
+        landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
+        if _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
+            return aims, landings
+
+
+PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
 
 
 class UniformSource:
@@ -165,22 +185,15 @@ class StateSource:
         return False
 
     def aims_land(self) -> bool:
-        """Whether the leaf lands aims at a rate ``PROVING_AIMS`` of them cannot
-        rule out.
+        """Whether this leaf lands enough of ``PROVING_AIMS`` aims to keep asking.
 
-        Landing none of them is the only count that rules it out, which is what
-        ``PROVING_AIMS`` is sized for, so the read is exact rather than a guess
-        at a rate.  Nothing here is wasted on a leaf that passes: an aim is a
-        string pushed at the leaf either way, and the ones that land are already
-        in the pool when the first draw asks for one.
+        Read over a count sized to answer it, rather than guessed at from a
+        handful.  Nothing is wasted on a leaf that passes: an aim is a string
+        pushed at the leaf either way, and the ones that land are in the pool
+        before the first draw asks for one.
         """
         landed = sum(self.aimed_draw() for _ in range(PROVING_AIMS))
-        return (
-            binomial_side_of_boundary(
-                landed, PROVING_AIMS, MIN_YIELD, failure_prob=_WRONGLY_DROPPED
-            )
-            is not False
-        )
+        return landed > LANDINGS_KEPT
 
     def draw(self) -> Optional[bytes]:
         """One prefix resting at the leaf, or ``None`` where a round of aiming
@@ -197,7 +210,7 @@ class StateSource:
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            for _ in range(math.ceil(1 / MIN_YIELD)):
+            for _ in range(math.ceil(1 / POOR_YIELD)):
                 self.aimed_draw()
             # Landing is not enough: a leaf whose support is spent goes on
             # landing strings it has already given, and waiting for a new one
@@ -220,7 +233,7 @@ def gather(source, wanted: int) -> list:
     which holds out for the whole number.
     """
     held = set()
-    for _ in range(math.ceil(wanted / MIN_YIELD)):
+    for _ in range(math.ceil(wanted / POOR_YIELD)):
         if len(held) == wanted:
             break
         drawn = source.draw()
