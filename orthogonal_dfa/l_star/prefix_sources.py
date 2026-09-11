@@ -1,41 +1,51 @@
 """Drawing the prefixes that belong to one state.
 
-The hypothesis says where to aim a string; the tree says where it landed, and
-only the tree's answer counts.
+A source belongs to the round that made it: it closes over that round's tree,
+which says where a string rests, and its hypothesis, which says where to aim
+one.  Only the tree's answer counts.
 """
 
 import math
 from typing import Optional
-
-import scipy.stats
 
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .statistics import _binom_cdf
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
-#: One landing at most this share is one to stop asking.  Between the two bars
-#: either answer will do, and that indifference is what keeps the reading short:
-#: telling apart rates that close would take an unaffordable number of aims.
+#: One landing at most this share is one to stop asking.  Nothing decides
+#: anything between the two bars, which is what keeps the count that tells them
+#: apart affordable.
 POOR_YIELD = 0.25
 #: Chance of reading a leaf as either bar when it is the other.
 _MISREAD = 1e-5
 
 
-def _proving_aims():
-    """``(aims, landings)``: how many aims read a leaf's yield, and how many of
-    them it has to land to be kept.
+#: Where ``Binomial(n, POOR_YIELD)`` and ``Binomial(n, GOOD_YIELD)`` cross, as a
+#: share of the aims.  The count they are read over has to be searched for, but
+#: the line between them does not: it is the same share whatever the count.
+_KEPT_ABOVE = math.log((1 - POOR_YIELD) / (1 - GOOD_YIELD)) / math.log(
+    GOOD_YIELD * (1 - POOR_YIELD) / (POOR_YIELD * (1 - GOOD_YIELD))
+)
 
-    The fewest aims at which a leaf at ``GOOD_YIELD`` is kept and one at
-    ``POOR_YIELD`` dropped, each but for ``_MISREAD``.
+
+def _proving_aims():
+    """The fewest aims at which a leaf at ``GOOD_YIELD`` is kept and one at
+    ``POOR_YIELD`` dropped, each but for ``_MISREAD``, and the landings that
+    separate them.
+
+    Searched rather than solved.  Exact binomial tails have no closed form for
+    the count, and the count that works is not monotone -- 264 aims answer both
+    questions and 265 do not -- so there is nothing here to bisect.
     """
     aims = 0
     while True:
         aims += 1
-        # The fewest landings a poor leaf is unlikely to reach; a good one has
-        # to clear it for the same count to answer both questions.
-        landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
-        if _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
+        landings = math.floor(_KEPT_ABOVE * aims)
+        if (
+            1 - _binom_cdf(landings, aims, POOR_YIELD) <= _MISREAD
+            and _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD
+        ):
             return aims, landings
 
 

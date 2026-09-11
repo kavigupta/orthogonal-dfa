@@ -117,14 +117,7 @@ class _PoolState:
 
 def _per_state_members(pst, resolver, dfa, per_state):
     """``state -> members`` up to ``per_state`` of them resting at each state,
-    and whether every state gave that many.
-
-    Aiming a string at a state is a guess the hypothesis makes; the tree is what
-    settles where it goes.  A state the hypothesis can aim at and the tree will
-    not rest anything at is the round coming up short: it has no members to hold,
-    so it is left out of ``held`` while still counting against the round.  A
-    state out of reach altogether is neither, and counts as nothing.
-    """
+    and whether every state gave that many."""
     held, full = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
