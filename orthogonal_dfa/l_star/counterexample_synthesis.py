@@ -118,7 +118,7 @@ class _PoolState:
 def _per_state_members(pst, resolver, dfa, per_state):
     """``state -> members``, ``per_state`` of them resting at each state that has
     a source, and whether every state in reach had one."""
-    held, full = {}, True
+    held, aimable = {}, True
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -128,10 +128,10 @@ def _per_state_members(pst, resolver, dfa, per_state):
             continue
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
-            full = False
+            aimable = False
             continue
         held[leaf] = sorted(source.draw() for _ in range(per_state))
-    return held, full
+    return held, aimable
 
 
 def _grow_representative_pool(
@@ -144,13 +144,14 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning its size and whether every state filled."""
+    """Rebuild the pool, returning its size and whether every state in reach
+    still rests the aims made at it."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    by_state, every_state_full = _per_state_members(pst, resolver, dfa, per_state)
+    by_state, every_state_is_aimable = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
@@ -162,18 +163,18 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), every_state_full
+    return int(pst.table.representative.sum()), every_state_is_aimable
 
 
-def tree_is_saturated(resolver, every_state_full) -> bool:
+def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
-    A state the round could not fill is one more prefixes would say more about.
-    Past that every node has to come out settled (see `Decisions`), each on its
+    A state whose aims the tree rests elsewhere is one whose prefixes are
+    still moving.  Past that every node has to come out settled (see `Decisions`), each on its
     own evidence, so that one node still straddling its midfix keeps the round
     open however clean the rest are.
     """
-    return every_state_full and resolver.decisions.every_node_settled()
+    return every_state_is_aimable and resolver.decisions.every_node_settled()
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -306,7 +307,7 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool, every_state_full = _grow_representative_pool(
+        pool, every_state_is_aimable = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -322,7 +323,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            saturated=tree_is_saturated(resolver, every_state_full),
+            saturated=tree_is_saturated(resolver, every_state_is_aimable),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
