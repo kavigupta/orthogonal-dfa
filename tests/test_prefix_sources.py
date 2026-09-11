@@ -158,9 +158,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
             decisions=Decisions(),
         )
         aims = itertools.cycle(support)
-        source = state_source(
-            _Resolver(population), 1, lambda: next(aims), wanted=20
-        )
+        source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
 
         drawn = [source.draw() for _ in range(len(support))]
 
