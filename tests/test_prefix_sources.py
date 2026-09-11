@@ -5,6 +5,7 @@ themselves, so what a later round needs more of it can draw more of.
 """
 
 import itertools
+import math
 import unittest
 from types import SimpleNamespace
 
@@ -13,8 +14,91 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import StateSource, aim_at, state_source
+from orthogonal_dfa.l_star.prefix_sources import (
+    POOR_YIELD,
+    StateSource,
+    aim_at,
+    collect,
+    gather,
+    state_source,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
+
+
+class _Counted:
+    """Yields a prefix ``rate`` of the time, counting how often it is asked."""
+
+    def __init__(self, rate, total=10**6):
+        self.rate = rate
+        self.calls = 0
+        self._total = total
+
+    def draw(self):
+        self.calls += 1
+        keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
+        return bytes([self.calls // 256, self.calls % 256]) if keep else None
+
+
+class _Spooled:
+    """A finite supply, with the give-back a real source has."""
+
+    def __init__(self, words):
+        self._words = list(words)
+        self._spare = []
+        self.drawn = 0
+
+    def draw(self):
+        if self._spare:
+            return self._spare.pop(0)
+        if not self._words:
+            return None
+        self.drawn += 1
+        return self._words.pop(0)
+
+    def unused(self, drawn):
+        self._spare.extend(drawn)
+
+
+class TestGivingUpOnASource(unittest.TestCase):
+    def test_a_source_that_yields_is_collected(self):
+        source = _Counted(1.0)
+        held = collect(source, wanted=20)
+        self.assertEqual(len(held), 20)
+        self.assertEqual(source.calls, 20)
+
+    def test_a_source_that_cannot_deliver_is_given_up_on(self):
+        # One in fifty, well under the yield the budget waits for.
+        source = _Counted(0.02)
+        self.assertIsNone(collect(source, wanted=20))
+        self.assertEqual(source.calls, math.ceil(20 / POOR_YIELD))
+
+    def test_a_source_at_exactly_the_yield_survives(self):
+        # The budget is 1 / POOR_YIELD draws per prefix, so a source managing
+        # exactly that rate is the slowest one that still delivers.
+        source = _Counted(POOR_YIELD)
+        held = collect(source, wanted=100)
+        self.assertIsNotNone(held)
+        self.assertLessEqual(source.calls, math.ceil(100 / POOR_YIELD))
+
+    def test_a_failed_ask_hands_its_draws_back(self):
+        # Landing a draw is the expensive part, so what a collection could not
+        # use goes back rather than being paid for twice.
+        source = _Spooled([bytes([i]) for i in range(4)])
+        self.assertIsNone(collect(source, wanted=6))
+        self.assertEqual(source.drawn, 4, "and it stopped once it ran dry")
+        self.assertEqual(gather(source, wanted=4), [bytes([i]) for i in range(4)])
+        self.assertEqual(source.drawn, 4, "the second ask cost nothing")
+
+    def test_gather_keeps_what_it_got(self):
+        source = _Spooled([bytes([i]) for i in range(4)])
+        self.assertEqual(gather(source, wanted=6), [bytes([i]) for i in range(4)])
+
+    def test_duplicates_do_not_count_toward_the_ask(self):
+        class OneString:
+            def draw(self):
+                return bytes([7])
+
+        self.assertIsNone(collect(OneString(), wanted=3))
 
 
 class _Tree:
@@ -73,7 +157,9 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(_Resolver(population), 1, _lands(), wanted=20)
+        return StateSource(
+            _Resolver(population), 1, _lands(), wanted=20, sink=lambda _s: None
+        )
 
     def test_what_already_rests_there_is_served_first(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -120,7 +206,11 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         for prefix in resting:
             population.add(prefix, at=(True,))
         source = state_source(
-            _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
+            _Resolver(population),
+            1,
+            aim_at(_Pst(8), reachable, 1),
+            wanted=20,
+            sink=lambda _s: None,
         )
 
         drawn = [source.draw() for _ in range(20)]
@@ -156,7 +246,13 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
             decisions=Decisions(),
         )
         aims = itertools.cycle(support)
-        source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
+        source = state_source(
+            _Resolver(population),
+            1,
+            lambda: next(aims),
+            wanted=20,
+            sink=lambda _s: None,
+        )
 
         drawn = [source.draw() for _ in range(len(support))]
 
@@ -200,7 +296,9 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
             return None
-        return state_source(_Resolver(population), leaf, aim, wanted=20)
+        return state_source(
+            _Resolver(population), leaf, aim, wanted=20, sink=lambda _s: None
+        )
 
     def test_a_state_nothing_enters_has_no_source(self):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))

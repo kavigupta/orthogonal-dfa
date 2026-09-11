@@ -1,11 +1,13 @@
-"""Drawing the prefixes that belong to one state.
+"""Where each population of prefixes comes from.
 
 A source belongs to the round that made it: it closes over that round's tree,
 which says where a string rests, and its hypothesis, which says where to aim
 one.  Only the tree's answer counts.
 """
 
+from collections import deque
 from math import ceil, isqrt, log
+from typing import Optional
 
 import scipy.stats
 
@@ -14,8 +16,11 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
+from .mask_table import UNIFORM
 from .statistics import binom_cdf
 
+#: Prefixes a population is asked for.
+WANTED = 100
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
 #: One landing at most this share is one to stop asking.  Nothing decides
@@ -40,6 +45,72 @@ def _proving_aims():
 
 
 PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
+
+
+class UniformSource:
+    """The learner's own sampler.  Every draw is a prefix, so this never fails.
+
+    Labelled ``UNIFORM``: it draws for the pool the table already keeps, and two
+    populations of one sampler would be one vote each however differently they
+    had grown.
+    """
+
+    label = UNIFORM
+
+    def __init__(self, pst):
+        self._pst = pst
+
+    def draw(self) -> Optional[bytes]:
+        return self._pst.sampler.sample(
+            self._pst.rng, alphabet_size=self._pst.alphabet_size
+        )
+
+
+class BoundarySource:
+    """Strings the round's tree could not place, drawn the way that round found
+    them: a probe, then the prefixes of it, sifted until one lands.
+
+    The sifter is the round's, not the caller's.  A pool is the strings *that*
+    tree straddled, so growing it means asking that tree again -- against a
+    later one the same draw would be a different population.
+    """
+
+    def __init__(self, pst, sifter, label):
+        self.label = label
+        self._pst = pst
+        self._sifter = sifter
+        self._served = set()
+        self._pending = deque()
+
+    def draw(self) -> Optional[bytes]:
+        """One unplaced string from a fresh probe, or ``None`` if it had none.
+
+        A probe usually strands more than one, so the rest are kept for the next
+        ask rather than resifted.
+        """
+        if not self._pending:
+            self._sift_a_probe()
+        while self._pending:
+            drawn = self._pending.popleft()
+            if drawn not in self._served:
+                self._served.add(drawn)
+                return drawn
+        return None
+
+    def _sift_a_probe(self) -> None:
+        probe = self._pst.sampler.sample(
+            self._pst.rng, alphabet_size=self._pst.alphabet_size
+        )
+        # The prefix walk stops where the tree first places one, and the whole
+        # probe is read after it: the two points a round sifts at.
+        for start in range(len(probe) + 1):
+            leaf, boundary = self._sifter.sift_and_boundary(probe[:start])
+            if leaf is not None:
+                break
+            self._pending.append(boundary)
+        leaf, boundary = self._sifter.sift_and_boundary(probe)
+        if leaf is None:
+            self._pending.append(boundary)
 
 
 def aim_at(pst, dfa, leaf):
@@ -70,7 +141,7 @@ def aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(resolver, leaf, aim, *, wanted):
+def state_source(resolver, leaf, aim, *, wanted, sink):
     """
     A source that draws on `aim` and guarantees (with probability 1 - _MISREAD)
     that at least POOR_YIELD (25%) of the strings it draws will land
@@ -78,20 +149,22 @@ def state_source(resolver, leaf, aim, *, wanted):
 
     If this guarantee cannot be made, returns None
     """
-    source = StateSource(resolver, leaf, aim, wanted=wanted)
+    source = StateSource(resolver, leaf, aim, wanted=wanted, sink=sink)
     return source if source.has_sufficient_yield() else None
 
 
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, resolver, leaf, aim, *, wanted):
+    def __init__(self, resolver, leaf, aim, *, wanted, sink):
+        self.label = ("state", leaf)
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = aim
+        self._sink = sink
         self._served = set()
         #: Resting at the leaf and not yet handed out.  Reading a leaf pushes
         #: strings down to it, so the count is work rather than a cap: ask for
@@ -109,6 +182,8 @@ class StateSource:
         if self._population.settle(aimed, self._path):
             self._pool.append(aimed)
             return True
+        if self._population.resting_at(aimed) is None:
+            self._sink(aimed)
         return False
 
     def has_sufficient_yield(self) -> bool:
@@ -139,3 +214,53 @@ class StateSource:
             f"leaf {self._path} rested nothing new in {dry_aims} aims "
             f"after serving {len(self._served)}"
         )
+
+    def unused(self, drawn) -> None:
+        """Take back draws a collection did not use.  Landing one is the
+        expensive part and the leaf is still where it rests, so it goes back in
+        the pool rather than being served twice over."""
+        self._served.difference_update(drawn)
+        self._pool.extend(drawn)
+
+
+def gather(source, wanted: int) -> list:
+    """Up to ``wanted`` distinct prefixes from ``source``, however few it gives.
+
+    For growing a population, where any is a gain.  Defining one is ``collect``,
+    which holds out for the whole number.
+    """
+    held = set()
+    for _ in range(ceil(wanted / POOR_YIELD)):
+        if len(held) == wanted:
+            break
+        drawn = source.draw()
+        if drawn is not None:
+            held.add(drawn)
+    return sorted(held)
+
+
+def collect(source, wanted: int) -> Optional[list]:
+    """``wanted`` distinct prefixes from ``source``, or ``None`` if it could not.
+
+    Giving up is the point: a population nothing can be drawn for is one the
+    round cannot read a rate over, and saying so beats holding it to one.
+    """
+    held = gather(source, wanted)
+    if len(held) == wanted:
+        return held
+    # Taking is only earned by a population coming of it.
+    give_back = getattr(source, "unused", None)
+    if give_back is not None:
+        give_back(held)
+    return None
+
+
+def draw_for_split(source, wanted: int) -> list:
+    """Prefixes from ``source`` to read the split on and nothing else.
+
+    A population that cannot certify on the prefixes it holds needs more of its
+    own -- and read only for the split, since adding them to the table costs a
+    query on every fully observed column and unsettles the FNR the round has
+    just met.
+    """
+    return gather(source, wanted)
