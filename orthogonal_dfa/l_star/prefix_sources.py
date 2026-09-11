@@ -9,6 +9,8 @@ import math
 from collections import deque
 from typing import Optional
 
+import scipy.stats
+
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 from .mask_table import UNIFORM
 from .statistics import _binom_cdf
@@ -25,31 +27,22 @@ POOR_YIELD = 0.25
 _MISREAD = 1e-5
 
 
-#: Where ``Binomial(n, POOR_YIELD)`` and ``Binomial(n, GOOD_YIELD)`` cross, as a
-#: share of the aims.  The count they are read over has to be searched for, but
-#: the line between them does not: it is the same share whatever the count.
-_KEPT_ABOVE = math.log((1 - POOR_YIELD) / (1 - GOOD_YIELD)) / math.log(
-    GOOD_YIELD * (1 - POOR_YIELD) / (POOR_YIELD * (1 - GOOD_YIELD))
-)
-
-
 def _proving_aims():
     """The fewest aims at which a leaf at ``GOOD_YIELD`` is kept and one at
     ``POOR_YIELD`` dropped, each but for ``_MISREAD``, and the landings that
     separate them.
 
-    Searched rather than solved.  Exact binomial tails have no closed form for
+    Searched rather than solved: exact binomial tails have no closed form for
     the count, and the count that works is not monotone -- 264 aims answer both
     questions and 265 do not -- so there is nothing here to bisect.
     """
     aims = 0
     while True:
         aims += 1
-        landings = math.floor(_KEPT_ABOVE * aims)
-        if (
-            1 - _binom_cdf(landings, aims, POOR_YIELD) <= _MISREAD
-            and _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD
-        ):
+        # The fewest landings a poor leaf is unlikely to reach; a good one has
+        # to clear it for the same count to answer both questions.
+        landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
+        if _binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
             return aims, landings
 
 
