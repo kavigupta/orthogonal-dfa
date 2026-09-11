@@ -26,6 +26,11 @@ class SynthesisTracker:
     def on_consistency_estimated(self, consistency, round_index):
         """How far the round's DFA and tree agreed on fresh samples."""
 
+    def on_pool_resolved(self, prefixes, indecisive, round_index):
+        """The round's representative prefix pool, and the boundary strings the
+        family could not place -- harvested and fed into the next round's pool.
+        Both are snapshots (bytes), so later rounds do not mutate them."""
+
     def on_corrected_dfa_found(self, dfa, round_index):
         """The hypothesis the run settled on, denoised.  Fired once, by
         ``do_counterexample_driven_synthesis`` -- a caller driving
@@ -46,6 +51,7 @@ class RecordingTracker(SynthesisTracker):
         self.classifiers = []
         self.hypotheses = []
         self.consistency = []
+        self.pools = []
         self.corrected = None
 
     def on_family_resolved(self, suffixes, boundary, round_index):
@@ -63,6 +69,10 @@ class RecordingTracker(SynthesisTracker):
     def on_consistency_estimated(self, consistency, round_index):
         assert len(self.consistency) == round_index
         self.consistency.append(consistency)
+
+    def on_pool_resolved(self, prefixes, indecisive, round_index):
+        assert len(self.pools) == round_index
+        self.pools.append((prefixes, indecisive))
 
     def on_corrected_dfa_found(self, dfa, round_index):
         self.corrected = (dfa, round_index)

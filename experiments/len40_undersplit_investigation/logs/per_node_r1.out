@@ -1,0 +1,14 @@
+ROUND 1: band [0.581,0.633), pop 1998
+
+  depth  #reach  incoming-purity(dominant)   within-dom-cut?  verdict
+     0    1998   (00p0)    39%            no   (99A/0R)   ok
+     1    1496   (00p0)    52%            YES  (50A/27R)   INCORRECT
+     2     762   (00p0)    51%            no   (100A/0R)   ok
+     2     493   (00p0)    42%            no   (100A/0R)   ok
+     3     370   (00p0)    56%            no   (5A/90R)   ok
+     1     389   SINK      30%            no   (16A/76R)   ok
+     2     243   (10p2)    44%            YES  (52A/24R)   INCORRECT
+     3     105   (10p2)    53%            no   (14A/61R)   ok
+     2     124   SINK      71%            no   (16A/76R)   ok
+
+  => 2/9 split nodes INCORRECT (already-pure node, or cuts within dominant frame-sig)

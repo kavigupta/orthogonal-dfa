@@ -1,0 +1,19 @@
+ROUND 0: band [0.505,0.558), pop 1998
+
+  depth  #reach  incoming-purity(dominant)   within-dom-cut?  verdict
+     0    1998   (00p0)    39%            no   (93A/1R)   ok         m=[(empty root)] 
+     1    1564   (00p0)    47%            no   (79A/6R)   ok         m=[TGA] 
+     2    1288   (00p0)    45%            no   (93A/1R)   ok         m=[Y TGA] 
+     3    1074   (00p0)    50%            no   (100A/0R)   ok         m=[Y Y TGA] 
+     4     885   (00p0)    61%            YES  (23A/53R)   INCORRECT  m=[TAG Y TGA] cuts within dominant sig
+     5     405   (00p2)    49%            no   (94A/2R)   ok         m=[TAG Y Y TGA] 
+     6     281   (00p2)    66%            no   (10A/68R)   ok         m=[X TAG Y TGA] 
+     7     130   (00p2)    97%            no   (16A/59R)   INCORRECT  m=[TGA X TAG Y TGA] subdivides already-pure node
+     6      69   (00p1)    29%            no   (100A/0R)   ok         m=[Y TAG Y TGA] 
+     7      45   (00p1)    44%            YES  (50A/35R)   INCORRECT  m=[X TGA X TAG Y TGA] cuts within dominant sig
+     8      31   (00p0)    52%            no   (81A/12R)   ok         m=[TAG] 
+     5     336   (00p0)    85%            no   (4A/85R)   INCORRECT  m=[X X TGA X TAG Y TGA] subdivides already-pure node
+     3     107   (01p2)    74%            no   (13A/76R)   ok         m=[TAG Y TGA] 
+     2     126   (00p0)    36%            no   (87A/0R)   ok         m=[Y Y Y TGA] 
+
+  => 4/14 split nodes INCORRECT (already-pure node, or cuts within dominant frame-sig)

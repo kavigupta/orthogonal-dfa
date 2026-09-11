@@ -1,0 +1,45 @@
+target undersplit: round-0 s10: 283 SINK + 183 live
+
+=== ROUND 1 tree: where s10's members sift ===
+    leaf  -1:  41 SINK   25 live
+    leaf   0:   0 SINK    2 live
+    leaf   3:   0 SINK    1 live
+    leaf   4:   3 SINK    0 live
+    leaf   6:  22 SINK   40 live
+    leaf   8:   0 SINK   12 live
+    leaf   9:  14 SINK    0 live
+  path (depth: midfix-len -> #true #false #indec):
+    d0 m(len0): T=119 F=14 I=27
+    d1 m(len1): T=6 F=86 I=27
+    d2 m(len2): T=2 F=3 I=1
+    d2 m(len2): T=19 F=62 I=5
+    d3 m(len3): T=1 F=12 I=6
+    d1 m(len1): T=0 F=14 I=0
+    d2 m(len2): T=0 F=0 I=0
+    d3 m(len3): T=0 F=0 I=0
+    d2 m(len2): T=0 F=14 I=0
+
+=== ROUND 0 tree: where s10's members sift ===
+    leaf  -1:  33 SINK   25 live
+    leaf   0:   0 SINK    1 live
+    leaf   1:  37 SINK    1 live
+    leaf   2:   1 SINK    0 live
+    leaf   4:   1 SINK    0 live
+    leaf   5:   0 SINK    2 live
+    leaf  10:   8 SINK   49 live
+    leaf  14:   0 SINK    2 live
+  path (depth: midfix-len -> #true #false #indec):
+    d0 m(len0): T=90 F=38 I=32
+    d1 m(len1): T=84 F=2 I=4
+    d2 m(len2): T=11 F=57 I=16
+    d3 m(len3): T=10 F=1 I=0
+    d4 m(len3): T=1 F=8 I=1
+    d5 m(len4): T=1 F=0 I=0
+    d6 m(len4): T=1 F=0 I=0
+    d7 m(len5): T=0 F=0 I=0
+    d6 m(len4): T=0 F=0 I=0
+    d7 m(len6): T=0 F=0 I=0
+    d8 m(len1): T=0 F=0 I=0
+    d5 m(len7): T=2 F=2 I=4
+    d3 m(len3): T=0 F=57 I=0
+    d2 m(len4): T=1 F=0 I=1

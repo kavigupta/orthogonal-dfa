@@ -1,0 +1,16 @@
+population 400 prefixes; band [0.505,0.558)
+
+  n  distinguisher                      verdict   (within-frame-state split? = INCORRECT)
+  2  [TGA                           ]  INCORRECT  cuts within (f0=1,f1=0,ph=1): 29%A / 53%R
+  3  [Y TGA                         ]  ok (consistent within every frame state)
+  4  [Y Y TGA                       ]  INCORRECT  cuts within (f0=0,f1=1,ph=1): 35%A / 40%R
+  5  [TAG Y TGA                     ]  INCORRECT  cuts within (f0=0,f1=0,ph=0): 26%A / 57%R
+  6  [TAG Y Y TGA                   ]  INCORRECT  cuts within (f0=0,f1=1,ph=1): 35%A / 55%R
+  7  [X TAG Y TGA                   ]  INCORRECT  cuts within (f0=1,f1=0,ph=2): 31%A / 60%R
+  8  [Y TAG Y TGA                   ]  INCORRECT  cuts within (f0=1,f1=0,ph=2): 27%A / 42%R
+  9  [TGA X TAG Y TGA               ]  ok (consistent within every frame state)
+ 10  [TAG Y TGA                     ]  INCORRECT  cuts within (f0=0,f1=0,ph=0): 26%A / 57%R
+ 11  [X TGA X TAG Y TGA             ]  INCORRECT  cuts within (f0=0,f1=0,ph=2): 20%A / 50%R
+ 12  [TAG                           ]  INCORRECT  cuts within (f0=0,f1=0,ph=0): 45%A / 28%R
+ 13  [Y Y Y TGA                     ]  INCORRECT  cuts within (f0=1,f1=0,ph=1): 24%A / 47%R
+ 14  [X X TGA X TAG Y TGA           ]  INCORRECT  cuts within (f0=0,f1=1,ph=1): 20%A / 65%R

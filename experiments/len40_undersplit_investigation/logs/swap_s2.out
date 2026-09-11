@@ -1,0 +1,6 @@
+  round 0 baseline (dumped): 15 states, est 0.633, boundary 0.532, margin 0.026, pool 872
+  round 1 baseline (dumped): 10 states, est 0.533, boundary 0.607, margin 0.026, pool 1268
+
+(MAX_PROBES=1200; baselines may not exactly reproduce 15/10 but pool-vs-family DIRECTION is what matters)
+
+ pool fam | states  SINK/live-homog   est    |famsize|  secs  tag

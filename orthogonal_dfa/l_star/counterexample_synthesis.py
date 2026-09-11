@@ -353,6 +353,11 @@ def counterexample_driven_synthesis(
         )
         assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
+        tracker.on_pool_resolved(
+            [bytes(p) for p in pst.table.prefixes],
+            {bytes(s) for s in resolver.indecisive},
+            index,
+        )
         print(dfa)
         true_acc = estimate_agreement_rate(
             pst,

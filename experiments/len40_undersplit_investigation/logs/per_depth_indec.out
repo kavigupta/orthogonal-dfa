@@ -1,0 +1,19 @@
+
+=== round 0: 15 states, max sift depth 9, total indecision 710/1500 = 47.3% ===
+  depth  reached  dropped  per-node%  cum-indec%
+     0     1500      118      7.9        7.9
+     1     1192       27      2.3        9.7
+     2     1165      150     12.9       19.7
+     3      902       66      7.3       24.1
+     4      526      225     42.8       39.1
+     5      301       35     11.6       41.4
+     6      216       56     25.9       45.1
+     7      106       33     31.1       47.3
+     8        3        0      0.0       47.3
+
+=== round 1: 10 states, max sift depth 4, total indecision 429/1500 = 28.6% ===
+  depth  reached  dropped  per-node%  cum-indec%
+     0     1500      140      9.3        9.3
+     1     1360      127      9.3       17.8
+     2     1233      138     11.2       27.0
+     3      276       24      8.7       28.6
