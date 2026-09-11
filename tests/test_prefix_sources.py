@@ -15,7 +15,7 @@ from automata.fa.dfa import DFA
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
-    MIN_YIELD,
+    POOR_YIELD,
     StateSource,
     aim_at,
     gather,
@@ -49,15 +49,15 @@ class TestGivingUpOnASource(unittest.TestCase):
         # One in fifty, well under the yield the budget waits for.
         source = _Counted(0.02)
         self.assertLess(len(gather(source, wanted=20)), 20)
-        self.assertEqual(source.calls, math.ceil(20 / MIN_YIELD))
+        self.assertEqual(source.calls, math.ceil(20 / POOR_YIELD))
 
     def test_a_source_at_exactly_the_yield_survives(self):
-        # The budget is 1 / MIN_YIELD draws per prefix, so a source managing
+        # The budget is 1 / POOR_YIELD draws per prefix, so a source managing
         # exactly that rate is the slowest one that still delivers.
-        source = _Counted(MIN_YIELD)
+        source = _Counted(POOR_YIELD)
         held = gather(source, wanted=100)
         self.assertEqual(len(held), 100)
-        self.assertLessEqual(source.calls, math.ceil(100 / MIN_YIELD))
+        self.assertLessEqual(source.calls, math.ceil(100 / POOR_YIELD))
 
     def test_duplicates_do_not_count_toward_the_ask(self):
         class OneString:
