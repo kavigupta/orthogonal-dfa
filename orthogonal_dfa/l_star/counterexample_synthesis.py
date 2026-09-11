@@ -122,8 +122,9 @@ def _per_state_members(pst, resolver, dfa, per_state):
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
-            # Out of reach rather than short: no string of the sampler's length
-            # arrives here, so the round is not waiting on a draw.
+            # Out of reach rather than short: too few strings of the sampler's
+            # length arrive here to draw from, so no round is going to fill it
+            # and this one is not waiting on a draw.
             continue
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:

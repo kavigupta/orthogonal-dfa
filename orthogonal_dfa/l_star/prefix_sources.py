@@ -5,9 +5,15 @@ which says where a string rests, and its hypothesis, which says where to aim
 one.  Only the tree's answer counts.
 """
 
+from math import ceil, isqrt, log
+
 import scipy.stats
 
-from .dfa_utils import count_paths_to_state, sample_string_reaching_state
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .statistics import _binom_cdf
 
 #: A leaf landing at least this share of its aims is one worth asking again.
@@ -39,11 +45,26 @@ PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
 def aim_at(pst, dfa, leaf):
     """
     Attempt to aim at a leaf, returning a source that draws on it or ``None`` if the leaf is
-    unreachable from the starting state.
+    unreachable from the starting state, or if too few strings of the sampler's
+    length reach it to draw from without redrawing what it has already drawn.
+
+    Aims are drawn with replacement, so a leaf that holds
+
+        sqrt(alphabet_size ** length)
+
+    of the strings of that length repeats one only after the fourth root of
+    them have been drawn.  Scaled to the space rather than to the draws asked
+    for: a leaf is thin compared to what the sampler could have put there.
     """
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
+    # Counted evenly rather than off the mass below: the sampler's weights are
+    # read as ratios, so its mass is on no scale a threshold could name.
+    reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
+    if reaching[length][dfa.initial_state] < isqrt(pst.alphabet_size**length):
+        return None
     mass = count_paths_to_state(dfa, leaf, length, weights)
+    # A symbol the sampler never places can leave a well-reached leaf with none.
     if mass[length][dfa.initial_state] == 0:
         return None
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
@@ -97,13 +118,25 @@ class StateSource:
         landed = sum(self.aimed_draw() for _ in range(PROVING_AIMS))
         return landed > LANDINGS_KEPT
 
-    def draw(self) -> bytes:
+    def draw(self, false_alarm_p=1e-9) -> bytes:
         """Provide a prefix resting at the leaf, aiming for more when the pool runs
         dry."""
+        #: Aims in a row that rest nothing new before the leaf is called dry. Geometric distribution.
+        dry_aims = ceil(log(false_alarm_p) / log(1 - POOR_YIELD))
+
+        dry = 0
         while True:
             while self._pool:
                 member = self._pool.pop()
                 if member not in self._served:
                     self._served.add(member)
                     return member
+            # An aim that rests where it was aimed on a string already served
+            # counts as landing, so yield alone never says a leaf is spent.
+            if dry >= dry_aims:
+                raise RuntimeError(
+                    f"leaf {self._path} rested nothing new in {dry_aims} aims "
+                    f"after serving {len(self._served)}"
+                )
             self.aimed_draw()
+            dry += 1
