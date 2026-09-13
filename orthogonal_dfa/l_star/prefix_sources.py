@@ -141,7 +141,7 @@ def aim_at(pst, dfa, leaf):
     return lambda: sample_string_reaching_state(dfa, mass, pst.rng, weights)
 
 
-def state_source(resolver, leaf, aim, *, wanted, sink):
+def state_source(resolver, leaf, aim, *, wanted):
     """
     A source that draws on `aim` and guarantees (with probability 1 - _MISREAD)
     that at least POOR_YIELD (25%) of the strings it draws will land
@@ -149,14 +149,14 @@ def state_source(resolver, leaf, aim, *, wanted, sink):
 
     If this guarantee cannot be made, returns None
     """
-    source = StateSource(resolver, leaf, aim, wanted=wanted, sink=sink)
+    source = StateSource(resolver, leaf, aim, wanted=wanted)
     return source if source.has_sufficient_yield() else None
 
 
 class StateSource:
     """Prefixes the tree places at one leaf."""
 
-    def __init__(self, resolver, leaf, aim, *, wanted, sink):
+    def __init__(self, resolver, leaf, aim, *, wanted):
         self.label = ("state", leaf)
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
@@ -164,7 +164,6 @@ class StateSource:
         # tree reports has a path to it.
         assert self._path is not None, leaf
         self._aim = aim
-        self._sink = sink
         self._served = set()
         #: Resting at the leaf and not yet handed out.  Reading a leaf pushes
         #: strings down to it, so the count is work rather than a cap: ask for
@@ -182,8 +181,6 @@ class StateSource:
         if self._population.settle(aimed, self._path):
             self._pool.append(aimed)
             return True
-        if self._population.resting_at(aimed) is None:
-            self._sink(aimed)
         return False
 
     def has_sufficient_yield(self) -> bool:

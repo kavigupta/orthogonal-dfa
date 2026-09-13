@@ -157,9 +157,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
-        return StateSource(
-            _Resolver(population), 1, _lands(), wanted=20, sink=lambda _s: None
-        )
+        return StateSource(_Resolver(population), 1, _lands(), wanted=20)
 
     def test_what_already_rests_there_is_served_first(self):
         resting = [bytes([1, i]) for i in range(20)]
@@ -210,7 +208,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             1,
             aim_at(_Pst(8), reachable, 1),
             wanted=20,
-            sink=lambda _s: None,
         )
 
         drawn = [source.draw() for _ in range(20)]
@@ -251,7 +248,6 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
             1,
             lambda: next(aims),
             wanted=20,
-            sink=lambda _s: None,
         )
 
         drawn = [source.draw() for _ in range(len(support))]
@@ -296,9 +292,7 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
             return None
-        return state_source(
-            _Resolver(population), leaf, aim, wanted=20, sink=lambda _s: None
-        )
+        return state_source(_Resolver(population), leaf, aim, wanted=20)
 
     def test_a_state_nothing_enters_has_no_source(self):
         self.assertIsNone(self._made(_Pst(4), _UNREACHABLE, 1))

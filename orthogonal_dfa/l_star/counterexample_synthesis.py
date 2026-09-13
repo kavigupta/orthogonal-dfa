@@ -172,9 +172,7 @@ class Pools:
                 # Out of reach rather than short: no string of the sampler's
                 # length arrives here, so the round is not waiting on a draw.
                 continue
-            source = state_source(
-                resolver, leaf, aim, wanted=WANTED, sink=self.offer_indecisive
-            )
+            source = state_source(resolver, leaf, aim, wanted=WANTED)
             if source is None:
                 # Reachable, and the tree rests nothing here anyway.  That is
                 # the round coming up short on the state.
