@@ -89,19 +89,27 @@ class BoundarySource:
         self._sifter = sifter
         self._transitions = transitions
         self._served = set()
+        #: Every string this source has produced.  A probe strands the same one
+        #: as often as not -- the walk starts at the empty prefix, so a tree that
+        #: cannot place that cannot place it for any probe -- and a repeat is not
+        #: something to have found.
+        self._seen = set()
         self._pool = []
 
     def _sift(self, seq):
         """Sift, keeping what the family could not answer for."""
         leaf, boundary = self._sifter.sift_and_boundary(seq)
-        if leaf is None:
+        if leaf is None and boundary not in self._seen:
+            self._seen.add(boundary)
             self._pool.append(boundary)
         return leaf
 
     def aimed_draw(self) -> bool:
         """One probe, sifted the way a round sifts it.  Says whether anything
-        the family could not answer came of it."""
-        before = len(self._pool)
+        the family could not answer came of it *that it had not already found*:
+        stranding the same string again is not a draw this source can serve.
+        """
+        before = len(self._seen)
         probe = self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
@@ -119,7 +127,7 @@ class BoundarySource:
             landed = self._sift(probe)
             if landed is not None and states[-1] is not None and landed != states[-1]:
                 self._bisect(probe, states, start)
-        return len(self._pool) > before
+        return len(self._seen) > before
 
     def _bisect(self, probe, states, lo):
         """Narrow to the edge the walk and the sift disagree over.
