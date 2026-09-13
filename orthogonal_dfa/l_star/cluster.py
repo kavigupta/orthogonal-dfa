@@ -112,18 +112,6 @@ def readable_size_and_margin(min_signal_strength, decision_boundary, have, small
 ACCEPT_PRESERVING_GIVE_UP = 20
 
 
-def limit_is_expressible(size, limit) -> bool:
-    """Whether a population of ``size`` prefixes can report a rate under ``limit``
-    other than exactly zero.
-
-    The smallest non-zero rate it can report is ``1 / size``, so under
-    ``1 / limit`` members the gate admits it only with nothing straddling at
-    all.  That is not the limit being missed, it is the limit being
-    inexpressible, and no amount of sampling is the answer to it.
-    """
-    return size * limit >= 1
-
-
 #: Chance of calling a family drifted when it is not, or clean when it is not.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
 

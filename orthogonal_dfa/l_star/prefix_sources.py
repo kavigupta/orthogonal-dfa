@@ -5,7 +5,6 @@ which says where a string rests, and its hypothesis, which says where to aim
 one.  Only the tree's answer counts.
 """
 
-from collections import deque
 from math import ceil, isqrt, log
 from typing import Optional
 
@@ -31,20 +30,26 @@ POOR_YIELD = 0.25
 _MISREAD = 1e-5
 
 
-def _proving_aims():
-    """Sizes the test so that P(reject | yield >= GOOD_YIELD) and
-    P(keep | yield <= POOR_YIELD) are both bounded by ``_MISREAD``."""
+def _proving_aims(good, poor):
+    """Sizes the test so that P(reject | yield >= ``good``) and
+    P(keep | yield <= ``poor``) are both bounded by ``_MISREAD``."""
     aims = 0
     while True:
         aims += 1
         # The fewest landings a poor leaf is unlikely to reach; a good one has
         # to clear it for the same count to answer both questions.
-        landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
-        if binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
+        landings = int(scipy.stats.binom.isf(_MISREAD, aims, poor))
+        if binom_cdf(landings, aims, good) <= _MISREAD:
             return aims, landings
 
 
-PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
+PROVING_AIMS, LANDINGS_KEPT = _proving_aims(GOOD_YIELD, POOR_YIELD)
+#: A probe stream stranding at least this share is one worth drawing from.  Far
+#: under a leaf's bars: aiming either lands or does not, where a probe is only
+#: asked to turn up something the family cannot place, which is rarer and enough.
+GOOD_STRAND = 0.2
+POOR_STRAND = 0.1
+PROBES, STRANDS_KEPT = _proving_aims(GOOD_STRAND, POOR_STRAND)
 
 
 class UniformSource:
@@ -67,50 +72,90 @@ class UniformSource:
 
 
 class BoundarySource:
-    """Strings the round's tree could not place, drawn the way that round found
-    them: a probe, then the prefixes of it, sifted until one lands.
+    """Strings the round's tree could not place, found the way the round finds
+    them: a probe, anchored where the tree first places a prefix, walked through
+    the round's transitions, and bisected where the walk and a fresh sift
+    disagree.
 
-    The sifter is the round's, not the caller's.  A pool is the strings *that*
-    tree straddled, so growing it means asking that tree again -- against a
-    later one the same draw would be a different population.
+    Every sift on the way is a question the family may not answer, and the ones
+    it does not are what this yields.  Its only supply is the sampler, so unlike
+    a source aimed at one state it can never be short of input -- a thin state
+    has finitely many members, a probe stream has none.
     """
 
-    def __init__(self, pst, sifter, label):
+    def __init__(self, pst, sifter, transitions, label=("boundary",)):
         self.label = label
         self._pst = pst
         self._sifter = sifter
+        self._transitions = transitions
         self._served = set()
-        self._pending = deque()
+        self._pool = []
 
-    def draw(self) -> Optional[bytes]:
-        """One unplaced string from a fresh probe, or ``None`` if it had none.
+    def _sift(self, seq):
+        """Sift, keeping what the family could not answer for."""
+        leaf, boundary = self._sifter.sift_and_boundary(seq)
+        if leaf is None:
+            self._pool.append(boundary)
+        return leaf
 
-        A probe usually strands more than one, so the rest are kept for the next
-        ask rather than resifted.
-        """
-        if not self._pending:
-            self._sift_a_probe()
-        while self._pending:
-            drawn = self._pending.popleft()
-            if drawn not in self._served:
-                self._served.add(drawn)
-                return drawn
-        return None
-
-    def _sift_a_probe(self) -> None:
+    def aimed_draw(self) -> bool:
+        """One probe, sifted the way a round sifts it.  Says whether anything
+        the family could not answer came of it."""
+        before = len(self._pool)
         probe = self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
-        # The prefix walk stops where the tree first places one, and the whole
-        # probe is read after it: the two points a round sifts at.
-        for start in range(len(probe) + 1):
-            leaf, boundary = self._sifter.sift_and_boundary(probe[:start])
-            if leaf is not None:
+        start, state = 0, None
+        while start < len(probe):
+            state = self._sift(probe[:start])
+            if state is not None:
                 break
-            self._pending.append(boundary)
-        leaf, boundary = self._sifter.sift_and_boundary(probe)
-        if leaf is None:
-            self._pending.append(boundary)
+            start += 1
+        if state is not None:
+            states = [None] * start + [state]
+            for symbol in probe[start:]:
+                state = self._transitions[state][symbol]
+                states.append(state)
+            landed = self._sift(probe)
+            if landed is not None and states[-1] is not None and landed != states[-1]:
+                self._bisect(probe, states, start)
+        return len(self._pool) > before
+
+    def _bisect(self, probe, states, lo):
+        """Narrow to the edge the walk and the sift disagree over.
+
+        The answer is not wanted -- the round has already had it -- but the
+        prefixes asked about on the way are the ones a family would have to
+        answer for a round to act on this probe at all, and those are worth
+        keeping.
+        """
+        hi = len(probe)
+        while lo + 1 < hi:
+            mid = (lo + hi) // 2
+            landed = self._sift(probe[:mid])
+            if landed is None:
+                return
+            lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
+
+    def has_sufficient_yield(self) -> bool:
+        """Whether probes strand often enough to keep drawing them."""
+        stranded = sum(self.aimed_draw() for _ in range(PROBES))
+        return stranded > STRANDS_KEPT
+
+    def draw(self, false_alarm_p=1e-9) -> bytes:
+        """One string the tree could not place, probing until there is one."""
+        dry = ceil(log(false_alarm_p) / log(1 - POOR_STRAND))
+        for _ in range(dry + 1):
+            while self._pool:
+                member = self._pool.pop()
+                if member not in self._served:
+                    self._served.add(member)
+                    return member
+            self.aimed_draw()
+        raise RuntimeError(
+            f"{self.label} stranded nothing new in {dry} probes "
+            f"after serving {len(self._served)}"
+        )
 
 
 def aim_at(pst, dfa, leaf):

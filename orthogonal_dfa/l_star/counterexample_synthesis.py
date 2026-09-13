@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import limit_is_expressible, sample_suffix_family
+from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -137,7 +137,6 @@ class Pools:
         #: Whether every state's source filled a population last rebuild.
         self.every_state_full = False
         #: Whether the last rebuild's harvest was enough to become a pool.
-        self.sealed_a_pool = False
         self.held = {}
         #: Labels the table holds, so a round can retire what it does not renew.
         self._published: set = set()
@@ -194,32 +193,34 @@ class Pools:
             label in collected for label in states
         )
 
-        # Sealed after the sources have run: validating an aimed draw is one of
+        # After the state sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
         # this round's pool rather than to the next one's.
-        self.sealed_a_pool = self.seal_ready_harvest(resolver.sifter)
-        # After sealing, so the pool this round just made is one the next family
-        # search can already ask for more of.
+        self.pool_the_harvest(resolver, dfa)
         self._sources.update(self._boundary_sources)
         self.held = dict(self._boundaries)
         self.held.update(collected)
         self.publish()
 
-    def seal_ready_harvest(self, sifter) -> bool:
-        """Make a pool of the harvest, saying whether there was enough to.
+    def pool_the_harvest(self, resolver, dfa) -> bool:
+        """Make a pool of this round's harvest, saying whether it could.
 
-        Under ``1 / fnr_limit`` strings a pool cannot state a rate under the
-        limit other than exactly zero, so too few is the signal to stop rather
-        than to seal one.
+        It could where probing goes on stranding strings the tree cannot place:
+        the pool then has a source and is grown rather than fixed at whatever
+        size the round reached.
 
-        The pool keeps ``sifter``: what named these strings is what can find
-        more of them, and a later round's would name a different population.
+        Where it does not, the round keeps its harvest and makes no population
+        of it.  A pool nothing can add to is one the family would be held to a
+        rate over and never able to answer.
         """
-        if not limit_is_expressible(len(self._harvest), self._pst.config.fnr_limit):
+        source = BoundarySource(
+            self._pst, resolver.sifter, dfa.transitions, ("boundary", self._sealed + 1)
+        )
+        if not source.has_sufficient_yield():
             return False
         self._sealed += 1
         label = ("boundary", self._sealed)
-        self._boundary_sources[label] = BoundarySource(self._pst, sifter, label)
+        self._boundary_sources[label] = source
         self._boundaries[label] = list(self._harvest)
         self._pooled.update(self._harvest)
         self._harvest = {}
@@ -431,15 +432,6 @@ def counterexample_driven_synthesis(
             f"{len(pools.held)} populations, {pools.boundary_strings} boundary "
             f"strings harvested so far"
         )
-        if not pools.sealed_a_pool:
-            print(
-                f"WARNING: stopping synthesis at {dt.num_states} states and "
-                f"accuracy {true_acc:.4f} -- the round left only "
-                f"{pools.pending_harvest} strings unplaced, too few to read a "
-                f"rate over, so there is no population left to make the next "
-                f"family resolve."
-            )
-            return best
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,

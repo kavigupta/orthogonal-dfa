@@ -6,12 +6,9 @@ to the limit on its own.  These are the properties that makes rest on.
 """
 
 import unittest
-from types import SimpleNamespace
 
 import numpy as np
 
-from orthogonal_dfa.l_star.cluster import limit_is_expressible
-from orthogonal_dfa.l_star.counterexample_synthesis import Pools
 from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
@@ -73,56 +70,6 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual(worst, ("state", 3))
         self.assertAlmostEqual(rate, 0.2)
-
-
-class TestLimitIsExpressible(unittest.TestCase):
-    """A population too small to state the limit is not one that missed it."""
-
-    def test_the_boundary_is_one_over_the_limit(self):
-        # Under 10 prefixes the smallest non-zero rate a population can report
-        # is already over 0.10, so the limit admits it only with nothing
-        # straddling -- which is a bar, not a measurement.
-        self.assertFalse(limit_is_expressible(9, 0.10))
-        self.assertTrue(limit_is_expressible(10, 0.10))
-
-    def test_it_follows_the_limit(self):
-        self.assertFalse(limit_is_expressible(10, 0.02))
-        self.assertTrue(limit_is_expressible(50, 0.02))
-
-    def test_a_pool_of_one_can_never_express_a_rate(self):
-        self.assertFalse(limit_is_expressible(1, 0.5))
-        self.assertTrue(limit_is_expressible(2, 0.5))
-
-
-class TestSealingAHarvest(unittest.TestCase):
-    """Whether a round's unplaceable strings can become a population at all."""
-
-    def _pools(self):
-        # Construction reads nothing else; sealing reads only the limit.
-        return Pools(SimpleNamespace(config=SimpleNamespace(fnr_limit=0.10)))
-
-    #: Kept by the pool to draw more of its own kind; sealing never calls it.
-    _SIFTER = None
-
-    def _harvest(self, pools, count):
-        for word in _words(count):
-            pools.offer_indecisive(word)
-
-    def test_a_harvest_that_cannot_state_the_limit_is_not_sealed(self):
-        pools = self._pools()
-        self._harvest(pools, 9)
-
-        self.assertFalse(pools.seal_ready_harvest(self._SIFTER), "9 cannot state 0.10")
-        self.assertEqual(pools.sealed_pools, 0)
-        self.assertEqual(pools.pending_harvest, 9, "and the caller is told how few")
-
-    def test_a_harvest_that_can_is_sealed(self):
-        pools = self._pools()
-        self._harvest(pools, 10)
-
-        self.assertTrue(pools.seal_ready_harvest(self._SIFTER))
-        self.assertEqual(pools.sealed_pools, 1)
-        self.assertEqual(pools.pending_harvest, 0, "the buffer went into the pool")
 
 
 if __name__ == "__main__":
