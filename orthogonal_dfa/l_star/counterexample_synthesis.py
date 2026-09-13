@@ -97,8 +97,11 @@ def _take_indecisive(pst, resolver, dfa, target):
 
     What a round happens to strand is what its probing happened to reach, which
     need not be ``target`` of them.  `BoundarySource` goes on probing for more,
-    so being short is a reason to ask rather than a size to settle for -- unless
-    probing turns nothing up, which is the round saying there are no more.
+    so being short is a reason to ask rather than a size to settle for.
+
+    A source that passes its yield test and then runs dry raises, as a state
+    source does: that is the yield it was kept on not holding, which is worth
+    hearing about rather than working around.
 
     The set is sorted then shuffled with a fixed rng, so the
     cap picks the same unbiased sample every run.
@@ -112,12 +115,7 @@ def _take_indecisive(pst, resolver, dfa, target):
         return ordered
     held = set(ordered)
     while len(held) < target:
-        try:
-            held.add(source.draw())
-        except RuntimeError:
-            # Probing turned up nothing new for long enough to say so.  Short of
-            # the target is then what there is, not a reason to keep asking.
-            break
+        held.add(source.draw())
     return sorted(held)
 
 
