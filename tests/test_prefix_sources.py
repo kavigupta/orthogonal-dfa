@@ -13,7 +13,12 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import StateSource, aim_at, state_source
+from orthogonal_dfa.l_star.prefix_sources import (
+    BoundarySource,
+    StateSource,
+    aim_at,
+    state_source,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
@@ -225,6 +230,68 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         even = _Weighted(8, [0.5, 0.5])
         self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
+
+
+class _Walk:
+    """A tree that places strings by a rule the test chooses, and a sampler that
+    hands out the probes it is given."""
+
+    def __init__(self, places):
+        self._places = places
+
+    def sift_and_boundary(self, seq):
+        leaf = self._places(seq)
+        return (leaf, None) if leaf is not None else (None, seq + b"?")
+
+
+class _Probes(_Pst):
+    def __init__(self, words):
+        super().__init__(len(words[0]))
+        self._words = list(words)
+        self.sampler = SimpleNamespace(
+            length=len(words[0]),
+            sample=lambda _rng, alphabet_size: self._words.pop(0),
+            symbol_weights=lambda _n: [0.5, 0.5],
+        )
+
+
+class TestABoundarySourceProbes(unittest.TestCase):
+    """Its supply is the sampler, so what it can find is bounded by what the
+    tree cannot place rather than by any state's membership."""
+
+    #: Places everything but the empty prefix, which is what every probe starts
+    #: by asking about.
+    _ONLY_EMPTY_FAILS = staticmethod(lambda seq: None if seq == b"" else 0)
+
+    def _source(self, words, places):
+        return BoundarySource(_Probes(words), _Walk(places), {0: {0: 0, 1: 0}})
+
+    def test_a_probe_the_tree_cannot_place_is_stranded(self):
+        source = self._source([bytes([0, 1])], self._ONLY_EMPTY_FAILS)
+
+        self.assertTrue(source.aimed_draw())
+        self.assertEqual(source.draw(), b"?", "the prefix the tree failed on")
+
+    def test_a_probe_the_tree_places_strands_nothing(self):
+        source = self._source([bytes([0, 1])], lambda seq: 0)
+
+        self.assertFalse(source.aimed_draw())
+
+    def test_stranding_the_same_string_again_is_not_a_draw(self):
+        # Every probe starts at the empty prefix, so a tree that cannot place
+        # that strands the identical string however many probes are drawn.
+        source = self._source([bytes([0, 1]), bytes([1, 0])], self._ONLY_EMPTY_FAILS)
+
+        self.assertTrue(source.aimed_draw())
+        self.assertFalse(source.aimed_draw(), "the second probe found nothing new")
+
+    def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
+        source = self._source([bytes([0, 1])] * 10_000, self._ONLY_EMPTY_FAILS)
+
+        self.assertEqual(source.draw(), b"?")
+
+        with self.assertRaisesRegex(RuntimeError, "stranded nothing new"):
+            source.draw()
 
 
 if __name__ == "__main__":

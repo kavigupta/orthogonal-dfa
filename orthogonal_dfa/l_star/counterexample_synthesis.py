@@ -24,7 +24,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import aim_at, state_source
+from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
@@ -90,16 +90,35 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _take_indecisive(resolver, target):
+def _take_indecisive(pst, resolver, dfa, target):
     """
-    Take up to target of the round's boundary strings.
+    Take up to target of the round's boundary strings, drawing more where the
+    round did not strand that many.
+
+    What a round happens to strand is what its probing happened to reach, which
+    need not be ``target`` of them.  `BoundarySource` goes on probing for more,
+    so being short is a reason to ask rather than a size to settle for -- unless
+    probing turns nothing up, which is the round saying there are no more.
 
     The set is sorted then shuffled with a fixed rng, so the
     cap picks the same unbiased sample every run.
     """
     ordered = sorted(resolver.indecisive)
     np.random.default_rng(0).shuffle(ordered)
-    return ordered[:target]
+    if len(ordered) >= target:
+        return ordered[:target]
+    source = BoundarySource(pst, resolver.sifter, dfa.transitions)
+    if not source.has_sufficient_yield():
+        return ordered
+    held = set(ordered)
+    while len(held) < target:
+        try:
+            held.add(source.draw())
+        except RuntimeError:
+            # Probing turned up nothing new for long enough to say so.  Short of
+            # the target is then what there is, not a reason to keep asking.
+            break
+    return sorted(held)
 
 
 class _PoolState:
@@ -147,7 +166,7 @@ def _grow_representative_pool(
     """Rebuild the pool, returning its size and whether every state in reach
     still rests the aims made at it."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
+    for t in _take_indecisive(pst, resolver, dfa, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
