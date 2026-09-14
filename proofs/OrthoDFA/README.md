@@ -30,6 +30,7 @@ a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
 | `clustering_algorithm_correct` | `Algorithm.lean` | The capstone: same bound with the certification input `hbad` **discharged from `certErr_bound`**. Inputs reduce to the oracle model + findability. |
 | `clustering_algorithm_correct_fused` | `Capstone.lean` | Both inputs discharged: `hgood` from `fuse_findability`, `hbad` from `certErr_bound` (independent-rounds instance). |
 | `clustering_algorithm_correct_general` | `Capstone.lean` | **Accumulating-pool capstone**: good-pass depends on the whole history, only the findability trigger block-local; `hbad` discharged from `certErr_bound` on each round's fresh reads. Removes the independent-rounds idealization end-to-end. |
+| `chosen_accept_preserving`, `chosen_accept_preserving_whp` | `Liveness.lean` | **Liveness core.** The ε-anchored greedy (least-loss `k`-subset) proposes an all-accept-preserving family — deterministically under loss-separability, and w.p. ≥ 1 − #cands·exp(−2mγ²) under *mean-loss separability* + concentration. This *derives* the good-pass instead of assuming it. |
 
 The rate is held **per population**, never pooled — `clustering_correct` sums one
 term per population and per placement check, exactly the fix #257 makes.
@@ -66,7 +67,12 @@ term per population and per placement check, exactly the fix #257 makes.
    `μ_prop × μ_reads`; the fusion is then Fubini, not a bespoke kernel. The
    remaining inputs are the oracle model, the findability rate `pp`, and the
    gate-accept factor `1-reject` (itself `cleanAdmit_le`/`apLowFNR_le`, supplied as
-   `haccept`).
+   `haccept`).  **Liveness** — that a good family is *proposed* at all — is no longer
+   an opaque `himplies` assumption: `Liveness.lean` derives it from a **separability**
+   hypothesis (non-accept-preserving suffixes have strictly higher mean loss, because
+   they flip a covered state on positive mass) via concentration + the selection
+   lemma.  The remaining connector is to feed `chosen_accept_preserving_whp` together
+   with the gate-accept lemmas into `algorithm_correct_general`'s per-round trigger.
 
 4. **Structural / DFA layer — deferred.** This proves the *clustering algorithm*
    correct (families placed and certified). It does **not** yet prove the E-L\*
