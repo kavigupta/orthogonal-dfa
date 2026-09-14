@@ -146,4 +146,48 @@ theorem chosen_accept_preserving_whp {S : Type*} [DecidableEq S]
 
 #print axioms chosen_accept_preserving_whp
 
+/-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
+Combining the two proved halves.  Under mean-loss separability the greedy proposes
+an all-accept-preserving family except w.p. `#cands·exp(-2mγ²)`
+(`chosen_accept_preserving_whp`); and the gate rejects the proposed family with
+probability at most `qgate` (the gate-accept factor, `1 - qgate`, from
+`cleanAdmit_le`/`apLowFNR_le` for an accept-preserving family).  Then the round
+produces a family that is accept-preserving *and* clears the gate — a good pass —
+except with probability at most `#cands·exp(-2mγ²) + qgate`.
+
+This is the faithful liveness statement: not "lucky independent draws" but
+"once the pool is separable, the round succeeds w.h.p." -/
+theorem liveness_produces_good {S : Type*} [DecidableEq S]
+    (AP : S → Prop) [DecidablePred AP]
+    (cands : Finset S) (k m : ℕ) (ρlo ρhi γ : ℝ)
+    (D : S → ℕ → Ω → ℝ)
+    (hmeas : ∀ v i, AEMeasurable (D v i) μ)
+    (hindep : ∀ v, iIndepFun (D v) μ)
+    (hIcc : ∀ v i, ∀ᵐ ω ∂μ, D v i ω ∈ Set.Icc (0 : ℝ) 1)
+    (hAPmean : ∀ v ∈ cands, AP v → ∑ i ∈ Finset.range m, μ[D v i] ≤ (m : ℝ) * ρlo)
+    (hNAmean : ∀ v ∈ cands, ¬ AP v → (m : ℝ) * ρhi ≤ ∑ i ∈ Finset.range m, μ[D v i])
+    (hgap : ρlo + γ ≤ ρhi - γ) (hγ : 0 ≤ γ)
+    (apCount : k ≤ (cands.filter AP).card)
+    (chosen : Ω → Finset S)
+    (hsub : ∀ ω, chosen ω ⊆ cands) (hcard : ∀ ω, (chosen ω).card = k)
+    (hleast : ∀ ω, ∀ v ∈ chosen ω, ∀ w ∈ cands, w ∉ chosen ω →
+        (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω)
+    (gateReject : Set Ω) (qgate : ℝ) (hgate : μ.real gateReject ≤ qgate) :
+    μ.real {ω | ¬ ((∀ w ∈ chosen ω, AP w) ∧ ω ∉ gateReject)}
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) + qgate := by
+  have hprop := chosen_accept_preserving_whp AP cands k m ρlo ρhi γ D hmeas hindep hIcc
+    hAPmean hNAmean hgap hγ apCount chosen hsub hcard hleast
+  have hincl : {ω | ¬ ((∀ w ∈ chosen ω, AP w) ∧ ω ∉ gateReject)}
+      ⊆ {ω | ¬ ∀ w ∈ chosen ω, AP w} ∪ gateReject := by
+    intro ω hω
+    by_contra hn
+    rw [Set.mem_union, not_or] at hn
+    exact hω ⟨not_not.mp hn.1, hn.2⟩
+  calc μ.real {ω | ¬ ((∀ w ∈ chosen ω, AP w) ∧ ω ∉ gateReject)}
+      ≤ μ.real ({ω | ¬ ∀ w ∈ chosen ω, AP w} ∪ gateReject) := measureReal_mono hincl
+    _ ≤ μ.real {ω | ¬ ∀ w ∈ chosen ω, AP w} + μ.real gateReject := measureReal_union_le _ _
+    _ ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) + qgate := add_le_add hprop hgate
+
+#print axioms liveness_produces_good
+
 end OrthoDFA

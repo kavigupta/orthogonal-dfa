@@ -31,6 +31,7 @@ a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
 | `clustering_algorithm_correct_fused` | `Capstone.lean` | Both inputs discharged: `hgood` from `fuse_findability`, `hbad` from `certErr_bound` (independent-rounds instance). |
 | `clustering_algorithm_correct_general` | `Capstone.lean` | **Accumulating-pool capstone**: good-pass depends on the whole history, only the findability trigger block-local; `hbad` discharged from `certErr_bound` on each round's fresh reads. Removes the independent-rounds idealization end-to-end. |
 | `chosen_accept_preserving`, `chosen_accept_preserving_whp` | `Liveness.lean` | **Liveness core.** The ε-anchored greedy (least-loss `k`-subset) proposes an all-accept-preserving family — deterministically under loss-separability, and w.p. ≥ 1 − #cands·exp(−2mγ²) under *mean-loss separability* + concentration. This *derives* the good-pass instead of assuming it. |
+| `liveness_produces_good` | `Liveness.lean` | **Liveness, fused.** Separability ⇒ the round produces a family that is accept-preserving *and* clears the gate (a good pass), except w.p. ≤ #cands·exp(−2mγ²) + qgate (qgate the gate-reject bound from `cleanAdmit_le`/`apLowFNR_le`). |
 
 The rate is held **per population**, never pooled — `clustering_correct` sums one
 term per population and per placement check, exactly the fix #257 makes.
