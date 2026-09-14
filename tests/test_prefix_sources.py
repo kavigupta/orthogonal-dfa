@@ -233,8 +233,8 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
 
 
 class _Walk:
-    """A tree that places strings by a rule the test chooses, and a sampler that
-    hands out the probes it is given."""
+    """A tree placing strings by a rule the test chooses; what it cannot place
+    it reports as ``seq + b"?"``."""
 
     def __init__(self, places):
         self._places = places
@@ -245,6 +245,8 @@ class _Walk:
 
 
 class _Probes(_Pst):
+    """A sampler handing out the probes it is given, in order."""
+
     def __init__(self, words):
         super().__init__(len(words[0]))
         self._words = list(words)
@@ -255,43 +257,61 @@ class _Probes(_Pst):
         )
 
 
+#: Places everything but the empty prefix, which every probe sifts first.
+_ONLY_EMPTY_FAILS = lambda seq: None if seq == b"" else 0
+#: Every state steps to 1, so a walk of any non-empty probe ends there.
+_STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
+
+
 class TestABoundarySourceProbes(unittest.TestCase):
-    """Its supply is the sampler, so what it can find is bounded by what the
-    tree cannot place rather than by any state's membership."""
+    """Probes until it has what was asked for, or until probing stops turning
+    anything new up."""
 
-    #: Places everything but the empty prefix, which is what every probe starts
-    #: by asking about.
-    _ONLY_EMPTY_FAILS = staticmethod(lambda seq: None if seq == b"" else 0)
+    def _source(self, words, places, transitions=None, known=()):
+        return BoundarySource(
+            _Probes(words),
+            _Walk(places),
+            transitions or {0: {0: 0, 1: 0}},
+            known=known,
+        )
 
-    def _source(self, words, places):
-        return BoundarySource(_Probes(words), _Walk(places), {0: {0: 0, 1: 0}})
+    def test_a_prefix_the_tree_cannot_place_is_kept(self):
+        source = self._source([bytes([0, 1])], _ONLY_EMPTY_FAILS)
 
-    def test_a_probe_the_tree_cannot_place_is_stranded(self):
-        source = self._source([bytes([0, 1])], self._ONLY_EMPTY_FAILS)
+        self.assertEqual(source.supply(1), [b"?"])
 
-        self.assertTrue(source.aimed_draw())
-        self.assertEqual(source.draw(), b"?", "the prefix the tree failed on")
+    def test_a_probe_the_tree_places_throughout_strands_nothing(self):
+        source = self._source([bytes([0, 1])] * 40, lambda seq: 0)
 
-    def test_a_probe_the_tree_places_strands_nothing(self):
-        source = self._source([bytes([0, 1])], lambda seq: 0)
+        self.assertEqual(source.supply(1), [])
 
-        self.assertFalse(source.aimed_draw())
+    def test_the_same_string_again_is_not_another_find(self):
+        # Every probe sifts the empty prefix, so a tree that cannot place that
+        # strands the identical string however many probes are drawn.
+        source = self._source([bytes([0, 1])] * 40, _ONLY_EMPTY_FAILS)
 
-    def test_stranding_the_same_string_again_is_not_a_draw(self):
-        # Every probe starts at the empty prefix, so a tree that cannot place
-        # that strands the identical string however many probes are drawn.
-        source = self._source([bytes([0, 1]), bytes([1, 0])], self._ONLY_EMPTY_FAILS)
+        self.assertEqual(source.supply(2), [b"?"], "one string, however many probes")
 
-        self.assertTrue(source.aimed_draw())
-        self.assertFalse(source.aimed_draw(), "the second probe found nothing new")
+    def test_what_the_caller_already_holds_is_not_offered_back(self):
+        source = self._source([bytes([0, 1])] * 40, _ONLY_EMPTY_FAILS, known=[b"?"])
 
-    def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
-        source = self._source([bytes([0, 1])] * 10_000, self._ONLY_EMPTY_FAILS)
+        self.assertEqual(source.supply(1), [])
 
-        self.assertEqual(source.draw(), b"?")
+    def test_a_disagreeing_walk_keeps_what_the_bisection_asks_about(self):
+        # The walk ends at 1 and the sift says 0, so the edge between them is
+        # bisected; the midpoint it asks about is the one the tree cannot place.
+        probe = bytes([0, 0, 0, 0])
+        places = lambda seq: None if len(seq) == 2 else 0
 
-        with self.assertRaisesRegex(RuntimeError, "stranded nothing new"):
-            source.draw()
+        source = self._source([probe], places, _STEPS_TO_ONE)
+
+        self.assertEqual(source.supply(1), [probe[:2] + b"?"])
+
+    def test_it_stops_at_the_budget_rather_than_probing_forever(self):
+        # One string to be had and two asked for: the budget is what ends it.
+        source = self._source([bytes([0, 1])] * 10_000, _ONLY_EMPTY_FAILS)
+
+        self.assertEqual(len(source.supply(2)), 1)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
-"""Drawing the prefixes that belong to one state.
+"""Drawing prefixes a round wants more of: those that rest at one state, and
+those its tree cannot place at all.
 
 A source belongs to the round that made it: it closes over that round's tree,
 which says where a string rests, and its hypothesis, which says where to aim
@@ -26,26 +27,24 @@ POOR_YIELD = 0.25
 _MISREAD = 1e-5
 
 
-def _proving_aims(good, poor):
-    """Sizes the test so that P(reject | yield >= ``good``) and
-    P(keep | yield <= ``poor``) are both bounded by ``_MISREAD``."""
+def _proving_aims():
+    """Sizes the test so that P(reject | yield >= GOOD_YIELD) and
+    P(keep | yield <= POOR_YIELD) are both bounded by ``_MISREAD``."""
     aims = 0
     while True:
         aims += 1
         # The fewest landings a poor leaf is unlikely to reach; a good one has
         # to clear it for the same count to answer both questions.
-        landings = int(scipy.stats.binom.isf(_MISREAD, aims, poor))
-        if binom_cdf(landings, aims, good) <= _MISREAD:
+        landings = int(scipy.stats.binom.isf(_MISREAD, aims, POOR_YIELD))
+        if binom_cdf(landings, aims, GOOD_YIELD) <= _MISREAD:
             return aims, landings
 
 
-PROVING_AIMS, LANDINGS_KEPT = _proving_aims(GOOD_YIELD, POOR_YIELD)
-#: A probe stream stranding at least this share is one worth drawing from.  Far
-#: under a leaf's bars: aiming either lands or does not, where a probe is only
-#: asked to turn up something the family cannot place, which is rarer and enough.
-GOOD_STRAND = 0.2
+PROVING_AIMS, LANDINGS_KEPT = _proving_aims()
+#: The slowest a probe stream may strand new strings and still be worth waiting
+#: on.  A caller wanting ``n`` of them is then willing to spend ``n / this``
+#: probes, which is what bounds the asking.
 POOR_STRAND = 0.1
-PROBES, STRANDS_KEPT = _proving_aims(GOOD_STRAND, POOR_STRAND)
 
 
 class BoundarySource:
@@ -55,24 +54,15 @@ class BoundarySource:
     disagree.
 
     Every sift on the way is a question the family may not answer, and the ones
-    it does not are what this yields.  Its only supply is the sampler, so unlike
-    a source aimed at one state it can never be short of input -- a thin state
-    has finitely many members, a probe stream has none.
+    it does not are what this yields.
     """
 
-    def __init__(self, pst, sifter, transitions, *, known=(), label=("boundary",)):
-        self.label = label
+    def __init__(self, pst, sifter, transitions, *, known=()):
         self._pst = pst
         self._sifter = sifter
         self._transitions = transitions
-        #: What the caller already holds.  Probing the round's own tree turns
-        #: these up before anything else, and a string the caller has is not one
-        #: this found: counting them would pass a source with nothing to add.
-        self._served = set(known)
-        #: Every string this source has produced or been told about.  A probe
-        #: strands the same one as often as not -- the walk starts at the empty
-        #: prefix, so a tree that cannot place that cannot place it for any probe
-        #: -- and a repeat is not something to have found.
+        #: Every probe starts by sifting the empty prefix, so a tree that cannot
+        #: place that strands the same string for every probe drawn.
         self._seen = set(known)
         self._pool = []
 
@@ -84,12 +74,8 @@ class BoundarySource:
             self._pool.append(boundary)
         return leaf
 
-    def aimed_draw(self) -> bool:
-        """One probe, sifted the way a round sifts it.  Says whether anything
-        the family could not answer came of it *that it had not already found*:
-        stranding the same string again is not a draw this source can serve.
-        """
-        before = len(self._seen)
+    def _probe(self):
+        """One probe, sifted the way a round sifts it."""
         probe = self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
@@ -107,16 +93,10 @@ class BoundarySource:
             landed = self._sift(probe)
             if landed is not None and states[-1] is not None and landed != states[-1]:
                 self._bisect(probe, states, start)
-        return len(self._seen) > before
 
     def _bisect(self, probe, states, lo):
-        """Narrow to the edge the walk and the sift disagree over.
-
-        The answer is not wanted -- the round has already had it -- but the
-        prefixes asked about on the way are the ones a family would have to
-        answer for a round to act on this probe at all, and those are worth
-        keeping.
-        """
+        """Sift down the bisection path, for what `_sift` keeps on the way.  The
+        edge it narrows to is thrown away -- the round has already had it."""
         hi = len(probe)
         while lo + 1 < hi:
             mid = (lo + hi) // 2
@@ -125,25 +105,14 @@ class BoundarySource:
                 return
             lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
 
-    def has_sufficient_yield(self) -> bool:
-        """Whether probes strand often enough to keep drawing them."""
-        stranded = sum(self.aimed_draw() for _ in range(PROBES))
-        return stranded > STRANDS_KEPT
-
-    def draw(self, false_alarm_p=1e-9) -> bytes:
-        """One string the tree could not place, probing until there is one."""
-        dry = ceil(log(false_alarm_p) / log(1 - POOR_STRAND))
-        for _ in range(dry + 1):
-            while self._pool:
-                member = self._pool.pop()
-                if member not in self._served:
-                    self._served.add(member)
-                    return member
-            self.aimed_draw()
-        raise RuntimeError(
-            f"{self.label} stranded nothing new in {dry} probes "
-            f"after serving {len(self._served)}"
-        )
+    def supply(self, wanted: int) -> list:
+        """Probe for ``wanted`` strings the caller does not already hold, and
+        return what it found -- fewer where probing stopped turning them up."""
+        for _ in range(ceil(wanted / POOR_STRAND)):
+            if len(self._pool) >= wanted:
+                break
+            self._probe()
+        return self._pool[:wanted]
 
 
 def aim_at(pst, dfa, leaf):
