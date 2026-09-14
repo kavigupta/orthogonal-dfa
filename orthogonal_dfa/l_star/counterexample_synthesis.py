@@ -161,8 +161,8 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning its size and whether every state in reach
-    still rests the aims made at it."""
+    """Rebuild the pool, returning its size and whether the round it was built
+    from had anything left to say."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(pst, resolver, dfa, target):
         if t not in state.seen:
@@ -180,17 +180,26 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), every_state_is_aimable
+    return int(pst.table.representative.sum()), tree_is_saturated(
+        resolver,
+        every_state_is_aimable=every_state_is_aimable,
+        any_state_drawn=bool(by_state),
+    )
 
 
-def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
+def tree_is_saturated(resolver, *, every_state_is_aimable, any_state_drawn) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
     A state whose aims the tree rests elsewhere is one whose prefixes are
     still moving.  Past that every node has to come out settled (see `Decisions`), each on its
     own evidence, so that one node still straddling its midfix keeps the round
     open however clean the rest are.
+
+    A round that drew from no state at all rested its aims nowhere rather than
+    elsewhere, which is spent rather than moving.
     """
+    if not any_state_drawn:
+        return True
     return every_state_is_aimable and resolver.decisions.every_node_settled()
 
 
@@ -323,7 +332,7 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool, every_state_is_aimable = _grow_representative_pool(
+        pool, saturated = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -339,7 +348,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            saturated=tree_is_saturated(resolver, every_state_is_aimable),
+            saturated=saturated,
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
