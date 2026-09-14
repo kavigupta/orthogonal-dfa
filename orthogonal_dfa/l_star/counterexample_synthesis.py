@@ -133,6 +133,21 @@ def _per_state_members(pst, resolver, dfa, per_state):
     return held
 
 
+def _nothing_left_to_split(pst, resolver, dfa) -> bool:
+    """Whether the round found every state it can and settled every state it
+    can fill.
+
+    Only states a draw reaches are waited on, the same ones `_per_state_members`
+    draws for: elsewhere a leaf too thin to rule a split out stays that way.
+    """
+    fillable = {
+        leaf
+        for leaf in range(resolver.num_states)
+        if aim_at(pst, dfa, leaf) is not None
+    }
+    return resolver.splits.nothing_left_to_split(fillable)
+
+
 def _grow_representative_pool(
     pst,
     resolver,
@@ -143,7 +158,6 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning how many of its prefixes are representative."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
@@ -173,8 +187,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. Every distinguisher the tree can propose rules a split out of every
-       state, so there is no state left to find
+    3. No distinguisher the tree can propose still splits a state
 
     Deliberately fairly restrictive, so we can have a low Patience before
     exiting the loop.
@@ -185,10 +198,8 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, splits) -> bool:
-        progressed = (
-            states > self._states or improved or not splits.every_state_is_final()
-        )
+    def stalled(self, *, states: int, improved: bool, settled) -> bool:
+        progressed = states > self._states or improved or not settled()
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -196,9 +207,9 @@ class _StallDetector:
 
 #: Representative strings drawn per DFA state.  Every round draws this many
 #: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.  Above the members a leaf needs
-#: before `SplitEvidence` can rule a split out of it, so a state a source can
-#: reach at all is one a round can settle.
+#: population does not accumulate across rounds.  Over
+#: `MEMBERS_TO_RULE_OUT_A_SPLIT` with room to spare, since the draws the family
+#: cannot place are not among the ones that rule a split out.
 PER_STATE = 50
 
 
@@ -295,12 +306,12 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        # Before the pool is rebuilt, so the strings the sweep strands on its way
-        # down reach `_take_indecisive` rather than dying with this round.
+        # Before the pool is rebuilt, so the strings the sweep drops as
+        # indecisive reach `_take_indecisive` rather than dying with this round.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            splits=resolver.splits,
+            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "

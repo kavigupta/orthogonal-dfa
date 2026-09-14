@@ -23,6 +23,12 @@ DEFAULT_SPLIT_MISS_RATE = 0.02
 #: Smallest split fraction that we attempt to detect.
 _MIN_DETECTABLE_SPLIT = 0.1
 
+#: One-sided members a leaf needs before `_agrees_as_one_state` can rule a split
+#: out of it.  Decisive ones: a member the family cannot place is not counted.
+MEMBERS_TO_RULE_OUT_A_SPLIT = math.ceil(
+    math.log(DEFAULT_SPLIT_MISS_RATE) / math.log(1 - _MIN_DETECTABLE_SPLIT)
+)
+
 #: Members weighed per leaf.  The tests converge well below this; it just caps a
 #: populous leaf.
 _MEMBER_LIMIT = 1500
@@ -37,9 +43,10 @@ def _log_beta(a: float, b: float) -> float:
 
 
 class SplitEvidence:
-    """See the module docstring.  A stateless reader over ``population`` and
-    ``tree``: it turns a leaf id into a path, pulls that leaf's members, and
-    weighs a proposed distinguisher against them."""
+    """See the module docstring.  Turns a leaf id into a path, pulls that leaf's
+    members, and weighs a proposed distinguisher against them.  Pulling is not a
+    read: it settles the members onto the leaf and harvests what the family
+    cannot place."""
 
     def __init__(
         self,
@@ -77,19 +84,26 @@ class SplitEvidence:
             return NO_SPLIT
         return UNDECIDED
 
-    def every_state_is_final(self) -> bool:
-        """Whether every distinguisher the tree can propose rules a split out of
-        every state.  A state too thin to say either way counts against this."""
+    def nothing_left_to_split(self, fillable) -> bool:
+        """Whether no distinguisher the tree can propose still splits a state,
+        and every state in ``fillable`` holds the members to say so.
+
+        A state outside ``fillable`` is one no draw reaches, so holding the run
+        open until it has enough members holds it open forever.
+        """
         midfixes = self._tree.midfixes()
         candidates = [
             bytes([c]) + midfix
             for c in range(self.pst.alphabet_size)
             for midfix in midfixes
         ]
+        # The correction is over the tests this makes, which is not the one per
+        # edge `verdict` is asked for.
         tests = self._tree.num_states * len(candidates)
         for state in self._tree.leaves():
             members = self._members(state)
-            if any(self._weigh(members, d, tests) != NO_SPLIT for d in candidates):
+            blocking = {SPLIT, UNDECIDED} if state in fillable else {SPLIT}
+            if any(self._weigh(members, d, tests) in blocking for d in candidates):
                 return False
         return True
 

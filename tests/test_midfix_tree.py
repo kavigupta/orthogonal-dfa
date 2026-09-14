@@ -1,5 +1,3 @@
-"""What the discrimination tree can offer as a distinguisher."""
-
 import unittest
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree

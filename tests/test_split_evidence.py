@@ -1,12 +1,10 @@
-import math
 import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.split_evidence import (
-    _MIN_DETECTABLE_SPLIT,
-    DEFAULT_SPLIT_MISS_RATE,
+    MEMBERS_TO_RULE_OUT_A_SPLIT,
     NO_SPLIT,
     SPLIT,
     UNDECIDED,
@@ -91,88 +89,97 @@ def _evidence(family=None, members=(), state=0, tree_splits=(), by_state=None):
     )
 
 
-#: One-sided members a leaf needs before `_agrees_as_one_state` can rule a split
-#: out of it: the fewest n with ``(1 - _MIN_DETECTABLE_SPLIT) ** n <=
-#: DEFAULT_SPLIT_MISS_RATE``.
-_ENOUGH = math.ceil(
-    math.log(DEFAULT_SPLIT_MISS_RATE) / math.log(1 - _MIN_DETECTABLE_SPLIT)
-)
-
-
-def _agreeing(tag, count=_ENOUGH):
-    """Members that every distinguisher puts on one side."""
+def _agreeing(tag, count=MEMBERS_TO_RULE_OUT_A_SPLIT):
+    """Members every distinguisher puts on one side; the first byte tags which
+    leaf they are placed at."""
     return [bytes([tag, 0, i]) for i in range(count)]
 
 
-def _bifurcating(tag, count=_ENOUGH):
-    """Members that `_SPLITS_LEAF_1` puts half on each side."""
+def _bifurcating(tag, count=MEMBERS_TO_RULE_OUT_A_SPLIT):
+    """As `_agreeing`, but the second byte alternates, so a family reading it
+    puts half the members on each side."""
     return [bytes([tag, i % 2, i]) for i in range(count)]
 
 
 #: Separates the members tagged 1, and only under symbol 1 over the root midfix.
 _SPLITS_LEAF_1 = lambda p, d: p[0] != 1 or d != bytes([1]) or p[1] == 0
 
+#: Every leaf, so a thin one is held open rather than written off.
+_ALL = frozenset(range(16))
 
-class TestWhetherEveryStateIsFinal(unittest.TestCase):
-    def test_a_tree_every_distinguisher_agrees_on_is(self):
+
+class TestWhetherAnythingIsLeftToSplit(unittest.TestCase):
+    def test_a_tree_every_distinguisher_agrees_on_has_nothing(self):
         ev = _evidence(
             _StubFamily(side_of=lambda p, d: True),
             by_state={0: _agreeing(0), 1: _agreeing(1)},
         )
 
-        self.assertTrue(ev.every_state_is_final())
+        self.assertTrue(ev.nothing_left_to_split(_ALL))
 
-    def test_a_leaf_a_distinguisher_still_separates_is_not(self):
+    def test_a_leaf_a_distinguisher_still_separates_has_something(self):
+        # Leaf 0 is final here, so a sweep that stopped at the first leaf would
+        # miss leaf 1 and call the tree done.
         ev = _evidence(
             _StubFamily(side_of=_SPLITS_LEAF_1),
             by_state={0: _agreeing(0), 1: _bifurcating(1)},
         )
 
-        self.assertFalse(ev.every_state_is_final())
+        self.assertFalse(ev.nothing_left_to_split(_ALL))
 
-    def test_it_reads_past_the_first_leaf(self):
-        # Leaf 0 is final and leaf 1 is not, so a sweep that stopped at the
-        # first leaf would call the tree done.
-        splittable = _evidence(
-            _StubFamily(side_of=_SPLITS_LEAF_1),
-            by_state={0: _agreeing(0), 1: _bifurcating(1)},
-        )
-        final = _evidence(
-            _StubFamily(side_of=_SPLITS_LEAF_1),
-            by_state={0: _agreeing(0), 1: _agreeing(1)},
-        )
-
-        self.assertFalse(splittable.every_state_is_final())
-        self.assertTrue(final.every_state_is_final())
-
-    def test_a_leaf_too_thin_to_say_is_not(self):
+    def test_a_leaf_too_thin_to_say_is_waited_on_where_it_can_be_filled(self):
         ev = _evidence(
             _StubFamily(),
-            by_state={0: _agreeing(0), 1: _agreeing(1, _ENOUGH - 1)},
+            by_state={
+                0: _agreeing(0),
+                1: _agreeing(1, MEMBERS_TO_RULE_OUT_A_SPLIT - 1),
+            },
         )
 
-        self.assertFalse(ev.every_state_is_final())
+        self.assertFalse(ev.nothing_left_to_split(_ALL))
 
-    def test_a_leaf_nothing_reaches_is_not(self):
+    def test_and_written_off_where_it_cannot(self):
+        # No draw reaches leaf 1, so its members are as many as it will ever
+        # hold and waiting for more never ends.
+        ev = _evidence(
+            _StubFamily(),
+            by_state={
+                0: _agreeing(0),
+                1: _agreeing(1, MEMBERS_TO_RULE_OUT_A_SPLIT - 1),
+            },
+        )
+
+        self.assertTrue(ev.nothing_left_to_split(frozenset({0})))
+
+    def test_a_split_counts_even_where_the_leaf_cannot_be_filled(self):
+        ev = _evidence(
+            _StubFamily(side_of=_SPLITS_LEAF_1),
+            by_state={0: _agreeing(0), 1: _bifurcating(1)},
+        )
+
+        self.assertFalse(ev.nothing_left_to_split(frozenset({0})))
+
+    def test_a_leaf_nothing_reaches_is_waited_on(self):
         ev = _evidence(_StubFamily(), by_state={0: _agreeing(0)})
 
-        self.assertFalse(ev.every_state_is_final())
+        self.assertFalse(ev.nothing_left_to_split(_ALL))
 
     def test_a_separation_only_a_deeper_midfix_reaches(self):
         # Symbol 1 over the midfix a split puts in the tree; until that split
-        # exists no candidate is built from it.
+        # exists no candidate is built from it.  The split also makes leaf 2,
+        # which is stocked so that an empty leaf is not what fails.
         family = _StubFamily(
             side_of=lambda p, d: p[0] != 1 or d != bytes([1, 5]) or p[1] == 0
         )
         held = {0: _agreeing(0), 1: _bifurcating(1)}
 
-        self.assertTrue(_evidence(family, by_state=held).every_state_is_final())
+        self.assertTrue(_evidence(family, by_state=held).nothing_left_to_split(_ALL))
         self.assertFalse(
             _evidence(
                 family,
                 by_state={**held, 2: _agreeing(2)},
                 tree_splits=((1, bytes([5])),),
-            ).every_state_is_final()
+            ).nothing_left_to_split(_ALL)
         )
 
 
