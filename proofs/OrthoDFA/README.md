@@ -28,6 +28,8 @@ a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
 | `geometric_miss`, `geometric_miss_triggered` | `Termination.lean` | Over `N` rounds, all miss w.p. ≤ `(1-p)^N`. The *triggered* form allows a round's good-event to depend on the whole accumulated history; only a block-local trigger need be independent. **"Eventually", without the independent-rounds idealization.** |
 | `algorithm_correct`, `algorithm_correct_general` | `Algorithm.lean` | Joint product measure over `N` rounds: `P[failure] ≤ (1-p)^N + N·b`. The `_general` form lets `goodErr`/`badErr` depend on the accumulating pool (fresh strings added each round), only the findability trigger block-local. **End-to-end.** |
 | `clustering_algorithm_correct` | `Algorithm.lean` | The capstone: same bound with the certification input `hbad` **discharged from `certErr_bound`**. Inputs reduce to the oracle model + findability. |
+| `clustering_algorithm_correct_fused` | `Capstone.lean` | Both inputs discharged: `hgood` from `fuse_findability`, `hbad` from `certErr_bound` (independent-rounds instance). |
+| `clustering_algorithm_correct_general` | `Capstone.lean` | **Accumulating-pool capstone**: good-pass depends on the whole history, only the findability trigger block-local; `hbad` discharged from `certErr_bound` on each round's fresh reads. Removes the independent-rounds idealization end-to-end. |
 
 The rate is held **per population**, never pooled — `clustering_correct` sums one
 term per population and per placement check, exactly the fix #257 makes.

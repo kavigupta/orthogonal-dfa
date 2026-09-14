@@ -91,4 +91,45 @@ theorem clustering_algorithm_correct_fused
 
 #print axioms clustering_algorithm_correct_fused
 
+/-- **Finished capstone, accumulating pool.**  The independent-rounds idealization
+removed: the good-pass event `goodErr r` may depend on the whole accumulated
+history (the representative pool that grows as fresh strings are added each round);
+only the findability `trigger r` — the fresh material drawn in round `r` — is
+block-local and independent across rounds, and it forces a good round
+(`himplies`).  Certification uses each round's fresh reads `Xc r` (block-local, as
+#257 draws fresh prefixes to certify), so `hbad` is discharged from `certErr_bound`
+via the coordinate marginal.  Conclusion, with only the oracle model and
+findability as inputs:
+
+    P[failure] ≤ (1 - p)^N + N·a. -/
+theorem clustering_algorithm_correct_general
+    {N : ℕ} {α : Fin N → Type*} [∀ r, MeasurableSpace (α r)]
+    (ν : ∀ r, Measure (α r)) [∀ r, IsProbabilityMeasure (ν r)]
+    (trigger : ∀ r, Set (α r)) (htrig : ∀ r, MeasurableSet (trigger r))
+    (goodErr : Fin N → Set (∀ r, α r))
+    (himplies : ∀ r, ∀ x : ∀ r, α r, x r ∈ trigger r → x ∉ goodErr r)
+    (p : ℝ) (hp1 : p ≤ 1) (hp : ∀ r, p ≤ (ν r).real (trigger r))
+    (β : ℝ) (n : ℕ) (τ a : ℝ) (hn : 0 < n) (ha0 : 0 < a) (ha1 : a ≤ 1)
+    (Xc : ∀ r, ℕ → α r → ℝ)
+    (hcmeas : ∀ r i, Measurable (Xc r i))
+    (hcindep : ∀ r, iIndepFun (Xc r) (ν r))
+    (hcIcc : ∀ r i, ∀ᵐ ω ∂(ν r), Xc r i ω ∈ Set.Icc (0 : ℝ) 1)
+    (hcmean : ∀ r, ∑ i ∈ Finset.range n, (ν r)[Xc r i] ≤ (n : ℝ) * (β + τ)) :
+    (Measure.pi ν).real
+        ({x | ∀ r, x ∈ goodErr r}
+          ∪ (⋃ r, {x | x r ∈ {ω | (n : ℝ) * ((β + τ) + certMargin n a)
+                ≤ ∑ i ∈ Finset.range n, Xc r i ω}}))
+      ≤ (1 - p) ^ N + (N : ℝ) * a := by
+  refine algorithm_correct_general ν trigger htrig goodErr
+    (fun r => {x | x r ∈ {ω | (n : ℝ) * ((β + τ) + certMargin n a)
+      ≤ ∑ i ∈ Finset.range n, Xc r i ω}})
+    himplies p a hp1 hp ?_
+  intro r
+  rw [pi_coord_real ν r _
+    (measurableSet_le measurable_const (Finset.measurable_sum _ (fun i _ => hcmeas r i)))]
+  exact certErr_bound (Xc r) n β τ a (fun i => (hcmeas r i).aemeasurable) (hcindep r)
+    (hcIcc r) (hcmean r) hn ha0 ha1
+
+#print axioms clustering_algorithm_correct_general
+
 end OrthoDFA
