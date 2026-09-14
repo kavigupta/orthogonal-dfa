@@ -195,8 +195,8 @@ def tree_is_saturated(resolver, *, every_state_is_aimable, any_state_drawn) -> b
     own evidence, so that one node still straddling its midfix keeps the round
     open however clean the rest are.
 
-    A round that drew from no state at all rested its aims nowhere rather than
-    elsewhere, which is spent rather than moving.
+    A round that drew from no state has no per-state population to show for
+    itself, whatever else it harvested.
     """
     if not any_state_drawn:
         return True
