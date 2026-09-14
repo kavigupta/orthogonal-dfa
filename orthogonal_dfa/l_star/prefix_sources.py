@@ -14,6 +14,7 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
+from .sifting import anchored_walk, first_disagreeing_edge
 from .statistics import binom_cdf
 
 #: A leaf landing at least this share of its aims is one worth asking again.
@@ -85,7 +86,7 @@ class BoundarySource:
         return leaf
 
     def aimed_draw(self) -> bool:
-        """One probe, sifted the way a round sifts it.  Says whether anything
+        """One probe, walked the way a round walks it.  Says whether anything
         the family could not answer came of it *that it had not already found*:
         stranding the same string again is not a draw this source can serve.
         """
@@ -93,37 +94,15 @@ class BoundarySource:
         probe = self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
-        start, state = 0, None
-        while start < len(probe):
-            state = self._sift(probe[:start])
-            if state is not None:
-                break
-            start += 1
-        if state is not None:
-            states = [None] * start + [state]
-            for symbol in probe[start:]:
-                state = self._transitions[state][symbol]
-                states.append(state)
+        start, states = anchored_walk(probe, self._sift, self._transitions)
+        if start is not None:
             landed = self._sift(probe)
-            if landed is not None and states[-1] is not None and landed != states[-1]:
-                self._bisect(probe, states, start)
+            if landed is not None and landed != states[-1]:
+                # The edge narrowed to is thrown away -- the round has already
+                # had it.  What is wanted is the prefixes asked about on the
+                # way, which `_sift` keeps.
+                first_disagreeing_edge(probe, states, self._sift, start, len(probe))
         return len(self._seen) > before
-
-    def _bisect(self, probe, states, lo):
-        """Narrow to the edge the walk and the sift disagree over.
-
-        The answer is not wanted -- the round has already had it -- but the
-        prefixes asked about on the way are the ones a family would have to
-        answer for a round to act on this probe at all, and those are worth
-        keeping.
-        """
-        hi = len(probe)
-        while lo + 1 < hi:
-            mid = (lo + hi) // 2
-            landed = self._sift(probe[:mid])
-            if landed is None:
-                return
-            lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
 
     def has_sufficient_yield(self) -> bool:
         """Whether probes strand often enough to keep drawing them."""
