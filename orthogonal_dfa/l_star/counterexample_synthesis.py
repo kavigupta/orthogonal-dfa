@@ -90,28 +90,33 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _take_indecisive(resolver, target):
+def _take_indecisive(pst, resolver, dfa, target):
     """
-    Take up to target of the round's boundary strings.
+    Take up to target of the round's boundary strings, drawing more where the
+    round did not strand that many.
+
+    What a round happens to strand is what its probing happened to reach, which
+    need not be ``target`` of them.  `BoundarySource` goes on probing for more,
+    so being short is a reason to ask rather than a size to settle for.
+
+    A source that passes its yield test and then runs dry raises, as a state
+    source does: that is the yield it was kept on not holding, which is worth
+    hearing about rather than working around.
 
     The set is sorted then shuffled with a fixed rng, so the
     cap picks the same unbiased sample every run.
     """
     ordered = sorted(resolver.indecisive)
     np.random.default_rng(0).shuffle(ordered)
-    return ordered[:target]
-
-
-def _top_up_boundary(pst, resolver, dfa, state, floor):
-    """Probe for boundary strings where the rounds so far have stranded fewer
-    than ``floor`` of them between them."""
-    short = floor - len(state.accumulated)
-    if short <= 0:
-        return
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
-    for boundary in source.supply(short):
-        state.seen.add(boundary)
-        state.accumulated.append(boundary)
+    if len(ordered) >= target:
+        return ordered[:target]
+    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=ordered)
+    if not source.has_sufficient_yield():
+        return ordered
+    held = set(ordered)
+    while len(held) < target:
+        held.add(source.draw())
+    return sorted(held)
 
 
 class _PoolState:
@@ -159,11 +164,10 @@ def _grow_representative_pool(
     """Rebuild the pool, returning its size and whether every state in reach
     still rests the aims made at it."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
+    for t in _take_indecisive(pst, resolver, dfa, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    _top_up_boundary(pst, resolver, dfa, state, min_indecisive)
     by_state, every_state_is_aimable = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
