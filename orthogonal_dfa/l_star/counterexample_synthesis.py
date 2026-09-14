@@ -134,8 +134,8 @@ class _PoolState:
 
 def _per_state_members(pst, resolver, dfa, per_state):
     """``state -> members``, ``per_state`` of them resting at each state that has
-    a source, and whether every state in reach had one."""
-    held, aimable = {}, True
+    a source."""
+    held = {}
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -145,10 +145,24 @@ def _per_state_members(pst, resolver, dfa, per_state):
             continue
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
-            aimable = False
             continue
         held[leaf] = sorted(source.draw() for _ in range(per_state))
-    return held, aimable
+    return held
+
+
+def _nothing_left_to_split(pst, resolver, dfa) -> bool:
+    """Whether the round found every state it can and settled every state it
+    can fill.
+
+    Only states a draw reaches are waited on, the same ones `_per_state_members`
+    draws for: elsewhere a leaf too thin to rule a split out stays that way.
+    """
+    fillable = {
+        leaf
+        for leaf in range(resolver.num_states)
+        if aim_at(pst, dfa, leaf) is not None
+    }
+    return resolver.splits.nothing_left_to_split(fillable)
 
 
 def _grow_representative_pool(
@@ -161,14 +175,12 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning its size, whether every state in reach still
-    rests the aims made at it, and whether any state yielded prefixes at all."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(pst, resolver, dfa, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-    by_state, every_state_is_aimable = _per_state_members(pst, resolver, dfa, per_state)
+    by_state = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
@@ -180,18 +192,7 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), every_state_is_aimable, bool(by_state)
-
-
-def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
-    """Whether this round's prefixes had nothing left to say.
-
-    A state whose aims the tree rests elsewhere is one whose prefixes are
-    still moving.  Past that every node has to come out settled (see `Decisions`), each on its
-    own evidence, so that one node still straddling its midfix keeps the round
-    open however clean the rest are.
-    """
-    return every_state_is_aimable and resolver.decisions.every_node_settled()
+    return int(pst.table.representative.sum())
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -203,11 +204,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. The tree is saturated (see `tree_is_saturated`), or the round drew no
-       state's prefixes and so has nothing to show either way
-
-    This catches a situation where the fixed-length probes can't find any information
-    about transient states.
+    3. No distinguisher the tree can propose still splits a state
 
     Deliberately fairly restrictive, so we can have a low Patience before
     exiting the loop.
@@ -218,10 +215,8 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(
-        self, *, states: int, improved: bool, saturated: bool, drew: bool
-    ) -> bool:
-        progressed = states > self._states or improved or (drew and not saturated)
+    def stalled(self, *, states: int, improved: bool, settled) -> bool:
+        progressed = states > self._states or improved or not settled()
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -229,8 +224,10 @@ class _StallDetector:
 
 #: Representative strings drawn per DFA state.  Every round draws this many
 #: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.
-PER_STATE = 20
+#: population does not accumulate across rounds.  Over
+#: `MEMBERS_TO_RULE_OUT_A_SPLIT` with room to spare, since the draws the family
+#: cannot place are not among the ones that rule a split out.
+PER_STATE = 50
 
 
 @dataclass
@@ -326,7 +323,20 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool, every_state_is_aimable, drew = _grow_representative_pool(
+        # Before the pool is rebuilt, so the strings the sweep drops as
+        # indecisive reach `_take_indecisive` rather than dying with this round.
+        if stall.stalled(
+            states=dt.num_states,
+            improved=best.round_index == index,
+            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
+        ):
+            print(
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
+            )
+            return best
+        pool = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -339,18 +349,6 @@ def counterexample_driven_synthesis(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.accumulated)} boundary strings harvested so far"
         )
-        if stall.stalled(
-            states=dt.num_states,
-            improved=best.round_index == index,
-            saturated=tree_is_saturated(resolver, every_state_is_aimable),
-            drew=drew,
-        ):
-            print(
-                f"[round {index}] no progress ({dt.num_states} states) in "
-                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
-                "stopping synthesis"
-            )
-            return best
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")

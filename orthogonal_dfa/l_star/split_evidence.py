@@ -23,6 +23,12 @@ DEFAULT_SPLIT_MISS_RATE = 0.02
 #: Smallest split fraction that we attempt to detect.
 _MIN_DETECTABLE_SPLIT = 0.1
 
+#: One-sided members a leaf needs before `_agrees_as_one_state` can rule a split
+#: out of it.  Decisive ones: a member the family cannot place is not counted.
+MEMBERS_TO_RULE_OUT_A_SPLIT = math.ceil(
+    math.log(DEFAULT_SPLIT_MISS_RATE) / math.log(1 - _MIN_DETECTABLE_SPLIT)
+)
+
 #: Members weighed per leaf.  The tests converge well below this; it just caps a
 #: populous leaf.
 _MEMBER_LIMIT = 1500
@@ -37,9 +43,10 @@ def _log_beta(a: float, b: float) -> float:
 
 
 class SplitEvidence:
-    """See the module docstring.  A stateless reader over ``population`` and
-    ``tree``: it turns a leaf id into a path, pulls that leaf's members, and
-    weighs a proposed distinguisher against them."""
+    """See the module docstring.  Turns a leaf id into a path, pulls that leaf's
+    members, and weighs a proposed distinguisher against them.  Pulling is not a
+    read: it settles the members onto the leaf and harvests what the family
+    cannot place."""
 
     def __init__(
         self,
@@ -63,17 +70,46 @@ class SplitEvidence:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
+        return self._weigh(self._members(state), distinguisher, self._edge_count())
+
+    def _edge_count(self) -> int:
+        return self._tree.num_states * self.pst.alphabet_size
+
+    def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
         assert self.family.test_idx  # vs is sized to the family size, never empty
-        a1, r1, a2, r2, n_a, n_b = self._tally(state, distinguisher)
-        if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold():
+        a1, r1, a2, r2, n_a, n_b = self._tally(members, distinguisher)
+        if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold(tests):
             return SPLIT
         if self._agrees_as_one_state(n_a, n_b):
             return NO_SPLIT
         return UNDECIDED
 
-    def _tally(self, state: int, distinguisher: bytes):
+    def nothing_left_to_split(self, fillable) -> bool:
+        """Whether no distinguisher the tree can propose still splits a state,
+        and every state in ``fillable`` holds the members to say so.
+
+        A state outside ``fillable`` is one no draw reaches, so holding the run
+        open until it has enough members holds it open forever.
         """
-        Group the leaf's members by the train half and count the disjoint
+        midfixes = self._tree.midfixes()
+        candidates = [
+            bytes([c]) + midfix
+            for c in range(self.pst.alphabet_size)
+            for midfix in midfixes
+        ]
+        # The correction is over the tests this makes, which is not the one per
+        # edge `verdict` is asked for.
+        tests = self._tree.num_states * len(candidates)
+        for state in self._tree.leaves():
+            members = self._members(state)
+            blocking = {SPLIT, UNDECIDED} if state in fillable else {SPLIT}
+            if any(self._weigh(members, d, tests) in blocking for d in candidates):
+                return False
+        return True
+
+    def _tally(self, members, distinguisher: bytes):
+        """
+        Group ``members`` by the train half and count the disjoint
         test half per side:
 
         Returns (A_true, R_true, A_false, R_false, n_true, n_false)
@@ -82,7 +118,6 @@ class SplitEvidence:
 
         Indecisive members contribute nothing.
         """
-        members = self._members(state)
         self.family.prefill([member + distinguisher for member in members])
         a1 = r1 = a2 = r2 = n_a = n_b = 0
         test = self.family.test_idx
@@ -122,15 +157,14 @@ class SplitEvidence:
             - _log_beta(1 + a1 + a2, 1 + r1 + r2)
         )
 
-    def _split_threshold(self) -> float:
+    def _split_threshold(self, tests: int) -> float:
         """
-        The minimum log Bayes factor a split must clear.
+        The minimum log Bayes factor a split must clear when ``tests`` are weighed.
 
         Under the one-state null a Bayes factor exceeds K only with probability
             <= 1/K
-        We can Bonferroni-correct that for the number of edges that could split, giving
+        We can Bonferroni-correct that for the number of tests run, giving
             <= n/K
         which then requires K > n/fpr to hold the overall false positive rate at fpr
         """
-        n = max(self._tree.num_states * self.pst.alphabet_size, 1)
-        return math.log(n / max(self._split_fpr, 1e-12))
+        return math.log(max(tests, 1) / max(self._split_fpr, 1e-12))
