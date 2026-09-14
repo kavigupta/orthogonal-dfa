@@ -68,8 +68,8 @@ class _Source:
     def aimed_draw(self) -> bool:
         raise NotImplementedError
 
-    def _spent(self, dry: int) -> str:
-        """What to say when ``dry`` aims in a row turned up nothing new."""
+    def source_repr(self) -> str:
+        """Which source this is, for the error when it runs dry."""
         raise NotImplementedError
 
     def has_sufficient_yield(self) -> bool:
@@ -91,7 +91,9 @@ class _Source:
                     self._served.add(member)
                     return member
             self.aimed_draw()
-        raise RuntimeError(self._spent(dry))
+        raise RuntimeError(
+            f"Source {self.source_repr()} found no new samples in {dry} attempts"
+        )
 
 
 class BoundarySource(_Source):
@@ -148,11 +150,8 @@ class BoundarySource(_Source):
                 first_disagreeing_edge(probe, states, self._sift, start, len(probe))
         return len(self._seen) > before
 
-    def _spent(self, dry: int) -> str:
-        return (
-            f"{self.label} stranded nothing new in {dry} probes "
-            f"after serving {len(self._served)}"
-        )
+    def source_repr(self) -> str:
+        return str(self.label)
 
 
 def aim_at(pst, dfa, leaf):
@@ -227,8 +226,5 @@ class StateSource(_Source):
             return True
         return False
 
-    def _spent(self, dry: int) -> str:
-        return (
-            f"leaf {self._path} rested nothing new in {dry} aims "
-            f"after serving {len(self._served)}"
-        )
+    def source_repr(self) -> str:
+        return f"leaf {self._path}"
