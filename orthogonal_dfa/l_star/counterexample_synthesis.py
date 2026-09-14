@@ -161,8 +161,8 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning its size and whether the round it was built
-    from had anything left to say."""
+    """Rebuild the pool, returning its size, whether every state in reach still
+    rests the aims made at it, and whether any state yielded prefixes at all."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(pst, resolver, dfa, target):
         if t not in state.seen:
@@ -180,26 +180,17 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), tree_is_saturated(
-        resolver,
-        every_state_is_aimable=every_state_is_aimable,
-        any_state_drawn=bool(by_state),
-    )
+    return int(pst.table.representative.sum()), every_state_is_aimable, bool(by_state)
 
 
-def tree_is_saturated(resolver, *, every_state_is_aimable, any_state_drawn) -> bool:
+def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
     """Whether this round's prefixes had nothing left to say.
 
     A state whose aims the tree rests elsewhere is one whose prefixes are
     still moving.  Past that every node has to come out settled (see `Decisions`), each on its
     own evidence, so that one node still straddling its midfix keeps the round
     open however clean the rest are.
-
-    A round that drew from no state has no per-state population to show for
-    itself, whatever else it harvested.
     """
-    if not any_state_drawn:
-        return True
     return every_state_is_aimable and resolver.decisions.every_node_settled()
 
 
@@ -212,7 +203,8 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. The tree is saturated (see `tree_is_saturated`)
+    3. The tree is saturated (see `tree_is_saturated`), or the round drew no
+       state's prefixes and so has nothing to show either way
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -226,8 +218,10 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
-        progressed = states > self._states or improved or not saturated
+    def stalled(
+        self, *, states: int, improved: bool, saturated: bool, drew: bool
+    ) -> bool:
+        progressed = states > self._states or improved or (drew and not saturated)
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -332,7 +326,7 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool, saturated = _grow_representative_pool(
+        pool, every_state_is_aimable, drew = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -348,7 +342,8 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            saturated=saturated,
+            saturated=tree_is_saturated(resolver, every_state_is_aimable),
+            drew=drew,
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
