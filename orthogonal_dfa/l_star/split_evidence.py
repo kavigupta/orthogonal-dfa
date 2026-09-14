@@ -63,10 +63,9 @@ class SplitEvidence:
         """Weigh the proposed split with two tests: ``SPLIT`` if the held-out
         sides differ in rate, ``NO_SPLIT`` if the members agree closely enough to
         rule out a split, else ``UNDECIDED``."""
-        return self._weigh(self._members(state), distinguisher, self._edges())
+        return self._weigh(self._members(state), distinguisher, self._edge_count())
 
-    def _edges(self) -> int:
-        """Splits the counterexample pass can propose: one per edge."""
+    def _edge_count(self) -> int:
         return self._tree.num_states * self.pst.alphabet_size
 
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
@@ -78,26 +77,19 @@ class SplitEvidence:
             return NO_SPLIT
         return UNDECIDED
 
-    def no_state_can_split(self) -> bool:
-        """Whether no distinguisher the tree can propose separates any state.
-
-        A state too thin to rule a split out is not one to keep waiting on: it
-        may never hold the members that would (see `_agrees_as_one_state`), so
-        only a split still being available counts against this.
-        """
+    def every_state_is_final(self) -> bool:
+        """Whether every distinguisher the tree can propose rules a split out of
+        every state.  A state too thin to say either way counts against this."""
         midfixes = self._tree.midfixes()
         candidates = [
             bytes([c]) + midfix
             for c in range(self.pst.alphabet_size)
             for midfix in midfixes
         ]
-        # Every state against every candidate, so the correction is over that
-        # many tests rather than over the pass's one-per-edge.
         tests = self._tree.num_states * len(candidates)
         for state in self._tree.leaves():
             members = self._members(state)
-            self.family.prefill([m + d for d in candidates for m in members])
-            if any(self._weigh(members, d, tests) == SPLIT for d in candidates):
+            if any(self._weigh(members, d, tests) != NO_SPLIT for d in candidates):
                 return False
         return True
 
@@ -153,7 +145,7 @@ class SplitEvidence:
 
     def _split_threshold(self, tests: int) -> float:
         """
-        The minimum log Bayes factor a split must clear over ``tests`` of them.
+        The minimum log Bayes factor a split must clear when ``tests`` are weighed.
 
         Under the one-state null a Bayes factor exceeds K only with probability
             <= 1/K

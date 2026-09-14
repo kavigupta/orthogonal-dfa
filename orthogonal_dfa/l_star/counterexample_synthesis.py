@@ -143,6 +143,7 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
+    """Rebuild the pool, returning how many of its prefixes are representative."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
@@ -172,10 +173,8 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No distinguisher the tree can propose still splits a state
-
-    This catches a situation where the fixed-length probes can't find any information
-    about transient states.
+    3. Every distinguisher the tree can propose rules a split out of every
+       state, so there is no state left to find
 
     Deliberately fairly restrictive, so we can have a low Patience before
     exiting the loop.
@@ -186,10 +185,10 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, settled) -> bool:
-        """``settled`` is called only where the first two conditions hold, the
-        sweep behind it being the expensive one."""
-        progressed = states > self._states or improved or not settled()
+    def stalled(self, *, states: int, improved: bool, splits) -> bool:
+        progressed = (
+            states > self._states or improved or not splits.every_state_is_final()
+        )
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -197,8 +196,10 @@ class _StallDetector:
 
 #: Representative strings drawn per DFA state.  Every round draws this many
 #: afresh through the state's source and replaces the last round's, so the
-#: population does not accumulate across rounds.
-PER_STATE = 20
+#: population does not accumulate across rounds.  Above the members a leaf needs
+#: before `SplitEvidence` can rule a split out of it, so a state a source can
+#: reach at all is one a round can settle.
+PER_STATE = 50
 
 
 @dataclass
@@ -310,7 +311,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            settled=resolver.splits.no_state_can_split,
+            splits=resolver.splits,
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "

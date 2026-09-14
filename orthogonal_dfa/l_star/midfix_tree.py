@@ -90,8 +90,8 @@ class MidfixTree:
         return node[0]
 
     def midfixes(self) -> List[bytes]:
-        """Every internal node's midfix, in pre-order and deduplicated: one
-        split may reuse another's midfix on a different leaf."""
+        """Every internal node's midfix, deduplicated: two nodes can carry the
+        same one."""
         found = {}
 
         def walk(node: Node) -> None:
