@@ -1,4 +1,5 @@
 import Mathlib.MeasureTheory.Constructions.Pi
+import Mathlib.MeasureTheory.Measure.Real
 
 /-!
 # Termination: the "eventually" bound
@@ -48,5 +49,29 @@ theorem geometric_miss {N : ℕ} {α : Fin N → Type*} [∀ r, MeasurableSpace 
     _ = (1 - p) ^ N := by rw [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
 
 #print axioms geometric_miss
+
+/-- **Triggered geometric termination.**  The rounds need *not* be independent: a
+round's good-event `good r` may depend on the whole accumulated history (all
+coordinates), modelling a pool that grows as fresh strings are added each round.
+All that is required is a *block-local* trigger `trigger r ⊆ α r` — the fresh
+strings added in round `r`, independent across rounds — that forces a good round:
+`x r ∈ trigger r → x ∈ good r`.  Then all rounds failing to be good still has
+probability at most `(1-p)^N`, because it implies every block-local trigger missed.
+
+This removes the "fresh strings per round" idealisation: only the per-round
+*additions* are independent, not the round outcomes. -/
+theorem geometric_miss_triggered {N : ℕ} {α : Fin N → Type*} [∀ r, MeasurableSpace (α r)]
+    (ν : ∀ r, Measure (α r)) [∀ r, IsProbabilityMeasure (ν r)]
+    (trigger : ∀ r, Set (α r)) (htrig : ∀ r, MeasurableSet (trigger r))
+    (good : Fin N → Set (∀ r, α r))
+    (himplies : ∀ r, ∀ x : ∀ r, α r, x r ∈ trigger r → x ∈ good r)
+    (p : ℝ) (hp1 : p ≤ 1) (hp : ∀ r, p ≤ (ν r).real (trigger r)) :
+    (Measure.pi ν).real {x | ∀ r, x ∉ good r} ≤ (1 - p) ^ N := by
+  have hsub : {x : ∀ r, α r | ∀ r, x ∉ good r} ⊆ {x | ∀ r, x r ∉ trigger r} := by
+    intro x hx r hr
+    exact hx r (himplies r x hr)
+  exact (measureReal_mono hsub).trans (geometric_miss ν trigger htrig p hp1 hp)
+
+#print axioms geometric_miss_triggered
 
 end OrthoDFA

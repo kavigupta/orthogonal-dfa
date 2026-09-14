@@ -25,8 +25,8 @@ a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
 | `twoSided` | `Estimate.lean` | Empirical rate over `m` fresh prefixes is within `γ` of the distributional rate except w.p. `2·exp(-2mγ²)`. **Sample → distribution (#257 resampling).** |
 | `clustering_correct` | `Top.lean` | Union bound: total failure ≤ `#placement · exp(-2k(s-τ)²) + #populations · α`. **The per-population guarantee of PR #257.** |
 | `cleanAdmit_le`, `apLowFNR_le` | `Gate.lean` | The gate accepts an accept-preserving family: a clean side fails admission, or an AP family's empirical FNR exceeds `δfnr`, only w.p. `exp(-2m·…²)`. **Gate model (accept side).** |
-| `geometric_miss` | `Termination.lean` | Over `N` independent rounds each good w.p. ≥ `p`, all miss w.p. ≤ `(1-p)^N`. **"Eventually".** |
-| `algorithm_correct` | `Algorithm.lean` | Joint product measure over `N` rounds: `P[failure] ≤ (1-p)^N + N·b`. **End-to-end: eventually, w.p. > 1-ε, a good family passes and no bad one does.** |
+| `geometric_miss`, `geometric_miss_triggered` | `Termination.lean` | Over `N` rounds, all miss w.p. ≤ `(1-p)^N`. The *triggered* form allows a round's good-event to depend on the whole accumulated history; only a block-local trigger need be independent. **"Eventually", without the independent-rounds idealization.** |
+| `algorithm_correct`, `algorithm_correct_general` | `Algorithm.lean` | Joint product measure over `N` rounds: `P[failure] ≤ (1-p)^N + N·b`. The `_general` form lets `goodErr`/`badErr` depend on the accumulating pool (fresh strings added each round), only the findability trigger block-local. **End-to-end.** |
 | `clustering_algorithm_correct` | `Algorithm.lean` | The capstone: same bound with the certification input `hbad` **discharged from `certErr_bound`**. Inputs reduce to the oracle model + findability. |
 
 The rate is held **per population**, never pooled — `clustering_correct` sums one

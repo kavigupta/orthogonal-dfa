@@ -124,4 +124,45 @@ theorem clustering_algorithm_correct
 
 #print axioms clustering_algorithm_correct
 
+/-- **The algorithm is correct (accumulating pool).**  The independence-of-rounds
+idealisation removed: `goodErr r` (round `r` is not a good pass) and `badErr r`
+(round `r` admits a bad family) may depend on the whole accumulated history — the
+pool that grows as fresh strings are added each round.  Only the findability
+`trigger r` (the fresh strings added in round `r`) is block-local and independent
+across rounds.  A block-local trigger forces a good round (`himplies`), and each
+round's bad-admit event has probability at most `b` (from `certErr_bound` on the
+accumulated pool).  Then the same bound holds:
+
+    P[failure] ≤ (1-p)^N + N·b. -/
+theorem algorithm_correct_general (ν : ∀ r, Measure (α r)) [∀ r, IsProbabilityMeasure (ν r)]
+    (trigger : ∀ r, Set (α r)) (htrig : ∀ r, MeasurableSet (trigger r))
+    (goodErr badErr : Fin N → Set (∀ r, α r))
+    (himplies : ∀ r, ∀ x : ∀ r, α r, x r ∈ trigger r → x ∉ goodErr r)
+    (p b : ℝ) (hp1 : p ≤ 1)
+    (hp : ∀ r, p ≤ (ν r).real (trigger r))
+    (hbad : ∀ r, (Measure.pi ν).real (badErr r) ≤ b) :
+    (Measure.pi ν).real ({x | ∀ r, x ∈ goodErr r} ∪ (⋃ r, badErr r))
+      ≤ (1 - p) ^ N + (N : ℝ) * b := by
+  have hgeo : (Measure.pi ν).real {x | ∀ r, x ∈ goodErr r} ≤ (1 - p) ^ N := by
+    have hset : {x : ∀ r, α r | ∀ r, x ∈ goodErr r} = {x | ∀ r, x ∉ (goodErr r)ᶜ} := by
+      ext x; simp
+    rw [hset]
+    exact geometric_miss_triggered ν trigger htrig (fun r => (goodErr r)ᶜ)
+      (fun r x hx => himplies r x hx) p hp1 hp
+  have hb : (Measure.pi ν).real (⋃ r, badErr r) ≤ (N : ℝ) * b := by
+    have hset : (⋃ r, badErr r) = ⋃ r ∈ (Finset.univ : Finset (Fin N)), badErr r := by
+      ext x; simp
+    rw [hset]
+    calc (Measure.pi ν).real (⋃ r ∈ (Finset.univ : Finset (Fin N)), badErr r)
+        ≤ ∑ r ∈ Finset.univ, (Measure.pi ν).real (badErr r) := measureReal_biUnion_le _ _
+      _ ≤ ∑ _r ∈ (Finset.univ : Finset (Fin N)), b := Finset.sum_le_sum (fun r _ => hbad r)
+      _ = (N : ℝ) * b := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+  calc (Measure.pi ν).real ({x | ∀ r, x ∈ goodErr r} ∪ (⋃ r, badErr r))
+      ≤ (Measure.pi ν).real {x | ∀ r, x ∈ goodErr r}
+          + (Measure.pi ν).real (⋃ r, badErr r) := measureReal_union_le _ _
+    _ ≤ (1 - p) ^ N + (N : ℝ) * b := add_le_add hgeo hb
+
+#print axioms algorithm_correct_general
+
 end OrthoDFA
