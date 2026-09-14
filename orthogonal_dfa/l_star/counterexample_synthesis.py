@@ -110,7 +110,7 @@ def _take_indecisive(pst, resolver, dfa, target):
     np.random.default_rng(0).shuffle(ordered)
     if len(ordered) >= target:
         return ordered[:target]
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions)
+    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=ordered)
     if not source.has_sufficient_yield():
         return ordered
     held = set(ordered)

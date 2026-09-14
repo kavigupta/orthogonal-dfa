@@ -60,17 +60,20 @@ class BoundarySource:
     has finitely many members, a probe stream has none.
     """
 
-    def __init__(self, pst, sifter, transitions, label=("boundary",)):
+    def __init__(self, pst, sifter, transitions, *, known=(), label=("boundary",)):
         self.label = label
         self._pst = pst
         self._sifter = sifter
         self._transitions = transitions
-        self._served = set()
-        #: Every string this source has produced.  A probe strands the same one
-        #: as often as not -- the walk starts at the empty prefix, so a tree that
-        #: cannot place that cannot place it for any probe -- and a repeat is not
-        #: something to have found.
-        self._seen = set()
+        #: What the caller already holds.  Probing the round's own tree turns
+        #: these up before anything else, and a string the caller has is not one
+        #: this found: counting them would pass a source with nothing to add.
+        self._served = set(known)
+        #: Every string this source has produced or been told about.  A probe
+        #: strands the same one as often as not -- the walk starts at the empty
+        #: prefix, so a tree that cannot place that cannot place it for any probe
+        #: -- and a repeat is not something to have found.
+        self._seen = set(known)
         self._pool = []
 
     def _sift(self, seq):
