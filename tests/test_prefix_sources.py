@@ -11,7 +11,6 @@ from types import SimpleNamespace
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.decisions import Decisions
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import StateSource, aim_at, state_source
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -69,7 +68,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
-            decisions=Decisions(),
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
@@ -114,7 +112,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
-            decisions=Decisions(),
         )
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
@@ -153,7 +150,6 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
             harvest=lambda _string: None,
-            decisions=Decisions(),
         )
         aims = itertools.cycle(support)
         source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
@@ -195,7 +191,6 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
             # was aimed, which is the only thing that makes the leaf a source.
             lambda strings, midfix: [lands] * len(strings),
             harvest=lambda _string: None,
-            decisions=Decisions(),
         )
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
