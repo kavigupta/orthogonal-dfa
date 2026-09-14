@@ -134,8 +134,6 @@ class Pools:
         #: place, and the source that can find that round more of them.
         self._boundaries = {}
         self._boundary_sources = {}
-        #: Whether every state's source filled a population last rebuild.
-        self.every_state_full = False
         #: Whether the last rebuild's harvest was enough to become a pool.
         self.held = {}
         #: Labels the table holds, so a round can retire what it does not renew.
@@ -164,7 +162,7 @@ class Pools:
             self.offer_indecisive(string)
 
         self._sources = {UNIFORM: UniformSource(self._pst)}
-        states, sourceless = [], False
+        states = []
         for leaf in range(resolver.num_states):
             aim = aim_at(self._pst, dfa, leaf)
             if aim is None:
@@ -173,9 +171,6 @@ class Pools:
                 continue
             source = state_source(resolver, leaf, aim, wanted=WANTED)
             if source is None:
-                # Reachable, and the tree rests nothing here anyway.  That is
-                # the round coming up short on the state.
-                sourceless = True
                 continue
             self._sources[source.label] = source
             states.append(source.label)
@@ -187,12 +182,6 @@ class Pools:
             got = collect(self._sources[label], WANTED)
             if got is not None:
                 collected[label] = got
-        # A state whose source could not fill a population is one more prefixes
-        # would say more about, which is what the stall detector reads.
-        self.every_state_full = not sourceless and all(
-            label in collected for label in states
-        )
-
         # After the state sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
         # this round's pool rather than to the next one's.
@@ -299,15 +288,19 @@ class _PoolAccess:
         return self._pools.for_split(label, wanted)
 
 
-def tree_is_saturated(resolver, every_state_is_aimable) -> bool:
-    """Whether this round's prefixes had nothing left to say.
+def _nothing_left_to_split(pst, resolver, dfa) -> bool:
+    """Whether the round found every state it can and settled every state it
+    can fill.
 
-    A state whose aims the tree rests elsewhere is one whose prefixes are
-    still moving.  Past that every node has to come out settled (see `Decisions`), each on its
-    own evidence, so that one node still straddling its midfix keeps the round
-    open however clean the rest are.
+    Only states a draw reaches are waited on, the same ones `_per_state_members`
+    draws for: elsewhere a leaf too thin to rule a split out stays that way.
     """
-    return every_state_is_aimable and resolver.decisions.every_node_settled()
+    fillable = {
+        leaf
+        for leaf in range(resolver.num_states)
+        if aim_at(pst, dfa, leaf) is not None
+    }
+    return resolver.splits.nothing_left_to_split(fillable)
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -319,10 +312,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. The tree is saturated (see `tree_is_saturated`)
-
-    This catches a situation where the fixed-length probes can't find any information
-    about transient states.
+    3. No distinguisher the tree can propose still splits a state
 
     Deliberately fairly restrictive, so we can have a low Patience before
     exiting the loop.
@@ -333,8 +323,8 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
-        progressed = states > self._states or improved or not saturated
+    def stalled(self, *, states: int, improved: bool, settled) -> bool:
+        progressed = states > self._states or improved or not settled()
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -432,10 +422,12 @@ def counterexample_driven_synthesis(
             f"{len(pools.held)} populations, {pools.boundary_strings} boundary "
             f"strings harvested so far"
         )
+        # After the rebuild: the sweep reads each leaf's members, and this
+        # round's draws are what it has to read.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            saturated=tree_is_saturated(resolver, pools.every_state_full),
+            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "

@@ -28,7 +28,6 @@ remapping on export.
 
 from automata.fa.dfa import DFA
 
-from .decisions import Decisions
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
@@ -51,7 +50,6 @@ class TransitionResolver:
     def __init__(self, pst, vs):
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
-        self.decisions = Decisions()
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
@@ -59,7 +57,6 @@ class TransitionResolver:
             self.tree,
             self._classify,
             harvest=self.indecisive.add,
-            decisions=self.decisions,
         )
         for p in pst.table.prefixes:
             self.population.add(p)
