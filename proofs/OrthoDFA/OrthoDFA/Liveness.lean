@@ -59,6 +59,49 @@ theorem chosen_accept_preserving {S : Type*} [DecidableEq S]
 
 #print axioms chosen_accept_preserving
 
+/-- **Selection avoids the bad set.**  The D-relative version: `good` and `bad` are
+disjoint, there are at least `k` good candidates, and every good candidate has
+strictly smaller loss than every bad one.  Then the least-loss `k`-subset avoids
+`bad` entirely — borderline candidates (neither good nor bad) may be chosen, which
+is fine: only `bad` (a flip of D-mass ≥ ε_cov) hurts the D-accuracy goal.
+
+This removes the need to catch D-negligible flips, so no coverage assumption is
+required: `good`/`bad` are defined by D-mass relative to the target `ε_cov`. -/
+theorem chosen_avoids_bad {S : Type*} [DecidableEq S]
+    (ℓ : S → ℝ) (good bad : S → Prop) [DecidablePred good]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands chosen : Finset S) (k : ℕ)
+    (hsub : chosen ⊆ cands) (hcard : chosen.card = k)
+    (hleast : ∀ v ∈ chosen, ∀ w ∈ cands, w ∉ chosen → ℓ v ≤ ℓ w)
+    (goodCount : k ≤ (cands.filter good).card)
+    (hsep : ∀ v ∈ cands, ∀ w ∈ cands, good v → bad w → ℓ v < ℓ w) :
+    ∀ w ∈ chosen, ¬ bad w := by
+  intro w hw hbad
+  have hwnot : w ∉ cands.filter good :=
+    fun hh => hdisj w hbad (Finset.mem_filter.mp hh).2
+  have hne : ((cands.filter good) \ chosen).Nonempty := by
+    rw [← Finset.card_pos]
+    have key : (cands.filter good ∩ chosen).card + 1 ≤ chosen.card := by
+      have hss : insert w (cands.filter good ∩ chosen) ⊆ chosen := by
+        intro x hx
+        rcases Finset.mem_insert.mp hx with rfl | hx
+        · exact hw
+        · exact Finset.mem_of_mem_inter_right hx
+      have hcard' := Finset.card_le_card hss
+      rwa [Finset.card_insert_of_notMem
+        (fun hh => hwnot (Finset.mem_of_mem_inter_left hh))] at hcard'
+    have hid : (cands.filter good ∩ chosen).card + ((cands.filter good) \ chosen).card
+        = (cands.filter good).card := Finset.card_inter_add_card_sdiff _ _
+    omega
+  obtain ⟨u, hu⟩ := hne
+  rw [Finset.mem_sdiff, Finset.mem_filter] at hu
+  obtain ⟨⟨huc, huGood⟩, hunot⟩ := hu
+  have h1 : ℓ w ≤ ℓ u := hleast w hw u huc hunot
+  have h2 : ℓ u < ℓ w := hsep u huc w (hsub hw) huGood hbad
+  linarith
+
+#print axioms chosen_avoids_bad
+
 open MeasureTheory ProbabilityTheory
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -145,6 +188,98 @@ theorem chosen_accept_preserving_whp {S : Type*} [DecidableEq S]
         rw [← Nat.cast_add, Finset.card_filter_add_card_filter_not]
 
 #print axioms chosen_accept_preserving_whp
+
+/-- **Coverage-free liveness: the greedy avoids the bad set, w.h.p.**
+`good v` (flip of D-mass ≤ ρlo) and `bad v` (flip of D-mass ≥ ρhi ≈ ε_cov) are
+*definitional* w.r.t. the target — no coverage assumption.  The mean-loss bounds
+`hgoodmean`/`hbadmean` are just those D-mass bounds (the loss over `m` D-sampled
+prefixes has mean = the flip's D-mass · m), so `hbadmean` holds because a bad
+flip's mass is ≥ ρhi *by definition*, and a large D-pool exposes it.  Then the
+greedy's least-loss `k`-subset avoids `bad` except w.p. ≤ `#cands·exp(-2mγ²)`.
+
+This is the fix for coverage: "reaches separability" is "sample a large enough
+D-pool", derived here, not assumed. -/
+theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
+    (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (k m : ℕ) (ρlo ρhi γ : ℝ)
+    (D : S → ℕ → Ω → ℝ)
+    (hmeas : ∀ v i, AEMeasurable (D v i) μ)
+    (hindep : ∀ v, iIndepFun (D v) μ)
+    (hIcc : ∀ v i, ∀ᵐ ω ∂μ, D v i ω ∈ Set.Icc (0 : ℝ) 1)
+    (hgoodmean : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, μ[D v i] ≤ (m : ℝ) * ρlo)
+    (hbadmean : ∀ v ∈ cands, bad v → (m : ℝ) * ρhi ≤ ∑ i ∈ Finset.range m, μ[D v i])
+    (hgap : ρlo + γ ≤ ρhi - γ) (hγ : 0 ≤ γ)
+    (goodCount : k ≤ (cands.filter good).card)
+    (chosen : Ω → Finset S)
+    (hsub : ∀ ω, chosen ω ⊆ cands) (hcard : ∀ ω, (chosen ω).card = k)
+    (hleast : ∀ ω, ∀ v ∈ chosen ω, ∀ w ∈ cands, w ∉ chosen ω →
+        (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω) :
+    μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) := by
+  classical
+  set E : ℝ := Real.exp (-2 * (m : ℝ) * γ ^ 2) with hE
+  set UG : Set Ω := ⋃ v ∈ cands.filter good,
+    {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω} with hUG
+  set UB : Set Ω := ⋃ v ∈ cands.filter bad,
+    {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)} with hUB
+  have hbadUG : μ.real UG ≤ ((cands.filter good).card : ℝ) * E := by
+    calc μ.real UG ≤ ∑ v ∈ cands.filter good,
+          μ.real {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω} :=
+            measureReal_biUnion_le _ _
+      _ ≤ ∑ _v ∈ cands.filter good, E := Finset.sum_le_sum (fun v hv => by
+            obtain ⟨hvc, hvg⟩ := Finset.mem_filter.mp hv
+            exact sumUpper_le (D v) m ρlo γ (hmeas v) (hindep v) (hIcc v)
+              (hgoodmean v hvc hvg) hγ)
+      _ = ((cands.filter good).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hbadUB : μ.real UB ≤ ((cands.filter bad).card : ℝ) * E := by
+    calc μ.real UB ≤ ∑ v ∈ cands.filter bad,
+          μ.real {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)} :=
+            measureReal_biUnion_le _ _
+      _ ≤ ∑ _v ∈ cands.filter bad, E := Finset.sum_le_sum (fun v hv => by
+            obtain ⟨hvc, hvb⟩ := Finset.mem_filter.mp hv
+            exact sumLower_le (D v) m ρhi γ (hmeas v) (hindep v) (hIcc v)
+              (hbadmean v hvc hvb) hγ)
+      _ = ((cands.filter bad).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hincl : {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w} ⊆ UG ∪ UB := by
+    intro ω hω
+    by_contra hnot
+    rw [Set.mem_union, not_or] at hnot
+    obtain ⟨hnG, hnB⟩ := hnot
+    apply hω
+    refine chosen_avoids_bad (fun v => ∑ i ∈ Finset.range m, D v i ω) good bad hdisj cands
+      (chosen ω) k (hsub ω) (hcard ω) (hleast ω) goodCount ?_
+    intro v hv w hw hvg hwb
+    have h1 : ∑ i ∈ Finset.range m, D v i ω < (m : ℝ) * (ρlo + γ) := by
+      by_contra h
+      exact hnG (Set.mem_iUnion₂.mpr ⟨v, Finset.mem_filter.mpr ⟨hv, hvg⟩, not_lt.mp h⟩)
+    have h2 : (m : ℝ) * (ρhi - γ) < ∑ i ∈ Finset.range m, D w i ω := by
+      by_contra h
+      exact hnB (Set.mem_iUnion₂.mpr ⟨w, Finset.mem_filter.mpr ⟨hw, hwb⟩, not_lt.mp h⟩)
+    have hmid : (m : ℝ) * (ρlo + γ) ≤ (m : ℝ) * (ρhi - γ) :=
+      mul_le_mul_of_nonneg_left hgap (Nat.cast_nonneg m)
+    linarith
+  have hcards : ((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)
+      ≤ (cands.card : ℝ) := by
+    have hdisjF : Disjoint (cands.filter good) (cands.filter bad) := by
+      rw [Finset.disjoint_filter]
+      exact fun v _ hvg hvb => hdisj v hvb hvg
+    have := Finset.card_union_of_disjoint hdisjF
+    have hle : (cands.filter good ∪ cands.filter bad).card ≤ cands.card :=
+      Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _) (Finset.filter_subset _ _))
+    rw [this] at hle
+    exact_mod_cast hle
+  have hEnn : 0 ≤ E := (Real.exp_pos _).le
+  calc μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
+      ≤ μ.real (UG ∪ UB) := measureReal_mono hincl
+    _ ≤ μ.real UG + μ.real UB := measureReal_union_le _ _
+    _ ≤ ((cands.filter good).card : ℝ) * E + ((cands.filter bad).card : ℝ) * E :=
+        add_le_add hbadUG hbadUB
+    _ = (((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)) * E := by ring
+    _ ≤ (cands.card : ℝ) * E := by
+        apply mul_le_mul_of_nonneg_right hcards hEnn
+
+#print axioms chosen_avoids_bad_whp
 
 /-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
 Combining the two proved halves.  Under mean-loss separability the greedy proposes
