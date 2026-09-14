@@ -71,6 +71,34 @@ class SplitEvidence:
             return NO_SPLIT
         return UNDECIDED
 
+    def verdicts(self) -> dict:
+        """``state -> verdict`` over every distinguisher the tree can propose:
+        ``SPLIT`` where one of them still separates the state, ``NO_SPLIT``
+        where all of them rule a split out, ``UNDECIDED`` where the state's
+        members are too few for either.
+
+        A distinguisher is a symbol followed by a node midfix, the shape
+        `MidfixTree.first_disagreement` returns.  The counterexample pass only
+        weighs a state where a probe happened to disagree there, so it leaves
+        the rest unweighed however long it runs; this asks all of them.
+        """
+        candidates = [
+            bytes([c]) + midfix
+            for c in range(self.pst.alphabet_size)
+            for midfix in self._tree.midfixes()
+        ]
+        found = {}
+        for state in self._tree.leaves():
+            found[state] = NO_SPLIT
+            for distinguisher in candidates:
+                verdict = self.verdict(state, distinguisher)
+                if verdict == SPLIT:
+                    found[state] = SPLIT
+                    break
+                if verdict == UNDECIDED:
+                    found[state] = UNDECIDED
+        return found
+
     def _tally(self, state: int, distinguisher: bytes):
         """
         Group the leaf's members by the train half and count the disjoint

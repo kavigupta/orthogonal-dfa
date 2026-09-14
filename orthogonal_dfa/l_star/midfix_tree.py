@@ -89,6 +89,22 @@ class MidfixTree:
             node = node[1][branch]
         return node[0]
 
+    def midfixes(self) -> List[bytes]:
+        """Every internal node's midfix, in pre-order and deduplicated: one
+        split may reuse another's midfix on a different leaf."""
+        found = {}
+
+        def walk(node: Node) -> None:
+            if isinstance(node, int):
+                return
+            midfix, lookup = node
+            found[midfix] = None
+            for child in lookup.values():
+                walk(child)
+
+        walk(self._root)
+        return list(found)
+
     def accepting_leaves(self) -> set:
         """
         The leaves on the accept side of the root, i.e. the accepting states. Sound
