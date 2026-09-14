@@ -23,22 +23,16 @@ class _StubFamily:
     test_idx = list(range(1, 20, 2))
     train_idx = list(range(0, 20, 2))
 
-    def __init__(self, side_of=lambda p: True, accept_rate=None, only_for=None):
+    def __init__(self, side_of=lambda p, d: True, accept_rate=None):
         self.side_of = side_of
         self.accept_rate = accept_rate
-        #: The one distinguisher ``side_of`` answers for; every other puts the
-        #: whole leaf on one side.
-        self.only_for = only_for
         self.prefilled = []
 
     def prefill(self, bases):
         self.prefilled.extend(bases)
 
     def votes(self, prefix, distinguisher):
-        if self.only_for is not None and distinguisher != self.only_for:
-            side = True
-        else:
-            side = self.side_of(list(prefix))
+        side = self.side_of(list(prefix), distinguisher)
         rate = self.accept_rate(list(prefix)) if self.accept_rate else float(bool(side))
         votes = [0] * 20
         for i in self.train_idx:
@@ -67,7 +61,7 @@ def _pst():
     )
 
 
-def _evidence(family=None, members=(), state=0):
+def _evidence(family=None, members=(), state=0, splits=()):
     """A SplitEvidence over a population holding ``members`` at leaf ``state``.
 
     The classifier is a stub: members are placed directly at the leaf, so no
@@ -75,6 +69,8 @@ def _evidence(family=None, members=(), state=0):
     test_leaf_population.
     """
     tree = MidfixTree(())
+    for at, midfix in splits:
+        tree.split(at, midfix)
     population = LeafPopulation(
         tree,
         lambda strings, midfix: [None] * len(strings),
@@ -97,6 +93,13 @@ class TestMidfixesAreWhatCanBeProposed(unittest.TestCase):
 
         self.assertEqual([b"", bytes([5])], tree.midfixes())
 
+    def test_a_grandchild_contributes_too(self):
+        tree = MidfixTree(())
+        new = tree.split(0, bytes([5]))
+        tree.split(new, bytes([6]))
+
+        self.assertEqual([b"", bytes([5]), bytes([6])], tree.midfixes())
+
     def test_one_reused_on_another_leaf_is_listed_once(self):
         tree = MidfixTree(())
         tree.split(0, bytes([5]))
@@ -105,32 +108,53 @@ class TestMidfixesAreWhatCanBeProposed(unittest.TestCase):
         self.assertEqual([b"", bytes([5])], tree.midfixes())
 
 
-class TestEveryStateGetsAVerdict(unittest.TestCase):
-    """The pass weighs a state only where a probe disagreed there; this weighs
-    all of them, against everything the tree could have proposed."""
+#: Clear of the ~38 one-sided members `_agrees_as_one_state` needs, so these
+#: turn on what is asked rather than on how much was held.
+_PLENTY = 200
 
-    def test_a_state_nothing_reaches_is_not_ruled_final(self):
+
+class TestWhetherAnyStateCanStillSplit(unittest.TestCase):
+    def test_a_leaf_every_distinguisher_agrees_on_cannot(self):
         ev = _evidence(
-            _StubFamily(side_of=lambda p: True),
-            members=[bytes([i]) for i in range(200)],
+            _StubFamily(side_of=lambda p, d: True),
+            members=[bytes([i]) for i in range(_PLENTY)],
         )
 
-        self.assertEqual({0: NO_SPLIT, 1: UNDECIDED}, ev.verdicts())
+        self.assertTrue(ev.no_state_can_split())
 
-    def test_one_distinguisher_that_separates_is_enough(self):
-        # Splits only under b"\x01", which is symbol 1 over the root midfix --
-        # a distinguisher the tree can propose.
-        family = _StubFamily(side_of=lambda p: p[-1] == 0, only_for=bytes([1]))
-        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+    def test_one_that_separates_under_the_root_midfix_can(self):
+        family = _StubFamily(side_of=lambda p, d: d != bytes([1]) or p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(_PLENTY)])
 
-        self.assertEqual(SPLIT, ev.verdicts()[0])
+        self.assertFalse(ev.no_state_can_split())
 
-    def test_one_the_tree_cannot_propose_is_never_asked(self):
-        # The same separation, behind a distinguisher no node midfix builds.
-        family = _StubFamily(side_of=lambda p: p[-1] == 0, only_for=bytes([9]))
-        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
+    def test_one_that_separates_under_a_deeper_midfix_can(self):
+        # b"\x01\x05" is symbol 1 over the midfix a split put in the tree;
+        # nothing proposes it until that split exists.
+        family = _StubFamily(side_of=lambda p, d: d != bytes([1, 5]) or p[-1] == 0)
+        members = [bytes([i, i % 2]) for i in range(_PLENTY)]
 
-        self.assertEqual(NO_SPLIT, ev.verdicts()[0])
+        self.assertTrue(_evidence(family, members=members).no_state_can_split())
+        self.assertFalse(
+            _evidence(
+                family, members=members, splits=((0, bytes([5])),)
+            ).no_state_can_split()
+        )
+
+    def test_a_separation_no_symbol_reaches_is_never_asked(self):
+        # Symbol 9 is outside the alphabet, so no candidate is built from it.
+        family = _StubFamily(side_of=lambda p, d: d != bytes([9]) or p[-1] == 0)
+        ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(_PLENTY)])
+
+        self.assertTrue(ev.no_state_can_split())
+
+    def test_a_thin_leaf_is_not_waited_on(self):
+        # Too few members for `_agrees_as_one_state`, and no split available:
+        # undecided forever is not a reason to keep going.
+        ev = _evidence(_StubFamily(), members=[bytes([i]) for i in range(5)])
+
+        self.assertEqual(UNDECIDED, ev.verdict(0, bytes([1])))
+        self.assertTrue(ev.no_state_can_split())
 
 
 class TestVerdict(unittest.TestCase):
@@ -138,7 +162,7 @@ class TestVerdict(unittest.TestCase):
     def test_a_clean_bifurcation_splits(self):
         # Half the members on each side, every one decisive: the two-rate model
         # beats the pooled one by a mile.
-        family = _StubFamily(side_of=lambda p: p[-1] == 0)
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
         ev = _evidence(family, members=[bytes([i, i % 2]) for i in range(40)])
         self.assertEqual(SPLIT, ev.verdict(0, bytes([1])))
 
@@ -147,10 +171,10 @@ class TestVerdict(unittest.TestCase):
         # one-state test decides it -- a zero minority over enough members rules
         # a split out.
         ev = _evidence(
-            _StubFamily(side_of=lambda p: True),
+            _StubFamily(side_of=lambda p, d: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, r1, a2, r2, n_a, n_b = ev._tally(0, bytes([1]))
+        a1, r1, a2, r2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
         self.assertEqual((200, 0), (n_a, n_b))
         self.assertEqual(0.0, ev._log_bf_scores(a1, r1, a2, r2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
@@ -158,7 +182,8 @@ class TestVerdict(unittest.TestCase):
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):
         # The same agreement, too few members to rule a split out: UNDECIDED.
         ev = _evidence(
-            _StubFamily(side_of=lambda p: True), members=[bytes([i]) for i in range(5)]
+            _StubFamily(side_of=lambda p, d: True),
+            members=[bytes([i]) for i in range(5)],
         )
         self.assertEqual(UNDECIDED, ev.verdict(0, bytes([1])))
 

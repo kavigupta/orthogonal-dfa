@@ -26,7 +26,6 @@ from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import aim_at, state_source
 from .progress import track
-from .split_evidence import NO_SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -144,7 +143,6 @@ def _grow_representative_pool(
     min_indecisive,
     per_state,
 ):
-    """Rebuild the pool, returning its size."""
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
@@ -165,17 +163,6 @@ def _grow_representative_pool(
     return int(pst.table.representative.sum())
 
 
-def tree_is_saturated(resolver) -> bool:
-    """Whether this round's states are final: no distinguisher the tree can
-    propose splits any of them, and none is left undecided for want of members.
-
-    A state still carrying a split is one more probing would have found; one
-    still undecided is one more members would settle.  Either way the round has
-    somewhere to go, which is what another round is for.
-    """
-    return all(v == NO_SPLIT for v in resolver.splits.verdicts().values())
-
-
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
@@ -185,7 +172,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. The tree is saturated (see `tree_is_saturated`)
+    3. No distinguisher the tree can propose still splits a state
 
     This catches a situation where the fixed-length probes can't find any information
     about transient states.
@@ -199,8 +186,10 @@ class _StallDetector:
         self._states = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, saturated: bool) -> bool:
-        progressed = states > self._states or improved or not saturated
+    def stalled(self, *, states: int, improved: bool, settled) -> bool:
+        """``settled`` is called only where the first two conditions hold, the
+        sweep behind it being the expensive one."""
+        progressed = states > self._states or improved or not settled()
         self._stalled = 0 if progressed else self._stalled + 1
         self._states = states
         return self._stalled >= self._patience
@@ -321,7 +310,7 @@ def counterexample_driven_synthesis(
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            saturated=tree_is_saturated(resolver),
+            settled=resolver.splits.no_state_can_split,
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
