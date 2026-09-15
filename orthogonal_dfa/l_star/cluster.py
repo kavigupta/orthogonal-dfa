@@ -146,34 +146,58 @@ def _split_counts(pst, decision, column):
     return tuple(counts)
 
 
+#: The drift the gate is calibrated to catch: a cut wrong on this fraction of the
+#: side it accepts (or rejects) reads as drifted.  Smaller values certify a tighter
+#: guarantee and need more prefixes to do it, since the power against a drift of
+#: ``gamma`` goes as ``exp(-2 n (s gamma)^2)``.
+ACCEPT_PRESERVING_DRIFT = 0.05
+
+
+def gate_rates(pst):
+    """The rates the accept and reject sides of the split are held to.
+
+    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so a prefix
+    the cut calls accepting reads as accepting on the split's column with probability
+    ``1 - eta`` when the cut is right, and only ``eta`` when it is not.  A cut wrong on
+    a ``gamma`` fraction of that side therefore reads at ``(1 - eta) - gamma (1 - 2 eta)``.
+    Putting the null midway between that and ``1 - eta`` separates the two, with a gap of
+    ``s gamma`` on each side, where ``s = 1/2 - eta``.
+
+    The vote thresholds cannot serve as the null.  ``accept_thresh`` is calibrated as a
+    cutoff on the *vote*, and sits a fixed distance below ``1 - eta``; holding the side to
+    it means drift finer than that distance reads as clean however many prefixes are
+    certified on.  The resolution floor is the distance, not the sample size, so no amount
+    of sampling removes it.  That is the one thing the split's column can only be read for
+    by naming the signal, which ``_screen_cohort`` already does.
+    """
+    s = pst.config.min_signal_strength
+    eta = 0.5 - s
+    gap = s * ACCEPT_PRESERVING_DRIFT
+    return (1 - eta) - gap, eta + gap
+
+
 def drift_verdict(pst, counts) -> str:
     """Whether each side of the cut reads as its own class on the split, or as
     the other's, or whether the counts do not say.
 
-    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
-    split's column says what the oracle makes of the prefixes themselves.  A
-    family realises the accept-preserving split when the prefixes it calls
-    accepting read there as accepting -- by the same thresholds the family is
-    read with, since it is that reading being checked and not another.
-
-    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
-    Neither is a rate anything has to be estimated against, which is what a gap
-    between the sides would have needed, and would have had to name a signal for.
+    The sides are held to the rates a correct cut would show, offset towards the rates a
+    drifted one would -- see ``gate_rates``.
     """
     hits_a, n_a = counts[0]
     hits_r, n_r = counts[1]
+    accept_rate, reject_rate = gate_rates(pst)
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     # Both sides must clear their own test, so between them they cannot exceed
     # the rate either one spends.
     if (
-        scipy.stats.binom.sf(hits_a - 1, n_a, pst.accept_thresh) <= alpha
-        and scipy.stats.binom.cdf(hits_r, n_r, pst.reject_thresh) <= alpha
+        scipy.stats.binom.sf(hits_a - 1, n_a, accept_rate) <= alpha
+        and scipy.stats.binom.cdf(hits_r, n_r, reject_rate) <= alpha
     ):
         return ADMITTED
     # Either side drifting on its own is enough to say so, so they share.
     if (
-        scipy.stats.binom.cdf(hits_a, n_a, pst.accept_thresh) <= alpha / 2
-        or scipy.stats.binom.sf(hits_r - 1, n_r, pst.reject_thresh) <= alpha / 2
+        scipy.stats.binom.cdf(hits_a, n_a, accept_rate) <= alpha / 2
+        or scipy.stats.binom.sf(hits_r - 1, n_r, reject_rate) <= alpha / 2
     ):
         return DRIFTED
     return UNCERTIFIED
@@ -246,12 +270,13 @@ class AcceptPreservingGate:
             hits_a, n_a = counts[0]
             hits_r, n_r = counts[1]
             read = "read" if verdict is DRIFTED else "could not be read"
+            accept_rate, reject_rate = gate_rates(pst)
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
                 f"classes: the last put {hits_a / max(n_a, 1):.0%} of the prefixes it "
                 f"accepts and {hits_r / max(n_r, 1):.0%} of those it rejects on the "
-                f"accepting side of the empty suffix, against thresholds of "
-                f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
+                f"accepting side of the empty suffix, against rates of "
+                f"{accept_rate:.0%} and {reject_rate:.0%}; no suffix "
                 f"family realises the accept-preserving split on this target"
             )
         return verdict
