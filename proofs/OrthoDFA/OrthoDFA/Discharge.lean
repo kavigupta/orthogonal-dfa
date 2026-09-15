@@ -47,7 +47,9 @@ theorem certErr_bound
   set t := certMargin n α with ht
   have htnn : 0 ≤ t := Real.sqrt_nonneg _
   have hbound :=
-    wrongDecisive_le Xc n (β + τ) t hmeas h_indep hIcc hmean_sum htnn
+    wrongDecisive_le Xc (Finset.range n) (β + τ) t hmeas h_indep hIcc
+      (by simpa [Finset.card_range] using hmean_sum) htnn
+  rw [Finset.card_range] at hbound
   refine hbound.trans_eq ?_
   have hnne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
   have h1α : (1 : ℝ) ≤ 1 / α := by rw [le_div_iff₀ hα0, one_mul]; exact hα1
@@ -66,16 +68,16 @@ theorem certErr_bound
 family: per-read mean `β-s`).  The vote failing to decide REJECT (sum reaching
 `k(β-τ)`, i.e. indecisive or wrongly accepted) has probability at most
 `exp(-2k(s-τ)²)`. -/
-theorem misplacedNonmember_le
-    (X : ℕ → Ω → ℝ) (k : ℕ) (β s τ : ℝ)
+theorem misplacedNonmember_le {ι : Type*}
+    (X : ι → Ω → ℝ) (idx : Finset ι) (β s τ : ℝ)
     (hmeas : ∀ i, AEMeasurable (X i) μ)
     (h_indep : iIndepFun X μ)
     (hIcc : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean_sum : ∑ i ∈ Finset.range k, μ[X i] ≤ (k : ℝ) * (β - s))
+    (hmean_sum : ∑ i ∈ idx, μ[X i] ≤ (idx.card : ℝ) * (β - s))
     (hτs : τ ≤ s) :
-    μ.real {ω | (k : ℝ) * (β - τ) ≤ ∑ i ∈ Finset.range k, X i ω}
-      ≤ Real.exp (-2 * (k : ℝ) * (s - τ) ^ 2) := by
-  have h := wrongDecisive_le X k (β - s) (s - τ) hmeas h_indep hIcc hmean_sum (by linarith)
+    μ.real {ω | (idx.card : ℝ) * (β - τ) ≤ ∑ i ∈ idx, X i ω}
+      ≤ Real.exp (-2 * (idx.card : ℝ) * (s - τ) ^ 2) := by
+  have h := wrongDecisive_le X idx (β - s) (s - τ) hmeas h_indep hIcc hmean_sum (by linarith)
   have heq : (β - s) + (s - τ) = β - τ := by ring
   simpa only [heq] using h
 
@@ -84,16 +86,16 @@ theorem misplacedNonmember_le
 family).  The vote failing to decide ACCEPT (sum at most `k(β+τ)`) has probability
 at most `exp(-2k(s-τ)²)`.  Proved from the non-member side via the reflection
 `X ↦ 1-X`. -/
-theorem misplacedMember_le
-    (X : ℕ → Ω → ℝ) (k : ℕ) (β s τ : ℝ)
+theorem misplacedMember_le {ι : Type*}
+    (X : ι → Ω → ℝ) (idx : Finset ι) (β s τ : ℝ)
     (hmeas : ∀ i, AEMeasurable (X i) μ)
     (h_indep : iIndepFun X μ)
     (hIcc : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean_sum : (k : ℝ) * (β + s) ≤ ∑ i ∈ Finset.range k, μ[X i])
+    (hmean_sum : (idx.card : ℝ) * (β + s) ≤ ∑ i ∈ idx, μ[X i])
     (hτs : τ ≤ s) :
-    μ.real {ω | ∑ i ∈ Finset.range k, X i ω ≤ (k : ℝ) * (β + τ)}
-      ≤ Real.exp (-2 * (k : ℝ) * (s - τ) ^ 2) := by
-  set X' : ℕ → Ω → ℝ := fun i ω => 1 - X i ω with hX'
+    μ.real {ω | ∑ i ∈ idx, X i ω ≤ (idx.card : ℝ) * (β + τ)}
+      ≤ Real.exp (-2 * (idx.card : ℝ) * (s - τ) ^ 2) := by
+  set X' : ι → Ω → ℝ := fun i ω => 1 - X i ω with hX'
   have hmeas' : ∀ i, AEMeasurable (X' i) μ := fun i => (hmeas i).const_sub 1
   have hindep' : iIndepFun X' μ :=
     h_indep.comp (fun _ => fun x : ℝ => 1 - x) (fun _ => measurable_const.sub measurable_id)
@@ -108,20 +110,19 @@ theorem misplacedMember_le
     have huniv : μ.real Set.univ = 1 := by
       simp [MeasureTheory.measureReal_def, measure_univ]
     rw [huniv]; ring
-  have hmean_sum' : ∑ i ∈ Finset.range k, μ[X' i] ≤ (k : ℝ) * ((1 - β) - s) := by
-    have hrw : ∑ i ∈ Finset.range k, μ[X' i]
-        = (k : ℝ) - ∑ i ∈ Finset.range k, μ[X i] := by
+  have hmean_sum' : ∑ i ∈ idx, μ[X' i] ≤ (idx.card : ℝ) * ((1 - β) - s) := by
+    have hrw : ∑ i ∈ idx, μ[X' i] = (idx.card : ℝ) - ∑ i ∈ idx, μ[X i] := by
       rw [Finset.sum_congr rfl (fun i _ => hmeanX' i), Finset.sum_sub_distrib,
-        Finset.sum_const, Finset.card_range]
+        Finset.sum_const]
       simp [nsmul_eq_mul]
     rw [hrw]; nlinarith [hmean_sum]
-  have h := wrongDecisive_le X' k ((1 - β) - s) (s - τ) hmeas' hindep' hIcc' hmean_sum'
+  have h := wrongDecisive_le X' idx ((1 - β) - s) (s - τ) hmeas' hindep' hIcc' hmean_sum'
     (by linarith)
   refine le_trans (le_of_eq ?_) h
   congr 1
   ext ω
   simp only [Set.mem_setOf_eq, hX', Finset.sum_sub_distrib, Finset.sum_const,
-    Finset.card_range, nsmul_eq_mul, mul_one]
+    nsmul_eq_mul, mul_one]
   constructor
   · intro hle; nlinarith [hle]
   · intro hge; nlinarith [hge]

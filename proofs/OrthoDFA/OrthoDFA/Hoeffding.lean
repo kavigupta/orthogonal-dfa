@@ -18,16 +18,16 @@ For a vote (`k` i.i.d. reads of one string) the count is exactly `Bin(k, β±s)`
 so this sub-Gaussian bound is a conservative overestimate of the exact binomial
 tail the code computes; it is used to keep the trusted base at Lean core, since
 Mathlib lacks a "sum of i.i.d. Bernoulli = `Bin(k,p)`" law. -/
-theorem wrongDecisive_le
-    (X : ℕ → Ω → ℝ) (k : ℕ) (β τ : ℝ)
+theorem wrongDecisive_le {ι : Type*}
+    (X : ι → Ω → ℝ) (s : Finset ι) (β τ : ℝ)
     (hmeas : ∀ i, AEMeasurable (X i) μ)
     (h_indep : iIndepFun X μ)
     (hIcc : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean_sum : ∑ i ∈ Finset.range k, μ[X i] ≤ (k : ℝ) * β) (hτ : 0 ≤ τ) :
-    μ.real {ω | (k : ℝ) * (β + τ) ≤ ∑ i ∈ Finset.range k, X i ω}
-      ≤ Real.exp (-2 * (k : ℝ) * τ ^ 2) := by
+    (hmean_sum : ∑ i ∈ s, μ[X i] ≤ (s.card : ℝ) * β) (hτ : 0 ≤ τ) :
+    μ.real {ω | (s.card : ℝ) * (β + τ) ≤ ∑ i ∈ s, X i ω}
+      ≤ Real.exp (-2 * (s.card : ℝ) * τ ^ 2) := by
   -- Centered reads.
-  set Y : ℕ → Ω → ℝ := fun i ω => X i ω - μ[X i] with hYdef
+  set Y : ι → Ω → ℝ := fun i ω => X i ω - μ[X i] with hYdef
   -- Independence of the centered reads.
   have hYindep : iIndepFun Y μ := by
     have h := h_indep.comp (fun i => fun x : ℝ => x - μ[X i])
@@ -36,25 +36,25 @@ theorem wrongDecisive_le
   -- Each centered read is sub-Gaussian with constant 1/4.
   have hc4 : ((‖(1:ℝ) - 0‖₊) / 2) ^ 2 = (1 / 4 : ℝ≥0) := by
     norm_num
-  have hsub : ∀ i < k, HasSubgaussianMGF (Y i) (1 / 4 : ℝ≥0) μ := by
+  have hsub : ∀ i ∈ s, HasSubgaussianMGF (Y i) (1 / 4 : ℝ≥0) μ := by
     intro i _
     have h := hasSubgaussianMGF_of_mem_Icc (hmeas i) (hIcc i)
     rwa [hc4] at h
   -- Hoeffding bound for the sum of the centered reads.
-  have hε : (0:ℝ) ≤ (k:ℝ) * τ := by positivity
+  have hε : (0:ℝ) ≤ (s.card:ℝ) * τ := by positivity
   have hmain :=
-    HasSubgaussianMGF.measure_sum_range_ge_le_of_iIndepFun hYindep
-      (c := (1 / 4 : ℝ≥0)) (n := k) hsub hε
+    HasSubgaussianMGF.measure_sum_ge_le_of_iIndepFun hYindep
+      (c := fun _ => (1 / 4 : ℝ≥0)) (s := s) hsub hε
   -- Sum of the means is at most k·β (the hypothesis).
-  have hsum_mean : ∑ i ∈ Finset.range k, μ[X i] ≤ (k : ℝ) * β := hmean_sum
+  have hsum_mean : ∑ i ∈ s, μ[X i] ≤ (s.card : ℝ) * β := hmean_sum
   -- Event inclusion.
   have hsubset :
-      {ω | (k:ℝ) * (β + τ) ≤ ∑ i ∈ Finset.range k, X i ω}
-        ⊆ {ω | (k:ℝ) * τ ≤ ∑ i ∈ Finset.range k, Y i ω} := by
+      {ω | (s.card:ℝ) * (β + τ) ≤ ∑ i ∈ s, X i ω}
+        ⊆ {ω | (s.card:ℝ) * τ ≤ ∑ i ∈ s, Y i ω} := by
     intro ω hω
     simp only [Set.mem_setOf_eq] at hω ⊢
-    have hpush : ∑ i ∈ Finset.range k, Y i ω
-        = (∑ i ∈ Finset.range k, X i ω) - ∑ i ∈ Finset.range k, μ[X i] := by
+    have hpush : ∑ i ∈ s, Y i ω
+        = (∑ i ∈ s, X i ω) - ∑ i ∈ s, μ[X i] := by
       simp only [hYdef, Finset.sum_sub_distrib]
     rw [hpush]
     nlinarith [hω, hsum_mean]
@@ -62,11 +62,11 @@ theorem wrongDecisive_le
   have hmono := measureReal_mono (μ := μ) hsubset
   refine (hmono.trans hmain).trans_eq ?_
   -- Simplify the exponent.
-  rw [show ((1 / 4 : ℝ≥0) : ℝ) = 1 / 4 by norm_num]
   congr 1
-  rcases Nat.eq_zero_or_pos k with hk | hk
-  · subst hk; simp
-  · have hkne : (k:ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hk.ne'
+  push_cast [Finset.sum_const, nsmul_eq_mul]
+  rcases Finset.eq_empty_or_nonempty s with rfl | hs
+  · simp
+  · have hkne : (s.card:ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Finset.card_pos.mpr hs).ne'
     field_simp
     ring
 

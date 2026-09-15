@@ -9,5 +9,5 @@ import OrthoDFA.Algorithm
 import OrthoDFA.Capstone
 import OrthoDFA.Liveness
 import OrthoDFA.Complexity
-import OrthoDFA.PAC
 import OrthoDFA.EndToEnd
+import OrthoDFA.Distributional

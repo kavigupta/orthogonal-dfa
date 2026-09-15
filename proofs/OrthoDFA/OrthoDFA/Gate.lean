@@ -37,8 +37,9 @@ theorem cleanAdmit_le (X : ℕ → Ω → ℝ) (m : ℕ) (β s τ margin : ℝ)
     (hmargin : margin ≤ s - τ) :
     μ.real {ω | ∑ i ∈ Finset.range m, X i ω ≤ (m : ℝ) * ((β + τ) + margin)}
       ≤ Real.exp (-2 * (m : ℝ) * ((s - τ) - margin) ^ 2) := by
-  have h := sumLower_le X m (β + s) ((s - τ) - margin) hmeas h_indep hIcc hmean
-    (by linarith)
+  have h := sumLower_le X (Finset.range m) (β + s) ((s - τ) - margin) hmeas h_indep hIcc
+    (by simpa [Finset.card_range] using hmean) (by linarith)
+  rw [Finset.card_range] at h
   simpa only [show (β + s) - ((s - τ) - margin) = (β + τ) + margin by ring] using h
 
 /-- **Gate accepts an accept-preserving family (FNR check).**  If the per-prefix
@@ -51,7 +52,9 @@ theorem apLowFNR_le (I : ℕ → Ω → ℝ) (m : ℕ) (fnrpp εfnr : ℝ)
     (hle : fnrpp ≤ εfnr) :
     μ.real {ω | (m : ℝ) * εfnr ≤ ∑ i ∈ Finset.range m, I i ω}
       ≤ Real.exp (-2 * (m : ℝ) * (εfnr - fnrpp) ^ 2) := by
-  have h := sumUpper_le I m fnrpp (εfnr - fnrpp) hmeas h_indep hIcc hmean (by linarith)
+  have h := sumUpper_le I (Finset.range m) fnrpp (εfnr - fnrpp) hmeas h_indep hIcc
+    (by simpa [Finset.card_range] using hmean) (by linarith)
+  rw [Finset.card_range] at h
   simpa only [show fnrpp + (εfnr - fnrpp) = εfnr by ring] using h
 
 #print axioms cleanAdmit_le
