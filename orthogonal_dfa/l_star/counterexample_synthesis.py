@@ -169,17 +169,13 @@ def _grow_representative_pool(
     dfa,
     state,
     *,
-    indecisive_fraction,
-    min_indecisive,
+    target,
     per_state,
 ):
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    taken = 0
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
-            taken += 1
     by_state = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
@@ -192,7 +188,7 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum()), target - taken
+    return int(pst.table.representative.sum())
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -323,14 +319,12 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool, room = _grow_representative_pool(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
+        # The round's boundary intake, which its own probing and then the
+        # sweep fill between them.
+        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+        held = len(state.accumulated)
+        pool = _grow_representative_pool(
+            pst, resolver, dfa, state, target=target, per_state=per_state
         )
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
@@ -349,7 +343,7 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
-        _keep_indecisive(resolver, state, room)
+        _keep_indecisive(resolver, state, target - (len(state.accumulated) - held))
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
