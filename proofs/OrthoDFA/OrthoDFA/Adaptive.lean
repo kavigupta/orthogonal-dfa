@@ -119,71 +119,128 @@ noncomputable def cfgRej (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
-/-- What a run draws: the oracle's persistent noise sample, an unbounded i.i.d. stream of
-candidate suffixes from `Dsf`, and for each population an unbounded i.i.d. stream of
-prefixes from `D j` — with their laws and independence.  This is the algorithm's
-randomness; nothing here is left unconstrained. -/
+/-- What a run draws, with its **exact joint law**.
+
+Both streams are drawn *without replacement*: `_draw_cohort` skips suffixes already in
+the table (`if self.table.contains_suffix(v): continue`) and `sample_more_prefixes` skips
+prefixes already drawn.  So a block of `n` draws is i.i.d. **conditioned on being
+distinct** — precisely rejection sampling, which is what `law_joint` says.
+
+`law_joint` is a single equation fixing the whole joint law: the persistent noise, the
+suffix block, and the per-population prefix blocks are jointly independent, each block
+being its distribution's `n`-fold product conditioned on distinctness.  No independence
+assumption is left implicit. -/
 structure Draws {Ξ : Type*} [MeasurableSpace Ξ] (ν : Measure Ξ) (μ : Measure Ω)
-    {J : Type*} (D : J → Measure S) (Dsf : Measure S) where
+    {J : Type*} [Fintype J] (D : J → Measure S) (Dsf : Measure S) where
   nz : Ξ → Ω
   sfx : ℕ → Ξ → S
   prf : J → ℕ → Ξ → S
   meas_nz : Measurable nz
   meas_sfx : ∀ i, Measurable (sfx i)
   meas_prf : ∀ j i, Measurable (prf j i)
-  law_nz : Measure.map nz ν = μ
-  law_sfx : ∀ i, Measure.map (sfx i) ν = Dsf
-  law_prf : ∀ j i, Measure.map (prf j i) ν = D j
-  indep_sfx : iIndepFun sfx ν
-  indep_prf : iIndepFun (fun q : J × ℕ => prf q.1 q.2) ν
-  indep_nz_sfx : ∀ i, IndepFun nz (sfx i) ν
-  indep_nz_prf : ∀ j i, IndepFun nz (prf j i) ν
+  law_joint : ∀ n : ℕ,
+    Measure.map (fun x => (nz x, (fun i : Fin n => sfx i.val x),
+        (fun (j : J) (i : Fin n) => prf j i.val x))) ν
+      = μ.prod
+          ((ProbabilityTheory.cond (Measure.pi fun _ : Fin n => Dsf)
+              {p : Fin n → S | Function.Injective p}).prod
+            (Measure.pi (fun j : J => ProbabilityTheory.cond
+              (Measure.pi fun _ : Fin n => D j) {p : Fin n → S | Function.Injective p})))
 
 section Loop
 
-variable {Ξ : Type*} [MeasurableSpace Ξ] {ν : Measure Ξ} {J : Type*}
+variable {Ξ : Type*} [MeasurableSpace Ξ] {ν : Measure Ξ} {J : Type*} [Fintype J]
   {D : J → Measure S} {Dsf : Measure S}
 
 /-- Round `t`'s accumulated candidate suffix pool: the first `Mc t` suffixes drawn. -/
 noncomputable def pool (dr : Draws ν μ D Dsf) (Mc : ℕ → ℕ) (x : Ξ) (t : ℕ) : Finset S :=
   (Finset.range (Mc t)).image (fun i => dr.sfx i x)
 
-/-- The family proposed at round `t`: the least-loss `k`-subset of the accumulated pool,
-scored by the summed oracle reads over the round's prefixes across all populations. -/
-noncomputable def famAt (O : Oracle μ S) (populations : Finset J) (k : ℕ)
-    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (x : Ξ) (t : ℕ) : Finset S :=
-  leastLossSubset
-    (fun v => ∑ j ∈ populations, ∑ i ∈ Finset.range (mc t),
-      O.read (fun i' : ℕ => dr.prf j i' x) v i (dr.nz x))
-    (pool dr Mc x t) k
+open scoped Classical in
+/-- Round `t`'s representative prefixes: every population's draws, pooled. -/
+noncomputable def prefixesAt (dr : Draws ν μ D Dsf) (populations : Finset J) (mc : ℕ → ℕ)
+    (x : Ξ) (t : ℕ) : Finset S :=
+  populations.biUnion (fun j => (Finset.range (mc t)).image (fun i => dr.prf j i x))
 
 /-- The family's vote on a prefix: the mean membership query over the family. -/
 noncomputable def vote (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ :=
   (∑ v ∈ F, mq O (p * v) ω) / F.card
 
-/-- A prefix is *decided* by the family when its vote clears one of the thresholds;
-otherwise it lands in the indecisive band and counts towards the FNR. -/
-def decided (O : Oracle μ S) (accThresh rejThresh : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
-  accThresh ≤ vote O F p ω ∨ vote O F p ω < rejThresh
+open scoped Classical in
+/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to
+the cluster's **own** thresholded mean (`masks[cluster].mean(0) > decision_boundary`). -/
+noncomputable def hammingLoss (O : Oracle μ S) (F : Finset S) (b : ℝ) (P : Finset S)
+    (ω : Ω) (v : S) : ℝ :=
+  ((P.filter (fun p => ¬ ((mq O (p * v) ω = 1) ↔ b < vote O F p ω))).card : ℝ)
 
 open scoped Classical in
-/-- **The loop's return test** (PR #257: held per population, not over their union).
-The loop returns at round `t` when *every* population's indecisive fraction is within
-`fnrLimit`. -/
-noncomputable def ret (O : Oracle μ S) (populations : Finset J) (k : ℕ)
-    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (accThresh rejThresh fnrLimit : ℝ)
-    (t : ℕ) : Set Ξ :=
+/-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
+candidates. -/
+noncomputable def lloydStep (O : Oracle μ S) (b : ℝ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    (F : Finset S) : Finset S :=
+  leastLossSubset (hammingLoss O F b P ω) cands k
+
+/-- `identify_cluster_around` iterated to its fixed point.  The loss is a natural number
+bounded by `#P` and strictly decreases at each improving step, so `#P + 1` iterations
+from the seed `ε` already sit at the fixed point — the bound is derived, not a knob. -/
+noncomputable def clusterAround (O : Oracle μ S) (b : ℝ) (P cands : Finset S) (ω : Ω)
+    (k : ℕ) : Finset S :=
+  (lloydStep O b P cands ω k)^[P.card + 1] {(1 : S)}
+
+open scoped Classical in
+/-- The boundary update at the end of `identify_cluster_around`: the midpoint of the
+accept-side and reject-side prefix means, falling back to whichever side is nonempty. -/
+noncomputable def newBoundary (O : Oracle μ S) (F P : Finset S) (ω : Ω) (b : ℝ) : ℝ :=
+  let acc := P.filter (fun p => b < vote O F p ω)
+  let rej := P.filter (fun p => ¬ (b < vote O F p ω))
+  let am := (∑ p ∈ acc, vote O F p ω) / acc.card
+  let rm := (∑ p ∈ rej, vote O F p ω) / rej.card
+  if acc.Nonempty then (if rej.Nonempty then (am + rm) / 2 else am)
+  else (if rej.Nonempty then rm else b)
+
+/-- The decision boundary **as the loop carries it**: it starts at `1/2`
+(`decision_boundary : float = 0.5`) and each round replaces it with the boundary the
+round's own cluster induces. -/
+noncomputable def boundaryAt (O : Oracle μ S) (populations : Finset J)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (fpr fnr : ℝ) (x : Ξ) : ℕ → ℝ
+  | 0 => 1 / 2
+  | t + 1 =>
+      let b := boundaryAt O populations dr Mc mc fpr fnr x t
+      newBoundary O
+        (clusterAround O b (prefixesAt dr populations mc x t) (pool dr Mc x t) (dr.nz x)
+          (cfgK O fpr fnr b))
+        (prefixesAt dr populations mc x t) (dr.nz x) b
+
+/-- The family the loop proposes at round `t`: the cluster around `ε` in the accumulated
+pool, at that round's boundary and its derived family size. -/
+noncomputable def famAt (O : Oracle μ S) (populations : Finset J)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (fpr fnr : ℝ) (x : Ξ) (t : ℕ) : Finset S :=
+  clusterAround O (boundaryAt O populations dr Mc mc fpr fnr x t)
+    (prefixesAt dr populations mc x t) (pool dr Mc x t) (dr.nz x)
+    (cfgK O fpr fnr (boundaryAt O populations dr Mc mc fpr fnr x t))
+
+/-- A prefix is *decided* when the family's vote clears the round's accept or reject
+threshold; otherwise it lands in the indecisive band and counts towards the FNR. -/
+def decided (O : Oracle μ S) (b fpr fnr : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
+  cfgAcc O fpr fnr b ≤ vote O F p ω ∨ vote O F p ω < cfgRej O fpr fnr b
+
+open scoped Classical in
+/-- **The loop's return test** (PR #257: held per population, not over their union), at
+the round's own boundary and margin. -/
+noncomputable def ret (O : Oracle μ S) (populations : Finset J)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (fpr fnr fnrLimit : ℝ) (t : ℕ) : Set Ξ :=
   {x | ∀ j ∈ populations,
-    ((((Finset.range (mc t)).filter (fun i => ¬ decided O accThresh rejThresh
-        (famAt O populations k dr Mc mc x t) (dr.prf j i x) (dr.nz x))).card : ℝ))
+    (((Finset.range (mc t)).filter (fun i => ¬ decided O
+        (boundaryAt O populations dr Mc mc fpr fnr x t) fpr fnr
+        (famAt O populations dr Mc mc fpr fnr x t) (dr.prf j i x) (dr.nz x))).card : ℝ)
       ≤ fnrLimit * mc t}
 
 /-- Round `t`'s family is **invalid**: on some population it fails to preserve acceptance
 on a `1 − εcov` fraction. -/
-def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (k : ℕ)
-    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (εcov : ℝ) (t : ℕ) : Set Ξ :=
+def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ) (fpr fnr εcov : ℝ) (t : ℕ) : Set Ξ :=
   {x | ¬ ∀ j ∈ populations, 1 - εcov
-        ≤ (D j).real {p | ∀ v ∈ famAt O populations k dr Mc mc x t,
+        ≤ (D j).real {p | ∀ v ∈ famAt O populations dr Mc mc fpr fnr x t,
             O.label (p * v) = O.label p}}
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
@@ -196,22 +253,24 @@ modelled or itself proved correct.
 Proof plan (pieces in `Distributional.lean`): per round this is `clustering_budget` at
 that round's budget — the selection avoids suffixes of high distributional flip-mass
 (`ploss_good_upper` / `ploss_bad_lower`: two-level concentration against the *persistent*
-oracle, plus the collision term), and `coverage_of_summed_flip` turns per-suffix flip
-control into the per-population fraction.  Union-bound the rounds at `δ/2^(t+2)`, which
-is summable — this is what removes any bound on the number of rounds.  The open point is
-the collision mass at large `mc t`; see the module note. -/
+oracle), and `coverage_of_summed_flip` turns per-suffix flip control into the
+per-population fraction.  Union-bound the rounds at `δ/2^(t+2)`, which is summable — that
+is what removes any bound on the number of rounds.  Because the draws are now
+*without replacement*, the per-round concentration needs Hoeffding's 1963 result that
+sampling without replacement is at least as concentrated as with replacement (not in
+Mathlib; to be proved here). -/
 theorem validity_of_returned [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (fpr fnr center : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr fnr : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
-    ν.real (⋃ t, FailAt O populations D (cfgK O fpr fnr center) dr Mc mc εcov t) ≤ δ / 2 :=
+    ν.real (⋃ t, FailAt O populations D dr Mc mc fpr fnr εcov t) ≤ δ / 2 :=
   sorry
 
 /-- **Part 2 — the loop terminates.**
@@ -228,16 +287,14 @@ theorem loop_terminates [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (fpr fnr center fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr fnr fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (δ : ℝ) (hδ : 0 < δ) (hfnrLim : 0 < fnrLimit)
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
-    ν.real {x | ∀ t, x ∉ ret O populations (cfgK O fpr fnr center) dr Mc mc
-        (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit t}
-      ≤ δ / 2 :=
+    ν.real {x | ∀ t, x ∉ ret O populations dr Mc mc fpr fnr fnrLimit t} ≤ δ / 2 :=
   sorry
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
@@ -245,15 +302,16 @@ theorem loop_terminates [IsProbabilityMeasure ν]
 With probability `≥ 1 − δ` the adaptive loop **terminates**, and **whatever** family it
 returns preserves acceptance on `≥ 1 − εcov` of **each** prefix population.
 
-No fixed budget: the rounds range over all of `ℕ`, the pool and the prefix counts grow
-with the round, and the stopping time is data-dependent and arbitrary. -/
+Nothing is fixed or idealised: the rounds range over all of `ℕ`; the pool and prefix
+counts grow with the round; the decision boundary, evidence margin, thresholds and family
+size are **recomputed each round** from the oracle's signal as `build_pst` computes them;
+the cluster is the Lloyd fixed point against its own thresholded mean; the draws are
+without replacement; and the stopping time is data-dependent and arbitrary. -/
 theorem clustering_correct [IsProbabilityMeasure ν]
-    (O : Oracle μ S)
-    /- The distributions, one prefix distribution per "population", one for suffixes -/
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (fpr fnr center fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr fnr fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
@@ -261,19 +319,17 @@ theorem clustering_correct [IsProbabilityMeasure ν]
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
     1 - δ ≤ ν.real
-      {x | (∃ t, x ∈ ret O populations (cfgK O fpr fnr center) dr Mc mc
-              (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit t) ∧
+      {x | (∃ t, x ∈ ret O populations dr Mc mc fpr fnr fnrLimit t) ∧
         ∀ t, ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | ∀ v ∈ famAt O populations (cfgK O fpr fnr center) dr Mc mc x t,
+          ≤ (D j).real {p | ∀ v ∈ famAt O populations dr Mc mc fpr fnr x t,
               O.label (p * v) = O.label p}} := by
   have h := sound_and_terminating ν
-    (FailAt O populations D (cfgK O fpr fnr center) dr Mc mc εcov)
-    (ret O populations (cfgK O fpr fnr center) dr Mc mc
-      (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit) δ
-    (validity_of_returned O populations D Dsf dr Mc mc fpr fnr center hfpr hfnr
-      hsig hpop pAP hpAP hfind εcov hεcov δ hδ hMc hmc)
-    (loop_terminates O populations D Dsf dr Mc mc fpr fnr center fnrLimit hfpr hfnr
-      hsig hpop pAP hpAP hfind δ hδ hfnrLim hMc hmc)
+    (FailAt O populations D dr Mc mc fpr fnr εcov)
+    (ret O populations dr Mc mc fpr fnr fnrLimit) δ
+    (validity_of_returned O populations D Dsf dr Mc mc fpr fnr hfpr hfnr hsig hpop
+      pAP hpAP hfind εcov hεcov δ hδ hMc hmc)
+    (loop_terminates O populations D Dsf dr Mc mc fpr fnr fnrLimit hfpr hfnr hsig hpop
+      pAP hpAP hfind δ hδ hfnrLim hMc hmc)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
