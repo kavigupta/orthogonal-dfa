@@ -1,4 +1,5 @@
 import OrthoDFA.Distributional
+import Mathlib.Probability.ProductMeasure
 
 /-!
 # The adaptive clustering loop: the integrated theorem
@@ -26,14 +27,16 @@ Proof: the two-part decomposition —
 
 The composition is proved; the two halves are `sorry`, with their proof plans recorded.
 
-**Known modelling gap (flagged, not hidden).**  The prefix draws here are i.i.d. from
-each population, whereas `sample_more_prefixes` *rejects duplicates* — it samples without
-replacement.  The two agree except on collisions.  Sampling without replacement is
-strictly *more* concentrated (Hoeffding 1963), so i.i.d. is conservative per round; but
-the collision mass grows with the number of draws, so closing `validity_of_returned` at
-unbounded budgets will need either the without-replacement concentration or a non-atomic
-prefix distribution.  That is a gap in the *proof*, recorded rather than papered over by
-weakening the claim.
+`canonicalDraws` exhibits a run space, so the theorem is not vacuous.
+
+**Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
+distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
+and `sample_more_prefixes` *redraw* on a duplicate — they sample without replacement.
+Deduplicating i.i.d. draws yields a pool at most as large, so this is the conservative
+model; but the collision mass grows with the number of draws, so closing
+`validity_of_returned` at unbounded budgets will need either the without-replacement
+concentration (Hoeffding 1963) or a non-atomic prefix distribution.  That is a gap in the
+*proof*, recorded rather than papered over by weakening the claim.
 -/
 
 namespace OrthoDFA
@@ -121,15 +124,20 @@ noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
 
 /-- What a run draws, with its **exact joint law**.
 
-Both streams are drawn *without replacement*: `_draw_cohort` skips suffixes already in
-the table (`if self.table.contains_suffix(v): continue`) and `sample_more_prefixes` skips
-prefixes already drawn.  So a block of `n` draws is i.i.d. **conditioned on being
-distinct** — precisely rejection sampling, which is what `law_joint` says.
-
 `law_joint` is a single equation fixing the whole joint law: the persistent noise, the
-suffix block, and the per-population prefix blocks are jointly independent, each block
-being its distribution's `n`-fold product conditioned on distinctness.  No independence
-assumption is left implicit. -/
+suffix stream, and the per-population prefix streams are jointly independent, each stream
+i.i.d. from its distribution.  No independence assumption is left implicit, and
+`exists_draws` exhibits a space carrying it.
+
+The code deduplicates its draws — `_draw_cohort` skips suffixes already interned and
+`sample_more_prefixes` skips prefixes already drawn — and so does this development:
+`poolAt` and `prefixesAt` take `Finset.image` of the stream.  Deduplicating `n` i.i.d.
+draws is not the same as `n` draws *without replacement*; it yields a pool that is at
+most as large, so the guarantee proved here is the conservative one.  Do **not** state
+that law as "i.i.d. conditioned on the block being injective": those conditioned laws are
+inconsistent across `n` (for `Dsf = (½,¼,¼)` the first marginal of the `n = 2` law puts
+mass `⅖` on the first atom, not `½`), so no probability space carries them all and the
+resulting structure would be uninhabited. -/
 structure Draws {Ξ : Type*} [MeasurableSpace Ξ] (ν : Measure Ξ) (μ : Measure Ω)
     {J : Type*} [Fintype J] (D : J → Measure S) (Dsf : Measure S) where
   nz : Ξ → Ω
@@ -142,10 +150,65 @@ structure Draws {Ξ : Type*} [MeasurableSpace Ξ] (ν : Measure Ξ) (μ : Measur
     Measure.map (fun x => (nz x, (fun i : Fin n => sfx i.val x),
         (fun (j : J) (i : Fin n) => prf j i.val x))) ν
       = μ.prod
-          ((ProbabilityTheory.cond (Measure.pi fun _ : Fin n => Dsf)
-              {p : Fin n → S | Function.Injective p}).prod
-            (Measure.pi (fun j : J => ProbabilityTheory.cond
-              (Measure.pi fun _ : Fin n => D j) {p : Fin n → S | Function.Injective p})))
+          ((Measure.pi fun _ : Fin n => Dsf).prod
+            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)))
+
+/-! ## The run space is inhabited
+
+`clustering_correct` quantifies over run spaces, so it is worth nothing unless one exists.
+This section builds it: the i.i.d. streams come from Mathlib's infinite product measure,
+and reading off their first `n` coordinates gives the `n`-fold product. -/
+
+open scoped Classical in
+/-- Reading the first `n` coordinates of an i.i.d. stream. -/
+lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n : ℕ) :
+    MeasurePreserving (fun (p : ℕ → S) (i : Fin n) => p i.val)
+      (Measure.infinitePi fun _ : ℕ => D) (Measure.pi fun _ : Fin n => D) where
+  measurable := by fun_prop
+  map_eq := by
+    refine (Measure.pi_eq (μ := fun _ : Fin n => D) fun t ht => ?_).symm
+    have hpre : (fun (p : ℕ → S) (i : Fin n) => p i.val) ⁻¹' Set.univ.pi t
+        = Set.pi ↑(Finset.range n) (fun j => if h : j < n then t ⟨j, h⟩ else Set.univ) := by
+      ext p
+      simp only [Set.mem_preimage, Set.mem_pi, Set.mem_univ, forall_const, Finset.coe_range,
+        Set.mem_Iio]
+      refine ⟨fun h j hj => by rw [dif_pos hj]; exact h ⟨j, hj⟩, fun h i => ?_⟩
+      simpa [dif_pos i.isLt] using h i.val i.isLt
+    rw [Measure.map_apply (by fun_prop) (MeasurableSet.univ_pi ht), hpre,
+      Measure.infinitePi_pi]
+    · rw [← Fin.prod_univ_eq_prod_range]
+      exact Finset.prod_congr rfl fun i _ => by simp [dif_pos i.isLt]
+    · intro j _
+      split_ifs with h
+      exacts [ht ⟨j, h⟩, .univ]
+
+variable {J : Type*} [Fintype J]
+
+/-- The run space: persistent noise, an i.i.d. suffix stream, and an i.i.d. prefix stream
+per population, the three jointly independent. -/
+noncomputable def canonicalRun (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
+    Measure (Ω × ((ℕ → S) × (J → ℕ → S))) :=
+  μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))
+
+instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (canonicalRun μ D Dsf) := by
+  unfold canonicalRun; infer_instance
+
+/-- `clustering_correct` is not vacuous: its hypotheses are satisfiable. -/
+noncomputable def canonicalDraws (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] :
+    Draws (canonicalRun μ D Dsf) μ D Dsf where
+  nz := Prod.fst
+  sfx i x := x.2.1 i
+  prf j i x := x.2.2 j i
+  meas_nz := measurable_fst
+  meas_sfx _ := by fun_prop
+  meas_prf _ _ := by fun_prop
+  law_joint n :=
+    ((MeasurePreserving.id μ).prod
+      ((measurePreserving_finRestrict Dsf n).prod
+        (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).map_eq
 
 section Loop
 
