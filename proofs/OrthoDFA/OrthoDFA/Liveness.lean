@@ -189,16 +189,128 @@ theorem chosen_accept_preserving_whp {S : Type*} [DecidableEq S]
 
 #print axioms chosen_accept_preserving_whp
 
+/-- The **"reads fail to separate the classes"** event: some good candidate's loss
+reaches the upper band `m(ρlo+γ)`, or some bad candidate's loss drops to the lower
+band `m(ρhi-γ)`.  Its complement is the separation *trigger*: off `dSepCompl` the
+noisy losses split good strictly below bad, so the greedy avoids `bad`. -/
+def dSepCompl {S : Type*} [DecidableEq S] (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad]
+    (cands : Finset S) (m : ℕ) (ρlo ρhi γ : ℝ) (D : S → ℕ → Ω → ℝ) : Set Ω :=
+  (⋃ v ∈ cands.filter good, {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω}) ∪
+  (⋃ v ∈ cands.filter bad, {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)})
+
+/-- `dSepCompl` is measurable when the reads are. -/
+lemma dSepCompl_measurable {S : Type*} [DecidableEq S] (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad]
+    (cands : Finset S) (m : ℕ) (ρlo ρhi γ : ℝ) (D : S → ℕ → Ω → ℝ)
+    (hD : ∀ v i, Measurable (D v i)) :
+    MeasurableSet (dSepCompl good bad cands m ρlo ρhi γ D) :=
+  MeasurableSet.union
+    (Finset.measurableSet_biUnion _ (fun v _ =>
+      measurableSet_le measurable_const (Finset.measurable_sum _ (fun i _ => hD v i))))
+    (Finset.measurableSet_biUnion _ (fun v _ =>
+      measurableSet_le (Finset.measurable_sum _ (fun i _ => hD v i)) measurable_const))
+
+/-- **The separation trigger fires w.h.p.**  Under mean-loss separability, the reads
+fail to separate the classes (`dSepCompl`) with probability at most
+`#cands·exp(-2mγ²)`. -/
+lemma dSepCompl_prob {S : Type*} [DecidableEq S] (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (m : ℕ) (ρlo ρhi γ : ℝ) (D : S → ℕ → Ω → ℝ)
+    (hmeas : ∀ v i, AEMeasurable (D v i) μ)
+    (hindep : ∀ v, iIndepFun (D v) μ)
+    (hIcc : ∀ v i, ∀ᵐ ω ∂μ, D v i ω ∈ Set.Icc (0 : ℝ) 1)
+    (hgoodmean : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, μ[D v i] ≤ (m : ℝ) * ρlo)
+    (hbadmean : ∀ v ∈ cands, bad v → (m : ℝ) * ρhi ≤ ∑ i ∈ Finset.range m, μ[D v i])
+    (hγ : 0 ≤ γ) :
+    μ.real (dSepCompl good bad cands m ρlo ρhi γ D)
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) := by
+  classical
+  set E : ℝ := Real.exp (-2 * (m : ℝ) * γ ^ 2) with hE
+  have hbadUG : μ.real (⋃ v ∈ cands.filter good,
+      {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω})
+      ≤ ((cands.filter good).card : ℝ) * E := by
+    calc μ.real (⋃ v ∈ cands.filter good,
+          {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω})
+        ≤ ∑ v ∈ cands.filter good,
+          μ.real {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω} :=
+            measureReal_biUnion_le _ _
+      _ ≤ ∑ _v ∈ cands.filter good, E := Finset.sum_le_sum (fun v hv => by
+            obtain ⟨hvc, hvg⟩ := Finset.mem_filter.mp hv
+            exact sumUpper_le (D v) m ρlo γ (hmeas v) (hindep v) (hIcc v)
+              (hgoodmean v hvc hvg) hγ)
+      _ = ((cands.filter good).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hbadUB : μ.real (⋃ v ∈ cands.filter bad,
+      {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)})
+      ≤ ((cands.filter bad).card : ℝ) * E := by
+    calc μ.real (⋃ v ∈ cands.filter bad,
+          {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)})
+        ≤ ∑ v ∈ cands.filter bad,
+          μ.real {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)} :=
+            measureReal_biUnion_le _ _
+      _ ≤ ∑ _v ∈ cands.filter bad, E := Finset.sum_le_sum (fun v hv => by
+            obtain ⟨hvc, hvb⟩ := Finset.mem_filter.mp hv
+            exact sumLower_le (D v) m ρhi γ (hmeas v) (hindep v) (hIcc v)
+              (hbadmean v hvc hvb) hγ)
+      _ = ((cands.filter bad).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hcards : ((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)
+      ≤ (cands.card : ℝ) := by
+    have hdisjF : Disjoint (cands.filter good) (cands.filter bad) := by
+      rw [Finset.disjoint_filter]
+      exact fun v _ hvg hvb => hdisj v hvb hvg
+    have hu := Finset.card_union_of_disjoint hdisjF
+    have hle : (cands.filter good ∪ cands.filter bad).card ≤ cands.card :=
+      Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _) (Finset.filter_subset _ _))
+    rw [hu] at hle
+    exact_mod_cast hle
+  have hEnn : 0 ≤ E := (Real.exp_pos _).le
+  calc μ.real (dSepCompl good bad cands m ρlo ρhi γ D)
+      ≤ μ.real (⋃ v ∈ cands.filter good,
+            {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω})
+          + μ.real (⋃ v ∈ cands.filter bad,
+            {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)}) :=
+        measureReal_union_le _ _
+    _ ≤ ((cands.filter good).card : ℝ) * E + ((cands.filter bad).card : ℝ) * E :=
+        add_le_add hbadUG hbadUB
+    _ = (((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)) * E := by ring
+    _ ≤ (cands.card : ℝ) * E := mul_le_mul_of_nonneg_right hcards hEnn
+
+/-- **Off `dSepCompl`, the greedy avoids `bad`.**  For a fixed `ω` outside the
+separation-failure event, the good losses are strictly below the bad losses, so the
+selection lemma forces the least-loss `k`-subset to avoid `bad`. -/
+lemma avoids_bad_of_not_mem_dSepCompl {S : Type*} [DecidableEq S]
+    (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (k m : ℕ) (ρlo ρhi γ : ℝ) (D : S → ℕ → Ω → ℝ)
+    (hgap : ρlo + γ ≤ ρhi - γ)
+    (goodCount : k ≤ (cands.filter good).card)
+    (chosen : Finset S) (hsub : chosen ⊆ cands) (hcard : chosen.card = k)
+    {ω : Ω}
+    (hleast : ∀ v ∈ chosen, ∀ w ∈ cands, w ∉ chosen →
+        (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω)
+    (hω : ω ∉ dSepCompl good bad cands m ρlo ρhi γ D) :
+    ∀ w ∈ chosen, ¬ bad w := by
+  rw [dSepCompl, Set.mem_union, not_or] at hω
+  obtain ⟨hnG, hnB⟩ := hω
+  refine chosen_avoids_bad (fun v => ∑ i ∈ Finset.range m, D v i ω) good bad hdisj cands
+    chosen k hsub hcard hleast goodCount ?_
+  intro v hv w hw hvg hwb
+  have h1 : ∑ i ∈ Finset.range m, D v i ω < (m : ℝ) * (ρlo + γ) := by
+    by_contra h
+    exact hnG (Set.mem_iUnion₂.mpr ⟨v, Finset.mem_filter.mpr ⟨hv, hvg⟩, not_lt.mp h⟩)
+  have h2 : (m : ℝ) * (ρhi - γ) < ∑ i ∈ Finset.range m, D w i ω := by
+    by_contra h
+    exact hnB (Set.mem_iUnion₂.mpr ⟨w, Finset.mem_filter.mpr ⟨hw, hwb⟩, not_lt.mp h⟩)
+  have hmid : (m : ℝ) * (ρlo + γ) ≤ (m : ℝ) * (ρhi - γ) :=
+    mul_le_mul_of_nonneg_left hgap (Nat.cast_nonneg m)
+  linarith
+
 /-- **Coverage-free liveness: the greedy avoids the bad set, w.h.p.**
 `good v` (flip of D-mass ≤ ρlo) and `bad v` (flip of D-mass ≥ ρhi ≈ ε_cov) are
-*definitional* w.r.t. the target — no coverage assumption.  The mean-loss bounds
-`hgoodmean`/`hbadmean` are just those D-mass bounds (the loss over `m` D-sampled
-prefixes has mean = the flip's D-mass · m), so `hbadmean` holds because a bad
-flip's mass is ≥ ρhi *by definition*, and a large D-pool exposes it.  Then the
-greedy's least-loss `k`-subset avoids `bad` except w.p. ≤ `#cands·exp(-2mγ²)`.
-
-This is the fix for coverage: "reaches separability" is "sample a large enough
-D-pool", derived here, not assumed. -/
+*definitional* w.r.t. the target — no coverage assumption.  The greedy's least-loss
+`k`-subset avoids `bad` except w.p. ≤ `#cands·exp(-2mγ²)`.  A three-line corollary
+of the separation trigger: the failure set sits inside `dSepCompl`. -/
 theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
     (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
     (hdisj : ∀ v, bad v → ¬ good v)
@@ -217,67 +329,14 @@ theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
         (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω) :
     μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
       ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) := by
-  classical
-  set E : ℝ := Real.exp (-2 * (m : ℝ) * γ ^ 2) with hE
-  set UG : Set Ω := ⋃ v ∈ cands.filter good,
-    {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω} with hUG
-  set UB : Set Ω := ⋃ v ∈ cands.filter bad,
-    {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)} with hUB
-  have hbadUG : μ.real UG ≤ ((cands.filter good).card : ℝ) * E := by
-    calc μ.real UG ≤ ∑ v ∈ cands.filter good,
-          μ.real {ω | (m : ℝ) * (ρlo + γ) ≤ ∑ i ∈ Finset.range m, D v i ω} :=
-            measureReal_biUnion_le _ _
-      _ ≤ ∑ _v ∈ cands.filter good, E := Finset.sum_le_sum (fun v hv => by
-            obtain ⟨hvc, hvg⟩ := Finset.mem_filter.mp hv
-            exact sumUpper_le (D v) m ρlo γ (hmeas v) (hindep v) (hIcc v)
-              (hgoodmean v hvc hvg) hγ)
-      _ = ((cands.filter good).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
-  have hbadUB : μ.real UB ≤ ((cands.filter bad).card : ℝ) * E := by
-    calc μ.real UB ≤ ∑ v ∈ cands.filter bad,
-          μ.real {ω | ∑ i ∈ Finset.range m, D v i ω ≤ (m : ℝ) * (ρhi - γ)} :=
-            measureReal_biUnion_le _ _
-      _ ≤ ∑ _v ∈ cands.filter bad, E := Finset.sum_le_sum (fun v hv => by
-            obtain ⟨hvc, hvb⟩ := Finset.mem_filter.mp hv
-            exact sumLower_le (D v) m ρhi γ (hmeas v) (hindep v) (hIcc v)
-              (hbadmean v hvc hvb) hγ)
-      _ = ((cands.filter bad).card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
-  have hincl : {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w} ⊆ UG ∪ UB := by
+  have hsubset : {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
+      ⊆ dSepCompl good bad cands m ρlo ρhi γ D := by
     intro ω hω
     by_contra hnot
-    rw [Set.mem_union, not_or] at hnot
-    obtain ⟨hnG, hnB⟩ := hnot
-    apply hω
-    refine chosen_avoids_bad (fun v => ∑ i ∈ Finset.range m, D v i ω) good bad hdisj cands
-      (chosen ω) k (hsub ω) (hcard ω) (hleast ω) goodCount ?_
-    intro v hv w hw hvg hwb
-    have h1 : ∑ i ∈ Finset.range m, D v i ω < (m : ℝ) * (ρlo + γ) := by
-      by_contra h
-      exact hnG (Set.mem_iUnion₂.mpr ⟨v, Finset.mem_filter.mpr ⟨hv, hvg⟩, not_lt.mp h⟩)
-    have h2 : (m : ℝ) * (ρhi - γ) < ∑ i ∈ Finset.range m, D w i ω := by
-      by_contra h
-      exact hnB (Set.mem_iUnion₂.mpr ⟨w, Finset.mem_filter.mpr ⟨hw, hwb⟩, not_lt.mp h⟩)
-    have hmid : (m : ℝ) * (ρlo + γ) ≤ (m : ℝ) * (ρhi - γ) :=
-      mul_le_mul_of_nonneg_left hgap (Nat.cast_nonneg m)
-    linarith
-  have hcards : ((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)
-      ≤ (cands.card : ℝ) := by
-    have hdisjF : Disjoint (cands.filter good) (cands.filter bad) := by
-      rw [Finset.disjoint_filter]
-      exact fun v _ hvg hvb => hdisj v hvb hvg
-    have := Finset.card_union_of_disjoint hdisjF
-    have hle : (cands.filter good ∪ cands.filter bad).card ≤ cands.card :=
-      Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ _) (Finset.filter_subset _ _))
-    rw [this] at hle
-    exact_mod_cast hle
-  have hEnn : 0 ≤ E := (Real.exp_pos _).le
-  calc μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
-      ≤ μ.real (UG ∪ UB) := measureReal_mono hincl
-    _ ≤ μ.real UG + μ.real UB := measureReal_union_le _ _
-    _ ≤ ((cands.filter good).card : ℝ) * E + ((cands.filter bad).card : ℝ) * E :=
-        add_le_add hbadUG hbadUB
-    _ = (((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)) * E := by ring
-    _ ≤ (cands.card : ℝ) * E := by
-        apply mul_le_mul_of_nonneg_right hcards hEnn
+    exact hω (avoids_bad_of_not_mem_dSepCompl good bad hdisj cands k m ρlo ρhi γ D hgap
+      goodCount (chosen ω) (hsub ω) (hcard ω) (hleast ω) hnot)
+  exact (measureReal_mono hsubset).trans
+    (dSepCompl_prob good bad hdisj cands m ρlo ρhi γ D hmeas hindep hIcc hgoodmean hbadmean hγ)
 
 /-- **Per-prefix disagreement mean, from random classification noise.**
 The oracle is `MQ(x) = ℓ(x) ⊕ r(x)` with `ℓ` the true label and `r(x) ∼
@@ -341,7 +400,7 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*)
   η : ℝ
   hη : η ≤ 1 / 2
   /-- Noise is independent and identically distributed as `Bernoulli(η)`. -/
-  noise_meas : ∀ w, AEMeasurable (noise w) μ
+  noise_meas : ∀ w, Measurable (noise w)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
@@ -375,7 +434,7 @@ noncomputable def read (pref : ℕ → S) (v : S) (i : ℕ) : Ω → ℝ :=
 variable (pref : ℕ → S)
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
-  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w) (O.noise_icc w)
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w).aemeasurable (O.noise_icc w)
 
 /-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
 oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
@@ -388,10 +447,10 @@ lemma read_mean (v i) :
     _ = O.η + O.flip v (pref i) * (1 - 2 * O.η) := h
     _ = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by ring
 
-lemma read_meas (v i) : AEMeasurable (O.read pref v i) μ := by
-  show AEMeasurable
-    (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω) μ
-  exact aemeasurable_const.add (aemeasurable_const.mul (O.noise_meas _))
+lemma read_meas (v i) : Measurable (O.read pref v i) := by
+  show Measurable
+    (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω)
+  exact measurable_const.add (measurable_const.mul (O.noise_meas _))
 
 /-- **Derived** per-suffix independence across prefixes.  The reads of `v` across
 distinct prefixes hit *distinct* query strings (`pref` injective, composed with
@@ -444,13 +503,78 @@ theorem greedy_picks_good {S : Type*} [DecidableEq S] [Mul S] [IsRightCancelMul 
       (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
     intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
   refine chosen_avoids_bad_whp good bad hdisj cands k m O.η (O.η + (1 - 2 * O.η) * εcov)
-    ((1 / 2 - O.η) * εcov) (O.read pref) (O.read_meas pref) (O.read_indep pref hpref)
-    (O.read_icc pref) hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
+    ((1 / 2 - O.η) * εcov) (O.read pref) (fun v i => (O.read_meas pref v i).aemeasurable)
+    (O.read_indep pref hpref) (O.read_icc pref) hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
   · nlinarith [hεcov0, O.hη]
   · have : (0 : ℝ) ≤ 1 / 2 - O.η := by linarith [O.hη]
     exact mul_nonneg this hεcov0
 
 #print axioms greedy_picks_good
+
+namespace Oracle
+variable {S : Type*} [Mul S] [DecidableEq S] (O : Oracle μ S)
+
+/-- The round's **separation-failure** event for the greedy over the oracle reads:
+`dSepCompl` at the greedy bands `ρlo = η`, `ρhi = η+(1−2η)εcov`, `γ = (½−η)εcov`
+(here `ρlo+γ = ρhi-γ = η+(½−η)εcov`, a single threshold).  Its complement is the
+*trigger* that forces the greedy to propose an all-good family. -/
+noncomputable def sepFail (pref : ℕ → S) (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad] (cands : Finset S) (m : ℕ) (εcov : ℝ) : Set Ω :=
+  dSepCompl good bad cands m O.η (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov) (O.read pref)
+
+/-- The separation trigger is measurable. -/
+lemma sepFail_measurable (pref : ℕ → S) (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad] (cands : Finset S) (m : ℕ) (εcov : ℝ) :
+    MeasurableSet (O.sepFail pref good bad cands m εcov) :=
+  dSepCompl_measurable good bad cands m O.η (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov)
+    (O.read pref) (fun v i => O.read_meas pref v i)
+
+/-- **Off `sepFail`, the greedy avoids `bad`.**  Derived from the selection lemma:
+the two bands coincide, so a good candidate's loss below it and a bad candidate's
+above it order good strictly under bad. -/
+lemma not_bad_of_not_mem_sepFail (pref : ℕ → S) (good bad : S → Prop)
+    [DecidablePred good] [DecidablePred bad] (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (k m : ℕ) (εcov : ℝ)
+    (goodCount : k ≤ (cands.filter good).card)
+    (chosen : Finset S) (hsub : chosen ⊆ cands) (hcard : chosen.card = k) {ω : Ω}
+    (hleast : ∀ v ∈ chosen, ∀ w ∈ cands, w ∉ chosen →
+        (∑ i ∈ Finset.range m, O.read pref v i ω) ≤ ∑ i ∈ Finset.range m, O.read pref w i ω)
+    (hω : ω ∉ O.sepFail pref good bad cands m εcov) :
+    ∀ w ∈ chosen, ¬ bad w :=
+  avoids_bad_of_not_mem_dSepCompl good bad hdisj cands k m O.η (O.η + (1 - 2 * O.η) * εcov)
+    ((1 / 2 - O.η) * εcov) (O.read pref) (le_of_eq (by ring)) goodCount chosen hsub hcard
+    hleast hω
+
+/-- **The separation trigger fires w.h.p.**  From flip-mass separability (`good`
+flips nothing, `bad` flips `≥ εcov`), the reads fail to separate with probability at
+most `#cands·exp(-2m((½−η)εcov)²)` — the `denoised_loss` conversion of the flip
+bounds fed to `dSepCompl_prob`. -/
+lemma sepFail_prob [IsRightCancelMul S] (pref : ℕ → S) (hpref : Function.Injective pref)
+    (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (m : ℕ) (εcov : ℝ) (hεcov0 : 0 ≤ εcov)
+    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, O.flip v (pref i) = 0)
+    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, O.flip v (pref i)) :
+    μ.real (O.sepFail pref good bad cands m εcov)
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - O.η) * εcov) ^ 2) := by
+  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read pref v i]
+      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v (pref i) := by
+    intro v
+    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (fun i => O.flip v (pref i))
+      (O.read pref v) (fun j => by rw [O.read_mean]; ring)
+    rw [h]; ring
+  have hgm : ∀ v ∈ cands, good v →
+      ∑ i ∈ Finset.range m, μ[O.read pref v i] ≤ (m : ℝ) * O.η := by
+    intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
+  have hbm : ∀ v ∈ cands, bad v →
+      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
+    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
+  exact dSepCompl_prob good bad hdisj cands m O.η (O.η + (1 - 2 * O.η) * εcov)
+    ((1 / 2 - O.η) * εcov) (O.read pref) (fun v i => (O.read_meas pref v i).aemeasurable)
+    (O.read_indep pref hpref) (O.read_icc pref) hgm hbm
+    (mul_nonneg (by linarith [O.hη]) hεcov0)
+
+end Oracle
 
 /-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
 Combining the two proved halves.  Under mean-loss separability the greedy proposes

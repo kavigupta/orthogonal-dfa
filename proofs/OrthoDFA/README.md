@@ -34,6 +34,9 @@ everything downstream derives from `E[r] = η` and independence across strings.
 | `clustering_algorithm_correct_general` | `Capstone.lean` | **Accumulating-pool capstone**: good-pass depends on the whole history, only the findability trigger block-local; `hbad` discharged from `certErr_bound` on each round's fresh reads. Removes the independent-rounds idealization end-to-end. |
 | `tail_le`, `geom_le` | `Complexity.lean` | **Sample complexity, explicit.** `c·exp(−2kt²) ≤ ε` once `k ≥ log(c/ε)/(2t²)`; `(1−q)^N ≤ ε` once `N ≥ log(1/ε)/q`. Turns "for `k,m,N` large enough" into explicit thresholds (`k` via `t=s−τ`, `m` via `t=γ`, `N` via `q=(1−reject)pp`). |
 | `clustering_pac` | `PAC.lean` | **End-to-end PAC bound.** Composes `algorithm_correct_general` + `geom_le`: if each round is a good pass w.p. ≥ `p` (liveness) and admits a bad family w.p. ≤ `b` (soundness), then for `N ≥ log(2/δ)/p` and `N·b ≤ δ/2` the failure probability is ≤ `δ` — with prob ≥ 1−δ a good family is produced and no bad one admitted. |
+| `clustering_end_to_end` | `EndToEnd.lean` | **The single fully-fused theorem.** One statement, **no** abstract `trigger`/`himplies`/`p`/`b` premises — all discharged internally. Inputs: the oracle model (per-round RCN `Oracle`s, uniform `η`), findability (`goodCount`, pool ≤ `C`, the greedy's least-loss spec), and the target (`εcov`; a drifted certified side). Derived: the good-pass prob `p = 1 − C·exp(-2m((½−η)εcov)²)` (from `sepFail_prob`), the block-local trigger `(sepFail)ᶜ` and its forcing of a good round (`sepFail_measurable`/`not_bad_of_not_mem_sepFail`), and the false-admit `≤ a` (`certErr_bound`); driven below `δ` by explicit sample sizes (`clustering_pac`). Conclusion: with prob ≥ 1−δ some round produces an all-good family and none admits a drifted one. |
+| `sepFail`, `sepFail_prob`, `sepFail_measurable`, `not_bad_of_not_mem_sepFail` | `Liveness.lean` | **The separation trigger.** `sepFail` is the reads' "fail to separate the classes" event (`dSepCompl` at the greedy bands, where `ρlo+γ = ρhi-γ`); its complement is the block-local trigger. Measurable (reads are), forces the greedy to avoid `bad` off it, and fires except w.p. `#cands·exp(-2m((½−η)εcov)²)`. These are what let `clustering_end_to_end` discharge the good side. |
+| `dSepCompl`, `dSepCompl_prob`, `dSepCompl_measurable`, `avoids_bad_of_not_mem_dSepCompl` | `Liveness.lean` | **Separation event, at the abstract-read level.** The reusable core of the greedy's liveness: probability bound (union bound + concentration), measurability, and that avoiding it forces the least-loss subset to avoid `bad`. `chosen_avoids_bad_whp` is now a three-line corollary. |
 | `chosen_accept_preserving`, `chosen_accept_preserving_whp` | `Liveness.lean` | **Liveness core.** The ε-anchored greedy (least-loss `k`-subset) proposes an all-accept-preserving family — deterministically under loss-separability, and w.p. ≥ 1 − #cands·exp(−2mγ²) under *mean-loss separability* + concentration. This *derives* the good-pass instead of assuming it. |
 | `liveness_produces_good` | `Liveness.lean` | **Liveness, fused.** Separability ⇒ the round produces a family that is accept-preserving *and* clears the gate (a good pass), except w.p. ≤ #cands·exp(−2mγ²) + qgate (qgate the gate-reject bound from `cleanAdmit_le`/`apLowFNR_le`). |
 | `Oracle` (structure) | `Liveness.lean` | The persistent oracle, every field a function of a **single** query string `w : S` (no (prefix,suffix) pair, no concatenation inside it): `label w = 1[w∈L]` the noiseless membership bit, and `noise w` a {0,1} bit iid `Bernoulli(η)` over distinct strings (bit-valuedness asserted, `[0,1]` derived); the membership query is `label ⊕ noise`. `flip v p = ℓ(p·v) ⊕ ℓ(p)` (does `v` flip `p`'s acceptance) is **derived** from the single-string label — so `flip_bit` (it is a {0,1} bit) is derived too, not asserted. Strings are Mathlib's own theory — `[Mul S]` concatenation, `[IsRightCancelMul S]` right-cancellation (`mul_left_injective`), free monoid `FreeMonoid`/`List` one instance, `S` abstract. The read `= flip v (pref i) ⊕ noise(pref i · v)` — prefixes an injective enumeration `pref : ℕ → S` — and its mean/independence (via `iIndepFun.precomp`, distinctness from `mul_left_injective ∘ pref`)/range are **derived**, not fields. |
@@ -68,21 +71,18 @@ term per population and per placement check, exactly the fix #257 makes.
    readily. This is a genuine mathematical subtlety, not just a Mathlib-maturity gap
    like (1).
 
-3. **Findability fusion — constructed (`fuse_findability`, `Capstone.lean`).**
-   In `clustering_algorithm_correct_fused` both per-round inputs are discharged:
-   `hbad` from `certErr_bound`, and `hgood` from `fuse_findability`, which gives a
-   good pass probability `≥ (1-reject)·pp`. The proposal↔reads coupling is handled
-   by the honest model of the persistent oracle — every read is pre-drawn, so
-   reads are independent of the proposal and the round's space is a genuine product
-   `μ_prop × μ_reads`; the fusion is then Fubini, not a bespoke kernel. The
-   remaining inputs are the oracle model, the findability rate `pp`, and the
-   gate-accept factor `1-reject` (itself `cleanAdmit_le`/`apLowFNR_le`, supplied as
-   `haccept`).  **Liveness** — that a good family is *proposed* at all — is no longer
-   an opaque `himplies` assumption: `Liveness.lean` derives it from a **separability**
-   hypothesis (non-accept-preserving suffixes have strictly higher mean loss, because
-   they flip a covered state on positive mass) via concentration + the selection
-   lemma.  The remaining connector is to feed `chosen_accept_preserving_whp` together
-   with the gate-accept lemmas into `algorithm_correct_general`'s per-round trigger.
+3. **Findability fusion — done (`clustering_end_to_end`, `EndToEnd.lean`).**
+   The two layers are now wired into a single theorem with no abstract
+   `trigger`/`himplies`/`p`/`b` premises left. The good side is derived from the
+   oracle: the block-local trigger is the reads' separation event `(sepFail)ᶜ`
+   (`sepFail_measurable`), it forces a good round (`not_bad_of_not_mem_sepFail`,
+   from the selection lemma), and it fires with probability
+   `p = 1 − C·exp(-2m((½−η)εcov)²)` (`sepFail_prob`, from `denoised_loss` ∘
+   `read_disagreement_mean`). The bad side is `certErr_bound`. `clustering_pac`
+   then drives the run-level failure below `δ`. The one soundness input still taken
+   as data is the certification read family `Xc` with its drifted mean `≤ β+τ` —
+   i.e. the oracle's certification reads of a drifted side (oracle model + target),
+   not an abstraction like the eliminated `trigger`/`p`.
 
 4. **Structural / DFA layer — deferred.** This proves the *clustering algorithm*
    correct (families placed and certified). It does **not** yet prove the E-L\*
