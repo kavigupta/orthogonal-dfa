@@ -246,9 +246,10 @@ the loop has passed through, and the guarantee is uniform over *all* histories a
 budgets — whatever the algorithm chooses, it is covered.  Histories are countable, so the
 union bound still closes. -/
 
-/-- The loop's growth history: the budget states it has passed through, in order.  The
-algorithm picks this however it likes. -/
-abbrev Hist := List (ℕ × ℕ)
+/-- The loop's growth history: the budget states it has passed through, in order, each a
+suffix budget, a prefix budget and a family size.  The algorithm picks this however it
+likes. -/
+abbrev Hist := List (ℕ × ℕ × ℕ)
 
 /-- The candidate pool at a suffix budget: the first `M` suffixes drawn. -/
 noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
@@ -347,11 +348,23 @@ noncomputable def newBoundary (O : Oracle μ S) (F P : Finset S) (ω : Ω) (b : 
              else (if rej.Nonempty then rm else b)
   max (1 / 2 - O.η) (min (1 / 2 + O.η) raw)
 
-/-- The cluster at one budget state, at the boundary carried in. -/
+/-- The cluster at one budget state, at the boundary carried in.
+
+The family size is the state's own `Mm.2.2`, **not** `cfgK` of the boundary.  That matches
+`sample_suffix_family`, where `family_size` is carried and recomputed *between* rounds —
+`identify_cluster_around(pst, v, family_size, decision_boundary)` takes it as its own
+argument, derived from the previous round's boundary, and `readable_size_and_margin` then
+steps it down from what the pool actually holds.
+
+It also matters for the proof.  The guarantee is uniform over the boundary, so the union
+over `b` has to collapse; `b` enters the clustering only through `b < vote`, and votes live
+on the grid `{0, 1/k, …, 1}`, so that dependence is piecewise constant with `≤ k+2` pieces.
+Deriving the size from `b` instead would put `suffixFamilySize`'s `Nat.find` — a least `N`
+over conditions containing `⌊N(b±eps)⌋` — inside the union, with no bound on the number of
+pieces. Carrying `k` keeps the budget index `ℕ × ℕ × ℕ`, still countable. -/
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
-    (fpr accFnr : ℝ) (x : Run Ω S J) (b : ℝ) (Mm : ℕ × ℕ) : Finset S :=
-  clusterAround O b (prefixesAt populations Mm.2 x) (poolAt Mm.1 x) (nz x)
-    (cfgK O fpr accFnr b)
+    (x : Run Ω S J) (b : ℝ) (Mm : ℕ × ℕ × ℕ) : Finset S :=
+  clusterAround O b (prefixesAt populations Mm.2.1 x) (poolAt Mm.1 x) (nz x) Mm.2.2
 
 /-- The decision boundary carried along a history: it starts at `1/2`
 (`decision_boundary : float = 0.5`) and each state replaces it with the boundary its own
@@ -361,8 +374,8 @@ noncomputable def boundaryFold (O : Oracle μ S) (populations : Finset J)
   | b, [] => b
   | b, Mm :: h =>
       boundaryFold O populations fpr accFnr x
-        (newBoundary O (clusterAt O populations fpr accFnr x b Mm)
-          (prefixesAt populations Mm.2 x) (nz x) b) h
+        (newBoundary O (clusterAt O populations x b Mm)
+          (prefixesAt populations Mm.2.1 x) (nz x) b) h
 
 /-- The boundary after a history. -/
 noncomputable def boundaryAfter (O : Oracle μ S) (populations : Finset J)
@@ -401,8 +414,8 @@ lemma boundaryAfter_mem_Icc (O : Oracle μ S) (populations : Finset J) (fpr accF
 
 /-- The family the loop proposes at budget `Mm`, having come through history `h`. -/
 noncomputable def famAt (O : Oracle μ S) (populations : Finset J)
-    (fpr accFnr : ℝ) (x : Run Ω S J) (h : Hist) (Mm : ℕ × ℕ) : Finset S :=
-  clusterAt O populations fpr accFnr x (boundaryAfter O populations fpr accFnr x h) Mm
+    (fpr accFnr : ℝ) (x : Run Ω S J) (h : Hist) (Mm : ℕ × ℕ × ℕ) : Finset S :=
+  clusterAt O populations x (boundaryAfter O populations fpr accFnr x h) Mm
 
 /-! ## The accept-preserving gate
 
@@ -478,19 +491,19 @@ def cutCorrect (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω
 open scoped Classical in
 /-- The return test and the failure event at an explicit boundary rather than a history. -/
 noncomputable def retB (O : Oracle μ S) (populations : Finset J)
-    (fpr accFnr indecisionLimit α : ℝ) (b : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+    (fpr accFnr indecisionLimit α : ℝ) (b : ℝ) (Mm : ℕ × ℕ × ℕ) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
-      (((prefixesOf j Mm.2 x).filter (fun p => ¬ decided O b fpr accFnr
-          (clusterAt O populations fpr accFnr x b Mm) p (nz x))).card : ℝ)
-        ≤ indecisionLimit * (prefixesOf j Mm.2 x).card)
+      (((prefixesOf j Mm.2.1 x).filter (fun p => ¬ decided O b fpr accFnr
+          (clusterAt O populations x b Mm) p (nz x))).card : ℝ)
+        ≤ indecisionLimit * (prefixesOf j Mm.2.1 x).card)
     ∧ ∀ j ∈ populations, admitted O b fpr accFnr α
-        ((clusterAt O populations fpr accFnr x b Mm).erase 1) (certOf j Mm.2 x) (nz x)}
+        ((clusterAt O populations x b Mm).erase 1) (certOf j Mm.2.1 x) (nz x)}
 
 def FailB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
-    (fpr accFnr εcov : ℝ) (b : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+    (fpr accFnr εcov : ℝ) (b : ℝ) (Mm : ℕ × ℕ × ℕ) : Set (Run Ω S J) :=
   {x | ¬ ∀ j ∈ populations, 1 - εcov
         ≤ (D j).real {p | cutCorrect O b fpr accFnr
-            (clusterAt O populations fpr accFnr x b Mm) p (nz x)}}
+            (clusterAt O populations x b Mm) p (nz x)}}
 
 open scoped Classical in
 /-- **The loop's return test**: the FNR gate (PR #257: held per population, not over their
@@ -503,14 +516,14 @@ quantity and not the one the loop tests.  A
 family that fails either is not returned — `judge_family` sets its FNR to 1 and the loop
 samples more. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
-    (fpr accFnr indecisionLimit α : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
+    (fpr accFnr indecisionLimit α : ℝ) (hM : Hist × (ℕ × ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | x ∈ retB O populations fpr accFnr indecisionLimit α
       (boundaryAfter O populations fpr accFnr x hM.1) hM.2}
 
 /-- The family at a reachable state is **invalid**: on some population its cut is wrong on
 more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
-    (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
+    (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | x ∈ FailB O populations D fpr accFnr εcov
       (boundaryAfter O populations fpr accFnr x hM.1) hM.2}
 
@@ -645,21 +658,21 @@ lemma admittedCount_of_admitted (O : Oracle μ S) (b fpr accFnr α : ℝ) (F P :
 
 /-! ### From states to budgets
 
-The union over states is over `Hist × (ℕ × ℕ)`, and infinitely many histories reach any
+The union over states is over `Hist × (ℕ × ℕ × ℕ)`, and infinitely many histories reach any
 one budget while the gate's error depends only on the budget — so that union diverges.
 But a state enters its failure event *only* through its boundary, and `boundaryAfter` is
 clamped, so the whole thing is subsumed by a union over budgets alone with the boundary
 quantified uniformly over `[s, 1−s]`. -/
 
 lemma mem_ret {O : Oracle μ S} {populations : Finset J} {fpr accFnr indecisionLimit α : ℝ}
-    {hM : Hist × (ℕ × ℕ)} {x : Run Ω S J} :
+    {hM : Hist × (ℕ × ℕ × ℕ)} {x : Run Ω S J} :
     x ∈ ret O populations fpr accFnr indecisionLimit α hM ↔
       x ∈ retB O populations fpr accFnr indecisionLimit α
         (boundaryAfter O populations fpr accFnr x hM.1) hM.2 := by
   simp only [ret, Set.mem_setOf_eq]
 
 lemma mem_FailAt {O : Oracle μ S} {populations : Finset J} {D : J → Measure S}
-    {fpr accFnr εcov : ℝ} {hM : Hist × (ℕ × ℕ)} {x : Run Ω S J} :
+    {fpr accFnr εcov : ℝ} {hM : Hist × (ℕ × ℕ × ℕ)} {x : Run Ω S J} :
     x ∈ FailAt O populations D fpr accFnr εcov hM ↔
       x ∈ FailB O populations D fpr accFnr εcov
         (boundaryAfter O populations fpr accFnr x hM.1) hM.2 := by
@@ -668,9 +681,9 @@ lemma mem_FailAt {O : Oracle μ S} {populations : Finset J} {D : J → Measure S
 /-- **Every reachable state is covered by its budget**, at some clamped boundary. -/
 lemma state_subset_budget (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
     (fpr accFnr indecisionLimit α εcov : ℝ) :
-    (⋃ t : Hist × (ℕ × ℕ), ret O populations fpr accFnr indecisionLimit α t
+    (⋃ t : Hist × (ℕ × ℕ × ℕ), ret O populations fpr accFnr indecisionLimit α t
         ∩ FailAt O populations D fpr accFnr εcov t)
-      ⊆ ⋃ Mm : ℕ × ℕ, ⋃ b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η),
+      ⊆ ⋃ Mm : ℕ × ℕ × ℕ, ⋃ b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η),
           retB O populations fpr accFnr indecisionLimit α b Mm
             ∩ FailB O populations D fpr accFnr εcov b Mm := by
   refine Set.iUnion_subset (fun t x hmem => ?_)
@@ -707,7 +720,7 @@ theorem validity_of_per_state (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (fpr accFnr indecisionLimit α εcov δ : ℝ)
-    (w : Hist × (ℕ × ℕ) → ℝ) (hw0 : ∀ t, 0 ≤ w t) (hsum : Summable w)
+    (w : Hist × (ℕ × ℕ × ℕ) → ℝ) (hw0 : ∀ t, 0 ≤ w t) (hsum : Summable w)
     (hle : ∑' t, w t ≤ δ / 2)
     (hper : ∀ t, (runLaw μ D Dsf).real
       (ret O populations fpr accFnr indecisionLimit α t
@@ -839,12 +852,12 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
 /-- The bad event at one budget: the gates pass and the cut is wrong, at *some* boundary
 the loop could have reached. -/
 noncomputable def BadB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
-    (fpr accFnr indecisionLimit α εcov : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+    (fpr accFnr indecisionLimit α εcov : ℝ) (Mm : ℕ × ℕ × ℕ) : Set (Run Ω S J) :=
   ⋃ b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η),
     retB O populations fpr accFnr indecisionLimit α b Mm
       ∩ FailB O populations D fpr accFnr εcov b Mm
 
-/-- **Part 1, reduced to one budget.**  Budgets are `ℕ × ℕ`, so this union does converge —
+/-- **Part 1, reduced to one budget.**  Budgets are `ℕ × ℕ × ℕ`, so this union does converge —
 unlike the union over states, which the boundary clamp is what lets us avoid.
 
 All that is left of Part 1 is `hper`: at one budget, uniformly over the boundary, the
@@ -853,7 +866,7 @@ theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (fpr accFnr indecisionLimit α εcov δ : ℝ)
-    (w : ℕ × ℕ → ℝ) (hw0 : ∀ Mm, 0 ≤ w Mm) (hsum : Summable w) (hle : ∑' Mm, w Mm ≤ δ / 2)
+    (w : ℕ × ℕ × ℕ → ℝ) (hw0 : ∀ Mm, 0 ≤ w Mm) (hsum : Summable w) (hle : ∑' Mm, w Mm ≤ δ / 2)
     (hper : ∀ Mm, (runLaw μ D Dsf).real
       (BadB O populations D fpr accFnr indecisionLimit α εcov Mm) ≤ w Mm) :
     (runLaw μ D Dsf).real (⋃ t, ret O populations fpr accFnr indecisionLimit α t
@@ -917,7 +930,7 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
-    ∃ w : ℕ × ℕ → ℝ, (∀ Mm, 0 ≤ w Mm) ∧ Summable w ∧ (∑' Mm, w Mm ≤ δ / 2) ∧
+    ∃ w : ℕ × ℕ × ℕ → ℝ, (∀ Mm, 0 ≤ w Mm) ∧ Summable w ∧ (∑' Mm, w Mm ≤ δ / 2) ∧
       ∀ Mm, (runLaw μ D Dsf).real
         (BadB O populations D fpr accFnr indecisionLimit α εcov Mm) ≤ w Mm :=
   sorry
@@ -1001,7 +1014,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ hM, x ∈ ret O populations fpr accFnr indecisionLimit α hM) ∧
-        ∀ hM : Hist × (ℕ × ℕ), x ∈ ret O populations fpr accFnr indecisionLimit α hM →
+        ∀ hM : Hist × (ℕ × ℕ × ℕ), x ∈ ret O populations fpr accFnr indecisionLimit α hM →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O (boundaryAfter O populations fpr accFnr x hM.1)
                 fpr accFnr (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x)}} := by
