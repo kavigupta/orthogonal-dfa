@@ -325,14 +325,27 @@ lemma one_mem_clusterAround (O : Oracle μ S) (b : ℝ) (P cands : Finset S) (ω
 
 open scoped Classical in
 /-- The boundary update at the end of `identify_cluster_around`: the midpoint of the
-accept-side and reject-side prefix means, falling back to whichever side is nonempty. -/
+accept-side and reject-side prefix means, falling back to whichever side is nonempty, then
+**clamped to `[s, 1−s]`** for `s = ½ − η`:
+
+```python
+signal = pst.config.min_signal_strength
+decision_boundary = min(max(decision_boundary, signal), 1 - signal)
+```
+
+The clamp is not cosmetic.  A cluster all on one side estimates a boundary whose implied
+rates leave `[0,1]`, and for the proof it is what bounds the gate's detection gap away
+from zero *uniformly in the boundary* — without which Part 1's union over states diverges,
+since infinitely many histories reach the same budget and the gate's error does not decay
+in history length. -/
 noncomputable def newBoundary (O : Oracle μ S) (F P : Finset S) (ω : Ω) (b : ℝ) : ℝ :=
   let acc := P.filter (fun p => b < vote O F p ω)
   let rej := P.filter (fun p => ¬ (b < vote O F p ω))
   let am := (∑ p ∈ acc, vote O F p ω) / acc.card
   let rm := (∑ p ∈ rej, vote O F p ω) / rej.card
-  if acc.Nonempty then (if rej.Nonempty then (am + rm) / 2 else am)
-  else (if rej.Nonempty then rm else b)
+  let raw := if acc.Nonempty then (if rej.Nonempty then (am + rm) / 2 else am)
+             else (if rej.Nonempty then rm else b)
+  max (1 / 2 - O.η) (min (1 / 2 + O.η) raw)
 
 /-- The cluster at one budget state, at the boundary carried in. -/
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
@@ -355,6 +368,36 @@ noncomputable def boundaryFold (O : Oracle μ S) (populations : Finset J)
 noncomputable def boundaryAfter (O : Oracle μ S) (populations : Finset J)
     (fpr accFnr : ℝ) (x : Run Ω S J) (h : Hist) : ℝ :=
   boundaryFold O populations fpr accFnr x (1 / 2) h
+
+lemma eta_nonneg (O : Oracle μ S) : 0 ≤ O.η := by
+  rw [← O.noise_mean 1]
+  exact integral_nonneg_of_ae (by filter_upwards [O.noise_icc 1] with ω hω using hω.1)
+
+/-- **The boundary never leaves `[s, 1−s]`.**  It starts at `½`, which is in range, and
+every update is clamped.
+
+This is what makes Part 1's union bound finite.  The failure event at a state depends on
+the history *only* through the boundary, and infinitely many histories reach any given
+budget — so a union over states cannot converge.  Bounded boundaries let the union be
+taken over budgets alone, with the boundary handled uniformly. -/
+lemma boundaryFold_mem_Icc (O : Oracle μ S) (populations : Finset J) (fpr accFnr : ℝ)
+    (x : Run Ω S J) (h : Hist) (b : ℝ)
+    (hb : b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η)) :
+    boundaryFold O populations fpr accFnr x b h ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η) := by
+  induction h generalizing b with
+  | nil => exact hb
+  | cons Mm h ih =>
+      refine ih _ ?_
+      have hle : 1 / 2 - O.η ≤ 1 / 2 + O.η := by linarith [eta_nonneg O]
+      constructor
+      · exact le_max_left _ _
+      · exact max_le hle (min_le_left _ _)
+
+lemma boundaryAfter_mem_Icc (O : Oracle μ S) (populations : Finset J) (fpr accFnr : ℝ)
+    (x : Run Ω S J) (h : Hist) :
+    boundaryAfter O populations fpr accFnr x h ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η) :=
+  boundaryFold_mem_Icc O populations fpr accFnr x h _
+    ⟨by linarith [eta_nonneg O], by linarith [eta_nonneg O]⟩
 
 /-- The family the loop proposes at budget `Mm`, having come through history `h`. -/
 noncomputable def famAt (O : Oracle μ S) (populations : Finset J)
@@ -415,28 +458,6 @@ threshold; otherwise it lands in the indecisive band and counts towards the FNR.
 def decided (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
   cfgAcc O fpr accFnr b ≤ vote O F p ω ∨ vote O F p ω < cfgRej O fpr accFnr b
 
-open scoped Classical in
-/-- **The loop's return test**: the FNR gate (PR #257: held per population, not over their
-union) at the state's own boundary and margin, **and** the accept-preserving gate.
-
-Both gates read the *distinct* prefixes, as the code does — `fnr_from_decision` runs on
-`compute_decision(vs, table.representative)`, one entry per interned prefix.  Counting
-draws instead would weight each prefix by how often it came up, which is a different
-quantity and not the one the loop tests.  A
-family that fails either is not returned — `judge_family` sets its FNR to 1 and the loop
-samples more. -/
-noncomputable def ret (O : Oracle μ S) (populations : Finset J)
-    (fpr accFnr indecisionLimit α : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
-  {x | (∀ j ∈ populations,
-      (((prefixesOf j hM.2.2 x).filter (fun p => ¬ decided O
-          (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr
-          (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x))).card : ℝ)
-        ≤ indecisionLimit * (prefixesOf j hM.2.2 x).card)
-    ∧ ∀ j ∈ populations,
-        admitted O (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr α
-          ((famAt O populations fpr accFnr x hM.1 hM.2).erase 1)
-          (certOf j hM.2.2 x) (nz x)}
-
 /-- **The family's cut is right at `p`**: where it decides, it decides the way the
 oracle's noiseless label does.
 
@@ -454,13 +475,44 @@ def cutCorrect (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω
   (cfgAcc O fpr accFnr b ≤ vote O F p ω → O.label p = 1) ∧
     (vote O F p ω < cfgRej O fpr accFnr b → O.label p = 0)
 
+open scoped Classical in
+/-- The return test and the failure event at an explicit boundary rather than a history. -/
+noncomputable def retB (O : Oracle μ S) (populations : Finset J)
+    (fpr accFnr indecisionLimit α : ℝ) (b : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+  {x | (∀ j ∈ populations,
+      (((prefixesOf j Mm.2 x).filter (fun p => ¬ decided O b fpr accFnr
+          (clusterAt O populations fpr accFnr x b Mm) p (nz x))).card : ℝ)
+        ≤ indecisionLimit * (prefixesOf j Mm.2 x).card)
+    ∧ ∀ j ∈ populations, admitted O b fpr accFnr α
+        ((clusterAt O populations fpr accFnr x b Mm).erase 1) (certOf j Mm.2 x) (nz x)}
+
+def FailB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (fpr accFnr εcov : ℝ) (b : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+  {x | ¬ ∀ j ∈ populations, 1 - εcov
+        ≤ (D j).real {p | cutCorrect O b fpr accFnr
+            (clusterAt O populations fpr accFnr x b Mm) p (nz x)}}
+
+open scoped Classical in
+/-- **The loop's return test**: the FNR gate (PR #257: held per population, not over their
+union) at the state's own boundary and margin, **and** the accept-preserving gate.
+
+Both gates read the *distinct* prefixes, as the code does — `fnr_from_decision` runs on
+`compute_decision(vs, table.representative)`, one entry per interned prefix.  Counting
+draws instead would weight each prefix by how often it came up, which is a different
+quantity and not the one the loop tests.  A
+family that fails either is not returned — `judge_family` sets its FNR to 1 and the loop
+samples more. -/
+noncomputable def ret (O : Oracle μ S) (populations : Finset J)
+    (fpr accFnr indecisionLimit α : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
+  {x | x ∈ retB O populations fpr accFnr indecisionLimit α
+      (boundaryAfter O populations fpr accFnr x hM.1) hM.2}
+
 /-- The family at a reachable state is **invalid**: on some population its cut is wrong on
 more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
     (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
-  {x | ¬ ∀ j ∈ populations, 1 - εcov
-        ≤ (D j).real {p | cutCorrect O (boundaryAfter O populations fpr accFnr x hM.1)
-            fpr accFnr (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x)}}
+  {x | x ∈ FailB O populations D fpr accFnr εcov
+      (boundaryAfter O populations fpr accFnr x hM.1) hM.2}
 
 /-! ### The seed column
 
@@ -537,6 +589,26 @@ lemma splitAcc_sound (O : Oracle μ S) (A : Finset S) (θ τ : ℝ) (hτ : 0 ≤
     rw [hrw]; exact hge
   exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
 
+open scoped Classical in
+/-- **The gate's reject side is sound**, the mirror of `splitAcc_sound`: if enough of the
+side the family rejects is *truly accepting*, its accepting-read count falls below
+`|R|·reject_thresh` only with probability `exp(−2|R|τ²)`. -/
+lemma splitRej_sound (O : Oracle μ S) (R : Finset S) (θ τ : ℝ) (hτ : 0 ≤ τ)
+    (hmean : (R.card : ℝ) * (θ + τ) ≤ ∑ p ∈ R, (O.η + (1 - 2 * O.η) * O.label p)) :
+    μ.real {ω | ((R.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ (R.card : ℝ) * θ}
+      ≤ Real.exp (-2 * (R.card : ℝ) * τ ^ 2) := by
+  have hsum := sumLower_le (fun p => mq O p) R (θ + τ) τ
+    (fun p => (mq_meas O p).aemeasurable) (mq_indep O) (fun p => mq_icc O p)
+    (by rw [Finset.sum_congr rfl (fun p _ => mq_mean O p)]; exact hmean) hτ
+  have hsub : {ω | ((R.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ (R.card : ℝ) * θ}
+      ≤ᵐ[μ] {ω | ∑ p ∈ R, mq O p ω ≤ (R.card : ℝ) * ((θ + τ) - τ)} := by
+    filter_upwards [hits_eq_sum O R] with ω hω hmem
+    have hle : ∑ p ∈ R, mq O p ω ≤ (R.card : ℝ) * θ := hω ▸ hmem
+    show ∑ p ∈ R, mq O p ω ≤ (R.card : ℝ) * ((θ + τ) - τ)
+    have hrw : (R.card : ℝ) * ((θ + τ) - τ) = (R.card : ℝ) * θ := by ring
+    rw [hrw]; exact hle
+  exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
+
 /-! ### The gate in counting form
 
 The soundness argument does not need the binomial tails themselves, only what they force
@@ -570,6 +642,43 @@ lemma admittedCount_of_admitted (O : Oracle μ S) (b fpr accFnr α : ℝ) (F P :
     (h : admitted O b fpr accFnr α F P ω) : admittedCount O b fpr accFnr F P ω :=
   ⟨le_of_lt (lt_of_binomSfGe_le _ _ _ hacc0 hacc1 hα h.1),
     le_of_lt (lt_of_binomCdf_le _ _ _ hrej0 hrej1 hα h.2)⟩
+
+/-! ### From states to budgets
+
+The union over states is over `Hist × (ℕ × ℕ)`, and infinitely many histories reach any
+one budget while the gate's error depends only on the budget — so that union diverges.
+But a state enters its failure event *only* through its boundary, and `boundaryAfter` is
+clamped, so the whole thing is subsumed by a union over budgets alone with the boundary
+quantified uniformly over `[s, 1−s]`. -/
+
+lemma mem_ret {O : Oracle μ S} {populations : Finset J} {fpr accFnr indecisionLimit α : ℝ}
+    {hM : Hist × (ℕ × ℕ)} {x : Run Ω S J} :
+    x ∈ ret O populations fpr accFnr indecisionLimit α hM ↔
+      x ∈ retB O populations fpr accFnr indecisionLimit α
+        (boundaryAfter O populations fpr accFnr x hM.1) hM.2 := by
+  simp only [ret, Set.mem_setOf_eq]
+
+lemma mem_FailAt {O : Oracle μ S} {populations : Finset J} {D : J → Measure S}
+    {fpr accFnr εcov : ℝ} {hM : Hist × (ℕ × ℕ)} {x : Run Ω S J} :
+    x ∈ FailAt O populations D fpr accFnr εcov hM ↔
+      x ∈ FailB O populations D fpr accFnr εcov
+        (boundaryAfter O populations fpr accFnr x hM.1) hM.2 := by
+  simp only [FailAt, Set.mem_setOf_eq]
+
+/-- **Every reachable state is covered by its budget**, at some clamped boundary. -/
+lemma state_subset_budget (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (fpr accFnr indecisionLimit α εcov : ℝ) :
+    (⋃ t : Hist × (ℕ × ℕ), ret O populations fpr accFnr indecisionLimit α t
+        ∩ FailAt O populations D fpr accFnr εcov t)
+      ⊆ ⋃ Mm : ℕ × ℕ, ⋃ b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η),
+          retB O populations fpr accFnr indecisionLimit α b Mm
+            ∩ FailB O populations D fpr accFnr εcov b Mm := by
+  refine Set.iUnion_subset (fun t x hmem => ?_)
+  refine Set.mem_iUnion.2 ⟨t.2, Set.mem_iUnion₂.2
+    ⟨boundaryAfter O populations fpr accFnr x t.1,
+      boundaryAfter_mem_Icc O populations fpr accFnr x t.1, ?_, ?_⟩⟩
+  · exact (mem_ret (O := O)).mp hmem.1
+  · exact (mem_FailAt (O := O)).mp hmem.2
 
 /-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
 `measureReal_iUnion_fintype_le` for finite index, but not this. -/
@@ -739,7 +848,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
-  simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, not_and, not_not]
+  simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, FailB, famAt, not_and, not_not]
 
 #print axioms validity_of_returned
 #print axioms loop_terminates
