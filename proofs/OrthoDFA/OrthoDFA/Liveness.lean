@@ -279,6 +279,28 @@ theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
     _ ≤ (cands.card : ℝ) * E := by
         apply mul_le_mul_of_nonneg_right hcards hEnn
 
+/-- **Per-prefix disagreement mean, derived from the oracle read model.**
+The read `R = MQ(x·v)` has, by the (β=½) signal oracle, mean
+`½ + s·(2·mem − 1)` where `mem = b XOR f` is the membership of `x·v` (`b` the true
+membership of `x`, `f = flip`).  The disagreement with the denoised centre `b` is
+`b + (1−2b)·R` (which is `1[R ≠ b]` for a `{0,1}` read).  Its mean is then
+`(½ − s) + 2s·f` — the decomposition `c₀ + 2s·flip`, with `c₀ = ½ − s`, **derived**,
+not assumed.  So a flip shifts the expected disagreement by exactly `2s`. -/
+theorem read_disagreement_mean {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
+    [IsProbabilityMeasure μ] (s b f : ℝ)
+    (hb : b = 0 ∨ b = 1) (hf : f = 0 ∨ f = 1)
+    (R : Ω → ℝ) (hRint : Integrable R μ)
+    (hER : ∫ ω, R ω ∂μ = 1 / 2 + s * (2 * (b + f - 2 * b * f) - 1)) :
+    ∫ ω, (b + (1 - 2 * b) * R ω) ∂μ = (1 / 2 - s) + 2 * s * f := by
+  have h1 : ∫ ω, (b + (1 - 2 * b) * R ω) ∂μ = b + (1 - 2 * b) * ∫ ω, R ω ∂μ := by
+    rw [integral_add (integrable_const b) (hRint.const_mul (1 - 2 * b)),
+      integral_const_mul]
+    simp
+  rw [h1, hER]
+  rcases hb with rfl | rfl <;> rcases hf with rfl | rfl <;> ring
+
+#print axioms read_disagreement_mean
+
 /-- **Denoised loss decomposes into baseline + signal·flips.**  Against the
 denoised oracle, a read's expected disagreement on prefix `j` is a common baseline
 `c₀` plus `2s` exactly when the suffix flips `j`'s state (`flip j = 1`), else `c₀`.
