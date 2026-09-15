@@ -716,6 +716,39 @@ theorem validity_of_per_state (O : Oracle μ S) (populations : Finset J)
         ∩ FailAt O populations D fpr accFnr εcov t) ≤ δ / 2 :=
   le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle
 
+/-- **The collision mass of a prefix population**: the chance that two independent draws
+from it coincide, `∑ₐ D({a})²`.
+
+This is the one thing the populations must satisfy beyond being probability measures, and
+it is irreducible rather than derivable — the same status as `pAP` for `Dsf`.  The gate's
+certification draws carry independent noise only where they are *distinct*, because the
+oracle is persistent; with a point-mass population every draw is the same string and no
+amount of sampling certifies anything.  `S` is countable, so every `D j` is purely atomic
+and this is never zero — the requirement is that it be small, not that it vanish.
+
+Unlike the pool-size coupling that #284 retired, the bound needed here is *fixed*: small
+relative to `εcov` and `δ`, not growing with the budget. -/
+noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
+
+/-- Two independent draws coincide with probability exactly the collision mass. -/
+lemma prod_diagonal_eq_collisionMass (Dj : Measure S) [IsProbabilityMeasure Dj] :
+    (Dj.prod Dj).real {q : S × S | q.1 = q.2} = collisionMass Dj := by
+  classical
+  have hdiag : {q : S × S | q.1 = q.2} = ⋃ a : S, {((a, a) : S × S)} := by
+    ext q; simp [Prod.ext_iff, eq_comm]
+  have hdisj : Pairwise (Function.onFun Disjoint (fun a : S => ({(a, a)} : Set (S × S)))) := by
+    intro a b hab
+    simp only [Function.onFun, Set.disjoint_singleton]
+    exact fun h => hab (congrArg Prod.fst h)
+  rw [measureReal_def, hdiag, measure_iUnion hdisj (fun a => measurableSet_singleton _),
+    collisionMass]
+  rw [ENNReal.tsum_toReal_eq (fun a => by
+    simp only [← Set.singleton_prod_singleton, Measure.prod_prod]
+    exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
+  refine tsum_congr (fun a => ?_)
+  rw [← Set.singleton_prod_singleton, Measure.prod_prod, ENNReal.toReal_mul, sq,
+    measureReal_def]
+
 /-- The bad event at one budget: the gates pass and the cut is wrong, at *some* boundary
 the loop could have reached. -/
 noncomputable def BadB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
@@ -787,6 +820,21 @@ entropy `∑ₐ D_j({a})²` — so that route fails once the candidate pool outg
 does not enter, and no collision bound is needed: the gate reads `prefixesOf`, which is
 distinct by construction.  `Distributional.lean`'s `clustering_pac` remains the statement
 about one budget with a collision bound supplied; it is not what carries this. -/
+theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (fpr accFnr indecisionLimit α : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (pAP : ℝ) (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
+    (hρsmall : ρ ≤ εcov ^ 2 * δ) :
+    ∃ w : ℕ × ℕ → ℝ, (∀ Mm, 0 ≤ w Mm) ∧ Summable w ∧ (∑' Mm, w Mm ≤ δ / 2) ∧
+      ∀ Mm, (runLaw μ D Dsf).real
+        (BadB O populations D fpr accFnr indecisionLimit α εcov Mm) ≤ w Mm :=
+  sorry
+
 theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -794,10 +842,16 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) :
+    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
+    (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     (runLaw μ D Dsf).real (⋃ hM, ret O populations fpr accFnr indecisionLimit α hM
-        ∩ FailAt O populations D fpr accFnr εcov hM) ≤ δ / 2 :=
-  sorry
+        ∩ FailAt O populations D fpr accFnr εcov hM) ≤ δ / 2 := by
+  obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf fpr accFnr
+    indecisionLimit α hfpr haccFnr hsig hpop pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ
+    hα hρsmall
+  exact validity_of_budget O populations D Dsf fpr accFnr indecisionLimit α εcov δ
+    w hw0 hsum hle hper
 
 /-- **Part 2 — the loop terminates.**
 
@@ -855,8 +909,9 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
-    (hslack : accFnr < indecisionLimit) :
+    (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ hM, x ∈ ret O populations fpr accFnr indecisionLimit α hM) ∧
         ∀ hM : Hist × (ℕ × ℕ), x ∈ ret O populations fpr accFnr indecisionLimit α hM →
@@ -868,7 +923,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
       ∩ FailAt O populations D fpr accFnr εcov hM)
     (ret O populations fpr accFnr indecisionLimit α) δ
     (validity_of_returned O populations D Dsf fpr accFnr indecisionLimit α hfpr haccFnr hsig hpop
-      pAP hpAPPositive hpAPBound εcov hεcov δ hδ)
+      pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall)
     (loop_terminates O populations D Dsf fpr accFnr indecisionLimit α hfpr haccFnr hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
