@@ -1186,6 +1186,21 @@ noncomputable def splitRej (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : �
   let side := P.filter (fun p => voteCount O F p ω ≤ lo)
   ((side.filter (fun p => mq O p ω = 1)).card, side.card)
 
+/-- **The rates the gate holds each side to** (PR #286).  A prefix the cut calls accepting
+reads as accepting on the seed's column with probability `1 − η` when the cut is right and
+`η` when it is not, so a cut drifted on a `γ` fraction of that side reads at
+`(1 − η) − γ(1 − 2η)`.  The null sits midway, giving each side a gap of `sγ` for
+`s = ½ − η`.
+
+The *vote* cutoffs `hi`/`lo` cannot serve here: `hi/k` sits a fixed distance below `1 − η`,
+so drift finer than that distance reads as clean however many prefixes are certified on —
+a floor set by the threshold, not by the sample, which no amount of sampling removes. -/
+noncomputable def gateAcceptRate (O : Oracle μ S) (γ : ℝ) : ℝ :=
+  (1 - O.η) - (1 / 2 - O.η) * γ
+
+noncomputable def gateRejectRate (O : Oracle μ S) (γ : ℝ) : ℝ :=
+  O.η + (1 / 2 - O.η) * γ
+
 /-- `drift_verdict`'s **ADMITTED**: each side of the cut reads as its own class on the
 seed's column, at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE = 0.05`).
 
@@ -1193,9 +1208,9 @@ Applied in `ret` to the family with `ε` removed and to `certOf`, the certificat
 Removing `ε` matters because it is in every family, so the vote would otherwise contain
 `mq p` — the very bit the split is scored against.  Judging on `certOf` matters because
 the family was selected against `prefixesOf`.  (Issue #284.) -/
-def admitted (O : Oracle μ S) (k lo hi : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
-  binomSfGe (splitAcc O hi F P ω).2 ((hi : ℝ) / k) (splitAcc O hi F P ω).1 ≤ α
-    ∧ binomCdf (splitRej O lo F P ω).2 ((lo : ℝ) / k) (splitRej O lo F P ω).1 ≤ α
+def admitted (O : Oracle μ S) (lo hi : ℕ) (γ α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+  binomSfGe (splitAcc O hi F P ω).2 (gateAcceptRate O γ) (splitAcc O hi F P ω).1 ≤ α
+    ∧ binomCdf (splitRej O lo F P ω).2 (gateRejectRate O γ) (splitRej O lo F P ω).1 ≤ α
 
 open scoped Classical in
 /-- **The loop's return test** at a state: the FNR gate (PR #257: held per population, not
@@ -1205,7 +1220,7 @@ returned — `judge_family` sets its FNR to 1 and the loop samples more.
 Both gates read the *distinct* prefixes, as the code does; the accept-preserving gate reads
 the certification draws (`certOf`), which the family was never selected from, with the seed
 dropped from the split. -/
-noncomputable def ret (O : Oracle μ S) (populations : Finset J) (indecisionLimit α : ℝ)
+noncomputable def ret (O : Oracle μ S) (populations : Finset J) (indecisionLimit γ α : ℝ)
     (B : Budget) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
       (((prefixesOf j B.m x).filter (fun p => ¬ decided O B.lo B.hi
@@ -1370,15 +1385,15 @@ theorem lt_of_binomCdf_le (n : ℕ) (θ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ �
 /-- What `admitted` forces about the counts: the accepted side reads as accepting at least
 as often as `accept_thresh` claims, the rejected side at most as often as `reject_thresh`
 does.  This is all the soundness argument uses. -/
-def admittedCount (O : Oracle μ S) (k lo hi : ℕ) (F P : Finset S) (ω : Ω) : Prop :=
-  ((splitAcc O hi F P ω).2 : ℝ) * ((hi : ℝ) / k) ≤ (splitAcc O hi F P ω).1
-    ∧ ((splitRej O lo F P ω).1 : ℝ) ≤ (splitRej O lo F P ω).2 * ((lo : ℝ) / k)
+def admittedCount (O : Oracle μ S) (lo hi : ℕ) (γ : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+  ((splitAcc O hi F P ω).2 : ℝ) * gateAcceptRate O γ ≤ (splitAcc O hi F P ω).1
+    ∧ ((splitRej O lo F P ω).1 : ℝ) ≤ (splitRej O lo F P ω).2 * gateRejectRate O γ
 
-lemma admittedCount_of_admitted (O : Oracle μ S) (k lo hi : ℕ) (α : ℝ) (F P : Finset S)
+lemma admittedCount_of_admitted (O : Oracle μ S) (lo hi : ℕ) (γ α : ℝ) (F P : Finset S)
     (ω : Ω) (hα : α < 1 / 2)
-    (hacc0 : 0 ≤ (hi : ℝ) / k) (hacc1 : (hi : ℝ) / k ≤ 1)
-    (hrej0 : 0 ≤ (lo : ℝ) / k) (hrej1 : (lo : ℝ) / k ≤ 1)
-    (h : admitted O k lo hi α F P ω) : admittedCount O k lo hi F P ω :=
+    (hacc0 : 0 ≤ gateAcceptRate O γ) (hacc1 : gateAcceptRate O γ ≤ 1)
+    (hrej0 : 0 ≤ gateRejectRate O γ) (hrej1 : gateRejectRate O γ ≤ 1)
+    (h : admitted O lo hi γ α F P ω) : admittedCount O lo hi γ F P ω :=
   ⟨le_of_lt (lt_of_binomSfGe_le _ _ _ hacc0 hacc1 hα h.1),
     le_of_lt (lt_of_binomCdf_le _ _ _ hrej0 hrej1 hα h.2)⟩
 
@@ -1531,11 +1546,11 @@ every population except with probability `w`. -/
 theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (indecisionLimit α εcov δ : ℝ)
+    (indecisionLimit γ α εcov δ : ℝ)
     (w : Budget → ℝ) (hw0 : ∀ B, 0 ≤ w B) (hsum : Summable w) (hle : ∑' B, w B ≤ δ / 2)
     (hper : ∀ B, (runLaw μ D Dsf).real
-      (ret O populations indecisionLimit α B ∩ FailAt O populations D εcov B) ≤ w B) :
-    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit α B
+      (ret O populations indecisionLimit γ α B ∩ FailAt O populations D εcov B) ≤ w B) :
+    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit γ α B
         ∩ FailAt O populations D εcov B) ≤ δ / 2 :=
   le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle
 
@@ -1587,7 +1602,7 @@ about one budget with a collision bound supplied; it is not what carries this. -
 theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (indecisionLimit γ α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
@@ -1595,7 +1610,7 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     ∃ w : Budget → ℝ, (∀ B, 0 ≤ w B) ∧ Summable w ∧ (∑' B, w B ≤ δ / 2) ∧
       ∀ B, (runLaw μ D Dsf).real
-        (ret O populations indecisionLimit α B ∩ FailAt O populations D εcov B) ≤ w B :=
+        (ret O populations indecisionLimit γ α B ∩ FailAt O populations D εcov B) ≤ w B :=
   sorry
 
 /-! ### The argument `exists_budget_weight` needs
@@ -1640,17 +1655,17 @@ envelope in step 4. -/
 theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (indecisionLimit γ α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
-    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit α B
+    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit γ α B
         ∩ FailAt O populations D εcov B) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit α hsig hpop pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall
-  exact validity_of_budget O populations D Dsf indecisionLimit α εcov δ w hw0 hsum hle hper
+    indecisionLimit γ α hsig hpop pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall
+  exact validity_of_budget O populations D Dsf indecisionLimit γ α εcov δ w hw0 hsum hle hper
 
 /-- **Part 2 — the loop terminates.**
 
@@ -1679,12 +1694,12 @@ slack: `0.01 < 0.02` (`0.10` after PR #257). -/
 theorem loop_terminates (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (accFnr indecisionLimit γ α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) :
-    (runLaw μ D Dsf).real {x | ∀ B, x ∉ ret O populations indecisionLimit α B} ≤ δ / 2 :=
+    (runLaw μ D Dsf).real {x | ∀ B, x ∉ ret O populations indecisionLimit γ α B} ≤ δ / 2 :=
   sorry
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
@@ -1706,23 +1721,23 @@ search in `population_size_and_evidence_margin` is looking for a witness to. -/
 theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (accFnr indecisionLimit γ α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     1 - δ ≤ (runLaw μ D Dsf).real
-      {x | (∃ B, x ∈ ret O populations indecisionLimit α B) ∧
-        ∀ B : Budget, x ∈ ret O populations indecisionLimit α B →
+      {x | (∃ B, x ∈ ret O populations indecisionLimit γ α B) ∧
+        ∀ B : Budget, x ∈ ret O populations indecisionLimit γ α B →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)}} := by
   have h := sound_and_terminating (runLaw μ D Dsf)
-    (fun B => ret O populations indecisionLimit α B ∩ FailAt O populations D εcov B)
-    (ret O populations indecisionLimit α) δ
-    (validity_of_returned O populations D Dsf indecisionLimit α hsig hpop
+    (fun B => ret O populations indecisionLimit γ α B ∩ FailAt O populations D εcov B)
+    (ret O populations indecisionLimit γ α) δ
+    (validity_of_returned O populations D Dsf indecisionLimit γ α hsig hpop
       pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall)
-    (loop_terminates O populations D Dsf accFnr indecisionLimit α hsig hpop
+    (loop_terminates O populations D Dsf accFnr indecisionLimit γ α hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
