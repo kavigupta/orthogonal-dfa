@@ -953,6 +953,101 @@ lemma measurableSet_filter_pred (O : Oracle μ S) {T : Set S} {A : Finset S} (hA
   apply Finset.measurableSet_biUnion
   exact fun U _ => measurableSet_filter_fiber O hA U
 
+open scoped Classical in
+/-- **Congruence becomes measurability.**  A side decided by a block's bits is, on the clean
+runs, a union of that block's pattern fibres. -/
+lemma measurableSet_side_clean (O : Oracle μ S) (Q : Finset S) (side : Ω → Finset S)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (A₀ : Finset S) :
+    MeasurableSet[noiseAlg O ↑Q] ({ω | side ω = A₀} ∩ noiseClean O Q) := by
+  classical
+  have hcover : {ω | side ω = A₀} ∩ noiseClean O Q
+      = ⋃ t ∈ Q.powerset.filter
+          (fun t => ∃ ω, ω ∈ noiseClean O Q ∧ noisePattern O Q ω = t ∧ side ω = A₀),
+        ({ω | noisePattern O Q ω = t} ∩ noiseClean O Q) := by
+    ext ω
+    simp only [Set.mem_inter_iff, Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_coe,
+      Finset.mem_filter, Finset.mem_powerset, exists_prop]
+    constructor
+    · rintro ⟨hsd, hcl⟩
+      exact ⟨noisePattern O Q ω,
+        ⟨Finset.mem_powerset.1 (noisePattern_mem O Q ω), ω, hcl, rfl, hsd⟩, rfl, hcl⟩
+    · rintro ⟨t, ⟨-, ω₀, hcl₀, hpat₀, hsd₀⟩, hpat, hcl⟩
+      refine ⟨?_, hcl⟩
+      rw [← hsd₀]
+      exact hcongr ω ω₀ (noise_eq_of_pattern O hcl hcl₀ (hpat.trans hpat₀.symm))
+  rw [hcover]
+  apply Finset.measurableSet_biUnion
+  exact fun t _ => (measurableSet_noisePattern O Q t).inter (measurableSet_noiseClean O Q)
+
+open scoped Classical in
+/-- **The gate's worst case survives the side being chosen by the clustering.**
+
+`hbad` bounds the score's failure for each *fixed* side; the conclusion bounds it for the
+side the run actually produces.  What makes that free is that the side is decided by the
+block `Q` and the score reads the block `C`, and those are disjoint. -/
+theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (P : Finset S → Finset S → Prop) (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ A₀ ∈ C.powerset, μ.real {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} ≤ E) :
+    μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))} ≤ E := by
+  classical
+  set Bad : Finset S → Set Ω :=
+    fun A₀ => {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} with hBaddef
+  set side' : Ω → Finset S := fun ω => if ω ∈ noiseClean O Q then side ω else ∅ with hside'def
+  have hmeasBad : ∀ A₀, MeasurableSet (Bad A₀) := fun A₀ =>
+    noiseAlg_le O Set.univ _ (measurableSet_filter_pred O (T := Set.univ) (by simp) _)
+  have hmeasBadC : ∀ A₀ ∈ C.powerset, MeasurableSet[noiseAlg O ↑C] (Bad A₀) := fun A₀ hA₀ =>
+    measurableSet_filter_pred O (by exact_mod_cast Finset.mem_powerset.1 hA₀) _
+  have hsel' : ∀ ω, side' ω ∈ C.powerset := by
+    intro ω
+    rw [hside'def]
+    by_cases hc : ω ∈ noiseClean O Q
+    · simp [hc, Finset.mem_powerset, hside ω]
+    · simp [hc, Finset.empty_mem_powerset]
+  have hsplit : ∀ A₀, {ω | side' ω = A₀}
+      = ({ω | side ω = A₀} ∩ noiseClean O Q) ∪ (if A₀ = ∅ then (noiseClean O Q)ᶜ else ∅) := by
+    intro A₀
+    ext ω
+    by_cases hc : ω ∈ noiseClean O Q <;> by_cases he : A₀ = ∅ <;>
+      simp [hside'def, hc, he, Set.mem_setOf_eq, eq_comm (a := (∅ : Finset S))]
+  have hmeasSelQ : ∀ A₀, MeasurableSet[noiseAlg O ↑Q] {ω | side' ω = A₀} := by
+    intro A₀
+    rw [hsplit A₀]
+    refine MeasurableSet.union (measurableSet_side_clean O Q side hcongr A₀) ?_
+    split_ifs
+    · exact (measurableSet_noiseClean O Q).compl
+    · exact (noiseAlg O ↑Q).measurableSet_empty
+  have hmeasSel : ∀ A₀, MeasurableSet {ω | side' ω = A₀} := fun A₀ =>
+    noiseAlg_le O ↑Q _ (hmeasSelQ A₀)
+  have hindep : ∀ A₀ ∈ C.powerset,
+      μ.real ({ω | side' ω = A₀} ∩ Bad A₀) = μ.real {ω | side' ω = A₀} * μ.real (Bad A₀) := by
+    intro A₀ hA₀
+    have hI := (indep_noiseAlg O hdisj.symm).indepSet_of_measurableSet (hmeasSelQ A₀)
+      (hmeasBadC A₀ hA₀)
+    have := hI.measure_inter_eq_mul
+    simp only [measureReal_def, this, ENNReal.toReal_mul]
+  have hmain := measureReal_selection_le (μ := μ) C.powerset side' hsel' hmeasSel Bad hmeasBad E
+    hindep (fun A₀ hA₀ => hbad A₀ hA₀) hE
+  have hsub : {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))}
+      ⊆ {ω | ω ∈ Bad (side' ω)} ∪ (noiseClean O Q)ᶜ := by
+    intro ω hω
+    by_cases hc : ω ∈ noiseClean O Q
+    · refine Or.inl ?_
+      change ω ∈ Bad (side' ω)
+      rw [hside'def]
+      simp only [hc, if_pos]
+      exact hω
+    · exact Or.inr hc
+  calc μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))}
+      ≤ μ.real ({ω | ω ∈ Bad (side' ω)} ∪ (noiseClean O Q)ᶜ) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ μ.real {ω | ω ∈ Bad (side' ω)} + μ.real (noiseClean O Q)ᶜ := measureReal_union_le _ _
+    _ = μ.real {ω | ω ∈ Bad (side' ω)} := by rw [noiseClean_ae O Q, add_zero]
+    _ ≤ E := hmain
+
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
