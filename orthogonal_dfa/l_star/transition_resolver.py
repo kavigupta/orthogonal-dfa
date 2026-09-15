@@ -34,7 +34,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import Sifter
+from .sifting import Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -172,23 +172,13 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Anchor at the shortest prefix the tree places, follow the total delta,
         then act on where the walk and a fresh sift disagree."""
-        state = None
-        start = 0
-        while start < len(w):
-            state = self._sift(w[:start])
-            if state is not None:
-                break
-            start += 1
-        if state is None:
+        start, states = anchored_walk(w, self._sift, delta)
+        if start is None:
             return _RESOLVED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
         # only reaches deep leaves; short anchor prefixes are what give the shallow
         # leaves enough members for the one-state test to settle them.
-        self.population.add(w[:start], at=self.tree.path_of(state))
-        states = [None] * start + [state]
-        for c in w[start:]:
-            state = delta[state][c]
-            states.append(state)
+        self.population.add(w[:start], at=self.tree.path_of(states[start]))
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
@@ -196,7 +186,7 @@ class TransitionResolver:
         actual = self._sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
-        fd = self._first_bad_edge(w, states, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
         if fd is None:
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
@@ -223,20 +213,6 @@ class TransitionResolver:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
-
-    def _first_bad_edge(self, w, states, lo, hi):
-        """Binary-search the first index where the followed state diverges from a
-        fresh sift of ``w[:i]``; ``None`` on an indecisive sift.  Invariant: the
-        sift agrees at ``lo`` and disagrees at ``hi``."""
-        if lo + 1 == hi:
-            return hi
-        mid = (lo + hi) // 2
-        actual = self._sift(w[:mid])
-        if actual is None:
-            return None
-        if actual == states[mid]:
-            return self._first_bad_edge(w, states, mid, hi)
-        return self._first_bad_edge(w, states, lo, mid)
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
