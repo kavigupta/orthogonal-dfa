@@ -1614,6 +1614,79 @@ instance instFiniteCapped (cap : Budget) : Finite {B : Budget // Capped cap B} :
   intro B B' hb
   simpa [Subtype.ext_iff, Budget.ext_iff, Prod.ext_iff, Fin.ext_iff] using hb
 
+/-! ### The first Lloyd step
+
+Its centre is `{ε}`, so the loss is the disagreement with the seed's own column:
+`#{p ∈ P | mq (p·v) ≠ mq p}`.  That is the screening statistic, and its mean separates an
+accept-preserving candidate from one carrying flip mass `φ` by `φ(1−2η)²` — two noisy reads
+compared, hence the square. -/
+
+/-- **Functions of disjoint blocks of an independent family are independent.**
+
+Mathlib has the two-block case (`iIndepFun.indepFun_finset`) but not this.  It is needed
+because the first step's loss at a prefix reads *two* strings, `p` and `p · v`, and those
+pairs are disjoint across prefixes — by cancellation for `p · v`, and by flatness for the
+bare prefixes. -/
+theorem iIndepFun_blocks {ι κ : Type*} {X : κ → Ω → ℝ}
+    (hX : ∀ w, Measurable (X w)) (hindep : iIndepFun X μ) (A : ι → Finset κ)
+    (hdisj : Pairwise (fun i j => Disjoint (A i) (A j)))
+    (g : ι → Ω → ℝ) (hg : ∀ i, Measurable (g i))
+    (hblock : ∀ i, ∀ ω ω', (∀ w ∈ A i, X w ω = X w ω') → g i ω = g i ω') :
+    iIndepFun g μ :=
+  sorry
+
+open scoped Classical in
+/-- The first step's loss: how often `v`'s column disagrees with the seed's. -/
+noncomputable def seedLoss (O : Oracle μ S) (P : Finset S) (v : S) (p : S) (ω : Ω) : ℝ :=
+  if mq O (p * v) ω = mq O p ω then 0 else 1
+
+lemma seedLoss_icc (O : Oracle μ S) (P : Finset S) (v p : S) :
+    ∀ᵐ ω ∂μ, seedLoss O P v p ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards with ω
+  unfold seedLoss
+  split_ifs <;> norm_num
+
+/-- **The first step's mean separates by the square of the signal.**  Two noisy reads are
+compared, so an accept-preserving candidate disagrees at `2η(1−η)` and one that flips at
+`p` at `1 − 2η(1−η)`; the difference is `(1−2η)²`. -/
+lemma seedLoss_eq (O : Oracle μ S) (P : Finset S) (v p : S) :
+    ∀ᵐ ω ∂μ, seedLoss O P v p ω
+      = mq O (p * v) ω + mq O p ω - 2 * (mq O (p * v) ω * mq O p ω) := by
+  filter_upwards [mq_bit O (p * v), mq_bit O p] with ω h1 h0
+  unfold seedLoss
+  rcases h1 with h1 | h1 <;> rcases h0 with h0 | h0 <;> rw [h1, h0] <;> norm_num
+
+lemma mq_integrable (O : Oracle μ S) (w : S) : Integrable (mq O w) μ :=
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (mq_meas O w).aemeasurable (mq_icc O w)
+
+lemma mq_mul_integrable (O : Oracle μ S) (w w' : S) :
+    Integrable (fun ω => mq O w ω * mq O w' ω) μ := by
+  refine MeasureTheory.Integrable.of_mem_Icc 0 1
+    (((mq_meas O w).mul (mq_meas O w')).aemeasurable) ?_
+  filter_upwards [mq_icc O w, mq_icc O w'] with ω h1 h0
+  rw [Set.mem_Icc] at h1 h0 ⊢
+  exact ⟨mul_nonneg h1.1 h0.1, by nlinarith [h1.1, h1.2, h0.1, h0.2]⟩
+
+lemma seedLoss_mean (O : Oracle μ S) (P : Finset S) (v p : S) (hv : p * v ≠ p) :
+    μ[seedLoss O P v p] = 2 * O.η * (1 - O.η)
+      + O.flip v p * (1 - 2 * O.η) ^ 2 := by
+  have hprod : μ[fun ω => mq O (p * v) ω * mq O p ω] = μ[mq O (p * v)] * μ[mq O p] :=
+    ProbabilityTheory.IndepFun.integral_mul_eq_mul_integral
+      ((mq_indep O).indepFun hv) (mq_meas O _).aestronglyMeasurable
+      (mq_meas O _).aestronglyMeasurable
+  have hsplit : μ[seedLoss O P v p]
+      = μ[mq O (p * v)] + μ[mq O p] - 2 * (μ[mq O (p * v)] * μ[mq O p]) := by
+    rw [integral_congr_ae (seedLoss_eq O P v p),
+      integral_sub (f := fun ω => mq O (p * v) ω + mq O p ω)
+        (g := fun ω => 2 * (mq O (p * v) ω * mq O p ω))
+        ((mq_integrable O _).add (mq_integrable O _))
+        ((mq_mul_integrable O (p * v) p).const_mul 2),
+      integral_add (mq_integrable O _) (mq_integrable O _), integral_const_mul, hprod]
+  rw [hsplit, mq_mean, mq_mean]
+  show _ = 2 * O.η * (1 - O.η)
+    + (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p) * (1 - 2 * O.η) ^ 2
+  ring
+
 /-! ### Part 1 comes from the clustering, not the gate
 
 `hpAPBound` is a *premise*: accept-preserving suffixes are drawn with probability `≥ pAP`,
