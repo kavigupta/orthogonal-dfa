@@ -1048,6 +1048,32 @@ theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
     _ = μ.real {ω | ω ∈ Bad (side' ω)} := by rw [noiseClean_ae O Q, add_zero]
     _ ≤ E := hmain
 
+open scoped Classical in
+/-- The label sum over a block splits into its truly-rejecting and truly-accepting parts. -/
+lemma sum_label_eq (O : Oracle μ S) (A : Finset S) :
+    ∑ p ∈ A, O.label p = ((A.card : ℝ) - ((A.filter (fun p => O.label p = 0)).card : ℝ)) := by
+  classical
+  rw [← Finset.sum_filter_add_sum_filter_not A (fun p => O.label p = 0)]
+  have h0 : ∑ p ∈ A.filter (fun p => O.label p = 0), O.label p = 0 :=
+    Finset.sum_eq_zero (fun p hp => (Finset.mem_filter.1 hp).2)
+  have hone : ∀ p ∈ A.filter (fun p => ¬ (O.label p = 0)), O.label p = 1 := by
+    intro p hp
+    rcases O.label_bit p with hl | hl
+    · exact absurd hl (Finset.mem_filter.1 hp).2
+    · exact hl
+  have h1 : ∑ p ∈ A.filter (fun p => ¬ (O.label p = 0)), O.label p
+      = ((A.filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
+    rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
+  rw [h0, h1, zero_add]
+  have hc := Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = 0)
+  have : ((A.filter (fun p => ¬ (O.label p = 0))).card : ℝ)
+      = (A.card : ℝ) - ((A.filter (fun p => O.label p = 0)).card : ℝ) := by
+    have : ((A.filter (fun p => O.label p = 0)).card : ℝ)
+        + ((A.filter (fun p => ¬ (O.label p = 0))).card : ℝ) = (A.card : ℝ) := by
+      exact_mod_cast congrArg (Nat.cast : ℕ → ℝ) hc
+    linarith
+  rw [this]
+
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
@@ -1156,6 +1182,49 @@ lemma splitRej_sound (O : Oracle μ S) (R : Finset S) (θ τ : ℝ) (hτ : 0 ≤
     have hrw : (R.card : ℝ) * ((θ + τ) - τ) = (R.card : ℝ) * θ := by ring
     rw [hrw]; exact hle
   exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
+
+open scoped Classical in
+/-- **The gate cannot admit a drifted accept side.**  If a `γ` fraction of the prefixes the
+family accepts are truly rejecting, then by `mq_mean` the side's accepting-read rate sits
+`γ(1−2η)` below the clean `1−η`, and the count clears `|A|·θ` only with probability
+`exp(−2·c₀·τ²)` for `τ = θ − (1−η) + γ(1−2η)`, the gap the drift opens. -/
+theorem gate_accept_sound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ γ c₀ : ℝ) (hc₀ : 0 ≤ c₀) (hγ : 0 ≤ γ)
+    (hτ : 0 ≤ θ - (1 - O.η) + γ * (1 - 2 * O.η)) (hsig : O.η ≤ 1 / 2) :
+    μ.real {ω | c₀ ≤ ((side ω).card : ℝ)
+        ∧ γ * ((side ω).card : ℝ) ≤ (((side ω).filter (fun p => O.label p = 0)).card : ℝ)
+        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ Real.exp (-2 * c₀ * (θ - (1 - O.η) + γ * (1 - 2 * O.η)) ^ 2) := by
+  classical
+  set τ : ℝ := θ - (1 - O.η) + γ * (1 - 2 * O.η) with hτdef
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ T => c₀ ≤ (A₀.card : ℝ)
+      ∧ γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
+      ∧ (A₀.card : ℝ) * θ ≤ (T.card : ℝ)) _ (Real.exp_pos _).le (fun A₀ _ => ?_)
+  by_cases hbig : c₀ ≤ (A₀.card : ℝ) ∧
+      γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
+  · have hmean : ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) ≤ (A₀.card : ℝ) * (θ - τ) := by
+      rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
+        sum_label_eq O A₀]
+      have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+      nlinarith [hbig.2, hτdef]
+    refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+      (splitAcc_sound O A₀ θ τ hτ hmean)) ?_
+    · exact fun ω hω => hω.2.2
+    · refine Real.exp_le_exp.2 ?_
+      have : c₀ ≤ (A₀.card : ℝ) := hbig.1
+      nlinarith [sq_nonneg τ]
+  · have hempty : {ω | c₀ ≤ (A₀.card : ℝ)
+        ∧ γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
+        ∧ (A₀.card : ℝ) * θ ≤ (((A₀.filter (fun p => mq O p ω = 1))).card : ℝ)} = ∅ := by
+      ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      exact fun h => hbig ⟨h.1, h.2.1⟩
+    rw [hempty]
+    simpa using (Real.exp_pos _).le
 
 /-! ### The gate in counting form
 
