@@ -510,49 +510,49 @@ cost `2^m` — but the observation that the side is decided by randomness indepe
 bits being scored.  Decomposing over the side's values then pays nothing: the probabilities
 of the values sum to one, not to `2^m`. -/
 
-/-- **A worst-case bound survives an independently chosen index set.**  If `A ω` is always a
-subset of `C` and, for each value `A₀`, the event `A ω = A₀` is independent of `Bad A₀`,
-then a bound `E` holding for every fixed `A₀` holds for `Bad (A ω)` itself. -/
-theorem measureReal_selection_le {ι : Type*} [DecidableEq ι] (C : Finset ι)
-    (A : Ω → Finset ι) (hA : ∀ ω, A ω ⊆ C)
-    (hmeasA : ∀ A₀, MeasurableSet {ω | A ω = A₀})
-    (Bad : Finset ι → Set Ω) (hmeasBad : ∀ A₀, MeasurableSet (Bad A₀)) (E : ℝ)
-    (hindep : ∀ A₀ ∈ C.powerset,
-      μ.real ({ω | A ω = A₀} ∩ Bad A₀) = μ.real {ω | A ω = A₀} * μ.real (Bad A₀))
-    (hbad : ∀ A₀ ∈ C.powerset, μ.real (Bad A₀) ≤ E) (hE : 0 ≤ E) :
-    μ.real {ω | ω ∈ Bad (A ω)} ≤ E := by
+/-- **A worst-case bound survives an independently chosen index.**  If `sel ω` always lands
+in the finite set `T` and, for each value `t`, the event `sel ω = t` is independent of
+`Bad t`, then a bound `E` holding for every fixed `t` holds for `Bad (sel ω)` itself.
+
+The decomposition over `t` costs nothing: the probabilities of the values sum to one, not to
+`#T`.  That is the whole reason the gate's `ω`-dependent accept side is usable — a union
+bound over its possible values would cost `2^m`. -/
+theorem measureReal_selection_le {β : Type*} [DecidableEq β] (T : Finset β)
+    (sel : Ω → β) (hsel : ∀ ω, sel ω ∈ T)
+    (hmeasSel : ∀ t, MeasurableSet {ω | sel ω = t})
+    (Bad : β → Set Ω) (hmeasBad : ∀ t, MeasurableSet (Bad t)) (E : ℝ)
+    (hindep : ∀ t ∈ T, μ.real ({ω | sel ω = t} ∩ Bad t) = μ.real {ω | sel ω = t} * μ.real (Bad t))
+    (hbad : ∀ t ∈ T, μ.real (Bad t) ≤ E) (hE : 0 ≤ E) :
+    μ.real {ω | ω ∈ Bad (sel ω)} ≤ E := by
   classical
-  have hdisj : (C.powerset : Set (Finset ι)).PairwiseDisjoint
-      (fun A₀ => {ω | A ω = A₀} ∩ Bad A₀) := by
+  have hdisj : (T : Set β).PairwiseDisjoint (fun t => {ω | sel ω = t} ∩ Bad t) := by
     intro a _ b _ hab
     simp only [Function.onFun, Set.disjoint_left]
     rintro ω ⟨ha, -⟩ ⟨hb, -⟩
     exact hab (ha.symm.trans hb)
-  have hdisj' : (C.powerset : Set (Finset ι)).PairwiseDisjoint (fun A₀ => {ω | A ω = A₀}) := by
+  have hdisj' : (T : Set β).PairwiseDisjoint (fun t => {ω | sel ω = t}) := by
     intro a _ b _ hab
     simp only [Function.onFun, Set.disjoint_left]
     exact fun ω ha hb => hab (ha.symm.trans hb)
-  have hcover : {ω | ω ∈ Bad (A ω)} = ⋃ A₀ ∈ C.powerset, ({ω | A ω = A₀} ∩ Bad A₀) := by
+  have hcover : {ω | ω ∈ Bad (sel ω)} = ⋃ t ∈ T, ({ω | sel ω = t} ∩ Bad t) := by
     ext ω
-    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe,
-      Finset.mem_powerset, exists_prop]
-    exact ⟨fun h => ⟨A ω, hA ω, rfl, h⟩, fun ⟨A₀, _, he, hb⟩ => he ▸ hb⟩
-  have htotal : ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} = 1 := by
-    have huniv : (Set.univ : Set Ω) = ⋃ A₀ ∈ C.powerset, {ω | A ω = A₀} := by
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe, exists_prop]
+    exact ⟨fun h => ⟨sel ω, hsel ω, rfl, h⟩, fun ⟨t, _, he, hb⟩ => he ▸ hb⟩
+  have htotal : ∑ t ∈ T, μ.real {ω | sel ω = t} = 1 := by
+    have huniv : (Set.univ : Set Ω) = ⋃ t ∈ T, {ω | sel ω = t} := by
       ext ω
-      simp only [Set.mem_univ, Set.mem_iUnion, Finset.mem_coe, Finset.mem_powerset,
-        Set.mem_setOf_eq, exists_prop, true_iff]
-      exact ⟨A ω, hA ω, rfl⟩
-    have := measureReal_biUnion_finset (μ := μ) hdisj' (fun A₀ _ => hmeasA A₀)
-    rw [← this, ← huniv, measureReal_def, measure_univ, ENNReal.toReal_one]
-  calc μ.real {ω | ω ∈ Bad (A ω)}
-      = ∑ A₀ ∈ C.powerset, μ.real ({ω | A ω = A₀} ∩ Bad A₀) := by
-        rw [hcover, measureReal_biUnion_finset hdisj (fun A₀ _ => (hmeasA A₀).inter (hmeasBad A₀))]
-    _ = ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} * μ.real (Bad A₀) :=
-        Finset.sum_congr rfl hindep
-    _ ≤ ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} * E :=
-        Finset.sum_le_sum (fun A₀ hA₀ =>
-          mul_le_mul_of_nonneg_left (hbad A₀ hA₀) measureReal_nonneg)
+      simp only [Set.mem_univ, Set.mem_iUnion, Finset.mem_coe, Set.mem_setOf_eq, exists_prop,
+        true_iff]
+      exact ⟨sel ω, hsel ω, rfl⟩
+    have hb := measureReal_biUnion_finset (μ := μ) hdisj' (fun t _ => hmeasSel t)
+    rw [← hb, ← huniv, measureReal_def, measure_univ, ENNReal.toReal_one]
+  calc μ.real {ω | ω ∈ Bad (sel ω)}
+      = ∑ t ∈ T, μ.real ({ω | sel ω = t} ∩ Bad t) := by
+        rw [hcover, measureReal_biUnion_finset hdisj (fun t _ => (hmeasSel t).inter (hmeasBad t))]
+    _ = ∑ t ∈ T, μ.real {ω | sel ω = t} * μ.real (Bad t) := Finset.sum_congr rfl hindep
+    _ ≤ ∑ t ∈ T, μ.real {ω | sel ω = t} * E :=
+        Finset.sum_le_sum (fun t ht =>
+          mul_le_mul_of_nonneg_left (hbad t ht) measureReal_nonneg)
     _ = E := by rw [← Finset.sum_mul, htotal, one_mul]
 
 /-! ### What the clustering reads
@@ -625,6 +625,16 @@ lemma lloydStep_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω
   · exact leastLossSubset_subset' _ _ _
   · exact hF
 
+lemma lloydIterate_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+    ∀ (n : ℕ) (F : Finset S), F ⊆ cands → (lloydStep O c P cands ω k)^[n] F ⊆ cands := by
+  intro n
+  induction n with
+  | zero => intro F hF; rw [Function.iterate_zero_apply]; exact hF
+  | succ n ih =>
+      intro F hF
+      rw [Function.iterate_succ_apply]
+      exact ih _ (lloydStep_subset O c P cands ω k hF)
+
 lemma lloydIterate_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ)
     {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
     ∀ (n : ℕ) (F : Finset S), F ⊆ cands →
@@ -674,6 +684,90 @@ def Flat (Pre : Set S) : Prop := ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v : S, p * v
 lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre)
     (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
   fun h => hv (hflat p hp p' hp' v h)
+
+lemma clusterAround_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    (hone : (1 : S) ∈ cands) : clusterAround O c P cands ω k ⊆ cands := by
+  classical
+  unfold clusterAround
+  exact lloydIterate_subset O c P cands ω k _ _ (by simpa using hone)
+
+lemma noise_eq_of_mq_eq (O : Oracle μ S) {w : S} {ω ω' : Ω} (h : mq O w ω = mq O w ω') :
+    O.noise w ω = O.noise w ω' := by
+  rcases O.label_bit w with hl | hl <;>
+    · simp only [mq, hl] at h; linarith
+
+open scoped Classical in
+/-- Every query string the state's clustering and votes read at population `j`.  A function
+of the draws alone — the noise does not enter. -/
+noncomputable def gateReads (populations : Finset J) (j : J) (B : Budget) (x : Run Ω S J) :
+    Finset S :=
+  readSet (prefixesAt populations B.m x) (poolAt B.M x)
+    ∪ readSet (certOf j B.m x) ((poolAt B.M x).erase 1)
+
+open scoped Classical in
+/-- The prefixes the gate's family accepts at population `j`. -/
+noncomputable def sideAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) : Finset S :=
+  (certOf j B.m x).filter
+    (fun p => B.hi < voteCount O ((clusterAt O populations x B).erase 1) p (nz x))
+
+open scoped Classical in
+/-- The prefixes it rejects. -/
+noncomputable def sideRej (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) : Finset S :=
+  (certOf j B.m x).filter
+    (fun p => voteCount O ((clusterAt O populations x B).erase 1) p (nz x) ≤ B.lo)
+
+lemma sideAcc_subset (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) : sideAcc O populations j B x ⊆ certOf j B.m x :=
+  Finset.filter_subset _ _
+
+lemma sideRej_subset (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) : sideRej O populations j B x ⊆ certOf j B.m x :=
+  Finset.filter_subset _ _
+
+/-- **Which side each prefix falls on is decided off the gate's own column.**  Both sides
+are determined by the oracle's bits at `gateReads`, and `disjoint_readSet` puts those
+strings off the certification prefixes the gate scores. -/
+lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (d : (ℕ → S) × ((J → ℕ → S) × (J → ℕ → S))) {ω ω' : Ω}
+    (h : ∀ w ∈ gateReads populations j B ((ω, d) : Run Ω S J), O.noise w ω = O.noise w ω') :
+    sideAcc O populations j B (ω, d) = sideAcc O populations j B (ω', d) := by
+  classical
+  have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
+      = clusterAt O populations ((ω', d) : Run Ω S J) B := by
+    refine clusterAround_congr O B.c _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
+    exact Finset.mem_union_left _ hw
+  have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
+    clusterAround_subset _ _ _ _ _ _ (one_mem_poolAt _ _)
+  unfold sideAcc
+  refine Finset.filter_congr (fun p hp => ?_)
+  have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
+      = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
+    refine voteCount_congr O _ p (fun v hv => h _ ?_)
+    refine Finset.mem_union_right _ (mem_readSet hp ?_)
+    exact Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩
+  simp only [nz, ← hfam, hvc]
+
+lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (d : (ℕ → S) × ((J → ℕ → S) × (J → ℕ → S))) {ω ω' : Ω}
+    (h : ∀ w ∈ gateReads populations j B ((ω, d) : Run Ω S J), O.noise w ω = O.noise w ω') :
+    sideRej O populations j B (ω, d) = sideRej O populations j B (ω', d) := by
+  classical
+  have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
+      = clusterAt O populations ((ω', d) : Run Ω S J) B := by
+    refine clusterAround_congr O B.c _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
+    exact Finset.mem_union_left _ hw
+  have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
+    clusterAround_subset _ _ _ _ _ _ (one_mem_poolAt _ _)
+  unfold sideRej
+  refine Finset.filter_congr (fun p hp => ?_)
+  have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
+      = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
+    refine voteCount_congr O _ p (fun v hv => h _ ?_)
+    refine Finset.mem_union_right _ (mem_readSet hp ?_)
+    exact Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩
+  simp only [nz, ← hfam, hvc]
 
 /-- **The gate's own query strings are not read by the clustering.**  A prefix is never
 `p · v` for a prefix `p` and any suffix, on a flat alphabet — so the bits the gate scores
