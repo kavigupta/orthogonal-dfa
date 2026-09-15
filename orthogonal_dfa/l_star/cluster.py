@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -306,6 +307,50 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict)
 
 
+#: Coverage the clustering's selection is held to.  A candidate whose flip mass exceeds
+#: this is outranked by an accept-preserving one, so no member of the family carries more
+#: -- provided the pool has not outgrown the prefixes it is ranked over.
+CLUSTER_COVERAGE = 0.1
+
+
+def prefixes_for_pool(min_signal_strength: float, pool_size: int) -> int:
+    """Representative prefixes a pool of ``pool_size`` candidates needs before taking its
+    least-loss members is sound.
+
+    Write ``s`` for the signal strength, so a cell reads correctly with probability
+    ``1/2 + s`` and wrongly with ``1/2 - s``.
+
+    ``identify_cluster_around`` keeps the candidates whose columns sit closest to the
+    cluster's centre.  A candidate whose flip mass is ``eps`` disagrees with the centre on
+    ``2 s eps`` more of the prefixes than an accept-preserving one does, so over ``m``
+    prefixes it sits ``2 s eps m`` higher in expected loss.  Against that each candidate's
+    loss has spread ``sqrt(m (1/4 - s^2))``, and taking the best of ``M`` tries buys
+    ``sqrt(2 log M)`` of that spread for free.  Requiring the gap to survive the best of
+    the pool gives
+
+        m >= (1/4 - s^2) log M / (2 s^2 eps^2)
+
+    Below it the ranking is decided by which candidate got the luckiest reads rather than
+    by flip mass, and a drifted suffix can take a family slot.  The oracle's noise is
+    *persistent* -- re-reading a cell returns the same bit -- so a pool that has outgrown
+    its prefixes cannot be rescued by asking again, only by more prefixes.
+
+    Logarithmic in the pool, so growing it tenfold costs about a third more prefixes.
+    """
+    s = min_signal_strength
+    spread = 0.25 - s**2
+    needed = spread * math.log(max(pool_size, 2)) / (2 * s**2 * CLUSTER_COVERAGE**2)
+    return math.ceil(needed)
+
+
+def pool_may_grow(pst, amount: int) -> bool:
+    """Whether ``amount`` more candidates would leave the pool still rankable over the
+    prefixes in hand."""
+    pool = len(pst.table.fully_observed()) + amount
+    have = int(pst.table.representative.sum())
+    return prefixes_for_pool(pst.config.min_signal_strength, pool) <= have
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
@@ -366,6 +411,12 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             f"{judged.reason}, sampling more {strategy}es; "
             f"decision_boundary: {decision_boundary:.4f}"
         )
+
+        # More suffixes only help while the pool stays rankable over the prefixes in
+        # hand; past that the least-loss selection is reading noise, not flip mass.
+        if strategy == "suffix" and not pool_may_grow(pst, family_size):
+            print("  pool has outgrown its prefixes; sampling prefixes instead")
+            strategy = "prefix"
 
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
