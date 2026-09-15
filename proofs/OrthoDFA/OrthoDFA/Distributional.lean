@@ -568,12 +568,12 @@ lemma measurableSet_of_countable_slices {Y : Type*} [MeasurableSpace Y] (P : S �
 /-- **Findability, quantitative.**  Over `M` i.i.d. suffix draws, the count of draws
 landing in `G` (probability `≥ pAP` each) falls to `M(pAP−γ)` only w.p. `exp(-2Mγ²)`. -/
 theorem goodCount_le (Dsf : Measure S) [IsProbabilityMeasure Dsf]
-    (M : ℕ) (pAP γ : ℝ) (hγ : 0 ≤ γ) (G : Set S) (hGm : MeasurableSet G)
-    (hG : pAP ≤ Dsf.real G) :
+    (M : ℕ) (cands : Finset (Fin M)) (pAP γ : ℝ) (hγ : 0 ≤ γ)
+    (G : Set S) (hGm : MeasurableSet G) (hG : pAP ≤ Dsf.real G) :
     (Measure.pi (fun _ : Fin M => Dsf)).real
-        {s : Fin M → S | ∑ c, Set.indicator G (fun _ => (1 : ℝ)) (s c)
-            ≤ (M : ℝ) * (pAP - γ)}
-      ≤ Real.exp (-2 * (M : ℝ) * γ ^ 2) := by
+        {s : Fin M → S | ∑ c ∈ cands, Set.indicator G (fun _ => (1 : ℝ)) (s c)
+            ≤ (cands.card : ℝ) * (pAP - γ)}
+      ≤ Real.exp (-2 * (cands.card : ℝ) * γ ^ 2) := by
   classical
   set I : S → ℝ := Set.indicator G (fun _ => (1 : ℝ)) with hI
   have hImeas : Measurable I := (measurable_one.indicator hGm)
@@ -603,14 +603,12 @@ theorem goodCount_le (Dsf : Measure S) [IsProbabilityMeasure Dsf]
           rw [integral_map (measurable_pi_apply c).aemeasurable hImeas.aestronglyMeasurable]
       _ = ∫ v, I v ∂Dsf := by rw [hmap]
       _ = Dsf.real G := hmean
-  have hsum : (M : ℝ) * pAP
-      ≤ ∑ c, (Measure.pi (fun _ : Fin M => Dsf))[fun s : Fin M → S => I (s c)] := by
-    rw [Finset.sum_congr rfl (fun c _ => hXmarg c), Finset.sum_const, Finset.card_univ,
-      Fintype.card_fin, nsmul_eq_mul]
-    exact mul_le_mul_of_nonneg_left hG (Nat.cast_nonneg M)
-  have h := sumLower_le (fun (c : Fin M) (s : Fin M → S) => I (s c)) Finset.univ pAP γ
-    hXmeas hXindep hXicc (by simpa using hsum) hγ
-  simpa using h
+  have hsum : (cands.card : ℝ) * pAP
+      ≤ ∑ c ∈ cands, (Measure.pi (fun _ : Fin M => Dsf))[fun s : Fin M → S => I (s c)] := by
+    rw [Finset.sum_congr rfl (fun c _ => hXmarg c), Finset.sum_const, nsmul_eq_mul]
+    exact mul_le_mul_of_nonneg_left hG (Nat.cast_nonneg _)
+  exact sumLower_le (fun (c : Fin M) (s : Fin M → S) => I (s c)) cands pAP γ
+    hXmeas hXindep hXicc hsum hγ
 
 #print axioms goodCount_le
 
@@ -718,7 +716,7 @@ theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α
 theorem clustering_budget {J : Type*} [Fintype J]
     (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
-    (M m k : ℕ) (hkM : k ≤ M) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
+    (M m k : ℕ) (cands : Finset (Fin M)) (hkcands : k ≤ cands.card) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
     (εpop : ℝ) (hεpop : 0 < εpop)
     (g₁ g₂ κ pAP γsuf δ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hγsuf : 0 ≤ γsuf)
     (hcoll : (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
@@ -728,16 +726,16 @@ theorem clustering_budget {J : Type*} [Fintype J]
           * ((m : ℝ) * εpop - ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂)
         - ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (hcount : (k : ℝ) ≤ (M : ℝ) * (pAP - γsuf))
-    (hbudget : Real.exp (-2 * (M : ℝ) * γsuf ^ 2)
-        + (M : ℝ) * (κ + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂ ^ 2)
+    (hcount : (k : ℝ) ≤ (cands.card : ℝ) * (pAP - γsuf))
+    (hbudget : Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2)
+        + (cands.card : ℝ) * (κ + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂ ^ 2)
             + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁ ^ 2)) ≤ δ) :
     ((Measure.pi (fun _ : Fin M => Dsf)).prod
         (runMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
       {y | ¬ ∀ j : J, 1 - (k : ℝ) * εpop
             ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
                   (fun c => ploss (μ := μ) O (y.1 c) y.2)
-                  (Finset.univ : Finset (Fin M)) k).image y.1,
+                  cands k).image y.1,
                 O.label (p * v) = O.label p}}
       ≤ δ := by
   classical
@@ -769,7 +767,7 @@ theorem clustering_budget {J : Type*} [Fintype J]
     simp [hDfam, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
       Finset.mul_sum]
   set A : Set ((Fin M → S) × ((ι → S) × Ω)) :=
-    {y | ∑ c, I (y.1 c) ≤ (M : ℝ) * (pAP - γsuf)} with hA
+    {y | ∑ c ∈ cands, I (y.1 c) ≤ (cands.card : ℝ) * (pAP - γsuf)} with hA
   set E : Fin M → Set ((Fin M → S) × ((ι → S) × Ω)) := fun c =>
     {y | ((∑ z, flipMass O (Dfam z) (y.1 c) = 0) ∧ pthresh O g₁ g₂ N ≤ ploss (μ := μ) O (y.1 c) y.2)
        ∨ ((σ ≤ ∑ z, flipMass O (Dfam z) (y.1 c))
@@ -777,24 +775,24 @@ theorem clustering_budget {J : Type*} [Fintype J]
   have hincl : {y : (Fin M → S) × ((ι → S) × Ω) | ¬ ∀ j : J, 1 - (k : ℝ) * εpop
       ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
             (fun c => ploss (μ := μ) O (y.1 c) y.2)
-            (Finset.univ : Finset (Fin M)) k).image y.1,
-          O.label (p * v) = O.label p}} ⊆ A ∪ ⋃ c, E c := by
+            cands k).image y.1,
+          O.label (p * v) = O.label p}} ⊆ A ∪ ⋃ c ∈ cands, E c := by
     intro y hy
     by_contra hnot
     rw [Set.mem_union, not_or] at hnot
     obtain ⟨hnA, hnE⟩ := hnot
-    simp only [Set.mem_iUnion, not_exists] at hnE
-    have hcountgt : (M : ℝ) * (pAP - γsuf) < ∑ c, I (y.1 c) := by
+    simp only [Set.mem_iUnion, not_exists, exists_prop, not_and] at hnE
+    have hcountgt : (cands.card : ℝ) * (pAP - γsuf) < ∑ c ∈ cands, I (y.1 c) := by
       by_contra hle; exact hnA (by rw [hA]; exact not_lt.mp hle)
-    have hIsum : ∑ c, I (y.1 c)
-        = (((Finset.univ : Finset (Fin M)).filter (fun c => y.1 c ∈ G)).card : ℝ) := by
+    have hIsum : ∑ c ∈ cands, I (y.1 c)
+        = ((cands.filter (fun c => y.1 c ∈ G)).card : ℝ) := by
       have hpt : ∀ c : Fin M, I (y.1 c) = if y.1 c ∈ G then (1 : ℝ) else 0 := by
         intro c; rw [hI, Set.indicator_apply]
       rw [Finset.sum_congr rfl (fun c _ => hpt c), Finset.sum_boole]
-    have hgoodCount : k ≤ ((Finset.univ : Finset (Fin M)).filter
+    have hgoodCount : k ≤ (cands.filter
         (fun c => ∑ z, flipMass O (Dfam z) (y.1 c) = 0)).card := by
-      have h1 : ((Finset.univ : Finset (Fin M)).filter (fun c => y.1 c ∈ G)).card
-          ≤ ((Finset.univ : Finset (Fin M)).filter
+      have h1 : (cands.filter (fun c => y.1 c ∈ G)).card
+          ≤ (cands.filter
               (fun c => ∑ z, flipMass O (Dfam z) (y.1 c) = 0)).card := by
         refine Finset.card_le_card ?_
         intro c hc
@@ -802,34 +800,33 @@ theorem clustering_budget {J : Type*} [Fintype J]
         exact ⟨hc.1, hGgood _ hc.2⟩
       rw [hIsum] at hcountgt
       have hlt : (k : ℝ)
-          < (((Finset.univ : Finset (Fin M)).filter (fun c => y.1 c ∈ G)).card : ℝ) :=
+          < ((cands.filter (fun c => y.1 c ∈ G)).card : ℝ) :=
         lt_of_le_of_lt hcount hcountgt
-      have hk1 : k ≤ ((Finset.univ : Finset (Fin M)).filter (fun c => y.1 c ∈ G)).card := by
+      have hk1 : k ≤ (cands.filter (fun c => y.1 c ∈ G)).card := by
         exact_mod_cast hlt.le
       exact le_trans hk1 h1
-    have hsep : ∀ c ∈ (Finset.univ : Finset (Fin M)), ∀ c' ∈ (Finset.univ : Finset (Fin M)),
+    have hsep : ∀ c ∈ cands, ∀ c' ∈ cands,
         (∑ z, flipMass O (Dfam z) (y.1 c) = 0) → (σ ≤ ∑ z, flipMass O (Dfam z) (y.1 c')) →
         ploss (μ := μ) O (y.1 c) y.2 < ploss (μ := μ) O (y.1 c') y.2 := by
-      intro c _ c' _ hgc hbc'
+      intro c hc0 c' hc0' hgc hbc'
       have h1 : ploss (μ := μ) O (y.1 c) y.2 < pthresh O g₁ g₂ N := by
-        by_contra hge; exact hnE c (Or.inl ⟨hgc, not_lt.mp hge⟩)
+        by_contra hge; exact hnE c (Finset.mem_coe.mpr (by simpa using hc0)) (Or.inl ⟨hgc, not_lt.mp hge⟩)
       have h2 : pthresh O g₁ g₂ N < ploss (μ := μ) O (y.1 c') y.2 := by
-        by_contra hle; exact hnE c' (Or.inr ⟨hbc', not_lt.mp hle⟩)
+        by_contra hle; exact hnE c' (Finset.mem_coe.mpr (by simpa using hc0')) (Or.inr ⟨hbc', not_lt.mp hle⟩)
       linarith
-    have hkcard : k ≤ (Finset.univ : Finset (Fin M)).card := by
-      rw [Finset.card_univ, Fintype.card_fin]; exact hkM
+    have hkcard : k ≤ cands.card := hkcands
     have havoid := chosen_avoids_bad
       (fun c => ploss (μ := μ) O (y.1 c) y.2)
       (fun c => ∑ z, flipMass O (Dfam z) (y.1 c) = 0)
       (fun c => σ ≤ ∑ z, flipMass O (Dfam z) (y.1 c))
       (fun c hb hg => by rw [hg] at hb; linarith)
-      (Finset.univ : Finset (Fin M))
+      cands
       (leastLossSubset (fun c => ploss (μ := μ) O (y.1 c) y.2)
-        (Finset.univ : Finset (Fin M)) k) k
+        cands k) k
       (leastLossSubset_subset _ _ _ hkcard) (leastLossSubset_card _ _ _ hkcard)
       (leastLossSubset_least _ _ _ hkcard) hgoodCount hsep
     have hfam : ∀ v ∈ (leastLossSubset (fun c => ploss (μ := μ) O (y.1 c) y.2)
-        (Finset.univ : Finset (Fin M)) k).image y.1,
+        cands k).image y.1,
         ∑ j : J, flipMass O (D j) v ≤ εpop := by
       intro v hv
       obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp hv
@@ -843,50 +840,48 @@ theorem clustering_budget {J : Type*} [Fintype J]
     intro j
     have hcov := coverage_of_summed_flip O D (Finset.univ : Finset J)
       ((leastLossSubset (fun c => ploss (μ := μ) O (y.1 c) y.2)
-        (Finset.univ : Finset (Fin M)) k).image y.1) εpop hfam j (Finset.mem_univ j)
+        cands k).image y.1) εpop hfam j (Finset.mem_univ j)
     refine le_trans ?_ hcov
     have hcard : (((leastLossSubset (fun c => ploss (μ := μ) O (y.1 c) y.2)
-        (Finset.univ : Finset (Fin M)) k).image y.1).card : ℝ) ≤ (k : ℝ) := by
+        cands k).image y.1).card : ℝ) ≤ (k : ℝ) := by
       have hci := Finset.card_image_le (s := leastLossSubset
-        (fun c => ploss (μ := μ) O (y.1 c) y.2) (Finset.univ : Finset (Fin M)) k) (f := y.1)
+        (fun c => ploss (μ := μ) O (y.1 c) y.2) cands k) (f := y.1)
       rw [leastLossSubset_card _ _ _ hkcard] at hci
       exact_mod_cast hci
     nlinarith [hcard, hεpop.le]
   have hAbound : ((Measure.pi (fun _ : Fin M => Dsf)).prod
-      (runMeasure (μ := μ) Dfam)).real A ≤ Real.exp (-2 * (M : ℝ) * γsuf ^ 2) := by
+      (runMeasure (μ := μ) Dfam)).real A ≤ Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2) := by
     have heq : ((Measure.pi (fun _ : Fin M => Dsf)).prod
         (runMeasure (μ := μ) Dfam)).real A
         = (Measure.pi (fun _ : Fin M => Dsf)).real
-          {s : Fin M → S | ∑ c, I (s c) ≤ (M : ℝ) * (pAP - γsuf)} :=
+          {s : Fin M → S | ∑ c ∈ cands, I (s c) ≤ (cands.card : ℝ) * (pAP - γsuf)} :=
       prod_fst_real (Measure.pi (fun _ : Fin M => Dsf)) (runMeasure (μ := μ) Dfam)
-        {s : Fin M → S | ∑ c, I (s c) ≤ (M : ℝ) * (pAP - γsuf)}
+        {s : Fin M → S | ∑ c ∈ cands, I (s c) ≤ (cands.card : ℝ) * (pAP - γsuf)}
     rw [heq]
-    exact goodCount_le Dsf M pAP γsuf hγsuf G hGmeas hfind
+    exact goodCount_le Dsf M cands pAP γsuf hγsuf G hGmeas hfind
   have hEbound : ∀ c, ((Measure.pi (fun _ : Fin M => Dsf)).prod
       (runMeasure (μ := μ) Dfam)).real (E c)
       ≤ κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2) :=
     fun c => pindex_event_le O Dfam Dsf M c g₁ g₂ κ σ hg₁ hg₂ hσpos hNpos hcoll hband
   have hUnion : ((Measure.pi (fun _ : Fin M => Dsf)).prod
-      (runMeasure (μ := μ) Dfam)).real (⋃ c, E c)
-      ≤ (M : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) := by
-    have hset : (⋃ c, E c) = ⋃ c ∈ (Finset.univ : Finset (Fin M)), E c := by ext y; simp
-    rw [hset]
+      (runMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c)
+      ≤ (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) := by
     calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real
-          (⋃ c ∈ (Finset.univ : Finset (Fin M)), E c)
-        ≤ ∑ c, ((Measure.pi (fun _ : Fin M => Dsf)).prod
+          (⋃ c ∈ cands, E c)
+        ≤ ∑ c ∈ cands, ((Measure.pi (fun _ : Fin M => Dsf)).prod
             (runMeasure (μ := μ) Dfam)).real (E c) := measureReal_biUnion_le _ _
-      _ ≤ ∑ _c : Fin M, (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) :=
+      _ ≤ ∑ _c ∈ cands, (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) :=
           Finset.sum_le_sum (fun c _ => hEbound c)
-      _ = (M : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) := by
-          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+      _ = (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2)
+            + Real.exp (-2 * N * g₁ ^ 2)) := by rw [Finset.sum_const, nsmul_eq_mul]
   calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real _
       ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
-          (runMeasure (μ := μ) Dfam)).real (A ∪ ⋃ c, E c) := measureReal_mono hincl
+          (runMeasure (μ := μ) Dfam)).real (A ∪ ⋃ c ∈ cands, E c) := measureReal_mono hincl
     _ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real A
         + ((Measure.pi (fun _ : Fin M => Dsf)).prod
-            (runMeasure (μ := μ) Dfam)).real (⋃ c, E c) := measureReal_union_le _ _
-    _ ≤ Real.exp (-2 * (M : ℝ) * γsuf ^ 2)
-        + (M : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2)
+            (runMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c) := measureReal_union_le _ _
+    _ ≤ Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2)
+        + (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2)
             + Real.exp (-2 * N * g₁ ^ 2)) := add_le_add hAbound hUnion
     _ ≤ δ := hbudget
 
@@ -960,8 +955,10 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     have hNne : N ≠ 0 := ne_of_gt hNpos
     field_simp
     nlinarith [hσpos, h2η, hNpos]
-  have hcount : (k : ℝ) ≤ (M : ℝ) * (pAP - pAP / 2) := by
-    rw [show pAP - pAP / 2 = pAP / 2 by ring]
+  have hUcard : (((Finset.univ : Finset (Fin M)).card : ℝ)) = (M : ℝ) := by
+    rw [Finset.card_univ, Fintype.card_fin]
+  have hcount : (k : ℝ) ≤ (((Finset.univ : Finset (Fin M)).card : ℝ)) * (pAP - pAP / 2) := by
+    rw [hUcard, show pAP - pAP / 2 = pAP / 2 by ring]
     rw [div_le_iff₀ hpAP] at hM1
     nlinarith [hM1, hpAP]
   have hsuffix : Real.exp (-2 * (M : ℝ) * (pAP / 2) ^ 2) ≤ δ / 3 := by
@@ -972,7 +969,8 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     have h := tail_le (t := pAP / 2) (c := 1) (ε := δ / 3) (k := (M : ℝ))
       (by linarith) one_pos (by linarith) hthr
     simpa using h
-  have hcore := clustering_budget O (fun j : {j // j ∈ populations} => D j.val) Dsf M m k hkM
+  have hcore := clustering_budget O (fun j : {j // j ∈ populations} => D j.val) Dsf M m k
+    (Finset.univ : Finset (Fin M)) (by rw [Finset.card_univ, Fintype.card_fin]; exact hkM)
     hmpos hPpos εpop hεpop g₁ g₂ κ pAP (pAP / 2) δ hg₁ hg₂ (by linarith)
     hcoll (by rw [← hN, ← hσ]; exact hband) hfind hcount ?_
   · have hcompl := one_sub_le_compl_real _ _ δ hcore
@@ -983,7 +981,7 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     constructor
     · intro h j hj; rw [← hkε]; exact h j hj
     · intro h j hj; rw [hkε]; exact h j hj
-  · rw [← hN]
+  · rw [← hN, hUcard]
     have hmm : (M : ℝ) * (Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) ≤ δ / 3 := by
       rw [hg₂def, hg₁def, hNval] at *
       exact hm
@@ -994,6 +992,76 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     linarith [hsuffix, hκ, hmm]
 
 #print axioms clustering_pac
+
+/-- **The iteration version.**  The algorithm does not run at a fixed budget: it clusters,
+checks the FNR, and if it is too high **grows the suffix pool and retries**, stopping at a
+data-dependent time.  A fixed-budget bound does not transfer to such a stopping time.
+
+This theorem gives the guarantee **simultaneously for every round**: with probability
+`≥ 1 − δ`, for *all* `t` the round-`t` family preserves acceptance on `≥ 1 − k·εpop` of
+**each** population.  Because it holds for all rounds at once, whichever round the loop
+stops at — under *any* stopping rule, the FNR test included — the family it returns
+satisfies the guarantee.  The rounds share the draws and the persistent noise; round `t`
+differs only in its candidate pool `pool t`, which is how the loop grows. -/
+theorem clustering_pac_iter {J : Type*} [Fintype J]
+    (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (Dsf : Measure S) [IsProbabilityMeasure Dsf]
+    (M m k : ℕ) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
+    (T : ℕ) (hT : 0 < T) (pool : Fin T → Finset (Fin M))
+    (hkpool : ∀ t, k ≤ (pool t).card)
+    (εpop : ℝ) (hεpop : 0 < εpop)
+    (g₁ g₂ κ pAP γsuf δ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hγsuf : 0 ≤ γsuf)
+    (hcoll : (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
+      {x : (J × Fin m → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
+    (hband : ((Finset.univ : Finset (J × Fin m)).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
+      ≤ ((Finset.univ : Finset (J × Fin m)).card : ℝ) * O.η + (1 - 2 * O.η)
+          * ((m : ℝ) * εpop - ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂)
+        - ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁)
+    (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hcount : ∀ t, (k : ℝ) ≤ (((pool t).card : ℝ)) * (pAP - γsuf))
+    (hbudget : ∀ t, Real.exp (-2 * (((pool t).card : ℝ)) * γsuf ^ 2)
+        + (((pool t).card : ℝ))
+          * (κ + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂ ^ 2)
+            + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁ ^ 2))
+        ≤ δ / T) :
+    1 - δ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
+        (runMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
+      {y | ∀ t : Fin T, ∀ j : J, 1 - (k : ℝ) * εpop
+            ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
+                  (fun c => ploss (μ := μ) O (y.1 c) y.2) (pool t) k).image y.1,
+                O.label (p * v) = O.label p}} := by
+  classical
+  set ρ := (Measure.pi (fun _ : Fin M => Dsf)).prod
+    (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)) with hρ
+  set Fail : Fin T → Set ((Fin M → S) × ((J × Fin m → S) × Ω)) := fun t =>
+    {y | ¬ ∀ j : J, 1 - (k : ℝ) * εpop
+      ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
+            (fun c => ploss (μ := μ) O (y.1 c) y.2) (pool t) k).image y.1,
+          O.label (p * v) = O.label p}} with hFail
+  -- each round fails with probability at most δ/T
+  have hper : ∀ t, ρ.real (Fail t) ≤ δ / T := fun t =>
+    clustering_budget O D Dsf M m k (pool t) (hkpool t) hmpos hJ εpop hεpop
+      g₁ g₂ κ pAP γsuf (δ / T) hg₁ hg₂ hγsuf hcoll hband hfind (hcount t) (hbudget t)
+  -- union over the rounds
+  have hTR : (0 : ℝ) < (T : ℝ) := by exact_mod_cast hT
+  have hunion : ρ.real (⋃ t, Fail t) ≤ δ := by
+    have hset : (⋃ t, Fail t) = ⋃ t ∈ (Finset.univ : Finset (Fin T)), Fail t := by
+      ext y; simp
+    rw [hset]
+    calc ρ.real (⋃ t ∈ (Finset.univ : Finset (Fin T)), Fail t)
+        ≤ ∑ t, ρ.real (Fail t) := measureReal_biUnion_le _ _
+      _ ≤ ∑ _t : Fin T, δ / T := Finset.sum_le_sum (fun t _ => hper t)
+      _ = δ := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+          field_simp
+  -- complement
+  have hcompl := one_sub_le_compl_real ρ (⋃ t, Fail t) δ hunion
+  refine le_trans hcompl (le_of_eq ?_)
+  congr 1
+  ext y
+  simp only [Set.mem_compl_iff, Set.mem_iUnion, not_exists, hFail, Set.mem_setOf_eq, not_not]
+
+#print axioms clustering_pac_iter
 
 
 end Assembly
