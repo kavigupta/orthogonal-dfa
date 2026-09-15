@@ -98,18 +98,6 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _take_indecisive(resolver, target):
-    """
-    Take up to target of the round's boundary strings.
-
-    The set is sorted then shuffled with a fixed rng, so the
-    cap picks the same unbiased sample every run.
-    """
-    ordered = sorted(resolver.indecisive)
-    np.random.default_rng(0).shuffle(ordered)
-    return ordered[:target]
-
-
 class Pools:
     """The prefix populations, as a source apiece rather than a list apiece.
 
@@ -288,19 +276,16 @@ class _PoolAccess:
         return self._pools.for_split(label, wanted)
 
 
-def _nothing_left_to_split(pst, resolver, dfa) -> bool:
-    """Whether the round found every state it can and settled every state it
-    can fill.
-
-    Only states a draw reaches are waited on, the same ones `_per_state_members`
-    draws for: elsewhere a leaf too thin to rule a split out stays that way.
+def _aimed_at(pst, resolver, dfa) -> set:
+    """The leaves the round aims at, which are the ones its aims settle strings
+    into -- `state_source` proves a leaf's yield by aiming at it, so a leaf
+    whose yield comes out too low has still been filled by the proving.
     """
-    fillable = {
+    return {
         leaf
         for leaf in range(resolver.num_states)
         if aim_at(pst, dfa, leaf) is not None
     }
-    return resolver.splits.nothing_left_to_split(fillable)
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -422,12 +407,14 @@ def counterexample_driven_synthesis(
             f"{len(pools.held)} populations, {pools.boundary_strings} boundary "
             f"strings harvested so far"
         )
-        # After the rebuild: the sweep reads each leaf's members, and this
-        # round's draws are what it has to read.
+        # Asked after the rebuild, whose aims are what fill the leaves it
+        # reads.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
+            settled=lambda: resolver.splits.nothing_left_to_split(
+                _aimed_at(pst, resolver, dfa)
+            ),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
@@ -435,6 +422,10 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
+        # The check strands strings of its own reading every leaf; they belong
+        # to the harvest rather than dying with this round's resolver.
+        for string in sorted(resolver.indecisive):
+            pools.offer_indecisive(string)
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
