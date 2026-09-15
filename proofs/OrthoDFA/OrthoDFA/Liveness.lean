@@ -325,61 +325,70 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 #print axioms chosen_avoids_bad_whp
 
 /-- The persistent signal oracle, bundled as random classification noise — the
-*genuine* model, nothing derived asserted.  `noise v i` is the iid `Bernoulli(η)`
-noise bit on the string `x_i·v` (rate `η`, independent across strings, in `[0,1]`,
-mean `η`); `flip v i ∈ {0,1}` marks whether `v` flips `x_i`'s state (from the
-language).  The disagreement read and its mean/independence/range are *derived*
-below, not fields. -/
-structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*) where
-  noise : S → ℕ → Ω → ℝ
+*genuine* model.  The noise is indexed by the **query string** (a word `w : W`),
+not a (prefix, suffix) pair: `noise w` is the iid `Bernoulli(η)` bit on the string
+`w`, persistent and independent across *distinct strings* (`noise_indep`).  `q i v`
+is the concatenation `x_i · v` — the actual string queried for prefix `i`, suffix
+`v` — and `q_inj` says distinct prefixes give distinct query strings (so the reads
+of one suffix across prefixes hit distinct strings, hence are independent).  `flip`
+is the language's flip pattern.  The disagreement read and its
+mean/independence/range are *derived* below. -/
+structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (W S : Type*) where
+  noise : W → Ω → ℝ
   η : ℝ
   hη : η ≤ 1 / 2
-  noise_meas : ∀ v i, AEMeasurable (noise v i) μ
-  noise_indep : ∀ v, iIndepFun (noise v) μ
-  noise_icc : ∀ v i, ∀ᵐ ω ∂μ, noise v i ω ∈ Set.Icc (0 : ℝ) 1
-  noise_mean : ∀ v i, μ[noise v i] = η
+  noise_meas : ∀ w, AEMeasurable (noise w) μ
+  noise_indep : iIndepFun noise μ
+  noise_icc : ∀ w, ∀ᵐ ω ∂μ, noise w ω ∈ Set.Icc (0 : ℝ) 1
+  noise_mean : ∀ w, μ[noise w] = η
+  q : ℕ → S → W
+  q_inj : ∀ v, Function.Injective (fun i => q i v)
   flip : S → ℕ → ℝ
   flip_bit : ∀ v i, flip v i = 0 ∨ flip v i = 1
 
 namespace Oracle
-variable {S : Type*} (O : Oracle μ S)
+variable {W S : Type*} (O : Oracle μ W S)
 
 /-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of `v` on
-prefix `i` (the loss the clustering sees). -/
+prefix `i`, where the noise is that of the concatenated query string `q i v`. -/
 noncomputable def read (v : S) (i : ℕ) : Ω → ℝ :=
-  fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω
+  fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise (O.q i v) ω
 
-lemma noise_int (v i) : Integrable (O.noise v i) μ :=
-  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas v i) (O.noise_icc v i)
+lemma noise_int (w) : Integrable (O.noise w) μ :=
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w) (O.noise_icc w)
 
 /-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
 oracle, not a field): `E[read v i] = η + (1−2η)·flip v i`. -/
 lemma read_mean (v i) : μ[O.read v i] = O.η + (1 - 2 * O.η) * O.flip v i := by
-  have h := read_disagreement_mean μ O.η (O.flip v i) (O.noise v i) (O.noise_int v i)
-    (O.noise_mean v i)
+  have h := read_disagreement_mean μ O.η (O.flip v i) (O.noise (O.q i v))
+    (O.noise_int _) (O.noise_mean _)
   calc μ[O.read v i]
-      = ∫ ω, (O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω) ∂μ := rfl
+      = ∫ ω, (O.flip v i + (1 - 2 * O.flip v i) * O.noise (O.q i v) ω) ∂μ := rfl
     _ = O.η + O.flip v i * (1 - 2 * O.η) := h
     _ = O.η + (1 - 2 * O.η) * O.flip v i := by ring
 
 lemma read_meas (v i) : AEMeasurable (O.read v i) μ := by
-  show AEMeasurable (fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω) μ
-  exact aemeasurable_const.add (aemeasurable_const.mul (O.noise_meas v i))
+  show AEMeasurable (fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise (O.q i v) ω) μ
+  exact aemeasurable_const.add (aemeasurable_const.mul (O.noise_meas _))
 
-lemma read_indep (v) : iIndepFun (O.read v) μ :=
-  (O.noise_indep v).comp (fun i x => O.flip v i + (1 - 2 * O.flip v i) * x)
+/-- **Derived** per-suffix independence across prefixes.  The reads of `v` across
+prefixes hit *distinct* query strings (`q_inj`), so they are an injective
+reindexing of the per-string iid noise — independent by `iIndepFun.precomp`. -/
+lemma read_indep (v) : iIndepFun (O.read v) μ := by
+  have h1 : iIndepFun (fun i => O.noise (O.q i v)) μ := O.noise_indep.precomp (O.q_inj v)
+  exact h1.comp (fun i x => O.flip v i + (1 - 2 * O.flip v i) * x)
     (fun _ => measurable_const.add (measurable_const.mul measurable_id))
 
 lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read v i ω ∈ Set.Icc (0 : ℝ) 1 := by
-  filter_upwards [O.noise_icc v i] with ω hω
+  filter_upwards [O.noise_icc (O.q i v)] with ω hω
   rw [Set.mem_Icc] at hω
-  have hr : O.read v i ω = O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω := rfl
+  have hr : O.read v i ω = O.flip v i + (1 - 2 * O.flip v i) * O.noise (O.q i v) ω := rfl
   rw [hr, Set.mem_Icc]
   rcases O.flip_bit v i with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
 
 end Oracle
 
-theorem greedy_picks_good {S : Type*} [DecidableEq S] (O : Oracle μ S)
+theorem greedy_picks_good {W S : Type*} [DecidableEq S] (O : Oracle μ W S)
     (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
     (hdisj : ∀ v, bad v → ¬ good v)
     (cands : Finset S) (k m : ℕ) (εcov : ℝ)
