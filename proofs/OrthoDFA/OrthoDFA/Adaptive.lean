@@ -10,10 +10,18 @@ data-dependent time.  This file states and proves the guarantee **for that loop*
 no fixed budget:
 
 > with probability `≥ 1 − δ` the loop **terminates**, and **whatever** family it returns
-> preserves acceptance on `≥ 1 − εcov` of **each** prefix population.
+> classifies `≥ 1 − εcov` of **each** prefix population the way the noiseless oracle does,
+> wherever it decides at all.
 
 "Whatever it returns" is `ret`: the states that pass both gates.  The guarantee is not
 claimed at states the loop rejects.
+
+The conclusion is about the family's **cut** (`cutCorrect`), not about each of its members
+being accept-preserving.  Per-member preservation is the premise the algorithm works from
+(`hpAPBound`) and what its screening reaches for, but no finite test certifies it of a
+sampled family, and the vote survives a drifting member.  What is certified — by the gate,
+by #215's test, and by what E-L\* actually consumes downstream — is that the family
+classifies prefixes correctly.
 
 Everything the statement needs is present and constrained: the persistent RCN oracle, the
 collection of prefix populations, the suffix distribution with its findability `pAP`, the
@@ -398,13 +406,30 @@ noncomputable def ret (O : Oracle μ S) (populations : Finset J)
         (famAt O populations fpr accFnr x hM.1 hM.2)
         (prefixesAt populations hM.2.2 x) (nz x)}
 
-/-- The family at a reachable state is **invalid**: on some population it fails to
-preserve acceptance on a `1 − εcov` fraction. -/
+/-- **The family's cut is right at `p`**: where it decides, it decides the way the
+oracle's noiseless label does.
+
+Indecisive prefixes are excluded — they hold vacuously — which is what the round claims
+and no more: they are boundary strings, and #215's test likewise scores only
+`classifier.decisive`.  The FNR gate separately caps how much of a population can be
+indecisive, so the two together say most of a population is decided, and decided right.
+
+This is the *cut*, not per-member accept preservation.  A family of `k` suffixes votes
+correctly while a member drifts — one member moves the vote by `1/k`, inside the margin —
+so per-member preservation is the mechanism the algorithm reaches for (`pAP`, the
+screening) and correct classification is the end.  It is also what the rest of E-L\*
+consumes: the mask rows are read through this cut to identify states. -/
+def cutCorrect (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
+  (cfgAcc O fpr accFnr b ≤ vote O F p ω → O.label p = 1) ∧
+    (vote O F p ω < cfgRej O fpr accFnr b → O.label p = 0)
+
+/-- The family at a reachable state is **invalid**: on some population its cut is wrong on
+more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
     (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | ¬ ∀ j ∈ populations, 1 - εcov
-        ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
-            O.label (p * v) = O.label p}}
+        ≤ (D j).real {p | cutCorrect O (boundaryAfter O populations fpr accFnr x hM.1)
+            fpr accFnr (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x)}}
 
 /-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
 `measureReal_iUnion_fintype_le` for finite index, but not this. -/
@@ -455,21 +480,37 @@ pool has outgrown the prefixes, the clustering really can produce a drifted fami
 algorithm does not return it — that is what the gate is for — and the guarantee is about
 what it returns.
 
-Proof plan: this rests on the **accept-preserving gate**, not on the clustering.  A
-returned family has passed `admitted`, which tests directly — on the seed's own column,
-where membership of `p · ε` is membership of `p` — that each side of its cut reads as its
-own class.  So the argument is: `admitted` bounds the binomial probability that a family
-whose cut disagrees with membership on more than `εcov` of a population would pass, and
-`coverage_of_summed_flip` turns that into the per-population fraction.  Reachable states
-are countable, so union-bound them at a summable weight.
+Proof plan: this rests on the **accept-preserving gate**, and the gate certifies exactly
+what `cutCorrect` asks for.  A returned family has passed `admitted`, which tests — on the
+seed's own column, where membership of `p · ε` is membership of `p` — that each side of
+its cut reads as its own class.  Reads at distinct prefixes are independent
+(`read_indep`, and `prefixesOf` is a `Finset`), so:
+
+* `admitted` forces the accepted side's hit count into the upper tail of
+  `Bin(n, accept_thresh)` and the rejected side's into the lower tail of
+  `Bin(n, reject_thresh)`;
+* a truly-accepting prefix reads accepting with probability `1 − η`, a truly-rejecting one
+  with probability `η`, and `admissibleMargin` keeps the margin below the signal, so a
+  wrong side drags the count off its tail — Hoeffding at the gap `(1 − 2η)`;
+* hence w.h.p. the cut is right on the *sampled* prefixes, and level 2 carries that to
+  `D j` over the raw draws `prf j i x`, whose empirical measure is `D j`.
+
+`validity_of_per_state` has already reduced the state union to this.
+
+Two accounted-for costs.  The gate reads the prefixes the family was selected on, so
+soundness against the *selected* family needs a union over reachable families,
+`≤ C(M,k) ≤ M^k` — a `k·log M` term in the prefix requirement, not an obstruction.
+(Drawing the gate's prefixes fresh, as `certification_sample` already does on the
+`UNCERTIFIED` branch, would remove it.)
 
 Deliberately *not* via `clustering_budget`: inferring validity from the cluster's loss
 concentration would need a union bound over every candidate suffix, and the persistent
 oracle's fixed noise bits make the per-candidate error floor at the prefix collision
 entropy `∑ₐ D_j({a})²` — so that route fails once the candidate pool outgrows
 `exp(c/ρ)`.  The gate tests the conclusion instead of inferring it, so the pool size
-does not enter.  `Distributional.lean`'s `clustering_pac` remains the statement about one
-budget with a collision bound supplied; it is not what carries this. -/
+does not enter, and no collision bound is needed: the gate reads `prefixesOf`, which is
+distinct by construction.  `Distributional.lean`'s `clustering_pac` remains the statement
+about one budget with a collision bound supplied; it is not what carries this. -/
 theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -544,8 +585,8 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
       {x | (∃ hM, x ∈ ret O populations fpr accFnr indecisionLimit α hM) ∧
         ∀ hM : Hist × (ℕ × ℕ), x ∈ ret O populations fpr accFnr indecisionLimit α hM →
           ∀ j ∈ populations, 1 - εcov
-            ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
-                O.label (p * v) = O.label p}} := by
+            ≤ (D j).real {p | cutCorrect O (boundaryAfter O populations fpr accFnr x hM.1)
+                fpr accFnr (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x)}} := by
   have h := sound_and_terminating (runLaw μ D Dsf)
     (fun hM => ret O populations fpr accFnr indecisionLimit α hM
       ∩ FailAt O populations D fpr accFnr εcov hM)
