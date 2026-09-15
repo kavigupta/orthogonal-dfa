@@ -12,7 +12,12 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import StateSource, aim_at, state_source
+from orthogonal_dfa.l_star.prefix_sources import (
+    BoundarySource,
+    StateSource,
+    aim_at,
+    state_source,
+)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 
@@ -157,7 +162,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
         drawn = [source.draw() for _ in range(len(support))]
 
         self.assertEqual(sorted(drawn), support)
-        with self.assertRaisesRegex(RuntimeError, "rested nothing new"):
+        with self.assertRaisesRegex(RuntimeError, "found no new samples"):
             source.draw()
 
 
@@ -220,6 +225,88 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         even = _Weighted(8, [0.5, 0.5])
         self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
+
+
+class _Walk:
+    """A tree that places strings by a rule the test chooses."""
+
+    def __init__(self, places):
+        self._places = places
+
+    def sift_and_boundary(self, seq):
+        leaf = self._places(seq)
+        return (leaf, None) if leaf is not None else (None, seq + b"?")
+
+
+class _Probes(_Pst):
+    """A sampler handing out the probes it is given, in order."""
+
+    def __init__(self, words):
+        super().__init__(len(words[0]))
+        self._words = list(words)
+        self.sampler = SimpleNamespace(
+            length=len(words[0]),
+            sample=lambda _rng, alphabet_size: self._words.pop(0),
+            symbol_weights=lambda _n: [0.5, 0.5],
+        )
+
+
+#: Every state steps to 1, so a walk of any probe ends there while the tree
+#: says 0 -- which is what puts the bisection between them.
+_STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
+#: Half of a length-4 probe, so the bisection's midpoint is long enough to keep.
+_LONG_ONE_FAILS = staticmethod(lambda seq: None if len(seq) == 2 else 0)
+#: Below the bar, so it is asked about and thrown away.
+_SHORT_ONE_FAILS = staticmethod(lambda seq: None if len(seq) == 1 else 0)
+_PROBE = bytes([0, 1, 0, 1])
+
+
+class TestABoundarySourceProbes(unittest.TestCase):
+    def _source(self, words, places):
+        return BoundarySource(_Probes(words), _Walk(places), _STEPS_TO_ONE)
+
+    def test_a_prefix_the_tree_cannot_place_is_kept(self):
+        source = self._source([_PROBE], _LONG_ONE_FAILS)
+
+        self.assertTrue(source.aimed_draw())
+        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+
+    def test_a_probe_the_tree_places_throughout_keeps_nothing(self):
+        source = self._source([_PROBE], lambda seq: 0)
+
+        self.assertFalse(source.aimed_draw())
+
+    def test_a_prefix_too_short_to_come_again_is_not_kept(self):
+        # Half the sampler's length is the bar.  Below it the prefixes run out
+        # at once -- every probe asks about the same few -- so a source drawing
+        # on them would be spent rather than short.
+        source = self._source([_PROBE] * 10, _SHORT_ONE_FAILS)
+
+        self.assertFalse(source.aimed_draw())
+
+    def test_keeping_the_same_string_again_is_not_a_find(self):
+        source = self._source([_PROBE, _PROBE], _LONG_ONE_FAILS)
+
+        self.assertTrue(source.aimed_draw())
+        self.assertFalse(source.aimed_draw(), "the second probe found nothing new")
+
+    def test_what_the_caller_already_holds_is_not_a_find(self):
+        source = BoundarySource(
+            _Probes([_PROBE] * 10),
+            _Walk(_LONG_ONE_FAILS),
+            _STEPS_TO_ONE,
+            known=[_PROBE[:2] + b"?"],
+        )
+
+        self.assertFalse(source.aimed_draw())
+
+    def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
+        source = self._source([_PROBE] * 10_000, _LONG_ONE_FAILS)
+
+        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+
+        with self.assertRaisesRegex(RuntimeError, "found no new samples"):
+            source.draw()
 
 
 if __name__ == "__main__":
