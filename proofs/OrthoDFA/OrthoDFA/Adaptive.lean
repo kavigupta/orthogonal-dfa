@@ -1226,6 +1226,47 @@ theorem gate_accept_sound (O : Oracle μ S) (C Q : Finset S)
     rw [hempty]
     simpa using (Real.exp_pos _).le
 
+open scoped Classical in
+/-- **The gate cannot admit a drifted reject side**, the mirror of `gate_accept_sound`: a
+`γ` fraction of truly-accepting prefixes on the rejected side lifts its accepting-read rate
+`γ(1−2η)` above the clean `η`, and the count stays below `|R|·θ` only with probability
+`exp(−2·c₀·τ²)` for `τ = η + γ(1−2η) − θ`. -/
+theorem gate_reject_sound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ γ c₀ : ℝ) (hc₀ : 0 ≤ c₀) (hγ : 0 ≤ γ)
+    (hτ : 0 ≤ O.η + γ * (1 - 2 * O.η) - θ) (hsig : O.η ≤ 1 / 2) :
+    μ.real {ω | c₀ ≤ ((side ω).card : ℝ)
+        ∧ γ * ((side ω).card : ℝ) ≤ ∑ p ∈ side ω, O.label p
+        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
+      ≤ Real.exp (-2 * c₀ * (O.η + γ * (1 - 2 * O.η) - θ) ^ 2) := by
+  classical
+  set τ : ℝ := O.η + γ * (1 - 2 * O.η) - θ with hτdef
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ T => c₀ ≤ (A₀.card : ℝ)
+      ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
+      ∧ (T.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_pos _).le (fun A₀ _ => ?_)
+  by_cases hbig : c₀ ≤ (A₀.card : ℝ) ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
+  · have hmean : (A₀.card : ℝ) * (θ + τ) ≤ ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) := by
+      rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum]
+      have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+      nlinarith [hbig.2, hτdef]
+    refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+      (splitRej_sound O A₀ θ τ hτ hmean)) ?_
+    · exact fun ω hω => hω.2.2
+    · refine Real.exp_le_exp.2 ?_
+      have : c₀ ≤ (A₀.card : ℝ) := hbig.1
+      nlinarith [sq_nonneg τ]
+  · have hempty : {ω | c₀ ≤ (A₀.card : ℝ)
+        ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
+        ∧ (((A₀.filter (fun p => mq O p ω = 1))).card : ℝ) ≤ (A₀.card : ℝ) * θ} = ∅ := by
+      ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      exact fun h => hbig ⟨h.1, h.2.1⟩
+    rw [hempty]
+    simpa using (Real.exp_pos _).le
+
 /-! ### The gate in counting form
 
 The soundness argument does not need the binomial tails themselves, only what they force
