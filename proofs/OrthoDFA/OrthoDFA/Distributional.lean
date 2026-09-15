@@ -220,6 +220,59 @@ theorem selection [DecidableEq S] {ι : Type*} [Fintype ι] (O : Oracle μ S)
 #print axioms rdAt_mean
 #print axioms selection
 
+/-- `flip` is the indicator of "the labels of `p·v` and `p` differ". -/
+lemma flip_eq_one_iff (O : Oracle μ S) (v p : S) :
+    O.flip v p = 1 ↔ O.label (p * v) ≠ O.label p := by
+  rcases O.label_bit (p * v) with h1 | h1 <;> rcases O.label_bit p with h2 | h2 <;>
+    simp only [Oracle.flip, h1, h2] <;> norm_num
+
+lemma flipSet_meas (O : Oracle μ S) (v : S) :
+    MeasurableSet {p | O.label (p * v) ≠ O.label p} := by
+  have : {p | O.label (p * v) ≠ O.label p} = (fun p => O.flip v p) ⁻¹' {1} := by
+    ext p; simpa using (flip_eq_one_iff O v p).symm
+  rw [this]; exact (flip_meas O v) (measurableSet_singleton 1)
+
+/-- **The flip-mass is the measure of the flip set**: `∫ flip ∂Dj = Dj{p | ℓ(p·v) ≠ ℓ(p)}`.
+This is what lets the selection guarantee (stated in `flipMass`) feed `coverage`
+(stated as a measure). -/
+lemma flipMass_eq (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v : S) :
+    flipMass O Dj v = Dj.real {p | O.label (p * v) ≠ O.label p} := by
+  have hind : (fun p => O.flip v p)
+      = Set.indicator {p | O.label (p * v) ≠ O.label p} (fun _ => (1 : ℝ)) := by
+    funext p
+    by_cases h : O.label (p * v) = O.label p
+    · rw [Set.indicator_of_notMem (by simpa using h)]
+      rcases O.label_bit p with h2 | h2 <;>
+        simp only [Oracle.flip, h, h2] <;> norm_num
+    · rw [Set.indicator_of_mem (by simpa using h)]
+      exact (flip_eq_one_iff O v p).mpr h
+  rw [flipMass, hind, integral_indicator (flipSet_meas O v), setIntegral_const,
+    smul_eq_mul, mul_one, measureReal_def]
+
+lemma flipMass_nonneg (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v : S) :
+    0 ≤ flipMass O Dj v := by
+  rw [flipMass_eq]; exact measureReal_nonneg
+
+/-- **Selection ⇒ per-population coverage.**  If every family member's *summed*
+flip-mass over the populations is below `εfam`, then on **each** population the family
+preserves acceptance on at least a `1 − #F·εfam` fraction.  (Summed control gives
+per-population control because flip-masses are nonnegative.) -/
+theorem coverage_of_summed_flip [DecidableEq S] {J : Type*} (O : Oracle μ S)
+    (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (populations : Finset J) (F : Finset S) (εfam : ℝ)
+    (hF : ∀ w ∈ F, ∑ j ∈ populations, flipMass O (D j) w ≤ εfam) :
+    ∀ j ∈ populations,
+      1 - (F.card : ℝ) * εfam ≤ (D j).real {p | ∀ v ∈ F, O.label (p * v) = O.label p} := by
+  intro j hj
+  refine coverage O (D j) F εfam (fun v _ => flipSet_meas O v) (fun v hv => ?_)
+  rw [← flipMass_eq]
+  refine le_trans ?_ (hF v hv)
+  exact Finset.single_le_sum (f := fun j' => flipMass O (D j') v)
+    (fun j' _ => flipMass_nonneg O (D j') v) hj
+
+#print axioms flipMass_eq
+#print axioms coverage_of_summed_flip
+
 end Draws
 
 end OrthoDFA
