@@ -312,6 +312,7 @@ along the rounds, and it entered every event only through the count it cut at �
 itself is the state.  The guarantee is quantified over *every* state, so whatever the loop
 computes for its boundary, size and margin is covered, and unlike a history this index is
 countable. -/
+@[ext]
 structure Budget where
   /-- Suffix budget: how many suffixes have been drawn. -/
   M : ℕ
@@ -1568,25 +1569,118 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
         calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
           _ = (m : ℝ) ^ 2 := by push_cast; ring
 
-/-- **A budget whose certification sample is still fresh.**
+/-- **The budgets the loop may reach**: every component under a cap.
 
-`disjoint_readSet` needs the certification prefixes distinct from the table prefixes, and
-the chance they are not is at most `|populations|·m²·ρ` — which *grows* with the budget.
-That is not slack in the argument: `S` is countable, so every `D j` is atomic, and once the
-draws exceed roughly `1/ρ` the sample has exhausted the support and the certification
-prefixes are no longer fresh.  Past that point the gate is scoring bits the family was
-selected on, and its null is not honest.
+Capping is not a convenience, it is forced twice over.
 
-So the guarantee runs over budgets below that line.  For a sampler drawing at a fixed
-length over a real alphabet `ρ` is exponentially small in the length, and the line sits far
-beyond any budget the loop reaches. -/
-def Fresh (populations : Finset J) (ρ κ : ℝ) (B : Budget) : Prop :=
-  (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ ≤ κ
+*Freshness.*  `disjoint_readSet` needs the certification prefixes distinct from the table
+prefixes, and the chance they are not is at most `|populations|·m²·ρ` — which *grows* with
+the budget.  `S` is countable, so every `D j` is atomic, and once the draws exceed roughly
+`1/ρ` the sample has exhausted the support: the certification prefixes are no longer fresh,
+the gate scores bits the family was selected on, and the claim is false rather than
+unproven.
 
-/-- **Part 1, reduced to one state.**  States are `Budget`, which is countable, so Part 1
-is a per-state bound at any summable weight.  There is no union over boundaries and no
-union over histories: the boundary and the margin are cutoffs, and the cutoffs are in the
-state.
+*Summability.*  The gate's per-budget failure probability depends on the certification
+count, not on the suffix budget, so it does not decay in `M` — and a union over
+unboundedly many budgets with a constant failure per budget diverges.
+
+A cap settles both at once, and makes the index finite so no summable envelope is needed
+at all.  Part 2's obligation becomes: reach a passing state *within* the cap. -/
+structure Capped (cap B : Budget) : Prop where
+  M : B.M ≤ cap.M
+  m : B.m ≤ cap.m
+  k : B.k ≤ cap.k
+  c : B.c ≤ cap.c
+  lo : B.lo ≤ cap.lo
+  hi : B.hi ≤ cap.hi
+
+instance instFiniteCapped (cap : Budget) : Finite {B : Budget // Capped cap B} := by
+  refine Finite.of_injective
+    (fun B => ((⟨B.val.M, Nat.lt_succ_of_le B.property.M⟩ : Fin (cap.M + 1)),
+      (⟨B.val.m, Nat.lt_succ_of_le B.property.m⟩ : Fin (cap.m + 1)),
+      (⟨B.val.k, Nat.lt_succ_of_le B.property.k⟩ : Fin (cap.k + 1)),
+      (⟨B.val.c, Nat.lt_succ_of_le B.property.c⟩ : Fin (cap.c + 1)),
+      (⟨B.val.lo, Nat.lt_succ_of_le B.property.lo⟩ : Fin (cap.lo + 1)),
+      (⟨B.val.hi, Nat.lt_succ_of_le B.property.hi⟩ : Fin (cap.hi + 1)))) ?_
+  intro B B' hb
+  simpa [Subtype.ext_iff, Budget.ext_iff, Prod.ext_iff, Fin.ext_iff] using hb
+
+/-! ### Part 1 comes from the clustering, not the gate
+
+`hpAPBound` is a *premise*: accept-preserving suffixes are drawn with probability `≥ pAP`,
+so a pool of `M` holds about `pAP·M` of them and, once `M ≳ k/pAP`, enough to fill the
+family.  `identify_cluster_around` then keeps the `k` least-loss candidates, and a
+candidate carrying flip mass `Δ` sits `2sΔm` above an accept-preserving one in expected
+loss.  So every selected member carries little flip mass, and `coverage_of_summed_flip`
+turns that into the per-population coverage.  No certification draw enters, and the gate is
+not used: its job is detecting that `hpAPBound` is *false* for a target, which the theorem
+excludes by hypothesis.
+
+Two things make this work, and both are recorded rather than assumed silently.
+
+*The pool must not outgrow the prefixes.*  Taking the best of `M` candidates buys
+`√(2 log M)` of the loss's spread `√(m(¼−s²))` for free, so the ranking is decided by luck
+rather than by flip mass unless `m ≳ (¼−s²)·log M / (2s²Δ²)`.  That is the guard added in
+the algorithm; the theorem needs it as `hpool`.
+
+*The centre is the previous iterate.*  The first Lloyd step centres on `{ε}`, which is
+deterministic, so `chosen_accept_preserving_whp` applies to it directly.  Later steps centre
+on the family the previous step chose, which is `ω`-dependent — the same difficulty the
+gate had, and solvable the same way, since a candidate's own reads are at `p · v` while the
+centre is read at `p · v'` for the members `v'`, and those are disjoint strings for
+`v ∉ F`.  `measureReal_selection_le` and `noiseAlg` are what that needs. -/
+
+/-- The prefix budget the pool needs before its least-loss selection tracks flip mass
+rather than luck: `m ≥ (¼ − s²)·log M / (2s²Δ²)`.  The guard in `sample_suffix_family`
+switches to prefix growth rather than cross it. -/
+def PoolRanked (O : Oracle μ S) (Δ : ℝ) (B : Budget) : Prop :=
+  (1 / 4 - (1 / 2 - O.η) ^ 2) * Real.log (max (B.M : ℝ) 2)
+    ≤ 2 * (1 / 2 - O.η) ^ 2 * Δ ^ 2 * (B.m : ℝ)
+
+/-- **The first Lloyd step keeps only low-flip candidates.**  Its centre is `{ε}`, so the
+loss is the disagreement with the seed's own column and the selection is a fixed-loss
+argmin — `chosen_accept_preserving_whp` applies with no conditioning.  A candidate carrying
+flip mass `Δ` disagrees with the seed on `Δ(1−2η)²` more of the prefixes than an
+accept-preserving one. -/
+theorem lloyd_first_step_ranked (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (B : Budget) (Δ : ℝ) (hΔ : 0 < Δ) (hsig : O.η < 1 / 2)
+    (pAP : ℝ) (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hpool : PoolRanked O Δ B) (hfill : (B.k : ℝ) ≤ pAP * B.M / 2) (η : ℝ) :
+    (runLaw μ D Dsf).real
+      {x | ¬ ∀ v ∈ lloydStep O B.c (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
+              {(1 : S)},
+          ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
+      ≤ η :=
+  sorry
+
+/-- **The iteration keeps what the first step gave it.**  If every member of the current
+family carries flip mass `≤ Δ`, its thresholded mean is the majority of `k` mostly-correct
+columns, so the next step ranks against something at least as good as the seed's column and
+its selection is no worse.
+
+The centre being `ω`-dependent is what stops `chosen_accept_preserving_whp` applying
+directly, and it is the same shape as the gate's `ω`-dependent side: a candidate's reads
+sit at `p · v` while the centre is read at `p · v'` for `v' ∈ F`, disjoint strings whenever
+`v ∉ F`.  `measureReal_selection_le` over the centre's pattern is the route. -/
+theorem lloyd_step_preserves_ranked (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (B : Budget) (Δ : ℝ) (hΔ : 0 < Δ) (hsig : O.η < 1 / 2)
+    (hpool : PoolRanked O Δ B) (η : ℝ) :
+    (runLaw μ D Dsf).real
+      {x | ∃ F : Finset S, (∀ v ∈ F, ∀ j ∈ populations, flipMass O (D j) v ≤ Δ) ∧
+          ¬ ∀ v ∈ lloydStep O B.c (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k F,
+              ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
+      ≤ η :=
+  sorry
+
+/-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
+per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
+no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
+the state.
 
 What remains of Part 1 is `hper`: at one state, a family that passes both gates is valid on
 every population except with probability `w`. -/
@@ -1595,17 +1689,17 @@ theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit θacc θrej α εcov δ : ℝ)
     (w : Budget → ℝ) (hw0 : ∀ B, 0 ≤ w B) (hsum : Summable w) (hle : ∑' B, w B ≤ δ / 2)
-    (ρ κ : ℝ)
-    (hper : ∀ B : {B : Budget // Fresh populations ρ κ B}, (runLaw μ D Dsf).real
+    (cap : Budget)
+    (hper : ∀ B : {B : Budget // Capped cap B}, (runLaw μ D Dsf).real
       (ret O populations indecisionLimit θacc θrej α B.val
         ∩ FailAt O populations D εcov B.val) ≤ w B.val) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Fresh populations ρ κ B},
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped cap B},
         ret O populations indecisionLimit θacc θrej α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 :=
   le_trans (measureReal_iUnion_le_tsum _
-      (fun B : {B : Budget // Fresh populations ρ κ B} => w B.val)
+      (fun B : {B : Budget // Capped cap B} => w B.val)
       (fun B => hw0 B.val) hper (hsum.subtype _))
-    (le_trans (hsum.tsum_subtype_le w {B | Fresh populations ρ κ B} hw0) hle)
+    (le_trans (hsum.tsum_subtype_le w {B | Capped cap B} hw0) hle)
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
@@ -1658,11 +1752,11 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     ∃ w : Budget → ℝ, (∀ B, 0 ≤ w B) ∧ Summable w ∧ (∑' B, w B ≤ δ / 2) ∧
-      ∀ B : {B : Budget // Fresh populations ρ κ B}, (runLaw μ D Dsf).real
+      ∀ B : {B : Budget // Capped cap B}, (runLaw μ D Dsf).real
         (ret O populations indecisionLimit θacc θrej α B.val
           ∩ FailAt O populations D εcov B.val) ≤ w B.val :=
   sorry
@@ -1712,17 +1806,17 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Fresh populations ρ κ B},
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped cap B},
         ret O populations indecisionLimit θacc θrej α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound ρ κ hρ εcov hεcov δ hδ hα
+    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound cap ρ hρ εcov hεcov δ hδ hα
     hρsmall
   exact validity_of_budget O populations D Dsf indecisionLimit θacc θrej α εcov δ w hw0 hsum hle
-    ρ κ hper
+    cap hper
 
 /-- **Part 2 — the loop terminates.**
 
@@ -1751,13 +1845,13 @@ slack: `0.01 < 0.02` (`0.10` after PR #257). -/
 theorem loop_terminates (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit θacc θrej α : ℝ) (ρ κ : ℝ)
+    (accFnr indecisionLimit θacc θrej α : ℝ) (cap : Budget)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) :
-    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Fresh populations ρ κ B},
+    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Capped cap B},
       x ∉ ret O populations indecisionLimit θacc θrej α B.val} ≤ δ / 2 :=
   sorry
 
@@ -1783,25 +1877,25 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (accFnr indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     1 - δ ≤ (runLaw μ D Dsf).real
-      {x | (∃ B : {B : Budget // Fresh populations ρ κ B},
+      {x | (∃ B : {B : Budget // Capped cap B},
           x ∈ ret O populations indecisionLimit θacc θrej α B.val) ∧
-        ∀ B : {B : Budget // Fresh populations ρ κ B},
+        ∀ B : {B : Budget // Capped cap B},
           x ∈ ret O populations indecisionLimit θacc θrej α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
                 (clusterAt O populations x B.val) p (nz x)}} := by
   have h := sound_and_terminating (runLaw μ D Dsf)
-    (fun B : {B : Budget // Fresh populations ρ κ B} =>
+    (fun B : {B : Budget // Capped cap B} =>
       ret O populations indecisionLimit θacc θrej α B.val ∩ FailAt O populations D εcov B.val)
-    (fun B : {B : Budget // Fresh populations ρ κ B} =>
+    (fun B : {B : Budget // Capped cap B} =>
       ret O populations indecisionLimit θacc θrej α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit θacc θrej α hsig hpop
-      pAP hpAPPositive hpAPBound ρ κ hρ εcov hεcov δ hδ hα hρsmall)
-    (loop_terminates O populations D Dsf accFnr indecisionLimit θacc θrej α ρ κ hsig hpop
+      pAP hpAPPositive hpAPBound cap ρ hρ εcov hεcov δ hδ hα hρsmall)
+    (loop_terminates O populations D Dsf accFnr indecisionLimit θacc θrej α cap hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
