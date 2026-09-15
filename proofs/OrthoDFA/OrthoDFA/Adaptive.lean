@@ -1,5 +1,6 @@
 import OrthoDFA.Distributional
 import Mathlib.Probability.ProductMeasure
+import Mathlib.Probability.Independence.InfinitePi
 
 /-!
 # The adaptive clustering loop: the integrated theorem
@@ -1080,6 +1081,81 @@ lemma sum_label_eq (O : Oracle μ S) (A : Finset S) :
       exact_mod_cast congrArg (Nat.cast : ℕ → ℝ) hc
     linarith
   rw [this]
+
+/-! ### The certification draws see the wrong set
+
+The family and its wrong-set live in the run's first factor; the certification draws are the
+second and are independent of them.  So with the wrong-set held fixed this is plain
+Hoeffding over i.i.d. draws — no noise enters, which is the second thing the fresh stream
+buys. -/
+
+lemma measurableSet_of_countable (W : Set S) : MeasurableSet W :=
+  (Set.to_countable W).measurableSet
+
+open scoped Classical in
+/-- **A wrong set of mass `≥ εcov` is hit by at least half that fraction of the draws**,
+except with probability `exp(−2m(εcov/2)²)`. -/
+lemma cert_hits_wrongSet (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (j : J) (m : ℕ) (W : Set S) (εcov : ℝ) (hεcov : 0 ≤ εcov)
+    (hW : εcov ≤ (D j).real W) :
+    (Measure.infinitePi fun z : J × ℕ => D z.1).real
+        {c | (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ)
+          ≤ (m : ℝ) * (εcov / 2)}
+      ≤ Real.exp (-2 * (m : ℝ) * (εcov / 2) ^ 2) := by
+  classical
+  set ν : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνdef
+  have hWm : MeasurableSet W := measurableSet_of_countable W
+  set ind : S → ℝ := W.indicator 1 with hinddef
+  have hindm : Measurable ind := measurable_const.indicator hWm
+  set X : ℕ → (J × ℕ → S) → ℝ := fun i c => ind (c (j, i)) with hXdef
+  have hcoord : iIndepFun (fun (z : J × ℕ) (c : J × ℕ → S) => c z) ν :=
+    iIndepFun_infinitePi (fun _ => measurable_id)
+  have hinj : Function.Injective (fun i : ℕ => (j, i)) := fun a b hab => (Prod.mk.inj hab).2
+  have hindep : iIndepFun X ν :=
+    (hcoord.precomp hinj).comp (fun _ => ind) (fun _ => hindm)
+  have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
+    (hindm.comp (measurable_pi_apply _)).aemeasurable
+  have hicc : ∀ i, ∀ᵐ c ∂ν, X i c ∈ Set.Icc (0 : ℝ) 1 := by
+    intro i
+    filter_upwards with c
+    by_cases h : c (j, i) ∈ W
+    · simp [hXdef, hinddef, Set.indicator_of_mem h]
+    · simp [hXdef, hinddef, Set.indicator_of_notMem h]
+  have hmean : ∀ i, ν[X i] = (D j).real W := by
+    intro i
+    have hmp : MeasurePreserving (fun c : J × ℕ → S => c (j, i)) ν (D j) :=
+      measurePreserving_eval_infinitePi _ (j, i)
+    calc ν[X i] = ∫ s, ind s ∂(D j) := by
+          rw [← hmp.map_eq,
+            integral_map (measurable_pi_apply _).aemeasurable hindm.aestronglyMeasurable]
+      _ = (D j).real W := by rw [hinddef, integral_indicator_one hWm]
+  have hsum : ((Finset.range m).card : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
+      Finset.card_range]
+    have : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
+    nlinarith [hW]
+  have hmain := sumLower_le X (Finset.range m) εcov (εcov / 2) hmeas hindep hicc hsum
+    (by linarith)
+  have hcount : ∀ c : J × ℕ → S, ∑ i ∈ Finset.range m, X i c
+      = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
+    intro c
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c (j, i) ∈ W)]
+    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c
+        = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
+      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c = (1 : ℝ) := by
+        intro i hi
+        simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
+      rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
+    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c (j, i) ∈ W)), X i c = 0 :=
+      Finset.sum_eq_zero (fun i hi => by
+        simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
+    rw [h1, h0, add_zero]
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) ?_
+  · intro c hc
+    simp only [Set.mem_setOf_eq] at hc ⊢
+    rw [hcount c, Finset.card_range]
+    linarith [hc]
+  · rw [Finset.card_range]
 
 /-! ### The accept-preserving gate
 
