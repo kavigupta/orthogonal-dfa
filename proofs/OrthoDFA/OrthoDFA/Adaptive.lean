@@ -749,6 +749,93 @@ lemma prod_diagonal_eq_collisionMass (Dj : Measure S) [IsProbabilityMeasure Dj] 
   rw [← Set.singleton_prod_singleton, Measure.prod_prod, ENNReal.toReal_mul, sq,
     measureReal_def]
 
+open scoped Classical in
+/-- Two fixed coordinates of an i.i.d. block coincide with exactly the collision mass. -/
+lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : Fin m}
+    (hii : i ≠ i') :
+    (Measure.pi fun _ : Fin m => Dj).real {p : Fin m → S | p i = p i'} = collisionMass Dj := by
+  have hset : {p : Fin m → S | p i = p i'}
+      = ⋃ a : S, Set.univ.pi (fun z => if z = i ∨ z = i' then ({a} : Set S) else Set.univ) := by
+    ext p
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_univ_pi]
+    refine ⟨fun h => ⟨p i, fun z => ?_⟩, fun ⟨a, ha⟩ => ?_⟩
+    · by_cases hz : z = i ∨ z = i'
+      · rw [if_pos hz]
+        rcases hz with hz | hz <;> rw [hz] <;> simp [h]
+      · rw [if_neg hz]; trivial
+    · have h1 := ha i; have h2 := ha i'
+      rw [if_pos (Or.inl rfl)] at h1
+      rw [if_pos (Or.inr rfl)] at h2
+      rw [Set.mem_singleton_iff] at h1 h2
+      rw [h1, h2]
+  have hdisj : Pairwise (Function.onFun Disjoint (fun a : S =>
+      Set.univ.pi (fun z => if z = i ∨ z = i' then ({a} : Set S) else Set.univ))) := by
+    intro a b hab
+    simp only [Function.onFun, Set.disjoint_left]
+    intro p ha hb
+    have h1 := ha i; have h2 := hb i
+    rw [Set.mem_univ_pi] at ha hb
+    have h1' := ha i; have h2' := hb i
+    rw [if_pos (Or.inl rfl), Set.mem_singleton_iff] at h1' h2'
+    exact hab (h1'.symm.trans h2')
+  have hmeas : ∀ a : S, MeasurableSet
+      (Set.univ.pi (fun z => if z = i ∨ z = i' then ({a} : Set S) else Set.univ)) := by
+    intro a
+    refine MeasurableSet.univ_pi (fun z => ?_)
+    by_cases hz : z = i ∨ z = i'
+    · rw [if_pos hz]; exact measurableSet_singleton _
+    · rw [if_neg hz]; exact MeasurableSet.univ
+  have hbox : ∀ a : S, (Measure.pi fun _ : Fin m => Dj)
+      (Set.univ.pi (fun z => if z = i ∨ z = i' then ({a} : Set S) else Set.univ))
+      = Dj {a} * Dj {a} := by
+    intro a
+    rw [Measure.pi_pi]
+    have hfac : ∀ z : Fin m, Dj (if z = i ∨ z = i' then ({a} : Set S) else Set.univ)
+        = if z ∈ ({i, i'} : Finset (Fin m)) then Dj {a} else 1 := by
+      intro z
+      by_cases hz : z = i ∨ z = i'
+      · rw [if_pos hz, if_pos (by simpa using hz)]
+      · rw [if_neg hz, if_neg (by simpa using hz), measure_univ]
+    rw [Finset.prod_congr rfl (fun z _ => hfac z), Finset.prod_ite_mem, Finset.univ_inter,
+      Finset.prod_const, Finset.card_pair hii, sq]
+  rw [measureReal_def, hset, measure_iUnion hdisj hmeas, collisionMass,
+    ENNReal.tsum_toReal_eq (fun a => by
+      rw [hbox a]; exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
+  exact tsum_congr (fun a => by rw [hbox a, ENNReal.toReal_mul, sq, measureReal_def])
+
+open scoped Classical in
+/-- **The certification block is distinct except for the collision mass.**  This is what
+the `ρ` premise buys: below this event the `m` draws are distinct strings, so their noise
+bits are independent and the gate's binomial null is honest. -/
+lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (ρ : ℝ)
+    (hρ : collisionMass Dj ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (Measure.pi fun _ : Fin m => Dj).real {p : Fin m → S | ¬ Function.Injective p}
+      ≤ (m : ℝ) ^ 2 * ρ := by
+  classical
+  set κ := (Finset.univ : Finset (Fin m × Fin m)).filter (fun q => q.1 ≠ q.2) with hκ
+  have hsub : {p : Fin m → S | ¬ Function.Injective p}
+      ⊆ ⋃ q ∈ κ, {p : Fin m → S | p q.1 = p q.2} := by
+    intro p hp
+    simp only [Set.mem_setOf_eq, Function.Injective, not_forall] at hp
+    obtain ⟨a, b, hab, hne⟩ := hp
+    exact Set.mem_biUnion (show (a, b) ∈ κ by simp [hκ, hne]) hab
+  calc (Measure.pi fun _ : Fin m => Dj).real {p : Fin m → S | ¬ Function.Injective p}
+      ≤ (Measure.pi fun _ : Fin m => Dj).real (⋃ q ∈ κ, {p : Fin m → S | p q.1 = p q.2}) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ q ∈ κ, (Measure.pi fun _ : Fin m => Dj).real {p : Fin m → S | p q.1 = p q.2} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _q ∈ κ, ρ := Finset.sum_le_sum (fun q hq => by
+        rw [pi_coord_eq Dj (Finset.mem_filter.mp hq).2]; exact hρ)
+    _ = (κ.card : ℝ) * ρ := by rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ (m : ℝ) ^ 2 * ρ := by
+        refine mul_le_mul_of_nonneg_right ?_ hρ0
+        have h1 : κ.card ≤ (Finset.univ : Finset (Fin m × Fin m)).card :=
+          Finset.card_le_card (Finset.filter_subset _ _)
+        have h2 : (Finset.univ : Finset (Fin m × Fin m)).card = m * m := by simp
+        rw [h2] at h1
+        calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
+          _ = (m : ℝ) ^ 2 := by push_cast; ring
+
 /-- The bad event at one budget: the gates pass and the cut is wrong, at *some* boundary
 the loop could have reached. -/
 noncomputable def BadB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
