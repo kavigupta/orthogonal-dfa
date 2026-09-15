@@ -325,12 +325,16 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 #print axioms chosen_avoids_bad_whp
 
 /-- The persistent signal oracle: random classification noise on query strings.
-Concatenation is *not* here — a query string is just a string `w : S`.  Strings are
-modelled by the standard Mathlib theory: `[Mul S]` is concatenation and
-`[IsRightCancelMul S]` (right-cancellation, `mul_left_injective`) says appending a
-fixed suffix is injective on prefixes.  The free monoid `FreeMonoid`/`List` is one
-instance; `S` is kept abstract. -/
+Every field is a function of a **single** query string `w : S` — the oracle answers
+membership on one string at a time.  `label w = 1[w ∈ L]` is the noiseless
+membership bit and `noise w` the persistent RCN bit; the membership query is
+`label ⊕ noise`.  Concatenation and the notion of one suffix flipping a prefix are
+*not* in the oracle: strings are Mathlib's theory (`[Mul S]` concatenation,
+`[IsRightCancelMul S]` right-cancellation), and `flip` is *derived* below. -/
 structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*) where
+  /-- The noiseless membership bit `ℓ(w) = 1[w ∈ L]`. -/
+  label : S → ℝ
+  label_bit : ∀ w, label w = 0 ∨ label w = 1
   /-- The random classification noise, one persistent bit per query string. -/
   noise : S → Ω → ℝ
   /-- The noise level. -/
@@ -341,12 +345,20 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
-  /-- Whether suffix `v` flips the state read at prefix `p` (both strings). -/
-  flip : S → S → ℝ
-  flip_bit : ∀ v p, flip v p = 0 ∨ flip v p = 1
 
 namespace Oracle
 variable {S : Type*} [Mul S] (O : Oracle μ S)
+
+/-- Whether suffix `v` flips prefix `p`'s acceptance: the XOR `ℓ(p·v) ⊕ ℓ(p)` of the
+two membership bits (`a ⊕ b = a + b − 2ab`).  **Derived** from the single-string
+label, so it is `0` exactly when `p·v` and `p` agree — accept-preservation. -/
+def flip (v p : S) : ℝ :=
+  O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
+
+/-- **Derived** bit-valuedness of `flip`: an XOR of two bits is a bit. -/
+lemma flip_bit (v p : S) : O.flip v p = 0 ∨ O.flip v p = 1 := by
+  rcases O.label_bit (p * v) with h1 | h1 <;> rcases O.label_bit p with h2 | h2 <;>
+    · rw [Oracle.flip, h1, h2]; norm_num
 
 /-- **Derived** boundedness: a `{0,1}` bit lies in `[0,1]` (what the Hoeffding
 bounds consume). -/
