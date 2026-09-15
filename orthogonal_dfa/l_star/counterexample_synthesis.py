@@ -306,19 +306,6 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        # Before the pool is rebuilt, so the strings the sweep drops as
-        # indecisive reach `_take_indecisive` rather than dying with this round.
-        if stall.stalled(
-            states=dt.num_states,
-            improved=best.round_index == index,
-            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
-        ):
-            print(
-                f"[round {index}] no progress ({dt.num_states} states) in "
-                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
-                "stopping synthesis"
-            )
-            return best
         pool = _grow_representative_pool(
             pst,
             resolver,
@@ -332,6 +319,19 @@ def counterexample_driven_synthesis(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.accumulated)} boundary strings harvested so far"
         )
+        # After the rebuild: the sweep reads each leaf's members, and this
+        # round's draws are what it has to read.
+        if stall.stalled(
+            states=dt.num_states,
+            improved=best.round_index == index,
+            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
+        ):
+            print(
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
+            )
+            return best
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
