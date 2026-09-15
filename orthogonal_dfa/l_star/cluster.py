@@ -190,20 +190,31 @@ def certification_budget(pst, vs) -> int:
     return max(1, pst.config.num_addtl_prefixes * columns // (len(vs) + 1))
 
 
-def prefixes_to_certify(pst, counts, drawn, vs) -> int:
-    """How many more prefixes to draw for the split alone, to settle a verdict
-    the ``drawn`` prefixes in hand left undecided.
+def prefixes_to_certify(pst, counts, drawn, vs, least) -> int:
+    """The fewest prefixes, at least ``least`` and at most the budget, over which
+    the rates ``counts`` read over ``drawn`` prefixes would come out decided; the
+    budget if no such count exists.
 
-    How many it takes depends on the rates, so the rates in hand are the guess:
-    if the same ones held over twice the counts, or three times, would the
-    verdict come out decided?  The first multiple that would is the answer.
+    How many it takes depends on the rates, so the rates in hand are the guess.
     """
-    budget = certification_budget(pst, vs)
-    for multiple in range(2, 2 + budget // drawn):
-        supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
-        if drift_verdict(pst, supposed) is not UNCERTIFIED:
-            return drawn * (multiple - 1)
-    return budget
+    budget = max(least, certification_budget(pst, vs))
+
+    def decided(size):
+        supposed = tuple(
+            (round(hits * size / drawn), round(n * size / drawn)) for hits, n in counts
+        )
+        return drift_verdict(pst, supposed) is not UNCERTIFIED
+
+    if not decided(budget):
+        return budget
+    lo, hi = least, budget
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if decided(mid):
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
 
 
 class AcceptPreservingGate:
@@ -225,15 +236,22 @@ class AcceptPreservingGate:
         # pool fits their noise, so only prefixes it never saw can test it.  The
         # seed votes on p with the very read of p being scored, so it sits out.
         voters = [u for u in vs if u != seed_row]
-        drawn = min(
-            max(1, int(pst.table.representative.sum())),
-            certification_budget(pst, voters),
+        # The table's counts are biased towards passing, so they only size the
+        # draw.
+        representative = pst.table.representative
+        table_counts = _split_counts(
+            pst,
+            pst.compute_decision(voters, representative),
+            pst.table.column(seed_row)[representative],
+        )
+        drawn = prefixes_to_certify(
+            pst, table_counts, max(1, int(representative.sum())), voters, 1
         )
         decision, column = certification_sample(pst, voters, drawn)
         counts = _split_counts(pst, decision, column)
         verdict = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            wanted = prefixes_to_certify(pst, counts, drawn, voters)
+            wanted = prefixes_to_certify(pst, counts, drawn, voters, drawn + 1) - drawn
             more_decision, more_column = certification_sample(pst, voters, wanted)
             decision = np.concatenate([decision, more_decision])
             column = np.concatenate([column, more_column])
