@@ -23,6 +23,7 @@ from orthogonal_dfa.capal_official import (
     verify_pinned,
 )
 from orthogonal_dfa.capal_official.adapter import UPSTREAM_URL
+from orthogonal_dfa.l_star.structures import NoisyOracle
 
 
 def _ensure_capal_checkout() -> Path:
@@ -108,11 +109,13 @@ class TestCapalBridge(unittest.TestCase):
         from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
         dfa = build_modulo_dfa(9, (3, 6))
-        oracle = BernoulliParityOracle(
-            SymmetricBernoulli(p_correct=1.0), 0, modulo=9, allowed_moduluses=(3, 6)
+        oracle = NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)),
+            SymmetricBernoulli(p_correct=1.0),
+            0,
         )
         for word in _all_words("01", 8):
-            truth = oracle.membership_query([int(c) for c in word])
+            truth = oracle.membership_query(bytes(int(c) for c in word))
             self.assertEqual(dfa.run(word), truth, word)
 
     def test_defaults_match_the_upstream_benchmark_script(self):

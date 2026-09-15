@@ -4,7 +4,9 @@ Preconditions for E-L* learnability of a target DFA.
 satisfies_preconditions(dfa, *, length, ...) is the main check. It returns a
 PreconditionReport -- truthy iff the DFA is admitted, and carrying the measured
 values and a reason per failed condition. The conditions, for a particular
-length of uniform sampling:
+length and a particular way of sampling it -- uniform unless a sampler says
+otherwise, since a condition is a property of the target under the distribution
+the learner will draw from:
 
 - acceptance_rate: the sampled strings are not all accepted or all rejected
 - class_preserving_fraction: some fraction of suffixes map all accept
@@ -15,10 +17,13 @@ length of uniform sampling:
 
 from collections import Counter
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import List, Optional, Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
+
+from .sampler import Sampler, UniformSampler
 
 DEFAULT_NUM_SAMPLES = 2000
 
@@ -27,12 +32,48 @@ DEFAULT_NUM_SAMPLES = 2000
 DEFAULT_MIN_COVERAGE = 0.01
 
 
-def _random_string(dfa: DFA, length: int, rng: np.random.Generator) -> List[int]:
-    """A uniform random string of ``length`` symbols over the DFA's alphabet."""
-    return rng.choice(sorted(dfa.input_symbols), size=length).tolist()
+@lru_cache(maxsize=None)
+def _sample_strings(
+    sampler: Sampler, symbols: Tuple[int, ...], num_samples: int
+) -> Tuple[bytes, ...]:
+    """The sample every check below reads, as ``sampler`` draws it from a seed
+    of 0.
+
+    Held onto rather than redrawn, which each check used to do per DFA and was
+    most of the cost of screening a population.  Keyed on the sampler, so a
+    caller supplying one is spared the redrawing too.
+    """
+    rng = np.random.default_rng(0)
+    return tuple(
+        bytes(symbols[i] for i in sampler.sample(rng, len(symbols)))
+        for _ in range(num_samples)
+    )
 
 
-def _endpoint(dfa: DFA, string: List[int], start=None):
+def _samples(
+    dfa: DFA, length: int, num_samples: int, sampler: Optional[Sampler] = None
+) -> Tuple[bytes, ...]:
+    """The strings every check below reads, over the DFA's own symbols.
+
+    ``sampler`` is for a target whose learner does not draw uniformly: the checks
+    have to ask about the distribution it will actually see, or they measure a
+    language nobody learns.  Leaving it off asks for the uniform one, which is
+    the same call and cannot answer differently.
+    """
+    if sampler is None:
+        sampler = UniformSampler(length)
+    assert sampler.length == length, (
+        f"sampler draws {sampler.length} symbols but the preconditions were "
+        f"asked for length {length}"
+    )
+    symbols = tuple(sorted(dfa.input_symbols))
+    # A string here is a byte per symbol, so that is what the DFA's symbols have to
+    # be, whatever else a DFA is allowed to be labelled with.
+    assert all(isinstance(s, int) and 0 <= s < 256 for s in symbols), symbols
+    return _sample_strings(sampler, symbols, num_samples)
+
+
+def _endpoint(dfa: DFA, string: bytes, start=None):
     """The state reached by running ``string`` from ``start`` (default q0)."""
     q = dfa.initial_state if start is None else start
     for c in string:
@@ -41,29 +82,35 @@ def _endpoint(dfa: DFA, string: List[int], start=None):
 
 
 def acceptance_rate(
-    dfa: DFA, *, length: int, num_samples: int = DEFAULT_NUM_SAMPLES
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    sampler: Optional[Sampler] = None,
 ) -> float:
     """Fraction of random length-``length`` strings the DFA accepts."""
-    rng = np.random.default_rng(0)
     accepts = sum(
-        _endpoint(dfa, _random_string(dfa, length, rng)) in dfa.final_states
-        for _ in range(num_samples)
+        _endpoint(dfa, s) in dfa.final_states
+        for s in _samples(dfa, length, num_samples, sampler)
     )
     return accepts / num_samples
 
 
 def class_preserving_fraction(
-    dfa: DFA, *, length: int, num_samples: int = DEFAULT_NUM_SAMPLES
+    dfa: DFA,
+    *,
+    length: int,
+    num_samples: int = DEFAULT_NUM_SAMPLES,
+    sampler: Optional[Sampler] = None,
 ) -> float:
     """Fraction of random length-``length`` strings ``s`` for which *every*
     state ``q`` satisfies ``(q in F) == (delta*(q, s) in F)`` -- the suffixes
     that reset the whole state set into a single accept/reject class."""
-    rng = np.random.default_rng(0)
     finals = dfa.final_states
     states = list(dfa.states)
     preserving = sum(
         all((q in finals) == (_endpoint(dfa, s, q) in finals) for q in states)
-        for s in (_random_string(dfa, length, rng) for _ in range(num_samples))
+        for s in _samples(dfa, length, num_samples, sampler)
     )
     return preserving / num_samples
 
@@ -74,13 +121,13 @@ def covered_states(
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
 ) -> set:
     """
     The states reached as the endpoint of at least ``min_coverage`` of random length-``length`` strings.
     """
-    rng = np.random.default_rng(0)
     counts = Counter(
-        _endpoint(dfa, _random_string(dfa, length, rng)) for _ in range(num_samples)
+        _endpoint(dfa, s) for s in _samples(dfa, length, num_samples, sampler)
     )
     return {q for q, c in counts.items() if c / num_samples >= min_coverage}
 
@@ -91,6 +138,7 @@ def covered_accuracy_ceiling(
     length: int,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     min_coverage: float = DEFAULT_MIN_COVERAGE,
+    sampler: Optional[Sampler] = None,
 ) -> float:
     """
     Best accuracy reachable when the classifier may only be started from a
@@ -101,8 +149,7 @@ def covered_accuracy_ceiling(
     it cannot represent it. Only the start is constrained, from there we follow
     the target's true transitions and read off the endpoint's true accept label.
     """
-    rng = np.random.default_rng(0)
-    strings = [_random_string(dfa, length, rng) for _ in range(num_samples)]
+    strings = _samples(dfa, length, num_samples, sampler)
     truth = [_endpoint(dfa, s) in dfa.final_states for s in strings]
     counts = Counter(_endpoint(dfa, s) for s in strings)
     covered = {q for q, c in counts.items() if c / num_samples >= min_coverage}
@@ -152,10 +199,11 @@ def satisfies_preconditions(
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,
+    sampler: Optional[Sampler] = None,
 ) -> PreconditionReport:
     """Does ``dfa`` meet every learnability precondition, and if not, why not?
 
-    All under length-``length`` uniform sampling:
+    All under length-``length`` sampling, uniform unless ``sampler`` says otherwise:
 
     - acceptance rate strictly between 0 and 1;
     - class-preserving fraction at least ``min_class_preserving_frac``;
@@ -171,7 +219,7 @@ def satisfies_preconditions(
     ``short_circuit=False`` to measure everything and collect every reason.
     """
     reasons: List[str] = []
-    rate = acceptance_rate(dfa, length=length, num_samples=num_samples)
+    rate = acceptance_rate(dfa, length=length, num_samples=num_samples, sampler=sampler)
     if rate in (0.0, 1.0):
         reasons.append(
             f"acceptance rate {rate} degenerate: every sampled string of length "
@@ -180,7 +228,9 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, reasons=tuple(reasons))
 
-    cp = class_preserving_fraction(dfa, length=length, num_samples=num_samples)
+    cp = class_preserving_fraction(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
+    )
     if cp < min_class_preserving_frac:
         reasons.append(
             f"class-preserving fraction {cp:.3f} below {min_class_preserving_frac}"
@@ -188,12 +238,16 @@ def satisfies_preconditions(
         if short_circuit:
             return PreconditionReport(length, rate, cp, reasons=tuple(reasons))
 
-    ceiling = covered_accuracy_ceiling(dfa, length=length, num_samples=num_samples)
+    ceiling = covered_accuracy_ceiling(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
+    )
     if ceiling < min_covered_accuracy:
         reasons.append(
             f"covered-accuracy ceiling {ceiling:.3f} below "
             f"{min_covered_accuracy} (an uncovered state carries a decision)"
         )
-    covered = covered_states(dfa, length=length, num_samples=num_samples)
+    covered = covered_states(
+        dfa, length=length, num_samples=num_samples, sampler=sampler
+    )
     uncovered = sorted(str(q) for q in dfa.states if q not in covered)
     return PreconditionReport(length, rate, cp, ceiling, uncovered, tuple(reasons))

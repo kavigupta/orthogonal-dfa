@@ -18,7 +18,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 from tests.lstar_common import assertDFA, evaluate_accuracy
 
 us = UniformSampler(40)
@@ -46,30 +46,36 @@ class TestBaselineLStarNoiseless(unittest.TestCase):
 
     def test_modulo(self):
         self._run(
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             )
         )
 
     def test_specific_subsequence(self):
-        self._run(lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"))
+        self._run(
+            lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), nm, s)
+        )
 
     def test_two_subsequences(self):
-        self._run(lambda nm, s: BernoulliRegex(nm, s, regex=r".*1111.*1111.*"))
+        self._run(
+            lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1111.*1111.*"), nm, s)
+        )
 
     def test_specific_alternation(self):
-        self._run(lambda nm, s: BernoulliRegex(nm, s, regex=r".*(1111|0000)11.*"))
+        self._run(
+            lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*(1111|0000)11.*"), nm, s)
+        )
 
     def test_alternation_3_syms(self):
         self._run(
-            lambda nm, s: BernoulliRegex(
-                nm, s, regex=r".*(111|000).*", alphabet_size=3
+            lambda nm, s: NoisyOracle(
+                BernoulliRegex(regex=r".*(111|000).*", alphabet_size=3), nm, s
             ),
             symbols=3,
         )
 
     def test_no_orf(self):
-        self._run(AllFramesClosedOracle, symbols=4)
+        self._run(lambda nm, s: NoisyOracle(AllFramesClosedOracle(), nm, s), symbols=4)
 
 
 class TestBaselineLStarNoisy(unittest.TestCase):
@@ -97,44 +103,44 @@ class TestBaselineLStarNoisy(unittest.TestCase):
 
     def test_modulo_noisy_0_8(self):
         self._run_noisy(
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             ),
             p_correct=0.8,
         )
 
     def test_modulo_noisy_0_6(self):
         self._run_noisy(
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             ),
             p_correct=0.6,
         )
 
     def test_regex_noisy_0_8(self):
         self._run_noisy(
-            lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"),
+            lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), nm, s),
             p_correct=0.8,
         )
 
     def test_regex_noisy_0_6(self):
         self._run_noisy(
-            lambda nm, s: BernoulliRegex(nm, s, regex=r".*1010101.*"),
+            lambda nm, s: NoisyOracle(BernoulliRegex(regex=r".*1010101.*"), nm, s),
             p_correct=0.6,
         )
 
     def test_modulo_noisy_0_9(self):
         self._run_noisy(
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             ),
             p_correct=0.9,
         )
 
     def test_modulo_noisy_0_95(self):
         self._run_noisy(
-            lambda nm, s: BernoulliParityOracle(
-                nm, s, modulo=9, allowed_moduluses=(3, 6)
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
             ),
             p_correct=0.95,
         )

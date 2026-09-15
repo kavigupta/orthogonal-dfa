@@ -15,6 +15,7 @@ where its successor under the edge's character goes.
 
 from typing import List, Optional, Tuple
 
+from .progress import track
 from .split_evidence import _MEMBER_LIMIT
 
 
@@ -27,16 +28,16 @@ class EdgeResolver:
         self.indecisive = indecisive
         self._population = population
 
-    def leaf_members(self, state: int) -> List[List[int]]:
+    def leaf_members(self, state: int) -> List[bytes]:
         return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
 
     def decisive_target(
         self, state: int, c: int
-    ) -> Tuple[Optional[int], Optional[List[int]]]:
+    ) -> Tuple[Optional[int], Optional[bytes]]:
         for member in self.leaf_members(state):
-            target, boundary = self.sifter.sift_and_boundary(list(member) + [c])
+            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
-                return target, list(member)
+                return target, member
             self.indecisive.add(boundary)
         return None, None
 
@@ -53,6 +54,6 @@ class EdgeResolver:
         open for the export to totalise.
         """
         edges = self.dfa.unresolved_edges()
-        for state, c in edges:
+        for state, c in track(edges, "Closing edges"):
             self.resolve(state, c)
         return sum(1 for state, c in edges if self.dfa.has_edge(state, c))

@@ -24,6 +24,8 @@ import numpy as np
 from matplotlib.patches import Circle, FancyArrowPatch, PathPatch, Wedge
 from matplotlib.path import Path
 
+from .midfix_tree import fmt_seq
+
 # Categorical slots, in the fixed order that clears the CVD gates.  Classes past
 # the eighth fold into OTHER rather than inventing a hue.
 _PALETTE = [
@@ -40,11 +42,6 @@ _OTHER = "#8a8a86"
 _INDECISIVE = "#d9d9d4"  # the family can't place these -- the FN slice
 _INK = "#1a1a1a"
 _MUTED = "#6d6d68"
-
-
-def _fmt(seq) -> str:
-    """A midfix/access string as text; the empty string renders as epsilon."""
-    return "".join(str(c) for c in seq) if len(seq) else "ε"
 
 
 def _class_colors(classes) -> Dict[int, str]:
@@ -73,24 +70,24 @@ def sample_class_distribution(
     -- one no string of that length can end in -- would otherwise draw no samples
     at all and its classes would vanish from the picture.  Buckets are deduped and
     capped so a rare state is represented as well as a common one."""
-    buckets: Dict[int, List[tuple]] = {s: [] for s in true_dfa.states}
+    buckets: Dict[int, List[bytes]] = {s: [] for s in true_dfa.states}
     seen: Dict[int, set] = {s: set() for s in true_dfa.states}
     for _ in range(num_samples):
-        w = list(pst.sampler.sample(rng, pst.alphabet_size))
+        w = pst.sampler.sample(rng, pst.alphabet_size)
         state = true_dfa.initial_state
-        for i, c in enumerate([None] + w):
+        for i, c in enumerate([None, *w]):
             if c is not None:
                 state = true_dfa.transitions[state][c]
-            key = tuple(w[:i])
+            key = w[:i]
             if len(buckets[state]) < per_state and key not in seen[state]:
                 seen[state].add(key)
                 buckets[state].append(key)
     if prefill is not None:
-        prefill([list(p) for ps in buckets.values() for p in ps])
+        prefill([p for ps in buckets.values() for p in ps])
     dist: Dict[int, Counter] = {s: Counter() for s in true_dfa.states}
     for state, ps in buckets.items():
         for p in ps:
-            dist[state][classify(list(p))] += 1
+            dist[state][classify(p)] += 1
     return dist
 
 
@@ -297,7 +294,7 @@ def _walk_tree(node, colors, nodes, edges, labels, *, uid=None):
         labels[name] = ("leaf", f"q{node}", colors.get(node, _OTHER))
         return name
     prepend, lookup = node
-    text = _fmt(prepend)
+    text = fmt_seq(prepend)
     nodes[name] = (max(0.52, 0.16 + 0.085 * len(text)), 0.30)
     labels[name] = ("mid", text, None)
     for side in (True, False):
@@ -370,10 +367,12 @@ def _panel_tree(ax, dt, colors):
 
 def _sift_fn(learner):
     """The learner's classifier, wherever it keeps it."""
-    for holder in (learner, getattr(learner, "sifter", None)):
-        fn = getattr(holder, "sift", None)
-        if fn is not None:
-            return fn
+    fn = getattr(learner, "sift", None)
+    if fn is not None:
+        return fn
+    sifter = getattr(learner, "sifter", None)
+    if sifter is not None:
+        return lambda seq: sifter.sift_and_boundary(seq)[0]
     raise AttributeError("learner exposes no sift")
 
 
@@ -454,7 +453,7 @@ def _panel_class_dfa(ax, learner, colors, final_states, flipped):
             ax.text(
                 xy[0],
                 xy[1] - r - 0.11,
-                _fmt(access)[:16],
+                fmt_seq(access)[:16],
                 fontsize=5.4,
                 color=_MUTED,
                 ha="center",

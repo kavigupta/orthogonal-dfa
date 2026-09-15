@@ -28,7 +28,7 @@ class _StubSampler:
     length = 6
 
     def sample(self, rng, alphabet_size):
-        return [int(c) for c in rng.integers(0, alphabet_size, self.length)]
+        return rng.integers(0, alphabet_size, self.length, dtype=np.uint8).tobytes()
 
 
 class _StubPst:

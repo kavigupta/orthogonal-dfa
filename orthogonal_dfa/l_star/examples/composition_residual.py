@@ -6,7 +6,11 @@ from permacache import permacache, stable_hash
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
-from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (
+    flanks,
+    run_over_middles,
+    symbols,
+)
 from orthogonal_dfa.spliceai.exon_score import device_of
 
 # Minimal number of samples per free coefficient to fit an unregularized linear model effectively.
@@ -35,7 +39,7 @@ def bow_features(strings, k_max):
     D = free_parameters(k_max)
     F = np.zeros((len(strings), D), dtype=np.float32)
     for i, s in enumerate(strings):
-        s = np.asarray(s, dtype=np.int64)
+        s = symbols(s)
         m, off = len(s), 0
         for k in range(1, k_max + 1):
             width = 4**k - 1
@@ -132,7 +136,9 @@ class CompositionResidualScore(nn.Module):
         codes = x.argmax(-1).cpu().numpy()
         lens = lengths.cpu().numpy()
         middles = [
-            codes[i, self._flank_l_len : self._flank_l_len + int(m)].tolist()
+            codes[i, self._flank_l_len : self._flank_l_len + int(m)]
+            .astype(np.uint8)
+            .tobytes()
             for i, m in enumerate(lens)
         ]
         feats = torch.as_tensor(
@@ -222,7 +228,12 @@ def _fit_composition_bins(
     intercepts, betas, r2s = [], [], []
     for lo, hi in zip(edges[:-1], edges[1:]):
         lens = rng.integers(lo, hi, size=per_bin)
-        mids = [rng.integers(0, 4, size=int(length)).tolist() for length in lens]
+        # astype, not dtype=np.uint8: the dtype changes the values drawn, and
+        # this value is permacached.
+        mids = [
+            rng.integers(0, 4, size=int(length)).astype(np.uint8).tobytes()
+            for length in lens
+        ]
         scores = run_over_middles(
             score_model, flank_l, flank_r, mids, device=dev, chunk=chunk
         ).astype(np.float64)

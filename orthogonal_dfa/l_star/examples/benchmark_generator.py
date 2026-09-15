@@ -23,14 +23,14 @@ drawn uniformly from *Q*.  This is uniform over the unconstrained degrees of
 freedom.
 """
 
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star import preconditions
-from orthogonal_dfa.l_star.structures import NoiseModel, Oracle
+from orthogonal_dfa.l_star.structures import Oracle
 from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
 
@@ -169,16 +169,16 @@ def sample_balanced_benchmark(
     num_inner_states: int,
     num_outer_states: int,
     probe_length: int,
-    min_accept_or_reject: float,
-    num_probe_samples: int = 200,
     max_attempts: int = 100_000,
     min_class_preserving_frac: float = 0.05,
-    num_class_preserving_samples: int = 2000,
+    num_precondition_samples: int = 2000,
 ) -> Tuple[DFA, DFA, int]:
     """Sample a ``Σ*LΣ*`` benchmark whose outer DFA has the requested size.
 
     Tries successive sub-seeds derived from *seed* until one produces a DFA
-    with exactly ``num_outer_states`` states and a balanced accept rate.
+    with exactly ``num_outer_states`` states that meets every E-L* learnability
+    precondition.  Balance comes out of that rather than being asked for: the
+    class-preserving condition is what an imbalanced language fails.
 
     Each candidate gets a fresh RNG so that the filtering process does not
     contaminate the randomness of the chosen benchmark.
@@ -189,17 +189,11 @@ def sample_balanced_benchmark(
     alphabet_size : |Σ| of the inner / outer DFAs.
     num_inner_states : pre-minimisation state count for the inner DFA.
     num_outer_states : exact number of states in the minimised ``Σ*LΣ*`` DFA.
-    probe_length : length of random strings used to estimate the accept rate.
-    min_accept_or_reject : minimum fraction of probe strings that must be in
-        each class — i.e. the empirical accept rate must lie in
-        ``[min_accept_or_reject, 1 - min_accept_or_reject]``.
-    num_probe_samples : how many strings to sample when estimating the rate.
+    probe_length : length of the random strings the preconditions are read over.
     max_attempts : maximum number of candidate benchmarks to try.
-    min_class_preserving_frac : minimum fraction of random length-``probe_length``
-        suffixes that must map every DFA state to a state of the same
-        accept/reject class. Candidates below this threshold are rejected.
-    num_class_preserving_samples : number of random suffixes used to estimate
-        the class-preserving fraction.
+    min_class_preserving_frac : the precondition gate's class-preserving bar,
+        raised here above the gate's own default.
+    num_precondition_samples : how many strings the precondition gate reads.
 
     Raises
     ------
@@ -214,15 +208,12 @@ def sample_balanced_benchmark(
         )
         if len(outer.states) != num_outer_states:
             continue
-        rate = preconditions.acceptance_rate(
-            outer, length=probe_length, num_samples=num_probe_samples
-        )
-        if not min_accept_or_reject <= rate <= 1 - min_accept_or_reject:
-            continue
-        cp_frac = preconditions.class_preserving_fraction(
-            outer, length=probe_length, num_samples=num_class_preserving_samples
-        )
-        if cp_frac < min_class_preserving_frac:
+        if not preconditions.satisfies_preconditions(
+            outer,
+            length=probe_length,
+            min_class_preserving_frac=min_class_preserving_frac,
+            num_samples=num_precondition_samples,
+        ):
             continue
         return outer, inner, sep
     raise RuntimeError(
@@ -233,9 +224,7 @@ def sample_balanced_benchmark(
 class DFAOracle(Oracle):
     """Oracle backed by a pre-built DFA (e.g. from ``build_star_l_star_dfa``)."""
 
-    def __init__(self, noise_model: NoiseModel, seed: int, dfa: DFA):
-        self._noise_model = noise_model
-        self._seed = seed
+    def __init__(self, dfa: DFA):
         self._dfa = dfa
         self._alphabet_size = len(dfa.input_symbols)
 
@@ -243,6 +232,8 @@ class DFAOracle(Oracle):
     def alphabet_size(self) -> int:
         return self._alphabet_size
 
-    def membership_query(self, string: List[int]) -> bool:
-        correct = self._dfa.accepts_input(string)
-        return self._noise_model.apply_noise(correct, string, self._seed)
+    def membership_query(self, string: bytes) -> bool:
+        return self._dfa.accepts_input(string)
+
+    def target_dfa(self):
+        return self._dfa

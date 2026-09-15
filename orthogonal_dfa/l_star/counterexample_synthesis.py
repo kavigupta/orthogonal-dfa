@@ -13,17 +13,20 @@ in the next round.
 """
 
 import math
+import time
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import per_state_sample
 from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .statistics import binomial_side_of_boundary
+from .prefix_sources import aim_at, state_source
+from .progress import track
+from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
 
@@ -33,13 +36,13 @@ class RoundClassifier:
     representative prefixes -- the round's attempt at the accept-preserving cut.
     ``votes[i]`` is prefix ``prefixes[i]``'s accept-rate over the family.
 
-    The thresholds are the tracker's own, so the cut recorded here is the one
+    The thresholds are the prefix/suffix tracker's own, so the cut here is the one
     synthesis made. ``calibrated[i]`` marks prefixes of the sampler length -- the
     population the family was clustered on. Off-length prefixes (boundary strings,
     per-state samples) reach the family off its calibration, so a consumer checking
     the recorded cut should restrict to the calibrated ones."""
 
-    prefixes: List[List[int]]
+    prefixes: List[bytes]
     votes: np.ndarray
     accept_thresh: float
     reject_thresh: float
@@ -60,7 +63,7 @@ class RoundClassifier:
 
 def _round_classifier(pst, vs) -> RoundClassifier:
     mask = pst.table.representative
-    prefixes = [list(p) for p, keep in zip(pst.table.prefixes, mask) if keep]
+    prefixes = [p for p, keep in zip(pst.table.prefixes, mask) if keep]
     calibrated = np.array([len(p) == pst.sampler.length for p in prefixes], dtype=bool)
     return RoundClassifier(
         prefixes,
@@ -87,29 +90,19 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def classify_pool(pst, tree, *, accept, reject):
+def _accumulate_indecisive(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+    already hold, returning how many.
+
+    Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
+    sample every run.
     """
-    Classify every prefix in the pool to its leaf (or -1 if undecided), from
-    the cached mask matrix. Uses accept and reject thresholds.
-    """
-
-    def decide_columns(midfix):
-        decision = pst.compute_decision_from_strings(tree.suffixes(midfix))
-        return decision >= accept, decision < reject
-
-    return tree.classify_pool(pst.num_prefixes, decide_columns)
-
-
-def _take_indecisive(resolver, target):
-    """
-    Take up to target of the round's boundary strings.
-
-    The set is sorted then shuffled with a fixed rng, so the
-    cap picks the same unbiased sample every run.
-    """
-    ordered = sorted(tuple(b) for b in resolver.indecisive)
-    np.random.default_rng(0).shuffle(ordered)
-    return [list(t) for t in ordered[:target]]
+    taken = sorted(resolver.indecisive - state.seen)
+    np.random.default_rng(0).shuffle(taken)
+    for string in taken[:wanted]:
+        state.seen.add(string)
+        state.accumulated.append(string)
+    return min(wanted, len(taken))
 
 
 class _PoolState:
@@ -118,90 +111,57 @@ class _PoolState:
     sampling distribution even if the per-state sample is skewed), the accumulated
     boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
 
-    def __init__(self, baseline):
-        self.baseline = [list(p) for p in baseline]
+    def __init__(self, uniform):
+        self.uniform = list(uniform)
         self.accumulated = []
         self.seen = set()
         self.sampled = []
 
 
-def _grow_representative_pool(
-    pst,
-    resolver,
-    dfa,
-    state,
-    *,
-    indecisive_fraction,
-    min_indecisive,
-    per_state,
-):
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(resolver, target):
-        key = tuple(t)
-        if key not in state.seen:
-            state.seen.add(key)
-            state.accumulated.append(t)
-    state.sampled = per_state_sample(
-        dfa, pst.rng, pst.sampler.length, per_state, existing=state.sampled
-    )
-    representative = state.baseline + state.accumulated + state.sampled
-    fresh = [
-        list(p)
-        for p in sorted(
-            set(tuple(p) for p in representative if not pst.table.contains_prefix(p))
-        )
-    ]
-    if fresh:
-        pst.table.add_prefixes(fresh)
-    pst.table.set_representative(representative)
+def _per_state_members(pst, resolver, dfa, per_state):
+    """``state -> members``, ``per_state`` of them resting at each state that has
+    a source."""
+    held = {}
+    for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
+        aim = aim_at(pst, dfa, leaf)
+        if aim is None:
+            # Out of reach rather than short: too few strings of the sampler's
+            # length arrive here to draw from, so no round is going to fill it
+            # and this one is not waiting on a draw.
+            continue
+        source = state_source(resolver, leaf, aim, wanted=per_state)
+        if source is None:
+            continue
+        held[leaf] = sorted(source.draw() for _ in range(per_state))
+    return held
 
 
-def uncoverable_access_strings(pst, tree):
-    """Access strings the hypothesis cannot resolve and can never be covered.
-
-    The short prefix-closed core is the set of access strings, it reaches
-    every state, including transient ones that a fixed-length prefix sampler
-    never lands on.
-
-    We can use this to detect when the underlying DFA is not learnable in
-    our model. Specifically, when a state in the access strings is not also
-    reached by any representative (longer) prefix. This prevents us from
-    averaging across multiple prefixes to get a representative set for this state
-    implying that the state is only reached by a small number of strings
-    overall.
+def _aimed_at(pst, resolver, dfa) -> set:
+    """The leaves the round aims at, which are the ones its aims settle strings
+    into -- `state_source` proves a leaf's yield by aiming at it, so a leaf
+    whose yield comes out too low has still been filled by the proving.
     """
-    prefixes = list(pst.table.prefixes)
-    # Coverage is measured against the stable non-core (sampled) prefixes, not the
-    # representative set, the driver re-scopes representative to focus clustering,
-    # which must not narrow what counts as "covered".
-    sampled = pst.table.noncore
-    fam = pst.table.fully_observed()
-    if len(fam) == 0 or not sampled.any():
-        return []
+    return {
+        leaf
+        for leaf in range(resolver.num_states)
+        if aim_at(pst, dfa, leaf) is not None
+    }
 
-    eta = 0.5 - pst.config.min_signal_strength
-    # Two prefixes at the same state agree on every suffix up to independent
-    # per-cell noise, so their expected mask-disagreement rate is 2*eta*(1-eta).
-    same_state_rate = 2 * eta * (1 - eta)
-    n = len(fam)
 
-    repr_masks = pst.table.observed_masks(fam, sampled).T  # [n_sampled, n_fam]
-    leaves = classify_pool(
-        pst, tree, accept=pst.accept_thresh, reject=pst.reject_thresh
-    )
-    potentially_problematic = np.flatnonzero(
-        (~sampled) & (leaves == -1)
-    )  # only unclassifiable core prefixes
-    flagged = []
-    for i in potentially_problematic:
-        col = np.zeros(len(prefixes), dtype=bool)
-        col[i] = True
-        mask_i = pst.table.observed_masks(fam, col).T[0]
-        # get the nearest and see if it's too far away to be a sibling.  If so, this prefix is problematic.
-        nearest = int((repr_masks != mask_i).sum(1).min())
-        if binomial_side_of_boundary(nearest, n, same_state_rate, failure_prob=0.01):
-            flagged.append((list(prefixes[i]), nearest / n))
-    return flagged
+def _publish_pool(pst, state) -> int:
+    """Put the round's populations in the table, returning how many of its
+    prefixes are representative."""
+    # Retired before it is redefined, so a mid-round top-up's prefixes do not
+    # outlive the round that bought them.
+    for population, prefixes in (
+        (UNIFORM, state.uniform),
+        (BOUNDARY, state.accumulated),
+        (STATE, state.sampled),
+    ):
+        pst.table.drop_population(population)
+        if prefixes:
+            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
+    return int(pst.table.representative.sum())
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -213,10 +173,7 @@ class _StallDetector:
 
     1. There are no new states
     2. (Internal) accuracy has not increased
-    3. No new boundary strings have been harvested
-
-    This catches a situation where the fixed-length probes can't find any information
-    about transient states.
+    3. No distinguisher the tree can propose still splits a state
 
     Deliberately fairly restrictive, so we can have a low Patience before
     exiting the loop.
@@ -225,58 +182,91 @@ class _StallDetector:
     def __init__(self, patience: int):
         self._patience = patience
         self._states = 0
-        self._boundary_strings = 0
         self._stalled = 0
 
-    def stalled(self, *, states: int, improved: bool, boundary_strings: int) -> bool:
-        progressed = (
-            states > self._states
-            or improved
-            or boundary_strings > self._boundary_strings
-        )
+    def stalled(self, *, states: int, improved: bool, settled) -> bool:
+        progressed = states > self._states or improved or not settled()
         self._stalled = 0 if progressed else self._stalled + 1
-        self._states, self._boundary_strings = states, boundary_strings
+        self._states = states
         return self._stalled >= self._patience
 
 
-#: Target number of representative strings per DFA state.  Each round tops the
-#: sampled pool up to this per state (see ``per_state_sample``); states the
-#: original prefixes already cover need no top-up, so the pool converges rather
-#: than growing every round.
-PER_STATE = 20
+#: Representative strings drawn per DFA state.  Every round draws this many
+#: afresh through the state's source and replaces the last round's, so the
+#: population does not accumulate across rounds.  Over
+#: `MEMBERS_TO_RULE_OUT_A_SPLIT` with room to spare, since the draws the family
+#: cannot place are not among the ones that rule a split out.
+PER_STATE = 50
+
+
+@dataclass
+class BestRound:
+    """The most consistent round's hypothesis. Rounds are not monotone --
+    rebuilding the representative pool re-clusters, so a later family can
+    classify worse -- so the run keeps this rather than the last round's. The
+    boundary comes with it because denoising reads the labels against it."""
+
+    consistency: float = -1.0
+    dfa: Optional[DFA] = None
+    tree: Optional[MidfixTree] = None
+    boundary: Optional[float] = None
+    round_index: Optional[int] = None
+
+    def consider(self, *, consistency, dfa, tree, boundary, round_index):
+        if consistency > self.consistency:
+            self.consistency = consistency
+            self.dfa, self.tree = dfa, tree
+            self.boundary, self.round_index = boundary, round_index
 
 
 def counterexample_driven_synthesis(
     pst,
     *,
     acc_threshold: float,
+    tracker: SynthesisTracker,
+    max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
-):
+) -> BestRound:
+    """Rounds until the hypothesis is consistent enough, the pool stalls, or
+    ``max_rounds`` of them have run.  Only a caller driving the loop itself can
+    set that cap; `learn_dfa` does not forward one."""
+    # The cap is read at the foot of the body, so a round always runs.
+    assert max_rounds is None or max_rounds >= 1, max_rounds
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
     # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
-    baseline = [
+    uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    state = _PoolState(baseline)
+    state = _PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
-    best_acc = -1.0
+    best = BestRound()
+    index = 0
     while True:
-        print(f"Starting synthesis iteration with {pst.num_prefixes} prefixes")
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix([]))
+        print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
+        started = time.monotonic()
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
+        tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
+        tracker.on_round_classified(classifier, index)
+        sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
-        print(f"Resolved DFA with {dt.num_states} states")
+        print(
+            f"[round {index}] resolved {dt.num_states} states over a family of "
+            f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
+            f"{time.monotonic() - sampled:.1f}s resolving)"
+        )
         assert dt.num_states >= 2
+        tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
         true_acc = estimate_agreement_rate(
             pst,
@@ -287,66 +277,63 @@ def counterexample_driven_synthesis(
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
-        print(f"Estimated DFA accuracy on fresh samples: {true_acc:.4f}")
-        if true_acc >= acc_threshold:
-            print(f"Achieved desired accuracy of {acc_threshold}; stopping synthesis")
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        uncoverable = uncoverable_access_strings(pst, dt)
-        if uncoverable:
-            examples = ", ".join(
-                "".join(map(str, p)) or "eps" for p, _ in uncoverable[:5]
-            )
-            print(
-                f"Stopping synthesis: {len(uncoverable)} access string(s) reach "
-                f"states no sampled prefix can cover at length "
-                f"{pst.sampler.length} (e.g. {examples}); the target is not "
-                f"learnable with this prefix sampler."
-            )
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        _grow_representative_pool(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
+        tracker.on_consistency_estimated(true_acc, index)
+        best.consider(
+            consistency=true_acc,
+            dfa=dfa,
+            tree=dt,
+            boundary=pst.decision_boundary,
+            round_index=index,
         )
-        improved = true_acc > best_acc
-        best_acc = max(best_acc, true_acc)
+        if true_acc >= acc_threshold:
+            print(
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold:.4f}; stopping synthesis"
+            )
+            return best
+        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+        taken = _accumulate_indecisive(resolver, state, target)
+        by_state = _per_state_members(pst, resolver, dfa, per_state)
+        state.sampled = sorted({m for members in by_state.values() for m in members})
+        # Asked after the aims, which are what fill the leaves it reads.  A
+        # leaf nothing aims at is not one the round waits on.
         if stall.stalled(
             states=dt.num_states,
-            improved=improved,
-            boundary_strings=len(state.accumulated),
+            improved=best.round_index == index,
+            settled=lambda: resolver.splits.nothing_left_to_split(
+                _aimed_at(pst, resolver, dfa)
+            ),
         ):
             print(
-                f"No progress ({dt.num_states} states) in {STALL_PATIENCE} rounds "
-                "-- pool churning without resolving; stopping synthesis"
+                f"[round {index}] no progress ({dt.num_states} states) in "
+                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                "stopping synthesis"
             )
-            yield dfa, dt, true_acc, pst.decision_boundary, classifier
-            return
-        yield dfa, dt, true_acc, pst.decision_boundary, classifier
+            return best
+        # Last, so what the draws and the check strand lands in the pool the
+        # round they were found rather than the round after.
+        _accumulate_indecisive(resolver, state, target - taken)
+        pool = _publish_pool(pst, state)
+        print(
+            f"[round {index}] pool now {pool} representative prefixes, "
+            f"{len(state.accumulated)} boundary strings harvested so far"
+        )
+        index += 1
+        if max_rounds is not None and index >= max_rounds:
+            print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
+            return best
 
 
 def do_counterexample_driven_synthesis(
-    pst, *, acc_threshold: float
-) -> Tuple[Optional[DFA], Optional[MidfixTree], List[RoundClassifier]]:
-    # Rounds are not monotone -- rebuilding the representative pool re-clusters,
-    # so a later family can classify worse -- so keep the most accurate
-    # hypothesis, not the last. The boundary is kept with it because denoising
-    # reads the tree against it.
-    best_acc, best_dfa, best_dt, best_boundary = -1.0, None, None, None
-    classifiers = []
-    for dfa, dt, true_acc, boundary, classifier in counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold
-    ):
-        classifiers.append(classifier)
-        if true_acc > best_acc:
-            best_acc, best_dfa, best_dt, best_boundary = true_acc, dfa, dt, boundary
-    dfa, dt = best_dfa, best_dt
-    if dfa is not None:
-        pst.decision_boundary = best_boundary
-        dfa = denoise_accept_labels(pst, dfa)
-    return dfa, dt, classifiers
+    pst, *, acc_threshold: float, tracker: SynthesisTracker
+) -> Optional[DFA]:
+    best = counterexample_driven_synthesis(
+        pst, acc_threshold=acc_threshold, tracker=tracker
+    )
+    if best.dfa is None:
+        return None
+    pst.decision_boundary = best.boundary
+    dfa = denoise_accept_labels(pst, best.dfa)
+    tracker.on_corrected_dfa_found(dfa, best.round_index)
+    return dfa

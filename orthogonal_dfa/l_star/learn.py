@@ -15,11 +15,9 @@ import numpy as np
 from .counterexample_synthesis import do_counterexample_driven_synthesis
 from .prefix_suffix_tracker import PrefixSuffixTracker, SearchConfig
 from .sampler import Sampler, UniformSampler
-from .statistics import (
-    compute_suffix_size_counterexample_gen,
-    population_size_and_evidence_margin,
-)
+from .statistics import compute_suffix_size_counterexample_gen
 from .structures import SymmetricBernoulli
+from .tracker import SynthesisTracker
 
 #: All of E-L*'s signal comes from words drawn at this length.
 DEFAULT_SAMPLE_LENGTH = 40
@@ -39,6 +37,7 @@ def build_pst(
     noise_model: Optional[Any] = None,
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
+    require_accept_preserving: bool = True,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -54,18 +53,14 @@ def build_pst(
     if noise_model is None:
         noise_model = SymmetricBernoulli(p_correct=effective_p_acc)
     oracle = oracle_creator(noise_model, seed)
-    n, eps = population_size_and_evidence_margin(
-        signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01
-    )
     config = SearchConfig(
-        suffix_family_size=n,
-        evidence_margin=eps,
         suffix_size_counterexample_gen=compute_suffix_size_counterexample_gen(
             0.01, effective_p_acc
         ),
         min_signal_strength=min_signal_strength,
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
+        require_accept_preserving=require_accept_preserving,
     )
     return PrefixSuffixTracker.create(
         sampler,
@@ -85,15 +80,17 @@ def learn_dfa(
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
+    require_accept_preserving: bool = True,
+    tracker: SynthesisTracker = SynthesisTracker(),
 ):
-    """Learn a DFA from `oracle_creator`, returning ``(dfa, round_classifiers)``.
+    """Learn a DFA from `oracle_creator`.  Failure raises
+    `NoAcceptPreservingFamily` rather than returning.
 
     `oracle_creator(noise_model, seed)` builds the oracle to query; it is a
     factory rather than an oracle so callers can count or wrap the queries.
-    `sampler` draws the probe strings (see `build_pst`).  ``dfa`` is None when
-    synthesis produced no hypothesis. ``round_classifiers`` is the per-round
-    empty-seeded family classifier (see ``RoundClassifier``), exposed so callers
-    can inspect what each round decided over its pool.
+    `sampler` draws the probe strings (see `build_pst`).  Pass a `tracker` (see
+    `SynthesisTracker`) to receive each round's family, hypothesis and
+    consistency as they are made; the default one discards them.
     """
     pst = build_pst(
         oracle_creator,
@@ -102,8 +99,9 @@ def learn_dfa(
         noise_model=noise_model,
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
+        require_accept_preserving=require_accept_preserving,
     )
-    dfa, _, classifiers = do_counterexample_driven_synthesis(
-        pst, acc_threshold=acc_threshold
+    dfa = do_counterexample_driven_synthesis(
+        pst, acc_threshold=acc_threshold, tracker=tracker
     )
-    return dfa, classifiers
+    return dfa

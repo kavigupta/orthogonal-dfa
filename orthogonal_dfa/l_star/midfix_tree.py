@@ -8,15 +8,13 @@ string and each suffix, hence the name. Leaves are DFA state ids.
 
 from typing import Callable, Iterator, List, Optional, Tuple
 
-import numpy as np
-
 from .sequential_decide import sequential_decisions
 
 # A leaf is an int state id; an internal node is
 # (midfix, {True: accept_child, False: reject_child}).
 Node = object
 
-Decide = Callable[[List[int], tuple], Optional[bool]]
+Decide = Callable[[bytes, bytes], Optional[bool]]
 
 
 def _leaves(node: Node) -> Iterator[int]:
@@ -50,10 +48,10 @@ class MidfixTree:
     Discrimination tree over midfixes; see the module docstring.
     """
 
-    def __init__(self, base_family: List[List[int]]):
-        self.base_family = [list(v) for v in base_family]
+    def __init__(self, base_family: List[bytes]):
+        self.base_family = list(base_family)
         # The empty midfix splits accept (state 0) from reject (state 1).
-        self._root: Node = ((), {True: 0, False: 1})
+        self._root: Node = (b"", {True: 0, False: 1})
         self.num_states = 2
 
     # -- structure ----------------------------------------------------------
@@ -84,12 +82,28 @@ class MidfixTree:
 
         return find(self._root, ())
 
-    def midfix_at(self, path: Tuple[bool, ...]) -> tuple:
+    def midfix_at(self, path: Tuple[bool, ...]) -> bytes:
         """The midfix of the internal node reached by following ``path``."""
         node = self._root
         for branch in path:
             node = node[1][branch]
         return node[0]
+
+    def midfixes(self) -> List[bytes]:
+        """Every internal node's midfix, deduplicated: two nodes can carry the
+        same one."""
+        found = {}
+
+        def walk(node: Node) -> None:
+            if isinstance(node, int):
+                return
+            midfix, lookup = node
+            found[midfix] = None
+            for child in lookup.values():
+                walk(child)
+
+        walk(self._root)
+        return list(found)
 
     def accepting_leaves(self) -> set:
         """
@@ -112,19 +126,13 @@ class MidfixTree:
         new_state = self.num_states
         self.num_states += 1
         self._root = _replace_leaf(
-            self._root, state, (tuple(midfix), {True: state, False: new_state})
+            self._root, state, (midfix, {True: state, False: new_state})
         )
         return new_state
 
-    def suffixes(self, midfix) -> List[List[int]]:
-        """
-        The node's distinguisher family: each base suffix behind midfix.
-        """
-        return [list(midfix) + v for v in self.base_family]
-
     # -- classification -----------------------------------------------------
 
-    def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[tuple]]:
+    def sift(self, seq, decide: Decide) -> Tuple[Optional[int], Optional[bytes]]:
         """
         Route seq to a leaf: (state, None) when it lands decisively, or
         (None, boundary) when some node cannot place it.
@@ -138,7 +146,7 @@ class MidfixTree:
             midfix, lookup = node
             decision = decide(seq, midfix)
             if decision is None:
-                return None, tuple(seq) + tuple(midfix)
+                return None, seq + midfix
             node = lookup[decision]
         return node, None
 
@@ -148,7 +156,7 @@ class MidfixTree:
         """
         return self.sift(seq, decide)[0]
 
-    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[tuple]:
+    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[bytes]:
         """
         The midfix separating s and sprime, or None.
 
@@ -161,7 +169,7 @@ class MidfixTree:
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
-            full = (*prefix, *midfix)
+            full = prefix + midfix
             d, dprime = decide(s, full), decide(sprime, full)
             if d is None or dprime is None:
                 return None
@@ -180,7 +188,7 @@ class MidfixTree:
         out: List[Optional[int]] = [None] * len(seqs)
         active = [(self._root, i) for i in range(len(seqs))]
         while active:
-            pairs: List[Tuple[list, tuple]] = []
+            pairs: List[Tuple[bytes, bytes]] = []
             meta = []
             for node, i in active:
                 if isinstance(node, int):
@@ -198,26 +206,6 @@ class MidfixTree:
             active = nxt
         return out
 
-    def classify_pool(self, num_prefixes: int, decide_columns) -> np.ndarray:
-        """
-        Classify a whole fixed population at once. decide_columns(midfix) returns the
-        (accept, reject) boolean columns over all num_prefixes for that node's family,
-        read straight off a cached mask matrix with no oracle. A prefix an ancestor
-        abstained on stays -1.
-        """
-
-        def recurse(node: Node) -> np.ndarray:
-            if isinstance(node, int):
-                return np.full(num_prefixes, node)
-            midfix, lookup = node
-            acc, rej = decide_columns(midfix)
-            results = np.full(num_prefixes, -1)
-            results[rej] = recurse(lookup[False])[rej]
-            results[acc] = recurse(lookup[True])[acc]
-            return results
-
-        return recurse(self._root)
-
     def render(self, render_midfix, indent=0) -> List[str]:
         def recurse(node: Node, indent: int) -> List[str]:
             pad = " " * indent
@@ -232,7 +220,7 @@ class MidfixTree:
         return recurse(self._root, indent)
 
 
-def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: float):
+def oracle_decider(oracle, base_family: List[bytes], accept: float, reject: float):
     """
     A (decide, decide_level) pair that classifies a midfix node by the accept-rate
     of s + midfix + v over base_family (> accept accepts, < reject rejects, the band
@@ -244,7 +232,7 @@ def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: 
     """
 
     def decide_level(pairs) -> List[Optional[bool]]:
-        strings = [list(seq) + list(midfix) for seq, midfix in pairs]
+        strings = [seq + midfix for seq, midfix in pairs]
         return sequential_decisions(
             strings,
             base_family,
@@ -260,3 +248,8 @@ def oracle_decider(oracle, base_family: List[List[int]], accept: float, reject: 
         return decide_level([(seq, midfix)])[0]
 
     return decide, decide_level
+
+
+def fmt_seq(seq) -> str:
+    """A midfix/access string as text; the empty string renders as epsilon."""
+    return "".join(str(c) for c in seq) if len(seq) else "ε"

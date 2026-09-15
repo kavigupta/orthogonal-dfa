@@ -13,6 +13,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     DFAOracle,
     sample_random_dfa,
 )
+from orthogonal_dfa.l_star.structures import NoisyOracle
 from tests.lstar_common import compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
@@ -48,7 +49,7 @@ def _elstar_accuracy(aut) -> float:
     """
 
     def oracle_creator(name, seed):
-        return DFAOracle(name, seed, aut)
+        return NoisyOracle(DFAOracle(aut), name, seed)
 
     def _timeout(*_):
         raise TimeoutError(f"E-L* did not terminate within {PER_DFA_TIMEOUT}s")

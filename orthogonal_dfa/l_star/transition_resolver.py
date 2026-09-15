@@ -31,9 +31,10 @@ from automata.fa.dfa import DFA
 from .cluster import sample_suffix_family
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
-from .midfix_tree import MidfixTree, oracle_decider
+from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
-from .sifting import Sifter
+from .progress import counter, write
+from .sifting import Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -53,9 +54,13 @@ class TransitionResolver:
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
-        self.population = LeafPopulation(self.tree, self._classify)
+        self.population = LeafPopulation(
+            self.tree,
+            self._classify,
+            harvest=self.indecisive.add,
+        )
         for p in pst.table.prefixes:
-            self.population.add(list(p))
+            self.population.add(p)
         self.splits = SplitEvidence(
             pst,
             self.family,
@@ -72,7 +77,7 @@ class TransitionResolver:
     def _classify(self, strings, midfix):
         """Which side of ``midfix`` each string sits on; the indecisive band
         between the thresholds returns None and drops out of the population."""
-        self.family.prefill([list(s) + list(midfix) for s in strings])
+        self.family.prefill([s + midfix for s in strings])
         return [self.family.is_accept(s, midfix) for s in strings]
 
     @property
@@ -96,7 +101,7 @@ class TransitionResolver:
         Every string the tree cannot place is harvested into ``indecisive``: it is
         a boundary string the current family straddles, and the driver feeds these
         back so the next family is forced to resolve them."""
-        leaf, boundary = self.sifter.sift_and_boundary(list(seq))
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self.indecisive.add(boundary)
         return leaf
@@ -105,6 +110,10 @@ class TransitionResolver:
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
         self.dfa.split_state(state_id, new_id)
+        write(
+            f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
+            f"reject {new_id} ({self.tree.num_states} states)"
+        )
 
     # -- counterexamples ----------------------------------------------------
 
@@ -118,18 +127,25 @@ class TransitionResolver:
         rebuilding. Stops after ``patience`` consecutive clean probes."""
         since_split = 0
         delta = self._total_delta()
-        for w in self._probe_blocks(max_probes):
-            status = self._process(w, delta)
-            if status == _SPLIT:
-                since_split = 0
-                self.edges.close()  # the split dropped edges; refill
-                delta = self._total_delta()  # the split rewrote the state set
-            elif status == _UNDECIDED:
-                since_split = 0
-            else:
-                since_split += 1
-            if since_split >= patience:
-                break
+        with counter(max_probes, "Probing for counterexamples") as pbar:
+            for w in self._probe_blocks(max_probes):
+                status = self._process(w, delta)
+                if status == _SPLIT:
+                    since_split = 0
+                    self.edges.close()  # the split dropped edges; refill
+                    delta = self._total_delta()  # the split rewrote the state set
+                elif status == _UNDECIDED:
+                    since_split = 0
+                else:
+                    since_split += 1
+                pbar.set_postfix(
+                    states=self.tree.num_states,
+                    clean=f"{since_split}/{patience}",
+                    refresh=False,
+                )
+                pbar.update(1)
+                if since_split >= patience:
+                    break
 
     def _total_delta(self):
         """A total transition function to walk.  Edge resolution cannot always
@@ -156,24 +172,13 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Anchor at the shortest prefix the tree places, follow the total delta,
         then act on where the walk and a fresh sift disagree."""
-        w = list(w)
-        state = None
-        start = 0
-        while start < len(w):
-            state = self._sift(w[:start])
-            if state is not None:
-                break
-            start += 1
-        if state is None:
+        start, states = anchored_walk(w, self._sift, delta)
+        if start is None:
             return _RESOLVED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
         # only reaches deep leaves; short anchor prefixes are what give the shallow
         # leaves enough members for the one-state test to settle them.
-        self.population.add(w[:start], at=self.tree.path_of(state))
-        states = [None] * start + [state]
-        for c in w[start:]:
-            state = delta[state][c]
-            states.append(state)
+        self.population.add(w[:start], at=self.tree.path_of(states[start]))
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
@@ -181,7 +186,7 @@ class TransitionResolver:
         actual = self._sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
-        fd = self._first_bad_edge(w, states, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
         if fd is None:
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
@@ -200,7 +205,7 @@ class TransitionResolver:
         sprime = w[: fd - 1]
         if self._sift(witness) != s1 or self._sift(sprime) != s1:
             return _RESOLVED
-        distinguisher = self.sifter.disagreement(witness, sprime, [c])
+        distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
             return _RESOLVED
         verdict = self.splits.verdict(s1, distinguisher)
@@ -209,26 +214,12 @@ class TransitionResolver:
             return _SPLIT
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
-    def _first_bad_edge(self, w, states, lo, hi):
-        """Binary-search the first index where the followed state diverges from a
-        fresh sift of ``w[:i]``; ``None`` on an indecisive sift.  Invariant: the
-        sift agrees at ``lo`` and disagrees at ``hi``."""
-        if lo + 1 == hi:
-            return hi
-        mid = (lo + hi) // 2
-        actual = self._sift(w[:mid])
-        if actual is None:
-            return None
-        if actual == states[mid]:
-            return self._first_bad_edge(w, states, mid, hi)
-        return self._first_bad_edge(w, states, lo, mid)
-
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
         for p in (witness, sprime):
             st = self._sift(p)
             if st is not None:
-                self.population.add(list(p), at=self.tree.path_of(st))
+                self.population.add(p, at=self.tree.path_of(st))
 
     # -- edge closing -------------------------------------------------------
 
@@ -246,8 +237,8 @@ class TransitionResolver:
         )
         for state, c in unresolved:
             print(
-                f"transition_resolver: no decisive edge for (state {state}, symbol "
-                f"{c}); falling back to a self-loop"
+                f"  no decisive edge for (state {state}, symbol {c}); "
+                "falling back to a self-loop"
             )
 
         accepting = self.tree.accepting_leaves()
@@ -256,7 +247,7 @@ class TransitionResolver:
         decide, _ = oracle_decider(
             pst.oracle, self.tree.base_family, boundary, boundary
         )
-        initial = self.tree.classify([], decide)
+        initial = self.tree.classify(b"", decide)
         if initial is None:
             initial = 0
 
@@ -275,7 +266,7 @@ def resolve_dfa(pst):
     """
     Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
     """
-    v_idx = pst.table.intern_suffix([])
+    v_idx = pst.table.intern_suffix(b"")
     vs, boundary = sample_suffix_family(pst, v_idx)
     pst.decision_boundary = boundary
     resolver = TransitionResolver(pst, vs)

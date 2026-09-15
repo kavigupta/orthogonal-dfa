@@ -18,6 +18,7 @@ from orthogonal_dfa.capal_official import (
     resolve_capal_dir,
     to_automata_dfa,
 )
+from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_CAPAL, Benchmark
 
@@ -41,7 +42,7 @@ def capal_benchmarks() -> List[Benchmark]:
                 name=name,
                 family=FAMILY_CAPAL,
                 target=target,
-                oracle_creator=lambda nm, s, _d=aut: DFAOracle(nm, s, _d),
+                oracle_creator=lambda nm, s, _d=aut: NoisyOracle(DFAOracle(_d), nm, s),
                 alphabet=list(target.alphabet),
                 symbols=len(target.alphabet),
                 target_states=target.num_states,

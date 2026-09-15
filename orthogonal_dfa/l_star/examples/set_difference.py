@@ -21,10 +21,10 @@ class SetDifferenceOracle(Oracle):
     def string_length(self) -> int:
         return self._a.string_length
 
-    def membership_queries(self, strings: List[List[int]]) -> np.ndarray:
+    def membership_queries(self, strings: List[bytes]) -> np.ndarray:
         return self._a.membership_queries(strings) & ~self._b.membership_queries(
             strings
         )
 
-    def membership_query(self, string: List[int]) -> bool:
+    def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
