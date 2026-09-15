@@ -65,8 +65,8 @@ def state_source(resolver, leaf, aim, *, wanted):
 class StateSource(RejectionSource):
     """Prefixes the tree places at one leaf."""
 
-    PROVING = proving_attempts(GOOD_YIELD, POOR_YIELD)
-    POOR = POOR_YIELD
+    proving = proving_attempts(GOOD_YIELD, POOR_YIELD)
+    poor = POOR_YIELD
 
     def __init__(self, resolver, leaf, aim, *, wanted):
         super().__init__()
