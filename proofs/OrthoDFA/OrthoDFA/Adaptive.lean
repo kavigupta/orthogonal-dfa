@@ -173,15 +173,19 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
 
 variable {J : Type*} [Fintype J]
 
-/-- One run of the algorithm: the oracle's persistent noise, the suffix draws, and the
-prefix draws of each population. -/
-abbrev Run (Ω S J : Type*) := Ω × ((ℕ → S) × (J → ℕ → S))
+/-- One run of the algorithm: the oracle's persistent noise, the suffix draws, the prefix
+draws of each population, and the **certification** draws the gate judges on.
+
+The certification stream is separate because the gate must not be read on the prefixes the
+family was selected from — see `certOf`. -/
+abbrev Run (Ω S J : Type*) := Ω × ((ℕ → S) × ((J → ℕ → S) × (J → ℕ → S)))
 
 /-- The law of a run: the three components jointly independent, each stream i.i.d. -/
 noncomputable def runLaw (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
     Measure (Run Ω S J) :=
   μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
-    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))
+    ((Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j).prod
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)))
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runLaw μ D Dsf) := by
@@ -194,7 +198,12 @@ def nz (x : Run Ω S J) : Ω := x.1
 def sfx (i : ℕ) (x : Run Ω S J) : S := x.2.1 i
 
 /-- The `i`-th prefix drawn from population `j`. -/
-def prf (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
+def prf (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2.1 j i
+
+/-- The `i`-th **certification** prefix from population `j`: drawn only to read the split
+on, never added to the table, and independent of everything the family was chosen from
+(`certification_sample`). -/
+def cert (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2.2 j i
 
 lemma measurable_nz : Measurable (nz : Run Ω S J → Ω) := measurable_fst
 
@@ -204,18 +213,24 @@ lemma measurable_sfx (i : ℕ) : Measurable (sfx (Ω := Ω) (S := S) (J := J) i)
 lemma measurable_prf (j : J) (i : ℕ) : Measurable (prf (Ω := Ω) (S := S) j i) := by
   unfold prf; fun_prop
 
+lemma measurable_cert (j : J) (i : ℕ) : Measurable (cert (Ω := Ω) (S := S) j i) := by
+  unfold cert; fun_prop
+
 /-- **The joint law of the first `n` draws.**  This is what the concentration arguments
 consume, and it is a theorem about `runLaw`, not a hypothesis about an abstract space. -/
 lemma law_block (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (n : ℕ) :
     Measure.map (fun x : Run Ω S J => (nz x, (fun i : Fin n => sfx i.val x),
-        (fun (j : J) (i : Fin n) => prf j i.val x))) (runLaw μ D Dsf)
+        ((fun (j : J) (i : Fin n) => prf j i.val x),
+          (fun (j : J) (i : Fin n) => cert j i.val x)))) (runLaw μ D Dsf)
       = μ.prod
           ((Measure.pi fun _ : Fin n => Dsf).prod
-            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j))) :=
+            ((Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)).prod
+              (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)))) :=
   ((MeasurePreserving.id μ).prod
     ((measurePreserving_finRestrict Dsf n).prod
-      (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).map_eq
+      ((measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n).prod
+        (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n)))).map_eq
 
 section Loop
 
@@ -243,6 +258,18 @@ noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
 set — the table interns prefixes, so a repeated draw is one column, not two. -/
 noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range m).image (fun i => prf j i x)
+
+/-- Population `j`'s **certification** prefixes at a budget: `certification_sample`'s
+draws, which the family was never selected from.
+
+The gate must be judged here and not on `prefixesOf`.  The cluster is chosen to minimise
+Hamming loss against a centre anchored at `ε`, i.e. to agree with `ε`'s *noisy* column on
+the representative prefixes — the very agreement the gate then measures.  With a large
+enough pool the cluster can match that column exactly, at which point the accept side is
+`{p | mq p = 1}`, the hit rate is `1`, and the gate admits a family whose cut is the noise.
+On prefixes the selection never saw there is no such coupling.  (Issue #284.) -/
+noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
+  (Finset.range m).image (fun i => cert j i x)
 
 open scoped Classical in
 /-- The representative prefixes at a prefix budget: every population's, pooled. -/
@@ -371,9 +398,12 @@ noncomputable def splitRej (O : Oracle μ S) (b fpr accFnr : ℝ) (F P : Finset 
 column significantly above `accept_thresh`, and the rejected ones significantly below
 `reject_thresh`, at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE = 0.05`).
 
-Modelled on the state's own prefixes.  `certification_sample` may top these up with
-prefixes drawn for the split alone when the counts in hand leave the verdict
-`UNCERTIFIED`; that only sharpens the same test, so requiring it here is conservative. -/
+Applied in `ret` to the family with `ε` **removed** and to `certOf`, the certification
+draws.  Removing `ε` matters because it is in every family (`one_mem_clusterAround`), so
+`vote p` would otherwise contain `mq (p · ε) = mq p` — the very bit the split is scored
+against, pushing prefixes within `1/k` of a threshold across it.  With `ε` dropped the
+vote reads `p · v` for `v ≠ ε` and the gate reads `p`: distinct strings, independent
+bits.  (Issue #284.) -/
 def admitted (O : Oracle μ S) (b fpr accFnr α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
   binomSfGe (splitAcc O b fpr accFnr F P ω).2 (cfgAcc O fpr accFnr b)
       (splitAcc O b fpr accFnr F P ω).1 ≤ α
@@ -402,9 +432,10 @@ noncomputable def ret (O : Oracle μ S) (populations : Finset J)
           (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr
           (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x))).card : ℝ)
         ≤ indecisionLimit * (prefixesOf j hM.2.2 x).card)
-    ∧ admitted O (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr α
-        (famAt O populations fpr accFnr x hM.1 hM.2)
-        (prefixesAt populations hM.2.2 x) (nz x)}
+    ∧ ∀ j ∈ populations,
+        admitted O (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr α
+          ((famAt O populations fpr accFnr x hM.1 hM.2).erase 1)
+          (certOf j hM.2.2 x) (nz x)}
 
 /-- **The family's cut is right at `p`**: where it decides, it decides the way the
 oracle's noiseless label does.
@@ -606,11 +637,12 @@ its cut reads as its own class.  Reads at distinct prefixes are independent
 
 `validity_of_per_state` has already reduced the state union to this.
 
-Two accounted-for costs.  The gate reads the prefixes the family was selected on, so
-soundness against the *selected* family needs a union over reachable families,
-`≤ C(M,k) ≤ M^k` — a `k·log M` term in the prefix requirement, not an obstruction.
-(Drawing the gate's prefixes fresh, as `certification_sample` already does on the
-`UNCERTIFIED` branch, would remove it.)
+No slack is carried.  The gate is judged on `certOf` — draws the family was never
+selected from — so `splitAcc_sound` applies to the realised cut with no union over
+reachable families, and `ε` is dropped from the split so the scored bit does not sit
+inside the vote that sorts it.  Both are issue #284; the model here is the fixed
+algorithm, and the docstrings on `certOf` and `admitted` say what goes wrong without
+them.
 
 Deliberately *not* via `clustering_budget`: inferring validity from the cluster's loss
 concentration would need a union bound over every candidate suffix, and the persistent
