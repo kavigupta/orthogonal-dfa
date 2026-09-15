@@ -137,23 +137,19 @@ def _per_state_members(pst, resolver, dfa, per_state):
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
-    """Probe for ``wanted`` boundary strings the round did not strand itself.
+    """Probe for boundary strings the round did not turn up itself.
 
-    What a round happens to strand is what its probing happened to reach, which
-    need not be as many as it is willing to hold.  `BoundarySource` goes on
-    probing, so being short is a reason to ask rather than a size to settle for.
-
-    A source that passes its yield test and then runs dry raises, as a state
-    source does: that is the yield it was kept on not holding, which is worth
-    hearing about rather than working around.
+    What the proving found is kept whether or not it proved the source worth
+    drawing on: the probes were spent either way.
     """
     if wanted <= 0:
         return
     source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
-    if not source.has_sufficient_yield():
-        return
-    for _ in range(wanted):
-        string = source.draw()
+    worth_drawing = source.has_sufficient_yield()
+    found = source.found()
+    if worth_drawing:
+        found += [source.draw() for _ in range(wanted - len(found))]
+    for string in found[:wanted]:
         state.seen.add(string)
         state.accumulated.append(string)
 

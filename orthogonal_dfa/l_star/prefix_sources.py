@@ -40,11 +40,12 @@ def _proving_aims(good, poor):
             return aims, landings
 
 
-#: A probe stream stranding at least this share is one worth drawing from.  Far
-#: under a leaf's bars: aiming either lands or does not, where a probe is only
-#: asked to turn up something the family cannot place, which is rarer and enough.
-GOOD_STRAND = 0.2
-POOR_STRAND = 0.1
+#: A probe turning up a boundary string at least this often is one worth drawing
+#: on.  Under a leaf's bars: an aim either rests where it was aimed or does not,
+#: where a probe is asked for something the family cannot place at all.
+GOOD_BOUNDARY_YIELD = 0.2
+#: One turning up at most this often is one to stop asking.
+POOR_BOUNDARY_YIELD = 0.1
 
 
 class _Source:
@@ -72,6 +73,14 @@ class _Source:
         """Which source this is, for the error when it runs dry."""
         raise NotImplementedError
 
+    def found(self) -> list:
+        """What aiming has turned up and nobody has taken, proving included: a
+        source that comes out too poor to draw on has still found these."""
+        got = [member for member in self._pool if member not in self._served]
+        self._served.update(got)
+        self._pool.clear()
+        return got
+
     def has_sufficient_yield(self) -> bool:
         """Whether aims land often enough to keep making them."""
         aims, kept = self.PROVING
@@ -97,36 +106,37 @@ class _Source:
 
 
 class BoundarySource(_Source):
-    """Strings the round's tree could not place, found the way the round finds
-    them: a probe, anchored where the tree first places a prefix, walked through
-    the round's transitions, and bisected where the walk and a fresh sift
-    disagree.
+    """Strings the round's tree could not place, asked about along a probe's
+    walk.
 
-    Every sift on the way is a question the family may not answer, and the ones
-    it does not are what this yields.  Its only supply is the sampler, so unlike
-    a source aimed at one state it can never be short of input -- a thin state
-    has finitely many members, a probe stream has none.
+    Only those it asks about past half the sampler's length are kept.  There are
+
+        sqrt(alphabet_size ** length)
+
+    prefixes that long at least, so a family straddling any share of them worth
+    drawing on has more than a round can exhaust -- where the short prefixes,
+    which every probe asks about and of which there are few, run out at once.
     """
 
-    PROVING = _proving_aims(GOOD_STRAND, POOR_STRAND)
-    POOR = POOR_STRAND
+    PROVING = _proving_aims(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
+    POOR = POOR_BOUNDARY_YIELD
 
-    def __init__(self, pst, sifter, transitions, *, known=(), label=("boundary",)):
+    def __init__(self, pst, sifter, transitions, *, known=()):
         super().__init__(served=known)
-        self.label = label
         self._pst = pst
         self._sifter = sifter
         self._transitions = transitions
-        #: Every string this source has produced or been told about.  A probe
-        #: strands the same one as often as not -- the walk starts at the empty
-        #: prefix, so a tree that cannot place that cannot place it for any probe
-        #: -- and a repeat is not something to have found.
+        self._long_enough = -(-pst.sampler.length // 2)
         self._seen = set(known)
 
     def _sift(self, seq):
         """Sift, keeping what the family could not answer for."""
         leaf, boundary = self._sifter.sift_and_boundary(seq)
-        if leaf is None and boundary not in self._seen:
+        if (
+            leaf is None
+            and len(seq) >= self._long_enough
+            and boundary not in self._seen
+        ):
             self._seen.add(boundary)
             self._pool.append(boundary)
         return leaf
@@ -151,7 +161,7 @@ class BoundarySource(_Source):
         return len(self._seen) > before
 
     def source_repr(self) -> str:
-        return str(self.label)
+        return "boundary"
 
 
 def aim_at(pst, dfa, leaf):
