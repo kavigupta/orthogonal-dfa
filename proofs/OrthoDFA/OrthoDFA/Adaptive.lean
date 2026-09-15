@@ -325,9 +325,18 @@ instance : Countable Budget :=
   Function.Injective.countable (f := fun b => (b.M, b.m, b.k, b.c, b.lo, b.hi))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
-/-- The candidate pool at a suffix budget: the first `M` suffixes drawn. -/
+/-- The candidate pool at a suffix budget: the first `M` suffixes drawn, **with the seed**.
+
+`identify_cluster_around` requires the seed to be among the candidates and asserts it —
+`pst.table.column(v)` promotes it to fully observed at the top of every round, precisely so
+that `candidate = pst.table.fully_observed()` contains it.  Without it `leastLossSubset`
+could never return a set containing `ε`, `lloydStep` would never fire, and every family
+would be the degenerate `{ε}`. -/
 noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
-  (Finset.range M).image (fun i => sfx i x)
+  insert 1 ((Finset.range M).image (fun i => sfx i x))
+
+lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
+  Finset.mem_insert_self _ _
 
 /-- Population `j`'s own representative prefixes at a budget: its first `m` draws, as a
 set — the table interns prefixes, so a repeated draw is one column, not two. -/
@@ -481,6 +490,79 @@ the law of the hits.  Without dropping `ε` the side would be partly determined 
 bit the gate counts, and no conditioning would separate them. -/
 lemma mul_ne_self (p v : S) (hv : v ≠ 1) : p * v ≠ p := fun h =>
   hv (mul_left_cancel (a := p) (by rw [h, mul_one]))
+
+/-! ### Bounding an event whose index set is chosen elsewhere
+
+`splitAcc_sound` bounds a *fixed* accept side, but the side the gate scores is
+`ω`-dependent.  The way through is not a union bound over the possible sides — that would
+cost `2^m` — but the observation that the side is decided by randomness independent of the
+bits being scored.  Decomposing over the side's values then pays nothing: the probabilities
+of the values sum to one, not to `2^m`. -/
+
+/-- **A worst-case bound survives an independently chosen index set.**  If `A ω` is always a
+subset of `C` and, for each value `A₀`, the event `A ω = A₀` is independent of `Bad A₀`,
+then a bound `E` holding for every fixed `A₀` holds for `Bad (A ω)` itself. -/
+theorem measureReal_selection_le {ι : Type*} [DecidableEq ι] (C : Finset ι)
+    (A : Ω → Finset ι) (hA : ∀ ω, A ω ⊆ C)
+    (hmeasA : ∀ A₀, MeasurableSet {ω | A ω = A₀})
+    (Bad : Finset ι → Set Ω) (hmeasBad : ∀ A₀, MeasurableSet (Bad A₀)) (E : ℝ)
+    (hindep : ∀ A₀ ∈ C.powerset,
+      μ.real ({ω | A ω = A₀} ∩ Bad A₀) = μ.real {ω | A ω = A₀} * μ.real (Bad A₀))
+    (hbad : ∀ A₀ ∈ C.powerset, μ.real (Bad A₀) ≤ E) (hE : 0 ≤ E) :
+    μ.real {ω | ω ∈ Bad (A ω)} ≤ E := by
+  classical
+  have hdisj : (C.powerset : Set (Finset ι)).PairwiseDisjoint
+      (fun A₀ => {ω | A ω = A₀} ∩ Bad A₀) := by
+    intro a _ b _ hab
+    simp only [Function.onFun, Set.disjoint_left]
+    rintro ω ⟨ha, -⟩ ⟨hb, -⟩
+    exact hab (ha.symm.trans hb)
+  have hdisj' : (C.powerset : Set (Finset ι)).PairwiseDisjoint (fun A₀ => {ω | A ω = A₀}) := by
+    intro a _ b _ hab
+    simp only [Function.onFun, Set.disjoint_left]
+    exact fun ω ha hb => hab (ha.symm.trans hb)
+  have hcover : {ω | ω ∈ Bad (A ω)} = ⋃ A₀ ∈ C.powerset, ({ω | A ω = A₀} ∩ Bad A₀) := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe,
+      Finset.mem_powerset, exists_prop]
+    exact ⟨fun h => ⟨A ω, hA ω, rfl, h⟩, fun ⟨A₀, _, he, hb⟩ => he ▸ hb⟩
+  have htotal : ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} = 1 := by
+    have huniv : (Set.univ : Set Ω) = ⋃ A₀ ∈ C.powerset, {ω | A ω = A₀} := by
+      ext ω
+      simp only [Set.mem_univ, Set.mem_iUnion, Finset.mem_coe, Finset.mem_powerset,
+        Set.mem_setOf_eq, exists_prop, true_iff]
+      exact ⟨A ω, hA ω, rfl⟩
+    have := measureReal_biUnion_finset (μ := μ) hdisj' (fun A₀ _ => hmeasA A₀)
+    rw [← this, ← huniv, measureReal_def, measure_univ, ENNReal.toReal_one]
+  calc μ.real {ω | ω ∈ Bad (A ω)}
+      = ∑ A₀ ∈ C.powerset, μ.real ({ω | A ω = A₀} ∩ Bad A₀) := by
+        rw [hcover, measureReal_biUnion_finset hdisj (fun A₀ _ => (hmeasA A₀).inter (hmeasBad A₀))]
+    _ = ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} * μ.real (Bad A₀) :=
+        Finset.sum_congr rfl hindep
+    _ ≤ ∑ A₀ ∈ C.powerset, μ.real {ω | A ω = A₀} * E :=
+        Finset.sum_le_sum (fun A₀ hA₀ =>
+          mul_le_mul_of_nonneg_left (hbad A₀ hA₀) measureReal_nonneg)
+    _ = E := by rw [← Finset.sum_mul, htotal, one_mul]
+
+/-! ### The prefix alphabet
+
+The gate scores the oracle's bit at a prefix `p`.  Everything that decides *which side* `p`
+falls on — the family, and `p`'s own vote — is read at strings `q · v` with `v ≠ ε`.  For
+the gate's null to be honest those must be different strings, and that is a property of
+where prefixes come from, not of the algorithm. -/
+
+/-- A set of prefixes is **flat** when no prefix is another prefix extended.
+
+`UniformSampler(DEFAULT_SAMPLE_LENGTH)` draws every probe at one fixed length — *"All of
+E-L*'s signal comes from words drawn at this length"* — so `p * v = p'` between two probes
+forces `v = ε` on length alone.  Flatness is exactly what that buys, stated without needing
+a length function. -/
+def Flat (Pre : Set S) : Prop := ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v : S, p * v = p' → v = 1
+
+/-- On a flat alphabet the gate's query string is never one of the split's. -/
+lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre)
+    (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
+  fun h => hv (hflat p hp p' hp' v h)
 
 /-! ### The accept-preserving gate
 
