@@ -497,17 +497,17 @@ lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := b
 /-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of suffix `v` on
 the `i`-th prefix `pref i` (both strings), where the noise is that of the
 concatenated query string `pref i · v` (`·` = the string `Mul`). -/
-noncomputable def read (pref : ℕ → S) (v : S) (i : ℕ) : Ω → ℝ :=
+noncomputable def read {ι : Type*} (pref : ι → S) (v : S) (i : ι) : Ω → ℝ :=
   fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω
 
-variable (pref : ℕ → S)
+variable {ι : Type*} (pref : ι → S)
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas' w).aemeasurable (O.noise_icc w)
 
 /-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
 oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
-lemma read_mean (v i) :
+lemma read_mean (v : S) (i : ι) :
     μ[O.read pref v i] = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by
   have h := read_disagreement_mean μ O.η (O.flip v (pref i)) (O.noise (pref i * v))
     (O.noise_int _) (O.noise_mean _)
@@ -516,7 +516,7 @@ lemma read_mean (v i) :
     _ = O.η + O.flip v (pref i) * (1 - 2 * O.η) := h
     _ = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by ring
 
-lemma read_meas (v i) : Measurable (O.read pref v i) := by
+lemma read_meas (v : S) (i : ι) : Measurable (O.read pref v i) := by
   show Measurable
     (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω)
   exact measurable_const.add (measurable_const.mul (O.noise_meas' _))
@@ -525,7 +525,7 @@ lemma read_meas (v i) : Measurable (O.read pref v i) := by
 distinct prefixes hit *distinct* query strings (`pref` injective, composed with
 right-cancellation `mul_left_injective`), so they are an injective reindexing of the
 per-string iid noise — independent by `iIndepFun.precomp`. -/
-lemma read_indep [IsRightCancelMul S] (hpref : Function.Injective pref) (v) :
+lemma read_indep [IsRightCancelMul S] (hpref : Function.Injective pref) (v : S) :
     iIndepFun (O.read pref v) μ := by
   have hinj : Function.Injective (fun i => pref i * v) :=
     (mul_left_injective v).comp hpref
@@ -533,7 +533,7 @@ lemma read_indep [IsRightCancelMul S] (hpref : Function.Injective pref) (v) :
   exact h1.comp (fun i x => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * x)
     (fun _ => measurable_const.add (measurable_const.mul measurable_id))
 
-lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Icc (0 : ℝ) 1 := by
+lemma read_icc (v : S) (i : ι) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards [O.noise_icc (pref i * v)] with ω hω
   rw [Set.mem_Icc] at hω
   have hr : O.read pref v i ω
@@ -541,7 +541,7 @@ lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Icc (0 : ℝ)
   rw [hr, Set.mem_Icc]
   rcases O.flip_bit v (pref i) with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
 
-lemma read_int (v i) : Integrable (O.read pref v i) μ :=
+lemma read_int (v : S) (i : ι) : Integrable (O.read pref v i) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.read_meas pref v i).aemeasurable (O.read_icc pref v i)
 
 end Oracle

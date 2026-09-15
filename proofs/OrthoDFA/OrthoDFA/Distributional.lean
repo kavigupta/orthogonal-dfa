@@ -78,6 +78,36 @@ theorem findAP (Dsf : Measure S) [IsProbabilityMeasure Dsf]
 
 #print axioms findAP
 
+/-- **Uniform slice bound transfers to the product.**  If every slice of a measurable
+product event has probability `≤ ε`, so does the event.  This is the plumbing that lets a
+bound proved for each *fixed* candidate pool be used when the pool is itself drawn. -/
+theorem prod_le_of_slice {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    (ma : Measure α) [IsProbabilityMeasure ma] (mb : Measure β) [IsProbabilityMeasure mb]
+    (E : Set (α × β)) (hE : MeasurableSet E) (ε : ℝ) (hε : 0 ≤ ε)
+    (hslice : ∀ a, mb.real (Prod.mk a ⁻¹' E) ≤ ε) :
+    (ma.prod mb).real E ≤ ε := by
+  have hle : ∀ a, mb (Prod.mk a ⁻¹' E) ≤ ENNReal.ofReal ε := by
+    intro a
+    rw [← ENNReal.ofReal_toReal (measure_ne_top mb (Prod.mk a ⁻¹' E))]
+    exact ENNReal.ofReal_le_ofReal (hslice a)
+  have hmain : (ma.prod mb) E ≤ ENNReal.ofReal ε := by
+    rw [Measure.prod_apply hE]
+    calc ∫⁻ a, mb (Prod.mk a ⁻¹' E) ∂ma ≤ ∫⁻ _a, ENNReal.ofReal ε ∂ma := lintegral_mono hle
+      _ = ENNReal.ofReal ε := by simp
+  calc (ma.prod mb).real E = ((ma.prod mb) E).toReal := rfl
+    _ ≤ (ENNReal.ofReal ε).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hmain
+    _ = ε := ENNReal.toReal_ofReal hε
+
+#print axioms prod_le_of_slice
+
+/-- First-marginal probability of a product event depending only on the first coordinate. -/
+theorem prod_fst_real {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    (ma : Measure α) [IsProbabilityMeasure ma] (ma' : Measure β) [IsProbabilityMeasure ma']
+    (B : Set α) : (ma.prod ma').real {x : α × β | x.1 ∈ B} = ma.real B := by
+  have hset : {x : α × β | x.1 ∈ B} = B ×ˢ (Set.univ : Set β) := by ext x; simp
+  rw [measureReal_def, hset, Measure.prod_prod, measure_univ, mul_one, ← measureReal_def]
+
+
 section Draws
 variable [MeasurableMul S]
 
@@ -138,6 +168,378 @@ lemma rdAt_mean (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v 
     integral_mul_const]
   simp only [flipMass, measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
   ring
+
+section Persistent
+variable {ι : Type*} [Fintype ι] [IsCancelMul S]
+
+/-- Run space for the **persistent** oracle: `ι` prefix draws together with **one shared**
+noise sample.  Re-reading the same query string returns the same bit — this is the honest
+RCN model, unlike a fresh-noise-per-query product. -/
+noncomputable def runMeasure (Dfam : ι → Measure S) : Measure ((ι → S) × Ω) :=
+  (Measure.pi Dfam).prod μ
+
+instance (Dfam : ι → Measure S) [∀ z, IsProbabilityMeasure (Dfam z)] :
+    IsProbabilityMeasure (runMeasure (μ := μ) Dfam) := by
+  unfold runMeasure; infer_instance
+
+/-- The loss of suffix `v`: its reads at the drawn prefixes, against the shared noise. -/
+noncomputable def ploss (O : Oracle μ S) (v : S) (x : (ι → S) × Ω) : ℝ :=
+  ∑ z, O.read x.1 v z x.2
+
+/-- The flip count of `v` on the drawn prefixes (a function of the draw alone). -/
+noncomputable def pflip (O : Oracle μ S) (v : S) (x : (ι → S) × Ω) : ℝ :=
+  ∑ z, O.flip v (x.1 z)
+
+variable [Countable S] [MeasurableSingletonClass S]
+
+lemma pread_meas (O : Oracle μ S) (v : S) (z : ι) :
+    Measurable (fun x : (ι → S) × Ω => O.read x.1 v z x.2) := by
+  have hp : Measurable (fun x : (ι → S) × Ω => x.1 z) :=
+    (measurable_pi_apply z).comp measurable_fst
+  have hf : Measurable (fun x : (ι → S) × Ω => O.flip v (x.1 z)) :=
+    (flip_meas O v).comp hp
+  have hn : Measurable (fun x : (ι → S) × Ω => O.noise (x.1 z * v) x.2) :=
+    O.noise_meas.comp (((measurable_mul_const v).comp hp).prodMk measurable_snd)
+  show Measurable (fun x : (ι → S) × Ω =>
+    O.flip v (x.1 z) + (1 - 2 * O.flip v (x.1 z)) * O.noise (x.1 z * v) x.2)
+  exact hf.add ((measurable_const.sub (measurable_const.mul hf)).mul hn)
+
+lemma ploss_meas (O : Oracle μ S) (v : S) : Measurable (ploss (μ := μ) (ι := ι) O v) :=
+  Finset.measurable_sum _ (fun z _ => pread_meas O v z)
+
+lemma pflip_meas (O : Oracle μ S) (v : S) : Measurable (pflip (μ := μ) (ι := ι) O v) :=
+  Finset.measurable_sum _ (fun z _ =>
+    (flip_meas O v).comp ((measurable_pi_apply z).comp measurable_fst))
+
+/-- The draws are distinct — the event on which the persistent oracle is never read
+twice at the same query string. -/
+lemma injective_meas : MeasurableSet {x : (ι → S) × Ω | Function.Injective x.1} := by
+  classical
+  have hset : {x : (ι → S) × Ω | Function.Injective x.1}
+      = ⋂ z : ι, ⋂ z' : ι, {x | z = z' ∨ x.1 z ≠ x.1 z'} := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_iInter]
+    constructor
+    · intro h z z'
+      by_cases hzz : z = z'
+      · exact Or.inl hzz
+      · exact Or.inr (fun he => hzz (h he))
+    · intro h a b hab
+      rcases h a b with hz | hne
+      · exact hz
+      · exact absurd hab hne
+  rw [hset]
+  refine MeasurableSet.iInter (fun z => MeasurableSet.iInter (fun z' => ?_))
+  by_cases hzz : z = z'
+  · simp [hzz]
+  · have : {x : (ι → S) × Ω | z = z' ∨ x.1 z ≠ x.1 z'}
+        = {x : (ι → S) × Ω | x.1 z ≠ x.1 z'} := by
+      ext x; simp [hzz]
+    rw [this]
+    have hm : Measurable (fun x : (ι → S) × Ω => (x.1 z, x.1 z')) :=
+      (((measurable_pi_apply z).comp measurable_fst)).prodMk
+        ((measurable_pi_apply z').comp measurable_fst)
+    have hdiag : MeasurableSet {q : S × S | q.1 ≠ q.2} := by
+      have : {q : S × S | q.1 ≠ q.2} = {q : S × S | q.1 = q.2}ᶜ := by ext q; simp
+      rw [this]
+      exact (measurableSet_eq_fun measurable_fst measurable_snd).compl
+    exact hm hdiag
+
+/-- **Level 1 (noise), conditional on distinct draws.**  Given that the draws are
+distinct — so the persistent oracle is never read twice at the same query string, and its
+bits really are independent (`read_indep`, via right-cancellation) — the loss concentrates
+around its conditional mean `N·η + (1−2η)·(flip count)`. -/
+lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
+            + ((Finset.univ : Finset ι).card : ℝ) * g ≤ ploss (μ := μ) O v x}
+      ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
+  classical
+  set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
+  refine prod_le_of_slice _ _ _ ?_ _ (Real.exp_pos _).le (fun p => ?_)
+  · -- measurable
+    exact (injective_meas (ι := ι) (S := S) (Ω := Ω)).inter
+      (measurableSet_le (((pflip_meas O v).const_mul _).const_add _ |>.add measurable_const)
+        (ploss_meas O v))
+  · -- slice
+    by_cases hinj : Function.Injective p
+    · have hmeanEq : ∑ z, μ[O.read p v z] = N * (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) := by
+        rw [Finset.sum_congr rfl (fun z _ => O.read_mean p v z), Finset.sum_add_distrib,
+          Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum, ← hN]
+        field_simp
+      have h := sumUpper_le (O.read p v) (Finset.univ : Finset ι)
+        (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) g
+        (fun z => (O.read_meas p v z).aemeasurable) (O.read_indep p hinj v)
+        (O.read_icc p v) (le_of_eq hmeanEq) hg
+      refine le_trans (measureReal_mono ?_) h
+      intro ω hω
+      obtain ⟨-, hle⟩ := hω
+      show N * ((O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) + g) ≤ ∑ z, O.read p v z ω
+      have hNne : N ≠ 0 := ne_of_gt hNpos
+      have : N * ((O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) + g)
+          = N * O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) + N * g := by
+        field_simp
+      rw [this]
+      exact hle
+    · have : (Prod.mk p ⁻¹' {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          N * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x + N * g ≤ ploss (μ := μ) O v x})
+          = ∅ := by
+        ext ω; simp only [Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h, -⟩; exact hinj h
+      rw [this]; simpa using (Real.exp_pos _).le
+
+/-- Level 1, lower tail (symmetric). -/
+lemma ploss_cond_lower (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
+            + (1 - 2 * O.η) * pflip (μ := μ) O v x
+            - ((Finset.univ : Finset ι).card : ℝ) * g}
+      ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
+  classical
+  set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
+  refine prod_le_of_slice _ _ _ ?_ _ (Real.exp_pos _).le (fun p => ?_)
+  · exact (injective_meas (ι := ι) (S := S) (Ω := Ω)).inter
+      (measurableSet_le (ploss_meas O v)
+        ((((pflip_meas O v).const_mul _).const_add _).sub measurable_const))
+  · by_cases hinj : Function.Injective p
+    · have hmeanEq : ∑ z, μ[O.read p v z]
+          = N * (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) := by
+        rw [Finset.sum_congr rfl (fun z _ => O.read_mean p v z), Finset.sum_add_distrib,
+          Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum, ← hN]
+        field_simp
+      have h := sumLower_le (O.read p v) (Finset.univ : Finset ι)
+        (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) g
+        (fun z => (O.read_meas p v z).aemeasurable) (O.read_indep p hinj v)
+        (O.read_icc p v) (ge_of_eq hmeanEq) hg
+      refine le_trans (measureReal_mono ?_) h
+      intro ω hω
+      obtain ⟨-, hle⟩ := hω
+      show ∑ z, O.read p v z ω
+        ≤ N * ((O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) - g)
+      have hNne : N ≠ 0 := ne_of_gt hNpos
+      have hrw : N * ((O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) - g)
+          = N * O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) - N * g := by field_simp
+      rw [hrw]; exact hle
+    · have : (Prod.mk p ⁻¹' {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          ploss (μ := μ) O v x ≤ N * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x - N * g})
+          = ∅ := by
+        ext ω; simp only [Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h, -⟩; exact hinj h
+      rw [this]; simpa using (Real.exp_pos _).le
+
+/-- The flip count's mean on the prefix marginal is the summed flip-mass. -/
+lemma pflip_meanSum (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) :
+    ∑ z, (Measure.pi Dfam)[fun p : ι → S => O.flip v (p z)]
+      = ∑ z, flipMass O (Dfam z) v := by
+  refine Finset.sum_congr rfl (fun z _ => ?_)
+  have hmap : Measure.map (fun p : ι → S => p z) (Measure.pi Dfam) = Dfam z :=
+    (measurePreserving_eval Dfam z).map_eq
+  calc (Measure.pi Dfam)[fun p : ι → S => O.flip v (p z)]
+      = ∫ w, O.flip v w ∂(Measure.map (fun p : ι → S => p z) (Measure.pi Dfam)) := by
+        rw [integral_map (measurable_pi_apply z).aemeasurable
+          (flip_meas O v).aestronglyMeasurable]
+    _ = ∫ w, O.flip v w ∂(Dfam z) := by rw [hmap]
+    _ = flipMass O (Dfam z) v := rfl
+
+/-- **Level 2 (sampling), upper tail.**  The flip count on the drawn prefixes concentrates
+above its summed distributional flip-mass. -/
+lemma pflip_upper (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
+          + ((Finset.univ : Finset ι).card : ℝ) * g ≤ pflip (μ := μ) O v x}
+      ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
+  set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
+  have hNne : N ≠ 0 := ne_of_gt hNpos
+  have heq : (runMeasure (μ := μ) Dfam).real
+      {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v) + N * g ≤ pflip (μ := μ) O v x}
+      = (Measure.pi Dfam).real
+        {p : ι → S | (∑ z, flipMass O (Dfam z) v) + N * g ≤ ∑ z, O.flip v (p z)} := by
+    unfold runMeasure
+    exact prod_fst_real (Measure.pi Dfam) μ
+      {p : ι → S | (∑ z, flipMass O (Dfam z) v) + N * g ≤ ∑ z, O.flip v (p z)}
+  rw [heq]
+  have hmean : ∑ z, (Measure.pi Dfam)[fun p : ι → S => O.flip v (p z)]
+      ≤ N * ((∑ z, flipMass O (Dfam z) v) / N) := by
+    have hc : N * ((∑ z, flipMass O (Dfam z) v) / N) = ∑ z, flipMass O (Dfam z) v := by
+      field_simp
+    rw [hc]; exact le_of_eq (pflip_meanSum O Dfam v)
+  have h := sumUpper_le (fun (z : ι) (p : ι → S) => O.flip v (p z)) (Finset.univ : Finset ι)
+    ((∑ z, flipMass O (Dfam z) v) / N) g
+    (fun z => ((flip_meas O v).comp (measurable_pi_apply z)).aemeasurable)
+    (iIndepFun_pi (fun _ => (flip_meas O v).aemeasurable))
+    (fun z => Filter.Eventually.of_forall (fun p => flip_icc O v (p z))) hmean hg
+  refine le_trans (measureReal_mono ?_) h
+  intro q hq
+  show N * ((∑ z, flipMass O (Dfam z) v) / N + g) ≤ ∑ z, O.flip v (q z)
+  have hrw : N * ((∑ z, flipMass O (Dfam z) v) / N + g)
+      = (∑ z, flipMass O (Dfam z) v) + N * g := by field_simp
+  rw [hrw]; exact hq
+
+/-- **Level 2 (sampling), lower tail.** -/
+lemma pflip_lower (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | pflip (μ := μ) O v x
+          ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g}
+      ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
+  set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
+  have hNne : N ≠ 0 := ne_of_gt hNpos
+  have heq : (runMeasure (μ := μ) Dfam).real
+      {x : (ι → S) × Ω | pflip (μ := μ) O v x ≤ (∑ z, flipMass O (Dfam z) v) - N * g}
+      = (Measure.pi Dfam).real
+        {p : ι → S | ∑ z, O.flip v (p z) ≤ (∑ z, flipMass O (Dfam z) v) - N * g} := by
+    unfold runMeasure
+    exact prod_fst_real (Measure.pi Dfam) μ
+      {p : ι → S | ∑ z, O.flip v (p z) ≤ (∑ z, flipMass O (Dfam z) v) - N * g}
+  rw [heq]
+  have hmean : N * ((∑ z, flipMass O (Dfam z) v) / N)
+      ≤ ∑ z, (Measure.pi Dfam)[fun p : ι → S => O.flip v (p z)] := by
+    have hc : N * ((∑ z, flipMass O (Dfam z) v) / N) = ∑ z, flipMass O (Dfam z) v := by
+      field_simp
+    rw [hc]; exact le_of_eq (pflip_meanSum O Dfam v).symm
+  have h := sumLower_le (fun (z : ι) (p : ι → S) => O.flip v (p z)) (Finset.univ : Finset ι)
+    ((∑ z, flipMass O (Dfam z) v) / N) g
+    (fun z => ((flip_meas O v).comp (measurable_pi_apply z)).aemeasurable)
+    (iIndepFun_pi (fun _ => (flip_meas O v).aemeasurable))
+    (fun z => Filter.Eventually.of_forall (fun p => flip_icc O v (p z))) hmean hg
+  refine le_trans (measureReal_mono ?_) h
+  intro q hq
+  show ∑ z, O.flip v (q z) ≤ N * ((∑ z, flipMass O (Dfam z) v) / N - g)
+  have hrw : N * ((∑ z, flipMass O (Dfam z) v) / N - g)
+      = (∑ z, flipMass O (Dfam z) v) - N * g := by field_simp
+  rw [hrw]; exact hq
+
+/-- **Per-suffix upper tail, persistent oracle.**  A suffix with zero summed flip-mass
+keeps its loss below the band, except for three sources: a **collision** (the persistent
+oracle read twice at the same query string — which is why a spread-out prefix
+distribution is genuinely necessary), the sampling tail, and the noise tail. -/
+lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
+    (hcoll : (runMeasure (μ := μ) Dfam).real
+      {x : (ι → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
+    (hv : ∑ z, flipMass O (Dfam z) v = 0) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | ((Finset.univ : Finset ι).card : ℝ)
+            * (O.η + (1 - 2 * O.η) * g₂ + g₁) ≤ ploss (μ := μ) O v x}
+      ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
+          + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₁ ^ 2) := by
+  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+  have hincl : {x : (ι → S) × Ω | ((Finset.univ : Finset ι).card : ℝ)
+        * (O.η + (1 - 2 * O.η) * g₂ + g₁) ≤ ploss (μ := μ) O v x}
+      ⊆ {x : (ι → S) × Ω | ¬ Function.Injective x.1}
+        ∪ ({x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
+              + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x}
+          ∪ {x : (ι → S) × Ω | Function.Injective x.1 ∧
+              ((Finset.univ : Finset ι).card : ℝ) * O.η
+                + (1 - 2 * O.η) * pflip (μ := μ) O v x
+                + ((Finset.univ : Finset ι).card : ℝ) * g₁ ≤ ploss (μ := μ) O v x}) := by
+    intro x hx
+    by_cases hinj : Function.Injective x.1
+    · right
+      by_cases hfl : (∑ z, flipMass O (Dfam z) v)
+          + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x
+      · exact Or.inl hfl
+      · refine Or.inr ⟨hinj, ?_⟩
+        push_neg at hfl
+        rw [hv, zero_add] at hfl
+        have hkey : (1 - 2 * O.η) * pflip (μ := μ) O v x
+            ≤ (1 - 2 * O.η) * (((Finset.univ : Finset ι).card : ℝ) * g₂) :=
+          mul_le_mul_of_nonneg_left hfl.le h2η
+        simp only [Set.mem_setOf_eq] at hx ⊢
+        linarith [hx, hkey]
+    · exact Or.inl hinj
+  have hu1 := measureReal_mono (μ := runMeasure (μ := μ) Dfam) hincl
+  have hu2 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+    {x : (ι → S) × Ω | ¬ Function.Injective x.1}
+    ({x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
+        + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x}
+      ∪ {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
+            + ((Finset.univ : Finset ι).card : ℝ) * g₁ ≤ ploss (μ := μ) O v x})
+  have hu3 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+    {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
+        + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x}
+    {x : (ι → S) × Ω | Function.Injective x.1 ∧
+      ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
+        + ((Finset.univ : Finset ι).card : ℝ) * g₁ ≤ ploss (μ := μ) O v x}
+  linarith [hu1, hu2, hu3, hcoll, pflip_upper O Dfam v g₂ hg₂ hNpos,
+    ploss_cond_upper O Dfam v g₁ hg₁ hNpos]
+
+/-- **Per-suffix lower tail, persistent oracle.**  A suffix whose summed flip-mass is at
+least `σ` keeps its loss *above* the band, provided the band leaves room (`hband`). -/
+lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
+    [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ σ : ℝ)
+    (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
+    (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
+    (hcoll : (runMeasure (μ := μ) Dfam).real
+      {x : (ι → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
+    (hband : ((Finset.univ : Finset ι).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
+      ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η)
+          * (σ - ((Finset.univ : Finset ι).card : ℝ) * g₂)
+        - ((Finset.univ : Finset ι).card : ℝ) * g₁)
+    (hv : σ ≤ ∑ z, flipMass O (Dfam z) v) :
+    (runMeasure (μ := μ) Dfam).real
+        {x : (ι → S) × Ω | ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ)
+            * (O.η + (1 - 2 * O.η) * g₂ + g₁)}
+      ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
+          + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₁ ^ 2) := by
+  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+  have hincl : {x : (ι → S) × Ω | ploss (μ := μ) O v x
+        ≤ ((Finset.univ : Finset ι).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)}
+      ⊆ {x : (ι → S) × Ω | ¬ Function.Injective x.1}
+        ∪ ({x : (ι → S) × Ω | pflip (μ := μ) O v x
+              ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂}
+          ∪ {x : (ι → S) × Ω | Function.Injective x.1 ∧
+              ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
+                + (1 - 2 * O.η) * pflip (μ := μ) O v x
+                - ((Finset.univ : Finset ι).card : ℝ) * g₁}) := by
+    intro x hx
+    by_cases hinj : Function.Injective x.1
+    · right
+      by_cases hfl : pflip (μ := μ) O v x
+          ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂
+      · exact Or.inl hfl
+      · refine Or.inr ⟨hinj, ?_⟩
+        push_neg at hfl
+        have hstep : σ - ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x := by
+          linarith [hfl, hv]
+        have hkey : (1 - 2 * O.η) * (σ - ((Finset.univ : Finset ι).card : ℝ) * g₂)
+            ≤ (1 - 2 * O.η) * pflip (μ := μ) O v x :=
+          mul_le_mul_of_nonneg_left hstep h2η
+        simp only [Set.mem_setOf_eq] at hx ⊢
+        linarith [hx, hband, hkey]
+    · exact Or.inl hinj
+  have hu1 := measureReal_mono (μ := runMeasure (μ := μ) Dfam) hincl
+  have hu2 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+    {x : (ι → S) × Ω | ¬ Function.Injective x.1}
+    ({x : (ι → S) × Ω | pflip (μ := μ) O v x
+        ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂}
+      ∪ {x : (ι → S) × Ω | Function.Injective x.1 ∧
+          ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
+            + (1 - 2 * O.η) * pflip (μ := μ) O v x
+            - ((Finset.univ : Finset ι).card : ℝ) * g₁})
+  have hu3 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+    {x : (ι → S) × Ω | pflip (μ := μ) O v x
+        ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂}
+    {x : (ι → S) × Ω | Function.Injective x.1 ∧
+      ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
+        + (1 - 2 * O.η) * pflip (μ := μ) O v x
+        - ((Finset.univ : Finset ι).card : ℝ) * g₁}
+  linarith [hu1, hu2, hu3, hcoll, pflip_lower O Dfam v g₂ hg₂ hNpos,
+    ploss_cond_lower O Dfam v g₁ hg₁ hNpos]
+
+end Persistent
 
 section PerSuffix
 variable {ι : Type*} [Fintype ι]
@@ -377,27 +779,6 @@ theorem coverage_of_summed_flip [DecidableEq S] {J : Type*} (O : Oracle μ S)
 #print axioms flipMass_eq
 #print axioms coverage_of_summed_flip
 
-/-- **Uniform slice bound transfers to the product.**  If every slice of a measurable
-product event has probability `≤ ε`, so does the event.  This is the plumbing that lets a
-bound proved for each *fixed* candidate pool be used when the pool is itself drawn. -/
-theorem prod_le_of_slice {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
-    (ma : Measure α) [IsProbabilityMeasure ma] (mb : Measure β) [IsProbabilityMeasure mb]
-    (E : Set (α × β)) (hE : MeasurableSet E) (ε : ℝ) (hε : 0 ≤ ε)
-    (hslice : ∀ a, mb.real (Prod.mk a ⁻¹' E) ≤ ε) :
-    (ma.prod mb).real E ≤ ε := by
-  have hle : ∀ a, mb (Prod.mk a ⁻¹' E) ≤ ENNReal.ofReal ε := by
-    intro a
-    rw [← ENNReal.ofReal_toReal (measure_ne_top mb (Prod.mk a ⁻¹' E))]
-    exact ENNReal.ofReal_le_ofReal (hslice a)
-  have hmain : (ma.prod mb) E ≤ ENNReal.ofReal ε := by
-    rw [Measure.prod_apply hE]
-    calc ∫⁻ a, mb (Prod.mk a ⁻¹' E) ∂ma ≤ ∫⁻ _a, ENNReal.ofReal ε ∂ma := lintegral_mono hle
-      _ = ENNReal.ofReal ε := by simp
-  calc (ma.prod mb).real E = ((ma.prod mb) E).toReal := rfl
-    _ ≤ (ENNReal.ofReal ε).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hmain
-    _ = ε := ENNReal.toReal_ofReal hε
-
-#print axioms prod_le_of_slice
 
 section Assembly
 variable [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
@@ -554,13 +935,6 @@ theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α
   linarith
 
 #print axioms one_sub_le_compl_real
-
-/-- First-marginal probability of a product event depending only on the first coordinate. -/
-theorem prod_fst_real {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
-    (ma : Measure α) [IsProbabilityMeasure ma] (ma' : Measure β) [IsProbabilityMeasure ma']
-    (B : Set α) : (ma.prod ma').real {x : α × β | x.1 ∈ B} = ma.real B := by
-  have hset : {x : α × β | x.1 ∈ B} = B ×ˢ (Set.univ : Set β) := by ext x; simp
-  rw [measureReal_def, hset, Measure.prod_prod, measure_univ, mul_one, ← measureReal_def]
 
 /-- **The distributional clustering theorem (PR #257).**
 
