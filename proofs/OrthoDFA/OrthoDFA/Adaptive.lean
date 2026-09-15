@@ -1636,25 +1636,61 @@ theorem iIndepFun_blocks {ι κ : Type*} {X : κ → Ω → ℝ}
   sorry
 
 open scoped Classical in
-/-- The first step's loss: how often `v`'s column disagrees with the seed's. -/
-noncomputable def seedLoss (O : Oracle μ S) (P : Finset S) (v : S) (p : S) (ω : Ω) : ℝ :=
-  if mq O (p * v) ω = mq O p ω then 0 else 1
+/-- The first step's loss at one prefix, in the exact form `hammingLoss` uses. -/
+noncomputable def seedLoss (O : Oracle μ S) (cn cd : ℕ) (v p : S) (ω : Ω) : ℝ :=
+  if ((mq O (p * v) ω = 1) ↔ cn * ({(1 : S)} : Finset S).card
+      < cd * voteCount O {(1 : S)} p ω) then 0 else 1
 
-lemma seedLoss_icc (O : Oracle μ S) (P : Finset S) (v p : S) :
-    ∀ᵐ ω ∂μ, seedLoss O P v p ω ∈ Set.Icc (0 : ℝ) 1 := by
+open scoped Classical in
+/-- The first step's loss *is* the sum of `seedLoss` over the prefixes — definitionally,
+not merely almost everywhere, which is what lets the argmin be transported. -/
+lemma hammingLoss_seed (O : Oracle μ S) (cn cd : ℕ) (P : Finset S) (ω : Ω) (v : S) :
+    hammingLoss O {(1 : S)} cn cd P ω v = ∑ p ∈ P, seedLoss O cn cd v p ω := by
+  classical
+  unfold hammingLoss seedLoss
+  rw [Finset.sum_ite]
+  simp
+
+lemma seedLoss_icc (O : Oracle μ S) (cn cd : ℕ) (v p : S) :
+    ∀ᵐ ω ∂μ, seedLoss O cn cd v p ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards with ω
   unfold seedLoss
   split_ifs <;> norm_num
 
-/-- **The first step's mean separates by the square of the signal.**  Two noisy reads are
-compared, so an accept-preserving candidate disagrees at `2η(1−η)` and one that flips at
-`p` at `1 − 2η(1−η)`; the difference is `(1−2η)²`. -/
-lemma seedLoss_eq (O : Oracle μ S) (P : Finset S) (v p : S) :
-    ∀ᵐ ω ∂μ, seedLoss O P v p ω
-      = mq O (p * v) ω + mq O p ω - 2 * (mq O (p * v) ω * mq O p ω) := by
-  filter_upwards [mq_bit O (p * v), mq_bit O p] with ω h1 h0
+lemma measurable_voteCount (O : Oracle μ S) (F : Finset S) (p : S) :
+    Measurable (fun ω => voteCount O F p ω) := by
+  classical
+  have hfun : (fun ω => voteCount O F p ω)
+      = fun ω => ∑ v ∈ F, (if mq O (p * v) ω = 1 then 1 else 0) := by
+    funext ω; unfold voteCount; rw [Finset.card_filter]
+  rw [hfun]
+  exact Finset.measurable_sum _ (fun v _ =>
+    Measurable.ite (measurableSet_eq_fun (mq_meas O _) measurable_const)
+      measurable_const measurable_const)
+
+lemma seedLoss_meas (O : Oracle μ S) (cn cd : ℕ) (v p : S) :
+    Measurable (seedLoss O cn cd v p) := by
+  classical
   unfold seedLoss
-  rcases h1 with h1 | h1 <;> rcases h0 with h0 | h0 <;> rw [h1, h0] <;> norm_num
+  refine Measurable.ite ?_ measurable_const measurable_const
+  exact MeasurableSet.iff (measurableSet_eq_fun (mq_meas O _) measurable_const)
+    (measurableSet_lt measurable_const (measurable_const.mul (measurable_voteCount O _ p)))
+
+/-- On a proper centre ratio the first step's loss is the disagreement with the seed's own
+column: `cn < cd` makes `cn·1 < cd·voteCount {ε}` say exactly `mq p = 1`. -/
+lemma seedLoss_eq_disagree (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (v p : S) :
+    ∀ᵐ ω ∂μ, seedLoss O cn cd v p ω
+      = mq O (p * v) ω + mq O p ω - 2 * (mq O (p * v) ω * mq O p ω) := by
+  classical
+  filter_upwards [mq_bit O (p * v), mq_bit O p] with ω h1 h0
+  have hvc : voteCount O {(1 : S)} p ω = if mq O p ω = 1 then 1 else 0 := by
+    unfold voteCount
+    rcases h0 with h | h <;> simp [voteCount, Finset.filter_singleton, mul_one, h]
+  unfold seedLoss
+  rw [hvc]
+  rcases h1 with h1 | h1 <;> rcases h0 with h0 | h0 <;>
+    · rw [h1, h0]
+      norm_num [hcd, Nat.not_lt.2 (Nat.zero_le cn)]
 
 lemma mq_integrable (O : Oracle μ S) (w : S) : Integrable (mq O w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (mq_meas O w).aemeasurable (mq_icc O w)
@@ -1667,16 +1703,25 @@ lemma mq_mul_integrable (O : Oracle μ S) (w w' : S) :
   rw [Set.mem_Icc] at h1 h0 ⊢
   exact ⟨mul_nonneg h1.1 h0.1, by nlinarith [h1.1, h1.2, h0.1, h0.2]⟩
 
-lemma seedLoss_mean (O : Oracle μ S) (P : Finset S) (v p : S) (hv : p * v ≠ p) :
-    μ[seedLoss O P v p] = 2 * O.η * (1 - O.η)
-      + O.flip v p * (1 - 2 * O.η) ^ 2 := by
+lemma seedLoss_integrable (O : Oracle μ S) (cn cd : ℕ) (v p : S) :
+    Integrable (seedLoss O cn cd v p) μ :=
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (seedLoss_meas O cn cd v p).aemeasurable
+    (seedLoss_icc O cn cd v p)
+
+/-- **The first step's mean separates by the square of the signal.**  Two noisy reads are
+compared, so an accept-preserving candidate disagrees at `2η(1−η)` and one that flips at `p`
+at `1 − 2η(1−η)`; the difference is `(1−2η)²`.  This is exactly the statistic
+`_screen_cohort` tests against, and the square is why its power is weaker than a comparison
+against the truth would be. -/
+lemma seedLoss_mean (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (v p : S) (hv : p * v ≠ p) :
+    μ[seedLoss O cn cd v p] = 2 * O.η * (1 - O.η) + O.flip v p * (1 - 2 * O.η) ^ 2 := by
   have hprod : μ[fun ω => mq O (p * v) ω * mq O p ω] = μ[mq O (p * v)] * μ[mq O p] :=
     ProbabilityTheory.IndepFun.integral_mul_eq_mul_integral
       ((mq_indep O).indepFun hv) (mq_meas O _).aestronglyMeasurable
       (mq_meas O _).aestronglyMeasurable
-  have hsplit : μ[seedLoss O P v p]
+  have hsplit : μ[seedLoss O cn cd v p]
       = μ[mq O (p * v)] + μ[mq O p] - 2 * (μ[mq O (p * v)] * μ[mq O p]) := by
-    rw [integral_congr_ae (seedLoss_eq O P v p),
+    rw [integral_congr_ae (seedLoss_eq_disagree O hcd v p),
       integral_sub (f := fun ω => mq O (p * v) ω + mq O p ω)
         (g := fun ω => 2 * (mq O (p * v) ω * mq O p ω))
         ((mq_integrable O _).add (mq_integrable O _))
@@ -1686,6 +1731,37 @@ lemma seedLoss_mean (O : Oracle μ S) (P : Finset S) (v p : S) (hv : p * v ≠ p
   show _ = 2 * O.η * (1 - O.η)
     + (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p) * (1 - 2 * O.η) ^ 2
   ring
+
+/-- **The seed's own reads are independent across prefixes.**  Each prefix contributes a
+function of two strings, `p` and `p · v`, and those pairs are pairwise disjoint: `p · v` by
+right-cancellation, the bare prefixes by distinctness, and the two kinds from each other by
+flatness. -/
+lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd : ℕ)
+    {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1) :
+    iIndepFun (fun p : {p // p ∈ P} => seedLoss O cn cd v p.val) μ := by
+  refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas' w) O.noise_indep
+    (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _
+    (fun p => seedLoss_meas O cn cd v p.val) ?_
+  · intro a b hab
+    refine Finset.disjoint_left.2 (fun w hw hw' => ?_)
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hw hw'
+    rcases hw with rfl | rfl <;> rcases hw' with hb | hb
+    · exact hab (Subtype.ext hb)
+    · exact flat_ne_of_ne_one hflat (hP _ b.property) (hP _ a.property) hv hb.symm
+    · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hv hb
+    · exact hab (Subtype.ext (mul_right_cancel hb))
+  · intro p ω ω' h
+    have h1 : O.noise (p.val * v) ω = O.noise (p.val * v) ω' := h _ (by simp)
+    have h0 : O.noise p.val ω = O.noise p.val ω' := h _ (by simp)
+    unfold seedLoss
+    have hvc : ∀ w ∈ ({(1 : S)} : Finset S),
+        O.noise (p.val * w) ω = O.noise (p.val * w) ω' := by
+      intro w hw
+      rw [Finset.mem_singleton] at hw
+      subst hw
+      rw [mul_one]
+      exact h0
+    rw [mq_congr O h1, voteCount_congr O {(1 : S)} p.val hvc]
 
 /-! ### Part 1 comes from the clustering, not the gate
 
