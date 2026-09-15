@@ -320,16 +320,22 @@ structure Budget where
   m : ℕ
   /-- Family size. -/
   k : ℕ
-  /-- The cluster centre's cutoff: a prefix is on the centre's accept side when more than
-  `c` of the family answer accept. -/
-  c : ℕ
+  /-- The cluster centre's cutoff, as a ratio `cn/cd`: a prefix is on the centre's accept
+  side when `cn · #F < cd · (how many of `F` answer accept)`.
+
+  A ratio rather than a count because `identify_cluster_around` centres on
+  `masks[cluster].mean(0) > decision_boundary` — a *fraction* of the current cluster, which
+  has one member at the first iteration and `k` afterwards.  A fixed count cannot serve
+  both. -/
+  cn : ℕ
+  cd : ℕ
   /-- Reject at or below this count. -/
   lo : ℕ
   /-- Accept above this count. -/
   hi : ℕ
 
 instance : Countable Budget :=
-  Function.Injective.countable (f := fun b => (b.M, b.m, b.k, b.c, b.lo, b.hi))
+  Function.Injective.countable (f := fun b => (b.M, b.m, b.k, b.cn, b.cd, b.lo, b.hi))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-- The candidate pool at a suffix budget: the first `M` suffixes drawn, **with the seed**.
@@ -415,9 +421,10 @@ lemma vote_mem_grid (O : Oracle μ S) (F : Finset S) (p : S) :
 open scoped Classical in
 /-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to
 the cluster's **own** thresholded mean (`masks[cluster].mean(0) > decision_boundary`). -/
-noncomputable def hammingLoss (O : Oracle μ S) (F : Finset S) (c : ℕ) (P : Finset S)
+noncomputable def hammingLoss (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
-  ((P.filter (fun p => ¬ ((mq O (p * v) ω = 1) ↔ c < voteCount O F p ω))).card : ℝ)
+  ((P.filter (fun p =>
+    ¬ ((mq O (p * v) ω = 1) ↔ cn * F.card < cd * voteCount O F p ω))).card : ℝ)
 
 open scoped Classical in
 /-- The loss the greedy minimises, zeroed off the candidate pool.
@@ -426,33 +433,33 @@ open scoped Classical in
 *function*, not merely on its values over `cands`.  Zeroing it elsewhere makes two draws
 that agree on the reads give literally the same loss, which is what `clusterAround_congr`
 needs. -/
-noncomputable def clusterLoss (O : Oracle μ S) (F : Finset S) (c : ℕ) (P cands : Finset S)
+noncomputable def clusterLoss (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
     (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss O F c P ω v else 0
+  if v ∈ cands then hammingLoss O F cn cd P ω v else 0
 
 open scoped Classical in
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
 candidates — but only while the seed is among them.  `identify_cluster_around` breaks out
 (`if seed_local not in nearest`) rather than let the centre drift off `ε`, keeping the
 cluster it had. -/
-noncomputable def lloydStep (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+noncomputable def lloydStep (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
-  if (1 : S) ∈ leastLossSubset (clusterLoss O F c P cands ω) cands k
-  then leastLossSubset (clusterLoss O F c P cands ω) cands k else F
+  if (1 : S) ∈ leastLossSubset (clusterLoss O F cn cd P cands ω) cands k
+  then leastLossSubset (clusterLoss O F cn cd P cands ω) cands k else F
 
 /-- `identify_cluster_around` iterated to its fixed point.  The total loss is a natural
 number bounded by `k·#P` that strictly decreases at each improving step, so `k·#P + 1`
 iterations from the seed `ε` already sit at the fixed point — the bound is derived, not a
 knob. -/
-noncomputable def clusterAround (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω)
+noncomputable def clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
     (k : ℕ) : Finset S :=
-  (lloydStep O c P cands ω k)^[k * P.card + 1] {(1 : S)}
+  (lloydStep O cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
 
 /-- **The cluster never drifts off the seed.**  `identify_cluster_around` stops the moment
 `ε` would leave, so every family the loop proposes contains it — which is what lets the
 gate read the split off `ε`'s own column. -/
-lemma one_mem_clusterAround (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
-    (1 : S) ∈ clusterAround O c P cands ω k := by
+lemma one_mem_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+    (1 : S) ∈ clusterAround O cn cd P cands ω k := by
   classical
   unfold clusterAround
   generalize k * P.card + 1 = n
@@ -473,7 +480,7 @@ quantified over every state.  `vote_mem_grid` is why that loses nothing — a th
 only matter through the count it cuts at. -/
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
     (x : Run Ω S J) (B : Budget) : Finset S :=
-  clusterAround O B.c (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
+  clusterAround O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
 
 /-- A prefix is *decided* when the family's vote clears the state's accept or reject
 threshold; otherwise it lands in the indecisive band and counts towards the FNR. -/
@@ -589,10 +596,10 @@ lemma voteCount_congr (O : Oracle μ S) (F : Finset S) (p : S) {ω ω' : Ω}
   unfold voteCount
   exact congrArg Finset.card (Finset.filter_congr (fun v hv => by rw [mq_congr O (h v hv)]))
 
-lemma hammingLoss_congr (O : Oracle μ S) (F : Finset S) (c : ℕ) {P cands : Finset S}
+lemma hammingLoss_congr (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) {P cands : Finset S}
     (hF : F ⊆ cands) {ω ω' : Ω} {v : S} (hv : v ∈ cands)
     (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
-    hammingLoss O F c P ω v = hammingLoss O F c P ω' v := by
+    hammingLoss O F cn cd P ω v = hammingLoss O F cn cd P ω' v := by
   classical
   unfold hammingLoss
   refine congrArg _ (congrArg Finset.card (Finset.filter_congr (fun p hp => ?_)))
@@ -607,70 +614,70 @@ lemma leastLossSubset_subset' (l : S → ℝ) (cands : Finset S) (k : ℕ) :
   · exact (Finset.mem_powersetCard.mp (Finset.exists_min_image _ _ hne).choose_spec.1).1
   · exact Finset.empty_subset _
 
-lemma clusterLoss_congr (O : Oracle μ S) (F : Finset S) (c : ℕ) (P cands : Finset S)
+lemma clusterLoss_congr (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
     (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
-    clusterLoss O F c P cands ω = clusterLoss O F c P cands ω' := by
+    clusterLoss O F cn cd P cands ω = clusterLoss O F cn cd P cands ω' := by
   classical
   funext v
   unfold clusterLoss
   split_ifs with hv
-  · exact hammingLoss_congr O F c hF hv h
+  · exact hammingLoss_congr O F cn cd hF hv h
   · rfl
 
-lemma lloydStep_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ) {F : Finset S}
+lemma lloydStep_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ) {F : Finset S}
     (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
-    lloydStep O c P cands ω k F = lloydStep O c P cands ω' k F := by
+    lloydStep O cn cd P cands ω k F = lloydStep O cn cd P cands ω' k F := by
   classical
   unfold lloydStep
-  rw [clusterLoss_congr O F c P cands hF h]
+  rw [clusterLoss_congr O F cn cd P cands hF h]
 
-lemma lloydStep_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    {F : Finset S} (hF : F ⊆ cands) : lloydStep O c P cands ω k F ⊆ cands := by
+lemma lloydStep_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    {F : Finset S} (hF : F ⊆ cands) : lloydStep O cn cd P cands ω k F ⊆ cands := by
   classical
   unfold lloydStep
   split_ifs
   · exact leastLossSubset_subset' _ _ _
   · exact hF
 
-lemma lloydIterate_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
-    ∀ (n : ℕ) (F : Finset S), F ⊆ cands → (lloydStep O c P cands ω k)^[n] F ⊆ cands := by
+lemma lloydIterate_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+    ∀ (n : ℕ) (F : Finset S), F ⊆ cands → (lloydStep O cn cd P cands ω k)^[n] F ⊆ cands := by
   intro n
   induction n with
   | zero => intro F hF; rw [Function.iterate_zero_apply]; exact hF
   | succ n ih =>
       intro F hF
       rw [Function.iterate_succ_apply]
-      exact ih _ (lloydStep_subset O c P cands ω k hF)
+      exact ih _ (lloydStep_subset O cn cd P cands ω k hF)
 
-lemma lloydIterate_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ)
+lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
     {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
     ∀ (n : ℕ) (F : Finset S), F ⊆ cands →
-      (lloydStep O c P cands ω k)^[n] F = (lloydStep O c P cands ω' k)^[n] F := by
+      (lloydStep O cn cd P cands ω k)^[n] F = (lloydStep O cn cd P cands ω' k)^[n] F := by
   intro n
   induction n with
   | zero => intro F _; rw [Function.iterate_zero_apply, Function.iterate_zero_apply]
   | succ n ih =>
       intro F hF
-      calc (lloydStep O c P cands ω k)^[n + 1] F
-          = (lloydStep O c P cands ω k)^[n] (lloydStep O c P cands ω k F) :=
+      calc (lloydStep O cn cd P cands ω k)^[n + 1] F
+          = (lloydStep O cn cd P cands ω k)^[n] (lloydStep O cn cd P cands ω k F) :=
             Function.iterate_succ_apply _ _ _
-        _ = (lloydStep O c P cands ω k)^[n] (lloydStep O c P cands ω' k F) :=
-            congrArg (fun z => (lloydStep O c P cands ω k)^[n] z)
-              (lloydStep_congr O c P cands k hF h)
-        _ = (lloydStep O c P cands ω' k)^[n] (lloydStep O c P cands ω' k F) :=
-            ih _ (lloydStep_subset O c P cands ω' k hF)
-        _ = (lloydStep O c P cands ω' k)^[n + 1] F :=
+        _ = (lloydStep O cn cd P cands ω k)^[n] (lloydStep O cn cd P cands ω' k F) :=
+            congrArg (fun z => (lloydStep O cn cd P cands ω k)^[n] z)
+              (lloydStep_congr O cn cd P cands k hF h)
+        _ = (lloydStep O cn cd P cands ω' k)^[n] (lloydStep O cn cd P cands ω' k F) :=
+            ih _ (lloydStep_subset O cn cd P cands ω' k hF)
+        _ = (lloydStep O cn cd P cands ω' k)^[n + 1] F :=
             (Function.iterate_succ_apply _ _ _).symm
 
 /-- **The cluster reads only `readSet`.**  Two noise draws agreeing at `p · v` for every
 representative prefix and candidate suffix give the same family — so neither the family nor
 any vote cast with it is decided by the oracle's bit at a bare prefix, which is the bit the
 gate scores. -/
-lemma clusterAround_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ)
+lemma clusterAround_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
     {ω ω' : Ω} (hone : (1 : S) ∈ cands)
     (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
-    clusterAround O c P cands ω k = clusterAround O c P cands ω' k :=
-  lloydIterate_congr O c P cands k h _ _ (by simpa using hone)
+    clusterAround O cn cd P cands ω k = clusterAround O cn cd P cands ω' k :=
+  lloydIterate_congr O cn cd P cands k h _ _ (by simpa using hone)
 
 /-! ### The prefix alphabet
 
@@ -692,11 +699,11 @@ lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ 
     (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
   fun h => hv (hflat p hp p' hp' v h)
 
-lemma clusterAround_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    (hone : (1 : S) ∈ cands) : clusterAround O c P cands ω k ⊆ cands := by
+lemma clusterAround_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    (hone : (1 : S) ∈ cands) : clusterAround O cn cd P cands ω k ⊆ cands := by
   classical
   unfold clusterAround
-  exact lloydIterate_subset O c P cands ω k _ _ (by simpa using hone)
+  exact lloydIterate_subset O cn cd P cands ω k _ _ (by simpa using hone)
 
 lemma noise_eq_of_mq_eq (O : Oracle μ S) {w : S} {ω ω' : Ω} (h : mq O w ω = mq O w ω') :
     O.noise w ω = O.noise w ω' := by
@@ -744,11 +751,11 @@ lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budg
   classical
   have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
       = clusterAt O populations ((ω', d) : Run Ω S J) B := by
-    refine clusterAround_congr O B.c _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
+    refine clusterAround_congr O B.cn B.cd _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
     exact Finset.mem_union_left _ hw
   have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B
       ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
-    clusterAround_subset _ _ _ _ _ _ (one_mem_poolAt _ _)
+    clusterAround_subset _ _ _ _ _ _ _ (one_mem_poolAt _ _)
   unfold sideAcc
   refine Finset.filter_congr (fun p hp => ?_)
   have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
@@ -766,11 +773,11 @@ lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budg
   classical
   have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
       = clusterAt O populations ((ω', d) : Run Ω S J) B := by
-    refine clusterAround_congr O B.c _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
+    refine clusterAround_congr O B.cn B.cd _ _ B.k (one_mem_poolAt _ _) (fun w hw => h w ?_)
     exact Finset.mem_union_left _ hw
   have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B
       ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
-    clusterAround_subset _ _ _ _ _ _ (one_mem_poolAt _ _)
+    clusterAround_subset _ _ _ _ _ _ _ (one_mem_poolAt _ _)
   unfold sideRej
   refine Finset.filter_congr (fun p hp => ?_)
   have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
@@ -1590,7 +1597,8 @@ structure Capped (cap B : Budget) : Prop where
   M : B.M ≤ cap.M
   m : B.m ≤ cap.m
   k : B.k ≤ cap.k
-  c : B.c ≤ cap.c
+  cn : B.cn ≤ cap.cn
+  cd : B.cd ≤ cap.cd
   lo : B.lo ≤ cap.lo
   hi : B.hi ≤ cap.hi
 
@@ -1599,7 +1607,8 @@ instance instFiniteCapped (cap : Budget) : Finite {B : Budget // Capped cap B} :
     (fun B => ((⟨B.val.M, Nat.lt_succ_of_le B.property.M⟩ : Fin (cap.M + 1)),
       (⟨B.val.m, Nat.lt_succ_of_le B.property.m⟩ : Fin (cap.m + 1)),
       (⟨B.val.k, Nat.lt_succ_of_le B.property.k⟩ : Fin (cap.k + 1)),
-      (⟨B.val.c, Nat.lt_succ_of_le B.property.c⟩ : Fin (cap.c + 1)),
+      (⟨B.val.cn, Nat.lt_succ_of_le B.property.cn⟩ : Fin (cap.cn + 1)),
+      (⟨B.val.cd, Nat.lt_succ_of_le B.property.cd⟩ : Fin (cap.cd + 1)),
       (⟨B.val.lo, Nat.lt_succ_of_le B.property.lo⟩ : Fin (cap.lo + 1)),
       (⟨B.val.hi, Nat.lt_succ_of_le B.property.hi⟩ : Fin (cap.hi + 1)))) ?_
   intro B B' hb
@@ -1650,7 +1659,7 @@ theorem lloyd_first_step_ranked (O : Oracle μ S) (populations : Finset J)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hpool : PoolRanked O Δ B) (hfill : (B.k : ℝ) ≤ pAP * B.M / 2) (η : ℝ) :
     (runLaw μ D Dsf).real
-      {x | ¬ ∀ v ∈ lloydStep O B.c (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
+      {x | ¬ ∀ v ∈ lloydStep O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
               {(1 : S)},
           ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
       ≤ η :=
@@ -1672,7 +1681,7 @@ theorem lloyd_step_preserves_ranked (O : Oracle μ S) (populations : Finset J)
     (hpool : PoolRanked O Δ B) (η : ℝ) :
     (runLaw μ D Dsf).real
       {x | ∃ F : Finset S, (∀ v ∈ F, ∀ j ∈ populations, flipMass O (D j) v ≤ Δ) ∧
-          ¬ ∀ v ∈ lloydStep O B.c (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k F,
+          ¬ ∀ v ∈ lloydStep O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k F,
               ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
       ≤ η :=
   sorry
