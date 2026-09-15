@@ -90,33 +90,19 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _take_indecisive(pst, resolver, dfa, target):
+def _accumulate_indecisive(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+    already hold, returning how many.
+
+    Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
+    sample every run.
     """
-    Take up to target of the round's boundary strings, drawing more where the
-    round did not strand that many.
-
-    What a round happens to strand is what its probing happened to reach, which
-    need not be ``target`` of them.  `BoundarySource` goes on probing for more,
-    so being short is a reason to ask rather than a size to settle for.
-
-    A source that passes its yield test and then runs dry raises, as a state
-    source does: that is the yield it was kept on not holding, which is worth
-    hearing about rather than working around.
-
-    The set is sorted then shuffled with a fixed rng, so the
-    cap picks the same unbiased sample every run.
-    """
-    ordered = sorted(resolver.indecisive)
-    np.random.default_rng(0).shuffle(ordered)
-    if len(ordered) >= target:
-        return ordered[:target]
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=ordered)
-    if not source.has_sufficient_yield():
-        return ordered
-    held = set(ordered)
-    while len(held) < target:
-        held.add(source.draw())
-    return sorted(held)
+    taken = sorted(resolver.indecisive - state.seen)
+    np.random.default_rng(0).shuffle(taken)
+    for string in taken[:wanted]:
+        state.seen.add(string)
+        state.accumulated.append(string)
+    return min(wanted, len(taken))
 
 
 class _PoolState:
@@ -150,38 +136,43 @@ def _per_state_members(pst, resolver, dfa, per_state):
     return held
 
 
-def _nothing_left_to_split(pst, resolver, dfa) -> bool:
-    """Whether the round found every state it can and settled every state it
-    can fill.
+def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
+    """Probe for ``wanted`` boundary strings the round did not strand itself.
 
-    Only states a draw reaches are waited on, the same ones `_per_state_members`
-    draws for: elsewhere a leaf too thin to rule a split out stays that way.
+    What a round happens to strand is what its probing happened to reach, which
+    need not be as many as it is willing to hold.  `BoundarySource` goes on
+    probing, so being short is a reason to ask rather than a size to settle for.
+
+    A source that passes its yield test and then runs dry raises, as a state
+    source does: that is the yield it was kept on not holding, which is worth
+    hearing about rather than working around.
     """
-    fillable = {
+    if wanted <= 0:
+        return
+    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
+    if not source.has_sufficient_yield():
+        return
+    for _ in range(wanted):
+        string = source.draw()
+        state.seen.add(string)
+        state.accumulated.append(string)
+
+
+def _aimed_at(pst, resolver, dfa) -> set:
+    """The leaves the round aims at, which are the ones its aims settle strings
+    into -- `state_source` proves a leaf's yield by aiming at it, so a leaf
+    whose yield comes out too low has still been filled by the proving.
+    """
+    return {
         leaf
         for leaf in range(resolver.num_states)
         if aim_at(pst, dfa, leaf) is not None
     }
-    return resolver.splits.nothing_left_to_split(fillable)
 
 
-def _grow_representative_pool(
-    pst,
-    resolver,
-    dfa,
-    state,
-    *,
-    indecisive_fraction,
-    min_indecisive,
-    per_state,
-):
-    target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-    for t in _take_indecisive(pst, resolver, dfa, target):
-        if t not in state.seen:
-            state.seen.add(t)
-            state.accumulated.append(t)
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
-    state.sampled = sorted({m for members in by_state.values() for m in members})
+def _publish_pool(pst, state) -> int:
+    """Put the round's populations in the table, returning how many of its
+    prefixes are representative."""
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
     for population, prefixes in (
@@ -323,12 +314,18 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        # Before the pool is rebuilt, so the strings the sweep drops as
-        # indecisive reach `_take_indecisive` rather than dying with this round.
+        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+        taken = _accumulate_indecisive(resolver, state, target)
+        by_state = _per_state_members(pst, resolver, dfa, per_state)
+        state.sampled = sorted({m for members in by_state.values() for m in members})
+        # Asked after the aims, which are what fill the leaves it reads.  A
+        # leaf nothing aims at is not one the round waits on.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
+            settled=lambda: resolver.splits.nothing_left_to_split(
+                _aimed_at(pst, resolver, dfa)
+            ),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
@@ -336,15 +333,11 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
-        pool = _grow_representative_pool(
-            pst,
-            resolver,
-            dfa,
-            state,
-            indecisive_fraction=indecisive_fraction,
-            min_indecisive=min_indecisive,
-            per_state=per_state,
-        )
+        # Last, so what the draws and the check strand lands in the pool the
+        # round they were found rather than the round after.
+        taken += _accumulate_indecisive(resolver, state, target - taken)
+        _top_up_boundary(pst, resolver, dfa, state, target - taken)
+        pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.accumulated)} boundary strings harvested so far"
