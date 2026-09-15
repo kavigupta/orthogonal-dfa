@@ -102,6 +102,21 @@ def _take_indecisive(resolver, target):
     return ordered[:target]
 
 
+def _keep_stranded(resolver, state, room):
+    """Hold what the sweep stranded, up to ``room``.
+
+    Reading every leaf's members strands strings the round's own probing never
+    reached, but the pool it was asked about is built by then, so these seed the
+    next round's.  Sorted then shuffled with a fixed rng, as `_take_indecisive`
+    is and for the same reason.
+    """
+    fresh = sorted(resolver.indecisive - state.seen)
+    np.random.default_rng(0).shuffle(fresh)
+    for string in fresh[:room]:
+        state.seen.add(string)
+        state.accumulated.append(string)
+
+
 class _PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
     the representative set every round so global calibration stays anchored to the
@@ -159,10 +174,12 @@ def _grow_representative_pool(
     per_state,
 ):
     target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+    taken = 0
     for t in _take_indecisive(resolver, target):
         if t not in state.seen:
             state.seen.add(t)
             state.accumulated.append(t)
+            taken += 1
     by_state = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
@@ -175,7 +192,7 @@ def _grow_representative_pool(
         pst.table.drop_population(population)
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=population)
-    return int(pst.table.representative.sum())
+    return int(pst.table.representative.sum()), target - taken
 
 
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
@@ -306,7 +323,7 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        pool = _grow_representative_pool(
+        pool, room = _grow_representative_pool(
             pst,
             resolver,
             dfa,
@@ -332,6 +349,7 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
+        _keep_stranded(resolver, state, room)
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
