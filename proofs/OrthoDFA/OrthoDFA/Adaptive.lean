@@ -406,6 +406,42 @@ def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
         ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
             O.label (p * v) = O.label p}}
 
+/-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
+`measureReal_iUnion_fintype_le` for finite index, but not this. -/
+lemma measureReal_iUnion_le_tsum {A : Type*} [MeasurableSpace A] {ρ : Measure A}
+    [IsFiniteMeasure ρ] {T : Type*} [Countable T] (E : T → Set A) (w : T → ℝ)
+    (hw0 : ∀ t, 0 ≤ w t) (hper : ∀ t, ρ.real (E t) ≤ w t) (hsum : Summable w) :
+    ρ.real (⋃ t, E t) ≤ ∑' t, w t := by
+  have hle : ∀ t, ρ (E t) ≤ ENNReal.ofReal (w t) := by
+    intro t
+    calc ρ (E t) = ENNReal.ofReal (ρ.real (E t)) :=
+          (ENNReal.ofReal_toReal (measure_ne_top ρ _)).symm
+      _ ≤ ENNReal.ofReal (w t) := ENNReal.ofReal_le_ofReal (hper t)
+  have hunion : ρ (⋃ t, E t) ≤ ENNReal.ofReal (∑' t, w t) := by
+    calc ρ (⋃ t, E t) ≤ ∑' t, ρ (E t) := measure_iUnion_le _
+      _ ≤ ∑' t, ENNReal.ofReal (w t) := ENNReal.tsum_le_tsum hle
+      _ = ENNReal.ofReal (∑' t, w t) := (ENNReal.ofReal_tsum_of_nonneg hw0 hsum).symm
+  calc ρ.real (⋃ t, E t) ≤ (ENNReal.ofReal (∑' t, w t)).toReal := by
+        refine ENNReal.toReal_mono (by simp) hunion
+    _ = ∑' t, w t := ENNReal.toReal_ofReal (tsum_nonneg hw0)
+
+/-- **Part 1, reduced to one state.**  Reachable states are countable, so the whole of
+Part 1 is a per-state bound at any summable weight.  What remains is the per-state
+obligation: at a *single* history and budget, a family that passes both gates is valid on
+every population except with probability `w`. -/
+theorem validity_of_per_state (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (fpr accFnr indecisionLimit α εcov δ : ℝ)
+    (w : Hist × (ℕ × ℕ) → ℝ) (hw0 : ∀ t, 0 ≤ w t) (hsum : Summable w)
+    (hle : ∑' t, w t ≤ δ / 2)
+    (hper : ∀ t, (runLaw μ D Dsf).real
+      (ret O populations fpr accFnr indecisionLimit α t
+        ∩ FailAt O populations D fpr accFnr εcov t) ≤ w t) :
+    (runLaw μ D Dsf).real (⋃ t, ret O populations fpr accFnr indecisionLimit α t
+        ∩ FailAt O populations D fpr accFnr εcov t) ≤ δ / 2 :=
+  le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle
+
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
 Except with probability `δ/2`, no reachable state is *both* returned and invalid — over
