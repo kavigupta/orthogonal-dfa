@@ -132,6 +132,56 @@ noncomputable def cfgRej (O : Oracle μ S) (fpr accFnr center : ℝ) : ℝ :=
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
+/-! ### The seed column
+
+`mq O p` is the oracle's answer at `p · ε = p`: the column the gate reads its verdict off.
+Across *distinct* prefixes these are independent — one noise bit per query string — which
+is why `prefixesOf` being a `Finset` is what makes the gate's binomial null honest. -/
+
+lemma mq_meas (O : Oracle μ S) (p : S) : Measurable (mq O p) := by
+  show Measurable (fun ω => O.label p + (1 - 2 * O.label p) * O.noise p ω)
+  exact measurable_const.add (measurable_const.mul (O.noise_meas' p))
+
+lemma mq_indep (O : Oracle μ S) : iIndepFun (fun p : S => mq O p) μ :=
+  O.noise_indep.comp (fun p x => O.label p + (1 - 2 * O.label p) * x)
+    (fun _ => measurable_const.add (measurable_const.mul measurable_id))
+
+lemma mq_bit (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω = 0 ∨ mq O p ω = 1 := by
+  filter_upwards [O.noise_bit p] with ω hω
+  rcases O.label_bit p with hl | hl <;> rcases hω with hn | hn <;>
+    norm_num [mq, hl, hn]
+
+lemma mq_icc (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards [mq_bit O p] with ω hω
+  rcases hω with h | h <;> rw [h] <;> norm_num
+
+/-- `E[mq p] = η + (1−2η)·ℓ(p)`: a truly-accepting prefix reads accepting with probability
+`1 − η`, a truly-rejecting one with probability `η`. -/
+lemma mq_mean (O : Oracle μ S) (p : S) : μ[mq O p] = O.η + (1 - 2 * O.η) * O.label p := by
+  have : μ[mq O p] = ∫ ω, (O.label p + (1 - 2 * O.label p) * O.noise p ω) ∂μ := rfl
+  rw [this, integral_add (integrable_const _) ((O.noise_int p).const_mul _), integral_const,
+    integral_const_mul, O.noise_mean p]
+  simp only [measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
+  ring
+
+open scoped Classical in
+/-- The gate's hit count *is* the sum of the column's reads: they are `0/1`. -/
+lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
+    ∀ᵐ ω ∂μ, ((A.filter (fun p => mq O p ω = 1)).card : ℝ) = ∑ p ∈ A, mq O p ω := by
+  filter_upwards [(ae_ball_iff A.countable_toSet).2 (fun p _ => mq_bit O p)] with ω hω
+  rw [← Finset.sum_filter_add_sum_filter_not A (fun p => mq O p ω = 1)]
+  have h1 : ∑ p ∈ A.filter (fun p => mq O p ω = 1), mq O p ω
+      = ((A.filter (fun p => mq O p ω = 1)).card : ℝ) := by
+    rw [Finset.sum_congr rfl (fun p hp => (Finset.mem_filter.mp hp).2), Finset.sum_const,
+      nsmul_eq_mul, mul_one]
+  have h0 : ∑ p ∈ A.filter (fun p => ¬ (mq O p ω = 1)), mq O p ω = 0 := by
+    refine Finset.sum_eq_zero (fun p hp => ?_)
+    obtain ⟨hpA, hne⟩ := Finset.mem_filter.mp hp
+    rcases hω p hpA with h | h
+    · exact h
+    · exact absurd h hne
+  rw [h1, h0, add_zero]
+
 /-! ## The run space
 
 A run is exactly what the algorithm consumes: the oracle's persistent noise, the stream of
@@ -281,6 +331,37 @@ noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
 /-- The family's vote on a prefix: the mean membership query over the family. -/
 noncomputable def vote (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ :=
   (∑ v ∈ F, mq O (p * v) ω) / F.card
+
+open scoped Classical in
+/-- **Votes live on a grid.**  Every membership query is `0` or `1`, so a family of `k`
+suffixes votes in `{0, 1/k, …, 1}`.
+
+This is what collapses the union over boundaries.  Every comparison the algorithm makes —
+`b < vote` in the cluster centre, `cfgAcc ≤ vote` and `vote < cfgRej` in the gates — comes
+down to *which grid cell the threshold sits in*, an integer in `{0, …, k+1}`.  So the whole
+event depends on the boundary and the margin only through finitely many integers, however
+the margin is derived. -/
+lemma vote_mem_grid (O : Oracle μ S) (F : Finset S) (p : S) :
+    ∀ᵐ ω ∂μ, ∃ j : ℕ, j ≤ F.card ∧ vote O F p ω = (j : ℝ) / F.card := by
+  filter_upwards [(ae_ball_iff F.countable_toSet).2 (fun v _ => mq_bit O (p * v))] with ω hω
+  refine ⟨(F.filter (fun v => mq O (p * v) ω = 1)).card,
+    Finset.card_le_card (Finset.filter_subset _ _), ?_⟩
+  have hsum : ∑ v ∈ F, mq O (p * v) ω
+      = ((F.filter (fun v => mq O (p * v) ω = 1)).card : ℝ) := by
+    rw [← Finset.sum_filter_add_sum_filter_not F (fun v => mq O (p * v) ω = 1)]
+    have h1 : ∑ v ∈ F.filter (fun v => mq O (p * v) ω = 1), mq O (p * v) ω
+        = ((F.filter (fun v => mq O (p * v) ω = 1)).card : ℝ) := by
+      rw [Finset.sum_congr rfl (fun v hv => (Finset.mem_filter.mp hv).2), Finset.sum_const,
+        nsmul_eq_mul, mul_one]
+    have h0 : ∑ v ∈ F.filter (fun v => ¬ (mq O (p * v) ω = 1)), mq O (p * v) ω = 0 := by
+      refine Finset.sum_eq_zero (fun v hv => ?_)
+      obtain ⟨hvF, hne⟩ := Finset.mem_filter.mp hv
+      rcases hω v hvF with h | h
+      · exact h
+      · exact absurd h hne
+    rw [h1, h0, add_zero]
+  show (∑ v ∈ F, mq O (p * v) ω) / F.card = _
+  rw [hsum]
 
 open scoped Classical in
 /-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to
@@ -526,56 +607,6 @@ def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
     (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | x ∈ FailB O populations D fpr accFnr εcov
       (boundaryAfter O populations fpr accFnr x hM.1) hM.2}
-
-/-! ### The seed column
-
-`mq O p` is the oracle's answer at `p · ε = p`: the column the gate reads its verdict off.
-Across *distinct* prefixes these are independent — one noise bit per query string — which
-is why `prefixesOf` being a `Finset` is what makes the gate's binomial null honest. -/
-
-lemma mq_meas (O : Oracle μ S) (p : S) : Measurable (mq O p) := by
-  show Measurable (fun ω => O.label p + (1 - 2 * O.label p) * O.noise p ω)
-  exact measurable_const.add (measurable_const.mul (O.noise_meas' p))
-
-lemma mq_indep (O : Oracle μ S) : iIndepFun (fun p : S => mq O p) μ :=
-  O.noise_indep.comp (fun p x => O.label p + (1 - 2 * O.label p) * x)
-    (fun _ => measurable_const.add (measurable_const.mul measurable_id))
-
-lemma mq_bit (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω = 0 ∨ mq O p ω = 1 := by
-  filter_upwards [O.noise_bit p] with ω hω
-  rcases O.label_bit p with hl | hl <;> rcases hω with hn | hn <;>
-    norm_num [mq, hl, hn]
-
-lemma mq_icc (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω ∈ Set.Icc (0 : ℝ) 1 := by
-  filter_upwards [mq_bit O p] with ω hω
-  rcases hω with h | h <;> rw [h] <;> norm_num
-
-/-- `E[mq p] = η + (1−2η)·ℓ(p)`: a truly-accepting prefix reads accepting with probability
-`1 − η`, a truly-rejecting one with probability `η`. -/
-lemma mq_mean (O : Oracle μ S) (p : S) : μ[mq O p] = O.η + (1 - 2 * O.η) * O.label p := by
-  have : μ[mq O p] = ∫ ω, (O.label p + (1 - 2 * O.label p) * O.noise p ω) ∂μ := rfl
-  rw [this, integral_add (integrable_const _) ((O.noise_int p).const_mul _), integral_const,
-    integral_const_mul, O.noise_mean p]
-  simp only [measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
-  ring
-
-open scoped Classical in
-/-- The gate's hit count *is* the sum of the column's reads: they are `0/1`. -/
-lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
-    ∀ᵐ ω ∂μ, ((A.filter (fun p => mq O p ω = 1)).card : ℝ) = ∑ p ∈ A, mq O p ω := by
-  filter_upwards [(ae_ball_iff A.countable_toSet).2 (fun p _ => mq_bit O p)] with ω hω
-  rw [← Finset.sum_filter_add_sum_filter_not A (fun p => mq O p ω = 1)]
-  have h1 : ∑ p ∈ A.filter (fun p => mq O p ω = 1), mq O p ω
-      = ((A.filter (fun p => mq O p ω = 1)).card : ℝ) := by
-    rw [Finset.sum_congr rfl (fun p hp => (Finset.mem_filter.mp hp).2), Finset.sum_const,
-      nsmul_eq_mul, mul_one]
-  have h0 : ∑ p ∈ A.filter (fun p => ¬ (mq O p ω = 1)), mq O p ω = 0 := by
-    refine Finset.sum_eq_zero (fun p hp => ?_)
-    obtain ⟨hpA, hne⟩ := Finset.mem_filter.mp hp
-    rcases hω p hpA with h | h
-    · exact h
-    · exact absurd h hne
-  rw [h1, h0, add_zero]
 
 open scoped Classical in
 /-- **The gate's accept side is sound.**  The prefixes the family accepts read as accepting
