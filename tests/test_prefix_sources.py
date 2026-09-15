@@ -157,7 +157,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
         drawn = [source.draw() for _ in range(len(support))]
 
         self.assertEqual(sorted(drawn), support)
-        with self.assertRaisesRegex(RuntimeError, "rested nothing new"):
+        with self.assertRaisesRegex(RuntimeError, "found no new samples"):
             source.draw()
 
 
