@@ -43,3 +43,40 @@ class Sifter:
         by the population evidence, so the pair need only clear the ordinary
         decisive band, not a wide split margin."""
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
+
+
+def anchored_walk(probe, sift, transitions):
+    """Where ``sift`` first places a prefix of ``probe``, and what following
+    ``transitions`` from there reaches.
+
+    ``states[i]`` is the state after ``probe[:i]``, ``None`` below the anchor;
+    ``(None, None)`` where no prefix places at all.
+    """
+    start = 0
+    while start < len(probe):
+        state = sift(probe[:start])
+        if state is not None:
+            break
+        start += 1
+    else:
+        return None, None
+    states = [None] * start + [state]
+    for symbol in probe[start:]:
+        state = transitions[state][symbol]
+        states.append(state)
+    return start, states
+
+
+def first_disagreeing_edge(probe, states, sift, lo, hi):
+    """The first index where the walk and a fresh sift diverge, or ``None``
+    where a sift on the way comes out indecisive.
+
+    Invariant: the sift agrees at ``lo`` and disagrees at ``hi``.
+    """
+    while lo + 1 < hi:
+        mid = (lo + hi) // 2
+        landed = sift(probe[:mid])
+        if landed is None:
+            return None
+        lo, hi = (mid, hi) if landed == states[mid] else (lo, mid)
+    return hi
