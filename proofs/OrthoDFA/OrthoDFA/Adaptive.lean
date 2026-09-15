@@ -15,8 +15,8 @@ no fixed budget:
 Everything the statement needs is present and constrained: the persistent RCN oracle, the
 collection of prefix populations, the suffix distribution with its findability `pAP`, the
 loop's own FNR return test (defined, not abstract), and an unbounded growing schedule.
-The draws carry their laws and independence; the returned family is *defined* by the
-clustering.
+The run space is concrete (`Run`, `runLaw`), so its law is a lemma rather than a
+hypothesis; the returned family is *defined* by the clustering.
 
 Proof: the two-part decomposition —
 
@@ -26,8 +26,6 @@ Proof: the two-part decomposition —
 * `sound_and_terminating` composes them.
 
 The composition is proved; the two halves are `sorry`, with their proof plans recorded.
-
-`canonicalDraws` exhibits a run space, so the theorem is not vacuous.
 
 **Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
@@ -122,42 +120,21 @@ noncomputable def cfgRej (O : Oracle μ S) (fpr accFnr center : ℝ) : ℝ :=
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
-/-- What a run draws, with its **exact joint law**.
+/-! ## The run space
 
-`law_joint` is a single equation fixing the whole joint law: the persistent noise, the
-suffix stream, and the per-population prefix streams are jointly independent, each stream
-i.i.d. from its distribution.  No independence assumption is left implicit, and
-`exists_draws` exhibits a space carrying it.
+A run is exactly what the algorithm consumes: the oracle's persistent noise, the stream of
+suffix draws, and one stream of prefix draws per population.  That is a concrete space with
+a concrete law, so it is built here rather than axiomatised — `law_block` is a *lemma*.
 
 The code deduplicates its draws — `_draw_cohort` skips suffixes already interned and
 `sample_more_prefixes` skips prefixes already drawn — and so does this development:
 `poolAt` and `prefixesAt` take `Finset.image` of the stream.  Deduplicating `n` i.i.d.
-draws is not the same as `n` draws *without replacement*; it yields a pool that is at
-most as large, so the guarantee proved here is the conservative one.  Do **not** state
-that law as "i.i.d. conditioned on the block being injective": those conditioned laws are
-inconsistent across `n` (for `Dsf = (½,¼,¼)` the first marginal of the `n = 2` law puts
-mass `⅖` on the first atom, not `½`), so no probability space carries them all and the
-resulting structure would be uninhabited. -/
-structure Draws {Ξ : Type*} [MeasurableSpace Ξ] (ν : Measure Ξ) (μ : Measure Ω)
-    {J : Type*} [Fintype J] (D : J → Measure S) (Dsf : Measure S) where
-  nz : Ξ → Ω
-  sfx : ℕ → Ξ → S
-  prf : J → ℕ → Ξ → S
-  meas_nz : Measurable nz
-  meas_sfx : ∀ i, Measurable (sfx i)
-  meas_prf : ∀ j i, Measurable (prf j i)
-  law_joint : ∀ n : ℕ,
-    Measure.map (fun x => (nz x, (fun i : Fin n => sfx i.val x),
-        (fun (j : J) (i : Fin n) => prf j i.val x))) ν
-      = μ.prod
-          ((Measure.pi fun _ : Fin n => Dsf).prod
-            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)))
-
-/-! ## The run space is inhabited
-
-`clustering_correct` quantifies over run spaces, so it is worth nothing unless one exists.
-This section builds it: the i.i.d. streams come from Mathlib's infinite product measure,
-and reading off their first `n` coordinates gives the `n`-fold product. -/
+draws is not the same as `n` draws *without replacement*; it yields a pool that is at most
+as large, so the guarantee proved here is the conservative one.  Do **not** be tempted to
+model the without-replacement law as "i.i.d. conditioned on the block being injective":
+those conditioned laws are inconsistent across `n` (for `Dsf = (½,¼,¼)` the first marginal
+of the `n = 2` law puts mass `⅖` on the first atom, not `½`), so no space carries them all
+and everything built on them would be vacuous. -/
 
 open scoped Classical in
 /-- Reading the first `n` coordinates of an i.i.d. stream. -/
@@ -184,36 +161,53 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
 
 variable {J : Type*} [Fintype J]
 
-/-- The run space: persistent noise, an i.i.d. suffix stream, and an i.i.d. prefix stream
-per population, the three jointly independent. -/
-noncomputable def canonicalRun (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
-    Measure (Ω × ((ℕ → S) × (J → ℕ → S))) :=
+/-- One run of the algorithm: the oracle's persistent noise, the suffix draws, and the
+prefix draws of each population. -/
+abbrev Run (Ω S J : Type*) := Ω × ((ℕ → S) × (J → ℕ → S))
+
+/-- The law of a run: the three components jointly independent, each stream i.i.d. -/
+noncomputable def runLaw (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
+    Measure (Run Ω S J) :=
   μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
     (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
-    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (canonicalRun μ D Dsf) := by
-  unfold canonicalRun; infer_instance
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runLaw μ D Dsf) := by
+  unfold runLaw; infer_instance
 
-/-- `clustering_correct` is not vacuous: its hypotheses are satisfiable. -/
-noncomputable def canonicalDraws (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] :
-    Draws (canonicalRun μ D Dsf) μ D Dsf where
-  nz := Prod.fst
-  sfx i x := x.2.1 i
-  prf j i x := x.2.2 j i
-  meas_nz := measurable_fst
-  meas_sfx _ := by fun_prop
-  meas_prf _ _ := by fun_prop
-  law_joint n :=
-    ((MeasurePreserving.id μ).prod
-      ((measurePreserving_finRestrict Dsf n).prod
-        (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).map_eq
+/-- The run's persistent noise. -/
+def nz (x : Run Ω S J) : Ω := x.1
+
+/-- The `i`-th suffix drawn. -/
+def sfx (i : ℕ) (x : Run Ω S J) : S := x.2.1 i
+
+/-- The `i`-th prefix drawn from population `j`. -/
+def prf (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
+
+lemma measurable_nz : Measurable (nz : Run Ω S J → Ω) := measurable_fst
+
+lemma measurable_sfx (i : ℕ) : Measurable (sfx (Ω := Ω) (S := S) (J := J) i) := by
+  unfold sfx; fun_prop
+
+lemma measurable_prf (j : J) (i : ℕ) : Measurable (prf (Ω := Ω) (S := S) j i) := by
+  unfold prf; fun_prop
+
+/-- **The joint law of the first `n` draws.**  This is what the concentration arguments
+consume, and it is a theorem about `runLaw`, not a hypothesis about an abstract space. -/
+lemma law_block (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (n : ℕ) :
+    Measure.map (fun x : Run Ω S J => (nz x, (fun i : Fin n => sfx i.val x),
+        (fun (j : J) (i : Fin n) => prf j i.val x))) (runLaw μ D Dsf)
+      = μ.prod
+          ((Measure.pi fun _ : Fin n => Dsf).prod
+            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j))) :=
+  ((MeasurePreserving.id μ).prod
+    ((measurePreserving_finRestrict Dsf n).prod
+      (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).map_eq
 
 section Loop
 
-variable {Ξ : Type*} [MeasurableSpace Ξ] {ν : Measure Ξ} {J : Type*} [Fintype J]
-  {D : J → Measure S} {Dsf : Measure S}
+variable {D : J → Measure S} {Dsf : Measure S}
 
 /-! ## The loop, with the schedule left to the algorithm
 
@@ -230,14 +224,14 @@ algorithm picks this however it likes. -/
 abbrev Hist := List (ℕ × ℕ)
 
 /-- The candidate pool at a suffix budget: the first `M` suffixes drawn. -/
-noncomputable def poolAt (dr : Draws ν μ D Dsf) (M : ℕ) (x : Ξ) : Finset S :=
-  (Finset.range M).image (fun i => dr.sfx i x)
+noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
+  (Finset.range M).image (fun i => sfx i x)
 
 open scoped Classical in
 /-- The representative prefixes at a prefix budget: every population's first `m` draws. -/
-noncomputable def prefixesAt (dr : Draws ν μ D Dsf) (populations : Finset J) (m : ℕ)
-    (x : Ξ) : Finset S :=
-  populations.biUnion (fun j => (Finset.range m).image (fun i => dr.prf j i x))
+noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
+    (x : Run Ω S J) : Finset S :=
+  populations.biUnion (fun j => (Finset.range m).image (fun i => prf j i x))
 
 /-- The family's vote on a prefix: the mean membership query over the family. -/
 noncomputable def vote (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ :=
@@ -277,30 +271,30 @@ noncomputable def newBoundary (O : Oracle μ S) (F P : Finset S) (ω : Ω) (b : 
 
 /-- The cluster at one budget state, at the boundary carried in. -/
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (b : ℝ) (Mm : ℕ × ℕ) : Finset S :=
-  clusterAround O b (prefixesAt dr populations Mm.2 x) (poolAt dr Mm.1 x) (dr.nz x)
+    (fpr accFnr : ℝ) (x : Run Ω S J) (b : ℝ) (Mm : ℕ × ℕ) : Finset S :=
+  clusterAround O b (prefixesAt populations Mm.2 x) (poolAt Mm.1 x) (nz x)
     (cfgK O fpr accFnr b)
 
 /-- The decision boundary carried along a history: it starts at `1/2`
 (`decision_boundary : float = 0.5`) and each state replaces it with the boundary its own
 cluster induces. -/
 noncomputable def boundaryFold (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) : ℝ → Hist → ℝ
+    (fpr accFnr : ℝ) (x : Run Ω S J) : ℝ → Hist → ℝ
   | b, [] => b
   | b, Mm :: h =>
-      boundaryFold O populations dr fpr accFnr x
-        (newBoundary O (clusterAt O populations dr fpr accFnr x b Mm)
-          (prefixesAt dr populations Mm.2 x) (dr.nz x) b) h
+      boundaryFold O populations fpr accFnr x
+        (newBoundary O (clusterAt O populations fpr accFnr x b Mm)
+          (prefixesAt populations Mm.2 x) (nz x) b) h
 
 /-- The boundary after a history. -/
 noncomputable def boundaryAfter (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (h : Hist) : ℝ :=
-  boundaryFold O populations dr fpr accFnr x (1 / 2) h
+    (fpr accFnr : ℝ) (x : Run Ω S J) (h : Hist) : ℝ :=
+  boundaryFold O populations fpr accFnr x (1 / 2) h
 
 /-- The family the loop proposes at budget `Mm`, having come through history `h`. -/
 noncomputable def famAt (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (h : Hist) (Mm : ℕ × ℕ) : Finset S :=
-  clusterAt O populations dr fpr accFnr x (boundaryAfter O populations dr fpr accFnr x h) Mm
+    (fpr accFnr : ℝ) (x : Run Ω S J) (h : Hist) (Mm : ℕ × ℕ) : Finset S :=
+  clusterAt O populations fpr accFnr x (boundaryAfter O populations fpr accFnr x h) Mm
 
 /-- A prefix is *decided* when the family's vote clears the state's accept or reject
 threshold; otherwise it lands in the indecisive band and counts towards the FNR. -/
@@ -311,19 +305,19 @@ open scoped Classical in
 /-- **The loop's return test** (PR #257: held per population, not over their union), at
 the state's own boundary and margin. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr accFnr indecisionLimit : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
+    (fpr accFnr indecisionLimit : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | ∀ j ∈ populations,
     (((Finset.range hM.2.2).filter (fun i => ¬ decided O
-        (boundaryAfter O populations dr fpr accFnr x hM.1) fpr accFnr
-        (famAt O populations dr fpr accFnr x hM.1 hM.2) (dr.prf j i x) (dr.nz x))).card : ℝ)
+        (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr
+        (famAt O populations fpr accFnr x hM.1 hM.2) (prf j i x) (nz x))).card : ℝ)
       ≤ indecisionLimit * hM.2.2}
 
 /-- The family at a reachable state is **invalid**: on some population it fails to
 preserve acceptance on a `1 − εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
-    (dr : Draws ν μ D Dsf) (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
+    (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | ¬ ∀ j ∈ populations, 1 - εcov
-        ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr accFnr x hM.1 hM.2,
+        ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
             O.label (p * v) = O.label p}}
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
@@ -337,20 +331,19 @@ Proof plan (pieces in `Distributional.lean`): at one state this is `clustering_b
 the selection avoids suffixes of high distributional flip-mass (`ploss_good_upper` /
 `ploss_bad_lower`, two-level concentration against the *persistent* oracle), and
 `coverage_of_summed_flip` turns per-suffix flip control into the per-population fraction.
-States are countable, so union-bound them at a summable weight.  Because the draws are
-*without replacement*, the per-state concentration needs Hoeffding's 1963 result that
-sampling without replacement is at least as concentrated as with replacement (not in
-Mathlib; to be proved here). -/
-theorem validity_of_returned [IsProbabilityMeasure ν]
-    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+States are countable, so union-bound them at a summable weight.  The per-state
+concentration must absorb the collision mass that `ploss_good_upper` / `ploss_bad_lower`
+charge for repeated draws, which at unbounded budgets needs either Hoeffding's 1963
+without-replacement bound (not in Mathlib; to be proved here) or a non-atomic `D j`. -/
+theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (dr : Draws ν μ D Dsf)
     (fpr accFnr : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) :
-    ν.real (⋃ hM, FailAt O populations D dr fpr accFnr εcov hM) ≤ δ / 2 :=
+    (runLaw μ D Dsf).real (⋃ hM, FailAt O populations D fpr accFnr εcov hM) ≤ δ / 2 :=
   sorry
 
 /-- **Part 2 — the loop terminates.**
@@ -370,17 +363,16 @@ binomial probability that one prefix's count lands inside the indecisive band, s
 bounds the *expected* indecision fraction; if the loop's limit were at or below it the
 test could essentially never pass and the loop would not terminate.  The code keeps the
 slack: `0.01 < 0.02` (`0.10` after PR #257). -/
-theorem loop_terminates [IsProbabilityMeasure ν]
-    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+theorem loop_terminates (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (dr : Draws ν μ D Dsf)
     (fpr accFnr indecisionLimit : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) :
-    ν.real {x | ∀ hM, x ∉ ret O populations dr fpr accFnr indecisionLimit hM} ≤ δ / 2 :=
+    (runLaw μ D Dsf).real {x | ∀ hM, x ∉ ret O populations fpr accFnr indecisionLimit hM} ≤ δ / 2 :=
   sorry
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
@@ -394,28 +386,28 @@ uniform over every history the algorithm might follow and every budget it might 
 it may optimize its own schedule.  The stopping time is likewise arbitrary.  The decision
 boundary, evidence margin, thresholds and family size are recomputed at each state from
 the oracle's signal, as `build_pst` computes them; the cluster is the Lloyd fixed point
-against its own thresholded mean; and the draws are without replacement. -/
-theorem clustering_correct [IsProbabilityMeasure ν]
-    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+against its own thresholded mean; and the run space is the concrete `runLaw`, not an
+abstract space assumed to exist. -/
+theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (dr : Draws ν μ D Dsf)
     (fpr accFnr indecisionLimit : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) :
-    1 - δ ≤ ν.real
-      {x | (∃ hM, x ∈ ret O populations dr fpr accFnr indecisionLimit hM) ∧
+    1 - δ ≤ (runLaw μ D Dsf).real
+      {x | (∃ hM, x ∈ ret O populations fpr accFnr indecisionLimit hM) ∧
         ∀ hM : Hist × (ℕ × ℕ), ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr accFnr x hM.1 hM.2,
+          ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
               O.label (p * v) = O.label p}} := by
-  have h := sound_and_terminating ν
-    (FailAt O populations D dr fpr accFnr εcov)
-    (ret O populations dr fpr accFnr indecisionLimit) δ
-    (validity_of_returned O populations D Dsf dr fpr accFnr hfpr haccFnr hsig hpop
+  have h := sound_and_terminating (runLaw μ D Dsf)
+    (FailAt O populations D fpr accFnr εcov)
+    (ret O populations fpr accFnr indecisionLimit) δ
+    (validity_of_returned O populations D Dsf fpr accFnr hfpr haccFnr hsig hpop
       pAP hpAPPositive hpAPBound εcov hεcov δ hδ)
-    (loop_terminates O populations D Dsf dr fpr accFnr indecisionLimit hfpr haccFnr hsig hpop
+    (loop_terminates O populations D Dsf fpr accFnr indecisionLimit hfpr haccFnr hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
