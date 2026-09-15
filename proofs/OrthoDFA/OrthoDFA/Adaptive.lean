@@ -413,14 +413,25 @@ noncomputable def hammingLoss (O : Oracle μ S) (F : Finset S) (c : ℕ) (P : Fi
   ((P.filter (fun p => ¬ ((mq O (p * v) ω = 1) ↔ c < voteCount O F p ω))).card : ℝ)
 
 open scoped Classical in
+/-- The loss the greedy minimises, zeroed off the candidate pool.
+
+`leastLossSubset` is an argmin picked by `Classical.choose`, so it depends on the loss as a
+*function*, not merely on its values over `cands`.  Zeroing it elsewhere makes two draws
+that agree on the reads give literally the same loss, which is what `clusterAround_congr`
+needs. -/
+noncomputable def clusterLoss (O : Oracle μ S) (F : Finset S) (c : ℕ) (P cands : Finset S)
+    (ω : Ω) (v : S) : ℝ :=
+  if v ∈ cands then hammingLoss O F c P ω v else 0
+
+open scoped Classical in
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
 candidates — but only while the seed is among them.  `identify_cluster_around` breaks out
 (`if seed_local not in nearest`) rather than let the centre drift off `ε`, keeping the
 cluster it had. -/
 noncomputable def lloydStep (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
-  if (1 : S) ∈ leastLossSubset (hammingLoss O F c P ω) cands k
-  then leastLossSubset (hammingLoss O F c P ω) cands k else F
+  if (1 : S) ∈ leastLossSubset (clusterLoss O F c P cands ω) cands k
+  then leastLossSubset (clusterLoss O F c P cands ω) cands k else F
 
 /-- `identify_cluster_around` iterated to its fixed point.  The total loss is a natural
 number bounded by `k·#P` that strictly decreases at each improving step, so `k·#P + 1`
@@ -543,6 +554,106 @@ theorem measureReal_selection_le {ι : Type*} [DecidableEq ι] (C : Finset ι)
         Finset.sum_le_sum (fun A₀ hA₀ =>
           mul_le_mul_of_nonneg_left (hbad A₀ hA₀) measureReal_nonneg)
     _ = E := by rw [← Finset.sum_mul, htotal, one_mul]
+
+/-! ### What the clustering reads
+
+`measureReal_selection_le` needs the gate's accept side decided by randomness independent of
+the bits the gate scores.  These lemmas pin down which bits decide it: the clustering and
+the votes read the oracle only at `p · v` for a representative prefix `p` and a candidate
+suffix `v` — never at a bare prefix. -/
+
+open scoped Classical in
+/-- The query strings the clustering reads. -/
+noncomputable def readSet (P cands : Finset S) : Finset S :=
+  (P ×ˢ cands).image (fun z => z.1 * z.2)
+
+lemma mem_readSet {P cands : Finset S} {p v : S} (hp : p ∈ P) (hv : v ∈ cands) :
+    p * v ∈ readSet P cands := by
+  classical
+  exact Finset.mem_image.2 ⟨(p, v), Finset.mem_product.2 ⟨hp, hv⟩, rfl⟩
+
+lemma mq_congr (O : Oracle μ S) {w : S} {ω ω' : Ω} (h : O.noise w ω = O.noise w ω') :
+    mq O w ω = mq O w ω' := by simp [mq, h]
+
+lemma voteCount_congr (O : Oracle μ S) (F : Finset S) (p : S) {ω ω' : Ω}
+    (h : ∀ v ∈ F, O.noise (p * v) ω = O.noise (p * v) ω') :
+    voteCount O F p ω = voteCount O F p ω' := by
+  classical
+  unfold voteCount
+  exact congrArg Finset.card (Finset.filter_congr (fun v hv => by rw [mq_congr O (h v hv)]))
+
+lemma hammingLoss_congr (O : Oracle μ S) (F : Finset S) (c : ℕ) {P cands : Finset S}
+    (hF : F ⊆ cands) {ω ω' : Ω} {v : S} (hv : v ∈ cands)
+    (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    hammingLoss O F c P ω v = hammingLoss O F c P ω' v := by
+  classical
+  unfold hammingLoss
+  refine congrArg _ (congrArg Finset.card (Finset.filter_congr (fun p hp => ?_)))
+  rw [mq_congr O (h _ (mem_readSet hp hv)),
+    voteCount_congr O F p (fun v' hv' => h _ (mem_readSet hp (hF hv')))]
+
+lemma leastLossSubset_subset' (l : S → ℝ) (cands : Finset S) (k : ℕ) :
+    leastLossSubset l cands k ⊆ cands := by
+  classical
+  unfold leastLossSubset
+  split_ifs with hne
+  · exact (Finset.mem_powersetCard.mp (Finset.exists_min_image _ _ hne).choose_spec.1).1
+  · exact Finset.empty_subset _
+
+lemma clusterLoss_congr (O : Oracle μ S) (F : Finset S) (c : ℕ) (P cands : Finset S)
+    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    clusterLoss O F c P cands ω = clusterLoss O F c P cands ω' := by
+  classical
+  funext v
+  unfold clusterLoss
+  split_ifs with hv
+  · exact hammingLoss_congr O F c hF hv h
+  · rfl
+
+lemma lloydStep_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ) {F : Finset S}
+    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    lloydStep O c P cands ω k F = lloydStep O c P cands ω' k F := by
+  classical
+  unfold lloydStep
+  rw [clusterLoss_congr O F c P cands hF h]
+
+lemma lloydStep_subset (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    {F : Finset S} (hF : F ⊆ cands) : lloydStep O c P cands ω k F ⊆ cands := by
+  classical
+  unfold lloydStep
+  split_ifs
+  · exact leastLossSubset_subset' _ _ _
+  · exact hF
+
+lemma lloydIterate_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ)
+    {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    ∀ (n : ℕ) (F : Finset S), F ⊆ cands →
+      (lloydStep O c P cands ω k)^[n] F = (lloydStep O c P cands ω' k)^[n] F := by
+  intro n
+  induction n with
+  | zero => intro F _; rw [Function.iterate_zero_apply, Function.iterate_zero_apply]
+  | succ n ih =>
+      intro F hF
+      calc (lloydStep O c P cands ω k)^[n + 1] F
+          = (lloydStep O c P cands ω k)^[n] (lloydStep O c P cands ω k F) :=
+            Function.iterate_succ_apply _ _ _
+        _ = (lloydStep O c P cands ω k)^[n] (lloydStep O c P cands ω' k F) :=
+            congrArg (fun z => (lloydStep O c P cands ω k)^[n] z)
+              (lloydStep_congr O c P cands k hF h)
+        _ = (lloydStep O c P cands ω' k)^[n] (lloydStep O c P cands ω' k F) :=
+            ih _ (lloydStep_subset O c P cands ω' k hF)
+        _ = (lloydStep O c P cands ω' k)^[n + 1] F :=
+            (Function.iterate_succ_apply _ _ _).symm
+
+/-- **The cluster reads only `readSet`.**  Two noise draws agreeing at `p · v` for every
+representative prefix and candidate suffix give the same family — so neither the family nor
+any vote cast with it is decided by the oracle's bit at a bare prefix, which is the bit the
+gate scores. -/
+lemma clusterAround_congr (O : Oracle μ S) (c : ℕ) (P cands : Finset S) (k : ℕ)
+    {ω ω' : Ω} (hone : (1 : S) ∈ cands)
+    (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    clusterAround O c P cands ω k = clusterAround O c P cands ω' k :=
+  lloydIterate_congr O c P cands k h _ _ (by simpa using hone)
 
 /-! ### The prefix alphabet
 
