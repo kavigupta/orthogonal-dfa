@@ -324,18 +324,12 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 
 #print axioms chosen_avoids_bad_whp
 
-/-- A theory of strings: concatenation `concat p v` (prefix `p`, suffix `v`, both
-strings of type `S`), right-cancellative — appending a fixed suffix is injective on
-prefixes.  This is all the string structure the oracle needs, kept out of the
-oracle itself. -/
-structure Strings (S : Type*) where
-  concat : S → S → S
-  /-- `p ↦ p·v` is injective: distinct prefixes give distinct query strings. -/
-  concat_injective : ∀ v, Function.Injective (fun p => concat p v)
-
 /-- The persistent signal oracle: random classification noise on query strings.
-Concatenation is *not* here — a query string is just a string `w : S`, and the
-prefix·suffix map lives in `Strings`. -/
+Concatenation is *not* here — a query string is just a string `w : S`.  Strings are
+modelled by the standard Mathlib theory: `[Mul S]` is concatenation and
+`[IsRightCancelMul S]` (right-cancellation, `mul_left_injective`) says appending a
+fixed suffix is injective on prefixes.  The free monoid `FreeMonoid`/`List` is one
+instance; `S` is kept abstract. -/
 structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*) where
   /-- The random classification noise, one persistent bit per query string. -/
   noise : S → Ω → ℝ
@@ -347,11 +341,12 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
-  flip : S → ℕ → ℝ
-  flip_bit : ∀ v i, flip v i = 0 ∨ flip v i = 1
+  /-- Whether suffix `v` flips the state read at prefix `p` (both strings). -/
+  flip : S → S → ℝ
+  flip_bit : ∀ v p, flip v p = 0 ∨ flip v p = 1
 
 namespace Oracle
-variable {S : Type*} (O : Oracle μ S)
+variable {S : Type*} [Mul S] (O : Oracle μ S)
 
 /-- **Derived** boundedness: a `{0,1}` bit lies in `[0,1]` (what the Hoeffding
 bounds consume). -/
@@ -360,84 +355,85 @@ lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := b
   rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
 
 /-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of suffix `v` on
-prefix `i` (of the enumeration `pref`), where the noise is that of the concatenated
-query string `pref i · v` (concatenation from the `Strings` theory). -/
-noncomputable def read (Str : Strings S) (pref : ℕ → S) (v : S) (i : ℕ) : Ω → ℝ :=
-  fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise (Str.concat (pref i) v) ω
+the `i`-th prefix `pref i` (both strings), where the noise is that of the
+concatenated query string `pref i · v` (`·` = the string `Mul`). -/
+noncomputable def read (pref : ℕ → S) (v : S) (i : ℕ) : Ω → ℝ :=
+  fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω
 
-variable (Str : Strings S) (pref : ℕ → S)
+variable (pref : ℕ → S)
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w) (O.noise_icc w)
 
 /-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
-oracle, not a field): `E[read v i] = η + (1−2η)·flip v i`. -/
-lemma read_mean (v i) : μ[O.read Str pref v i] = O.η + (1 - 2 * O.η) * O.flip v i := by
-  have h := read_disagreement_mean μ O.η (O.flip v i) (O.noise (Str.concat (pref i) v))
+oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
+lemma read_mean (v i) :
+    μ[O.read pref v i] = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by
+  have h := read_disagreement_mean μ O.η (O.flip v (pref i)) (O.noise (pref i * v))
     (O.noise_int _) (O.noise_mean _)
-  calc μ[O.read Str pref v i]
-      = ∫ ω, (O.flip v i + (1 - 2 * O.flip v i) * O.noise (Str.concat (pref i) v) ω) ∂μ := rfl
-    _ = O.η + O.flip v i * (1 - 2 * O.η) := h
-    _ = O.η + (1 - 2 * O.η) * O.flip v i := by ring
+  calc μ[O.read pref v i]
+      = ∫ ω, (O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω) ∂μ := rfl
+    _ = O.η + O.flip v (pref i) * (1 - 2 * O.η) := h
+    _ = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by ring
 
-lemma read_meas (v i) : AEMeasurable (O.read Str pref v i) μ := by
+lemma read_meas (v i) : AEMeasurable (O.read pref v i) μ := by
   show AEMeasurable
-    (fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise (Str.concat (pref i) v) ω) μ
+    (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω) μ
   exact aemeasurable_const.add (aemeasurable_const.mul (O.noise_meas _))
 
 /-- **Derived** per-suffix independence across prefixes.  The reads of `v` across
-distinct prefixes hit *distinct* query strings (`pref` injective, composed with the
-`Strings` right-cancellation), so they are an injective reindexing of the per-string
-iid noise — independent by `iIndepFun.precomp`. -/
-lemma read_indep (hpref : Function.Injective pref) (v) :
-    iIndepFun (O.read Str pref v) μ := by
-  have hinj : Function.Injective (fun i => Str.concat (pref i) v) :=
-    (Str.concat_injective v).comp hpref
-  have h1 : iIndepFun (fun i => O.noise (Str.concat (pref i) v)) μ := O.noise_indep.precomp hinj
-  exact h1.comp (fun i x => O.flip v i + (1 - 2 * O.flip v i) * x)
+distinct prefixes hit *distinct* query strings (`pref` injective, composed with
+right-cancellation `mul_left_injective`), so they are an injective reindexing of the
+per-string iid noise — independent by `iIndepFun.precomp`. -/
+lemma read_indep [IsRightCancelMul S] (hpref : Function.Injective pref) (v) :
+    iIndepFun (O.read pref v) μ := by
+  have hinj : Function.Injective (fun i => pref i * v) :=
+    (mul_left_injective v).comp hpref
+  have h1 : iIndepFun (fun i => O.noise (pref i * v)) μ := O.noise_indep.precomp hinj
+  exact h1.comp (fun i x => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * x)
     (fun _ => measurable_const.add (measurable_const.mul measurable_id))
 
-lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read Str pref v i ω ∈ Set.Icc (0 : ℝ) 1 := by
-  filter_upwards [O.noise_icc (Str.concat (pref i) v)] with ω hω
+lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards [O.noise_icc (pref i * v)] with ω hω
   rw [Set.mem_Icc] at hω
-  have hr : O.read Str pref v i ω
-      = O.flip v i + (1 - 2 * O.flip v i) * O.noise (Str.concat (pref i) v) ω := rfl
+  have hr : O.read pref v i ω
+      = O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω := rfl
   rw [hr, Set.mem_Icc]
-  rcases O.flip_bit v i with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
+  rcases O.flip_bit v (pref i) with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
 
 end Oracle
 
-theorem greedy_picks_good {S : Type*} [DecidableEq S] (O : Oracle μ S)
-    (Str : Strings S) (pref : ℕ → S) (hpref : Function.Injective pref)
+theorem greedy_picks_good {S : Type*} [DecidableEq S] [Mul S] [IsRightCancelMul S]
+    (O : Oracle μ S) (pref : ℕ → S) (hpref : Function.Injective pref)
     (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
     (hdisj : ∀ v, bad v → ¬ good v)
     (cands : Finset S) (k m : ℕ) (εcov : ℝ)
-    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, O.flip v i = 0)
-    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, O.flip v i)
+    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, O.flip v (pref i) = 0)
+    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, O.flip v (pref i))
     (hεcov0 : 0 ≤ εcov)
     (goodCount : k ≤ (cands.filter good).card)
     (chosen : Ω → Finset S)
     (hsub : ∀ ω, chosen ω ⊆ cands) (hcard : ∀ ω, (chosen ω).card = k)
     (hleast : ∀ ω, ∀ v ∈ chosen ω, ∀ w ∈ cands, w ∉ chosen ω →
-        (∑ i ∈ Finset.range m, O.read Str pref v i ω)
-          ≤ ∑ i ∈ Finset.range m, O.read Str pref w i ω) :
+        (∑ i ∈ Finset.range m, O.read pref v i ω)
+          ≤ ∑ i ∈ Finset.range m, O.read pref w i ω) :
     μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
       ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - O.η) * εcov) ^ 2) := by
-  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read Str pref v i]
-      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v i := by
+  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read pref v i]
+      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v (pref i) := by
     intro v
-    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (O.flip v)
-      (O.read Str pref v) (fun j => by rw [O.read_mean]; ring)
+    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (fun i => O.flip v (pref i))
+      (O.read pref v) (fun j => by rw [O.read_mean]; ring)
     rw [h]; ring
   have hgm : ∀ v ∈ cands, good v →
-      ∑ i ∈ Finset.range m, μ[O.read Str pref v i] ≤ (m : ℝ) * O.η := by
+      ∑ i ∈ Finset.range m, μ[O.read pref v i] ≤ (m : ℝ) * O.η := by
     intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
   have hbm : ∀ v ∈ cands, bad v →
-      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read Str pref v i] := by
+      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
     intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
   refine chosen_avoids_bad_whp good bad hdisj cands k m O.η (O.η + (1 - 2 * O.η) * εcov)
-    ((1 / 2 - O.η) * εcov) (O.read Str pref) (O.read_meas Str pref) (O.read_indep Str pref hpref)
-    (O.read_icc Str pref) hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
+    ((1 / 2 - O.η) * εcov) (O.read pref) (O.read_meas pref) (O.read_indep pref hpref)
+    (O.read_icc pref) hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
   · nlinarith [hεcov0, O.hη]
   · have : (0 : ℝ) ≤ 1 / 2 - O.η := by linarith [O.hη]
     exact mul_nonneg this hεcov0
