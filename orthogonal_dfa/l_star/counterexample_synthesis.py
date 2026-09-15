@@ -90,31 +90,19 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _take_indecisive(resolver, target):
+def _accumulate_indecisive(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+    already hold, returning how many.
+
+    Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
+    sample every run.
     """
-    Take up to target of the round's boundary strings.
-
-    The set is sorted then shuffled with a fixed rng, so the
-    cap picks the same unbiased sample every run.
-    """
-    ordered = sorted(resolver.indecisive)
-    np.random.default_rng(0).shuffle(ordered)
-    return ordered[:target]
-
-
-def _keep_indecisive(resolver, state, room):
-    """Take up to ``room`` more of the round's boundary strings.
-
-    Reading every leaf's members turns up strings the round's own probing never
-    reached, but the pool they would have joined is built by then, so these go
-    to the next round's.  Sorted then shuffled with a fixed rng, as
-    `_take_indecisive` is and for the same reason.
-    """
-    fresh = sorted(resolver.indecisive - state.seen)
-    np.random.default_rng(0).shuffle(fresh)
-    for string in fresh[:room]:
+    taken = sorted(resolver.indecisive - state.seen)
+    np.random.default_rng(0).shuffle(taken)
+    for string in taken[:wanted]:
         state.seen.add(string)
         state.accumulated.append(string)
+    return min(wanted, len(taken))
 
 
 class _PoolState:
@@ -169,13 +157,8 @@ def _grow_representative_pool(
     dfa,
     state,
     *,
-    target,
     per_state,
 ):
-    for t in _take_indecisive(resolver, target):
-        if t not in state.seen:
-            state.seen.add(t)
-            state.accumulated.append(t)
     by_state = _per_state_members(pst, resolver, dfa, per_state)
     state.sampled = sorted({m for members in by_state.values() for m in members})
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
@@ -319,19 +302,14 @@ def counterexample_driven_synthesis(
                 f"{acc_threshold:.4f}; stopping synthesis"
             )
             return best
-        # The round's boundary intake, which its own probing and then the
-        # sweep fill between them.
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        held = len(state.accumulated)
-        pool = _grow_representative_pool(
-            pst, resolver, dfa, state, target=target, per_state=per_state
-        )
+        taken = _accumulate_indecisive(resolver, state, target)
+        pool = _grow_representative_pool(pst, resolver, dfa, state, per_state=per_state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
             f"{len(state.accumulated)} boundary strings harvested so far"
         )
-        # After the rebuild: the sweep reads each leaf's members, and this
-        # round's draws are what it has to read.
+        # Must follow the rebuild: this reads the leaf members it just drew.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
@@ -343,7 +321,7 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
-        _keep_indecisive(resolver, state, target - (len(state.accumulated) - held))
+        _accumulate_indecisive(resolver, state, target - taken)
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
