@@ -469,6 +469,19 @@ consumes: the mask rows are read through this cut to identify states. -/
 def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
   (hi < voteCount O F p ω → O.label p = 1) ∧ (voteCount O F p ω ≤ lo → O.label p = 0)
 
+/-- **The seed's column is read at a different string from the split.**  The gate counts
+`mq p`, the oracle at `p`; the split reads `p · v` for the family members `v`.  With `ε`
+dropped from the family those strings are all distinct from `p`, so the persistent oracle's
+bits at them are independent of the bit being scored.
+
+This is what makes the accept side usable in `splitAcc_sound`.  That lemma needs the side
+`A` fixed, but `A` is `ω`-dependent; it is determined by the reads at `p · v`, and those are
+independent of the reads at `p`, so conditioning on the votes fixes `A` without disturbing
+the law of the hits.  Without dropping `ε` the side would be partly determined by the very
+bit the gate counts, and no conditioning would separate them. -/
+lemma mul_ne_self (p v : S) (hv : v ≠ 1) : p * v ≠ p := fun h =>
+  hv (mul_left_cancel (a := p) (by rw [h, mul_one]))
+
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
@@ -825,6 +838,45 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
       ∀ B, (runLaw μ D Dsf).real
         (ret O populations indecisionLimit α B ∩ FailAt O populations D εcov B) ≤ w B :=
   sorry
+
+/-! ### The argument `exists_budget_weight` needs
+
+At a state `B`, suppose the family `F = clusterAt O populations x B` passes both gates and
+yet some population `j` has `(D j) {p | ¬ cutCorrect …} > εcov`.  Write `W` for that
+wrong-set.  `W` depends on `ω` and on the pool and table draws, but **not** on the
+certification draws, which are fresh.
+
+1. *The sample sees the wrongness.*  Conditionally on `ω` and the table draws, `W` is a
+   fixed set and `cert j 0 … cert j (m-1)` are i.i.d. from `D j`, so at least `εcov·m/2` of
+   them land in `W` except with probability `exp(−2m(εcov/2)²)`.  Plain Hoeffding over the
+   draws; no noise enters, which is why the fresh stream matters twice over.
+
+2. *The draws are distinct.*  Reads at a repeated string are the same bit, so step 3 needs
+   the certification prefixes distinct from each other and from the table prefixes.
+   `pi_not_injective_le` bounds the first at `m²ρ`; the cross-collisions need the same
+   computation against `prefixesOf`.  This is what `hρsmall` pays for.
+
+3. *The gate cannot pass on a wrong cut.*  A prefix in `W` on the accept side has
+   `label = 0`, so its seed read is accepting with probability `η` rather than `1 − η`;
+   by `mq_mean` a `γ` fraction of such prefixes drags the side's mean down by
+   `γ(1 − 2η)`.  `splitAcc_sound` then bounds the chance the count still clears
+   `|A|·(hi/k)`, and `splitRej_sound` the mirror.  `admittedCount_of_admitted` is what turns
+   the gate's binomial tails into that count condition.
+
+   The side `A` is `ω`-dependent, which is what `mul_ne_self` resolves: `A` is determined by
+   the reads at `p · v` for `v ∈ F.erase 1`, all distinct from `p`, so conditioning on the
+   votes fixes `A` while leaving the hits' law alone.  `splitAcc_sound` then applies to the
+   conditioned law.
+
+4. *Assemble.*  Steps 1–3 bound the per-state failure by
+   `exp(−2m(εcov/2)²) + C·m²ρ + exp(−2|A|τ²)` with `τ` the drift gap from step 3.  Any
+   summable envelope over `Budget` dominating that serves as `w`; `hδ` and `hεcov` are spent
+   choosing it.
+
+Steps 1 and 2 rest on lemmas already proved here (`mq_*`, `pi_coord_eq`,
+`pi_not_injective_le`); step 3 rests on `splitAcc_sound`/`splitRej_sound` plus the two
+binomial-median facts.  What is not yet written is the conditioning in step 3 and the
+envelope in step 4. -/
 
 theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
