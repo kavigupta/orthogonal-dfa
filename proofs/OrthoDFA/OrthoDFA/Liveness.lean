@@ -324,49 +324,91 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 
 #print axioms chosen_avoids_bad_whp
 
-/-- **Clean liveness: the greedy picks an accept-preserving family, w.h.p.**
-Every premise is either the oracle model, the language/target, or findability —
-no `trigger`/`himplies` machinery.  The loss means are *derived* from the oracle:
-by `read_disagreement_mean`/`denoised_loss_eq_flip`, `∑ᵢ E[D v i] = m·η +
-(1−2η)·(flip count of v)`, so a strictly-accept-preserving `v` (flips nothing on
-the pool) has mean loss `m·η`, and a bad `v` (flips ≥ `ε_cov` of the pool) has mean
-loss `≥ m·(η + (1−2η)·ε_cov)`.  These are exactly the separability bounds
-`chosen_avoids_bad_whp` needs, so the greedy's least-loss `k`-subset avoids the bad
-set except w.p. `#cands·exp(−2m·((½−η)·ε_cov)²)`. -/
-theorem greedy_picks_good {S : Type*} [DecidableEq S]
+/-- The persistent signal oracle, bundled as random classification noise — the
+*genuine* model, nothing derived asserted.  `noise v i` is the iid `Bernoulli(η)`
+noise bit on the string `x_i·v` (rate `η`, independent across strings, in `[0,1]`,
+mean `η`); `flip v i ∈ {0,1}` marks whether `v` flips `x_i`'s state (from the
+language).  The disagreement read and its mean/independence/range are *derived*
+below, not fields. -/
+structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (S : Type*) where
+  noise : S → ℕ → Ω → ℝ
+  η : ℝ
+  hη : η ≤ 1 / 2
+  noise_meas : ∀ v i, AEMeasurable (noise v i) μ
+  noise_indep : ∀ v, iIndepFun (noise v) μ
+  noise_icc : ∀ v i, ∀ᵐ ω ∂μ, noise v i ω ∈ Set.Icc (0 : ℝ) 1
+  noise_mean : ∀ v i, μ[noise v i] = η
+  flip : S → ℕ → ℝ
+  flip_bit : ∀ v i, flip v i = 0 ∨ flip v i = 1
+
+namespace Oracle
+variable {S : Type*} (O : Oracle μ S)
+
+/-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of `v` on
+prefix `i` (the loss the clustering sees). -/
+noncomputable def read (v : S) (i : ℕ) : Ω → ℝ :=
+  fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω
+
+lemma noise_int (v i) : Integrable (O.noise v i) μ :=
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas v i) (O.noise_icc v i)
+
+/-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
+oracle, not a field): `E[read v i] = η + (1−2η)·flip v i`. -/
+lemma read_mean (v i) : μ[O.read v i] = O.η + (1 - 2 * O.η) * O.flip v i := by
+  have h := read_disagreement_mean μ O.η (O.flip v i) (O.noise v i) (O.noise_int v i)
+    (O.noise_mean v i)
+  calc μ[O.read v i]
+      = ∫ ω, (O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω) ∂μ := rfl
+    _ = O.η + O.flip v i * (1 - 2 * O.η) := h
+    _ = O.η + (1 - 2 * O.η) * O.flip v i := by ring
+
+lemma read_meas (v i) : AEMeasurable (O.read v i) μ := by
+  show AEMeasurable (fun ω => O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω) μ
+  exact aemeasurable_const.add (aemeasurable_const.mul (O.noise_meas v i))
+
+lemma read_indep (v) : iIndepFun (O.read v) μ :=
+  (O.noise_indep v).comp (fun i x => O.flip v i + (1 - 2 * O.flip v i) * x)
+    (fun _ => measurable_const.add (measurable_const.mul measurable_id))
+
+lemma read_icc (v i) : ∀ᵐ ω ∂μ, O.read v i ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards [O.noise_icc v i] with ω hω
+  rw [Set.mem_Icc] at hω
+  have hr : O.read v i ω = O.flip v i + (1 - 2 * O.flip v i) * O.noise v i ω := rfl
+  rw [hr, Set.mem_Icc]
+  rcases O.flip_bit v i with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
+
+end Oracle
+
+theorem greedy_picks_good {S : Type*} [DecidableEq S] (O : Oracle μ S)
     (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
     (hdisj : ∀ v, bad v → ¬ good v)
-    (cands : Finset S) (k m : ℕ) (η εcov : ℝ)
-    (D : S → ℕ → Ω → ℝ) (flip : S → ℕ → ℝ)
-    (hmeas : ∀ v i, AEMeasurable (D v i) μ)
-    (hindep : ∀ v, iIndepFun (D v) μ)
-    (hIcc : ∀ v i, ∀ᵐ ω ∂μ, D v i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hread : ∀ v i, μ[D v i] = η + (1 - 2 * η) * flip v i)
-    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, flip v i = 0)
-    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, flip v i)
-    (hη : η ≤ 1 / 2) (hεcov0 : 0 ≤ εcov)
+    (cands : Finset S) (k m : ℕ) (εcov : ℝ)
+    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, O.flip v i = 0)
+    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, O.flip v i)
+    (hεcov0 : 0 ≤ εcov)
     (goodCount : k ≤ (cands.filter good).card)
     (chosen : Ω → Finset S)
     (hsub : ∀ ω, chosen ω ⊆ cands) (hcard : ∀ ω, (chosen ω).card = k)
     (hleast : ∀ ω, ∀ v ∈ chosen ω, ∀ w ∈ cands, w ∉ chosen ω →
-        (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω) :
+        (∑ i ∈ Finset.range m, O.read v i ω) ≤ ∑ i ∈ Finset.range m, O.read w i ω) :
     μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
-      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - η) * εcov) ^ 2) := by
-  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[D v i]
-      = (m : ℝ) * η + (1 - 2 * η) * ∑ i ∈ Finset.range m, flip v i := by
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - O.η) * εcov) ^ 2) := by
+  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read v i]
+      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v i := by
     intro v
-    have h := denoised_loss_eq_flip (μ := μ) m η (1 / 2 - η) (flip v) (D v)
-      (fun j => by rw [hread]; ring)
+    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (O.flip v) (O.read v)
+      (fun j => by rw [O.read_mean]; ring)
     rw [h]; ring
-  have hgm : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, μ[D v i] ≤ (m : ℝ) * η := by
+  have hgm : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, μ[O.read v i] ≤ (m : ℝ) * O.η := by
     intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
   have hbm : ∀ v ∈ cands, bad v →
-      (m : ℝ) * (η + (1 - 2 * η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[D v i] := by
-    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, hη]
-  refine chosen_avoids_bad_whp good bad hdisj cands k m η (η + (1 - 2 * η) * εcov)
-    ((1 / 2 - η) * εcov) D hmeas hindep hIcc hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
-  · nlinarith [hεcov0, hη]
-  · have : (0 : ℝ) ≤ 1 / 2 - η := by linarith
+      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read v i] := by
+    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
+  refine chosen_avoids_bad_whp good bad hdisj cands k m O.η (O.η + (1 - 2 * O.η) * εcov)
+    ((1 / 2 - O.η) * εcov) O.read O.read_meas O.read_indep O.read_icc hgm hbm ?_ ?_ goodCount
+    chosen hsub hcard hleast
+  · nlinarith [hεcov0, O.hη]
+  · have : (0 : ℝ) ≤ 1 / 2 - O.η := by linarith [O.hη]
     exact mul_nonneg this hεcov0
 
 #print axioms greedy_picks_good
