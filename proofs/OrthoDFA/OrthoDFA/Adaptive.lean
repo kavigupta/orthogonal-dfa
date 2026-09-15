@@ -1434,9 +1434,10 @@ Unlike the pool-size coupling that #284 retired, the bound needed here is *fixed
 relative to `εcov` and `δ`, not growing with the budget. -/
 noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
 
-/-- Two independent draws coincide with probability exactly the collision mass. -/
-lemma prod_diagonal_eq_collisionMass (Dj : Measure S) [IsProbabilityMeasure Dj] :
-    (Dj.prod Dj).real {q : S × S | q.1 = q.2} = collisionMass Dj := by
+/-- Two independent draws, from possibly different populations, coincide with probability
+`∑ₐ D₁{a}·D₂{a}`. -/
+lemma prod_diagonal_eq (D₁ D₂ : Measure S) [IsProbabilityMeasure D₁] [IsProbabilityMeasure D₂] :
+    (D₁.prod D₂).real {q : S × S | q.1 = q.2} = ∑' a : S, D₁.real {a} * D₂.real {a} := by
   classical
   have hdiag : {q : S × S | q.1 = q.2} = ⋃ a : S, {((a, a) : S × S)} := by
     ext q; simp [Prod.ext_iff, eq_comm]
@@ -1445,13 +1446,40 @@ lemma prod_diagonal_eq_collisionMass (Dj : Measure S) [IsProbabilityMeasure Dj] 
     simp only [Function.onFun, Set.disjoint_singleton]
     exact fun h => hab (congrArg Prod.fst h)
   rw [measureReal_def, hdiag, measure_iUnion hdisj (fun a => measurableSet_singleton _),
-    collisionMass]
-  rw [ENNReal.tsum_toReal_eq (fun a => by
-    simp only [← Set.singleton_prod_singleton, Measure.prod_prod]
-    exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
-  refine tsum_congr (fun a => ?_)
-  rw [← Set.singleton_prod_singleton, Measure.prod_prod, ENNReal.toReal_mul, sq,
-    measureReal_def]
+    ENNReal.tsum_toReal_eq (fun a => by
+      simp only [← Set.singleton_prod_singleton, Measure.prod_prod]
+      exact ENNReal.mul_ne_top (measure_ne_top _ _) (measure_ne_top _ _))]
+  exact tsum_congr (fun a => by
+    rw [← Set.singleton_prod_singleton, Measure.prod_prod, ENNReal.toReal_mul, measureReal_def,
+      measureReal_def])
+
+/-- Two independent draws coincide with probability exactly the collision mass. -/
+lemma prod_diagonal_eq_collisionMass (Dj : Measure S) [IsProbabilityMeasure Dj] :
+    (Dj.prod Dj).real {q : S × S | q.1 = q.2} = collisionMass Dj := by
+  rw [prod_diagonal_eq Dj Dj, collisionMass]
+  exact tsum_congr (fun a => (sq _).symm)
+
+/-- **Draws from two populations collide no more often than within one.**  By `ab ≤ (a²+b²)/2`
+pointwise, so the certification stream's cross-collisions with the table stream are paid for
+by the same `ρ`. -/
+lemma cross_collision_le (D₁ D₂ : Measure S) [IsProbabilityMeasure D₁] [IsProbabilityMeasure D₂]
+    (ρ : ℝ) (h₁ : collisionMass D₁ ≤ ρ) (h₂ : collisionMass D₂ ≤ ρ)
+    (hs₁ : Summable (fun a : S => D₁.real {a} ^ 2)) (hs₂ : Summable (fun a : S => D₂.real {a} ^ 2)) :
+    (D₁.prod D₂).real {q : S × S | q.1 = q.2} ≤ ρ := by
+  rw [prod_diagonal_eq D₁ D₂]
+  have hle : ∀ a : S, D₁.real {a} * D₂.real {a}
+      ≤ (D₁.real {a} ^ 2 + D₂.real {a} ^ 2) / 2 := by
+    intro a; nlinarith [sq_nonneg (D₁.real {a} - D₂.real {a})]
+  have hsum : Summable (fun a : S => (D₁.real {a} ^ 2 + D₂.real {a} ^ 2) / 2) :=
+    (hs₁.add hs₂).div_const 2
+  have hprod : Summable (fun a : S => D₁.real {a} * D₂.real {a}) :=
+    Summable.of_nonneg_of_le
+      (fun a => mul_nonneg measureReal_nonneg measureReal_nonneg) hle hsum
+  calc ∑' a : S, D₁.real {a} * D₂.real {a}
+      ≤ ∑' a : S, (D₁.real {a} ^ 2 + D₂.real {a} ^ 2) / 2 := hprod.tsum_le_tsum hle hsum
+    _ = (collisionMass D₁ + collisionMass D₂) / 2 := by
+        rw [tsum_div_const, hs₁.tsum_add hs₂, collisionMass, collisionMass]
+    _ ≤ ρ := by linarith
 
 open scoped Classical in
 /-- Two fixed coordinates of an i.i.d. block coincide with exactly the collision mass. -/
