@@ -279,25 +279,26 @@ theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
     _ ≤ (cands.card : ℝ) * E := by
         apply mul_le_mul_of_nonneg_right hcards hEnn
 
-/-- **Per-prefix disagreement mean, derived from the oracle read model.**
-The read `R = MQ(x·v)` has, by the (β=½) signal oracle, mean
-`½ + s·(2·mem − 1)` where `mem = b XOR f` is the membership of `x·v` (`b` the true
-membership of `x`, `f = flip`).  The disagreement with the denoised centre `b` is
-`b + (1−2b)·R` (which is `1[R ≠ b]` for a `{0,1}` read).  Its mean is then
-`(½ − s) + 2s·f` — the decomposition `c₀ + 2s·flip`, with `c₀ = ½ − s`, **derived**,
-not assumed.  So a flip shifts the expected disagreement by exactly `2s`. -/
+/-- **Per-prefix disagreement mean, from random classification noise.**
+The oracle is `MQ(x) = ℓ(x) ⊕ r(x)` with `ℓ` the true label and `r(x) ∼
+Bernoulli(η)` iid.  The disagreement of `MQ(x·v)` with the denoised centre `ℓ(x)`
+reduces (XOR algebra) to `flip ⊕ r`, i.e. `flip + (1−2·flip)·r`, where
+`flip = 1[v flips x]` and `r = r(x·v)` is the noise bit.  Its mean is, by linearity
+from `E[r] = η`,
+    `η + flip·(1 − 2η)`,
+so a flip shifts expected disagreement by exactly `1 − 2η = 2s` (signal `s = ½−η`).
+Baseline `η` is common to all suffixes; the flip term is the discriminating signal.
+Derived, not assumed. -/
 theorem read_disagreement_mean {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    [IsProbabilityMeasure μ] (s b f : ℝ)
-    (hb : b = 0 ∨ b = 1) (hf : f = 0 ∨ f = 1)
-    (R : Ω → ℝ) (hRint : Integrable R μ)
-    (hER : ∫ ω, R ω ∂μ = 1 / 2 + s * (2 * (b + f - 2 * b * f) - 1)) :
-    ∫ ω, (b + (1 - 2 * b) * R ω) ∂μ = (1 / 2 - s) + 2 * s * f := by
-  have h1 : ∫ ω, (b + (1 - 2 * b) * R ω) ∂μ = b + (1 - 2 * b) * ∫ ω, R ω ∂μ := by
-    rw [integral_add (integrable_const b) (hRint.const_mul (1 - 2 * b)),
+    [IsProbabilityMeasure μ] (η flip : ℝ)
+    (r : Ω → ℝ) (hrint : Integrable r μ) (hEr : ∫ ω, r ω ∂μ = η) :
+    ∫ ω, (flip + (1 - 2 * flip) * r ω) ∂μ = η + flip * (1 - 2 * η) := by
+  have h1 : ∫ ω, (flip + (1 - 2 * flip) * r ω) ∂μ
+      = flip + (1 - 2 * flip) * ∫ ω, r ω ∂μ := by
+    rw [integral_add (integrable_const flip) (hrint.const_mul (1 - 2 * flip)),
       integral_const_mul]
     simp
-  rw [h1, hER]
-  rcases hb with rfl | rfl <;> rcases hf with rfl | rfl <;> ring
+  rw [h1, hEr]; ring
 
 #print axioms read_disagreement_mean
 

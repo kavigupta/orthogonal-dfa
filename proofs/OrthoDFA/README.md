@@ -12,9 +12,11 @@ The clustering guarantee is stated in the algorithm's own terms — prefixes, or
 reads, and membership bits `1[x∈L]`. No DFA, no Myhill–Nerode: the clustering
 operates at the ε anchor, where the vote denoises membership directly.
 
-Model (`Hoeffding.lean`): the oracle gives, per query string, an independent read;
-a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
-`[0,1]`. A vote of `k` suffixes averages `k` such reads.
+Model: **random classification noise** — `MQ(x) = ℓ(x) ⊕ r(x)`, where `ℓ(x) =
+1[x∈L]` is the true label and `r(x) ∼ Bernoulli(η)` is an iid persistent noise bit
+(one per string); signal `s = ½ − η`. So a member reads 1 w.p. `1−η = ½+s`, a
+non-member w.p. `η = ½−s`. A vote of `k` suffixes averages `k` such reads;
+everything downstream derives from `E[r] = η` and independence across strings.
 
 | Theorem | File | Statement |
 |---|---|---|
@@ -33,8 +35,8 @@ a member of `L` reads 1 with mean `β+s`, a non-member with `β-s`; reads lie in
 | `chosen_accept_preserving`, `chosen_accept_preserving_whp` | `Liveness.lean` | **Liveness core.** The ε-anchored greedy (least-loss `k`-subset) proposes an all-accept-preserving family — deterministically under loss-separability, and w.p. ≥ 1 − #cands·exp(−2mγ²) under *mean-loss separability* + concentration. This *derives* the good-pass instead of assuming it. |
 | `liveness_produces_good` | `Liveness.lean` | **Liveness, fused.** Separability ⇒ the round produces a family that is accept-preserving *and* clears the gate (a good pass), except w.p. ≤ #cands·exp(−2mγ²) + qgate (qgate the gate-reject bound from `cleanAdmit_le`/`apLowFNR_le`). |
 | `chosen_avoids_bad`, `chosen_avoids_bad_whp` | `Liveness.lean` | **Coverage-free liveness.** The greedy avoids the *bad* set (flip of D-mass ≥ ε_cov) w.p. ≥ 1 − #cands·exp(−2mγ²). `good`/`bad` are definitional w.r.t. the target ε_cov (D-mass of the flip), so the mean-loss bounds hold *by definition* and follow from a large D-pool — no coverage assumption. Borderline (D-negligible) flips may be chosen, which is fine. |
-| `read_disagreement_mean` | `Liveness.lean` | **Derives** the per-prefix disagreement mean `= c₀ + 2s·flip` (`c₀ = ½−s`) from the β=½ oracle read probability `E[R] = ½ + s(2·mem−1)`, `mem = b XOR flip`. A flip shifts expected disagreement by exactly `2s`. No longer assumed. |
-| `denoised_loss_eq_flip` | `Liveness.lean` | **Loss ↔ flip-mass.** Mean loss over `m` prefixes `= m·c₀ + 2s·(flip count)` — the sum of `read_disagreement_mean` over prefixes. Discharges the mean-separability hypotheses (`ρlo = c₀`, `ρhi = c₀ + 2s·ε_cov`, `γ = s·ε_cov`). |
+| `read_disagreement_mean` | `Liveness.lean` | **Derives**, from random classification noise `MQ = ℓ ⊕ r`, `r ∼ Bernoulli(η)` iid, that the per-prefix disagreement `flip ⊕ r` has mean `η + flip·(1−2η)` — pure linearity from `E[r]=η`. A flip shifts expected disagreement by exactly `1−2η = 2s`; baseline `η` is common. No longer assumed. |
+| `denoised_loss_eq_flip` | `Liveness.lean` | **Loss ↔ flip-mass.** Mean loss over `m` prefixes `= m·η + (1−2η)·(flip count)` — the sum of `read_disagreement_mean`. Discharges the mean-separability hypotheses (`ρlo = η`, `ρhi = η + (1−2η)·ε_cov`, `γ = (½−η)·ε_cov`). |
 
 The rate is held **per population**, never pooled — `clustering_correct` sums one
 term per population and per placement check, exactly the fix #257 makes.
