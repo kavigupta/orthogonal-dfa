@@ -231,11 +231,16 @@ abbrev Hist := List (ℕ × ℕ)
 noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range M).image (fun i => sfx i x)
 
+/-- Population `j`'s own representative prefixes at a budget: its first `m` draws, as a
+set — the table interns prefixes, so a repeated draw is one column, not two. -/
+noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
+  (Finset.range m).image (fun i => prf j i x)
+
 open scoped Classical in
-/-- The representative prefixes at a prefix budget: every population's first `m` draws. -/
+/-- The representative prefixes at a prefix budget: every population's, pooled. -/
 noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
     (x : Run Ω S J) : Finset S :=
-  populations.biUnion (fun j => (Finset.range m).image (fun i => prf j i x))
+  populations.biUnion (fun j => prefixesOf j m x)
 
 /-- The family's vote on a prefix: the mean membership query over the family. -/
 noncomputable def vote (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ :=
@@ -374,16 +379,21 @@ def decided (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω : 
 
 open scoped Classical in
 /-- **The loop's return test**: the FNR gate (PR #257: held per population, not over their
-union) at the state's own boundary and margin, **and** the accept-preserving gate.  A
+union) at the state's own boundary and margin, **and** the accept-preserving gate.
+
+Both gates read the *distinct* prefixes, as the code does — `fnr_from_decision` runs on
+`compute_decision(vs, table.representative)`, one entry per interned prefix.  Counting
+draws instead would weight each prefix by how often it came up, which is a different
+quantity and not the one the loop tests.  A
 family that fails either is not returned — `judge_family` sets its FNR to 1 and the loop
 samples more. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     (fpr accFnr indecisionLimit α : ℝ) (hM : Hist × (ℕ × ℕ)) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
-      (((Finset.range hM.2.2).filter (fun i => ¬ decided O
+      (((prefixesOf j hM.2.2 x).filter (fun p => ¬ decided O
           (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr
-          (famAt O populations fpr accFnr x hM.1 hM.2) (prf j i x) (nz x))).card : ℝ)
-        ≤ indecisionLimit * hM.2.2)
+          (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x))).card : ℝ)
+        ≤ indecisionLimit * (prefixesOf j hM.2.2 x).card)
     ∧ admitted O (boundaryAfter O populations fpr accFnr x hM.1) fpr accFnr α
         (famAt O populations fpr accFnr x hM.1 hM.2)
         (prefixesAt populations hM.2.2 x) (nz x)}
