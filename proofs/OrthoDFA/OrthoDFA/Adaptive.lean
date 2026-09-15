@@ -431,6 +431,115 @@ def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
         ≤ (D j).real {p | cutCorrect O (boundaryAfter O populations fpr accFnr x hM.1)
             fpr accFnr (famAt O populations fpr accFnr x hM.1 hM.2) p (nz x)}}
 
+/-! ### The seed column
+
+`mq O p` is the oracle's answer at `p · ε = p`: the column the gate reads its verdict off.
+Across *distinct* prefixes these are independent — one noise bit per query string — which
+is why `prefixesOf` being a `Finset` is what makes the gate's binomial null honest. -/
+
+lemma mq_meas (O : Oracle μ S) (p : S) : Measurable (mq O p) := by
+  show Measurable (fun ω => O.label p + (1 - 2 * O.label p) * O.noise p ω)
+  exact measurable_const.add (measurable_const.mul (O.noise_meas' p))
+
+lemma mq_indep (O : Oracle μ S) : iIndepFun (fun p : S => mq O p) μ :=
+  O.noise_indep.comp (fun p x => O.label p + (1 - 2 * O.label p) * x)
+    (fun _ => measurable_const.add (measurable_const.mul measurable_id))
+
+lemma mq_bit (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω = 0 ∨ mq O p ω = 1 := by
+  filter_upwards [O.noise_bit p] with ω hω
+  rcases O.label_bit p with hl | hl <;> rcases hω with hn | hn <;>
+    norm_num [mq, hl, hn]
+
+lemma mq_icc (O : Oracle μ S) (p : S) : ∀ᵐ ω ∂μ, mq O p ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards [mq_bit O p] with ω hω
+  rcases hω with h | h <;> rw [h] <;> norm_num
+
+/-- `E[mq p] = η + (1−2η)·ℓ(p)`: a truly-accepting prefix reads accepting with probability
+`1 − η`, a truly-rejecting one with probability `η`. -/
+lemma mq_mean (O : Oracle μ S) (p : S) : μ[mq O p] = O.η + (1 - 2 * O.η) * O.label p := by
+  have : μ[mq O p] = ∫ ω, (O.label p + (1 - 2 * O.label p) * O.noise p ω) ∂μ := rfl
+  rw [this, integral_add (integrable_const _) ((O.noise_int p).const_mul _), integral_const,
+    integral_const_mul, O.noise_mean p]
+  simp only [measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
+  ring
+
+open scoped Classical in
+/-- The gate's hit count *is* the sum of the column's reads: they are `0/1`. -/
+lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
+    ∀ᵐ ω ∂μ, ((A.filter (fun p => mq O p ω = 1)).card : ℝ) = ∑ p ∈ A, mq O p ω := by
+  filter_upwards [(ae_ball_iff A.countable_toSet).2 (fun p _ => mq_bit O p)] with ω hω
+  rw [← Finset.sum_filter_add_sum_filter_not A (fun p => mq O p ω = 1)]
+  have h1 : ∑ p ∈ A.filter (fun p => mq O p ω = 1), mq O p ω
+      = ((A.filter (fun p => mq O p ω = 1)).card : ℝ) := by
+    rw [Finset.sum_congr rfl (fun p hp => (Finset.mem_filter.mp hp).2), Finset.sum_const,
+      nsmul_eq_mul, mul_one]
+  have h0 : ∑ p ∈ A.filter (fun p => ¬ (mq O p ω = 1)), mq O p ω = 0 := by
+    refine Finset.sum_eq_zero (fun p hp => ?_)
+    obtain ⟨hpA, hne⟩ := Finset.mem_filter.mp hp
+    rcases hω p hpA with h | h
+    · exact h
+    · exact absurd h hne
+  rw [h1, h0, add_zero]
+
+open scoped Classical in
+/-- **The gate's accept side is sound.**  The prefixes the family accepts read as accepting
+on the seed's column at rate `η + (1−2η)·(true accepting fraction)`; so if enough of that
+side is *truly rejecting*, the count clears `|A|·accept_thresh` only with probability
+`exp(−2|A|τ²)`, where `τ` is the gap the drift opens.
+
+`A` is a fixed `Finset`, so the reads are independent (`mq_indep`) and this is Hoeffding.
+Taking `A` to be the family's own accept side needs the union over reachable cuts, which
+is the `M^k` cost `validity_of_returned` records. -/
+lemma splitAcc_sound (O : Oracle μ S) (A : Finset S) (θ τ : ℝ) (hτ : 0 ≤ τ)
+    (hmean : ∑ p ∈ A, (O.η + (1 - 2 * O.η) * O.label p) ≤ (A.card : ℝ) * (θ - τ)) :
+    μ.real {ω | (A.card : ℝ) * θ ≤ ((A.filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ Real.exp (-2 * (A.card : ℝ) * τ ^ 2) := by
+  have hsum := wrongDecisive_le (fun p => mq O p) A (θ - τ) τ
+    (fun p => (mq_meas O p).aemeasurable) (mq_indep O) (fun p => mq_icc O p)
+    (by rw [Finset.sum_congr rfl (fun p _ => mq_mean O p)]; exact hmean) hτ
+  have hsub : {ω | (A.card : ℝ) * θ ≤ ((A.filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ᵐ[μ] {ω | (A.card : ℝ) * ((θ - τ) + τ) ≤ ∑ p ∈ A, mq O p ω} := by
+    filter_upwards [hits_eq_sum O A] with ω hω hmem
+    have hge : (A.card : ℝ) * θ ≤ ∑ p ∈ A, mq O p ω := hω ▸ hmem
+    show (A.card : ℝ) * ((θ - τ) + τ) ≤ ∑ p ∈ A, mq O p ω
+    have hrw : (A.card : ℝ) * ((θ - τ) + τ) = (A.card : ℝ) * θ := by ring
+    rw [hrw]; exact hge
+  exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
+
+/-! ### The gate in counting form
+
+The soundness argument does not need the binomial tails themselves, only what they force
+about the counts.  `admitted` is kept faithful to `drift_verdict`; `admittedCount` is the
+consequence everything downstream uses. -/
+
+/-- A tail at most `α < ½` sits strictly above the mean: the median of `Bin(n,θ)` is at
+least `⌊nθ⌋`, so `P[X ≥ j] ≥ ½` for any `j ≤ ⌊nθ⌋`.  (Kaas–Buhrman; not in Mathlib.) -/
+theorem lt_of_binomSfGe_le (n : ℕ) (θ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1)
+    (hα : α < 1 / 2) (h : binomSfGe n θ j ≤ α) : (n : ℝ) * θ < j :=
+  sorry
+
+/-- The lower-tail counterpart: `P[X ≤ j] ≤ α < ½` forces `j` strictly below the mean. -/
+theorem lt_of_binomCdf_le (n : ℕ) (θ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1)
+    (hα : α < 1 / 2) (h : binomCdf n θ j ≤ α) : (j : ℝ) < n * θ :=
+  sorry
+
+/-- What `admitted` forces about the counts: the accepted side reads as accepting at least
+as often as `accept_thresh` claims, the rejected side at most as often as `reject_thresh`
+does.  This is all the soundness argument uses. -/
+def admittedCount (O : Oracle μ S) (b fpr accFnr : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+  ((splitAcc O b fpr accFnr F P ω).2 : ℝ) * cfgAcc O fpr accFnr b
+      ≤ (splitAcc O b fpr accFnr F P ω).1
+    ∧ ((splitRej O b fpr accFnr F P ω).1 : ℝ)
+      ≤ (splitRej O b fpr accFnr F P ω).2 * cfgRej O fpr accFnr b
+
+lemma admittedCount_of_admitted (O : Oracle μ S) (b fpr accFnr α : ℝ) (F P : Finset S)
+    (ω : Ω) (hα : α < 1 / 2)
+    (hacc0 : 0 ≤ cfgAcc O fpr accFnr b) (hacc1 : cfgAcc O fpr accFnr b ≤ 1)
+    (hrej0 : 0 ≤ cfgRej O fpr accFnr b) (hrej1 : cfgRej O fpr accFnr b ≤ 1)
+    (h : admitted O b fpr accFnr α F P ω) : admittedCount O b fpr accFnr F P ω :=
+  ⟨le_of_lt (lt_of_binomSfGe_le _ _ _ hacc0 hacc1 hα h.1),
+    le_of_lt (lt_of_binomCdf_le _ _ _ hrej0 hrej1 hα h.2)⟩
+
 /-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
 `measureReal_iUnion_fintype_le` for finite index, but not this. -/
 lemma measureReal_iUnion_le_tsum {A : Type*} [MeasurableSpace A] {ρ : Measure A}
