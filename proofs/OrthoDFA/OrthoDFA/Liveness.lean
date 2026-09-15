@@ -324,6 +324,53 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 
 #print axioms chosen_avoids_bad_whp
 
+/-- **Clean liveness: the greedy picks an accept-preserving family, w.h.p.**
+Every premise is either the oracle model, the language/target, or findability —
+no `trigger`/`himplies` machinery.  The loss means are *derived* from the oracle:
+by `read_disagreement_mean`/`denoised_loss_eq_flip`, `∑ᵢ E[D v i] = m·η +
+(1−2η)·(flip count of v)`, so a strictly-accept-preserving `v` (flips nothing on
+the pool) has mean loss `m·η`, and a bad `v` (flips ≥ `ε_cov` of the pool) has mean
+loss `≥ m·(η + (1−2η)·ε_cov)`.  These are exactly the separability bounds
+`chosen_avoids_bad_whp` needs, so the greedy's least-loss `k`-subset avoids the bad
+set except w.p. `#cands·exp(−2m·((½−η)·ε_cov)²)`. -/
+theorem greedy_picks_good {S : Type*} [DecidableEq S]
+    (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
+    (hdisj : ∀ v, bad v → ¬ good v)
+    (cands : Finset S) (k m : ℕ) (η εcov : ℝ)
+    (D : S → ℕ → Ω → ℝ) (flip : S → ℕ → ℝ)
+    (hmeas : ∀ v i, AEMeasurable (D v i) μ)
+    (hindep : ∀ v, iIndepFun (D v) μ)
+    (hIcc : ∀ v i, ∀ᵐ ω ∂μ, D v i ω ∈ Set.Icc (0 : ℝ) 1)
+    (hread : ∀ v i, μ[D v i] = η + (1 - 2 * η) * flip v i)
+    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, flip v i = 0)
+    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, flip v i)
+    (hη : η ≤ 1 / 2) (hεcov0 : 0 ≤ εcov)
+    (goodCount : k ≤ (cands.filter good).card)
+    (chosen : Ω → Finset S)
+    (hsub : ∀ ω, chosen ω ⊆ cands) (hcard : ∀ ω, (chosen ω).card = k)
+    (hleast : ∀ ω, ∀ v ∈ chosen ω, ∀ w ∈ cands, w ∉ chosen ω →
+        (∑ i ∈ Finset.range m, D v i ω) ≤ ∑ i ∈ Finset.range m, D w i ω) :
+    μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - η) * εcov) ^ 2) := by
+  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[D v i]
+      = (m : ℝ) * η + (1 - 2 * η) * ∑ i ∈ Finset.range m, flip v i := by
+    intro v
+    have h := denoised_loss_eq_flip (μ := μ) m η (1 / 2 - η) (flip v) (D v)
+      (fun j => by rw [hread]; ring)
+    rw [h]; ring
+  have hgm : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, μ[D v i] ≤ (m : ℝ) * η := by
+    intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
+  have hbm : ∀ v ∈ cands, bad v →
+      (m : ℝ) * (η + (1 - 2 * η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[D v i] := by
+    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, hη]
+  refine chosen_avoids_bad_whp good bad hdisj cands k m η (η + (1 - 2 * η) * εcov)
+    ((1 / 2 - η) * εcov) D hmeas hindep hIcc hgm hbm ?_ ?_ goodCount chosen hsub hcard hleast
+  · nlinarith [hεcov0, hη]
+  · have : (0 : ℝ) ≤ 1 / 2 - η := by linarith
+    exact mul_nonneg this hεcov0
+
+#print axioms greedy_picks_good
+
 /-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
 Combining the two proved halves.  Under mean-loss separability the greedy proposes
 an all-accept-preserving family except w.p. `#cands·exp(-2mγ²)`
