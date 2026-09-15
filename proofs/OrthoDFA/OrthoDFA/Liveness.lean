@@ -279,6 +279,26 @@ theorem chosen_avoids_bad_whp {S : Type*} [DecidableEq S]
     _ ≤ (cands.card : ℝ) * E := by
         apply mul_le_mul_of_nonneg_right hcards hEnn
 
+/-- **Denoised loss decomposes into baseline + signal·flips.**  Against the
+denoised oracle, a read's expected disagreement on prefix `j` is a common baseline
+`c₀` plus `2s` exactly when the suffix flips `j`'s state (`flip j = 1`), else `c₀`.
+So the mean loss over `m` prefixes is `m·c₀ + 2s·(flip count)` — linear in the
+flips.  This is the modeling identification, now explicit: the per-prefix
+expectation `hexp` is the (denoised) oracle read model, and the loss is its sum.
+
+Consequently a strictly-accept-preserving suffix (`flip ≡ 0`) has mean loss `m·c₀`
+(so `ρlo = c₀`), and a bad one flipping a fraction `≥ ε_cov` has mean loss
+`≥ m·(c₀ + 2s·ε_cov)` (so `ρhi = c₀ + 2s·ε_cov`, `γ = s·ε_cov`), discharging the
+mean-separability hypotheses of `chosen_avoids_bad_whp`. -/
+theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D : ℕ → Ω → ℝ)
+    (hexp : ∀ j, μ[D j] = c₀ + 2 * s * flip j) :
+    ∑ j ∈ Finset.range m, μ[D j]
+      = (m : ℝ) * c₀ + 2 * s * ∑ j ∈ Finset.range m, flip j := by
+  rw [Finset.sum_congr rfl (fun j _ => hexp j), Finset.sum_add_distrib,
+    Finset.sum_const, Finset.card_range, nsmul_eq_mul, Finset.mul_sum]
+
+#print axioms denoised_loss_eq_flip
+
 #print axioms chosen_avoids_bad_whp
 
 /-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
