@@ -12,6 +12,9 @@ no fixed budget:
 > with probability `≥ 1 − δ` the loop **terminates**, and **whatever** family it returns
 > preserves acceptance on `≥ 1 − εcov` of **each** prefix population.
 
+"Whatever it returns" is `ret`: the states that pass both gates.  The guarantee is not
+claimed at states the loop rejects.
+
 Everything the statement needs is present and constrained: the persistent RCN oracle, the
 collection of prefix populations, the suffix distribution with its findability `pAP`, the
 loop's own return test — the FNR gate *and* the accept-preserving gate, both defined
@@ -395,10 +398,16 @@ def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
-Except with probability `δ/2`, the family is valid at **every reachable state** — every
-history the algorithm might follow and every budget it might stop at.  So the loop may
-grow and stop however it likes: neither its schedule nor its stopping rule has to be
+Except with probability `δ/2`, no reachable state is *both* returned and invalid — over
+every history the algorithm might follow and every budget it might stop at.  So the loop
+may grow and stop however it likes: neither its schedule nor its stopping rule has to be
 modelled or itself proved correct.
+
+The intersection with `ret` is load-bearing, not bookkeeping.  Validity at *every* state,
+returned or not, is a strictly stronger claim and a false one: at a state whose candidate
+pool has outgrown the prefixes, the clustering really can produce a drifted family.  The
+algorithm does not return it — that is what the gate is for — and the guarantee is about
+what it returns.
 
 Proof plan: this rests on the **accept-preserving gate**, not on the clustering.  A
 returned family has passed `admitted`, which tests directly — on the seed's own column,
@@ -418,12 +427,13 @@ budget with a collision bound supplied; it is not what carries this. -/
 theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (fpr accFnr : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
+    (fpr accFnr indecisionLimit α : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) :
-    (runLaw μ D Dsf).real (⋃ hM, FailAt O populations D fpr accFnr εcov hM) ≤ δ / 2 :=
+    (runLaw μ D Dsf).real (⋃ hM, ret O populations fpr accFnr indecisionLimit α hM
+        ∩ FailAt O populations D fpr accFnr εcov hM) ≤ δ / 2 :=
   sorry
 
 /-- **Part 2 — the loop terminates.**
@@ -486,20 +496,22 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (hslack : accFnr < indecisionLimit) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ hM, x ∈ ret O populations fpr accFnr indecisionLimit α hM) ∧
-        ∀ hM : Hist × (ℕ × ℕ), ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
-              O.label (p * v) = O.label p}} := by
+        ∀ hM : Hist × (ℕ × ℕ), x ∈ ret O populations fpr accFnr indecisionLimit α hM →
+          ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | ∀ v ∈ famAt O populations fpr accFnr x hM.1 hM.2,
+                O.label (p * v) = O.label p}} := by
   have h := sound_and_terminating (runLaw μ D Dsf)
-    (FailAt O populations D fpr accFnr εcov)
+    (fun hM => ret O populations fpr accFnr indecisionLimit α hM
+      ∩ FailAt O populations D fpr accFnr εcov hM)
     (ret O populations fpr accFnr indecisionLimit α) δ
-    (validity_of_returned O populations D Dsf fpr accFnr hfpr haccFnr hsig hpop
+    (validity_of_returned O populations D Dsf fpr accFnr indecisionLimit α hfpr haccFnr hsig hpop
       pAP hpAPPositive hpAPBound εcov hεcov δ hδ)
     (loop_terminates O populations D Dsf fpr accFnr indecisionLimit α hfpr haccFnr hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
-  simp only [Set.mem_setOf_eq, FailAt, not_not]
+  simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, not_and, not_not]
 
 #print axioms validity_of_returned
 #print axioms loop_terminates
