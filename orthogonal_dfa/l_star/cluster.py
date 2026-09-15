@@ -133,23 +133,16 @@ def certification_sample(pst, vs, amount: int):
     return family.mean(1), np.asarray(read[len(pairs) :])
 
 
-def _split_counts(pst, decision, seed_row, extra=None):
+def _split_counts(pst, decision, column):
     """``((hits, n), (hits, n))`` for the accept and reject sides of the cut,
     counted on the split's own column.
 
-    Both sides carry prefixes: a family that leaves one empty has an FNR of 1,
-    and is resampled without ever reaching the gate.
+    A side can come up empty on a small draw, which leaves the verdict
+    uncertified rather than failing.
     """
-    column = pst.table.column(seed_row)[pst.table.representative]
-    if extra is not None:
-        extra_decision, extra_column = extra
-        decision = np.concatenate([decision, extra_decision])
-        column = np.concatenate([column, extra_column])
     counts = []
     for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
-        n = int(side.sum())
-        assert n, "the split needs both sides of the cut"
-        counts.append((int(column[side].sum()), n))
+        counts.append((int(column[side].sum()), int(side.sum())))
     return tuple(counts)
 
 
@@ -186,25 +179,26 @@ def drift_verdict(pst, counts) -> str:
     return UNCERTIFIED
 
 
-def prefixes_to_certify(pst, counts, vs) -> int:
-    """How many prefixes to draw for the split alone, to settle a verdict the
-    prefixes in hand left undecided.
+def certification_budget(pst, vs) -> int:
+    """Never more prefixes than the round of pooled prefixes this stands in for
+    would have cost.  One of those spends a query on every fully observed
+    column, where one read for the split spends a query per family member and
+    one for the split itself, so the budget in prefixes is the ratio between
+    them.
+    """
+    columns = max(1, len(pst.table.fully_observed()))
+    return max(1, pst.config.num_addtl_prefixes * columns // (len(vs) + 1))
+
+
+def prefixes_to_certify(pst, counts, drawn, vs) -> int:
+    """How many more prefixes to draw for the split alone, to settle a verdict
+    the ``drawn`` prefixes in hand left undecided.
 
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would the
     verdict come out decided?  The first multiple that would is the answer.
-
-    Drawn against the representative prefixes, which are what the sampler
-    returns, so a draw of that size again brings a side of that size again.
-
-    Never more than the round of pooled prefixes this stands in for would have
-    cost.  One of those spends a query on every fully observed column, where one
-    read for the split spends a query per family member and one for the split
-    itself, so the budget in prefixes is the ratio between them.
     """
-    drawn = max(1, int(pst.table.representative.sum()))
-    columns = max(1, len(pst.table.fully_observed()))
-    budget = pst.config.num_addtl_prefixes * columns // (len(vs) + 1)
+    budget = certification_budget(pst, vs)
     for multiple in range(2, 2 + budget // drawn):
         supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
         if drift_verdict(pst, supposed) is not UNCERTIFIED:
@@ -224,16 +218,26 @@ class AcceptPreservingGate:
         self.enabled = config.require_accept_preserving
         self.refusals = 0
 
-    def verdict(self, pst, decision, seed_row, vs) -> str:
+    def verdict(self, pst, seed_row, vs) -> str:
         if not self.enabled:
             return ADMITTED
-        counts = _split_counts(pst, decision, seed_row)
+        # The family was clustered over the table's prefixes, and a large enough
+        # pool fits their noise, so only prefixes it never saw can test it.  The
+        # seed votes on p with the very read of p being scored, so it sits out.
+        voters = [u for u in vs if u != seed_row]
+        drawn = min(
+            max(1, int(pst.table.representative.sum())),
+            certification_budget(pst, voters),
+        )
+        decision, column = certification_sample(pst, voters, drawn)
+        counts = _split_counts(pst, decision, column)
         verdict = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            wanted = prefixes_to_certify(pst, counts, vs)
-            counts = _split_counts(
-                pst, decision, seed_row, certification_sample(pst, vs, wanted)
-            )
+            wanted = prefixes_to_certify(pst, counts, drawn, voters)
+            more_decision, more_column = certification_sample(pst, voters, wanted)
+            decision = np.concatenate([decision, more_decision])
+            column = np.concatenate([column, more_column])
+            counts = _split_counts(pst, decision, column)
             verdict = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED
@@ -244,8 +248,8 @@ class AcceptPreservingGate:
             read = "read" if verdict is DRIFTED else "could not be read"
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
-                f"classes: the last put {hits_a / n_a:.0%} of the prefixes it "
-                f"accepts and {hits_r / n_r:.0%} of those it rejects on the "
+                f"classes: the last put {hits_a / max(n_a, 1):.0%} of the prefixes it "
+                f"accepts and {hits_r / max(n_r, 1):.0%} of those it rejects on the "
                 f"accepting side of the empty suffix, against thresholds of "
                 f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
                 f"family realises the accept-preserving split on this target"
@@ -294,7 +298,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED)
     # Certify only right before returning, as certifying is expensive.
-    verdict = gate.verdict(pst, decision, v, vs)
+    verdict = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
         return Judged(vs, 1.0, "not accept-preserving", verdict)
     if verdict is UNCERTIFIED:
