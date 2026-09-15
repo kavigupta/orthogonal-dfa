@@ -86,12 +86,68 @@ def admissibleMargin (s fpr accFnr center : ℝ) (N : ℕ) (eps : ℝ) : Prop :=
     (binomCdf N (s + center) (⌈(N : ℝ) * (center + eps)⌉₊ - 1)
         - binomCdf N (s + center) ⌊(N : ℝ) * (center - eps)⌋₊ ≤ accFnr)
 
+/-- **Admissibility as the pair of integers it really is.**  A family of `N` suffixes votes
+in `{0, 1/N, …, 1}`, so a threshold matters only through the count it cuts at, and
+`admissibleMargin` already says so: `eps` occurs nowhere except inside
+`⌊N(center−eps)⌋₊` and `⌈N(center+eps)⌉₊ - 1`.  `lo` and `hi` are those two counts — reject
+at or below `lo`, accept at or above `hi` — and the two conditions are the binomial false
+positive rate under the null and false negative rate under the signal.
+
+Everything downstream should use this, not a chosen `eps`.  A real-valued margin forces the
+proof to reason about `Classical.choose` as a function of the boundary, which has no
+structure; the integer cutoffs are a bounded range, so the algorithm's configuration stays
+a countable thing. -/
+def admissibleCut (s fpr accFnr center : ℝ) (N lo hi : ℕ) : Prop :=
+  (binomCdf N center lo + (1 - binomCdf N center hi) ≤ fpr) ∧
+    (binomCdf N (s + center) hi - binomCdf N (s + center) lo ≤ accFnr)
+
+/-- The search's real-valued output names a pair of integer cutoffs. -/
+lemma admissibleCut_of_admissibleMargin {s fpr accFnr center : ℝ} {N : ℕ} {eps : ℝ}
+    (h : admissibleMargin s fpr accFnr center N eps) :
+    admissibleCut s fpr accFnr center N ⌊(N : ℝ) * (center - eps)⌋₊
+      (⌈(N : ℝ) * (center + eps)⌉₊ - 1) :=
+  ⟨h.2.2.1, h.2.2.2⟩
+
 /-- A large enough population always admits a margin, for any positive signal.  (The
 binary search in `population_size_and_evidence_margin` terminates.) -/
 theorem exists_admissibleMargin (s fpr accFnr center : ℝ) (hs : 0 < s)
     (hfpr : 0 < fpr) (haccFnr : 0 < accFnr) :
     ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr accFnr center N eps :=
   sorry
+
+/-- **The existence property.**  For any positive signal and any positive error budgets,
+some population size admits a pair of cutoffs.
+
+This is the whole content of `population_size_and_evidence_margin`: as `N` grows, the null
+`Bin(N, center)` and the signal `Bin(N, s + center)` separate, so cutoffs exist that spend
+at most `fpr` on the null's tails and at most `accFnr` on the signal's middle.  Everything
+else about the configuration is a search for a witness to this. -/
+theorem exists_admissibleCut (s fpr accFnr center : ℝ) (hs : 0 < s)
+    (hfpr : 0 < fpr) (haccFnr : 0 < accFnr) :
+    ∃ N, 0 < N ∧ ∃ lo hi, admissibleCut s fpr accFnr center N lo hi :=
+  sorry
+
+open scoped Classical in
+/-- **The search terminates**: the least population size admitting a pair of cutoffs.
+`population_size_and_evidence_margin` binary-searches for this; the value is whatever the
+search lands on, and `cutSize_spec` is all anything downstream may use about it. -/
+noncomputable def cutSize (s fpr accFnr center : ℝ) : ℕ :=
+  if h : ∃ N, 0 < N ∧ ∃ lo hi, admissibleCut s fpr accFnr center N lo hi then Nat.find h else 1
+
+theorem cutSize_spec (s fpr accFnr center : ℝ) (hs : 0 < s) (hfpr : 0 < fpr)
+    (haccFnr : 0 < accFnr) :
+    0 < cutSize s fpr accFnr center ∧
+      ∃ lo hi, admissibleCut s fpr accFnr center (cutSize s fpr accFnr center) lo hi := by
+  classical
+  have h := exists_admissibleCut s fpr accFnr center hs hfpr haccFnr
+  rw [cutSize, dif_pos h]
+  exact Nat.find_spec h
+
+/-- Any size the search could return is one it may: the spec is all that is used, so a
+different search finding a different witness changes nothing downstream. -/
+theorem admissibleCut_of_le {s fpr accFnr center : ℝ} {N lo hi : ℕ}
+    (h : admissibleCut s fpr accFnr center N lo hi) :
+    ∃ lo' hi', admissibleCut s fpr accFnr center N lo' hi' := ⟨lo, hi, h⟩
 
 open scoped Classical in
 /-- **The suffix family size, derived.**  `population_size_and_evidence_margin` returns the
