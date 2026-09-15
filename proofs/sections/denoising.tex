@@ -1,0 +1,328 @@
+\section{Denoising a cut with a suffix family}
+
+The learner cannot test $q\in D_m$ directly, the single read $\mathrm{MQ}(x_q m)$ will have
+signal only $s$. Each node thus uses a family of suffixes $V=(v_1,\dots,v_k)$ and
+takes a vote over the $k$ noisy queries $\mathrm{MQ}(x_q m v_i)$.
+
+Ideally the suffixes are accept-preserving (Def.~\ref{def:accept-preserving}), so
+that querying a string $x$ against the family $V$ gives $k$ independent noisy reads
+of the same bit $\mathbf 1[x\in L]$.
+
+\begin{definition}[Vote and decision]\label{def:decide}
+The vote of a string $x$ against the family is
+\[
+  \bar r(x)\;=\;\frac1k\sum_{i=1}^k \mathrm{MQ}(x\,v_i).
+\]
+Given a split point $\beta$ and an evidence margin $\tau$, the decision is
+\[
+  \mathrm{decide}_{\beta,\tau}(x)\;=\;
+  \begin{cases}
+    \textsc{accept} & \bar r(x)>\beta+\tau,\\
+    \textsc{reject} & \bar r(x)<\beta-\tau,\\
+    \textsc{indecisive} & \text{otherwise.}
+  \end{cases}
+\]
+A node with midfix $m$ classifies $u$ by $\mathrm{decide}_{\beta,\tau}(u\,m)$; the split
+$\beta$ and margin $\tau$ are set by the clustering (\S\ref{subsec:clustering}), not
+fixed in advance.
+\end{definition}
+
+If $v$ are all accept-preserving, the $k$ reads are independent with a common accept-probability
+$p$, so $\bar r\sim\tfrac1k\mathrm{Bin}(k,p)$: a string with a definite side has
+$p=\beta\pm s$ for the per-read signal $s$, one with no definite side has $p=\beta$.
+
+\begin{definition}[fpr and fnr]\label{def:fpr-fnr}
+We can define
+\[
+  \mathrm{fpr}=\Pr_{p=\beta}\!\big[\mathrm{decide}_{\beta,\tau}\in\{\textsc{accept},\textsc{reject}\}\big],
+  \qquad
+  \mathrm{fnr}=\Pr_{p=\beta+s}\!\big[\mathrm{decide}_{\beta,\tau}=\textsc{indecisive}\big].
+\]
+$\mathrm{fpr}$ upper-bounds the probability of a misclassification, while $\mathrm{fnr}$ is the
+probability of abstaining on a definite-side string.
+\end{definition}
+
+The signal $s$ is the one model parameter; the split $\beta$ is estimated each round from
+the cut's own separation (Alg.~\ref{alg:cluster}). Given $s$ and the current $\beta$, the
+pair $(k,\tau)$ is set to meet target budgets $\mathrm{fpr}<\delta_{\mathrm{fpr}}$ and
+$\mathrm{fnr}<\delta_{\mathrm{fnr}}$; the FNR budget is required of every prefix population
+separately (\S\ref{subsec:populations}), not of their pooled average.
+
+\subsection{Prefix populations}\label{subsec:populations}
+
+The learner does not read its rates over one sample but over a collection of prefix
+populations, each drawn a different way and each held to the rates on its own:
+\begin{itemize}
+\item the uniform pool $P_{\mathrm{unif}}$, sampled from the distribution $D$ the goal is
+stated over;
+\item for each state $q$ the current tree exposes, a population $P_q$ of the prefixes the
+tree rests at $q$'s leaf;
+\item for each round, a boundary population of the strings that round's tree could not
+place decisively.
+\end{itemize}
+A prefix may lie in more than one. Keeping them apart is arithmetic: a rate over their
+union is carried by whichever population is largest, so a family that reads one small
+population entirely backwards moves the pooled rate by only that population's share and
+hides there. Every rate below --- the clustering loss, the FNR gate, the certification
+counts --- is therefore stated per population. A population the learner cannot fill (a
+state no sampled string reaches) is dropped rather than held to a rate it has no prefixes
+to report.
+
+\subsection{The clustering algorithm}\label{subsec:clustering}
+
+Reading each of $n$ representative prefixes against each candidate suffix fills a noisy
+mask matrix $M[v][j]=\mathrm{MQ}(x_j\,v)\in\{0,1\}$, one row per candidate. The empty
+suffix's row $M[\varepsilon][j]=\mathrm{MQ}(x_j)$ is a noisy read of the true membership
+$\mathbf 1[x_j\in L]$. A family is a triple $(V,\beta,\tau)$: a size-$k$ cluster $V$ of
+rows anchored at $\varepsilon$, the split $\beta$ estimated from its cut, and the
+evidence margin $\tau$ the calibration then sets. The clustering (Alg.~\ref{alg:cluster})
+produces $V$ and $\beta$; the loop (Alg.~\ref{alg:gate}) sets $\tau$ and grows the family
+until every population is decided and the cut is certified accept-preserving.
+
+\begin{algorithm}
+\caption{$\textsc{Cluster}(\beta)$: the $\varepsilon$-anchored family and a refreshed split}
+\label{alg:cluster}
+\begin{algorithmic}[1]
+\State $w_j\gets 1/|P(j)|$ for each prefix $j$ \Comment{$P(j)$ its population: equal say per population, not per prefix}
+\State $V\gets\{\varepsilon\}$,\quad $\ell^\star\gets\infty$
+\Loop
+  \State $c[j]\gets\mathbf 1[\mathrm{mean}_{v\in V}M[v][j]>\beta]$ \Comment{per-prefix centre}
+  \State $N\gets$ the $k$ rows of least loss $\ell(v)=\sum_j w_j\,\mathbf 1[M[v][j]\ne c[j]]$
+  \If{$\varepsilon\notin N$ \textbf{ or } $\textstyle\sum_{v\in N}\ell(v)\ge\ell^\star$} \textbf{break} \EndIf
+  \State $V\gets N$,\quad $\ell^\star\gets\sum_{v\in N}\ell(v)$
+\EndLoop
+\State $\beta\gets\tfrac12\big(\overline r_{\mathrm{acc}}+\overline r_{\mathrm{rej}}\big)$ \Comment{midpoint of the mean vote on $V$'s two sides}
+\State \textbf{return} $(V,\beta)$
+\end{algorithmic}
+\end{algorithm}
+
+The stopping test keeps $\varepsilon$ from being evicted, not from being outvoted. A
+coherent group agreeing with $\varepsilon$ on every state but one sits a hair from
+$M[\varepsilon]$, so $\varepsilon$ stays a low-loss member while the other $k-1$ rows
+cut that state the wrong way: the family is decisive, contains $\varepsilon$, and is not
+accept-preserving. The weighting is the first defence: a state whose prefixes are a
+percent of the union carries a percent of an unweighted loss, so a cut can invert it for
+free; weighted, that state has the same say as the pool and a cut against it costs. Two
+gates then read what the loss let through. The FNR gate holds each population to
+$\delta_{\mathrm{fnr}}$ on its own and, when one reads high, grows that population --- the
+lever that bears on the failure, since drawing more of a population it is not failing on
+only re-weights the average. But a cut in the wrong class is perfectly decisive, so the
+FNR gate passes it. The certification gate reads the cut back on $M[\varepsilon]$ ---
+membership of $x_j$ itself --- and splits the judgement: any population may veto (it reads
+as the class it is not), only the uniform pool may admit (it separates the two classes at
+all), and admission takes positive evidence rather than absence of a veto.
+
+\begin{algorithm}
+\caption{$\textsc{SampleFamily}$: the resampling loop and its gates}
+\label{alg:gate}
+\begin{algorithmic}[1]
+\Loop
+  \State $(V,\beta)\gets\textsc{Cluster}(\beta)$;\quad $\tau\gets$ margin meeting the budgets at $(\beta,k)$
+  \State $\widehat{\mathrm{fnr}}_P\gets$ fraction of $P$ left \textsc{indecisive} by $(V,\beta,\tau)$, each population $P$
+  \State $P^\star\gets\arg\max_P\widehat{\mathrm{fnr}}_P$
+  \If{$|V|<k$ \textbf{ or } $\widehat{\mathrm{fnr}}_{P^\star}>\delta_{\mathrm{fnr}}$}
+     \State draw more suffixes, or grow $P^\star$; \textbf{continue}
+  \EndIf
+  \State on $M[\varepsilon]$, count each population's two sides of the cut
+  \If{some population reads as the opposite class} \textbf{ refuse and resample} \Comment{veto}
+  \ElsIf{$P_{\mathrm{unif}}$'s two sides both clear their class} \State \textbf{return} $(V,\beta,\tau)$ \Comment{admit}
+  \Else{} draw more of $P_{\mathrm{unif}}$ for the split \Comment{undecided}
+  \EndIf
+\EndLoop
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Soundness of a decisive decision}
+
+\begin{lemma}[A decisive decision matches the noiseless rule]\label{lem:decisive}
+Any $(V,\beta)$ induces a noiseless rule on states,
+\[
+  \mathrm{decide}^\star(q)=\begin{cases}\textsc{accept}&\mu(q)>\beta,\\ \textsc{reject}&\mu(q)<\beta,\end{cases}
+  \qquad \mu(q)=\mathbb E[\bar r(x_q\,m)],
+\]
+the true mean of the vote, a function of the state alone: a genuine
+Myhill--Nerode predicate. A decisive noisy decision matches it,
+$\mathrm{decide}(u\,m)=\mathrm{decide}^\star(q^\star(u))$, except with probability
+$\le\mathrm{fpr}$.
+\end{lemma}
+\begin{proof}
+Disagreeing --- say $\textsc{accept}$ while $\mu(q^\star(u))<\beta$ --- needs
+$\bar r(u\,m)>\beta+\tau$, a deviation of at least $\tau$ above the
+mean $\mu$, of probability $\le\mathrm{fpr}$ whatever $(V,\beta)$.
+\end{proof}
+
+A corollary is that soundness of \textsc{Accept}/\textsc{Reject} classifications
+(i.e., they reflect genuinely different classes) is guaranteed for any $(V,\beta)$.
+The choice of $(V,\beta)$ only affects coverage: how many prefixes are classified
+decisively, and how many are left \textsc{indecisive}. The gate holds the decided
+fraction $1-\widehat{\mathrm{fnr}}_P(V)$ to $\ge1-\delta_{\mathrm{fnr}}$ on every
+population $P$, not merely on their pooled average, so no population is decided by proxy
+for another.
+
+\subsection{Convergence}
+
+Correctness does not rest on the clustering. As \S\ref{subsec:clustering} notes, the
+$\varepsilon$-anchored cluster can settle --- decisively, with $\varepsilon$ retained
+--- on a family that cuts one state against the language, and neither the anchoring nor
+the FNR gate sees it. What rules such a family out is the certification gate: the
+returned family is accept-preserving because it was certified so, not because the
+cluster found the right rows and not because a test failed to disprove it.
+
+\begin{lemma}[Certifying the cut, population by population]\label{lem:certify}
+Read the empty-suffix column $M[\varepsilon]$ over each population's two sides of the cut;
+where a side of population $P$ holds $n$ prefixes, $h$ of them reading $1$, one-sided
+binomial tests at level $\alpha$ apply. A population is read as the opposite class ---
+a veto --- when its accept side sits below $\beta+\tau$ or its reject side above
+$\beta-\tau$,
+\[
+   \Pr[\mathrm{Bin}(n_A,\beta+\tau)\le h_A]\le\alpha
+   \quad\text{or}\quad
+   \Pr[\mathrm{Bin}(n_R,\beta-\tau)\ge h_R]\le\alpha ,
+\]
+the level shared across the sides read. Any population may veto: a state whose prefixes
+all read backwards is disproof of accept-preservation whatever the pooled rate does. The
+uniform pool admits, and only it, when both its sides clear their own class,
+\[
+   \Pr[\mathrm{Bin}(n_A,\beta+\tau)\ge h_A]\le\alpha
+   \quad\text{and}\quad
+   \Pr[\mathrm{Bin}(n_R,\beta-\tau)\le h_R]\le\alpha .
+\]
+Only $P_{\mathrm{unif}}$ can, because admission is the claim that the family separates the
+two classes at all, and only a sample drawn at the oracle's base rate straddles both; a
+state's prefixes are one class and can veto but cannot attest to a separation they never
+straddle. The gate returns the family only when $P_{\mathrm{unif}}$ admits and no
+population vetoes. Writing $f$ for the share of an admitted side that is really the other
+class, its accept-side rate is $\beta+s-2sf$, so admission certifies $f<(s-\tau)/2s$ on
+that side with confidence $\ge1-\alpha$. Absence of a veto is not admission: a family the
+uniform pool leaves undecided is resampled with more uniform reads, never returned.
+\end{lemma}
+\begin{proof}
+Were an admitted accept side's true rate $\le\beta+\tau$ --- drift at or past the bar ---
+then $h_A$ is stochastically below $\mathrm{Bin}(n_A,\beta+\tau)$, whose upper tail
+exceeds $\alpha$ except with probability $\le\alpha$; likewise the reject side. So
+admission holds only for a cut whose two sides sit past $\beta\pm\tau$, which by
+$\text{rate}=\beta+s-2sf$ is $f<(s-\tau)/2s$. The veto is the same test read the other
+way: a side sitting on the wrong side of its threshold past $\alpha$ is a population the
+oracle contradicts. A family the counts place on neither side of the bar triggers neither
+test and is resampled.
+\end{proof}
+
+\begin{theorem}[The gate returns a certified family]\label{thm:cut}
+Under Assumption~\ref{ass:preserve} the loop halts with probability $1$, and the family
+it returns decides at least $1-\delta_{\mathrm{fnr}}$ of every population and is admitted
+by the uniform pool with no population vetoing (Lemma~\ref{lem:certify}): each side of its
+cut is a share $f<(s-\tau)/2s$ of the other class, with confidence $\ge1-\alpha$. When no
+accept-preserving family exists the uniform pool never admits and the idealized loop does
+not halt.
+\end{theorem}
+\begin{proof}
+The clustering proposes an $\varepsilon$-anchored family each round; the gate returns it
+only when every population is decided to $\delta_{\mathrm{fnr}}$, the uniform pool admits,
+and none vetoes, so the returned family carries those guarantees whatever the proposer
+did. It remains to see the loop halts under Assumption~\ref{ass:preserve}. Screened suffix
+draws are accept-preserving with probability $\ge p_{\mathrm{preserve}}$; growing the
+worst population supplies the reads a state's rate needs rather than diluting it with a
+population that already passes; and as the pool and per-state populations grow the screen
+drops any suffix flipping a state on positive $D$-mass, so the candidate pool is
+eventually dominated by accept-preserving rows and the cluster proposes a driftless
+family. A driftless family decides each population and draws no veto, and the uniform pool
+admits it once its minority side is read out, so the loop returns.
+\end{proof}
+
+When no accept-preserving family exists this loop runs forever; the implementation caps
+it with a give-up budget, spent only on families a population has vetoed (established
+drift, not mere uncertainty), and then reports the target has none.
+
+The errors the per-population statement removes are both a rate standing in for a
+population it does not describe. A pooled FNR is carried by the largest population, so a
+family that leaves one state entirely indecisive --- or cuts it entirely backwards ---
+clears a pooled limit that the state's prefixes are a few percent of; stated per
+population the state reads $1$ and the gate grows that state until the family resolves it.
+And admission read off a pooled column moves only by a drifted population's share: a
+family whose accept side was $69\%$ mislabelled cleared a $10^{-3}$ threshold at
+$1.1\times10^{-3}$, because the aggregate barely moves under gross drift when the drifted
+class is thinly observed. Splitting the judgement fixes both --- any population may veto,
+only the base-rate pool may admit, and each is held to the FNR on its own --- and
+admission still takes positive evidence, so the gate fails closed. Soundness of the
+decisive labels (Lemma~\ref{lem:decisive}) is, as before, free of all of it.
+
+% Both rates assume coherent reads, which holds only when the suffixes are
+% accept-preserving for $u\,m$. In general they are not: for many strings some $v_i$
+% flips membership, the reads mix two true bits, and $\mathbb E[\bar r]$ drifts off
+% $\beta\pm s$, typically into the band. The empirical FNR the gate measures ---
+% \texttt{compute\_fnr}$(V)$, the fraction of the representative prefixes that vote
+% \textsc{indecisive} --- is therefore a different quantity from the per-decision
+% $\mathrm{fnr}$ of Definition~\ref{def:fpr-fnr}: it is driven by this incoherence,
+% not by read noise on a coherent string. The gate enlarges $V$ until the empirical
+% FNR is $\le\texttt{fnr\_limit}$ (an all-one-side, uninformative family scored as
+% $1$); the strings that stay indecisive resurface as boundary strings (\S2.2).
+
+% \begin{lemma}[Per-decision denoising]\label{lem:denoise}
+% Suppose $u$ is coherent at the node: the distinguisher's noiseless answer
+% for $q^\star(u)$ is a definite side $b\in\{\textsc{accept},\textsc{reject}\}$, i.e.\
+% all $x_{q^\star(u)}\,m\,v_i$ share the true membership that puts $u$'s class on side
+% $b$. Then $\mathbb E[\bar r(u\,m)]=\tfrac12+s$ or $\tfrac12-s$ according to $b$, and
+% --- the $k$ bits being independent, since their persistent-noise bits live on
+% distinct strings --- the average concentrates around that mean. Consequently:
+% \begin{itemize}
+% \item (decisive $\Rightarrow$ correct) when the node decides a side
+% it is $u$'s true side $b$, except with probability $\le\mathrm{fpr}$;
+% \item (coherent $\Rightarrow$ decisive) the node fails to decide (returns
+% \textsc{indecisive}) with probability $\le\mathrm{fnr}$.
+% \end{itemize}
+% These two bounds are the $\mathrm{fpr}$ and $\mathrm{fnr}$ of
+% Definition~\ref{def:fpr-fnr}; for correctness we use only that a $(k,\varepsilon)$
+% meeting the target budgets exists and is what the calibration runs.
+% \end{lemma}
+
+% \subsection{(2.1) Soundness: a decisive classifier realizes real classes}
+
+% \begin{lemma}[Classifier soundness]\label{lem:sound}
+% Suppose the FNR gate converges: it returns a family whose distinguishers
+% are coherent for the strings being classified (this is exactly what
+% \texttt{compute\_fnr}$\le\texttt{fnr\_limit}$ certifies over the population --- all
+% but an \texttt{fnr\_limit} fraction are decisive). Then along any path of $d$
+% nodes, each decisive node reports $u$'s true side except w.p.\ $\le\mathrm{fpr}$
+% (Lemma~\ref{lem:denoise}), so by a union bound the noisy classifier routes $u$ to
+% its true leaf --- the class of $q^\star(u)$ --- with probability
+% $\ge 1-d\cdot\mathrm{fpr}$. Different leaves are separated by a real midfix --- the
+% cut at their lowest common ancestor puts exactly one of the two states in $D_m$
+% (Def.~\ref{def:cut}) --- so the leaves are genuine state-classes: two strings the
+% classifier decisively places in different leaves have Myhill--Nerode-distinct true
+% states.
+% \end{lemma}
+
+% \begin{remark}
+% Indecision is not a misclassification: an \textsc{indecisive} node aborts
+% the sift and reports $u$ as a boundary string. Boundary strings are the
+% raw material of convergence (2.2), not errors --- (2.1) bounds only the error of
+% the decisions the classifier actually makes.
+% \end{remark}
+
+% \subsection{(2.2) Convergence: classes refine to states}
+
+% A boundary string is exactly one whose state the current family cannot place ---
+% a state not yet cut into its own class. Boundary strings are fed back into the
+% pool, and the next round's FNR gate grows a family that classifies them decisively,
+% which promotes a new suffix to a distinguisher and refines the class holding
+% $q^\star(u)$.
+
+% \begin{assumption}[Frequency of decision-preserving strings]\label{ass:freq}
+% Whenever two reachable states $q\ne q'$ still share a class, each round the sampler
+% produces, with non-negligible probability, prefixes reaching $q$ and $q'$ and a
+% midfix that distinguishes them (Def.~\ref{def:cut}: exactly one of $q,q'$ lies in
+% $D_m$) --- a decision-preserving witness exposing their
+% distinction. (This is the noiseless-separation signal the round needs; it is what
+% fails for states no sampled prefix reaches, cf.\ Assumption~\ref{ass:cover}.)
+% \end{assumption}
+
+% \begin{lemma}[Convergence to the state partition]\label{lem:converge}
+% Under Assumption~\ref{ass:freq}, as long as some class contains two distinct
+% reachable states, some round exhibits a decision-preserving witness for them; the
+% FNR gate promotes the witnessing midfix to a distinguisher, and the shared class
+% splits. Since
+% $|Q^\star|$ is finite and splitting only refines $\sim_T$, after finitely many rounds every
+% class is a singleton --- the classes are exactly the reachable Myhill--Nerode
+% states. By Lemma~\ref{lem:sound} the classifier then computes that partition with
+% probability $\ge 1-d\cdot\mathrm{fpr}$.
+% \end{lemma}
