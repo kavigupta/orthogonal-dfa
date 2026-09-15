@@ -1063,6 +1063,35 @@ theorem clustering_pac_iter {J : Type*} [Fintype J]
 
 #print axioms clustering_pac_iter
 
+/-- **Soundness + termination ⇒ correctness.**  The two halves of a retry loop compose by
+a union bound: if whatever is returned is valid except w.p. `δ/2` (uniformly over *when*
+it is returned), and the loop returns at all except w.p. `δ/2`, then with probability
+`≥ 1 − δ` the loop returns something *and* what it returns is valid. -/
+theorem sound_and_terminating {α : Type*} [MeasurableSpace α] (ν : Measure α)
+    [IsProbabilityMeasure ν] {T : Type*} [Countable T]
+    (Fail Ret : T → Set α) (δ : ℝ)
+    (hvalid : ν.real (⋃ t, Fail t) ≤ δ / 2)
+    (hterm : ν.real {y | ∀ t, y ∉ Ret t} ≤ δ / 2) :
+    1 - δ ≤ ν.real {y | (∃ t, y ∈ Ret t) ∧ ∀ t, y ∉ Fail t} := by
+  have hcompl : {y : α | (∃ t, y ∈ Ret t) ∧ ∀ t, y ∉ Fail t}
+      = ((⋃ t, Fail t) ∪ {y | ∀ t, y ∉ Ret t})ᶜ := by
+    ext y
+    simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_union, Set.mem_iUnion, not_or,
+      not_exists, not_forall, not_not]
+    constructor
+    · rintro ⟨⟨t, ht⟩, hF⟩
+      exact ⟨hF, ⟨t, ht⟩⟩
+    · rintro ⟨hF, ⟨t, ht⟩⟩
+      exact ⟨⟨t, ht⟩, hF⟩
+  rw [hcompl]
+  refine one_sub_le_compl_real ν _ δ ?_
+  calc ν.real ((⋃ t, Fail t) ∪ {y | ∀ t, y ∉ Ret t})
+      ≤ ν.real (⋃ t, Fail t) + ν.real {y | ∀ t, y ∉ Ret t} := measureReal_union_le _ _
+    _ ≤ δ / 2 + δ / 2 := add_le_add hvalid hterm
+    _ = δ := by ring
+
+#print axioms sound_and_terminating
+
 
 end Assembly
 

@@ -49,7 +49,7 @@ placement failure (supply `exp(-2k(s-τ)²)` via `misplacedMember_le` /
 `misplacedNonmember_le`) and `α` bounds each population's false-admit (via
 `certErr_bound`).  The union bound is Mathlib's; the per-check bounds are the
 discharged Hoeffding/certification lemmas. -/
-theorem clustering_correct
+theorem clustering_union_bound
     {ιp ιq : Type*} (fnrBound α : ℝ)
     (placement : Finset ιp) (placeErr : ιp → Set Ω)
     (hplace : ∀ p ∈ placement, μ.real (placeErr p) ≤ fnrBound)
@@ -71,6 +71,6 @@ theorem clustering_correct
     _ = placement.card • fnrBound + populations.card • α := by
         rw [Finset.sum_const, Finset.sum_const]
 
-#print axioms clustering_correct
+#print axioms clustering_union_bound
 
 end OrthoDFA
