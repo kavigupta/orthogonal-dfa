@@ -540,6 +540,21 @@ theorem goodCount_le (Dsf : Measure S) [IsProbabilityMeasure Dsf]
 #print axioms goodCount_le
 #print axioms index_event_le
 
+/-- A failure bound gives the complementary success bound, with **no** measurability
+needed: outer measure is subadditive and `s ∪ sᶜ = univ`. -/
+theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α)
+    [IsProbabilityMeasure ν] (s : Set α) (d : ℝ) (h : ν.real s ≤ d) : 1 - d ≤ ν.real sᶜ := by
+  have hsub : (1 : ℝ≥0∞) ≤ ν s + ν sᶜ := by
+    calc (1 : ℝ≥0∞) = ν Set.univ := measure_univ.symm
+      _ = ν (s ∪ sᶜ) := by rw [Set.union_compl_self]
+      _ ≤ ν s + ν sᶜ := measure_union_le _ _
+  have hreal : (1 : ℝ) ≤ ν.real s + ν.real sᶜ := by
+    have := ENNReal.toReal_mono (by finiteness) hsub
+    rwa [ENNReal.toReal_add (measure_ne_top _ _) (measure_ne_top _ _), ENNReal.toReal_one] at this
+  linarith
+
+#print axioms one_sub_le_compl_real
+
 /-- First-marginal probability of a product event depending only on the first coordinate. -/
 theorem prod_fst_real {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
     (ma : Measure α) [IsProbabilityMeasure ma] (ma' : Measure β) [IsProbabilityMeasure ma']
@@ -558,8 +573,11 @@ returned family preserves acceptance on at least a `1 − k·εpop` fraction of 
 population.  `good`/`bad` are the distributional flip-mass conditions, so the separation
 is definitional; the greedy is the defined `leastLossSubset`; the two error terms are the
 selection tail (`M` draws × the Hoeffding tail) and the findability tail. -/
-theorem clustering_pac {J : Type*} [Fintype J]
-    (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+theorem clustering_budget {J : Type*} [Fintype J]
+    (O : Oracle μ S)
+    /- Family of prefix distributions that we must classify -/
+    (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    /- Distribution of suffixes from which we draw -/
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M m k : ℕ) (hkM : k ≤ M)
     (εpop : ℝ) (hεpop : 0 < εpop) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
@@ -738,6 +756,104 @@ theorem clustering_pac {J : Type*} [Fintype J]
     _ ≤ Real.exp (-2 * (M : ℝ) * γsuf ^ 2)
         + (M : ℝ) * Real.exp (-2 * N * ((1 / 2 - O.η) * σ / N) ^ 2) := add_le_add hAbound hUnion
     _ ≤ δ := hbudget
+
+#print axioms clustering_budget
+
+/-- **The distributional clustering theorem, in the promised form.**  With probability
+`≥ 1 − δ`, the returned family preserves acceptance on `≥ 1 − εcov` of **each**
+population.  Derived from `clustering_budget` by instantiating the population index with
+the given `Finset`, taking the per-suffix tolerance `εcov/k`, fixing the findability slack
+at `pAP/2`, and turning the failure bound into its complement. -/
+theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
+    {J : Type*} (populations : Finset J) (hpop : populations.Nonempty)
+    (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (Dsf : Measure S) [IsProbabilityMeasure Dsf]
+    (pAP : ℝ) (hpAP : 0 < pAP)
+    (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
+    (m M k : ℕ) (hk : 0 < k) (hkM : k ≤ M) (hmpos : 0 < m)
+    (hM1 : (2 * k : ℝ) / pAP ≤ (M : ℝ))
+    (hM2 : 2 * Real.log (2 / δ) / pAP ^ 2 ≤ (M : ℝ))
+    (hm : (populations.card : ℝ) * Real.log (2 * M / δ)
+            / (2 * ((1 / 2 - O.η) * (εcov / k)) ^ 2) ≤ (m : ℝ)) :
+    1 - δ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
+        (drawMeasure (μ := μ) (fun z : {j // j ∈ populations} × Fin m => D z.1.val))).real
+      {x | ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
+                  (fun c => ∑ z, rdAt O (x.1 c) (x.2 z))
+                  (Finset.univ : Finset (Fin M)) k).image x.1,
+                O.label (p * v) = O.label p}} := by
+  classical
+  have hkR : (0 : ℝ) < (k : ℝ) := by exact_mod_cast hk
+  have hMR : (0 : ℝ) < (M : ℝ) := by
+    have : 0 < M := lt_of_lt_of_le hk hkM
+    exact_mod_cast this
+  have hPcard : Fintype.card {j // j ∈ populations} = populations.card := Fintype.card_coe _
+  have hPpos : 0 < Fintype.card {j // j ∈ populations} := by
+    rw [hPcard]; exact Finset.card_pos.mpr hpop
+  set εpop : ℝ := εcov / k with hεpop_def
+  have hεpop : 0 < εpop := div_pos hεcov hkR
+  have hkε : (k : ℝ) * εpop = εcov := by rw [hεpop_def]; field_simp
+  set N : ℝ := ((Finset.univ : Finset ({j // j ∈ populations} × Fin m)).card : ℝ) with hN
+  have hNval : N = (populations.card : ℝ) * (m : ℝ) := by
+    rw [hN, Finset.card_univ, Fintype.card_prod, hPcard, Fintype.card_fin]; push_cast; ring
+  have hNpos : 0 < N := by
+    rw [hNval]; exact mul_pos (by exact_mod_cast Finset.card_pos.mpr hpop) (by exact_mod_cast hmpos)
+  -- findability slack fixed at pAP/2
+  have hcount : (k : ℝ) ≤ (M : ℝ) * (pAP - pAP / 2) := by
+    rw [show pAP - pAP / 2 = pAP / 2 by ring]
+    rw [div_le_iff₀ hpAP] at hM1
+    nlinarith [hM1, hpAP]
+  -- the two error terms are each ≤ δ/2
+  have hsuffix : Real.exp (-2 * (M : ℝ) * (pAP / 2) ^ 2) ≤ δ / 2 := by
+    have hthr : Real.log (1 / (δ / 2)) / (2 * (pAP / 2) ^ 2) ≤ (M : ℝ) := by
+      rw [show (1 : ℝ) / (δ / 2) = 2 / δ by rw [one_div, inv_div]]
+      rw [div_le_iff₀ (by positivity)] at hM2 ⊢
+      nlinarith [hM2, hpAP]
+    have h := tail_le (t := pAP / 2) (c := 1) (ε := δ / 2) (k := (M : ℝ))
+      (by linarith) one_pos (by linarith) hthr
+    simpa using h
+  have hexpeq : -2 * N * ((1 / 2 - O.η) * ((m : ℝ) * εpop) / N) ^ 2
+      = -2 * (m : ℝ) * (((1 / 2 - O.η) * εpop) ^ 2 / (populations.card : ℝ)) := by
+    rw [hNval]
+    have hPne : ((populations.card : ℝ)) ≠ 0 := by
+      have := Finset.card_pos.mpr hpop; positivity
+    have hmne : ((m : ℝ)) ≠ 0 := by positivity
+    field_simp
+  have hprefix : (M : ℝ) * Real.exp (-2 * N
+      * ((1 / 2 - O.η) * ((m : ℝ) * εpop) / N) ^ 2) ≤ δ / 2 := by
+    rw [hexpeq]
+    have hPpos' : (0 : ℝ) < (populations.card : ℝ) := by
+      exact_mod_cast Finset.card_pos.mpr hpop
+    have ht : (0 : ℝ) < (1 / 2 - O.η) * εpop / Real.sqrt (populations.card : ℝ) :=
+      div_pos (mul_pos (by linarith) hεpop) (Real.sqrt_pos.mpr hPpos')
+    have hsq : ((1 / 2 - O.η) * εpop / Real.sqrt (populations.card : ℝ)) ^ 2
+        = ((1 / 2 - O.η) * εpop) ^ 2 / (populations.card : ℝ) := by
+      rw [div_pow, Real.sq_sqrt hPpos'.le]
+    rw [← hsq]
+    refine tail_le ht hMR (by linarith) ?_
+    rw [hsq, show (M : ℝ) / (δ / 2) = 2 * M / δ by rw [div_div_eq_mul_div]; ring]
+    have hconv : Real.log (2 * M / δ)
+          / (2 * (((1 / 2 - O.η) * εpop) ^ 2 / (populations.card : ℝ)))
+        = (populations.card : ℝ) * Real.log (2 * M / δ)
+          / (2 * ((1 / 2 - O.η) * εpop) ^ 2) := by
+      have hA : ((1 / 2 - O.η) * εpop) ≠ 0 :=
+        ne_of_gt (mul_pos (by linarith) hεpop)
+      field_simp
+    rw [hconv]
+    exact hm
+  -- apply the proved core and complement it
+  have hcore := clustering_budget O (fun j : {j // j ∈ populations} => D j.val) Dsf M m k hkM
+    εpop hεpop hmpos hPpos pAP (pAP / 2) δ (by linarith) hfind hcount
+    (by rw [← hN]; linarith [hsuffix, hprefix])
+  have hcompl := one_sub_le_compl_real _ _ δ hcore
+  refine le_trans hcompl (le_of_eq ?_)
+  congr 1
+  ext x
+  simp only [Set.mem_compl_iff, Set.mem_setOf_eq, not_not, Subtype.forall]
+  constructor
+  · intro h j hj; rw [← hkε]; exact h j hj
+  · intro h j hj; rw [hkε]; exact h j hj
 
 #print axioms clustering_pac
 
