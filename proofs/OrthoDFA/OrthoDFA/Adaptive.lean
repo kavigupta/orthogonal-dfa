@@ -716,6 +716,32 @@ theorem validity_of_per_state (O : Oracle μ S) (populations : Finset J)
         ∩ FailAt O populations D fpr accFnr εcov t) ≤ δ / 2 :=
   le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle
 
+/-- The bad event at one budget: the gates pass and the cut is wrong, at *some* boundary
+the loop could have reached. -/
+noncomputable def BadB (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (fpr accFnr indecisionLimit α εcov : ℝ) (Mm : ℕ × ℕ) : Set (Run Ω S J) :=
+  ⋃ b ∈ Set.Icc (1 / 2 - O.η) (1 / 2 + O.η),
+    retB O populations fpr accFnr indecisionLimit α b Mm
+      ∩ FailB O populations D fpr accFnr εcov b Mm
+
+/-- **Part 1, reduced to one budget.**  Budgets are `ℕ × ℕ`, so this union does converge —
+unlike the union over states, which the boundary clamp is what lets us avoid.
+
+All that is left of Part 1 is `hper`: at one budget, uniformly over the boundary, the
+gates pass on a wrong cut only with probability `w`. -/
+theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (fpr accFnr indecisionLimit α εcov δ : ℝ)
+    (w : ℕ × ℕ → ℝ) (hw0 : ∀ Mm, 0 ≤ w Mm) (hsum : Summable w) (hle : ∑' Mm, w Mm ≤ δ / 2)
+    (hper : ∀ Mm, (runLaw μ D Dsf).real
+      (BadB O populations D fpr accFnr indecisionLimit α εcov Mm) ≤ w Mm) :
+    (runLaw μ D Dsf).real (⋃ t, ret O populations fpr accFnr indecisionLimit α t
+        ∩ FailAt O populations D fpr accFnr εcov t) ≤ δ / 2 :=
+  le_trans (measureReal_mono (state_subset_budget O populations D fpr accFnr
+      indecisionLimit α εcov))
+    (le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle)
+
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
 Except with probability `δ/2`, no reachable state is *both* returned and invalid — over
