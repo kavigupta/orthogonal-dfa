@@ -827,18 +827,19 @@ lemma indep_noiseAlg (O : Oracle μ S) {T T' : Set S} (h : Disjoint T T') :
   indep_iSup_of_disjoint (fun w => (O.noise_meas' w).comap_le) O.noise_indep h
 
 open scoped Classical in
-/-- Which of a block's prefixes read as accepting is decided by that block's bits. -/
-lemma measurableSet_filter_fiber (O : Oracle μ S) {T : Set S} {A : Finset S} (hA : ↑A ⊆ T)
+/-- A block's bits decide which of its strings satisfy any condition they decide. -/
+lemma measurableSet_filter_fiber' (O : Oracle μ S) {T : Set S} {A : Finset S}
+    (Pr : S → Ω → Prop) (hPr : ∀ p ∈ A, MeasurableSet[noiseAlg O T] {ω | Pr p ω})
     (U : Finset S) :
-    MeasurableSet[noiseAlg O T] {ω | A.filter (fun p => mq O p ω = 1) = U} := by
+    MeasurableSet[noiseAlg O T] {ω | A.filter (fun p => Pr p ω) = U} := by
   classical
-  have hfib : {ω | A.filter (fun p => mq O p ω = 1) = U}
-      = if U ⊆ A then (⋂ p ∈ U, {ω | mq O p ω = 1}) ∩ ⋂ p ∈ A \ U, {ω | mq O p ω = 1}ᶜ
+  have hfib : {ω | A.filter (fun p => Pr p ω) = U}
+      = if U ⊆ A then (⋂ p ∈ U, {ω | Pr p ω}) ∩ ⋂ p ∈ A \ U, {ω | Pr p ω}ᶜ
         else ∅ := by
     split_ifs with hUA
     · ext ω
       simp only [Set.mem_setOf_eq, Set.mem_inter_iff, Set.mem_iInter, Set.mem_compl_iff,
-        Finset.mem_coe, Finset.mem_sdiff]
+        Finset.mem_sdiff]
       constructor
       · rintro rfl
         exact ⟨fun p hp => (Finset.mem_filter.1 hp).2,
@@ -855,10 +856,84 @@ lemma measurableSet_filter_fiber (O : Oracle μ S) {T : Set S} {A : Finset S} (h
   split_ifs with hUA
   · apply MeasurableSet.inter
     · apply Finset.measurableSet_biInter
-      exact fun p hp => measurableSet_mq_eq_one O (hA (hUA hp))
+      exact fun p hp => hPr p (hUA hp)
     · apply Finset.measurableSet_biInter
-      exact fun p hp => (measurableSet_mq_eq_one O (hA (Finset.mem_sdiff.1 hp).1)).compl
+      exact fun p hp => (hPr p (Finset.mem_sdiff.1 hp).1).compl
   · exact (noiseAlg O T).measurableSet_empty
+
+lemma measurableSet_noise_eq_one (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T) :
+    MeasurableSet[noiseAlg O T] {ω | O.noise w ω = 1} :=
+  measurableSet_noise_preimage O hw (measurableSet_singleton 1)
+
+open scoped Classical in
+/-- Which of a block's prefixes read as accepting is decided by that block's bits. -/
+lemma measurableSet_filter_fiber (O : Oracle μ S) {T : Set S} {A : Finset S} (hA : ↑A ⊆ T)
+    (U : Finset S) :
+    MeasurableSet[noiseAlg O T] {ω | A.filter (fun p => mq O p ω = 1) = U} :=
+  measurableSet_filter_fiber' O _ (fun p hp => measurableSet_mq_eq_one O (hA hp)) U
+
+open scoped Classical in
+/-- The bit pattern a block's strings show. -/
+noncomputable def noisePattern (O : Oracle μ S) (Q : Finset S) (ω : Ω) : Finset S :=
+  Q.filter (fun w => O.noise w ω = 1)
+
+lemma noisePattern_mem (O : Oracle μ S) (Q : Finset S) (ω : Ω) :
+    noisePattern O Q ω ∈ Q.powerset :=
+  Finset.mem_powerset.2 (Finset.filter_subset _ _)
+
+lemma measurableSet_noisePattern (O : Oracle μ S) (Q : Finset S) (t : Finset S) :
+    MeasurableSet[noiseAlg O ↑Q] {ω | noisePattern O Q ω = t} :=
+  measurableSet_filter_fiber' O _ (fun w hw => measurableSet_noise_eq_one O hw) t
+
+open scoped Classical in
+/-- The runs on which a block's bits are all genuinely `0` or `1`. -/
+def noiseClean (O : Oracle μ S) (Q : Finset S) : Set Ω :=
+  {ω | ∀ w ∈ Q, O.noise w ω = 0 ∨ O.noise w ω = 1}
+
+lemma measurableSet_noiseClean (O : Oracle μ S) (Q : Finset S) :
+    MeasurableSet[noiseAlg O ↑Q] (noiseClean O Q) := by
+  classical
+  have hset : noiseClean O Q = ⋂ w ∈ Q, (O.noise w ⁻¹' ({0, 1} : Set ℝ)) := by
+    ext ω; simp [noiseClean, Set.mem_iInter]
+  rw [hset]
+  apply Finset.measurableSet_biInter
+  exact fun w hw => measurableSet_noise_preimage O hw
+    ((measurableSet_singleton 0).union (measurableSet_singleton 1))
+
+lemma noiseClean_ae (O : Oracle μ S) (Q : Finset S) : μ.real (noiseClean O Q)ᶜ = 0 := by
+  classical
+  have hae : ∀ᵐ ω ∂μ, ω ∈ noiseClean O Q := by
+    filter_upwards [(ae_ball_iff Q.countable_toSet).2 (fun w _ => O.noise_bit w)] with ω hω
+    exact fun w hw => hω w hw
+  have hz : μ (noiseClean O Q)ᶜ = 0 := by
+    have h1 := MeasureTheory.ae_iff.1 hae
+    rwa [show {a | a ∉ noiseClean O Q} = (noiseClean O Q)ᶜ from rfl] at h1
+  simp [measureReal_def, hz]
+
+/-- On a clean run the bit pattern pins the bits down. -/
+lemma noise_eq_of_pattern (O : Oracle μ S) {Q : Finset S} {ω ω' : Ω}
+    (hω : ω ∈ noiseClean O Q) (hω' : ω' ∈ noiseClean O Q)
+    (h : noisePattern O Q ω = noisePattern O Q ω') :
+    ∀ w ∈ Q, O.noise w ω = O.noise w ω' := by
+  classical
+  intro w hw
+  have hiff : (O.noise w ω = 1) ↔ (O.noise w ω' = 1) := by
+    constructor
+    · intro h1
+      have : w ∈ noisePattern O Q ω := Finset.mem_filter.2 ⟨hw, h1⟩
+      rw [h] at this
+      exact (Finset.mem_filter.1 this).2
+    · intro h1
+      have : w ∈ noisePattern O Q ω' := Finset.mem_filter.2 ⟨hw, h1⟩
+      rw [← h] at this
+      exact (Finset.mem_filter.1 this).2
+  rcases hω w hw with h0 | h1
+  · rcases hω' w hw with h0' | h1'
+    · rw [h0, h0']
+    · exact absurd (hiff.2 h1') (by rw [h0]; norm_num)
+  · rcases hω' w hw with h0' | h1'
+    · exact absurd (hiff.1 h1) (by rw [h0']; norm_num)
+    · rw [h1, h1']
 
 open scoped Classical in
 /-- Hence any condition on that count is: it takes finitely many values. -/
