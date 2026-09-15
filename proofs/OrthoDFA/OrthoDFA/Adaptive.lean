@@ -45,6 +45,76 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
 variable {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
   [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
 
+/-! ## The derived configuration
+
+`build_pst` does not take the family size; it *computes* it:
+
+```python
+n, eps = population_size_and_evidence_margin(
+    signal_strength=min_signal_strength, acceptable_fpr=0.01, acceptable_fnr=0.01)
+config = SearchConfig(suffix_family_size=n, evidence_margin=eps, ...)
+```
+
+and `min_signal_strength` is `½ − η`, already carried by the `Oracle`.  So the family
+size and the evidence margin are **derived** from the oracle's signal together with the
+two acceptable rates — they are not free parameters. -/
+
+/-- Binomial CDF: `P[Bin(N,p) ≤ j]`. -/
+noncomputable def binomCdf (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
+  ∑ i ∈ Finset.range (j + 1), (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
+
+/-- `evidence_margin_for_population_size`: at population size `N`, the margin `eps`
+around `center` is *admissible* when the binomial false-positive rate under the null and
+false-negative rate under the signal are both within budget. -/
+def admissibleMargin (s fpr fnr center : ℝ) (N : ℕ) (eps : ℝ) : Prop :=
+  0 < eps ∧ eps ≤ s ∧
+    (binomCdf N center ⌊(N : ℝ) * (center - eps)⌋₊
+        + (1 - binomCdf N center (⌈(N : ℝ) * (center + eps)⌉₊ - 1)) ≤ fpr) ∧
+    (binomCdf N (s + center) (⌈(N : ℝ) * (center + eps)⌉₊ - 1)
+        - binomCdf N (s + center) ⌊(N : ℝ) * (center - eps)⌋₊ ≤ fnr)
+
+/-- A large enough population always admits a margin, for any positive signal.  (The
+binary search in `population_size_and_evidence_margin` terminates.) -/
+theorem exists_admissibleMargin (s fpr fnr center : ℝ) (hs : 0 < s)
+    (hfpr : 0 < fpr) (hfnr : 0 < fnr) :
+    ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr fnr center N eps :=
+  sorry
+
+open scoped Classical in
+/-- **The suffix family size, derived.**  `population_size_and_evidence_margin` returns the
+*least* population size admitting a margin; this is that `N`. -/
+noncomputable def suffixFamilySize (s fpr fnr center : ℝ) : ℕ :=
+  if h : ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr fnr center N eps then Nat.find h else 1
+
+open scoped Classical in
+/-- **The evidence margin, derived**: the margin admissible at that population size. -/
+noncomputable def evidenceMargin (s fpr fnr center : ℝ) : ℝ :=
+  if h : ∃ eps, admissibleMargin s fpr fnr center (suffixFamilySize s fpr fnr center) eps
+  then h.choose else 0
+
+theorem suffixFamilySize_pos (s fpr fnr center : ℝ) (hs : 0 < s)
+    (hfpr : 0 < fpr) (hfnr : 0 < fnr) : 0 < suffixFamilySize s fpr fnr center := by
+  classical
+  rw [suffixFamilySize, dif_pos (exists_admissibleMargin s fpr fnr center hs hfpr hfnr)]
+  exact (Nat.find_spec (exists_admissibleMargin s fpr fnr center hs hfpr hfnr)).1
+
+/-- The algorithm's family size, as `build_pst` computes it from the oracle's signal
+`½ − η` and the two acceptable rates. -/
+noncomputable def cfgK (O : Oracle μ S) (fpr fnr center : ℝ) : ℕ :=
+  suffixFamilySize (1 / 2 - O.η) fpr fnr center
+
+/-- The algorithm's evidence margin, likewise derived. -/
+noncomputable def cfgMargin (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
+  evidenceMargin (1 / 2 - O.η) fpr fnr center
+
+/-- The gate's accept threshold: `decision_boundary + evidence_margin`. -/
+noncomputable def cfgAcc (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
+  center + cfgMargin O fpr fnr center
+
+/-- The gate's reject threshold: `decision_boundary − evidence_margin`. -/
+noncomputable def cfgRej (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
+  center - cfgMargin O fpr fnr center
+
 /-- The membership query the oracle actually answers: `MQ w = ℓ(w) ⊕ noise(w)`. -/
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
@@ -133,14 +203,15 @@ the collision mass at large `mc t`; see the module note. -/
 theorem validity_of_returned [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (k : ℕ) (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty) (hk : 0 < k)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
+    (fpr fnr center : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
-    ν.real (⋃ t, FailAt O populations D k dr Mc mc εcov t) ≤ δ / 2 :=
+    ν.real (⋃ t, FailAt O populations D (cfgK O fpr fnr center) dr Mc mc εcov t) ≤ δ / 2 :=
   sorry
 
 /-- **Part 2 — the loop terminates.**
@@ -156,16 +227,16 @@ gives `(1 − p)^N` and `geom_le` drives it under `δ/2`. -/
 theorem loop_terminates [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (k : ℕ) (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (accThresh rejThresh fnrLimit : ℝ)
-    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty) (hk : 0 < k)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
+    (fpr fnr center fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (δ : ℝ) (hδ : 0 < δ)
-    (hthresh : rejThresh < accThresh) (hfnr : 0 < fnrLimit)
+    (δ : ℝ) (hδ : 0 < δ) (hfnrLim : 0 < fnrLimit)
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
-    ν.real {x | ∀ t, x ∉ ret O populations k dr Mc mc accThresh rejThresh fnrLimit t}
+    ν.real {x | ∀ t, x ∉ ret O populations (cfgK O fpr fnr center) dr Mc mc
+        (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit t}
       ≤ δ / 2 :=
   sorry
 
@@ -177,29 +248,32 @@ returns preserves acceptance on `≥ 1 − εcov` of **each** prefix population.
 No fixed budget: the rounds range over all of `ℕ`, the pool and the prefix counts grow
 with the round, and the stopping time is data-dependent and arbitrary. -/
 theorem clustering_correct [IsProbabilityMeasure ν]
-    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    (O : Oracle μ S)
+    /- The distributions, one prefix distribution per "population", one for suffixes -/
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (k : ℕ) (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
-    (accThresh rejThresh fnrLimit : ℝ)
-    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty) (hk : 0 < k)
+    (dr : Draws ν μ D Dsf) (Mc mc : ℕ → ℕ)
+    (fpr fnr center fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAP : 0 < pAP)
     (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
-    (hthresh : rejThresh < accThresh) (hfnr : 0 < fnrLimit)
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hfnrLim : 0 < fnrLimit)
     (hMc : Filter.Tendsto Mc Filter.atTop Filter.atTop)
     (hmc : Filter.Tendsto mc Filter.atTop Filter.atTop) :
     1 - δ ≤ ν.real
-      {x | (∃ t, x ∈ ret O populations k dr Mc mc accThresh rejThresh fnrLimit t) ∧
+      {x | (∃ t, x ∈ ret O populations (cfgK O fpr fnr center) dr Mc mc
+              (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit t) ∧
         ∀ t, ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | ∀ v ∈ famAt O populations k dr Mc mc x t,
+          ≤ (D j).real {p | ∀ v ∈ famAt O populations (cfgK O fpr fnr center) dr Mc mc x t,
               O.label (p * v) = O.label p}} := by
   have h := sound_and_terminating ν
-    (FailAt O populations D k dr Mc mc εcov)
-    (ret O populations k dr Mc mc accThresh rejThresh fnrLimit) δ
-    (validity_of_returned O populations D Dsf k dr Mc mc hsig hpop hk pAP hpAP hfind
-      εcov hεcov δ hδ hMc hmc)
-    (loop_terminates O populations D Dsf k dr Mc mc accThresh rejThresh fnrLimit
-      hsig hpop hk pAP hpAP hfind δ hδ hthresh hfnr hMc hmc)
+    (FailAt O populations D (cfgK O fpr fnr center) dr Mc mc εcov)
+    (ret O populations (cfgK O fpr fnr center) dr Mc mc
+      (cfgAcc O fpr fnr center) (cfgRej O fpr fnr center) fnrLimit) δ
+    (validity_of_returned O populations D Dsf dr Mc mc fpr fnr center hfpr hfnr
+      hsig hpop pAP hpAP hfind εcov hεcov δ hδ hMc hmc)
+    (loop_terminates O populations D Dsf dr Mc mc fpr fnr center fnrLimit hfpr hfnr
+      hsig hpop pAP hpAP hfind δ hδ hfnrLim hMc hmc)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
