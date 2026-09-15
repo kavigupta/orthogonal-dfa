@@ -793,6 +793,91 @@ lemma disjoint_readSet_erase {Pre : Set S} (hflat : Flat Pre) {cands C : Finset 
   obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
   exact (Finset.mem_erase.1 hv).1 (hflat p (hC p hp) _ (hC _ hz) v rfl)
 
+/-! ### Independence of the score from the side
+
+Both events are structurally measurable over disjoint sub-families of the oracle's bits, so
+this needs no factorisation theorem: the side is decided by the bits on `gateReads`, the
+score reads the bits on the certification prefixes, and `disjoint_readSet` separates them. -/
+
+/-- The σ-algebra the oracle's bits on a set of query strings generate. -/
+def noiseAlg (O : Oracle μ S) (T : Set S) : MeasurableSpace Ω :=
+  ⨆ w ∈ T, MeasurableSpace.comap (O.noise w) inferInstance
+
+lemma noiseAlg_le (O : Oracle μ S) (T : Set S) : noiseAlg O T ≤ ‹MeasurableSpace Ω› :=
+  iSup₂_le (fun w _ => (O.noise_meas' w).comap_le)
+
+lemma measurableSet_noise_preimage (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T)
+    {s : Set ℝ} (hs : MeasurableSet s) :
+    MeasurableSet[noiseAlg O T] (O.noise w ⁻¹' s) := by
+  have hle : MeasurableSpace.comap (O.noise w) inferInstance ≤ noiseAlg O T :=
+    le_iSup₂ (f := fun w (_ : w ∈ T) => MeasurableSpace.comap (O.noise w) inferInstance) w hw
+  exact hle _ ⟨s, hs, rfl⟩
+
+lemma measurableSet_mq_eq_one (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T) :
+    MeasurableSet[noiseAlg O T] {ω | mq O w ω = 1} := by
+  have hpre : {ω | mq O w ω = 1}
+      = O.noise w ⁻¹' {r : ℝ | O.label w + (1 - 2 * O.label w) * r = 1} := rfl
+  rw [hpre]
+  exact measurableSet_noise_preimage O hw
+    (measurableSet_eq_fun (by fun_prop) measurable_const)
+
+/-- Two independent blocks of the oracle's bits. -/
+lemma indep_noiseAlg (O : Oracle μ S) {T T' : Set S} (h : Disjoint T T') :
+    Indep (noiseAlg O T) (noiseAlg O T') μ :=
+  indep_iSup_of_disjoint (fun w => (O.noise_meas' w).comap_le) O.noise_indep h
+
+open scoped Classical in
+/-- Which of a block's prefixes read as accepting is decided by that block's bits. -/
+lemma measurableSet_filter_fiber (O : Oracle μ S) {T : Set S} {A : Finset S} (hA : ↑A ⊆ T)
+    (U : Finset S) :
+    MeasurableSet[noiseAlg O T] {ω | A.filter (fun p => mq O p ω = 1) = U} := by
+  classical
+  have hfib : {ω | A.filter (fun p => mq O p ω = 1) = U}
+      = if U ⊆ A then (⋂ p ∈ U, {ω | mq O p ω = 1}) ∩ ⋂ p ∈ A \ U, {ω | mq O p ω = 1}ᶜ
+        else ∅ := by
+    split_ifs with hUA
+    · ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_inter_iff, Set.mem_iInter, Set.mem_compl_iff,
+        Finset.mem_coe, Finset.mem_sdiff]
+      constructor
+      · rintro rfl
+        exact ⟨fun p hp => (Finset.mem_filter.1 hp).2,
+          fun p hp => fun hc => hp.2 (Finset.mem_filter.2 ⟨hp.1, hc⟩)⟩
+      · rintro ⟨h1, h2⟩
+        ext p
+        simp only [Finset.mem_filter]
+        exact ⟨fun ⟨hpA, hpm⟩ => by_contra (fun hpU => h2 p ⟨hpA, hpU⟩ hpm),
+          fun hpU => ⟨hUA hpU, h1 p hpU⟩⟩
+    · ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      exact fun hc => hUA (hc ▸ Finset.filter_subset _ _)
+  rw [hfib]
+  split_ifs with hUA
+  · apply MeasurableSet.inter
+    · apply Finset.measurableSet_biInter
+      exact fun p hp => measurableSet_mq_eq_one O (hA (hUA hp))
+    · apply Finset.measurableSet_biInter
+      exact fun p hp => (measurableSet_mq_eq_one O (hA (Finset.mem_sdiff.1 hp).1)).compl
+  · exact (noiseAlg O T).measurableSet_empty
+
+open scoped Classical in
+/-- Hence any condition on that count is: it takes finitely many values. -/
+lemma measurableSet_filter_pred (O : Oracle μ S) {T : Set S} {A : Finset S} (hA : ↑A ⊆ T)
+    (P : Finset S → Prop) :
+    MeasurableSet[noiseAlg O T] {ω | P (A.filter (fun p => mq O p ω = 1))} := by
+  classical
+  have hcover : {ω | P (A.filter (fun p => mq O p ω = 1))}
+      = ⋃ U ∈ A.powerset.filter P, {ω | A.filter (fun p => mq O p ω = 1) = U} := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_coe, Finset.mem_filter,
+      Finset.mem_powerset, exists_prop]
+    refine ⟨fun h => ⟨_, ⟨Finset.filter_subset _ _, h⟩, rfl⟩, ?_⟩
+    rintro ⟨U, ⟨-, hPU⟩, rfl⟩
+    exact hPU
+  rw [hcover]
+  apply Finset.measurableSet_biUnion
+  exact fun U _ => measurableSet_filter_fiber O hA U
+
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
