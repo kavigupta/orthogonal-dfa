@@ -66,54 +66,54 @@ noncomputable def binomCdf (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
 /-- `evidence_margin_for_population_size`: at population size `N`, the margin `eps`
 around `center` is *admissible* when the binomial false-positive rate under the null and
 false-negative rate under the signal are both within budget. -/
-def admissibleMargin (s fpr fnr center : ℝ) (N : ℕ) (eps : ℝ) : Prop :=
+def admissibleMargin (s fpr accFnr center : ℝ) (N : ℕ) (eps : ℝ) : Prop :=
   0 < eps ∧ eps ≤ s ∧
     (binomCdf N center ⌊(N : ℝ) * (center - eps)⌋₊
         + (1 - binomCdf N center (⌈(N : ℝ) * (center + eps)⌉₊ - 1)) ≤ fpr) ∧
     (binomCdf N (s + center) (⌈(N : ℝ) * (center + eps)⌉₊ - 1)
-        - binomCdf N (s + center) ⌊(N : ℝ) * (center - eps)⌋₊ ≤ fnr)
+        - binomCdf N (s + center) ⌊(N : ℝ) * (center - eps)⌋₊ ≤ accFnr)
 
 /-- A large enough population always admits a margin, for any positive signal.  (The
 binary search in `population_size_and_evidence_margin` terminates.) -/
-theorem exists_admissibleMargin (s fpr fnr center : ℝ) (hs : 0 < s)
-    (hfpr : 0 < fpr) (hfnr : 0 < fnr) :
-    ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr fnr center N eps :=
+theorem exists_admissibleMargin (s fpr accFnr center : ℝ) (hs : 0 < s)
+    (hfpr : 0 < fpr) (haccFnr : 0 < accFnr) :
+    ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr accFnr center N eps :=
   sorry
 
 open scoped Classical in
 /-- **The suffix family size, derived.**  `population_size_and_evidence_margin` returns the
 *least* population size admitting a margin; this is that `N`. -/
-noncomputable def suffixFamilySize (s fpr fnr center : ℝ) : ℕ :=
-  if h : ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr fnr center N eps then Nat.find h else 1
+noncomputable def suffixFamilySize (s fpr accFnr center : ℝ) : ℕ :=
+  if h : ∃ N, 0 < N ∧ ∃ eps, admissibleMargin s fpr accFnr center N eps then Nat.find h else 1
 
 open scoped Classical in
 /-- **The evidence margin, derived**: the margin admissible at that population size. -/
-noncomputable def evidenceMargin (s fpr fnr center : ℝ) : ℝ :=
-  if h : ∃ eps, admissibleMargin s fpr fnr center (suffixFamilySize s fpr fnr center) eps
+noncomputable def evidenceMargin (s fpr accFnr center : ℝ) : ℝ :=
+  if h : ∃ eps, admissibleMargin s fpr accFnr center (suffixFamilySize s fpr accFnr center) eps
   then h.choose else 0
 
-theorem suffixFamilySize_pos (s fpr fnr center : ℝ) (hs : 0 < s)
-    (hfpr : 0 < fpr) (hfnr : 0 < fnr) : 0 < suffixFamilySize s fpr fnr center := by
+theorem suffixFamilySize_pos (s fpr accFnr center : ℝ) (hs : 0 < s)
+    (hfpr : 0 < fpr) (haccFnr : 0 < accFnr) : 0 < suffixFamilySize s fpr accFnr center := by
   classical
-  rw [suffixFamilySize, dif_pos (exists_admissibleMargin s fpr fnr center hs hfpr hfnr)]
-  exact (Nat.find_spec (exists_admissibleMargin s fpr fnr center hs hfpr hfnr)).1
+  rw [suffixFamilySize, dif_pos (exists_admissibleMargin s fpr accFnr center hs hfpr haccFnr)]
+  exact (Nat.find_spec (exists_admissibleMargin s fpr accFnr center hs hfpr haccFnr)).1
 
 /-- The algorithm's family size, as `build_pst` computes it from the oracle's signal
 `½ − η` and the two acceptable rates. -/
-noncomputable def cfgK (O : Oracle μ S) (fpr fnr center : ℝ) : ℕ :=
-  suffixFamilySize (1 / 2 - O.η) fpr fnr center
+noncomputable def cfgK (O : Oracle μ S) (fpr accFnr center : ℝ) : ℕ :=
+  suffixFamilySize (1 / 2 - O.η) fpr accFnr center
 
 /-- The algorithm's evidence margin, likewise derived. -/
-noncomputable def cfgMargin (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
-  evidenceMargin (1 / 2 - O.η) fpr fnr center
+noncomputable def cfgMargin (O : Oracle μ S) (fpr accFnr center : ℝ) : ℝ :=
+  evidenceMargin (1 / 2 - O.η) fpr accFnr center
 
 /-- The gate's accept threshold: `decision_boundary + evidence_margin`. -/
-noncomputable def cfgAcc (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
-  center + cfgMargin O fpr fnr center
+noncomputable def cfgAcc (O : Oracle μ S) (fpr accFnr center : ℝ) : ℝ :=
+  center + cfgMargin O fpr accFnr center
 
 /-- The gate's reject threshold: `decision_boundary − evidence_margin`. -/
-noncomputable def cfgRej (O : Oracle μ S) (fpr fnr center : ℝ) : ℝ :=
-  center - cfgMargin O fpr fnr center
+noncomputable def cfgRej (O : Oracle μ S) (fpr accFnr center : ℝ) : ℝ :=
+  center - cfgMargin O fpr accFnr center
 
 /-- The membership query the oracle actually answers: `MQ w = ℓ(w) ⊕ noise(w)`. -/
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
@@ -214,53 +214,53 @@ noncomputable def newBoundary (O : Oracle μ S) (F P : Finset S) (ω : Ω) (b : 
 
 /-- The cluster at one budget state, at the boundary carried in. -/
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr fnr : ℝ) (x : Ξ) (b : ℝ) (Mm : ℕ × ℕ) : Finset S :=
+    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (b : ℝ) (Mm : ℕ × ℕ) : Finset S :=
   clusterAround O b (prefixesAt dr populations Mm.2 x) (poolAt dr Mm.1 x) (dr.nz x)
-    (cfgK O fpr fnr b)
+    (cfgK O fpr accFnr b)
 
 /-- The decision boundary carried along a history: it starts at `1/2`
 (`decision_boundary : float = 0.5`) and each state replaces it with the boundary its own
 cluster induces. -/
 noncomputable def boundaryFold (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr fnr : ℝ) (x : Ξ) : ℝ → Hist → ℝ
+    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) : ℝ → Hist → ℝ
   | b, [] => b
   | b, Mm :: h =>
-      boundaryFold O populations dr fpr fnr x
-        (newBoundary O (clusterAt O populations dr fpr fnr x b Mm)
+      boundaryFold O populations dr fpr accFnr x
+        (newBoundary O (clusterAt O populations dr fpr accFnr x b Mm)
           (prefixesAt dr populations Mm.2 x) (dr.nz x) b) h
 
 /-- The boundary after a history. -/
 noncomputable def boundaryAfter (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr fnr : ℝ) (x : Ξ) (h : Hist) : ℝ :=
-  boundaryFold O populations dr fpr fnr x (1 / 2) h
+    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (h : Hist) : ℝ :=
+  boundaryFold O populations dr fpr accFnr x (1 / 2) h
 
 /-- The family the loop proposes at budget `Mm`, having come through history `h`. -/
 noncomputable def famAt (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr fnr : ℝ) (x : Ξ) (h : Hist) (Mm : ℕ × ℕ) : Finset S :=
-  clusterAt O populations dr fpr fnr x (boundaryAfter O populations dr fpr fnr x h) Mm
+    (dr : Draws ν μ D Dsf) (fpr accFnr : ℝ) (x : Ξ) (h : Hist) (Mm : ℕ × ℕ) : Finset S :=
+  clusterAt O populations dr fpr accFnr x (boundaryAfter O populations dr fpr accFnr x h) Mm
 
 /-- A prefix is *decided* when the family's vote clears the state's accept or reject
 threshold; otherwise it lands in the indecisive band and counts towards the FNR. -/
-def decided (O : Oracle μ S) (b fpr fnr : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
-  cfgAcc O fpr fnr b ≤ vote O F p ω ∨ vote O F p ω < cfgRej O fpr fnr b
+def decided (O : Oracle μ S) (b fpr accFnr : ℝ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
+  cfgAcc O fpr accFnr b ≤ vote O F p ω ∨ vote O F p ω < cfgRej O fpr accFnr b
 
 open scoped Classical in
 /-- **The loop's return test** (PR #257: held per population, not over their union), at
 the state's own boundary and margin. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
-    (dr : Draws ν μ D Dsf) (fpr fnr fnrLimit : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
+    (dr : Draws ν μ D Dsf) (fpr accFnr indecisionLimit : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
   {x | ∀ j ∈ populations,
     (((Finset.range hM.2.2).filter (fun i => ¬ decided O
-        (boundaryAfter O populations dr fpr fnr x hM.1) fpr fnr
-        (famAt O populations dr fpr fnr x hM.1 hM.2) (dr.prf j i x) (dr.nz x))).card : ℝ)
-      ≤ fnrLimit * hM.2.2}
+        (boundaryAfter O populations dr fpr accFnr x hM.1) fpr accFnr
+        (famAt O populations dr fpr accFnr x hM.1 hM.2) (dr.prf j i x) (dr.nz x))).card : ℝ)
+      ≤ indecisionLimit * hM.2.2}
 
 /-- The family at a reachable state is **invalid**: on some population it fails to
 preserve acceptance on a `1 − εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
-    (dr : Draws ν μ D Dsf) (fpr fnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
+    (dr : Draws ν μ D Dsf) (fpr accFnr εcov : ℝ) (hM : Hist × (ℕ × ℕ)) : Set Ξ :=
   {x | ¬ ∀ j ∈ populations, 1 - εcov
-        ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr fnr x hM.1 hM.2,
+        ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr accFnr x hM.1 hM.2,
             O.label (p * v) = O.label p}}
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
@@ -282,12 +282,12 @@ theorem validity_of_returned [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf)
-    (fpr fnr : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr accFnr : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAP : 0 < pAP)
-    (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (pAP : ℝ) (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) :
-    ν.real (⋃ hM, FailAt O populations D dr fpr fnr εcov hM) ≤ δ / 2 :=
+    ν.real (⋃ hM, FailAt O populations D dr fpr accFnr εcov hM) ≤ δ / 2 :=
   sorry
 
 /-- **Part 2 — the loop terminates.**
@@ -298,19 +298,26 @@ returns.
 Proof plan: each growth step draws fresh suffixes, and by findability a draw is
 accept-preserving with probability `≥ pAP`; once the pool holds enough accept-preserving
 suffixes and the prefix count is large enough, every population's vote is decisive on all
-but `fnrLimit` of its mass, so the per-population test passes.  The per-step trigger is
+but `indecisionLimit` of its mass, so the per-population test passes.  The per-step trigger is
 block-local, so `geometric_miss_triggered` gives `(1 − p)^N` and `geom_le` drives it under
-`δ/2`. -/
+`δ/2`.
+
+`hslack : accFnr < indecisionLimit` is **necessary**, not decoration.  `accFnr` is the
+binomial probability that one prefix's count lands inside the indecisive band, so it
+bounds the *expected* indecision fraction; if the loop's limit were at or below it the
+test could essentially never pass and the loop would not terminate.  The code keeps the
+slack: `0.01 < 0.02` (`0.10` after PR #257). -/
 theorem loop_terminates [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf)
-    (fpr fnr fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr accFnr indecisionLimit : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAP : 0 < pAP)
-    (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (δ : ℝ) (hδ : 0 < δ) (hfnrLim : 0 < fnrLimit) :
-    ν.real {x | ∀ hM, x ∉ ret O populations dr fpr fnr fnrLimit hM} ≤ δ / 2 :=
+    (pAP : ℝ) (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
+    (hslack : accFnr < indecisionLimit) :
+    ν.real {x | ∀ hM, x ∉ ret O populations dr fpr accFnr indecisionLimit hM} ≤ δ / 2 :=
   sorry
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
@@ -329,23 +336,24 @@ theorem clustering_correct [IsProbabilityMeasure ν]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (dr : Draws ν μ D Dsf)
-    (fpr fnr fnrLimit : ℝ) (hfpr : 0 < fpr) (hfnr : 0 < fnr)
+    (fpr accFnr indecisionLimit : ℝ) (hfpr : 0 < fpr) (haccFnr : 0 < accFnr)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAP : 0 < pAP)
-    (hfind : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hfnrLim : 0 < fnrLimit) :
+    (pAP : ℝ) (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
+    (hslack : accFnr < indecisionLimit) :
     1 - δ ≤ ν.real
-      {x | (∃ hM, x ∈ ret O populations dr fpr fnr fnrLimit hM) ∧
+      {x | (∃ hM, x ∈ ret O populations dr fpr accFnr indecisionLimit hM) ∧
         ∀ hM : Hist × (ℕ × ℕ), ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr fnr x hM.1 hM.2,
+          ≤ (D j).real {p | ∀ v ∈ famAt O populations dr fpr accFnr x hM.1 hM.2,
               O.label (p * v) = O.label p}} := by
   have h := sound_and_terminating ν
-    (FailAt O populations D dr fpr fnr εcov)
-    (ret O populations dr fpr fnr fnrLimit) δ
-    (validity_of_returned O populations D Dsf dr fpr fnr hfpr hfnr hsig hpop
-      pAP hpAP hfind εcov hεcov δ hδ)
-    (loop_terminates O populations D Dsf dr fpr fnr fnrLimit hfpr hfnr hsig hpop
-      pAP hpAP hfind δ hδ hfnrLim)
+    (FailAt O populations D dr fpr accFnr εcov)
+    (ret O populations dr fpr accFnr indecisionLimit) δ
+    (validity_of_returned O populations D Dsf dr fpr accFnr hfpr haccFnr hsig hpop
+      pAP hpAPPositive hpAPBound εcov hεcov δ hδ)
+    (loop_terminates O populations D Dsf dr fpr accFnr indecisionLimit hfpr haccFnr hsig hpop
+      pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
