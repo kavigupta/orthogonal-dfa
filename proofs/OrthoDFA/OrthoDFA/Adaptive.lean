@@ -1737,7 +1737,7 @@ function of two strings, `p` and `p · v`, and those pairs are pairwise disjoint
 right-cancellation, the bare prefixes by distinctness, and the two kinds from each other by
 flatness. -/
 lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd : ℕ)
-    {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1) :
+    {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) :
     iIndepFun (fun p : {p // p ∈ P} => seedLoss O cn cd v p.val) μ := by
   refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas' w) O.noise_indep
     (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _
@@ -1747,8 +1747,12 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
     simp only [Finset.mem_insert, Finset.mem_singleton] at hw hw'
     rcases hw with rfl | rfl <;> rcases hw' with hb | hb
     · exact hab (Subtype.ext hb)
-    · exact flat_ne_of_ne_one hflat (hP _ b.property) (hP _ a.property) hv hb.symm
-    · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hv hb
+    · by_cases hv1 : v = 1
+      · exact hab (Subtype.ext (by rw [hb, hv1, mul_one]))
+      · exact flat_ne_of_ne_one hflat (hP _ b.property) (hP _ a.property) hv1 hb.symm
+    · by_cases hv1 : v = 1
+      · exact hab (Subtype.ext (by rw [← hb, hv1, mul_one]))
+      · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hv1 hb
     · exact hab (Subtype.ext (mul_right_cancel hb))
   · intro p ω ω' h
     have h1 : O.noise (p.val * v) ω = O.noise (p.val * v) ω' := h _ (by simp)
@@ -1762,6 +1766,93 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
       rw [mul_one]
       exact h0
     rw [mq_congr O h1, voteCount_congr O {(1 : S)} p.val hvc]
+
+open scoped Classical in
+/-- **The first Lloyd step keeps out badly-flipping candidates.**
+
+Its centre is `{ε}`, so its loss is `seedLoss`, whose mean separates a candidate that never
+flips from one that flips on a `Δ` fraction by `Δ(1−2η)²`.  `chosen_avoids_bad_whp` then
+bounds the chance any bad candidate outranks the good ones — by `#cands · exp(−2·#P·γ²)`,
+the union over the pool that #287's guard is what makes affordable. -/
+theorem seed_selection_avoids_bad {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    {cn cd : ℕ} (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (k : ℕ) (hk : k ≤ cands.card) (Δ : ℝ) (hΔ : 0 < Δ) (hPne : 0 < P.card)
+    (hsig : O.η ≤ 1 / 2)
+    (hgood : k ≤ (cands.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card) :
+    μ.real {ω | ¬ ∀ w ∈ leastLossSubset (clusterLoss O {(1 : S)} cn cd P cands ω) cands k,
+        ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
+      ≤ (cands.card : ℝ)
+        * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
+  classical
+  set γ : ℝ := Δ * (1 - 2 * O.η) ^ 2 / 2 with hγdef
+  set ρlo : ℝ := 2 * O.η * (1 - O.η) with hρlo
+  set ρhi : ℝ := 2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2 with hρhi
+  have hcard : (Finset.univ : Finset {p // p ∈ P}).card = P.card := by
+    simp [Finset.card_univ]
+  have hsum : ∀ (f : S → ℝ), ∑ i : {p // p ∈ P}, f i.val = ∑ p ∈ P, f p := by
+    intro f; exact Finset.sum_attach P f
+  have hseedzero : ∀ p : S, μ[seedLoss O cn cd 1 p] = 0 := by
+    intro p
+    refine integral_eq_zero_of_ae ?_
+    filter_upwards [seedLoss_eq_disagree O hcd 1 p, mq_bit O p] with ω hd hb
+    rw [hd, show p * (1 : S) = p from mul_one p]
+    rcases hb with h | h <;> rw [h] <;> norm_num
+  have hmeansum : ∀ v : S, v ≠ 1 → ∑ i : {p // p ∈ P}, μ[seedLoss O cn cd v i.val]
+      = (P.card : ℝ) * ρlo + (∑ p ∈ P, O.flip v p) * (1 - 2 * O.η) ^ 2 := by
+    intro v hv
+    rw [Finset.sum_congr rfl
+      (fun i _ => seedLoss_mean O hcd v i.val (mul_ne_self i.val v hv)),
+      Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ]
+    simp only [nsmul_eq_mul, Fintype.card_coe]
+    rw [← Finset.sum_mul, hsum (fun p => O.flip v p), hρlo]
+  have hη0 : (0 : ℝ) ≤ O.η := by
+    rw [← O.noise_mean 1]
+    exact integral_nonneg_of_ae (by filter_upwards [O.noise_icc 1] with ω hω using hω.1)
+  have hρlo0 : (0 : ℝ) ≤ ρlo := by rw [hρlo]; nlinarith [O.hη, hη0]
+  refine chosen_avoids_bad_whp
+    (good := fun v => ∑ p ∈ P, O.flip v p = 0)
+    (bad := fun v => Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip v p)
+    ?_ cands k (Finset.univ : Finset {p // p ∈ P}) ρlo ρhi γ
+    (fun v i => seedLoss O cn cd v i.val)
+    (fun v i => (seedLoss_meas O cn cd v i.val).aemeasurable)
+    (fun v => seedLoss_indep hflat O cn cd hP v)
+    (fun v i => seedLoss_icc O cn cd v i.val)
+    ?_ ?_ ?_ ?_ hgood _ ?_ ?_ ?_ |>.trans (by rw [hcard])
+  · intro v hbad hgoodv
+    rw [hgoodv] at hbad
+    have hpos : (0 : ℝ) < Δ * (P.card : ℝ) :=
+      mul_pos hΔ (by exact_mod_cast hPne)
+    linarith
+  · intro v _ hgv
+    by_cases hv1 : v = 1
+    · subst hv1
+      rw [Finset.sum_congr rfl (fun i _ => hseedzero i.val), Finset.sum_const, hcard]
+      simpa using mul_nonneg (Nat.cast_nonneg _) hρlo0
+    · rw [hmeansum v hv1, hgv, hcard]; simp
+  · intro v _ hbv
+    have hv1 : v ≠ 1 := by
+      rintro rfl
+      have hz : ∑ p ∈ P, O.flip (1 : S) p = 0 := by
+        refine Finset.sum_eq_zero (fun p _ => ?_)
+        show O.label (p * 1) + O.label p - 2 * O.label (p * 1) * O.label p = 0
+        rw [mul_one]
+        rcases O.label_bit p with h | h <;> rw [h] <;> ring
+      rw [hz] at hbv
+      exact absurd hbv (not_le.2 (mul_pos hΔ (by exact_mod_cast hPne)))
+    rw [hmeansum v hv1, hcard, hρhi]
+    nlinarith [hbv, sq_nonneg (1 - 2 * O.η)]
+  · rw [hρlo, hρhi, hγdef]; nlinarith [sq_nonneg (1 - 2 * O.η)]
+  · rw [hγdef]; positivity
+  · exact fun ω => leastLossSubset_subset' _ _ _
+  · exact fun ω => leastLossSubset_card _ _ _ hk
+  · intro ω v hv w hw hwn
+    have hvc : v ∈ cands := leastLossSubset_subset' _ _ _ hv
+    have h := leastLossSubset_least (clusterLoss O {(1 : S)} cn cd P cands ω) cands k hk
+      v hv w hw hwn
+    unfold clusterLoss at h
+    rw [if_pos hvc, if_pos hw, hammingLoss_seed, hammingLoss_seed] at h
+    rw [hsum (fun p => seedLoss O cn cd v p ω), hsum (fun p => seedLoss O cn cd w p ω)]
+    exact h
 
 /-! ### Part 1 comes from the clustering, not the gate
 
