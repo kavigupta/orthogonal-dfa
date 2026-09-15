@@ -230,14 +230,14 @@ draws of each population, and the **certification** draws the gate judges on.
 
 The certification stream is separate because the gate must not be read on the prefixes the
 family was selected from — see `certOf`. -/
-abbrev Run (Ω S J : Type*) := (Ω × ((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)
+abbrev Run (Ω S J : Type*) := (Ω × ((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)
 
 /-- The law of a run: the three components jointly independent, each stream i.i.d. -/
 noncomputable def runLaw (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
     Measure (Run Ω S J) :=
   (μ.prod ((Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
-    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)
+    (Measure.infinitePi fun z : J × ℕ => D z.1)
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runLaw μ D Dsf) := by
@@ -255,7 +255,7 @@ def prf (j : J) (i : ℕ) (x : Run Ω S J) : S := x.1.2.2 j i
 /-- The `i`-th **certification** prefix from population `j`: drawn only to read the split
 on, never added to the table, and independent of everything the family was chosen from
 (`certification_sample`). -/
-def cert (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2 j i
+def cert (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2 (j, i)
 
 lemma measurable_nz : Measurable (nz : Run Ω S J → Ω) := by unfold nz; fun_prop
 
@@ -272,17 +272,20 @@ lemma measurable_cert (j : J) (i : ℕ) : Measurable (cert (Ω := Ω) (S := S) j
 consume, and it is a theorem about `runLaw`, not a hypothesis about an abstract space. -/
 lemma law_block (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (n : ℕ) :
-    Measure.map (fun x : Run Ω S J => ((nz x, (fun i : Fin n => sfx i.val x),
-        (fun (j : J) (i : Fin n) => prf j i.val x)),
-          (fun (j : J) (i : Fin n) => cert j i.val x))) (runLaw μ D Dsf)
-      = (μ.prod
+    Measure.map (fun x : Run Ω S J => (nz x, (fun i : Fin n => sfx i.val x),
+        (fun (j : J) (i : Fin n) => prf j i.val x))) (runLaw μ D Dsf)
+      = μ.prod
           ((Measure.pi fun _ : Fin n => Dsf).prod
-            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)))).prod
-        (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)) :=
-  (((MeasurePreserving.id μ).prod
+            (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j))) := by
+  have h1 : (fun x : Run Ω S J => (nz x, (fun i : Fin n => sfx i.val x),
+      (fun (j : J) (i : Fin n) => prf j i.val x)))
+      = (fun y : Ω × ((ℕ → S) × (J → ℕ → S)) => (y.1, (fun i : Fin n => y.2.1 i.val),
+          (fun (j : J) (i : Fin n) => y.2.2 j i.val))) ∘ Prod.fst := rfl
+  rw [h1, ← Measure.map_map (by fun_prop) measurable_fst, runLaw, Measure.map_fst_prod]
+  simp only [measure_univ, one_smul]
+  exact ((MeasurePreserving.id μ).prod
     ((measurePreserving_finRestrict Dsf n).prod
-      (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).prod
-    (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n)).map_eq
+      (measurePreserving_pi _ _ fun j => measurePreserving_finRestrict (D j) n))).map_eq
 
 section Loop
 
@@ -730,7 +733,7 @@ lemma sideRej_subset (O : Oracle μ S) (populations : Finset J) (j : J) (B : Bud
 are determined by the oracle's bits at `gateReads`, and `disjoint_readSet` puts those
 strings off the certification prefixes the gate scores. -/
 lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (r : (ℕ → S) × (J → ℕ → S)) (c : J → ℕ → S) {ω ω' : Ω}
+    (r : (ℕ → S) × (J → ℕ → S)) (c : J × ℕ → S) {ω ω' : Ω}
     (h : ∀ w ∈ gateReads populations j B (((ω, r), c) : Run Ω S J),
       O.noise w ω = O.noise w ω') :
     sideAcc O populations j B ((ω, r), c) = sideAcc O populations j B ((ω', r), c) := by
@@ -752,7 +755,7 @@ lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budg
   simp only [nz, ← hfam, hvc]
 
 lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (r : (ℕ → S) × (J → ℕ → S)) (c : J → ℕ → S) {ω ω' : Ω}
+    (r : (ℕ → S) × (J → ℕ → S)) (c : J × ℕ → S) {ω ω' : Ω}
     (h : ∀ w ∈ gateReads populations j B (((ω, r), c) : Run Ω S J),
       O.noise w ω = O.noise w ω') :
     sideRej O populations j B ((ω, r), c) = sideRej O populations j B ((ω', r), c) := by
