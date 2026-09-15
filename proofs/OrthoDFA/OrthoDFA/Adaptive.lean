@@ -1854,6 +1854,42 @@ theorem seed_selection_avoids_bad {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
     rw [hsum (fun p => seedLoss O cn cd v p ω), hsum (fun p => seedLoss O cn cd w p ω)]
     exact h
 
+open scoped Classical in
+/-- **The first Lloyd step's output is ranked**, fallback included.  `lloydStep` returns the
+least-loss subset when the seed survives it and `{ε}` otherwise; the seed never flips, so
+the fallback branch is ranked for free. -/
+theorem lloyd_first_step_ranked {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    {cn cd : ℕ} (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (k : ℕ) (hk : k ≤ cands.card) (Δ : ℝ) (hΔ : 0 < Δ) (hPne : 0 < P.card)
+    (hsig : O.η ≤ 1 / 2)
+    (hgood : k ≤ (cands.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card) :
+    μ.real {ω | ¬ ∀ w ∈ lloydStep O cn cd P cands ω k {(1 : S)},
+        ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
+      ≤ (cands.card : ℝ)
+        * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
+  classical
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+    (seed_selection_avoids_bad hflat O hcd hP k hk Δ hΔ hPne hsig hgood)
+  intro ω hω
+  simp only [Set.mem_setOf_eq, not_forall] at hω ⊢
+  obtain ⟨w, hw, hbad⟩ := hω
+  refine ⟨w, ?_, hbad⟩
+  unfold lloydStep at hw
+  split_ifs at hw with h
+  · exact hw
+  · -- the fallback branch is the seed, which never flips
+    rw [Finset.mem_singleton] at hw
+    subst hw
+    exfalso
+    have hz : ∑ p ∈ P, O.flip (1 : S) p = 0 := by
+      refine Finset.sum_eq_zero (fun p _ => ?_)
+      show O.label (p * 1) + O.label p - 2 * O.label (p * 1) * O.label p = 0
+      rw [mul_one]
+      rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
+    rw [Classical.not_not] at hbad
+    rw [hz] at hbad
+    exact absurd hbad (not_le.2 (mul_pos hΔ (by exact_mod_cast hPne)))
+
 /-! ### Part 1 comes from the clustering, not the gate
 
 `hpAPBound` is a *premise*: accept-preserving suffixes are drawn with probability `≥ pAP`,
@@ -1885,25 +1921,6 @@ switches to prefix growth rather than cross it. -/
 def PoolRanked (O : Oracle μ S) (Δ : ℝ) (B : Budget) : Prop :=
   (1 / 4 - (1 / 2 - O.η) ^ 2) * Real.log (max (B.M : ℝ) 2)
     ≤ 2 * (1 / 2 - O.η) ^ 2 * Δ ^ 2 * (B.m : ℝ)
-
-/-- **The first Lloyd step keeps only low-flip candidates.**  Its centre is `{ε}`, so the
-loss is the disagreement with the seed's own column and the selection is a fixed-loss
-argmin — `chosen_accept_preserving_whp` applies with no conditioning.  A candidate carrying
-flip mass `Δ` disagrees with the seed on `Δ(1−2η)²` more of the prefixes than an
-accept-preserving one. -/
-theorem lloyd_first_step_ranked (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (B : Budget) (Δ : ℝ) (hΔ : 0 < Δ) (hsig : O.η < 1 / 2)
-    (pAP : ℝ) (hpAPPositive : 0 < pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (hpool : PoolRanked O Δ B) (hfill : (B.k : ℝ) ≤ pAP * B.M / 2) (η : ℝ) :
-    (runLaw μ D Dsf).real
-      {x | ¬ ∀ v ∈ lloydStep O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k
-              {(1 : S)},
-          ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
-      ≤ η :=
-  sorry
 
 /-- **The iteration keeps what the first step gave it.**  If every member of the current
 family carries flip mass `≤ Δ`, its thresholded mean is the majority of `k` mostly-correct
