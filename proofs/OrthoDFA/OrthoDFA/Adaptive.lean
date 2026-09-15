@@ -675,6 +675,30 @@ lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ 
     (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
   fun h => hv (hflat p hp p' hp' v h)
 
+/-- **The gate's own query strings are not read by the clustering.**  A prefix is never
+`p · v` for a prefix `p` and any suffix, on a flat alphabet — so the bits the gate scores
+are untouched by everything that decides which side each prefix falls on. -/
+lemma disjoint_readSet {Pre : Set S} (hflat : Flat Pre) {P cands C : Finset S}
+    (hP : ∀ p ∈ P, p ∈ Pre) (hC : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) :
+    Disjoint C (readSet P cands) := by
+  classical
+  refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
+  obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
+  obtain ⟨hp, -⟩ := Finset.mem_product.1 hpv
+  have hv1 : v = 1 := hflat p (hP p hp) _ (hC _ hz) v rfl
+  rw [hv1, mul_one] at hz
+  exact (Finset.disjoint_left.1 hPC hp) hz
+
+/-- The same, for the gate's own prefixes against their own votes: those read `p · v` with
+`v ≠ ε`, which is never a prefix. -/
+lemma disjoint_readSet_erase {Pre : Set S} (hflat : Flat Pre) {cands C : Finset S}
+    (hC : ∀ p ∈ C, p ∈ Pre) : Disjoint C (readSet C (cands.erase 1)) := by
+  classical
+  refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
+  obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
+  obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+  exact (Finset.mem_erase.1 hv).1 (hflat p (hC p hp) _ (hC _ hz) v rfl)
+
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
