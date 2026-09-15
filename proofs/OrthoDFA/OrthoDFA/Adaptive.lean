@@ -1568,6 +1568,21 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
         calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
           _ = (m : ℝ) ^ 2 := by push_cast; ring
 
+/-- **A budget whose certification sample is still fresh.**
+
+`disjoint_readSet` needs the certification prefixes distinct from the table prefixes, and
+the chance they are not is at most `|populations|·m²·ρ` — which *grows* with the budget.
+That is not slack in the argument: `S` is countable, so every `D j` is atomic, and once the
+draws exceed roughly `1/ρ` the sample has exhausted the support and the certification
+prefixes are no longer fresh.  Past that point the gate is scoring bits the family was
+selected on, and its null is not honest.
+
+So the guarantee runs over budgets below that line.  For a sampler drawing at a fixed
+length over a real alphabet `ρ` is exponentially small in the length, and the line sits far
+beyond any budget the loop reaches. -/
+def Fresh (populations : Finset J) (ρ κ : ℝ) (B : Budget) : Prop :=
+  (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ ≤ κ
+
 /-- **Part 1, reduced to one state.**  States are `Budget`, which is countable, so Part 1
 is a per-state bound at any summable weight.  There is no union over boundaries and no
 union over histories: the boundary and the margin are cutoffs, and the cutoffs are in the
@@ -1580,11 +1595,17 @@ theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit θacc θrej α εcov δ : ℝ)
     (w : Budget → ℝ) (hw0 : ∀ B, 0 ≤ w B) (hsum : Summable w) (hle : ∑' B, w B ≤ δ / 2)
-    (hper : ∀ B, (runLaw μ D Dsf).real
-      (ret O populations indecisionLimit θacc θrej α B ∩ FailAt O populations D εcov B) ≤ w B) :
-    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit θacc θrej α B
-        ∩ FailAt O populations D εcov B) ≤ δ / 2 :=
-  le_trans (measureReal_iUnion_le_tsum _ w hw0 hper hsum) hle
+    (ρ κ : ℝ)
+    (hper : ∀ B : {B : Budget // Fresh populations ρ κ B}, (runLaw μ D Dsf).real
+      (ret O populations indecisionLimit θacc θrej α B.val
+        ∩ FailAt O populations D εcov B.val) ≤ w B.val) :
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Fresh populations ρ κ B},
+        ret O populations indecisionLimit θacc θrej α B.val
+          ∩ FailAt O populations D εcov B.val) ≤ δ / 2 :=
+  le_trans (measureReal_iUnion_le_tsum _
+      (fun B : {B : Budget // Fresh populations ρ κ B} => w B.val)
+      (fun B => hw0 B.val) hper (hsum.subtype _))
+    (le_trans (hsum.tsum_subtype_le w {B | Fresh populations ρ κ B} hw0) hle)
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
@@ -1637,12 +1658,13 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     ∃ w : Budget → ℝ, (∀ B, 0 ≤ w B) ∧ Summable w ∧ (∑' B, w B ≤ δ / 2) ∧
-      ∀ B, (runLaw μ D Dsf).real
-        (ret O populations indecisionLimit θacc θrej α B ∩ FailAt O populations D εcov B) ≤ w B :=
+      ∀ B : {B : Budget // Fresh populations ρ κ B}, (runLaw μ D Dsf).real
+        (ret O populations indecisionLimit θacc θrej α B.val
+          ∩ FailAt O populations D εcov B.val) ≤ w B.val :=
   sorry
 
 /-! ### The argument `exists_budget_weight` needs
@@ -1690,14 +1712,17 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
-    (runLaw μ D Dsf).real (⋃ B, ret O populations indecisionLimit θacc θrej α B
-        ∩ FailAt O populations D εcov B) ≤ δ / 2 := by
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Fresh populations ρ κ B},
+        ret O populations indecisionLimit θacc θrej α B.val
+          ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall
-  exact validity_of_budget O populations D Dsf indecisionLimit θacc θrej α εcov δ w hw0 hsum hle hper
+    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound ρ κ hρ εcov hεcov δ hδ hα
+    hρsmall
+  exact validity_of_budget O populations D Dsf indecisionLimit θacc θrej α εcov δ w hw0 hsum hle
+    ρ κ hper
 
 /-- **Part 2 — the loop terminates.**
 
@@ -1726,12 +1751,14 @@ slack: `0.01 < 0.02` (`0.10` after PR #257). -/
 theorem loop_terminates (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (accFnr indecisionLimit θacc θrej α : ℝ) (ρ κ : ℝ)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) :
-    (runLaw μ D Dsf).real {x | ∀ B, x ∉ ret O populations indecisionLimit θacc θrej α B} ≤ δ / 2 :=
+    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Fresh populations ρ κ B},
+      x ∉ ret O populations indecisionLimit θacc θrej α B.val} ≤ δ / 2 :=
   sorry
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
@@ -1756,20 +1783,25 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (accFnr indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (ρ κ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
     1 - δ ≤ (runLaw μ D Dsf).real
-      {x | (∃ B, x ∈ ret O populations indecisionLimit θacc θrej α B) ∧
-        ∀ B : Budget, x ∈ ret O populations indecisionLimit θacc θrej α B →
+      {x | (∃ B : {B : Budget // Fresh populations ρ κ B},
+          x ∈ ret O populations indecisionLimit θacc θrej α B.val) ∧
+        ∀ B : {B : Budget // Fresh populations ρ κ B},
+          x ∈ ret O populations indecisionLimit θacc θrej α B.val →
           ∀ j ∈ populations, 1 - εcov
-            ≤ (D j).real {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)}} := by
+            ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
+                (clusterAt O populations x B.val) p (nz x)}} := by
   have h := sound_and_terminating (runLaw μ D Dsf)
-    (fun B => ret O populations indecisionLimit θacc θrej α B ∩ FailAt O populations D εcov B)
-    (ret O populations indecisionLimit θacc θrej α) δ
+    (fun B : {B : Budget // Fresh populations ρ κ B} =>
+      ret O populations indecisionLimit θacc θrej α B.val ∩ FailAt O populations D εcov B.val)
+    (fun B : {B : Budget // Fresh populations ρ κ B} =>
+      ret O populations indecisionLimit θacc θrej α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit θacc θrej α hsig hpop
-      pAP hpAPPositive hpAPBound ρ hρ εcov hεcov δ hδ hα hρsmall)
-    (loop_terminates O populations D Dsf accFnr indecisionLimit θacc θrej α hsig hpop
+      pAP hpAPPositive hpAPBound ρ κ hρ εcov hεcov δ hδ hα hρsmall)
+    (loop_terminates O populations D Dsf accFnr indecisionLimit θacc θrej α ρ κ hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
   congr 1
