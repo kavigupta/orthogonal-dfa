@@ -339,7 +339,9 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (W S : Type
   hη : η ≤ 1 / 2
   noise_meas : ∀ w, AEMeasurable (noise w) μ
   noise_indep : iIndepFun noise μ
-  noise_icc : ∀ w, ∀ᵐ ω ∂μ, noise w ω ∈ Set.Icc (0 : ℝ) 1
+  /-- The noise is a genuine `{0,1}` bit (a.s.).  Together with `noise_mean = η`
+  this says `noise w ∼ Bernoulli(η)`. -/
+  noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
   q : ℕ → S → W
   q_inj : ∀ v, Function.Injective (fun i => q i v)
@@ -348,6 +350,12 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω) (W S : Type
 
 namespace Oracle
 variable {W S : Type*} (O : Oracle μ W S)
+
+/-- **Derived** boundedness: a `{0,1}` bit lies in `[0,1]` (what the Hoeffding
+bounds consume). -/
+lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := by
+  filter_upwards [O.noise_bit w] with ω hω
+  rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
 
 /-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of `v` on
 prefix `i`, where the noise is that of the concatenated query string `q i v`. -/
