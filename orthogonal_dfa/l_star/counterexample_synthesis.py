@@ -136,31 +136,21 @@ def _per_state_members(pst, resolver, dfa, per_state):
     return held
 
 
-def _nothing_left_to_split(pst, resolver, dfa) -> bool:
-    """Whether the round found every state it can and settled every state it
-    can fill.
-
-    Only states a draw reaches are waited on, the same ones `_per_state_members`
-    draws for: elsewhere a leaf too thin to rule a split out stays that way.
+def _aimed_at(pst, resolver, dfa) -> set:
+    """The leaves the round aims at, which are the ones its aims settle strings
+    into -- `state_source` proves a leaf's yield by aiming at it, so a leaf
+    whose yield comes out too low has still been filled by the proving.
     """
-    fillable = {
+    return {
         leaf
         for leaf in range(resolver.num_states)
         if aim_at(pst, dfa, leaf) is not None
     }
-    return resolver.splits.nothing_left_to_split(fillable)
 
 
-def _grow_representative_pool(
-    pst,
-    resolver,
-    dfa,
-    state,
-    *,
-    per_state,
-):
-    by_state = _per_state_members(pst, resolver, dfa, per_state)
-    state.sampled = sorted({m for members in by_state.values() for m in members})
+def _publish_pool(pst, state) -> int:
+    """Put the round's populations in the table, returning how many of its
+    prefixes are representative."""
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
     for population, prefixes in (
@@ -304,16 +294,16 @@ def counterexample_driven_synthesis(
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
-        pool = _grow_representative_pool(pst, resolver, dfa, state, per_state=per_state)
-        print(
-            f"[round {index}] pool now {pool} representative prefixes, "
-            f"{len(state.accumulated)} boundary strings harvested so far"
-        )
-        # Must follow the rebuild: this reads the leaf members it just drew.
+        by_state = _per_state_members(pst, resolver, dfa, per_state)
+        state.sampled = sorted({m for members in by_state.values() for m in members})
+        # Asked after the aims, which are what fill the leaves it reads.  A
+        # leaf nothing aims at is not one the round waits on.
         if stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
-            settled=lambda: _nothing_left_to_split(pst, resolver, dfa),
+            settled=lambda: resolver.splits.nothing_left_to_split(
+                _aimed_at(pst, resolver, dfa)
+            ),
         ):
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
@@ -321,7 +311,14 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
+        # Last, so what the draws and the check strand lands in the pool the
+        # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
+        pool = _publish_pool(pst, state)
+        print(
+            f"[round {index}] pool now {pool} representative prefixes, "
+            f"{len(state.accumulated)} boundary strings harvested so far"
+        )
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
