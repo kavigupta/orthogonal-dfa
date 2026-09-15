@@ -8,3 +8,4 @@ import OrthoDFA.Fuse
 import OrthoDFA.Algorithm
 import OrthoDFA.Capstone
 import OrthoDFA.Liveness
+import OrthoDFA.Complexity
