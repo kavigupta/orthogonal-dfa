@@ -102,13 +102,13 @@ def _take_indecisive(resolver, target):
     return ordered[:target]
 
 
-def _keep_stranded(resolver, state, room):
-    """Hold what the sweep stranded, up to ``room``.
+def _keep_indecisive(resolver, state, room):
+    """Take up to ``room`` more of the round's boundary strings.
 
-    Reading every leaf's members strands strings the round's own probing never
-    reached, but the pool it was asked about is built by then, so these seed the
-    next round's.  Sorted then shuffled with a fixed rng, as `_take_indecisive`
-    is and for the same reason.
+    Reading every leaf's members turns up strings the round's own probing never
+    reached, but the pool they would have joined is built by then, so these go
+    to the next round's.  Sorted then shuffled with a fixed rng, as
+    `_take_indecisive` is and for the same reason.
     """
     fresh = sorted(resolver.indecisive - state.seen)
     np.random.default_rng(0).shuffle(fresh)
@@ -349,7 +349,7 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
-        _keep_stranded(resolver, state, room)
+        _keep_indecisive(resolver, state, room)
         index += 1
         if max_rounds is not None and index >= max_rounds:
             print(f"[round {index - 1}] ran the {max_rounds} rounds asked for")
