@@ -3438,6 +3438,43 @@ lemma card_good_pool_ge (O : Oracle μ S) (M : ℕ) (P : Finset S) (x : Run Ω S
   · intro a _ b _ hab
     exact hinj hab
 
+/-! ### Part 2's first requirement: the vote is decisive
+
+A family that preserves acceptance at `p` votes `Bernoulli(1−η)` there when `p` is
+accepting and `Bernoulli(η)` when it is not, so the vote sits `s` away from the centre and
+the band `[lo, hi]` only catches it on a deviation of `s − eps`.  This is `voteSum_upper`
+and `voteSum_lower` at zero flips. -/
+
+open scoped Classical in
+theorem decided_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (γ : ℝ) (hγ : 0 ≤ γ)
+    (hclean : flipCount O F p = 0)
+    (hhi : (hi : ℝ) ≤ (F.card : ℝ) * ((1 - O.η) - γ))
+    (hlo : (F.card : ℝ) * (O.η + γ) ≤ (lo : ℝ) + 1) :
+    μ.real {ω | ¬ decided O lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  have hf : flipCount O F p ≤ (F.card : ℝ) * 0 := by rw [hclean, mul_zero]
+  rcases O.label_bit p with hp | hp
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp 0 γ hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hgt : lo < voteCount O F p ω := by
+      by_contra hc
+      exact hbad (Or.inr (not_lt.1 hc))
+    have hcast : (lo : ℝ) + 1 ≤ (voteCount O F p ω : ℝ) := by exact_mod_cast hgt
+    show (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * 0) + γ) ≤ voteSum O F p ω
+    rw [← heq, mul_zero, add_zero]
+    linarith
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp 0 γ hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hle : voteCount O F p ω ≤ hi := by
+      by_contra hc
+      exact hbad (Or.inl (not_le.1 hc))
+    have hcast : (voteCount O F p ω : ℝ) ≤ (hi : ℝ) := by exact_mod_cast hle
+    show voteSum O F p ω ≤ (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - 0)) - γ)
+    rw [← heq]
+    have : O.η + (1 - 2 * O.η) * (1 - 0) = 1 - O.η := by ring
+    rw [this]
+    linarith
+
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
