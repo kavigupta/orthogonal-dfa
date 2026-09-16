@@ -2146,6 +2146,41 @@ theorem clusterAround_ranked {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) :=
   sorry
 
+open scoped Classical in
+/-- The family at a state, with the seed-only stall replaced by a fixed `k`-subset.  On
+`ret` the two agree (`not_ret_of_seed_family`); off it, this is what keeps the family's
+value set inside `powersetCard k`, which is what the selection bound consumes. -/
+noncomputable def famAt (O : Oracle μ S) (populations : Finset J) (B : Budget)
+    (x : Run Ω S J) : Finset S :=
+  if clusterAt O populations x B = {(1 : S)}
+  then leastLossSubset (fun _ : S => (0 : ℝ)) (poolAt B.M x) B.k
+  else clusterAt O populations x B
+
+open scoped Classical in
+lemma famAt_mem (O : Oracle μ S) (populations : Finset J) (B : Budget) (x : Run Ω S J)
+    (hk : B.k ≤ (poolAt B.M x).card) :
+    famAt O populations B x ∈ (poolAt B.M x).powersetCard B.k := by
+  classical
+  unfold famAt
+  split_ifs with h
+  · exact leastLossSubset_mem _ _ _ hk
+  · rcases Finset.mem_insert.1
+      (clusterAround_mem_values O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x)
+        (nz x) B.k hk) with h1 | h1
+    · exact absurd h1 h
+    · exact h1
+
+lemma famAt_eq_of_ret (O : Oracle μ S) (populations : Finset J)
+    (indecisionLimit θacc θrej α : ℝ) (B : Budget) (hα : α < 1)
+    (hpop : populations.Nonempty) {x : Run Ω S J}
+    (hx : x ∈ ret O populations indecisionLimit θacc θrej α B) :
+    famAt O populations B x = clusterAt O populations x B := by
+  classical
+  unfold famAt
+  rw [if_neg]
+  intro hseed
+  exact not_ret_of_seed_family O populations indecisionLimit θacc θrej α B hα hpop x hseed hx
+
 /-! ### From flip mass to a correct cut
 
 The band is what turns "few members flip" into "the cut is right", and it is far more
@@ -2804,6 +2839,90 @@ theorem coverage_of_run {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         (add_le_add (measureReal_union_le _ _) (measureReal_union_le _ _)))
   show ε ≤ Dj.real {p | ω ∈ lightBad Pre O P lo hi T f fam p}
   linarith [hsub, hshort, hheavy]
+
+open scoped Classical in
+/-- `famAt` as a function of the noise alone, with the table and the pool fixed — which is
+what they are once the draws are.  The seed-only stall is replaced by a fixed `k`-subset so
+that the value set is `powersetCard k`. -/
+noncomputable def famOf (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω) :
+    Finset S :=
+  if clusterAround O cn cd P cands ω k = {(1 : S)}
+  then leastLossSubset (fun _ : S => (0 : ℝ)) cands k
+  else clusterAround O cn cd P cands ω k
+
+open scoped Classical in
+lemma famOf_mem (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω)
+    (hk : k ≤ cands.card) : famOf O cn cd P cands k ω ∈ cands.powersetCard k := by
+  classical
+  unfold famOf
+  split_ifs with h
+  · exact leastLossSubset_mem _ _ _ hk
+  · rcases Finset.mem_insert.1 (clusterAround_mem_values O cn cd P cands ω k hk) with h1 | h1
+    · exact absurd h1 h
+    · exact h1
+
+open scoped Classical in
+lemma famOf_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    (hone : (1 : S) ∈ cands) {ω ω' : Ω}
+    (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    famOf O cn cd P cands k ω = famOf O cn cd P cands k ω' := by
+  classical
+  unfold famOf
+  rw [clusterAround_congr O cn cd P cands k hone h]
+
+open scoped Classical in
+lemma measurableSet_famOf (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    (hone : (1 : S) ∈ cands) (A₀ : Finset S) :
+    MeasurableSet {ω | famOf O cn cd P cands k ω = A₀} := by
+  classical
+  have hstall := measurableSet_clusterAround O cn cd P cands k hone ({(1 : S)} : Finset S)
+  have htarget := measurableSet_clusterAround O cn cd P cands k hone A₀
+  set Stall : Set Ω := {ω | clusterAround O cn cd P cands ω k = ({(1 : S)} : Finset S)}
+    with hStall
+  set Hit : Set Ω := {ω | clusterAround O cn cd P cands ω k = A₀} with hHit
+  have hcov : {ω | famOf O cn cd P cands k ω = A₀}
+      = (if leastLossSubset (fun _ : S => (0 : ℝ)) cands k = A₀ then Stall else ∅)
+        ∪ (Hit ∩ Stallᶜ) := by
+    ext ω
+    by_cases hs : clusterAround O cn cd P cands ω k = ({(1 : S)} : Finset S) <;>
+      by_cases ht : leastLossSubset (fun _ : S => (0 : ℝ)) cands k = A₀ <;>
+      simp [famOf, hStall, hHit, hs, ht]
+  rw [hcov]
+  refine MeasurableSet.union ?_ (htarget.inter hstall.compl)
+  split_ifs
+  · exact hstall
+  · exact MeasurableSet.empty
+
+/-- **One state's coverage, with the table and the pool fixed.**  `coverage_of_run` with the
+value set the iterate actually lands in. -/
+theorem coverage_of_famOf {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (Dj : Measure S) [IsProbabilityMeasure Dj] (P cands : Finset S)
+    (hP : ∀ q ∈ P, q ∈ Pre) (hsupp : Dj Preᶜ = 0) (hone : (1 : S) ∈ cands)
+    (cn cd k : ℕ) (hk : k ≤ cands.card) (hkpos : 0 < k) (lo hi : ℕ) (f γ Δ ε : ℝ)
+    (hγ : 0 ≤ γ) (hf : 0 < f) (hε : 0 < ε)
+    (hhi : (k : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ (hi : ℝ))
+    (hlo : (lo : ℝ) < (k : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)) :
+    μ.real {ω | (∀ v ∈ famOf O cn cd P cands k ω, flipMass O Dj v ≤ Δ)
+        ∧ Dj.real ↑P + Δ / f + ε
+            ≤ Dj.real {p | ¬ cutCorrect O lo hi (famOf O cn cd P cands k ω) p ω}}
+      ≤ Real.exp (-2 * (k : ℝ) * γ ^ 2) / ε := by
+  classical
+  have hcardT : ∀ t ∈ cands.powersetCard k, t.card = k :=
+    fun t ht => (Finset.mem_powersetCard.1 ht).2
+  have hzero : Dj.real Preᶜ = 0 := by rw [measureReal_def, hsupp]; simp
+  refine le_trans (le_of_eq ?_)
+    (coverage_of_run hflat O Dj P cands hP lo hi (cands.powersetCard k)
+      (leastLossSubset (fun _ : S => (0 : ℝ)) cands k) (leastLossSubset_mem _ _ _ hk)
+      (fun t ht => (Finset.mem_powersetCard.1 ht).1)
+      (famOf O cn cd P cands k) (fun ω => famOf_mem O cn cd P cands k ω hk)
+      (measurableSet_famOf O cn cd P cands k hone)
+      (fun ω ω' h => famOf_congr O cn cd P cands k hone h)
+      f γ Δ ε hγ hf hε k hkpos (fun t ht => le_of_eq (hcardT t ht).symm)
+      (fun t ht => by rw [hcardT t ht]; exact hhi)
+      (fun t ht => by rw [hcardT t ht]; exact hlo))
+  congr 1
+  ext ω
+  simp only [Set.mem_setOf_eq, hzero, zero_add]
 
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
