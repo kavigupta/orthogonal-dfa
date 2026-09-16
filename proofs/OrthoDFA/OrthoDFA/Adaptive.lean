@@ -2084,6 +2084,87 @@ lemma admitted_of_counts (O : Oracle μ S) (lo hi : ℕ) (εcov α τ : ℝ) (F 
     le_trans (binomCdf_le _ _ _ τ (gateRej_mem O hε0 hε1 hsig).1
       (gateRej_mem O hε0 hε1 hsig).2 hτ hrej) hαr⟩
 
+open scoped Classical in
+/-- **A correct cut on sides that carry prefixes is admitted.**  The four pieces join here:
+the cut being right makes both sides carry only their own label (`sides_clean`), the two
+admission bounds say a clean side reads as its own class often enough, and
+`admitted_of_counts` turns those counts back into the binomial tests the gate runs.
+
+The side sizes are left in the event rather than assumed: a side that comes up empty leaves
+the verdict uncertified, which is the loop's business, not this lemma's. -/
+theorem admitted_whp (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (lo hi : ℕ) (εcov α τ : ℝ) (n₀ : ℕ) (fam : Ω → Finset S)
+    (hQ : ∀ ω, ∀ p ∈ C, ∀ v ∈ fam ω, p * v ∈ Q)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
+    (hga : gateAcc O εcov + τ + τ ≤ 1 - O.η) (hgr : O.η ≤ gateRej O εcov - τ - τ)
+    (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α) :
+    μ.real {ω | (∀ p ∈ C, cutCorrect O lo (hi - 1) (fam ω) p ω)
+        ∧ n₀ ≤ (splitAcc O hi (fam ω) C ω).2 ∧ n₀ ≤ (splitRej O lo (fam ω) C ω).2
+        ∧ ¬ admitted O lo hi εcov α (fam ω) C ω}
+      ≤ 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
+  classical
+  set sA : Ω → Finset S := fun ω => C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω) with hsA
+  set sR : Ω → Finset S := fun ω => C.filter (fun p => voteCount O (fam ω) p ω ≤ lo) with hsR
+  have hsideA : ∀ ω, sA ω ⊆ C := fun ω => Finset.filter_subset _ _
+  have hsideR : ∀ ω, sR ω ⊆ C := fun ω => Finset.filter_subset _ _
+  have hcA : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sA ω = sA ω' := by
+    intro ω ω' h
+    have hf := hcongr ω ω' h
+    rw [hsA]
+    refine Finset.filter_congr (fun p hp => ?_)
+    have : voteCount O (fam ω) p ω = voteCount O (fam ω') p ω' := by
+      rw [← hf]
+      exact voteCount_congr O _ p (fun v hv => by rw [mq_congr O (h _ (hQ ω p hp v hv))])
+    rw [this]
+  have hcR : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sR ω = sR ω' := by
+    intro ω ω' h
+    have hf := hcongr ω ω' h
+    rw [hsR]
+    refine Finset.filter_congr (fun p hp => ?_)
+    have : voteCount O (fam ω) p ω = voteCount O (fam ω') p ω' := by
+      rw [← hf]
+      exact voteCount_congr O _ p (fun v hv => by rw [mq_congr O (h _ (hQ ω p hp v hv))])
+    rw [this]
+  have hbA := gate_acc_admit_bound O C Q hdisj sA hsideA hcA (gateAcc O εcov + τ) τ n₀ hτ
+    (by linarith)
+  have hbR := gate_rej_admit_bound O C Q hdisj sR hsideR hcR (gateRej O εcov - τ) τ n₀ hτ
+    (by linarith)
+  have hsub : {ω | (∀ p ∈ C, cutCorrect O lo (hi - 1) (fam ω) p ω)
+      ∧ n₀ ≤ (splitAcc O hi (fam ω) C ω).2 ∧ n₀ ≤ (splitRej O lo (fam ω) C ω).2
+      ∧ ¬ admitted O lo hi εcov α (fam ω) C ω}
+      ⊆ {ω | n₀ ≤ (sA ω).card ∧ (∀ p ∈ sA ω, O.label p = 1)
+            ∧ (((sA ω).filter (fun p => mq O p ω = 1)).card : ℝ)
+              ≤ ((sA ω).card : ℝ) * (gateAcc O εcov + τ)}
+        ∪ {ω | n₀ ≤ (sR ω).card ∧ (∀ p ∈ sR ω, O.label p = 0)
+            ∧ ((sR ω).card : ℝ) * (gateRej O εcov - τ)
+              ≤ (((sR ω).filter (fun p => mq O p ω = 1)).card : ℝ)} := by
+    rintro ω ⟨hcut, hnA, hnR, hadm⟩
+    obtain ⟨hclA, hclR⟩ := sides_clean O lo (hi - 1) (fam ω) C ω hcut
+    have hexpA : Real.exp (-2 * ((sA ω).card : ℝ) * τ ^ 2) ≤ α := by
+      refine le_trans (Real.exp_le_exp.2 ?_) hα
+      have : (n₀ : ℝ) ≤ ((sA ω).card : ℝ) := by exact_mod_cast hnA
+      nlinarith [sq_nonneg τ]
+    have hexpR : Real.exp (-2 * ((sR ω).card : ℝ) * τ ^ 2) ≤ α := by
+      refine le_trans (Real.exp_le_exp.2 ?_) hα
+      have : (n₀ : ℝ) ≤ ((sR ω).card : ℝ) := by exact_mod_cast hnR
+      nlinarith [sq_nonneg τ]
+    by_contra hnot
+    simp only [Set.mem_union, not_or, Set.mem_setOf_eq, not_and] at hnot
+    refine hadm (admitted_of_counts O lo hi εcov α τ (fam ω) C ω hτ hε0 hε1 hsig ?_ ?_
+      hexpA hexpR)
+    · exact not_lt.1 (fun hlt => (hnot.1 hnA hclA) (le_of_lt hlt))
+    · exact not_lt.1 (fun hlt => (hnot.2 hnR hclR) (le_of_lt hlt))
+  calc μ.real {ω | (∀ p ∈ C, cutCorrect O lo (hi - 1) (fam ω) p ω)
+        ∧ n₀ ≤ (splitAcc O hi (fam ω) C ω).2 ∧ n₀ ≤ (splitRej O lo (fam ω) C ω).2
+        ∧ ¬ admitted O lo hi εcov α (fam ω) C ω}
+      ≤ μ.real (_ ∪ _) := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ _ + _ := measureReal_union_le _ _
+    _ ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) + Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) :=
+        add_le_add hbA hbR
+    _ = 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by ring
+
 /-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
 `measureReal_iUnion_fintype_le` for finite index, but not this. -/
 lemma measureReal_iUnion_le_tsum {A : Type*} [MeasurableSpace A] {ρ : Measure A}
