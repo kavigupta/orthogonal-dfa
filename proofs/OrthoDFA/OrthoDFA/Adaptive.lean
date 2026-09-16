@@ -1327,6 +1327,33 @@ noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     ∧ ∀ j ∈ populations, admitted O B.lo B.hi θacc θrej α
         ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
 
+lemma binomSfGe_zero (θ : ℝ) : binomSfGe 0 θ 0 = 1 := by
+  simp [binomSfGe]
+
+open scoped Classical in
+/-- **The seed alone is never returned.**  The iterate can stall at `{ε}`, whose vote is one
+noisy read and whose coverage really is bad — but with the seed dropped the split has an
+empty accept side, whose survival function is `1`, and no error rate below `1` admits it. -/
+lemma not_ret_of_seed_family (O : Oracle μ S) (populations : Finset J)
+    (indecisionLimit θacc θrej α : ℝ) (B : Budget) (hα : α < 1)
+    (hpop : populations.Nonempty) (x : Run Ω S J)
+    (hfam : clusterAt O populations x B = {(1 : S)}) :
+    x ∉ ret O populations indecisionLimit θacc θrej α B := by
+  classical
+  obtain ⟨j, hj⟩ := hpop
+  rintro ⟨-, hadm⟩
+  have hacc := (hadm j hj).1
+  rw [hfam, Finset.erase_singleton] at hacc
+  have hside : (∅ : Finset S).card = 0 := rfl
+  have hempty : (certOf j B.m x).filter
+      (fun p => B.hi < voteCount O (∅ : Finset S) p (nz x)) = ∅ := by
+    refine Finset.filter_eq_empty_iff.2 (fun p _ => ?_)
+    simp [voteCount]
+  have hsplit : splitAcc O B.hi (∅ : Finset S) (certOf j B.m x) (nz x) = (0, 0) := by
+    simp [splitAcc, hempty]
+  rw [hsplit, binomSfGe_zero] at hacc
+  exact absurd hacc (not_le.2 hα)
+
 /-- The family at a reachable state is **invalid**: on some population its cut is wrong on
 more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (εcov : ℝ)
@@ -2853,6 +2880,7 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
@@ -2907,6 +2935,7 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
     (hρsmall : ρ ≤ εcov ^ 2 * δ) :
@@ -2914,8 +2943,8 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
         ret O populations indecisionLimit θacc θrej α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound cap ρ hρ εcov hεcov δ hδ hα
-    hρsmall
+    indecisionLimit θacc θrej α hsig hpop pAP hpAPPositive hpAPBound Pre hflat hsupp cap ρ hρ
+    εcov hεcov δ hδ hα hρsmall
   exact validity_of_budget O populations D Dsf indecisionLimit θacc θrej α εcov δ w hw0 hsum hle
     cap hper
 
@@ -2978,6 +3007,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (accFnr indecisionLimit θacc θrej α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (pAP : ℝ) (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
     (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) (hρsmall : ρ ≤ εcov ^ 2 * δ) :
@@ -2995,7 +3025,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (fun B : {B : Budget // Capped cap B} =>
       ret O populations indecisionLimit θacc θrej α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit θacc θrej α hsig hpop
-      pAP hpAPPositive hpAPBound cap ρ hρ εcov hεcov δ hδ hα hρsmall)
+      pAP hpAPPositive hpAPBound Pre hflat hsupp cap ρ hρ εcov hεcov δ hδ hα hρsmall)
     (loop_terminates O populations D Dsf accFnr indecisionLimit θacc θrej α cap hsig hpop
       pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
   refine le_trans h (le_of_eq ?_)
