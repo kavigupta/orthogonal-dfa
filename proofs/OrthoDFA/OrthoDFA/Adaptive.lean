@@ -4490,6 +4490,67 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
           rw [hκ, Finset.card_product, Finset.card_product, Finset.card_range]
         rw [hcard]; push_cast; ring
 
+/-- The certification prefixes are read by neither the clustering nor the split. -/
+lemma disjoint_gateReads {Pre : Set S} (hflat : Flat Pre) (populations : Finset J) (j : J)
+    (B : Budget) (x : Run Ω S J)
+    (hP : ∀ q ∈ prefixesAt populations B.m x, q ∈ Pre)
+    (hC : ∀ p ∈ certOf j B.m x, p ∈ Pre)
+    (hPC : Disjoint (prefixesAt populations B.m x) (certOf j B.m x)) :
+    Disjoint (↑(certOf j B.m x) : Set S) (↑(gateReads populations j B x) : Set S) := by
+  classical
+  rw [gateReads, Finset.coe_union, Set.disjoint_union_right]
+  exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hC hPC),
+    Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hC)⟩
+
+open scoped Classical in
+/-- **A wrong cut is a wrong *fraction* of one gate side.**  Either side may be small, or
+clean on its own; what cannot happen is both at once, once the two together carry
+`(c + 2β)·|C|` wrong prefixes.  `β` is the size floor the gate's tail bound is charged at,
+and paying for it twice — once per side — is what fixes the constants. -/
+lemma exists_wrong_side (O : Oracle μ S) (C A R : Finset S) (hA : A ⊆ C) (hR : R ⊆ C)
+    (hAR : Disjoint A R) (wtot c β : ℝ) (hc : 0 ≤ c) (hβ : 0 ≤ β)
+    (hcount : c * (C.card : ℝ) + 2 * (β * (C.card : ℝ)) < wtot)
+    (hle : wtot ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ)
+        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) :
+    (β * (C.card : ℝ) ≤ (A.card : ℝ)
+        ∧ c * (A.card : ℝ) ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ))
+      ∨ (β * (C.card : ℝ) ≤ (R.card : ℝ)
+        ∧ c * (R.card : ℝ) ≤ ∑ p ∈ R, O.label p) := by
+  classical
+  have hRsum : ∑ p ∈ R, O.label p
+      = ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
+    rw [sum_label_eq O R]
+    have hcf := Finset.card_filter_add_card_filter_not (s := R) (fun p => O.label p = 0)
+    have : ((R.filter (fun p => O.label p = 0)).card : ℝ)
+        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) = (R.card : ℝ) := by
+      exact_mod_cast congrArg (fun n : ℕ => (n : ℝ)) hcf
+    linarith
+  rw [hRsum]
+  by_contra hcon
+  push_neg at hcon
+  obtain ⟨hAfail, hRfail⟩ := hcon
+  have hcard : (A.card : ℝ) + (R.card : ℝ) ≤ (C.card : ℝ) := by
+    have hu := Finset.card_le_card (Finset.union_subset hA hR)
+    rw [Finset.card_union_of_disjoint hAR] at hu
+    exact_mod_cast hu
+  have hbound : ∀ (U : Finset S) (Q : S → Prop) [DecidablePred Q],
+      (β * (C.card : ℝ) ≤ (U.card : ℝ) → ((U.filter Q).card : ℝ) < c * (U.card : ℝ)) →
+      ((U.filter Q).card : ℝ) < c * (U.card : ℝ) + β * (C.card : ℝ) := by
+    intro U Q _ hfail
+    by_cases hbig : β * (C.card : ℝ) ≤ (U.card : ℝ)
+    · have hcU : (0 : ℝ) ≤ c * (U.card : ℝ) := mul_nonneg hc (Nat.cast_nonneg _)
+      have hβC : (0 : ℝ) ≤ β * (C.card : ℝ) := mul_nonneg hβ (Nat.cast_nonneg _)
+      linarith [hfail hbig]
+    · have hfil : ((U.filter Q).card : ℝ) ≤ (U.card : ℝ) := by
+        exact_mod_cast Finset.card_filter_le U Q
+      have hcU : (0 : ℝ) ≤ c * (U.card : ℝ) := mul_nonneg hc (Nat.cast_nonneg _)
+      push_neg at hbig
+      linarith
+  have hAb := hbound A (fun p => O.label p = 0) hAfail
+  have hRb := hbound R (fun p => ¬ (O.label p = 0)) hRfail
+  have hcc : (0 : ℝ) ≤ c := hc
+  nlinarith [hAb, hRb, hcard, hle, hcount]
+
 /-! ### The population bound for one state
 
 Three things can go wrong at a population prefix: the clustering read its query strings
