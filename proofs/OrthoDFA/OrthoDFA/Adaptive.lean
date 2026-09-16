@@ -2352,6 +2352,75 @@ lemma measureReal_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad 
     _ = E / ε := by
         rw [ENNReal.toReal_div, ENNReal.toReal_ofReal hE, ENNReal.toReal_ofReal hε.le]
 
+/-! ### Level 2: the empirical flip rate is honest
+
+The clustering only ever sees a candidate's flips on the prefixes actually drawn.  Those
+are `m` i.i.d. draws from the population, so the count concentrates around `m · flipMass`
+and a candidate that looks clean on them is clean. -/
+
+lemma map_prefixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) :
+    Measure.map (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) (runLaw μ D Dsf)
+      = Measure.pi (fun _ : Fin m => D j) := by
+  have hstep : (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x))
+      = (fun y : ((Fin m → S) × (J → Fin m → S)) => y.2 j)
+        ∘ (fun x : Run Ω S J => ((fun i : Fin m => sfx i.val x),
+            (fun (j : J) (i : Fin m) => prf j i.val x))) := rfl
+  have hmeasBlock : Measurable (fun x : Run Ω S J => ((fun i : Fin m => sfx i.val x),
+      (fun (j : J) (i : Fin m) => prf j i.val x))) :=
+    (measurable_pi_lambda _ (fun i : Fin m => measurable_sfx i.val)).prodMk
+      (measurable_pi_lambda _ (fun j : J =>
+        measurable_pi_lambda _ (fun i : Fin m => measurable_prf j i.val)))
+  rw [hstep, ← Measure.map_map (by fun_prop) hmeasBlock, law_block D Dsf m,
+    show (fun y : ((Fin m → S) × (J → Fin m → S)) => y.2 j)
+      = (fun q : J → Fin m → S => q j) ∘ Prod.snd from rfl,
+    ← Measure.map_map (by fun_prop) measurable_snd, Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  exact (measurePreserving_eval (fun j : J => Measure.pi fun _ : Fin m => D j) j).map_eq
+
+lemma pi_flip_mean (Dj : Measure S) [IsProbabilityMeasure Dj] (O : Oracle μ S) (m : ℕ)
+    (v : S) (i : Fin m) :
+    (Measure.pi fun _ : Fin m => Dj)[fun q : Fin m → S => O.flip v (q i)]
+      = flipMass O Dj v := by
+  have hmap : Measure.map (fun q : Fin m → S => q i) (Measure.pi fun _ : Fin m => Dj) = Dj :=
+    (measurePreserving_eval (fun _ : Fin m => Dj) i).map_eq
+  calc (Measure.pi fun _ : Fin m => Dj)[fun q : Fin m → S => O.flip v (q i)]
+      = ∫ w, O.flip v w ∂(Measure.map (fun q : Fin m → S => q i)
+          (Measure.pi fun _ : Fin m => Dj)) := by
+        rw [integral_map (measurable_pi_apply i).aemeasurable
+          (flip_meas O v).aestronglyMeasurable]
+    _ = flipMass O Dj v := by rw [hmap]; rfl
+
+/-- **Level 2 for one population.**  A candidate the drawn prefixes say is clean really is. -/
+theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (m : ℕ) (v : S) (g : ℝ) (hg : 0 ≤ g) :
+    (runLaw μ D Dsf).real {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
+        ≤ (m : ℝ) * (flipMass O (D j) v - g)}
+      ≤ Real.exp (-2 * (m : ℝ) * g ^ 2) := by
+  classical
+  have hcard : ((Finset.univ : Finset (Fin m)).card : ℝ) = (m : ℝ) := by simp
+  have htail := sumLower_le (μ := Measure.pi fun _ : Fin m => D j)
+    (fun (i : Fin m) (q : Fin m → S) => O.flip v (q i)) (Finset.univ : Finset (Fin m))
+    (flipMass O (D j) v) g
+    (fun i => ((flip_meas O v).comp (measurable_pi_apply i)).aemeasurable)
+    (iIndepFun_pi (fun _ => (flip_meas O v).aemeasurable))
+    (fun i => Filter.Eventually.of_forall (fun q => flip_icc O v (q i)))
+    (by rw [Finset.sum_congr rfl (fun i _ => pi_flip_mean (D j) O m v i), Finset.sum_const,
+      nsmul_eq_mul, hcard]) hg
+  rw [hcard] at htail
+  have hpre : {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
+      ≤ (m : ℝ) * (flipMass O (D j) v - g)}
+      = (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) ⁻¹'
+        {q : Fin m → S | ∑ i : Fin m, O.flip v (q i) ≤ (m : ℝ) * (flipMass O (D j) v - g)} := rfl
+  have hmeasPrf : Measurable (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin m => measurable_prf j i.val)
+  rw [hpre, measureReal_def,
+    Measure.map_apply hmeasPrf (measurableSet_le (by fun_prop) measurable_const)
+      |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_prefixBlock D Dsf j m)),
+    ← measureReal_def]
+  exact htail
+
 /-! ### The population bound for one state
 
 Three things can go wrong at a population prefix: the clustering read its query strings
