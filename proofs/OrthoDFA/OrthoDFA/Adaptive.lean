@@ -3532,6 +3532,122 @@ theorem measureReal_rankBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
+open scoped Classical in
+/-- **Every member the clustering keeps is clean.**  Five things have to go right: the two
+draw streams distinct, the pool holding its share of accept-preserving candidates, the
+ranking working, and the drawn prefixes not understating a candidate's flip mass.  Each is
+priced separately and the population's own bound follows. -/
+theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations)
+    (B : Budget) (hcd : B.cn < B.cd) (hsig : O.η ≤ 1 / 2) (hmpos : 0 < B.m)
+    (Δ g pAP ρ : ℝ) (hΔ : 0 < Δ) (hg : 0 ≤ g) (hρ0 : 0 ≤ ρ)
+    (hρD : collisionMass (D j) ≤ ρ) (hρsf : collisionMass Dsf ≤ ρ)
+    (hpAP : pAP ≤ Dsf.real {w : S | ∀ p : S, O.label (p * w) = O.label p})
+    (hkM : (B.k : ℝ) ≤ (B.M : ℝ) * (pAP - g)) :
+    (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
+        flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + g}
+      ≤ (B.m : ℝ) ^ 2 * ρ + (B.M : ℝ) ^ 2 * ρ + Real.exp (-2 * (B.M : ℝ) * g ^ 2)
+        + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2)
+        + (B.M : ℝ) * Real.exp (-2 * (B.m : ℝ) * g ^ 2) := by
+  classical
+  set Δp : ℝ := (populations.card : ℝ) * Δ + g with hΔp
+  set E1 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.m => prf j i.val x)} with hE1
+  set E2 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.M => sfx i.val x)} with hE2
+  set E3 : Set (Run Ω S J) :=
+    {x | ∑ i : Fin B.M, apBit O (sfx i.val x) ≤ (B.M : ℝ) * (pAP - g)} with hE3
+  set E4 : Set (Run Ω S J) := rankBad O populations B Δ with hE4
+  set E5 : Set (Run Ω S J) := {x | ¬ ∀ v ∈ poolAt B.M x,
+    (∑ i : Fin B.m, O.flip v (prf j i.val x) ≤ (B.m : ℝ) * (Δp - g)) →
+      flipMass O (D j) v ≤ Δp} with hE5
+  have hsub : {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
+      flipMass O (D j) v ≤ Δp} ⊆ (((E1 ∪ E2) ∪ E3) ∪ E4) ∪ E5 := by
+    intro x hx
+    by_contra hnot
+    simp only [Set.mem_union, not_or] at hnot
+    obtain ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ := hnot
+    have hinjP : Function.Injective (fun i : Fin B.m => prf j i.val x) := by
+      by_contra h; exact h1 h
+    have hinjS : Function.Injective (fun i : Fin B.M => sfx i.val x) := by
+      by_contra h; exact h2 h
+    have hap : (B.M : ℝ) * (pAP - g) < ∑ i : Fin B.M, apBit O (sfx i.val x) := by
+      by_contra h; exact h3 (not_lt.1 h)
+    -- the pool holds `k` candidates that flip nothing on the table
+    have hgood : B.k ≤ ((poolAt B.M x).filter
+        (fun v => ∑ p ∈ prefixesAt populations B.m x, O.flip v p = 0)).card := by
+      have := le_trans hkM (le_trans (le_of_lt hap)
+        (card_good_pool_ge O B.M (prefixesAt populations B.m x) x hinjS))
+      exact_mod_cast this
+    have hkpool : B.k ≤ (poolAt B.M x).card :=
+      le_trans hgood (Finset.card_filter_le _ _)
+    -- the table has not collapsed
+    have hcardPre : B.m ≤ (prefixesAt populations B.m x).card := by
+      have hinjOn : Set.InjOn (fun i => prf j i x) ↑(Finset.range B.m) := by
+        intro a ha b hb hab
+        have := hinjP (show (fun i : Fin B.m => prf j i.val x)
+            ⟨a, Finset.mem_range.1 (by simpa using ha)⟩
+          = (fun i : Fin B.m => prf j i.val x)
+            ⟨b, Finset.mem_range.1 (by simpa using hb)⟩ from hab)
+        simpa using congrArg Fin.val this
+      have hcardOf : (prefixesOf j B.m x).card = B.m := by
+        unfold prefixesOf
+        rw [Finset.card_image_of_injOn hinjOn, Finset.card_range]
+      calc B.m = (prefixesOf j B.m x).card := hcardOf.symm
+        _ ≤ (prefixesAt populations B.m x).card :=
+            Finset.card_le_card (fun q hq => Finset.mem_biUnion.2 ⟨j, hj, hq⟩)
+    have hrank : ∀ w ∈ clusterAt O populations x B,
+        ¬ (Δ * ((prefixesAt populations B.m x).card : ℝ)
+          ≤ ∑ p ∈ prefixesAt populations B.m x, O.flip w p) := by
+      by_contra h
+      exact h4 ⟨hkpool, hcardPre, hgood, h⟩
+    -- so every member is inside the pool's guarantee
+    have hx' : ∃ v ∈ clusterAt O populations x B, ¬ (flipMass O (D j) v ≤ Δp) := by
+      by_contra h
+      exact hx (fun v hv => by
+        by_contra hc
+        exact h ⟨v, hv, hc⟩)
+    obtain ⟨v, hv, hbad⟩ := hx' 
+    have hvpool : v ∈ poolAt B.M x :=
+      clusterAround_subset _ _ _ _ _ _ _ (one_mem_poolAt B.M x) hv
+    have hcount : ∑ i : Fin B.m, O.flip v (prf j i.val x) ≤ (B.m : ℝ) * (Δp - g) := by
+      rw [sum_eq_sum_prefixesOf O j B.m x v hinjP]
+      have h1 := sum_prefixesOf_le_prefixesAt O populations j hj B.m x v
+      have h2 := not_le.1 (hrank v hv)
+      have h3 : ((prefixesAt populations B.m x).card : ℝ) ≤ (populations.card : ℝ) * (B.m : ℝ) := by
+        exact_mod_cast card_prefixesAt_le populations B.m x
+      have h4' : (0 : ℝ) ≤ Δ := le_of_lt hΔ
+      have : (B.m : ℝ) * (Δp - g) = (populations.card : ℝ) * Δ * (B.m : ℝ) := by
+        rw [hΔp]; ring
+      rw [this]
+      nlinarith
+    have hmass : flipMass O (D j) v ≤ Δp := by
+      by_contra h
+      exact h5 (by
+        simp only [hE5, Set.mem_setOf_eq, not_forall]
+        exact ⟨v, hvpool, hcount, h⟩)
+    exact hbad hmass
+  calc (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
+        flipMass O (D j) v ≤ Δp}
+      ≤ (runLaw μ D Dsf).real ((((E1 ∪ E2) ∪ E3) ∪ E4) ∪ E5) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ((((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2) + (runLaw μ D Dsf).real E3)
+          + (runLaw μ D Dsf).real E4) + (runLaw μ D Dsf).real E5 := by
+        have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
+        have h123 := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2) E3
+        have h1234 := measureReal_union_le (μ := runLaw μ D Dsf) ((E1 ∪ E2) ∪ E3) E4
+        have h12345 := measureReal_union_le (μ := runLaw μ D Dsf) (((E1 ∪ E2) ∪ E3) ∪ E4) E5
+        linarith
+    _ ≤ _ := by
+        gcongr
+        · exact prefix_not_injective_le D Dsf j B.m ρ hρD hρ0
+        · exact suffix_not_injective_le D Dsf B.M ρ hρsf hρ0
+        · exact pool_ap_count_le D Dsf O B.M pAP g hg hpAP
+        · exact measureReal_rankBad_le hflat O populations D Dsf hsupp B hcd hsig hmpos Δ hΔ
+        · exact pool_flipMass_le D Dsf O j B.m B.M Δp g hg (by positivity)
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
