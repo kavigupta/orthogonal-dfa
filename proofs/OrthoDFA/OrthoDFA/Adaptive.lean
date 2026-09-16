@@ -1,5 +1,6 @@
 import OrthoDFA.Distributional
 import OrthoDFA.BinomTail
+import OrthoDFA.Grouping
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
@@ -44,15 +45,14 @@ Proof: the two-part decomposition —
 * `loop_terminates` — the loop returns at some round, except w.p. `δ/2`;
 * `sound_and_terminating` composes them.
 
-Both halves are proved.  What is still `sorry` is generic mathematics, none of it about the
-algorithm: four binomial facts (`lt_of_binomSfGe_le`, `lt_of_binomCdf_le`, `binomSfGe_le`,
-`binomCdf_le`), one independence lemma (`iIndepFun_blocks`), and the existence of an
-admissible pair of cutoffs (`exists_admissibleCut`).
+Both halves are proved, and `clustering_correct` is `sorry`-free: its axioms are
+`propext`, `Classical.choice` and `Quot.sound`.
 
 Termination is stated at a state that meets `PassableAt` — the arithmetic a round has to
 satisfy for its two tests to pass, which is where findability (`pAP`) and the populations'
-class balance enter.  That such a state exists under a large enough cap is the loop's
-growth schedule's job and is *not* proved here; it is the hypothesis `hwit`.
+class balance enter, and which is what `population_size_and_evidence_margin` searches for.
+That such a state exists under a large enough cap is the loop's growth schedule's job and is
+*not* proved here; it is the hypothesis `hwit`.
 
 **Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
@@ -90,55 +90,6 @@ two acceptable rates — they are not free parameters. -/
 /-- Binomial CDF: `P[Bin(N,p) ≤ j]`. -/
 noncomputable def binomCdf (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.range (j + 1), (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
-
-/-- **Admissibility as the pair of integers it really is.**  A family of `N` suffixes votes
-in `{0, 1/N, …, 1}`, so a threshold matters only through the count it cuts at, and
-`admissibleMargin` already says so: `eps` occurs nowhere except inside
-`⌊N(center−eps)⌋₊` and `⌈N(center+eps)⌉₊ - 1`.  `lo` and `hi` are those two counts — reject
-at or below `lo`, accept at or above `hi` — and the two conditions are the binomial false
-positive rate under the null and false negative rate under the signal.
-
-Everything downstream should use this, not a chosen `eps`.  A real-valued margin forces the
-proof to reason about `Classical.choose` as a function of the boundary, which has no
-structure; the integer cutoffs are a bounded range, so the algorithm's configuration stays
-a countable thing. -/
-def admissibleCut (s fpr accFnr center : ℝ) (N lo hi : ℕ) : Prop :=
-  (binomCdf N center lo + (1 - binomCdf N center hi) ≤ fpr) ∧
-    (binomCdf N (s + center) hi - binomCdf N (s + center) lo ≤ accFnr)
-
-/-- **The existence property.**  For any positive signal and any positive error budgets,
-some population size admits a pair of cutoffs.
-
-This is the whole content of `population_size_and_evidence_margin`: as `N` grows, the null
-`Bin(N, center)` and the signal `Bin(N, s + center)` separate, so cutoffs exist that spend
-at most `fpr` on the null's tails and at most `accFnr` on the signal's middle.  Everything
-else about the configuration is a search for a witness to this. -/
-theorem exists_admissibleCut (s fpr accFnr center : ℝ) (hs : 0 < s)
-    (hfpr : 0 < fpr) (haccFnr : 0 < accFnr) :
-    ∃ N, 0 < N ∧ ∃ lo hi, admissibleCut s fpr accFnr center N lo hi :=
-  sorry
-
-open scoped Classical in
-/-- **The search terminates**: the least population size admitting a pair of cutoffs.
-`population_size_and_evidence_margin` binary-searches for this; the value is whatever the
-search lands on, and `cutSize_spec` is all anything downstream may use about it. -/
-noncomputable def cutSize (s fpr accFnr center : ℝ) : ℕ :=
-  if h : ∃ N, 0 < N ∧ ∃ lo hi, admissibleCut s fpr accFnr center N lo hi then Nat.find h else 1
-
-theorem cutSize_spec (s fpr accFnr center : ℝ) (hs : 0 < s) (hfpr : 0 < fpr)
-    (haccFnr : 0 < accFnr) :
-    0 < cutSize s fpr accFnr center ∧
-      ∃ lo hi, admissibleCut s fpr accFnr center (cutSize s fpr accFnr center) lo hi := by
-  classical
-  have h := exists_admissibleCut s fpr accFnr center hs hfpr haccFnr
-  rw [cutSize, dif_pos h]
-  exact Nat.find_spec h
-
-/-- Any size the search could return is one it may: the spec is all that is used, so a
-different search finding a different witness changes nothing downstream. -/
-theorem admissibleCut_of_le {s fpr accFnr center : ℝ} {N lo hi : ℕ}
-    (h : admissibleCut s fpr accFnr center N lo hi) :
-    ∃ lo' hi', admissibleCut s fpr accFnr center N lo' hi' := ⟨lo, hi, h⟩
 
 /-- The membership query the oracle actually answers: `MQ w = ℓ(w) ⊕ noise(w)`. -/
 noncomputable def mq (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
@@ -1610,8 +1561,8 @@ is read off `ε` and why `one_mem_clusterAround` matters.  A family is admitted 
 each side reads as its own class (`drift_verdict`).
 
 The cutoffs are `B.lo` and `B.hi`, and the binomial nulls are the rates they cut at,
-`lo/k` and `hi/k`.  `admissibleCut` is exactly the statement that those rates keep the
-false positive and false negative budgets. -/
+`lo/k` and `hi/k`, and `PassableAt` is where the budgets they have to keep are written
+out. -/
 
 /-- `P[Bin(N,p) ≥ j]` — `scipy.stats.binom.sf(j-1, N, p)`. -/
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
@@ -2954,20 +2905,6 @@ Its centre is `{ε}`, so the loss is the disagreement with the seed's own column
 accept-preserving candidate from one carrying flip mass `φ` by `φ(1−2η)²` — two noisy reads
 compared, hence the square. -/
 
-/-- **Functions of disjoint blocks of an independent family are independent.**
-
-Mathlib has the two-block case (`iIndepFun.indepFun_finset`) but not this.  It is needed
-because the first step's loss at a prefix reads *two* strings, `p` and `p · v`, and those
-pairs are disjoint across prefixes — by cancellation for `p · v`, and by flatness for the
-bare prefixes. -/
-theorem iIndepFun_blocks {ι κ : Type*} {X : κ → Ω → ℝ}
-    (hX : ∀ w, Measurable (X w)) (hindep : iIndepFun X μ) (A : ι → Finset κ)
-    (hdisj : Pairwise (fun i j => Disjoint (A i) (A j)))
-    (g : ι → Ω → ℝ) (hg : ∀ i, Measurable (g i))
-    (hblock : ∀ i, ∀ ω ω', (∀ w ∈ A i, X w ω = X w ω') → g i ω = g i ω') :
-    iIndepFun g μ :=
-  sorry
-
 open scoped Classical in
 /-- The first step's loss at one prefix, in the exact form `hammingLoss` uses. -/
 noncomputable def seedLoss (O : Oracle μ S) (cn cd : ℕ) (v p : S) (ω : Ω) : ℝ :=
@@ -3094,8 +3031,7 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
     {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) :
     iIndepFun (fun p : {p // p ∈ P} => seedLoss O cn cd v p.val) μ := by
   refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas' w) O.noise_indep
-    (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _
-    (fun p => seedLoss_meas O cn cd v p.val) ?_
+    (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _ ?_
   · intro a b hab
     refine Finset.disjoint_left.2 (fun w hw hw' => ?_)
     simp only [Finset.mem_insert, Finset.mem_singleton] at hw hw'
@@ -3108,17 +3044,38 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
       · exact hab (Subtype.ext (by rw [← hb, hv1, mul_one]))
       · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hv1 hb
     · exact hab (Subtype.ext (mul_right_cancel hb))
-  · intro p ω ω' h
-    have h1 : O.noise (p.val * v) ω = O.noise (p.val * v) ω' := h _ (by simp)
-    have h0 : O.noise p.val ω = O.noise p.val ω' := h _ (by simp)
+  · intro p
+    have hsup : (⨆ w ∈ ({p.val, p.val * v} : Finset S),
+        MeasurableSpace.comap (O.noise w) inferInstance)
+        = noiseAlg O ↑({p.val, p.val * v} : Finset S) := by
+      unfold noiseAlg
+      exact iSup_congr (fun w => by simp)
+    rw [hsup]
+    set T : Set S := ↑({p.val, p.val * v} : Finset S) with hT
+    have hA : MeasurableSet[noiseAlg O T] {ω | mq O (p.val * v) ω = 1} :=
+      measurableSet_mq_eq_one O (by simp [hT])
+    have hC : MeasurableSet[noiseAlg O T] {ω | cn * ({(1 : S)} : Finset S).card
+        < cd * voteCount O {(1 : S)} p.val ω} :=
+      measurableSet_filter_pred_map O (T := T) (A := {(1 : S)}) (fun w => p.val * w)
+        (by intro w hw; simp only [Finset.mem_singleton] at hw; simp [hw, hT])
+        (fun U => cn * ({(1 : S)} : Finset S).card < cd * U.card)
+    have hQ : MeasurableSet[noiseAlg O T] {ω | (mq O (p.val * v) ω = 1)
+        ↔ cn * ({(1 : S)} : Finset S).card < cd * voteCount O {(1 : S)} p.val ω} := by
+      have hrw : {ω | (mq O (p.val * v) ω = 1)
+          ↔ cn * ({(1 : S)} : Finset S).card < cd * voteCount O {(1 : S)} p.val ω}
+          = ({ω | mq O (p.val * v) ω = 1} ∩ {ω | cn * ({(1 : S)} : Finset S).card
+              < cd * voteCount O {(1 : S)} p.val ω})
+            ∪ ({ω | mq O (p.val * v) ω = 1}ᶜ ∩ {ω | cn * ({(1 : S)} : Finset S).card
+              < cd * voteCount O {(1 : S)} p.val ω}ᶜ) := by
+        ext ω
+        by_cases h1 : mq O (p.val * v) ω = 1 <;>
+          by_cases h2 : cn * ({(1 : S)} : Finset S).card
+            < cd * voteCount O {(1 : S)} p.val ω <;>
+          simp [h1, h2]
+      rw [hrw]
+      exact ((hA.inter hC).union (hA.compl.inter hC.compl))
     unfold seedLoss
-    have hvc : ∀ w ∈ ({(1 : S)} : Finset S),
-        (mq O (p.val * w) ω = 1 ↔ mq O (p.val * w) ω' = 1) := by
-      intro w hw
-      rw [Finset.mem_singleton] at hw
-      subst hw
-      rw [mul_one, mq_congr O h0]
-    rw [mq_congr O h1, voteCount_congr O {(1 : S)} p.val hvc]
+    exact Measurable.ite hQ measurable_const measurable_const
 
 /-! ### The first Lloyd step
 
@@ -7837,8 +7794,7 @@ noncomputable def roundFail (populations : Finset J)
 /-- **A state whose round can pass.**  Every clause is an inequality among the state's
 budgets, the oracle's rates, the populations' class masses and the error budget — no
 probability enters, and nothing here is a free parameter of the algorithm.  Reaching such a
-state is what the loop's growth schedule is for, and `exists_admissibleCut` is the small
-case of the arithmetic being satisfiable at all.
+state is what the loop's growth schedule is for.
 
 `qcls` is the mass each population puts on each label.  It has to be positive: a population
 that never rejects leaves the gate's reject side empty, and an empty side reads as
