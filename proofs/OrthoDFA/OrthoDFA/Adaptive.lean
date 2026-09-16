@@ -1913,6 +1913,57 @@ lemma admittedCount_of_admitted (O : Oracle μ S) (lo hi : ℕ) (εcov α : ℝ)
   ⟨le_of_lt (lt_of_binomSfGe_le _ _ _ hacc0 hacc1 hα h.1),
     le_of_lt (lt_of_binomCdf_le _ _ _ hrej0 hrej1 hα h.2)⟩
 
+/-- Hoeffding's bound on the binomial upper tail, as a fact about `binomSfGe`.  Validity
+needs the tails to force the counts; termination needs the counts to force the tails, which
+is this direction. -/
+theorem binomSfGe_le (n j : ℕ) (θ τ : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hτ : 0 ≤ τ)
+    (h : (n : ℝ) * (θ + τ) ≤ j) :
+    binomSfGe n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) :=
+  sorry
+
+/-- The lower-tail counterpart for `binomCdf`. -/
+theorem binomCdf_le (n j : ℕ) (θ τ : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hτ : 0 ≤ τ)
+    (h : (j : ℝ) ≤ (n : ℝ) * (θ - τ)) :
+    binomCdf n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) :=
+  sorry
+
+/-- The gate's rates are probabilities, with no premise beyond the coverage being a
+fraction: `gateAcc` runs from `1 − η` down to `½` as `εcov` runs from `0` to `1`. -/
+lemma eta_nonneg (O : Oracle μ S) : 0 ≤ O.η := by
+  rw [← O.noise_mean (1 : S)]
+  refine integral_nonneg_of_ae ?_
+  filter_upwards [O.noise_icc (1 : S)] with ω hω
+  exact hω.1
+
+lemma gateAcc_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤ 1)
+    (hsig : O.η ≤ 1 / 2) : 0 ≤ gateAcc O εcov ∧ gateAcc O εcov ≤ 1 := by
+  have hη0 := eta_nonneg O
+  unfold gateAcc
+  constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
+    mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
+
+lemma gateRej_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤ 1)
+    (hsig : O.η ≤ 1 / 2) : 0 ≤ gateRej O εcov ∧ gateRej O εcov ≤ 1 := by
+  have hη0 := eta_nonneg O
+  unfold gateRej
+  constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
+    mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
+
+/-- **A cut that reads as its own class is admitted.**  The counting form of the gate's
+other direction: enough hits on the accept side and few enough on the reject side put both
+binomial tails under `α`. -/
+lemma admitted_of_counts (O : Oracle μ S) (lo hi : ℕ) (εcov α τ : ℝ) (F P : Finset S) (ω : Ω)
+    (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
+    (hacc : ((splitAcc O hi F P ω).2 : ℝ) * (gateAcc O εcov + τ) ≤ ((splitAcc O hi F P ω).1 : ℝ))
+    (hrej : ((splitRej O lo F P ω).1 : ℝ) ≤ ((splitRej O lo F P ω).2 : ℝ) * (gateRej O εcov - τ))
+    (hαa : Real.exp (-2 * ((splitAcc O hi F P ω).2 : ℝ) * τ ^ 2) ≤ α)
+    (hαr : Real.exp (-2 * ((splitRej O lo F P ω).2 : ℝ) * τ ^ 2) ≤ α) :
+    admitted O lo hi εcov α F P ω :=
+  ⟨le_trans (binomSfGe_le _ _ _ τ (gateAcc_mem O hε0 hε1 hsig).1 (gateAcc_mem O hε0 hε1 hsig).2
+      hτ hacc) hαa,
+    le_trans (binomCdf_le _ _ _ τ (gateRej_mem O hε0 hε1 hsig).1
+      (gateRej_mem O hε0 hε1 hsig).2 hτ hrej) hαr⟩
+
 /-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
 `measureReal_iUnion_fintype_le` for finite index, but not this. -/
 lemma measureReal_iUnion_le_tsum {A : Type*} [MeasurableSpace A] {ρ : Measure A}
