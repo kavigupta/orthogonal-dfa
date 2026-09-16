@@ -5762,6 +5762,109 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
     _ = E := ENNReal.toReal_ofReal hE0
 
 open scoped Classical in
+/-- **The screened pool is big enough to cluster.**  Findability puts `k` accept-preserving
+suffixes in the pool, the screen keeps them, and distinct draws keep them distinct — so the
+clustering has `k` candidates to choose from and does not stall. -/
+theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : Budget) (hcd : B.cn < B.cd)
+    (j₀ : J) (hj₀ : j₀ ∈ populations)
+    (γ pAP t ρsf ρ : ℝ) (hγ : 0 ≤ γ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hsc : ∀ n : ℕ, n ≤ populations.card * B.m →
+      (n : ℝ) * (2 * O.η * (1 - O.η) + γ) ≤ (B.sc : ℝ))
+    (hcount : (B.k : ℝ) ≤ (B.M : ℝ) * (pAP - t))
+    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρj : collisionMass (D j₀) ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
+      ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
+        + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) := by
+  classical
+  set E1 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.M => sfx i.val x)} with hE1
+  set E2 : Set (Run Ω S J) := {x | (((Finset.univ : Finset (Fin B.M)).filter
+    (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p)).card : ℝ)
+      ≤ (B.M : ℝ) * (pAP - t)} with hE2
+  set E3 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.m => prf j₀ i.val x)} with hE3
+  set E4 : Set (Run Ω S J) := screenFail O populations B with hE4
+  have hsub : {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
+      ⊆ E1 ∪ (E2 ∪ (E3 ∪ E4)) := by
+    intro x hx
+    by_contra hcon
+    simp only [Set.mem_union, not_or] at hcon
+    obtain ⟨h1, h2, h3, h4⟩ := hcon
+    have hinj : Function.Injective (fun i : Fin B.M => sfx i.val x) := by
+      by_contra h; exact h1 h
+    have hapcount : (B.M : ℝ) * (pAP - t)
+        < (((Finset.univ : Finset (Fin B.M)).filter
+          (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p)).card : ℝ) := not_le.1 h2
+    have hmP : B.m ≤ (prefixesAt populations B.m x).card := by
+      have hinjP : Function.Injective (fun i : Fin B.m => prf j₀ i.val x) := by
+        by_contra h; exact h3 h
+      have hinjOn : Set.InjOn (fun i => prf j₀ i x) ↑(Finset.range B.m) := by
+        intro a ha b hb hab
+        have := hinjP (show (fun i : Fin B.m => prf j₀ i.val x)
+            ⟨a, Finset.mem_range.1 (by simpa using ha)⟩
+          = (fun i : Fin B.m => prf j₀ i.val x)
+            ⟨b, Finset.mem_range.1 (by simpa using hb)⟩ from hab)
+        simpa using congrArg Fin.val this
+      have hcardOf : (prefixesOf j₀ B.m x).card = B.m := by
+        unfold prefixesOf
+        rw [Finset.card_image_of_injOn hinjOn, Finset.card_range]
+      calc B.m = (prefixesOf j₀ B.m x).card := hcardOf.symm
+        _ ≤ (prefixesAt populations B.m x).card :=
+            Finset.card_le_card (fun q hq => Finset.mem_biUnion.2 ⟨j₀, hj₀, hq⟩)
+    have hscreen : ∀ v ∈ poolAt B.M x, v ≠ 1 → (∀ p, O.label (p * v) = O.label p) →
+        screenCount O (prefixesAt populations B.m x) v (nz x) ≤ B.sc := by
+      by_contra h
+      exact h4 ⟨hmP, h⟩
+    -- the accept-preserving draws, as distinct strings, all survive the screen
+    set I : Finset (Fin B.M) := (Finset.univ : Finset (Fin B.M)).filter
+      (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p) with hI
+    have hImg : I.image (fun i => sfx i.val x) ⊆ screenedAt O populations B x := by
+      intro v hv
+      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hv
+      have hpool : sfx i.val x ∈ poolAt B.M x :=
+        Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨i.val,
+          Finset.mem_range.2 i.isLt, rfl⟩)
+      refine Finset.mem_filter.2 ⟨hpool, ?_⟩
+      by_cases hv1 : sfx i.val x = 1
+      · rw [hv1, screenCount_one]
+        exact Nat.zero_le _
+      · exact hscreen _ hpool hv1 (Finset.mem_filter.1 hi).2
+    have hcardI : I.card = (I.image (fun i => sfx i.val x)).card :=
+      (Finset.card_image_of_injective I hinj).symm
+    have hk : (B.k : ℝ) ≤ ((I.image (fun i => sfx i.val x)).card : ℝ) := by
+      rw [← hcardI]
+      exact le_trans hcount (le_of_lt hapcount)
+    have : B.k ≤ (screenedAt O populations B x).card := by
+      have hcast : ((I.image (fun i => sfx i.val x)).card : ℝ)
+          ≤ ((screenedAt O populations B x).card : ℝ) := by
+        exact_mod_cast Finset.card_le_card hImg
+      have : (B.k : ℝ) ≤ ((screenedAt O populations B x).card : ℝ) := le_trans hk hcast
+      exact_mod_cast this
+    exact hx this
+  calc (runLaw μ D Dsf).real {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
+      ≤ (runLaw μ D Dsf).real (E1 ∪ (E2 ∪ (E3 ∪ E4))) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ (runLaw μ D Dsf).real E1 + ((runLaw μ D Dsf).real E2
+        + ((runLaw μ D Dsf).real E3 + (runLaw μ D Dsf).real E4)) := by
+        have h34 := measureReal_union_le (μ := runLaw μ D Dsf) E3 E4
+        have h234 := measureReal_union_le (μ := runLaw μ D Dsf) E2 (E3 ∪ E4)
+        have hall := measureReal_union_le (μ := runLaw μ D Dsf) E1 (E2 ∪ (E3 ∪ E4))
+        linarith
+    _ ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
+        + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) := by
+        gcongr
+        · exact suffix_not_injective_le D Dsf B.M ρsf hρsf hρsf0
+        · exact measureReal_apShort_le D Dsf O B.M pAP t hpAP0 ht hpAPBound
+        · exact prefix_not_injective_le D Dsf j₀ B.m ρ hρj hρ0
+        · exact measureReal_screenFail_le hflat O populations D Dsf hsupp B hcd γ hγ hsc
+
+open scoped Classical in
 /-- **Every member the clustering keeps is clean.**  Three things have to go right: the
 population's draws distinct, the screen holding, and the drawn prefixes not understating a
 candidate's flip mass.  The Lloyd ranking does not appear — the family is a subset of what
@@ -6969,6 +7072,47 @@ noncomputable def stalled (O : Oracle μ S) (populations : Finset J) (B : Budget
     (kmin kmax : ℕ) : Set (Run Ω S J) :=
   {x | ¬ (kmin ≤ ((clusterAt O populations x B).erase 1).card
       ∧ ((clusterAt O populations x B).erase 1).card ≤ kmax)}
+
+open scoped Classical in
+/-- **A pool of `k` screened candidates is a family of `k`.**  The seed is one of them and
+the ranking keeps it, so the family the gate sees has `k − 1` members besides the seed. -/
+lemma stalled_subset (O : Oracle μ S) (populations : Finset J) (B : Budget)
+    (hcd : B.cn < B.cd) (hkpos : 0 < B.k) :
+    stalled O populations B (B.k - 1) (B.k - 1)
+      ⊆ {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)} := by
+  intro x hx
+  by_contra hk
+  simp only [Set.mem_setOf_eq, Classical.not_not] at hk
+  have hcard : (clusterAt O populations x B).card = B.k :=
+    clusterAround_card O hcd (prefixesAt populations B.m x) (screenedAt O populations B x)
+      (nz x) B.k (one_mem_screenedAt O populations B x) hk hkpos
+  have hone : (1 : S) ∈ clusterAt O populations x B :=
+    one_mem_clusterAround O B.cn B.cd _ _ (nz x) B.k
+  have herase : ((clusterAt O populations x B).erase 1).card = B.k - 1 := by
+    rw [Finset.card_erase_of_mem hone, hcard]
+  exact hx ⟨le_of_eq herase.symm, le_of_eq herase⟩
+
+open scoped Classical in
+/-- The liveness half's obligation, discharged: the clustering has a family of the round's
+own size except on the events `measureReal_smallScreen_le` prices. -/
+theorem measureReal_stalled_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : Budget) (hcd : B.cn < B.cd)
+    (hkpos : 0 < B.k) (j₀ : J) (hj₀ : j₀ ∈ populations)
+    (γ pAP t ρsf ρ : ℝ) (hγ : 0 ≤ γ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hsc : ∀ n : ℕ, n ≤ populations.card * B.m →
+      (n : ℝ) * (2 * O.η * (1 - O.η) + γ) ≤ (B.sc : ℝ))
+    (hcount : (B.k : ℝ) ≤ (B.M : ℝ) * (pAP - t))
+    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρj : collisionMass (D j₀) ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real (stalled O populations B (B.k - 1) (B.k - 1))
+      ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
+        + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) :=
+  le_trans (measureReal_mono (stalled_subset O populations B hcd hkpos) (measure_ne_top _ _))
+    (measureReal_smallScreen_le hflat O populations D Dsf hsupp B hcd j₀ hj₀ γ pAP t ρsf ρ
+      hγ hpAP0 ht hpAPBound hsc hcount hρsf hρsf0 hρj hρ0)
 
 open scoped Classical in
 /-- **The round returns at one population.**  Everything outside `retMiss` is a fact about
