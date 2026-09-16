@@ -1880,6 +1880,86 @@ theorem gate_rej_side_bound (O : Oracle μ S) (C Q : Finset S)
       ext ω; simp [hn]
     rw [hz]; simpa using Real.exp_nonneg _
 
+open scoped Classical in
+/-- **A truly-accepting side reads accepting often enough to clear the test.**  The mirror
+of `gate_acc_side_bound`: there the side is wrong and must fail, here it is right and must
+pass. -/
+theorem gate_acc_admit_bound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ τ : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hθ : θ + τ ≤ 1 - O.η) :
+    μ.real {ω | n₀ ≤ (side ω).card ∧ (∀ p ∈ side ω, O.label p = 1)
+        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
+      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
+  classical
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ U => n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
+      ∧ (U.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_nonneg _) ?_
+  intro A₀ hA₀
+  by_cases hn : n₀ ≤ A₀.card
+  · by_cases hcl : ∀ p ∈ A₀, O.label p = 1
+    · have hmean : (A₀.card : ℝ) * (θ + τ)
+          ≤ ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) := by
+        rw [Finset.sum_congr rfl (fun p hp => by rw [hcl p hp]), Finset.sum_const, nsmul_eq_mul]
+        have : O.η + (1 - 2 * O.η) * 1 = 1 - O.η := by ring
+        rw [this]
+        exact mul_le_mul_of_nonneg_left hθ (Nat.cast_nonneg _)
+      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
+        (le_trans (splitRej_sound O A₀ θ τ hτ hmean) ?_)
+      refine Real.exp_le_exp.2 ?_
+      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
+      nlinarith [sq_nonneg τ]
+    · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
+          ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
+            ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
+        ext ω; simp [hcl]
+      rw [hz]; simpa using Real.exp_nonneg _
+  · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
+        ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
+          ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
+      ext ω; simp [hn]
+    rw [hz]; simpa using Real.exp_nonneg _
+
+open scoped Classical in
+/-- The mirror: a truly-rejecting side reads accepting rarely enough to clear its test. -/
+theorem gate_rej_admit_bound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ τ : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hθ : O.η ≤ θ - τ) :
+    μ.real {ω | n₀ ≤ (side ω).card ∧ (∀ p ∈ side ω, O.label p = 0)
+        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
+  classical
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ U => n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
+      ∧ (A₀.card : ℝ) * θ ≤ (U.card : ℝ)) _ (Real.exp_nonneg _) ?_
+  intro A₀ hA₀
+  by_cases hn : n₀ ≤ A₀.card
+  · by_cases hcl : ∀ p ∈ A₀, O.label p = 0
+    · have hmean : ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p)
+          ≤ (A₀.card : ℝ) * (θ - τ) := by
+        rw [Finset.sum_congr rfl (fun p hp => by rw [hcl p hp]), Finset.sum_const, nsmul_eq_mul]
+        have : O.η + (1 - 2 * O.η) * 0 = O.η := by ring
+        rw [this]
+        exact mul_le_mul_of_nonneg_left hθ (Nat.cast_nonneg _)
+      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
+        (le_trans (splitAcc_sound O A₀ θ τ hτ hmean) ?_)
+      refine Real.exp_le_exp.2 ?_
+      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
+      nlinarith [sq_nonneg τ]
+    · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
+          ∧ (A₀.card : ℝ) * θ
+            ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
+        ext ω; simp [hcl]
+      rw [hz]; simpa using Real.exp_nonneg _
+  · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
+        ∧ (A₀.card : ℝ) * θ
+          ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
+      ext ω; simp [hn]
+    rw [hz]; simpa using Real.exp_nonneg _
+
 /-! ### The gate in counting form
 
 The soundness argument does not need the binomial tails themselves, only what they force
