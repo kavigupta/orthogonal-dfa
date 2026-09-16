@@ -2057,6 +2057,29 @@ theorem lloyd_step_ranked_by_excluded (O : Oracle μ S) (cn cd : ℕ) (P cands :
       clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w :=
   fun v hv => leastLossSubset_least (clusterLoss O F cn cd P cands ω) cands k hk v hv w hw hwn
 
+open scoped Classical in
+/-- **The values the family can take.**  The iterate starts at the seed and every step
+either keeps its argument or returns a `k`-subset, so the family is one of finitely many
+`Finset`s and each has `k` members unless it is the seed alone. -/
+lemma clusterAround_mem_values (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
+    (k : ℕ) (hk : k ≤ cands.card) :
+    clusterAround O cn cd P cands ω k ∈ insert ({(1 : S)}) (cands.powersetCard k) := by
+  classical
+  unfold clusterAround
+  generalize k * P.card + 1 = n
+  have hstep : ∀ F ∈ insert ({(1 : S)}) (cands.powersetCard k),
+      lloydStep O cn cd P cands ω k F ∈ insert ({(1 : S)}) (cands.powersetCard k) := by
+    intro F hF
+    unfold lloydStep
+    split_ifs with h
+    · exact Finset.mem_insert_of_mem (leastLossSubset_mem _ cands k hk)
+    · exact hF
+  induction n with
+  | zero => exact Finset.mem_insert_self _ _
+  | succ n ih =>
+      rw [Function.iterate_succ_apply']
+      exact hstep _ ih
+
 /-! ### The iterate, and where the ranking stops working
 
 `lloyd_first_step_ranked` is the whole guarantee only for one step, and the algorithm
@@ -2390,6 +2413,16 @@ lemma measureReal_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad 
           (ENNReal.div_ne_top ENNReal.ofReal_ne_top (by simpa using hε)) hmark
     _ = E / ε := by
         rw [ENNReal.toReal_div, ENNReal.toReal_ofReal hE, ENNReal.toReal_ofReal hε.le]
+
+/-- **A bound at every fixed draw is a bound on the run.**  The clustering's prefixes and
+candidates are draws, so its guarantees are stated for the noise at a fixed table; this is
+what lifts them. -/
+lemma runLaw_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
+    (h : ∀ d, μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
+    runLaw μ D Dsf A ≤ E := by
+  rw [runLaw, Measure.prod_apply_symm hA]
+  exact le_trans (lintegral_mono (fun d => h d)) (by simp)
 
 /-! ### Unioning over a drawn pool
 
