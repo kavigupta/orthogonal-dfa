@@ -686,18 +686,25 @@ falls on — the family, and `p`'s own vote — is read at strings `q · v` with
 the gate's null to be honest those must be different strings, and that is a property of
 where prefixes come from, not of the algorithm. -/
 
-/-- A set of prefixes is **flat** when no prefix is another prefix extended.
+/-- A set of prefixes is **flat** when two of them never extend to the same query string.
 
 `UniformSampler(DEFAULT_SAMPLE_LENGTH)` draws every probe at one fixed length — *"All of
-E-L*'s signal comes from words drawn at this length"* — so `p * v = p'` between two probes
-forces `v = ε` on length alone.  Flatness is exactly what that buys, stated without needing
-a length function. -/
-def Flat (Pre : Set S) : Prop := ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v : S, p * v = p' → v = 1
+E-L*'s signal comes from words drawn at this length"* — so `p * v = p' * v'` between two
+probes forces `p = p'` on length alone.  Flatness is exactly what that buys, stated without
+needing a length function: `Monoid` on its own does not know that strings factor. -/
+def Flat (Pre : Set S) : Prop :=
+  ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v v' : S, p * v = p' * v' → p = p'
+
+/-- No prefix is another prefix extended. -/
+lemma flat_eq_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre) (hp' : p' ∈ Pre)
+    {v : S} (h : p * v = p') : v = 1 := by
+  have hpp : p = p' := hflat p hp p' hp' v 1 (by rw [h, mul_one])
+  exact mul_left_cancel (a := p) (by rw [h, hpp, mul_one])
 
 /-- On a flat alphabet the gate's query string is never one of the split's. -/
 lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre)
     (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
-  fun h => hv (hflat p hp p' hp' v h)
+  fun h => hv (flat_eq_one hflat hp hp' h)
 
 lemma clusterAround_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (hone : (1 : S) ∈ cands) : clusterAround O cn cd P cands ω k ⊆ cands := by
@@ -797,7 +804,7 @@ lemma disjoint_readSet {Pre : Set S} (hflat : Flat Pre) {P cands C : Finset S}
   refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
   obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
   obtain ⟨hp, -⟩ := Finset.mem_product.1 hpv
-  have hv1 : v = 1 := hflat p (hP p hp) _ (hC _ hz) v rfl
+  have hv1 : v = 1 := flat_eq_one hflat (hP p hp) (hC _ hz) rfl
   rw [hv1, mul_one] at hz
   exact (Finset.disjoint_left.1 hPC hp) hz
 
@@ -809,7 +816,20 @@ lemma disjoint_readSet_erase {Pre : Set S} (hflat : Flat Pre) {cands C : Finset 
   refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
   obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
   obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
-  exact (Finset.mem_erase.1 hv).1 (hflat p (hC p hp) _ (hC _ hz) v rfl)
+  exact (Finset.mem_erase.1 hv).1 (flat_eq_one hflat (hC p hp) (hC _ hz) rfl)
+
+/-- **A population prefix the table does not hold is read nowhere by the clustering.**  Its
+query strings `p · v` collide with the clustering's `q · v'` only if `p = q`. -/
+lemma disjoint_image_readSet {Pre : Set S} (hflat : Flat Pre) {P cands : Finset S} {p : S}
+    (hP : ∀ q ∈ P, q ∈ Pre) (hp : p ∈ Pre) (hpP : p ∉ P) :
+    Disjoint (↑(cands.image (fun v => p * v)) : Set S) (↑(readSet P cands) : Set S) := by
+  classical
+  rw [Finset.disjoint_coe, Finset.disjoint_left]
+  rintro z hz hmem
+  obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
+  obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hmem
+  obtain ⟨hqP, -⟩ := Finset.mem_product.1 hqv
+  exact hpP (hflat p hp q (hP q hqP) v v' hq.symm ▸ hqP)
 
 /-! ### Independence of the score from the side
 
@@ -2158,17 +2178,33 @@ theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p =
 
 /-- **The cut survives the family being chosen by the clustering.**  At a population prefix
 whose query strings the clustering never read, the family is decided by bits independent of
-the ones the vote reads, so the fixed-family bound carries over. -/
+the ones the vote reads, so the fixed-family bound carries over.
+
+`good` is there because the fixed-family bound holds only for families this prefix is light
+for: a prefix a lot of the family flips is charged to `flipCount_mass_le` instead. -/
 theorem cutCorrect_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (lo hi : ℕ)
     (hdisj : Disjoint (↑(cands.image (fun v => p * v)) : Set S) (↑Q : Set S))
-    (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
+    (T good : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
     (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
     (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → fam ω = fam ω')
     (E : ℝ) (hE : 0 ≤ E)
-    (hbad : ∀ A₀ ∈ T, μ.real {ω | ¬ cutCorrect O lo hi A₀ p ω} ≤ E) :
-    μ.real {ω | ¬ cutCorrect O lo hi (fam ω) p ω} ≤ E :=
-  selection_side_bound O cands Q (fun v => p * v) hdisj T t₀ ht₀ hTC fam hfam hcongr
-    (fun _ U => ¬ ((hi < U.card → O.label p = 1) ∧ (U.card ≤ lo → O.label p = 0))) E hE hbad
+    (hbad : ∀ A₀ ∈ T, A₀ ∈ good → μ.real {ω | ¬ cutCorrect O lo hi A₀ p ω} ≤ E) :
+    μ.real {ω | fam ω ∈ good ∧ ¬ cutCorrect O lo hi (fam ω) p ω} ≤ E := by
+  classical
+  refine selection_side_bound O cands Q (fun v => p * v) hdisj T t₀ ht₀ hTC fam hfam hcongr
+    (fun A₀ U => A₀ ∈ good ∧ ¬ ((hi < Finset.card U → O.label p = 1)
+      ∧ (Finset.card U ≤ lo → O.label p = 0)))
+    E hE ?_
+  intro A₀ hA₀
+  by_cases hg : A₀ ∈ good
+  · refine le_trans (le_of_eq ?_) (hbad A₀ hA₀ hg)
+    congr 1
+    ext ω
+    simp only [Set.mem_setOf_eq, cutCorrect, voteCount, hg, true_and]
+  · rw [show {ω | A₀ ∈ good ∧ ¬ ((hi < (A₀.filter (fun v => mq O (p * v) ω = 1)).card
+      → O.label p = 1) ∧ ((A₀.filter (fun v => mq O (p * v) ω = 1)).card ≤ lo
+      → O.label p = 0))} = (∅ : Set Ω) by ext ω; simp [hg]]
+    simpa using hE
 
 lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A → ω ∈ B) :
     μ.real A ≤ μ.real B :=
