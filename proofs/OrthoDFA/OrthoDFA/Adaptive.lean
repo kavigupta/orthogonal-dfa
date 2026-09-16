@@ -4369,6 +4369,36 @@ theorem prefix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
     ← measureReal_def]
   exact pi_not_injective_le (D j) m ρ hρ hρ0
 
+/-- The certification draws are distinct too, on the same `m²ρ`.  Needed because the
+gate's split counts *prefixes*, and a repeated draw is one prefix, not two. -/
+theorem cert_not_injective_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) (ρ : ℝ)
+    (hρ : collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => cert j i.val x)}
+      ≤ (m : ℝ) ^ 2 * ρ := by
+  classical
+  have hmeasPrf : Measurable (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin m => measurable_cert j i.val)
+  have hpre : {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => cert j i.val x)}
+      = (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x)) ⁻¹'
+        {p : Fin m → S | ¬ Function.Injective p} := rfl
+  have hmeasSet : MeasurableSet {p : Fin m → S | ¬ Function.Injective p} := by
+    have hcov : {p : Fin m → S | ¬ Function.Injective p}
+        = ⋃ z : {z : Fin m × Fin m // z.1 ≠ z.2}, {p : Fin m → S | p z.val.1 = p z.val.2} := by
+      ext p
+      simp only [Set.mem_setOf_eq, Set.mem_iUnion, Function.not_injective_iff]
+      constructor
+      · rintro ⟨a, b, hab, hne⟩; exact ⟨⟨(a, b), hne⟩, hab⟩
+      · rintro ⟨⟨⟨a, b⟩, hne⟩, hab⟩; exact ⟨a, b, hab, hne⟩
+    rw [hcov]
+    exact MeasurableSet.iUnion (fun z =>
+      measurableSet_eq_fun (measurable_pi_apply _) (measurable_pi_apply _))
+  rw [hpre, measureReal_def, Measure.map_apply hmeasPrf hmeasSet
+    |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_certBlock D Dsf j m)),
+    ← measureReal_def]
+  exact pi_not_injective_le (D j) m ρ hρ hρ0
+
 /-! ### The population bound for one state
 
 Three things can go wrong at a population prefix: the clustering read its query strings
