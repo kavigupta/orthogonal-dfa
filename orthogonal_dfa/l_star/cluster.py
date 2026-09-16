@@ -292,7 +292,16 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # check and the accept-preserving null are both stated about a family seeded
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
-    decision = pst.compute_decision(vs, pst.table.representative)
+    # On fresh prefixes, for the same reason the accept-preserving split is
+    # (#284): the family was clustered over the representative prefixes, so its
+    # votes there are fitted to their noise and read as more decisive than they
+    # are.  The FNR is the only thing standing between the round's claim and a
+    # family that decides nothing -- a cut is graded only where it decides -- so
+    # an optimistic FNR is not a cosmetic error.
+    drawn = min(
+        max(1, int(pst.table.representative.sum())), certification_budget(pst, vs)
+    )
+    decision, _ = certification_sample(pst, vs, drawn)
     fnr = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
