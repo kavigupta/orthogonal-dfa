@@ -3605,6 +3605,62 @@ lemma runLaw_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
       ≤ ∫⁻ _, E ∂(μ.prod νsq) := lintegral_mono (fun y => h y)
     _ = E := by simp
 
+/-- The certification stream's own law. -/
+lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] :
+    Measure.map (fun x : Run Ω S J => x.2.2) (runLaw μ D Dsf)
+      = Measure.infinitePi fun z : J × ℕ => D z.1 := by
+  rw [show (fun x : Run Ω S J => x.2.2) = Prod.snd ∘ Prod.snd from rfl,
+    ← Measure.map_map measurable_snd measurable_snd, runLaw, Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  rw [Measure.map_snd_prod]
+  simp
+
+open scoped Classical in
+/-- How many of the first `m` certification draws land in a set, as a measurable function of
+the stream. -/
+lemma measurable_certHits (W : Set S) (j : J) (m : ℕ) :
+    Measurable (fun c : J × ℕ → S =>
+      ((((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ))) := by
+  classical
+  have hW : MeasurableSet W := (Set.to_countable _).measurableSet
+  have hrw : (fun c : J × ℕ → S =>
+      ((((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ)))
+      = fun c => ∑ i ∈ Finset.range m, W.indicator (fun _ => (1 : ℝ)) (c (j, i)) := by
+    funext c
+    rw [Finset.card_filter, Nat.cast_sum]
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    by_cases h : c (j, i) ∈ W <;> simp [h]
+  rw [hrw]
+  exact Finset.measurable_sum _ (fun i _ =>
+    (measurable_const.indicator hW).comp (measurable_pi_apply (j, i)))
+
+open scoped Classical in
+/-- **The certification sample carries its share of each class.**  `cert_hits_wrongSet` at
+the label classes: a class of mass `q` is hit at least `m(q − t)` times, off an
+`exp(-2 m t²)` set.  This is what discharges `ret_at_whp`'s class-count hypotheses — the
+sides are populated because the population is. -/
+theorem cert_class_count_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (m : ℕ) (b q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t)
+    (hmass : q ≤ (D j).real {p | O.label p = b}) :
+    (runLaw μ D Dsf).real {x : Run Ω S J | (((Finset.range m).filter
+        (fun i => O.label (cert j i x) = b)).card : ℝ) ≤ (m : ℝ) * (q - t)}
+      ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
+  classical
+  set W : Set S := {p : S | O.label p = b} with hWdef
+  have hmeasSet : MeasurableSet {c : J × ℕ → S | (((Finset.range m).filter
+      (fun i => c (j, i) ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)} :=
+    measurableSet_le (measurable_certHits W j m) measurable_const
+  have hpre : {x : Run Ω S J | (((Finset.range m).filter
+      (fun i => O.label (cert j i x) = b)).card : ℝ) ≤ (m : ℝ) * (q - t)}
+      = (fun x : Run Ω S J => x.2.2) ⁻¹' {c : J × ℕ → S | (((Finset.range m).filter
+        (fun i => c (j, i) ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)} := rfl
+  rw [hpre, measureReal_def, Measure.map_apply (by fun_prop) hmeasSet
+    |>.symm.trans (congrArg (fun ν : Measure (J × ℕ → S) => ν _) (map_certStream D Dsf)),
+    ← measureReal_def]
+  exact cert_hits_wrongSet D j m W q t hq ht hmass
+
 /-! ### Unioning over a drawn pool
 
 The candidates are drawn, so a union bound over them is a union over an `x`-dependent set.
