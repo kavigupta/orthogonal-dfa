@@ -6098,6 +6098,146 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
+open scoped Classical in
+/-- **Part 1 at one state and one population.**  A family the gate admits is right on all
+but `εcov` of the population, except on five events: the certification draws repeat, they
+meet the table, the sample misses the wrong set, or the gate admits a side a `9εcov/16`
+fraction of which is wrong — twice, once per side.
+
+The constants are forced.  The gate's margin `(½−η)εcov` is a wrong *fraction* of `εcov/2`,
+the sample delivers `3εcov/4` of the wrong mass, and `exists_wrong_side` spends `2β` of that
+on the side that may be too small to charge a tail to; `9εcov/16` and `β = εcov/32` leave
+both inequalities strict. -/
+theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
+    (hlohi : B.lo < B.hi) (εcov α ρ : ℝ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hα : α < 1 / 2)
+    (hsig : O.η ≤ 1 / 2) (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi εcov α
+          ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
+        ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
+            {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)})})
+      ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
+        + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
+          + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ))
+              * ((1 - 2 * O.η) * εcov / 16) ^ 2)) := by
+  classical
+  have hη := eta_nonneg O
+  set c : ℝ := 9 * εcov / 16 with hc
+  set β : ℝ := εcov / 32 with hβ
+  set E1 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.m => cert j i.val x)} with hE1
+  set E2 : Set (Run Ω S J) :=
+    {x | ¬ Disjoint (prefixesAt populations B.m x) (certOf j B.m x)} with hE2
+  set E3 : Set (Run Ω S J) := hitShort O populations (D j) j B εcov (εcov / 4) with hE3
+  set E4 : Set (Run Ω S J) := gateBadAcc O populations j B εcov c β with hE4
+  set E5 : Set (Run Ω S J) := gateBadRej O populations j B εcov c β with hE5
+  have hsub : ({x : Run Ω S J | admitted O B.lo B.hi εcov α
+        ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
+      ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
+          {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)})})
+      ⊆ (E1 ∪ E2) ∪ (E3 ∪ (E4 ∪ E5)) := by
+    rintro x ⟨hadm, hfail⟩
+    by_cases hinj : Function.Injective (fun i : Fin B.m => cert j i.val x)
+    · by_cases hdisj : Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
+      · have hWmass : εcov ≤ (D j).real
+            {p | ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)} := by
+          rw [show {p : S | ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)}
+              = {p : S | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)}ᶜ from rfl,
+            measureReal_compl (measurableSet_of_countable _), measureReal_def, measure_univ,
+            ENNReal.toReal_one]
+          push_neg at hfail
+          simp only [Set.mem_setOf_eq] at hfail
+          linarith
+        by_cases hcount : (((certOf j B.m x).filter (fun p =>
+            ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x))).card : ℝ)
+              ≤ (B.m : ℝ) * (εcov - εcov / 4)
+        · exact Or.inr (Or.inl ⟨hinj, hWmass, hcount⟩)
+        · push_neg at hcount
+          have hcard : ((certOf j B.m x).card : ℝ) = (B.m : ℝ) := by
+            have hinjOn : Set.InjOn (fun i => cert j i x) ↑(Finset.range B.m) := by
+              intro a ha b hb hab
+              have := hinj (show (fun i : Fin B.m => cert j i.val x)
+                  ⟨a, Finset.mem_range.1 (by simpa using ha)⟩
+                = (fun i : Fin B.m => cert j i.val x)
+                  ⟨b, Finset.mem_range.1 (by simpa using hb)⟩ from hab)
+              simpa using congrArg Fin.val this
+            unfold certOf
+            rw [Finset.card_image_of_injOn hinjOn, Finset.card_range]
+          have hsides : Disjoint (sideAcc O populations j B x) (sideRej O populations j B x) := by
+            refine Finset.disjoint_left.2 (fun p hp hp' => ?_)
+            have h1 := (Finset.mem_filter.1 hp).2
+            have h2 := (Finset.mem_filter.1 hp').2
+            omega
+          have hwrong := card_cert_wrong_le O populations j B (by omega) x
+          have hwrongR : (((certOf j B.m x).filter (fun p =>
+                ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x))).card : ℝ)
+              ≤ (((sideAcc O populations j B x).filter (fun p => O.label p = 0)).card : ℝ)
+                + (((sideRej O populations j B x).filter
+                    (fun p => ¬ (O.label p = 0))).card : ℝ) := by
+            exact_mod_cast hwrong
+          have hchoice := exists_wrong_side O (certOf j B.m x) (sideAcc O populations j B x)
+            (sideRej O populations j B x) (sideAcc_subset O populations j B x)
+            (sideRej_subset O populations j B x) hsides
+            ((((certOf j B.m x).filter (fun p =>
+              ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x))).card : ℝ))
+            c β (by positivity) (by positivity) (by rw [hcard]; nlinarith) hwrongR
+          have hacc := admittedCount_of_admitted O B.lo B.hi εcov α
+            ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x) hα
+            (gateAcc_mem O hε0 hε1 hsig).1 (gateAcc_mem O hε0 hε1 hsig).2
+            (gateRej_mem O hε0 hε1 hsig).1 (gateRej_mem O hε0 hε1 hsig).2 hadm
+          rcases hchoice with ⟨h1, h2⟩ | ⟨h1, h2⟩
+          · refine Or.inr (Or.inr (Or.inl ⟨hdisj, ?_, h2, hacc.1⟩))
+            rw [hcard] at h1
+            exact h1
+          · refine Or.inr (Or.inr (Or.inr ⟨hdisj, ?_, h2, hacc.2⟩))
+            rw [hcard] at h1
+            exact h1
+      · exact Or.inl (Or.inr hdisj)
+    · exact Or.inl (Or.inl hinj)
+  have hτacc : gateAcc O εcov - (1 - O.η) + c * (1 - 2 * O.η)
+      = (1 - 2 * O.η) * εcov / 16 := by
+    unfold gateAcc; rw [hc]; ring
+  have hτrej : O.η + c * (1 - 2 * O.η) - gateRej O εcov
+      = (1 - 2 * O.η) * εcov / 16 := by
+    unfold gateRej; rw [hc]; ring
+  have hτ0 : (0 : ℝ) ≤ (1 - 2 * O.η) * εcov / 16 := by nlinarith
+  calc (runLaw μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi εcov α
+        ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
+      ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
+          {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)})})
+      ≤ (runLaw μ D Dsf).real ((E1 ∪ E2) ∪ (E3 ∪ (E4 ∪ E5))) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2)
+        + ((runLaw μ D Dsf).real E3
+          + ((runLaw μ D Dsf).real E4 + (runLaw μ D Dsf).real E5)) := by
+        have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
+        have h45 := measureReal_union_le (μ := runLaw μ D Dsf) E4 E5
+        have h345 := measureReal_union_le (μ := runLaw μ D Dsf) E3 (E4 ∪ E5)
+        have hall := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2) (E3 ∪ (E4 ∪ E5))
+        linarith
+    _ ≤ ((B.m : ℝ) ^ 2 * ρ + (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ)
+        + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
+          + (Real.exp (-2 * (β * (B.m : ℝ)) * ((1 - 2 * O.η) * εcov / 16) ^ 2)
+            + Real.exp (-2 * (β * (B.m : ℝ)) * ((1 - 2 * O.η) * εcov / 16) ^ 2))) := by
+        gcongr
+        · exact cert_not_injective_le D Dsf j B.m ρ (hρ j hj) hρ0
+        · exact prefix_cert_disjoint_le D Dsf populations j B.m ρ hρ (hρ j hj) hρ0
+        · exact measureReal_hitShort_le D Dsf O populations j B εcov (εcov / 4) hε0
+            (by positivity)
+        · exact le_trans (measureReal_gateBadAcc_le hflat O populations D Dsf hsupp j hj B
+            εcov c β (by positivity) (by positivity) hsig (by rw [hτacc]; exact hτ0))
+            (le_of_eq (by rw [hτacc]))
+        · exact le_trans (measureReal_gateBadRej_le hflat O populations D Dsf hsupp j hj B
+            εcov c β (by positivity) (by positivity) hsig (by rw [hτrej]; exact hτ0))
+            (le_of_eq (by rw [hτrej]))
+    _ = ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
+        + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
+          + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ))
+              * ((1 - 2 * O.η) * εcov / 16) ^ 2)) := by
+        rw [hβ]; ring
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
