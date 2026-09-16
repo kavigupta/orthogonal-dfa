@@ -6262,6 +6262,253 @@ theorem measureReal_heavyHits_le (D : J → Measure S) (Dsf : Measure S)
         ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = Real.exp (-2 * (B.m : ℝ) * t ^ 2) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
+lemma measurableSet_decided' (O : Oracle μ S) (lo ha : ℕ) (A₀ : Finset S) (p : S) :
+    MeasurableSet[noiseAlg O Set.univ] {ω | ¬ decided O lo ha A₀ p ω} :=
+  measurableSet_filter_pred_map O (T := Set.univ) (fun v => p * v)
+    (by simp) (fun U => ¬ (ha < Finset.card U ∨ Finset.card U ≤ lo))
+
+open scoped Classical in
+lemma measurableSet_indecisionCount (O : Oracle μ S) (lo ha : ℕ) (A₀ A : Finset S) (r : ℝ) :
+    MeasurableSet {ω | (((A.filter (fun p => ¬ decided O lo ha A₀ p ω)).card : ℝ) ≤ r)} :=
+  noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O
+    (fun p ω => ¬ decided O lo ha A₀ p ω)
+    (fun p _ => measurableSet_decided' O lo ha A₀ p) (fun U => ((U.card : ℝ) ≤ r)))
+
+open scoped Classical in
+lemma measurableSet_binomSfGe_hits (O : Oracle μ S) (U : Finset S) (θ α : ℝ) :
+    MeasurableSet {ω | binomSfGe U.card θ ((U.filter (fun p => mq O p ω = 1)).card) ≤ α} :=
+  noiseAlg_le O Set.univ _
+    (measurableSet_filter_pred O (T := Set.univ) (by simp)
+      (fun V => binomSfGe U.card θ V.card ≤ α))
+
+open scoped Classical in
+lemma measurableSet_binomCdf_hits (O : Oracle μ S) (U : Finset S) (θ α : ℝ) :
+    MeasurableSet {ω | binomCdf U.card θ ((U.filter (fun p => mq O p ω = 1)).card) ≤ α} :=
+  noiseAlg_le O Set.univ _
+    (measurableSet_filter_pred O (T := Set.univ) (by simp)
+      (fun V => binomCdf U.card θ V.card ≤ α))
+
+open scoped Classical in
+/-- The gate's verdict is measurable: each side is a fibre of the votes, and the count it
+scores is a fibre of the bits at the certification prefixes. -/
+lemma measurableSet_admittedFixed (O : Oracle μ S) (lo hi : ℕ) (F A : Finset S)
+    (εcov α : ℝ) : MeasurableSet {ω | admitted O lo hi εcov α F A ω} := by
+  classical
+  have hacc : MeasurableSet {ω : Ω |
+      binomSfGe (A.filter (fun p => hi - 1 < voteCount O F p ω)).card (gateAcc O εcov)
+        (((A.filter (fun p => hi - 1 < voteCount O F p ω)).filter
+          (fun p => mq O p ω = 1)).card) ≤ α} :=
+    measurableSet_of_fam (T := A.powerset)
+      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
+      (fun U => measurableSet_sideOf_gt O A F (hi - 1) U)
+      (fun U => {ω : Ω | binomSfGe U.card (gateAcc O εcov)
+        ((U.filter (fun p => mq O p ω = 1)).card) ≤ α})
+      (fun U => measurableSet_binomSfGe_hits O U (gateAcc O εcov) α)
+  have hrej : MeasurableSet {ω : Ω |
+      binomCdf (A.filter (fun p => voteCount O F p ω ≤ lo)).card (gateRej O εcov)
+        (((A.filter (fun p => voteCount O F p ω ≤ lo)).filter
+          (fun p => mq O p ω = 1)).card) ≤ α} :=
+    measurableSet_of_fam (T := A.powerset)
+      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
+      (fun U => measurableSet_sideOf_le O A F lo U)
+      (fun U => {ω : Ω | binomCdf U.card (gateRej O εcov)
+        ((U.filter (fun p => mq O p ω = 1)).card) ≤ α})
+      (fun U => measurableSet_binomCdf_hits O U (gateRej O εcov) α)
+  exact hacc.inter hrej
+
+open scoped Classical in
+/-- **The draws were good and the state still did not return.**  Everything the state needs
+of its draws — the certification prefixes fresh, nonempty, both classes represented, and the
+family light on all but an `l` fraction of them — holds, and the round's two tests still fail.
+This is the event `ret_at_whp` prices; the rest of the lift charges the draws. -/
+noncomputable def retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov α l : ℝ) (n₀ : ℕ) : Set (Run Ω S J) :=
+  {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
+    ∧ 0 < (certOf j B.m x).card
+    ∧ (n₀ : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ)
+        ≤ (((certOf j B.m x).filter (fun p => O.label p = 1)).card : ℝ)
+    ∧ (n₀ : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ)
+        ≤ (((certOf j B.m x).filter (fun p => O.label p = 0)).card : ℝ)
+    ∧ (((certOf j B.m x).filter (fun p =>
+        ¬ (flipCount O ((clusterAt O populations x B).erase 1) p
+          ≤ (((clusterAt O populations x B).erase 1).card : ℝ) * 0))).card : ℝ)
+        ≤ l * ((certOf j B.m x).card : ℝ)
+    ∧ ¬ ((((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
+            ((clusterAt O populations x B).erase 1) p (nz x))).card : ℝ)
+          ≤ 2 * l * ((certOf j B.m x).card : ℝ)
+        ∧ admitted O B.lo B.hi εcov α ((clusterAt O populations x B).erase 1)
+            (certOf j B.m x) (nz x))}
+
+open scoped Classical in
+lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov α l : ℝ) (n₀ : ℕ) : MeasurableSet (retMiss O populations j B εcov α l n₀) := by
+  classical
+  have hR : ∀ (P C : Finset S) (tt : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image tt)
+        ∧ 0 < ((Finset.univ : Finset (Fin B.m)).image tt).card
+        ∧ (n₀ : ℝ) + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter
+              (fun p => O.label p = 1)).card : ℝ)
+        ∧ (n₀ : ℝ) + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter
+              (fun p => O.label p = 0)).card : ℝ)
+        ∧ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+            ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+              ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ) * 0))).card : ℝ)
+            ≤ l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+        ∧ ¬ (((((Finset.univ : Finset (Fin B.m)).image tt).filter
+                (fun p => ¬ decided O B.lo (B.hi - 1)
+                  ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p (nz x))).card : ℝ)
+              ≤ 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            ∧ admitted O B.lo B.hi εcov α
+                ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1)
+                ((Finset.univ : Finset (Fin B.m)).image tt) (nz x))} else ∅) := by
+    intro P C tt
+    split_ifs with hone
+    · set A : Finset S := (Finset.univ : Finset (Fin B.m)).image tt with hA
+      by_cases hdraw : Disjoint P A ∧ 0 < A.card
+          ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+              ≤ ((A.filter (fun p => O.label p = 1)).card : ℝ)
+          ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+              ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ)
+      · have hω : MeasurableSet {ω : Ω |
+            ((A.filter (fun p =>
+              ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p
+                ≤ (((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1).card : ℝ) * 0))).card : ℝ)
+              ≤ l * (A.card : ℝ)
+            ∧ ¬ (((A.filter (fun p => ¬ decided O B.lo (B.hi - 1)
+                    ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p ω)).card : ℝ)
+                  ≤ 2 * l * (A.card : ℝ)
+                ∧ admitted O B.lo B.hi εcov α
+                    ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) A ω)} := by
+          refine measurableSet_of_fam (T := C.powerset)
+            (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc P C B.k ω hone))
+            (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc P C B.k hone A₀)
+            (fun A₀ => {ω : Ω |
+              ((A.filter (fun p => ¬ (flipCount O (A₀.erase 1) p
+                  ≤ ((A₀.erase 1).card : ℝ) * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+              ∧ ¬ (((A.filter (fun p => ¬ decided O B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
+                    ≤ 2 * l * (A.card : ℝ)
+                  ∧ admitted O B.lo B.hi εcov α (A₀.erase 1) A ω)})
+            (fun A₀ => ?_)
+          by_cases hlight : ((A.filter (fun p => ¬ (flipCount O (A₀.erase 1) p
+              ≤ ((A₀.erase 1).card : ℝ) * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+          · have hrw : {ω : Ω |
+                ((A.filter (fun p => ¬ (flipCount O (A₀.erase 1) p
+                    ≤ ((A₀.erase 1).card : ℝ) * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+                ∧ ¬ (((A.filter (fun p =>
+                      ¬ decided O B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
+                      ≤ 2 * l * (A.card : ℝ)
+                    ∧ admitted O B.lo B.hi εcov α (A₀.erase 1) A ω)}
+                = ({ω : Ω | ((A.filter (fun p =>
+                      ¬ decided O B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
+                        ≤ 2 * l * (A.card : ℝ)}
+                  ∩ {ω : Ω | admitted O B.lo B.hi εcov α (A₀.erase 1) A ω})ᶜ := by
+              ext ω
+              simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_inter_iff, hlight, true_and]
+            rw [hrw]
+            exact ((measurableSet_indecisionCount O B.lo (B.hi - 1) (A₀.erase 1) A
+              (2 * l * (A.card : ℝ))).inter
+                (measurableSet_admittedFixed O B.lo B.hi (A₀.erase 1) A εcov α)).compl
+          · have hz : {ω : Ω |
+                ((A.filter (fun p => ¬ (flipCount O (A₀.erase 1) p
+                    ≤ ((A₀.erase 1).card : ℝ) * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+                ∧ ¬ (((A.filter (fun p =>
+                      ¬ decided O B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
+                      ≤ 2 * l * (A.card : ℝ)
+                    ∧ admitted O B.lo B.hi εcov α (A₀.erase 1) A ω)} = (∅ : Set Ω) := by
+              ext ω
+              simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+              rintro ⟨h, -⟩
+              exact hlight h
+            rw [hz]
+            exact MeasurableSet.empty
+        have hset : {x : Run Ω S J | Disjoint P A ∧ 0 < A.card
+            ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+                ≤ ((A.filter (fun p => O.label p = 1)).card : ℝ)
+            ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+                ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ)
+            ∧ ((A.filter (fun p =>
+                ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+                  ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ)
+                    * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+            ∧ ¬ (((A.filter (fun p => ¬ decided O B.lo (B.hi - 1)
+                    ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p (nz x))).card : ℝ)
+                  ≤ 2 * l * (A.card : ℝ)
+                ∧ admitted O B.lo B.hi εcov α
+                    ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) A (nz x))}
+            = nz ⁻¹' {ω : Ω |
+              ((A.filter (fun p =>
+                ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p
+                  ≤ (((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1).card : ℝ) * 0))).card : ℝ)
+                ≤ l * (A.card : ℝ)
+              ∧ ¬ (((A.filter (fun p => ¬ decided O B.lo (B.hi - 1)
+                      ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p ω)).card : ℝ)
+                    ≤ 2 * l * (A.card : ℝ)
+                  ∧ admitted O B.lo B.hi εcov α
+                      ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) A ω)} := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_preimage, hdraw.1, hdraw.2.1, hdraw.2.2.1,
+            hdraw.2.2.2, true_and]
+        rw [hset]
+        exact measurable_nz hω
+      · have hempty : {x : Run Ω S J | Disjoint P A ∧ 0 < A.card
+            ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+                ≤ ((A.filter (fun p => O.label p = 1)).card : ℝ)
+            ∧ (n₀ : ℝ) + 2 * l * (A.card : ℝ) + 2 * l * (A.card : ℝ)
+                ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ)
+            ∧ ((A.filter (fun p =>
+                ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+                  ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ)
+                    * 0))).card : ℝ) ≤ l * (A.card : ℝ)
+            ∧ ¬ (((A.filter (fun p => ¬ decided O B.lo (B.hi - 1)
+                    ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p (nz x))).card : ℝ)
+                  ≤ 2 * l * (A.card : ℝ)
+                ∧ admitted O B.lo B.hi εcov α
+                    ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) A (nz x))}
+            = (∅ : Set (Run Ω S J)) := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+          rintro ⟨h1, h2, h3, h4, -⟩
+          exact hdraw ⟨h1, h2, h3, h4⟩
+        rw [hempty]
+        exact MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : retMiss O populations j B εcov α l n₀
+      = {x : Run Ω S J | x ∈ (fun P C tt => if (1 : S) ∈ C then
+          {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image tt)
+            ∧ 0 < ((Finset.univ : Finset (Fin B.m)).image tt).card
+            ∧ (n₀ : ℝ) + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+                + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+                ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter
+                  (fun p => O.label p = 1)).card : ℝ)
+            ∧ (n₀ : ℝ) + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+                + 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+                ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter
+                  (fun p => O.label p = 0)).card : ℝ)
+            ∧ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+                ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+                  ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ)
+                    * 0))).card : ℝ)
+                ≤ l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+            ∧ ¬ (((((Finset.univ : Finset (Fin B.m)).image tt).filter
+                    (fun p => ¬ decided O B.lo (B.hi - 1)
+                      ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p (nz x))).card : ℝ)
+                  ≤ 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
+                ∧ admitted O B.lo B.hi εcov α
+                    ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1)
+                    ((Finset.univ : Finset (Fin B.m)).image tt) (nz x))} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)
+        (fun i : Fin B.m => cert j i.val x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), retMiss,
+      ← certOf_eq_image j B.m x, ← clusterAt_eq_clusterOf O populations B x]
+    tauto
+  rw [hrw]
+  exact measurableSet_of_run_data_cert populations j B _ hR
+
 open scoped Classical in
 /-- **Part 1 at one state and one population.**  A family the gate admits is right on all
 but `εcov` of the population, except on five events: the certification draws repeat, they
