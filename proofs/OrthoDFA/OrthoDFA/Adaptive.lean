@@ -4347,21 +4347,26 @@ theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
     (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
     (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ decided O lo ha A₀ p ω} ≤ E) :
-    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p}
-        ∩ {ω | l * (C.card : ℝ)
-            < ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)})
+    μ.real {ω | l * (C.card : ℝ)
+        < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω)).card : ℝ)}
       ≤ E / l := by
   classical
+  have hrw : {ω | l * (C.card : ℝ)
+      < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω)).card : ℝ)}
+      = (Set.univ : Set Ω) ∩ {ω | l * (C.card : ℝ)
+        < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω)).card : ℝ)} := by
+    rw [Set.univ_inter]
+  rw [hrw]
   refine count_frac_le (μ := μ) C (fun p => {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω})
-    (fun ω p => ¬ decided O lo ha (fam ω) p ω) {ω | ∀ p ∈ C, fam ω ∈ good p}
+    (fun ω p => fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω) Set.univ
     (fun p => measurableSet_indecisive hfam hfamMeas O lo ha (good p) p) E l hE hl hCpos ?_ ?_
   · intro p hp
     have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
     exact decided_selected_whp O cands (readSet P cands) p lo ha
       (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
       hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
-  · intro ω hG p hp hpr
-    exact ⟨hG p hp, hpr⟩
+  · intro ω _ p _ hpr
+    exact hpr
 
 open scoped Classical in
 /-- The same for the rate at which the cut is wrong. -/
@@ -4374,31 +4379,37 @@ theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
     (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
     (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ cutCorrect O lo ha A₀ p ω} ≤ E) :
-    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p}
-        ∩ {ω | l * (C.card : ℝ)
-            < ((C.filter (fun p => ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)})
+    μ.real {ω | l * (C.card : ℝ)
+        < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)}
       ≤ E / l := by
   classical
+  have hrw : {ω | l * (C.card : ℝ)
+      < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)}
+      = (Set.univ : Set Ω) ∩ {ω | l * (C.card : ℝ)
+        < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)} := by
+    rw [Set.univ_inter]
+  rw [hrw]
   refine count_frac_le (μ := μ) C (fun p => {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω})
-    (fun ω p => ¬ cutCorrect O lo ha (fam ω) p ω) {ω | ∀ p ∈ C, fam ω ∈ good p}
+    (fun ω p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω) Set.univ
     (fun p => measurableSet_miscut hfam hfamMeas O lo ha (good p) p) E l hE hl hCpos ?_ ?_
   · intro p hp
     have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
     exact cutCorrect_selected_whp O cands (readSet P cands) p lo ha
       (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
       hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
-  · intro ω hG p hp hpr
-    exact ⟨hG p hp, hpr⟩
+  · intro ω _ p _ hpr
+    exact hpr
 
 open scoped Classical in
-/-- **At a fixed table, the state returns.**  The four fractional bounds join: the
-indecision rate is under the FNR limit, the cut is wrong on at most a fraction, the sides
-are therefore short of their class counts by at most those two fractions, and a
-mostly-correct cut on populated sides is admitted.
+/-- **At a fixed table, the state returns.**  Each failure count splits into the prefixes
+the family is light for — bounded by `count_frac_le` — and the heavy ones, whose number is
+itself a fraction.  Lightness at a *fresh* prefix only holds for most of them, never all, so
+carrying it as a per-prefix condition rather than a global guard is what makes the argument
+available at all.
 
-The class counts of the certification sample are what the sides are measured against — an
+The certification sample's class counts are what the sides are measured against — an
 all-accepting population leaves the reject side empty and nothing can admit — so they stay
-in the hypotheses as a property of the draws rather than becoming a knob. -/
+as hypotheses about the draws rather than becoming a knob. -/
 theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
     (hPC : Disjoint P C) (hdisjQ : Disjoint (↑C : Set S) (↑(readSet P cands) : Set S))
@@ -4416,37 +4427,69 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
       μ.real {ω | ¬ cutCorrect O lo (hi - 1) A₀ p ω} ≤ E)
     (hga : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
       (n : ℝ) * (gateAcc O εcov + τ + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (l * (C.card : ℝ)))
+        ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * l * (C.card : ℝ)))
     (hgr : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
-      (n : ℝ) * O.η + (1 - 2 * O.η) * (l * (C.card : ℝ))
+      (n : ℝ) * O.η + (1 - 2 * O.η) * (2 * l * (C.card : ℝ))
         ≤ (n : ℝ) * (gateRej O εcov - τ - τ))
     (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α)
-    (hclassA : (n₀ : ℝ) + l * (C.card : ℝ) + l * (C.card : ℝ)
+    (hclassA : (n₀ : ℝ) + 2 * l * (C.card : ℝ) + 2 * l * (C.card : ℝ)
       ≤ ((C.filter (fun p => O.label p = 1)).card : ℝ))
-    (hclassR : (n₀ : ℝ) + l * (C.card : ℝ) + l * (C.card : ℝ)
+    (hclassR : (n₀ : ℝ) + 2 * l * (C.card : ℝ) + 2 * l * (C.card : ℝ)
       ≤ ((C.filter (fun p => O.label p = 0)).card : ℝ)) :
-    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p} ∩
-      {ω | ¬ ((((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
-              ≤ l * (C.card : ℝ))
-            ∧ admitted O lo hi εcov α (fam ω) C ω)})
+    μ.real {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ l * (C.card : ℝ)
+        ∧ ¬ ((((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                ≤ 2 * l * (C.card : ℝ))
+            ∧ admitted O lo hi εcov α (fam ω) C ω)}
       ≤ E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2)) := by
   classical
-  set G : Set Ω := {ω | ∀ p ∈ C, fam ω ∈ good p} with hG
-  set Ind : Ω → ℝ := fun ω =>
-    ((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ) with hInd
-  set Mis : Ω → ℝ := fun ω =>
-    ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ) with hMis
-  have hsub : (G ∩ {ω | ¬ (Ind ω ≤ l * (C.card : ℝ) ∧ admitted O lo hi εcov α (fam ω) C ω)})
-      ⊆ (G ∩ {ω | l * (C.card : ℝ) < Ind ω})
-        ∪ ((G ∩ {ω | l * (C.card : ℝ) < Mis ω})
-          ∪ {ω | Mis ω ≤ l * (C.card : ℝ)
+  have hsplit : ∀ (ω : Ω) (Q : S → Prop) [DecidablePred Q],
+      (C.filter (fun p => Q p)).card
+        ≤ (C.filter (fun p => fam ω ∈ good p ∧ Q p)).card
+          + (C.filter (fun p => fam ω ∉ good p)).card := by
+    intro ω Q _
+    refine le_trans (Finset.card_le_card ?_) (Finset.card_union_le _ _)
+    intro p hp
+    obtain ⟨hpC, hq⟩ := Finset.mem_filter.1 hp
+    by_cases hg : fam ω ∈ good p
+    · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hg, hq⟩)
+    · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hg⟩)
+  have hsub : {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ l * (C.card : ℝ)
+      ∧ ¬ ((((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+              ≤ 2 * l * (C.card : ℝ))
+          ∧ admitted O lo hi εcov α (fam ω) C ω)}
+      ⊆ {ω | l * (C.card : ℝ)
+            < ((C.filter (fun p => fam ω ∈ good p
+                ∧ ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)}
+        ∪ ({ω | l * (C.card : ℝ)
+              < ((C.filter (fun p => fam ω ∈ good p
+                  ∧ ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)}
+          ∪ {ω | (((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                ≤ 2 * l * (C.card : ℝ))
               ∧ n₀ ≤ (splitAcc O hi (fam ω) C ω).2 ∧ n₀ ≤ (splitRej O lo (fam ω) C ω).2
               ∧ ¬ admitted O lo hi εcov α (fam ω) C ω}) := by
-    rintro ω ⟨hGω, hbad⟩
-    by_cases hind : Ind ω ≤ l * (C.card : ℝ)
-    · have hadm : ¬ admitted O lo hi εcov α (fam ω) C ω := fun h => hbad ⟨hind, h⟩
-      by_cases hmis : Mis ω ≤ l * (C.card : ℝ)
-      · refine Or.inr (Or.inr ⟨hmis, ?_, ?_, hadm⟩)
+    rintro ω ⟨hheavy, hbad⟩
+    by_cases hindL : ((C.filter (fun p => fam ω ∈ good p
+        ∧ ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ l * (C.card : ℝ)
+    · by_cases hmisL : ((C.filter (fun p => fam ω ∈ good p
+          ∧ ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ l * (C.card : ℝ)
+      · have hind : (((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ))
+            ≤ 2 * l * (C.card : ℝ) := by
+          have := hsplit ω (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)
+          have hc : (((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ))
+              ≤ ((C.filter (fun p => fam ω ∈ good p
+                  ∧ ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                + ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) := by exact_mod_cast this
+          linarith
+        have hmis : (((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ))
+            ≤ 2 * l * (C.card : ℝ) := by
+          have := hsplit ω (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)
+          have hc : (((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ))
+              ≤ ((C.filter (fun p => fam ω ∈ good p
+                  ∧ ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                + ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) := by exact_mod_cast this
+          linarith
+        have hadm : ¬ admitted O lo hi εcov α (fam ω) C ω := fun h => hbad ⟨hind, h⟩
+        refine Or.inr (Or.inr ⟨hmis, ?_, ?_, hadm⟩)
         · have hcard := card_le_sideAcc_add O lo (hi - 1) (fam ω) C ω
           have hcastR : ((C.filter (fun p => O.label p = 1)).card : ℝ)
               ≤ ((C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω)).card : ℝ)
@@ -4454,8 +4497,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
                   + ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)) := by
             exact_mod_cast hcard
           have : (n₀ : ℝ)
-              ≤ ((C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω)).card : ℝ) := by
-            linarith
+              ≤ ((C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω)).card : ℝ) := by linarith
           exact_mod_cast this
         · have hcard := card_le_sideRej_add O lo (hi - 1) (fam ω) C ω
           have hcastR : ((C.filter (fun p => O.label p = 0)).card : ℝ)
@@ -4464,11 +4506,10 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
                   + ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)) := by
             exact_mod_cast hcard
           have : (n₀ : ℝ)
-              ≤ ((C.filter (fun p => voteCount O (fam ω) p ω ≤ lo)).card : ℝ) := by
-            linarith
+              ≤ ((C.filter (fun p => voteCount O (fam ω) p ω ≤ lo)).card : ℝ) := by linarith
           exact_mod_cast this
-      · exact Or.inr (Or.inl ⟨hGω, not_le.1 hmis⟩)
-    · exact Or.inl ⟨hGω, not_le.1 hind⟩
+      · exact Or.inr (Or.inl (not_le.1 hmisL))
+    · exact Or.inl (not_le.1 hindL)
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
   · exact indecision_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
@@ -4476,7 +4517,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   · refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
     · exact miscut_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
         fam hfam hfamMeas hcongr E l hE hl hCpos hcut
-    · exact admitted_whp O C (readSet P cands) hdisjQ lo hi εcov α τ (l * (C.card : ℝ)) n₀
+    · exact admitted_whp O C (readSet P cands) hdisjQ lo hi εcov α τ (2 * l * (C.card : ℝ)) n₀
         fam hQ hcongr hτ hε0 hε1 hsig hga hgr hα
 
 lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
