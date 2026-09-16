@@ -4334,6 +4334,95 @@ theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   · intro ω hG p hp hpr
     exact ⟨hG p hp, hpr⟩
 
+open scoped Classical in
+/-- **At a fixed table, the state returns.**  The four fractional bounds join: the
+indecision rate is under the FNR limit, the cut is wrong on at most a fraction, the sides
+are therefore short of their class counts by at most those two fractions, and a
+mostly-correct cut on populated sides is admitted.
+
+The class counts of the certification sample are what the sides are measured against — an
+all-accepting population leaves the reject side empty and nothing can admit — so they stay
+in the hypotheses as a property of the draws rather than becoming a knob. -/
+theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) (hdisjQ : Disjoint (↑C : Set S) (↑(readSet P cands) : Set S))
+    (lo hi : ℕ) (εcov α τ l : ℝ) (n₀ : ℕ)
+    (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
+    (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (hQ : ∀ ω, ∀ p ∈ C, ∀ v ∈ fam ω, p * v ∈ readSet P cands)
+    (E : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
+    (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
+    (hdec : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
+      μ.real {ω | ¬ decided O lo (hi - 1) A₀ p ω} ≤ E)
+    (hcut : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
+      μ.real {ω | ¬ cutCorrect O lo (hi - 1) A₀ p ω} ≤ E)
+    (hga : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
+      (n : ℝ) * (gateAcc O εcov + τ + τ)
+        ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (l * (C.card : ℝ)))
+    (hgr : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
+      (n : ℝ) * O.η + (1 - 2 * O.η) * (l * (C.card : ℝ))
+        ≤ (n : ℝ) * (gateRej O εcov - τ - τ))
+    (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α)
+    (hclassA : (n₀ : ℝ) + l * (C.card : ℝ) + l * (C.card : ℝ)
+      ≤ ((C.filter (fun p => O.label p = 1)).card : ℝ))
+    (hclassR : (n₀ : ℝ) + l * (C.card : ℝ) + l * (C.card : ℝ)
+      ≤ ((C.filter (fun p => O.label p = 0)).card : ℝ)) :
+    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p} ∩
+      {ω | ¬ ((((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+              ≤ l * (C.card : ℝ))
+            ∧ admitted O lo hi εcov α (fam ω) C ω)})
+      ≤ E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2)) := by
+  classical
+  set G : Set Ω := {ω | ∀ p ∈ C, fam ω ∈ good p} with hG
+  set Ind : Ω → ℝ := fun ω =>
+    ((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ) with hInd
+  set Mis : Ω → ℝ := fun ω =>
+    ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ) with hMis
+  have hsub : (G ∩ {ω | ¬ (Ind ω ≤ l * (C.card : ℝ) ∧ admitted O lo hi εcov α (fam ω) C ω)})
+      ⊆ (G ∩ {ω | l * (C.card : ℝ) < Ind ω})
+        ∪ ((G ∩ {ω | l * (C.card : ℝ) < Mis ω})
+          ∪ {ω | Mis ω ≤ l * (C.card : ℝ)
+              ∧ n₀ ≤ (splitAcc O hi (fam ω) C ω).2 ∧ n₀ ≤ (splitRej O lo (fam ω) C ω).2
+              ∧ ¬ admitted O lo hi εcov α (fam ω) C ω}) := by
+    rintro ω ⟨hGω, hbad⟩
+    by_cases hind : Ind ω ≤ l * (C.card : ℝ)
+    · have hadm : ¬ admitted O lo hi εcov α (fam ω) C ω := fun h => hbad ⟨hind, h⟩
+      by_cases hmis : Mis ω ≤ l * (C.card : ℝ)
+      · refine Or.inr (Or.inr ⟨hmis, ?_, ?_, hadm⟩)
+        · have hcard := card_le_sideAcc_add O lo (hi - 1) (fam ω) C ω
+          have hcastR : ((C.filter (fun p => O.label p = 1)).card : ℝ)
+              ≤ ((C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω)).card : ℝ)
+                + (((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                  + ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)) := by
+            exact_mod_cast hcard
+          have : (n₀ : ℝ)
+              ≤ ((C.filter (fun p => hi - 1 < voteCount O (fam ω) p ω)).card : ℝ) := by
+            linarith
+          exact_mod_cast this
+        · have hcard := card_le_sideRej_add O lo (hi - 1) (fam ω) C ω
+          have hcastR : ((C.filter (fun p => O.label p = 0)).card : ℝ)
+              ≤ ((C.filter (fun p => voteCount O (fam ω) p ω ≤ lo)).card : ℝ)
+                + (((C.filter (fun p => ¬ decided O lo (hi - 1) (fam ω) p ω)).card : ℝ)
+                  + ((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)) := by
+            exact_mod_cast hcard
+          have : (n₀ : ℝ)
+              ≤ ((C.filter (fun p => voteCount O (fam ω) p ω ≤ lo)).card : ℝ) := by
+            linarith
+          exact_mod_cast this
+      · exact Or.inr (Or.inl ⟨hGω, not_le.1 hmis⟩)
+    · exact Or.inl ⟨hGω, not_le.1 hind⟩
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
+  · exact indecision_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
+      fam hfam hfamMeas hcongr E l hE hl hCpos hdec
+  · refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
+    · exact miscut_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
+        fam hfam hfamMeas hcongr E l hE hl hCpos hcut
+    · exact admitted_whp O C (readSet P cands) hdisjQ lo hi εcov α τ (l * (C.card : ℝ)) n₀
+        fam hQ hcongr hτ hε0 hε1 hsig hga hgr hα
+
 lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
     {T : Finset (Finset S)} (f : ℝ) {fam : Ω → Finset S} (hfam : ∀ ω, fam ω ∈ T)
     (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀}) (p : S) :
