@@ -3196,6 +3196,59 @@ lemma measurableSet_shortCoverage (O : Oracle μ S) (populations : Finset J) (Dj
   rw [hrw]
   exact measurableSet_of_run_data populations B _ hR
 
+open scoped Classical in
+/-- **One state's coverage, over the run.**  `coverage_of_famOf` holds at every table inside
+the flat set, and that is almost every table. -/
+theorem measureReal_shortCoverage_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations)
+    (B : Budget) (hkpos : 0 < B.k) (f γ Δ ε : ℝ) (hγ : 0 ≤ γ) (hf : 0 < f) (hε : 0 < ε)
+    (hhi : (B.k : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ (B.hi : ℝ))
+    (hlo : (B.lo : ℝ) < (B.k : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)) :
+    (runLaw μ D Dsf).real (shortCoverage O populations (D j) B Δ f ε)
+      ≤ Real.exp (-2 * (B.k : ℝ) * γ ^ 2) / ε := by
+  classical
+  set E : ℝ := Real.exp (-2 * (B.k : ℝ) * γ ^ 2) / ε with hEdef
+  have hEnn : runLaw μ D Dsf (shortCoverage O populations (D j) B Δ f ε) ≤ ENNReal.ofReal E := by
+    refine runLaw_slice_le D Dsf _ (measurableSet_shortCoverage O populations (D j) B Δ f ε) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
+    have hPeq : ∀ ω : Ω, prefixesAt populations B.m ((ω, d) : Run Ω S J) = Pd := fun _ => rfl
+    have hCeq : ∀ ω : Ω, poolAt B.M ((ω, d) : Run Ω S J) = Cd := fun _ => rfl
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hd j' hj' i
+    have hone : (1 : S) ∈ Cd := Finset.mem_insert_self _ _
+    by_cases hk : B.k ≤ Cd.card
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ shortCoverage O populations (D j) B Δ f ε}
+          ⊆ {ω : Ω | (∀ v ∈ famOf O B.cn B.cd Pd Cd B.k ω, flipMass O (D j) v ≤ Δ)
+            ∧ (D j).real ↑Pd + Δ / f + ε
+                ≤ (D j).real {p | ¬ cutCorrect O B.lo B.hi
+                    (famOf O B.cn B.cd Pd Cd B.k ω) p ω}} := by
+        rintro ω ⟨h1, h2, -⟩
+        exact ⟨h1, h2⟩
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      exact ENNReal.ofReal_le_ofReal
+        (coverage_of_famOf hflat O (D j) Pd Cd hP (hsupp j hj) hone B.cn B.cd B.k hk hkpos
+          B.lo B.hi f γ Δ ε hγ hf hε hhi hlo)
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ shortCoverage O populations (D j) B Δ f ε}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨-, -, h3⟩
+        exact hk h3
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (shortCoverage O populations (D j) B Δ f ε)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal (by positivity)
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
