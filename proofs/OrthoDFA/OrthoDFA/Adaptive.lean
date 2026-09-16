@@ -1922,26 +1922,55 @@ def PoolRanked (O : Oracle μ S) (Δ : ℝ) (B : Budget) : Prop :=
   (1 / 4 - (1 / 2 - O.η) ^ 2) * Real.log (max (B.M : ℝ) 2)
     ≤ 2 * (1 / 2 - O.η) ^ 2 * Δ ^ 2 * (B.m : ℝ)
 
-/-- **The iteration keeps what the first step gave it.**  If every member of the current
-family carries flip mass `≤ Δ`, its thresholded mean is the majority of `k` mostly-correct
-columns, so the next step ranks against something at least as good as the seed's column and
-its selection is no worse.
+/-! ### Why the iteration cannot drift, and what the seed check is for
 
-The centre being `ω`-dependent is what stops `chosen_accept_preserving_whp` applying
-directly, and it is the same shape as the gate's `ω`-dependent side: a candidate's reads
-sit at `p · v` while the centre is read at `p · v'` for `v' ∈ F`, disjoint strings whenever
-`v ∉ F`.  `measureReal_selection_le` over the centre's pattern is the route. -/
-theorem lloyd_step_preserves_ranked (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (B : Budget) (Δ : ℝ) (hΔ : 0 < Δ) (hsig : O.η < 1 / 2)
-    (hpool : PoolRanked O Δ B) (η : ℝ) :
-    (runLaw μ D Dsf).real
-      {x | ∃ F : Finset S, (∀ v ∈ F, ∀ j ∈ populations, flipMass O (D j) v ≤ Δ) ∧
-          ¬ ∀ v ∈ lloydStep O B.cn B.cd (prefixesAt populations B.m x) (poolAt B.M x) (nz x) B.k F,
-              ∀ j ∈ populations, flipMass O (D j) v ≤ Δ}
-      ≤ η :=
-  sorry
+The later steps centre on the previous iterate, and the loss they minimise is, up to noise,
+the symmetric difference `|Φ_v Δ B|` between a candidate's flip set and the set `B` where
+the centre disagrees with the truth.  That has a consequence worth stating plainly, because
+it is a property of the algorithm rather than of the proof:
+
+*Every common flip set is a perfect fixed point.*  If every member of the family flips on
+the same set `B`, then the centre is wrong exactly on `B`, a candidate flipping on `B`
+scores `|Φ_v Δ B| = 0`, and the iteration is stationary at minimal loss — **for any `B`**.
+So the Lloyd loss cannot by itself distinguish the truth from a family that is uniformly
+wrong on a whole set of prefixes, however large.  Worse, moving toward such a family
+*decreases* the loss, so the code's `if new_loss >= loss: break` does not prevent it.
+
+What prevents it is the **seed check**.  At such a fixed point the seed, which never flips,
+disagrees with the centre on all of `B` and so scores `|B| > 0` while the drifted members
+score `0`.  With `k` drifted candidates available the seed is pushed out of the `k`
+least-loss, and `identify_cluster_around` refuses the step — `if seed_local not in nearest:
+break`, modelled here as `lloydStep` returning the family it had.
+
+So `lloydStep`'s seed check is not a tidiness measure: it is the only thing standing
+between the iteration and an arbitrarily drifted fixed point that the loss actively prefers.
+That is also why `one_mem_clusterAround` is worth having as a lemma.
+
+The invariant to carry through the iteration is therefore about the seed's standing, not
+about flip mass directly: while the seed survives the ranking, the members cannot be much
+worse than it is. -/
+
+/-- **The iteration cannot leave the seed behind**: either the step keeps it, or the step
+is refused and the family is unchanged.  This is the disjunction the induction runs on. -/
+theorem lloyd_step_seed_or_refused (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    (ω : Ω) (F : Finset S) :
+    lloydStep O cn cd P cands ω k F = F ∨ (1 : S) ∈ lloydStep O cn cd P cands ω k F := by
+  classical
+  unfold lloydStep
+  split_ifs with h
+  · exact Or.inr h
+  · exact Or.inl rfl
+
+/-- **A kept step ranks every member against every candidate it left out.**  With `≥ k`
+accept-preserving candidates in the pool, either all `k` members are accept-preserving or
+one was left out, and then every member scores at least as well as it does — which is the
+bound on `|Φ_v Δ B|` the induction needs. -/
+theorem lloyd_step_ranked_by_excluded (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S)
+    (k : ℕ) (hk : k ≤ cands.card) (ω : Ω) (F : Finset S) {w : S} (hw : w ∈ cands)
+    (hwn : w ∉ leastLossSubset (clusterLoss O F cn cd P cands ω) cands k) :
+    ∀ v ∈ leastLossSubset (clusterLoss O F cn cd P cands ω) cands k,
+      clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w :=
+  fun v hv => leastLossSubset_least (clusterLoss O F cn cd P cands ω) cands k hk v hv w hw hwn
 
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
