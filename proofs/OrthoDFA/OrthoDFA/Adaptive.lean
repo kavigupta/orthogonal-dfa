@@ -452,11 +452,23 @@ open scoped Classical in
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
 candidates — but only while the seed is among them.  `identify_cluster_around` breaks out
 (`if seed_local not in nearest`) rather than let the centre drift off `ε`, keeping the
-cluster it had. -/
+cluster it had.
+
+The cohort is the seed together with the `k−1` next best, and it is taken only when that
+really is a least-loss subset.  `np.argsort` is stable and the seed is the table's first
+column, so the seed wins ties for the `k`-th place — and at the first step, where the centre
+is the seed's own column, the seed's loss is `0` and the cohort is always taken.  Modelling
+the ranking as an arbitrary argmin instead would let a tie throw the seed out and stall the
+clustering at `{ε}`, which is not what the code does. -/
 noncomputable def lloydStep (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
-  if (1 : S) ∈ leastLossSubset (clusterLoss O F cn cd P cands ω) cands k
-  then leastLossSubset (clusterLoss O F cn cd P cands ω) cands k else F
+  if ∀ w ∈ cands, w ∉ insert (1 : S)
+        (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)) →
+      ∀ v ∈ insert (1 : S)
+        (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)),
+      clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w
+  then insert (1 : S)
+    (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
 
 /-- `identify_cluster_around` iterated to its fixed point.  The total loss is a natural
 number bounded by `k·#P` that strictly decreases at each improving step, so `k·#P + 1`
@@ -479,8 +491,8 @@ lemma one_mem_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S)
   | succ n ih =>
       rw [Function.iterate_succ_apply']
       unfold lloydStep
-      split_ifs with h
-      · exact h
+      split_ifs
+      · exact Finset.mem_insert_self _ _
       · exact ih
 
 open scoped Classical in
@@ -696,15 +708,121 @@ lemma lloydStep_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : 
   unfold lloydStep
   rw [clusterLoss_congr O F cn cd P cands hF h]
 
+lemma clusterLoss_nonneg (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
+    (ω : Ω) (v : S) : 0 ≤ clusterLoss O F cn cd P cands ω v := by
+  classical
+  unfold clusterLoss hammingLoss
+  split_ifs
+  · exact Nat.cast_nonneg _
+  · exact le_rfl
+
+open scoped Classical in
+/-- **The seed's own loss against its own column is zero**, so the first step always ranks
+it first — which is what stops the clustering from stalling at `{ε}`. -/
+lemma clusterLoss_seed_zero (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P cands : Finset S)
+    (ω : Ω) (hone : (1 : S) ∈ cands) :
+    clusterLoss O {(1 : S)} cn cd P cands ω 1 = 0 := by
+  classical
+  unfold clusterLoss
+  rw [if_pos hone, hammingLoss]
+  have hempty : P.filter (fun p => ¬ ((mq O (p * 1) ω = 1)
+      ↔ cn * ({(1 : S)} : Finset S).card < cd * voteCount O {(1 : S)} p ω)) = ∅ := by
+    refine Finset.filter_eq_empty_iff.2 (fun p _ => ?_)
+    simp only [Classical.not_not, Finset.card_singleton, mul_one, mul_comm]
+    unfold voteCount
+    by_cases h : mq O p ω = 1
+    · have hp : ({(1 : S)} : Finset S).filter (fun v => mq O (p * v) ω = 1) = {(1 : S)} := by
+        refine Finset.filter_eq_self.2 (fun v hv => ?_)
+        rw [Finset.mem_singleton.1 hv, mul_one]
+        exact h
+      rw [hp]
+      simp only [Finset.card_singleton, mul_one]
+      exact ⟨fun _ => hcd, fun _ => h⟩
+    · have hp : ({(1 : S)} : Finset S).filter (fun v => mq O (p * v) ω = 1) = ∅ := by
+        refine Finset.filter_eq_empty_iff.2 (fun v hv => ?_)
+        rw [Finset.mem_singleton.1 hv, mul_one]
+        exact h
+      rw [hp]
+      simp only [Finset.card_empty, mul_zero]
+      exact ⟨fun hc => absurd hc h, fun hc => absurd hc (by omega)⟩
+  rw [hempty]
+  simp
+
+open scoped Classical in
+/-- The first step takes its cohort: the seed ranks first and the rest are the `k−1` next. -/
+lemma lloydStep_seed_card (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P cands : Finset S)
+    (ω : Ω) (k : ℕ) (hone : (1 : S) ∈ cands) (hk : k ≤ cands.card) (hkpos : 0 < k) :
+    (lloydStep O cn cd P cands ω k {(1 : S)}).card = k := by
+  classical
+  have hkm : k - 1 ≤ (cands.erase 1).card := by
+    rw [Finset.card_erase_of_mem hone]; omega
+  have hguard : ∀ w ∈ cands, w ∉ insert (1 : S)
+        (leastLossSubset (clusterLoss O {(1 : S)} cn cd P cands ω) (cands.erase 1) (k - 1)) →
+      ∀ v ∈ insert (1 : S)
+        (leastLossSubset (clusterLoss O {(1 : S)} cn cd P cands ω) (cands.erase 1) (k - 1)),
+      clusterLoss O {(1 : S)} cn cd P cands ω v
+        ≤ clusterLoss O {(1 : S)} cn cd P cands ω w := by
+    intro w hw hwn v hv
+    rcases Finset.mem_insert.1 hv with rfl | hv'
+    · rw [clusterLoss_seed_zero O hcd P cands ω hone]
+      exact clusterLoss_nonneg O _ cn cd P cands ω w
+    · refine leastLossSubset_least _ (cands.erase 1) (k - 1) hkm v hv' w
+        (Finset.mem_erase.2 ⟨fun hc => hwn (hc ▸ Finset.mem_insert_self _ _), hw⟩)
+        (fun hc => hwn (Finset.mem_insert_of_mem hc))
+  unfold lloydStep
+  rw [if_pos hguard, Finset.card_insert_of_notMem (fun hc =>
+    (Finset.mem_erase.1 (leastLossSubset_subset' _ _ _ hc)).1 rfl),
+    leastLossSubset_card _ _ _ hkm]
+  omega
+
+open scoped Classical in
+/-- A step from a `k`-member family keeps `k` members. -/
+lemma lloydStep_card_keep (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    (hone : (1 : S) ∈ cands) (hk : k ≤ cands.card) (hkpos : 0 < k) {F : Finset S}
+    (hF : F.card = k) : (lloydStep O cn cd P cands ω k F).card = k := by
+  classical
+  have hkm : k - 1 ≤ (cands.erase 1).card := by
+    rw [Finset.card_erase_of_mem hone]; omega
+  unfold lloydStep
+  split_ifs
+  · rw [Finset.card_insert_of_notMem (fun hc =>
+      (Finset.mem_erase.1 (leastLossSubset_subset' _ _ _ hc)).1 rfl),
+      leastLossSubset_card _ _ _ hkm]
+    omega
+  · exact hF
+
+open scoped Classical in
+/-- **The clustering does not stall.**  The seed's loss against its own column is zero, so
+the first step is taken and every later one either keeps its `k` members or retakes `k`. -/
+theorem clusterAround_card (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P cands : Finset S)
+    (ω : Ω) (k : ℕ) (hone : (1 : S) ∈ cands) (hk : k ≤ cands.card) (hkpos : 0 < k) :
+    (clusterAround O cn cd P cands ω k).card = k := by
+  classical
+  unfold clusterAround
+  have hiter : ∀ (n : ℕ) (F : Finset S), F.card = k →
+      ((lloydStep O cn cd P cands ω k)^[n] F).card = k := by
+    intro n
+    induction n with
+    | zero => intro F hF; rwa [Function.iterate_zero_apply]
+    | succ n ih =>
+        intro F hF
+        rw [Function.iterate_succ_apply]
+        exact ih _ (lloydStep_card_keep O cn cd P cands ω k hone hk hkpos hF)
+  rw [show k * P.card + 1 = (k * P.card) + 1 from rfl, Function.iterate_succ_apply]
+  exact hiter _ _ (lloydStep_seed_card O hcd P cands ω k hone hk hkpos)
+
 lemma lloydStep_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    {F : Finset S} (hF : F ⊆ cands) : lloydStep O cn cd P cands ω k F ⊆ cands := by
+    (hone : (1 : S) ∈ cands) {F : Finset S} (hF : F ⊆ cands) :
+    lloydStep O cn cd P cands ω k F ⊆ cands := by
   classical
   unfold lloydStep
   split_ifs
-  · exact leastLossSubset_subset' _ _ _
+  · exact Finset.insert_subset hone
+      (le_trans (leastLossSubset_subset' _ _ _) (Finset.erase_subset _ _))
   · exact hF
 
-lemma lloydIterate_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
+lemma lloydIterate_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+    (hone : (1 : S) ∈ cands) :
     ∀ (n : ℕ) (F : Finset S), F ⊆ cands → (lloydStep O cn cd P cands ω k)^[n] F ⊆ cands := by
   intro n
   induction n with
@@ -712,9 +830,10 @@ lemma lloydIterate_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (
   | succ n ih =>
       intro F hF
       rw [Function.iterate_succ_apply]
-      exact ih _ (lloydStep_subset O cn cd P cands ω k hF)
+      exact ih _ (lloydStep_subset O cn cd P cands ω k hone hF)
 
 lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    (hone : (1 : S) ∈ cands)
     {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     ∀ (n : ℕ) (F : Finset S), F ⊆ cands →
       (lloydStep O cn cd P cands ω k)^[n] F = (lloydStep O cn cd P cands ω' k)^[n] F := by
@@ -730,7 +849,7 @@ lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k
             congrArg (fun z => (lloydStep O cn cd P cands ω k)^[n] z)
               (lloydStep_congr O cn cd P cands k hF h)
         _ = (lloydStep O cn cd P cands ω' k)^[n] (lloydStep O cn cd P cands ω' k F) :=
-            ih _ (lloydStep_subset O cn cd P cands ω' k hF)
+            ih _ (lloydStep_subset O cn cd P cands ω' k hone hF)
         _ = (lloydStep O cn cd P cands ω' k)^[n + 1] F :=
             (Function.iterate_succ_apply _ _ _).symm
 
@@ -742,7 +861,7 @@ lemma clusterAround_congr_mq (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S
     {ω ω' : Ω} (hone : (1 : S) ∈ cands)
     (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     clusterAround O cn cd P cands ω k = clusterAround O cn cd P cands ω' k :=
-  lloydIterate_congr O cn cd P cands k h _ _ (by simpa using hone)
+  lloydIterate_congr O cn cd P cands k hone h _ _ (by simpa using hone)
 
 /-- The same from agreeing noise bits, which is how the independence arguments supply it. -/
 lemma clusterAround_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
@@ -810,7 +929,7 @@ lemma clusterAround_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) 
     (hone : (1 : S) ∈ cands) : clusterAround O cn cd P cands ω k ⊆ cands := by
   classical
   unfold clusterAround
-  exact lloydIterate_subset O cn cd P cands ω k _ _ (by simpa using hone)
+  exact lloydIterate_subset O cn cd P cands ω k hone _ _ (by simpa using hone)
 
 lemma noise_eq_of_mq_eq (O : Oracle μ S) {w : S} {ω ω' : Ω} (h : mq O w ω = mq O w ω') :
     O.noise w ω = O.noise w ω' := by
@@ -2926,128 +3045,14 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
       rw [mul_one, mq_congr O h0]
     rw [mq_congr O h1, voteCount_congr O {(1 : S)} p.val hvc]
 
-open scoped Classical in
-/-- **The first Lloyd step keeps out badly-flipping candidates.**
+/-! ### The first Lloyd step
 
 Its centre is `{ε}`, so its loss is `seedLoss`, whose mean separates a candidate that never
-flips from one that flips on a `Δ` fraction by `Δ(1−2η)²`.  `chosen_avoids_bad_whp` then
-bounds the chance any bad candidate outranks the good ones — by `#cands · exp(−2·#P·γ²)`,
-the union over the pool that #287's guard is what makes affordable. -/
-theorem seed_selection_avoids_bad {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    {cn cd : ℕ} (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
-    (k : ℕ) (hk : k ≤ cands.card) (Δ : ℝ) (hΔ : 0 < Δ) (hPne : 0 < P.card)
-    (hsig : O.η ≤ 1 / 2)
-    (hgood : k ≤ (cands.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card) :
-    μ.real {ω | ¬ ∀ w ∈ leastLossSubset (clusterLoss O {(1 : S)} cn cd P cands ω) cands k,
-        ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
-      ≤ (cands.card : ℝ)
-        * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
-  classical
-  set γ : ℝ := Δ * (1 - 2 * O.η) ^ 2 / 2 with hγdef
-  set ρlo : ℝ := 2 * O.η * (1 - O.η) with hρlo
-  set ρhi : ℝ := 2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2 with hρhi
-  have hcard : (Finset.univ : Finset {p // p ∈ P}).card = P.card := by
-    simp [Finset.card_univ]
-  have hsum : ∀ (f : S → ℝ), ∑ i : {p // p ∈ P}, f i.val = ∑ p ∈ P, f p := by
-    intro f; exact Finset.sum_attach P f
-  have hseedzero : ∀ p : S, μ[seedLoss O cn cd 1 p] = 0 := by
-    intro p
-    refine integral_eq_zero_of_ae ?_
-    filter_upwards [seedLoss_eq_disagree O hcd 1 p, mq_bit O p] with ω hd hb
-    rw [hd, show p * (1 : S) = p from mul_one p]
-    rcases hb with h | h <;> rw [h] <;> norm_num
-  have hmeansum : ∀ v : S, v ≠ 1 → ∑ i : {p // p ∈ P}, μ[seedLoss O cn cd v i.val]
-      = (P.card : ℝ) * ρlo + (∑ p ∈ P, O.flip v p) * (1 - 2 * O.η) ^ 2 := by
-    intro v hv
-    rw [Finset.sum_congr rfl
-      (fun i _ => seedLoss_mean O hcd v i.val (mul_ne_self i.val v hv)),
-      Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ]
-    simp only [nsmul_eq_mul, Fintype.card_coe]
-    rw [← Finset.sum_mul, hsum (fun p => O.flip v p), hρlo]
-  have hη0 : (0 : ℝ) ≤ O.η := by
-    rw [← O.noise_mean 1]
-    exact integral_nonneg_of_ae (by filter_upwards [O.noise_icc 1] with ω hω using hω.1)
-  have hρlo0 : (0 : ℝ) ≤ ρlo := by rw [hρlo]; nlinarith [O.hη, hη0]
-  refine chosen_avoids_bad_whp
-    (good := fun v => ∑ p ∈ P, O.flip v p = 0)
-    (bad := fun v => Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip v p)
-    ?_ cands k (Finset.univ : Finset {p // p ∈ P}) ρlo ρhi γ
-    (fun v i => seedLoss O cn cd v i.val)
-    (fun v i => (seedLoss_meas O cn cd v i.val).aemeasurable)
-    (fun v => seedLoss_indep hflat O cn cd hP v)
-    (fun v i => seedLoss_icc O cn cd v i.val)
-    ?_ ?_ ?_ ?_ hgood _ ?_ ?_ ?_ |>.trans (by rw [hcard])
-  · intro v hbad hgoodv
-    rw [hgoodv] at hbad
-    have hpos : (0 : ℝ) < Δ * (P.card : ℝ) :=
-      mul_pos hΔ (by exact_mod_cast hPne)
-    linarith
-  · intro v _ hgv
-    by_cases hv1 : v = 1
-    · subst hv1
-      rw [Finset.sum_congr rfl (fun i _ => hseedzero i.val), Finset.sum_const, hcard]
-      simpa using mul_nonneg (Nat.cast_nonneg _) hρlo0
-    · rw [hmeansum v hv1, hgv, hcard]; simp
-  · intro v _ hbv
-    have hv1 : v ≠ 1 := by
-      rintro rfl
-      have hz : ∑ p ∈ P, O.flip (1 : S) p = 0 := by
-        refine Finset.sum_eq_zero (fun p _ => ?_)
-        show O.label (p * 1) + O.label p - 2 * O.label (p * 1) * O.label p = 0
-        rw [mul_one]
-        rcases O.label_bit p with h | h <;> rw [h] <;> ring
-      rw [hz] at hbv
-      exact absurd hbv (not_le.2 (mul_pos hΔ (by exact_mod_cast hPne)))
-    rw [hmeansum v hv1, hcard, hρhi]
-    nlinarith [hbv, sq_nonneg (1 - 2 * O.η)]
-  · rw [hρlo, hρhi, hγdef]; nlinarith [sq_nonneg (1 - 2 * O.η)]
-  · rw [hγdef]; positivity
-  · exact fun ω => leastLossSubset_subset' _ _ _
-  · exact fun ω => leastLossSubset_card _ _ _ hk
-  · intro ω v hv w hw hwn
-    have hvc : v ∈ cands := leastLossSubset_subset' _ _ _ hv
-    have h := leastLossSubset_least (clusterLoss O {(1 : S)} cn cd P cands ω) cands k hk
-      v hv w hw hwn
-    unfold clusterLoss at h
-    rw [if_pos hvc, if_pos hw, hammingLoss_seed, hammingLoss_seed] at h
-    rw [hsum (fun p => seedLoss O cn cd v p ω), hsum (fun p => seedLoss O cn cd w p ω)]
-    exact h
-
-open scoped Classical in
-/-- **The first Lloyd step's output is ranked**, fallback included.  `lloydStep` returns the
-least-loss subset when the seed survives it and `{ε}` otherwise; the seed never flips, so
-the fallback branch is ranked for free. -/
-theorem lloyd_first_step_ranked {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    {cn cd : ℕ} (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
-    (k : ℕ) (hk : k ≤ cands.card) (Δ : ℝ) (hΔ : 0 < Δ) (hPne : 0 < P.card)
-    (hsig : O.η ≤ 1 / 2)
-    (hgood : k ≤ (cands.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card) :
-    μ.real {ω | ¬ ∀ w ∈ lloydStep O cn cd P cands ω k {(1 : S)},
-        ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
-      ≤ (cands.card : ℝ)
-        * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
-  classical
-  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))
-    (seed_selection_avoids_bad hflat O hcd hP k hk Δ hΔ hPne hsig hgood)
-  intro ω hω
-  simp only [Set.mem_setOf_eq, not_forall] at hω ⊢
-  obtain ⟨w, hw, hbad⟩ := hω
-  refine ⟨w, ?_, hbad⟩
-  unfold lloydStep at hw
-  split_ifs at hw with h
-  · exact hw
-  · -- the fallback branch is the seed, which never flips
-    rw [Finset.mem_singleton] at hw
-    subst hw
-    exfalso
-    have hz : ∑ p ∈ P, O.flip (1 : S) p = 0 := by
-      refine Finset.sum_eq_zero (fun p _ => ?_)
-      show O.label (p * 1) + O.label p - 2 * O.label (p * 1) * O.label p = 0
-      rw [mul_one]
-      rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
-    rw [Classical.not_not] at hbad
-    rw [hz] at hbad
-    exact absurd hbad (not_le.2 (mul_pos hΔ (by exact_mod_cast hPne)))
+flips from one that flips on a `Δ` fraction by `Δ(1−2η)²` — the screen's statistic.  The
+ranking is *not* what bounds the family's flip mass: `clusterAt_flip_bound` reads that off
+the screen, which every candidate has already passed (issue #288).  What the ranking has to
+deliver is only that the seed survives it, and `lloydStep`'s tie-break gives that outright.
+-/
 
 /-! ### Part 1 comes from the clustering, not the gate
 
@@ -3116,8 +3121,8 @@ theorem lloyd_step_seed_or_refused (O : Oracle μ S) (cn cd : ℕ) (P cands : Fi
     lloydStep O cn cd P cands ω k F = F ∨ (1 : S) ∈ lloydStep O cn cd P cands ω k F := by
   classical
   unfold lloydStep
-  split_ifs with h
-  · exact Or.inr h
+  split_ifs
+  · exact Or.inr (Finset.mem_insert_self _ _)
   · exact Or.inl rfl
 
 /-- **A kept step ranks every member against every candidate it left out.**  With `≥ k`
@@ -3136,7 +3141,7 @@ open scoped Classical in
 either keeps its argument or returns a `k`-subset, so the family is one of finitely many
 `Finset`s and each has `k` members unless it is the seed alone. -/
 lemma clusterAround_mem_values (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
-    (k : ℕ) :
+    (k : ℕ) (hone : (1 : S) ∈ cands) :
     clusterAround O cn cd P cands ω k ∈ insert ({(1 : S)}) (cands.powersetCard k) := by
   classical
   unfold clusterAround
@@ -3145,13 +3150,27 @@ lemma clusterAround_mem_values (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset
       lloydStep O cn cd P cands ω k F ∈ insert ({(1 : S)}) (cands.powersetCard k) := by
     intro F hF
     unfold lloydStep
-    split_ifs with h
-    · refine Finset.mem_insert_of_mem ?_
-      by_cases hk : k ≤ cands.card
-      · exact leastLossSubset_mem _ cands k hk
-      · exfalso
-        rw [leastLossSubset, dif_neg (by simpa [Finset.powersetCard_nonempty] using hk)] at h
-        exact absurd h (Finset.notMem_empty _)
+    split_ifs
+    · by_cases hk : k - 1 ≤ (cands.erase 1).card ∧ 0 < k
+      · refine Finset.mem_insert_of_mem (Finset.mem_powersetCard.2 ⟨?_, ?_⟩)
+        · exact Finset.insert_subset hone
+            (le_trans (leastLossSubset_subset' _ _ _) (Finset.erase_subset _ _))
+        · rw [Finset.card_insert_of_notMem (fun hc =>
+            (Finset.mem_erase.1 (leastLossSubset_subset' _ _ _ hc)).1 rfl),
+            leastLossSubset_card _ _ _ hk.1]
+          omega
+      · rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+        · rw [hk0, show leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1)
+              (0 - 1) = ∅ from Finset.card_eq_zero.1
+            (leastLossSubset_card _ _ _ (Nat.zero_le _))]
+          exact Finset.mem_insert_self _ _
+        · have hbig : (cands.erase 1).card < k - 1 := by
+            by_contra hc
+            exact hk ⟨not_lt.1 hc, hkpos⟩
+          rw [leastLossSubset, dif_neg (by
+            simp only [Finset.powersetCard_nonempty, not_le]
+            omega)]
+          exact Finset.mem_insert_self _ _
     · exact hF
   induction n with
   | zero => exact Finset.mem_insert_self _ _
@@ -5005,13 +5024,15 @@ lemma famOf_eq_famCore (O : Oracle μ S) (cn cd sc : ℕ) (P cands : Finset S) (
 
 open scoped Classical in
 lemma famOf_mem (O : Oracle μ S) (cn cd sc : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω)
-    (hk : k ≤ cands.card) : famOf O cn cd sc P cands k ω ∈ cands.powersetCard k := by
+    (hone : (1 : S) ∈ cands) (hk : k ≤ cands.card) :
+    famOf O cn cd sc P cands k ω ∈ cands.powersetCard k := by
   classical
   unfold famOf famCore
   split_ifs with h
   · exact leastLossSubset_mem _ _ _ hk
   · rcases Finset.mem_insert.1
-      (clusterAround_mem_values O cn cd P (screened O sc P cands ω) ω k) with h1 | h1
+      (clusterAround_mem_values O cn cd P (screened O sc P cands ω) ω k
+        (one_mem_screened O sc P cands ω hone)) with h1 | h1
     · exact absurd h1 h
     · exact Finset.powersetCard_mono (screened_subset O sc P cands ω) h1
 
@@ -5156,7 +5177,7 @@ noncomputable def famAt (O : Oracle μ S) (populations : Finset J) (B : Budget)
 lemma famAt_mem (O : Oracle μ S) (populations : Finset J) (B : Budget) (x : Run Ω S J)
     (hk : B.k ≤ (poolAt B.M x).card) :
     famAt O populations B x ∈ (poolAt B.M x).powersetCard B.k :=
-  famOf_mem O B.cn B.cd B.sc _ _ B.k _ hk
+  famOf_mem O B.cn B.cd B.sc _ _ B.k _ (one_mem_poolAt B.M x) hk
 
 lemma famAt_eq_of_ret (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : Budget) (hα : α < 1)
@@ -5193,7 +5214,7 @@ theorem coverage_of_famOf {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (coverage_of_run hflat O Dj P cands hP lo hi (cands.powersetCard k)
       (leastLossSubset (fun _ : S => (0 : ℝ)) cands k) (leastLossSubset_mem _ _ _ hk)
       (fun t ht => (Finset.mem_powersetCard.1 ht).1)
-      (famOf O cn cd sc P cands k) (fun ω => famOf_mem O cn cd sc P cands k ω hk)
+      (famOf O cn cd sc P cands k) (fun ω => famOf_mem O cn cd sc P cands k ω hone hk)
       (measurableSet_famOf O cn cd sc P cands k hone)
       (fun ω ω' h => famOf_congr O cn cd sc P cands k hone h)
       f γ Δ ε hγ hf hε k hkpos (fun t ht => le_of_eq (hcardT t ht).symm)
