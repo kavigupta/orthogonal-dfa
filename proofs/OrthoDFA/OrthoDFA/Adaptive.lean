@@ -2206,6 +2206,63 @@ theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f
     show voteSum O F p ω ≤ (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)
     rw [← heq]; linarith
 
+/-! ### From a per-prefix bound to a population bound
+
+The population's prefixes are countable, so the mass of bad ones is a sum rather than an
+integral over a product, and the exchange is `lintegral_tsum` — no product measure and no
+joint measurability in the pair. -/
+
+lemma tsum_singleton_eq (Dj : Measure S) (A : Set S) : ∑' a : A, Dj {(a : S)} = Dj A := by
+  have h := tsum_measure_preimage_singleton (μ := Dj) A.to_countable
+    (f := (id : S → S)) (fun y _ => measurableSet_singleton y)
+  simpa using h
+
+lemma measure_setOf_eq_tsum (Dj : Measure S) (A : Set S) :
+    Dj A = ∑' a : S, A.indicator (fun a => Dj {a}) a := by
+  rw [← tsum_singleton_eq Dj A]
+  exact tsum_subtype A (fun a => Dj {a})
+
+/-- **The expected bad mass is the worst per-prefix bound.**  Each prefix's failure has
+`μ`-probability at most `E`, and the prefix masses sum to one. -/
+lemma badMass_eq_tsum (Dj : Measure S) (Bad : S → Set Ω) (ω : Ω) :
+    Dj {p | ω ∈ Bad p} = ∑' p : S, (Bad p).indicator (fun _ => Dj {p}) ω := by
+  rw [measure_setOf_eq_tsum]
+  exact tsum_congr (fun p => by by_cases hb : ω ∈ Bad p <;> simp [hb])
+
+lemma measurable_badMass (Dj : Measure S) (Bad : S → Set Ω)
+    (hmeas : ∀ p, MeasurableSet (Bad p)) : Measurable (fun ω => Dj {p | ω ∈ Bad p}) := by
+  simp only [badMass_eq_tsum Dj Bad]
+  exact Measurable.ennreal_tsum (fun p => measurable_const.indicator (hmeas p))
+
+lemma lintegral_badMass_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad : S → Set Ω)
+    (hmeas : ∀ p, MeasurableSet (Bad p)) (E : ℝ≥0∞) (h : ∀ p, μ (Bad p) ≤ E) :
+    ∫⁻ ω, Dj {p | ω ∈ Bad p} ∂μ ≤ E := by
+  classical
+  have hpt : ∀ ω, Dj {p | ω ∈ Bad p}
+      = ∑' p : S, (Bad p).indicator (fun _ => Dj {p}) ω := badMass_eq_tsum Dj Bad
+  calc ∫⁻ ω, Dj {p | ω ∈ Bad p} ∂μ
+      = ∫⁻ ω, ∑' p : S, (Bad p).indicator (fun _ => Dj {p}) ω ∂μ :=
+        lintegral_congr hpt
+    _ = ∑' p : S, ∫⁻ ω, (Bad p).indicator (fun _ => Dj {p}) ω ∂μ :=
+        lintegral_tsum (fun p => ((measurable_const.indicator (hmeas p))).aemeasurable)
+    _ = ∑' p : S, Dj {p} * μ (Bad p) := by
+        refine tsum_congr (fun p => ?_)
+        rw [lintegral_indicator (hmeas p), lintegral_const, Measure.restrict_apply_univ]
+    _ ≤ ∑' p : S, Dj {p} * E := ENNReal.tsum_le_tsum (fun p => by gcongr; exact h p)
+    _ = E := by
+        rw [ENNReal.tsum_mul_right, show (∑' p : S, Dj {p}) = 1 by
+          simpa using (measure_setOf_eq_tsum Dj Set.univ).symm, one_mul]
+
+/-- **Markov on the bad mass.**  A per-prefix failure probability of `E` leaves at most an
+`E / ε` fraction of runs with more than `ε` of the population misclassified. -/
+lemma measure_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad : S → Set Ω)
+    (hmeas : ∀ p, MeasurableSet (Bad p)) (E ε : ℝ≥0∞) (hε : ε ≠ 0) (hεtop : ε ≠ ∞)
+    (h : ∀ p, μ (Bad p) ≤ E) :
+    μ {ω | ε ≤ Dj {p | ω ∈ Bad p}} ≤ E / ε := by
+  rw [ENNReal.le_div_iff_mul_le (Or.inl hε) (Or.inl hεtop), mul_comm]
+  exact le_trans (mul_meas_ge_le_lintegral₀ (measurable_badMass Dj Bad hmeas).aemeasurable ε)
+    (lintegral_badMass_le Dj Bad hmeas E h)
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
