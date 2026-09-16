@@ -873,7 +873,7 @@ open scoped Classical in
 noncomputable def sideAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
     (x : Run Ω S J) : Finset S :=
   (certOf j B.m x).filter
-    (fun p => B.hi < voteCount O ((clusterAt O populations x B).erase 1) p (nz x))
+    (fun p => B.hi - 1 < voteCount O ((clusterAt O populations x B).erase 1) p (nz x))
 
 open scoped Classical in
 /-- The prefixes it rejects. -/
@@ -1428,7 +1428,7 @@ open scoped Classical in
 /-- `_split_counts` on the accept side: `(hits, n)` over the prefixes the family accepts,
 counted on the seed's column. -/
 noncomputable def splitAcc (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  let side := P.filter (fun p => hi < voteCount O F p ω)
+  let side := P.filter (fun p => hi - 1 < voteCount O F p ω)
   ((side.filter (fun p => mq O p ω = 1)).card, side.card)
 
 open scoped Classical in
@@ -1498,7 +1498,7 @@ lemma not_ret_of_seed_family (O : Oracle μ S) (populations : Finset J)
   rw [hfam, Finset.erase_singleton] at hacc
   have hside : (∅ : Finset S).card = 0 := rfl
   have hempty : (certOf j B.m x).filter
-      (fun p => B.hi < voteCount O (∅ : Finset S) p (nz x)) = ∅ := by
+      (fun p => B.hi - 1 < voteCount O (∅ : Finset S) p (nz x)) = ∅ := by
     refine Finset.filter_eq_empty_iff.2 (fun p _ => ?_)
     simp [voteCount]
   have hsplit : splitAcc O B.hi (∅ : Finset S) (certOf j B.m x) (nz x) = (0, 0) := by
@@ -1748,6 +1748,46 @@ lemma splitRej_sound_of_wrong (O : Oracle μ S) (R : Finset S) (θ τ w : ℝ) (
   rw [hsum]
   have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
   nlinarith [hw, hθ]
+
+lemma voteCount_mono (O : Oracle μ S) {F F' : Finset S} (h : F ⊆ F') (p : S) (ω : Ω) :
+    voteCount O F p ω ≤ voteCount O F' p ω := by
+  classical
+  exact Finset.card_le_card (Finset.filter_subset_filter _ h)
+
+open scoped Classical in
+/-- **The gate sees every prefix the cut gets wrong.**  A wrong prefix is decided against
+its label, and with the accept side shifted by the seed's own vote it lands on the side the
+gate scores.  Without the shift the gate would be blind to exactly the prefixes the seed's
+own misread pushed over the line. -/
+lemma wrong_mem_gate_side (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (hhi : 1 ≤ B.hi) (x : Run Ω S J) {p : S} (hp : p ∈ certOf j B.m x)
+    (h : ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)) :
+    (p ∈ sideAcc O populations j B x ∧ O.label p = 0)
+      ∨ (p ∈ sideRej O populations j B x ∧ O.label p = 1) := by
+  classical
+  rcases wrong_mem_side O B.lo B.hi (clusterAt O populations x B) p (nz x) h with ⟨hlt, hl⟩ | ⟨hle, hl⟩
+  · refine Or.inl ⟨Finset.mem_filter.2 ⟨hp, ?_⟩, hl⟩
+    have hstep := voteCount_le_erase_succ O (clusterAt O populations x B) p (nz x)
+    omega
+  · refine Or.inr ⟨Finset.mem_filter.2 ⟨hp, ?_⟩, hl⟩
+    exact le_trans (voteCount_mono O (Finset.erase_subset _ _) p (nz x)) hle
+
+open scoped Classical in
+/-- Every wrong certification prefix is counted against one of the gate's two sides. -/
+lemma card_cert_wrong_le (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (hhi : 1 ≤ B.hi) (x : Run Ω S J) :
+    ((certOf j B.m x).filter
+        (fun p => ¬ cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x))).card
+      ≤ ((sideAcc O populations j B x).filter (fun p => O.label p = 0)).card
+        + ((sideRej O populations j B x).filter (fun p => ¬ (O.label p = 0))).card := by
+  classical
+  refine le_trans (Finset.card_le_card ?_) (Finset.card_union_le _ _)
+  intro p hp
+  obtain ⟨hpC, hbad⟩ := Finset.mem_filter.1 hp
+  rcases wrong_mem_gate_side O populations j B hhi x hpC hbad with ⟨hs, hl⟩ | ⟨hs, hl⟩
+  · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hs, hl⟩)
+  · refine Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hs, ?_⟩)
+    rw [hl]; norm_num
 
 /-! ### The gate in counting form
 
