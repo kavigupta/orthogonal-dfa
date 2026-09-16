@@ -3792,6 +3792,35 @@ lemma map_certBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
     split_ifs with h
     exacts [ht ⟨z.2, h⟩, .univ]
 
+/-- A table prefix and a certification prefix are drawn from independent streams, so their
+joint law is the product — which is what lets `cross_collision_le` price a collision between
+the two. -/
+lemma map_prefCertPair (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j' j : J) (i i' : ℕ) :
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+        (drawLaw D Dsf) = (D j').prod (D j) := by
+  have hf : Measurable (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i) := by fun_prop
+  have hg : Measurable (fun c : J × ℕ → S => c (j, i')) := by fun_prop
+  have hmapf : Measure.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
+      ((Measure.infinitePi fun _ : ℕ => Dsf).prod
+        (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)) = D j' := by
+    rw [show (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
+        = (fun q : J → ℕ → S => q j' i) ∘ Prod.snd from rfl,
+      ← Measure.map_map (by fun_prop) measurable_snd, Measure.map_snd_prod]
+    simp only [measure_univ, one_smul]
+    rw [show (fun q : J → ℕ → S => q j' i)
+        = (fun r : ℕ → S => r i) ∘ (fun q : J → ℕ → S => q j') from rfl,
+      ← Measure.map_map (by fun_prop) (by fun_prop),
+      (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j').map_eq,
+      (measurePreserving_eval_infinitePi (fun _ : ℕ => D j') i).map_eq]
+  have hmapg : Measure.map (fun c : J × ℕ → S => c (j, i'))
+      (Measure.infinitePi fun z : J × ℕ => D z.1) = D j :=
+    (measurePreserving_eval_infinitePi (fun z : J × ℕ => D z.1) (j, i')).map_eq
+  rw [show (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+      = Prod.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
+        (fun c : J × ℕ → S => c (j, i')) from rfl,
+    drawLaw, ← Measure.map_prod_map _ _ hf hg, hmapf, hmapg]
+
 /-! ### Unioning over a drawn pool
 
 The candidates are drawn, so a union bound over them is a union over an `x`-dependent set.
@@ -4398,6 +4427,68 @@ theorem cert_not_injective_le (D : J → Measure S) (Dsf : Measure S)
     |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_certBlock D Dsf j m)),
     ← measureReal_def]
   exact pi_not_injective_le (D j) m ρ hρ hρ0
+
+lemma map_prefCertPairRun (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j' j : J) (i i' : ℕ) :
+    Measure.map (fun x : Run Ω S J => (prf j' i x, cert j i' x)) (runLaw μ D Dsf)
+      = (D j').prod (D j) := by
+  rw [show (fun x : Run Ω S J => (prf j' i x, cert j i' x))
+      = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+        ∘ Prod.snd from rfl,
+    ← Measure.map_map (by fun_prop) measurable_snd, runLaw_eq_prod, Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  exact map_prefCertPair D Dsf j' j i i'
+
+open scoped Classical in
+/-- **The gate's prefixes are fresh.**  A certification draw repeating a table prefix costs
+the same `ρ` as a repeat inside one stream, and there are `|populations|·m²` pairs. -/
+theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (populations : Finset J) (j : J) (m : ℕ) (ρ : ℝ)
+    (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρj : collisionMass (D j) ≤ ρ)
+    (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ Disjoint (prefixesAt populations m x) (certOf j m x)}
+      ≤ (populations.card : ℝ) * (m : ℝ) ^ 2 * ρ := by
+  classical
+  set κ := populations ×ˢ (Finset.range m ×ˢ Finset.range m) with hκ
+  have hsub : {x : Run Ω S J | ¬ Disjoint (prefixesAt populations m x) (certOf j m x)}
+      ⊆ ⋃ z ∈ κ, {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} := by
+    intro x hx
+    obtain ⟨a, ha, ha'⟩ := Finset.not_disjoint_iff.1 hx
+    obtain ⟨j', hj', hja⟩ := Finset.mem_biUnion.1 ha
+    obtain ⟨i, hi, hia⟩ := Finset.mem_image.1 hja
+    obtain ⟨i', hi', hia'⟩ := Finset.mem_image.1 ha'
+    exact Set.mem_biUnion (show (j', i, i') ∈ κ by simp [hκ, hj', Finset.mem_range.1 hi,
+      Finset.mem_range.1 hi']) (by simpa using hia.trans hia'.symm)
+  have hone : ∀ z : J × ℕ × ℕ, z ∈ κ →
+      (runLaw μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} ≤ ρ := by
+    intro z hz
+    have hj' : z.1 ∈ populations := (Finset.mem_product.1 hz).1
+    have hdiag : MeasurableSet {q : S × S | q.1 = q.2} :=
+      measurableSet_eq_fun measurable_fst measurable_snd
+    have hpre : {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x}
+        = (fun x : Run Ω S J => (prf z.1 z.2.1 x, cert j z.2.2 x)) ⁻¹' {q : S × S | q.1 = q.2} :=
+      rfl
+    rw [hpre, measureReal_def,
+      Measure.map_apply ((measurable_prf z.1 z.2.1).prodMk (measurable_cert j z.2.2)) hdiag
+        |>.symm.trans (congrArg (fun ν : Measure (S × S) => ν _)
+          (map_prefCertPairRun D Dsf z.1 j z.2.1 z.2.2)),
+      ← measureReal_def]
+    exact cross_collision_le (D z.1) (D j) ρ (hρ z.1 hj') hρj
+      (summable_singleton_sq (D z.1)) (summable_singleton_sq (D j))
+  calc (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ Disjoint (prefixesAt populations m x) (certOf j m x)}
+      ≤ (runLaw μ D Dsf).real (⋃ z ∈ κ, {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x}) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ z ∈ κ, (runLaw μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _z ∈ κ, ρ := Finset.sum_le_sum hone
+    _ = (κ.card : ℝ) * ρ := by rw [Finset.sum_const, nsmul_eq_mul]
+    _ = (populations.card : ℝ) * (m : ℝ) ^ 2 * ρ := by
+        have hcard : κ.card = populations.card * (m * m) := by
+          rw [hκ, Finset.card_product, Finset.card_product, Finset.card_range]
+        rw [hcard]; push_cast; ring
 
 /-! ### The population bound for one state
 
