@@ -1884,6 +1884,55 @@ theorem gate_rej_side_bound (O : Oracle μ S) (C Q : Finset S)
     rw [hz]; simpa using Real.exp_nonneg _
 
 open scoped Classical in
+/-- The mirror: a mostly-rejecting side reads accepting rarely enough. -/
+theorem gate_rej_admit_bound' (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
+    (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
+      (n : ℝ) * O.η + (1 - 2 * O.η) * w ≤ (n : ℝ) * (θ - τ)) :
+    μ.real {ω | n₀ ≤ (side ω).card
+        ∧ ((((side ω).filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
+        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
+  classical
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ U => n₀ ≤ A₀.card
+      ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
+      ∧ (A₀.card : ℝ) * θ ≤ (U.card : ℝ)) _ (Real.exp_nonneg _) ?_
+  intro A₀ hA₀
+  by_cases hn : n₀ ≤ A₀.card
+  · by_cases hw : (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
+    · have hsplit : (((A₀.filter (fun p => O.label p = 0)).card : ℝ))
+          + (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) = (A₀.card : ℝ) := by
+        exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
+          (Finset.card_filter_add_card_filter_not (s := A₀) (fun p => O.label p = 0))
+      have hmean : (A₀.card : ℝ) * (1 - O.η)
+          - (1 - 2 * O.η) * (((A₀.filter (fun p => O.label p = 0)).card : ℝ))
+            ≤ (A₀.card : ℝ) * (θ - τ) := by
+        have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+        have := hθ A₀.card hn (Finset.card_le_card (Finset.mem_powerset.1 hA₀))
+        nlinarith [hsplit, hw]
+      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
+        (le_trans (splitAcc_sound_of_wrong O A₀ θ τ _ hτ hsig le_rfl hmean) ?_)
+      refine Real.exp_le_exp.2 ?_
+      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
+      nlinarith [sq_nonneg τ]
+    · have hz : {ω : Ω | n₀ ≤ A₀.card
+          ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
+          ∧ (A₀.card : ℝ) * θ
+            ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
+        ext ω; simp [hw]
+      rw [hz]; simpa using Real.exp_nonneg _
+  · have hz : {ω : Ω | n₀ ≤ A₀.card
+        ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
+        ∧ (A₀.card : ℝ) * θ
+          ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
+      ext ω; simp [hn]
+    rw [hz]; simpa using Real.exp_nonneg _
+
+open scoped Classical in
 /-- **A correct cut has clean sides.**  Each side is carved out by the very implication
 `cutCorrect` asserts, so there is nothing to prove beyond unfolding — but it is what turns
 the cut being right into the hypothesis the admission bounds want. -/
@@ -1959,6 +2008,61 @@ theorem gate_acc_admit_bound (O : Oracle μ S) (C Q : Finset S)
         ext ω; simp [hcl]
       rw [hz]; simpa using Real.exp_nonneg _
   · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
+        ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
+          ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
+      ext ω; simp [hn]
+    rw [hz]; simpa using Real.exp_nonneg _
+
+open scoped Classical in
+/-- **A mostly-accepting side still reads accepting often enough.**  `gate_acc_admit_bound`
+with a budget `w` of prefixes on the side that are not truly accepting, so the cut only has
+to be right on a *fraction* of the certification sample rather than all of it. -/
+theorem gate_acc_admit_bound' (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
+    (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
+      (n : ℝ) * (θ + τ) ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w) :
+    μ.real {ω | n₀ ≤ (side ω).card
+        ∧ ((((side ω).filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
+        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
+      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
+  classical
+  refine gate_side_bound O C Q hdisj side hside hcongr
+    (fun A₀ U => n₀ ≤ A₀.card
+      ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
+      ∧ (U.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_nonneg _) ?_
+  intro A₀ hA₀
+  by_cases hn : n₀ ≤ A₀.card
+  · by_cases hw : (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
+    · have hsplit : (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ))
+          + (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ)) = (A₀.card : ℝ) := by
+        have hone : ∀ p ∈ A₀, (¬ (O.label p = 0)) ↔ (O.label p = 1) := by
+          intro p _
+          rcases O.label_bit p with h | h <;> simp [h]
+        rw [Finset.filter_congr hone]
+        exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
+          (Finset.card_filter_add_card_filter_not (s := A₀) (fun p => O.label p = 1))
+      have hmean : (A₀.card : ℝ) * (θ + τ)
+          ≤ (A₀.card : ℝ) * O.η
+            + (1 - 2 * O.η) * (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) := by
+        have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+        have := hθ A₀.card hn (Finset.card_le_card (Finset.mem_powerset.1 hA₀))
+        nlinarith [hsplit, hw]
+      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
+        (le_trans (splitRej_sound_of_wrong O A₀ θ τ _ hτ hsig le_rfl hmean) ?_)
+      refine Real.exp_le_exp.2 ?_
+      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
+      nlinarith [sq_nonneg τ]
+    · have hz : {ω : Ω | n₀ ≤ A₀.card
+          ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
+          ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
+            ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
+        ext ω; simp [hw]
+      rw [hz]; simpa using Real.exp_nonneg _
+  · have hz : {ω : Ω | n₀ ≤ A₀.card
+        ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
         ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
           ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
       ext ω; simp [hn]
