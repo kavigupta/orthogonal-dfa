@@ -1,4 +1,5 @@
 import OrthoDFA.Distributional
+import OrthoDFA.BinomTail
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 

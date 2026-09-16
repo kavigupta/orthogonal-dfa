@@ -1,6 +1,7 @@
 import OrthoDFA.Hoeffding
 import OrthoDFA.Discharge
 import OrthoDFA.Estimate
+import OrthoDFA.BinomTail
 import OrthoDFA.Gate
 import OrthoDFA.Termination
 import OrthoDFA.Top
