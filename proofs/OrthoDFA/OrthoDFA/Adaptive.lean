@@ -2750,6 +2750,87 @@ theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
         rw [ENNReal.toReal_mul, hE, ENNReal.toReal_ofReal (Real.exp_nonneg _)]
         simp
 
+/-! ### The run's set-valued data is measurable
+
+The table, the pool and the family are `Finset`s read off finitely many draws and finitely
+many oracle bits.  `Finset S` is countable, so every event about them is a countable union
+of coordinate fibres — no factorisation theorem, the same move as `measurableSet_filter_pred`
+one level up. -/
+
+lemma measurableSet_finData {ι : Type*} [Fintype ι] (c : ι → Run Ω S J → S)
+    (hc : ∀ z, Measurable (c z)) (g : (ι → S) → Finset S) (Q : Finset S) :
+    MeasurableSet {x : Run Ω S J | g (fun z => c z x) = Q} := by
+  classical
+  have hcov : {x : Run Ω S J | g (fun z => c z x) = Q}
+      = ⋃ t : {t : ι → S // g t = Q}, ⋂ z : ι, {x : Run Ω S J | c z x = t.val z} := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_iInter]
+    refine ⟨fun h => ⟨⟨fun z => c z x, h⟩, fun z => rfl⟩, ?_⟩
+    rintro ⟨⟨t, ht⟩, hx⟩
+    rw [show (fun z => c z x) = t from funext hx]
+    exact ht
+  rw [hcov]
+  exact MeasurableSet.iUnion (fun t => MeasurableSet.iInter (fun z =>
+    (hc z) (measurableSet_singleton (t.val z))))
+
+open scoped Classical in
+lemma image_range_eq_image_univ {α : Type*} [DecidableEq α] (m : ℕ) (f : ℕ → α) :
+    (Finset.range m).image f = (Finset.univ : Finset (Fin m)).image (fun i => f i.val) := by
+  classical
+  ext a
+  simp only [Finset.mem_image, Finset.mem_range, Finset.mem_univ, true_and]
+  exact ⟨fun ⟨i, hi, h⟩ => ⟨⟨i, hi⟩, h⟩, fun ⟨i, h⟩ => ⟨i.val, i.isLt, h⟩⟩
+
+open scoped Classical in
+lemma measurableSet_prefixesAt (populations : Finset J) (m : ℕ) (Q : Finset S) :
+    MeasurableSet {x : Run Ω S J | prefixesAt populations m x = Q} := by
+  classical
+  have hrw : ∀ x : Run Ω S J, prefixesAt populations m x
+      = populations.biUnion (fun j => (Finset.univ : Finset (Fin m)).image
+          (fun i => (fun z : J × Fin m => prf z.1 z.2.val x) (j, i))) := by
+    intro x
+    exact Finset.biUnion_congr rfl (fun j _ => image_range_eq_image_univ m (fun i => prf j i x))
+  simp only [hrw]
+  exact measurableSet_finData (fun z : J × Fin m => prf z.1 z.2.val)
+    (fun z => measurable_prf z.1 z.2.val)
+    (fun t => populations.biUnion (fun j => (Finset.univ : Finset (Fin m)).image
+      (fun i => t (j, i)))) Q
+
+open scoped Classical in
+lemma measurableSet_poolAt (M : ℕ) (C : Finset S) :
+    MeasurableSet {x : Run Ω S J | poolAt M x = C} := by
+  classical
+  have hrw : ∀ x : Run Ω S J, poolAt M x
+      = insert 1 ((Finset.univ : Finset (Fin M)).image
+          (fun i => (fun z : Fin M => sfx z.val x) i)) := by
+    intro x
+    exact congrArg (insert 1) (image_range_eq_image_univ M (fun i => sfx i x))
+  simp only [hrw]
+  exact measurableSet_finData (fun z : Fin M => sfx z.val) (fun z => measurable_sfx z.val)
+    (fun t => insert 1 ((Finset.univ : Finset (Fin M)).image (fun i => t i))) C
+
+open scoped Classical in
+/-- **Events about the table and the pool are measurable.**  Decompose over their values,
+of which there are countably many. -/
+lemma measurableSet_of_run_data (populations : Finset J) (B : Budget)
+    (R : Finset S → Finset S → Set (Run Ω S J)) (hR : ∀ P C, MeasurableSet (R P C)) :
+    MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.m x) (poolAt B.M x)} := by
+  classical
+  have hcov : {x : Run Ω S J | x ∈ R (prefixesAt populations B.m x) (poolAt B.M x)}
+      = ⋃ z : Finset S × Finset S, (({x : Run Ω S J | prefixesAt populations B.m x = z.1}
+          ∩ {x : Run Ω S J | poolAt B.M x = z.2}) ∩ R z.1 z.2) := by
+    ext x
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff]
+    refine ⟨fun h => ⟨(prefixesAt populations B.m x, poolAt B.M x), ⟨rfl, rfl⟩, h⟩, ?_⟩
+    rintro ⟨⟨P, C⟩, ⟨hP, hC⟩, hx⟩
+    simp only at hP hC
+    rw [hP, hC]
+    exact hx
+  rw [hcov]
+  exact MeasurableSet.iUnion (fun z =>
+    ((measurableSet_prefixesAt populations B.m z.1).inter
+      (measurableSet_poolAt B.M z.2)).inter (hR z.1 z.2))
+
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
