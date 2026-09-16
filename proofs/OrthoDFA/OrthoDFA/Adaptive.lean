@@ -3393,6 +3393,145 @@ theorem measureReal_shortCoverage_le {Pre : Set S} (hflat : Flat Pre) (O : Oracl
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (by positivity)
 
+open scoped Classical in
+/-- The runs at one state where the clustering keeps a candidate the table says flips more
+than `Δ` of it, on the draws where the ranking argument even applies. -/
+noncomputable def rankBad (O : Oracle μ S) (populations : Finset J) (B : Budget) (Δ : ℝ) :
+    Set (Run Ω S J) :=
+  {x | B.k ≤ (poolAt B.M x).card
+    ∧ B.m ≤ (prefixesAt populations B.m x).card
+    ∧ B.k ≤ ((poolAt B.M x).filter
+        (fun v => ∑ p ∈ prefixesAt populations B.m x, O.flip v p = 0)).card
+    ∧ ¬ ∀ w ∈ clusterAt O populations x B,
+        ¬ (Δ * ((prefixesAt populations B.m x).card : ℝ)
+          ≤ ∑ p ∈ prefixesAt populations B.m x, O.flip w p)}
+
+open scoped Classical in
+lemma measurableSet_rankBad (O : Oracle μ S) (populations : Finset J) (B : Budget) (Δ : ℝ) :
+    MeasurableSet (rankBad O populations B Δ) := by
+  classical
+  have hR : ∀ P C : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | B.k ≤ C.card ∧ B.m ≤ P.card
+        ∧ B.k ≤ (C.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card
+        ∧ ¬ ∀ w ∈ clusterAround O B.cn B.cd P C (nz x) B.k,
+            ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)} else ∅) := by
+    intro P C
+    split_ifs with hone
+    · by_cases hpre : B.k ≤ C.card ∧ B.m ≤ P.card
+          ∧ B.k ≤ (C.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card
+      · have hcov : {x : Run Ω S J | B.k ≤ C.card ∧ B.m ≤ P.card
+            ∧ B.k ≤ (C.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card
+            ∧ ¬ ∀ w ∈ clusterAround O B.cn B.cd P C (nz x) B.k,
+                ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
+            = ⋃ A₀ : Finset S, (nz ⁻¹' {ω : Ω | clusterAround O B.cn B.cd P C ω B.k = A₀}
+              ∩ (if ¬ ∀ w ∈ A₀, ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)
+                  then Set.univ else ∅)) := by
+          ext x
+          constructor
+          · rintro ⟨-, -, -, h⟩
+            refine Set.mem_iUnion.2 ⟨clusterAround O B.cn B.cd P C (nz x) B.k, rfl, ?_⟩
+            rw [if_pos h]
+            trivial
+          · intro hx
+            obtain ⟨A₀, hA, hif⟩ := Set.mem_iUnion.1 hx
+            have hA' : clusterAround O B.cn B.cd P C (nz x) B.k = A₀ := hA
+            refine ⟨hpre.1, hpre.2.1, hpre.2.2, ?_⟩
+            rw [hA']
+            by_cases h : ¬ ∀ w ∈ A₀, ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)
+            · exact h
+            · rw [if_neg h] at hif
+              exact absurd hif (Set.notMem_empty x)
+        rw [hcov]
+        refine MeasurableSet.iUnion (fun A₀ => MeasurableSet.inter
+          (measurable_nz (measurableSet_clusterAround O B.cn B.cd P C B.k hone A₀)) ?_)
+        by_cases hif : ¬ ∀ w ∈ A₀, ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)
+        · rw [if_pos hif]; exact MeasurableSet.univ
+        · rw [if_neg hif]; exact MeasurableSet.empty
+      · have hempty : {x : Run Ω S J | B.k ≤ C.card ∧ B.m ≤ P.card
+            ∧ B.k ≤ (C.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card
+            ∧ ¬ ∀ w ∈ clusterAround O B.cn B.cd P C (nz x) B.k,
+                ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)} = (∅ : Set (Run Ω S J)) := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+          rintro ⟨h1, h2, h3, -⟩
+          exact hpre ⟨h1, h2, h3⟩
+        rw [hempty]
+        exact MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : rankBad O populations B Δ
+      = {x : Run Ω S J | x ∈ (fun P C => if (1 : S) ∈ C then
+          {x : Run Ω S J | B.k ≤ C.card ∧ B.m ≤ P.card
+            ∧ B.k ≤ (C.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card
+            ∧ ¬ ∀ w ∈ clusterAround O B.cn B.cd P C (nz x) B.k,
+                ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x)]
+    rfl
+  rw [hrw]
+  exact measurableSet_of_run_data populations B _ hR
+
+/-- **The ranking, over the run.**  `clusterAround_ranked` at every table inside the flat
+set; the tables it does not apply to are exactly the ones `rankBad` excludes. -/
+theorem measureReal_rankBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : Budget) (hcd : B.cn < B.cd)
+    (hsig : O.η ≤ 1 / 2) (hmpos : 0 < B.m) (Δ : ℝ) (hΔ : 0 < Δ) :
+    (runLaw μ D Dsf).real (rankBad O populations B Δ)
+      ≤ ((B.M : ℝ) + 1)
+        * Real.exp (-2 * (B.m : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
+  classical
+  set E : ℝ := ((B.M : ℝ) + 1)
+    * Real.exp (-2 * (B.m : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) with hEdef
+  have hE0 : 0 ≤ E := by positivity
+  have hEnn : runLaw μ D Dsf (rankBad O populations B Δ) ≤ ENNReal.ofReal E := by
+    refine runLaw_slice_le D Dsf _ (measurableSet_rankBad O populations B Δ) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hd j' hj' i
+    by_cases hpre : B.k ≤ Cd.card ∧ B.m ≤ Pd.card
+        ∧ B.k ≤ (Cd.filter (fun v => ∑ p ∈ Pd, O.flip v p = 0)).card
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ rankBad O populations B Δ}
+          ⊆ {ω : Ω | ¬ ∀ w ∈ clusterAround O B.cn B.cd Pd Cd ω B.k,
+              ¬ (Δ * (Pd.card : ℝ) ≤ ∑ p ∈ Pd, O.flip w p)} := by
+        rintro ω ⟨-, -, -, h⟩
+        exact h
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal (le_trans
+        (clusterAround_ranked hflat O hcd hP B.k hpre.1 Δ hΔ
+          (lt_of_lt_of_le hmpos hpre.2.1) hsig (Finset.mem_insert_self _ _) hpre.2.2) ?_)
+      have hCard : (Cd.card : ℝ) ≤ (B.M : ℝ) + 1 := by
+        have h1 : Cd.card ≤ ((Finset.range B.M).image (fun i => d.1.1 i)).card + 1 :=
+          Finset.card_insert_le _ _
+        have h2 : ((Finset.range B.M).image (fun i => d.1.1 i)).card ≤ B.M :=
+          le_trans Finset.card_image_le (by simp)
+        have : (Cd.card : ℝ) ≤ ((B.M : ℕ) + 1 : ℕ) := by exact_mod_cast le_trans h1 (by omega)
+        simpa using this
+      have hmono : Real.exp (-2 * (Pd.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2)
+          ≤ Real.exp (-2 * (B.m : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) := by
+        refine Real.exp_le_exp.2 ?_
+        have hle : (B.m : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hpre.2.1
+        nlinarith [sq_nonneg (Δ * (1 - 2 * O.η) ^ 2 / 2)]
+      exact mul_le_mul hCard hmono (Real.exp_nonneg _) (by positivity)
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ rankBad O populations B Δ} = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, h2, h3, -⟩
+        exact hpre ⟨h1, h2, h3⟩
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (rankBad O populations B Δ)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
