@@ -2352,6 +2352,54 @@ lemma measureReal_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad 
     _ = E / ε := by
         rw [ENNReal.toReal_div, ENNReal.toReal_ofReal hE, ENNReal.toReal_ofReal hε.le]
 
+/-! ### Unioning over a drawn pool
+
+The candidates are drawn, so a union bound over them is a union over an `x`-dependent set.
+What makes it cost `M` rather than everything is that a candidate's index is drawn from the
+suffix stream while the event it indexes lives on the prefix streams — a different factor of
+the same product — so slicing costs nothing. -/
+
+lemma map_drawBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] :
+    Measure.map (fun x : Run Ω S J => x.2.1) (runLaw μ D Dsf)
+      = (Measure.infinitePi fun _ : ℕ => Dsf).prod
+          (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) := by
+  rw [show (fun x : Run Ω S J => x.2.1) = Prod.fst ∘ Prod.snd from rfl,
+    ← Measure.map_map measurable_fst measurable_snd, runLaw, Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  rw [Measure.map_fst_prod]
+  simp only [measure_univ, one_smul]
+
+/-- **A drawn index costs nothing.**  The event is indexed by a suffix draw and decided by
+the prefix draws, so the worst case over candidates bounds the run. -/
+theorem runLaw_draw_selection_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (C : S → Set (J → ℕ → S)) (hC : ∀ v, MeasurableSet (C v)) (i : ℕ) (E : ℝ≥0∞)
+    (hbad : ∀ v, (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) (C v) ≤ E) :
+    runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ C (sfx i x)} ≤ E := by
+  classical
+  set νs : Measure (ℕ → S) := Measure.infinitePi fun _ : ℕ => Dsf with hνs
+  set νq : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j
+    with hνq
+  have hmeasSet : MeasurableSet {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)} := by
+    have hcov : {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)}
+        = ⋃ a : S, ({y : (ℕ → S) × (J → ℕ → S) | y.1 i = a} ∩ {y | y.2 ∈ C a}) := by
+      ext y
+      simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff]
+      exact ⟨fun h => ⟨y.1 i, rfl, h⟩, fun ⟨a, ha, h⟩ => ha ▸ h⟩
+    rw [hcov]
+    exact MeasurableSet.iUnion (fun a =>
+      (measurableSet_eq_fun ((measurable_pi_apply i).comp measurable_fst) measurable_const).inter
+        (measurable_snd (hC a)))
+  have hpre : {x : Run Ω S J | x.2.1.2 ∈ C (sfx i x)}
+      = (fun x : Run Ω S J => x.2.1) ⁻¹' {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)} := rfl
+  rw [hpre, ← Measure.map_apply (by fun_prop) hmeasSet, map_drawBlock D Dsf,
+    Measure.prod_apply hmeasSet]
+  calc ∫⁻ a, νq (Prod.mk a ⁻¹' {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)}) ∂νs
+      = ∫⁻ a, νq (C (a i)) ∂νs := by rfl
+    _ ≤ ∫⁻ _, E ∂νs := lintegral_mono (fun a => hbad (a i))
+    _ = E := by simp
+
 /-! ### Level 2: the empirical flip rate is honest
 
 The clustering only ever sees a candidate's flips on the prefixes actually drawn.  Those
@@ -2420,6 +2468,101 @@ theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
       |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_prefixBlock D Dsf j m)),
     ← measureReal_def]
   exact htail
+
+lemma runLaw_prefix_apply (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (C : Set (J → ℕ → S)) (hC : MeasurableSet C) :
+    runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ C}
+      = (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) C := by
+  have hpre : {x : Run Ω S J | x.2.1.2 ∈ C} = (fun x : Run Ω S J => x.2.1) ⁻¹' (Prod.snd ⁻¹' C) :=
+    rfl
+  rw [hpre, ← Measure.map_apply (by fun_prop) (measurable_snd hC), map_drawBlock D Dsf,
+    ← Measure.map_apply measurable_snd hC, Measure.map_snd_prod]
+  simp
+
+open scoped Classical in
+/-- The candidates the drawn prefixes understate: really flipping more than `Δ`, but
+empirically inside `Δ - g`. -/
+noncomputable def understated (O : Oracle μ S) (D : J → Measure S) (j : J) (m : ℕ)
+    (Δ g : ℝ) (v : S) : Set (J → ℕ → S) :=
+  {q | Δ < flipMass O (D j) v ∧
+    ∑ i : Fin m, O.flip v (q j i.val) ≤ (m : ℝ) * (Δ - g)}
+
+lemma measurableSet_understated (O : Oracle μ S) (D : J → Measure S) (j : J) (m : ℕ)
+    (Δ g : ℝ) (v : S) : MeasurableSet (understated O D j m Δ g v) := by
+  classical
+  have hsum : MeasurableSet
+      {q : J → ℕ → S | ∑ i : Fin m, O.flip v (q j i.val) ≤ (m : ℝ) * (Δ - g)} :=
+    measurableSet_le
+      (Finset.measurable_sum _ (fun i _ => (flip_meas O v).comp
+        ((measurable_pi_apply i.val).comp (measurable_pi_apply j)))) measurable_const
+  by_cases h : Δ < flipMass O (D j) v
+  · simpa [understated, h] using hsum
+  · simpa [understated, h] using MeasurableSet.empty
+
+lemma measure_understated_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (m : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (v : S) :
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) (understated O D j m Δ g v)
+      ≤ ENNReal.ofReal (Real.exp (-2 * (m : ℝ) * g ^ 2)) := by
+  rw [← runLaw_prefix_apply (μ := μ) D Dsf _ (measurableSet_understated O D j m Δ g v)]
+  have hsub : {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g v}
+      ⊆ {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
+          ≤ (m : ℝ) * (flipMass O (D j) v - g)} := by
+    rintro x ⟨hΔ, hcount⟩
+    have hm : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
+    exact le_trans hcount (by nlinarith)
+  refine le_trans (measure_mono hsub) ?_
+  rw [← ENNReal.ofReal_toReal (measure_ne_top (runLaw μ D Dsf) _), ← measureReal_def]
+  exact ENNReal.ofReal_le_ofReal (prefix_flip_lower D Dsf O j m v g hg)
+
+/-- **The whole drawn pool is honest at once.**  A pool member the drawn prefixes say sits
+inside `Δ - g` really flips at most `Δ` of the population, off an `M · exp(-2 m g²)` set. -/
+theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (m M : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (hΔ : 0 ≤ Δ) :
+    (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+        (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
+      ≤ (M : ℝ) * Real.exp (-2 * (m : ℝ) * g ^ 2) := by
+  classical
+  set E : ℝ≥0∞ := ENNReal.ofReal (Real.exp (-2 * (m : ℝ) * g ^ 2)) with hE
+  have hseed : flipMass O (D j) (1 : S) = 0 := by
+    have : ∀ p : S, O.flip (1 : S) p = 0 := by
+      intro p
+      show O.label (p * 1) + O.label p - 2 * O.label (p * 1) * O.label p = 0
+      rw [mul_one]
+      rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
+    simp [flipMass, this]
+  have hsub : {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+      (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
+      ⊆ ⋃ i ∈ Finset.range M, {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g (sfx i x)} := by
+    intro x hx
+    simp only [Set.mem_setOf_eq, not_forall] at hx
+    obtain ⟨v, hv, hcount, hmass⟩ := hx
+    rcases Finset.mem_insert.1 hv with rfl | hv'
+    · exact absurd (hseed ▸ hΔ) hmass
+    · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hv'
+      exact Set.mem_biUnion hi ⟨not_le.1 hmass, hcount⟩
+  have hbound : runLaw μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+      (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
+      ≤ (M : ℝ≥0∞) * E := by
+    refine le_trans (measure_mono hsub) (le_trans (measure_biUnion_finset_le _ _) ?_)
+    calc ∑ i ∈ Finset.range M,
+          runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g (sfx i x)}
+        ≤ ∑ _i ∈ Finset.range M, E :=
+          Finset.sum_le_sum (fun i _ => runLaw_draw_selection_le D Dsf _
+            (measurableSet_understated O D j m Δ g) i E
+            (fun v => measure_understated_le (μ := μ) D Dsf O j m Δ g hg v))
+      _ = (M : ℝ≥0∞) * E := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+          (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g))
+            → flipMass O (D j) v ≤ Δ}).toReal
+      ≤ ((M : ℝ≥0∞) * E).toReal :=
+        ENNReal.toReal_mono (by simp [hE, ENNReal.mul_eq_top]) hbound
+    _ = (M : ℝ) * Real.exp (-2 * (m : ℝ) * g ^ 2) := by
+        rw [ENNReal.toReal_mul, hE, ENNReal.toReal_ofReal (Real.exp_nonneg _)]
+        simp
 
 /-! ### The population bound for one state
 
