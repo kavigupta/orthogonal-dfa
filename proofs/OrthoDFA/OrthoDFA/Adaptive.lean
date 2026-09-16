@@ -590,21 +590,21 @@ lemma mq_congr (O : Oracle μ S) {w : S} {ω ω' : Ω} (h : O.noise w ω = O.noi
     mq O w ω = mq O w ω' := by simp [mq, h]
 
 lemma voteCount_congr (O : Oracle μ S) (F : Finset S) (p : S) {ω ω' : Ω}
-    (h : ∀ v ∈ F, O.noise (p * v) ω = O.noise (p * v) ω') :
+    (h : ∀ v ∈ F, (mq O (p * v) ω = 1 ↔ mq O (p * v) ω' = 1)) :
     voteCount O F p ω = voteCount O F p ω' := by
   classical
   unfold voteCount
-  exact congrArg Finset.card (Finset.filter_congr (fun v hv => by rw [mq_congr O (h v hv)]))
+  exact congrArg Finset.card (Finset.filter_congr (fun v hv => h v hv))
 
 lemma hammingLoss_congr (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) {P cands : Finset S}
     (hF : F ⊆ cands) {ω ω' : Ω} {v : S} (hv : v ∈ cands)
-    (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     hammingLoss O F cn cd P ω v = hammingLoss O F cn cd P ω' v := by
   classical
   unfold hammingLoss
   refine congrArg _ (congrArg Finset.card (Finset.filter_congr (fun p hp => ?_)))
-  rw [mq_congr O (h _ (mem_readSet hp hv)),
-    voteCount_congr O F p (fun v' hv' => h _ (mem_readSet hp (hF hv')))]
+  rw [voteCount_congr O F p (fun v' hv' => h _ (mem_readSet hp (hF hv')))]
+  exact not_congr (iff_congr (h _ (mem_readSet hp hv)) Iff.rfl)
 
 lemma leastLossSubset_subset' (l : S → ℝ) (cands : Finset S) (k : ℕ) :
     leastLossSubset l cands k ⊆ cands := by
@@ -615,7 +615,7 @@ lemma leastLossSubset_subset' (l : S → ℝ) (cands : Finset S) (k : ℕ) :
   · exact Finset.empty_subset _
 
 lemma clusterLoss_congr (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
-    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     clusterLoss O F cn cd P cands ω = clusterLoss O F cn cd P cands ω' := by
   classical
   funext v
@@ -625,7 +625,7 @@ lemma clusterLoss_congr (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands 
   · rfl
 
 lemma lloydStep_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ) {F : Finset S}
-    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    (hF : F ⊆ cands) {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     lloydStep O cn cd P cands ω k F = lloydStep O cn cd P cands ω' k F := by
   classical
   unfold lloydStep
@@ -650,7 +650,7 @@ lemma lloydIterate_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (
       exact ih _ (lloydStep_subset O cn cd P cands ω k hF)
 
 lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
-    {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
+    {ω ω' : Ω} (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     ∀ (n : ℕ) (F : Finset S), F ⊆ cands →
       (lloydStep O cn cd P cands ω k)^[n] F = (lloydStep O cn cd P cands ω' k)^[n] F := by
   intro n
@@ -673,11 +673,18 @@ lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k
 representative prefix and candidate suffix give the same family — so neither the family nor
 any vote cast with it is decided by the oracle's bit at a bare prefix, which is the bit the
 gate scores. -/
+lemma clusterAround_congr_mq (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    {ω ω' : Ω} (hone : (1 : S) ∈ cands)
+    (h : ∀ w ∈ readSet P cands, (mq O w ω = 1 ↔ mq O w ω' = 1)) :
+    clusterAround O cn cd P cands ω k = clusterAround O cn cd P cands ω' k :=
+  lloydIterate_congr O cn cd P cands k h _ _ (by simpa using hone)
+
+/-- The same from agreeing noise bits, which is how the independence arguments supply it. -/
 lemma clusterAround_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
     {ω ω' : Ω} (hone : (1 : S) ∈ cands)
     (h : ∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') :
     clusterAround O cn cd P cands ω k = clusterAround O cn cd P cands ω' k :=
-  lloydIterate_congr O cn cd P cands k h _ _ (by simpa using hone)
+  clusterAround_congr_mq O cn cd P cands k hone (fun w hw => by rw [mq_congr O (h w hw)])
 
 /-! ### The prefix alphabet
 
@@ -767,9 +774,9 @@ lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budg
   refine Finset.filter_congr (fun p hp => ?_)
   have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
       = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
-    refine voteCount_congr O _ p (fun v hv => h _ ?_)
-    refine Finset.mem_union_right _ (mem_readSet hp ?_)
-    exact Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩
+    refine voteCount_congr O _ p (fun v hv => ?_)
+    exact mq_congr O (h _ (Finset.mem_union_right _ (mem_readSet hp
+      (Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩)))) ▸ Iff.rfl
   simp only [nz, ← hfam, hvc]
 
 lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
@@ -789,9 +796,9 @@ lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budg
   refine Finset.filter_congr (fun p hp => ?_)
   have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
       = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
-    refine voteCount_congr O _ p (fun v hv => h _ ?_)
-    refine Finset.mem_union_right _ (mem_readSet hp ?_)
-    exact Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩
+    refine voteCount_congr O _ p (fun v hv => ?_)
+    exact mq_congr O (h _ (Finset.mem_union_right _ (mem_readSet hp
+      (Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩)))) ▸ Iff.rfl
   simp only [nz, ← hfam, hvc]
 
 /-- **The gate's own query strings are not read by the clustering.**  A prefix is never
@@ -1009,6 +1016,30 @@ lemma measurableSet_filter_pred_map (O : Oracle μ S) {T : Set S} {A : Finset S}
   rw [hcover]
   refine Finset.measurableSet_biUnion _ (fun U _ => ?_)
   exact measurableSet_filter_fiber' O _ (fun v hv => measurableSet_mq_eq_one O (hA v hv)) U
+
+open scoped Classical in
+/-- **The family is a measurable function of the run.**  It is decided by which of the
+clustering's finitely many query strings read accepting, and each of those patterns is a
+measurable event. -/
+lemma measurableSet_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k : ℕ)
+    (hone : (1 : S) ∈ cands) (A₀ : Finset S) :
+    MeasurableSet {ω | clusterAround O cn cd P cands ω k = A₀} := by
+  classical
+  set Pred : Finset S → Prop := fun U => ∃ ω', (readSet P cands).filter
+    (fun w => mq O w ω' = 1) = U ∧ clusterAround O cn cd P cands ω' k = A₀ with hPred
+  have hcov : {ω | clusterAround O cn cd P cands ω k = A₀}
+      = {ω | Pred ((readSet P cands).filter (fun w => mq O w ω = 1))} := by
+    ext ω
+    simp only [Set.mem_setOf_eq, hPred]
+    refine ⟨fun h => ⟨ω, rfl, h⟩, ?_⟩
+    rintro ⟨ω', hU, hA⟩
+    refine (clusterAround_congr_mq O cn cd P cands k hone (fun w hw => ?_)).trans hA
+    have := Finset.ext_iff.1 hU w
+    simp only [Finset.mem_filter, hw, true_and] at this
+    exact this.symm
+  rw [hcov]
+  exact noiseAlg_le O Set.univ _
+    (measurableSet_filter_pred O (T := Set.univ) (by simp) Pred)
 
 open scoped Classical in
 /-- **Congruence becomes measurability.**  A side decided by a block's bits is, on the clean
@@ -1814,12 +1845,11 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
     have h0 : O.noise p.val ω = O.noise p.val ω' := h _ (by simp)
     unfold seedLoss
     have hvc : ∀ w ∈ ({(1 : S)} : Finset S),
-        O.noise (p.val * w) ω = O.noise (p.val * w) ω' := by
+        (mq O (p.val * w) ω = 1 ↔ mq O (p.val * w) ω' = 1) := by
       intro w hw
       rw [Finset.mem_singleton] at hw
       subst hw
-      rw [mul_one]
-      exact h0
+      rw [mul_one, mq_congr O h0]
     rw [mq_congr O h1, voteCount_congr O {(1 : S)} p.val hvc]
 
 open scoped Classical in
