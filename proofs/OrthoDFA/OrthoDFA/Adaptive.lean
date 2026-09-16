@@ -2476,15 +2476,67 @@ lemma measureReal_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad 
     _ = E / ε := by
         rw [ENNReal.toReal_div, ENNReal.toReal_ofReal hE, ENNReal.toReal_ofReal hε.le]
 
-/-- **A bound at every fixed draw is a bound on the run.**  The clustering's prefixes and
-candidates are draws, so its guarantees are stated for the noise at a fixed table; this is
-what lifts them. -/
+/-- The law of the draws alone. -/
+noncomputable def drawLaw (D : J → Measure S) (Dsf : Measure S) :
+    Measure ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) :=
+  (((Measure.infinitePi fun _ : ℕ => Dsf).prod
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
+    (Measure.infinitePi fun z : J × ℕ => D z.1)
+
+instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (drawLaw D Dsf) := by
+  unfold drawLaw; infer_instance
+
+lemma runLaw_eq_prod (D : J → Measure S) (Dsf : Measure S) :
+    runLaw μ D Dsf = μ.prod (drawLaw D Dsf) := rfl
+
+/-- One table coordinate has the population's own law. -/
+lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
+        (drawLaw D Dsf) = D j := by
+  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
+      = (fun p : ℕ → S => p i) ∘ ((fun q : J → ℕ → S => q j) ∘ (Prod.snd ∘ Prod.fst)) := rfl
+  rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop),
+    ← Measure.map_map (by fun_prop) (by fun_prop),
+    ← Measure.map_map measurable_snd measurable_fst, drawLaw, Measure.map_fst_prod]
+  simp only [measure_univ, one_smul]
+  rw [Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  rw [(measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j).map_eq,
+    (measurePreserving_eval_infinitePi (fun _ : ℕ => D j) i).map_eq]
+
+/-- **A bound at almost every fixed draw is a bound on the run.**  The clustering's prefixes
+and candidates are draws, so its guarantees are stated for the noise at a fixed table; this
+is what lifts them.  The `a.e.` is what lets the table be assumed inside the flat set. -/
 lemma runLaw_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
-    (h : ∀ d, μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
+    (h : ∀ᵐ d ∂(drawLaw D Dsf), μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
     runLaw μ D Dsf A ≤ E := by
-  rw [runLaw, Measure.prod_apply_symm hA]
-  exact le_trans (lintegral_mono (fun d => h d)) (by simp)
+  rw [runLaw_eq_prod, Measure.prod_apply_symm hA]
+  exact le_trans (lintegral_mono_ae h) (by simp)
+
+/-- The table's prefixes land in the flat set, since that is where the populations live. -/
+lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Pre : Set S)
+    (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) :
+    ∀ᵐ d ∂(drawLaw D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.1.2 j i ∈ Pre := by
+  have hmeasPre : MeasurableSet (Preᶜ : Set S) := (Set.to_countable _).measurableSet
+  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawLaw D Dsf), z.1 ∈ populations → d.1.2 z.1 z.2 ∈ Pre := by
+    rintro ⟨j, i⟩
+    by_cases hj : j ∈ populations
+    · have hz : drawLaw D Dsf {d | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)} = 0 := by
+        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
+            | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)}
+            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i) ⁻¹' Preᶜ := by
+          ext d; simp [hj]
+        rw [hset, ← Measure.map_apply (by fun_prop) hmeasPre, map_drawCoord D Dsf j i]
+        exact hsupp j hj
+      exact ae_iff.2 hz
+    · filter_upwards with d hjj
+      exact absurd hjj hj
+  filter_upwards [ae_all_iff.2 hcoord] with d hd j hj i
+  exact hd (j, i) hj
 
 /-! ### Unioning over a drawn pool
 
