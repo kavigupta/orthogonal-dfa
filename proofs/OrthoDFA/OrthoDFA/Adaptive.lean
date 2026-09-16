@@ -1972,6 +1972,46 @@ theorem lloyd_step_ranked_by_excluded (O : Oracle μ S) (cn cd : ℕ) (P cands :
       clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w :=
   fun v hv => leastLossSubset_least (clusterLoss O F cn cd P cands ω) cands k hk v hv w hw hwn
 
+/-! ### From flip mass to a correct cut
+
+The band is what turns "few members flip" into "the cut is right", and it is far more
+generous than a member count suggests.  A rejecting prefix is accepted only when the vote
+clears `hi ≈ k(½ + eps)`, and members preserving at `p` contribute only through noise, so
+with `f` members flipping the count is at most `f + Bin(k − f, η)`.  In the mean that
+needs
+
+    f · 2s > k · (s + eps)
+
+— two *thirds* of the family at `s = 0.3, eps = 0.1`, not the `eps · k` a naive reading of
+the margin suggests.  Markov over the members' flip masses then gives a misclassified mass
+of about `1.5 · Δ` rather than `Δ / eps`, which is a factor of six. -/
+
+open scoped Classical in
+/-- **A rejecting prefix is accepted only if the flips carry it.**  Members that preserve at
+`p` read accepting only through noise. -/
+lemma voteCount_le_flips_add_noise (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω)
+    (hp : O.label p = 0) :
+    voteCount O F p ω ≤ (F.filter (fun v => O.flip v p = 1)).card
+      + (F.filter (fun v => O.flip v p = 0 ∧ O.noise (p * v) ω = 1)).card := by
+  classical
+  unfold voteCount
+  have hsub : F.filter (fun v => mq O (p * v) ω = 1)
+      ⊆ F.filter (fun v => O.flip v p = 1)
+        ∪ F.filter (fun v => O.flip v p = 0 ∧ O.noise (p * v) ω = 1) := by
+    intro v hv
+    obtain ⟨hvF, hvm⟩ := Finset.mem_filter.1 hv
+    rcases O.flip_bit v p with hf | hf
+    · refine Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hvF, hf, ?_⟩)
+      have hlab : O.label (p * v) = 0 := by
+        have : O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0 := hf
+        rw [hp] at this
+        simpa using this
+      have : O.label (p * v) + (1 - 2 * O.label (p * v)) * O.noise (p * v) ω = 1 := hvm
+      rw [hlab] at this
+      simpa using this
+    · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hvF, hf⟩)
+  exact le_trans (Finset.card_le_card hsub) (Finset.card_union_le _ _)
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
