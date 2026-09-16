@@ -4491,16 +4491,13 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
         rw [hcard]; push_cast; ring
 
 /-- The certification prefixes are read by neither the clustering nor the split. -/
-lemma disjoint_gateReads {Pre : Set S} (hflat : Flat Pre) (populations : Finset J) (j : J)
-    (B : Budget) (x : Run Ω S J)
-    (hP : ∀ q ∈ prefixesAt populations B.m x, q ∈ Pre)
-    (hC : ∀ p ∈ certOf j B.m x, p ∈ Pre)
-    (hPC : Disjoint (prefixesAt populations B.m x) (certOf j B.m x)) :
-    Disjoint (↑(certOf j B.m x) : Set S) (↑(gateReads populations j B x) : Set S) := by
+lemma disjoint_gateReads {Pre : Set S} (hflat : Flat Pre) (P C A : Finset S)
+    (hP : ∀ q ∈ P, q ∈ Pre) (hA : ∀ p ∈ A, p ∈ Pre) (hPA : Disjoint P A) :
+    Disjoint (↑A : Set S) (↑(readSet P C ∪ readSet A (C.erase 1)) : Set S) := by
   classical
-  rw [gateReads, Finset.coe_union, Set.disjoint_union_right]
-  exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hC hPC),
-    Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hC)⟩
+  rw [Finset.coe_union, Set.disjoint_union_right]
+  exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hA hPA),
+    Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hA)⟩
 
 open scoped Classical in
 /-- **A wrong cut is a wrong *fraction* of one gate side.**  Either side may be small, or
@@ -5646,6 +5643,64 @@ lemma measurableSet_hitShort (O : Oracle μ S) (populations : Finset J) (Dj : Me
   rw [hrw]
   exact measurableSet_of_run_data_cert populations j B _ hR
 
+lemma measurableSet_voteCount_gt (O : Oracle μ S) (F : Finset S) (n : ℕ) (p : S) :
+    MeasurableSet[noiseAlg O Set.univ] {ω | n < voteCount O F p ω} :=
+  measurableSet_filter_pred_map O (T := Set.univ) (fun v => p * v) (by simp)
+    (fun V => n < V.card)
+
+lemma measurableSet_voteCount_le (O : Oracle μ S) (F : Finset S) (n : ℕ) (p : S) :
+    MeasurableSet[noiseAlg O Set.univ] {ω | voteCount O F p ω ≤ n} :=
+  measurableSet_filter_pred_map O (T := Set.univ) (fun v => p * v) (by simp)
+    (fun V => V.card ≤ n)
+
+open scoped Classical in
+lemma measurableSet_sideOf_gt (O : Oracle μ S) (A F : Finset S) (n : ℕ) (U : Finset S) :
+    MeasurableSet {ω | A.filter (fun p => n < voteCount O F p ω) = U} :=
+  noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O
+    (fun p ω => n < voteCount O F p ω)
+    (fun p _ => measurableSet_voteCount_gt O F n p) (fun V => V = U))
+
+open scoped Classical in
+lemma measurableSet_sideOf_le (O : Oracle μ S) (A F : Finset S) (n : ℕ) (U : Finset S) :
+    MeasurableSet {ω | A.filter (fun p => voteCount O F p ω ≤ n) = U} :=
+  noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O
+    (fun p ω => voteCount O F p ω ≤ n)
+    (fun p _ => measurableSet_voteCount_le O F n p) (fun V => V = U))
+
+open scoped Classical in
+lemma measurableSet_hits_ge (O : Oracle μ S) (U : Finset S) (r : ℝ) :
+    MeasurableSet {ω | r ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)} :=
+  noiseAlg_le O Set.univ _
+    (measurableSet_filter_pred O (T := Set.univ) (by simp) (fun V => r ≤ (V.card : ℝ)))
+
+open scoped Classical in
+lemma measurableSet_hits_le (O : Oracle μ S) (U : Finset S) (r : ℝ) :
+    MeasurableSet {ω | ((U.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ r} :=
+  noiseAlg_le O Set.univ _
+    (measurableSet_filter_pred O (T := Set.univ) (by simp) (fun V => (V.card : ℝ) ≤ r))
+
+open scoped Classical in
+/-- **The gate admits an accept side that is a `c` fraction wrong.**  The side is scored on
+prefixes the clustering never read, so `gate_accept_sound` applies to it as it stands. -/
+noncomputable def gateBadAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov c β : ℝ) : Set (Run Ω S J) :=
+  {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
+    ∧ β * (B.m : ℝ) ≤ ((sideAcc O populations j B x).card : ℝ)
+    ∧ c * ((sideAcc O populations j B x).card : ℝ)
+        ≤ (((sideAcc O populations j B x).filter (fun p => O.label p = 0)).card : ℝ)
+    ∧ ((sideAcc O populations j B x).card : ℝ) * gateAcc O εcov
+        ≤ (((sideAcc O populations j B x).filter (fun p => mq O p (nz x) = 1)).card : ℝ)}
+
+open scoped Classical in
+/-- The mirror: it rejects a side a `c` fraction of which is truly accepting. -/
+noncomputable def gateBadRej (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov c β : ℝ) : Set (Run Ω S J) :=
+  {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
+    ∧ β * (B.m : ℝ) ≤ ((sideRej O populations j B x).card : ℝ)
+    ∧ c * ((sideRej O populations j B x).card : ℝ) ≤ ∑ p ∈ sideRej O populations j B x, O.label p
+    ∧ (((sideRej O populations j B x).filter (fun p => mq O p (nz x) = 1)).card : ℝ)
+        ≤ ((sideRej O populations j B x).card : ℝ) * gateRej O εcov}
+
 /-- Distinct draws are counted once each, so the sample's hit count is the draw count. -/
 lemma card_filter_certOf (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     (instA : DecidablePred Q) (instB : DecidablePred (fun i : ℕ => Q (cert j i x)))
@@ -5666,6 +5721,325 @@ lemma card_filter_certOf (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hpC
     exact ⟨i, by simp only [Finset.coe_filter, Set.mem_setOf_eq, Finset.mem_range,
       Finset.mem_range.1 hi, true_and]; exact hQ, rfl⟩
+
+open scoped Classical in
+/-- The gate's accept side with the draws fixed. -/
+noncomputable def sideAccOf (O : Oracle μ S) (B : Budget) (P C A : Finset S) (ω : Ω) :
+    Finset S :=
+  A.filter (fun p => B.hi - 1 < voteCount O ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p ω)
+
+open scoped Classical in
+/-- Its reject twin. -/
+noncomputable def sideRejOf (O : Oracle μ S) (B : Budget) (P C A : Finset S) (ω : Ω) :
+    Finset S :=
+  A.filter (fun p => voteCount O ((clusterOf O B.cn B.cd B.sc P C B.k ω).erase 1) p ω ≤ B.lo)
+
+lemma sideAcc_eq_sideAccOf (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) :
+    sideAcc O populations j B x
+      = sideAccOf O B (prefixesAt populations B.m x) (poolAt B.M x) (certOf j B.m x) (nz x) :=
+  rfl
+
+lemma sideRej_eq_sideRejOf (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (x : Run Ω S J) :
+    sideRej O populations j B x
+      = sideRejOf O B (prefixesAt populations B.m x) (poolAt B.M x) (certOf j B.m x) (nz x) :=
+  rfl
+
+open scoped Classical in
+/-- Events about the accept side are measurable: decompose over the family, then over the
+side it cuts out. -/
+lemma measurableSet_of_sideAccOf (O : Oracle μ S) (B : Budget) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) (R : Finset S → Set Ω) (hR : ∀ U, MeasurableSet (R U)) :
+    MeasurableSet {ω | ω ∈ R (sideAccOf O B P C A ω)} := by
+  classical
+  exact measurableSet_of_fam (T := C.powerset)
+    (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc P C B.k ω hone))
+    (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc P C B.k hone A₀)
+    (fun A₀ => {ω | ω ∈ R (A.filter (fun p => B.hi - 1 < voteCount O (A₀.erase 1) p ω))})
+    (fun A₀ => measurableSet_of_fam (T := A.powerset)
+      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
+      (fun U => measurableSet_sideOf_gt O A (A₀.erase 1) (B.hi - 1) U) R hR)
+
+open scoped Classical in
+lemma measurableSet_of_sideRejOf (O : Oracle μ S) (B : Budget) (P C A : Finset S)
+    (hone : (1 : S) ∈ C) (R : Finset S → Set Ω) (hR : ∀ U, MeasurableSet (R U)) :
+    MeasurableSet {ω | ω ∈ R (sideRejOf O B P C A ω)} := by
+  classical
+  exact measurableSet_of_fam (T := C.powerset)
+    (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc P C B.k ω hone))
+    (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc P C B.k hone A₀)
+    (fun A₀ => {ω | ω ∈ R (A.filter (fun p => voteCount O (A₀.erase 1) p ω ≤ B.lo))})
+    (fun A₀ => measurableSet_of_fam (T := A.powerset)
+      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
+      (fun U => measurableSet_sideOf_le O A (A₀.erase 1) B.lo U) R hR)
+
+open scoped Classical in
+lemma measurableSet_gateBadAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov c β : ℝ) : MeasurableSet (gateBadAcc O populations j B εcov c β) := by
+  classical
+  have hR : ∀ (P C : Finset S) (t : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+        ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+            β * (B.m : ℝ) ≤ (U.card : ℝ)
+            ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+            ∧ (U.card : ℝ) * gateAcc O εcov
+                ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
+          (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅) := by
+    intro P C t
+    split_ifs with hone
+    · by_cases hdisj : Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+      · have hset : {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+                ∧ (U.card : ℝ) * gateAcc O εcov
+                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
+              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}}
+            = nz ⁻¹' {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+                ∧ (U.card : ℝ) * gateAcc O εcov
+                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
+              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)} := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_preimage, hdisj, true_and]
+        rw [hset]
+        refine measurable_nz (measurableSet_of_sideAccOf O B P C _ hone
+          (fun U : Finset S => {ω : Ω |
+            β * (B.m : ℝ) ≤ (U.card : ℝ)
+            ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+            ∧ (U.card : ℝ) * gateAcc O εcov
+                ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)}) (fun U => ?_))
+        by_cases h1 : β * (B.m : ℝ) ≤ (U.card : ℝ)
+        · by_cases h2 : c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+          · have hrw : {ω : Ω | β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+                ∧ (U.card : ℝ) * gateAcc O εcov
+                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)}
+                = {ω : Ω | (U.card : ℝ) * gateAcc O εcov
+                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)} := by
+              ext ω; simp only [Set.mem_setOf_eq, h1, h2, true_and]
+            rw [hrw]
+            exact measurableSet_hits_ge O U _
+          · simpa [h2] using MeasurableSet.empty
+        · simpa [h1] using MeasurableSet.empty
+      · simpa [hdisj] using MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : gateBadAcc O populations j B εcov c β
+      = {x : Run Ω S J | x ∈ (fun P C t => if (1 : S) ∈ C then
+          {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
+                ∧ (U.card : ℝ) * gateAcc O εcov
+                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
+              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)
+        (fun i : Fin B.m => cert j i.val x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), gateBadAcc,
+      ← certOf_eq_image j B.m x, ← sideAcc_eq_sideAccOf O populations j B x]
+  rw [hrw]
+  exact measurableSet_of_run_data_cert populations j B _ hR
+
+open scoped Classical in
+lemma measurableSet_gateBadRej (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
+    (εcov c β : ℝ) : MeasurableSet (gateBadRej O populations j B εcov c β) := by
+  classical
+  have hR : ∀ (P C : Finset S) (t : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+        ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+            β * (B.m : ℝ) ≤ (U.card : ℝ)
+            ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+            ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                ≤ (U.card : ℝ) * gateRej O εcov})
+          (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅) := by
+    intro P C t
+    split_ifs with hone
+    · by_cases hdisj : Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+      · have hset : {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                    ≤ (U.card : ℝ) * gateRej O εcov})
+              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}}
+            = nz ⁻¹' {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                    ≤ (U.card : ℝ) * gateRej O εcov})
+              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)} := by
+          ext x
+          simp only [Set.mem_setOf_eq, Set.mem_preimage, hdisj, true_and]
+        rw [hset]
+        refine measurable_nz (measurableSet_of_sideRejOf O B P C _ hone
+          (fun U : Finset S => {ω : Ω |
+            β * (B.m : ℝ) ≤ (U.card : ℝ)
+            ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+            ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                ≤ (U.card : ℝ) * gateRej O εcov}) (fun U => ?_))
+        by_cases h1 : β * (B.m : ℝ) ≤ (U.card : ℝ)
+        · by_cases h2 : c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+          · have hrw : {ω : Ω | β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                    ≤ (U.card : ℝ) * gateRej O εcov}
+                = {ω : Ω | ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                    ≤ (U.card : ℝ) * gateRej O εcov} := by
+              ext ω; simp only [Set.mem_setOf_eq, h1, h2, true_and]
+            rw [hrw]
+            exact measurableSet_hits_le O U _
+          · simpa [h2] using MeasurableSet.empty
+        · simpa [h1] using MeasurableSet.empty
+      · simpa [hdisj] using MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : gateBadRej O populations j B εcov c β
+      = {x : Run Ω S J | x ∈ (fun P C t => if (1 : S) ∈ C then
+          {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
+            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
+                β * (B.m : ℝ) ≤ (U.card : ℝ)
+                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
+                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
+                    ≤ (U.card : ℝ) * gateRej O εcov})
+              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)
+        (fun i : Fin B.m => cert j i.val x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), gateBadRej,
+      ← certOf_eq_image j B.m x, ← sideRej_eq_sideRejOf O populations j B x]
+  rw [hrw]
+  exact measurableSet_of_run_data_cert populations j B _ hR
+
+open scoped Classical in
+/-- **The gate does not admit a side that is a `c` fraction wrong.**  `gate_accept_sound` at
+the certification sample, which the clustering never read. -/
+theorem measureReal_gateBadAcc_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
+    (εcov c β : ℝ) (hβ : 0 ≤ β) (hc : 0 ≤ c) (hsig : O.η ≤ 1 / 2)
+    (hτ : 0 ≤ gateAcc O εcov - (1 - O.η) + c * (1 - 2 * O.η)) :
+    (runLaw μ D Dsf).real (gateBadAcc O populations j B εcov c β)
+      ≤ Real.exp (-2 * (β * (B.m : ℝ))
+          * (gateAcc O εcov - (1 - O.η) + c * (1 - 2 * O.η)) ^ 2) := by
+  classical
+  set τ : ℝ := gateAcc O εcov - (1 - O.η) + c * (1 - 2 * O.η) with hτdef
+  set E : ℝ := Real.exp (-2 * (β * (B.m : ℝ)) * τ ^ 2) with hEdef
+  have hEnn : runLaw μ D Dsf (gateBadAcc O populations j B εcov c β) ≤ ENNReal.ofReal E := by
+    refine runLaw_slice_le D Dsf _ (measurableSet_gateBadAcc O populations j B εcov c β) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
+    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hdP j' hj' i
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hp
+      exact hdC j hj i
+    by_cases hdisj : Disjoint Pd Ad
+    · have hmain := gate_accept_sound O Ad (readSet Pd Cd ∪ readSet Ad (Cd.erase 1))
+        (disjoint_gateReads hflat Pd Cd Ad hP hA hdisj)
+        (fun ω => sideAcc O populations j B ((ω, d) : Run Ω S J))
+        (fun ω => sideAcc_subset O populations j B _)
+        (fun ω ω' h => sideAcc_congr O populations j B d h)
+        (gateAcc O εcov) c (β * (B.m : ℝ)) (mul_nonneg hβ (Nat.cast_nonneg _)) hc hτ hsig
+      have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadAcc O populations j B εcov c β}
+          ⊆ {ω : Ω | β * (B.m : ℝ)
+                ≤ ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
+              ∧ c * ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
+                  ≤ (((sideAcc O populations j B ((ω, d) : Run Ω S J)).filter
+                    (fun p => O.label p = 0)).card : ℝ)
+              ∧ ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ) * gateAcc O εcov
+                  ≤ (((sideAcc O populations j B ((ω, d) : Run Ω S J)).filter
+                    (fun p => mq O p ω = 1)).card : ℝ)} := by
+        rintro ω ⟨-, h1, h2, h3⟩
+        exact ⟨h1, h2, h3⟩
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      exact ENNReal.ofReal_le_ofReal hmain
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadAcc O populations j B εcov c β}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, -⟩
+        exact hdisj h1
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (gateBadAcc O populations j B εcov c β)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
+
+open scoped Classical in
+/-- The mirror for the reject side. -/
+theorem measureReal_gateBadRej_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
+    (εcov c β : ℝ) (hβ : 0 ≤ β) (hc : 0 ≤ c) (hsig : O.η ≤ 1 / 2)
+    (hτ : 0 ≤ O.η + c * (1 - 2 * O.η) - gateRej O εcov) :
+    (runLaw μ D Dsf).real (gateBadRej O populations j B εcov c β)
+      ≤ Real.exp (-2 * (β * (B.m : ℝ))
+          * (O.η + c * (1 - 2 * O.η) - gateRej O εcov) ^ 2) := by
+  classical
+  set τ : ℝ := O.η + c * (1 - 2 * O.η) - gateRej O εcov with hτdef
+  set E : ℝ := Real.exp (-2 * (β * (B.m : ℝ)) * τ ^ 2) with hEdef
+  have hEnn : runLaw μ D Dsf (gateBadRej O populations j B εcov c β) ≤ ENNReal.ofReal E := by
+    refine runLaw_slice_le D Dsf _ (measurableSet_gateBadRej O populations j B εcov c β) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
+    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hdP j' hj' i
+    have hA : ∀ p ∈ Ad, p ∈ Pre := by
+      intro p hp
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hp
+      exact hdC j hj i
+    by_cases hdisj : Disjoint Pd Ad
+    · have hmain := gate_reject_sound O Ad (readSet Pd Cd ∪ readSet Ad (Cd.erase 1))
+        (disjoint_gateReads hflat Pd Cd Ad hP hA hdisj)
+        (fun ω => sideRej O populations j B ((ω, d) : Run Ω S J))
+        (fun ω => sideRej_subset O populations j B _)
+        (fun ω ω' h => sideRej_congr O populations j B d h)
+        (gateRej O εcov) c (β * (B.m : ℝ)) (mul_nonneg hβ (Nat.cast_nonneg _)) hc hτ hsig
+      have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadRej O populations j B εcov c β}
+          ⊆ {ω : Ω | β * (B.m : ℝ)
+                ≤ ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
+              ∧ c * ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
+                  ≤ ∑ p ∈ sideRej O populations j B ((ω, d) : Run Ω S J), O.label p
+              ∧ (((sideRej O populations j B ((ω, d) : Run Ω S J)).filter
+                    (fun p => mq O p ω = 1)).card : ℝ)
+                  ≤ ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
+                    * gateRej O εcov} := by
+        rintro ω ⟨-, h1, h2, h3⟩
+        exact ⟨h1, h2, h3⟩
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      exact ENNReal.ofReal_le_ofReal hmain
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadRej O populations j B εcov c β}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, -⟩
+        exact hdisj h1
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (gateBadRej O populations j B εcov c β)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
 open scoped Classical in
 /-- **A cut wrong on the population is wrong on the sample.**  The family is a function of
