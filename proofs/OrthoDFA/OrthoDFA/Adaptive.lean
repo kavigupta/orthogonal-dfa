@@ -2362,14 +2362,35 @@ needs the tails to force the counts; termination needs the counts to force the t
 is this direction. -/
 theorem binomSfGe_le (n j : ℕ) (θ τ : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hτ : 0 ≤ τ)
     (h : (n : ℝ) * (θ + τ) ≤ j) :
-    binomSfGe n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) :=
-  sorry
+    binomSfGe n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) := by
+  classical
+  set p : unitInterval := ⟨θ, hθ0, hθ1⟩ with hp
+  have hbin : binomSfGe n θ j = (ProbabilityTheory.binomial n p).real ↑(Finset.Icc j n) := by
+    rw [binomial_real_finset]
+    rfl
+  rw [hbin]
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (binomial_real_ge_le n p τ hτ)
+  intro i hi
+  simp only [Finset.coe_Icc, Set.mem_Icc] at hi
+  have : (j : ℝ) ≤ (i : ℝ) := by exact_mod_cast hi.1
+  exact le_trans h this
 
 /-- The lower-tail counterpart for `binomCdf`. -/
 theorem binomCdf_le (n j : ℕ) (θ τ : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hτ : 0 ≤ τ)
     (h : (j : ℝ) ≤ (n : ℝ) * (θ - τ)) :
-    binomCdf n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) :=
-  sorry
+    binomCdf n θ j ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) := by
+  classical
+  set p : unitInterval := ⟨θ, hθ0, hθ1⟩ with hp
+  have hbin : binomCdf n θ j
+      = (ProbabilityTheory.binomial n p).real ↑(Finset.range (j + 1)) := by
+    rw [binomial_real_finset]
+    rfl
+  rw [hbin]
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) (binomial_real_le_le n p τ hτ)
+  intro i hi
+  simp only [Finset.coe_range, Set.mem_Iio] at hi
+  have : (i : ℝ) ≤ (j : ℝ) := by exact_mod_cast Nat.lt_succ_iff.1 hi
+  exact le_trans this h
 
 /-- The gate's rates are probabilities, with no premise beyond the coverage being a
 fraction: `gateAcc` runs from `1 − η` down to `½` as `εcov` runs from `0` to `1`. -/
