@@ -4,11 +4,11 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting a member of the state extended by the
-symbol: the leaf it lands on is the target, and the member is kept as the edge's
-witness (the tree is consistent, so any member resolves it the same way).  A leaf
-every one of whose members is indecisive, or that no prefix reaches, leaves its
-edge open; the export totalises those -- self-looping them and feeding their
+(state, symbol) edge is resolved by sifting every member of the state extended by
+the symbol: the edge points where most of them land, a member that landed there is
+kept as its witness, and it is re-voted as the leaf gains members.  A leaf every
+one of whose members is indecisive, or that no prefix reaches, leaves its edge
+open; the export totalises those -- self-looping them and feeding their
 boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
@@ -109,7 +109,7 @@ class TransitionResolver:
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
-        self.dfa.split_state(state_id, new_id)
+        self.edges.split_state(state_id, new_id)
         write(
             f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
             f"reject {new_id} ({self.tree.num_states} states)"
@@ -136,6 +136,8 @@ class TransitionResolver:
                     delta = self._total_delta()  # the split rewrote the state set
                 elif status == _UNDECIDED:
                     since_split = 0
+                    for (state, c), target in self.edges.close().items():
+                        delta[state][c] = target
                 else:
                     since_split += 1
                 pbar.set_postfix(

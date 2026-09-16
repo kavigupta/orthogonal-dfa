@@ -71,7 +71,7 @@ def _first_member_target(resolver, state, c):
 
 class TestEdgeResolutionMajority(unittest.TestCase):
     K = 12           # states, each with one heterogeneous poisoned edge
-    PER_STATE = 60   # members per leaf (> the internal sample size, so it samples)
+    PER_STATE = 60   # members per leaf
     MINORITY = 9     # 15% route the poisoned edge to the wrong target
     POISON = 0
 

@@ -1,33 +1,22 @@
 """
-Deciding where the partial DFA's open edges point.
+Deciding where the partial DFA's edges point.
 
 PartialDFA owns the edges and the witnesses, but cannot decide where an
 edge *goes*, because that needs the oracle.
 
-We pick an arbitrary member of a source state, and ask the oracle
-where its successor under the edge's character goes.
+Every member of the source state votes for where its successor under the
+edge's character goes, and the edge points at the majority target, with a member
+that voted for it as the witness.  Successors the family cannot place are
+harvested as boundary strings; if none can be placed, the edge stays open.
 
-    - If the family can place that successor, we point the edge there and
-      record the member as the witness.
-    - If the family cannot place that successor, we harvest it as a boundary
-      string and leave the edge open.
+Leaves gain members as the run goes on, so an edge is re-voted on every close
+and flips if its majority has moved.
 """
 
-import random
-
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .progress import track
 from .split_evidence import _MEMBER_LIMIT
-
-#: Members polled to settle one edge's target.  One would do where a leaf is
-#: homogeneous, but a leaf is often not: its members' successors sift to more than
-#: one target, and then the *first* decisively-sifting member captures the whole
-#: edge -- an arbitrary, often minority, choice that whichever member the
-#: population happens to yield first decides.  So poll several and take the target
-#: the most of them agree on.  Capped and sampled because a leaf can hold up to
-#: ``_MEMBER_LIMIT`` members and each vote costs a sift.
-_EDGE_VOTES = 24
 
 
 class EdgeResolver:
@@ -38,69 +27,53 @@ class EdgeResolver:
         self.sifter = sifter
         self.indecisive = indecisive
         self._population = population
+        # successor -> the leaf it sifted to, or None if indecisive
+        self._sifted: Dict[bytes, Optional[int]] = {}
 
     def leaf_members(self, state: int) -> List[bytes]:
         return self._population.members(self.sifter.tree.path_of(state), _MEMBER_LIMIT)
 
+    def _sift(self, successor: bytes) -> Optional[int]:
+        if successor not in self._sifted:
+            target, boundary = self.sifter.sift_and_boundary(successor)
+            if target is None:
+                self.indecisive.add(boundary)
+            self._sifted[successor] = target
+        return self._sifted[successor]
+
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
-        """The target the most of the leaf's members route ``c`` to.
-
-        A random sample of the members (by position, so the order the population
-        yields them in cannot stack a split leaf's vote), voted by majority; the
-        witness is a member that routed to the winner.  Where every member agrees
-        the majority is that agreement, so a homogeneous leaf resolves as before.
-        Falls back to a full scan only if the sample sifts nowhere, so an edge a
-        member outside the sample could still settle is not left open by sampling.
-        """
-        members = self.leaf_members(state)
-        sample = members
-        if len(members) > _EDGE_VOTES:
-            sample = random.Random(state * 1_000_003 + c).sample(members, _EDGE_VOTES)
-        target, witness = self._vote(sample, c)
-        if target is None and sample is not members:
-            return self._first_decisive(members, c)
-        return target, witness
-
-    def _vote(self, members, c):
-        counts: dict = {}
-        witness: dict = {}
-        decided = False
-        for member in members:
-            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
+        votes: Dict[int, List[bytes]] = {}
+        for member in self.leaf_members(state):
+            target = self._sift(member + bytes([c]))
             if target is not None:
-                counts[target] = counts.get(target, 0) + 1
-                witness.setdefault(target, member)
-                decided = True
-            elif not decided:
-                self.indecisive.add(boundary)
-        if not counts:
+                votes.setdefault(target, []).append(member)
+        if not votes:
             return None, None
-        best = max(counts, key=lambda t: counts[t])
-        return best, witness[best]
+        # Ties keep the current target, so an edge does not flap between them.
+        current = self.dfa.target(state, c)
+        target = max(votes, key=lambda t: (len(votes[t]), t == current))
+        return target, votes[target][0]
 
-    def _first_decisive(self, members, c):
-        for member in members:
-            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
-            if target is not None:
-                return target, member
-            self.indecisive.add(boundary)
-        return None, None
+    def split_state(self, state: int, new_state: int) -> None:
+        self.dfa.split_state(state, new_state)
+        # An indecisive sift stopped above the split leaf, so only these can move.
+        self._sifted = {s: t for s, t in self._sifted.items() if t != state}
 
-    def resolve(self, state: int, c: int) -> None:
-        target, witness = self.decisive_target(state, c)
-        if target is not None:
-            self.dfa.set_edge(state, c, target, witness)
-
-    def close(self) -> int:
-        """
-        Resolve every open edge once, returning how many are now closed.
-
-        Edge resolution never splits, so one pass resolves all it can; the rest stay
-        open for the export to totalise.
-        """
-        edges = self.dfa.unresolved_edges()
+    def close(self) -> Dict[Tuple[int, int], int]:
+        """Re-vote every edge, returning the new target of each edge that changed."""
+        edges = [
+            (state, c)
+            for state in self.dfa.transitions
+            for c in range(self.dfa.alphabet_size)
+        ]
+        changed = {}
         for state, c in track(edges, "Closing edges"):
-            self.resolve(state, c)
-        return sum(1 for state, c in edges if self.dfa.has_edge(state, c))
+            target, witness = self.decisive_target(state, c)
+            if target is None or target == self.dfa.target(state, c):
+                continue
+            self.dfa.clear_edge(state, c)
+            self.dfa.set_edge(state, c, target, witness)
+            changed[state, c] = target
+        return changed
