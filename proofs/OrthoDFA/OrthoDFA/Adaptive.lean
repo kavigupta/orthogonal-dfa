@@ -6644,6 +6644,249 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     _ = R := ENNReal.toReal_ofReal hR0
 
 open scoped Classical in
+/-- The round's own test at one population: the FNR count and the gate. -/
+noncomputable def retAt (O : Oracle μ S) (populations : Finset J)
+    (indecisionLimit εcov α : ℝ) (B : Budget) (j : J) : Set (Run Ω S J) :=
+  {x | (((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
+          ((clusterAt O populations x B).erase 1) p (nz x))).card : ℝ)
+        ≤ indecisionLimit * ((certOf j B.m x).card : ℝ)
+    ∧ admitted O B.lo B.hi εcov α ((clusterAt O populations x B).erase 1)
+        (certOf j B.m x) (nz x)}
+
+lemma mem_ret_iff (O : Oracle μ S) (populations : Finset J) (indecisionLimit εcov α : ℝ)
+    (B : Budget) (x : Run Ω S J) :
+    x ∈ ret O populations indecisionLimit εcov α B
+      ↔ ∀ j ∈ populations, x ∈ retAt O populations indecisionLimit εcov α B j := by
+  constructor
+  · rintro ⟨h1, h2⟩ j hj
+    exact ⟨h1 j hj, h2 j hj⟩
+  · intro h
+    exact ⟨fun j hj => (h j hj).1, fun j hj => (h j hj).2⟩
+
+open scoped Classical in
+/-- The runs where the clustering stalls on the seed, or overshoots the round's size.  The
+gate refuses a stalled family outright (`not_ret_of_seed_family`), so this is the liveness
+half's obligation, not the round's. -/
+noncomputable def stalled (O : Oracle μ S) (populations : Finset J) (B : Budget)
+    (kmin kmax : ℕ) : Set (Run Ω S J) :=
+  {x | ¬ (kmin ≤ ((clusterAt O populations x B).erase 1).card
+      ∧ ((clusterAt O populations x B).erase 1).card ≤ kmax)}
+
+open scoped Classical in
+/-- **The round returns at one population.**  Everything outside `retMiss` is a fact about
+the draws: the certification prefixes repeat, or meet the table, or under-represent a class,
+or the family is dirty and the sample sees it.  The cluster's own size is the liveness
+half's business and is carried as `Estall`. -/
+theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
+    (hmpos : 0 < B.m) (hsig : O.η ≤ 1 / 2)
+    (εcov α τ l E Δp ρ tcls qacc qrej th : ℝ) (n₀ kmin kmax : ℕ)
+    (hE : 0 ≤ E) (hl : 0 < l) (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1)
+    (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hΔp : 0 ≤ Δp) (hth : 0 ≤ th) (htcls : 0 ≤ tcls)
+    (hqacc : qacc ≤ (D j).real {p | O.label p = 1})
+    (hqrej : qrej ≤ (D j).real {p | O.label p = 0})
+    (hqacc0 : 0 ≤ qacc) (hqrej0 : 0 ≤ qrej)
+    (hclsnum : (n₀ : ℝ) + 2 * l * (B.m : ℝ) + 2 * l * (B.m : ℝ)
+      ≤ (B.m : ℝ) * (min qacc qrej - tcls))
+    (hheavy : Δp * (kmax : ℝ) + th ≤ l)
+    (Estall : ℝ) (hstall : (runLaw μ D Dsf).real (stalled O populations B kmin kmax) ≤ Estall)
+    (Edirty : ℝ) (hdirty : (runLaw μ D Dsf).real
+      {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B, flipMass O (D j) v ≤ Δp}
+        ≤ Edirty)
+    (hdec : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
+      kmin ≤ F.card → F.card ≤ kmax →
+      μ.real {ω | ¬ decided O B.lo (B.hi - 1) F p ω} ≤ E)
+    (hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
+      kmin ≤ F.card → F.card ≤ kmax →
+      μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω} ≤ E)
+    (hga : ∀ n c : ℕ, n₀ ≤ n → n ≤ c → c ≤ B.m →
+      (n : ℝ) * (gateAcc O εcov + τ + τ)
+        ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * l * (c : ℝ)))
+    (hgr : ∀ n c : ℕ, n₀ ≤ n → n ≤ c → c ≤ B.m →
+      (n : ℝ) * O.η + (1 - 2 * O.η) * (2 * l * (c : ℝ))
+        ≤ (n : ℝ) * (gateRej O εcov - τ - τ))
+    (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+      ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
+        + (2 * Real.exp (-2 * (B.m : ℝ) * tcls ^ 2)
+          + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
+            + (E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2))))))) := by
+  classical
+  set E1 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.m => cert j i.val x)} with hE1
+  set E2 : Set (Run Ω S J) :=
+    {x | ¬ Disjoint (prefixesAt populations B.m x) (certOf j B.m x)} with hE2
+  set E3 : Set (Run Ω S J) := {x | (((Finset.range B.m).filter
+    (fun i => O.label (cert j i x) = 1)).card : ℝ) ≤ (B.m : ℝ) * (qacc - tcls)} with hE3
+  set E4 : Set (Run Ω S J) := {x | (((Finset.range B.m).filter
+    (fun i => O.label (cert j i x) = 0)).card : ℝ) ≤ (B.m : ℝ) * (qrej - tcls)} with hE4
+  set E5 : Set (Run Ω S J) := stalled O populations B kmin kmax with hE5
+  set E6 : Set (Run Ω S J) :=
+    {x | ¬ ∀ v ∈ clusterAt O populations x B, flipMass O (D j) v ≤ Δp} with hE6
+  set E7 : Set (Run Ω S J) := heavyHits O populations (D j) j B 0 (Δp * (kmax : ℝ)) th with hE7
+  set E8 : Set (Run Ω S J) := retMiss O populations j B εcov α l n₀ kmin kmax with hE8
+  have hsub : {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+      ⊆ (E1 ∪ E2) ∪ ((E3 ∪ E4) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8)))) := by
+    intro x hx
+    by_cases h1 : Function.Injective (fun i : Fin B.m => cert j i.val x)
+    · by_cases h2 : Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
+      · by_cases h3 : (((Finset.range B.m).filter
+            (fun i => O.label (cert j i x) = 1)).card : ℝ) ≤ (B.m : ℝ) * (qacc - tcls)
+        · exact Or.inr (Or.inl (Or.inl h3))
+        · by_cases h4 : (((Finset.range B.m).filter
+              (fun i => O.label (cert j i x) = 0)).card : ℝ) ≤ (B.m : ℝ) * (qrej - tcls)
+          · exact Or.inr (Or.inl (Or.inr h4))
+          · by_cases h5 : kmin ≤ ((clusterAt O populations x B).erase 1).card
+                ∧ ((clusterAt O populations x B).erase 1).card ≤ kmax
+            · by_cases h6 : ∀ v ∈ clusterAt O populations x B, flipMass O (D j) v ≤ Δp
+              · -- the certification sample is good and the family is clean
+                have hcard : ((certOf j B.m x).card : ℝ) = (B.m : ℝ) := by
+                  have hinjOn : Set.InjOn (fun i => cert j i x) ↑(Finset.range B.m) := by
+                    intro a ha b hb hab
+                    have := h1 (show (fun i : Fin B.m => cert j i.val x)
+                        ⟨a, Finset.mem_range.1 (by simpa using ha)⟩
+                      = (fun i : Fin B.m => cert j i.val x)
+                        ⟨b, Finset.mem_range.1 (by simpa using hb)⟩ from hab)
+                    simpa using congrArg Fin.val this
+                  unfold certOf
+                  rw [Finset.card_image_of_injOn hinjOn, Finset.card_range]
+                have hCpos : 0 < (certOf j B.m x).card := by
+                  have : (0 : ℝ) < ((certOf j B.m x).card : ℝ) := by
+                    rw [hcard]; exact_mod_cast hmpos
+                  exact_mod_cast this
+                have hclassA : (n₀ : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ)
+                    + 2 * l * ((certOf j B.m x).card : ℝ)
+                    ≤ (((certOf j B.m x).filter (fun p => O.label p = 1)).card : ℝ) := by
+                  rw [hcard]
+                  have hmin : (B.m : ℝ) * (min qacc qrej - tcls) ≤ (B.m : ℝ) * (qacc - tcls) := by
+                    have : min qacc qrej ≤ qacc := min_le_left _ _
+                    nlinarith [Nat.cast_nonneg (α := ℝ) B.m]
+                  have : (B.m : ℝ) * (qacc - tcls)
+                      < (((Finset.range B.m).filter
+                        (fun i => O.label (cert j i x) = 1)).card : ℝ) := not_le.1 h3
+                  rw [show (((certOf j B.m x).filter (fun p => O.label p = 1)).card : ℝ)
+                      = (((Finset.range B.m).filter
+                        (fun i => O.label (cert j i x) = 1)).card : ℝ) from
+                    congrArg (fun n : ℕ => (n : ℝ))
+                      (card_filter_certOf j B.m x (fun p => O.label p = 1) _ _ h1).symm]
+                  linarith
+                have hclassR : (n₀ : ℝ) + 2 * l * ((certOf j B.m x).card : ℝ)
+                    + 2 * l * ((certOf j B.m x).card : ℝ)
+                    ≤ (((certOf j B.m x).filter (fun p => O.label p = 0)).card : ℝ) := by
+                  rw [hcard]
+                  have hmin : (B.m : ℝ) * (min qacc qrej - tcls) ≤ (B.m : ℝ) * (qrej - tcls) := by
+                    have : min qacc qrej ≤ qrej := min_le_right _ _
+                    nlinarith [Nat.cast_nonneg (α := ℝ) B.m]
+                  have : (B.m : ℝ) * (qrej - tcls)
+                      < (((Finset.range B.m).filter
+                        (fun i => O.label (cert j i x) = 0)).card : ℝ) := not_le.1 h4
+                  rw [show (((certOf j B.m x).filter (fun p => O.label p = 0)).card : ℝ)
+                      = (((Finset.range B.m).filter
+                        (fun i => O.label (cert j i x) = 0)).card : ℝ) from
+                    congrArg (fun n : ℕ => (n : ℝ))
+                      (card_filter_certOf j B.m x (fun p => O.label p = 0) _ _ h1).symm]
+                  linarith
+                have hmass : (D j).real {p | ¬ (flipCount O
+                      ((clusterAt O populations x B).erase 1) p
+                    ≤ ((((clusterAt O populations x B).erase 1).card : ℝ)) * 0)}
+                    ≤ Δp * (kmax : ℝ) := by
+                  set F : Finset S := (clusterAt O populations x B).erase 1 with hFdef
+                  rcases Nat.eq_zero_or_pos F.card with hF0 | hFpos
+                  · have hz : {p : S | ¬ (flipCount O F p ≤ ((F.card : ℝ)) * 0)}
+                        = (∅ : Set S) := by
+                      ext p
+                      simp only [Set.mem_empty_iff_false, iff_false, not_not]
+                      have : F = ∅ := Finset.card_eq_zero.1 hF0
+                      simp [flipCount, this]
+                    rw [hz]
+                    simp only [measureReal_empty]
+                    positivity
+                  · have hsetle : {p : S | ¬ (flipCount O F p ≤ ((F.card : ℝ)) * 0)}
+                        ⊆ {p | (1 / (F.card : ℝ)) * (F.card : ℝ) ≤ flipCount O F p} := by
+                      intro p hp
+                      have hFc : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hFpos
+                      have : (0 : ℝ) < flipCount O F p := by
+                        have := not_le.1 hp
+                        simpa using this
+                      have hone : (1 / (F.card : ℝ)) * (F.card : ℝ) = 1 := by
+                        field_simp
+                      rw [Set.mem_setOf_eq, hone]
+                      unfold flipCount at this ⊢
+                      exact_mod_cast this
+                    have hFc : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hFpos
+                    refine le_trans (measureReal_mono hsetle (measure_ne_top _ _)) ?_
+                    refine le_trans (flipCount_mass_le O (D j) F Δp (1 / (F.card : ℝ))
+                      (by positivity) hFpos (fun v hv => h6 v (Finset.mem_erase.1 hv).2)) ?_
+                    have hdiv : Δp / (1 / (F.card : ℝ)) = Δp * (F.card : ℝ) := by
+                      field_simp
+                    rw [hdiv]
+                    have hkm : (F.card : ℝ) ≤ (kmax : ℝ) := by exact_mod_cast h5.2
+                    nlinarith
+                by_cases h7 : (B.m : ℝ) * (Δp * (kmax : ℝ) + th)
+                    ≤ (((certOf j B.m x).filter (fun p =>
+                      ¬ (flipCount O ((clusterAt O populations x B).erase 1) p
+                        ≤ ((((clusterAt O populations x B).erase 1).card : ℝ)) * 0))).card : ℝ)
+                · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨hmass, h7⟩))))
+                · refine Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨h2, hCpos, hclassA, hclassR,
+                    ?_, ?_⟩))))
+                  · have hlt := not_le.1 h7
+                    have hle : (((certOf j B.m x).filter (fun p =>
+                        ¬ famGood O kmin kmax ((clusterAt O populations x B).erase 1) p)).card : ℝ)
+                        = (((certOf j B.m x).filter (fun p =>
+                          ¬ (flipCount O ((clusterAt O populations x B).erase 1) p
+                            ≤ ((((clusterAt O populations x B).erase 1).card : ℝ))
+                              * 0))).card : ℝ) := by
+                      refine congrArg (fun t : Finset S => (t.card : ℝ))
+                        (Finset.filter_congr (fun p _ => ?_))
+                      unfold famGood
+                      simp only [h5.1, h5.2, and_true, true_and]
+                    rw [hle, hcard]
+                    have hm0 : (0 : ℝ) ≤ (B.m : ℝ) := Nat.cast_nonneg _
+                    nlinarith
+                  · intro hgood
+                    exact hx hgood
+              · exact Or.inr (Or.inr (Or.inr (Or.inl h6)))
+            · exact Or.inr (Or.inr (Or.inl h5))
+      · exact Or.inl (Or.inr h2)
+    · exact Or.inl (Or.inl h1)
+  calc (runLaw μ D Dsf).real {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+      ≤ (runLaw μ D Dsf).real ((E1 ∪ E2) ∪ ((E3 ∪ E4) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8))))) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2)
+        + (((runLaw μ D Dsf).real E3 + (runLaw μ D Dsf).real E4)
+          + ((runLaw μ D Dsf).real E5 + ((runLaw μ D Dsf).real E6
+            + ((runLaw μ D Dsf).real E7 + (runLaw μ D Dsf).real E8)))) := by
+        have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
+        have h34 := measureReal_union_le (μ := runLaw μ D Dsf) E3 E4
+        have h78 := measureReal_union_le (μ := runLaw μ D Dsf) E7 E8
+        have h678 := measureReal_union_le (μ := runLaw μ D Dsf) E6 (E7 ∪ E8)
+        have h5678 := measureReal_union_le (μ := runLaw μ D Dsf) E5 (E6 ∪ (E7 ∪ E8))
+        have hrest := measureReal_union_le (μ := runLaw μ D Dsf) (E3 ∪ E4) (E5 ∪ (E6 ∪ (E7 ∪ E8)))
+        have hall := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2)
+          ((E3 ∪ E4) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8))))
+        linarith
+    _ ≤ ((B.m : ℝ) ^ 2 * ρ + (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ)
+        + ((Real.exp (-2 * (B.m : ℝ) * tcls ^ 2) + Real.exp (-2 * (B.m : ℝ) * tcls ^ 2))
+          + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
+            + (E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2))))))) := by
+        gcongr
+        · exact cert_not_injective_le D Dsf j B.m ρ (hρ j hj) hρ0
+        · exact prefix_cert_disjoint_le D Dsf populations j B.m ρ hρ (hρ j hj) hρ0
+        · exact cert_class_count_le D Dsf O j B.m 1 qacc tcls hqacc0 htcls hqacc
+        · exact cert_class_count_le D Dsf O j B.m 0 qrej tcls hqrej0 htcls hqrej
+        · exact measureReal_heavyHits_le D Dsf O populations j B 0 (Δp * (kmax : ℝ)) th hth
+        · exact measureReal_retMiss_le hflat O populations D Dsf hsupp j hj B εcov α τ l E
+            n₀ kmin kmax hE hl hτ hε0 hε1 hsig hdec hcut hga hgr hα
+    _ = ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
+        + (2 * Real.exp (-2 * (B.m : ℝ) * tcls ^ 2)
+          + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
+            + (E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2))))))) := by ring
+
+open scoped Classical in
 /-- **Part 1 at one state and one population.**  A family the gate admits is right on all
 but `εcov` of the population, except on five events: the certification draws repeat, they
 meet the table, the sample misses the wrong set, or the gate admits a side a `9εcov/16`
