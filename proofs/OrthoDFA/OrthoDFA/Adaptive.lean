@@ -3122,6 +3122,80 @@ theorem coverage_of_famOf {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   ext ω
   simp only [Set.mem_setOf_eq, hzero, zero_add]
 
+lemma measurable_badMassReal (O : Oracle μ S) (Dj : Measure S) (lo hi : ℕ) (A₀ : Finset S) :
+    Measurable (fun ω => Dj.real {p | ¬ cutCorrect O lo hi A₀ p ω}) :=
+  ENNReal.measurable_toReal.comp (measurable_badMass Dj
+    (fun p => {ω | ¬ cutCorrect O lo hi A₀ p ω}) (fun p => measurableSet_cutCorrect O lo hi A₀ p))
+
+open scoped Classical in
+/-- The runs at one state whose coverage is short although every family member is clean. -/
+noncomputable def shortCoverage (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
+    (B : Budget) (Δ f ε : ℝ) : Set (Run Ω S J) :=
+  {x | (∀ v ∈ famAt O populations B x, flipMass O Dj v ≤ Δ)
+    ∧ Dj.real ↑(prefixesAt populations B.m x) + Δ / f + ε
+        ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi (famAt O populations B x) p (nz x)}
+    ∧ B.k ≤ (poolAt B.M x).card}
+
+open scoped Classical in
+lemma measurableSet_shortCoverage (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
+    (B : Budget) (Δ f ε : ℝ) :
+    MeasurableSet (shortCoverage O populations Dj B Δ f ε) := by
+  classical
+  have hR : ∀ P C : Finset S, MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | (∀ v ∈ famOf O B.cn B.cd P C B.k (nz x), flipMass O Dj v ≤ Δ)
+        ∧ Dj.real ↑P + Δ / f + ε
+            ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi (famOf O B.cn B.cd P C B.k (nz x)) p (nz x)}
+        ∧ B.k ≤ C.card} else ∅) := by
+    intro P C
+    split_ifs with hone
+    · have hcov : {x : Run Ω S J | (∀ v ∈ famOf O B.cn B.cd P C B.k (nz x), flipMass O Dj v ≤ Δ)
+          ∧ Dj.real ↑P + Δ / f + ε
+              ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi (famOf O B.cn B.cd P C B.k (nz x)) p (nz x)}
+          ∧ B.k ≤ C.card}
+          = ⋃ A₀ : Finset S, ({x : Run Ω S J | famOf O B.cn B.cd P C B.k (nz x) = A₀}
+            ∩ {x : Run Ω S J | (∀ v ∈ A₀, flipMass O Dj v ≤ Δ)
+              ∧ Dj.real ↑P + Δ / f + ε
+                  ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi A₀ p (nz x)}
+              ∧ B.k ≤ C.card}) := by
+        ext x
+        simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff]
+        refine ⟨fun h => ⟨_, rfl, h⟩, ?_⟩
+        rintro ⟨A₀, hA, hx⟩
+        rw [hA]
+        exact hx
+      rw [hcov]
+      refine MeasurableSet.iUnion (fun A₀ => MeasurableSet.inter ?_ ?_)
+      · exact measurable_nz (measurableSet_famOf O B.cn B.cd P C B.k hone A₀)
+      · by_cases h1 : ∀ v ∈ A₀, flipMass O Dj v ≤ Δ
+        · by_cases h3 : B.k ≤ C.card
+          · have hset : {x : Run Ω S J | (∀ v ∈ A₀, flipMass O Dj v ≤ Δ)
+                ∧ Dj.real ↑P + Δ / f + ε ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi A₀ p (nz x)}
+                ∧ B.k ≤ C.card}
+                = nz ⁻¹' {ω : Ω | Dj.real ↑P + Δ / f + ε
+                    ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi A₀ p ω}} := by
+              ext x
+              simp only [Set.mem_setOf_eq, Set.mem_preimage, h3, and_true]
+              exact ⟨fun h => h.2, fun h => ⟨h1, h⟩⟩
+            rw [hset]
+            exact measurable_nz (measurableSet_le measurable_const
+              (measurable_badMassReal O Dj B.lo B.hi A₀))
+          · simpa [h3] using MeasurableSet.empty
+        · simpa [h1] using MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : shortCoverage O populations Dj B Δ f ε
+      = {x : Run Ω S J | x ∈ (fun P C => if (1 : S) ∈ C then
+          {x : Run Ω S J | (∀ v ∈ famOf O B.cn B.cd P C B.k (nz x), flipMass O Dj v ≤ Δ)
+            ∧ Dj.real ↑P + Δ / f + ε
+                ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi
+                    (famOf O B.cn B.cd P C B.k (nz x)) p (nz x)}
+            ∧ B.k ≤ C.card} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x)]
+    rfl
+  rw [hrw]
+  exact measurableSet_of_run_data populations B _ hR
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
