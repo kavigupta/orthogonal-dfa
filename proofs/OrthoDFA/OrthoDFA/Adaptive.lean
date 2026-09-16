@@ -3726,6 +3726,72 @@ theorem cert_class_count_le (D : J → Measure S) (Dsf : Measure S)
     ← measureReal_def]
   exact cert_hits_wrongSet D j m W q t hq ht hmass
 
+/-- One certification coordinate has the population's own law. -/
+lemma map_certCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
+        (drawLaw D Dsf) = D j := by
+  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
+      = (fun c : J × ℕ → S => c (j, i)) ∘ Prod.snd := rfl
+  rw [hstep, ← Measure.map_map (by fun_prop) measurable_snd, drawLaw, Measure.map_snd_prod]
+  simp only [measure_univ, one_smul]
+  exact (measurePreserving_eval_infinitePi (fun z : J × ℕ => D z.1) (j, i)).map_eq
+
+/-- The certification prefixes land in the flat set too, for the same reason the table's
+do. -/
+lemma ae_cert_mem_Pre (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Pre : Set S)
+    (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) :
+    ∀ᵐ d ∂(drawLaw D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.2 (j, i) ∈ Pre := by
+  have hmeasPre : MeasurableSet (Preᶜ : Set S) := (Set.to_countable _).measurableSet
+  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawLaw D Dsf),
+      z.1 ∈ populations → d.2 (z.1, z.2) ∈ Pre := by
+    rintro ⟨j, i⟩
+    by_cases hj : j ∈ populations
+    · have hz : drawLaw D Dsf {d | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)} = 0 := by
+        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
+            | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)}
+            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i)) ⁻¹' Preᶜ := by
+          ext d; simp [hj]
+        rw [hset, ← Measure.map_apply (by fun_prop) hmeasPre, map_certCoord D Dsf j i]
+        exact hsupp j hj
+      exact ae_iff.2 hz
+    · filter_upwards with d hjj
+      exact absurd hjj hj
+  filter_upwards [ae_all_iff.2 hcoord] with d hd j hj i
+  exact hd (j, i) hj
+
+open scoped Classical in
+lemma map_certBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) :
+    Measure.map (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x)) (runLaw μ D Dsf)
+      = Measure.pi (fun _ : Fin m => D j) := by
+  have hstep : (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x))
+      = (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val)))
+        ∘ (fun x : Run Ω S J => x.2.2) := rfl
+  rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop), map_certStream D Dsf]
+  refine (Measure.pi_eq (μ := fun _ : Fin m => D j) fun t ht => ?_).symm
+  have hpre : (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val))) ⁻¹' Set.univ.pi t
+      = Set.pi ↑((Finset.range m).image (fun i => (j, i)))
+        (fun z => if h : z.2 < m then t ⟨z.2, h⟩ else Set.univ) := by
+    ext c
+    simp only [Set.mem_preimage, Set.mem_pi, Set.mem_univ, forall_const, Finset.coe_image,
+      Finset.coe_range, Set.mem_image, Set.mem_Iio]
+    constructor
+    · rintro h z ⟨a, ha, rfl⟩
+      rw [dif_pos ha]
+      exact h ⟨a, ha⟩
+    · intro h i
+      have := h (j, i.val) ⟨i.val, i.isLt, rfl⟩
+      simpa [dif_pos i.isLt] using this
+  rw [Measure.map_apply (by fun_prop) (MeasurableSet.univ_pi ht), hpre,
+    Measure.infinitePi_pi]
+  · rw [Finset.prod_image (fun a _ b _ h => (Prod.mk.inj h).2), ← Fin.prod_univ_eq_prod_range]
+    exact Finset.prod_congr rfl fun i _ => by simp [dif_pos i.isLt]
+  · intro z _
+    split_ifs with h
+    exacts [ht ⟨z.2, h⟩, .univ]
+
 /-! ### Unioning over a drawn pool
 
 The candidates are drawn, so a union bound over them is a union over an `x`-dependent set.
