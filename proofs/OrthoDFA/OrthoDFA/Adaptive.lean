@@ -333,9 +333,17 @@ structure Budget where
   lo : ℕ
   /-- Accept above this count. -/
   hi : ℕ
+  /-- The screen's cutoff: a candidate disagreeing with the seed's column on more than this
+  many representative prefixes never becomes a clustering candidate.
+
+  `_screen_cohort` tests each drawn suffix against `same_family_rate = 2η(1−η)` and only
+  survivors are promoted to fully observed — and `identify_cluster_around` clusters over
+  `fully_observed()`.  So the screen, not the Lloyd ranking, is what bounds the family's
+  flip mass; the ranking chooses among candidates that already passed.  (Issue #288.) -/
+  sc : ℕ
 
 instance : Countable Budget :=
-  Function.Injective.countable (f := fun b => (b.M, b.m, b.k, b.cn, b.cd, b.lo, b.hi))
+  Function.Injective.countable (f := fun b => (b.M, b.m, b.k, b.cn, b.cd, b.lo, b.hi, b.sc))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-- The candidate pool at a suffix budget: the first `M` suffixes drawn, **with the seed**.
@@ -471,6 +479,16 @@ lemma one_mem_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S)
       split_ifs with h
       · exact h
       · exact ih
+
+open scoped Classical in
+/-- **The screen's statistic**: how many representative prefixes the candidate's column
+disagrees with the seed's on.
+
+This is `_screen_cohort`'s disagreement count.  Its mean separates an accept-preserving
+candidate from one carrying flip mass `φ` by `φ(1−2η)²` — the same statistic the first Lloyd
+step ranks by, which is why `seedLoss` serves both. -/
+noncomputable def screenCount (O : Oracle μ S) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
+  (P.filter (fun p => ¬ ((mq O (p * v) ω = 1) ↔ (mq O p ω = 1)))).card
 
 /-- The cluster at one budget state.
 
@@ -874,8 +892,8 @@ lemma indep_noiseAlg (O : Oracle μ S) {T T' : Set S} (h : Disjoint T T') :
 open scoped Classical in
 /-- A block's bits decide which of its strings satisfy any condition they decide. -/
 lemma measurableSet_filter_fiber' (O : Oracle μ S) {T : Set S} {A : Finset S}
-    (Pr : S → Ω → Prop) (hPr : ∀ p ∈ A, MeasurableSet[noiseAlg O T] {ω | Pr p ω})
-    (U : Finset S) :
+    (Pr : S → Ω → Prop) [inst : ∀ ω, DecidablePred (fun p => Pr p ω)]
+    (hPr : ∀ p ∈ A, MeasurableSet[noiseAlg O T] {ω | Pr p ω}) (U : Finset S) :
     MeasurableSet[noiseAlg O T] {ω | A.filter (fun p => Pr p ω) = U} := by
   classical
   have hfib : {ω | A.filter (fun p => Pr p ω) = U}
@@ -999,6 +1017,24 @@ lemma measurableSet_filter_pred (O : Oracle μ S) {T : Set S} {A : Finset S} (hA
   exact fun U _ => measurableSet_filter_fiber O hA U
 
 open scoped Classical in
+/-- The same for an arbitrary per-element predicate on the bits. -/
+lemma measurableSet_filter_pred' (O : Oracle μ S) {T : Set S} {A : Finset S}
+    (Pr : S → Ω → Prop) [inst : ∀ ω, DecidablePred (fun p => Pr p ω)]
+    (hPr : ∀ p ∈ A, MeasurableSet[noiseAlg O T] {ω | Pr p ω}) (Q : Finset S → Prop) :
+    MeasurableSet[noiseAlg O T] {ω | Q (A.filter (fun p => Pr p ω))} := by
+  classical
+  have hcover : {ω | Q (A.filter (fun p => Pr p ω))}
+      = ⋃ U ∈ A.powerset.filter Q, {ω | A.filter (fun p => Pr p ω) = U} := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_coe, Finset.mem_filter,
+      Finset.mem_powerset, exists_prop]
+    refine ⟨fun h => ⟨_, ⟨Finset.filter_subset _ _, h⟩, rfl⟩, ?_⟩
+    rintro ⟨U, ⟨-, hQU⟩, rfl⟩
+    exact hQU
+  rw [hcover]
+  exact Finset.measurableSet_biUnion _ (fun U _ => measurableSet_filter_fiber' O Pr hPr U)
+
+open scoped Classical in
 /-- The same when the reads are taken at shifted strings `r v` rather than at `v` itself:
 the vote at a population prefix reads `p · v`, not `v`. -/
 lemma measurableSet_filter_pred_map (O : Oracle μ S) {T : Set S} {A : Finset S} (r : S → S)
@@ -1040,6 +1076,31 @@ lemma measurableSet_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Fin
   rw [hcov]
   exact noiseAlg_le O Set.univ _
     (measurableSet_filter_pred O (T := Set.univ) (by simp) Pred)
+
+open scoped Classical in
+/-- The screen's verdict on one candidate is decided by the bits. -/
+lemma measurableSet_screenCount_le' (O : Oracle μ S) (P : Finset S) (v : S) (sc : ℕ) :
+    MeasurableSet[noiseAlg O Set.univ] {ω | screenCount O P v ω ≤ sc} := by
+  have hPr : ∀ p ∈ P, MeasurableSet[noiseAlg O Set.univ]
+      {ω | ¬ ((mq O (p * v) ω = 1) ↔ (mq O p ω = 1))} := by
+    intro p _
+    have h1 := measurableSet_mq_eq_one O (T := Set.univ) (w := p * v) (Set.mem_univ _)
+    have h0 := measurableSet_mq_eq_one O (T := Set.univ) (w := p) (Set.mem_univ _)
+    have hiff : {ω | (mq O (p * v) ω = 1) ↔ (mq O p ω = 1)}
+        = ({ω | mq O (p * v) ω = 1} ∩ {ω | mq O p ω = 1})
+          ∪ ({ω | mq O (p * v) ω = 1}ᶜ ∩ {ω | mq O p ω = 1}ᶜ) := by
+      ext ω
+      by_cases ha : mq O (p * v) ω = 1 <;> by_cases hb : mq O p ω = 1 <;> simp [ha, hb]
+    have : MeasurableSet[noiseAlg O Set.univ] {ω | (mq O (p * v) ω = 1) ↔ (mq O p ω = 1)} := by
+      rw [hiff]
+      exact ((h1.inter h0).union (h1.compl.inter h0.compl))
+    exact this.compl
+  exact measurableSet_filter_pred' O (fun p ω => ¬ ((mq O (p * v) ω = 1) ↔ (mq O p ω = 1)))
+      hPr (fun U => U.card ≤ sc)
+
+lemma measurableSet_screenCount_le (O : Oracle μ S) (P : Finset S) (v : S) (sc : ℕ) :
+    MeasurableSet {ω | screenCount O P v ω ≤ sc} :=
+  noiseAlg_le O Set.univ _ (measurableSet_screenCount_le' O P v sc)
 
 open scoped Classical in
 /-- **Congruence becomes measurability.**  A side decided by a block's bits is, on the clean
@@ -1714,6 +1775,7 @@ structure Capped (cap B : Budget) : Prop where
   cd : B.cd ≤ cap.cd
   lo : B.lo ≤ cap.lo
   hi : B.hi ≤ cap.hi
+  sc : B.sc ≤ cap.sc
 
 instance instFiniteCapped (cap : Budget) : Finite {B : Budget // Capped cap B} := by
   refine Finite.of_injective
@@ -1723,7 +1785,8 @@ instance instFiniteCapped (cap : Budget) : Finite {B : Budget // Capped cap B} :
       (⟨B.val.cn, Nat.lt_succ_of_le B.property.cn⟩ : Fin (cap.cn + 1)),
       (⟨B.val.cd, Nat.lt_succ_of_le B.property.cd⟩ : Fin (cap.cd + 1)),
       (⟨B.val.lo, Nat.lt_succ_of_le B.property.lo⟩ : Fin (cap.lo + 1)),
-      (⟨B.val.hi, Nat.lt_succ_of_le B.property.hi⟩ : Fin (cap.hi + 1)))) ?_
+      (⟨B.val.hi, Nat.lt_succ_of_le B.property.hi⟩ : Fin (cap.hi + 1)),
+      (⟨B.val.sc, Nat.lt_succ_of_le B.property.sc⟩ : Fin (cap.sc + 1)))) ?_
   intro B B' hb
   simpa [Subtype.ext_iff, Budget.ext_iff, Prod.ext_iff, Fin.ext_iff] using hb
 
@@ -1844,6 +1907,27 @@ lemma seedLoss_mean (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (v p : S) (h
   show _ = 2 * O.η * (1 - O.η)
     + (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p) * (1 - 2 * O.η) ^ 2
   ring
+
+open scoped Classical in
+/-- The screen's statistic is the summed `seedLoss`, exactly rather than almost everywhere:
+`voteCount` over the singleton `{ε}` is a card, so it is a bit by construction. -/
+lemma screenCount_eq_sum (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P : Finset S) (v : S)
+    (ω : Ω) : ((screenCount O P v ω : ℝ)) = ∑ p ∈ P, seedLoss O cn cd v p ω := by
+  classical
+  have hcond : ∀ p : S, (cn * ({(1 : S)} : Finset S).card < cd * voteCount O {(1 : S)} p ω)
+      ↔ (mq O p ω = 1) := by
+    intro p
+    have hvc : voteCount O {(1 : S)} p ω = if mq O p ω = 1 then 1 else 0 := by
+      unfold voteCount
+      by_cases h : mq O p ω = 1 <;> simp [Finset.filter_singleton, mul_one, h]
+    rw [hvc]
+    by_cases h : mq O p ω = 1 <;> simp [h, hcd]
+  unfold screenCount seedLoss
+  rw [Finset.sum_ite]
+  simp only [Finset.sum_const, smul_zero, zero_add, nsmul_eq_mul, mul_one]
+  refine congrArg (fun n : ℕ => (n : ℝ)) (congrArg Finset.card ?_)
+  ext p
+  simp only [Finset.mem_filter, hcond p]
 
 /-- **The seed's own reads are independent across prefixes.**  Each prefix contributes a
 function of two strings, `p` and `p · v`, and those pairs are pairwise disjoint: `p · v` by
@@ -2106,6 +2190,48 @@ lemma clusterAround_mem_values (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset
   | succ n ih =>
       rw [Function.iterate_succ_apply']
       exact hstep _ ih
+
+open scoped Classical in
+/-- **A badly-flipping candidate rarely passes the screen.**  Its disagreement with the
+seed's column has mean `2η(1−η) + φ(1−2η)²`, so a cutoff `γ` below that is cleared only in
+the lower tail. -/
+theorem screen_tail {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
+    (Δ γ : ℝ) (sc : ℕ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2)
+    (hflip : Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip v p)
+    (hsc : (sc : ℝ) ≤ (P.card : ℝ) * ((2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2) - γ)) :
+    μ.real {ω | screenCount O P v ω ≤ sc} ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+  classical
+  set b : ℝ := 2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2 with hb
+  have hcard : ((Finset.univ : Finset {p // p ∈ P}).card : ℝ) = (P.card : ℝ) := by
+    simp [Finset.card_univ]
+  have hmean : ((Finset.univ : Finset {p // p ∈ P}).card : ℝ) * b
+      ≤ ∑ i : {p // p ∈ P}, μ[seedLoss O cn cd v i.val] := by
+    rw [Finset.sum_congr rfl
+      (fun i _ => seedLoss_mean O hcd v i.val (mul_ne_self i.val v hv)),
+      Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ]
+    simp only [nsmul_eq_mul, Fintype.card_coe]
+    rw [← Finset.sum_mul, hb]
+    have hattach : ∑ i : {p // p ∈ P}, O.flip v i.val = ∑ p ∈ P, O.flip v p :=
+      Finset.sum_attach P (fun p => O.flip v p)
+    rw [hattach]
+    have hsq : (0 : ℝ) ≤ (1 - 2 * O.η) ^ 2 := sq_nonneg _
+    nlinarith [hflip]
+  have htail := sumLower_le (fun (i : {p // p ∈ P}) => seedLoss O cn cd v i.val)
+    (Finset.univ : Finset {p // p ∈ P}) b γ
+    (fun i => (seedLoss_meas O cn cd v i.val).aemeasurable)
+    (seedLoss_indep hflat O cn cd hP v)
+    (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
+  rw [hcard] at htail
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) htail
+  intro ω hω
+  show ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω ≤ (P.card : ℝ) * (b - γ)
+  have hsum : ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω
+      = ((screenCount O P v ω : ℝ)) := by
+    rw [screenCount_eq_sum O hcd P v ω]
+    exact (Finset.sum_attach P (fun p => seedLoss O cn cd v p ω)).symm ▸ rfl
+  rw [hsum]
+  exact le_trans (by exact_mod_cast hω) hsc
 
 /-! ### The iterate, and where the ranking stops working
 
@@ -2830,6 +2956,44 @@ lemma measurableSet_of_run_data (populations : Finset J) (B : Budget)
   exact MeasurableSet.iUnion (fun z =>
     ((measurableSet_prefixesAt populations B.m z.1).inter
       (measurableSet_poolAt B.M z.2)).inter (hR z.1 z.2))
+
+lemma measureReal_le_one' (Dj : Measure S) [IsProbabilityMeasure Dj] (A : Set S) :
+    Dj.real A ≤ 1 := by
+  have h := measureReal_mono (μ := Dj) (Set.subset_univ A) (by finiteness)
+  simpa using h
+
+lemma summable_singleton_real (Dj : Measure S) [IsProbabilityMeasure Dj] :
+    Summable (fun a : S => Dj.real {a}) := by
+  classical
+  refine summable_of_sum_le (c := 1) (fun a => measureReal_nonneg) (fun Q => ?_)
+  rw [sum_measureReal_singleton]
+  exact measureReal_le_one' Dj _
+
+lemma summable_singleton_sq (Dj : Measure S) [IsProbabilityMeasure Dj] :
+    Summable (fun a : S => Dj.real {a} ^ 2) := by
+  refine Summable.of_nonneg_of_le (fun a => sq_nonneg _) (fun a => ?_) (summable_singleton_real Dj)
+  nlinarith [measureReal_nonneg (μ := Dj) (s := ({a} : Set S)), measureReal_le_one' Dj ({a} : Set S)]
+
+/-- **The table carries little of the population.**  The clustering read the oracle at the
+table's prefixes, so the cut there is not covered by the independence argument.  No single
+prefix can carry more than `√ρ`, since its own square is already inside the collision
+mass. -/
+lemma measureReal_singleton_le (Dj : Measure S) [IsProbabilityMeasure Dj] (ρ : ℝ)
+    (hρ : collisionMass Dj ≤ ρ) (a : S) : Dj.real {a} ≤ Real.sqrt ρ := by
+  have hmem : Dj.real {a} ^ 2 ≤ collisionMass Dj := by
+    refine le_trans (le_of_eq ?_) (Summable.le_tsum (summable_singleton_sq Dj) a
+      (fun b _ => sq_nonneg _))
+    rfl
+  calc Dj.real {a} = Real.sqrt (Dj.real {a} ^ 2) := (Real.sqrt_sq measureReal_nonneg).symm
+    _ ≤ Real.sqrt ρ := Real.sqrt_le_sqrt (le_trans hmem hρ)
+
+lemma measureReal_finset_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Q : Finset S) (ρ : ℝ)
+    (hρ : collisionMass Dj ≤ ρ) : Dj.real ↑Q ≤ (Q.card : ℝ) * Real.sqrt ρ := by
+  classical
+  rw [← sum_measureReal_singleton (μ := Dj) Q]
+  calc ∑ a ∈ Q, Dj.real {a} ≤ ∑ _a ∈ Q, Real.sqrt ρ :=
+        Finset.sum_le_sum (fun a _ => measureReal_singleton_le Dj ρ hρ a)
+    _ = (Q.card : ℝ) * Real.sqrt ρ := by rw [Finset.sum_const, nsmul_eq_mul]
 
 /-! ### The pool's accept-preserving candidates
 
