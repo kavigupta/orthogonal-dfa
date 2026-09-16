@@ -6135,6 +6135,133 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
+/-- The sample counts draws, the table counts strings: a repeated draw is one string. -/
+lemma card_filter_certOf_le (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
+    (instA : DecidablePred Q) (instB : DecidablePred (fun i : ℕ => Q (cert j i x))) :
+    (@Finset.filter _ Q instA (certOf j m x)).card
+      ≤ (@Finset.filter _ (fun i : ℕ => Q (cert j i x)) instB (Finset.range m)).card := by
+  refine Finset.card_le_card_of_surjOn (fun i => cert j i x) (fun p hp => ?_)
+  simp only [Finset.coe_filter, Set.mem_setOf_eq] at hp
+  obtain ⟨hpC, hQ⟩ := hp
+  unfold certOf at hpC
+  obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hpC
+  exact ⟨i, by simp only [Finset.coe_filter, Set.mem_setOf_eq, Finset.mem_range,
+    Finset.mem_range.1 hi, true_and]; exact hQ, rfl⟩
+
+open scoped Classical in
+/-- **The sample is not mostly prefixes the family flips.**  The heavy set is chosen by the
+noise and the table; the certification draws are neither, so its hit count is the upper
+Hoeffding tail at its mass. -/
+noncomputable def heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
+    (j : J) (B : Budget) (f q t : ℝ) : Set (Run Ω S J) :=
+  {x | Dj.real {p | ¬ (flipCount O ((clusterAt O populations x B).erase 1) p
+        ≤ (((clusterAt O populations x B).erase 1).card : ℝ) * f)} ≤ q
+    ∧ (B.m : ℝ) * (q + t)
+        ≤ (((certOf j B.m x).filter (fun p =>
+          ¬ (flipCount O ((clusterAt O populations x B).erase 1) p
+            ≤ (((clusterAt O populations x B).erase 1).card : ℝ) * f))).card : ℝ)}
+
+open scoped Classical in
+lemma measurableSet_heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
+    (j : J) (B : Budget) (f q t : ℝ) :
+    MeasurableSet (heavyHits O populations Dj j B f q t) := by
+  classical
+  have hR : ∀ (P C : Finset S) (tt : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
+      {x : Run Ω S J | Dj.real {p | ¬ (flipCount O
+            ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+          ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ) * f)} ≤ q
+        ∧ (B.m : ℝ) * (q + t)
+            ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+              ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+                ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ) * f))).card
+                  : ℝ)} else ∅) := by
+    intro P C tt
+    split_ifs with hone
+    · refine measurable_nz (measurableSet_of_fam (T := C.powerset)
+        (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc P C B.k ω hone))
+        (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc P C B.k hone A₀)
+        (fun A₀ => {_ω : Ω |
+          Dj.real {p | ¬ (flipCount O (A₀.erase 1) p ≤ ((A₀.erase 1).card : ℝ) * f)} ≤ q
+          ∧ (B.m : ℝ) * (q + t)
+              ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+                ¬ (flipCount O (A₀.erase 1) p ≤ ((A₀.erase 1).card : ℝ) * f))).card : ℝ)})
+        (fun A₀ => ?_))
+      by_cases hcond : Dj.real {p | ¬ (flipCount O (A₀.erase 1) p
+            ≤ ((A₀.erase 1).card : ℝ) * f)} ≤ q
+          ∧ (B.m : ℝ) * (q + t)
+            ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+              ¬ (flipCount O (A₀.erase 1) p ≤ ((A₀.erase 1).card : ℝ) * f))).card : ℝ)
+      · simpa [hcond] using MeasurableSet.univ
+      · simpa [hcond] using MeasurableSet.empty
+    · exact MeasurableSet.empty
+  have hrw : heavyHits O populations Dj j B f q t
+      = {x : Run Ω S J | x ∈ (fun P C tt => if (1 : S) ∈ C then
+          {x : Run Ω S J | Dj.real {p | ¬ (flipCount O
+                ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+              ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ) * f)} ≤ q
+            ∧ (B.m : ℝ) * (q + t)
+                ≤ ((((Finset.univ : Finset (Fin B.m)).image tt).filter (fun p =>
+                  ¬ (flipCount O ((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1) p
+                    ≤ (((clusterOf O B.cn B.cd B.sc P C B.k (nz x)).erase 1).card : ℝ)
+                      * f))).card : ℝ)} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)
+        (fun i : Fin B.m => cert j i.val x)} := by
+    ext x
+    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), heavyHits,
+      ← certOf_eq_image j B.m x, ← clusterAt_eq_clusterOf O populations B x]
+    tauto
+  rw [hrw]
+  exact measurableSet_of_run_data_cert populations j B _ hR
+
+open scoped Classical in
+/-- The flip-heavy prefixes are a `q` fraction of the population, so the sample sees at most
+`m(q + t)` of them. -/
+theorem measureReal_heavyHits_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (populations : Finset J) (j : J) (B : Budget) (f q t : ℝ) (ht : 0 ≤ t) :
+    (runLaw μ D Dsf).real (heavyHits O populations (D j) j B f q t)
+      ≤ Real.exp (-2 * (B.m : ℝ) * t ^ 2) := by
+  classical
+  have hEnn : runLaw μ D Dsf (heavyHits O populations (D j) j B f q t)
+      ≤ ENNReal.ofReal (Real.exp (-2 * (B.m : ℝ) * t ^ 2)) := by
+    refine runLaw_slice_cert_le D Dsf _
+      (measurableSet_heavyHits O populations (D j) j B f q t) _ ?_
+    intro y
+    set F : Finset S :=
+      (clusterAt O populations ((y.1, (y.2, fun _ => (1 : S))) : Run Ω S J) B).erase 1 with hF
+    set W : Set S := {p | ¬ (flipCount O F p ≤ (F.card : ℝ) * f)} with hW
+    have hFeq : ∀ c : J × ℕ → S,
+        (clusterAt O populations ((y.1, (y.2, c)) : Run Ω S J) B).erase 1 = F := fun c => rfl
+    by_cases hmass : (D j).real W ≤ q
+    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+            ∈ heavyHits O populations (D j) j B f q t}
+          ⊆ {c | (B.m : ℝ) * (q + t)
+            ≤ (((Finset.range B.m).filter (fun i => c (j, i) ∈ W)).card : ℝ)} := by
+        rintro c ⟨-, hcount⟩
+        refine le_trans hcount ?_
+        exact_mod_cast card_filter_certOf_le j B.m ((y.1, (y.2, c)) : Run Ω S J)
+          (fun p => p ∈ W) _ _
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top (Measure.infinitePi fun z : J × ℕ => D z.1) _),
+        ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have hcert := cert_hits_upper D j B.m W q t ht hmass
+      convert hcert using 3
+      funext c
+      congr!
+    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+          ∈ heavyHits O populations (D j) j B f q t} = (∅ : Set (J × ℕ → S)) := by
+        ext c
+        simp only [Set.mem_empty_iff_false, iff_false]
+        rintro ⟨hm, -⟩
+        exact hmass hm
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (heavyHits O populations (D j) j B f q t)).toReal
+      ≤ (ENNReal.ofReal (Real.exp (-2 * (B.m : ℝ) * t ^ 2))).toReal :=
+        ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = Real.exp (-2 * (B.m : ℝ) * t ^ 2) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
+
 open scoped Classical in
 /-- **Part 1 at one state and one population.**  A family the gate admits is right on all
 but `εcov` of the population, except on five events: the certification draws repeat, they
