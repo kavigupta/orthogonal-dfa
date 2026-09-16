@@ -2085,6 +2085,45 @@ lemma admitted_of_counts (O : Oracle μ S) (lo hi : ℕ) (εcov α τ : ℝ) (F 
       (gateRej_mem O hε0 hε1 hsig).2 hτ hrej) hαr⟩
 
 open scoped Classical in
+/-- **A decisive correct cut puts every accepting prefix on its accept side.**  `cutCorrect`
+gives one direction, `decided` the other: an accepting prefix cannot be on the reject side
+without the cut being wrong there, and it is on one side or the other. -/
+lemma card_le_sideAcc (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω)
+    (hcut : ∀ p ∈ C, cutCorrect O lo ha F p ω) (hdec : ∀ p ∈ C, decided O lo ha F p ω) :
+    (C.filter (fun p => O.label p = 1)).card
+      ≤ (C.filter (fun p => ha < voteCount O F p ω)).card := by
+  classical
+  refine Finset.card_le_card (fun p hp => ?_)
+  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
+  refine Finset.mem_filter.2 ⟨hpC, ?_⟩
+  rcases hdec p hpC with h | h
+  · exact h
+  · exact absurd ((hcut p hpC).2 h) (by rw [hl]; norm_num)
+
+open scoped Classical in
+/-- The mirror: every rejecting prefix is on the reject side. -/
+lemma card_le_sideRej (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω)
+    (hcut : ∀ p ∈ C, cutCorrect O lo ha F p ω) (hdec : ∀ p ∈ C, decided O lo ha F p ω) :
+    (C.filter (fun p => O.label p = 0)).card
+      ≤ (C.filter (fun p => voteCount O F p ω ≤ lo)).card := by
+  classical
+  refine Finset.card_le_card (fun p hp => ?_)
+  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
+  refine Finset.mem_filter.2 ⟨hpC, ?_⟩
+  rcases hdec p hpC with h | h
+  · exact absurd ((hcut p hpC).1 h) (by rw [hl]; norm_num)
+  · exact h
+
+open scoped Classical in
+/-- The two sides of the gate's split, as the counts `admitted` reads them. -/
+lemma splitAcc_card (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) :
+    (splitAcc O hi F P ω).2 = (P.filter (fun p => hi - 1 < voteCount O F p ω)).card := rfl
+
+open scoped Classical in
+lemma splitRej_card (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : Ω) :
+    (splitRej O lo F P ω).2 = (P.filter (fun p => voteCount O F p ω ≤ lo)).card := rfl
+
+open scoped Classical in
 /-- **A correct cut on sides that carry prefixes is admitted.**  The four pieces join here:
 the cut being right makes both sides carry only their own label (`sides_clean`), the two
 admission bounds say a clean side reads as its own class often enough, and
@@ -3024,6 +3063,64 @@ theorem cutCorrect_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (
       → O.label p = 1) ∧ ((A₀.filter (fun v => mq O (p * v) ω = 1)).card ≤ lo
       → O.label p = 0))} = (∅ : Set Ω) by ext ω; simp [hg]]
     simpa using hE
+
+open scoped Classical in
+/-- **Decisiveness survives the family being chosen by the clustering**, by the same
+argument as `cutCorrect_selected_whp`: both are predicates of the vote's count, and the
+vote's reads are ones the clustering never made. -/
+theorem decided_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (lo ha : ℕ)
+    (hdisj : Disjoint (↑(cands.image (fun v => p * v)) : Set S) (↑Q : Set S))
+    (T good : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
+    (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ A₀ ∈ T, A₀ ∈ good → μ.real {ω | ¬ decided O lo ha A₀ p ω} ≤ E) :
+    μ.real {ω | fam ω ∈ good ∧ ¬ decided O lo ha (fam ω) p ω} ≤ E := by
+  classical
+  refine selection_side_bound O cands Q (fun v => p * v) hdisj T t₀ ht₀ hTC fam hfam hcongr
+    (fun A₀ U => A₀ ∈ good ∧ ¬ (ha < Finset.card U ∨ Finset.card U ≤ lo)) E hE ?_
+  intro A₀ hA₀
+  by_cases hg : A₀ ∈ good
+  · refine le_trans (le_of_eq ?_) (hbad A₀ hA₀ hg)
+    congr 1
+    ext ω
+    simp only [Set.mem_setOf_eq, decided, voteCount, hg, true_and]
+  · rw [show {ω | A₀ ∈ good
+      ∧ ¬ (ha < (A₀.filter (fun v => mq O (p * v) ω = 1)).card
+        ∨ (A₀.filter (fun v => mq O (p * v) ω = 1)).card ≤ lo)} = (∅ : Set Ω) by
+      ext ω; simp [hg]]
+    simpa using hE
+
+open scoped Classical in
+/-- Decisiveness at every prefix of a set the clustering never read. -/
+theorem decided_all_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) (lo ha : ℕ)
+    (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
+    (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ decided O lo ha A₀ p ω} ≤ E) :
+    μ.real {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω}
+      ≤ (C.card : ℝ) * E := by
+  classical
+  have hsub : {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω}
+      ⊆ ⋃ p ∈ C, {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω} := by
+    rintro ω ⟨p, hp, hω⟩
+    exact Set.mem_biUnion hp hω
+  have hper : ∀ p ∈ C, μ.real {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω} ≤ E := by
+    intro p hp
+    have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
+    exact decided_selected_whp O cands (readSet P cands) p lo ha
+      (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
+      hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
+  calc μ.real {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω}
+      ≤ μ.real (⋃ p ∈ C, {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω}) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ p ∈ C, μ.real {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _p ∈ C, E := Finset.sum_le_sum hper
+    _ = (C.card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
 
 open scoped Classical in
 /-- **The cut is right at every certification prefix the family is light for.**
