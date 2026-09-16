@@ -2299,6 +2299,171 @@ lemma measure_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad : S 
   exact le_trans (mul_meas_ge_le_lintegral₀ (measurable_badMass Dj Bad hmeas).aemeasurable ε)
     (lintegral_badMass_le Dj Bad hmeas E h)
 
+/-- Markov in real form. -/
+lemma measureReal_badMass_ge_le (Dj : Measure S) [IsProbabilityMeasure Dj] (Bad : S → Set Ω)
+    (hmeas : ∀ p, MeasurableSet (Bad p)) (E ε : ℝ) (hE : 0 ≤ E) (hε : 0 < ε)
+    (h : ∀ p, μ.real (Bad p) ≤ E) :
+    μ.real {ω | ε ≤ Dj.real {p | ω ∈ Bad p}} ≤ E / ε := by
+  have hset : {ω | ε ≤ Dj.real {p | ω ∈ Bad p}}
+      = {ω | ENNReal.ofReal ε ≤ Dj {p | ω ∈ Bad p}} := by
+    ext ω
+    exact (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top Dj _)).symm
+  have hEnn : ∀ p, μ (Bad p) ≤ ENNReal.ofReal E := by
+    intro p
+    rw [← ENNReal.ofReal_toReal (measure_ne_top μ (Bad p))]
+    exact ENNReal.ofReal_le_ofReal (h p)
+  have hmark := measure_badMass_ge_le (μ := μ) Dj Bad hmeas (ENNReal.ofReal E)
+    (ENNReal.ofReal ε) (by simpa using hε) (by simp) hEnn
+  rw [measureReal_def, hset]
+  calc (μ {ω | ENNReal.ofReal ε ≤ Dj {p | ω ∈ Bad p}}).toReal
+      ≤ (ENNReal.ofReal E / ENNReal.ofReal ε).toReal :=
+        ENNReal.toReal_mono
+          (ENNReal.div_ne_top ENNReal.ofReal_ne_top (by simpa using hε)) hmark
+    _ = E / ε := by
+        rw [ENNReal.toReal_div, ENNReal.toReal_ofReal hE, ENNReal.toReal_ofReal hε.le]
+
+/-! ### The population bound for one state
+
+Three things can go wrong at a population prefix: the clustering read its query strings
+(`p ∈ P`), the family flips too much of it, or the vote misses despite few flips.  The first
+is charged to the prefix mass of the table, the second to `flipCount_mass_le`, and only the
+third to the tails. -/
+
+lemma measurableSet_of_fam {fam : Ω → Finset S} {T : Finset (Finset S)}
+    (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (R : Finset S → Set Ω) (hR : ∀ A₀, MeasurableSet (R A₀)) :
+    MeasurableSet {ω | ω ∈ R (fam ω)} := by
+  classical
+  have hcover : {ω | ω ∈ R (fam ω)} = ⋃ A₀ ∈ T, ({ω | fam ω = A₀} ∩ R A₀) := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe, exists_prop]
+    refine ⟨fun h => ⟨fam ω, hfam ω, rfl, h⟩, ?_⟩
+    rintro ⟨A₀, -, he, hr⟩
+    exact he ▸ hr
+  rw [hcover]
+  exact Finset.measurableSet_biUnion _ (fun A₀ _ => (hfamMeas A₀).inter (hR A₀))
+
+open scoped Classical in
+/-- The families a prefix is light for: those the vote's tails cover. -/
+noncomputable def lightFams (O : Oracle μ S) (T : Finset (Finset S)) (f : ℝ) (p : S) :
+    Finset (Finset S) :=
+  T.filter (fun t => flipCount O t p ≤ (t.card : ℝ) * f)
+
+open scoped Classical in
+/-- The vote's own failures: at a prefix the clustering never read, for a family it is light
+for. -/
+noncomputable def lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
+    (T : Finset (Finset S)) (f : ℝ) (fam : Ω → Finset S) (p : S) : Set Ω :=
+  if p ∈ Pre ∧ p ∉ P then
+    {ω | fam ω ∈ lightFams O T f p ∧ ¬ cutCorrect O lo hi (fam ω) p ω}
+  else ∅
+
+/-- **Every prefix's own failure is exponentially unlikely.** -/
+theorem measureReal_lightBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (lo hi : ℕ)
+    (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
+    (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (f γ : ℝ) (hγ : 0 ≤ γ) (kmin : ℕ) (hk : ∀ t ∈ T, kmin ≤ t.card)
+    (hhi : ∀ t ∈ T, (t.card : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ (hi : ℝ))
+    (hlo : ∀ t ∈ T, (lo : ℝ) < (t.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ))
+    (p : S) :
+    μ.real (lightBad Pre O P lo hi T f fam p) ≤ Real.exp (-2 * (kmin : ℝ) * γ ^ 2) := by
+  classical
+  unfold lightBad
+  split_ifs with hcase
+  · refine cutCorrect_selected_whp O cands (readSet P cands) p lo hi
+      (disjoint_image_readSet hflat hP hcase.1 hcase.2) T (lightFams O T f p) t₀ ht₀ hTC
+      fam hfam hcongr _ (Real.exp_nonneg _) ?_
+    intro A₀ hA₀ hgood
+    have hlight : flipCount O A₀ p ≤ (A₀.card : ℝ) * f := (Finset.mem_filter.1 hgood).2
+    refine le_trans (cutCorrect_whp O A₀ p lo hi f γ hlight hγ (hhi A₀ hA₀) (hlo A₀ hA₀)) ?_
+    have hkc : (kmin : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hk A₀ hA₀
+    exact Real.exp_le_exp.2 (by nlinarith [sq_nonneg γ])
+  · simp [Real.exp_nonneg]
+
+lemma measurableSet_cutCorrect (O : Oracle μ S) (lo hi : ℕ) (A₀ : Finset S) (p : S) :
+    MeasurableSet {ω | ¬ cutCorrect O lo hi A₀ p ω} :=
+  noiseAlg_le O Set.univ _ (measurableSet_filter_pred_map O (T := Set.univ) (fun v => p * v)
+    (by simp) (fun U => ¬ ((hi < Finset.card U → O.label p = 1)
+      ∧ (Finset.card U ≤ lo → O.label p = 0))))
+
+lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
+    {T : Finset (Finset S)} (f : ℝ) {fam : Ω → Finset S} (hfam : ∀ ω, fam ω ∈ T)
+    (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀}) (p : S) :
+    MeasurableSet (lightBad Pre O P lo hi T f fam p) := by
+  classical
+  unfold lightBad
+  split_ifs
+  · refine measurableSet_of_fam hfam hfamMeas
+      (fun A₀ => {ω | A₀ ∈ lightFams O T f p ∧ ¬ cutCorrect O lo hi A₀ p ω}) (fun A₀ => ?_)
+    by_cases hg : A₀ ∈ lightFams O T f p
+    · simpa [hg] using measurableSet_cutCorrect O lo hi A₀ p
+    · simpa [hg] using MeasurableSet.empty
+  · exact MeasurableSet.empty
+
+/-- **One population's coverage.**  Off the table's own prefixes and off the prefixes the
+family flips too much of, the cut fails only through the vote's tails, and those are
+exponentially unlikely at each prefix.  The three slacks are what the caller has to buy:
+`Dj Preᶜ` is the population's mass outside the sampler's reach, `Dj P` the mass the
+clustering already read, and `Δ / f` the Markov price of the per-member flip bound. -/
+theorem coverage_of_run {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (Dj : Measure S) [IsProbabilityMeasure Dj]
+    (P cands : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (lo hi : ℕ)
+    (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
+    (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (f γ Δ ε : ℝ) (hγ : 0 ≤ γ) (hf : 0 < f) (hε : 0 < ε)
+    (kmin : ℕ) (hkpos : 0 < kmin) (hk : ∀ t ∈ T, kmin ≤ t.card)
+    (hhi : ∀ t ∈ T, (t.card : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ (hi : ℝ))
+    (hlo : ∀ t ∈ T, (lo : ℝ) < (t.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)) :
+    μ.real {ω | (∀ v ∈ fam ω, flipMass O Dj v ≤ Δ)
+        ∧ Dj.real Preᶜ + Dj.real ↑P + Δ / f + ε
+            ≤ Dj.real {p | ¬ cutCorrect O lo hi (fam ω) p ω}}
+      ≤ Real.exp (-2 * (kmin : ℝ) * γ ^ 2) / ε := by
+  classical
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+    (measureReal_badMass_ge_le (μ := μ) Dj (lightBad Pre O P lo hi T f fam)
+      (measurableSet_lightBad Pre O P lo hi f hfam hfamMeas)
+      (Real.exp (-2 * (kmin : ℝ) * γ ^ 2)) ε (Real.exp_nonneg _) hε
+      (measureReal_lightBad_le hflat O P cands hP lo hi T t₀ ht₀ hTC fam hfam hcongr f γ hγ
+        kmin hk hhi hlo))
+  rintro ω ⟨hgood, hshort⟩
+  have hcardpos : 0 < (fam ω).card := lt_of_lt_of_le hkpos (hk _ (hfam ω))
+  have hheavy : Dj.real {p | ¬ (fam ω ∈ lightFams O T f p)} ≤ Δ / f := by
+    refine le_trans (measureReal_mono ?_ (measure_ne_top _ _))
+      (flipCount_mass_le O Dj (fam ω) Δ f hf hcardpos hgood)
+    intro q hq
+    have : ¬ (flipCount O (fam ω) q ≤ ((fam ω).card : ℝ) * f) := by
+      intro hle
+      exact hq (Finset.mem_filter.2 ⟨hfam ω, hle⟩)
+    show f * ((fam ω).card : ℝ) ≤ flipCount O (fam ω) q
+    rw [mul_comm]
+    exact le_of_lt (not_le.1 this)
+  have hcover : {p | ¬ cutCorrect O lo hi (fam ω) p ω}
+      ⊆ (Preᶜ ∪ ↑P) ∪ ({p | ¬ (fam ω ∈ lightFams O T f p)}
+        ∪ {p | ω ∈ lightBad Pre O P lo hi T f fam p}) := by
+    intro q hq
+    by_cases hqP : q ∈ Pre ∧ q ∉ P
+    · by_cases hg : fam ω ∈ lightFams O T f q
+      · refine Or.inr (Or.inr ?_)
+        simp only [Set.mem_setOf_eq, lightBad, if_pos hqP]
+        exact ⟨hg, hq⟩
+      · exact Or.inr (Or.inl hg)
+    · rcases not_and_or.1 hqP with h | h
+      · exact Or.inl (Or.inl h)
+      · exact Or.inl (Or.inr (by simpa using h))
+  have hsub : Dj.real {p | ¬ cutCorrect O lo hi (fam ω) p ω}
+      ≤ (Dj.real Preᶜ + Dj.real ↑P)
+        + (Dj.real {p | ¬ (fam ω ∈ lightFams O T f p)}
+          + Dj.real {p | ω ∈ lightBad Pre O P lo hi T f fam p}) :=
+    le_trans (measureReal_mono hcover (measure_ne_top _ _))
+      (le_trans (measureReal_union_le _ _)
+        (add_le_add (measureReal_union_le _ _) (measureReal_union_le _ _)))
+  show ε ≤ Dj.real {p | ω ∈ lightBad Pre O P lo hi T f fam p}
+  linarith [hsub, hshort, hheavy]
+
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
 no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
