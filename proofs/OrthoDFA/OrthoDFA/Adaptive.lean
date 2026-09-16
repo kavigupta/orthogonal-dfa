@@ -2750,6 +2750,71 @@ theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
         rw [ENNReal.toReal_mul, hE, ENNReal.toReal_ofReal (Real.exp_nonneg _)]
         simp
 
+/-! ### From the clustering's empirical bound to the population's
+
+The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
+with replacement, and `flipMass` is about a fresh draw.  On the event that a population's
+draws are distinct the three agree; `pi_not_injective_le` prices the rest at `m²ρ`. -/
+
+open scoped Classical in
+lemma sum_eq_sum_prefixesOf (O : Oracle μ S) (j : J) (m : ℕ) (x : Run Ω S J) (v : S)
+    (hinj : Function.Injective (fun i : Fin m => prf j i.val x)) :
+    ∑ i : Fin m, O.flip v (prf j i.val x) = ∑ p ∈ prefixesOf j m x, O.flip v p := by
+  classical
+  unfold prefixesOf
+  rw [Finset.sum_image ?_, ← Fin.sum_univ_eq_sum_range]
+  intro a ha b hb hab
+  have := hinj (show (fun i : Fin m => prf j i.val x) ⟨a, Finset.mem_range.1 ha⟩
+    = (fun i : Fin m => prf j i.val x) ⟨b, Finset.mem_range.1 hb⟩ from hab)
+  simpa using congrArg Fin.val this
+
+open scoped Classical in
+lemma sum_prefixesOf_le_prefixesAt (O : Oracle μ S) (populations : Finset J) (j : J)
+    (hj : j ∈ populations) (m : ℕ) (x : Run Ω S J) (v : S) :
+    ∑ p ∈ prefixesOf j m x, O.flip v p ≤ ∑ p ∈ prefixesAt populations m x, O.flip v p := by
+  classical
+  refine Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun p _ _ => (flip_icc O v p).1)
+  exact fun p hp => Finset.mem_biUnion.2 ⟨j, hj, hp⟩
+
+open scoped Classical in
+lemma card_prefixesAt_le (populations : Finset J) (m : ℕ) (x : Run Ω S J) :
+    (prefixesAt populations m x).card ≤ populations.card * m := by
+  classical
+  refine le_trans (Finset.card_biUnion_le) ?_
+  calc ∑ j ∈ populations, (prefixesOf j m x).card
+      ≤ ∑ _j ∈ populations, m :=
+        Finset.sum_le_sum (fun j _ => le_trans Finset.card_image_le (by simp))
+    _ = populations.card * m := by rw [Finset.sum_const, smul_eq_mul]
+
+/-- The population's own draws are distinct, except on an `m²ρ` set. -/
+theorem prefix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) (ρ : ℝ)
+    (hρ : collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => prf j i.val x)}
+      ≤ (m : ℝ) ^ 2 * ρ := by
+  classical
+  have hmeasPrf : Measurable (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin m => measurable_prf j i.val)
+  have hpre : {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => prf j i.val x)}
+      = (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) ⁻¹'
+        {p : Fin m → S | ¬ Function.Injective p} := rfl
+  have hmeasSet : MeasurableSet {p : Fin m → S | ¬ Function.Injective p} := by
+    have hcov : {p : Fin m → S | ¬ Function.Injective p}
+        = ⋃ z : {z : Fin m × Fin m // z.1 ≠ z.2}, {p : Fin m → S | p z.val.1 = p z.val.2} := by
+      ext p
+      simp only [Set.mem_setOf_eq, Set.mem_iUnion, Function.not_injective_iff]
+      constructor
+      · rintro ⟨a, b, hab, hne⟩; exact ⟨⟨(a, b), hne⟩, hab⟩
+      · rintro ⟨⟨⟨a, b⟩, hne⟩, hab⟩; exact ⟨a, b, hab, hne⟩
+    rw [hcov]
+    exact MeasurableSet.iUnion (fun z =>
+      measurableSet_eq_fun (measurable_pi_apply _) (measurable_pi_apply _))
+  rw [hpre, measureReal_def, Measure.map_apply hmeasPrf hmeasSet
+    |>.symm.trans (congrArg (fun ν : Measure (Fin m → S) => ν _) (map_prefixBlock D Dsf j m)),
+    ← measureReal_def]
+  exact pi_not_injective_le (D j) m ρ hρ hρ0
+
 /-! ### The population bound for one state
 
 Three things can go wrong at a population prefix: the clustering read its query strings
