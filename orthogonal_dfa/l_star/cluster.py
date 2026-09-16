@@ -307,35 +307,24 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict)
 
 
-#: Coverage the clustering's selection is held to.  A candidate whose flip mass exceeds
-#: this is outranked by an accept-preserving one, so no member of the family carries more
-#: -- provided the pool has not outgrown the prefixes it is ranked over.
+#: Flip mass the ranking is required to resolve.
 CLUSTER_COVERAGE = 0.1
 
 
 def prefixes_for_pool(min_signal_strength: float, pool_size: int) -> int:
-    """Representative prefixes a pool of ``pool_size`` candidates needs before taking its
-    least-loss members is sound.
-
-    Write ``s`` for the signal strength, so a cell reads correctly with probability
-    ``1/2 + s`` and wrongly with ``1/2 - s``.
-
-    ``identify_cluster_around`` keeps the candidates whose columns sit closest to the
-    cluster's centre.  A candidate whose flip mass is ``eps`` disagrees with the centre on
-    ``2 s eps`` more of the prefixes than an accept-preserving one does, so over ``m``
-    prefixes it sits ``2 s eps m`` higher in expected loss.  Against that each candidate's
-    loss has spread ``sqrt(m (1/4 - s^2))``, and taking the best of ``M`` tries buys
-    ``sqrt(2 log M)`` of that spread for free.  Requiring the gap to survive the best of
-    the pool gives
+    """Prefixes needed for the least-loss ranking over ``pool_size`` candidates to track
+    flip mass rather than luck:
 
         m >= (1/4 - s^2) log M / (2 s^2 eps^2)
 
-    Below it the ranking is decided by which candidate got the luckiest reads rather than
-    by flip mass, and a drifted suffix can take a family slot.  The oracle's noise is
-    *persistent* -- re-reading a cell returns the same bit -- so a pool that has outgrown
-    its prefixes cannot be rescued by asking again, only by more prefixes.
+    A candidate whose flip mass is ``eps`` sits ``2 s eps m`` higher in expected loss, but
+    each loss has spread ``sqrt(m (1/4 - s^2))`` and the best of ``M`` tries gets
+    ``sqrt(2 log M)`` of that for free.  Below the line the winner is whichever candidate
+    drew the luckiest cells, and re-reading does not help: the noise is per-cell and
+    persistent.
 
-    Logarithmic in the pool, so growing it tenfold costs about a third more prefixes.
+    This says nothing about *what* the ranking tracks -- that is the centre's business, and
+    at the first iteration the centre is the seed's own column.
     """
     s = min_signal_strength
     spread = 0.25 - s**2
@@ -344,8 +333,7 @@ def prefixes_for_pool(min_signal_strength: float, pool_size: int) -> int:
 
 
 def pool_may_grow(pst, amount: int) -> bool:
-    """Whether ``amount`` more candidates would leave the pool still rankable over the
-    prefixes in hand."""
+    """Whether ``amount`` more candidates would leave the pool still rankable."""
     pool = len(pst.table.fully_observed()) + amount
     have = int(pst.table.representative.sum())
     return prefixes_for_pool(pst.config.min_signal_strength, pool) <= have
@@ -412,8 +400,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             f"decision_boundary: {decision_boundary:.4f}"
         )
 
-        # More suffixes only help while the pool stays rankable over the prefixes in
-        # hand; past that the least-loss selection is reading noise, not flip mass.
+        # Past the line the least-loss selection reads noise, not flip mass.
         if strategy == "suffix" and not pool_may_grow(pst, family_size):
             print("  pool has outgrown its prefixes; sampling prefixes instead")
             strategy = "prefix"
