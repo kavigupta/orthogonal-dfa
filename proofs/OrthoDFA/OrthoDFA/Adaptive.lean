@@ -2118,6 +2118,54 @@ lemma card_le_sideRej (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω)
   · exact h
 
 open scoped Classical in
+/-- **The accept side is short only by the prefixes that were indecisive or mis-cut.**  The
+counting form of `card_le_sideAcc`, which is what the assembly needs: both gates bound those
+two counts by a *fraction*, so requiring every prefix to behave is never necessary. -/
+lemma card_le_sideAcc_add (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
+    (C.filter (fun p => O.label p = 1)).card
+      ≤ (C.filter (fun p => ha < voteCount O F p ω)).card
+        + ((C.filter (fun p => ¬ decided O lo ha F p ω)).card
+          + (C.filter (fun p => ¬ cutCorrect O lo ha F p ω)).card) := by
+  classical
+  refine le_trans (Finset.card_le_card ?_)
+    (le_trans (Finset.card_union_le _ _) (by
+      exact Nat.add_le_add_left (Finset.card_union_le _ _) _))
+  intro p hp
+  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
+  by_cases hd : decided O lo ha F p ω
+  · by_cases hc : cutCorrect O lo ha F p ω
+    · refine Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, ?_⟩)
+      rcases hd with h | h
+      · exact h
+      · exact absurd (hc.2 h) (by rw [hl]; norm_num)
+    · exact Finset.mem_union_right _
+        (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hc⟩))
+  · exact Finset.mem_union_right _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hd⟩))
+
+open scoped Classical in
+/-- The mirror for the reject side. -/
+lemma card_le_sideRej_add (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
+    (C.filter (fun p => O.label p = 0)).card
+      ≤ (C.filter (fun p => voteCount O F p ω ≤ lo)).card
+        + ((C.filter (fun p => ¬ decided O lo ha F p ω)).card
+          + (C.filter (fun p => ¬ cutCorrect O lo ha F p ω)).card) := by
+  classical
+  refine le_trans (Finset.card_le_card ?_)
+    (le_trans (Finset.card_union_le _ _) (by
+      exact Nat.add_le_add_left (Finset.card_union_le _ _) _))
+  intro p hp
+  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
+  by_cases hd : decided O lo ha F p ω
+  · by_cases hc : cutCorrect O lo ha F p ω
+    · refine Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, ?_⟩)
+      rcases hd with h | h
+      · exact absurd (hc.1 h) (by rw [hl]; norm_num)
+      · exact h
+    · exact Finset.mem_union_right _
+        (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hc⟩))
+  · exact Finset.mem_union_right _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hd⟩))
+
+open scoped Classical in
 /-- The two sides of the gate's split, as the counts `admitted` reads them. -/
 lemma splitAcc_card (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) :
     (splitAcc O hi F P ω).2 = (P.filter (fun p => hi - 1 < voteCount O F p ω)).card := rfl
