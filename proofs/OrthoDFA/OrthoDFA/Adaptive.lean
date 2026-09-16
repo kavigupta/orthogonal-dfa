@@ -1625,6 +1625,113 @@ theorem gate_reject_sound (O : Oracle μ S) (C Q : Finset S)
     rw [hempty]
     simpa using (Real.exp_pos _).le
 
+/-! ### What the gate sees when the cut is wrong
+
+A prefix the cut gets wrong is *decided*, and decided against its label — `cutCorrect` is
+vacuous on the indecisive band, so a failure is always a confident mistake.  It therefore
+lands on one of the two sides the gate scores, carrying the wrong label with it. -/
+
+/-- A wrong prefix sits on the accept side with label `0`, or the reject side with label
+`1`. -/
+lemma wrong_mem_side (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω)
+    (h : ¬ cutCorrect O lo hi F p ω) :
+    (hi < voteCount O F p ω ∧ O.label p = 0) ∨ (voteCount O F p ω ≤ lo ∧ O.label p = 1) := by
+  unfold cutCorrect at h
+  rw [not_and_or] at h
+  rcases h with h | h
+  · rw [Classical.not_imp] at h
+    refine Or.inl ⟨h.1, ?_⟩
+    rcases O.label_bit p with hl | hl
+    · exact hl
+    · exact absurd hl h.2
+  · rw [Classical.not_imp] at h
+    refine Or.inr ⟨h.1, ?_⟩
+    rcases O.label_bit p with hl | hl
+    · exact absurd hl h.2
+    · exact hl
+
+open scoped Classical in
+/-- The wrong prefixes on the accept side: the gate scores these as accepting, and they are
+not. -/
+noncomputable def wrongAcc (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) : Finset S :=
+  P.filter (fun p => hi < voteCount O F p ω ∧ O.label p = 0)
+
+open scoped Classical in
+/-- The wrong prefixes on the reject side. -/
+noncomputable def wrongRej (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : Ω) : Finset S :=
+  P.filter (fun p => voteCount O F p ω ≤ lo ∧ O.label p = 1)
+
+open scoped Classical in
+lemma wrongAcc_subset (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) :
+    wrongAcc O hi F P ω ⊆ P.filter (fun p => hi < voteCount O F p ω) :=
+  fun p hp => by
+    obtain ⟨hpP, hlt, -⟩ := Finset.mem_filter.1 hp
+    exact Finset.mem_filter.2 ⟨hpP, hlt⟩
+
+open scoped Classical in
+lemma wrongRej_subset (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : Ω) :
+    wrongRej O lo F P ω ⊆ P.filter (fun p => voteCount O F p ω ≤ lo) :=
+  fun p hp => by
+    obtain ⟨hpP, hle, -⟩ := Finset.mem_filter.1 hp
+    exact Finset.mem_filter.2 ⟨hpP, hle⟩
+
+open scoped Classical in
+/-- Every wrong prefix is counted on one side or the other. -/
+lemma card_wrong_le (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
+    (P.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card
+      ≤ (wrongAcc O hi F P ω).card + (wrongRej O lo F P ω).card := by
+  classical
+  refine le_trans (Finset.card_le_card ?_) (Finset.card_union_le _ _)
+  intro p hp
+  obtain ⟨hpP, hbad⟩ := Finset.mem_filter.1 hp
+  rcases wrong_mem_side O lo hi F p ω hbad with h | h
+  · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpP, h⟩)
+  · exact Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpP, h⟩)
+
+open scoped Classical in
+/-- **The accept side cannot read as accepting when enough of it is truly rejecting.**
+`splitAcc_sound` with the drift expressed as a count of wrong prefixes. -/
+lemma splitAcc_sound_of_wrong (O : Oracle μ S) (A : Finset S) (θ τ w : ℝ) (hτ : 0 ≤ τ)
+    (hsig : O.η ≤ 1 / 2) (hw : w ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ))
+    (hθ : (A.card : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w ≤ (A.card : ℝ) * (θ - τ)) :
+    μ.real {ω | (A.card : ℝ) * θ ≤ ((A.filter (fun p => mq O p ω = 1)).card : ℝ)}
+      ≤ Real.exp (-2 * (A.card : ℝ) * τ ^ 2) := by
+  classical
+  refine splitAcc_sound O A θ τ hτ ?_
+  have hsum : ∑ p ∈ A, (O.η + (1 - 2 * O.η) * O.label p)
+      = (A.card : ℝ) * (1 - O.η)
+        - (1 - 2 * O.η) * ((A.filter (fun p => O.label p = 0)).card : ℝ) := by
+    rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
+      sum_label_eq O A]
+    ring
+  rw [hsum]
+  have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+  nlinarith [hw, hθ]
+
+open scoped Classical in
+/-- The mirror: the reject side cannot read as rejecting when enough of it is truly
+accepting. -/
+lemma splitRej_sound_of_wrong (O : Oracle μ S) (R : Finset S) (θ τ w : ℝ) (hτ : 0 ≤ τ)
+    (hsig : O.η ≤ 1 / 2) (hw : w ≤ ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ))
+    (hθ : (R.card : ℝ) * (θ + τ) ≤ (R.card : ℝ) * O.η + (1 - 2 * O.η) * w) :
+    μ.real {ω | ((R.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ (R.card : ℝ) * θ}
+      ≤ Real.exp (-2 * (R.card : ℝ) * τ ^ 2) := by
+  classical
+  refine splitRej_sound O R θ τ hτ ?_
+  have hsum : ∑ p ∈ R, (O.η + (1 - 2 * O.η) * O.label p)
+      = (R.card : ℝ) * O.η
+        + (1 - 2 * O.η) * ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
+    rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
+      sum_label_eq O R]
+    have hcard : ((R.filter (fun p => O.label p = 0)).card : ℝ)
+        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) = (R.card : ℝ) := by
+      exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
+        (Finset.card_filter_add_card_filter_not (s := R) (fun p => O.label p = 0))
+    nlinarith [hcard]
+  rw [hsum]
+  have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+  nlinarith [hw, hθ]
+
 /-! ### The gate in counting form
 
 The soundness argument does not need the binomial tails themselves, only what they force
