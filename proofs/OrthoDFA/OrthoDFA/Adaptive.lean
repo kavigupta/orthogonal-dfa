@@ -1481,15 +1481,18 @@ open scoped Classical in
 over their union) and the accept-preserving gate.  A family failing either is not
 returned — `judge_family` sets its FNR to 1 and the loop samples more.
 
-Both gates read the *distinct* prefixes, as the code does; the accept-preserving gate reads
-the certification draws (`certOf`), which the family was never selected from, with the seed
-dropped from the split. -/
+Both gates read the certification draws (`certOf`), which the family was never selected
+from.  For the accept-preserving gate that is issue #284; for the FNR it is PR #289, and the
+reason is the same — a family fitted to the prefixes it is then judged on votes more
+decisively there than it will on fresh ones, so an FNR read off the table comes out
+optimistic.  That matters because a cut is graded only where it decides.  The accept-
+preserving split additionally drops the seed, whose own read is the bit being scored. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : Budget) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
-      (((prefixesOf j B.m x).filter (fun p => ¬ decided O B.lo B.hi
+      (((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
           (clusterAt O populations x B) p (nz x))).card : ℝ)
-        ≤ indecisionLimit * (prefixesOf j B.m x).card)
+        ≤ indecisionLimit * (certOf j B.m x).card)
     ∧ ∀ j ∈ populations, admitted O B.lo B.hi εcov α
         ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
 
@@ -2122,6 +2125,68 @@ lemma splitAcc_card (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) :
 open scoped Classical in
 lemma splitRej_card (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : Ω) :
     (splitRej O lo F P ω).2 = (P.filter (fun p => voteCount O F p ω ≤ lo)).card := rfl
+
+open scoped Classical in
+/-- **Markov on the indecision count.**  The FNR gate asks for a *fraction*, not for every
+prefix to be decisive, so the per-prefix bound `E` only has to beat the limit `l` — no union
+over the certification set, and the cost is `E / l` rather than `|C| · E`. -/
+theorem indecision_count_le (O : Oracle μ S) (C : Finset S) (lo ha : ℕ)
+    (fam : Ω → Finset S) (good : S → Finset (Finset S)) (Bad : S → Set Ω)
+    (hBad : ∀ p, Bad p = {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω})
+    (hmeas : ∀ p, MeasurableSet (Bad p)) (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l)
+    (hCpos : 0 < C.card) (hper : ∀ p ∈ C, μ.real (Bad p) ≤ E) :
+    μ.real {ω | (∀ p ∈ C, fam ω ∈ good p)
+        ∧ l * (C.card : ℝ) < ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)}
+      ≤ E / l := by
+  classical
+  set Y : Ω → ℝ := fun ω => ∑ p ∈ C, (Bad p).indicator (fun _ => (1 : ℝ)) ω with hY
+  have hYnn : 0 ≤ᵐ[μ] Y := by
+    filter_upwards with ω
+    exact Finset.sum_nonneg (fun p _ => Set.indicator_nonneg (fun _ _ => zero_le_one) ω)
+  have hYint : Integrable Y μ :=
+    integrable_finset_sum C (fun p _ =>
+      (integrable_const (1 : ℝ)).indicator (hmeas p))
+  have hYmean : ∫ ω, Y ω ∂μ ≤ (C.card : ℝ) * E := by
+    rw [hY, integral_finset_sum _ (fun p _ => (integrable_const (1 : ℝ)).indicator (hmeas p))]
+    calc ∑ p ∈ C, ∫ ω, (Bad p).indicator (fun _ => (1 : ℝ)) ω ∂μ
+        = ∑ p ∈ C, μ.real (Bad p) :=
+          Finset.sum_congr rfl (fun p _ => integral_indicator_one (hmeas p))
+      _ ≤ ∑ _p ∈ C, E := Finset.sum_le_sum hper
+      _ = (C.card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hsub : {ω | (∀ p ∈ C, fam ω ∈ good p)
+      ∧ l * (C.card : ℝ) < ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)}
+      ⊆ {ω | l * (C.card : ℝ) ≤ Y ω} := by
+    rintro ω ⟨hgood, hlt⟩
+    refine le_trans (le_of_lt hlt) ?_
+    have hcount : ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ) ≤ Y ω := by
+      show ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)
+        ≤ ∑ p ∈ C, (Bad p).indicator (fun _ => (1 : ℝ)) ω
+      rw [← Finset.sum_filter_add_sum_filter_not C
+        (fun p => ¬ decided O lo ha (fam ω) p ω)]
+      have h1 : ∀ p ∈ C.filter (fun p => ¬ decided O lo ha (fam ω) p ω),
+          (Bad p).indicator (fun _ => (1 : ℝ)) ω = 1 := by
+        intro p hp
+        obtain ⟨hpC, hnd⟩ := Finset.mem_filter.1 hp
+        have : ω ∈ Bad p := by rw [hBad p]; exact ⟨hgood p hpC, hnd⟩
+        simp [Set.indicator_of_mem this]
+      have h2 : 0 ≤ ∑ p ∈ C.filter (fun p => ¬ ¬ decided O lo ha (fam ω) p ω),
+          (Bad p).indicator (fun _ => (1 : ℝ)) ω :=
+        Finset.sum_nonneg (fun p _ => Set.indicator_nonneg (fun _ _ => zero_le_one) ω)
+      rw [Finset.sum_congr rfl h1, Finset.sum_const, nsmul_eq_mul, mul_one]
+      linarith
+    exact hcount
+  have hmark := mul_meas_ge_le_integral_of_nonneg hYnn hYint (l * (C.card : ℝ))
+  have hCR : (0 : ℝ) < (C.card : ℝ) := by exact_mod_cast hCpos
+  have hpos : 0 < l * (C.card : ℝ) := mul_pos hl hCR
+  have hstep : (l * (C.card : ℝ)) * μ.real {ω | l * (C.card : ℝ) ≤ Y ω} ≤ (C.card : ℝ) * E :=
+    le_trans hmark hYmean
+  have hfin : μ.real {ω | (∀ p ∈ C, fam ω ∈ good p)
+      ∧ l * (C.card : ℝ) < ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)}
+      ≤ μ.real {ω | l * (C.card : ℝ) ≤ Y ω} :=
+    measureReal_mono hsub (measure_ne_top _ _)
+  rw [le_div_iff₀ hl]
+  nlinarith [hfin, hstep, measureReal_nonneg (μ := μ)
+    (s := {ω | l * (C.card : ℝ) ≤ Y ω})]
 
 open scoped Classical in
 /-- **A correct cut on sides that carry prefixes is admitted.**  The four pieces join here:
