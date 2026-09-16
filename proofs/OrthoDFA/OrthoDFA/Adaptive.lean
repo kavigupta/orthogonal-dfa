@@ -852,6 +852,23 @@ lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : Budget)
       screenedAt_subset O populations B (ω, d) hvs⟩, rfl⟩)
 
 open scoped Classical in
+/-- **Dropping the seed costs the vote one count.**  `1 ∈ F` always, so the full family's
+vote at `p` is the erased family's plus the seed's own read there. -/
+lemma voteCount_le_erase_succ (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) :
+    voteCount O F p ω ≤ voteCount O (F.erase 1) p ω + 1 := by
+  classical
+  unfold voteCount
+  have hsub : F.filter (fun v => mq O (p * v) ω = 1)
+      ⊆ insert (1 : S) ((F.erase 1).filter (fun v => mq O (p * v) ω = 1)) := by
+    intro v hv
+    obtain ⟨hvF, hvm⟩ := Finset.mem_filter.1 hv
+    by_cases h1 : v = 1
+    · rw [h1]
+      exact Finset.mem_insert_self _ _
+    · exact Finset.mem_insert_of_mem (Finset.mem_filter.2 ⟨Finset.mem_erase.2 ⟨h1, hvF⟩, hvm⟩)
+  exact le_trans (Finset.card_le_card hsub) (Finset.card_insert_le _ _)
+
+open scoped Classical in
 /-- The prefixes the gate's family accepts at population `j`. -/
 noncomputable def sideAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
     (x : Run Ω S J) : Finset S :=
@@ -2801,6 +2818,33 @@ lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
       exact absurd hjj hj
   filter_upwards [ae_all_iff.2 hcoord] with d hd j hj i
   exact hd (j, i) hj
+
+/-- **A bound at every fixed noise-and-table slice is a bound on the run.**  The
+certification draws are the last factor, so they can be sliced off on their own — which is
+what lets the gate be judged on prefixes the family was never selected from. -/
+lemma runLaw_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
+    (h : ∀ y : Ω × ((ℕ → S) × (J → ℕ → S)),
+      (Measure.infinitePi fun z : J × ℕ => D z.1)
+        {c | ((y.1, (y.2, c)) : Run Ω S J) ∈ A} ≤ E) :
+    runLaw μ D Dsf A ≤ E := by
+  set νsq : Measure ((ℕ → S) × (J → ℕ → S)) :=
+    (Measure.infinitePi fun _ : ℕ => Dsf).prod
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) with hνsq
+  set νc : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνc
+  have hmap : Measure.map (MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
+      × (J × ℕ → S) ≃ᵐ Ω × (((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)))
+      ((μ.prod νsq).prod νc) = runLaw μ D Dsf :=
+    (measurePreserving_prodAssoc μ νsq νc).map_eq
+  have hpre : runLaw μ D Dsf A = ((μ.prod νsq).prod νc)
+      ((MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
+        × (J × ℕ → S) ≃ᵐ Run Ω S J) ⁻¹' A) := by
+    rw [← hmap, Measure.map_apply (MeasurableEquiv.prodAssoc).measurable hA]
+  rw [hpre, Measure.prod_apply ((MeasurableEquiv.prodAssoc).measurable hA)]
+  calc ∫⁻ y, νc (Prod.mk y ⁻¹' (MeasurableEquiv.prodAssoc ⁻¹' A)) ∂(μ.prod νsq)
+      ≤ ∫⁻ _, E ∂(μ.prod νsq) := lintegral_mono (fun y => h y)
+    _ = E := by simp
 
 /-! ### Unioning over a drawn pool
 
