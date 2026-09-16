@@ -2916,6 +2916,65 @@ theorem pool_ap_count_le (D : J → Measure S) (Dsf : Measure S)
     ← measureReal_def]
   exact htail
 
+/-- The suffix draws are distinct, except on an `M²ρ` set — the pool is interned, so the
+indices that preserve acceptance only become that many *candidates* when they differ. -/
+theorem suffix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (M : ℕ) (ρ : ℝ)
+    (hρ : collisionMass Dsf ≤ ρ) (hρ0 : 0 ≤ ρ) :
+    (runLaw μ D Dsf).real
+        {x : Run Ω S J | ¬ Function.Injective (fun i : Fin M => sfx i.val x)}
+      ≤ (M : ℝ) ^ 2 * ρ := by
+  classical
+  have hmeasSfx : Measurable (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin M => measurable_sfx i.val)
+  have hmeasSet : MeasurableSet {q : Fin M → S | ¬ Function.Injective q} := by
+    have hcov : {q : Fin M → S | ¬ Function.Injective q}
+        = ⋃ z : {z : Fin M × Fin M // z.1 ≠ z.2}, {q : Fin M → S | q z.val.1 = q z.val.2} := by
+      ext q
+      simp only [Set.mem_setOf_eq, Set.mem_iUnion, Function.not_injective_iff]
+      constructor
+      · rintro ⟨a, b, hab, hne⟩; exact ⟨⟨(a, b), hne⟩, hab⟩
+      · rintro ⟨⟨⟨a, b⟩, hne⟩, hab⟩; exact ⟨a, b, hab, hne⟩
+    rw [hcov]
+    exact MeasurableSet.iUnion (fun z =>
+      measurableSet_eq_fun (measurable_pi_apply _) (measurable_pi_apply _))
+  have hpre : {x : Run Ω S J | ¬ Function.Injective (fun i : Fin M => sfx i.val x)}
+      = (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) ⁻¹'
+        {q : Fin M → S | ¬ Function.Injective q} := rfl
+  rw [hpre, measureReal_def, Measure.map_apply hmeasSfx hmeasSet
+    |>.symm.trans (congrArg (fun ν : Measure (Fin M → S) => ν _) (map_suffixBlock D Dsf M)),
+    ← measureReal_def]
+  exact pi_not_injective_le Dsf M ρ hρ hρ0
+
+open scoped Classical in
+/-- **From accept-preserving indices to accept-preserving candidates.**  On distinct draws
+the pool holds one candidate per index, so the index count is a lower bound on the
+candidates the clustering's ranking can draw on.  Preserving acceptance everywhere is
+stronger than flipping nothing on the table, which is what the ranking asks for. -/
+lemma card_good_pool_ge (O : Oracle μ S) (M : ℕ) (P : Finset S) (x : Run Ω S J)
+    (hinj : Function.Injective (fun i : Fin M => sfx i.val x)) :
+    ∑ i : Fin M, apBit O (sfx i.val x)
+      ≤ (((poolAt M x).filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card : ℝ) := by
+  classical
+  set G : Finset (Fin M) := Finset.univ.filter
+    (fun i => sfx i.val x ∈ {w : S | ∀ p : S, O.label (p * w) = O.label p}) with hG
+  have hsum : ∑ i : Fin M, apBit O (sfx i.val x) = (G.card : ℝ) := by
+    rw [hG, Finset.card_filter, Nat.cast_sum]
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    by_cases h : sfx i.val x ∈ {w : S | ∀ p : S, O.label (p * w) = O.label p} <;>
+      simp [apBit, Set.indicator_apply, h]
+  rw [hsum]
+  refine Nat.cast_le.2 (Finset.card_le_card_of_injOn (fun i : Fin M => sfx i.val x) ?_ ?_)
+  · intro i hi
+    have hap : ∀ p : S, O.label (p * sfx i.val x) = O.label p := (Finset.mem_filter.1 hi).2
+    refine Finset.mem_filter.2 ⟨Finset.mem_insert_of_mem (Finset.mem_image.2
+      ⟨i.val, Finset.mem_range.2 i.isLt, rfl⟩), Finset.sum_eq_zero (fun p _ => ?_)⟩
+    show O.label (p * sfx i.val x) + O.label p - 2 * O.label (p * sfx i.val x) * O.label p = 0
+    rw [hap p]
+    rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
+  · intro a _ b _ hab
+    exact hinj hab
+
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
