@@ -1554,12 +1554,13 @@ from.  For the accept-preserving gate that is issue #284; for the FNR it is PR #
 reason is the same — a family fitted to the prefixes it is then judged on votes more
 decisively there than it will on fresh ones, so an FNR read off the table comes out
 optimistic.  That matters because a cut is graded only where it decides.  The accept-
-preserving split additionally drops the seed, whose own read is the bit being scored. -/
+preserving split additionally drops the seed, whose own read is the bit being scored — and
+the FNR is read off that same seed-dropped vote, so the two gates grade one cut. -/
 noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : Budget) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
       (((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
-          (clusterAt O populations x B) p (nz x))).card : ℝ)
+          ((clusterAt O populations x B).erase 1) p (nz x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.m x).card)
     ∧ ∀ j ∈ populations, admitted O B.lo B.hi εcov α
         ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
@@ -4756,13 +4757,14 @@ all-accepting population leaves the reject side empty and nothing can admit — 
 as hypotheses about the draws rather than becoming a knob. -/
 theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C) (hdisjQ : Disjoint (↑C : Set S) (↑(readSet P cands) : Set S))
+    (hPC : Disjoint P C) (Q : Finset S) (hQsup : readSet P cands ⊆ Q)
+    (hdisjQ : Disjoint (↑C : Set S) (↑Q : Set S))
     (lo hi : ℕ) (εcov α τ l : ℝ) (n₀ : ℕ)
     (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
     (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
     (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
-    (hQ : ∀ ω, ∀ p ∈ C, ∀ v ∈ fam ω, p * v ∈ readSet P cands)
+    (hQ : ∀ ω, ∀ p ∈ C, ∀ v ∈ fam ω, p * v ∈ Q)
     (E : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
     (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
     (hdec : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
@@ -4861,8 +4863,9 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   · refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
     · exact miscut_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
         fam hfam hfamMeas hcongr E l hE hl hCpos hcut
-    · exact admitted_whp O C (readSet P cands) hdisjQ lo hi εcov α τ (2 * l * (C.card : ℝ)) n₀
-        fam hQ hcongr hτ hε0 hε1 hsig hga hgr hα
+    · exact admitted_whp O C Q hdisjQ lo hi εcov α τ (2 * l * (C.card : ℝ)) n₀
+        fam hQ (fun ω ω' h => hcongr ω ω' (fun w hw => h w (hQsup hw)))
+        hτ hε0 hε1 hsig hga hgr hα
 
 lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
     {T : Finset (Finset S)} (f : ℝ) {fam : Ω → Finset S} (hfam : ∀ ω, fam ω ∈ T)
