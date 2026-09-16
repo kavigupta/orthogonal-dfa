@@ -972,6 +972,25 @@ lemma measurableSet_filter_pred (O : Oracle μ S) {T : Set S} {A : Finset S} (hA
   exact fun U _ => measurableSet_filter_fiber O hA U
 
 open scoped Classical in
+/-- The same when the reads are taken at shifted strings `r v` rather than at `v` itself:
+the vote at a population prefix reads `p · v`, not `v`. -/
+lemma measurableSet_filter_pred_map (O : Oracle μ S) {T : Set S} {A : Finset S} (r : S → S)
+    (hA : ∀ v ∈ A, r v ∈ T) (P : Finset S → Prop) :
+    MeasurableSet[noiseAlg O T] {ω | P (A.filter (fun v => mq O (r v) ω = 1))} := by
+  classical
+  have hcover : {ω | P (A.filter (fun v => mq O (r v) ω = 1))}
+      = ⋃ U ∈ A.powerset.filter P, {ω | A.filter (fun v => mq O (r v) ω = 1) = U} := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_coe, Finset.mem_filter,
+      Finset.mem_powerset, exists_prop]
+    refine ⟨fun h => ⟨_, ⟨Finset.filter_subset _ _, h⟩, rfl⟩, ?_⟩
+    rintro ⟨U, ⟨-, hPU⟩, rfl⟩
+    exact hPU
+  rw [hcover]
+  refine Finset.measurableSet_biUnion _ (fun U _ => ?_)
+  exact measurableSet_filter_fiber' O _ (fun v hv => measurableSet_mq_eq_one O (hA v hv)) U
+
+open scoped Classical in
 /-- **Congruence becomes measurability.**  A side decided by a block's bits is, on the clean
 runs, a union of that block's pattern fibres. -/
 lemma measurableSet_side_clean (O : Oracle μ S) (Q : Finset S) (side : Ω → Finset S)
@@ -999,38 +1018,42 @@ lemma measurableSet_side_clean (O : Oracle μ S) (Q : Finset S) (side : Ω → F
   exact fun t _ => (measurableSet_noisePattern O Q t).inter (measurableSet_noiseClean O Q)
 
 open scoped Classical in
-/-- **The gate's worst case survives the side being chosen by the clustering.**
+/-- **A worst case survives the side being chosen elsewhere.**
 
 `hbad` bounds the score's failure for each *fixed* side; the conclusion bounds it for the
 side the run actually produces.  What makes that free is that the side is decided by the
-block `Q` and the score reads the block `C`, and those are disjoint. -/
-theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+block `Q` while the score reads the strings `r '' C`, and those are disjoint.  The gate
+takes `r = id` (it scores prefixes); the vote at a population prefix `p` takes
+`r v = p * v`. -/
+theorem selection_side_bound (O : Oracle μ S) (C Q : Finset S) (r : S → S)
+    (hdisj : Disjoint (↑(C.image r) : Set S) (↑Q : Set S))
+    (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ C)
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ∈ T)
     (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
     (P : Finset S → Finset S → Prop) (E : ℝ) (hE : 0 ≤ E)
-    (hbad : ∀ A₀ ∈ C.powerset, μ.real {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} ≤ E) :
-    μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))} ≤ E := by
+    (hbad : ∀ A₀ ∈ T, μ.real {ω | P A₀ (A₀.filter (fun v => mq O (r v) ω = 1))} ≤ E) :
+    μ.real {ω | P (side ω) ((side ω).filter (fun v => mq O (r v) ω = 1))} ≤ E := by
   classical
   set Bad : Finset S → Set Ω :=
-    fun A₀ => {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} with hBaddef
-  set side' : Ω → Finset S := fun ω => if ω ∈ noiseClean O Q then side ω else ∅ with hside'def
+    fun A₀ => {ω | P A₀ (A₀.filter (fun v => mq O (r v) ω = 1))} with hBaddef
+  set side' : Ω → Finset S := fun ω => if ω ∈ noiseClean O Q then side ω else t₀ with hside'def
   have hmeasBad : ∀ A₀, MeasurableSet (Bad A₀) := fun A₀ =>
-    noiseAlg_le O Set.univ _ (measurableSet_filter_pred O (T := Set.univ) (by simp) _)
-  have hmeasBadC : ∀ A₀ ∈ C.powerset, MeasurableSet[noiseAlg O ↑C] (Bad A₀) := fun A₀ hA₀ =>
-    measurableSet_filter_pred O (by exact_mod_cast Finset.mem_powerset.1 hA₀) _
-  have hsel' : ∀ ω, side' ω ∈ C.powerset := by
+    noiseAlg_le O Set.univ _ (measurableSet_filter_pred_map O (T := Set.univ) r (by simp) _)
+  have hmeasBadC : ∀ A₀ ∈ T, MeasurableSet[noiseAlg O ↑(C.image r)] (Bad A₀) :=
+    fun A₀ hA₀ => measurableSet_filter_pred_map O r
+      (fun v hv => Finset.mem_image_of_mem r (hTC A₀ hA₀ hv)) _
+  have hsel' : ∀ ω, side' ω ∈ T := by
     intro ω
     rw [hside'def]
     by_cases hc : ω ∈ noiseClean O Q
-    · simp [hc, Finset.mem_powerset, hside ω]
-    · simp [hc, Finset.empty_mem_powerset]
+    · simpa [hc] using hside ω
+    · simpa [hc] using ht₀
   have hsplit : ∀ A₀, {ω | side' ω = A₀}
-      = ({ω | side ω = A₀} ∩ noiseClean O Q) ∪ (if A₀ = ∅ then (noiseClean O Q)ᶜ else ∅) := by
+      = ({ω | side ω = A₀} ∩ noiseClean O Q) ∪ (if A₀ = t₀ then (noiseClean O Q)ᶜ else ∅) := by
     intro A₀
     ext ω
-    by_cases hc : ω ∈ noiseClean O Q <;> by_cases he : A₀ = ∅ <;>
-      simp [hside'def, hc, he, Set.mem_setOf_eq, eq_comm (a := (∅ : Finset S))]
+    by_cases hc : ω ∈ noiseClean O Q <;> by_cases he : A₀ = t₀ <;>
+      simp [hside'def, hc, he, Set.mem_setOf_eq, eq_comm (a := t₀)]
   have hmeasSelQ : ∀ A₀, MeasurableSet[noiseAlg O ↑Q] {ω | side' ω = A₀} := by
     intro A₀
     rw [hsplit A₀]
@@ -1040,16 +1063,16 @@ theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
     · exact (noiseAlg O ↑Q).measurableSet_empty
   have hmeasSel : ∀ A₀, MeasurableSet {ω | side' ω = A₀} := fun A₀ =>
     noiseAlg_le O ↑Q _ (hmeasSelQ A₀)
-  have hindep : ∀ A₀ ∈ C.powerset,
+  have hindep : ∀ A₀ ∈ T,
       μ.real ({ω | side' ω = A₀} ∩ Bad A₀) = μ.real {ω | side' ω = A₀} * μ.real (Bad A₀) := by
     intro A₀ hA₀
     have hI := (indep_noiseAlg O hdisj.symm).indepSet_of_measurableSet (hmeasSelQ A₀)
       (hmeasBadC A₀ hA₀)
     have := hI.measure_inter_eq_mul
     simp only [measureReal_def, this, ENNReal.toReal_mul]
-  have hmain := measureReal_selection_le (μ := μ) C.powerset side' hsel' hmeasSel Bad hmeasBad E
+  have hmain := measureReal_selection_le (μ := μ) T side' hsel' hmeasSel Bad hmeasBad E
     hindep (fun A₀ hA₀ => hbad A₀ hA₀) hE
-  have hsub : {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))}
+  have hsub : {ω | P (side ω) ((side ω).filter (fun v => mq O (r v) ω = 1))}
       ⊆ {ω | ω ∈ Bad (side' ω)} ∪ (noiseClean O Q)ᶜ := by
     intro ω hω
     by_cases hc : ω ∈ noiseClean O Q
@@ -1059,12 +1082,24 @@ theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
       simp only [hc, if_pos]
       exact hω
     · exact Or.inr hc
-  calc μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))}
+  calc μ.real {ω | P (side ω) ((side ω).filter (fun v => mq O (r v) ω = 1))}
       ≤ μ.real ({ω | ω ∈ Bad (side' ω)} ∪ (noiseClean O Q)ᶜ) :=
         measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ μ.real {ω | ω ∈ Bad (side' ω)} + μ.real (noiseClean O Q)ᶜ := measureReal_union_le _ _
     _ = μ.real {ω | ω ∈ Bad (side' ω)} := by rw [noiseClean_ae O Q, add_zero]
     _ ≤ E := hmain
+
+/-- The gate's instance: it scores the prefixes themselves. -/
+theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
+    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
+    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
+    (P : Finset S → Finset S → Prop) (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ A₀ ∈ C.powerset, μ.real {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} ≤ E) :
+    μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))} ≤ E :=
+  selection_side_bound O C Q id (by simpa using hdisj) C.powerset ∅ (Finset.empty_mem_powerset C)
+    (fun t ht => Finset.mem_powerset.1 ht) side (fun ω => Finset.mem_powerset.2 (hside ω))
+    hcongr P E hE hbad
 
 open scoped Classical in
 /-- The label sum over a block splits into its truly-rejecting and truly-accepting parts. -/
@@ -1987,30 +2022,189 @@ the margin suggests.  Markov over the members' flip masses then gives a misclass
 of about `1.5 · Δ` rather than `Δ / eps`, which is a factor of six. -/
 
 open scoped Classical in
-/-- **A rejecting prefix is accepted only if the flips carry it.**  Members that preserve at
-`p` read accepting only through noise. -/
-lemma voteCount_le_flips_add_noise (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω)
-    (hp : O.label p = 0) :
-    voteCount O F p ω ≤ (F.filter (fun v => O.flip v p = 1)).card
-      + (F.filter (fun v => O.flip v p = 0 ∧ O.noise (p * v) ω = 1)).card := by
+/-- The number of the family's members that flip at a prefix, as a real. -/
+noncomputable def flipCount (O : Oracle μ S) (F : Finset S) (p : S) : ℝ :=
+  ((F.filter (fun v => O.flip v p = 1)).card : ℝ)
+
+lemma flipCount_eq_sum (O : Oracle μ S) (F : Finset S) (p : S) :
+    flipCount O F p = ∑ v ∈ F, O.flip v p := by
   classical
-  unfold voteCount
-  have hsub : F.filter (fun v => mq O (p * v) ω = 1)
-      ⊆ F.filter (fun v => O.flip v p = 1)
-        ∪ F.filter (fun v => O.flip v p = 0 ∧ O.noise (p * v) ω = 1) := by
-    intro v hv
-    obtain ⟨hvF, hvm⟩ := Finset.mem_filter.1 hv
-    rcases O.flip_bit v p with hf | hf
-    · refine Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hvF, hf, ?_⟩)
-      have hlab : O.label (p * v) = 0 := by
-        have : O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0 := hf
-        rw [hp] at this
-        simpa using this
-      have : O.label (p * v) + (1 - 2 * O.label (p * v)) * O.noise (p * v) ω = 1 := hvm
-      rw [hlab] at this
-      simpa using this
-    · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hvF, hf⟩)
-  exact le_trans (Finset.card_le_card hsub) (Finset.card_union_le _ _)
+  unfold flipCount
+  rw [← Finset.sum_filter_add_sum_filter_not F (fun v => O.flip v p = 1)]
+  have h1 : ∑ v ∈ F.filter (fun v => O.flip v p = 1), O.flip v p
+      = ((F.filter (fun v => O.flip v p = 1)).card : ℝ) := by
+    rw [Finset.sum_congr rfl (fun v hv => (Finset.mem_filter.1 hv).2), Finset.sum_const,
+      nsmul_eq_mul, mul_one]
+  have h0 : ∑ v ∈ F.filter (fun v => ¬ (O.flip v p = 1)), O.flip v p = 0 := by
+    refine Finset.sum_eq_zero (fun v hv => ?_)
+    obtain ⟨-, hne⟩ := Finset.mem_filter.1 hv
+    rcases O.flip_bit v p with h | h
+    · exact h
+    · exact absurd h hne
+  rw [h1, h0, add_zero]
+
+lemma flip_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v : S) :
+    Integrable (fun p => O.flip v p) Dj :=
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (flip_meas O v).aemeasurable
+    (Filter.Eventually.of_forall (fun p => flip_icc O v p))
+
+/-- **Markov over the family's flip masses.**  If no member flips more than a `Δ` mass of
+the population, the mass of prefixes where a `c` fraction of the family flips is at most
+`Δ / c`.
+
+With `voteCount_le_flips_add_noise` this is what turns per-member flip mass into
+misclassified mass: the band puts `c = (s + eps) / (2 * s)`, so the price is a constant
+near `3 / 2`, not the `1 / eps` a naive reading of the band charges. -/
+theorem flipCount_mass_le (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj]
+    (F : Finset S) (Δ c : ℝ) (hc : 0 < c) (hFne : 0 < F.card)
+    (hF : ∀ v ∈ F, flipMass O Dj v ≤ Δ) :
+    Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p} ≤ Δ / c := by
+  classical
+  have hcard : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hFne
+  have hsum : ∀ p, flipCount O F p = ∑ v ∈ F, O.flip v p := flipCount_eq_sum O F
+  have hint : Integrable (fun p => flipCount O F p) Dj := by
+    refine ((integrable_finset_sum F (fun v _ => flip_integrable O Dj v)).congr ?_)
+    exact Filter.Eventually.of_forall (fun p => (hsum p).symm)
+  have hnn : 0 ≤ᵐ[Dj] fun p => flipCount O F p :=
+    Filter.Eventually.of_forall (fun p => Nat.cast_nonneg _)
+  have hInt : ∫ p, flipCount O F p ∂Dj = ∑ v ∈ F, flipMass O Dj v := by
+    rw [integral_congr_ae (Filter.Eventually.of_forall hsum),
+      integral_finset_sum _ (fun v _ => flip_integrable O Dj v)]
+    rfl
+  have hmark := mul_meas_ge_le_integral_of_nonneg hnn hint (c * (F.card : ℝ))
+  rw [hInt] at hmark
+  have hle : ∑ v ∈ F, flipMass O Dj v ≤ (F.card : ℝ) * Δ := by
+    calc ∑ v ∈ F, flipMass O Dj v ≤ ∑ _v ∈ F, Δ := Finset.sum_le_sum hF
+      _ = (F.card : ℝ) * Δ := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hstep : (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})
+      ≤ (F.card : ℝ) * Δ := by
+    calc (F.card : ℝ) * (c * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p})
+        = c * (F.card : ℝ) * Dj.real {p | c * (F.card : ℝ) ≤ flipCount O F p} := by ring
+      _ ≤ ∑ v ∈ F, flipMass O Dj v := hmark
+      _ ≤ (F.card : ℝ) * Δ := hle
+  have := le_of_mul_le_mul_left hstep hcard
+  rw [le_div_iff₀ hc]
+  linarith
+
+open scoped Classical in
+/-- The vote as a sum of reads, which is what concentrates; a.e. equal to `voteCount`. -/
+noncomputable def voteSum (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ :=
+  ∑ v ∈ F, mq O (p * v) ω
+
+lemma voteCount_eq_voteSum (O : Oracle μ S) (F : Finset S) (p : S) :
+    ∀ᵐ ω ∂μ, ((voteCount O F p ω : ℝ)) = voteSum O F p ω := by
+  classical
+  filter_upwards [(ae_ball_iff F.countable_toSet).2 (fun v _ => mq_bit O (p * v))] with ω hω
+  unfold voteCount voteSum
+  rw [← Finset.sum_filter_add_sum_filter_not F (fun v => mq O (p * v) ω = 1)]
+  have h1 : ∑ v ∈ F.filter (fun v => mq O (p * v) ω = 1), mq O (p * v) ω
+      = ((F.filter (fun v => mq O (p * v) ω = 1)).card : ℝ) := by
+    rw [Finset.sum_congr rfl (fun v hv => (Finset.mem_filter.1 hv).2), Finset.sum_const,
+      nsmul_eq_mul, mul_one]
+  have h0 : ∑ v ∈ F.filter (fun v => ¬ (mq O (p * v) ω = 1)), mq O (p * v) ω = 0 := by
+    refine Finset.sum_eq_zero (fun v hv => ?_)
+    obtain ⟨hvF, hne⟩ := Finset.mem_filter.1 hv
+    rcases hω v hvF with h | h
+    · exact h
+    · exact absurd h hne
+  rw [h1, h0, add_zero]
+
+lemma voteSum_meanSum (O : Oracle μ S) (F : Finset S) (p : S) :
+    ∑ v ∈ F, μ[mq O (p * v)]
+      = (F.card : ℝ) * O.η + (1 - 2 * O.η) * ∑ v ∈ F, O.label (p * v) := by
+  rw [Finset.sum_congr rfl (fun v _ => mq_mean O (p * v)), Finset.sum_add_distrib,
+    Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum]
+
+lemma mq_indep_shift (O : Oracle μ S) (p : S) :
+    iIndepFun (fun v : S => mq O (p * v)) μ :=
+  (mq_indep O).precomp (mul_right_injective p)
+
+/-- **Upper tail on a rejecting prefix.**  A flip fraction of `f` lifts the vote's mean only
+to `η + 2 * s * f`. -/
+theorem voteSum_upper (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 0)
+    (f γ : ℝ) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ voteSum O F p ω}
+      ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  have hlab : ∀ v ∈ F, O.label (p * v) = O.flip v p := by
+    intro v _
+    show O.label (p * v) = O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
+    rw [hp]; ring
+  have hmean : ∑ v ∈ F, μ[mq O (p * v)] ≤ (F.card : ℝ) * (O.η + (1 - 2 * O.η) * f) := by
+    rw [voteSum_meanSum, Finset.sum_congr rfl hlab, ← flipCount_eq_sum]
+    have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+    nlinarith [hf]
+  exact sumUpper_le (fun v : S => mq O (p * v)) F (O.η + (1 - 2 * O.η) * f) γ
+    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
+
+/-- **Lower tail on an accepting prefix.**  Mirror of `voteSum_upper`: the vote's mean only
+falls to `1 - η - 2 * s * f`. -/
+theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 1)
+    (f γ : ℝ) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | voteSum O F p ω ≤ (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)}
+      ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  have hlab : ∀ v ∈ F, O.label (p * v) = 1 - O.flip v p := by
+    intro v _
+    show O.label (p * v) = 1 - (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p)
+    rw [hp]; ring
+  have hmean : (F.card : ℝ) * (O.η + (1 - 2 * O.η) * (1 - f)) ≤ ∑ v ∈ F, μ[mq O (p * v)] := by
+    rw [voteSum_meanSum, Finset.sum_congr rfl hlab, Finset.sum_sub_distrib, Finset.sum_const,
+      nsmul_eq_mul, mul_one, ← flipCount_eq_sum]
+    have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+    nlinarith [hf]
+  exact sumLower_le (fun v : S => mq O (p * v)) F (O.η + (1 - 2 * O.η) * (1 - f)) γ
+    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
+
+/-- **The cut survives the family being chosen by the clustering.**  At a population prefix
+whose query strings the clustering never read, the family is decided by bits independent of
+the ones the vote reads, so the fixed-family bound carries over. -/
+theorem cutCorrect_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (lo hi : ℕ)
+    (hdisj : Disjoint (↑(cands.image (fun v => p * v)) : Set S) (↑Q : Set S))
+    (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T) (hTC : ∀ t ∈ T, t ⊆ cands)
+    (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ A₀ ∈ T, μ.real {ω | ¬ cutCorrect O lo hi A₀ p ω} ≤ E) :
+    μ.real {ω | ¬ cutCorrect O lo hi (fam ω) p ω} ≤ E :=
+  selection_side_bound O cands Q (fun v => p * v) hdisj T t₀ ht₀ hTC fam hfam hcongr
+    (fun _ U => ¬ ((hi < U.card → O.label p = 1) ∧ (U.card ≤ lo → O.label p = 0))) E hE hbad
+
+lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A → ω ∈ B) :
+    μ.real A ≤ μ.real B :=
+  ENNReal.toReal_mono (measure_ne_top μ B) (measure_mono_ae h)
+
+/-- **The cut is correct at a prefix the family barely flips.**  Only the side the prefix
+actually sits on can fail, so one tail — not two — pays for it. -/
+theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ)
+    (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ)
+    (hhi : (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ (hi : ℝ))
+    (hlo : (lo : ℝ) < (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)) :
+    μ.real {ω | ¬ cutCorrect O lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  rcases O.label_bit p with hp | hp
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp f γ hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hacc : ¬ (hi < voteCount O F p ω → O.label p = 1) := by
+      intro hacc
+      exact hbad ⟨hacc, fun _ => hp⟩
+    have hgt : hi < voteCount O F p ω := by
+      by_contra hc
+      exact hacc (fun h => absurd h hc)
+    have : (hi : ℝ) < (voteCount O F p ω : ℝ) := by exact_mod_cast hgt
+    show (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * f) + γ) ≤ voteSum O F p ω
+    rw [← heq]; linarith
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp f γ hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hrej : ¬ (voteCount O F p ω ≤ lo → O.label p = 0) := by
+      intro hrej
+      exact hbad ⟨fun _ => hp, hrej⟩
+    have hle : voteCount O F p ω ≤ lo := by
+      by_contra hc
+      exact hrej (fun h => absurd h hc)
+    have : (voteCount O F p ω : ℝ) ≤ (lo : ℝ) := by exact_mod_cast hle
+    show voteSum O F p ω ≤ (F.card : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - f)) - γ)
+    rw [← heq]; linarith
 
 /-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
 per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
