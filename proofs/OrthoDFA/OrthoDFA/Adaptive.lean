@@ -3137,6 +3137,49 @@ theorem lloyd_step_ranked_by_excluded (O : Oracle μ S) (cn cd : ℕ) (P cands :
   fun v hv => leastLossSubset_least (clusterLoss O F cn cd P cands ω) cands k hk v hv w hw hwn
 
 open scoped Classical in
+/-- **An accept-preserving candidate passes the screen.**  Its disagreement with the seed's
+column has mean exactly `2η(1−η)` — two noisy reads of the same bit — so a cutoff `γ` above
+that is cleared except in the upper tail.  This is `screen_tail`'s mirror, and it is what
+keeps the candidate pool from emptying. -/
+theorem screen_pass {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
+    (γ : ℝ) (sc : ℕ) (hγ : 0 ≤ γ)
+    (hclean : ∀ p ∈ P, O.flip v p = 0)
+    (hsc : (P.card : ℝ) * (2 * O.η * (1 - O.η) + γ) ≤ (sc : ℝ)) :
+    μ.real {ω | ¬ (screenCount O P v ω ≤ sc)} ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+  classical
+  set b : ℝ := 2 * O.η * (1 - O.η) with hb
+  have hcard : ((Finset.univ : Finset {p // p ∈ P}).card : ℝ) = (P.card : ℝ) := by
+    simp [Finset.card_univ]
+  have hmean : ∑ i : {p // p ∈ P}, μ[seedLoss O cn cd v i.val]
+      ≤ ((Finset.univ : Finset {p // p ∈ P}).card : ℝ) * b := by
+    rw [Finset.sum_congr rfl
+      (fun i _ => seedLoss_mean O hcd v i.val (mul_ne_self i.val v hv)),
+      Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ]
+    simp only [nsmul_eq_mul, Fintype.card_coe]
+    have hzero : ∑ i : {p // p ∈ P}, O.flip v i.val * (1 - 2 * O.η) ^ 2 = 0 :=
+      Finset.sum_eq_zero (fun i _ => by rw [hclean i.val i.property]; ring)
+    rw [hzero, hb]
+    simp
+  have htail := sumUpper_le (fun (i : {p // p ∈ P}) => seedLoss O cn cd v i.val)
+    (Finset.univ : Finset {p // p ∈ P}) b γ
+    (fun i => (seedLoss_meas O cn cd v i.val).aemeasurable)
+    (seedLoss_indep hflat O cn cd hP v)
+    (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
+  rw [hcard] at htail
+  refine le_trans (measureReal_mono ?_ (measure_ne_top _ _)) htail
+  intro ω hω
+  show (P.card : ℝ) * (b + γ) ≤ ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω
+  have hsum : ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω
+      = ∑ p ∈ P, seedLoss O cn cd v p ω :=
+    Finset.sum_attach P (fun p => seedLoss O cn cd v p ω)
+  rw [hsum, ← screenCount_eq_sum O hcd P v ω]
+  have : (sc : ℝ) < ((screenCount O P v ω : ℕ) : ℝ) := by
+    have := not_le.1 hω
+    exact_mod_cast this
+  linarith
+
+open scoped Classical in
 /-- **The values the family can take.**  The iterate starts at the seed and every step
 either keeps its argument or returns a `k`-subset, so the family is one of finitely many
 `Finset`s and each has `k` members unless it is the seed alone. -/
@@ -5481,6 +5524,135 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
       simp [hsec]
   rw [measureReal_def]
   calc (runLaw μ D Dsf (screenBad O populations B Δ)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
+open scoped Classical in
+/-- The runs where an accept-preserving candidate the pool holds is thrown out by the
+screen.  Off this event the pool's accept-preserving draws all survive to be clustered. -/
+noncomputable def screenFail (O : Oracle μ S) (populations : Finset J) (B : Budget) :
+    Set (Run Ω S J) :=
+  {x | B.m ≤ (prefixesAt populations B.m x).card
+    ∧ ¬ ∀ v ∈ poolAt B.M x, v ≠ 1 → (∀ p, O.label (p * v) = O.label p) →
+      screenCount O (prefixesAt populations B.m x) v (nz x) ≤ B.sc}
+
+open scoped Classical in
+lemma measurableSet_screenFail (O : Oracle μ S) (populations : Finset J) (B : Budget) :
+    MeasurableSet (screenFail O populations B) := by
+  classical
+  have hR : ∀ P C : Finset S, MeasurableSet (if B.m ≤ P.card then
+      {x : Run Ω S J | ¬ ∀ v ∈ C, v ≠ 1 → (∀ p, O.label (p * v) = O.label p) →
+        screenCount O P v (nz x) ≤ B.sc} else ∅) := by
+    intro P C
+    split_ifs with hm
+    · have hset : {x : Run Ω S J | ¬ ∀ v ∈ C, v ≠ 1 → (∀ p, O.label (p * v) = O.label p) →
+          screenCount O P v (nz x) ≤ B.sc}
+          = nz ⁻¹' (⋃ v ∈ C.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p),
+            {ω : Ω | ¬ (screenCount O P v ω ≤ B.sc)}) := by
+        ext x
+        simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_iUnion, Finset.mem_coe,
+          Finset.mem_filter, exists_prop, not_forall]
+        constructor
+        · rintro ⟨v, hv, hv1, hap, hfail⟩
+          exact ⟨v, ⟨hv, hv1, hap⟩, hfail⟩
+        · rintro ⟨v, ⟨hv, hv1, hap⟩, hfail⟩
+          exact ⟨v, hv, hv1, hap, hfail⟩
+      rw [hset]
+      exact measurable_nz (Finset.measurableSet_biUnion _
+        (fun v _ => (measurableSet_screenCount_le O P v B.sc).compl))
+    · exact MeasurableSet.empty
+  have hrw : screenFail O populations B
+      = {x : Run Ω S J | x ∈ (fun P C => if B.m ≤ P.card then
+          {x : Run Ω S J | ¬ ∀ v ∈ C, v ≠ 1 → (∀ p, O.label (p * v) = O.label p) →
+            screenCount O P v (nz x) ≤ B.sc} else ∅)
+        (prefixesAt populations B.m x) (poolAt B.M x)} := by
+    ext x
+    simp only [screenFail, Set.mem_setOf_eq]
+    by_cases hm : B.m ≤ (prefixesAt populations B.m x).card
+    · rw [if_pos hm]
+      exact ⟨fun h => h.2, fun h => ⟨hm, h⟩⟩
+    · rw [if_neg hm]
+      exact ⟨fun h => absurd h.1 hm, fun h => absurd h (Set.notMem_empty x)⟩
+  rw [hrw]
+  exact measurableSet_of_run_data populations B _ hR
+
+open scoped Classical in
+/-- **The screen keeps the accept-preserving candidates.**  One `screen_pass` per pool
+member; the cutoff sits above the clean rate `2η(1−η)` by `γ`. -/
+theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : Budget) (hcd : B.cn < B.cd)
+    (γ : ℝ) (hγ : 0 ≤ γ)
+    (hsc : ∀ n : ℕ, n ≤ populations.card * B.m →
+      (n : ℝ) * (2 * O.η * (1 - O.η) + γ) ≤ (B.sc : ℝ)) :
+    (runLaw μ D Dsf).real (screenFail O populations B)
+      ≤ ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) := by
+  classical
+  set E : ℝ := ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) with hEdef
+  have hE0 : 0 ≤ E := by positivity
+  have hEnn : runLaw μ D Dsf (screenFail O populations B) ≤ ENNReal.ofReal E := by
+    refine runLaw_slice_le D Dsf _ (measurableSet_screenFail O populations B) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hd j' hj' i
+    have hPle : Pd.card ≤ populations.card * B.m := by
+      rw [hPd]
+      refine le_trans Finset.card_biUnion_le ?_
+      calc ∑ j ∈ populations, ((Finset.range B.m).image (fun i => d.1.2 j i)).card
+          ≤ ∑ _j ∈ populations, B.m :=
+            Finset.sum_le_sum (fun j _ => le_trans Finset.card_image_le (by simp))
+        _ = populations.card * B.m := by rw [Finset.sum_const, smul_eq_mul]
+    by_cases hm : B.m ≤ Pd.card
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ screenFail O populations B}
+          ⊆ ⋃ v ∈ Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p),
+              {ω : Ω | ¬ (screenCount O Pd v ω ≤ B.sc)} := by
+        rintro ω ⟨-, hbad⟩
+        simp only [not_forall] at hbad
+        obtain ⟨v, hv, hv1, hap, hfail⟩ := hbad
+        exact Set.mem_biUnion (Finset.mem_filter.2 ⟨hv, hv1, hap⟩) hfail
+      refine le_trans (measure_mono hsec) (le_trans (measure_biUnion_finset_le _ _) ?_)
+      have hper : ∀ v ∈ Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p),
+          μ {ω : Ω | ¬ (screenCount O Pd v ω ≤ B.sc)}
+            ≤ ENNReal.ofReal (Real.exp (-2 * (B.m : ℝ) * γ ^ 2)) := by
+        intro v hv
+        obtain ⟨-, hv1, hap⟩ := Finset.mem_filter.1 hv
+        have hclean : ∀ p ∈ Pd, O.flip v p = 0 := by
+          intro p _
+          show O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0
+          rw [hap p]
+          rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
+        have htail := screen_pass hflat O hcd hP v hv1 γ B.sc hγ hclean (hsc Pd.card hPle)
+        have hcardR : (B.m : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
+        rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+        refine ENNReal.ofReal_le_ofReal (le_trans htail (Real.exp_le_exp.2 ?_))
+        nlinarith [sq_nonneg γ]
+      refine le_trans (Finset.sum_le_sum hper) ?_
+      rw [Finset.sum_const, nsmul_eq_mul, hEdef, ENNReal.ofReal_mul (by positivity),
+        ENNReal.ofReal_add (by positivity) zero_le_one, ENNReal.ofReal_one,
+        ENNReal.ofReal_natCast]
+      refine mul_le_mul' ?_ le_rfl
+      have hCard : Cd.card ≤ B.M + 1 :=
+        le_trans (Finset.card_insert_le _ _)
+          (by simpa using le_trans Finset.card_image_le (by simp : (Finset.range B.M).card ≤ B.M))
+      have hfc : (Cd.filter (fun v => v ≠ 1 ∧ ∀ p, O.label (p * v) = O.label p)).card
+          ≤ B.M + 1 := le_trans (Finset.card_filter_le _ _) hCard
+      exact_mod_cast Nat.cast_le.2 hfc
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ screenFail O populations B}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, -⟩
+        exact hm h1
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runLaw μ D Dsf (screenFail O populations B)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
