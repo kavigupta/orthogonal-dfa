@@ -2831,6 +2831,91 @@ lemma measurableSet_of_run_data (populations : Finset J) (B : Budget)
     ((measurableSet_prefixesAt populations B.m z.1).inter
       (measurableSet_poolAt B.M z.2)).inter (hR z.1 z.2))
 
+/-! ### The pool's accept-preserving candidates
+
+The clustering's ranking is only as good as what the pool offers it: the argument needs `k`
+candidates that flip nothing.  They are a `pAP` fraction of `Dsf`, so `M` draws deliver
+them — up to the usual two corrections, the binomial tail and the draws being distinct. -/
+
+/-- The indicator of accept-preservation. -/
+noncomputable def apBit (O : Oracle μ S) (v : S) : ℝ :=
+  Set.indicator {w : S | ∀ p : S, O.label (p * w) = O.label p} (fun _ => (1 : ℝ)) v
+
+lemma measurableSet_ap (O : Oracle μ S) :
+    MeasurableSet {w : S | ∀ p : S, O.label (p * w) = O.label p} :=
+  (Set.to_countable _).measurableSet
+
+lemma apBit_meas (O : Oracle μ S) : Measurable (apBit O) :=
+  measurable_const.indicator (measurableSet_ap O)
+
+lemma apBit_icc (O : Oracle μ S) (v : S) : apBit O v ∈ Set.Icc (0 : ℝ) 1 := by
+  by_cases h : v ∈ {w : S | ∀ p : S, O.label (p * w) = O.label p} <;>
+    simp [apBit, Set.indicator_apply, h]
+
+lemma integral_apBit (O : Oracle μ S) (Dsf : Measure S) [IsProbabilityMeasure Dsf] :
+    Dsf[apBit O] = Dsf.real {w : S | ∀ p : S, O.label (p * w) = O.label p} :=
+  integral_indicator_one (measurableSet_ap O)
+
+lemma map_suffixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (M : ℕ) :
+    Measure.map (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) (runLaw μ D Dsf)
+      = Measure.pi (fun _ : Fin M => Dsf) := by
+  have hstep : (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x))
+      = Prod.fst ∘ (fun x : Run Ω S J => ((fun i : Fin M => sfx i.val x),
+          (fun (j : J) (i : Fin M) => prf j i.val x))) := rfl
+  have hmeasBlock : Measurable (fun x : Run Ω S J => ((fun i : Fin M => sfx i.val x),
+      (fun (j : J) (i : Fin M) => prf j i.val x))) :=
+    (measurable_pi_lambda _ (fun i : Fin M => measurable_sfx i.val)).prodMk
+      (measurable_pi_lambda _ (fun j : J =>
+        measurable_pi_lambda _ (fun i : Fin M => measurable_prf j i.val)))
+  rw [hstep, ← Measure.map_map measurable_fst hmeasBlock, law_block D Dsf M,
+    Measure.map_fst_prod]
+  simp
+
+/-- **Enough of the pool preserves acceptance.**  The suffix draws are i.i.d., so the count
+falls below `M(pAP − g)` only on an `exp(-2 M g²)` set. -/
+theorem pool_ap_count_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S) (M : ℕ)
+    (pAP g : ℝ) (hg : 0 ≤ g)
+    (hpAP : pAP ≤ Dsf.real {w : S | ∀ p : S, O.label (p * w) = O.label p}) :
+    (runLaw μ D Dsf).real {x : Run Ω S J | ∑ i : Fin M, apBit O (sfx i.val x)
+        ≤ (M : ℝ) * (pAP - g)}
+      ≤ Real.exp (-2 * (M : ℝ) * g ^ 2) := by
+  classical
+  have hcard : ((Finset.univ : Finset (Fin M)).card : ℝ) = (M : ℝ) := by simp
+  have hmean : ∀ i : Fin M,
+      (Measure.pi fun _ : Fin M => Dsf)[fun q : Fin M → S => apBit O (q i)]
+        = Dsf.real {w : S | ∀ p : S, O.label (p * w) = O.label p} := by
+    intro i
+    have hmap : Measure.map (fun q : Fin M → S => q i) (Measure.pi fun _ : Fin M => Dsf) = Dsf :=
+      (measurePreserving_eval (fun _ : Fin M => Dsf) i).map_eq
+    calc (Measure.pi fun _ : Fin M => Dsf)[fun q : Fin M → S => apBit O (q i)]
+        = ∫ w, apBit O w ∂(Measure.map (fun q : Fin M → S => q i)
+            (Measure.pi fun _ : Fin M => Dsf)) := by
+          rw [integral_map (measurable_pi_apply i).aemeasurable
+            (apBit_meas O).aestronglyMeasurable]
+      _ = Dsf.real {w : S | ∀ p : S, O.label (p * w) = O.label p} := by
+          rw [hmap, integral_apBit O Dsf]
+  have htail := sumLower_le (μ := Measure.pi fun _ : Fin M => Dsf)
+    (fun (i : Fin M) (q : Fin M → S) => apBit O (q i)) (Finset.univ : Finset (Fin M)) pAP g
+    (fun i => ((apBit_meas O).comp (measurable_pi_apply i)).aemeasurable)
+    (iIndepFun_pi (fun _ => (apBit_meas O).aemeasurable))
+    (fun i => Filter.Eventually.of_forall (fun q => apBit_icc O (q i)))
+    (by
+      rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul, hcard]
+      exact mul_le_mul_of_nonneg_left hpAP (Nat.cast_nonneg M)) hg
+  rw [hcard] at htail
+  have hmeasSfx : Measurable (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin M => measurable_sfx i.val)
+  have hpre : {x : Run Ω S J | ∑ i : Fin M, apBit O (sfx i.val x) ≤ (M : ℝ) * (pAP - g)}
+      = (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) ⁻¹'
+        {q : Fin M → S | ∑ i : Fin M, apBit O (q i) ≤ (M : ℝ) * (pAP - g)} := rfl
+  rw [hpre, measureReal_def,
+    Measure.map_apply hmeasSfx (measurableSet_le (by fun_prop) measurable_const)
+      |>.symm.trans (congrArg (fun ν : Measure (Fin M → S) => ν _) (map_suffixBlock D Dsf M)),
+    ← measureReal_def]
+  exact htail
+
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
