@@ -146,29 +146,22 @@ def _split_counts(pst, decision, column):
     return tuple(counts)
 
 
-#: The drift the gate is calibrated to catch: a cut wrong on this fraction of the
-#: side it accepts (or rejects) reads as drifted.  Smaller values certify a tighter
-#: guarantee and need more prefixes to do it, since the power against a drift of
-#: ``gamma`` goes as ``exp(-2 n (s gamma)^2)``.
+#: Drift the gate is calibrated to catch.  Needs ``n >= (2.2 / gamma)^2`` prefixes to
+#: certify, so it cannot be set finer than the certification draw affords.
 ACCEPT_PRESERVING_DRIFT = 0.05
 
 
 def gate_rates(pst):
     """The rates the accept and reject sides of the split are held to.
 
-    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so a prefix
-    the cut calls accepting reads as accepting on the split's column with probability
-    ``1 - eta`` when the cut is right, and only ``eta`` when it is not.  A cut wrong on
-    a ``gamma`` fraction of that side therefore reads at ``(1 - eta) - gamma (1 - 2 eta)``.
-    Putting the null midway between that and ``1 - eta`` separates the two, with a gap of
-    ``s gamma`` on each side, where ``s = 1/2 - eta``.
+    A prefix the cut calls accepting reads as accepting on the split's column with
+    probability ``1/2 + s`` when the cut is right and ``1/2 - s`` when it is not, so a cut
+    wrong on a ``gamma`` fraction of that side reads at ``1/2 + s - 2 s gamma``.  The null
+    sits midway, leaving ``s gamma`` on each side.
 
-    The vote thresholds cannot serve as the null.  ``accept_thresh`` is calibrated as a
-    cutoff on the *vote*, and sits a fixed distance below ``1 - eta``; holding the side to
-    it means drift finer than that distance reads as clean however many prefixes are
-    certified on.  The resolution floor is the distance, not the sample size, so no amount
-    of sampling removes it.  That is the one thing the split's column can only be read for
-    by naming the signal, which ``_screen_cohort`` already does.
+    Not ``accept_thresh``: that is a cutoff on the *vote*, and sits a fixed distance below
+    ``1/2 + s``, so drift finer than the distance reads as clean however many prefixes are
+    certified on -- a floor the sample size cannot lower.
     """
     s = pst.config.min_signal_strength
     eta = 0.5 - s
@@ -180,8 +173,7 @@ def drift_verdict(pst, counts) -> str:
     """Whether each side of the cut reads as its own class on the split, or as
     the other's, or whether the counts do not say.
 
-    The sides are held to the rates a correct cut would show, offset towards the rates a
-    drifted one would -- see ``gate_rates``.
+    The sides are held to ``gate_rates``.
     """
     hits_a, n_a = counts[0]
     hits_r, n_r = counts[1]
