@@ -5528,6 +5528,111 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     _ = E := ENNReal.toReal_ofReal hE0
 
 open scoped Classical in
+/-- **A block of i.i.d. draws hits a set about as often as its mass.**  The lower tail, for
+the suffix pool: a mass-`q` set is hit at least `M(q − t)` times. -/
+lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : Set S)
+    (q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t) (hW : q ≤ Dsf.real W) :
+    (Measure.pi fun _ : Fin M => Dsf).real
+        {r : Fin M → S | (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)
+          ≤ (M : ℝ) * (q - t)}
+      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+  classical
+  set ν : Measure (Fin M → S) := Measure.pi fun _ : Fin M => Dsf with hνdef
+  have hWm : MeasurableSet W := measurableSet_of_countable W
+  set ind : S → ℝ := W.indicator 1 with hinddef
+  have hindm : Measurable ind := measurable_const.indicator hWm
+  set X : Fin M → (Fin M → S) → ℝ := fun i r => ind (r i) with hXdef
+  have hindep : iIndepFun X ν := iIndepFun_pi (fun _ => hindm.aemeasurable)
+  have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
+    (hindm.comp (measurable_pi_apply _)).aemeasurable
+  have hicc : ∀ i, ∀ᵐ r ∂ν, X i r ∈ Set.Icc (0 : ℝ) 1 := by
+    intro i
+    filter_upwards with r
+    by_cases h : r i ∈ W
+    · simp [hXdef, hinddef, Set.indicator_of_mem h]
+    · simp [hXdef, hinddef, Set.indicator_of_notMem h]
+  have hmean : ∀ i, ν[X i] = Dsf.real W := by
+    intro i
+    have hmp : MeasurePreserving (fun r : Fin M → S => r i) ν Dsf :=
+      measurePreserving_eval (fun _ : Fin M => Dsf) i
+    calc ν[X i] = ∫ s, ind s ∂Dsf := by
+          rw [← hmp.map_eq,
+            integral_map (measurable_pi_apply _).aemeasurable hindm.aestronglyMeasurable]
+      _ = Dsf.real W := by rw [hinddef, integral_indicator_one hWm]
+  have hsum : ((Finset.univ : Finset (Fin M)).card : ℝ) * q ≤ ∑ i, ν[X i] := by
+    rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul]
+    have hc : (0 : ℝ) ≤ ((Finset.univ : Finset (Fin M)).card : ℝ) := Nat.cast_nonneg _
+    nlinarith [hW]
+  have hmain := sumLower_le X (Finset.univ : Finset (Fin M)) q t hmeas hindep hicc hsum ht
+  have hcount : ∀ r : Fin M → S, ∑ i, X i r
+      = (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ) := by
+    intro r
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.univ : Finset (Fin M))
+      (fun i => r i ∈ W)]
+    have h1 : ∑ i ∈ (Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W), X i r
+        = ((((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)) := by
+      have hone : ∀ i ∈ (Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W),
+          X i r = (1 : ℝ) := by
+        intro i hi
+        simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
+      rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
+    have h0 : ∑ i ∈ (Finset.univ : Finset (Fin M)).filter (fun i => ¬ (r i ∈ W)), X i r = 0 :=
+      Finset.sum_eq_zero (fun i hi => by
+        simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
+    rw [h1, h0, add_zero]
+  have hcard : ((Finset.univ : Finset (Fin M)).card : ℝ) = (M : ℝ) := by simp
+  refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _)) hmain) ?_
+  · intro r hr
+    simp only [Set.mem_setOf_eq] at hr ⊢
+    rw [hcount r, hcard]
+    linarith [hr]
+  · rw [hcard]
+
+open scoped Classical in
+/-- **The pool holds accept-preserving suffixes.**  Findability says a draw is
+accept-preserving with probability at least `pAP`, so `M` draws hold about `pAP·M` of them. -/
+theorem measureReal_apShort_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S) (M : ℕ)
+    (pAP t : ℝ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}) :
+    (runLaw μ D Dsf).real {x : Run Ω S J |
+        (((Finset.univ : Finset (Fin M)).filter
+          (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p)).card : ℝ)
+        ≤ (M : ℝ) * (pAP - t)}
+      ≤ Real.exp (-2 * (M : ℝ) * t ^ 2) := by
+  classical
+  set W : Set S := {v | ∀ p, O.label (p * v) = O.label p} with hW
+  have hmeasHits : Measurable (fun r : Fin M → S =>
+      (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)) := by
+    have hWm : MeasurableSet W := (Set.to_countable _).measurableSet
+    have hrw : (fun r : Fin M → S =>
+        (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ))
+        = fun r => ∑ i : Fin M, W.indicator (fun _ => (1 : ℝ)) (r i) := by
+      funext r
+      rw [Finset.card_filter, Nat.cast_sum]
+      refine Finset.sum_congr rfl (fun i _ => ?_)
+      by_cases h : r i ∈ W <;> simp [h]
+    rw [hrw]
+    exact Finset.measurable_sum _ (fun i _ =>
+      (measurable_const.indicator hWm).comp (measurable_pi_apply i))
+  have hmeasSet : MeasurableSet {r : Fin M → S |
+      (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)
+        ≤ (M : ℝ) * (pAP - t)} := measurableSet_le hmeasHits measurable_const
+  have hpre : {x : Run Ω S J |
+      (((Finset.univ : Finset (Fin M)).filter
+        (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p)).card : ℝ)
+        ≤ (M : ℝ) * (pAP - t)}
+      = (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) ⁻¹'
+        {r : Fin M → S | (((Finset.univ : Finset (Fin M)).filter (fun i => r i ∈ W)).card : ℝ)
+          ≤ (M : ℝ) * (pAP - t)} := rfl
+  have hmeasBlock : Measurable (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) :=
+    measurable_pi_lambda _ (fun i : Fin M => measurable_sfx i.val)
+  rw [hpre, measureReal_def, Measure.map_apply hmeasBlock hmeasSet
+    |>.symm.trans (congrArg (fun ν : Measure (Fin M → S) => ν _) (map_suffixBlock D Dsf M)),
+    ← measureReal_def]
+  exact pi_hits_lower Dsf M W pAP t hpAP0 ht hpAPBound
+
+open scoped Classical in
 /-- The runs where an accept-preserving candidate the pool holds is thrown out by the
 screen.  Off this event the pool's accept-preserving draws all survive to be clustered. -/
 noncomputable def screenFail (O : Oracle μ S) (populations : Finset J) (B : Budget) :
