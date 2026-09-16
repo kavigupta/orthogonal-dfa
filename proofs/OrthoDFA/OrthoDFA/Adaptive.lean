@@ -3025,6 +3025,42 @@ theorem cutCorrect_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (
       → O.label p = 0))} = (∅ : Set Ω) by ext ω; simp [hg]]
     simpa using hE
 
+open scoped Classical in
+/-- **The cut is right at every certification prefix the family is light for.**
+`cutCorrect_selected_whp` unioned over `C`.  The certification prefixes are disjoint from
+the table's, so each one's query strings are ones the clustering never read, and the
+per-prefix bound survives the family being chosen. -/
+theorem cutRight_cert_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) (lo ha : ℕ)
+    (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
+    (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E : ℝ) (hE : 0 ≤ E)
+    (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
+      μ.real {ω | ¬ cutCorrect O lo ha A₀ p ω} ≤ E) :
+    μ.real {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω}
+      ≤ (C.card : ℝ) * E := by
+  classical
+  have hsub : {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω}
+      ⊆ ⋃ p ∈ C, {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω} := by
+    rintro ω ⟨p, hp, hω⟩
+    exact Set.mem_biUnion hp hω
+  have hper : ∀ p ∈ C,
+      μ.real {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω} ≤ E := by
+    intro p hp
+    have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
+    exact cutCorrect_selected_whp O cands (readSet P cands) p lo ha
+      (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
+      hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
+  calc μ.real {ω | ∃ p ∈ C, fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω}
+      ≤ μ.real (⋃ p ∈ C, {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω}) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ p ∈ C, μ.real {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _p ∈ C, E := Finset.sum_le_sum hper
+    _ = (C.card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+
 lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A → ω ∈ B) :
     μ.real A ≤ μ.real B :=
   ENNReal.toReal_mono (measure_ne_top μ B) (measure_mono_ae h)
