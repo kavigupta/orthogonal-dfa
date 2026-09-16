@@ -4071,6 +4071,24 @@ lemma measurableSet_cutCorrect (O : Oracle μ S) (lo hi : ℕ) (A₀ : Finset S)
     (by simp) (fun U => ¬ ((hi < Finset.card U → O.label p = 1)
       ∧ (Finset.card U ≤ lo → O.label p = 0))))
 
+lemma measurableSet_decided (O : Oracle μ S) (lo ha : ℕ) (A₀ : Finset S) (p : S) :
+    MeasurableSet {ω | ¬ decided O lo ha A₀ p ω} :=
+  noiseAlg_le O Set.univ _ (measurableSet_filter_pred_map O (T := Set.univ) (fun v => p * v)
+    (by simp) (fun U => ¬ (ha < Finset.card U ∨ Finset.card U ≤ lo)))
+
+open scoped Classical in
+/-- The indecision event at one prefix, for the family the run produces. -/
+lemma measurableSet_indecisive {fam : Ω → Finset S} {T : Finset (Finset S)}
+    (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (O : Oracle μ S) (lo ha : ℕ) (good : Finset (Finset S)) (p : S) :
+    MeasurableSet {ω | fam ω ∈ good ∧ ¬ decided O lo ha (fam ω) p ω} := by
+  classical
+  refine measurableSet_of_fam hfam hfamMeas
+    (fun A₀ => {ω | A₀ ∈ good ∧ ¬ decided O lo ha A₀ p ω}) (fun A₀ => ?_)
+  by_cases hg : A₀ ∈ good
+  · simpa [hg] using measurableSet_decided O lo ha A₀ p
+  · simpa [hg] using MeasurableSet.empty
+
 lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
     {T : Finset (Finset S)} (f : ℝ) {fam : Ω → Finset S} (hfam : ∀ ω, fam ω ∈ T)
     (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀}) (p : S) :
