@@ -13,10 +13,21 @@ where its successor under the edge's character goes.
       string and leave the edge open.
 """
 
+import random
+
 from typing import List, Optional, Tuple
 
 from .progress import track
 from .split_evidence import _MEMBER_LIMIT
+
+#: Members polled to settle one edge's target.  One would do where a leaf is
+#: homogeneous, but a leaf is often not: its members' successors sift to more than
+#: one target, and then the *first* decisively-sifting member captures the whole
+#: edge -- an arbitrary, often minority, choice that whichever member the
+#: population happens to yield first decides.  So poll several and take the target
+#: the most of them agree on.  Capped and sampled because a leaf can hold up to
+#: ``_MEMBER_LIMIT`` members and each vote costs a sift.
+_EDGE_VOTES = 24
 
 
 class EdgeResolver:
@@ -34,7 +45,43 @@ class EdgeResolver:
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
-        for member in self.leaf_members(state):
+        """The target the most of the leaf's members route ``c`` to.
+
+        A random sample of the members (by position, so the order the population
+        yields them in cannot stack a split leaf's vote), voted by majority; the
+        witness is a member that routed to the winner.  Where every member agrees
+        the majority is that agreement, so a homogeneous leaf resolves as before.
+        Falls back to a full scan only if the sample sifts nowhere, so an edge a
+        member outside the sample could still settle is not left open by sampling.
+        """
+        members = self.leaf_members(state)
+        sample = members
+        if len(members) > _EDGE_VOTES:
+            sample = random.Random(state * 1_000_003 + c).sample(members, _EDGE_VOTES)
+        target, witness = self._vote(sample, c)
+        if target is None and sample is not members:
+            return self._first_decisive(members, c)
+        return target, witness
+
+    def _vote(self, members, c):
+        counts: dict = {}
+        witness: dict = {}
+        decided = False
+        for member in members:
+            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
+            if target is not None:
+                counts[target] = counts.get(target, 0) + 1
+                witness.setdefault(target, member)
+                decided = True
+            elif not decided:
+                self.indecisive.add(boundary)
+        if not counts:
+            return None, None
+        best = max(counts, key=lambda t: counts[t])
+        return best, witness[best]
+
+    def _first_decisive(self, members, c):
+        for member in members:
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
                 return target, member
