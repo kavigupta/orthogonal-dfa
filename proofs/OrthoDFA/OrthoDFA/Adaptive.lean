@@ -16,10 +16,11 @@ no fixed budget:
 > classifies `≥ 1 − εcov` of **each** prefix population the way the noiseless oracle does,
 > wherever it decides at all.
 
-The loop's state is a `Budget`: two growth budgets, a family size, a cluster centre and the
-two gate cutoffs, all integers.  There is no history and no real-valued boundary — the
-boundary entered every event only through the count it cut at, so the cut is the state, and
-the index is countable.
+The loop's state is a `Budget`: two growth budgets, a family size, a cluster centre, the two
+gate cutoffs and the screen's rate, all integers.  There is no history and no real-valued
+boundary — the boundary entered every event only through the count it cut at, so the cut is
+the state, and the index is countable.  Nor is there a ceiling: `budgetWeight` divides `δ/2`
+among *every* state, so the guarantee covers whatever the loop grows to.
 
 "Whatever it returns" is `ret`: the states that pass both gates.  The guarantee is not
 claimed at states the loop rejects.
@@ -62,10 +63,12 @@ own tail, then the pool at `k/(pAP − t)`.
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
 and `sample_more_prefixes` *redraw* on a duplicate — they sample without replacement.
 Deduplicating i.i.d. draws yields a pool at most as large, so this is the conservative
-model; but the collision mass grows with the number of draws, so closing
-`validity_of_returned` at unbounded budgets will need either the without-replacement
-concentration (Hoeffding 1963) or a non-atomic prefix distribution.  That is a gap in the
-*proof*, recorded rather than papered over by weakening the claim.
+model; but the collision mass enters as `m²ρ`, which grows with the draws while a state's
+share shrinks, so `Capped` bounds the prefix count *above* at roughly `(δ/ρ)^{1/6}` as well
+as below.  The window is non-empty only for `ρ` small enough; removing the upper end needs
+either the without-replacement concentration (Hoeffding 1963) or a non-atomic prefix
+distribution.  That is a gap in the *proof*, recorded rather than papered over by weakening
+the claim.
 -/
 
 namespace OrthoDFA
@@ -6992,16 +6995,21 @@ With probability `≥ 1 − δ` the adaptive loop **terminates**, and the family
 at whatever state it chooses to stop — preserves acceptance on `≥ 1 − εcov` of **each**
 prefix population.
 
-Nothing is fixed or idealised.  The guarantee is uniform over every `Budget` — every pair
-of growth budgets, every family size, every cluster centre and every pair of gate cutoffs —
-so the loop may compute its boundary, margin and size however it likes and stop wherever it
-likes.  The cluster is the Lloyd fixed point against its own thresholded mean, seeded at
-`ε` and never drifting off it; the gates are the ones `judge_family` applies; and the run
-space is the concrete `runLaw`, not an abstract space assumed to exist.
+Nothing is fixed or idealised.  The guarantee is uniform over every `Budget` that carries
+its share — every pair of growth budgets, every family size, every cluster centre, every
+pair of gate cutoffs, every screen rate — so the loop may compute its boundary, margin and
+size however it likes and stop wherever it likes, with no ceiling assumed.  The cluster is
+the Lloyd fixed point against its own thresholded mean, seeded at `ε` and never drifting off
+it; the gates are the ones `judge_family` applies; and the run space is the concrete
+`runLaw`, not an abstract space assumed to exist.
 
 The configuration is *integer* data because that is all it ever was: `vote_mem_grid` says a
-threshold matters only through the count it cuts at, and `admissibleCut` is the spec the
-search in `population_size_and_evidence_margin` is looking for a witness to. -/
+threshold matters only through the count it cuts at, and `PassableAt` is the spec the search
+in `population_size_and_evidence_margin` is looking for a witness to.
+
+`hwit` is what is *not* proved: that the growth schedule reaches a state meeting that spec.
+Everything in it is an inequality among the budgets, the oracle's rates, the populations'
+class masses and `δ`. -/
 theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
