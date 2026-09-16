@@ -1881,6 +1881,46 @@ theorem gate_rej_side_bound (O : Oracle μ S) (C Q : Finset S)
     rw [hz]; simpa using Real.exp_nonneg _
 
 open scoped Classical in
+/-- **A correct cut has clean sides.**  Each side is carved out by the very implication
+`cutCorrect` asserts, so there is nothing to prove beyond unfolding — but it is what turns
+the cut being right into the hypothesis the admission bounds want. -/
+lemma sides_clean (O : Oracle μ S) (lo ha : ℕ) (F P : Finset S) (ω : Ω)
+    (h : ∀ p ∈ P, cutCorrect O lo ha F p ω) :
+    (∀ p ∈ P.filter (fun p => ha < voteCount O F p ω), O.label p = 1)
+      ∧ (∀ p ∈ P.filter (fun p => voteCount O F p ω ≤ lo), O.label p = 0) := by
+  classical
+  constructor
+  · intro p hp
+    obtain ⟨hpP, hlt⟩ := Finset.mem_filter.1 hp
+    exact (h p hpP).1 hlt
+  · intro p hp
+    obtain ⟨hpP, hle⟩ := Finset.mem_filter.1 hp
+    exact (h p hpP).2 hle
+
+open scoped Classical in
+/-- The cut is right at every prefix of a finite set, except on the union of the per-prefix
+failures.  `certOf` is a function of the draws alone, so at a fixed table this is a plain
+finite union. -/
+lemma cutRight_all_whp (O : Oracle μ S) (P : Finset S) (lo ha : ℕ) (E : ℝ) (hE : 0 ≤ E)
+    (F : Ω → Finset S)
+    (hper : ∀ p ∈ P, μ.real {ω | ¬ cutCorrect O lo ha (F ω) p ω} ≤ E) :
+    μ.real {ω | ¬ ∀ p ∈ P, cutCorrect O lo ha (F ω) p ω} ≤ (P.card : ℝ) * E := by
+  classical
+  have hsub : {ω | ¬ ∀ p ∈ P, cutCorrect O lo ha (F ω) p ω}
+      ⊆ ⋃ p ∈ P, {ω | ¬ cutCorrect O lo ha (F ω) p ω} := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, not_forall] at hω
+    obtain ⟨p, hp, hbad⟩ := hω
+    exact Set.mem_biUnion hp hbad
+  calc μ.real {ω | ¬ ∀ p ∈ P, cutCorrect O lo ha (F ω) p ω}
+      ≤ μ.real (⋃ p ∈ P, {ω | ¬ cutCorrect O lo ha (F ω) p ω}) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ∑ p ∈ P, μ.real {ω | ¬ cutCorrect O lo ha (F ω) p ω} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _p ∈ P, E := Finset.sum_le_sum hper
+    _ = (P.card : ℝ) * E := by rw [Finset.sum_const, nsmul_eq_mul]
+
+open scoped Classical in
 /-- **A truly-accepting side reads accepting often enough to clear the test.**  The mirror
 of `gate_acc_side_bound`: there the side is wrong and must fail, here it is right and must
 pass. -/
