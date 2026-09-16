@@ -2057,6 +2057,45 @@ theorem lloyd_step_ranked_by_excluded (O : Oracle μ S) (cn cd : ℕ) (P cands :
       clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w :=
   fun v hv => leastLossSubset_least (clusterLoss O F cn cd P cands ω) cands k hk v hv w hw hwn
 
+/-! ### The iterate, and where the ranking stops working
+
+`lloyd_first_step_ranked` is the whole guarantee only for one step, and the algorithm
+iterates.  Each further step ranks candidates against the *current* centre's majority vote,
+not against the seed, and that is where the argument runs out.
+
+Write `Dset` for the centre's error set — the representative prefixes whose majority vote
+disagrees with the label — and `d = #Dset`.  A candidate `v` with flip set `Φ_v` scores a
+loss of mean `η·#P + (1−2η)·#(Φ_v Δ Dset)`, so the step ranks by *agreement with the
+drift*, not by flipping little.  With `k` accept-preserving candidates in the pool one of
+them is always left out, which caps every member at `#(Φ_v Δ Dset) ≤ d + slack` and so at
+`#Φ_v ≤ 2d + slack`.  Feeding that back through the majority vote gives
+`d' ≤ #Φ / c` with `c = (s + eps) / (2 * s)` (`flipCount_mass_le`), i.e.
+
+    d' ≤ (2 / c) · d ,   2 / c ≈ 3 at the usual settings,
+
+which does not contract.  The seed check (`if seed_local not in nearest: break`) is what
+rules out the *uniform* drift — where every member flips exactly `Dset`, scores `0`, and
+the seed scores `d` and is dropped — but it is silent whenever the best excluded candidate
+is itself drifted, and that is exactly the case the bound above cannot close.
+
+So this is stated at the strength Part 1 needs and left unproved rather than re-specified
+around; the fix is tracked in issue #288.  Everything downstream consumes only this
+statement. -/
+
+open scoped Classical in
+/-- **The returned family flips little.**  The iterate's analogue of
+`lloyd_first_step_ranked`. -/
+theorem clusterAround_ranked {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    {cn cd : ℕ} (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (k : ℕ) (hk : k ≤ cands.card) (Δ : ℝ) (hΔ : 0 < Δ) (hPne : 0 < P.card)
+    (hsig : O.η ≤ 1 / 2) (hone : (1 : S) ∈ cands)
+    (hgood : k ≤ (cands.filter (fun v => ∑ p ∈ P, O.flip v p = 0)).card) :
+    μ.real {ω | ¬ ∀ w ∈ clusterAround O cn cd P cands ω k,
+        ¬ (Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip w p)}
+      ≤ (cands.card : ℝ)
+        * Real.exp (-2 * (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 / 2) ^ 2) :=
+  sorry
+
 /-! ### From flip mass to a correct cut
 
 The band is what turns "few members flip" into "the cut is right", and it is far more
