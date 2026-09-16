@@ -2308,7 +2308,8 @@ beat the limit `l`: the cost is `E / l`, with no union over the sample.
 
 `G` is the event on which the per-prefix failures are covered by the sets `Bad` — in use it
 is where the family is light enough for the per-prefix bound to apply at all. -/
-theorem count_frac_le (C : Finset S) (Bad : S → Set Ω) (Pr : Ω → S → Prop) (G : Set Ω)
+theorem count_frac_le (C : Finset S) (Bad : S → Set Ω) (Pr : Ω → S → Prop)
+    [inst : ∀ ω, DecidablePred (fun p => Pr ω p)] (G : Set Ω)
     (hmeas : ∀ p, MeasurableSet (Bad p)) (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l)
     (hCpos : 0 < C.card) (hper : ∀ p ∈ C, μ.real (Bad p) ≤ E)
     (hsub : ∀ ω ∈ G, ∀ p ∈ C, Pr ω p → ω ∈ Bad p) :
@@ -4264,6 +4265,74 @@ lemma measurableSet_indecisive {fam : Ω → Finset S} {T : Finset (Finset S)}
   by_cases hg : A₀ ∈ good
   · simpa [hg] using measurableSet_decided O lo ha A₀ p
   · simpa [hg] using MeasurableSet.empty
+
+open scoped Classical in
+/-- The mis-cut event at one prefix, for the family the run produces. -/
+lemma measurableSet_miscut {fam : Ω → Finset S} {T : Finset (Finset S)}
+    (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (O : Oracle μ S) (lo ha : ℕ) (good : Finset (Finset S)) (p : S) :
+    MeasurableSet {ω | fam ω ∈ good ∧ ¬ cutCorrect O lo ha (fam ω) p ω} := by
+  classical
+  refine measurableSet_of_fam hfam hfamMeas
+    (fun A₀ => {ω | A₀ ∈ good ∧ ¬ cutCorrect O lo ha A₀ p ω}) (fun A₀ => ?_)
+  by_cases hg : A₀ ∈ good
+  · simpa [hg] using measurableSet_cutCorrect O lo ha A₀ p
+  · simpa [hg] using MeasurableSet.empty
+
+open scoped Classical in
+/-- **The indecision rate on the certification sample is below the limit**, off an `E / l`
+set.  `count_frac_le` fed by the per-prefix bound, with no union over the sample. -/
+theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) (lo ha : ℕ)
+    (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
+    (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
+    (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ decided O lo ha A₀ p ω} ≤ E) :
+    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p}
+        ∩ {ω | l * (C.card : ℝ)
+            < ((C.filter (fun p => ¬ decided O lo ha (fam ω) p ω)).card : ℝ)})
+      ≤ E / l := by
+  classical
+  refine count_frac_le (μ := μ) C (fun p => {ω | fam ω ∈ good p ∧ ¬ decided O lo ha (fam ω) p ω})
+    (fun ω p => ¬ decided O lo ha (fam ω) p ω) {ω | ∀ p ∈ C, fam ω ∈ good p}
+    (fun p => measurableSet_indecisive hfam hfamMeas O lo ha (good p) p) E l hE hl hCpos ?_ ?_
+  · intro p hp
+    have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
+    exact decided_selected_whp O cands (readSet P cands) p lo ha
+      (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
+      hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
+  · intro ω hG p hp hpr
+    exact ⟨hG p hp, hpr⟩
+
+open scoped Classical in
+/-- The same for the rate at which the cut is wrong. -/
+theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) (lo ha : ℕ)
+    (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
+    (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
+    (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
+    (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
+    (E l : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hCpos : 0 < C.card)
+    (hbad : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p → μ.real {ω | ¬ cutCorrect O lo ha A₀ p ω} ≤ E) :
+    μ.real ({ω | ∀ p ∈ C, fam ω ∈ good p}
+        ∩ {ω | l * (C.card : ℝ)
+            < ((C.filter (fun p => ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)})
+      ≤ E / l := by
+  classical
+  refine count_frac_le (μ := μ) C (fun p => {ω | fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω})
+    (fun ω p => ¬ cutCorrect O lo ha (fam ω) p ω) {ω | ∀ p ∈ C, fam ω ∈ good p}
+    (fun p => measurableSet_miscut hfam hfamMeas O lo ha (good p) p) E l hE hl hCpos ?_ ?_
+  · intro p hp
+    have hpP : p ∉ P := Finset.disjoint_right.1 hPC hp
+    exact cutCorrect_selected_whp O cands (readSet P cands) p lo ha
+      (disjoint_image_readSet hflat hP (hCPre p hp) hpP) T (good p) t₀ ht₀ hTC fam hfam
+      hcongr E hE (fun A₀ hA₀ hg => hbad p hp A₀ hA₀ hg)
+  · intro ω hG p hp hpr
+    exact ⟨hG p hp, hpr⟩
 
 lemma measurableSet_lightBad (Pre : Set S) (O : Oracle μ S) (P : Finset S) (lo hi : ℕ)
     {T : Finset (Finset S)} (f : ℝ) {fam : Ω → Finset S} (hfam : ∀ ω, fam ω ∈ T)
