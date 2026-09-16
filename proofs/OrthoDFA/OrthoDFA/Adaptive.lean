@@ -51,8 +51,12 @@ Both halves are proved, and `clustering_correct` is `sorry`-free: its axioms are
 Termination is stated at a state that meets `PassableAt` — the arithmetic a round has to
 satisfy for its two tests to pass, which is where findability (`pAP`) and the populations'
 class balance enter, and which is what `population_size_and_evidence_margin` searches for.
-That such a state exists under a large enough cap is the loop's growth schedule's job and is
-*not* proved here; it is the hypothesis `hwit`.
+That such a state exists is the loop's growth schedule's job and is *not* proved here; it is
+the hypothesis `hwit`.  The arithmetic is satisfiable, and in this order: pick the
+indecision limit below the class balance times the coverage, the flip budget `Δ` below it
+over the family size, the screen's two margins below `Δ(1−2η)²`, then the prefix count large
+enough for every exponential — logarithmic in the state's own size — then `α` at the gate's
+own tail, then the pool at `k/(pAP − t)`.
 
 **Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
@@ -309,6 +313,71 @@ instance : Countable Budget :=
   Function.Injective.countable
     (f := fun b => (b.M, b.m, b.k, b.cn, b.cd, b.lo, b.hi, b.sc, b.scd))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
+
+/-- An explicit code for a state: its nine components paired.  `Nat.pair` is polynomial, so
+the code is polynomial in the budgets — which is what makes the share below affordable at a
+prefix count logarithmic in them. -/
+def budgetCode (B : Budget) : ℕ :=
+  Nat.pair B.M (Nat.pair B.m (Nat.pair B.k (Nat.pair B.cn (Nat.pair B.cd
+    (Nat.pair B.lo (Nat.pair B.hi (Nat.pair B.sc B.scd)))))))
+
+lemma budgetCode_injective : Function.Injective budgetCode := by
+  rintro ⟨⟩ ⟨⟩ h
+  simp only [budgetCode, Nat.pair_eq_pair] at h
+  simp_all
+
+/-- The weight of the `n`-th code: `1/((n+1)(n+2))`, whose partial sums telescope to `1`. -/
+noncomputable def codeWeight (n : ℕ) : ℝ := 1 / (((n : ℝ) + 1) * ((n : ℝ) + 2))
+
+lemma codeWeight_nonneg (n : ℕ) : 0 ≤ codeWeight n := by
+  unfold codeWeight; positivity
+
+lemma sum_range_codeWeight (N : ℕ) :
+    ∑ n ∈ Finset.range N, codeWeight n = 1 - 1 / ((N : ℝ) + 1) := by
+  induction N with
+  | zero => simp [codeWeight]
+  | succ N ih =>
+      rw [Finset.sum_range_succ, ih, codeWeight]
+      have h1 : ((N : ℝ) + 1) ≠ 0 := by positivity
+      have h2 : ((N : ℝ) + 2) ≠ 0 := by positivity
+      push_cast
+      field_simp
+      ring
+
+lemma sum_range_codeWeight_le (N : ℕ) : ∑ n ∈ Finset.range N, codeWeight n ≤ 1 := by
+  rw [sum_range_codeWeight]
+  have : (0 : ℝ) < ((N : ℝ) + 1) := by positivity
+  have : (0 : ℝ) ≤ 1 / ((N : ℝ) + 1) := by positivity
+  linarith
+
+lemma summable_codeWeight : Summable codeWeight :=
+  summable_of_sum_range_le codeWeight_nonneg sum_range_codeWeight_le
+
+lemma tsum_codeWeight_le : ∑' n : ℕ, codeWeight n ≤ 1 :=
+  summable_codeWeight.tsum_le_of_sum_range_le sum_range_codeWeight_le
+
+/-- **A state's share of the error budget.**  The weights sum to at most one over *every*
+state, so `δ/2` can be meted out among all of them at once: the guarantee needs no ceiling
+on how far the loop may grow, only that each state it stops at is big enough to carry its
+own share. -/
+noncomputable def budgetWeight (B : Budget) : ℝ := codeWeight (budgetCode B)
+
+lemma budgetWeight_nonneg (B : Budget) : 0 ≤ budgetWeight B := codeWeight_nonneg _
+
+lemma codeWeight_le_one (n : ℕ) : codeWeight n ≤ 1 := by
+  unfold codeWeight
+  rw [div_le_one (by positivity)]
+  nlinarith [Nat.cast_nonneg (α := ℝ) n]
+
+lemma budgetWeight_le_one (B : Budget) : budgetWeight B ≤ 1 := codeWeight_le_one _
+
+lemma summable_budgetWeight : Summable budgetWeight :=
+  summable_codeWeight.comp_injective budgetCode_injective
+
+lemma tsum_budgetWeight_le : ∑' B : Budget, budgetWeight B ≤ 1 :=
+  le_trans (summable_budgetWeight.tsum_le_tsum_of_inj budgetCode budgetCode_injective
+    (fun n _ => codeWeight_nonneg n) (fun _ => le_rfl) summable_codeWeight)
+    tsum_codeWeight_le
 
 /-- The candidate pool at a suffix budget: the first `M` suffixes drawn, **with the seed**.
 
@@ -2833,48 +2902,6 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
         calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
           _ = (m : ℝ) ^ 2 := by push_cast; ring
 
-/-- **The budgets the loop may reach**: every component under a cap.
-
-Capping is not a convenience, it is forced twice over.
-
-*Freshness.*  `disjoint_readSet` needs the certification prefixes distinct from the table
-prefixes, and the chance they are not is at most `|populations|·m²·ρ` — which *grows* with
-the budget.  `S` is countable, so every `D j` is atomic, and once the draws exceed roughly
-`1/ρ` the sample has exhausted the support: the certification prefixes are no longer fresh,
-the gate scores bits the family was selected on, and the claim is false rather than
-unproven.
-
-*Summability.*  The gate's per-budget failure probability depends on the certification
-count, not on the suffix budget, so it does not decay in `M` — and a union over
-unboundedly many budgets with a constant failure per budget diverges.
-
-A cap settles both at once, and makes the index finite so no summable envelope is needed
-at all.  Part 2's obligation becomes: reach a passing state *within* the cap. -/
-structure CapOnly (cap B : Budget) : Prop where
-  M : B.M ≤ cap.M
-  m : B.m ≤ cap.m
-  k : B.k ≤ cap.k
-  cn : B.cn ≤ cap.cn
-  cd : B.cd ≤ cap.cd
-  lo : B.lo ≤ cap.lo
-  hi : B.hi ≤ cap.hi
-  sc : B.sc ≤ cap.sc
-  scd : B.scd ≤ cap.scd
-
-instance instFiniteCapOnly (cap : Budget) : Finite {B : Budget // CapOnly cap B} := by
-  refine Finite.of_injective
-    (fun B => ((⟨B.val.M, Nat.lt_succ_of_le B.property.M⟩ : Fin (cap.M + 1)),
-      (⟨B.val.m, Nat.lt_succ_of_le B.property.m⟩ : Fin (cap.m + 1)),
-      (⟨B.val.k, Nat.lt_succ_of_le B.property.k⟩ : Fin (cap.k + 1)),
-      (⟨B.val.cn, Nat.lt_succ_of_le B.property.cn⟩ : Fin (cap.cn + 1)),
-      (⟨B.val.cd, Nat.lt_succ_of_le B.property.cd⟩ : Fin (cap.cd + 1)),
-      (⟨B.val.lo, Nat.lt_succ_of_le B.property.lo⟩ : Fin (cap.lo + 1)),
-      (⟨B.val.hi, Nat.lt_succ_of_le B.property.hi⟩ : Fin (cap.hi + 1)),
-      (⟨B.val.sc, Nat.lt_succ_of_le B.property.sc⟩ : Fin (cap.sc + 1)),
-      (⟨B.val.scd, Nat.lt_succ_of_le B.property.scd⟩ : Fin (cap.scd + 1)))) ?_
-  intro B B' hb
-  simpa [Subtype.ext_iff, Budget.ext_iff, Prod.ext_iff, Fin.ext_iff] using hb
-
 /-- **What one tested state may cost.**  The five events `measureReal_admitFail_le` charges,
 summed over the populations: the certification draws repeating or meeting the table, the
 sample missing the wrong set, and the two gate sides. -/
@@ -2884,27 +2911,20 @@ noncomputable def stateFail (O : Oracle μ S) (populations : Finset J) (εcov ρ
     + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
       + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ)) * ((1 - 2 * O.η) * εcov / 32) ^ 2)))
 
-/-- **The states the loop may stop at.**  Under the cap, with the thresholds in order, and
-with enough prefixes drawn to carry the state's share of the error budget.
+/-- **The states the loop may stop at.**  The thresholds in order, and enough prefixes drawn
+to carry the state's share of the error budget.
 
-The share is what the schedule is for.  At a handful of prefixes the gate cannot be sound —
-a wrong family passes a two-prefix test at constant probability — so the loop cannot test
-there, and the guarantee cannot cover it.  Dividing `δ/2` equally among the states under the
-cap is the `X, X/2, X/4, …` schedule's obligation written out: every attempt is at a prefix
-count large enough for its own share. -/
+The share is what the growth schedule is for.  At a handful of prefixes the gate cannot be
+sound — a wrong family passes a two-prefix test at constant probability — so the loop cannot
+test there, and the guarantee cannot cover it.  `budgetWeight` divides `δ/2` among *all*
+states at once, so no ceiling on the budgets has to be assumed: a state carries its share
+once its prefix count is logarithmic in its own size. -/
 structure Capped (O : Oracle μ S) (populations : Finset J) (εcov δ ρ : ℝ)
-    (cap B : Budget) : Prop where
-  capOnly : CapOnly cap B
+    (B : Budget) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
   /-- Enough prefixes for the state's share of the budget. -/
-  share : stateFail O populations εcov ρ B
-    ≤ δ / (2 * (Nat.card {B : Budget // CapOnly cap B} : ℝ))
-
-instance instFiniteCapped (O : Oracle μ S) (populations : Finset J) (εcov δ ρ : ℝ)
-    (cap : Budget) : Finite {B : Budget // Capped O populations εcov δ ρ cap B} :=
-  Finite.of_injective (fun B => (⟨B.val, B.property.capOnly⟩ : {B : Budget // CapOnly cap B}))
-    (fun B B' h => Subtype.ext (congrArg (fun z : {B : Budget // CapOnly cap B} => z.val) h))
+  share : stateFail O populations εcov ρ B ≤ δ / 2 * budgetWeight B
 
 /-! ### The first Lloyd step
 
@@ -7557,10 +7577,10 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
               * ((1 - 2 * O.η) * εcov / 32) ^ 2)) := by
         rw [hβ]; ring
 
-/-- **Part 1, reduced to one state.**  States under the cap are a *finite* set, so Part 1 is a
-per-state bound at any weight summing under `δ/2`.  There is no union over boundaries and
-no union over histories: the boundary and the margin are cutoffs, and the cutoffs are in
-the state.
+/-- **Part 1, reduced to one state.**  Part 1 is a per-state bound at any weight summing
+under `δ/2`, and `budgetWeight` is such a weight over *every* state — so no ceiling on the
+budgets is assumed.  There is no union over boundaries and no union over histories: the
+boundary and the margin are cutoffs, and the cutoffs are in the state.
 
 What remains of Part 1 is `hper`: at one state, a family that passes both gates is valid on
 every population except with probability `w`. -/
@@ -7569,17 +7589,16 @@ theorem validity_of_budget (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α δ ρ : ℝ)
     (w : Budget → ℝ) (hw0 : ∀ B, 0 ≤ w B) (hsum : Summable w) (hle : ∑' B, w B ≤ δ / 2)
-    (cap : Budget)
-    (hper : ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B}, (runLaw μ D Dsf).real
+    (hper : ∀ B : {B : Budget // Capped O populations εcov δ ρ B}, (runLaw μ D Dsf).real
       (ret O populations indecisionLimit εcov α B.val
         ∩ FailAt O populations D εcov B.val) ≤ w B.val) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped O populations εcov δ ρ B},
         ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 :=
   le_trans (measureReal_iUnion_le_tsum _
-      (fun B : {B : Budget // Capped O populations εcov δ ρ cap B} => w B.val)
+      (fun B : {B : Budget // Capped O populations εcov δ ρ B} => w B.val)
       (fun B => hw0 B.val) hper (hsum.subtype _))
-    (le_trans (hsum.tsum_subtype_le w {B | Capped O populations εcov δ ρ cap B} hw0) hle)
+    (le_trans (hsum.tsum_subtype_le w {B | Capped O populations εcov δ ρ B} hw0) hle)
 
 /-- **Part 1 — whatever is returned is valid, whenever it is returned.**
 
@@ -7631,69 +7650,50 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2) :
     ∃ w : Budget → ℝ, (∀ B, 0 ≤ w B) ∧ Summable w ∧ (∑' B, w B ≤ δ / 2) ∧
-      ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B}, (runLaw μ D Dsf).real
+      ∀ B : {B : Budget // Capped O populations εcov δ ρ B}, (runLaw μ D Dsf).real
         (ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ w B.val  := by
   classical
   have hρ0 : 0 ≤ ρ := by
     obtain ⟨j₀, hj₀⟩ := hpop
     exact le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ j₀ hj₀)
-  have hfin : {B : Budget | CapOnly cap B}.Finite :=
-    Set.finite_coe_iff.1 (inferInstanceAs (Finite {B : Budget // CapOnly cap B}))
-  set F : Finset Budget := hfin.toFinset with hF
-  have hNcard : (Nat.card {B : Budget // CapOnly cap B} : ℝ) = (F.card : ℝ) := by
-    rw [hF]
-    exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
-      (Set.ncard_eq_toFinset_card {B : Budget | CapOnly cap B} hfin)
-  set v : ℝ := δ / (2 * (Nat.card {B : Budget // CapOnly cap B} : ℝ)) with hv
-  have hv0 : 0 ≤ v := by
-    rw [hv]
-    positivity
-  refine ⟨fun B => if Capped O populations εcov δ ρ cap B then v else 0, ?_, ?_, ?_, ?_⟩
-  · intro B
-    dsimp only
+  have hδ2 : (0 : ℝ) ≤ δ / 2 := by linarith
+  have hw0 : ∀ B : Budget,
+      0 ≤ (if Capped O populations εcov δ ρ B then δ / 2 * budgetWeight B else 0) := by
+    intro B
     split_ifs
-    · exact hv0
+    · exact mul_nonneg hδ2 (budgetWeight_nonneg B)
     · exact le_rfl
-  · refine summable_of_ne_finset_zero (s := F) (fun B hB => ?_)
-    have : ¬ Capped O populations εcov δ ρ cap B := by
-      intro hc
-      exact hB (by rw [hF]; simpa using hc.capOnly)
-    simp [this]
-  · have hzero : ∀ B ∉ F, (if Capped O populations εcov δ ρ cap B then v else 0) = 0 := by
-      intro B hB
-      have : ¬ Capped O populations εcov δ ρ cap B := by
-        intro hc
-        exact hB (by rw [hF]; simpa using hc.capOnly)
-      simp [this]
-    rw [tsum_eq_sum hzero]
-    calc ∑ B ∈ F, (if Capped O populations εcov δ ρ cap B then v else 0)
-        ≤ ∑ _B ∈ F, v := Finset.sum_le_sum (fun B _ => by split_ifs; exacts [le_rfl, hv0])
-      _ = (F.card : ℝ) * v := by rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ δ / 2 := by
-          rcases Nat.eq_zero_or_pos F.card with hc | hc
-          · rw [hc]
-            simp only [Nat.cast_zero, zero_mul]
-            linarith
-          · have hne : (F.card : ℝ) ≠ 0 := by
-              have hcpos : (0 : ℝ) < (F.card : ℝ) := by exact_mod_cast hc
-              exact ne_of_gt hcpos
-            have key : (F.card : ℝ) * (δ / (2 * (F.card : ℝ))) = δ / 2 := by field_simp
-            rw [hv, hNcard, key]
-  · have hαgate : ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+  have hwle : ∀ B : Budget,
+      (if Capped O populations εcov δ ρ B then δ / 2 * budgetWeight B else 0)
+        ≤ δ / 2 * budgetWeight B := by
+    intro B
+    split_ifs
+    · exact le_rfl
+    · exact mul_nonneg hδ2 (budgetWeight_nonneg B)
+  have hsumBig : Summable (fun B : Budget => δ / 2 * budgetWeight B) :=
+    summable_budgetWeight.mul_left _
+  have hsum : Summable
+      (fun B : Budget => if Capped O populations εcov δ ρ B then δ / 2 * budgetWeight B else 0) :=
+    Summable.of_nonneg_of_le hw0 hwle hsumBig
+  refine ⟨fun B => if Capped O populations εcov δ ρ B then δ / 2 * budgetWeight B else 0,
+    hw0, hsum, ?_, ?_⟩
+  · calc ∑' B : Budget,
+          (if Capped O populations εcov δ ρ B then δ / 2 * budgetWeight B else 0)
+        ≤ ∑' B : Budget, δ / 2 * budgetWeight B := hsum.tsum_le_tsum hwle hsumBig
+      _ = δ / 2 * ∑' B : Budget, budgetWeight B := summable_budgetWeight.tsum_mul_left _
+      _ ≤ δ / 2 * 1 := mul_le_mul_of_nonneg_left tsum_budgetWeight_le hδ2
+      _ = δ / 2 := by ring
+  · have hαgate : ∀ B : {B : Budget // Capped O populations εcov δ ρ B},
         α + Real.exp (-2 * (εcov / 32 * (B.val.m : ℝ))
           * ((1 - 2 * O.η) * εcov / 32) ^ 2) < 1 := by
       intro B
       have hshare := B.property.share
       have hpopone : (1 : ℝ) ≤ (populations.card : ℝ) := by
         exact_mod_cast Finset.card_pos.2 hpop
-      have hNone : (1 : ℝ) ≤ (Nat.card {B : Budget // CapOnly cap B} : ℝ) := by
-        have : 0 < Nat.card {B : Budget // CapOnly cap B} :=
-          Nat.card_pos_iff.2 ⟨⟨⟨B.val, B.property.capOnly⟩⟩, inferInstance⟩
-        exact_mod_cast this
       set E : ℝ := Real.exp (-2 * (εcov / 32 * (B.val.m : ℝ))
         * ((1 - 2 * O.η) * εcov / 32) ^ 2) with hEdef
       have hE0 : 0 < E := Real.exp_pos _
@@ -7704,14 +7704,12 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
       have hstate : 2 * E ≤ stateFail O populations εcov ρ B.val := by
         rw [stateFail]
         nlinarith [hE0.le]
-      have hshare' : stateFail O populations εcov ρ B.val
-          ≤ δ / (2 * (Nat.card {B : Budget // CapOnly cap B} : ℝ)) := hshare
-      have hdiv : δ / (2 * (Nat.card {B : Budget // CapOnly cap B} : ℝ)) ≤ δ / 2 := by
-        refine div_le_div_of_nonneg_left hδ.le (by norm_num) ?_
-        linarith
-      linarith [hδ1]
+      have h2 : δ / 2 * budgetWeight B.val ≤ δ / 2 * 1 :=
+        mul_le_mul_of_nonneg_left (budgetWeight_le_one B.val) (by linarith)
+      linarith
     intro B
-    have hgoal : (if Capped O populations εcov δ ρ cap B.val then v else 0) = v := by
+    have hgoal : (if Capped O populations εcov δ ρ B.val then
+        δ / 2 * budgetWeight B.val else 0) = δ / 2 * budgetWeight B.val := by
       simp [B.property]
     dsimp only
     rw [hgoal]
@@ -7752,14 +7750,14 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
               (hαgate B))
         _ = stateFail O populations εcov ρ B.val := by
             rw [Finset.sum_const, nsmul_eq_mul]; rfl
-        _ ≤ v := B.property.share
+        _ ≤ δ / 2 * budgetWeight B.val := B.property.share
     · have hempty : FailAt O populations D εcov B.val = (∅ : Set (Run Ω S J)) := by
         ext x
         simp only [FailAt, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not]
         intro j _
         exact le_trans (by linarith [not_le.1 hε1]) measureReal_nonneg
       rw [hempty, Set.inter_empty]
-      simpa using hv0
+      simpa using mul_nonneg (by linarith : (0:ℝ) ≤ δ / 2) (budgetWeight_nonneg B.val)
 
 
 /-! ### The argument `exists_budget_weight` needs
@@ -7806,15 +7804,15 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+    (runLaw μ D Dsf).real (⋃ B : {B : Budget // Capped O populations εcov δ ρ B},
         ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit εcov α hsig hpop Pre hflat hsupp cap ρ hρ hεcov δ hδ hδ1 hα
+    indecisionLimit εcov α hsig hpop Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα
   exact validity_of_budget O populations D Dsf indecisionLimit εcov α δ ρ w hw0 hsum hle
-    cap hper
+    hper
 
 /-- What one round at one population can cost: the draws, the family's size and cleanliness,
 the sample's two class counts and its heavy fraction, and the round's own two tests. -/
@@ -7908,12 +7906,12 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (indecisionLimit εcov α : ℝ) (cap : Budget) (ρ ρsf pAP qcls δ : ℝ)
+    (indecisionLimit εcov α : ℝ) (ρ ρsf pAP qcls δ : ℝ)
     (hsig : O.η ≤ 1 / 2) (hεcov : 0 ≤ εcov) (hpop : populations.Nonempty)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
-    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ cap B
+    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ B
       ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
-    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Capped O populations εcov δ ρ B},
       x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
   obtain ⟨B, hB, hpass⟩ := hwit
@@ -7928,7 +7926,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
   obtain ⟨j₀, hj₀⟩ := hpop
   -- the whole failure at the one state, population by population
-  have hsub : {x : Run Ω S J | ∀ B' : {B : Budget // Capped O populations εcov δ ρ cap B},
+  have hsub : {x : Run Ω S J | ∀ B' : {B : Budget // Capped O populations εcov δ ρ B},
         x ∉ ret O populations indecisionLimit εcov α B'.val}
       ⊆ ⋃ j ∈ populations,
         {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j} := by
@@ -8020,15 +8018,15 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (cap : Budget) (ρ ρsf pAP qcls : ℝ)
+    (ρ ρsf pAP qcls : ℝ)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
-    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ cap B
+    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ B
       ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
     1 - δ ≤ (runLaw μ D Dsf).real
-      {x | (∃ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+      {x | (∃ B : {B : Budget // Capped O populations εcov δ ρ B},
           x ∈ ret O populations indecisionLimit εcov α B.val) ∧
-        ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B},
+        ∀ B : {B : Budget // Capped O populations εcov δ ρ B},
           x ∈ ret O populations indecisionLimit εcov α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
@@ -8037,13 +8035,13 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg
   have h := sound_and_terminating (runLaw μ D Dsf)
-    (fun B : {B : Budget // Capped O populations εcov δ ρ cap B} =>
+    (fun B : {B : Budget // Capped O populations εcov δ ρ B} =>
       ret O populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
-    (fun B : {B : Budget // Capped O populations εcov δ ρ cap B} =>
+    (fun B : {B : Budget // Capped O populations εcov δ ρ B} =>
       ret O populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      Pre hflat hsupp cap ρ hρ hεcov δ hδ hδ1 hα)
-    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α cap ρ ρsf pAP
+      Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα)
+    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ ρsf pAP
       qcls δ hsig.le hεcov.le hpop hρ
       (le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)) hwit)
   refine le_trans h (le_of_eq ?_)
