@@ -46,18 +46,19 @@ Proof: the two-part decomposition —
 * `loop_terminates` — the loop returns at some round, except w.p. `δ/2`;
 * `sound_and_terminating` composes them.
 
-Both halves are proved, and `clustering_correct` is `sorry`-free: its axioms are
-`propext`, `Classical.choice` and `Quot.sound`.
+Both halves are proved, and everything probabilistic with them.  The one remaining `sorry`
+is `exists_passable`: that the growth schedule reaches a state meeting `PassableAt` — the
+arithmetic a round has to satisfy for its two tests to pass, which is where findability
+(`pAP`) and the populations' class balance enter, and which is what
+`population_size_and_evidence_margin` searches for.  It is a **lemma**, not a hypothesis:
+the statement of `clustering_correct` assumes nothing about reachability, so the gap is
+visible in `#print axioms` rather than hidden in the premises.
 
-Termination is stated at a state that meets `PassableAt` — the arithmetic a round has to
-satisfy for its two tests to pass, which is where findability (`pAP`) and the populations'
-class balance enter, and which is what `population_size_and_evidence_margin` searches for.
-That such a state exists is the loop's growth schedule's job and is *not* proved here; it is
-the hypothesis `hwit`.  The arithmetic is satisfiable, and in this order: pick the
-indecision limit below the class balance times the coverage, the flip budget `Δ` below it
-over the family size, the screen's two margins below `Δ(1−2η)²`, then the prefix count large
-enough for every exponential — logarithmic in the state's own size — then `α` at the gate's
-own tail, then the pool at `k/(pAP − t)`.
+The arithmetic is satisfiable, in this order: the indecision limit below the class balance
+times the coverage, the flip budget `Δ` below it over the family size, the screen's two
+margins below `Δ(1−2η)²`, then the prefix count large enough for every exponential —
+logarithmic in the state's own size — then `α` at the gate's own tail, then the pool at
+`k/(pAP − t)`.  Formalising that is what `exists_passable` owes.
 
 **Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
@@ -6833,7 +6834,7 @@ def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) 
   ∃ (τ tcls th tap γdec γscr γdirty gdirty Δ : ℝ) (n₀ : ℕ),
     0 < B.m ∧ 0 < B.k ∧ B.cn < B.cd ∧ 0 < indecisionLimit ∧ εcov ≤ 1
     ∧ 0 ≤ τ ∧ 0 ≤ tcls ∧ 0 ≤ th ∧ 0 ≤ tap ∧ 0 ≤ γdec ∧ 0 ≤ γscr ∧ 0 ≤ γdirty ∧ 0 ≤ gdirty
-    ∧ 0 < Δ ∧ 0 ≤ qcls ∧ 0 ≤ pAP ∧ 0 ≤ ρsf
+    ∧ 0 < Δ ∧ 0 ≤ qcls ∧ 0 ≤ pAP
     -- the populations' classes and the pool's findability
     ∧ (∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 1})
     ∧ (∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 0})
@@ -6870,6 +6871,42 @@ def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) 
             (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * γdec ^ 2)) γscr γdirty gdirty tap ρ ρsf n₀ B
       ≤ δ / 2)
 
+/-- **The growth schedule reaches a state whose round can pass.**
+
+`PassableAt` is arithmetic: every clause is an inequality among the state's budgets, the
+oracle's rates, the populations' class masses and the error budget.  This says the loop's
+growth reaches a state satisfying it, which is the analytic half of termination and is
+**not proved here**.
+
+What its proof needs, worked out but not formalised: the indecision limit at most
+`qcls·εcov/8` (from the gate's two margins against the class counts), the flip budget `Δ`
+at most `indecisionLimit/(4·|populations|·k)` (from the heavy fraction), the screen's two
+margins at most `Δ(1−2η)²/4` each (so the rate window is non-empty), then the prefix count
+large enough for every exponential — logarithmic in the state's own size, via
+`budgetWeight` — then `α` at the gate's own tail `exp(−2n₀τ²)`, then the pool at
+`k/(pAP − t)`.  The collision masses have to be small enough that the `m²ρ` terms still fit
+the state's share, which is the `Hoeffding-1963` gap recorded in the module header: it caps
+the prefix count from above as well as below.
+
+Those relations will become hypotheses of this lemma when the constants are derived; they
+are listed rather than assumed silently. -/
+theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (indecisionLimit εcov α δ ρ ρsf pAP qcls : ℝ)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
+    (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hqcls : 0 < qcls)
+    (hqacc : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 1})
+    (hqrej : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 0})
+    (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hρsf : collisionMass Dsf ≤ ρsf) :
+    ∃ B : Budget, Capped O populations εcov δ ρ B
+      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B :=
+  sorry
+
 /-- **Part 2 — the loop terminates.**
 
 Except with probability `δ/2`, some reachable state passes the FNR test, so the loop
@@ -6899,16 +6936,24 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (indecisionLimit εcov α : ℝ) (ρ ρsf pAP qcls δ : ℝ)
-    (hsig : O.η ≤ 1 / 2) (hεcov : 0 ≤ εcov) (hpop : populations.Nonempty)
+    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+    (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
+    (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hqcls : 0 < qcls)
+    (hqacc : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 1})
+    (hqrej : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 0})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
-    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ B
-      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
+    (hρsf : collisionMass Dsf ≤ ρsf) :
     (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Capped O populations εcov δ ρ B},
       x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
-  obtain ⟨B, hB, hpass⟩ := hwit
+  obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ ρsf
+    pAP qcls hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hpAPPositive hpAPBound hqcls hqacc
+    hqrej hρ hρ0 hρsf
   obtain ⟨τ, tcls, th, tap, γdec, γscr, γdirty, gdirty, Δ, n₀, hmpos, hkpos, hcd, hindLim,
-    hε1, hτ, htcls, hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hqcls0, hpAP0, hρsf0,
+    hε1, hτ, htcls, hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hqcls0, hpAP0,
     hqacc, hqrej, hpAPBound, hρsf, hclsnum, hheavy, hscd, hscLow, hscHigh, hcount,
     hhiUp, hloUp, hhiLo, hloLo, hga, hgr, hα, hbudget⟩ := hpass
   set l : ℝ := indecisionLimit / 2 with hl
@@ -6917,6 +6962,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   set κ : ℕ := B.k - 1 with hκ
   set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
   obtain ⟨j₀, hj₀⟩ := hpop
+  have hρsf0 : 0 ≤ ρsf := le_trans (tsum_nonneg (fun a => sq_nonneg _)) hρsf
   -- the whole failure at the one state, population by population
   have hsub : {x : Run Ω S J | ∀ B' : {B : Budget // Capped O populations εcov δ ρ B},
         x ∉ ret O populations indecisionLimit εcov α B'.val}
@@ -6938,7 +6984,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp B hcd hkpos j₀ hj₀
       γscr pAP tap ρsf ρ hγscr hpAP0 htap hpAPBound hscd hscLow hcount hρsf hρsf0
       (hρ j₀ hj₀) hρ0
-    have hdirty := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig
+    have hdirty := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig.le
       hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscd hscHigh
     have hdec : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
         κ ≤ F.card → F.card ≤ κ →
@@ -6970,9 +7016,9 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         rw [this]
         exact hloLo
       · rw [hE, hcardF]
-    have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp j hj B hmpos hsig
+    have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp j hj B hmpos hsig.le
       εcov α τ l E ((populations.card : ℝ) * Δ + gdirty) ρ tcls qcls qcls th n₀ κ κ
-      (Real.exp_nonneg _) hlpos hτ hεcov hε1 hρ hρ0
+      (Real.exp_nonneg _) hlpos hτ hεcov.le hε1 hρ hρ0
       (by positivity) hth htcls (hqacc j hj) (hqrej j hj) hqcls0 hqcls0
       (by rw [min_self]; exact hclsnum) hheavy _ hstall _ hdirty hdec hcut hga hgr hα
     rw [hl2] at hmain
@@ -7007,9 +7053,9 @@ The configuration is *integer* data because that is all it ever was: `vote_mem_g
 threshold matters only through the count it cuts at, and `PassableAt` is the spec the search
 in `population_size_and_evidence_margin` is looking for a witness to.
 
-`hwit` is what is *not* proved: that the growth schedule reaches a state meeting that spec.
-Everything in it is an inequality among the budgets, the oracle's rates, the populations'
-class masses and `δ`. -/
+`exists_passable` is what is *not* proved: that the growth schedule reaches a state meeting
+that spec.  Everything in it is an inequality among the budgets, the oracle's rates, the
+populations' class masses and `δ`. -/
 theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -7017,9 +7063,15 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (ρ ρsf pAP qcls : ℝ)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
-    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
-    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ B
-      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
+    (hρsf : collisionMass Dsf ≤ ρsf)
+    (hpAPPositive : 0 < pAP)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hqcls : 0 < qcls)
+    (hqacc : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 1})
+    (hqrej : ∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 0})
+    (hindLim : 0 < indecisionLimit) (hαpos : 0 < α)
+    (εcov : ℝ) (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (δ : ℝ) (hδ : 0 < δ)
+    (hα : α < 1 / 2) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ B : {B : Budget // Capped O populations εcov δ ρ B},
           x ∈ ret O populations indecisionLimit εcov α B.val) ∧
@@ -7039,8 +7091,9 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
       Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα)
     (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ ρsf pAP
-      qcls δ hsig.le hεcov.le hpop hρ
-      (le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)) hwit)
+      qcls δ hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hpAPPositive hpAPBound hqcls hqacc
+      hqrej hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
+        (hρ hpop.choose hpop.choose_spec)) hρsf)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
