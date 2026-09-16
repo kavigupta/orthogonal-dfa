@@ -43,10 +43,15 @@ Proof: the two-part decomposition —
 * `loop_terminates` — the loop returns at some round, except w.p. `δ/2`;
 * `sound_and_terminating` composes them.
 
-The composition is proved, and so is `validity_of_returned`; `loop_terminates` is `sorry`,
-with its proof plan recorded.  Four binomial facts and one independence lemma are `sorry`
-as scoped generic mathematics (`lt_of_binomSfGe_le`, `lt_of_binomCdf_le`, `binomSfGe_le`,
-`binomCdf_le`, `iIndepFun_blocks`, `exists_admissibleCut`).
+Both halves are proved.  What is still `sorry` is generic mathematics, none of it about the
+algorithm: four binomial facts (`lt_of_binomSfGe_le`, `lt_of_binomCdf_le`, `binomSfGe_le`,
+`binomCdf_le`), one independence lemma (`iIndepFun_blocks`), and the existence of an
+admissible pair of cutoffs (`exists_admissibleCut`).
+
+Termination is stated at a state that meets `PassableAt` — the arithmetic a round has to
+satisfy for its two tests to pass, which is where findability (`pAP`) and the populations'
+class balance enter.  That such a state exists under a large enough cap is the loop's
+growth schedule's job and is *not* proved here; it is the hypothesis `hwit`.
 
 **Known modelling gap (flagged, not hidden).**  The draws here are i.i.d. from each
 distribution and deduplicated downstream (`poolAt`, `prefixesAt`), whereas `_draw_cohort`
@@ -7541,8 +7546,6 @@ theorem exists_budget_weight (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAPPositive : 0 < pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2) :
@@ -7690,8 +7693,6 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAPPositive : 0 < pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2) :
@@ -7699,10 +7700,74 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
         ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   obtain ⟨w, hw0, hsum, hle, hper⟩ := exists_budget_weight O populations D Dsf
-    indecisionLimit εcov α hsig hpop pAP hpAPPositive hpAPBound Pre hflat hsupp cap ρ hρ
-    hεcov δ hδ hα
+    indecisionLimit εcov α hsig hpop Pre hflat hsupp cap ρ hρ hεcov δ hδ hα
   exact validity_of_budget O populations D Dsf indecisionLimit εcov α δ ρ w hw0 hsum hle
     cap hper
+
+/-- What one round at one population can cost: the draws, the family's size and cleanliness,
+the sample's two class counts and its heavy fraction, and the round's own two tests. -/
+noncomputable def roundFail (populations : Finset J)
+    (l τ tcls th E γscr γdirty gdirty tap ρ ρsf : ℝ) (n₀ : ℕ) (B : Budget) : ℝ :=
+  ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
+    + (2 * Real.exp (-2 * (B.m : ℝ) * tcls ^ 2)
+      + (((B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * tap ^ 2)
+          + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γscr ^ 2))))
+        + (((B.m : ℝ) ^ 2 * ρ + (((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γdirty ^ 2)
+            + (B.M : ℝ) * Real.exp (-2 * (B.m : ℝ) * gdirty ^ 2)))
+          + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
+            + (E / l + (E / l + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2)))))))
+
+/-- **A state whose round can pass.**  Every clause is an inequality among the state's
+budgets, the oracle's rates, the populations' class masses and the error budget — no
+probability enters, and nothing here is a free parameter of the algorithm.  Reaching such a
+state is what the loop's growth schedule is for, and `exists_admissibleCut` is the small
+case of the arithmetic being satisfiable at all.
+
+`qcls` is the mass each population puts on each label.  It has to be positive: a population
+that never rejects leaves the gate's reject side empty, and an empty side reads as
+`binomCdf 0 = 1 > α`, so nothing can be admitted.  That is a property of the populations,
+not a knob. -/
+def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    (indecisionLimit εcov α δ ρ ρsf pAP qcls : ℝ) (B : Budget) : Prop :=
+  ∃ (τ tcls th tap γdec γscr γdirty gdirty Δ : ℝ) (n₀ : ℕ),
+    0 < B.m ∧ 0 < B.k ∧ B.cn < B.cd ∧ 0 < indecisionLimit ∧ εcov ≤ 1
+    ∧ 0 ≤ τ ∧ 0 ≤ tcls ∧ 0 ≤ th ∧ 0 ≤ tap ∧ 0 ≤ γdec ∧ 0 ≤ γscr ∧ 0 ≤ γdirty ∧ 0 ≤ gdirty
+    ∧ 0 < Δ ∧ 0 ≤ qcls ∧ 0 ≤ pAP ∧ 0 ≤ ρsf
+    -- the populations' classes and the pool's findability
+    ∧ (∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 1})
+    ∧ (∀ j ∈ populations, qcls ≤ (D j).real {p | O.label p = 0})
+    ∧ pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}
+    ∧ collisionMass Dsf ≤ ρsf
+    -- the certification sample carries both classes and few heavy prefixes
+    ∧ ((n₀ : ℝ) + 2 * (indecisionLimit / 2) * (B.m : ℝ)
+        + 2 * (indecisionLimit / 2) * (B.m : ℝ) ≤ (B.m : ℝ) * (qcls - tcls))
+    ∧ (((populations.card : ℝ) * Δ + gdirty) * ((B.k - 1 : ℕ) : ℝ) + th
+        ≤ indecisionLimit / 2)
+    -- the screen sits above the clean rate and below the dirty one
+    ∧ (∀ n : ℕ, n ≤ populations.card * B.m →
+        (n : ℝ) * (2 * O.η * (1 - O.η) + γscr) ≤ (B.sc : ℝ))
+    ∧ (∀ n : ℕ, B.m ≤ n → (B.sc : ℝ)
+        ≤ (n : ℝ) * ((2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2) - γdirty))
+    -- the pool holds a family
+    ∧ ((B.k : ℝ) ≤ (B.M : ℝ) * (pAP - tap))
+    -- the thresholds decide, and decide right, on a clean family of the round's size
+    ∧ (((B.hi - 1 : ℕ) : ℝ) ≤ ((B.k - 1 : ℕ) : ℝ) * ((1 - O.η) - γdec))
+    ∧ (((B.k - 1 : ℕ) : ℝ) * (O.η + γdec) ≤ (B.lo : ℝ) + 1)
+    ∧ (((B.k - 1 : ℕ) : ℝ) * (O.η + γdec) ≤ ((B.hi - 1 : ℕ) : ℝ))
+    ∧ ((B.lo : ℝ) < ((B.k - 1 : ℕ) : ℝ) * ((1 - O.η) - γdec))
+    -- the gate's two sides clear their thresholds
+    ∧ (∀ n c : ℕ, n₀ ≤ n → n ≤ c → c ≤ B.m →
+        (n : ℝ) * (gateAcc O εcov + τ + τ)
+          ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * (indecisionLimit / 2) * (c : ℝ)))
+    ∧ (∀ n c : ℕ, n₀ ≤ n → n ≤ c → c ≤ B.m →
+        (n : ℝ) * O.η + (1 - 2 * O.η) * (2 * (indecisionLimit / 2) * (c : ℝ))
+          ≤ (n : ℝ) * (gateRej O εcov - τ - τ))
+    ∧ (Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α)
+    -- and the whole round, over every population, fits in the budget
+    ∧ ((populations.card : ℝ)
+        * roundFail populations (indecisionLimit / 2) τ tcls th
+            (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * γdec ^ 2)) γscr γdirty gdirty tap ρ ρsf n₀ B
+      ≤ δ / 2)
 
 /-- **Part 2 — the loop terminates.**
 
@@ -7728,18 +7793,99 @@ binomial probability that one prefix's count lands inside the indecisive band, s
 bounds the *expected* indecision fraction; if the loop's limit were at or below it the
 test could essentially never pass and the loop would not terminate.  The code keeps the
 slack: `0.01 < 0.02` (`0.10` after PR #257). -/
-theorem loop_terminates (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
+theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit εcov α : ℝ) (cap : Budget)
-    (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAPPositive : 0 < pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
-    (hslack : accFnr < indecisionLimit) :
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (indecisionLimit εcov α : ℝ) (cap : Budget) (ρ ρsf pAP qcls δ : ℝ)
+    (hsig : O.η ≤ 1 / 2) (hεcov : 0 ≤ εcov) (hpop : populations.Nonempty)
+    (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ cap B
+      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
     (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // Capped O populations εcov δ ρ cap B},
-      x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 :=
-  sorry
+      x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
+  classical
+  obtain ⟨B, hB, hpass⟩ := hwit
+  obtain ⟨τ, tcls, th, tap, γdec, γscr, γdirty, gdirty, Δ, n₀, hmpos, hkpos, hcd, hindLim,
+    hε1, hτ, htcls, hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hqcls0, hpAP0, hρsf0,
+    hqacc, hqrej, hpAPBound, hρsf, hclsnum, hheavy, hscLow, hscHigh, hcount,
+    hhiUp, hloUp, hhiLo, hloLo, hga, hgr, hα, hbudget⟩ := hpass
+  set l : ℝ := indecisionLimit / 2 with hl
+  have hlpos : 0 < l := by rw [hl]; linarith
+  have hl2 : 2 * l = indecisionLimit := by rw [hl]; ring
+  set κ : ℕ := B.k - 1 with hκ
+  set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
+  obtain ⟨j₀, hj₀⟩ := hpop
+  -- the whole failure at the one state, population by population
+  have hsub : {x : Run Ω S J | ∀ B' : {B : Budget // Capped O populations εcov δ ρ cap B},
+        x ∉ ret O populations indecisionLimit εcov α B'.val}
+      ⊆ ⋃ j ∈ populations,
+        {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j} := by
+    intro x hx
+    by_contra hc
+    simp only [Set.mem_iUnion, not_exists, exists_prop, Set.mem_setOf_eq, not_and] at hc
+    refine hx ⟨B, hB⟩ ((mem_ret_iff O populations indecisionLimit εcov α B x).2 (fun j hj => ?_))
+    by_contra hcj
+    exact hc j hj hcj
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+  have hper : ∀ j ∈ populations,
+      (runLaw μ D Dsf).real
+          {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
+        ≤ roundFail populations l τ tcls th E γscr γdirty gdirty tap ρ ρsf n₀ B := by
+    intro j hj
+    have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp B hcd hkpos j₀ hj₀
+      γscr pAP tap ρsf ρ hγscr hpAP0 htap hpAPBound hscLow hcount hρsf hρsf0 (hρ j₀ hj₀) hρ0
+    have hdirty := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig
+      hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscHigh
+    have hdec : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
+        κ ≤ F.card → F.card ≤ κ →
+        μ.real {ω | ¬ decided O B.lo (B.hi - 1) F p ω} ≤ E := by
+      intro F p hf hmin hmax
+      have hcardF : F.card = κ := le_antisymm hmax hmin
+      have hclean : flipCount O F p = 0 := by
+        have h0 : (0 : ℝ) ≤ flipCount O F p := Nat.cast_nonneg _
+        have := hf
+        rw [mul_zero] at this
+        linarith
+      refine le_trans (decided_whp O F p B.lo (B.hi - 1) γdec hγdec hclean ?_ ?_) ?_
+      · rw [hcardF]; exact hhiUp
+      · rw [hcardF]; exact hloUp
+      · rw [hE, hcardF]
+    have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
+        κ ≤ F.card → F.card ≤ κ →
+        μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω} ≤ E := by
+      intro F p hf hmin hmax
+      have hcardF : F.card = κ := le_antisymm hmax hmin
+      refine le_trans (cutCorrect_whp O F p B.lo (B.hi - 1) 0 γdec hf hγdec ?_ ?_) ?_
+      · rw [hcardF]
+        have : (κ : ℝ) * ((O.η + (1 - 2 * O.η) * 0) + γdec) = (κ : ℝ) * (O.η + γdec) := by ring
+        rw [this]
+        exact hhiLo
+      · rw [hcardF]
+        have : (κ : ℝ) * ((O.η + (1 - 2 * O.η) * (1 - 0)) - γdec)
+            = (κ : ℝ) * ((1 - O.η) - γdec) := by ring
+        rw [this]
+        exact hloLo
+      · rw [hE, hcardF]
+    have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp j hj B hmpos hsig
+      εcov α τ l E ((populations.card : ℝ) * Δ + gdirty) ρ tcls qcls qcls th n₀ κ κ
+      (Real.exp_nonneg _) hlpos hτ hεcov hε1 hρ hρ0
+      (by positivity) hth htcls (hqacc j hj) (hqrej j hj) hqcls0 hqcls0
+      (by rw [min_self]; exact hclsnum) hheavy _ hstall _ hdirty hdec hcut hga hgr hα
+    rw [hl2] at hmain
+    refine le_trans hmain (le_of_eq ?_)
+    unfold roundFail
+    ring
+  calc ∑ j ∈ populations, (runLaw μ D Dsf).real
+        {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
+      ≤ ∑ _j ∈ populations,
+          roundFail populations l τ tcls th E γscr γdirty gdirty tap ρ ρsf n₀ B :=
+        Finset.sum_le_sum hper
+    _ = (populations.card : ℝ)
+          * roundFail populations l τ tcls th E γscr γdirty gdirty tap ρ ρsf n₀ B := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ δ / 2 := hbudget
 
 /-- **The E-L\* clustering algorithm is PAC-correct.**
 
@@ -7760,13 +7906,13 @@ search in `population_size_and_evidence_margin` is looking for a witness to. -/
 theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (accFnr indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (pAP : ℝ) (hpAPPositive : 0 < pAP)
-    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (cap : Budget) (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
-    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hindLim : 0 < indecisionLimit)
-    (hslack : accFnr < indecisionLimit) (hα : α < 1 / 2) :
+    (cap : Budget) (ρ ρsf pAP qcls : ℝ)
+    (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hα : α < 1 / 2)
+    (hwit : ∃ B : Budget, Capped O populations εcov δ ρ cap B
+      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP qcls B) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ B : {B : Budget // Capped O populations εcov δ ρ cap B},
           x ∈ ret O populations indecisionLimit εcov α B.val) ∧
@@ -7781,9 +7927,10 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (fun B : {B : Budget // Capped O populations εcov δ ρ cap B} =>
       ret O populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      pAP hpAPPositive hpAPBound Pre hflat hsupp cap ρ hρ hεcov δ hδ hα)
-    (loop_terminates O populations D Dsf accFnr indecisionLimit εcov α cap hsig hpop
-      pAP hpAPPositive hpAPBound δ hδ hindLim hslack)
+      Pre hflat hsupp cap ρ hρ hεcov δ hδ hα)
+    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α cap ρ ρsf pAP
+      qcls δ hsig.le hεcov.le hpop hρ
+      (le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)) hwit)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
