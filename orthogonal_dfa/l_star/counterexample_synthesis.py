@@ -137,11 +137,8 @@ def _per_state_members(pst, resolver, dfa, per_state):
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
-    """Probe for boundary strings the round did not turn up itself.
-
-    What the proving found is kept whether or not it proved the source worth
-    drawing on: the probes were spent either way.
-    """
+    """Probe for up to ``wanted`` more boundary strings, keeping what the yield
+    test turned up even when the source fails it."""
     if wanted <= 0:
         return
     source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)

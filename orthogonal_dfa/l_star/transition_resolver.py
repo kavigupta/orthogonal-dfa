@@ -34,7 +34,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -42,9 +42,6 @@ from .suffix_family import SuffixFamily
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
-
-#: Probes sifted per batched pass.
-_PROBE_BLOCK = 16
 
 
 class TransitionResolver:
@@ -163,7 +160,7 @@ class TransitionResolver:
         while drawn < max_probes:
             block = [
                 self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-                for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
+                for _ in range(min(PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
             self.sifter.prefill(block)

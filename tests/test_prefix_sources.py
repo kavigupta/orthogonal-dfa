@@ -237,71 +237,64 @@ class _Walk:
         leaf = self._places(seq)
         return (leaf, None) if leaf is not None else (None, seq + b"?")
 
+    def prefill(self, seqs):
+        pass
+
 
 class _Probes(_Pst):
-    """A sampler handing out the probes it is given, in order."""
+    """A sampler handing out ``probe`` every time."""
 
-    def __init__(self, words):
-        super().__init__(len(words[0]))
-        self._words = list(words)
+    def __init__(self, probe):
+        super().__init__(len(probe))
         self.sampler = SimpleNamespace(
-            length=len(words[0]),
-            sample=lambda _rng, alphabet_size: self._words.pop(0),
+            length=len(probe),
+            sample=lambda _rng, alphabet_size: probe,
             symbol_weights=lambda _n: [0.5, 0.5],
         )
 
 
-#: Every state steps to 1, so a walk of any probe ends there while the tree
-#: says 0 -- which is what puts the bisection between them.
+#: Walks end at 1 where the tree says 0, so every probe is bisected.
 _STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
-#: Half of a length-4 probe, so the bisection's midpoint is long enough to keep.
-_LONG_ONE_FAILS = staticmethod(lambda seq: None if len(seq) == 2 else 0)
-#: Below the bar, so it is asked about and thrown away.
-_SHORT_ONE_FAILS = staticmethod(lambda seq: None if len(seq) == 1 else 0)
+_LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
+_SHORT_ONE_FAILS = lambda seq: None if len(seq) == 1 else 0
 _PROBE = bytes([0, 1, 0, 1])
 
 
 class TestABoundarySourceProbes(unittest.TestCase):
-    def _source(self, words, places):
-        return BoundarySource(_Probes(words), _Walk(places), _STEPS_TO_ONE)
+    def _source(self, places, *, known):
+        return BoundarySource(
+            _Probes(_PROBE), _Walk(places), _STEPS_TO_ONE, known=known
+        )
 
     def test_a_prefix_the_tree_cannot_place_is_kept(self):
-        source = self._source([_PROBE], _LONG_ONE_FAILS)
+        source = self._source(_LONG_ONE_FAILS, known=())
 
         self.assertTrue(source.attempt_draw())
         self.assertEqual(_PROBE[:2] + b"?", source.draw())
 
     def test_a_probe_the_tree_places_throughout_keeps_nothing(self):
-        source = self._source([_PROBE], lambda seq: 0)
+        source = self._source(lambda seq: 0, known=())
 
         self.assertFalse(source.attempt_draw())
 
     def test_a_prefix_too_short_to_come_again_is_not_kept(self):
-        # Half the sampler's length is the bar.  Below it the prefixes run out
-        # at once -- every probe asks about the same few -- so a source drawing
-        # on them would be spent rather than short.
-        source = self._source([_PROBE] * 10, _SHORT_ONE_FAILS)
+        source = self._source(_SHORT_ONE_FAILS, known=())
 
         self.assertFalse(source.attempt_draw())
 
     def test_keeping_the_same_string_again_is_not_a_find(self):
-        source = self._source([_PROBE, _PROBE], _LONG_ONE_FAILS)
+        source = self._source(_LONG_ONE_FAILS, known=())
 
         self.assertTrue(source.attempt_draw())
         self.assertFalse(source.attempt_draw(), "the second probe found nothing new")
 
     def test_what_the_caller_already_holds_is_not_a_find(self):
-        source = BoundarySource(
-            _Probes([_PROBE] * 10),
-            _Walk(_LONG_ONE_FAILS),
-            _STEPS_TO_ONE,
-            known=[_PROBE[:2] + b"?"],
-        )
+        source = self._source(_LONG_ONE_FAILS, known=[_PROBE[:2] + b"?"])
 
         self.assertFalse(source.attempt_draw())
 
     def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
-        source = self._source([_PROBE] * 10_000, _LONG_ONE_FAILS)
+        source = self._source(_LONG_ONE_FAILS, known=())
 
         self.assertEqual(_PROBE[:2] + b"?", source.draw())
 
