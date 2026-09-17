@@ -4,11 +4,13 @@ Deciding where the partial DFA's edges point.
 PartialDFA owns the edges and the witnesses, but cannot decide where an
 edge *goes*, because that needs the oracle.
 
-Every member of the source state votes for where its successor under the
-edge's character goes, and the edge points at the majority target, with a member
-that voted for it as the witness.  Successors the family cannot place are
-harvested as boundary strings; if none can be placed, the edge stays open.
-Leaves gain members as the run goes on, so closing re-votes every edge.
+We ask the oracle where members' successors under the edge's character go, in
+order, until the family places one; the ones it cannot place are harvested as
+boundary strings, and if it places none the edge stays open.  Every later member
+whose successor is already placeable without a new query (split evidence reads
+these) also votes, and the edge points at the majority, with a member that voted
+for it as the witness.  Closing re-votes every edge, so the edge follows that
+evidence as it accumulates.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -33,16 +35,18 @@ class EdgeResolver:
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
         members = self.leaf_members(state)
-        self.sifter.prefill([member + bytes([c]) for member in members])
-        votes: Dict[int, List[bytes]] = {}
-        for member in members:
+        for i, member in enumerate(members):
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
-            if target is None:
-                self.indecisive.add(boundary)
-            else:
-                votes.setdefault(target, []).append(member)
-        if not votes:
+            if target is not None:
+                break
+            self.indecisive.add(boundary)
+        else:
             return None, None
+        votes: Dict[int, List[bytes]] = {target: [member]}
+        for other in members[i + 1 :]:
+            known = self.sifter.known_sift(other + bytes([c]))
+            if known is not None:
+                votes.setdefault(known, []).append(other)
         # Ties keep the current target, so an edge does not flap between them.
         current = self.dfa.target(state, c)
         target = max(votes, key=lambda t: (len(votes[t]), t == current))

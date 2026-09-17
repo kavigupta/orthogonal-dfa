@@ -4,12 +4,12 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting every member of the state extended by
-the symbol: the edge points where most of them land, a member that landed there is
-kept as its witness, and it is re-voted as the leaf gains members.  A leaf every
-one of whose members is indecisive, or that no prefix reaches, leaves its edge
-open; the export totalises those -- self-looping them and feeding their
-boundary strings back so the next round's family resolves them (see EdgeResolver).
+(state, symbol) edge is resolved by sifting the state's members extended by the
+symbol: the first one the tree places, and every later one it can place from reads
+already made, vote, and the edge points where most of them land, with a member that
+landed there as its witness.  A leaf every one of whose members is indecisive, or
+that no prefix reaches, leaves its edge open; the export totalises those --
+self-looping them and feeding their boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
 strings are walked through a *totalised* copy of the transition function and
@@ -136,7 +136,8 @@ class TransitionResolver:
                     delta = self._total_delta()  # the split rewrote the state set
                 elif status == _UNDECIDED:
                     since_split = 0
-                    self.edges.close()  # the leaves may have gained members; re-vote
+                    # split evidence may have read more successors; re-vote
+                    self.edges.close()
                     delta = self._total_delta()
                 else:
                     since_split += 1
