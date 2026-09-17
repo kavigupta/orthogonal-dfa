@@ -32,6 +32,7 @@ from .prefix_sources import (
     draw_many,
     state_source,
 )
+from .rejection_source import RejectionSource
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -94,6 +95,13 @@ def _default_patience(acc_threshold: float) -> int:
     if acc_threshold >= 1:
         return COUNTEREXAMPLE_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
+
+
+def _can_draw(source) -> bool:
+    """Whether ``source`` still turns up what its population is made of.  The
+    sampler always does; a source that rejects most of what it draws has to be
+    asked."""
+    return not isinstance(source, RejectionSource) or source.worth_drawing()
 
 
 class Pools:
@@ -175,33 +183,28 @@ class Pools:
         self.held.update(collected)
         self.publish()
 
-    def pool_the_harvest(self, resolver, dfa) -> bool:
-        """Make a pool of this round's harvest, saying whether it could.
+    def pool_the_harvest(self, resolver, dfa) -> None:
+        """Make a pool of this round's harvest, and a source that can grow it.
 
-        It could where probing goes on stranding strings the tree cannot place:
-        the pool then has a source and is grown rather than fixed at whatever
-        size the round reached.
-
-        Where it does not, the round keeps its harvest and makes no population
-        of it.  A pool nothing can add to is one the family would be held to a
-        rate over and never able to answer.
+        Whether probing still turns up strings the tree cannot place is asked of
+        the source when something asks it for prefixes, not here: these strings
+        are ones a round could not place however few more there are to find, and
+        a family held to a rate over them is the point of pooling them.
         """
-        source = BoundarySource(
+        if not self._harvest:
+            return
+        self._sealed += 1
+        label = ("boundary", self._sealed)
+        self._boundary_sources[label] = BoundarySource(
             self._pst,
             resolver.sifter,
             dfa.transitions,
-            label=("boundary", self._sealed + 1),
+            label=label,
             known=self._pooled | self._harvest.keys(),
         )
-        if not source.has_sufficient_yield():
-            return False
-        self._sealed += 1
-        label = ("boundary", self._sealed)
-        self._boundary_sources[label] = source
         self._boundaries[label] = list(self._harvest)
         self._pooled.update(self._harvest)
         self._harvest = {}
-        return True
 
     @property
     def pending_harvest(self) -> int:
@@ -229,15 +232,21 @@ class Pools:
         return [UNIFORM, *self.held]
 
     def for_split(self, label, wanted: int):
-        """Prefixes for one population, to read the split on and not to keep."""
+        """Prefixes for one population, to read the split on and not to keep.
+
+        None where nothing draws for it any more, which is a population that
+        does not get a say this round rather than one to hold up the split.
+        """
         source = self._sources.get(label)
-        return draw_many(source, wanted) if source is not None else []
+        if source is None or not _can_draw(source):
+            return []
+        return draw_many(source, wanted)
 
     def more(self, label, wanted: int) -> bool:
         """Draw ``wanted`` further prefixes for one population, saying whether
         that population is one this round has a source for."""
         source = self._sources.get(label)
-        if source is None:
+        if source is None or not _can_draw(source):
             return False
         drawn = draw_many(source, wanted)
         # Extended, not rebound: a boundary pool's list is the one `_boundaries`
