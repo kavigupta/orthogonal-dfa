@@ -46,6 +46,9 @@ class SuffixFamily:
         self._means[key] = value
         return value
 
+    def knows(self, seq, midfix) -> bool:
+        return (seq, midfix) in self._means
+
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and

@@ -136,7 +136,7 @@ class TransitionResolver:
                     delta = self._total_delta()  # the split rewrote the state set
                 elif status == _UNDECIDED:
                     since_split = 0
-                    self.edges.close()  # the leaves gained members; re-vote
+                    self.edges.close()  # the leaves may have gained members; re-vote
                     delta = self._total_delta()
                 else:
                     since_split += 1

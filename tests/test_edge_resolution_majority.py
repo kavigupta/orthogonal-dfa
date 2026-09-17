@@ -15,6 +15,9 @@ class _FirstByteSifter:
     def __init__(self):
         self.tree = _StubTree()
 
+    def prefill(self, seqs):
+        pass
+
     def sift_and_boundary(self, seq):
         return seq[0], None
 

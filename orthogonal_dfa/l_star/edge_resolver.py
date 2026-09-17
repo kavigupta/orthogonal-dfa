@@ -32,8 +32,10 @@ class EdgeResolver:
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
+        members = self.leaf_members(state)
+        self.sifter.prefill([member + bytes([c]) for member in members])
         votes: Dict[int, List[bytes]] = {}
-        for member in self.leaf_members(state):
+        for member in members:
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is None:
                 self.indecisive.add(boundary)

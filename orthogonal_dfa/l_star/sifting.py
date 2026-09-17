@@ -30,7 +30,10 @@ class Sifter:
         discarded -- only the warmed cache matters."""
 
         def warm(pairs):
-            self.family.prefill([s + m for s, m in pairs])
+            # The memo would skip these too, but only after hashing every cell.
+            self.family.prefill(
+                [s + m for s, m in pairs if not self.family.knows(s, m)]
+            )
             return [self.family.is_accept(s, m) for s, m in pairs]
 
         self.tree.classify_many(seqs, warm)
