@@ -426,9 +426,12 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] (O : Oracle μ S)
 
-/-- Derived per-string measurability, from the joint version. -/
-lemma noise_meas' (w : S) : Measurable (O.noise w) :=
-  O.noise_meas.comp (measurable_const.prodMk measurable_id)
+/-- Joint measurability in the query string and the sample, which is what composing the
+oracle with a randomly drawn string needs.  Derived, because for a countable `S` the preimage
+splits as `⋃ w, {w} ×ˢ (noise w)⁻¹(B)`. -/
+lemma noise_meas_prod [Countable S] [MeasurableSingletonClass S] :
+    Measurable (fun z : S × Ω => O.noise z.1 z.2) :=
+  measurable_from_prod_countable_right O.noise_meas
 
 /-- Whether `v` flips `p`'s acceptance:
 
@@ -460,7 +463,7 @@ noncomputable def read {ι : Type*} (pref : ι → S) (v : S) (i : ι) : Ω → 
 variable {ι : Type*} (pref : ι → S)
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
-  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas' w).aemeasurable (O.noise_icc w)
+  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w).aemeasurable (O.noise_icc w)
 
 /-- Derived read mean (this is `read_disagreement_mean`, now a fact about the
 oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
@@ -476,7 +479,7 @@ lemma read_mean (v : S) (i : ι) :
 lemma read_meas (v : S) (i : ι) : Measurable (O.read pref v i) := by
   show Measurable
     (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω)
-  exact measurable_const.add (measurable_const.mul (O.noise_meas' _))
+  exact measurable_const.add (measurable_const.mul (O.noise_meas _))
 
 /-- Derived per-suffix independence across prefixes.  The reads of `v` across
 distinct prefixes hit *distinct* query strings (`pref` injective, composed with

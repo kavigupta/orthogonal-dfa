@@ -60,7 +60,7 @@ noncomputable def binomCdf (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
 
 lemma mq_meas (O : Oracle μ S) (p : S) : Measurable (mq O p) := by
   show Measurable (fun ω => O.label p + (1 - 2 * O.label p) * O.noise p ω)
-  exact measurable_const.add (measurable_const.mul (O.noise_meas' p))
+  exact measurable_const.add (measurable_const.mul (O.noise_meas p))
 
 lemma mq_indep (O : Oracle μ S) : iIndepFun (fun p : S => mq O p) μ :=
   O.noise_indep.comp (fun p x => O.label p + (1 - 2 * O.label p) * x)
@@ -769,7 +769,7 @@ def noiseAlg (O : Oracle μ S) (T : Set S) : MeasurableSpace Ω :=
   ⨆ w ∈ T, MeasurableSpace.comap (O.noise w) inferInstance
 
 lemma noiseAlg_le (O : Oracle μ S) (T : Set S) : noiseAlg O T ≤ ‹MeasurableSpace Ω› :=
-  iSup₂_le (fun w _ => (O.noise_meas' w).comap_le)
+  iSup₂_le (fun w _ => (O.noise_meas w).comap_le)
 
 lemma measurableSet_noise_preimage (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ T)
     {s : Set ℝ} (hs : MeasurableSet s) :
@@ -789,7 +789,7 @@ lemma measurableSet_mq_eq_one (O : Oracle μ S) {T : Set S} {w : S} (hw : w ∈ 
 /-- Two independent blocks of the oracle's bits. -/
 lemma indep_noiseAlg (O : Oracle μ S) {T T' : Set S} (h : Disjoint T T') :
     Indep (noiseAlg O T) (noiseAlg O T') μ :=
-  indep_iSup_of_disjoint (fun w => (O.noise_meas' w).comap_le) O.noise_indep h
+  indep_iSup_of_disjoint (fun w => (O.noise_meas w).comap_le) O.noise_indep h
 
 open scoped Classical in
 /-- A block's bits decide which of its strings satisfy any condition they decide. -/
@@ -2283,7 +2283,7 @@ flatness. -/
 lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd : ℕ)
     {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) :
     iIndepFun (fun p : {p // p ∈ P} => seedLoss O cn cd v p.val) μ := by
-  refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas' w) O.noise_indep
+  refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas w) O.noise_indep
     (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _ ?_
   · intro a b hab
     refine Finset.disjoint_left.2 (fun w hw hw' => ?_)

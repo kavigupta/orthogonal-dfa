@@ -155,7 +155,7 @@ lemma pread_meas (O : Oracle μ S) (v : S) (z : ι) :
   have hf : Measurable (fun x : (ι → S) × Ω => O.flip v (x.1 z)) :=
     (flip_meas O v).comp hp
   have hn : Measurable (fun x : (ι → S) × Ω => O.noise (x.1 z * v) x.2) :=
-    O.noise_meas.comp (((measurable_mul_const v).comp hp).prodMk measurable_snd)
+    O.noise_meas_prod.comp (((measurable_mul_const v).comp hp).prodMk measurable_snd)
   show Measurable (fun x : (ι → S) × Ω =>
     O.flip v (x.1 z) + (1 - 2 * O.flip v (x.1 z)) * O.noise (x.1 z * v) x.2)
   exact hf.add ((measurable_const.sub (measurable_const.mul hf)).mul hn)

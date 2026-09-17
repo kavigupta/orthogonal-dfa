@@ -29,12 +29,7 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
 
 /-! ## The oracle -/
 
-/-- The persistent signal oracle: random classification noise on query strings.
-
-Every field is a function of a single query string, because the oracle answers membership
-one string at a time.  Concatenation and flipping are not fields and not extra assumptions:
-strings are Mathlib's `[Mul S]`, and `Oracle.flip` is derived from `label` in
-`OrthoDFA.Liveness`. -/
+/-- The persistent signal oracle: random classification noise on query strings. -/
 structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     (S : Type*) [MeasurableSpace S] where
   /-- `ℓ(w) = 1[w ∈ L]`. -/
@@ -45,18 +40,17 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
   noise : S → Ω → ℝ
   η : ℝ
   hη : η ≤ 1 / 2
-  /-- Joint in the query string and the sample, which is what lets the oracle be composed
-  with a randomly drawn query string; the per-string version is derived. -/
-  noise_meas : Measurable (fun z : S × Ω => noise z.1 z.2)
+  /-- Measurable in the sample, one query string at a time.
+
+  The algorithm draws its query strings, so what it actually needs is joint measurability in
+  the string and the sample — but for a countable `S` that follows, and
+  `Oracle.noise_meas_prod` derives it. -/
+  noise_meas : ∀ w, Measurable (noise w)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
 
-/-- The membership query the oracle answers, `MQ w = ℓ(w) ⊕ noise(w)`.
-
-At `w = p` this is the seed column the gate reads its verdict off.  One noise bit per query
-string, so these are independent across *distinct* prefixes — which is why `prefixesOf` and
-`certOf` are `Finset`s. -/
+/-- The membership query the oracle answers, `MQ w = ℓ(w) ⊕ noise(w)`. -/
 noncomputable def mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
@@ -537,11 +531,19 @@ and `δ` are in range with `cutBudget εcov` inside the indecision the FNR gate 
 
 No hypothesis is a parameter of the algorithm: `Budget` is computed (`solvedBudgetAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
-may stop wherever on the ladder it likes. -/
-def ClusteringCorrect (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
+may stop wherever on the ladder it likes.
+
+Closed: the spaces, their instances and the data are all quantified here, so
+`clustering_correct : ClusteringCorrect` is the whole claim and nothing is hidden in a
+binder on the theorem. -/
+def ClusteringCorrect : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
+      [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
+    {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ) : Prop :=
+    (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ),
   O.η < 1 / 2 →
   populations.Nonempty →
   Flat Pre →

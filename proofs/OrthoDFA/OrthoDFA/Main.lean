@@ -11,19 +11,11 @@ namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory
 
-variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-variable {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
-  [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
-variable {J : Type*} [Fintype J]
-
 /-- `validity_of_returned` (whatever the loop returns is good, whenever it is returned) and
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
-theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ) :
-    ClusteringCorrect O populations D Dsf Pre indecisionLimit εcov α δ ρ pAP := by
-  intro hsig hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ
+theorem clustering_correct : ClusteringCorrect := by
+  intro Ω _ μ _ S _ _ _ _ _ _ _ J _ O populations D Dsf _ _ Pre indecisionLimit εcov α δ ρ pAP
+    hsig hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ
     hcutlim hρcap hρsf
   by_cases hδ1 : δ ≤ 1
   case neg =>
@@ -47,5 +39,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
 #print axioms validity_of_returned
 #print axioms loop_terminates
 #print axioms clustering_correct
+
+#check @ClusteringCorrect
 
 end OrthoDFA
