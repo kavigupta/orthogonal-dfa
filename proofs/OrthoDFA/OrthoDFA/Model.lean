@@ -40,11 +40,7 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
   noise : S → Ω → ℝ
   η : ℝ
   hη : η ≤ 1 / 2
-  /-- Measurable in the sample, one query string at a time.
-
-  The algorithm draws its query strings, so what it actually needs is joint measurability in
-  the string and the sample — but for a countable `S` that follows, and
-  `Oracle.noise_meas_prod` derives it. -/
+  /-- The noise is an IID bernoulli with parameter η -/
   noise_meas : ∀ w, Measurable (noise w)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
