@@ -5,11 +5,11 @@ import OrthoDFA.Estimate
 
 The gate makes two checks per population, both sum-vs-threshold on reads:
 
-* **certification** — admit a side when its read-sum clears the admit threshold
+* certification — admit a side when its read-sum clears the admit threshold
   `m((β+τ)+margin)`.  A *drifted* side (mean ≤ β+τ) clears it w.p. ≤ α
   (`certErr_bound`); a *clean* side (mean ≥ β+s) fails to clear it only w.p.
   ≤ `exp(-2m((s-τ)-margin)²)` (`cleanAdmit_le`, below).
-* **FNR** — accept when the indecisive count stays below `m·εfnr`.  An
+* FNR — accept when the indecisive count stays below `m·εfnr`.  An
   accept-preserving family, whose per-prefix indecision rate is `fnrpp ≤ εfnr`,
   exceeds it only w.p. ≤ `exp(-2m(εfnr-fnrpp)²)` (`apLowFNR_le`, below).
 
@@ -26,7 +26,7 @@ open scoped ENNReal
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-/-- **Gate accepts a clean side.**  A side whose read-mean is at least `β+s`
+/-- Gate accepts a clean side.  A side whose read-mean is at least `β+s`
 (genuinely its own class) fails the admit test — its sum falling below the
 threshold `m((β+τ)+margin)` — with probability at most `exp(-2m((s-τ)-margin)²)`,
 provided the admit margin is within `s-τ`. -/
@@ -42,7 +42,7 @@ theorem cleanAdmit_le (X : ℕ → Ω → ℝ) (m : ℕ) (β s τ margin : ℝ)
   rw [Finset.card_range] at h
   simpa only [show (β + s) - ((s - τ) - margin) = (β + τ) + margin by ring] using h
 
-/-- **Gate accepts an accept-preserving family (FNR check).**  If the per-prefix
+/-- Gate accepts an accept-preserving family (FNR check).  If the per-prefix
 indecision rate is at most `fnrpp ≤ εfnr`, the empirical indecisive count reaching
 `m·εfnr` has probability at most `exp(-2m(εfnr-fnrpp)²)`. -/
 theorem apLowFNR_le (I : ℕ → Ω → ℝ) (m : ℕ) (fnrpp εfnr : ℝ)

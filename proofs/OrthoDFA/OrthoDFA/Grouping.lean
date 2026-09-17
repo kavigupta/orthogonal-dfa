@@ -60,7 +60,7 @@ lemma generateFrom_blockPi (m : κ → MeasurableSpace Ω) (A : Finset κ) :
     exact measurableSet_generateFrom (mem_blockPi_of_mem m hw hs)
 
 open scoped Classical in
-/-- **The grouping lemma.**  Blocks of an independent family generate independent
+/-- The grouping lemma.  Blocks of an independent family generate independent
 σ-algebras. -/
 theorem iIndep_biSup_of_disjoint {m : κ → MeasurableSpace Ω} (hle : ∀ w, m w ≤ mΩ)
     (hindep : iIndep m μ) (A : ι → Finset κ)
@@ -118,7 +118,7 @@ theorem iIndep_biSup_of_disjoint {m : κ → MeasurableSpace Ω} (hle : ∀ w, m
     Finset.prod_biUnion (fun i hi j hj hij => hdisj hij)]
   exact (Finset.prod_congr rfl (fun i hi => hprod i hi)).symm
 
-/-- **Functions of disjoint blocks are independent.**  The statistics each read their own
+/-- Functions of disjoint blocks are independent.  The statistics each read their own
 block of an independent family, so the σ-algebras they generate sit inside independent
 ones. -/
 theorem iIndepFun_blocks {X : κ → Ω → ℝ} (hX : ∀ w, Measurable (X w))

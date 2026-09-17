@@ -11,7 +11,7 @@ the proof needs, so the end-to-end theorem quantifies "for `k ≥ …`" rather t
 
 namespace OrthoDFA
 
-/-- **Exponential-tail threshold.**  `c·exp(−2 k t²) ≤ ε` as soon as
+/-- Exponential-tail threshold.  `c·exp(−2 k t²) ≤ ε` as soon as
 `k ≥ log(c/ε) / (2 t²)`.  Used for the decision term (`t = s−τ`) and the placement
 term (`t = γ`). -/
 theorem tail_le {t c ε k : ℝ} (ht : 0 < t) (hc : 0 < c) (hε : 0 < ε)
@@ -27,7 +27,7 @@ theorem tail_le {t c ε k : ℝ} (ht : 0 < t) (hc : 0 < c) (hε : 0 < ε)
     _ = c * (c / ε)⁻¹ := by rw [Real.exp_neg, Real.exp_log (by positivity)]
     _ = ε := by field_simp
 
-/-- **Geometric threshold.**  `(1−q)^N ≤ ε` as soon as `N ≥ log(1/ε) / q`
+/-- Geometric threshold.  `(1−q)^N ≤ ε` as soon as `N ≥ log(1/ε) / q`
 (for `0 < q ≤ 1`).  Used for the termination term (`q = (1−reject)·pp`). -/
 theorem geom_le {q ε : ℝ} {N : ℕ} (hq0 : 0 < q) (hq1 : q ≤ 1) (hε : 0 < ε)
     (hN : Real.log (1 / ε) / q ≤ (N : ℝ)) :

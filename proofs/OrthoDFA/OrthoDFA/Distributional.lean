@@ -5,17 +5,17 @@ import OrthoDFA.Termination
 /-!
 # The distributional clustering guarantee (PR #257) — target statement + proof
 
-The clustering algorithm's own guarantee, distributional and **per population**, as in
+The clustering algorithm's own guarantee, distributional and per population, as in
 PR #257 ("Hold every prefix population to the FNR limit"):
 
-* prefixes come from a **collection** of distributions `D : J → Measure S` (the uniform
+* prefixes come from a collection of distributions `D : J → Measure S` (the uniform
   pool, the boundary set, one per state) held individually;
-* candidate suffixes are drawn from a suffix distribution `Dsf`, and **findability** is a
+* candidate suffixes are drawn from a suffix distribution `Dsf`, and findability is a
   single number `pAP` — the probability a drawn suffix is accept-preserving on the true
   noiseless oracle (`∀ p, ℓ(p·v) = ℓ(p)`);
 * the seed is `ε = 1` (so accept-preserving = the seed's Nerode class);
 * the guarantee: w.p. `≥ 1 − δ`, the returned family preserves acceptance on `≥ 1 − εcov`
-  of **each** population `D j`.
+  of each population `D j`.
 
 This file builds the proof from reusable pieces.  `coverage` is the first: if every
 family member flips at most `β` of a population's mass, the family preserves `≥ 1 − #F·β`
@@ -31,7 +31,7 @@ open scoped ENNReal
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable {S : Type*} [MeasurableSpace S] [Monoid S]
 
-/-- **Coverage.**  If every suffix in the family `F` flips at most `β` of population
+/-- Coverage.  If every suffix in the family `F` flips at most `β` of population
 `Dj`'s prefix mass, then the family preserves acceptance on at least `1 − #F·β` of `Dj`:
 a union bound over the family's flip sets. -/
 theorem coverage (O : Oracle μ S)
@@ -66,7 +66,7 @@ theorem coverage (O : Oracle μ S)
 
 #print axioms coverage
 
-/-- **Findability.**  Over `M` i.i.d. suffix draws from `Dsf`, each accept-preserving with
+/-- Findability.  Over `M` i.i.d. suffix draws from `Dsf`, each accept-preserving with
 probability `≥ pAP`, the probability that *none* is accept-preserving is `≤ (1−pAP)^M`.
 A direct instance of the product-measure `geometric_miss`; `geom_le` then drives it below
 any budget once `M ≥ log(1/·)/pAP`. -/
@@ -78,7 +78,7 @@ theorem findAP (Dsf : Measure S) [IsProbabilityMeasure Dsf]
 
 #print axioms findAP
 
-/-- **Uniform slice bound transfers to the product.**  If every slice of a measurable
+/-- Uniform slice bound transfers to the product.  If every slice of a measurable
 product event has probability `≤ ε`, so does the event.  This is the plumbing that lets a
 bound proved for each *fixed* candidate pool be used when the pool is itself drawn. -/
 theorem prod_le_of_slice {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
@@ -128,7 +128,7 @@ lemma flip_icc (O : Oracle μ S) (v p : S) : O.flip v p ∈ Set.Icc (0 : ℝ) 1 
 section Persistent
 variable {ι : Type*} [Fintype ι] [IsCancelMul S]
 
-/-- Run space for the **persistent** oracle: `ι` prefix draws together with **one shared**
+/-- Run space for the persistent oracle: `ι` prefix draws together with one shared
 noise sample.  Re-reading the same query string returns the same bit — this is the honest
 RCN model, unlike a fresh-noise-per-query product. -/
 noncomputable def runMeasure (Dfam : ι → Measure S) : Measure ((ι → S) × Ω) :=
@@ -201,7 +201,7 @@ lemma injective_meas : MeasurableSet {x : (ι → S) × Ω | Function.Injective 
       exact (measurableSet_eq_fun measurable_fst measurable_snd).compl
     exact hm hdiag
 
-/-- **Level 1 (noise), conditional on distinct draws.**  Given that the draws are
+/-- Level 1 (noise), conditional on distinct draws.  Given that the draws are
 distinct — so the persistent oracle is never read twice at the same query string, and its
 bits really are independent (`read_indep`, via right-cancellation) — the loss concentrates
 around its conditional mean `N·η + (1−2η)·(flip count)`. -/
@@ -304,7 +304,7 @@ lemma pflip_meanSum (O : Oracle μ S) (Dfam : ι → Measure S)
     _ = ∫ w, O.flip v w ∂(Dfam z) := by rw [hmap]
     _ = flipMass O (Dfam z) v := rfl
 
-/-- **Level 2 (sampling), upper tail.**  The flip count on the drawn prefixes concentrates
+/-- Level 2 (sampling), upper tail.  The flip count on the drawn prefixes concentrates
 above its summed distributional flip-mass. -/
 lemma pflip_upper (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
@@ -340,7 +340,7 @@ lemma pflip_upper (O : Oracle μ S) (Dfam : ι → Measure S)
       = (∑ z, flipMass O (Dfam z) v) + N * g := by field_simp
   rw [hrw]; exact hq
 
-/-- **Level 2 (sampling), lower tail.** -/
+/-- Level 2 (sampling), lower tail. -/
 lemma pflip_lower (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
@@ -375,8 +375,8 @@ lemma pflip_lower (O : Oracle μ S) (Dfam : ι → Measure S)
       = (∑ z, flipMass O (Dfam z) v) - N * g := by field_simp
   rw [hrw]; exact hq
 
-/-- **Per-suffix upper tail, persistent oracle.**  A suffix with zero summed flip-mass
-keeps its loss below the band, except for three sources: a **collision** (the persistent
+/-- Per-suffix upper tail, persistent oracle.  A suffix with zero summed flip-mass
+keeps its loss below the band, except for three sources: a collision (the persistent
 oracle read twice at the same query string — which is why a spread-out prefix
 distribution is genuinely necessary), the sampling tail, and the noise tail. -/
 lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
@@ -432,7 +432,7 @@ lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
   linarith [hu1, hu2, hu3, hcoll, pflip_upper O Dfam v g₂ hg₂ hNpos,
     ploss_cond_upper O Dfam v g₁ hg₁ hNpos]
 
-/-- **Per-suffix lower tail, persistent oracle.**  A suffix whose summed flip-mass is at
+/-- Per-suffix lower tail, persistent oracle.  A suffix whose summed flip-mass is at
 least `σ` keeps its loss *above* the band, provided the band leaves room (`hband`). -/
 lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ σ : ℝ)
@@ -509,7 +509,7 @@ lemma flipSet_meas (O : Oracle μ S) (v : S) :
     ext p; simpa using (flip_eq_one_iff O v p).symm
   rw [this]; exact (flip_meas O v) (measurableSet_singleton 1)
 
-/-- **The flip-mass is the measure of the flip set**: `∫ flip ∂Dj = Dj{p | ℓ(p·v) ≠ ℓ(p)}`.
+/-- The flip-mass is the measure of the flip set: `∫ flip ∂Dj = Dj{p | ℓ(p·v) ≠ ℓ(p)}`.
 This is what lets the selection guarantee (stated in `flipMass`) feed `coverage`
 (stated as a measure). -/
 lemma flipMass_eq (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj] (v : S) :
@@ -530,8 +530,8 @@ lemma flipMass_nonneg (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure D
     0 ≤ flipMass O Dj v := by
   rw [flipMass_eq]; exact measureReal_nonneg
 
-/-- **Selection ⇒ per-population coverage.**  If every family member's *summed*
-flip-mass over the populations is below `εfam`, then on **each** population the family
+/-- Selection ⇒ per-population coverage.  If every family member's *summed*
+flip-mass over the populations is below `εfam`, then on each population the family
 preserves acceptance on at least a `1 − #F·εfam` fraction.  (Summed control gives
 per-population control because flip-masses are nonnegative.) -/
 theorem coverage_of_summed_flip [DecidableEq S] {J : Type*} (O : Oracle μ S)
@@ -565,7 +565,7 @@ lemma measurableSet_of_countable_slices {Y : Type*} [MeasurableSpace Y] (P : S �
   rw [hset]
   exact MeasurableSet.iUnion (fun v => (measurableSet_singleton v).prod (hP v))
 
-/-- **Findability, quantitative.**  Over `M` i.i.d. suffix draws, the count of draws
+/-- Findability, quantitative.  Over `M` i.i.d. suffix draws, the count of draws
 landing in `G` (probability `≥ pAP` each) falls to `M(pAP−γ)` only w.p. `exp(-2Mγ²)`. -/
 theorem goodCount_le (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M : ℕ) (cands : Finset (Fin M)) (pAP γ : ℝ) (hγ : 0 ≤ γ)
@@ -616,7 +616,7 @@ theorem goodCount_le (Dsf : Measure S) [IsProbabilityMeasure Dsf]
 noncomputable def pthresh (O : Oracle μ S) (g₁ g₂ N : ℝ) : ℝ :=
   N * (O.η + (1 - 2 * O.η) * g₂ + g₁)
 
-/-- **The per-draw-index separation-failure event is small, uniformly in the draw.**
+/-- The per-draw-index separation-failure event is small, uniformly in the draw.
 For draw index `c`, the event that the drawn suffix is good yet reads above the band, or
 bad yet reads below it.  Bounded by the persistent-oracle per-suffix tails (collision +
 sampling + noise), transferred to the product by `prod_le_of_slice`. -/
@@ -697,7 +697,7 @@ theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (Dfam : ι �
 
 #print axioms pindex_event_le
 
-/-- A failure bound gives the complementary success bound, with **no** measurability
+/-- A failure bound gives the complementary success bound, with no measurability
 needed: outer measure is subadditive and `s ∪ sᶜ = univ`. -/
 theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α)
     [IsProbabilityMeasure ν] (s : Set α) (d : ℝ) (h : ν.real s ≤ d) : 1 - d ≤ ν.real sᶜ := by
@@ -712,7 +712,7 @@ theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α
 
 #print axioms one_sub_le_compl_real
 
-/-- **Distributional clustering, fixed budget, persistent oracle.**  Failure form. -/
+/-- Distributional clustering, fixed budget, persistent oracle.  Failure form. -/
 theorem clustering_budget {J : Type*} [Fintype J]
     (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
@@ -887,17 +887,17 @@ theorem clustering_budget {J : Type*} [Fintype J]
 
 #print axioms clustering_budget
 
-/-- **The distributional clustering theorem (PR #257), persistent oracle.**
+/-- The distributional clustering theorem (PR #257), persistent oracle.
 
 Prefixes come from a *collection* of populations `D : J → Measure S`, held individually;
 candidate suffixes are drawn from `Dsf`, and findability is the single probability `pAP`
 that a drawn suffix is accept-preserving on the true noiseless oracle; the seed is `ε = 1`.
-The oracle is **persistent**: one noise bit per query string, shared across the run — so a
+The oracle is persistent: one noise bit per query string, shared across the run — so a
 `κ` bound on the chance that two draws collide is genuinely required (with a point-mass
 prefix distribution every draw hits the same string and no concentration is possible).
 
 With probability `≥ 1 − δ`, the returned family preserves acceptance on `≥ 1 − εcov` of
-**each** population. -/
+each population. -/
 theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     {J : Type*} (populations : Finset J) (hpop : populations.Nonempty)
     (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
@@ -993,13 +993,13 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
 
 #print axioms clustering_pac
 
-/-- **The iteration version.**  The algorithm does not run at a fixed budget: it clusters,
-checks the FNR, and if it is too high **grows the suffix pool and retries**, stopping at a
+/-- The iteration version.  The algorithm does not run at a fixed budget: it clusters,
+checks the FNR, and if it is too high grows the suffix pool and retries, stopping at a
 data-dependent time.  A fixed-budget bound does not transfer to such a stopping time.
 
-This theorem gives the guarantee **simultaneously for every round**: with probability
+This theorem gives the guarantee simultaneously for every round: with probability
 `≥ 1 − δ`, for *all* `t` the round-`t` family preserves acceptance on `≥ 1 − k·εpop` of
-**each** population.  Because it holds for all rounds at once, whichever round the loop
+each population.  Because it holds for all rounds at once, whichever round the loop
 stops at — under *any* stopping rule, the FNR test included — the family it returns
 satisfies the guarantee.  The rounds share the draws and the persistent noise; round `t`
 differs only in its candidate pool `pool t`, which is how the loop grows. -/
@@ -1063,7 +1063,7 @@ theorem clustering_pac_iter {J : Type*} [Fintype J]
 
 #print axioms clustering_pac_iter
 
-/-- **Soundness + termination ⇒ correctness.**  The two halves of a retry loop compose by
+/-- Soundness + termination ⇒ correctness.  The two halves of a retry loop compose by
 a union bound: if whatever is returned is valid except w.p. `δ/2` (uniformly over *when*
 it is returned), and the loop returns at all except w.p. `δ/2`, then with probability
 `≥ 1 − δ` the loop returns something *and* what it returns is valid. -/

@@ -41,7 +41,7 @@ theorem sumLower_le {ι : Type*} (X : ι → Ω → ℝ) (idx : Finset ι) (b γ
   have h := misplacedMember_le X idx (b - γ) γ 0 hmeas h_indep hIcc hmean' hγ
   simpa only [add_zero, sub_zero] using h
 
-/-- **Two-sided concentration.**  Total mean `= k·p`: the sum deviates from `k·p`
+/-- Two-sided concentration.  Total mean `= k·p`: the sum deviates from `k·p`
 by `k·γ` w.p. ≤ `2·exp(-2kγ²)`.  With per-prefix `[0,1]` indicators of mean `p`
 (the distributional rate), this is empirical-mean-concentrates-on-`p`. -/
 theorem twoSided (X : ℕ → Ω → ℝ) (k : ℕ) (p γ : ℝ)

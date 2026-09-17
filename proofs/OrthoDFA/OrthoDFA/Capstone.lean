@@ -38,7 +38,7 @@ theorem prod_snd_real {P R : Type*} [MeasurableSpace P] [MeasurableSpace R]
 variable {N : ℕ} {Pr Rr : Fin N → Type*}
   [∀ r, MeasurableSpace (Pr r)] [∀ r, MeasurableSpace (Rr r)]
 
-/-- **Finished capstone.**  Inputs: the oracle model (per-round certification reads
+/-- Finished capstone.  Inputs: the oracle model (per-round certification reads
 `Xc`), findability `pp`, and the gate-accept factor `1-reject`.  Both per-round
 bounds of `algorithm_correct` are discharged. -/
 theorem clustering_algorithm_correct_fused
@@ -91,7 +91,7 @@ theorem clustering_algorithm_correct_fused
 
 #print axioms clustering_algorithm_correct_fused
 
-/-- **Finished capstone, accumulating pool.**  The independent-rounds idealization
+/-- Finished capstone, accumulating pool.  The independent-rounds idealization
 removed: the good-pass event `goodErr r` may depend on the whole accumulated
 history (the representative pool that grows as fresh strings are added each round);
 only the findability `trigger r` — the fresh material drawn in round `r` — is

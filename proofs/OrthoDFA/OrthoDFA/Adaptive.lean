@@ -8,37 +8,28 @@ import Mathlib.Probability.Independence.InfinitePi
 /-!
 # The adaptive clustering loop: the proof
 
-What is being claimed is `ClusteringCorrect`, in `OrthoDFA.Model` — that file holds the
-oracle, every definition the algorithm is built from, and the statement itself, and it is
-the one to read to check *what* is proved.  This file proves it.
+`ClusteringCorrect`, in `OrthoDFA.Model`, is what is claimed; this file is how it is
+reached.  Two parts, composed by `sound_and_terminating`:
 
-The shape of the argument is a two-part decomposition:
+* `validity_of_returned` — whatever is returned is valid, whenever it is returned;
+* `loop_terminates` — the loop returns at some round;
 
-* `validity_of_returned` — whatever is returned is valid, *whenever* it is returned,
-  except w.p. `δ/2`;
-* `loop_terminates` — the loop returns at some round, except w.p. `δ/2`;
-* `sound_and_terminating` composes them.
+each except w.p. `δ/2`.
 
-Both halves are proved, and everything probabilistic with them, with no `sorry`:
-`#print axioms clustering_correct` reports only `propext, Classical.choice, Quot.sound`.
+They meet at `PassableAt`, the arithmetic a round has to satisfy for both of its tests to
+pass, and `exists_passable` shows the computed schedule reaches such a state.  That
+arithmetic is solved in order: the miscut budget `lcut` below the indecision limit, the flip
+budget `Δ` below it over the family size, the screen's two margins below `Δ(1−2η)²`, then the
+prefix count large enough for every exponential — including the share's own condition, which
+mentions `log` of the prefix count and is closed by `log x ≤ 2√x` — then `α` at the gate's
+tail, then the pool at `k/(pAP − t)`.
 
-The two halves meet at `PassableAt`, the arithmetic a round has to satisfy for both of its
-tests to pass.  That the computed schedule reaches such a state is `exists_passable` — a
-**lemma**, proved at the solved budget, not a hypothesis; it is the spec the search in
-`population_size_and_evidence_margin` is looking for a witness to.  The arithmetic is
-solved in this order: the miscut budget `lcut` below the indecision limit, the flip budget
-`Δ` below it over the family size, the screen's two margins below `Δ(1−2η)²`, then the
-prefix count large enough for every exponential — including the share's own condition,
-which mentions the ladder's length and hence `log` of the prefix count, closed by
-`log x ≤ 2√x` in one step — then `α` at the gate's own tail, then the pool at `k/(pAP − t)`.
-
-The union bound over the states the loop may stop at (`stoppable`) is a finite sum: the
-ladder has `ladderLen = log₂(prefCount) + 1` rungs and each carries `δ/(2·L)`, so no
-summable weight over all budgets is needed and no state has to be encoded as a number.
-That the state can be a `Budget` at all — integer data, no history and no real-valued
-boundary — is `vote_mem_grid`: a threshold enters every event only through the count it
-cuts at.
+The union bound over `stoppable` is a finite sum: the ladder has `log₂(prefCount) + 1` rungs
+each carrying `δ/(2·L)`, so no summable weight over all budgets is needed and no state has to
+be encoded as a number.  `vote_mem_grid` is what lets the state be a `Budget` at all — a
+threshold enters every event only through the count it cuts at.
 -/
+
 
 namespace OrthoDFA
 
@@ -60,7 +51,7 @@ config = SearchConfig(suffix_family_size=n, evidence_margin=eps, ...)
 ```
 
 and `min_signal_strength` is `½ − η`, already carried by the `Oracle`.  So the family
-size and the evidence margin are **derived** from the oracle's signal together with the
+size and the evidence margin are derived from the oracle's signal together with the
 two acceptable rates — they are not free parameters. -/
 
 /-- Binomial CDF: `P[Bin(N,p) ≤ j]`. -/
@@ -122,19 +113,14 @@ lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
 
 /-! ## The run space
 
-A run is exactly what the algorithm consumes: the oracle's persistent noise, the stream of
-suffix draws, and one stream of prefix draws per population.  That is a concrete space with
-a concrete law, so it is built here rather than axiomatised — `law_block` is a *lemma*.
+`runLaw` is a concrete space with a concrete law, so `law_block` is a lemma rather than a
+hypothesis.
 
-The code deduplicates its draws — `_draw_cohort` skips suffixes already interned and
-`sample_more_prefixes` skips prefixes already drawn — and so does this development:
-`poolAt` and `prefixesAt` take `Finset.image` of the stream.  Deduplicating `n` i.i.d.
-draws is not the same as `n` draws *without replacement*; it yields a pool that is at most
-as large, so the guarantee proved here is the conservative one.  Do **not** be tempted to
-model the without-replacement law as "i.i.d. conditioned on the block being injective":
-those conditioned laws are inconsistent across `n` (for `Dsf = (½,¼,¼)` the first marginal
-of the `n = 2` law puts mass `⅖` on the first atom, not `½`), so no space carries them all
-and everything built on them would be vacuous. -/
+On the deduplication gap `OrthoDFA.Model` records: do not be tempted to close it by modelling
+the without-replacement law as "i.i.d. conditioned on the block being injective".  Those
+conditioned laws are inconsistent across `n` — for `Dsf = (½,¼,¼)` the first marginal of the
+`n = 2` law puts mass `⅖` on the first atom, not `½` — so no space carries them all and
+everything built on them would be vacuous. -/
 
 open scoped Classical in
 /-- Reading the first `n` coordinates of an i.i.d. stream. -/
@@ -172,7 +158,7 @@ lemma measurable_prf (j : J) (i : ℕ) : Measurable (prf (Ω := Ω) (S := S) j i
 lemma measurable_cert (j : J) (i : ℕ) : Measurable (cert (Ω := Ω) (S := S) j i) := by
   unfold cert; fun_prop
 
-/-- **The joint law of the first `n` draws.**  This is what the concentration arguments
+/-- The joint law of the first `n` draws.  This is what the concentration arguments
 consume, and it is a theorem about `runLaw`, not a hypothesis about an abstract space. -/
 lemma law_block (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (n : ℕ) :
@@ -202,12 +188,12 @@ variable {D : J → Measure S} {Dsf : Measure S}
 The growth schedule is not a user parameter — it is something the algorithm optimizes as
 it sees fit (`sample_suffix_family` alternates suffix- and prefix-growth based on whether
 the FNR improved, and even the suffix increment is the *screened* `kept` count).  So the
-statement fixes no schedule.  Instead a **history** records the sequence of budget states
+statement fixes no schedule.  Instead a history records the sequence of budget states
 the loop has passed through, and the guarantee is uniform over *all* histories and *all*
 budgets — whatever the algorithm chooses, it is covered.  Histories are countable, so the
 union bound still closes. -/
 
-/-- **The budget the loop is heading for**: the top of the ladder. -/
+/-- The budget the loop is heading for: the top of the ladder. -/
 noncomputable def solvedBudget (O : Oracle μ S) (populations : Finset J)
     (εcov δ α pAP : ℝ) : Budget :=
   solvedBudgetAt O populations εcov δ pAP (prefCount O populations εcov δ α pAP)
@@ -262,14 +248,13 @@ noncomputable def vote (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℝ 
   (∑ v ∈ F, mq O (p * v) ω) / F.card
 
 open scoped Classical in
-/-- **Votes live on a grid.**  Every membership query is `0` or `1`, so a family of `k`
+/-- Votes live on a grid.  Every membership query is `0` or `1`, so a family of `k`
 suffixes votes in `{0, 1/k, …, 1}`.
 
-This is what collapses the union over boundaries.  Every comparison the algorithm makes —
-`b < vote` in the cluster centre, `cfgAcc ≤ vote` and `vote < cfgRej` in the gates — comes
-down to *which grid cell the threshold sits in*, an integer in `{0, …, k+1}`.  So the whole
-event depends on the boundary and the margin only through finitely many integers, however
-the margin is derived. -/
+This is what collapses the union over boundaries.  Every comparison the algorithm makes
+against a real-valued threshold — the cluster centre's `cn/cd`, the gate's `lo` and `hi` —
+comes down to which grid cell that threshold sits in, an integer in `{0, …, k+1}`, so
+`Budget` can carry the counts instead. -/
 lemma vote_mem_grid (O : Oracle μ S) (F : Finset S) (p : S) :
     ∀ᵐ ω ∂μ, ∃ j : ℕ, j ≤ F.card ∧ vote O F p ω = (j : ℝ) / F.card := by
   filter_upwards [(ae_ball_iff F.countable_toSet).2 (fun v _ => mq_bit O (p * v))] with ω hω
@@ -292,7 +277,7 @@ lemma vote_mem_grid (O : Oracle μ S) (F : Finset S) (p : S) :
   show (∑ v ∈ F, mq O (p * v) ω) / F.card = _
   rw [hsum]
 
-/-- **The cluster never drifts off the seed.**  `identify_cluster_around` stops the moment
+/-- The cluster never drifts off the seed.  `identify_cluster_around` stops the moment
 `ε` would leave, so every family the loop proposes contains it — which is what lets the
 gate read the split off `ε`'s own column. -/
 lemma one_mem_clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
@@ -338,7 +323,7 @@ lemma one_mem_screenedAt (O : Oracle μ S) (populations : Finset J) (B : Budget)
     (x : Run Ω S J) : (1 : S) ∈ screenedAt O populations B x :=
   one_mem_screened O B.sc B.scd _ _ _ (one_mem_poolAt B.M x)
 
-/-- **The seed's column is read at a different string from the split.**  The gate counts
+/-- The seed's column is read at a different string from the split.  The gate counts
 `mq p`, the oracle at `p`; the split reads `p · v` for the family members `v`.  With `ε`
 dropped from the family those strings are all distinct from `p`, so the persistent oracle's
 bits at them are independent of the bit being scored.
@@ -359,7 +344,7 @@ the observation that the cut is decided by randomness independent of the bits be
 Decomposing over the cut's values then pays nothing: the probabilities of the values sum to
 one, not to `2^m`. -/
 
-/-- **A worst-case bound survives an independently chosen index.**  If `sel ω` always lands
+/-- A worst-case bound survives an independently chosen index.  If `sel ω` always lands
 in the finite set `T` and, for each value `t`, the event `sel ω = t` is independent of
 `Bad t`, then a bound `E` holding for every fixed `t` holds for `Bad (sel ω)` itself.
 
@@ -475,7 +460,7 @@ lemma clusterLoss_nonneg (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands
   · exact le_rfl
 
 open scoped Classical in
-/-- **The seed's own loss against its own column is zero**, so the first step always ranks
+/-- The seed's own loss against its own column is zero, so the first step always ranks
 it first — which is what stops the clustering from stalling at `{ε}`. -/
 lemma clusterLoss_seed_zero (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P cands : Finset S)
     (ω : Ω) (hone : (1 : S) ∈ cands) :
@@ -550,7 +535,7 @@ lemma lloydStep_card_keep (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (
   · exact hF
 
 open scoped Classical in
-/-- **The clustering does not stall.**  The seed's loss against its own column is zero, so
+/-- The clustering does not stall.  The seed's loss against its own column is zero, so
 the first step is taken and every later one either keeps its `k` members or retakes `k`. -/
 theorem clusterAround_card (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P cands : Finset S)
     (ω : Ω) (k : ℕ) (hone : (1 : S) ∈ cands) (hk : k ≤ cands.card) (hkpos : 0 < k) :
@@ -611,7 +596,7 @@ lemma lloydIterate_congr (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (k
         _ = (lloydStep O cn cd P cands ω' k)^[n + 1] F :=
             (Function.iterate_succ_apply _ _ _).symm
 
-/-- **The cluster reads only `readSet`.**  Two noise draws agreeing at `p · v` for every
+/-- The cluster reads only `readSet`.  Two noise draws agreeing at `p · v` for every
 representative prefix and candidate suffix give the same family — so neither the family nor
 any vote cast with it is decided by the oracle's bit at a bare prefix, which is the bit the
 gate scores. -/
@@ -621,7 +606,7 @@ lemma clusterAround_congr_mq (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S
     clusterAround O cn cd P cands ω k = clusterAround O cn cd P cands ω' k :=
   lloydIterate_congr O cn cd P cands k hone h _ _ (by simpa using hone)
 
-/-- **The screen reads only `readSet`.**  Its two reads at a prefix are `p · v` and
+/-- The screen reads only `readSet`.  Its two reads at a prefix are `p · v` and
 `p · ε = p`, and the seed is a candidate, so both are already there. -/
 lemma screenCount_congr (O : Oracle μ S) {P cands : Finset S} (hone : (1 : S) ∈ cands)
     {v : S} (hv : v ∈ cands) {ω ω' : Ω}
@@ -680,7 +665,7 @@ lemma clusterAt_subset (O : Oracle μ S) (populations : Finset J) (B : Budget)
   fun v hv => screenedAt_subset O populations B x
     (clusterAround_subset O B.cn B.cd _ _ (nz x) B.k (one_mem_screenedAt O populations B x) hv)
 
-/-- **The family is decided by the bits on `readSet`** — the screen's reads and the
+/-- The family is decided by the bits on `readSet` — the screen's reads and the
 clustering's alike. -/
 lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : Budget)
     (d : ((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)) {ω ω' : Ω}
@@ -705,7 +690,7 @@ lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : Budget)
       screenedAt_subset O populations B (ω, d) hvs⟩, rfl⟩)
 
 open scoped Classical in
-/-- **Dropping the seed costs the vote one count.**  `1 ∈ F` always, so the full family's
+/-- Dropping the seed costs the vote one count.  `1 ∈ F` always, so the full family's
 vote at `p` is the erased family's plus the seed's own read there. -/
 lemma voteCount_le_erase_succ (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) :
     voteCount O F p ω ≤ voteCount O (F.erase 1) p ω + 1 := by
@@ -735,7 +720,7 @@ noncomputable def sideRej (O : Oracle μ S) (populations : Finset J) (j : J) (B 
   (certOf j B.m x).filter
     (fun p => voteCount O ((clusterAt O populations x B).erase 1) p (nz x) ≤ B.lo)
 
-/-- **The gate's own query strings are not read by the clustering.**  A prefix is never
+/-- The gate's own query strings are not read by the clustering.  A prefix is never
 `p · v` for a prefix `p` and any suffix, on a flat alphabet — so the bits the gate scores
 are untouched by everything that decides which side each prefix falls on. -/
 lemma disjoint_readSet {Pre : Set S} (hflat : Flat Pre) {P cands C : Finset S}
@@ -759,7 +744,7 @@ lemma disjoint_readSet_erase {Pre : Set S} (hflat : Flat Pre) {cands C : Finset 
   obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
   exact (Finset.mem_erase.1 hv).1 (flat_eq_one hflat (hC p hp) (hC _ hz) rfl)
 
-/-- **A population prefix the table does not hold is read nowhere by the clustering.**  Its
+/-- A population prefix the table does not hold is read nowhere by the clustering.  Its
 query strings `p · v` collide with the clustering's `q · v'` only if `p = q`. -/
 lemma disjoint_image_readSet {Pre : Set S} (hflat : Flat Pre) {P cands : Finset S} {p : S}
     (hP : ∀ q ∈ P, q ∈ Pre) (hp : p ∈ Pre) (hpP : p ∉ P) :
@@ -971,7 +956,7 @@ lemma measurableSet_filter_pred_map (O : Oracle μ S) {T : Set S} {A : Finset S}
   exact measurableSet_filter_fiber' O _ (fun v hv => measurableSet_mq_eq_one O (hA v hv)) U
 
 open scoped Classical in
-/-- **Congruence becomes measurability.**  A side decided by a block's bits is, on the clean
+/-- Congruence becomes measurability.  A side decided by a block's bits is, on the clean
 runs, a union of that block's pattern fibres. -/
 lemma measurableSet_side_clean (O : Oracle μ S) (Q : Finset S) {β : Type*} [DecidableEq β]
     (side : Ω → β)
@@ -999,7 +984,7 @@ lemma measurableSet_side_clean (O : Oracle μ S) (Q : Finset S) {β : Type*} [De
   exact fun t _ => (measurableSet_noisePattern O Q t).inter (measurableSet_noiseClean O Q)
 
 open scoped Classical in
-/-- **A worst case survives the scoring rule being chosen elsewhere.**
+/-- A worst case survives the scoring rule being chosen elsewhere.
 
 `selection_side_bound` lets the *set* being scored be chosen by `Q`; this lets anything be,
 so long as it is chosen by `Q`.  The read set is fixed at `C`, and the selection is an
@@ -1072,7 +1057,7 @@ theorem selection_read_bound (O : Oracle μ S) (C Q : Finset S)
     _ ≤ E := hmain
 
 open scoped Classical in
-/-- **A worst case survives the side being chosen elsewhere.**
+/-- A worst case survives the side being chosen elsewhere.
 
 `hbad` bounds the score's failure for each *fixed* side; the conclusion bounds it for the
 side the run actually produces.  What makes that free is that the side is decided by the
@@ -1180,7 +1165,7 @@ lemma measurableSet_of_countable (W : Set S) : MeasurableSet W :=
   (Set.to_countable W).measurableSet
 
 open scoped Classical in
-/-- **A wrong set of mass `≥ εcov` is hit by all but `t` of that fraction of the draws**,
+/-- A wrong set of mass `≥ εcov` is hit by all but `t` of that fraction of the draws,
 except with probability `exp(−2mt²)`.
 
 The margin `t` is free for the same reason the gate's rates are: it trades against what the
@@ -1315,7 +1300,7 @@ lemma cert_hits_upper (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
 /-! ### The accept-preserving gate
 
 `AcceptPreservingGate` runs after the FNR test, right before the family is returned.  It
-splits the prefixes by the family's *own* cut and counts, on the **seed's own column**, how
+splits the prefixes by the family's *own* cut and counts, on the seed's own column, how
 many read as accepting — membership of `p · ε` is membership of `p`, which is why the gate
 is read off `ε` and why `one_mem_clusterAround` matters.  A family is admitted only when
 each side reads as its own class (`drift_verdict`).
@@ -1474,7 +1459,7 @@ lemma agree_mean_eq (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
   rw [hmisA, hmisR, ← hcards]
   ring
 
-/-- **A cut that is mostly right reads as agreeing often enough.**  Unlike the two
+/-- A cut that is mostly right reads as agreeing often enough.  Unlike the two
 side-wise tests this replaces, the denominator is the whole decided set, so the bound does
 not degrade when one side of the cut is small. -/
 lemma agree_sound_of_wrong (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset)
@@ -1502,7 +1487,7 @@ lemma agree_sound_of_wrong (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Ds
     exact hmem
   exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
 
-/-- **A cut that is badly wrong does not read as agreeing.**  The upper tail: with `w`
+/-- A cut that is badly wrong does not read as agreeing.  The upper tail: with `w`
 prefixes mis-cut the statistic sits at `n(1 − η) − w(1 − 2η)`, so it clears a threshold
 `τ` above that only with the Hoeffding probability. -/
 lemma agree_sound_of_right (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset)
@@ -1565,7 +1550,7 @@ lemma agreeOf_filter_of_subset (O : Oracle μ S) (A Dset C : Finset S) (hAD : A 
   rw [agreeOf, agreeOf, h1, h2]
 
 open scoped Classical in
-/-- **The gate's bound, with the cut chosen by the votes.**  `agree_sound_of_wrong` prices a
+/-- The gate's bound, with the cut chosen by the votes.  `agree_sound_of_wrong` prices a
 *fixed* cut; this prices the cut the run produces, by conditioning on the votes — which read
 `Q`, disjoint from the prefixes the statistic scores. -/
 theorem gate_agree_bound (O : Oracle μ S) (C Q : Finset S)
@@ -1642,7 +1627,7 @@ theorem gate_agree_bound (O : Oracle μ S) (C Q : Finset S)
   exact ⟨hAD ω, hω.1, hω.2.1, hω.2.2⟩
 
 open scoped Classical in
-/-- **The mirror, for soundness.**  A cut that the sample shows is badly wrong reads as
+/-- The mirror, for soundness.  A cut that the sample shows is badly wrong reads as
 agreeing often enough to pass only with the Hoeffding probability. -/
 theorem gate_agree_bound_right (O : Oracle μ S) (C Q : Finset S)
     (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
@@ -1718,7 +1703,7 @@ theorem gate_agree_bound_right (O : Oracle μ S) (C Q : Finset S)
   exact ⟨hAD ω, hω.1, hω.2.1, hω.2.2⟩
 
 open scoped Classical in
-/-- **Both of the gate's wrong-counts are charged to the same mis-cut set.**  A prefix the
+/-- Both of the gate's wrong-counts are charged to the same mis-cut set.  A prefix the
 cut accepts but the oracle rejects, and one the cut rejects but the oracle accepts, are each
 a prefix where the cut is wrong — and the two kinds are disjoint. -/
 lemma miscutOf_le_cutWrong (O : Oracle μ S) (lo hi : ℕ) (F C : Finset S) (ω : Ω) :
@@ -1763,7 +1748,7 @@ lemma miscutOf_le_card (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) 
   · exact fun q hq => hAD (Finset.mem_filter.1 hq).1
   · exact fun q hq => (Finset.mem_sdiff.1 (Finset.mem_filter.1 hq).1).1
 
-/-- The family at a reachable state is **invalid**: on some population its cut is wrong on
+/-- The family at a reachable state is invalid: on some population its cut is wrong on
 more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (εcov : ℝ)
     (B : Budget) : Set (Run Ω S J) :=
@@ -1798,7 +1783,7 @@ lemma voteCount_mono (O : Oracle μ S) {F F' : Finset S} (h : F ⊆ F') (p : S) 
   exact Finset.card_le_card (Finset.filter_subset_filter _ h)
 
 open scoped Classical in
-/-- **The gate sees every prefix the cut gets wrong.**  A wrong prefix is decided against
+/-- The gate sees every prefix the cut gets wrong.  A wrong prefix is decided against
 its label, and with the accept side shifted by the seed's own vote it lands on the side the
 gate scores.  Without the shift the gate would be blind to exactly the prefixes the seed's
 own misread pushed over the line. -/
@@ -1899,7 +1884,7 @@ lemma one_le_binomSfGe_add_binomCdf (n j : ℕ) (θ : ℝ) (hθ0 : 0 ≤ θ) (h�
     _ ≤ ∑ i ∈ Finset.Icc j n, f i + ∑ i ∈ Finset.range (j + 1), f i := hunion
     _ = binomSfGe n θ j + binomCdf n θ j := rfl
 
-/-- **A small upper tail puts the count above the mean**, up to the Hoeffding slack: if
+/-- A small upper tail puts the count above the mean, up to the Hoeffding slack: if
 `P[X ≥ j] ≤ α` and `α` leaves room for the lower tail at `τ`, then `j` clears `n(θ − τ)`.
 
 This replaces the exact median bound (Kaas–Buhrman) with what the two Hoeffding tails
@@ -1922,7 +1907,7 @@ lemma gateAcc_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov
   constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
     mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
 
-/-- **Markov on a per-prefix failure count.**  Both gates ask for a *fraction* of the
+/-- Markov on a per-prefix failure count.  Both gates ask for a *fraction* of the
 certification sample, not for every prefix to behave, so a per-prefix bound `E` only has to
 beat the limit `l`: the cost is `E / l`, with no union over the sample.
 
@@ -1980,7 +1965,7 @@ theorem count_frac_le (C : Finset S) (Bad : S → Set Ω) (Pr : Ω → S → Pro
   nlinarith [hfin, hdiv, hl.le]
 
 open scoped Classical in
-/-- **A mostly-correct cut on sides that carry prefixes is admitted.**  The fractional form:
+/-- A mostly-correct cut on sides that carry prefixes is admitted.  The fractional form:
 the cut has to be right on all but `w` of the certification sample, not on all of it, and
 `count_frac_le` is what supplies that `w`.  Both sides draw their wrong-member budget from
 the same count, since a side member carrying the wrong label *is* a mis-cut prefix. -/
@@ -2065,7 +2050,7 @@ lemma prod_diagonal_eq (D₁ D₂ : Measure S) [IsProbabilityMeasure D₁] [IsPr
       measureReal_def])
 
 
-/-- **Draws from two populations collide no more often than within one.**  By `ab ≤ (a²+b²)/2`
+/-- Draws from two populations collide no more often than within one.  By `ab ≤ (a²+b²)/2`
 pointwise, so the certification stream's cross-collisions with the table stream are paid for
 by the same `ρ`. -/
 lemma cross_collision_le (D₁ D₂ : Measure S) [IsProbabilityMeasure D₁] [IsProbabilityMeasure D₂]
@@ -2142,7 +2127,7 @@ lemma pi_coord_eq (Dj : Measure S) [IsProbabilityMeasure Dj] {m : ℕ} {i i' : F
   exact tsum_congr (fun a => by rw [hbox a, ENNReal.toReal_mul, sq, measureReal_def])
 
 open scoped Classical in
-/-- **The certification block is distinct except for the collision mass.**  This is what
+/-- The certification block is distinct except for the collision mass.  This is what
 the `ρ` premise buys: below this event the `m` draws are distinct strings, so their noise
 bits are independent and the gate's binomial null is honest. -/
 lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (ρ : ℝ)
@@ -2246,7 +2231,7 @@ lemma mq_mul_integrable (O : Oracle μ S) (w w' : S) :
   exact ⟨mul_nonneg h1.1 h0.1, by nlinarith [h1.1, h1.2, h0.1, h0.2]⟩
 
 
-/-- **The first step's mean separates by the square of the signal.**  Two noisy reads are
+/-- The first step's mean separates by the square of the signal.  Two noisy reads are
 compared, so an accept-preserving candidate disagrees at `2η(1−η)` and one that flips at `p`
 at `1 − 2η(1−η)`; the difference is `(1−2η)²`.  This is exactly the statistic
 `_screen_cohort` tests against, and the square is why its power is weaker than a comparison
@@ -2291,7 +2276,7 @@ lemma screenCount_eq_sum (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P : Fi
   ext p
   simp only [Finset.mem_filter, hcond p]
 
-/-- **The seed's own reads are independent across prefixes.**  Each prefix contributes a
+/-- The seed's own reads are independent across prefixes.  Each prefix contributes a
 function of two strings, `p` and `p · v`, and those pairs are pairwise disjoint: `p · v` by
 right-cancellation, the bare prefixes by distinctness, and the two kinds from each other by
 flatness. -/
@@ -2350,27 +2335,23 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
 Its centre is `{ε}`, so its loss is `seedLoss`, whose mean separates a candidate that never
 flips from one that flips on a `Δ` fraction by `Δ(1−2η)²` — the screen's statistic.  The
 ranking is *not* what bounds the family's flip mass: `clusterAt_flip_bound` reads that off
-the screen, which every candidate has already passed (issue #288).  What the ranking has to
+the screen, which every candidate has already passed.  What the ranking has to
 deliver is only that the seed survives it, and `lloydStep`'s tie-break gives that outright.
 -/
 
 /-! ### Why Part 1 does not come from the clustering
 
-The clustering route is the obvious one: findability puts `k` accept-preserving suffixes in
-the pool, the ranking keeps the `k` least-loss candidates, and a candidate carrying flip
-mass `Δ` sits `2sΔm` above an accept-preserving one in expected loss — so the family is
-clean, and clean implies covered.  It does not survive the union bound.  Taking the best of
-`M` candidates buys `√(2 log M)` of the loss's spread for free, so the ranking is decided by
-luck rather than by flip mass unless `m ≳ (¼−s²)·log M / (2s²Δ²)`; and with the persistent
-oracle's fixed bits the per-candidate error floor sits at the prefix collision entropy, so
+Inferring validity from the cluster's loss concentration needs a union bound over every
+candidate: taking the best of `M` candidates buys `√(2 log M)` of the loss's spread for free,
+so the ranking is decided by luck unless `m ≳ (¼−s²)·log M / (2s²Δ²)`, and the persistent
+oracle's fixed bits put the per-candidate error floor at the prefix collision entropy, so
 the route fails outright once the pool outgrows `exp(c/ρ)`.
 
-Part 1 takes the gate instead, which *measures* the conclusion on draws the family was never
-selected from and so needs neither a union over candidates nor a collision bound.  What the
-clustering still has to deliver is only that the family is clean — `measureReal_dirtyMember_le`,
-off the screen — and that it has the round's size, which is the liveness half.  -/
+Part 1 takes the gate instead, which measures the conclusion on draws the family was never
+selected from.  What the clustering still has to deliver is only that the family is clean
+(`measureReal_dirtyMember_le`, off the screen) and has the round's size. -/
 
-/-- **An accept-preserving candidate passes the screen.**  Its disagreement with the seed's
+/-- An accept-preserving candidate passes the screen.  Its disagreement with the seed's
 column has mean exactly `2η(1−η)` — two noisy reads of the same bit — so a cutoff `γ` above
 that is cleared except in the upper tail.  This is `screen_tail`'s mirror, and it is what
 keeps the candidate pool from emptying. -/
@@ -2416,7 +2397,7 @@ theorem screen_pass {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : 
   nlinarith [hsc, hωR]
 
 open scoped Classical in
-/-- **A badly-flipping candidate rarely passes the screen.**  Its disagreement with the
+/-- A badly-flipping candidate rarely passes the screen.  Its disagreement with the
 seed's column has mean `2η(1−η) + φ(1−2η)²`, so a cutoff `γ` below that is cleared only in
 the lower tail. -/
 theorem screen_tail {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
@@ -2464,7 +2445,7 @@ theorem screen_tail {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : 
 
 /-! ### The iterate, and what actually bounds its flips
 
-`lloyd_first_step_ranked` covers the first step, whose centre is the seed's own column.
+The first step's centre is the seed's own column, which the screen already controls.
 Every step after that ranks candidates against the *current* centre's majority vote, and
 that ranking is by agreement with the centre's drift rather than by flipping little: writing
 `Dset` for the centre's error set, a candidate scores mean `η·#P + (1−2η)·#(Φ_v Δ Dset)`, so
@@ -2472,11 +2453,11 @@ one that flips exactly `Dset` scores zero.  Chasing the bound through the majori
 `d' ≤ (2 / c) · d` with `c = (s + eps) / (2 * s)`, about `3` at the usual settings — no
 contraction.
 
-None of that matters, because the ranking is not what bounds the flips: the **screen** is.
+None of that matters, because the ranking is not what bounds the flips: the screen is.
 A suffix that fails it never becomes a fully observed column and so is never a clustering
-candidate at all, and the iterate can only choose among what is left.  (Issue #288.) -/
+candidate at all, and the iterate can only choose among what is left. -/
 
-/-- **The family flips no more than the screened pool does.** -/
+/-- The family flips no more than the screened pool does. -/
 theorem clusterAt_flip_bound (O : Oracle μ S) (populations : Finset J) (B : Budget)
     (x : Run Ω S J) (Δ : ℝ)
     (hscreen : ∀ v ∈ screenedAt O populations B x,
@@ -2529,13 +2510,13 @@ lemma flip_integrable (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure D
   MeasureTheory.Integrable.of_mem_Icc 0 1 (flip_meas O v).aemeasurable
     (Filter.Eventually.of_forall (fun p => flip_icc O v p))
 
-/-- **Markov over the family's flip masses.**  If no member flips more than a `Δ` mass of
+/-- Markov over the family's flip masses.  If no member flips more than a `Δ` mass of
 the population, the mass of prefixes where a `c` fraction of the family flips is at most
 `Δ / c`.
 
-With `voteCount_le_flips_add_noise` this is what turns per-member flip mass into
-misclassified mass: the band puts `c = (s + eps) / (2 * s)`, so the price is a constant
-near `3 / 2`, not the `1 / eps` a naive reading of the band charges. -/
+This is what turns per-member flip mass into misclassified mass: the band puts
+`c = (s + eps) / (2 * s)`, so the price is a constant near `3 / 2` and not the `1 / eps` a
+naive reading of the band charges. -/
 theorem flipCount_mass_le (O : Oracle μ S) (Dj : Measure S) [IsProbabilityMeasure Dj]
     (F : Finset S) (Δ c : ℝ) (hc : 0 < c) (hFne : 0 < F.card)
     (hF : ∀ v ∈ F, flipMass O Dj v ≤ Δ) :
@@ -2600,7 +2581,7 @@ lemma mq_indep_shift (O : Oracle μ S) (p : S) :
     iIndepFun (fun v : S => mq O (p * v)) μ :=
   (mq_indep O).precomp (mul_right_injective p)
 
-/-- **Upper tail on a rejecting prefix.**  A flip fraction of `f` lifts the vote's mean only
+/-- Upper tail on a rejecting prefix.  A flip fraction of `f` lifts the vote's mean only
 to `η + 2 * s * f`. -/
 theorem voteSum_upper (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 0)
     (f γ : ℝ) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
@@ -2618,7 +2599,7 @@ theorem voteSum_upper (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p =
   exact sumUpper_le (fun v : S => mq O (p * v)) F (O.η + (1 - 2 * O.η) * f) γ
     (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
 
-/-- **Lower tail on an accepting prefix.**  Mirror of `voteSum_upper`: the vote's mean only
+/-- Lower tail on an accepting prefix.  Mirror of `voteSum_upper`: the vote's mean only
 falls to `1 - η - 2 * s * f`. -/
 theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 1)
     (f γ : ℝ) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
@@ -2637,7 +2618,7 @@ theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p =
   exact sumLower_le (fun v : S => mq O (p * v)) F (O.η + (1 - 2 * O.η) * (1 - f)) γ
     (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
 
-/-- **The cut survives the family being chosen by the clustering.**  At a population prefix
+/-- The cut survives the family being chosen by the clustering.  At a population prefix
 whose query strings the clustering never read, the family is decided by bits independent of
 the ones the vote reads, so the fixed-family bound carries over.
 
@@ -2668,7 +2649,7 @@ theorem cutCorrect_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (
     simpa using hE
 
 open scoped Classical in
-/-- **Decisiveness survives the family being chosen by the clustering**, by the same
+/-- Decisiveness survives the family being chosen by the clustering, by the same
 argument as `cutCorrect_selected_whp`: both are predicates of the vote's count, and the
 vote's reads are ones the clustering never made. -/
 theorem decided_selected_whp (O : Oracle μ S) (cands Q : Finset S) (p : S) (lo ha : ℕ)
@@ -2700,7 +2681,7 @@ lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A →
     μ.real A ≤ μ.real B :=
   ENNReal.toReal_mono (measure_ne_top μ B) (measure_mono_ae h)
 
-/-- **The cut is correct at a prefix the family barely flips.**  Only the side the prefix
+/-- The cut is correct at a prefix the family barely flips.  Only the side the prefix
 actually sits on can fail, so one tail — not two — pays for it. -/
 theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ)
     (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ)
@@ -2748,7 +2729,7 @@ lemma measure_setOf_eq_tsum (Dj : Measure S) (A : Set S) :
   rw [← tsum_singleton_eq Dj A]
   exact tsum_subtype A (fun a => Dj {a})
 
-/-- **The expected bad mass is the worst per-prefix bound.**  Each prefix's failure has
+/-- The expected bad mass is the worst per-prefix bound.  Each prefix's failure has
 `μ`-probability at most `E`, and the prefix masses sum to one. -/
 lemma badMass_eq_tsum (Dj : Measure S) (Bad : S → Set Ω) (ω : Ω) :
     Dj {p | ω ∈ Bad p} = ∑' p : S, (Bad p).indicator (fun _ => Dj {p}) ω := by
@@ -2793,7 +2774,7 @@ lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
   rw [(measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j).map_eq,
     (measurePreserving_eval_infinitePi (fun _ : ℕ => D j) i).map_eq]
 
-/-- **A bound at almost every fixed draw is a bound on the run.**  The clustering's prefixes
+/-- A bound at almost every fixed draw is a bound on the run.  The clustering's prefixes
 and candidates are draws, so its guarantees are stated for the noise at a fixed table; this
 is what lifts them.  The `a.e.` is what lets the table be assumed inside the flat set. -/
 lemma runLaw_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
@@ -2825,7 +2806,7 @@ lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
   filter_upwards [ae_all_iff.2 hcoord] with d hd j hj i
   exact hd (j, i) hj
 
-/-- **A bound at every fixed noise-and-table slice is a bound on the run.**  The
+/-- A bound at every fixed noise-and-table slice is a bound on the run.  The
 certification draws are the last factor, so they can be sliced off on their own — which is
 what lets the gate be judged on prefixes the family was never selected from. -/
 lemma runLaw_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
@@ -2976,7 +2957,7 @@ lemma map_drawBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
   rw [Measure.map_fst_prod]
   simp only [measure_univ, one_smul]
 
-/-- **A drawn index costs nothing.**  The event is indexed by a suffix draw and decided by
+/-- A drawn index costs nothing.  The event is indexed by a suffix draw and decided by
 the prefix draws, so the worst case over candidates bounds the run. -/
 theorem runLaw_draw_selection_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -3045,7 +3026,7 @@ lemma pi_flip_mean (Dj : Measure S) [IsProbabilityMeasure Dj] (O : Oracle μ S) 
           (flip_meas O v).aestronglyMeasurable]
     _ = flipMass O Dj v := by rw [hmap]; rfl
 
-/-- **Level 2 for one population.**  A candidate the drawn prefixes say is clean really is. -/
+/-- Level 2 for one population.  A candidate the drawn prefixes say is clean really is. -/
 theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (j : J) (m : ℕ) (v : S) (g : ℝ) (hg : 0 ≤ g) :
@@ -3122,7 +3103,7 @@ lemma measure_understated_le (D : J → Measure S) (Dsf : Measure S)
   rw [← ENNReal.ofReal_toReal (measure_ne_top (runLaw μ D Dsf) _), ← measureReal_def]
   exact ENNReal.ofReal_le_ofReal (prefix_flip_lower D Dsf O j m v g hg)
 
-/-- **The whole drawn pool is honest at once.**  A pool member the drawn prefixes say sits
+/-- The whole drawn pool is honest at once.  A pool member the drawn prefixes say sits
 inside `Δ - g` really flips at most `Δ` of the population, off an `M · exp(-2 m g²)` set. -/
 theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
@@ -3230,7 +3211,7 @@ lemma measurableSet_poolAt (M : ℕ) (C : Finset S) :
     (fun t => insert 1 ((Finset.univ : Finset (Fin M)).image (fun i => t i))) C
 
 open scoped Classical in
-/-- **Events about the table and the pool are measurable.**  Decompose over their values,
+/-- Events about the table and the pool are measurable.  Decompose over their values,
 of which there are countably many. -/
 lemma measurableSet_of_run_data (populations : Finset J) (B : Budget)
     (R : Finset S → Finset S → Set (Run Ω S J)) (hR : ∀ P C, MeasurableSet (R P C)) :
@@ -3466,7 +3447,7 @@ lemma map_prefCertPairRun (D : J → Measure S) (Dsf : Measure S)
   exact map_prefCertPair D Dsf j' j i i'
 
 open scoped Classical in
-/-- **The gate's prefixes are fresh.**  A certification draw repeating a table prefix costs
+/-- The gate's prefixes are fresh.  A certification draw repeating a table prefix costs
 the same `ρ` as a repeat inside one stream, and there are `|populations|·m²` pairs. -/
 theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -3580,7 +3561,7 @@ lemma measurableSet_miscut {fam : Ω → Finset S} {T : Finset (Finset S)}
   · simpa [hg] using MeasurableSet.empty
 
 open scoped Classical in
-/-- **The indecision rate on the certification sample is below the limit**, off an `E / l`
+/-- The indecision rate on the certification sample is below the limit, off an `E / l`
 set.  `count_frac_le` fed by the per-prefix bound, with no union over the sample. -/
 theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
@@ -3645,7 +3626,7 @@ theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     exact hpr
 
 open scoped Classical in
-/-- **At a fixed table, the state returns.**  Each failure count splits into the prefixes
+/-- At a fixed table, the state returns.  Each failure count splits into the prefixes
 the family is light for — bounded by `count_frac_le` — and the heavy ones, whose number is
 itself a fraction.  Lightness at a *fresh* prefix only holds for most of them, never all, so
 carrying it as a per-prefix condition rather than a global guard is what makes the argument
@@ -3897,7 +3878,7 @@ lemma measurableSet_screenBad (O : Oracle μ S) (populations : Finset J) (B : Bu
   rw [hrw]
   exact measurableSet_of_run_data populations B _ hR
 
-/-- **The screen rarely lets a badly-flipping candidate through.**  One `screen_tail` per
+/-- The screen rarely lets a badly-flipping candidate through.  One `screen_tail` per
 pool member, at a fixed table: the flip counts are deterministic once the draws are, so this
 is a plain union bound and costs `M + 1`. -/
 theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
@@ -3977,7 +3958,7 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     _ = E := ENNReal.toReal_ofReal hE0
 
 open scoped Classical in
-/-- **A block of i.i.d. draws hits a set about as often as its mass.**  The lower tail, for
+/-- A block of i.i.d. draws hits a set about as often as its mass.  The lower tail, for
 the suffix pool: a mass-`q` set is hit at least `M(q − t)` times. -/
 lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : Set S)
     (q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t) (hW : q ≤ Dsf.real W) :
@@ -4038,7 +4019,7 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
   · rw [hcard]
 
 open scoped Classical in
-/-- **The pool holds accept-preserving suffixes.**  Findability says a draw is
+/-- The pool holds accept-preserving suffixes.  Findability says a draw is
 accept-preserving with probability at least `pAP`, so `M` draws hold about `pAP·M` of them. -/
 theorem measureReal_apShort_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S) (M : ℕ)
@@ -4131,7 +4112,7 @@ lemma measurableSet_screenFail (O : Oracle μ S) (populations : Finset J) (B : B
   exact measurableSet_of_run_data populations B _ hR
 
 open scoped Classical in
-/-- **The screen keeps the accept-preserving candidates.**  One `screen_pass` per pool
+/-- The screen keeps the accept-preserving candidates.  One `screen_pass` per pool
 member; the cutoff sits above the clean rate `2η(1−η)` by `γ`. -/
 theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
@@ -4210,7 +4191,7 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
     _ = E := ENNReal.toReal_ofReal hE0
 
 open scoped Classical in
-/-- **The screened pool is big enough to cluster.**  Findability puts `k` accept-preserving
+/-- The screened pool is big enough to cluster.  Findability puts `k` accept-preserving
 suffixes in the pool, the screen keeps them, and distinct draws keep them distinct — so the
 clustering has `k` candidates to choose from and does not stall. -/
 theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
@@ -4314,10 +4295,10 @@ theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
         · exact measureReal_screenFail_le hflat O populations D Dsf hsupp B hcd γ hγ hscd hsc
 
 open scoped Classical in
-/-- **Every member the clustering keeps is clean.**  Three things have to go right: the
+/-- Every member the clustering keeps is clean.  Three things have to go right: the
 population's draws distinct, the screen holding, and the drawn prefixes not understating a
 candidate's flip mass.  The Lloyd ranking does not appear — the family is a subset of what
-the screen left, so it inherits the bound.  (Issue #288.) -/
+the screen left, so it inherits the bound. -/
 theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -4448,7 +4429,7 @@ lemma certOf_eq_image (j : J) (m : ℕ) (x : Run Ω S J) :
   image_range_eq_image_univ m (fun i => cert j i x)
 
 open scoped Classical in
-/-- **The certification sample misses a wrong cut.**  The family is fixed before the sample
+/-- The certification sample misses a wrong cut.  The family is fixed before the sample
 is drawn, so a cut wrong on `εcov` of the population is hit `εcov·m` times up to the
 Hoeffding slack `t`. -/
 noncomputable def hitShort (O : Oracle μ S) (populations : Finset J) (Dj : Measure S) (j : J)
@@ -4563,7 +4544,7 @@ noncomputable def cutSidesAt (O : Oracle μ S) (populations : Finset J) (j : J) 
   cutSides O B.lo B.hi ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)
 
 open scoped Classical in
-/-- **The gate admits a cut the sample shows is badly wrong.**  One event now, not one per
+/-- The gate admits a cut the sample shows is badly wrong.  One event now, not one per
 side: the decided set is big enough to test, at least `w` of its prefixes are mis-cut, and
 the agreement statistic still clears `θ`. -/
 noncomputable def gateBadAgree (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
@@ -4792,7 +4773,7 @@ lemma card_filter_certOf (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
       Finset.mem_range.1 hi, true_and]; exact hQ, rfl⟩
 
 open scoped Classical in
-/-- **The gate does not admit a cut the sample shows is badly wrong.**  The run-level form
+/-- The gate does not admit a cut the sample shows is badly wrong.  The run-level form
 of `gate_agree_bound_right`: slice by the draws, then condition on the votes. -/
 theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
@@ -4865,7 +4846,7 @@ theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
 open scoped Classical in
-/-- **A cut wrong on the population is wrong on the sample.**  The family is a function of
+/-- A cut wrong on the population is wrong on the sample.  The family is a function of
 the noise and the table, so the certification draws are independent of it and plain
 Hoeffding applies. -/
 theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
@@ -4935,7 +4916,7 @@ lemma card_filter_certOf_le (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     Finset.mem_range.1 hi, true_and]; exact hQ, rfl⟩
 
 open scoped Classical in
-/-- **The sample is not mostly prefixes the family flips.**  The heavy set is chosen by the
+/-- The sample is not mostly prefixes the family flips.  The heavy set is chosen by the
 noise and the table; the certification draws are neither, so its hit count is the upper
 Hoeffding tail at its mass. -/
 noncomputable def heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : Measure S)
@@ -5116,13 +5097,13 @@ lemma measurableSet_admittedFixed (O : Oracle μ S) (lo hi n₀ : ℕ) (F A : Fi
       rw [hrw]
       exact MeasurableSet.univ
 
-/-- The family is **usable at `p`**: no member flips it, and the family is neither too
+/-- The family is usable at `p`: no member flips it, and the family is neither too
 small for the thresholds nor larger than the round allows. -/
 def famGood (O : Oracle μ S) (kmin kmax : ℕ) (F : Finset S) (p : S) : Prop :=
   flipCount O F p ≤ (F.card : ℝ) * 0 ∧ kmin ≤ F.card ∧ F.card ≤ kmax
 
 open scoped Classical in
-/-- **The draws were good and the state still did not return.**  Everything the state needs
+/-- The draws were good and the state still did not return.  Everything the state needs
 of its draws — the certification prefixes fresh and nonempty, and the family light on all
 but an `l` fraction of them — holds, and the round's two tests still fail.
 This is the event `ret_at_whp` prices; the rest of the lift charges the draws. -/
@@ -5307,7 +5288,7 @@ lemma measurableSet_clusterOf_erase (O : Oracle μ S) (cn cd sc scd : ℕ) (P ca
   · exact MeasurableSet.empty
 
 open scoped Classical in
-/-- **The lift of `ret_at_whp`.**  At every table the state's own round fails only as often
+/-- The lift of `ret_at_whp`.  At every table the state's own round fails only as often
 as the two fractional counts and the two gate tails allow; the draws are charged elsewhere. -/
 theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
@@ -5450,7 +5431,7 @@ noncomputable def stalled (O : Oracle μ S) (populations : Finset J) (B : Budget
       ∧ ((clusterAt O populations x B).erase 1).card ≤ kmax)}
 
 open scoped Classical in
-/-- **A pool of `k` screened candidates is a family of `k`.**  The seed is one of them and
+/-- A pool of `k` screened candidates is a family of `k`.  The seed is one of them and
 the ranking keeps it, so the family the gate sees has `k − 1` members besides the seed. -/
 lemma stalled_subset (O : Oracle μ S) (populations : Finset J) (B : Budget)
     (hcd : B.cn < B.cd) (hkpos : 0 < B.k) :
@@ -5492,7 +5473,7 @@ theorem measureReal_stalled_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
 
 open scoped Classical in
 set_option maxHeartbeats 1000000 in
-/-- **The round returns at one population.**  Everything outside `retMiss` is a fact about
+/-- The round returns at one population.  Everything outside `retMiss` is a fact about
 the draws: the certification prefixes repeat, or meet the table, or under-represent a class,
 or the family is dirty and the sample sees it.  The cluster's own size is the liveness
 half's business and is carried as `Estall`. -/
@@ -5649,7 +5630,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
           + (E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)))))) := by ring
 
 open scoped Classical in
-/-- **The sample's wrong prefixes are charged to the gate's own two sides.**
+/-- The sample's wrong prefixes are charged to the gate's own two sides.
 `wrong_mem_gate_side` absorbs the off-by-one between the cut the guarantee speaks about —
 the full cluster — and the one the gate scores, which drops the seed. -/
 lemma certWrong_le_miscutAt (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
@@ -5686,7 +5667,7 @@ lemma certWrong_le_miscutAt (O : Oracle μ S) (populations : Finset J) (j : J) (
   exact card_cert_wrong_le O populations j B hhi x
 
 open scoped Classical in
-/-- **Part 1 at one state and one population.**  A family the gate admits is right on all
+/-- Part 1 at one state and one population.  A family the gate admits is right on all
 but `εcov` of the population, except on four events: the certification draws repeat, they
 meet the table, the sample misses the wrong set, or the gate admits a cut the sample shows
 is badly wrong.
@@ -5857,7 +5838,7 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
             Real.exp_nonneg _
           nlinarith [hmono, hpos]
 
-/-- **Part 1, reduced to one state.**  The ladder is finite, so the union over the states
+/-- Part 1, reduced to one state.  The ladder is finite, so the union over the states
 the loop may stop at is a finite sum: at most `L` rungs, each carrying `δ/(2·L)`.  No
 summable weight over all budgets is needed, and so no encoding of a budget as a number.
 
@@ -5889,51 +5870,23 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
         refine mul_le_mul_of_nonneg_right hcardR (by positivity)
     _ = δ / 2 := by field_simp
 
-/-- **Part 1 — whatever is returned is valid, whenever it is returned.**
+/-- Part 1 — whatever is returned is valid, whenever it is returned.
 
-Except with probability `δ/2`, no reachable state is *both* returned and invalid — over
-every history the algorithm might follow and every budget it might stop at.  So the loop
+Except with probability `δ/2`, no reachable state is both returned and invalid.  So the loop
 may grow and stop however it likes: neither its schedule nor its stopping rule has to be
 modelled or itself proved correct.
 
-The intersection with `ret` is load-bearing, not bookkeeping.  Validity at *every* state,
-returned or not, is a strictly stronger claim and a false one: at a state whose candidate
-pool has outgrown the prefixes, the clustering really can produce a drifted family.  The
-algorithm does not return it — that is what the gate is for — and the guarantee is about
-what it returns.
+The intersection with `ret` is load-bearing.  Validity at every state, returned or not, is a
+strictly stronger claim and a false one: at a state whose candidate pool has outgrown the
+prefixes, the clustering really can produce a drifted family.  The algorithm does not return
+it, which is what the gate is for.
 
-Proof plan: this rests on the **accept-preserving gate**, and the gate certifies exactly
-what `cutCorrect` asks for.  A returned family has passed `admitted`, which tests — on the
-seed's own column, where membership of `p · ε` is membership of `p` — that each side of
-its cut reads as its own class.  Reads at distinct prefixes are independent
-(`read_indep`, and `prefixesOf` is a `Finset`), so:
-
-* `admitted` forces the accepted side's hit count into the upper tail of
-  `Bin(n, accept_thresh)` and the rejected side's into the lower tail of
-  `Bin(n, reject_thresh)`;
-* a truly-accepting prefix reads accepting with probability `1 − η`, a truly-rejecting one
-  with probability `η`, and `admissibleMargin` keeps the margin below the signal, so a
-  wrong side drags the count off its tail — Hoeffding at the gap `(1 − 2η)`;
-* hence w.h.p. the cut is right on the *sampled* prefixes, and level 2 carries that to
-  `D j` over the raw draws `prf j i x`, whose empirical measure is `D j`.
-
-`validity_of_per_state` has already reduced the state union to this.
-
-No slack is carried.  The gate is judged on `certOf` — draws the family was never
-selected from — so the gate's tail applies to the realised cut with no union over
-reachable families, and `ε` is dropped from the family so the scored bit does not sit
-inside the vote that sorts it.  Both are issue #284; the model here is the fixed
-algorithm, and the docstrings on `certOf` and `admitted` say what goes wrong without
-them.
-
-Deliberately *not* via `clustering_budget`: inferring validity from the cluster's loss
-concentration would need a union bound over every candidate suffix, and the persistent
-oracle's fixed noise bits make the per-candidate error floor at the prefix collision
-entropy `∑ₐ D_j({a})²` — so that route fails once the candidate pool outgrows
-`exp(c/ρ)`.  The gate tests the conclusion instead of inferring it, so the pool size
-does not enter, and no collision bound is needed: the gate reads `prefixesOf`, which is
-distinct by construction.  `Distributional.lean`'s `clustering_pac` remains the statement
-about one budget with a collision bound supplied; it is not what carries this. -/
+The gate certifies exactly what `cutCorrect` asks for.  A returned family has passed
+`admitted`, which tests on the seed's column — where membership of `p · ε` is membership of
+`p` — that the cut reads as its own class; a mis-cut prefix reads at `η` rather than `1 − η`,
+so `W` of them drag the agreement count down by `W(1 − 2η)`, off the tail `admitted` needs.
+Reads at distinct prefixes are independent and `certOf` is a `Finset`, so the null is
+honest. -/
 theorem per_state_le (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
@@ -6019,7 +5972,7 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
 
 At a state `B`, suppose the family `F = clusterAt O populations x B` passes the gates and
 yet some population `j` has `(D j) {p | ¬ cutCorrect …} > εcov`.  Write `W` for that
-wrong-set.  `W` depends on `ω` and on the pool and table draws, but **not** on the
+wrong-set.  `W` depends on `ω` and on the pool and table draws, but not on the
 certification draws, which are fresh.  `measureReal_admitFail_le` is the three steps:
 
 1. *The sample sees the wrongness* (`measureReal_hitShort_le`).  Conditionally on `ω` and
@@ -6075,7 +6028,7 @@ noncomputable def roundFail (populations : Finset J)
           + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
             + (E / l + (E / lcut + 2 * Real.exp (-2 * (n₀ : ℝ) * τ ^ 2)))))))
 
-/-- **A state whose round can pass.**  Every clause is an inequality among the state's
+/-- A state whose round can pass.  Every clause is an inequality among the state's
 budgets, the oracle's rates, the suffix distribution's findability and the error budget —
 no probability enters, and nothing here is a free parameter of the algorithm.  Reaching
 such a state is what the computed ladder is for.
@@ -6143,7 +6096,7 @@ lemma sqrt_add_two_le {m : ℝ} (hm : 0 ≤ m) : Real.sqrt (m + 2) ≤ Real.sqrt
   calc Real.sqrt (m + 2) ≤ Real.sqrt ((Real.sqrt m + 2) ^ 2) := Real.sqrt_le_sqrt h
     _ = Real.sqrt m + 2 := Real.sqrt_sq (by positivity)
 
-/-- **The count that clears its own logarithm.**  `(a + C)²` meets `a² + C·√m`, which is
+/-- The count that clears its own logarithm.  `(a + C)²` meets `a² + C·√m`, which is
 what turns a bound mentioning `log` of the count into a closed form. -/
 lemma sqrt_step {a C m : ℝ} (ha : 0 ≤ a) (hC : 0 ≤ C) (hm : (a + C) ^ 2 ≤ m) :
     a ^ 2 + C * Real.sqrt m ≤ m := by
@@ -6173,7 +6126,7 @@ lemma log_le_two_sqrt {x : ℝ} (hx : 0 < x) : Real.log x ≤ 2 * Real.sqrt x :=
   rw [hlog]
   linarith
 
-/-- **A count that clears `log (c/ε) / (2γ²)` kills the tail it was read off.** -/
+/-- A count that clears `log (c/ε) / (2γ²)` kills the tail it was read off. -/
 lemma tail_le_of_count {γ ε c : ℝ} {n : ℕ} (hγ : 0 < γ) (hε : 0 < ε) (hc : 0 < c)
     (hn : Real.log (c / ε) / (2 * γ ^ 2) ≤ (n : ℝ)) :
     c * Real.exp (-2 * (n : ℝ) * γ ^ 2) ≤ ε := by
@@ -6618,7 +6571,7 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
   linarith
 
 set_option maxHeartbeats 1000000 in
-/-- **The computed ladder holds a state whose round can pass.**
+/-- The computed ladder holds a state whose round can pass.
 
 `PassableAt` is arithmetic: every clause is an inequality among the state's budgets, the
 oracle's rates, the suffix distribution's findability and the error budget.  The witness is
@@ -6851,32 +6804,25 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       hindLim hind1 hcutlim hcard hρ0 hρsf0 hρcap hρsfcap
 
 set_option maxHeartbeats 1000000 in
-/-- **Part 2 — the loop terminates.**
+/-- Part 2 — the loop terminates: except with probability `δ/2`, some reachable state
+passes both tests.
 
-Except with probability `δ/2`, some reachable state passes the FNR test, so the loop
-returns.
+Each growth step draws fresh suffixes, accept-preserving with probability `≥ pAP`; once the
+pool holds enough of them and the prefix count is large enough, every population's vote is
+decisive on all but `indecisionLimit` of its mass.  The per-step trigger is block-local, so
+`geometric_miss_triggered` gives `(1 − p)^N` and `geom_le` drives it under `δ/2`.
 
-Proof plan: each growth step draws fresh suffixes, and by findability a draw is
-accept-preserving with probability `≥ pAP`; once the pool holds enough accept-preserving
-suffixes and the prefix count is large enough, every population's vote is decisive on all
-but `indecisionLimit` of its mass, so the per-population test passes.  The per-step trigger is
-block-local, so `geometric_miss_triggered` gives `(1 − p)^N` and `geom_le` drives it under
-`δ/2`.
+Here `admitted` has to pass, not merely be sound — the gate's power, the complement of the
+`α` it spends — which is why `pAP > 0` is needed rather than merely useful.
+`ACCEPT_PRESERVING_GIVE_UP = 20` caps the refusals in the code; the statement carries no
+cap.
 
-Termination now also has to clear the accept-preserving gate, which is where the work
-moved: `admitted` has to *pass*, not merely be sound.  A family that is genuinely
-accept-preserving on the populations reads as such on the seed's column up to the noise,
-so this is the gate's own power — the complement of the `α` it spends — and it is why
-`pAP > 0` is needed rather than just useful.  `ACCEPT_PRESERVING_GIVE_UP = 20` caps the
-refusals; the statement carries no cap, so it is the stronger claim.
+Nothing here asks a population to carry both labels: `admitted` is an implication, so a
+sample below `gmin` is skipped rather than failed and an all-accepting population is
+admitted.  What the round pays for that is coverage, which is why `gmin ≤ εcov·m/32`.
 
-Nothing here asks a population to carry both labels.  `admitted` is an implication — a
-side holding fewer than `gmin` prefixes is skipped, not failed — so an all-accepting or
-all-rejecting population is admitted through the side it populates.  What the round pays
-for that is coverage: a skipped side goes uncertified, which is why `gmin ≤ εcov·m/32`.
-
-The one relation left between the algorithm's tolerances is `hcutlim : cutBudget εcov ≤
-indecisionLimit/2`: the miscut budget is the binding one of the round's two Markov
+`hcutlim : cutBudget εcov ≤ indecisionLimit/2` is the one relation left between the
+algorithm's tolerances: the miscut budget is the binding one of the round's two Markov
 thresholds, so the family size is solved against a single rate rather than their max. -/
 theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
@@ -6994,40 +6940,8 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         rw [Finset.sum_const, nsmul_eq_mul]
     _ ≤ δ / 2 := hbudget
 
-/-- **The E-L\* clustering algorithm is PAC-correct** — `ClusteringCorrect`, whose
-statement is spelled out in `OrthoDFA.Model` alongside the definitions it is built from.
-
-The two halves are `validity_of_returned` (whatever the loop returns is good) and
-`loop_terminates` (it returns), glued by `sound_and_terminating`. -/
-theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
-    (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ) :
-    ClusteringCorrect O populations D Dsf Pre indecisionLimit εcov α δ ρ pAP := by
-  intro hsig hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ
-    hcutlim hρcap hρsf
-  by_cases hδ1 : δ ≤ 1
-  case neg =>
-    exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg
-  have h := sound_and_terminating (runLaw μ D Dsf)
-    (fun B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ} =>
-      ret O populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
-    (fun B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ} =>
-      ret O populations indecisionLimit εcov α B.val) δ
-    (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα pAP)
-    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
-      δ hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim hpAPPositive
-      hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
-        (hρ hpop.choose hpop.choose_spec)) hρcap hρsf)
-  refine le_trans h (le_of_eq ?_)
-  congr 1
-  ext x
-  simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, not_and, not_not]
-
 #print axioms validity_of_returned
 #print axioms loop_terminates
-#print axioms clustering_correct
 
 end Loop
 

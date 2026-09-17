@@ -29,7 +29,7 @@ open scoped ENNReal
 
 variable {P R : Type*} [MeasurableSpace P] [MeasurableSpace R]
 
-/-- **Findability fusion.**  On the product of the proposal measure and the reads
+/-- Findability fusion.  On the product of the proposal measure and the reads
 measure, the good-pass event `{(V,ω) | V accept-preserving ∧ gate clears V on ω}`
 has probability at least `(1 - reject)·pp`. -/
 theorem fuse_findability

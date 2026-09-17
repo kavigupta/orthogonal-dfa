@@ -7,11 +7,11 @@ The clustering algorithm's own guarantee, stated in its own terms: prefixes,
 reads, and membership bits — no states, no automaton.  A run's oracle noise is the
 probability space `μ`.  Two kinds of check can fail:
 
-* **placement** — for a prefix with a clear membership (member or non-member under
+* placement — for a prefix with a clear membership (member or non-member under
   the returned accept-preserving family), the vote fails to decide its correct
   side.  By `misplacedMember_le` / `misplacedNonmember_le` each such event has
   probability at most `exp(-2k(s-τ)²)`.
-* **certification** — for a prefix population, the returned family's cut is
+* certification — for a prefix population, the returned family's cut is
   admitted while drifted past tolerance.  By `certErr_bound` each such event has
   probability at most `α`.
 
@@ -43,7 +43,7 @@ theorem measureReal_biUnion_le {ι : Type*} (s : Finset ι) (f : ι → Set Ω) 
           ENNReal.toReal_sum (fun i _ => measure_ne_top μ (f i))
     _ = ∑ i ∈ s, μ.real (f i) := rfl
 
-/-- **Clustering correctness (composition).**  The failure probability of a run is
+/-- Clustering correctness (composition).  The failure probability of a run is
 at most `#placement · fnrBound + #populations · α`, where `fnrBound` bounds each
 placement failure (supply `exp(-2k(s-τ)²)` via `misplacedMember_le` /
 `misplacedNonmember_le`) and `α` bounds each population's false-admit (via

@@ -20,7 +20,7 @@ namespace OrthoDFA
 open MeasureTheory
 open scoped ENNReal
 
-/-- **Geometric termination.**  Over `N` independent rounds (a product measure),
+/-- Geometric termination.  Over `N` independent rounds (a product measure),
 if each round lands in its "good" set `Gᵣ` with probability at least `p`, then the
 probability that every round misses is at most `(1-p)^N`. -/
 theorem geometric_miss {N : ℕ} {α : Fin N → Type*} [∀ r, MeasurableSpace (α r)]
@@ -50,7 +50,7 @@ theorem geometric_miss {N : ℕ} {α : Fin N → Type*} [∀ r, MeasurableSpace 
 
 #print axioms geometric_miss
 
-/-- **Triggered geometric termination.**  The rounds need *not* be independent: a
+/-- Triggered geometric termination.  The rounds need *not* be independent: a
 round's good-event `good r` may depend on the whole accumulated history (all
 coordinates), modelling a pool that grows as fresh strings are added each round.
 All that is required is a *block-local* trigger `trigger r ⊆ α r` — the fresh

@@ -21,7 +21,7 @@ is rich enough to expose every non-accept-preserving suffix's flip.
 
 namespace OrthoDFA
 
-/-- **Selection under separability.**  If `chosen` is a least-loss `k`-subset of
+/-- Selection under separability.  If `chosen` is a least-loss `k`-subset of
 `cands`, there are at least `k` accept-preserving candidates, and every
 accept-preserving candidate has strictly smaller loss than every
 non-accept-preserving one, then every chosen suffix is accept-preserving. -/
@@ -60,7 +60,7 @@ theorem chosen_accept_preserving {S : Type*} [DecidableEq S]
 
 #print axioms chosen_accept_preserving
 
-/-- **Selection avoids the bad set.**  The D-relative version: `good` and `bad` are
+/-- Selection avoids the bad set.  The D-relative version: `good` and `bad` are
 disjoint, there are at least `k` good candidates, and every good candidate has
 strictly smaller loss than every bad one.  Then the least-loss `k`-subset avoids
 `bad` entirely — borderline candidates (neither good nor bad) may be chosen, which
@@ -158,7 +158,7 @@ open MeasureTheory ProbabilityTheory
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-/-- **Liveness core: the greedy proposes an accept-preserving family, w.h.p.**
+/-- Liveness core: the greedy proposes an accept-preserving family, w.h.p.
 Each suffix `v`'s loss is `∑ⱼ D v j`, `D v j ∈ [0,1]` the disagreement indicator on
 prefix `j`, independent across prefixes.  Under *mean-loss separability* — every
 accept-preserving suffix has mean loss ≤ `m·ρlo`, every other ≥ `m·ρhi`, with a
@@ -241,7 +241,7 @@ theorem chosen_accept_preserving_whp {S ι : Type*} [DecidableEq S]
 
 #print axioms chosen_accept_preserving_whp
 
-/-- The **"reads fail to separate the classes"** event: some good candidate's loss
+/-- The "reads fail to separate the classes" event: some good candidate's loss
 reaches the upper band `m(ρlo+γ)`, or some bad candidate's loss drops to the lower
 band `m(ρhi-γ)`.  Its complement is the separation *trigger*: off `dSepCompl` the
 noisy losses split good strictly below bad, so the greedy avoids `bad`. -/
@@ -251,7 +251,7 @@ def dSepCompl {S ι : Type*} [DecidableEq S] (good bad : S → Prop)
   (⋃ v ∈ cands.filter good, {ω | (idx.card : ℝ) * (ρlo + γ) ≤ ∑ i ∈ idx, D v i ω}) ∪
   (⋃ v ∈ cands.filter bad, {ω | ∑ i ∈ idx, D v i ω ≤ (idx.card : ℝ) * (ρhi - γ)})
 
-/-- **The separation trigger fires w.h.p.**  Under mean-loss separability, the reads
+/-- The separation trigger fires w.h.p.  Under mean-loss separability, the reads
 fail to separate the classes (`dSepCompl`) with probability at most
 `#cands·exp(-2mγ²)`. -/
 lemma dSepCompl_prob {S ι : Type*} [DecidableEq S] (good bad : S → Prop)
@@ -316,7 +316,7 @@ lemma dSepCompl_prob {S ι : Type*} [DecidableEq S] (good bad : S → Prop)
     _ = (((cands.filter good).card : ℝ) + ((cands.filter bad).card : ℝ)) * E := by ring
     _ ≤ (cands.card : ℝ) * E := mul_le_mul_of_nonneg_right hcards hEnn
 
-/-- **Off `dSepCompl`, the greedy avoids `bad`.**  For a fixed `ω` outside the
+/-- Off `dSepCompl`, the greedy avoids `bad`.  For a fixed `ω` outside the
 separation-failure event, the good losses are strictly below the bad losses, so the
 selection lemma forces the least-loss `k`-subset to avoid `bad`. -/
 lemma avoids_bad_of_not_mem_dSepCompl {S ι : Type*} [DecidableEq S]
@@ -346,7 +346,7 @@ lemma avoids_bad_of_not_mem_dSepCompl {S ι : Type*} [DecidableEq S]
     mul_le_mul_of_nonneg_left hgap (Nat.cast_nonneg idx.card)
   linarith
 
-/-- **Coverage-free liveness: the greedy avoids the bad set, w.h.p.**
+/-- Coverage-free liveness: the greedy avoids the bad set, w.h.p.
 `good v` (flip of D-mass ≤ ρlo) and `bad v` (flip of D-mass ≥ ρhi ≈ ε_cov) are
 *definitional* w.r.t. the target — no coverage assumption.  The greedy's least-loss
 `k`-subset avoids `bad` except w.p. ≤ `#cands·exp(-2mγ²)`.  A three-line corollary
@@ -378,7 +378,7 @@ theorem chosen_avoids_bad_whp {S ι : Type*} [DecidableEq S]
   exact (measureReal_mono hsubset).trans
     (dSepCompl_prob good bad hdisj cands idx ρlo ρhi γ D hmeas hindep hIcc hgoodmean hbadmean hγ)
 
-/-- **Per-prefix disagreement mean, from random classification noise.**
+/-- Per-prefix disagreement mean, from random classification noise.
 The oracle is `MQ(x) = ℓ(x) ⊕ r(x)` with `ℓ` the true label and `r(x) ∼
 Bernoulli(η)` iid.  The disagreement of `MQ(x·v)` with the denoised centre `ℓ(x)`
 reduces (XOR algebra) to `flip ⊕ r`, i.e. `flip + (1−2·flip)·r`, where
@@ -401,7 +401,7 @@ theorem read_disagreement_mean {Ω : Type*} [MeasurableSpace Ω] (μ : Measure �
 
 #print axioms read_disagreement_mean
 
-/-- **Denoised loss decomposes into baseline + signal·flips.**  Against the
+/-- Denoised loss decomposes into baseline + signal·flips.  Against the
 denoised oracle, a read's expected disagreement on prefix `j` is a common baseline
 `c₀` plus `2s` exactly when the suffix flips `j`'s state (`flip j = 1`), else `c₀`.
 So the mean loss over `m` prefixes is `m·c₀ + 2s·(flip count)` — linear in the
@@ -426,16 +426,16 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] (O : Oracle μ S)
 
-/-- **Derived** per-string measurability, from the joint version. -/
+/-- Derived per-string measurability, from the joint version. -/
 lemma noise_meas' (w : S) : Measurable (O.noise w) :=
   O.noise_meas.comp (measurable_const.prodMk measurable_id)
 
-/-- **Derived** bit-valuedness of `flip`: an XOR of two bits is a bit. -/
+/-- Derived bit-valuedness of `flip`: an XOR of two bits is a bit. -/
 lemma flip_bit (v p : S) : O.flip v p = 0 ∨ O.flip v p = 1 := by
   rcases O.label_bit (p * v) with h1 | h1 <;> rcases O.label_bit p with h2 | h2 <;>
     · rw [Oracle.flip, h1, h2]; norm_num
 
-/-- **Derived** boundedness: a `{0,1}` bit lies in `[0,1]` (what the Hoeffding
+/-- Derived boundedness: a `{0,1}` bit lies in `[0,1]` (what the Hoeffding
 bounds consume). -/
 lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards [O.noise_bit w] with ω hω
@@ -446,7 +446,7 @@ variable {ι : Type*} (pref : ι → S)
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas' w).aemeasurable (O.noise_icc w)
 
-/-- **Derived** read mean (this is `read_disagreement_mean`, now a fact about the
+/-- Derived read mean (this is `read_disagreement_mean`, now a fact about the
 oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
 lemma read_mean (v : S) (i : ι) :
     μ[O.read pref v i] = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by
@@ -462,7 +462,7 @@ lemma read_meas (v : S) (i : ι) : Measurable (O.read pref v i) := by
     (fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω)
   exact measurable_const.add (measurable_const.mul (O.noise_meas' _))
 
-/-- **Derived** per-suffix independence across prefixes.  The reads of `v` across
+/-- Derived per-suffix independence across prefixes.  The reads of `v` across
 distinct prefixes hit *distinct* query strings (`pref` injective, composed with
 right-cancellation `mul_left_injective`), so they are an injective reindexing of the
 per-string iid noise — independent by `iIndepFun.precomp`. -/
@@ -529,7 +529,7 @@ theorem greedy_picks_good {S : Type*} [DecidableEq S] [MeasurableSpace S] [Mul S
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] [DecidableEq S] (O : Oracle μ S)
 
-/-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
+/-- Liveness (fused): separability ⇒ a good family is produced, w.h.p.
 Combining the two proved halves.  Under mean-loss separability the greedy proposes
 an all-accept-preserving family except w.p. `#cands·exp(-2mγ²)`
 (`chosen_accept_preserving_whp`); and the gate rejects the proposed family with

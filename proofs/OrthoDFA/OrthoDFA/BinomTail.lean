@@ -116,7 +116,7 @@ lemma binBits_indep (n : ℕ) (p : I) :
     (fun _ => fun P : Prop => if P then (1 : ℝ) else 0) (fun _ => measurable_from_top)
 
 open scoped Classical in
-/-- **Hoeffding's upper tail for the binomial.** -/
+/-- Hoeffding's upper tail for the binomial. -/
 theorem binomial_real_ge_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
     (ProbabilityTheory.binomial n p).real {i : ℕ | (n : ℝ) * ((p : ℝ) + τ) ≤ (i : ℝ)}
       ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) := by
@@ -157,7 +157,7 @@ theorem binomial_real_ge_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
   exact hmain
 
 open scoped Classical in
-/-- **Hoeffding's lower tail for the binomial.** -/
+/-- Hoeffding's lower tail for the binomial. -/
 theorem binomial_real_le_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
     (ProbabilityTheory.binomial n p).real {i : ℕ | (i : ℝ) ≤ (n : ℝ) * ((p : ℝ) - τ)}
       ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) := by

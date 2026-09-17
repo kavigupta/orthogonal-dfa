@@ -34,7 +34,7 @@ sub-Gaussian tail of `n` reads equals the level `α`. -/
 noncomputable def certMargin (n : ℕ) (α : ℝ) : ℝ :=
   Real.sqrt (Real.log (1 / α) / (2 * (n : ℝ)))
 
-/-- **T1 (discharged).**  A drifted side is admitted with probability at most `α`. -/
+/-- T1 (discharged).  A drifted side is admitted with probability at most `α`. -/
 theorem certErr_bound
     (Xc : ℕ → Ω → ℝ) (n : ℕ) (β τ α : ℝ)
     (hmeas : ∀ i, AEMeasurable (Xc i) μ)
@@ -63,7 +63,7 @@ theorem certErr_bound
     rw [one_div, Real.log_inv]; field_simp
   rw [hexp, Real.exp_log hα0]
 
-/-- **Decisiveness / placement (non-member side).**  Reads independent, each in
+/-- Decisiveness / placement (non-member side).  Reads independent, each in
 `[0,1]`, with total mean at most `k(β-s)` (a non-member under an accept-preserving
 family: per-read mean `β-s`).  The vote failing to decide REJECT (sum reaching
 `k(β-τ)`, i.e. indecisive or wrongly accepted) has probability at most
@@ -81,7 +81,7 @@ theorem misplacedNonmember_le {ι : Type*}
   have heq : (β - s) + (s - τ) = β - τ := by ring
   simpa only [heq] using h
 
-/-- **Decisiveness / placement (member side).**  Reads independent, each in
+/-- Decisiveness / placement (member side).  Reads independent, each in
 `[0,1]`, with total mean at least `k(β+s)` (a member under an accept-preserving
 family).  The vote failing to decide ACCEPT (sum at most `k(β+τ)`) has probability
 at most `exp(-2k(s-τ)²)`.  Proved from the non-member side via the reflection

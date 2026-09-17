@@ -43,7 +43,7 @@ theorem pi_coord_real (ν : ∀ r, Measure (α r)) [∀ r, IsProbabilityMeasure 
     show {x : ∀ r, α r | x r ∈ B} = Function.eval r ⁻¹' B from rfl,
     (measurePreserving_eval ν r).measure_preimage hB.nullMeasurableSet]
 
-/-- **The algorithm is correct.**  With the per-round bounds (findability `hgood`,
+/-- The algorithm is correct.  With the per-round bounds (findability `hgood`,
 certification `hbad`), the failure event has probability at most `(1-p)^N + N·b`;
 equivalently, with probability at least `1 - (1-p)^N - N·b` some round produced a
 good family that passed the gate and no round produced a passing bad family, so the
@@ -82,7 +82,7 @@ theorem algorithm_correct (ν : ∀ r, Measure (α r)) [∀ r, IsProbabilityMeas
 
 #print axioms algorithm_correct
 
-/-- **Capstone.**  The clustering algorithm over `N` rounds, with the certification
+/-- Capstone.  The clustering algorithm over `N` rounds, with the certification
 half fully discharged from `certErr_bound`.
 
 Inputs are exactly the oracle model and findability:
@@ -124,7 +124,7 @@ theorem clustering_algorithm_correct
 
 #print axioms clustering_algorithm_correct
 
-/-- **The algorithm is correct (accumulating pool).**  The independence-of-rounds
+/-- The algorithm is correct (accumulating pool).  The independence-of-rounds
 idealisation removed: `goodErr r` (round `r` is not a good pass) and `badErr r`
 (round `r` admits a bad family) may depend on the whole accumulated history — the
 pool that grows as fresh strings are added each round.  Only the findability
