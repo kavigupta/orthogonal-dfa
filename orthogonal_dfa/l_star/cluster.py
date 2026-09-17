@@ -146,34 +146,50 @@ def _split_counts(pst, decision, column):
     return tuple(counts)
 
 
+#: Drift the gate is calibrated to catch.  Needs ``n >= (2.2 / gamma)^2`` prefixes to
+#: certify, so it cannot be set finer than the certification draw affords.
+ACCEPT_PRESERVING_DRIFT = 0.05
+
+
+def gate_rates(pst):
+    """The rates the accept and reject sides of the split are held to.
+
+    A prefix the cut calls accepting reads as accepting on the split's column with
+    probability ``1/2 + s`` when the cut is right and ``1/2 - s`` when it is not, so a cut
+    wrong on a ``gamma`` fraction of that side reads at ``1/2 + s - 2 s gamma``.  The null
+    sits midway, leaving ``s gamma`` on each side.
+
+    Not ``accept_thresh``: that is a cutoff on the *vote*, and sits a fixed distance below
+    ``1/2 + s``, so drift finer than the distance reads as clean however many prefixes are
+    certified on -- a floor the sample size cannot lower.
+    """
+    s = pst.config.min_signal_strength
+    eta = 0.5 - s
+    gap = s * ACCEPT_PRESERVING_DRIFT
+    return (1 - eta) - gap, eta + gap
+
+
 def drift_verdict(pst, counts) -> str:
     """Whether each side of the cut reads as its own class on the split, or as
     the other's, or whether the counts do not say.
 
-    Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
-    split's column says what the oracle makes of the prefixes themselves.  A
-    family realises the accept-preserving split when the prefixes it calls
-    accepting read there as accepting -- by the same thresholds the family is
-    read with, since it is that reading being checked and not another.
-
-    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
-    Neither is a rate anything has to be estimated against, which is what a gap
-    between the sides would have needed, and would have had to name a signal for.
+    The sides are held to ``gate_rates``.
     """
     hits_a, n_a = counts[0]
     hits_r, n_r = counts[1]
+    accept_rate, reject_rate = gate_rates(pst)
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     # Both sides must clear their own test, so between them they cannot exceed
     # the rate either one spends.
     if (
-        scipy.stats.binom.sf(hits_a - 1, n_a, pst.accept_thresh) <= alpha
-        and scipy.stats.binom.cdf(hits_r, n_r, pst.reject_thresh) <= alpha
+        scipy.stats.binom.sf(hits_a - 1, n_a, accept_rate) <= alpha
+        and scipy.stats.binom.cdf(hits_r, n_r, reject_rate) <= alpha
     ):
         return ADMITTED
     # Either side drifting on its own is enough to say so, so they share.
     if (
-        scipy.stats.binom.cdf(hits_a, n_a, pst.accept_thresh) <= alpha / 2
-        or scipy.stats.binom.sf(hits_r - 1, n_r, pst.reject_thresh) <= alpha / 2
+        scipy.stats.binom.cdf(hits_a, n_a, accept_rate) <= alpha / 2
+        or scipy.stats.binom.sf(hits_r - 1, n_r, reject_rate) <= alpha / 2
     ):
         return DRIFTED
     return UNCERTIFIED
@@ -246,12 +262,13 @@ class AcceptPreservingGate:
             hits_a, n_a = counts[0]
             hits_r, n_r = counts[1]
             read = "read" if verdict is DRIFTED else "could not be read"
+            accept_rate, reject_rate = gate_rates(pst)
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
                 f"classes: the last put {hits_a / max(n_a, 1):.0%} of the prefixes it "
                 f"accepts and {hits_r / max(n_r, 1):.0%} of those it rejects on the "
-                f"accepting side of the empty suffix, against thresholds of "
-                f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
+                f"accepting side of the empty suffix, against rates of "
+                f"{accept_rate:.0%} and {reject_rate:.0%}; no suffix "
                 f"family realises the accept-preserving split on this target"
             )
         return verdict
