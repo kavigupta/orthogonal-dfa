@@ -430,6 +430,14 @@ variable {S : Type*} [MeasurableSpace S] [Mul S] (O : Oracle μ S)
 lemma noise_meas' (w : S) : Measurable (O.noise w) :=
   O.noise_meas.comp (measurable_const.prodMk measurable_id)
 
+/-- Whether `v` flips `p`'s acceptance:
+
+    flip v p = ℓ(p·v) ⊕ ℓ(p) = ℓ(p·v) + ℓ(p) − 2·ℓ(p·v)·ℓ(p)
+
+so it is `0` exactly when `v` is accept-preserving at `p`. -/
+def flip (v p : S) : ℝ :=
+  O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
+
 /-- Derived bit-valuedness of `flip`: an XOR of two bits is a bit. -/
 lemma flip_bit (v p : S) : O.flip v p = 0 ∨ O.flip v p = 1 := by
   rcases O.label_bit (p * v) with h1 | h1 <;> rcases O.label_bit p with h2 | h2 <;>
@@ -440,6 +448,14 @@ bounds consume). -/
 lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards [O.noise_bit w] with ω hω
   rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
+
+/-- The disagreement read of `v` on the `i`-th prefix,
+
+    read v i = flip v (pref i) ⊕ noise (pref i · v)
+
+the noise being that of the concatenated query string. -/
+noncomputable def read {ι : Type*} (pref : ι → S) (v : S) (i : ι) : Ω → ℝ :=
+  fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω
 
 variable {ι : Type*} (pref : ι → S)
 
