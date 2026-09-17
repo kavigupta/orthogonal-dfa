@@ -130,17 +130,11 @@ class TransitionResolver:
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
-                if status == _SPLIT:
-                    since_split = 0
-                    self.edges.close()  # the split dropped edges; refill
-                    delta = self._total_delta()  # the split rewrote the state set
-                elif status == _UNDECIDED:
-                    since_split = 0
-                    # split evidence may have read more successors; re-vote
-                    self.edges.close()
-                    delta = self._total_delta()
-                else:
-                    since_split += 1
+                since_split = 0 if status in (_SPLIT, _UNDECIDED) else since_split + 1
+                # A split drops edges and rewrites the state set, and any probe may
+                # have read successors a re-vote counts.
+                self.edges.close()
+                delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
                     clean=f"{since_split}/{patience}",
