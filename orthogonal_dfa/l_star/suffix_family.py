@@ -6,7 +6,7 @@ mean lands decisively past a threshold. This owns that family: the suffix rows
 and the memo of the means computed from them.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 
 class SuffixFamily:
@@ -19,7 +19,8 @@ class SuffixFamily:
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
-        self._means: Dict[Tuple[bytes, bytes], float] = {}
+        # keyed by seq + midfix, which is all a mean depends on
+        self._means: Dict[bytes, float] = {}
 
     def bits(self, base) -> List[int]:
         """Membership of ``base`` under each family suffix, through the table's
@@ -38,13 +39,16 @@ class SuffixFamily:
     def mean(self, seq, midfix) -> float:
         """Mean family membership of ``seq`` under the distinguishers
         ``midfix + v``."""
-        key = (seq, midfix)
-        cached = self._means.get(key)
+        base = seq + midfix
+        cached = self._means.get(base)
         if cached is not None:
             return cached
-        value = sum(self.bits(seq + midfix)) / len(self.vs)
-        self._means[key] = value
+        value = sum(self.bits(base)) / len(self.vs)
+        self._means[base] = value
         return value
+
+    def knows(self, seq, midfix) -> bool:
+        return seq + midfix in self._means
 
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
@@ -59,7 +63,9 @@ class SuffixFamily:
 
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""
-        return self.bits(seq + midfix)
+        bits = self.bits(seq + midfix)
+        self._means.setdefault(seq + midfix, sum(bits) / len(self.vs))
+        return bits
 
     def train_side(self, votes) -> Optional[bool]:
         """

@@ -5,7 +5,6 @@ themselves, so what a later round needs more of it can draw more of.
 """
 
 import itertools
-import math
 import unittest
 from types import SimpleNamespace
 
@@ -14,90 +13,12 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.prefix_sources import (
-    POOR_YIELD,
+    BoundarySource,
     StateSource,
     aim_at,
-    collect,
-    gather,
     state_source,
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
-
-
-class _Counted:
-    """Yields a prefix ``rate`` of the time, counting how often it is asked."""
-
-    def __init__(self, rate, total=10**6):
-        self.rate = rate
-        self.calls = 0
-        self._total = total
-
-    def draw(self):
-        self.calls += 1
-        keep = (self.calls * self.rate) // 1 - ((self.calls - 1) * self.rate) // 1
-        return bytes([self.calls // 256, self.calls % 256]) if keep else None
-
-
-class _Spooled:
-    """A finite supply, with the give-back a real source has."""
-
-    def __init__(self, words):
-        self._words = list(words)
-        self._spare = []
-        self.drawn = 0
-
-    def draw(self):
-        if self._spare:
-            return self._spare.pop(0)
-        if not self._words:
-            return None
-        self.drawn += 1
-        return self._words.pop(0)
-
-    def unused(self, drawn):
-        self._spare.extend(drawn)
-
-
-class TestGivingUpOnASource(unittest.TestCase):
-    def test_a_source_that_yields_is_collected(self):
-        source = _Counted(1.0)
-        held = collect(source, wanted=20)
-        self.assertEqual(len(held), 20)
-        self.assertEqual(source.calls, 20)
-
-    def test_a_source_that_cannot_deliver_is_given_up_on(self):
-        # One in fifty, well under the yield the budget waits for.
-        source = _Counted(0.02)
-        self.assertIsNone(collect(source, wanted=20))
-        self.assertEqual(source.calls, math.ceil(20 / POOR_YIELD))
-
-    def test_a_source_at_exactly_the_yield_survives(self):
-        # The budget is 1 / POOR_YIELD draws per prefix, so a source managing
-        # exactly that rate is the slowest one that still delivers.
-        source = _Counted(POOR_YIELD)
-        held = collect(source, wanted=100)
-        self.assertIsNotNone(held)
-        self.assertLessEqual(source.calls, math.ceil(100 / POOR_YIELD))
-
-    def test_a_failed_ask_hands_its_draws_back(self):
-        # Landing a draw is the expensive part, so what a collection could not
-        # use goes back rather than being paid for twice.
-        source = _Spooled([bytes([i]) for i in range(4)])
-        self.assertIsNone(collect(source, wanted=6))
-        self.assertEqual(source.drawn, 4, "and it stopped once it ran dry")
-        self.assertEqual(gather(source, wanted=4), [bytes([i]) for i in range(4)])
-        self.assertEqual(source.drawn, 4, "the second ask cost nothing")
-
-    def test_gather_keeps_what_it_got(self):
-        source = _Spooled([bytes([i]) for i in range(4)])
-        self.assertEqual(gather(source, wanted=6), [bytes([i]) for i in range(4)])
-
-    def test_duplicates_do_not_count_toward_the_ask(self):
-        class OneString:
-            def draw(self):
-                return bytes([7])
-
-        self.assertIsNone(collect(OneString(), wanted=3))
 
 
 class _Tree:
@@ -249,7 +170,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
         drawn = [source.draw() for _ in range(len(support))]
 
         self.assertEqual(sorted(drawn), support)
-        with self.assertRaisesRegex(RuntimeError, "rested nothing new"):
+        with self.assertRaisesRegex(RuntimeError, "found no new samples"):
             source.draw()
 
 
@@ -312,6 +233,85 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         even = _Weighted(8, [0.5, 0.5])
         self.assertIsNotNone(self._made(even, _ONE_WAY_IN, 1, lands=True))
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
+
+
+class _Walk:
+    """A tree that places strings by a rule the test chooses."""
+
+    def __init__(self, places):
+        self._places = places
+
+    def sift_and_boundary(self, seq):
+        leaf = self._places(seq)
+        return (leaf, None) if leaf is not None else (None, seq + b"?")
+
+    def prefill(self, seqs):
+        pass
+
+
+class _Probes(_Pst):
+    """A sampler handing out ``probe`` every time."""
+
+    def __init__(self, probe):
+        super().__init__(len(probe))
+        self.sampler = SimpleNamespace(
+            length=len(probe),
+            sample=lambda _rng, alphabet_size: probe,
+            symbol_weights=lambda _n: [0.5, 0.5],
+        )
+
+
+#: Walks end at 1 where the tree says 0, so every probe is bisected.
+_STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
+_LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
+_SHORT_ONE_FAILS = lambda seq: None if len(seq) == 1 else 0
+_PROBE = bytes([0, 1, 0, 1])
+
+
+class TestABoundarySourceProbes(unittest.TestCase):
+    def _source(self, places, *, known):
+        return BoundarySource(
+            _Probes(_PROBE),
+            _Walk(places),
+            _STEPS_TO_ONE,
+            label=("boundary", 1),
+            known=known,
+        )
+
+    def test_a_prefix_the_tree_cannot_place_is_kept(self):
+        source = self._source(_LONG_ONE_FAILS, known=())
+
+        self.assertTrue(source.attempt_draw())
+        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+
+    def test_a_probe_the_tree_places_throughout_keeps_nothing(self):
+        source = self._source(lambda seq: 0, known=())
+
+        self.assertFalse(source.attempt_draw())
+
+    def test_a_prefix_too_short_to_come_again_is_not_kept(self):
+        source = self._source(_SHORT_ONE_FAILS, known=())
+
+        self.assertFalse(source.attempt_draw())
+
+    def test_keeping_the_same_string_again_is_not_a_find(self):
+        source = self._source(_LONG_ONE_FAILS, known=())
+
+        self.assertTrue(source.attempt_draw())
+        self.assertFalse(source.attempt_draw(), "the second probe found nothing new")
+
+    def test_what_the_caller_already_holds_is_not_a_find(self):
+        source = self._source(_LONG_ONE_FAILS, known=[_PROBE[:2] + b"?"])
+
+        self.assertFalse(source.attempt_draw())
+
+    def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
+        source = self._source(_LONG_ONE_FAILS, known=())
+
+        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+
+        with self.assertRaisesRegex(RuntimeError, "found no new samples"):
+            source.draw()
 
 
 if __name__ == "__main__":

@@ -29,9 +29,7 @@ from .prefix_sources import (
     BoundarySource,
     UniformSource,
     aim_at,
-    collect,
-    draw_for_split,
-    gather,
+    draw_many,
     state_source,
 )
 from .tracker import SynthesisTracker
@@ -167,9 +165,7 @@ class Pools:
         # remade at this size every round.
         collected = {}
         for label in states:
-            got = collect(self._sources[label], WANTED)
-            if got is not None:
-                collected[label] = got
+            collected[label] = draw_many(self._sources[label], WANTED)
         # After the state sources have run: validating an aimed draw is one of
         # the places a string turns out to be unplaceable, so those belong to
         # this round's pool rather than to the next one's.
@@ -191,7 +187,11 @@ class Pools:
         rate over and never able to answer.
         """
         source = BoundarySource(
-            self._pst, resolver.sifter, dfa.transitions, ("boundary", self._sealed + 1)
+            self._pst,
+            resolver.sifter,
+            dfa.transitions,
+            label=("boundary", self._sealed + 1),
+            known=self._pooled | self._harvest.keys(),
         )
         if not source.has_sufficient_yield():
             return False
@@ -223,25 +223,23 @@ class Pools:
         """
         return sum(len(pool) for pool in self._boundaries.values()) + len(self._harvest)
 
+    def labels(self) -> list:
+        """The populations a family is read over: this round's, and the uniform
+        pool the table keeps across rounds."""
+        return [UNIFORM, *self.held]
+
     def for_split(self, label, wanted: int):
         """Prefixes for one population, to read the split on and not to keep."""
         source = self._sources.get(label)
-        return draw_for_split(source, wanted) if source is not None else []
+        return draw_many(source, wanted) if source is not None else []
 
     def more(self, label, wanted: int) -> bool:
-        """Draw ``wanted`` further prefixes for one population.  Says whether it
-        could: a source that has stopped delivering ends its population.
-
-        A source that has stopped delivering ends its population, and saying so
-        is what stops the caller asking again."""
+        """Draw ``wanted`` further prefixes for one population, saying whether
+        that population is one this round has a source for."""
         source = self._sources.get(label)
         if source is None:
             return False
-        drawn = gather(source, wanted)
-        if not drawn:
-            self.held.pop(label, None)
-            self._pst.table.drop_population(label)
-            return False
+        drawn = draw_many(source, wanted)
         # Extended, not rebound: a boundary pool's list is the one `_boundaries`
         # holds, which is what the next round republishes it from.  And a
         # population this round did not define is not one it retires either, so
@@ -274,6 +272,9 @@ class _PoolAccess:
 
     def for_split(self, label, wanted):
         return self._pools.for_split(label, wanted)
+
+    def labels(self):
+        return self._pools.labels()
 
 
 def _aimed_at(pst, resolver, dfa) -> set:

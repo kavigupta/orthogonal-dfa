@@ -4,12 +4,12 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting a member of the state extended by the
-symbol: the leaf it lands on is the target, and the member is kept as the edge's
-witness (the tree is consistent, so any member resolves it the same way).  A leaf
-every one of whose members is indecisive, or that no prefix reaches, leaves its
-edge open; the export totalises those -- self-looping them and feeding their
-boundary strings back so the next round's family resolves them (see EdgeResolver).
+(state, symbol) edge is resolved by sifting the state's members extended by the
+symbol: the first one the tree places, and every later one it can place from reads
+already made, vote, and the edge points where most of them land, with a member that
+landed there as its witness.  A leaf every one of whose members is indecisive, or
+that no prefix reaches, leaves its edge open; the export totalises those --
+self-looping them and feeding their boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
 strings are walked through a *totalised* copy of the transition function and
@@ -33,7 +33,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import Sifter
+from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -41,9 +41,6 @@ from .suffix_family import SuffixFamily
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
-
-#: Probes sifted per batched pass.
-_PROBE_BLOCK = 16
 
 
 class TransitionResolver:
@@ -129,14 +126,11 @@ class TransitionResolver:
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
-                if status == _SPLIT:
-                    since_split = 0
-                    self.edges.close()  # the split dropped edges; refill
-                    delta = self._total_delta()  # the split rewrote the state set
-                elif status == _UNDECIDED:
-                    since_split = 0
-                else:
-                    since_split += 1
+                since_split = 0 if status in (_SPLIT, _UNDECIDED) else since_split + 1
+                # A split drops edges and rewrites the state set, and any probe may
+                # have read successors a re-vote counts.
+                self.edges.close()
+                delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
                     clean=f"{since_split}/{patience}",
@@ -162,7 +156,7 @@ class TransitionResolver:
         while drawn < max_probes:
             block = [
                 self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-                for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
+                for _ in range(min(PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
             self.sifter.prefill(block)
@@ -171,23 +165,13 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Anchor at the shortest prefix the tree places, follow the total delta,
         then act on where the walk and a fresh sift disagree."""
-        state = None
-        start = 0
-        while start < len(w):
-            state = self._sift(w[:start])
-            if state is not None:
-                break
-            start += 1
-        if state is None:
+        start, states = anchored_walk(w, self._sift, delta)
+        if start is None:
             return _RESOLVED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
         # only reaches deep leaves; short anchor prefixes are what give the shallow
         # leaves enough members for the one-state test to settle them.
-        self.population.add(w[:start], at=self.tree.path_of(state))
-        states = [None] * start + [state]
-        for c in w[start:]:
-            state = delta[state][c]
-            states.append(state)
+        self.population.add(w[:start], at=self.tree.path_of(states[start]))
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
@@ -195,7 +179,7 @@ class TransitionResolver:
         actual = self._sift(w)
         if actual is None or state is None or actual == state:
             return _RESOLVED
-        fd = self._first_bad_edge(w, states, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
         if fd is None:
             return _RESOLVED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
@@ -222,20 +206,6 @@ class TransitionResolver:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
-
-    def _first_bad_edge(self, w, states, lo, hi):
-        """Binary-search the first index where the followed state diverges from a
-        fresh sift of ``w[:i]``; ``None`` on an indecisive sift.  Invariant: the
-        sift agrees at ``lo`` and disagrees at ``hi``."""
-        if lo + 1 == hi:
-            return hi
-        mid = (lo + hi) // 2
-        actual = self._sift(w[:mid])
-        if actual is None:
-            return None
-        if actual == states[mid]:
-            return self._first_bad_edge(w, states, mid, hi)
-        return self._first_bad_edge(w, states, lo, mid)
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)

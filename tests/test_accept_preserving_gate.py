@@ -9,7 +9,13 @@ carries that -- which is why the rate is kept per population in the first place.
 import unittest
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.cluster import ADMITTED, DRIFTED, UNCERTIFIED, drift_verdict
+from orthogonal_dfa.l_star.cluster import (
+    ADMITTED,
+    DRIFTED,
+    UNCERTIFIED,
+    drift_verdict,
+    veto_size,
+)
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 
 #: The thresholds a family is read with, and so the ones the split is held to.
@@ -73,3 +79,25 @@ class TestAnyPopulationVetoes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWhatAVetoCosts(unittest.TestCase):
+    """`veto_size` is what a population has to hold before the test can fire."""
+
+    def test_a_population_that_size_read_backwards_vetoes(self):
+        for populations in (1, 5, 20):
+            n = veto_size(_PST, populations)
+            backwards = {("state", 0): ((0, n), (0, 0))}
+            self.assertEqual(
+                drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **backwards}),
+                DRIFTED,
+                f"{populations} populations, {n} prefixes",
+            )
+
+    def test_a_smaller_one_cannot(self):
+        n = veto_size(_PST, 1) - 1
+        self.assertEqual(
+            drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, ("state", 0): ((0, n), (0, 0))}),
+            ADMITTED,
+            "the pool still admits over a population too small to say anything",
+        )
