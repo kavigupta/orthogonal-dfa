@@ -268,13 +268,13 @@ class TestABoundarySourceProbes(unittest.TestCase):
     def test_a_prefix_the_tree_cannot_place_is_kept(self):
         source = self._source([_PROBE], _LONG_ONE_FAILS)
 
-        self.assertTrue(source.aimed_draw())
+        self.assertTrue(source.attempt_draw())
         self.assertEqual(_PROBE[:2] + b"?", source.draw())
 
     def test_a_probe_the_tree_places_throughout_keeps_nothing(self):
         source = self._source([_PROBE], lambda seq: 0)
 
-        self.assertFalse(source.aimed_draw())
+        self.assertFalse(source.attempt_draw())
 
     def test_a_prefix_too_short_to_come_again_is_not_kept(self):
         # Half the sampler's length is the bar.  Below it the prefixes run out
@@ -282,13 +282,13 @@ class TestABoundarySourceProbes(unittest.TestCase):
         # on them would be spent rather than short.
         source = self._source([_PROBE] * 10, _SHORT_ONE_FAILS)
 
-        self.assertFalse(source.aimed_draw())
+        self.assertFalse(source.attempt_draw())
 
     def test_keeping_the_same_string_again_is_not_a_find(self):
         source = self._source([_PROBE, _PROBE], _LONG_ONE_FAILS)
 
-        self.assertTrue(source.aimed_draw())
-        self.assertFalse(source.aimed_draw(), "the second probe found nothing new")
+        self.assertTrue(source.attempt_draw())
+        self.assertFalse(source.attempt_draw(), "the second probe found nothing new")
 
     def test_what_the_caller_already_holds_is_not_a_find(self):
         source = BoundarySource(
@@ -298,7 +298,7 @@ class TestABoundarySourceProbes(unittest.TestCase):
             known=[_PROBE[:2] + b"?"],
         )
 
-        self.assertFalse(source.aimed_draw())
+        self.assertFalse(source.attempt_draw())
 
     def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
         source = self._source([_PROBE] * 10_000, _LONG_ONE_FAILS)
