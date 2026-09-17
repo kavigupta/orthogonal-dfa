@@ -24,18 +24,21 @@ def proving_attempts(good, poor):
 
 
 class RejectionSource(ABC):
-    """See the module docstring.  A subclass brings the attempted draw and the
-    rates it is judged by: ``proving`` from `proving_attempts`, and ``poor``,
-    below which `draw` gives up."""
+    """See the module docstring."""
 
-    proving: tuple
-    poor: float
-
-    def __init__(self, served=()):
-        # A draw landing on one of these is accepted all the same, so the rate
-        # alone never says a source is spent.
-        self._served = set(served)
+    def __init__(self):
+        self._served = set()
         self._pool = []
+
+    @property
+    @abstractmethod
+    def proving(self) -> tuple:
+        """(attempts, accepted) from `proving_attempts`."""
+
+    @property
+    @abstractmethod
+    def poor(self) -> float:
+        """The acceptance rate below which `draw` calls a source dry."""
 
     @abstractmethod
     def attempt_draw(self) -> bool:
@@ -63,6 +66,8 @@ class RejectionSource(ABC):
                     self._served.add(member)
                     return member
             self.attempt_draw()
+        # A draw landing on a string already served is accepted all the same, so
+        # the rate alone never says a source is spent.
         raise RuntimeError(
             f"Source {self.source_repr()} found no new samples in {dry} attempts"
         )

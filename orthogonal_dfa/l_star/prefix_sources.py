@@ -52,9 +52,9 @@ def aim_at(pst, dfa, leaf):
 
 def state_source(resolver, leaf, aim, *, wanted):
     """
-    A source that draws on `aim` and guarantees (with probability 1 - _MISREAD)
-    that at least POOR_YIELD (25%) of the strings it draws will land
-    at the given leaf, according to the tree in `resolver`.
+    A source that draws on `aim` and guarantees (up to the misread chance in
+    `proving_attempts`) that at least POOR_YIELD (25%) of the strings it draws
+    will land at the given leaf, according to the tree in `resolver`.
 
     If this guarantee cannot be made, returns None
     """
