@@ -13,6 +13,7 @@ from .dfa_utils import (
     uniform_weights,
 )
 from .rejection_source import RejectionSource, proving_attempts
+from .sifting import PROBE_BLOCK, anchored_walk, first_disagreeing_edge
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -20,6 +21,71 @@ GOOD_YIELD = 0.5
 #: anything between the two bars, which is what keeps the count that tells them
 #: apart affordable.
 POOR_YIELD = 0.25
+
+#: A probe turning up a boundary string at least this often is worth drawing on.
+GOOD_BOUNDARY_YIELD = 0.2
+#: One turning up at most this often is not.
+POOR_BOUNDARY_YIELD = 0.1
+
+
+class BoundarySource(RejectionSource):
+    """Strings the round's tree cannot place, asked about along a probe's walk.
+
+    Only prefixes at least half the sampler's length are kept.  There are at least
+
+        sqrt(alphabet_size ** length)
+
+    of those, so a family straddling any share worth drawing on has more than a
+    round can exhaust; the short prefixes are asked about by every probe and run
+    out at once.
+    """
+
+    proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
+    poor = POOR_BOUNDARY_YIELD
+
+    def __init__(self, pst, sifter, transitions, *, known):
+        super().__init__()
+        self._served.update(known)
+        self._pst = pst
+        self._sifter = sifter
+        self._transitions = transitions
+        self._long_enough = -(-pst.sampler.length // 2)
+        self._seen = set(known)
+        self._probes = []
+
+    def _sift(self, seq):
+        leaf, boundary = self._sifter.sift_and_boundary(seq)
+        if (
+            leaf is None
+            and len(seq) >= self._long_enough
+            and boundary not in self._seen
+        ):
+            self._seen.add(boundary)
+            self._pool.append(boundary)
+        return leaf
+
+    def attempt_draw(self) -> bool:
+        before = len(self._seen)
+        if not self._probes:
+            self._probes = [
+                self._pst.sampler.sample(
+                    self._pst.rng, alphabet_size=self._pst.alphabet_size
+                )
+                for _ in range(PROBE_BLOCK)
+            ]
+            self._sifter.prefill(self._probes)
+        probe = self._probes.pop()
+        start, states = anchored_walk(probe, self._sift, self._transitions)
+        if start is not None:
+            landed = self._sift(probe)
+            if landed is not None and landed != states[-1]:
+                # Called for the sifts it makes on the way; the edge it returns
+                # is the round's, not this source's.
+                first_disagreeing_edge(probe, states, self._sift, start, len(probe))
+        return len(self._seen) > before
+
+    def source_repr(self) -> str:
+        return "boundary"
 
 
 def aim_at(pst, dfa, leaf):

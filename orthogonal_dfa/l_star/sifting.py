@@ -7,6 +7,9 @@ resolver need it, so it lives here rather than in either of them.
 
 from typing import Optional, Tuple
 
+#: Probes sifted per batched pass.
+PROBE_BLOCK = 16
+
 
 class Sifter:
     """Routes strings through ``tree``, classifying with ``family``."""
