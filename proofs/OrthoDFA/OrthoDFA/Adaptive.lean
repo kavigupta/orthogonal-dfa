@@ -37,8 +37,7 @@ open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-variable {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
-  [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
+variable {S : Type*} [Stringlike S]
 
 /-! ## The derived configuration
 

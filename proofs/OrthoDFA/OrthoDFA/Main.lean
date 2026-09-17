@@ -14,7 +14,7 @@ open MeasureTheory ProbabilityTheory
 /-- `validity_of_returned` (whatever the loop returns is good, whenever it is returned) and
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
 theorem clustering_correct : ClusteringCorrect := by
-  intro Ω _ μ _ S _ _ _ _ _ _ _ J _ O populations D Dsf _ _ Pre indecisionLimit εcov α δ ρ pAP
+  intro Ω _ μ _ S _ J _ O populations D Dsf _ _ Pre indecisionLimit εcov α δ ρ pAP
     hsig hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ
     hcutlim hρcap hρsf
   rw [O.apSet_eq] at hpAPBound

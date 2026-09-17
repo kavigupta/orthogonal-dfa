@@ -54,8 +54,14 @@ noncomputable def Oracle.label {S : Type*} [MeasurableSpace S] (O : Oracle μ S)
 noncomputable def mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
-variable {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
-  [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
+/-- General string-like type restriction. Satisfied by all strings over a finite alphabet. -/
+class Stringlike (S : Type*) extends MeasurableSpace S, Monoid S, IsCancelMul S,
+    MeasurableMul S, Countable S, MeasurableSingletonClass S where
+  decEq : DecidableEq S
+
+attribute [instance] Stringlike.decEq
+
+variable {S : Type*} [Stringlike S]
 variable {J : Type*} [Fintype J]
 
 /-! ## The run space
@@ -538,9 +544,7 @@ Closed: the spaces, their instances and the data are all quantified here, so
 binder on the theorem. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {S : Type*} [MeasurableSpace S] [Monoid S] [IsCancelMul S] [MeasurableMul S]
-      [Countable S] [MeasurableSingletonClass S] [DecidableEq S]
-    {J : Type*} [Fintype J]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ),
