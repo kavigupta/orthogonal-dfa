@@ -112,8 +112,8 @@ lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
 
 /-! ## The run space
 
-`runLaw` is a concrete space with a concrete law, so `law_block` is a lemma rather than a
-hypothesis.
+`runMeasure` is a concrete space with a concrete measure, so the marginals the concentration
+arguments consume (`map_firstDraws`, `map_drawBlock`) are lemmas rather than hypotheses.
 
 On the deduplication gap `OrthoDFA.Model` records: do not be tempted to close it by modelling
 the without-replacement law as "i.i.d. conditioned on the block being injective".  Those
@@ -146,6 +146,30 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
 
 variable {J : Type*} [Fintype J]
 
+/-! The whole blocks of a run, as opposed to `sfx`/`prf`/`cert`, which pick out one draw.
+The marginal arguments slice the product at these boundaries. -/
+
+/-- The draw block: the suffix stream paired with every population's prefix stream. -/
+def draws (x : Run Ω S J) : (ℕ → S) × (J → ℕ → S) := x.2.1
+
+/-- The prefix streams. -/
+def prfs (x : Run Ω S J) : J → ℕ → S := x.2.1.2
+
+/-- The certification stream. -/
+def certs (x : Run Ω S J) : J × ℕ → S := x.2.2
+
+@[fun_prop]
+lemma measurable_draws : Measurable (draws : Run Ω S J → (ℕ → S) × (J → ℕ → S)) :=
+  measurable_fst.comp measurable_snd
+
+@[fun_prop]
+lemma measurable_prfs : Measurable (prfs : Run Ω S J → J → ℕ → S) :=
+  measurable_snd.comp (measurable_fst.comp measurable_snd)
+
+@[fun_prop]
+lemma measurable_certs : Measurable (certs : Run Ω S J → J × ℕ → S) :=
+  measurable_snd.comp measurable_snd
+
 lemma measurable_nz : Measurable (nz : Run Ω S J → Ω) := measurable_fst
 
 lemma measurable_sfx (i : ℕ) : Measurable (sfx (Ω := Ω) (S := S) (J := J) i) := by
@@ -158,19 +182,19 @@ lemma measurable_cert (j : J) (i : ℕ) : Measurable (cert (Ω := Ω) (S := S) j
   unfold cert; fun_prop
 
 /-- The joint law of the first `n` draws.  This is what the concentration arguments
-consume, and it is a theorem about `runLaw`, not a hypothesis about an abstract space. -/
-lemma law_block (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+consume, and it is a theorem about `runMeasure`, not a hypothesis about an abstract space. -/
+lemma map_firstDraws (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (n : ℕ) :
     Measure.map (fun x : Run Ω S J => ((fun i : Fin n => sfx i.val x),
-        (fun (j : J) (i : Fin n) => prf j i.val x))) (runLaw μ D Dsf)
+        (fun (j : J) (i : Fin n) => prf j i.val x))) (runMeasure μ D Dsf)
       = (Measure.pi fun _ : Fin n => Dsf).prod
           (Measure.pi (fun j : J => Measure.pi fun _ : Fin n => D j)) := by
   have h1 : (fun x : Run Ω S J => ((fun i : Fin n => sfx i.val x),
       (fun (j : J) (i : Fin n) => prf j i.val x)))
       = (fun y : (ℕ → S) × (J → ℕ → S) => ((fun i : Fin n => y.1 i.val),
-          (fun (j : J) (i : Fin n) => y.2 j i.val))) ∘ (fun x : Run Ω S J => x.2.1) := rfl
-  rw [h1, ← Measure.map_map (by fun_prop) (by fun_prop), runLaw]
-  rw [show (fun x : Run Ω S J => x.2.1) = Prod.fst ∘ Prod.snd from rfl,
+          (fun (j : J) (i : Fin n) => y.2 j i.val))) ∘ (draws : Run Ω S J → _) := rfl
+  rw [h1, ← Measure.map_map (by fun_prop) (by fun_prop), runMeasure]
+  rw [show (draws : Run Ω S J → _) = Prod.fst ∘ Prod.snd from rfl,
     ← Measure.map_map measurable_fst measurable_snd, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
   rw [Measure.map_fst_prod]
@@ -2744,29 +2768,29 @@ lemma measurable_badMass (Dj : Measure S) (Bad : S → Set Ω)
 
 
 /-- The law of the draws alone. -/
-noncomputable def drawLaw (D : J → Measure S) (Dsf : Measure S) :
+noncomputable def drawMeasure (D : J → Measure S) (Dsf : Measure S) :
     Measure ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) :=
   (((Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
     (Measure.infinitePi fun z : J × ℕ => D z.1)
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
-    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (drawLaw D Dsf) := by
-  unfold drawLaw; infer_instance
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (drawMeasure D Dsf) := by
+  unfold drawMeasure; infer_instance
 
-lemma runLaw_eq_prod (D : J → Measure S) (Dsf : Measure S) :
-    runLaw μ D Dsf = μ.prod (drawLaw D Dsf) := rfl
+lemma runMeasure_eq_prod (D : J → Measure S) (Dsf : Measure S) :
+    runMeasure μ D Dsf = μ.prod (drawMeasure D Dsf) := rfl
 
 /-- One table coordinate has the population's own law. -/
 lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
     Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
-        (drawLaw D Dsf) = D j := by
+        (drawMeasure D Dsf) = D j := by
   have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
       = (fun p : ℕ → S => p i) ∘ ((fun q : J → ℕ → S => q j) ∘ (Prod.snd ∘ Prod.fst)) := rfl
   rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop),
     ← Measure.map_map (by fun_prop) (by fun_prop),
-    ← Measure.map_map measurable_snd measurable_fst, drawLaw, Measure.map_fst_prod]
+    ← Measure.map_map measurable_snd measurable_fst, drawMeasure, Measure.map_fst_prod]
   simp only [measure_univ, one_smul]
   rw [Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
@@ -2776,23 +2800,23 @@ lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
 /-- A bound at almost every fixed draw is a bound on the run.  The clustering's prefixes
 and candidates are draws, so its guarantees are stated for the noise at a fixed table; this
 is what lifts them.  The `a.e.` is what lets the table be assumed inside the flat set. -/
-lemma runLaw_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+lemma runMeasure_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
-    (h : ∀ᵐ d ∂(drawLaw D Dsf), μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
-    runLaw μ D Dsf A ≤ E := by
-  rw [runLaw_eq_prod, Measure.prod_apply_symm hA]
+    (h : ∀ᵐ d ∂(drawMeasure D Dsf), μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
+    runMeasure μ D Dsf A ≤ E := by
+  rw [runMeasure_eq_prod, Measure.prod_apply_symm hA]
   exact le_trans (lintegral_mono_ae h) (by simp)
 
 /-- The table's prefixes land in the flat set, since that is where the populations live. -/
 lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Pre : Set S)
     (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) :
-    ∀ᵐ d ∂(drawLaw D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.1.2 j i ∈ Pre := by
+    ∀ᵐ d ∂(drawMeasure D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.1.2 j i ∈ Pre := by
   have hmeasPre : MeasurableSet (Preᶜ : Set S) := (Set.to_countable _).measurableSet
-  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawLaw D Dsf), z.1 ∈ populations → d.1.2 z.1 z.2 ∈ Pre := by
+  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawMeasure D Dsf), z.1 ∈ populations → d.1.2 z.1 z.2 ∈ Pre := by
     rintro ⟨j, i⟩
     by_cases hj : j ∈ populations
-    · have hz : drawLaw D Dsf {d | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)} = 0 := by
+    · have hz : drawMeasure D Dsf {d | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)} = 0 := by
         have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
             | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)}
             = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i) ⁻¹' Preᶜ := by
@@ -2808,22 +2832,22 @@ lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
 /-- A bound at every fixed noise-and-table slice is a bound on the run.  The
 certification draws are the last factor, so they can be sliced off on their own — which is
 what lets the gate be judged on prefixes the family was never selected from. -/
-lemma runLaw_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
+lemma runMeasure_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
     (h : ∀ y : Ω × ((ℕ → S) × (J → ℕ → S)),
       (Measure.infinitePi fun z : J × ℕ => D z.1)
         {c | ((y.1, (y.2, c)) : Run Ω S J) ∈ A} ≤ E) :
-    runLaw μ D Dsf A ≤ E := by
+    runMeasure μ D Dsf A ≤ E := by
   set νsq : Measure ((ℕ → S) × (J → ℕ → S)) :=
     (Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) with hνsq
   set νc : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνc
   have hmap : Measure.map (MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
       × (J × ℕ → S) ≃ᵐ Ω × (((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)))
-      ((μ.prod νsq).prod νc) = runLaw μ D Dsf :=
+      ((μ.prod νsq).prod νc) = runMeasure μ D Dsf :=
     (measurePreserving_prodAssoc μ νsq νc).map_eq
-  have hpre : runLaw μ D Dsf A = ((μ.prod νsq).prod νc)
+  have hpre : runMeasure μ D Dsf A = ((μ.prod νsq).prod νc)
       ((MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
         × (J × ℕ → S) ≃ᵐ Run Ω S J) ⁻¹' A) := by
     rw [← hmap, Measure.map_apply (MeasurableEquiv.prodAssoc).measurable hA]
@@ -2835,10 +2859,10 @@ lemma runLaw_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
 /-- The certification stream's own law. -/
 lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] :
-    Measure.map (fun x : Run Ω S J => x.2.2) (runLaw μ D Dsf)
+    Measure.map (certs : Run Ω S J → _) (runMeasure μ D Dsf)
       = Measure.infinitePi fun z : J × ℕ => D z.1 := by
-  rw [show (fun x : Run Ω S J => x.2.2) = Prod.snd ∘ Prod.snd from rfl,
-    ← Measure.map_map measurable_snd measurable_snd, runLaw, Measure.map_snd_prod]
+  rw [show (certs : Run Ω S J → _) = Prod.snd ∘ Prod.snd from rfl,
+    ← Measure.map_map measurable_snd measurable_snd, runMeasure, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
   rw [Measure.map_snd_prod]
   simp
@@ -2847,10 +2871,10 @@ lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabili
 lemma map_certCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
     Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
-        (drawLaw D Dsf) = D j := by
+        (drawMeasure D Dsf) = D j := by
   have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
       = (fun c : J × ℕ → S => c (j, i)) ∘ Prod.snd := rfl
-  rw [hstep, ← Measure.map_map (by fun_prop) measurable_snd, drawLaw, Measure.map_snd_prod]
+  rw [hstep, ← Measure.map_map (by fun_prop) measurable_snd, drawMeasure, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
   exact (measurePreserving_eval_infinitePi (fun z : J × ℕ => D z.1) (j, i)).map_eq
 
@@ -2859,13 +2883,13 @@ do. -/
 lemma ae_cert_mem_Pre (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Pre : Set S)
     (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) :
-    ∀ᵐ d ∂(drawLaw D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.2 (j, i) ∈ Pre := by
+    ∀ᵐ d ∂(drawMeasure D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.2 (j, i) ∈ Pre := by
   have hmeasPre : MeasurableSet (Preᶜ : Set S) := (Set.to_countable _).measurableSet
-  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawLaw D Dsf),
+  have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawMeasure D Dsf),
       z.1 ∈ populations → d.2 (z.1, z.2) ∈ Pre := by
     rintro ⟨j, i⟩
     by_cases hj : j ∈ populations
-    · have hz : drawLaw D Dsf {d | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)} = 0 := by
+    · have hz : drawMeasure D Dsf {d | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)} = 0 := by
         have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
             | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)}
             = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i)) ⁻¹' Preᶜ := by
@@ -2881,11 +2905,11 @@ lemma ae_cert_mem_Pre (D : J → Measure S) (Dsf : Measure S)
 open scoped Classical in
 lemma map_certBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) :
-    Measure.map (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x)) (runLaw μ D Dsf)
+    Measure.map (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x)) (runMeasure μ D Dsf)
       = Measure.pi (fun _ : Fin m => D j) := by
   have hstep : (fun x : Run Ω S J => (fun i : Fin m => cert j i.val x))
       = (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val)))
-        ∘ (fun x : Run Ω S J => x.2.2) := rfl
+        ∘ (certs : Run Ω S J → _) := rfl
   rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop), map_certStream D Dsf]
   refine (Measure.pi_eq (μ := fun _ : Fin m => D j) fun t ht => ?_).symm
   have hpre : (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val))) ⁻¹' Set.univ.pi t
@@ -2915,7 +2939,7 @@ the two. -/
 lemma map_prefCertPair (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j' j : J) (i i' : ℕ) :
     Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
-        (drawLaw D Dsf) = (D j').prod (D j) := by
+        (drawMeasure D Dsf) = (D j').prod (D j) := by
   have hf : Measurable (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i) := by fun_prop
   have hg : Measurable (fun c : J × ℕ → S => c (j, i')) := by fun_prop
   have hmapf : Measure.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
@@ -2936,7 +2960,7 @@ lemma map_prefCertPair (D : J → Measure S) (Dsf : Measure S)
   rw [show (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
       = Prod.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
         (fun c : J × ℕ → S => c (j, i')) from rfl,
-    drawLaw, ← Measure.map_prod_map _ _ hf hg, hmapf, hmapg]
+    drawMeasure, ← Measure.map_prod_map _ _ hf hg, hmapf, hmapg]
 
 /-! ### Unioning over a drawn pool
 
@@ -2947,22 +2971,22 @@ the same product — so slicing costs nothing. -/
 
 lemma map_drawBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] :
-    Measure.map (fun x : Run Ω S J => x.2.1) (runLaw μ D Dsf)
+    Measure.map (draws : Run Ω S J → _) (runMeasure μ D Dsf)
       = (Measure.infinitePi fun _ : ℕ => Dsf).prod
           (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) := by
-  rw [show (fun x : Run Ω S J => x.2.1) = Prod.fst ∘ Prod.snd from rfl,
-    ← Measure.map_map measurable_fst measurable_snd, runLaw, Measure.map_snd_prod]
+  rw [show (draws : Run Ω S J → _) = Prod.fst ∘ Prod.snd from rfl,
+    ← Measure.map_map measurable_fst measurable_snd, runMeasure, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
   rw [Measure.map_fst_prod]
   simp only [measure_univ, one_smul]
 
 /-- A drawn index costs nothing.  The event is indexed by a suffix draw and decided by
 the prefix draws, so the worst case over candidates bounds the run. -/
-theorem runLaw_draw_selection_le (D : J → Measure S) (Dsf : Measure S)
+theorem runMeasure_draw_selection_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (C : S → Set (J → ℕ → S)) (hC : ∀ v, MeasurableSet (C v)) (i : ℕ) (E : ℝ≥0∞)
     (hbad : ∀ v, (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) (C v) ≤ E) :
-    runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ C (sfx i x)} ≤ E := by
+    runMeasure μ D Dsf {x : Run Ω S J | prfs x ∈ C (sfx i x)} ≤ E := by
   classical
   set νs : Measure (ℕ → S) := Measure.infinitePi fun _ : ℕ => Dsf with hνs
   set νq : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j
@@ -2977,8 +3001,8 @@ theorem runLaw_draw_selection_le (D : J → Measure S) (Dsf : Measure S)
     exact MeasurableSet.iUnion (fun a =>
       (measurableSet_eq_fun ((measurable_pi_apply i).comp measurable_fst) measurable_const).inter
         (measurable_snd (hC a)))
-  have hpre : {x : Run Ω S J | x.2.1.2 ∈ C (sfx i x)}
-      = (fun x : Run Ω S J => x.2.1) ⁻¹' {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)} := rfl
+  have hpre : {x : Run Ω S J | prfs x ∈ C (sfx i x)}
+      = (draws : Run Ω S J → _) ⁻¹' {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)} := rfl
   rw [hpre, ← Measure.map_apply (by fun_prop) hmeasSet, map_drawBlock D Dsf,
     Measure.prod_apply hmeasSet]
   calc ∫⁻ a, νq (Prod.mk a ⁻¹' {y : (ℕ → S) × (J → ℕ → S) | y.2 ∈ C (y.1 i)}) ∂νs
@@ -2994,7 +3018,7 @@ and a candidate that looks clean on them is clean. -/
 
 lemma map_prefixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) :
-    Measure.map (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) (runLaw μ D Dsf)
+    Measure.map (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x)) (runMeasure μ D Dsf)
       = Measure.pi (fun _ : Fin m => D j) := by
   have hstep : (fun x : Run Ω S J => (fun i : Fin m => prf j i.val x))
       = (fun y : ((Fin m → S) × (J → Fin m → S)) => y.2 j)
@@ -3005,7 +3029,7 @@ lemma map_prefixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabil
     (measurable_pi_lambda _ (fun i : Fin m => measurable_sfx i.val)).prodMk
       (measurable_pi_lambda _ (fun j : J =>
         measurable_pi_lambda _ (fun i : Fin m => measurable_prf j i.val)))
-  rw [hstep, ← Measure.map_map (by fun_prop) hmeasBlock, law_block D Dsf m,
+  rw [hstep, ← Measure.map_map (by fun_prop) hmeasBlock, map_firstDraws D Dsf m,
     show (fun y : ((Fin m → S) × (J → Fin m → S)) => y.2 j)
       = (fun q : J → Fin m → S => q j) ∘ Prod.snd from rfl,
     ← Measure.map_map (by fun_prop) measurable_snd, Measure.map_snd_prod]
@@ -3029,7 +3053,7 @@ lemma pi_flip_mean (Dj : Measure S) [IsProbabilityMeasure Dj] (O : Oracle μ S) 
 theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (j : J) (m : ℕ) (v : S) (g : ℝ) (hg : 0 ≤ g) :
-    (runLaw μ D Dsf).real {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
         ≤ (m : ℝ) * (flipMass O (D j) v - g)}
       ≤ Real.exp (-2 * (m : ℝ) * g ^ 2) := by
   classical
@@ -3055,12 +3079,12 @@ theorem prefix_flip_lower (D : J → Measure S) (Dsf : Measure S)
     ← measureReal_def]
   exact htail
 
-lemma runLaw_prefix_apply (D : J → Measure S) (Dsf : Measure S)
+lemma runMeasure_prefix_apply (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (C : Set (J → ℕ → S)) (hC : MeasurableSet C) :
-    runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ C}
+    runMeasure μ D Dsf {x : Run Ω S J | prfs x ∈ C}
       = (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) C := by
-  have hpre : {x : Run Ω S J | x.2.1.2 ∈ C} = (fun x : Run Ω S J => x.2.1) ⁻¹' (Prod.snd ⁻¹' C) :=
+  have hpre : {x : Run Ω S J | prfs x ∈ C} = (draws : Run Ω S J → _) ⁻¹' (Prod.snd ⁻¹' C) :=
     rfl
   rw [hpre, ← Measure.map_apply (by fun_prop) (measurable_snd hC), map_drawBlock D Dsf,
     ← Measure.map_apply measurable_snd hC, Measure.map_snd_prod]
@@ -3091,15 +3115,15 @@ lemma measure_understated_le (D : J → Measure S) (Dsf : Measure S)
     (j : J) (m : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (v : S) :
     (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) (understated O D j m Δ g v)
       ≤ ENNReal.ofReal (Real.exp (-2 * (m : ℝ) * g ^ 2)) := by
-  rw [← runLaw_prefix_apply (μ := μ) D Dsf _ (measurableSet_understated O D j m Δ g v)]
-  have hsub : {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g v}
+  rw [← runMeasure_prefix_apply (μ := μ) D Dsf _ (measurableSet_understated O D j m Δ g v)]
+  have hsub : {x : Run Ω S J | prfs x ∈ understated O D j m Δ g v}
       ⊆ {x : Run Ω S J | ∑ i : Fin m, O.flip v (prf j i.val x)
           ≤ (m : ℝ) * (flipMass O (D j) v - g)} := by
     rintro x ⟨hΔ, hcount⟩
     have hm : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
     exact le_trans hcount (by nlinarith)
   refine le_trans (measure_mono hsub) ?_
-  rw [← ENNReal.ofReal_toReal (measure_ne_top (runLaw μ D Dsf) _), ← measureReal_def]
+  rw [← ENNReal.ofReal_toReal (measure_ne_top (runMeasure μ D Dsf) _), ← measureReal_def]
   exact ENNReal.ofReal_le_ofReal (prefix_flip_lower D Dsf O j m v g hg)
 
 /-- The whole drawn pool is honest at once.  A pool member the drawn prefixes say sits
@@ -3107,7 +3131,7 @@ inside `Δ - g` really flips at most `Δ` of the population, off an `M · exp(-2
 theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (j : J) (m M : ℕ) (Δ g : ℝ) (hg : 0 ≤ g) (hΔ : 0 ≤ Δ) :
-    (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
         (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
       ≤ (M : ℝ) * Real.exp (-2 * (m : ℝ) * g ^ 2) := by
   classical
@@ -3121,7 +3145,7 @@ theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
     simp [flipMass, this]
   have hsub : {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
       (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
-      ⊆ ⋃ i ∈ Finset.range M, {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g (sfx i x)} := by
+      ⊆ ⋃ i ∈ Finset.range M, {x : Run Ω S J | prfs x ∈ understated O D j m Δ g (sfx i x)} := by
     intro x hx
     simp only [Set.mem_setOf_eq, not_forall] at hx
     obtain ⟨v, hv, hcount, hmass⟩ := hx
@@ -3129,19 +3153,19 @@ theorem pool_flipMass_le (D : J → Measure S) (Dsf : Measure S)
     · exact absurd (hseed ▸ hΔ) hmass
     · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hv'
       exact Set.mem_biUnion hi ⟨not_le.1 hmass, hcount⟩
-  have hbound : runLaw μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+  have hbound : runMeasure μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
       (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g)) → flipMass O (D j) v ≤ Δ}
       ≤ (M : ℝ≥0∞) * E := by
     refine le_trans (measure_mono hsub) (le_trans (measure_biUnion_finset_le _ _) ?_)
     calc ∑ i ∈ Finset.range M,
-          runLaw μ D Dsf {x : Run Ω S J | x.2.1.2 ∈ understated O D j m Δ g (sfx i x)}
+          runMeasure μ D Dsf {x : Run Ω S J | prfs x ∈ understated O D j m Δ g (sfx i x)}
         ≤ ∑ _i ∈ Finset.range M, E :=
-          Finset.sum_le_sum (fun i _ => runLaw_draw_selection_le D Dsf _
+          Finset.sum_le_sum (fun i _ => runMeasure_draw_selection_le D Dsf _
             (measurableSet_understated O D j m Δ g) i E
             (fun v => measure_understated_le (μ := μ) D Dsf O j m Δ g hg v))
       _ = (M : ℝ≥0∞) * E := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
+  calc (runMeasure μ D Dsf {x : Run Ω S J | ¬ ∀ v ∈ poolAt M x,
           (∑ i : Fin m, O.flip v (prf j i.val x) ≤ (m : ℝ) * (Δ - g))
             → flipMass O (D j) v ≤ Δ}).toReal
       ≤ ((M : ℝ≥0∞) * E).toReal :=
@@ -3262,7 +3286,7 @@ lemma summable_singleton_sq (Dj : Measure S) [IsProbabilityMeasure Dj] :
 
 lemma map_suffixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (M : ℕ) :
-    Measure.map (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) (runLaw μ D Dsf)
+    Measure.map (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x)) (runMeasure μ D Dsf)
       = Measure.pi (fun _ : Fin M => Dsf) := by
   have hstep : (fun x : Run Ω S J => (fun i : Fin M => sfx i.val x))
       = Prod.fst ∘ (fun x : Run Ω S J => ((fun i : Fin M => sfx i.val x),
@@ -3272,7 +3296,7 @@ lemma map_suffixBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabil
     (measurable_pi_lambda _ (fun i : Fin M => measurable_sfx i.val)).prodMk
       (measurable_pi_lambda _ (fun j : J =>
         measurable_pi_lambda _ (fun i : Fin M => measurable_prf j i.val)))
-  rw [hstep, ← Measure.map_map measurable_fst hmeasBlock, law_block D Dsf M,
+  rw [hstep, ← Measure.map_map measurable_fst hmeasBlock, map_firstDraws D Dsf M,
     Measure.map_fst_prod]
   simp
 
@@ -3282,7 +3306,7 @@ indices that preserve acceptance only become that many *candidates* when they di
 theorem suffix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (M : ℕ) (ρ : ℝ)
     (hρ : collisionMass Dsf ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ Function.Injective (fun i : Fin M => sfx i.val x)}
       ≤ (M : ℝ) ^ 2 * ρ := by
   classical
@@ -3379,7 +3403,7 @@ lemma card_prefixesAt_le (populations : Finset J) (m : ℕ) (x : Run Ω S J) :
 theorem prefix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) (ρ : ℝ)
     (hρ : collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => prf j i.val x)}
       ≤ (m : ℝ) ^ 2 * ρ := by
   classical
@@ -3409,7 +3433,7 @@ gate's split counts *prefixes*, and a repeated draw is one prefix, not two. -/
 theorem cert_not_injective_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j : J) (m : ℕ) (ρ : ℝ)
     (hρ : collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ Function.Injective (fun i : Fin m => cert j i.val x)}
       ≤ (m : ℝ) ^ 2 * ρ := by
   classical
@@ -3436,12 +3460,12 @@ theorem cert_not_injective_le (D : J → Measure S) (Dsf : Measure S)
 
 lemma map_prefCertPairRun (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j' j : J) (i i' : ℕ) :
-    Measure.map (fun x : Run Ω S J => (prf j' i x, cert j i' x)) (runLaw μ D Dsf)
+    Measure.map (fun x : Run Ω S J => (prf j' i x, cert j i' x)) (runMeasure μ D Dsf)
       = (D j').prod (D j) := by
   rw [show (fun x : Run Ω S J => (prf j' i x, cert j i' x))
       = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
         ∘ Prod.snd from rfl,
-    ← Measure.map_map (by fun_prop) measurable_snd, runLaw_eq_prod, Measure.map_snd_prod]
+    ← Measure.map_map (by fun_prop) measurable_snd, runMeasure_eq_prod, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
   exact map_prefCertPair D Dsf j' j i i'
 
@@ -3453,7 +3477,7 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
     (populations : Finset J) (j : J) (m : ℕ) (ρ : ℝ)
     (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρj : collisionMass (D j) ≤ ρ)
     (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ Disjoint (prefixesAt populations m x) (certOf j m x)}
       ≤ (populations.card : ℝ) * (m : ℝ) ^ 2 * ρ := by
   classical
@@ -3468,7 +3492,7 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
     exact Set.mem_biUnion (show (j', i, i') ∈ κ by simp [hκ, hj', Finset.mem_range.1 hi,
       Finset.mem_range.1 hi']) (by simpa using hia.trans hia'.symm)
   have hone : ∀ z : J × ℕ × ℕ, z ∈ κ →
-      (runLaw μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} ≤ ρ := by
+      (runMeasure μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} ≤ ρ := by
     intro z hz
     have hj' : z.1 ∈ populations := (Finset.mem_product.1 hz).1
     have hdiag : MeasurableSet {q : S × S | q.1 = q.2} :=
@@ -3483,11 +3507,11 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
       ← measureReal_def]
     exact cross_collision_le (D z.1) (D j) ρ (hρ z.1 hj') hρj
       (summable_singleton_sq (D z.1)) (summable_singleton_sq (D j))
-  calc (runLaw μ D Dsf).real
+  calc (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ Disjoint (prefixesAt populations m x) (certOf j m x)}
-      ≤ (runLaw μ D Dsf).real (⋃ z ∈ κ, {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x}) :=
+      ≤ (runMeasure μ D Dsf).real (⋃ z ∈ κ, {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x}) :=
         measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ∑ z ∈ κ, (runLaw μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} :=
+    _ ≤ ∑ z ∈ κ, (runMeasure μ D Dsf).real {x : Run Ω S J | prf z.1 z.2.1 x = cert j z.2.2 x} :=
         measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _z ∈ κ, ρ := Finset.sum_le_sum hone
     _ = (κ.card : ℝ) * ρ := by rw [Finset.sum_const, nsmul_eq_mul]
@@ -3887,13 +3911,13 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     (hsig : O.η ≤ 1 / 2) (hmpos : 0 < B.m) (Δ γ : ℝ) (hΔ : 0 < Δ) (hγ : 0 ≤ γ)
     (hscd : 0 < B.scd)
     (hsc : (B.sc : ℝ) ≤ (B.scd : ℝ) * ((2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2) - γ)) :
-    (runLaw μ D Dsf).real (screenBad O populations B Δ)
+    (runMeasure μ D Dsf).real (screenBad O populations B Δ)
       ≤ ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) := by
   classical
   set E : ℝ := ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) with hEdef
   have hE0 : 0 ≤ E := by positivity
-  have hEnn : runLaw μ D Dsf (screenBad O populations B Δ) ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_le D Dsf _ (measurableSet_screenBad O populations B Δ) _ ?_
+  have hEnn : runMeasure μ D Dsf (screenBad O populations B Δ) ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_screenBad O populations B Δ) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
@@ -3952,7 +3976,7 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
         exact hm h1
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (screenBad O populations B Δ)).toReal
+  calc (runMeasure μ D Dsf (screenBad O populations B Δ)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
@@ -4024,7 +4048,7 @@ theorem measureReal_apShort_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S) (M : ℕ)
     (pAP t : ℝ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p}) :
-    (runLaw μ D Dsf).real {x : Run Ω S J |
+    (runMeasure μ D Dsf).real {x : Run Ω S J |
         (((Finset.univ : Finset (Fin M)).filter
           (fun i => ∀ p, O.label (p * sfx i.val x) = O.label p)).card : ℝ)
         ≤ (M : ℝ) * (pAP - t)}
@@ -4119,13 +4143,13 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : Budget) (hcd : B.cn < B.cd)
     (γ : ℝ) (hγ : 0 ≤ γ) (hscd : 0 < B.scd)
     (hsc : (B.scd : ℝ) * (2 * O.η * (1 - O.η) + γ) ≤ (B.sc : ℝ)) :
-    (runLaw μ D Dsf).real (screenFail O populations B)
+    (runMeasure μ D Dsf).real (screenFail O populations B)
       ≤ ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) := by
   classical
   set E : ℝ := ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2) with hEdef
   have hE0 : 0 ≤ E := by positivity
-  have hEnn : runLaw μ D Dsf (screenFail O populations B) ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_le D Dsf _ (measurableSet_screenFail O populations B) _ ?_
+  have hEnn : runMeasure μ D Dsf (screenFail O populations B) ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_screenFail O populations B) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
@@ -4185,7 +4209,7 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
         exact hm h1
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (screenFail O populations B)).toReal
+  calc (runMeasure μ D Dsf (screenFail O populations B)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal hE0
 
@@ -4205,7 +4229,7 @@ theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
     (hcount : (B.k : ℝ) ≤ (B.M : ℝ) * (pAP - t))
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hρj : collisionMass (D j₀) ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
       ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
         + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) := by
@@ -4276,14 +4300,14 @@ theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
       have : (B.k : ℝ) ≤ ((screenedAt O populations B x).card : ℝ) := le_trans hk hcast
       exact_mod_cast this
     exact hx this
-  calc (runLaw μ D Dsf).real {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
-      ≤ (runLaw μ D Dsf).real (E1 ∪ (E2 ∪ (E3 ∪ E4))) :=
+  calc (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ (B.k ≤ (screenedAt O populations B x).card)}
+      ≤ (runMeasure μ D Dsf).real (E1 ∪ (E2 ∪ (E3 ∪ E4))) :=
         measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ (runLaw μ D Dsf).real E1 + ((runLaw μ D Dsf).real E2
-        + ((runLaw μ D Dsf).real E3 + (runLaw μ D Dsf).real E4)) := by
-        have h34 := measureReal_union_le (μ := runLaw μ D Dsf) E3 E4
-        have h234 := measureReal_union_le (μ := runLaw μ D Dsf) E2 (E3 ∪ E4)
-        have hall := measureReal_union_le (μ := runLaw μ D Dsf) E1 (E2 ∪ (E3 ∪ E4))
+    _ ≤ (runMeasure μ D Dsf).real E1 + ((runMeasure μ D Dsf).real E2
+        + ((runMeasure μ D Dsf).real E3 + (runMeasure μ D Dsf).real E4)) := by
+        have h34 := measureReal_union_le (μ := runMeasure μ D Dsf) E3 E4
+        have h234 := measureReal_union_le (μ := runMeasure μ D Dsf) E2 (E3 ∪ E4)
+        have hall := measureReal_union_le (μ := runMeasure μ D Dsf) E1 (E2 ∪ (E3 ∪ E4))
         linarith
     _ ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
         + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) := by
@@ -4307,7 +4331,7 @@ theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
     (hρD : collisionMass (D j) ≤ ρ)
     (hscd : 0 < B.scd)
     (hsc : (B.sc : ℝ) ≤ (B.scd : ℝ) * ((2 * O.η * (1 - O.η) + Δ * (1 - 2 * O.η) ^ 2) - γ)) :
-    (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
+    (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
         flipMass O (D j) v ≤ (populations.card : ℝ) * Δ + g}
       ≤ (B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2)
         + (B.M : ℝ) * Real.exp (-2 * (B.m : ℝ) * g ^ 2) := by
@@ -4371,12 +4395,12 @@ theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
       exact h3 (by
         simp only [hE3, Set.mem_setOf_eq, not_forall]
         exact ⟨v, hvpool, hcount, h⟩))
-  calc (runLaw μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
+  calc (runMeasure μ D Dsf).real {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B,
         flipMass O (D j) v ≤ Δp}
-      ≤ (runLaw μ D Dsf).real ((E1 ∪ E2) ∪ E3) := measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2) + (runLaw μ D Dsf).real E3 := by
-        have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
-        have h123 := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2) E3
+      ≤ (runMeasure μ D Dsf).real ((E1 ∪ E2) ∪ E3) := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ((runMeasure μ D Dsf).real E1 + (runMeasure μ D Dsf).real E2) + (runMeasure μ D Dsf).real E3 := by
+        have h12 := measureReal_union_le (μ := runMeasure μ D Dsf) E1 E2
+        have h123 := measureReal_union_le (μ := runMeasure μ D Dsf) (E1 ∪ E2) E3
         linarith
     _ ≤ _ := by
         gcongr
@@ -4781,13 +4805,13 @@ theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle
     (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
     (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ B.m →
       (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w ≤ (n : ℝ) * (θ - τ)) :
-    (runLaw μ D Dsf).real (gateBadAgree O populations j B θ w n₀)
+    (runMeasure μ D Dsf).real (gateBadAgree O populations j B θ w n₀)
       ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
   classical
   set E : ℝ := Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) with hEdef
-  have hEnn : runLaw μ D Dsf (gateBadAgree O populations j B θ w n₀)
+  have hEnn : runMeasure μ D Dsf (gateBadAgree O populations j B θ w n₀)
       ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_le D Dsf _ (measurableSet_gateBadAgree O populations j B θ w n₀) _ ?_
+    refine runMeasure_slice_le D Dsf _ (measurableSet_gateBadAgree O populations j B θ w n₀) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
       ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
     set Pd : Finset S := populations.biUnion
@@ -4840,7 +4864,7 @@ theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle
         exact hdisj h1
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (gateBadAgree O populations j B θ w n₀)).toReal
+  calc (runMeasure μ D Dsf (gateBadAgree O populations j B θ w n₀)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
@@ -4851,12 +4875,12 @@ Hoeffding applies. -/
 theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (populations : Finset J) (j : J) (B : Budget) (εcov t : ℝ) (hε : 0 ≤ εcov) (ht : 0 ≤ t) :
-    (runLaw μ D Dsf).real (hitShort O populations (D j) j B εcov t)
+    (runMeasure μ D Dsf).real (hitShort O populations (D j) j B εcov t)
       ≤ Real.exp (-2 * (B.m : ℝ) * t ^ 2) := by
   classical
   set E : ℝ := Real.exp (-2 * (B.m : ℝ) * t ^ 2) with hEdef
-  have hEnn : runLaw μ D Dsf (hitShort O populations (D j) j B εcov t) ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_cert_le D Dsf _
+  have hEnn : runMeasure μ D Dsf (hitShort O populations (D j) j B εcov t) ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_cert_le D Dsf _
       (measurableSet_hitShort O populations (D j) j B εcov t) _ ?_
     intro y
     set F : Finset S := clusterAt O populations ((y.1, (y.2, fun _ => (1 : S))) : Run Ω S J) B
@@ -4897,7 +4921,7 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
         exact hmass hm
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (hitShort O populations (D j) j B εcov t)).toReal
+  calc (runMeasure μ D Dsf (hitShort O populations (D j) j B εcov t)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
@@ -4985,12 +5009,12 @@ open scoped Classical in
 theorem measureReal_heavyHits_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
     (populations : Finset J) (j : J) (B : Budget) (f q t : ℝ) (ht : 0 ≤ t) :
-    (runLaw μ D Dsf).real (heavyHits O populations (D j) j B f q t)
+    (runMeasure μ D Dsf).real (heavyHits O populations (D j) j B f q t)
       ≤ Real.exp (-2 * (B.m : ℝ) * t ^ 2) := by
   classical
-  have hEnn : runLaw μ D Dsf (heavyHits O populations (D j) j B f q t)
+  have hEnn : runMeasure μ D Dsf (heavyHits O populations (D j) j B f q t)
       ≤ ENNReal.ofReal (Real.exp (-2 * (B.m : ℝ) * t ^ 2)) := by
-    refine runLaw_slice_cert_le D Dsf _
+    refine runMeasure_slice_cert_le D Dsf _
       (measurableSet_heavyHits O populations (D j) j B f q t) _ ?_
     intro y
     set F : Finset S :=
@@ -5023,7 +5047,7 @@ theorem measureReal_heavyHits_le (D : J → Measure S) (Dsf : Measure S)
         exact hmass hm
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (heavyHits O populations (D j) j B f q t)).toReal
+  calc (runMeasure μ D Dsf (heavyHits O populations (D j) j B f q t)).toReal
       ≤ (ENNReal.ofReal (Real.exp (-2 * (B.m : ℝ) * t ^ 2))).toReal :=
         ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = Real.exp (-2 * (B.m : ℝ) * t ^ 2) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
@@ -5307,7 +5331,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
       (n : ℝ) * (gateAcc O εcov + τ + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (c : ℝ)))
     (hα : Real.exp (-2 * (B.gmin : ℝ) * τ ^ 2) ≤ α) :
-    (runLaw μ D Dsf).real (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
+    (runMeasure μ D Dsf).real (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
       ≤ E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)) := by
   classical
   set R : ℝ := E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)) with hR
@@ -5317,9 +5341,9 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     have hcut0 : (0 : ℝ) ≤ E / lcut := div_nonneg hE hlcut.le
     have h2 : (0 : ℝ) ≤ Real.exp (-2 * (nlo : ℝ) * τ ^ 2) := Real.exp_nonneg _
     linarith
-  have hEnn : runLaw μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
+  have hEnn : runMeasure μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
       ≤ ENNReal.ofReal R := by
-    refine runLaw_slice_le D Dsf _
+    refine runMeasure_slice_le D Dsf _
       (measurableSet_retMiss O populations j B εcov α l lcut B.gmin kmin kmax) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
       ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
@@ -5396,7 +5420,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
         exact hdraw ⟨h1, h2, h3⟩
       simp [hsec]
   rw [measureReal_def]
-  calc (runLaw μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)).toReal
+  calc (runMeasure μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)).toReal
       ≤ (ENNReal.ofReal R).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = R := ENNReal.toReal_ofReal hR0
 
@@ -5463,7 +5487,7 @@ theorem measureReal_stalled_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     (hcount : (B.k : ℝ) ≤ (B.M : ℝ) * (pAP - t))
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hρj : collisionMass (D j₀) ≤ ρ) (hρ0 : 0 ≤ ρ) :
-    (runLaw μ D Dsf).real (stalled O populations B (B.k - 1) (B.k - 1))
+    (runMeasure μ D Dsf).real (stalled O populations B (B.k - 1) (B.k - 1))
       ≤ (B.M : ℝ) ^ 2 * ρsf + (Real.exp (-2 * (B.M : ℝ) * t ^ 2)
         + ((B.m : ℝ) ^ 2 * ρ + ((B.M : ℝ) + 1) * Real.exp (-2 * (B.m : ℝ) * γ ^ 2))) :=
   le_trans (measureReal_mono (stalled_subset O populations B hcd hkpos) (measure_ne_top _ _))
@@ -5487,8 +5511,8 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
     (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hΔp : 0 ≤ Δp) (hth : 0 ≤ th)
     (hheavy : Δp * (kmax : ℝ) + th ≤ lcut)
-    (Estall : ℝ) (hstall : (runLaw μ D Dsf).real (stalled O populations B kmin kmax) ≤ Estall)
-    (Edirty : ℝ) (hdirty : (runLaw μ D Dsf).real
+    (Estall : ℝ) (hstall : (runMeasure μ D Dsf).real (stalled O populations B kmin kmax) ≤ Estall)
+    (Edirty : ℝ) (hdirty : (runMeasure μ D Dsf).real
       {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O populations x B, flipMass O (D j) v ≤ Δp}
         ≤ Edirty)
     (hdec : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
@@ -5501,7 +5525,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
       (n : ℝ) * (gateAcc O εcov + τ + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (c : ℝ)))
     (hα : Real.exp (-2 * (B.gmin : ℝ) * τ ^ 2) ≤ α) :
-    (runLaw μ D Dsf).real
+    (runMeasure μ D Dsf).real
         {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
       ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
         + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
@@ -5602,17 +5626,17 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
         · exact Or.inr (Or.inl h5)
       · exact Or.inl (Or.inr h2)
     · exact Or.inl (Or.inl h1)
-  calc (runLaw μ D Dsf).real {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
-      ≤ (runLaw μ D Dsf).real ((E1 ∪ E2) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8)))) :=
+  calc (runMeasure μ D Dsf).real {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+      ≤ (runMeasure μ D Dsf).real ((E1 ∪ E2) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8)))) :=
         measureReal_mono hsub (measure_ne_top _ _)
-    _ ≤ ((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2)
-        + ((runLaw μ D Dsf).real E5 + ((runLaw μ D Dsf).real E6
-          + ((runLaw μ D Dsf).real E7 + (runLaw μ D Dsf).real E8))) := by
-        have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
-        have h78 := measureReal_union_le (μ := runLaw μ D Dsf) E7 E8
-        have h678 := measureReal_union_le (μ := runLaw μ D Dsf) E6 (E7 ∪ E8)
-        have h5678 := measureReal_union_le (μ := runLaw μ D Dsf) E5 (E6 ∪ (E7 ∪ E8))
-        have hall := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2)
+    _ ≤ ((runMeasure μ D Dsf).real E1 + (runMeasure μ D Dsf).real E2)
+        + ((runMeasure μ D Dsf).real E5 + ((runMeasure μ D Dsf).real E6
+          + ((runMeasure μ D Dsf).real E7 + (runMeasure μ D Dsf).real E8))) := by
+        have h12 := measureReal_union_le (μ := runMeasure μ D Dsf) E1 E2
+        have h78 := measureReal_union_le (μ := runMeasure μ D Dsf) E7 E8
+        have h678 := measureReal_union_le (μ := runMeasure μ D Dsf) E6 (E7 ∪ E8)
+        have h5678 := measureReal_union_le (μ := runMeasure μ D Dsf) E5 (E6 ∪ (E7 ∪ E8))
+        have hall := measureReal_union_le (μ := runMeasure μ D Dsf) (E1 ∪ E2)
           (E5 ∪ (E6 ∪ (E7 ∪ E8)))
         linarith
     _ ≤ ((B.m : ℝ) ^ 2 * ρ + (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ)
@@ -5685,7 +5709,7 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     (hαgate : α + Real.exp (-2 * (εcov / 32 * (B.m : ℝ))
       * ((1 - 2 * O.η) * εcov / 32) ^ 2) < 1)
     (hgmin : (B.gmin : ℝ) ≤ εcov / 32 * (B.m : ℝ)) :
-    (runLaw μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
+    (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
           ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
         ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
             {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)})})
@@ -5710,7 +5734,7 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
   have hbase : (0 : ℝ) ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ := by positivity
   have hcov : (0 : ℝ) ≤ Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2) := Real.exp_nonneg _
   by_cases hdeg : εcov * (B.m : ℝ) ≤ 64
-  · refine le_trans (measureReal_le_one_of_prob (runLaw μ D Dsf) _) ?_
+  · refine le_trans (measureReal_le_one_of_prob (runMeasure μ D Dsf) _) ?_
     have hxle : 2 * (εcov / 32 * (B.m : ℝ)) * q ^ 2 ≤ 1 / 2 := by
       have hprod : (εcov * (B.m : ℝ)) * q ^ 2 ≤ 64 * (1 / 1024) :=
         mul_le_mul hdeg hq2 (sq_nonneg q) (by norm_num)
@@ -5796,17 +5820,17 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
               exact hgminle
         · exact Or.inl (Or.inr hdisj)
       · exact Or.inl (Or.inl hinj)
-    calc (runLaw μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
+    calc (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
           ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
         ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
             {p | cutCorrect O B.lo B.hi (clusterAt O populations x B) p (nz x)})})
-        ≤ (runLaw μ D Dsf).real ((E1 ∪ E2) ∪ (E3 ∪ E4)) :=
+        ≤ (runMeasure μ D Dsf).real ((E1 ∪ E2) ∪ (E3 ∪ E4)) :=
           measureReal_mono hsub (measure_ne_top _ _)
-      _ ≤ ((runLaw μ D Dsf).real E1 + (runLaw μ D Dsf).real E2)
-          + ((runLaw μ D Dsf).real E3 + (runLaw μ D Dsf).real E4) := by
-          have h12 := measureReal_union_le (μ := runLaw μ D Dsf) E1 E2
-          have h34 := measureReal_union_le (μ := runLaw μ D Dsf) E3 E4
-          have hall := measureReal_union_le (μ := runLaw μ D Dsf) (E1 ∪ E2) (E3 ∪ E4)
+      _ ≤ ((runMeasure μ D Dsf).real E1 + (runMeasure μ D Dsf).real E2)
+          + ((runMeasure μ D Dsf).real E3 + (runMeasure μ D Dsf).real E4) := by
+          have h12 := measureReal_union_le (μ := runMeasure μ D Dsf) E1 E2
+          have h34 := measureReal_union_le (μ := runMeasure μ D Dsf) E3 E4
+          have hall := measureReal_union_le (μ := runMeasure μ D Dsf) (E1 ∪ E2) (E3 ∪ E4)
           linarith
       _ ≤ ((B.m : ℝ) ^ 2 * ρ + (populations.card : ℝ) * (B.m : ℝ) ^ 2 * ρ)
           + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
@@ -5848,19 +5872,19 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α δ : ℝ) (hδ : 0 ≤ δ) (s : Finset Budget) (L : ℕ) (hL : 0 < L)
     (hcard : s.card ≤ L)
-    (hper : ∀ B ∈ s, (runLaw μ D Dsf).real
+    (hper : ∀ B ∈ s, (runMeasure μ D Dsf).real
       (ret O populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
         ≤ δ / (2 * L)) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // B ∈ s},
+    (runMeasure μ D Dsf).real (⋃ B : {B : Budget // B ∈ s},
         ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
   have hLR : (0 : ℝ) < (L : ℕ) := by exact_mod_cast hL
   have hcardR : ((s.card : ℕ) : ℝ) ≤ (L : ℕ) := by exact_mod_cast hcard
   rw [Set.iUnion_subtype]
-  calc (runLaw μ D Dsf).real (⋃ B, ⋃ (_ : B ∈ s),
+  calc (runMeasure μ D Dsf).real (⋃ B, ⋃ (_ : B ∈ s),
         ret O populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
-      ≤ ∑ B ∈ s, (runLaw μ D Dsf).real
+      ≤ ∑ B ∈ s, (runMeasure μ D Dsf).real
           (ret O populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B) :=
         measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _B ∈ s, δ / (2 * (L : ℕ)) := Finset.sum_le_sum hper
@@ -5894,7 +5918,7 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2)
     (L : ℕ) (hL : 0 < L) (B : Budget) (hB : Capped O populations εcov δ ρ L B) :
-    (runLaw μ D Dsf).real (ret O populations indecisionLimit εcov α B
+    (runMeasure μ D Dsf).real (ret O populations indecisionLimit εcov α B
       ∩ FailAt O populations D εcov B) ≤ δ / (2 * L) := by
   classical
   have hρ0 : 0 ≤ ρ := by
@@ -5932,16 +5956,16 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
         simp only [FailAt, Set.mem_setOf_eq, not_forall] at hfail
         obtain ⟨j, hj, hfj⟩ := hfail
         exact Set.mem_biUnion hj ⟨hadm j hj, hfj⟩
-    calc (runLaw μ D Dsf).real (ret O populations indecisionLimit εcov α B
+    calc (runMeasure μ D Dsf).real (ret O populations indecisionLimit εcov α B
             ∩ FailAt O populations D εcov B)
-          ≤ (runLaw μ D Dsf).real (⋃ j ∈ populations,
+          ≤ (runMeasure μ D Dsf).real (⋃ j ∈ populations,
               ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
                 ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
               ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
                   {p | cutCorrect O B.lo B.hi
                     (clusterAt O populations x B) p (nz x)})})) :=
             measureReal_mono hsub (measure_ne_top _ _)
-        _ ≤ ∑ j ∈ populations, (runLaw μ D Dsf).real
+        _ ≤ ∑ j ∈ populations, (runMeasure μ D Dsf).real
               ({x : Run Ω S J | admitted O B.lo B.hi B.gmin εcov α
                 ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
               ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
@@ -6005,7 +6029,7 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2)
     (pAP : ℝ) :
-    (runLaw μ D Dsf).real (⋃ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
+    (runMeasure μ D Dsf).real (⋃ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
         ret O populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
@@ -6838,7 +6862,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρcap : ρ ≤ collisionCap O populations εcov δ α pAP)
     (hρsf : collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP) :
-    (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
+    (runMeasure μ D Dsf).real {x | ∀ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
       x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
   obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
@@ -6870,7 +6894,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_biUnion_finset_le _ _) ?_
   have hper : ∀ j ∈ populations,
-      (runLaw μ D Dsf).real
+      (runMeasure μ D Dsf).real
           {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
         ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ B := by
     intro j hj
@@ -6929,7 +6953,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     refine le_trans hmain (le_of_eq ?_)
     unfold roundFail
     ring
-  calc ∑ j ∈ populations, (runLaw μ D Dsf).real
+  calc ∑ j ∈ populations, (runMeasure μ D Dsf).real
         {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
       ≤ ∑ _j ∈ populations,
           roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ B :=

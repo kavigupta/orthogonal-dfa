@@ -66,24 +66,26 @@ variable {J : Type*} [Fintype J]
 
 /-! ## The run space
 
-One sample of the algorithm's randomness.  `runLaw` is a concrete measure, so the
+One sample of the algorithm's randomness.  `runMeasure` is a concrete measure, so the
 independence the proof runs on is a lemma about it rather than a hypothesis. -/
 
-/-- One run: the persistent noise, the suffix draws, each population's prefix draws, and the
-certification draws.  The certification stream is separate because the gate must not be read
-on the prefixes the family was selected from — see `certOf`. -/
-abbrev Run (Ω S J : Type*) := Ω × ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
+/-- One run of the algorithm. -/
+abbrev Run (Ω S J : Type*) :=
+  Ω ×                       -- the oracle's persistent noise
+  (((ℕ → S) ×               -- the suffix draws
+    (J → ℕ → S)) ×          -- the prefix draws, per population
+   (J × ℕ → S))             -- the certification draws, per population
 
 /-- The law of a run: the three components jointly independent, each stream i.i.d. -/
-noncomputable def runLaw (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
+noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
     Measure (Run Ω S J) :=
   μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
     (Measure.infinitePi fun z : J × ℕ => D z.1))
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
-    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runLaw μ D Dsf) := by
-  unfold runLaw; infer_instance
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runMeasure μ D Dsf) := by
+  unfold runMeasure; infer_instance
 
 /-- The run's persistent noise. -/
 def nz (x : Run Ω S J) : Ω := x.1
@@ -565,7 +567,7 @@ def ClusteringCorrect : Prop :=
   cutBudget εcov ≤ indecisionLimit / 2 →
   ρ ≤ collisionCap O populations εcov δ α pAP →
   collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP →
-  1 - δ ≤ (runLaw μ D Dsf).real
+  1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
         x ∈ ret O populations indecisionLimit εcov α B.val) ∧
       ∀ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},

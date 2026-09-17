@@ -21,7 +21,7 @@ theorem clustering_correct : ClusteringCorrect := by
   by_cases hδ1 : δ ≤ 1
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg
-  have h := sound_and_terminating (runLaw μ D Dsf)
+  have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ} =>
       ret O populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
     (fun B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ} =>

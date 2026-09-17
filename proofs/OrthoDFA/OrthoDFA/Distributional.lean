@@ -128,15 +128,14 @@ lemma flip_icc (O : Oracle μ S) (v p : S) : O.flip v p ∈ Set.Icc (0 : ℝ) 1 
 section Persistent
 variable {ι : Type*} [Fintype ι] [IsCancelMul S]
 
-/-- Run space for the persistent oracle: `ι` prefix draws together with one shared
-noise sample.  Re-reading the same query string returns the same bit — this is the honest
-RCN model, unlike a fresh-noise-per-query product. -/
-noncomputable def runMeasure (Dfam : ι → Measure S) : Measure ((ι → S) × Ω) :=
+/-- `ι` draws together with one shared noise sample.  Re-reading the same query string
+returns the same bit — the honest RCN model, unlike a fresh-noise-per-query product. -/
+noncomputable def persistentMeasure (Dfam : ι → Measure S) : Measure ((ι → S) × Ω) :=
   (Measure.pi Dfam).prod μ
 
 instance (Dfam : ι → Measure S) [∀ z, IsProbabilityMeasure (Dfam z)] :
-    IsProbabilityMeasure (runMeasure (μ := μ) Dfam) := by
-  unfold runMeasure; infer_instance
+    IsProbabilityMeasure (persistentMeasure (μ := μ) Dfam) := by
+  unfold persistentMeasure; infer_instance
 
 /-- The loss of suffix `v`: its reads at the drawn prefixes, against the shared noise. -/
 noncomputable def ploss (O : Oracle μ S) (v : S) (x : (ι → S) × Ω) : ℝ :=
@@ -208,7 +207,7 @@ around its conditional mean `N·η + (1−2η)·(flip count)`. -/
 lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | Function.Injective x.1 ∧
           ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
             + ((Finset.univ : Finset ι).card : ℝ) * g ≤ ploss (μ := μ) O v x}
@@ -251,7 +250,7 @@ lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
 lemma ploss_cond_lower (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | Function.Injective x.1 ∧
           ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
             + (1 - 2 * O.η) * pflip (μ := μ) O v x
@@ -309,17 +308,17 @@ above its summed distributional flip-mass. -/
 lemma pflip_upper (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
           + ((Finset.univ : Finset ι).card : ℝ) * g ≤ pflip (μ := μ) O v x}
       ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
   set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
   have hNne : N ≠ 0 := ne_of_gt hNpos
-  have heq : (runMeasure (μ := μ) Dfam).real
+  have heq : (persistentMeasure (μ := μ) Dfam).real
       {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v) + N * g ≤ pflip (μ := μ) O v x}
       = (Measure.pi Dfam).real
         {p : ι → S | (∑ z, flipMass O (Dfam z) v) + N * g ≤ ∑ z, O.flip v (p z)} := by
-    unfold runMeasure
+    unfold persistentMeasure
     exact prod_fst_real (Measure.pi Dfam) μ
       {p : ι → S | (∑ z, flipMass O (Dfam z) v) + N * g ≤ ∑ z, O.flip v (p z)}
   rw [heq]
@@ -344,17 +343,17 @@ lemma pflip_upper (O : Oracle μ S) (Dfam : ι → Measure S)
 lemma pflip_lower (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | pflip (μ := μ) O v x
           ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g}
       ≤ Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g ^ 2) := by
   set N : ℝ := ((Finset.univ : Finset ι).card : ℝ) with hN
   have hNne : N ≠ 0 := ne_of_gt hNpos
-  have heq : (runMeasure (μ := μ) Dfam).real
+  have heq : (persistentMeasure (μ := μ) Dfam).real
       {x : (ι → S) × Ω | pflip (μ := μ) O v x ≤ (∑ z, flipMass O (Dfam z) v) - N * g}
       = (Measure.pi Dfam).real
         {p : ι → S | ∑ z, O.flip v (p z) ≤ (∑ z, flipMass O (Dfam z) v) - N * g} := by
-    unfold runMeasure
+    unfold persistentMeasure
     exact prod_fst_real (Measure.pi Dfam) μ
       {p : ι → S | ∑ z, O.flip v (p z) ≤ (∑ z, flipMass O (Dfam z) v) - N * g}
   rw [heq]
@@ -382,10 +381,10 @@ distribution is genuinely necessary), the sampling tail, and the noise tail. -/
 lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
-    (hcoll : (runMeasure (μ := μ) Dfam).real
+    (hcoll : (persistentMeasure (μ := μ) Dfam).real
       {x : (ι → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hv : ∑ z, flipMass O (Dfam z) v = 0) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | ((Finset.univ : Finset ι).card : ℝ)
             * (O.η + (1 - 2 * O.η) * g₂ + g₁) ≤ ploss (μ := μ) O v x}
       ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
@@ -415,15 +414,15 @@ lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
         simp only [Set.mem_setOf_eq] at hx ⊢
         linarith [hx, hkey]
     · exact Or.inl hinj
-  have hu1 := measureReal_mono (μ := runMeasure (μ := μ) Dfam) hincl
-  have hu2 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+  have hu1 := measureReal_mono (μ := persistentMeasure (μ := μ) Dfam) hincl
+  have hu2 := measureReal_union_le (μ := persistentMeasure (μ := μ) Dfam)
     {x : (ι → S) × Ω | ¬ Function.Injective x.1}
     ({x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
         + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x}
       ∪ {x : (ι → S) × Ω | Function.Injective x.1 ∧
           ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
             + ((Finset.univ : Finset ι).card : ℝ) * g₁ ≤ ploss (μ := μ) O v x})
-  have hu3 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+  have hu3 := measureReal_union_le (μ := persistentMeasure (μ := μ) Dfam)
     {x : (ι → S) × Ω | (∑ z, flipMass O (Dfam z) v)
         + ((Finset.univ : Finset ι).card : ℝ) * g₂ ≤ pflip (μ := μ) O v x}
     {x : (ι → S) × Ω | Function.Injective x.1 ∧
@@ -438,14 +437,14 @@ lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ σ : ℝ)
     (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
-    (hcoll : (runMeasure (μ := μ) Dfam).real
+    (hcoll : (persistentMeasure (μ := μ) Dfam).real
       {x : (ι → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hband : ((Finset.univ : Finset ι).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
       ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η)
           * (σ - ((Finset.univ : Finset ι).card : ℝ) * g₂)
         - ((Finset.univ : Finset ι).card : ℝ) * g₁)
     (hv : σ ≤ ∑ z, flipMass O (Dfam z) v) :
-    (runMeasure (μ := μ) Dfam).real
+    (persistentMeasure (μ := μ) Dfam).real
         {x : (ι → S) × Ω | ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ)
             * (O.η + (1 - 2 * O.η) * g₂ + g₁)}
       ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
@@ -476,8 +475,8 @@ lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
         simp only [Set.mem_setOf_eq] at hx ⊢
         linarith [hx, hband, hkey]
     · exact Or.inl hinj
-  have hu1 := measureReal_mono (μ := runMeasure (μ := μ) Dfam) hincl
-  have hu2 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+  have hu1 := measureReal_mono (μ := persistentMeasure (μ := μ) Dfam) hincl
+  have hu2 := measureReal_union_le (μ := persistentMeasure (μ := μ) Dfam)
     {x : (ι → S) × Ω | ¬ Function.Injective x.1}
     ({x : (ι → S) × Ω | pflip (μ := μ) O v x
         ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂}
@@ -485,7 +484,7 @@ lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
           ploss (μ := μ) O v x ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η
             + (1 - 2 * O.η) * pflip (μ := μ) O v x
             - ((Finset.univ : Finset ι).card : ℝ) * g₁})
-  have hu3 := measureReal_union_le (μ := runMeasure (μ := μ) Dfam)
+  have hu3 := measureReal_union_le (μ := persistentMeasure (μ := μ) Dfam)
     {x : (ι → S) × Ω | pflip (μ := μ) O v x
         ≤ (∑ z, flipMass O (Dfam z) v) - ((Finset.univ : Finset ι).card : ℝ) * g₂}
     {x : (ι → S) × Ω | Function.Injective x.1 ∧
@@ -624,13 +623,13 @@ theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (Dfam : ι �
     [∀ z, IsProbabilityMeasure (Dfam z)] (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M : ℕ) (c : Fin M) (g₁ g₂ κ σ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hσpos : 0 < σ)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
-    (hcoll : (runMeasure (μ := μ) Dfam).real
+    (hcoll : (persistentMeasure (μ := μ) Dfam).real
       {x : (ι → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hband : ((Finset.univ : Finset ι).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
       ≤ ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η)
           * (σ - ((Finset.univ : Finset ι).card : ℝ) * g₂)
         - ((Finset.univ : Finset ι).card : ℝ) * g₁) :
-    ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real
+    ((Measure.pi (fun _ : Fin M => Dsf)).prod (persistentMeasure (μ := μ) Dfam)).real
         {y : (Fin M → S) × ((ι → S) × Ω) |
           ((∑ z, flipMass O (Dfam z) (y.1 c) = 0)
             ∧ pthresh O g₁ g₂ ((Finset.univ : Finset ι).card : ℝ) ≤ ploss (μ := μ) O (y.1 c) y.2)
@@ -663,7 +662,7 @@ theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (Dfam : ι �
       · convert h2 using 1; ext w; simp [hb]
       · convert MeasurableSet.empty; ext w; simp [hb]
     exact hA.union hB
-  have hslice : ∀ s : Fin M → S, (runMeasure (μ := μ) Dfam).real (P (s c))
+  have hslice : ∀ s : Fin M → S, (persistentMeasure (μ := μ) Dfam).real (P (s c))
       ≤ κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2) := by
     intro s
     by_cases hg : ∑ z, flipMass O (Dfam z) (s c) = 0
@@ -719,7 +718,7 @@ theorem clustering_budget {J : Type*} [Fintype J]
     (M m k : ℕ) (cands : Finset (Fin M)) (hkcands : k ≤ cands.card) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
     (εpop : ℝ) (hεpop : 0 < εpop)
     (g₁ g₂ κ pAP γsuf δ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hγsuf : 0 ≤ γsuf)
-    (hcoll : (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
+    (hcoll : (persistentMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
       {x : (J × Fin m → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hband : ((Finset.univ : Finset (J × Fin m)).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
       ≤ ((Finset.univ : Finset (J × Fin m)).card : ℝ) * O.η + (1 - 2 * O.η)
@@ -731,7 +730,7 @@ theorem clustering_budget {J : Type*} [Fintype J]
         + (cands.card : ℝ) * (κ + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₂ ^ 2)
             + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁ ^ 2)) ≤ δ) :
     ((Measure.pi (fun _ : Fin M => Dsf)).prod
-        (runMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
+        (persistentMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
       {y | ¬ ∀ j : J, 1 - (k : ℝ) * εpop
             ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
                   (fun c => ploss (μ := μ) O (y.1 c) y.2)
@@ -850,36 +849,36 @@ theorem clustering_budget {J : Type*} [Fintype J]
       exact_mod_cast hci
     nlinarith [hcard, hεpop.le]
   have hAbound : ((Measure.pi (fun _ : Fin M => Dsf)).prod
-      (runMeasure (μ := μ) Dfam)).real A ≤ Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2) := by
+      (persistentMeasure (μ := μ) Dfam)).real A ≤ Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2) := by
     have heq : ((Measure.pi (fun _ : Fin M => Dsf)).prod
-        (runMeasure (μ := μ) Dfam)).real A
+        (persistentMeasure (μ := μ) Dfam)).real A
         = (Measure.pi (fun _ : Fin M => Dsf)).real
           {s : Fin M → S | ∑ c ∈ cands, I (s c) ≤ (cands.card : ℝ) * (pAP - γsuf)} :=
-      prod_fst_real (Measure.pi (fun _ : Fin M => Dsf)) (runMeasure (μ := μ) Dfam)
+      prod_fst_real (Measure.pi (fun _ : Fin M => Dsf)) (persistentMeasure (μ := μ) Dfam)
         {s : Fin M → S | ∑ c ∈ cands, I (s c) ≤ (cands.card : ℝ) * (pAP - γsuf)}
     rw [heq]
     exact goodCount_le Dsf M cands pAP γsuf hγsuf G hGmeas hfind
   have hEbound : ∀ c, ((Measure.pi (fun _ : Fin M => Dsf)).prod
-      (runMeasure (μ := μ) Dfam)).real (E c)
+      (persistentMeasure (μ := μ) Dfam)).real (E c)
       ≤ κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2) :=
     fun c => pindex_event_le O Dfam Dsf M c g₁ g₂ κ σ hg₁ hg₂ hσpos hNpos hcoll hband
   have hUnion : ((Measure.pi (fun _ : Fin M => Dsf)).prod
-      (runMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c)
+      (persistentMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c)
       ≤ (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) := by
-    calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real
+    calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (persistentMeasure (μ := μ) Dfam)).real
           (⋃ c ∈ cands, E c)
         ≤ ∑ c ∈ cands, ((Measure.pi (fun _ : Fin M => Dsf)).prod
-            (runMeasure (μ := μ) Dfam)).real (E c) := measureReal_biUnion_le _ _
+            (persistentMeasure (μ := μ) Dfam)).real (E c) := measureReal_biUnion_le _ _
       _ ≤ ∑ _c ∈ cands, (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) :=
           Finset.sum_le_sum (fun c _ => hEbound c)
       _ = (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2)
             + Real.exp (-2 * N * g₁ ^ 2)) := by rw [Finset.sum_const, nsmul_eq_mul]
-  calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real _
+  calc ((Measure.pi (fun _ : Fin M => Dsf)).prod (persistentMeasure (μ := μ) Dfam)).real _
       ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
-          (runMeasure (μ := μ) Dfam)).real (A ∪ ⋃ c ∈ cands, E c) := measureReal_mono hincl
-    _ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod (runMeasure (μ := μ) Dfam)).real A
+          (persistentMeasure (μ := μ) Dfam)).real (A ∪ ⋃ c ∈ cands, E c) := measureReal_mono hincl
+    _ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod (persistentMeasure (μ := μ) Dfam)).real A
         + ((Measure.pi (fun _ : Fin M => Dsf)).prod
-            (runMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c) := measureReal_union_le _ _
+            (persistentMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c) := measureReal_union_le _ _
     _ ≤ Real.exp (-2 * (cands.card : ℝ) * γsuf ^ 2)
         + (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2)
             + Real.exp (-2 * N * g₁ ^ 2)) := add_le_add hAbound hUnion
@@ -907,7 +906,7 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     (εcov : ℝ) (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
     (m M k : ℕ) (hk : 0 < k) (hkM : k ≤ M) (hmpos : 0 < m)
     (κ : ℝ)
-    (hcoll : (runMeasure (μ := μ)
+    (hcoll : (persistentMeasure (μ := μ)
         (fun z : {j // j ∈ populations} × Fin m => D z.1.val)).real
       {x : ({j // j ∈ populations} × Fin m → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hM1 : (2 * k : ℝ) / pAP ≤ (M : ℝ))
@@ -919,7 +918,7 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
               * ((1 - 2 * O.η) * ((m : ℝ) * (εcov / k))
                   / (8 * ((populations.card : ℝ) * m))) ^ 2)) ≤ δ / 3) :
     1 - δ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
-        (runMeasure (μ := μ)
+        (persistentMeasure (μ := μ)
           (fun z : {j // j ∈ populations} × Fin m => D z.1.val))).real
       {y | ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
@@ -1011,7 +1010,7 @@ theorem clustering_pac_iter {J : Type*} [Fintype J]
     (hkpool : ∀ t, k ≤ (pool t).card)
     (εpop : ℝ) (hεpop : 0 < εpop)
     (g₁ g₂ κ pAP γsuf δ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hγsuf : 0 ≤ γsuf)
-    (hcoll : (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
+    (hcoll : (persistentMeasure (μ := μ) (fun z : J × Fin m => D z.1)).real
       {x : (J × Fin m → S) × Ω | ¬ Function.Injective x.1} ≤ κ)
     (hband : ((Finset.univ : Finset (J × Fin m)).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)
       ≤ ((Finset.univ : Finset (J × Fin m)).card : ℝ) * O.η + (1 - 2 * O.η)
@@ -1025,14 +1024,14 @@ theorem clustering_pac_iter {J : Type*} [Fintype J]
             + Real.exp (-2 * ((Finset.univ : Finset (J × Fin m)).card : ℝ) * g₁ ^ 2))
         ≤ δ / T) :
     1 - δ ≤ ((Measure.pi (fun _ : Fin M => Dsf)).prod
-        (runMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
+        (persistentMeasure (μ := μ) (fun z : J × Fin m => D z.1))).real
       {y | ∀ t : Fin T, ∀ j : J, 1 - (k : ℝ) * εpop
             ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
                   (fun c => ploss (μ := μ) O (y.1 c) y.2) (pool t) k).image y.1,
                 O.label (p * v) = O.label p}} := by
   classical
   set ρ := (Measure.pi (fun _ : Fin M => Dsf)).prod
-    (runMeasure (μ := μ) (fun z : J × Fin m => D z.1)) with hρ
+    (persistentMeasure (μ := μ) (fun z : J × Fin m => D z.1)) with hρ
   set Fail : Fin T → Set ((Fin M → S) × ((J × Fin m → S) × Ω)) := fun t =>
     {y | ¬ ∀ j : J, 1 - (k : ℝ) * εpop
       ≤ (D j).real {p | ∀ v ∈ (leastLossSubset
