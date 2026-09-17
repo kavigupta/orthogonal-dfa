@@ -10,6 +10,8 @@ from .statistics import binom_cdf
 
 #: Chance of reading an acceptance rate as either bar when it is the other.
 _MISREAD = 1e-5
+#: Chance of calling a source dry when its rate is still above ``poor``.
+_FALSE_DRY = 1e-9
 
 
 def proving_attempts(good, poor):
@@ -60,11 +62,11 @@ class RejectionSource(ABC):
         attempts, accepted = self.proving
         return sum(self.attempt_draw() for _ in range(attempts)) > accepted
 
-    def draw(self, false_alarm_p=1e-9) -> bytes:
+    def draw(self) -> bytes:
         """One string from the pool, drawing for more when it runs dry."""
         # Attempts in a row accepting nothing new before a source is called dry.
         # Geometric distribution.
-        dry = ceil(log(false_alarm_p) / log(1 - self.poor))
+        dry = ceil(log(_FALSE_DRY) / log(1 - self.poor))
         # One pass more than that: what an attempt pooled is read by the drain
         # of the pass after it.
         for _ in range(dry + 1):
