@@ -274,7 +274,6 @@ class TestABoundarySourceProbes(unittest.TestCase):
             _Probes(_PROBE),
             _Walk(places),
             _STEPS_TO_ONE,
-            label=("boundary", 1),
             known=known,
         )
 

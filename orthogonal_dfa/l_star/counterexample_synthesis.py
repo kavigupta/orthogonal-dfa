@@ -25,14 +25,12 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import (
-    WANTED,
     BoundarySource,
     UniformSource,
     aim_at,
     draw_many,
     state_source,
 )
-from .rejection_source import RejectionSource
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -97,38 +95,31 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _can_draw(source) -> bool:
-    """Whether ``source`` still turns up what its population is made of.  The
-    sampler always does; a source that rejects most of what it draws has to be
-    asked."""
-    return not isinstance(source, RejectionSource) or source.worth_drawing()
+#: Prefixes a population is asked for.
+WANTED = 100
 
 
 class Pools:
-    """The prefix populations, as a source apiece rather than a list apiece.
+    """The prefix populations, a source apiece, which a round hands the next one.
 
-    A round hands the next one these.  What a later round needs more of it draws
-    more of -- the gate wanting enough prefixes to read a rate over is a draw and
-    not a special case -- and a source that cannot fill its population has that
-    population dropped, which is what there is to say about a state nothing
-    reaches.
+    What a later round needs more of it draws more of; a population nothing
+    draws for any more is retired.
     """
 
     def __init__(self, pst):
         self._pst = pst
         #: Boundary pools sealed so far, which is what names them.
         self._sealed = 0
-        #: What this round could not place, offered to the pool it will become.
-        #: This round's unplaceable strings, in the order they arrived, and
-        #: every string any round has already made a pool of.
+        #: This round's unplaceable strings, in the order they arrived.
         self._harvest: Dict[bytes, None] = {}
+        #: Every string some pool holds, so no two pools hold the same one.
         self._pooled: set = set()
         self._sources = {UNIFORM: UniformSource(pst)}
         #: One per round that produced any: the strings that round could not
         #: place, and the source that can find that round more of them.
         self._boundaries = {}
         self._boundary_sources = {}
-        #: Whether the last rebuild's harvest was enough to become a pool.
+        #: This round's populations, ``label -> prefixes``.
         self.held = {}
         #: Labels the table holds, so a round can retire what it does not renew.
         self._published: set = set()
@@ -142,12 +133,9 @@ class Pools:
     def rebuild(self, resolver, dfa) -> None:
         """Take the sources this round defines, and fill what they can fill.
 
-        Each round's unplaceable strings become a population of their own and
-        stay one.  Merged into a single pool they would be whichever state was
-        worst last round and no other, so a family made decisive on that state
-        could let the states an earlier round settled come undone -- the pool
-        that settled them having been spent.  Kept apart, every one of them goes
-        on being a rate the family has to meet.
+        Each round's unplaceable strings stay a population of their own: merged,
+        the ones an earlier round settled would be spent on whichever state was
+        worst last round, and could come undone.
         """
         # Sorted: a set of bytes iterates in hash order, which python varies per
         # process, and which of these reach a boundary population decides what
@@ -166,17 +154,15 @@ class Pools:
             source = state_source(resolver, leaf, aim, wanted=WANTED)
             if source is None:
                 continue
-            self._sources[source.label] = source
-            states.append(source.label)
-        # The uniform source is here to draw from, not to define a population:
-        # the table already holds one pool of it, kept across rounds rather than
-        # remade at this size every round.
+            self._sources[("state", leaf)] = source
+            states.append(("state", leaf))
+        # No population for the uniform source: the table keeps its pool across
+        # rounds rather than remaking it at this size every round.
         collected = {}
         for label in states:
             collected[label] = draw_many(self._sources[label], WANTED)
-        # After the state sources have run: validating an aimed draw is one of
-        # the places a string turns out to be unplaceable, so those belong to
-        # this round's pool rather than to the next one's.
+        # After the state sources: an aimed draw is one of the places a string
+        # turns out to be unplaceable, and those belong to this round's pool.
         self.pool_the_harvest(resolver, dfa)
         self._sources.update(self._boundary_sources)
         self.held = dict(self._boundaries)
@@ -184,12 +170,11 @@ class Pools:
         self.publish()
 
     def pool_the_harvest(self, resolver, dfa) -> None:
-        """Make a pool of this round's harvest, and a source that can grow it.
+        """Make a pool of this round's harvest, and a source to grow it with.
 
-        Whether probing still turns up strings the tree cannot place is asked of
-        the source when something asks it for prefixes, not here: these strings
-        are ones a round could not place however few more there are to find, and
-        a family held to a rate over them is the point of pooling them.
+        Whether that source still finds anything is asked when something asks it
+        to draw: these strings are ones a round could not place however few more
+        there are to find.
         """
         if not self._harvest:
             return
@@ -199,22 +184,11 @@ class Pools:
             self._pst,
             resolver.sifter,
             dfa.transitions,
-            label=label,
             known=self._pooled | self._harvest.keys(),
         )
         self._boundaries[label] = list(self._harvest)
         self._pooled.update(self._harvest)
         self._harvest = {}
-
-    @property
-    def pending_harvest(self) -> int:
-        """Unplaceable strings offered since the last seal."""
-        return len(self._harvest)
-
-    @property
-    def sealed_pools(self) -> int:
-        """Boundary pools made so far, each a round's worth of harvest."""
-        return len(self._boundaries)
 
     @property
     def boundary_strings(self) -> int:
@@ -234,26 +208,24 @@ class Pools:
     def for_split(self, label, wanted: int):
         """Prefixes for one population, to read the split on and not to keep.
 
-        None where nothing draws for it any more, which is a population with
-        no say in the split rather than one to hold it up.  `more` is what
-        retires it.
+        Empty where nothing draws for it any more: no say in the split rather
+        than a split held up.  `more` is what retires it.
         """
         source = self._sources.get(label)
-        if source is None or not _can_draw(source):
+        if source is None or not source.worth_drawing():
             return []
         return draw_many(source, wanted)
 
     def more(self, label, wanted: int) -> bool:
-        """Draw ``wanted`` further prefixes for one population.  Says whether it
-        could: a population nothing draws for any more ends here, table and all,
-        since a rate the round cannot answer is not one to hold a family to.
+        """Draw ``wanted`` further prefixes for one population, saying whether it
+        could.  A population nothing draws for any more is retired here, table
+        and all: a rate the round cannot answer is not one to hold a family to.
         """
         source = self._sources.get(label)
-        if source is None or not _can_draw(source):
+        if source is None or not source.worth_drawing():
             self.held.pop(label, None)
-            # Forgotten rather than held aside: a later round that strands one
-            # of these again reaches it through a source that can be drawn on,
-            # which is what this one turned out not to be.
+            # Forgotten, not held aside, so a later round that strands one of
+            # these again can pool it behind a source that does draw.
             self._pooled.difference_update(self._boundaries.pop(label, ()))
             self._pst.table.drop_population(label)
             return False

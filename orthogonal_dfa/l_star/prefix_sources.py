@@ -12,12 +12,9 @@ from .dfa_utils import (
     sample_string_reaching_state,
     uniform_weights,
 )
-from .mask_table import UNIFORM
 from .rejection_source import RejectionSource, proving_attempts
 from .sifting import PROBE_BLOCK, anchored_walk, first_disagreeing_edge
 
-#: Prefixes a population is asked for.
-WANTED = 100
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
 #: One landing at most this share is one to stop asking.  Nothing decides
@@ -34,8 +31,6 @@ POOR_BOUNDARY_YIELD = 0.1
 class UniformSource:
     """The learner's own sampler.  Every draw is a prefix, so this never fails."""
 
-    label = UNIFORM
-
     def __init__(self, pst):
         self._pst = pst
 
@@ -43,6 +38,9 @@ class UniformSource:
         return self._pst.sampler.sample(
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
+
+    def worth_drawing(self) -> bool:
+        return True
 
 
 class BoundarySource(RejectionSource):
@@ -60,9 +58,8 @@ class BoundarySource(RejectionSource):
     proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
     poor = POOR_BOUNDARY_YIELD
 
-    def __init__(self, pst, sifter, transitions, *, label, known):
+    def __init__(self, pst, sifter, transitions, *, known):
         super().__init__()
-        self.label = label
         self._served.update(known)
         self._pst = pst
         self._sifter = sifter
@@ -153,7 +150,6 @@ class StateSource(RejectionSource):
     poor = POOR_YIELD
 
     def __init__(self, resolver, leaf, aim, *, wanted):
-        self.label = ("state", leaf)
         super().__init__()
         self._population = resolver.population
         self._path = resolver.tree.path_of(leaf)
@@ -184,10 +180,6 @@ class StateSource(RejectionSource):
 
 
 def draw_many(source, wanted: int) -> list:
-    """``wanted`` prefixes from ``source``.
-
-    A source proven worth drawing on has more than a round can use up -- the
-    space it draws from is at least the square root of the whole -- so this asks
-    for the number it wants rather than settling for what comes.
-    """
+    """``wanted`` prefixes from ``source``, which one worth drawing on always
+    has: its region holds more than a round can use up."""
     return sorted(source.draw() for _ in range(wanted))

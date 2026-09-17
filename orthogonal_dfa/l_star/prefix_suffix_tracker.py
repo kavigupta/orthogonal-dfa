@@ -198,13 +198,10 @@ class PrefixSuffixTracker:
         """``compute_fnr`` for a decision vector already in hand, and which
         population it is the rate of.
 
-        The worst population rather than the rate across all of them.  Whether a
-        prefix is decisive against a family is a property of the state it
-        reaches, so a population reaching states the family does not separate
-        reads high however many prefixes reaching easy ones are averaged in.
-
-        The label comes back because the caller has to grow *that* population to
-        answer it; growing another one only moves the average.
+        The worst population's rate, not the rate across all of them: whether a
+        prefix is decisive is a property of the state it reaches, so one
+        population reading high is averaged away by the rest.  Its label comes
+        back because that is the population a caller has to grow to answer it.
         """
         decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]

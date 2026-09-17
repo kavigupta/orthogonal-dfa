@@ -148,14 +148,8 @@ def _split_counts(pst, reads):
     """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
     cut counted on the split's own column, one entry per prefix population.
 
-    Per population because a family can cut one of them against the classes
-    while the rest carry the pooled count: a state's prefixes are a percent of
-    the draw, and a cut that reads them all backwards moves a pooled rate by
-    that percent.
-
     A population holds one class or both, so a side of ``n = 0`` is the ordinary
-    case and says nothing rather than failing -- `drift_verdict` reads the sides
-    that are there.
+    case: `drift_verdict` reads the sides that are there.
     """
     out = {}
     for label, (decision, column) in reads.items():
@@ -182,23 +176,14 @@ def drift_verdict(pst, by_population) -> str:
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
     split's column says what the oracle makes of the prefixes themselves.
 
-    The two halves read different populations.  *Drifted* is a population read
-    as the other class, which is the whole reason the rate is kept per
-    population: a family that reads one state's prefixes backwards moves a
-    pooled rate by that state's share of the draw and hides there.  That test
-    wants a population landing all on one side, which is what a state's
-    prefixes do -- they all reach the same state, so they are all one class, and
-    a backwards reading puts every one of them on a side where the oracle
-    contradicts them.
+    Any population may veto, only the uniform one may admit.  A population read
+    as the class it is not says the family drifted, whatever else reads right --
+    a state's prefixes are one class, so a backwards reading puts every one of
+    them where the oracle contradicts it.  Separating the classes *at all* is a
+    claim about the distribution the thresholds are calibrated on, which only
+    the uniform pool is drawn from.
 
-    *Admitted* is the opposite question -- whether the family separates the
-    classes at all -- and only the uniform pool can answer it.  A skew there is
-    a family that learned no rule.  A skew anywhere else is a population being
-    what it is.  ``accept_thresh`` also only means something against the
-    oracle's own base rate, which is the rate the uniform pool is drawn at.
-
-    So: any population may veto, only the uniform one may admit.  Drift is
-    read first, since a family can separate the classes on the pool and still
+    Drift is read first: a family can separate the classes on the pool and still
     invert a state.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
@@ -284,11 +269,9 @@ class AcceptPreservingGate:
         self._prefixes = None
 
     def _to_read(self, pst, voters):
-        """``label -> prefixes`` to read the split on, drawn once.
-
-        Every family the round tries is read on the same prefixes: none of them
-        was clustered on these, which is the whole requirement, and drawing a
-        set per candidate would pay for each population again on every refusal.
+        """``label -> prefixes`` to read the split on, drawn once and read by
+        every family the round tries -- none of them was clustered on these, and
+        a set per candidate would buy every population again on each refusal.
         """
         if self._prefixes is None:
             labels = self._populations.labels()
