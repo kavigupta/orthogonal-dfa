@@ -17,6 +17,7 @@ theorem clustering_correct : ClusteringCorrect := by
   intro Ω _ μ _ S _ _ _ _ _ _ _ J _ O populations D Dsf _ _ Pre indecisionLimit εcov α δ ρ pAP
     hsig hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov hε1 hδ
     hcutlim hρcap hρsf
+  rw [O.apSet_eq] at hpAPBound
   by_cases hδ1 : δ ≤ 1
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg

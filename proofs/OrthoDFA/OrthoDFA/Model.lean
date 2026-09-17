@@ -32,10 +32,9 @@ variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasu
 /-- The persistent signal oracle: random classification noise on query strings. -/
 structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
     (S : Type*) [MeasurableSpace S] where
-  /-- `ℓ(w) = 1[w ∈ L]`. -/
-  label : S → ℝ
-  label_bit : ∀ w, label w = 0 ∨ label w = 1
-  label_meas : Measurable label
+  /-- The language.  Membership in it is the bit the oracle is asked for. -/
+  L : Set S
+  L_meas : MeasurableSet L
   /-- One persistent RCN bit per query string. -/
   noise : S → Ω → ℝ
   η : ℝ
@@ -45,6 +44,11 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
   noise_mean : ∀ w, μ[noise w] = η
+
+/-- Membership as a bit, `ℓ(w) = 1[w ∈ L]`.  The arithmetic form, since every use sums or
+averages it. -/
+noncomputable def Oracle.label {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : S → ℝ :=
+  Set.indicator O.L 1
 
 /-- The membership query the oracle answers, `MQ w = ℓ(w) ⊕ noise(w)`. -/
 noncomputable def mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
@@ -546,7 +550,7 @@ def ClusteringCorrect : Prop :=
   (∀ j ∈ populations, D j Preᶜ = 0) →
   (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
   0 < pAP →
-  pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p} →
+  pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →

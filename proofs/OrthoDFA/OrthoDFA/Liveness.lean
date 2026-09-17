@@ -426,6 +426,23 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] (O : Oracle μ S)
 
+/-- Bit-valuedness, by construction: an indicator is `0` or `1`. -/
+lemma label_bit (w : S) : O.label w = 0 ∨ O.label w = 1 := by
+  by_cases h : w ∈ O.L <;> simp [Oracle.label, Set.indicator_apply, h]
+
+/-- Two strings get the same bit exactly when they agree on membership. -/
+lemma label_eq_iff (x y : S) : O.label x = O.label y ↔ (x ∈ O.L ↔ y ∈ O.L) := by
+  by_cases hx : x ∈ O.L <;> by_cases hy : y ∈ O.L <;>
+    simp [Oracle.label, Set.indicator_apply, hx, hy]
+
+/-- Accept-preservation, as membership rather than as an equality of bits. -/
+lemma apSet_eq : {v : S | ∀ p, p * v ∈ O.L ↔ p ∈ O.L}
+    = {v : S | ∀ p, O.label (p * v) = O.label p} :=
+  Set.ext fun v => forall_congr' fun p => (O.label_eq_iff (p * v) p).symm
+
+lemma label_meas : Measurable O.label :=
+  (measurable_one.indicator O.L_meas)
+
 /-- Joint measurability in the query string and the sample, which is what composing the
 oracle with a randomly drawn string needs.  Derived, because for a countable `S` the preimage
 splits as `⋃ w, {w} ×ˢ (noise w)⁻¹(B)`. -/
@@ -438,7 +455,7 @@ lemma noise_meas_prod [Countable S] [MeasurableSingletonClass S] :
     flip v p = ℓ(p·v) ⊕ ℓ(p) = ℓ(p·v) + ℓ(p) − 2·ℓ(p·v)·ℓ(p)
 
 so it is `0` exactly when `v` is accept-preserving at `p`. -/
-def flip (v p : S) : ℝ :=
+noncomputable def flip (v p : S) : ℝ :=
   O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
 
 /-- Derived bit-valuedness of `flip`: an XOR of two bits is a bit. -/
