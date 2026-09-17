@@ -23,6 +23,19 @@ class Sifter:
         when some node cannot place it."""
         return self.tree.sift(seq, self.family.is_accept)
 
+    def known_sift(self, seq) -> Optional[int]:
+        """The leaf ``seq`` sifts to without a new query, or ``None`` when some
+        node's read is not already memoized or is indecisive."""
+
+        def decide(s, midfix):
+            return (
+                self.family.is_accept(s, midfix)
+                if self.family.knows(s, midfix)
+                else None
+            )
+
+        return self.tree.classify(seq, decide)
+
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
         level rather than one per node visited.

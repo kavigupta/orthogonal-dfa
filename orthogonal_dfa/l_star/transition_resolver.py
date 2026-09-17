@@ -4,12 +4,12 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting a member of the state extended by the
-symbol: the leaf it lands on is the target, and the member is kept as the edge's
-witness (the tree is consistent, so any member resolves it the same way).  A leaf
-every one of whose members is indecisive, or that no prefix reaches, leaves its
-edge open; the export totalises those -- self-looping them and feeding their
-boundary strings back so the next round's family resolves them (see EdgeResolver).
+(state, symbol) edge is resolved by sifting the state's members extended by the
+symbol: the first one the tree places, and every later one it can place from reads
+already made, vote, and the edge points where most of them land, with a member that
+landed there as its witness.  A leaf every one of whose members is indecisive, or
+that no prefix reaches, leaves its edge open; the export totalises those --
+self-looping them and feeding their boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
 strings are walked through a *totalised* copy of the transition function and
@@ -127,14 +127,11 @@ class TransitionResolver:
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
-                if status == _SPLIT:
-                    since_split = 0
-                    self.edges.close()  # the split dropped edges; refill
-                    delta = self._total_delta()  # the split rewrote the state set
-                elif status == _UNDECIDED:
-                    since_split = 0
-                else:
-                    since_split += 1
+                since_split = 0 if status in (_SPLIT, _UNDECIDED) else since_split + 1
+                # A split drops edges and rewrites the state set, and any probe may
+                # have read successors a re-vote counts.
+                self.edges.close()
+                delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
                     clean=f"{since_split}/{patience}",
