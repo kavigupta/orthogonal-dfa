@@ -69,14 +69,19 @@ variable {J : Type*} [Fintype J]
 One sample of the algorithm's randomness.  `runMeasure` is a concrete measure, so the
 independence the proof runs on is a lemma about it rather than a hypothesis. -/
 
-/-- One run of the algorithm. -/
+/-- Randomness associated with a run of the algorithm.
+
+The certification draws are indexed flat rather than curried like the prefix draws so that
+`iIndepFun_infinitePi` gives every certification coordinate's independence at once; one
+population's stream is then an injective reindexing of that.  The prefix draws are consumed
+one population at a time and never need it. -/
 abbrev Run (Ω S J : Type*) :=
   Ω ×                       -- the oracle's persistent noise
   (((ℕ → S) ×               -- the suffix draws
-    (J → ℕ → S)) ×          -- the prefix draws, per population
-   (J × ℕ → S))             -- the certification draws, per population
+    (J → ℕ → S)) ×          -- the prefix draws, one stream per population
+   (J × ℕ → S))             -- the certification draws, one flat family
 
-/-- The law of a run: the three components jointly independent, each stream i.i.d. -/
+/-- The three components jointly independent, each stream i.i.d. -/
 noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
     Measure (Run Ω S J) :=
   μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
