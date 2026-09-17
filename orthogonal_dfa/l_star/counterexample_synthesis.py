@@ -234,8 +234,9 @@ class Pools:
     def for_split(self, label, wanted: int):
         """Prefixes for one population, to read the split on and not to keep.
 
-        None where nothing draws for it any more, which is a population that
-        does not get a say this round rather than one to hold up the split.
+        None where nothing draws for it any more, which is a population with
+        no say in the split rather than one to hold it up.  `more` is what
+        retires it.
         """
         source = self._sources.get(label)
         if source is None or not _can_draw(source):
@@ -243,10 +244,15 @@ class Pools:
         return draw_many(source, wanted)
 
     def more(self, label, wanted: int) -> bool:
-        """Draw ``wanted`` further prefixes for one population, saying whether
-        that population is one this round has a source for."""
+        """Draw ``wanted`` further prefixes for one population.  Says whether it
+        could: a population nothing draws for any more ends here, table and all,
+        since a rate the round cannot answer is not one to hold a family to.
+        """
         source = self._sources.get(label)
         if source is None or not _can_draw(source):
+            self.held.pop(label, None)
+            self._boundaries.pop(label, None)
+            self._pst.table.drop_population(label)
             return False
         drawn = draw_many(source, wanted)
         # Extended, not rebound: a boundary pool's list is the one `_boundaries`

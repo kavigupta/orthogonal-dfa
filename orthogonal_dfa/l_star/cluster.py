@@ -493,9 +493,9 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         elif judged.worst is None:
             pst.sample_more_prefixes()
         elif not grow_pool(judged.worst):
-            # A population the table still holds but this round has no source
-            # for -- a state an earlier round had and this one does not.  What
-            # is left to move its rate is the family read over it.
+            # The population is retired by that ask.  Its strings are gone from
+            # the table, so what is left to answer this family is the suffixes
+            # the rest of the populations are read over.
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  nothing draws for {judged.worst}; kept {kept} of {drawn}")
             strategy = "suffix"
