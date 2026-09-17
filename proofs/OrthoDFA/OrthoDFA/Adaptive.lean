@@ -1137,59 +1137,6 @@ noncomputable def sideRej (O : Oracle μ S) (populations : Finset J) (j : J) (B 
   (certOf j B.m x).filter
     (fun p => voteCount O ((clusterAt O populations x B).erase 1) p (nz x) ≤ B.lo)
 
-lemma sideAcc_subset (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (x : Run Ω S J) : sideAcc O populations j B x ⊆ certOf j B.m x :=
-  Finset.filter_subset _ _
-
-lemma sideRej_subset (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (x : Run Ω S J) : sideRej O populations j B x ⊆ certOf j B.m x :=
-  Finset.filter_subset _ _
-
-/-- **Which side each prefix falls on is decided off the gate's own column.**  Both sides
-are determined by the oracle's bits at `gateReads`, and `disjoint_readSet` puts those
-strings off the certification prefixes the gate scores. -/
-lemma sideAcc_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (d : ((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)) {ω ω' : Ω}
-    (h : ∀ w ∈ gateReads populations j B ((ω, d) : Run Ω S J),
-      O.noise w ω = O.noise w ω') :
-    sideAcc O populations j B (ω, d) = sideAcc O populations j B (ω', d) := by
-  classical
-  have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
-      = clusterAt O populations ((ω', d) : Run Ω S J) B :=
-    clusterAt_congr O populations B d (fun w hw => h w (Finset.mem_union_left _ hw))
-  have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B
-      ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
-    clusterAt_subset O populations B _
-  unfold sideAcc
-  refine Finset.filter_congr (fun p hp => ?_)
-  have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
-      = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
-    refine voteCount_congr O _ p (fun v hv => ?_)
-    exact mq_congr O (h _ (Finset.mem_union_right _ (mem_readSet hp
-      (Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩)))) ▸ Iff.rfl
-  simp only [nz, ← hfam, hvc]
-
-lemma sideRej_congr (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (d : ((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)) {ω ω' : Ω}
-    (h : ∀ w ∈ gateReads populations j B ((ω, d) : Run Ω S J),
-      O.noise w ω = O.noise w ω') :
-    sideRej O populations j B (ω, d) = sideRej O populations j B (ω', d) := by
-  classical
-  have hfam : clusterAt O populations ((ω, d) : Run Ω S J) B
-      = clusterAt O populations ((ω', d) : Run Ω S J) B :=
-    clusterAt_congr O populations B d (fun w hw => h w (Finset.mem_union_left _ hw))
-  have hsub : clusterAt O populations ((ω, d) : Run Ω S J) B
-      ⊆ poolAt B.M ((ω, d) : Run Ω S J) :=
-    clusterAt_subset O populations B _
-  unfold sideRej
-  refine Finset.filter_congr (fun p hp => ?_)
-  have hvc : voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω
-      = voteCount O ((clusterAt O populations ((ω, d) : Run Ω S J) B).erase 1) p ω' := by
-    refine voteCount_congr O _ p (fun v hv => ?_)
-    exact mq_congr O (h _ (Finset.mem_union_right _ (mem_readSet hp
-      (Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1, hsub (Finset.mem_erase.1 hv).2⟩)))) ▸ Iff.rfl
-  simp only [nz, ← hfam, hvc]
-
 /-- **The gate's own query strings are not read by the clustering.**  A prefix is never
 `p · v` for a prefix `p` and any suffix, on a flat alphabet — so the bits the gate scores
 are untouched by everything that decides which side each prefix falls on. -/
@@ -1597,18 +1544,6 @@ theorem selection_side_bound (O : Oracle μ S) (C Q : Finset S) (r : S → S)
     _ = μ.real {ω | ω ∈ Bad (side' ω)} := by rw [noiseClean_ae O Q, add_zero]
     _ ≤ E := hmain
 
-/-- The gate's instance: it scores the prefixes themselves. -/
-theorem gate_side_bound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (P : Finset S → Finset S → Prop) (E : ℝ) (hE : 0 ≤ E)
-    (hbad : ∀ A₀ ∈ C.powerset, μ.real {ω | P A₀ (A₀.filter (fun p => mq O p ω = 1))} ≤ E) :
-    μ.real {ω | P (side ω) ((side ω).filter (fun p => mq O p ω = 1))} ≤ E :=
-  selection_side_bound O C Q id (by simpa using hdisj) C.powerset ∅ (Finset.empty_mem_powerset C)
-    (fun t ht => Finset.mem_powerset.1 ht) side (fun ω => Finset.mem_powerset.2 (hside ω))
-    hcongr P E hE hbad
-
 open scoped Classical in
 /-- The label sum over a block splits into its truly-rejecting and truly-accepting parts. -/
 lemma sum_label_eq (O : Oracle μ S) (A : Finset S) :
@@ -1793,19 +1728,6 @@ out. -/
 /-- `P[Bin(N,p) ≥ j]` — `scipy.stats.binom.sf(j-1, N, p)`. -/
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
-
-open scoped Classical in
-/-- `_split_counts` on the accept side: `(hits, n)` over the prefixes the family accepts,
-counted on the seed's column. -/
-noncomputable def splitAcc (O : Oracle μ S) (hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  let side := P.filter (fun p => hi - 1 < voteCount O F p ω)
-  ((side.filter (fun p => mq O p ω = 1)).card, side.card)
-
-open scoped Classical in
-/-- `_split_counts` on the reject side. -/
-noncomputable def splitRej (O : Oracle μ S) (lo : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  let side := P.filter (fun p => voteCount O F p ω ≤ lo)
-  ((side.filter (fun p => mq O p ω = 1)).card, side.card)
 
 open scoped Classical in
 /-- The cut's two sides at a state: the prefixes it accepts, and all the prefixes it
@@ -2266,39 +2188,6 @@ lemma miscutOf_le_cutWrong (O : Oracle μ S) (lo hi : ℕ) (F C : Finset S) (ω 
   exact Finset.card_le_card (Finset.union_subset hsubA hsubR)
 
 open scoped Classical in
-/-- **Every wrong prefix is a wrong prefix on one of the cut's two sides.**  The converse
-charging to `miscutOf_le_cutWrong`: a prefix the cut decides wrongly sits on the accept side
-with the wrong label, or on the reject side with the wrong label.  Note that this needs the
-reject cutoff strictly below the accept one, so the two sides cannot overlap. -/
-lemma cutWrong_le_miscutOf (O : Oracle μ S) (lo hi : ℕ) (hlohi : lo < hi) (F C : Finset S)
-    (ω : Ω) :
-    (C.filter (fun p => ¬ cutCorrect O lo hi F p ω)).card
-      ≤ miscutOf O (cutSides O lo hi F C ω).1 (cutSides O lo hi F C ω).2 := by
-  classical
-  have hdj : Disjoint (((cutSides O lo hi F C ω).1).filter (fun p => ¬ (O.label p = 1)))
-      (((cutSides O lo hi F C ω).2 \ (cutSides O lo hi F C ω).1).filter
-        (fun p => ¬ (O.label p = 0))) := by
-    refine Finset.disjoint_left.2 (fun q hq hq' => ?_)
-    exact (Finset.mem_sdiff.1 (Finset.mem_filter.1 hq').1).2 (Finset.mem_filter.1 hq).1
-  rw [miscutOf, ← Finset.card_union_of_disjoint hdj]
-  refine Finset.card_le_card (fun q hq => ?_)
-  obtain ⟨hqC, hbad⟩ := Finset.mem_filter.1 hq
-  rw [cutCorrect] at hbad
-  by_cases hfst : hi < voteCount O F q ω → O.label q = 1
-  · have hsnd : ¬ (voteCount O F q ω ≤ lo → O.label q = 0) := fun h => hbad ⟨hfst, h⟩
-    push_neg at hsnd
-    obtain ⟨hrej, hlab⟩ := hsnd
-    refine Finset.mem_union_right _ (Finset.mem_filter.2 ⟨?_, hlab⟩)
-    refine Finset.mem_sdiff.2 ⟨Finset.mem_filter.2 ⟨hqC, Or.inr hrej⟩, ?_⟩
-    intro hc
-    have hgt : hi - 1 < voteCount O F q ω := (Finset.mem_filter.1 hc).2
-    omega
-  · push_neg at hfst
-    obtain ⟨hacc, hlab⟩ := hfst
-    refine Finset.mem_union_left _ (Finset.mem_filter.2 ⟨?_, hlab⟩)
-    exact Finset.mem_filter.2 ⟨hqC, by omega⟩
-
-open scoped Classical in
 /-- The mis-cut prefixes all lie in the decided set. -/
 lemma miscutOf_le_card (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
     miscutOf O A Dset ≤ Dset.card := by
@@ -2373,9 +2262,6 @@ noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     ∧ ∀ j ∈ populations, admitted O B.lo B.hi B.gmin εcov α
         ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
 
-lemma binomSfGe_zero (θ : ℝ) : binomSfGe 0 θ 0 = 1 := by
-  simp [binomSfGe]
-
 /-- The family at a reachable state is **invalid**: on some population its cut is wrong on
 more than an `εcov` fraction. -/
 def FailAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (εcov : ℝ)
@@ -2428,96 +2314,6 @@ lemma splitRej_sound (O : Oracle μ S) (R : Finset S) (θ τ : ℝ) (hτ : 0 ≤
     rw [hrw]; exact hle
   exact le_trans (ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub)) hsum
 
-open scoped Classical in
-/-- **The gate cannot admit a drifted accept side.**  If a `γ` fraction of the prefixes the
-family accepts are truly rejecting, then by `mq_mean` the side's accepting-read rate sits
-`γ(1−2η)` below the clean `1−η`, and the count clears `|A|·θ` only with probability
-`exp(−2·c₀·τ²)` for `τ = θ − (1−η) + γ(1−2η)`, the gap the drift opens. -/
-theorem gate_accept_sound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ γ c₀ : ℝ) (hc₀ : 0 ≤ c₀) (hγ : 0 ≤ γ)
-    (hτ : 0 ≤ θ - (1 - O.η) + γ * (1 - 2 * O.η)) (hsig : O.η ≤ 1 / 2) :
-    μ.real {ω | c₀ ≤ ((side ω).card : ℝ)
-        ∧ γ * ((side ω).card : ℝ) ≤ (((side ω).filter (fun p => O.label p = 0)).card : ℝ)
-        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
-      ≤ Real.exp (-2 * c₀ * (θ - (1 - O.η) + γ * (1 - 2 * O.η)) ^ 2) := by
-  classical
-  set τ : ℝ := θ - (1 - O.η) + γ * (1 - 2 * O.η) with hτdef
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ T => c₀ ≤ (A₀.card : ℝ)
-      ∧ γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
-      ∧ (A₀.card : ℝ) * θ ≤ (T.card : ℝ)) _ (Real.exp_pos _).le (fun A₀ _ => ?_)
-  by_cases hbig : c₀ ≤ (A₀.card : ℝ) ∧
-      γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
-  · have hmean : ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) ≤ (A₀.card : ℝ) * (θ - τ) := by
-      rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
-        sum_label_eq O A₀]
-      have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-      nlinarith [hbig.2, hτdef]
-    refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _))
-      (splitAcc_sound O A₀ θ τ hτ hmean)) ?_
-    · exact fun ω hω => hω.2.2
-    · refine Real.exp_le_exp.2 ?_
-      have : c₀ ≤ (A₀.card : ℝ) := hbig.1
-      nlinarith [sq_nonneg τ]
-  · have hempty : {ω | c₀ ≤ (A₀.card : ℝ)
-        ∧ γ * (A₀.card : ℝ) ≤ ((A₀.filter (fun p => O.label p = 0)).card : ℝ)
-        ∧ (A₀.card : ℝ) * θ ≤ (((A₀.filter (fun p => mq O p ω = 1))).card : ℝ)} = ∅ := by
-      ext ω
-      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
-      exact fun h => hbig ⟨h.1, h.2.1⟩
-    rw [hempty]
-    simpa using (Real.exp_pos _).le
-
-open scoped Classical in
-/-- **The gate cannot admit a drifted reject side**, the mirror of `gate_accept_sound`: a
-`γ` fraction of truly-accepting prefixes on the rejected side lifts its accepting-read rate
-`γ(1−2η)` above the clean `η`, and the count stays below `|R|·θ` only with probability
-`exp(−2·c₀·τ²)` for `τ = η + γ(1−2η) − θ`. -/
-theorem gate_reject_sound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ γ c₀ : ℝ) (hc₀ : 0 ≤ c₀) (hγ : 0 ≤ γ)
-    (hτ : 0 ≤ O.η + γ * (1 - 2 * O.η) - θ) (hsig : O.η ≤ 1 / 2) :
-    μ.real {ω | c₀ ≤ ((side ω).card : ℝ)
-        ∧ γ * ((side ω).card : ℝ) ≤ ∑ p ∈ side ω, O.label p
-        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
-      ≤ Real.exp (-2 * c₀ * (O.η + γ * (1 - 2 * O.η) - θ) ^ 2) := by
-  classical
-  set τ : ℝ := O.η + γ * (1 - 2 * O.η) - θ with hτdef
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ T => c₀ ≤ (A₀.card : ℝ)
-      ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
-      ∧ (T.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_pos _).le (fun A₀ _ => ?_)
-  by_cases hbig : c₀ ≤ (A₀.card : ℝ) ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
-  · have hmean : (A₀.card : ℝ) * (θ + τ) ≤ ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) := by
-      rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum]
-      have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-      nlinarith [hbig.2, hτdef]
-    refine le_trans (le_trans (measureReal_mono ?_ (measure_ne_top _ _))
-      (splitRej_sound O A₀ θ τ hτ hmean)) ?_
-    · exact fun ω hω => hω.2.2
-    · refine Real.exp_le_exp.2 ?_
-      have : c₀ ≤ (A₀.card : ℝ) := hbig.1
-      nlinarith [sq_nonneg τ]
-  · have hempty : {ω | c₀ ≤ (A₀.card : ℝ)
-        ∧ γ * (A₀.card : ℝ) ≤ ∑ p ∈ A₀, O.label p
-        ∧ (((A₀.filter (fun p => mq O p ω = 1))).card : ℝ) ≤ (A₀.card : ℝ) * θ} = ∅ := by
-      ext ω
-      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
-      exact fun h => hbig ⟨h.1, h.2.1⟩
-    rw [hempty]
-    simpa using (Real.exp_pos _).le
-
-/-! ### What the gate sees when the cut is wrong
-
-A prefix the cut gets wrong is *decided*, and decided against its label — `cutCorrect` is
-vacuous on the indecisive band, so a failure is always a confident mistake.  It therefore
-lands on one of the two sides the gate scores, carrying the wrong label with it. -/
-
 /-- A wrong prefix sits on the accept side with label `0`, or the reject side with label
 `1`. -/
 lemma wrong_mem_side (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω)
@@ -2539,49 +2335,6 @@ lemma wrong_mem_side (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω 
 
 open scoped Classical in
 
-
-/-- **The accept side cannot read as accepting when enough of it is truly rejecting.**
-`splitAcc_sound` with the drift expressed as a count of wrong prefixes. -/
-lemma splitAcc_sound_of_wrong (O : Oracle μ S) (A : Finset S) (θ τ w : ℝ) (hτ : 0 ≤ τ)
-    (hsig : O.η ≤ 1 / 2) (hw : w ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ))
-    (hθ : (A.card : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w ≤ (A.card : ℝ) * (θ - τ)) :
-    μ.real {ω | (A.card : ℝ) * θ ≤ ((A.filter (fun p => mq O p ω = 1)).card : ℝ)}
-      ≤ Real.exp (-2 * (A.card : ℝ) * τ ^ 2) := by
-  classical
-  refine splitAcc_sound O A θ τ hτ ?_
-  have hsum : ∑ p ∈ A, (O.η + (1 - 2 * O.η) * O.label p)
-      = (A.card : ℝ) * (1 - O.η)
-        - (1 - 2 * O.η) * ((A.filter (fun p => O.label p = 0)).card : ℝ) := by
-    rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
-      sum_label_eq O A]
-    ring
-  rw [hsum]
-  have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-  nlinarith [hw, hθ]
-
-open scoped Classical in
-/-- The mirror: the reject side cannot read as rejecting when enough of it is truly
-accepting. -/
-lemma splitRej_sound_of_wrong (O : Oracle μ S) (R : Finset S) (θ τ w : ℝ) (hτ : 0 ≤ τ)
-    (hsig : O.η ≤ 1 / 2) (hw : w ≤ ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ))
-    (hθ : (R.card : ℝ) * (θ + τ) ≤ (R.card : ℝ) * O.η + (1 - 2 * O.η) * w) :
-    μ.real {ω | ((R.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ (R.card : ℝ) * θ}
-      ≤ Real.exp (-2 * (R.card : ℝ) * τ ^ 2) := by
-  classical
-  refine splitRej_sound O R θ τ hτ ?_
-  have hsum : ∑ p ∈ R, (O.η + (1 - 2 * O.η) * O.label p)
-      = (R.card : ℝ) * O.η
-        + (1 - 2 * O.η) * ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
-    rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
-      sum_label_eq O R]
-    have hcard : ((R.filter (fun p => O.label p = 0)).card : ℝ)
-        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) = (R.card : ℝ) := by
-      exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
-        (Finset.card_filter_add_card_filter_not (s := R) (fun p => O.label p = 0))
-    nlinarith [hcard]
-  rw [hsum]
-  have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-  nlinarith [hw, hθ]
 
 lemma voteCount_mono (O : Oracle μ S) {F F' : Finset S} (h : F ⊆ F') (p : S) (ω : Ω) :
     voteCount O F p ω ≤ voteCount O F' p ω := by
@@ -2622,219 +2375,6 @@ lemma card_cert_wrong_le (O : Oracle μ S) (populations : Finset J) (j : J) (B :
   · exact Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hs, hl⟩)
   · refine Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hs, ?_⟩)
     rw [hl]; norm_num
-
-open scoped Classical in
-/-- The mirror: a mostly-rejecting side reads accepting rarely enough. -/
-theorem gate_rej_admit_bound' (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
-    (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
-      (n : ℝ) * O.η + (1 - 2 * O.η) * w ≤ (n : ℝ) * (θ - τ)) :
-    μ.real {ω | n₀ ≤ (side ω).card
-        ∧ ((((side ω).filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
-        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
-      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
-  classical
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ U => n₀ ≤ A₀.card
-      ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
-      ∧ (A₀.card : ℝ) * θ ≤ (U.card : ℝ)) _ (Real.exp_nonneg _) ?_
-  intro A₀ hA₀
-  by_cases hn : n₀ ≤ A₀.card
-  · by_cases hw : (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
-    · have hsplit : (((A₀.filter (fun p => O.label p = 0)).card : ℝ))
-          + (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) = (A₀.card : ℝ) := by
-        exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
-          (Finset.card_filter_add_card_filter_not (s := A₀) (fun p => O.label p = 0))
-      have hmean : (A₀.card : ℝ) * (1 - O.η)
-          - (1 - 2 * O.η) * (((A₀.filter (fun p => O.label p = 0)).card : ℝ))
-            ≤ (A₀.card : ℝ) * (θ - τ) := by
-        have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-        have := hθ A₀.card hn (Finset.card_le_card (Finset.mem_powerset.1 hA₀))
-        nlinarith [hsplit, hw]
-      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
-        (le_trans (splitAcc_sound_of_wrong O A₀ θ τ _ hτ hsig le_rfl hmean) ?_)
-      refine Real.exp_le_exp.2 ?_
-      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
-      nlinarith [sq_nonneg τ]
-    · have hz : {ω : Ω | n₀ ≤ A₀.card
-          ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
-          ∧ (A₀.card : ℝ) * θ
-            ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
-        ext ω; simp [hw]
-      rw [hz]; simpa using Real.exp_nonneg _
-  · have hz : {ω : Ω | n₀ ≤ A₀.card
-        ∧ (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ) ≤ w)
-        ∧ (A₀.card : ℝ) * θ
-          ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
-      ext ω; simp [hn]
-    rw [hz]; simpa using Real.exp_nonneg _
-
-open scoped Classical in
-/-- **A side member carrying the wrong label is a mis-cut prefix.**  So one count — how
-often the cut is wrong on the certification sample — bounds the wrong-member budget on both
-sides at once. -/
-lemma sideAcc_wrong_subset (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
-    ((C.filter (fun p => ha < voteCount O F p ω)).filter (fun p => ¬ (O.label p = 1)))
-      ⊆ C.filter (fun p => ¬ cutCorrect O lo ha F p ω) := by
-  classical
-  intro p hp
-  obtain ⟨hpS, hl⟩ := Finset.mem_filter.1 hp
-  obtain ⟨hpC, hlt⟩ := Finset.mem_filter.1 hpS
-  exact Finset.mem_filter.2 ⟨hpC, fun hc => hl (hc.1 hlt)⟩
-
-open scoped Classical in
-lemma sideRej_wrong_subset (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
-    ((C.filter (fun p => voteCount O F p ω ≤ lo)).filter (fun p => ¬ (O.label p = 0)))
-      ⊆ C.filter (fun p => ¬ cutCorrect O lo ha F p ω) := by
-  classical
-  intro p hp
-  obtain ⟨hpS, hl⟩ := Finset.mem_filter.1 hp
-  obtain ⟨hpC, hle⟩ := Finset.mem_filter.1 hpS
-  exact Finset.mem_filter.2 ⟨hpC, fun hc => hl (hc.2 hle)⟩
-
-open scoped Classical in
-/-- **A truly-accepting side reads accepting often enough to clear the test.**  The mirror
-of `gate_acc_side_bound`: there the side is wrong and must fail, here it is right and must
-pass. -/
-theorem gate_acc_admit_bound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ τ : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hθ : θ + τ ≤ 1 - O.η) :
-    μ.real {ω | n₀ ≤ (side ω).card ∧ (∀ p ∈ side ω, O.label p = 1)
-        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
-      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
-  classical
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ U => n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
-      ∧ (U.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_nonneg _) ?_
-  intro A₀ hA₀
-  by_cases hn : n₀ ≤ A₀.card
-  · by_cases hcl : ∀ p ∈ A₀, O.label p = 1
-    · have hmean : (A₀.card : ℝ) * (θ + τ)
-          ≤ ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p) := by
-        rw [Finset.sum_congr rfl (fun p hp => by rw [hcl p hp]), Finset.sum_const, nsmul_eq_mul]
-        have : O.η + (1 - 2 * O.η) * 1 = 1 - O.η := by ring
-        rw [this]
-        exact mul_le_mul_of_nonneg_left hθ (Nat.cast_nonneg _)
-      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
-        (le_trans (splitRej_sound O A₀ θ τ hτ hmean) ?_)
-      refine Real.exp_le_exp.2 ?_
-      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
-      nlinarith [sq_nonneg τ]
-    · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
-          ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
-            ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
-        ext ω; simp [hcl]
-      rw [hz]; simpa using Real.exp_nonneg _
-  · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 1)
-        ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
-          ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
-      ext ω; simp [hn]
-    rw [hz]; simpa using Real.exp_nonneg _
-
-open scoped Classical in
-/-- **A mostly-accepting side still reads accepting often enough.**  `gate_acc_admit_bound`
-with a budget `w` of prefixes on the side that are not truly accepting, so the cut only has
-to be right on a *fraction* of the certification sample rather than all of it. -/
-theorem gate_acc_admit_bound' (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
-    (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
-      (n : ℝ) * (θ + τ) ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w) :
-    μ.real {ω | n₀ ≤ (side ω).card
-        ∧ ((((side ω).filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
-        ∧ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ) ≤ ((side ω).card : ℝ) * θ}
-      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
-  classical
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ U => n₀ ≤ A₀.card
-      ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
-      ∧ (U.card : ℝ) ≤ (A₀.card : ℝ) * θ) _ (Real.exp_nonneg _) ?_
-  intro A₀ hA₀
-  by_cases hn : n₀ ≤ A₀.card
-  · by_cases hw : (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
-    · have hsplit : (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ))
-          + (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ)) = (A₀.card : ℝ) := by
-        have hone : ∀ p ∈ A₀, (¬ (O.label p = 0)) ↔ (O.label p = 1) := by
-          intro p _
-          rcases O.label_bit p with h | h <;> simp [h]
-        rw [Finset.filter_congr hone]
-        exact_mod_cast congrArg (fun n : ℕ => (n : ℝ))
-          (Finset.card_filter_add_card_filter_not (s := A₀) (fun p => O.label p = 1))
-      have hmean : (A₀.card : ℝ) * (θ + τ)
-          ≤ (A₀.card : ℝ) * O.η
-            + (1 - 2 * O.η) * (((A₀.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) := by
-        have h2 : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
-        have := hθ A₀.card hn (Finset.card_le_card (Finset.mem_powerset.1 hA₀))
-        nlinarith [hsplit, hw]
-      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
-        (le_trans (splitRej_sound_of_wrong O A₀ θ τ _ hτ hsig le_rfl hmean) ?_)
-      refine Real.exp_le_exp.2 ?_
-      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
-      nlinarith [sq_nonneg τ]
-    · have hz : {ω : Ω | n₀ ≤ A₀.card
-          ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
-          ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
-            ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
-        ext ω; simp [hw]
-      rw [hz]; simpa using Real.exp_nonneg _
-  · have hz : {ω : Ω | n₀ ≤ A₀.card
-        ∧ (((A₀.filter (fun p => ¬ (O.label p = 1))).card : ℝ) ≤ w)
-        ∧ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))
-          ≤ (A₀.card : ℝ) * θ} = (∅ : Set Ω) := by
-      ext ω; simp [hn]
-    rw [hz]; simpa using Real.exp_nonneg _
-
-open scoped Classical in
-/-- The mirror: a truly-rejecting side reads accepting rarely enough to clear its test. -/
-theorem gate_rej_admit_bound (O : Oracle μ S) (C Q : Finset S)
-    (hdisj : Disjoint (↑C : Set S) (↑Q : Set S))
-    (side : Ω → Finset S) (hside : ∀ ω, side ω ⊆ C)
-    (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → side ω = side ω')
-    (θ τ : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hθ : O.η ≤ θ - τ) :
-    μ.real {ω | n₀ ≤ (side ω).card ∧ (∀ p ∈ side ω, O.label p = 0)
-        ∧ ((side ω).card : ℝ) * θ ≤ (((side ω).filter (fun p => mq O p ω = 1)).card : ℝ)}
-      ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
-  classical
-  refine gate_side_bound O C Q hdisj side hside hcongr
-    (fun A₀ U => n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
-      ∧ (A₀.card : ℝ) * θ ≤ (U.card : ℝ)) _ (Real.exp_nonneg _) ?_
-  intro A₀ hA₀
-  by_cases hn : n₀ ≤ A₀.card
-  · by_cases hcl : ∀ p ∈ A₀, O.label p = 0
-    · have hmean : ∑ p ∈ A₀, (O.η + (1 - 2 * O.η) * O.label p)
-          ≤ (A₀.card : ℝ) * (θ - τ) := by
-        rw [Finset.sum_congr rfl (fun p hp => by rw [hcl p hp]), Finset.sum_const, nsmul_eq_mul]
-        have : O.η + (1 - 2 * O.η) * 0 = O.η := by ring
-        rw [this]
-        exact mul_le_mul_of_nonneg_left hθ (Nat.cast_nonneg _)
-      refine le_trans (measureReal_mono (fun ω hω => hω.2.2) (measure_ne_top _ _))
-        (le_trans (splitAcc_sound O A₀ θ τ hτ hmean) ?_)
-      refine Real.exp_le_exp.2 ?_
-      have hc : (n₀ : ℝ) ≤ (A₀.card : ℝ) := by exact_mod_cast hn
-      nlinarith [sq_nonneg τ]
-    · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
-          ∧ (A₀.card : ℝ) * θ
-            ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
-        ext ω; simp [hcl]
-      rw [hz]; simpa using Real.exp_nonneg _
-  · have hz : {ω : Ω | n₀ ≤ A₀.card ∧ (∀ p ∈ A₀, O.label p = 0)
-        ∧ (A₀.card : ℝ) * θ
-          ≤ (((A₀.filter (fun p => mq O p ω = 1)).card : ℝ))} = (∅ : Set Ω) := by
-      ext ω; simp [hn]
-    rw [hz]; simpa using Real.exp_nonneg _
-
-/-! ### The gate in counting form
-
-The soundness argument does not need the binomial tails themselves, only what they force
-about the counts.  `admitted` is kept faithful to `drift_verdict`; `admittedCount` is the
-consequence everything downstream uses. -/
 
 /-- Hoeffding's bound on the binomial upper tail, as a fact about `binomSfGe`.  Validity
 needs the tails to force the counts; termination needs the counts to force the tails, which
@@ -2917,16 +2457,6 @@ theorem lt_of_binomSfGe_le (n j : ℕ) (θ τ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 
   have hone := one_le_binomSfGe_add_binomCdf n j θ hθ0 hθ1
   linarith
 
-/-- The lower-tail counterpart. -/
-theorem lt_of_binomCdf_le (n j : ℕ) (θ τ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hτ : 0 ≤ τ)
-    (hα : α + Real.exp (-2 * (n : ℝ) * τ ^ 2) < 1) (h : binomCdf n θ j ≤ α) :
-    (j : ℝ) < n * (θ + τ) := by
-  by_contra hc
-  push_neg at hc
-  have hsf := binomSfGe_le n j θ τ hθ0 hθ1 hτ hc
-  have hone := one_le_binomSfGe_add_binomCdf n j θ hθ0 hθ1
-  linarith
-
 /-- What `admitted` forces about the counts: the accepted side reads as accepting at least
 as often as `accept_thresh` claims, the rejected side at most as often as `reject_thresh`
 does — each up to the Hoeffding slack `τ` that stands in for the exact median.  This is all
@@ -2952,82 +2482,6 @@ lemma gateAcc_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov
   unfold gateAcc
   constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
     mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
-
-lemma gateRej_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤ 1)
-    (hsig : O.η ≤ 1 / 2) : 0 ≤ gateRej O εcov ∧ gateRej O εcov ≤ 1 := by
-  have hη0 := eta_nonneg O
-  unfold gateRej
-  constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
-    mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
-
-/-- **A cut that reads as its own class is admitted.**  The counting form of the gate's
-other direction: enough hits on the accept side and few enough on the reject side put both
-binomial tails under `α`. -/
-lemma admitted_of_counts (O : Oracle μ S) (lo hi n₀ : ℕ) (εcov α τ : ℝ)
-    (F P : Finset S) (ω : Ω)
-    (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
-    (hacc : n₀ ≤ (agreeCount O lo hi F P ω).2 →
-      ((agreeCount O lo hi F P ω).2 : ℝ) * (gateAcc O εcov + τ)
-        ≤ ((agreeCount O lo hi F P ω).1 : ℝ))
-    (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α) :
-    admitted O lo hi n₀ εcov α F P ω := by
-  have htail : ∀ n : ℕ, n₀ ≤ n → Real.exp (-2 * (n : ℝ) * τ ^ 2) ≤ α := by
-    intro n hn
-    refine le_trans (Real.exp_le_exp.2 ?_) hα
-    have hnR : (n₀ : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
-    nlinarith [sq_nonneg τ]
-  exact fun hn => le_trans (binomSfGe_le _ _ _ τ (gateAcc_mem O hε0 hε1 hsig).1
-    (gateAcc_mem O hε0 hε1 hsig).2 hτ (hacc hn)) (htail _ hn)
-
-open scoped Classical in
-/-- **The accept side is short only by the prefixes that were indecisive or mis-cut.**  The
-counting form of `card_le_sideAcc`, which is what the assembly needs: both gates bound those
-two counts by a *fraction*, so requiring every prefix to behave is never necessary. -/
-lemma card_le_sideAcc_add (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
-    (C.filter (fun p => O.label p = 1)).card
-      ≤ (C.filter (fun p => ha < voteCount O F p ω)).card
-        + ((C.filter (fun p => ¬ decided O lo ha F p ω)).card
-          + (C.filter (fun p => ¬ cutCorrect O lo ha F p ω)).card) := by
-  classical
-  refine le_trans (Finset.card_le_card ?_)
-    (le_trans (Finset.card_union_le _ _) (by
-      exact Nat.add_le_add_left (Finset.card_union_le _ _) _))
-  intro p hp
-  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
-  by_cases hd : decided O lo ha F p ω
-  · by_cases hc : cutCorrect O lo ha F p ω
-    · refine Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, ?_⟩)
-      rcases hd with h | h
-      · exact h
-      · exact absurd (hc.2 h) (by rw [hl]; norm_num)
-    · exact Finset.mem_union_right _
-        (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hc⟩))
-  · exact Finset.mem_union_right _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hd⟩))
-
-open scoped Classical in
-/-- The mirror for the reject side. -/
-lemma card_le_sideRej_add (O : Oracle μ S) (lo ha : ℕ) (F C : Finset S) (ω : Ω) :
-    (C.filter (fun p => O.label p = 0)).card
-      ≤ (C.filter (fun p => voteCount O F p ω ≤ lo)).card
-        + ((C.filter (fun p => ¬ decided O lo ha F p ω)).card
-          + (C.filter (fun p => ¬ cutCorrect O lo ha F p ω)).card) := by
-  classical
-  refine le_trans (Finset.card_le_card ?_)
-    (le_trans (Finset.card_union_le _ _) (by
-      exact Nat.add_le_add_left (Finset.card_union_le _ _) _))
-  intro p hp
-  obtain ⟨hpC, hl⟩ := Finset.mem_filter.1 hp
-  by_cases hd : decided O lo ha F p ω
-  · by_cases hc : cutCorrect O lo ha F p ω
-    · refine Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, ?_⟩)
-      rcases hd with h | h
-      · exact absurd (hc.1 h) (by rw [hl]; norm_num)
-      · exact h
-    · exact Finset.mem_union_right _
-        (Finset.mem_union_right _ (Finset.mem_filter.2 ⟨hpC, hc⟩))
-  · exact Finset.mem_union_right _ (Finset.mem_union_left _ (Finset.mem_filter.2 ⟨hpC, hd⟩))
-
-open scoped Classical in
 
 /-- **Markov on a per-prefix failure count.**  Both gates ask for a *fraction* of the
 certification sample, not for every prefix to behave, so a per-prefix bound `E` only has to
@@ -3151,25 +2605,6 @@ theorem admitted_whp (O : Oracle μ S) (C Q : Finset S)
   have hmain := gate_agree_bound O C Q hdisj lo hi fam hQ hcongr (gateAcc O εcov + τ) τ w nlo
     hτ hsig (by intro n h1 h2; have := hga n h1 h2; linarith)
   linarith [Real.exp_nonneg (-2 * (nlo : ℝ) * τ ^ 2), hmain]
-
-/-- A countable union bound in real form: Mathlib has `measure_iUnion_le` in `ℝ≥0∞` and
-`measureReal_iUnion_fintype_le` for finite index, but not this. -/
-lemma measureReal_iUnion_le_tsum {A : Type*} [MeasurableSpace A] {ρ : Measure A}
-    [IsFiniteMeasure ρ] {T : Type*} [Countable T] (E : T → Set A) (w : T → ℝ)
-    (hw0 : ∀ t, 0 ≤ w t) (hper : ∀ t, ρ.real (E t) ≤ w t) (hsum : Summable w) :
-    ρ.real (⋃ t, E t) ≤ ∑' t, w t := by
-  have hle : ∀ t, ρ (E t) ≤ ENNReal.ofReal (w t) := by
-    intro t
-    calc ρ (E t) = ENNReal.ofReal (ρ.real (E t)) :=
-          (ENNReal.ofReal_toReal (measure_ne_top ρ _)).symm
-      _ ≤ ENNReal.ofReal (w t) := ENNReal.ofReal_le_ofReal (hper t)
-  have hunion : ρ (⋃ t, E t) ≤ ENNReal.ofReal (∑' t, w t) := by
-    calc ρ (⋃ t, E t) ≤ ∑' t, ρ (E t) := measure_iUnion_le _
-      _ ≤ ∑' t, ENNReal.ofReal (w t) := ENNReal.tsum_le_tsum hle
-      _ = ENNReal.ofReal (∑' t, w t) := (ENNReal.ofReal_tsum_of_nonneg hw0 hsum).symm
-  calc ρ.real (⋃ t, E t) ≤ (ENNReal.ofReal (∑' t, w t)).toReal := by
-        refine ENNReal.toReal_mono (by simp) hunion
-    _ = ∑' t, w t := ENNReal.toReal_ofReal (tsum_nonneg hw0)
 
 /-- **The collision mass of a prefix population**: the chance that two independent draws
 from it coincide, `∑ₐ D({a})²`.
@@ -4040,51 +3475,6 @@ lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabili
   rw [Measure.map_snd_prod]
   simp
 
-open scoped Classical in
-/-- How many of the first `m` certification draws land in a set, as a measurable function of
-the stream. -/
-lemma measurable_certHits (W : Set S) (j : J) (m : ℕ) :
-    Measurable (fun c : J × ℕ → S =>
-      ((((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ))) := by
-  classical
-  have hW : MeasurableSet W := (Set.to_countable _).measurableSet
-  have hrw : (fun c : J × ℕ → S =>
-      ((((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ)))
-      = fun c => ∑ i ∈ Finset.range m, W.indicator (fun _ => (1 : ℝ)) (c (j, i)) := by
-    funext c
-    rw [Finset.card_filter, Nat.cast_sum]
-    refine Finset.sum_congr rfl (fun i _ => ?_)
-    by_cases h : c (j, i) ∈ W <;> simp [h]
-  rw [hrw]
-  exact Finset.measurable_sum _ (fun i _ =>
-    (measurable_const.indicator hW).comp (measurable_pi_apply (j, i)))
-
-open scoped Classical in
-/-- **The certification sample carries its share of each class.**  `cert_hits_wrongSet` at
-the label classes: a class of mass `q` is hit at least `m(q − t)` times, off an
-`exp(-2 m t²)` set.  This is what discharges `ret_at_whp`'s class-count hypotheses — the
-sides are populated because the population is. -/
-theorem cert_class_count_le (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
-    (j : J) (m : ℕ) (b q t : ℝ) (hq : 0 ≤ q) (ht : 0 ≤ t)
-    (hmass : q ≤ (D j).real {p | O.label p = b}) :
-    (runLaw μ D Dsf).real {x : Run Ω S J | (((Finset.range m).filter
-        (fun i => O.label (cert j i x) = b)).card : ℝ) ≤ (m : ℝ) * (q - t)}
-      ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
-  classical
-  set W : Set S := {p : S | O.label p = b} with hWdef
-  have hmeasSet : MeasurableSet {c : J × ℕ → S | (((Finset.range m).filter
-      (fun i => c (j, i) ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)} :=
-    measurableSet_le (measurable_certHits W j m) measurable_const
-  have hpre : {x : Run Ω S J | (((Finset.range m).filter
-      (fun i => O.label (cert j i x) = b)).card : ℝ) ≤ (m : ℝ) * (q - t)}
-      = (fun x : Run Ω S J => x.2.2) ⁻¹' {c : J × ℕ → S | (((Finset.range m).filter
-        (fun i => c (j, i) ∈ W)).card : ℝ) ≤ (m : ℝ) * (q - t)} := rfl
-  rw [hpre, measureReal_def, Measure.map_apply (by fun_prop) hmeasSet
-    |>.symm.trans (congrArg (fun ν : Measure (J × ℕ → S) => ν _) (map_certStream D Dsf)),
-    ← measureReal_def]
-  exact cert_hits_wrongSet D j m W q t hq ht hmass
-
 /-- One certification coordinate has the population's own law. -/
 lemma map_certCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
@@ -4746,62 +4136,6 @@ lemma disjoint_gateReads {Pre : Set S} (hflat : Flat Pre) (P C A : Finset S)
   rw [Finset.coe_union, Set.disjoint_union_right]
   exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hA hPA),
     Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hA)⟩
-
-open scoped Classical in
-/-- **A wrong cut is a wrong *fraction* of one gate side.**  Either side may be small, or
-clean on its own; what cannot happen is both at once, once the two together carry
-`(c + 2β)·|C|` wrong prefixes.  `β` is the size floor the gate's tail bound is charged at,
-and paying for it twice — once per side — is what fixes the constants. -/
-lemma exists_wrong_side (O : Oracle μ S) (C A R : Finset S) (hA : A ⊆ C) (hR : R ⊆ C)
-    (hAR : Disjoint A R) (wtot c β : ℝ) (hc : 0 ≤ c) (hβ : 0 ≤ β)
-    (hcount : c * (C.card : ℝ) + 2 * (β * (C.card : ℝ)) < wtot)
-    (hle : wtot ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ)
-        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ)) :
-    (β * (C.card : ℝ) ≤ (A.card : ℝ)
-        ∧ c * (A.card : ℝ) ≤ ((A.filter (fun p => O.label p = 0)).card : ℝ))
-      ∨ (β * (C.card : ℝ) ≤ (R.card : ℝ)
-        ∧ c * (R.card : ℝ) ≤ ∑ p ∈ R, O.label p) := by
-  classical
-  have hRsum : ∑ p ∈ R, O.label p
-      = ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
-    rw [sum_label_eq O R]
-    have hcf := Finset.card_filter_add_card_filter_not (s := R) (fun p => O.label p = 0)
-    have : ((R.filter (fun p => O.label p = 0)).card : ℝ)
-        + ((R.filter (fun p => ¬ (O.label p = 0))).card : ℝ) = (R.card : ℝ) := by
-      exact_mod_cast congrArg (fun n : ℕ => (n : ℝ)) hcf
-    linarith
-  rw [hRsum]
-  by_contra hcon
-  push_neg at hcon
-  obtain ⟨hAfail, hRfail⟩ := hcon
-  have hcard : (A.card : ℝ) + (R.card : ℝ) ≤ (C.card : ℝ) := by
-    have hu := Finset.card_le_card (Finset.union_subset hA hR)
-    rw [Finset.card_union_of_disjoint hAR] at hu
-    exact_mod_cast hu
-  have hbound : ∀ (U : Finset S) (Q : S → Prop) [DecidablePred Q],
-      (β * (C.card : ℝ) ≤ (U.card : ℝ) → ((U.filter Q).card : ℝ) < c * (U.card : ℝ)) →
-      ((U.filter Q).card : ℝ) < c * (U.card : ℝ) + β * (C.card : ℝ) := by
-    intro U Q _ hfail
-    by_cases hbig : β * (C.card : ℝ) ≤ (U.card : ℝ)
-    · have hcU : (0 : ℝ) ≤ c * (U.card : ℝ) := mul_nonneg hc (Nat.cast_nonneg _)
-      have hβC : (0 : ℝ) ≤ β * (C.card : ℝ) := mul_nonneg hβ (Nat.cast_nonneg _)
-      linarith [hfail hbig]
-    · have hfil : ((U.filter Q).card : ℝ) ≤ (U.card : ℝ) := by
-        exact_mod_cast Finset.card_filter_le U Q
-      have hcU : (0 : ℝ) ≤ c * (U.card : ℝ) := mul_nonneg hc (Nat.cast_nonneg _)
-      push_neg at hbig
-      linarith
-  have hAb := hbound A (fun p => O.label p = 0) hAfail
-  have hRb := hbound R (fun p => ¬ (O.label p = 0)) hRfail
-  have hcc : (0 : ℝ) ≤ c := hc
-  nlinarith [hAb, hRb, hcard, hle, hcount]
-
-/-! ### The population bound for one state
-
-Three things can go wrong at a population prefix: the clustering read its query strings
-(`p ∈ P`), the family flips too much of it, or the vote misses despite few flips.  The first
-is charged to the prefix mass of the table, the second to `flipCount_mass_le`, and only the
-third to the tails. -/
 
 lemma measurableSet_of_fam {fam : Ω → Finset S} {T : Finset (Finset S)}
     (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
@@ -5826,13 +5160,6 @@ lemma measurableSet_sideOf_gt (O : Oracle μ S) (A F : Finset S) (n : ℕ) (U : 
     (fun p _ => measurableSet_voteCount_gt O F n p) (fun V => V = U))
 
 open scoped Classical in
-lemma measurableSet_sideOf_le (O : Oracle μ S) (A F : Finset S) (n : ℕ) (U : Finset S) :
-    MeasurableSet {ω | A.filter (fun p => voteCount O F p ω ≤ n) = U} :=
-  noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O
-    (fun p ω => voteCount O F p ω ≤ n)
-    (fun p _ => measurableSet_voteCount_le O F n p) (fun V => V = U))
-
-open scoped Classical in
 lemma measurableSet_decOf (O : Oracle μ S) (A F : Finset S) (lo hi : ℕ) (U : Finset S) :
     MeasurableSet {ω | A.filter (fun p => hi - 1 < voteCount O F p ω
         ∨ voteCount O F p ω ≤ lo) = U} :=
@@ -5840,30 +5167,6 @@ lemma measurableSet_decOf (O : Oracle μ S) (A F : Finset S) (lo hi : ℕ) (U : 
     (fun p ω => hi - 1 < voteCount O F p ω ∨ voteCount O F p ω ≤ lo)
     (fun p _ => (measurableSet_voteCount_gt O F (hi - 1) p).union
       (measurableSet_voteCount_le O F lo p)) (fun V => V = U))
-
-open scoped Classical in
-lemma measurableSet_hits_ge (O : Oracle μ S) (U : Finset S) (r : ℝ) :
-    MeasurableSet {ω | r ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)} :=
-  noiseAlg_le O Set.univ _
-    (measurableSet_filter_pred O (T := Set.univ) (by simp) (fun V => r ≤ (V.card : ℝ)))
-
-open scoped Classical in
-lemma measurableSet_hits_le (O : Oracle μ S) (U : Finset S) (r : ℝ) :
-    MeasurableSet {ω | ((U.filter (fun p => mq O p ω = 1)).card : ℝ) ≤ r} :=
-  noiseAlg_le O Set.univ _
-    (measurableSet_filter_pred O (T := Set.univ) (by simp) (fun V => (V.card : ℝ) ≤ r))
-
-open scoped Classical in
-/-- **The gate admits an accept side that is a `c` fraction wrong.**  The side is scored on
-prefixes the clustering never read, so `gate_accept_sound` applies to it as it stands. -/
-noncomputable def gateBadAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (θ c β : ℝ) : Set (Run Ω S J) :=
-  {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
-    ∧ β * (B.m : ℝ) ≤ ((sideAcc O populations j B x).card : ℝ)
-    ∧ c * ((sideAcc O populations j B x).card : ℝ)
-        ≤ (((sideAcc O populations j B x).filter (fun p => O.label p = 0)).card : ℝ)
-    ∧ ((sideAcc O populations j B x).card : ℝ) * θ
-        ≤ (((sideAcc O populations j B x).filter (fun p => mq O p (nz x) = 1)).card : ℝ)}
 
 open scoped Classical in
 /-- The cut's two sides at a state, for the run's own family and certification sample. -/
@@ -6079,16 +5382,6 @@ lemma measurableSet_gateBadAgree (O : Oracle μ S) (populations : Finset J) (j :
   rw [hrw]
   exact measurableSet_of_run_data_cert populations j B _ hR
 
-open scoped Classical in
-/-- The mirror: it rejects a side a `c` fraction of which is truly accepting. -/
-noncomputable def gateBadRej (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (θ c β : ℝ) : Set (Run Ω S J) :=
-  {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
-    ∧ β * (B.m : ℝ) ≤ ((sideRej O populations j B x).card : ℝ)
-    ∧ c * ((sideRej O populations j B x).card : ℝ) ≤ ∑ p ∈ sideRej O populations j B x, O.label p
-    ∧ (((sideRej O populations j B x).filter (fun p => mq O p (nz x) = 1)).card : ℝ)
-        ≤ ((sideRej O populations j B x).card : ℝ) * θ}
-
 /-- Distinct draws are counted once each, so the sample's hit count is the draw count. -/
 lemma card_filter_certOf (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     (instA : DecidablePred Q) (instB : DecidablePred (fun i : ℕ => Q (cert j i x)))
@@ -6109,261 +5402,6 @@ lemma card_filter_certOf (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hpC
     exact ⟨i, by simp only [Finset.coe_filter, Set.mem_setOf_eq, Finset.mem_range,
       Finset.mem_range.1 hi, true_and]; exact hQ, rfl⟩
-
-open scoped Classical in
-/-- The gate's accept side with the draws fixed. -/
-noncomputable def sideAccOf (O : Oracle μ S) (B : Budget) (P C A : Finset S) (ω : Ω) :
-    Finset S :=
-  A.filter (fun p => B.hi - 1 < voteCount O ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) p ω)
-
-open scoped Classical in
-/-- Its reject twin. -/
-noncomputable def sideRejOf (O : Oracle μ S) (B : Budget) (P C A : Finset S) (ω : Ω) :
-    Finset S :=
-  A.filter (fun p => voteCount O ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) p ω ≤ B.lo)
-
-lemma sideAcc_eq_sideAccOf (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (x : Run Ω S J) :
-    sideAcc O populations j B x
-      = sideAccOf O B (prefixesAt populations B.m x) (poolAt B.M x) (certOf j B.m x) (nz x) :=
-  rfl
-
-lemma sideRej_eq_sideRejOf (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (x : Run Ω S J) :
-    sideRej O populations j B x
-      = sideRejOf O B (prefixesAt populations B.m x) (poolAt B.M x) (certOf j B.m x) (nz x) :=
-  rfl
-
-open scoped Classical in
-/-- Events about the accept side are measurable: decompose over the family, then over the
-side it cuts out. -/
-lemma measurableSet_of_sideAccOf (O : Oracle μ S) (B : Budget) (P C A : Finset S)
-    (hone : (1 : S) ∈ C) (R : Finset S → Set Ω) (hR : ∀ U, MeasurableSet (R U)) :
-    MeasurableSet {ω | ω ∈ R (sideAccOf O B P C A ω)} := by
-  classical
-  exact measurableSet_of_fam (T := C.powerset)
-    (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc B.scd P C B.k ω hone))
-    (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc B.scd P C B.k hone A₀)
-    (fun A₀ => {ω | ω ∈ R (A.filter (fun p => B.hi - 1 < voteCount O (A₀.erase 1) p ω))})
-    (fun A₀ => measurableSet_of_fam (T := A.powerset)
-      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
-      (fun U => measurableSet_sideOf_gt O A (A₀.erase 1) (B.hi - 1) U) R hR)
-
-open scoped Classical in
-lemma measurableSet_of_sideRejOf (O : Oracle μ S) (B : Budget) (P C A : Finset S)
-    (hone : (1 : S) ∈ C) (R : Finset S → Set Ω) (hR : ∀ U, MeasurableSet (R U)) :
-    MeasurableSet {ω | ω ∈ R (sideRejOf O B P C A ω)} := by
-  classical
-  exact measurableSet_of_fam (T := C.powerset)
-    (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc B.scd P C B.k ω hone))
-    (fun A₀ => measurableSet_clusterOf O B.cn B.cd B.sc B.scd P C B.k hone A₀)
-    (fun A₀ => {ω | ω ∈ R (A.filter (fun p => voteCount O (A₀.erase 1) p ω ≤ B.lo))})
-    (fun A₀ => measurableSet_of_fam (T := A.powerset)
-      (fun ω => Finset.mem_powerset.2 (Finset.filter_subset _ _))
-      (fun U => measurableSet_sideOf_le O A (A₀.erase 1) B.lo U) R hR)
-
-open scoped Classical in
-lemma measurableSet_gateBadAcc (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (θ c β : ℝ) : MeasurableSet (gateBadAcc O populations j B θ c β) := by
-  classical
-  have hR : ∀ (P C : Finset S) (t : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
-      {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-        ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-            β * (B.m : ℝ) ≤ (U.card : ℝ)
-            ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-            ∧ (U.card : ℝ) * θ
-                ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
-          (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅) := by
-    intro P C t
-    split_ifs with hone
-    · by_cases hdisj : Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-      · have hset : {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-                ∧ (U.card : ℝ) * θ
-                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
-              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}}
-            = nz ⁻¹' {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-                ∧ (U.card : ℝ) * θ
-                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
-              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)} := by
-          ext x
-          simp only [Set.mem_setOf_eq, Set.mem_preimage, hdisj, true_and]
-        rw [hset]
-        refine measurable_nz (measurableSet_of_sideAccOf O B P C _ hone
-          (fun U : Finset S => {ω : Ω |
-            β * (B.m : ℝ) ≤ (U.card : ℝ)
-            ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-            ∧ (U.card : ℝ) * θ
-                ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)}) (fun U => ?_))
-        by_cases h1 : β * (B.m : ℝ) ≤ (U.card : ℝ)
-        · by_cases h2 : c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-          · have hrw : {ω : Ω | β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-                ∧ (U.card : ℝ) * θ
-                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)}
-                = {ω : Ω | (U.card : ℝ) * θ
-                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)} := by
-              ext ω; simp only [Set.mem_setOf_eq, h1, h2, true_and]
-            rw [hrw]
-            exact measurableSet_hits_ge O U _
-          · simpa [h2] using MeasurableSet.empty
-        · simpa [h1] using MeasurableSet.empty
-      · simpa [hdisj] using MeasurableSet.empty
-    · exact MeasurableSet.empty
-  have hrw : gateBadAcc O populations j B θ c β
-      = {x : Run Ω S J | x ∈ (fun P C t => if (1 : S) ∈ C then
-          {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ((U.filter (fun p => O.label p = 0)).card : ℝ)
-                ∧ (U.card : ℝ) * θ
-                    ≤ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)})
-              (sideAccOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅)
-        (prefixesAt populations B.m x) (poolAt B.M x)
-        (fun i : Fin B.m => cert j i.val x)} := by
-    ext x
-    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), gateBadAcc,
-      ← certOf_eq_image j B.m x, ← sideAcc_eq_sideAccOf O populations j B x]
-  rw [hrw]
-  exact measurableSet_of_run_data_cert populations j B _ hR
-
-open scoped Classical in
-lemma measurableSet_gateBadRej (O : Oracle μ S) (populations : Finset J) (j : J) (B : Budget)
-    (θ c β : ℝ) : MeasurableSet (gateBadRej O populations j B θ c β) := by
-  classical
-  have hR : ∀ (P C : Finset S) (t : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
-      {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-        ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-            β * (B.m : ℝ) ≤ (U.card : ℝ)
-            ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-            ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                ≤ (U.card : ℝ) * θ})
-          (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅) := by
-    intro P C t
-    split_ifs with hone
-    · by_cases hdisj : Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-      · have hset : {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                    ≤ (U.card : ℝ) * θ})
-              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}}
-            = nz ⁻¹' {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                    ≤ (U.card : ℝ) * θ})
-              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)} := by
-          ext x
-          simp only [Set.mem_setOf_eq, Set.mem_preimage, hdisj, true_and]
-        rw [hset]
-        refine measurable_nz (measurableSet_of_sideRejOf O B P C _ hone
-          (fun U : Finset S => {ω : Ω |
-            β * (B.m : ℝ) ≤ (U.card : ℝ)
-            ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-            ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                ≤ (U.card : ℝ) * θ}) (fun U => ?_))
-        by_cases h1 : β * (B.m : ℝ) ≤ (U.card : ℝ)
-        · by_cases h2 : c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-          · have hrw : {ω : Ω | β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                    ≤ (U.card : ℝ) * θ}
-                = {ω : Ω | ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                    ≤ (U.card : ℝ) * θ} := by
-              ext ω; simp only [Set.mem_setOf_eq, h1, h2, true_and]
-            rw [hrw]
-            exact measurableSet_hits_le O U _
-          · simpa [h2] using MeasurableSet.empty
-        · simpa [h1] using MeasurableSet.empty
-      · simpa [hdisj] using MeasurableSet.empty
-    · exact MeasurableSet.empty
-  have hrw : gateBadRej O populations j B θ c β
-      = {x : Run Ω S J | x ∈ (fun P C t => if (1 : S) ∈ C then
-          {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image t)
-            ∧ nz x ∈ {ω : Ω | ω ∈ (fun U : Finset S => {ω : Ω |
-                β * (B.m : ℝ) ≤ (U.card : ℝ)
-                ∧ c * (U.card : ℝ) ≤ ∑ p ∈ U, O.label p
-                ∧ ((U.filter (fun p => mq O p ω = 1)).card : ℝ)
-                    ≤ (U.card : ℝ) * θ})
-              (sideRejOf O B P C ((Finset.univ : Finset (Fin B.m)).image t) ω)}} else ∅)
-        (prefixesAt populations B.m x) (poolAt B.M x)
-        (fun i : Fin B.m => cert j i.val x)} := by
-    ext x
-    simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.M x), gateBadRej,
-      ← certOf_eq_image j B.m x, ← sideRej_eq_sideRejOf O populations j B x]
-  rw [hrw]
-  exact measurableSet_of_run_data_cert populations j B _ hR
-
-open scoped Classical in
-/-- **The gate does not admit a side that is a `c` fraction wrong.**  `gate_accept_sound` at
-the certification sample, which the clustering never read. -/
-theorem measureReal_gateBadAcc_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
-    (θ c β : ℝ) (hβ : 0 ≤ β) (hc : 0 ≤ c) (hsig : O.η ≤ 1 / 2)
-    (hτ : 0 ≤ θ - (1 - O.η) + c * (1 - 2 * O.η)) :
-    (runLaw μ D Dsf).real (gateBadAcc O populations j B θ c β)
-      ≤ Real.exp (-2 * (β * (B.m : ℝ))
-          * (θ - (1 - O.η) + c * (1 - 2 * O.η)) ^ 2) := by
-  classical
-  set τ : ℝ := θ - (1 - O.η) + c * (1 - 2 * O.η) with hτdef
-  set E : ℝ := Real.exp (-2 * (β * (B.m : ℝ)) * τ ^ 2) with hEdef
-  have hEnn : runLaw μ D Dsf (gateBadAcc O populations j B θ c β) ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_le D Dsf _ (measurableSet_gateBadAcc O populations j B θ c β) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
-    set Pd : Finset S := populations.biUnion
-      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
-    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
-    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
-    have hP : ∀ q ∈ Pd, q ∈ Pre := by
-      intro q hq
-      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
-      exact hdP j' hj' i
-    have hA : ∀ p ∈ Ad, p ∈ Pre := by
-      intro p hp
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hp
-      exact hdC j hj i
-    by_cases hdisj : Disjoint Pd Ad
-    · have hmain := gate_accept_sound O Ad (readSet Pd Cd ∪ readSet Ad (Cd.erase 1))
-        (disjoint_gateReads hflat Pd Cd Ad hP hA hdisj)
-        (fun ω => sideAcc O populations j B ((ω, d) : Run Ω S J))
-        (fun ω => sideAcc_subset O populations j B _)
-        (fun ω ω' h => sideAcc_congr O populations j B d h)
-        (θ) c (β * (B.m : ℝ)) (mul_nonneg hβ (Nat.cast_nonneg _)) hc hτ hsig
-      have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadAcc O populations j B θ c β}
-          ⊆ {ω : Ω | β * (B.m : ℝ)
-                ≤ ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
-              ∧ c * ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
-                  ≤ (((sideAcc O populations j B ((ω, d) : Run Ω S J)).filter
-                    (fun p => O.label p = 0)).card : ℝ)
-              ∧ ((sideAcc O populations j B ((ω, d) : Run Ω S J)).card : ℝ) * θ
-                  ≤ (((sideAcc O populations j B ((ω, d) : Run Ω S J)).filter
-                    (fun p => mq O p ω = 1)).card : ℝ)} := by
-        rintro ω ⟨-, h1, h2, h3⟩
-        exact ⟨h1, h2, h3⟩
-      refine le_trans (measure_mono hsec) ?_
-      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
-      exact ENNReal.ofReal_le_ofReal hmain
-    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadAcc O populations j B θ c β}
-          = (∅ : Set Ω) := by
-        ext ω
-        simp only [Set.mem_empty_iff_false, iff_false]
-        rintro ⟨h1, -⟩
-        exact hdisj h1
-      simp [hsec]
-  rw [measureReal_def]
-  calc (runLaw μ D Dsf (gateBadAcc O populations j B θ c β)).toReal
-      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
-    _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
 open scoped Classical in
 /-- **The gate does not admit a cut the sample shows is badly wrong.**  The run-level form
@@ -6435,70 +5473,6 @@ theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle
       simp [hsec]
   rw [measureReal_def]
   calc (runLaw μ D Dsf (gateBadAgree O populations j B θ w n₀)).toReal
-      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
-    _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
-
-open scoped Classical in
-/-- The mirror for the reject side. -/
-theorem measureReal_gateBadRej_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : Budget)
-    (θ c β : ℝ) (hβ : 0 ≤ β) (hc : 0 ≤ c) (hsig : O.η ≤ 1 / 2)
-    (hτ : 0 ≤ O.η + c * (1 - 2 * O.η) - θ) :
-    (runLaw μ D Dsf).real (gateBadRej O populations j B θ c β)
-      ≤ Real.exp (-2 * (β * (B.m : ℝ))
-          * (O.η + c * (1 - 2 * O.η) - θ) ^ 2) := by
-  classical
-  set τ : ℝ := O.η + c * (1 - 2 * O.η) - θ with hτdef
-  set E : ℝ := Real.exp (-2 * (β * (B.m : ℝ)) * τ ^ 2) with hEdef
-  have hEnn : runLaw μ D Dsf (gateBadRej O populations j B θ c β) ≤ ENNReal.ofReal E := by
-    refine runLaw_slice_le D Dsf _ (measurableSet_gateBadRej O populations j B θ c β) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
-    set Pd : Finset S := populations.biUnion
-      (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
-    set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
-    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
-    have hP : ∀ q ∈ Pd, q ∈ Pre := by
-      intro q hq
-      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
-      exact hdP j' hj' i
-    have hA : ∀ p ∈ Ad, p ∈ Pre := by
-      intro p hp
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hp
-      exact hdC j hj i
-    by_cases hdisj : Disjoint Pd Ad
-    · have hmain := gate_reject_sound O Ad (readSet Pd Cd ∪ readSet Ad (Cd.erase 1))
-        (disjoint_gateReads hflat Pd Cd Ad hP hA hdisj)
-        (fun ω => sideRej O populations j B ((ω, d) : Run Ω S J))
-        (fun ω => sideRej_subset O populations j B _)
-        (fun ω ω' h => sideRej_congr O populations j B d h)
-        (θ) c (β * (B.m : ℝ)) (mul_nonneg hβ (Nat.cast_nonneg _)) hc hτ hsig
-      have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadRej O populations j B θ c β}
-          ⊆ {ω : Ω | β * (B.m : ℝ)
-                ≤ ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
-              ∧ c * ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
-                  ≤ ∑ p ∈ sideRej O populations j B ((ω, d) : Run Ω S J), O.label p
-              ∧ (((sideRej O populations j B ((ω, d) : Run Ω S J)).filter
-                    (fun p => mq O p ω = 1)).card : ℝ)
-                  ≤ ((sideRej O populations j B ((ω, d) : Run Ω S J)).card : ℝ)
-                    * θ} := by
-        rintro ω ⟨-, h1, h2, h3⟩
-        exact ⟨h1, h2, h3⟩
-      refine le_trans (measure_mono hsec) ?_
-      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
-      exact ENNReal.ofReal_le_ofReal hmain
-    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ gateBadRej O populations j B θ c β}
-          = (∅ : Set Ω) := by
-        ext ω
-        simp only [Set.mem_empty_iff_false, iff_false]
-        rintro ⟨h1, -⟩
-        exact hdisj h1
-      simp [hsec]
-  rw [measureReal_def]
-  calc (runLaw μ D Dsf (gateBadRej O populations j B θ c β)).toReal
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
@@ -6697,20 +5671,6 @@ lemma measurableSet_indecisionCount (O : Oracle μ S) (lo ha : ℕ) (A₀ A : Fi
   noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O
     (fun p ω => ¬ decided O lo ha A₀ p ω)
     (fun p _ => measurableSet_decided' O lo ha A₀ p) (fun U => ((U.card : ℝ) ≤ r)))
-
-open scoped Classical in
-lemma measurableSet_binomSfGe_hits (O : Oracle μ S) (U : Finset S) (θ α : ℝ) :
-    MeasurableSet {ω | binomSfGe U.card θ ((U.filter (fun p => mq O p ω = 1)).card) ≤ α} :=
-  noiseAlg_le O Set.univ _
-    (measurableSet_filter_pred O (T := Set.univ) (by simp)
-      (fun V => binomSfGe U.card θ V.card ≤ α))
-
-open scoped Classical in
-lemma measurableSet_binomCdf_hits (O : Oracle μ S) (U : Finset S) (θ α : ℝ) :
-    MeasurableSet {ω | binomCdf U.card θ ((U.filter (fun p => mq O p ω = 1)).card) ≤ α} :=
-  noiseAlg_le O Set.univ _
-    (measurableSet_filter_pred O (T := Set.univ) (by simp)
-      (fun V => binomCdf U.card θ V.card ≤ α))
 
 open scoped Classical in
 /-- The gate's verdict is measurable: each side is a fibre of the votes, and the count it
@@ -7780,76 +6740,6 @@ def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) 
             ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ B
       ≤ δ / 2)
 
-lemma roundFail_collision (populations : Finset J)
-    (l lcut τ th E γscr γdirty gdirty tap ρ ρsf : ℝ) (n₀ : ℕ) (B : Budget) :
-    roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ ρsf n₀ B
-      = roundFail populations l lcut τ th E γscr γdirty gdirty tap 0 0 n₀ B
-        + (((populations.card : ℝ) + 3) * (B.m : ℝ) ^ 2 * ρ + (B.M : ℝ) ^ 2 * ρsf) := by
-  rw [roundFail, roundFail]
-  ring
-
-/-! ### The witness the schedule reaches
-
-`PassableAt` is arithmetic, and satisfiable: fix the family size first, then the pool, then
-the prefix count, each large enough for the tails at the previous one's margins.  Taking
-`k = n+1`, `M = n²` and `m = n⁵` makes every margin a fixed power of `n`, so every condition
-is *eventually* true in the single parameter `n` and one `sInf` picks it. -/
-
-/-- `m ^ d · exp (-c · m) → 0`: the tails beat the polynomial factors the union bounds
-carry. -/
-lemma tendsto_pow_mul_exp_neg_nat (d : ℕ) {c : ℝ} (hc : 0 < c) :
-    Filter.Tendsto (fun n : ℕ => ((n : ℝ) ^ d * Real.exp (-(c * (n : ℝ)))))
-      Filter.atTop (nhds 0) := by
-  have hnat : Filter.Tendsto (fun n : ℕ => c * (n : ℝ)) Filter.atTop Filter.atTop :=
-    Filter.Tendsto.const_mul_atTop hc (tendsto_natCast_atTop_atTop (R := ℝ))
-  have hmain := (Real.tendsto_pow_mul_exp_neg_atTop_nhds_zero d).comp hnat
-  have := hmain.const_mul ((c ^ d)⁻¹)
-  rw [mul_zero] at this
-  refine this.congr (fun n => ?_)
-  simp only [Function.comp_apply]
-  rw [mul_pow]
-  field_simp
-
-/-- Every polynomial factor the union bounds carry is eventually under any positive bound. -/
-lemma eventually_pow_mul_exp_le (d : ℕ) {c ε : ℝ} (hc : 0 < c) (hε : 0 < ε) :
-    ∀ᶠ n : ℕ in Filter.atTop, ((n : ℝ) ^ d * Real.exp (-(c * (n : ℝ)))) ≤ ε := by
-  have h := tendsto_pow_mul_exp_neg_nat d hc
-  have := h.eventually_le_const hε
-  exact this
-
-/-- The same with the polynomial factor read at `n+1`, which is where the budget's own
-code sits. -/
-lemma eventually_succ_pow_mul_exp_le (d : ℕ) {c ε : ℝ} (hc : 0 < c) (hε : 0 < ε) :
-    ∀ᶠ n : ℕ in Filter.atTop, (((n : ℝ) + 1) ^ d * Real.exp (-(c * (n : ℝ)))) ≤ ε := by
-  have hshift := eventually_pow_mul_exp_le d hc
-    (show (0 : ℝ) < ε * Real.exp (-c) from mul_pos hε (Real.exp_pos _))
-  filter_upwards [(Filter.tendsto_add_atTop_nat 1).eventually hshift] with n hn
-  push_cast at hn
-  rw [show -(c * ((n : ℝ) + 1)) = -(c * (n : ℝ)) + -c from by ring, Real.exp_add,
-    ← mul_assoc] at hn
-  exact le_of_mul_le_mul_right hn (Real.exp_pos _)
-
-/-- A tail at a margin shrinking like `1/(n+1)`, against a prefix count of `n⁵`: the
-exponent still grows linearly, which is all the bounds need. -/
-lemma exp_le_exp_of_margin {c : ℝ} (hc : 0 < c) {n : ℕ} (hn : 1 ≤ n) :
-    Real.exp (-2 * ((n : ℝ) ^ 5) * (c / ((n : ℝ) + 1)) ^ 2)
-      ≤ Real.exp (-((c ^ 2 / 2) * (n : ℝ))) := by
-  have hn1 : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
-  refine Real.exp_le_exp.2 ?_
-  have hkey : (c ^ 2 / 2) * (n : ℝ)
-      ≤ 2 * ((n : ℝ) ^ 5) * (c / ((n : ℝ) + 1)) ^ 2 := by
-    rw [div_pow, mul_div_assoc', le_div_iff₀ (by positivity)]
-    have hpow : (n : ℝ) ^ 3 ≤ (n : ℝ) ^ 5 := by
-      exact pow_le_pow_right₀ hn1 (by norm_num)
-    have hsq : ((n : ℝ) + 1) ^ 2 ≤ 4 * (n : ℝ) ^ 2 := by nlinarith
-    have hfac : (0 : ℝ) ≤ c ^ 2 / 2 * (n : ℝ) := by positivity
-    calc c ^ 2 / 2 * (n : ℝ) * ((n : ℝ) + 1) ^ 2
-        ≤ c ^ 2 / 2 * (n : ℝ) * (4 * (n : ℝ) ^ 2) :=
-          mul_le_mul_of_nonneg_left hsq hfac
-      _ = 2 * c ^ 2 * (n : ℝ) ^ 3 := by ring
-      _ ≤ 2 * (n : ℝ) ^ 5 * c ^ 2 := by nlinarith [sq_nonneg c]
-  linarith
-
 lemma mul_self_add_le_cube {x : ℝ} (hx : 0 ≤ x) : x * (x + 3) ≤ (x + 3) ^ 3 := by
   have h : (x + 3) ^ 3 - x * (x + 3) = x ^ 3 + 8 * x ^ 2 + 24 * x + 27 := by ring
   linarith [h, pow_nonneg hx 3, sq_nonneg x, hx]
@@ -7860,31 +6750,6 @@ lemma le_cube_of_nonneg {x : ℝ} (hx : 0 ≤ x) : x ≤ (x + 3) ^ 3 := by
 
 lemma le_mul_of_one_le_right' {x s c : ℝ} (hxs : x ≤ s) (hs : 0 ≤ s) (hc : 1 ≤ c) :
     x ≤ s * c := by nlinarith
-
-/-- The screen's margin is small — it is a flip budget spread over the family and the
-populations, times the squared signal. -/
-lemma screenMargin_le_half (O : Oracle μ S) (populations : Finset J) {εcov δ : ℝ}
-    (hsig : O.η < 1 / 2) (hη0 : 0 ≤ O.η) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
-    (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
-    screenMargin O populations εcov δ ≤ 1 / 2 := by
-  have hs : 0 < sig O := sig_pos O hsig
-  have hs2 : sig O ^ 2 ≤ 1 / 4 := by
-    rw [sig]
-    nlinarith
-  have hfam : (1 : ℝ) ≤ (famCount O populations εcov δ : ℝ) := by
-    have h1 : 1 ≤ famCount O populations εcov δ := famCount_pos O populations εcov δ
-    exact_mod_cast h1
-  have hcutle : cutBudget εcov ≤ 1 := by
-    rw [cutBudget]
-    nlinarith
-  have hflip : flipBudget O populations εcov δ ≤ 1 := by
-    rw [flipBudget]
-    rw [div_le_one (by positivity)]
-    nlinarith [cutBudget_pos hε]
-  have hflip0 : 0 ≤ flipBudget O populations εcov δ := (flipBudget_pos O populations hε
-    (by linarith)).le
-  rw [screenMargin]
-  nlinarith [pow_pos hs 2]
 
 /-- The ladder's length, as it enters the collision allowance.  Each rung carries
 `δ/(2·L)`, so the collision terms have to fit `L` times smaller. -/
