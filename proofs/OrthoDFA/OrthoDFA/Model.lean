@@ -69,17 +69,12 @@ variable {J : Type*} [Fintype J]
 One sample of the algorithm's randomness.  `runMeasure` is a concrete measure, so the
 independence the proof runs on is a lemma about it rather than a hypothesis. -/
 
-/-- Randomness associated with a run of the algorithm.
-
-The certification draws are indexed flat rather than curried like the prefix draws so that
-`iIndepFun_infinitePi` gives every certification coordinate's independence at once; one
-population's stream is then an injective reindexing of that.  The prefix draws are consumed
-one population at a time and never need it. -/
+/-- Randomness associated with a run of the algorithm. -/
 abbrev Run (Ω S J : Type*) :=
   Ω ×                       -- the oracle's persistent noise
   (((ℕ → S) ×               -- the suffix draws
     (J → ℕ → S)) ×          -- the prefix draws, one stream per population
-   (J × ℕ → S))             -- the certification draws, one flat family
+   (J × ℕ → S))             -- the certification draws, one flat family, needed because we evaluate all gates simultaneously
 
 /-- The three components jointly independent, each stream i.i.d. -/
 noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
@@ -93,17 +88,17 @@ instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D
   unfold runMeasure; infer_instance
 
 /-- The run's persistent noise. -/
-def nz (x : Run Ω S J) : Ω := x.1
+def oracleNoise (x : Run Ω S J) : Ω := x.1
 
 /-- The `i`-th suffix drawn. -/
-def sfx (i : ℕ) (x : Run Ω S J) : S := x.2.1.1 i
+def suffixDraw (i : ℕ) (x : Run Ω S J) : S := x.2.1.1 i
 
 /-- The `i`-th prefix drawn from population `j`. -/
-def prf (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.1.2 j i
+def prefixDraw (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.1.2 j i
 
 /-- The `i`-th prefix from `certification_sample`: read only by the gate, never added to
 the table. -/
-def cert (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 (j, i)
+def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 (j, i)
 
 /-! ## The loop's state
 
@@ -167,12 +162,12 @@ family's vote. -/
 promotes it to fully observed at the top of every round.  Without it `lloydStep` could never
 fire and every family would be the degenerate `{ε}`. -/
 noncomputable def poolAt (M : ℕ) (x : Run Ω S J) : Finset S :=
-  insert 1 ((Finset.range M).image (fun i => sfx i x))
+  insert 1 ((Finset.range M).image (fun i => suffixDraw i x))
 
 /-- Population `j`'s first `m` draws, as a set: the table interns prefixes, so a repeated
 draw is one column and not two. -/
 noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
-  (Finset.range m).image (fun i => prf j i x)
+  (Finset.range m).image (fun i => prefixDraw j i x)
 
 open scoped Classical in
 /-- Every population's representative prefixes, pooled. -/
@@ -188,7 +183,7 @@ measures — so with a large enough pool it can match that column exactly, at wh
 accept side is `{p | mq p = 1}`, the agreement is total, and the gate admits a family whose
 cut is the noise. -/
 noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
-  (Finset.range m).image (fun i => cert j i x)
+  (Finset.range m).image (fun i => certPrefix j i x)
 
 /-! ### Screen -/
 
@@ -209,7 +204,7 @@ open scoped Classical in
 /-- The screen at one budget state. -/
 noncomputable def screenedAt (O : Oracle μ S) (populations : Finset J) (B : Budget)
     (x : Run Ω S J) : Finset S :=
-  screened O B.sc B.scd (prefixesAt populations B.m x) (poolAt B.M x) (nz x)
+  screened O B.sc B.scd (prefixesAt populations B.m x) (poolAt B.M x) (oracleNoise x)
 
 /-! ### Vote -/
 
@@ -280,7 +275,7 @@ noncomputable def clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finse
 noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
     (x : Run Ω S J) (B : Budget) : Finset S :=
   clusterAround O B.cn B.cd (prefixesAt populations B.m x) (screenedAt O populations B x)
-    (nz x) B.k
+    (oracleNoise x) B.k
 
 /-! ### The cut -/
 
@@ -366,10 +361,10 @@ noncomputable def ret (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : Budget) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
       (((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
-          ((clusterAt O populations x B).erase 1) p (nz x))).card : ℝ)
+          ((clusterAt O populations x B).erase 1) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.m x).card)
     ∧ ∀ j ∈ populations, admitted O B.lo B.hi B.gmin εcov α
-        ((clusterAt O populations x B).erase 1) (certOf j B.m x) (nz x)}
+        ((clusterAt O populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
 
 /-! ## The budget, solved rather than searched for
 
@@ -579,6 +574,6 @@ def ClusteringCorrect : Prop :=
         x ∈ ret O populations indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt O populations x B.val) p (nz x)}}
+              (clusterAt O populations x B.val) p (oracleNoise x)}}
 
 end OrthoDFA
