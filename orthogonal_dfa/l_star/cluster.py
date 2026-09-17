@@ -228,12 +228,20 @@ def prefixes_to_certify(pst, counts, drawn, vs) -> int:
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would the
     verdict come out decided?  The first multiple that would is the answer.
+
+    Only the uniform pool is drawn from, so only its counts grow with the
+    multiple.  Scaling the rest would be asking what a draw nobody makes would
+    say.
     """
     budget = certification_budget(pst, vs)
+    empty = ((0, 0), (0, 0))
     for multiple in range(2, 2 + budget // drawn):
         supposed = {
-            label: tuple((hits * multiple, n * multiple) for hits, n in sides)
-            for label, sides in counts.items()
+            **counts,
+            UNIFORM: tuple(
+                (hits * multiple, n * multiple)
+                for hits, n in counts.get(UNIFORM, empty)
+            ),
         }
         if drift_verdict(pst, supposed) is not UNCERTIFIED:
             return drawn * (multiple - 1)

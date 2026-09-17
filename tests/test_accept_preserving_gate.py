@@ -14,6 +14,7 @@ from orthogonal_dfa.l_star.cluster import (
     DRIFTED,
     UNCERTIFIED,
     drift_verdict,
+    prefixes_to_certify,
     veto_size,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
@@ -101,3 +102,29 @@ class TestWhatAVetoCosts(unittest.TestCase):
             ADMITTED,
             "the pool still admits over a population too small to say anything",
         )
+
+
+class TestWhatTheTopUpAssumes(unittest.TestCase):
+    def test_only_the_pool_is_scaled(self):
+        # Scaling a population nobody draws from asks what a draw that is never
+        # made would say -- here, a state of six that turns into a veto at twice
+        # the size, cutting the pool's top-up to a fifth of what it needs.
+        pool = ((75, 100), (30, 100))
+        pst = SimpleNamespace(
+            accept_thresh=ACCEPT,
+            reject_thresh=REJECT,
+            table=SimpleNamespace(fully_observed=lambda: range(8)),
+            config=SimpleNamespace(num_addtl_prefixes=2000),
+        )
+
+        wanted = prefixes_to_certify(
+            pst, {UNIFORM: pool, ("state", 0): ((1, 6), (0, 0))}, 200, range(8)
+        )
+
+        self.assertEqual(
+            wanted, prefixes_to_certify(pst, {UNIFORM: pool}, 200, range(8))
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
