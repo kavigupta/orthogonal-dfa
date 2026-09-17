@@ -69,12 +69,20 @@ variable {J : Type*} [Fintype J]
 One sample of the algorithm's randomness.  `runMeasure` is a concrete measure, so the
 independence the proof runs on is a lemma about it rather than a hypothesis. -/
 
-/-- Randomness associated with a run of the algorithm. -/
+/-- Randomness associated with a run of the algorithm.
+
+The certification draws are indexed flat, unlike the prefix draws, because
+`iIndepFun_infinitePi` gives every coordinate of an `infinitePi` independent directly and
+`iIndepFun.precomp` then restricts that to one population by reindexing.  Curried, the
+independence would have to be transported through the `Measure.pi`-of-`infinitePi`
+projection, and Mathlib has no lemma pulling independence back along a measure-preserving
+map — only `precomp`, which reindexes.  Nothing here needs the populations' certification
+draws to be *jointly* independent; the gates are combined by a union bound. -/
 abbrev Run (Ω S J : Type*) :=
   Ω ×                       -- the oracle's persistent noise
   (((ℕ → S) ×               -- the suffix draws
     (J → ℕ → S)) ×          -- the prefix draws, one stream per population
-   (J × ℕ → S))             -- the certification draws, one flat family, needed because we evaluate all gates simultaneously
+   (J × ℕ → S))             -- the certification draws, one flat family
 
 /-- The three components jointly independent, each stream i.i.d. -/
 noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
