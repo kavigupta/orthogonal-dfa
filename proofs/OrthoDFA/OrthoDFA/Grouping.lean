@@ -134,4 +134,26 @@ theorem iIndepFun_blocks {X : κ → Ω → ℝ} (hX : ∀ w, Measurable (X w))
   refine iIndep_of_iIndep_of_le hgroup (fun i => ?_)
   exact (hgmeas i).comap_le
 
+/-- Independence pulls back along a measure-preserving map.  Mathlib has `iIndepFun.precomp`,
+which reindexes the family, but nothing that moves independence between spaces; this is what
+lets a family read off a projection of a product inherit the product's independence. -/
+lemma iIndepFun_comp_measurePreserving {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    {ν : Measure α} {κ' : Measure β} {f : α → β} (hf : MeasurePreserving f ν κ')
+    {ι' : Type*} {γ : ι' → Type*} [mγ : ∀ i, MeasurableSpace (γ i)] {Y : ∀ i, β → γ i}
+    (hY : ∀ i, Measurable (Y i)) (h : iIndepFun Y κ') :
+    iIndepFun (fun i a => Y i (f a)) ν := by
+  rw [iIndepFun_iff_measure_inter_preimage_eq_mul]
+  intro T sets hsets
+  have hone : ∀ i ∈ T, MeasurableSet (Y i ⁻¹' sets i) := fun i hi => (hY i) (hsets i hi)
+  have hinter : MeasurableSet (⋂ i ∈ T, Y i ⁻¹' sets i) :=
+    MeasurableSet.biInter T.countable_toSet hone
+  have hswap : (⋂ i ∈ T, (fun a => Y i (f a)) ⁻¹' sets i)
+      = f ⁻¹' (⋂ i ∈ T, Y i ⁻¹' sets i) := by
+    simp only [Set.preimage_iInter]; rfl
+  rw [hswap, hf.measure_preimage hinter.nullMeasurableSet,
+    (iIndepFun_iff_measure_inter_preimage_eq_mul.1 h) T hsets]
+  exact Finset.prod_congr rfl (fun i hi =>
+    (hf.measure_preimage (hone i hi).nullMeasurableSet).symm)
+
+
 end OrthoDFA

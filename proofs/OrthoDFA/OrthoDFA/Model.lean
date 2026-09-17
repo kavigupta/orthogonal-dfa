@@ -69,27 +69,19 @@ variable {J : Type*} [Fintype J]
 One sample of the algorithm's randomness.  `runMeasure` is a concrete measure, so the
 independence the proof runs on is a lemma about it rather than a hypothesis. -/
 
-/-- Randomness associated with a run of the algorithm.
-
-The certification draws are indexed flat, unlike the prefix draws, because
-`iIndepFun_infinitePi` gives every coordinate of an `infinitePi` independent directly and
-`iIndepFun.precomp` then restricts that to one population by reindexing.  Curried, the
-independence would have to be transported through the `Measure.pi`-of-`infinitePi`
-projection, and Mathlib has no lemma pulling independence back along a measure-preserving
-map — only `precomp`, which reindexes.  Nothing here needs the populations' certification
-draws to be *jointly* independent; the gates are combined by a union bound. -/
+/-- Randomness associated with a run of the algorithm. -/
 abbrev Run (Ω S J : Type*) :=
   Ω ×                       -- the oracle's persistent noise
   (((ℕ → S) ×               -- the suffix draws
     (J → ℕ → S)) ×          -- the prefix draws, one stream per population
-   (J × ℕ → S))             -- the certification draws, one flat family
+   (J → ℕ → S))             -- the certification draws, one stream per population
 
 /-- The three components jointly independent, each stream i.i.d. -/
 noncomputable def runMeasure (μ : Measure Ω) (D : J → Measure S) (Dsf : Measure S) :
     Measure (Run Ω S J) :=
   μ.prod ((((Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
-    (Measure.infinitePi fun z : J × ℕ => D z.1))
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runMeasure μ D Dsf) := by
@@ -106,7 +98,7 @@ def prefixDraw (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.1.2 j i
 
 /-- The `i`-th prefix from `certification_sample`: read only by the gate, never added to
 the table. -/
-def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 (j, i)
+def certPrefix (j : J) (i : ℕ) (x : Run Ω S J) : S := x.2.2 j i
 
 /-! ## The loop's state
 

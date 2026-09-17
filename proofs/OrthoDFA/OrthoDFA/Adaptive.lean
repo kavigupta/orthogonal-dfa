@@ -156,7 +156,7 @@ def draws (x : Run Ω S J) : (ℕ → S) × (J → ℕ → S) := x.2.1
 def prefixStreams (x : Run Ω S J) : J → ℕ → S := x.2.1.2
 
 /-- The certification stream. -/
-def certStream (x : Run Ω S J) : J × ℕ → S := x.2.2
+def certStream (x : Run Ω S J) : J → ℕ → S := x.2.2
 
 @[fun_prop]
 lemma measurable_draws : Measurable (draws : Run Ω S J → (ℕ → S) × (J → ℕ → S)) :=
@@ -167,7 +167,7 @@ lemma measurable_prfs : Measurable (prefixStreams : Run Ω S J → J → ℕ →
   measurable_snd.comp (measurable_fst.comp measurable_snd)
 
 @[fun_prop]
-lemma measurable_certs : Measurable (certStream : Run Ω S J → J × ℕ → S) :=
+lemma measurable_certs : Measurable (certStream : Run Ω S J → J → ℕ → S) :=
   measurable_snd.comp measurable_snd
 
 lemma measurable_nz : Measurable (oracleNoise : Run Ω S J → Ω) := measurable_fst
@@ -645,7 +645,7 @@ lemma screenCount_congr (O : Oracle μ S) {P cands : Finset S} (hone : (1 : S) �
   exact not_congr (iff_congr h1 h0)
 
 lemma screenedAt_congr (O : Oracle μ S) (populations : Finset J) (B : Budget)
-    (d : ((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)) {ω ω' : Ω}
+    (d : ((ℕ → S) × (J → ℕ → S)) × (J → ℕ → S)) {ω ω' : Ω}
     (h : ∀ w ∈ readSet (prefixesAt populations B.m ((ω, d) : Run Ω S J))
       (poolAt B.M ((ω, d) : Run Ω S J)), (mq O w ω = 1 ↔ mq O w ω' = 1)) :
     screenedAt O populations B (ω, d) = screenedAt O populations B (ω', d) := by
@@ -691,7 +691,7 @@ lemma clusterAt_subset (O : Oracle μ S) (populations : Finset J) (B : Budget)
 /-- The family is decided by the bits on `readSet` — the screen's reads and the
 clustering's alike. -/
 lemma clusterAt_congr (O : Oracle μ S) (populations : Finset J) (B : Budget)
-    (d : ((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)) {ω ω' : Ω}
+    (d : ((ℕ → S) × (J → ℕ → S)) × (J → ℕ → S)) {ω ω' : Ω}
     (h : ∀ w ∈ readSet (prefixesAt populations B.m ((ω, d) : Run Ω S J))
       (poolAt B.M ((ω, d) : Run Ω S J)), O.noise w ω = O.noise w ω') :
     clusterAt O populations (ω, d) B = clusterAt O populations (ω', d) B := by
@@ -1197,36 +1197,39 @@ the gate a factor of four in the drift it must see and sixteen in the prefixes t
 lemma cert_hits_wrongSet (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (j : J) (m : ℕ) (W : Set S) (εcov t : ℝ) (hεcov : 0 ≤ εcov) (ht : 0 ≤ t)
     (hW : εcov ≤ (D j).real W) :
-    (Measure.infinitePi fun z : J × ℕ => D z.1).real
-        {c | (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ)
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j).real
+        {c | (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ)
           ≤ (m : ℝ) * (εcov - t)}
       ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
   classical
-  set ν : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνdef
+  set ν : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j with hνdef
   have hWm : MeasurableSet W := measurableSet_of_countable W
   set ind : S → ℝ := W.indicator 1 with hinddef
   have hindm : Measurable ind := measurable_const.indicator hWm
-  set X : ℕ → (J × ℕ → S) → ℝ := fun i c => ind (c (j, i)) with hXdef
-  have hcoord : iIndepFun (fun (z : J × ℕ) (c : J × ℕ → S) => c z) ν :=
-    iIndepFun_infinitePi (fun _ => measurable_id)
-  have hinj : Function.Injective (fun i : ℕ => (j, i)) := fun a b hab => (Prod.mk.inj hab).2
+  set X : ℕ → (J → ℕ → S) → ℝ := fun i c => ind (c j i) with hXdef
+  have hevalj : MeasurePreserving (fun c : J → ℕ → S => c j) ν
+      (Measure.infinitePi fun _ : ℕ => D j) :=
+    measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j
+  have hcoord : iIndepFun (fun (i : ℕ) (s : ℕ → S) => s i)
+      (Measure.infinitePi fun _ : ℕ => D j) := iIndepFun_infinitePi (fun _ => measurable_id)
   have hindep : iIndepFun X ν :=
-    (hcoord.precomp hinj).comp (fun _ => ind) (fun _ => hindm)
+    (iIndepFun_comp_measurePreserving hevalj (fun _ => measurable_pi_apply _) hcoord).comp
+      (fun _ => ind) (fun _ => hindm)
   have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
-    (hindm.comp (measurable_pi_apply _)).aemeasurable
+    (hindm.comp ((measurable_pi_apply _).comp (measurable_pi_apply _))).aemeasurable
   have hicc : ∀ i, ∀ᵐ c ∂ν, X i c ∈ Set.Icc (0 : ℝ) 1 := by
     intro i
     filter_upwards with c
-    by_cases h : c (j, i) ∈ W
+    by_cases h : c j i ∈ W
     · simp [hXdef, hinddef, Set.indicator_of_mem h]
     · simp [hXdef, hinddef, Set.indicator_of_notMem h]
   have hmean : ∀ i, ν[X i] = (D j).real W := by
     intro i
-    have hmp : MeasurePreserving (fun c : J × ℕ → S => c (j, i)) ν (D j) :=
-      measurePreserving_eval_infinitePi _ (j, i)
+    have hmp : MeasurePreserving (fun c : J → ℕ → S => c j i) ν (D j) :=
+      (measurePreserving_eval_infinitePi _ i).comp hevalj
     calc ν[X i] = ∫ s, ind s ∂(D j) := by
           rw [← hmp.map_eq,
-            integral_map (measurable_pi_apply _).aemeasurable hindm.aestronglyMeasurable]
+            integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
       _ = (D j).real W := by rw [hinddef, integral_indicator_one hWm]
   have hsum : ((Finset.range m).card : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, ν[X i] := by
     rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
@@ -1234,17 +1237,17 @@ lemma cert_hits_wrongSet (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j
     have : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
     nlinarith [hW]
   have hmain := sumLower_le X (Finset.range m) εcov t hmeas hindep hicc hsum ht
-  have hcount : ∀ c : J × ℕ → S, ∑ i ∈ Finset.range m, X i c
-      = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
+  have hcount : ∀ c : J → ℕ → S, ∑ i ∈ Finset.range m, X i c
+      = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
     intro c
-    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c (j, i) ∈ W)]
-    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c
-        = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
-      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c = (1 : ℝ) := by
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c j i ∈ W)]
+    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c
+        = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c = (1 : ℝ) := by
         intro i hi
         simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
       rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
-    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c (j, i) ∈ W)), X i c = 0 :=
+    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c j i ∈ W)), X i c = 0 :=
       Finset.sum_eq_zero (fun i hi => by
         simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
     rw [h1, h0, add_zero]
@@ -1262,36 +1265,39 @@ by the noise while the draws are not. -/
 lemma cert_hits_upper (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (j : J) (m : ℕ) (W : Set S) (q t : ℝ) (ht : 0 ≤ t)
     (hW : (D j).real W ≤ q) :
-    (Measure.infinitePi fun z : J × ℕ => D z.1).real
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j).real
         {c | (m : ℝ) * (q + t)
-          ≤ (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ)}
+          ≤ (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ)}
       ≤ Real.exp (-2 * (m : ℝ) * t ^ 2) := by
   classical
-  set ν : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνdef
+  set ν : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j with hνdef
   have hWm : MeasurableSet W := measurableSet_of_countable W
   set ind : S → ℝ := W.indicator 1 with hinddef
   have hindm : Measurable ind := measurable_const.indicator hWm
-  set X : ℕ → (J × ℕ → S) → ℝ := fun i c => ind (c (j, i)) with hXdef
-  have hcoord : iIndepFun (fun (z : J × ℕ) (c : J × ℕ → S) => c z) ν :=
-    iIndepFun_infinitePi (fun _ => measurable_id)
-  have hinj : Function.Injective (fun i : ℕ => (j, i)) := fun a b hab => (Prod.mk.inj hab).2
+  set X : ℕ → (J → ℕ → S) → ℝ := fun i c => ind (c j i) with hXdef
+  have hevalj : MeasurePreserving (fun c : J → ℕ → S => c j) ν
+      (Measure.infinitePi fun _ : ℕ => D j) :=
+    measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j
+  have hcoord : iIndepFun (fun (i : ℕ) (s : ℕ → S) => s i)
+      (Measure.infinitePi fun _ : ℕ => D j) := iIndepFun_infinitePi (fun _ => measurable_id)
   have hindep : iIndepFun X ν :=
-    (hcoord.precomp hinj).comp (fun _ => ind) (fun _ => hindm)
+    (iIndepFun_comp_measurePreserving hevalj (fun _ => measurable_pi_apply _) hcoord).comp
+      (fun _ => ind) (fun _ => hindm)
   have hmeas : ∀ i, AEMeasurable (X i) ν := fun i =>
-    (hindm.comp (measurable_pi_apply _)).aemeasurable
+    (hindm.comp ((measurable_pi_apply _).comp (measurable_pi_apply _))).aemeasurable
   have hicc : ∀ i, ∀ᵐ c ∂ν, X i c ∈ Set.Icc (0 : ℝ) 1 := by
     intro i
     filter_upwards with c
-    by_cases h : c (j, i) ∈ W
+    by_cases h : c j i ∈ W
     · simp [hXdef, hinddef, Set.indicator_of_mem h]
     · simp [hXdef, hinddef, Set.indicator_of_notMem h]
   have hmean : ∀ i, ν[X i] = (D j).real W := by
     intro i
-    have hmp : MeasurePreserving (fun c : J × ℕ → S => c (j, i)) ν (D j) :=
-      measurePreserving_eval_infinitePi _ (j, i)
+    have hmp : MeasurePreserving (fun c : J → ℕ → S => c j i) ν (D j) :=
+      (measurePreserving_eval_infinitePi _ i).comp hevalj
     calc ν[X i] = ∫ s, ind s ∂(D j) := by
           rw [← hmp.map_eq,
-            integral_map (measurable_pi_apply _).aemeasurable hindm.aestronglyMeasurable]
+            integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
       _ = (D j).real W := by rw [hinddef, integral_indicator_one hWm]
   have hsum : ∑ i ∈ Finset.range m, ν[X i] ≤ ((Finset.range m).card : ℝ) * q := by
     rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul,
@@ -1299,17 +1305,17 @@ lemma cert_hits_upper (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     have : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
     nlinarith [hW]
   have hmain := sumUpper_le X (Finset.range m) q t hmeas hindep hicc hsum ht
-  have hcount : ∀ c : J × ℕ → S, ∑ i ∈ Finset.range m, X i c
-      = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
+  have hcount : ∀ c : J → ℕ → S, ∑ i ∈ Finset.range m, X i c
+      = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
     intro c
-    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c (j, i) ∈ W)]
-    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c
-        = (((Finset.range m).filter (fun i => c (j, i) ∈ W)).card : ℝ) := by
-      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c (j, i) ∈ W), X i c = (1 : ℝ) := by
+    rw [← Finset.sum_filter_add_sum_filter_not (Finset.range m) (fun i => c j i ∈ W)]
+    have h1 : ∑ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c
+        = (((Finset.range m).filter (fun i => c j i ∈ W)).card : ℝ) := by
+      have hone : ∀ i ∈ (Finset.range m).filter (fun i => c j i ∈ W), X i c = (1 : ℝ) := by
         intro i hi
         simp [hXdef, hinddef, Set.indicator_of_mem (Finset.mem_filter.1 hi).2]
       rw [Finset.sum_congr rfl hone, Finset.sum_const, nsmul_eq_mul, mul_one]
-    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c (j, i) ∈ W)), X i c = 0 :=
+    have h0 : ∑ i ∈ (Finset.range m).filter (fun i => ¬ (c j i ∈ W)), X i c = 0 :=
       Finset.sum_eq_zero (fun i hi => by
         simp [hXdef, hinddef, Set.indicator_of_notMem (Finset.mem_filter.1 hi).2])
     rw [h1, h0, add_zero]
@@ -2769,10 +2775,10 @@ lemma measurable_badMass (Dj : Measure S) (Bad : S → Set Ω)
 
 /-- The law of the draws alone. -/
 noncomputable def drawMeasure (D : J → Measure S) (Dsf : Measure S) :
-    Measure ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) :=
+    Measure ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) :=
   (((Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j))).prod
-    (Measure.infinitePi fun z : J × ℕ => D z.1)
+    (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)
 
 instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (drawMeasure D Dsf) := by
@@ -2784,9 +2790,9 @@ lemma runMeasure_eq_prod (D : J → Measure S) (Dsf : Measure S) :
 /-- One table coordinate has the population's own law. -/
 lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
-    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.2 j i)
         (drawMeasure D Dsf) = D j := by
-  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i)
+  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.2 j i)
       = (fun p : ℕ → S => p i) ∘ ((fun q : J → ℕ → S => q j) ∘ (Prod.snd ∘ Prod.fst)) := rfl
   rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop),
     ← Measure.map_map (by fun_prop) (by fun_prop),
@@ -2817,9 +2823,9 @@ lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
     rintro ⟨j, i⟩
     by_cases hj : j ∈ populations
     · have hz : drawMeasure D Dsf {d | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)} = 0 := by
-        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
+        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S))
             | ¬ (j ∈ populations → d.1.2 j i ∈ Pre)}
-            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.1.2 j i) ⁻¹' Preᶜ := by
+            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.2 j i) ⁻¹' Preᶜ := by
           ext d; simp [hj]
         rw [hset, ← Measure.map_apply (by fun_prop) hmeasPre, map_drawCoord D Dsf j i]
         exact hsupp j hj
@@ -2836,20 +2842,20 @@ lemma runMeasure_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
     (h : ∀ y : Ω × ((ℕ → S) × (J → ℕ → S)),
-      (Measure.infinitePi fun z : J × ℕ => D z.1)
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)
         {c | ((y.1, (y.2, c)) : Run Ω S J) ∈ A} ≤ E) :
     runMeasure μ D Dsf A ≤ E := by
   set νsq : Measure ((ℕ → S) × (J → ℕ → S)) :=
     (Measure.infinitePi fun _ : ℕ => Dsf).prod
       (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) with hνsq
-  set νc : Measure (J × ℕ → S) := Measure.infinitePi fun z : J × ℕ => D z.1 with hνc
+  set νc : Measure (J → ℕ → S) := Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j with hνc
   have hmap : Measure.map (MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
-      × (J × ℕ → S) ≃ᵐ Ω × (((ℕ → S) × (J → ℕ → S)) × (J × ℕ → S)))
+      × (J → ℕ → S) ≃ᵐ Ω × (((ℕ → S) × (J → ℕ → S)) × (J → ℕ → S)))
       ((μ.prod νsq).prod νc) = runMeasure μ D Dsf :=
     (measurePreserving_prodAssoc μ νsq νc).map_eq
   have hpre : runMeasure μ D Dsf A = ((μ.prod νsq).prod νc)
       ((MeasurableEquiv.prodAssoc : (Ω × ((ℕ → S) × (J → ℕ → S)))
-        × (J × ℕ → S) ≃ᵐ Run Ω S J) ⁻¹' A) := by
+        × (J → ℕ → S) ≃ᵐ Run Ω S J) ⁻¹' A) := by
     rw [← hmap, Measure.map_apply (MeasurableEquiv.prodAssoc).measurable hA]
   rw [hpre, Measure.prod_apply ((MeasurableEquiv.prodAssoc).measurable hA)]
   calc ∫⁻ y, νc (Prod.mk y ⁻¹' (MeasurableEquiv.prodAssoc ⁻¹' A)) ∂(μ.prod νsq)
@@ -2860,7 +2866,7 @@ lemma runMeasure_slice_cert_le (D : J → Measure S) (Dsf : Measure S)
 lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] :
     Measure.map (certStream : Run Ω S J → _) (runMeasure μ D Dsf)
-      = Measure.infinitePi fun z : J × ℕ => D z.1 := by
+      = Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j := by
   rw [show (certStream : Run Ω S J → _) = Prod.snd ∘ Prod.snd from rfl,
     ← Measure.map_map measurable_snd measurable_snd, runMeasure, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
@@ -2870,29 +2876,30 @@ lemma map_certStream (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabili
 /-- One certification coordinate has the population's own law. -/
 lemma map_certCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (j : J) (i : ℕ) :
-    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.2 j i)
         (drawMeasure D Dsf) = D j := by
-  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i))
-      = (fun c : J × ℕ → S => c (j, i)) ∘ Prod.snd := rfl
+  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.2 j i)
+      = (fun c : J → ℕ → S => c j i) ∘ Prod.snd := rfl
   rw [hstep, ← Measure.map_map (by fun_prop) measurable_snd, drawMeasure, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
-  exact (measurePreserving_eval_infinitePi (fun z : J × ℕ => D z.1) (j, i)).map_eq
+  exact ((measurePreserving_eval_infinitePi (fun _ : ℕ => D j) i).comp
+    (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j)).map_eq
 
 /-- The certification prefixes land in the flat set too, for the same reason the table's
 do. -/
 lemma ae_cert_mem_Pre (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Pre : Set S)
     (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) :
-    ∀ᵐ d ∂(drawMeasure D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.2 (j, i) ∈ Pre := by
+    ∀ᵐ d ∂(drawMeasure D Dsf), ∀ j ∈ populations, ∀ i : ℕ, d.2 j i ∈ Pre := by
   have hmeasPre : MeasurableSet (Preᶜ : Set S) := (Set.to_countable _).measurableSet
   have hcoord : ∀ z : J × ℕ, ∀ᵐ d ∂(drawMeasure D Dsf),
-      z.1 ∈ populations → d.2 (z.1, z.2) ∈ Pre := by
+      z.1 ∈ populations → d.2 z.1 z.2 ∈ Pre := by
     rintro ⟨j, i⟩
     by_cases hj : j ∈ populations
-    · have hz : drawMeasure D Dsf {d | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)} = 0 := by
-        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S))
-            | ¬ (j ∈ populations → d.2 (j, i) ∈ Pre)}
-            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => d.2 (j, i)) ⁻¹' Preᶜ := by
+    · have hz : drawMeasure D Dsf {d | ¬ (j ∈ populations → d.2 j i ∈ Pre)} = 0 := by
+        have hset : {d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S))
+            | ¬ (j ∈ populations → d.2 j i ∈ Pre)}
+            = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.2 j i) ⁻¹' Preᶜ := by
           ext d; simp [hj]
         rw [hset, ← Measure.map_apply (by fun_prop) hmeasPre, map_certCoord D Dsf j i]
         exact hsupp j hj
@@ -2908,40 +2915,40 @@ lemma map_certBlock (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
     Measure.map (fun x : Run Ω S J => (fun i : Fin m => certPrefix j i.val x)) (runMeasure μ D Dsf)
       = Measure.pi (fun _ : Fin m => D j) := by
   have hstep : (fun x : Run Ω S J => (fun i : Fin m => certPrefix j i.val x))
-      = (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val)))
-        ∘ (certStream : Run Ω S J → _) := rfl
-  rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop), map_certStream D Dsf]
+      = (fun s : ℕ → S => (fun i : Fin m => s i.val))
+        ∘ ((fun c : J → ℕ → S => c j) ∘ (certStream : Run Ω S J → _)) := rfl
+  rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop),
+    ← Measure.map_map (by fun_prop) (by fun_prop), map_certStream D Dsf,
+    (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j).map_eq]
   refine (Measure.pi_eq (μ := fun _ : Fin m => D j) fun t ht => ?_).symm
-  have hpre : (fun c : J × ℕ → S => (fun i : Fin m => c (j, i.val))) ⁻¹' Set.univ.pi t
-      = Set.pi ↑((Finset.range m).image (fun i => (j, i)))
-        (fun z => if h : z.2 < m then t ⟨z.2, h⟩ else Set.univ) := by
-    ext c
-    simp only [Set.mem_preimage, Set.mem_pi, Set.mem_univ, forall_const, Finset.coe_image,
-      Finset.coe_range, Set.mem_image, Set.mem_Iio]
+  have hpre : (fun s : ℕ → S => (fun i : Fin m => s i.val)) ⁻¹' Set.univ.pi t
+      = Set.pi ↑(Finset.range m) (fun i => if h : i < m then t ⟨i, h⟩ else Set.univ) := by
+    ext s
+    simp only [Set.mem_preimage, Set.mem_pi, Set.mem_univ, forall_const, Finset.coe_range,
+      Set.mem_Iio]
     constructor
-    · rintro h z ⟨a, ha, rfl⟩
-      rw [dif_pos ha]
-      exact h ⟨a, ha⟩
+    · intro h i hi
+      rw [dif_pos hi]
+      exact h ⟨i, hi⟩
     · intro h i
-      have := h (j, i.val) ⟨i.val, i.isLt, rfl⟩
+      have := h i.val i.isLt
       simpa [dif_pos i.isLt] using this
-  rw [Measure.map_apply (by fun_prop) (MeasurableSet.univ_pi ht), hpre,
-    Measure.infinitePi_pi]
-  · rw [Finset.prod_image (fun a _ b _ h => (Prod.mk.inj h).2), ← Fin.prod_univ_eq_prod_range]
+  rw [Measure.map_apply (by fun_prop) (MeasurableSet.univ_pi ht), hpre, Measure.infinitePi_pi]
+  · rw [← Fin.prod_univ_eq_prod_range]
     exact Finset.prod_congr rfl fun i _ => by simp [dif_pos i.isLt]
-  · intro z _
+  · intro i _
     split_ifs with h
-    exacts [ht ⟨z.2, h⟩, .univ]
+    exacts [ht ⟨i, h⟩, .univ]
 
 /-- A table prefix and a certification prefix are drawn from independent streams, so their
 joint law is the product — which is what lets `cross_collision_le` price a collision between
 the two. -/
 lemma map_prefCertPair (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (j' j : J) (i i' : ℕ) :
-    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => (d.1.2 j' i, d.2 j i'))
         (drawMeasure D Dsf) = (D j').prod (D j) := by
   have hf : Measurable (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i) := by fun_prop
-  have hg : Measurable (fun c : J × ℕ → S => c (j, i')) := by fun_prop
+  have hg : Measurable (fun c : J → ℕ → S => c j i') := by fun_prop
   have hmapf : Measure.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
       ((Measure.infinitePi fun _ : ℕ => Dsf).prod
         (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j)) = D j' := by
@@ -2954,12 +2961,13 @@ lemma map_prefCertPair (D : J → Measure S) (Dsf : Measure S)
       ← Measure.map_map (by fun_prop) (by fun_prop),
       (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j').map_eq,
       (measurePreserving_eval_infinitePi (fun _ : ℕ => D j') i).map_eq]
-  have hmapg : Measure.map (fun c : J × ℕ → S => c (j, i'))
-      (Measure.infinitePi fun z : J × ℕ => D z.1) = D j :=
-    (measurePreserving_eval_infinitePi (fun z : J × ℕ => D z.1) (j, i')).map_eq
-  rw [show (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+  have hmapg : Measure.map (fun c : J → ℕ → S => c j i')
+      (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) = D j :=
+    ((measurePreserving_eval_infinitePi (fun _ : ℕ => D j) i').comp
+      (measurePreserving_eval (fun j : J => Measure.infinitePi fun _ : ℕ => D j) j)).map_eq
+  rw [show (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => (d.1.2 j' i, d.2 j i'))
       = Prod.map (fun y : (ℕ → S) × (J → ℕ → S) => y.2 j' i)
-        (fun c : J × ℕ → S => c (j, i')) from rfl,
+        (fun c : J → ℕ → S => c j i') from rfl,
     drawMeasure, ← Measure.map_prod_map _ _ hf hg, hmapf, hmapg]
 
 /-! ### Unioning over a drawn pool
@@ -3463,7 +3471,7 @@ lemma map_prefCertPairRun (D : J → Measure S) (Dsf : Measure S)
     Measure.map (fun x : Run Ω S J => (prefixDraw j' i x, certPrefix j i' x)) (runMeasure μ D Dsf)
       = (D j').prod (D j) := by
   rw [show (fun x : Run Ω S J => (prefixDraw j' i x, certPrefix j i' x))
-      = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J × ℕ → S)) => (d.1.2 j' i, d.2 (j, i')))
+      = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => (d.1.2 j' i, d.2 j i'))
         ∘ Prod.snd from rfl,
     ← Measure.map_map (by fun_prop) measurable_snd, runMeasure_eq_prod, Measure.map_snd_prod]
   simp only [measure_univ, one_smul]
@@ -4010,7 +4018,7 @@ lemma pi_hits_lower (Dsf : Measure S) [IsProbabilityMeasure Dsf] (M : ℕ) (W : 
       measurePreserving_eval (fun _ : Fin M => Dsf) i
     calc ν[X i] = ∫ s, ind s ∂Dsf := by
           rw [← hmp.map_eq,
-            integral_map (measurable_pi_apply _).aemeasurable hindm.aestronglyMeasurable]
+            integral_map hmp.measurable.aemeasurable hindm.aestronglyMeasurable]
       _ = Dsf.real W := by rw [hinddef, integral_indicator_one hWm]
   have hsum : ((Finset.univ : Finset (Fin M)).card : ℝ) * q ≤ ∑ i, ν[X i] := by
     rw [Finset.sum_congr rfl (fun i _ => hmean i), Finset.sum_const, nsmul_eq_mul]
@@ -4817,7 +4825,7 @@ theorem measureReal_gateBadAgree_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
-    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
+    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 j i) with hAd
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
       obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
@@ -4883,20 +4891,20 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
     refine runMeasure_slice_cert_le D Dsf _
       (measurableSet_hitShort O populations (D j) j B εcov t) _ ?_
     intro y
-    set F : Finset S := clusterAt O populations ((y.1, (y.2, fun _ => (1 : S))) : Run Ω S J) B
+    set F : Finset S := clusterAt O populations ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J) B
       with hF
     set W : Set S := {p | ¬ cutCorrect O B.lo B.hi F p y.1} with hW
-    have hFeq : ∀ c : J × ℕ → S,
+    have hFeq : ∀ c : J → ℕ → S,
         clusterAt O populations ((y.1, (y.2, c)) : Run Ω S J) B = F := fun c => rfl
     by_cases hmass : εcov ≤ (D j).real W
-    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
             ∈ hitShort O populations (D j) j B εcov t}
-          ⊆ {c | (((Finset.range B.m).filter (fun i => c (j, i) ∈ W)).card : ℝ)
+          ⊆ {c | (((Finset.range B.m).filter (fun i => c j i ∈ W)).card : ℝ)
             ≤ (B.m : ℝ) * (εcov - t)} := by
         rintro c ⟨hinj, -, hcount⟩
-        show (((Finset.range B.m).filter (fun i => c (j, i) ∈ W)).card : ℝ)
+        show (((Finset.range B.m).filter (fun i => c j i ∈ W)).card : ℝ)
           ≤ (B.m : ℝ) * (εcov - t)
-        calc (((Finset.range B.m).filter (fun i => c (j, i) ∈ W)).card : ℝ)
+        calc (((Finset.range B.m).filter (fun i => c j i ∈ W)).card : ℝ)
             = (((certOf j B.m ((y.1, (y.2, c)) : Run Ω S J)).filter
                 (fun p => ¬ cutCorrect O B.lo B.hi F p y.1)).card : ℝ) :=
               congrArg (fun n : ℕ => (n : ℝ)) (card_filter_certOf j B.m
@@ -4904,7 +4912,7 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
                 (fun p => ¬ cutCorrect O B.lo B.hi F p y.1) _ _ hinj)
           _ ≤ (B.m : ℝ) * (εcov - t) := hcount
       refine le_trans (measure_mono hsec) ?_
-      rw [← ENNReal.ofReal_toReal (measure_ne_top (Measure.infinitePi fun z : J × ℕ => D z.1) _),
+      rw [← ENNReal.ofReal_toReal (measure_ne_top (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _),
         ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
       rw [hEdef]
@@ -4912,8 +4920,8 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
       convert hcert using 3
       funext c
       congr!
-    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-          ∈ hitShort O populations (D j) j B εcov t} = (∅ : Set (J × ℕ → S)) := by
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+          ∈ hitShort O populations (D j) j B εcov t} = (∅ : Set (J → ℕ → S)) := by
         ext c
         simp only [Set.mem_empty_iff_false, iff_false]
         rintro ⟨-, hm, -⟩
@@ -5018,29 +5026,29 @@ theorem measureReal_heavyHits_le (D : J → Measure S) (Dsf : Measure S)
       (measurableSet_heavyHits O populations (D j) j B f q t) _ ?_
     intro y
     set F : Finset S :=
-      (clusterAt O populations ((y.1, (y.2, fun _ => (1 : S))) : Run Ω S J) B).erase 1 with hF
+      (clusterAt O populations ((y.1, (y.2, fun _ _ => (1 : S))) : Run Ω S J) B).erase 1 with hF
     set W : Set S := {p | ¬ (flipCount O F p ≤ (F.card : ℝ) * f)} with hW
-    have hFeq : ∀ c : J × ℕ → S,
+    have hFeq : ∀ c : J → ℕ → S,
         (clusterAt O populations ((y.1, (y.2, c)) : Run Ω S J) B).erase 1 = F := fun c => rfl
     by_cases hmass : (D j).real W ≤ q
-    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
             ∈ heavyHits O populations (D j) j B f q t}
           ⊆ {c | (B.m : ℝ) * (q + t)
-            ≤ (((Finset.range B.m).filter (fun i => c (j, i) ∈ W)).card : ℝ)} := by
+            ≤ (((Finset.range B.m).filter (fun i => c j i ∈ W)).card : ℝ)} := by
         rintro c ⟨-, hcount⟩
         refine le_trans hcount ?_
         exact_mod_cast card_filter_certOf_le j B.m ((y.1, (y.2, c)) : Run Ω S J)
           (fun p => p ∈ W) _ _
       refine le_trans (measure_mono hsec) ?_
-      rw [← ENNReal.ofReal_toReal (measure_ne_top (Measure.infinitePi fun z : J × ℕ => D z.1) _),
+      rw [← ENNReal.ofReal_toReal (measure_ne_top (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _),
         ← measureReal_def]
       refine ENNReal.ofReal_le_ofReal ?_
       have hcert := cert_hits_upper D j B.m W q t ht hmass
       convert hcert using 3
       funext c
       congr!
-    · have hsec : {c : J × ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
-          ∈ heavyHits O populations (D j) j B f q t} = (∅ : Set (J × ℕ → S)) := by
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J)
+          ∈ heavyHits O populations (D j) j B f q t} = (∅ : Set (J → ℕ → S)) := by
         ext c
         simp only [Set.mem_empty_iff_false, iff_false]
         rintro ⟨hm, -⟩
@@ -5350,7 +5358,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.m).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.M).image (fun i => d.1.1 i)) with hCd
-    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 (j, i)) with hAd
+    set Ad : Finset S := (Finset.range B.m).image (fun i => d.2 j i) with hAd
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
       obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
