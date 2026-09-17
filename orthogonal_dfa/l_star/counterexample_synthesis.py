@@ -251,7 +251,10 @@ class Pools:
         source = self._sources.get(label)
         if source is None or not _can_draw(source):
             self.held.pop(label, None)
-            self._boundaries.pop(label, None)
+            # Forgotten rather than held aside: a later round that strands one
+            # of these again reaches it through a source that can be drawn on,
+            # which is what this one turned out not to be.
+            self._pooled.difference_update(self._boundaries.pop(label, ()))
             self._pst.table.drop_population(label)
             return False
         drawn = draw_many(source, wanted)
