@@ -10,26 +10,17 @@ from types import SimpleNamespace
 import numpy as np
 
 from orthogonal_dfa.l_star.cluster import identify_cluster_around
+from orthogonal_dfa.l_star.mask_table import UNIFORM
+from tests.cluster_stubs import Table
 
 SIGNAL = 0.3
 NUM_SUFFIXES, NUM_PREFIXES = 8, 16
 
 
-class _Table:
-    def __init__(self, masks):
-        self._masks = masks
-        self.representative = np.ones(masks.shape[1], dtype=bool)
-
-    def fully_observed(self):
-        return np.arange(self._masks.shape[0])
-
-    def observed_masks(self, rows, prefixes):
-        return self._masks[np.asarray(rows)][:, prefixes]
-
-
 def _boundary(masks, signal=SIGNAL):
     pst = SimpleNamespace(
-        table=_Table(masks), config=SimpleNamespace(min_signal_strength=signal)
+        table=Table(masks, {UNIFORM: np.ones(masks.shape[1], dtype=bool)}),
+        config=SimpleNamespace(min_signal_strength=signal),
     )
     _, boundary = identify_cluster_around(pst, 0, 4, 0.5)
     return boundary
