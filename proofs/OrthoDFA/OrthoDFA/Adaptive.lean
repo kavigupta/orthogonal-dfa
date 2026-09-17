@@ -6853,7 +6853,8 @@ def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) 
     -- and the whole round, over every population, fits in the budget
     ∧ ((populations.card : ℝ)
         * roundFail populations (indecisionLimit / 2) lcut τ th
-            (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * γdec ^ 2)) γscr γdirty gdirty tap ρ ρsf B.gmin B
+            (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * γdec ^ 2)) γscr γdirty gdirty tap ρ ρsf
+            B.gmin B
       ≤ δ / 2)
 
 lemma roundFail_collision (populations : Finset J)
@@ -7720,7 +7721,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (indecisionLimit εcov α : ℝ) (ρ ρsf pAP δ : ℝ)
+    (indecisionLimit εcov α : ℝ) (ρ pAP δ : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
@@ -7728,15 +7729,14 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
-    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hρcap : ρ ≤ collisionCap O populations εcov δ α pAP)
-    (hρsfcap : ρsf ≤ collisionCap O populations εcov δ α pAP) :
+    (hρsf : collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP) :
     (runLaw μ D Dsf).real {x | ∀ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
       x ∉ ret O populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
-  obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ ρsf
-    pAP hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hcutlim hpAPPositive
-    hpAPBound hρ hρ0 hρsf hρsf0 hρcap hρsfcap
+  obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
+    (collisionMass Dsf) pAP hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hcutlim hpAPPositive
+    hpAPBound hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap hρsf
   obtain ⟨τ, th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, hmpos, hkpos, hcd, hindLim,
     hε1, hτ, hth, htap, hγdec, hγscr, hγdirty, hgdirty, hΔ, hpAP0, hlcut, hlcl,
     hpAPBound, hρsf, hheavy, hscd, hscLow, hscHigh, hcount,
@@ -7747,7 +7747,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   set κ : ℕ := B.k - 1 with hκ
   set E : ℝ := Real.exp (-2 * (κ : ℝ) * γdec ^ 2) with hE
   obtain ⟨j₀, hj₀⟩ := hpop
-  have hρsf0 : 0 ≤ ρsf := le_trans (tsum_nonneg (fun a => sq_nonneg _)) hρsf
+  have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
   -- the whole failure at the one state, population by population
   have hsub : {x : Run Ω S J | ∀ B' : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
         x ∉ ret O populations indecisionLimit εcov α B'.val}
@@ -7764,10 +7764,10 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hper : ∀ j ∈ populations,
       (runLaw μ D Dsf).real
           {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
-        ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ ρsf B.gmin B := by
+        ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) B.gmin B := by
     intro j hj
     have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp B hcd hkpos j₀ hj₀
-      γscr pAP tap ρsf ρ hγscr hpAP0 htap hpAPBound hscd hscLow hcount hρsf hρsf0
+      γscr pAP tap (collisionMass Dsf) ρ hγscr hpAP0 htap hpAPBound hscd hscLow hcount hρsf hρsf0
       (hρ j₀ hj₀) hρ0
     have hdirty := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig.le
       hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscd hscHigh
@@ -7813,10 +7813,10 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   calc ∑ j ∈ populations, (runLaw μ D Dsf).real
         {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
       ≤ ∑ _j ∈ populations,
-          roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ ρsf B.gmin B :=
+          roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) B.gmin B :=
         Finset.sum_le_sum hper
     _ = (populations.card : ℝ)
-          * roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ ρsf B.gmin B := by
+          * roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) B.gmin B := by
         rw [Finset.sum_const, nsmul_eq_mul]
     _ ≤ δ / 2 := hbudget
 
@@ -7842,9 +7842,8 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
-    (ρ ρsf pAP : ℝ)
+    (ρ pAP : ℝ)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
-    (hρsf : collisionMass Dsf ≤ ρsf)
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hindLim : 0 < indecisionLimit) (hαpos : 0 < α)
@@ -7852,7 +7851,7 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
     (hα : α < 1 / 2)
     (hcutlim : cutBudget εcov ≤ indecisionLimit / 2)
     (hρcap : ρ ≤ collisionCap O populations εcov δ α pAP)
-    (hρsfcap : ρsf ≤ collisionCap O populations εcov δ α pAP) :
+    (hρsf : collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP) :
     1 - δ ≤ (runLaw μ D Dsf).real
       {x | (∃ B : {B : Budget // B ∈ stoppable O populations εcov δ α pAP ρ},
           x ∈ ret O populations indecisionLimit εcov α B.val) ∧
@@ -7871,11 +7870,10 @@ theorem clustering_correct (O : Oracle μ S) (populations : Finset J)
       ret O populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
       Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα pAP)
-    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ ρsf pAP
+    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
       δ hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hcutlim hpAPPositive
       hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
-        (hρ hpop.choose hpop.choose_spec)) hρsf
-      (le_trans (tsum_nonneg (fun a => sq_nonneg _)) hρsf) hρcap hρsfcap)
+        (hρ hpop.choose hpop.choose_spec)) hρcap hρsf)
   refine le_trans h (le_of_eq ?_)
   congr 1
   ext x
