@@ -1,6 +1,7 @@
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
 import OrthoDFA.Estimate
+import OrthoDFA.Model
 import OrthoDFA.Top
 
 /-!
@@ -101,16 +102,6 @@ theorem chosen_avoids_bad {S : Type*} [DecidableEq S]
   linarith
 
 #print axioms chosen_avoids_bad
-
-open scoped Classical in
-/-- The greedy's output: a least-total-loss `k`-subset of `cands` (argmin over
-`k`-subsets of `∑ ℓ`).  This *defines* the greedy, so its subset/cardinality/
-pairwise-least-loss properties become lemmas rather than assumptions. -/
-noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
-    Finset S :=
-  if h : (cands.powersetCard k).Nonempty then
-    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
-  else ∅
 
 section leastLoss
 variable {S : Type*} [DecidableEq S] (ℓ : S → ℝ) (cands : Finset S) (k : ℕ)
@@ -259,18 +250,6 @@ def dSepCompl {S ι : Type*} [DecidableEq S] (good bad : S → Prop)
     (cands : Finset S) (idx : Finset ι) (ρlo ρhi γ : ℝ) (D : S → ι → Ω → ℝ) : Set Ω :=
   (⋃ v ∈ cands.filter good, {ω | (idx.card : ℝ) * (ρlo + γ) ≤ ∑ i ∈ idx, D v i ω}) ∪
   (⋃ v ∈ cands.filter bad, {ω | ∑ i ∈ idx, D v i ω ≤ (idx.card : ℝ) * (ρhi - γ)})
-
-/-- `dSepCompl` is measurable when the reads are. -/
-lemma dSepCompl_measurable {S ι : Type*} [DecidableEq S] (good bad : S → Prop)
-    [DecidablePred good] [DecidablePred bad]
-    (cands : Finset S) (idx : Finset ι) (ρlo ρhi γ : ℝ) (D : S → ι → Ω → ℝ)
-    (hD : ∀ v i, Measurable (D v i)) :
-    MeasurableSet (dSepCompl good bad cands idx ρlo ρhi γ D) :=
-  MeasurableSet.union
-    (Finset.measurableSet_biUnion _ (fun v _ =>
-      measurableSet_le measurable_const (Finset.measurable_sum _ (fun i _ => hD v i))))
-    (Finset.measurableSet_biUnion _ (fun v _ =>
-      measurableSet_le (Finset.measurable_sum _ (fun i _ => hD v i)) measurable_const))
 
 /-- **The separation trigger fires w.h.p.**  Under mean-loss separability, the reads
 fail to separate the classes (`dSepCompl`) with probability at most
@@ -444,44 +423,12 @@ theorem denoised_loss_eq_flip (m : ℕ) (c₀ s : ℝ) (flip : ℕ → ℝ) (D :
 
 #print axioms chosen_avoids_bad_whp
 
-/-- The persistent signal oracle: random classification noise on query strings.
-Every field is a function of a **single** query string `w : S` — the oracle answers
-membership on one string at a time.  `label w = 1[w ∈ L]` is the noiseless
-membership bit and `noise w` the persistent RCN bit; the membership query is
-`label ⊕ noise`.  Concatenation and the notion of one suffix flipping a prefix are
-*not* in the oracle: strings are Mathlib's theory (`[Mul S]` concatenation,
-`[IsRightCancelMul S]` right-cancellation), and `flip` is *derived* below. -/
-structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
-    (S : Type*) [MeasurableSpace S] where
-  /-- The noiseless membership bit `ℓ(w) = 1[w ∈ L]`. -/
-  label : S → ℝ
-  label_bit : ∀ w, label w = 0 ∨ label w = 1
-  label_meas : Measurable label
-  /-- The random classification noise, one persistent bit per query string. -/
-  noise : S → Ω → ℝ
-  /-- The noise level. -/
-  η : ℝ
-  hη : η ≤ 1 / 2
-  /-- Noise is independent and identically distributed as `Bernoulli(η)`.  Measurability
-  is *joint* in the query string and the sample, which is what lets the oracle be
-  composed with a **randomly drawn** query string; the per-string version is derived. -/
-  noise_meas : Measurable (fun z : S × Ω => noise z.1 z.2)
-  noise_indep : iIndepFun noise μ
-  noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
-  noise_mean : ∀ w, μ[noise w] = η
-
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] (O : Oracle μ S)
 
 /-- **Derived** per-string measurability, from the joint version. -/
 lemma noise_meas' (w : S) : Measurable (O.noise w) :=
   O.noise_meas.comp (measurable_const.prodMk measurable_id)
-
-/-- Whether suffix `v` flips prefix `p`'s acceptance: the XOR `ℓ(p·v) ⊕ ℓ(p)` of the
-two membership bits (`a ⊕ b = a + b − 2ab`).  **Derived** from the single-string
-label, so it is `0` exactly when `p·v` and `p` agree — accept-preservation. -/
-def flip (v p : S) : ℝ :=
-  O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
 
 /-- **Derived** bit-valuedness of `flip`: an XOR of two bits is a bit. -/
 lemma flip_bit (v p : S) : O.flip v p = 0 ∨ O.flip v p = 1 := by
@@ -493,12 +440,6 @@ bounds consume). -/
 lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := by
   filter_upwards [O.noise_bit w] with ω hω
   rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
-
-/-- The disagreement read `flip ⊕ noise = flip + (1−2·flip)·noise` of suffix `v` on
-the `i`-th prefix `pref i` (both strings), where the noise is that of the
-concatenated query string `pref i · v` (`·` = the string `Mul`). -/
-noncomputable def read {ι : Type*} (pref : ι → S) (v : S) (i : ι) : Ω → ℝ :=
-  fun ω => O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω
 
 variable {ι : Type*} (pref : ι → S)
 
@@ -540,9 +481,6 @@ lemma read_icc (v : S) (i : ι) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Ic
       = O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω := rfl
   rw [hr, Set.mem_Icc]
   rcases O.flip_bit v (pref i) with h | h <;> rw [h] <;> constructor <;> nlinarith [hω.1, hω.2]
-
-lemma read_int (v : S) (i : ι) : Integrable (O.read pref v i) μ :=
-  MeasureTheory.Integrable.of_mem_Icc 0 1 (O.read_meas pref v i).aemeasurable (O.read_icc pref v i)
 
 end Oracle
 
@@ -591,127 +529,6 @@ theorem greedy_picks_good {S : Type*} [DecidableEq S] [MeasurableSpace S] [Mul S
 namespace Oracle
 variable {S : Type*} [MeasurableSpace S] [Mul S] [DecidableEq S] (O : Oracle μ S)
 
-/-- The round's **separation-failure** event for the greedy over the oracle reads:
-`dSepCompl` at the greedy bands `ρlo = η`, `ρhi = η+(1−2η)εcov`, `γ = (½−η)εcov`
-(here `ρlo+γ = ρhi-γ = η+(½−η)εcov`, a single threshold).  Its complement is the
-*trigger* that forces the greedy to propose an all-good family. -/
-noncomputable def sepFail (pref : ℕ → S) (good bad : S → Prop)
-    [DecidablePred good] [DecidablePred bad] (cands : Finset S) (m : ℕ) (εcov : ℝ) : Set Ω :=
-  dSepCompl good bad cands (Finset.range m) O.η (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov) (O.read pref)
-
-/-- The separation trigger is measurable. -/
-lemma sepFail_measurable (pref : ℕ → S) (good bad : S → Prop)
-    [DecidablePred good] [DecidablePred bad] (cands : Finset S) (m : ℕ) (εcov : ℝ) :
-    MeasurableSet (O.sepFail pref good bad cands m εcov) :=
-  dSepCompl_measurable good bad cands (Finset.range m) O.η (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov)
-    (O.read pref) (fun v i => O.read_meas pref v i)
-
-/-- **Off `sepFail`, the greedy avoids `bad`.**  Derived from the selection lemma:
-the two bands coincide, so a good candidate's loss below it and a bad candidate's
-above it order good strictly under bad. -/
-lemma not_bad_of_not_mem_sepFail (pref : ℕ → S) (good bad : S → Prop)
-    [DecidablePred good] [DecidablePred bad] (hdisj : ∀ v, bad v → ¬ good v)
-    (cands : Finset S) (k m : ℕ) (εcov : ℝ)
-    (goodCount : k ≤ (cands.filter good).card)
-    (chosen : Finset S) (hsub : chosen ⊆ cands) (hcard : chosen.card = k) {ω : Ω}
-    (hleast : ∀ v ∈ chosen, ∀ w ∈ cands, w ∉ chosen →
-        (∑ i ∈ Finset.range m, O.read pref v i ω) ≤ ∑ i ∈ Finset.range m, O.read pref w i ω)
-    (hω : ω ∉ O.sepFail pref good bad cands m εcov) :
-    ∀ w ∈ chosen, ¬ bad w :=
-  avoids_bad_of_not_mem_dSepCompl good bad hdisj cands k (Finset.range m) O.η (O.η + (1 - 2 * O.η) * εcov)
-    ((1 / 2 - O.η) * εcov) (O.read pref) (le_of_eq (by ring)) goodCount chosen hsub hcard
-    hleast hω
-
-/-- **The separation trigger fires w.h.p.**  From flip-mass separability (`good`
-flips nothing, `bad` flips `≥ εcov`), the reads fail to separate with probability at
-most `#cands·exp(-2m((½−η)εcov)²)` — the `denoised_loss` conversion of the flip
-bounds fed to `dSepCompl_prob`. -/
-lemma sepFail_prob [IsRightCancelMul S] (pref : ℕ → S) (hpref : Function.Injective pref)
-    (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
-    (hdisj : ∀ v, bad v → ¬ good v)
-    (cands : Finset S) (m : ℕ) (εcov : ℝ) (hεcov0 : 0 ≤ εcov)
-    (hgoodflip : ∀ v ∈ cands, good v → ∑ i ∈ Finset.range m, O.flip v (pref i) = 0)
-    (hbadflip : ∀ v ∈ cands, bad v → (m : ℝ) * εcov ≤ ∑ i ∈ Finset.range m, O.flip v (pref i)) :
-    μ.real (O.sepFail pref good bad cands m εcov)
-      ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - O.η) * εcov) ^ 2) := by
-  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read pref v i]
-      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v (pref i) := by
-    intro v
-    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (fun i => O.flip v (pref i))
-      (O.read pref v) (fun j => by rw [O.read_mean]; ring)
-    rw [h]; ring
-  have hgm : ∀ v ∈ cands, good v →
-      ∑ i ∈ Finset.range m, μ[O.read pref v i] ≤ (m : ℝ) * O.η := by
-    intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
-  have hbm : ∀ v ∈ cands, bad v →
-      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
-    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
-  have h := dSepCompl_prob good bad hdisj cands (Finset.range m) O.η
-    (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov) (O.read pref)
-    (fun v i => (O.read_meas pref v i).aemeasurable)
-    (O.read_indep pref hpref) (O.read_icc pref)
-    (by simpa [Finset.card_range] using hgm) (by simpa [Finset.card_range] using hbm)
-    (mul_nonneg (by linarith [O.hη]) hεcov0)
-  simpa [Oracle.sepFail, Finset.card_range] using h
-
-/-- **Soundness — no bad candidate clears certification.**  The gate certifies on
-fresh test prefixes `cpref` with the agreement reads `1 − read`.  A candidate that
-flips `≥ εcov` of the test prefixes has agreement-mean `≤ (1−η)−(1−2η)εcov` — the
-drift level `β+τ`, *derived* from `η`, `εcov` (no free gate parameters) — so it
-clears the admit threshold with probability `≤ α` (`certErr_bound`); union-bounded
-over the pool, `≤ #cands·α`. -/
-lemma cert_sound [IsRightCancelMul S] (cpref : ℕ → S) (hcpref : Function.Injective cpref)
-    (cands : Finset S) (n : ℕ) (εcov α : ℝ)
-    (hn : 0 < n) (hα0 : 0 < α) (hα1 : α ≤ 1) (hεcov0 : 0 ≤ εcov) :
-    μ.real {ω | ∃ v ∈ cands,
-        ((n : ℝ) * εcov ≤ ∑ j ∈ Finset.range n, O.flip v (cpref j))
-        ∧ (n : ℝ) * (((1 - O.η) - (1 - 2 * O.η) * εcov) + certMargin n α)
-            ≤ ∑ j ∈ Finset.range n, (1 - O.read cpref v j ω)}
-      ≤ (cands.card : ℝ) * α := by
-  classical
-  set cbad : S → Prop := fun v => (n : ℝ) * εcov ≤ ∑ j ∈ Finset.range n, O.flip v (cpref j)
-    with hcbad
-  set adm : S → Set Ω := fun v => {ω | (n : ℝ) * (((1 - O.η) - (1 - 2 * O.η) * εcov)
-      + certMargin n α) ≤ ∑ j ∈ Finset.range n, (1 - O.read cpref v j ω)} with hadm
-  have hadmle : ∀ v ∈ cands.filter cbad, μ.real (adm v) ≤ α := by
-    intro v hv
-    obtain ⟨_, hb⟩ := Finset.mem_filter.mp hv
-    have hmeas : ∀ j, AEMeasurable (fun ω => 1 - O.read cpref v j ω) μ :=
-      fun j => ((O.read_meas cpref v j).const_sub 1).aemeasurable
-    have hindep : iIndepFun (fun j ω => 1 - O.read cpref v j ω) μ :=
-      (O.read_indep cpref hcpref v).comp (fun _ => fun x : ℝ => 1 - x)
-        (fun _ => measurable_const.sub measurable_id)
-    have hIcc : ∀ j, ∀ᵐ ω ∂μ, (fun ω => 1 - O.read cpref v j ω) ω ∈ Set.Icc (0 : ℝ) 1 := by
-      intro j; filter_upwards [O.read_icc cpref v j] with ω hω
-      rw [Set.mem_Icc] at hω ⊢; exact ⟨by linarith [hω.2], by linarith [hω.1]⟩
-    have hstep : ∀ j, μ[fun ω => 1 - O.read cpref v j ω] = 1 - μ[O.read cpref v j] := by
-      intro j
-      rw [integral_sub (integrable_const 1) (O.read_int cpref v j), integral_const]; simp
-    have hread := denoised_loss_eq_flip (μ := μ) n O.η (1 / 2 - O.η)
-      (fun j => O.flip v (cpref j)) (O.read cpref v) (fun j => by rw [O.read_mean]; ring)
-    have hmean : ∑ j ∈ Finset.range n, μ[fun ω => 1 - O.read cpref v j ω]
-        ≤ (n : ℝ) * (((1 - O.η) - (1 - 2 * O.η) * εcov) + 0) := by
-      rw [Finset.sum_congr rfl (fun j _ => hstep j), Finset.sum_sub_distrib,
-        Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one, hread]
-      nlinarith [hb, O.hη]
-    have h := certErr_bound (fun j ω => 1 - O.read cpref v j ω) n
-      ((1 - O.η) - (1 - 2 * O.η) * εcov) 0 α hmeas hindep hIcc hmean hn hα0 hα1
-    simpa only [add_zero] using h
-  have hset : {ω | ∃ v ∈ cands, cbad v ∧ ω ∈ adm v} = ⋃ v ∈ cands.filter cbad, adm v := by
-    ext ω
-    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Finset.mem_filter, exists_prop]
-    exact ⟨fun ⟨v, hv, hb, ha⟩ => ⟨v, ⟨hv, hb⟩, ha⟩, fun ⟨v, ⟨hv, hb⟩, ha⟩ => ⟨v, hv, hb, ha⟩⟩
-  show μ.real {ω | ∃ v ∈ cands, cbad v ∧ ω ∈ adm v} ≤ (cands.card : ℝ) * α
-  calc μ.real {ω | ∃ v ∈ cands, cbad v ∧ ω ∈ adm v}
-      = μ.real (⋃ v ∈ cands.filter cbad, adm v) := by rw [hset]
-    _ ≤ ∑ v ∈ cands.filter cbad, μ.real (adm v) := measureReal_biUnion_le _ _
-    _ ≤ ∑ _v ∈ cands.filter cbad, α := Finset.sum_le_sum hadmle
-    _ = ((cands.filter cbad).card : ℝ) * α := by rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ (cands.card : ℝ) * α :=
-        mul_le_mul_of_nonneg_right (by exact_mod_cast Finset.card_filter_le _ _) hα0.le
-
-end Oracle
-
 /-- **Liveness (fused): separability ⇒ a good family is produced, w.h.p.**
 Combining the two proved halves.  Under mean-loss separability the greedy proposes
 an all-accept-preserving family except w.p. `#cands·exp(-2mγ²)`
@@ -759,5 +576,7 @@ theorem liveness_produces_good {S : Type*} [DecidableEq S]
     _ ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * γ ^ 2) + qgate := add_le_add hprop hgate
 
 #print axioms liveness_produces_good
+
+end Oracle
 
 end OrthoDFA
