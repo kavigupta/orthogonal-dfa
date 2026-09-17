@@ -109,7 +109,7 @@ class TransitionResolver:
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
-        self.edges.split_state(state_id, new_id)
+        self.dfa.split_state(state_id, new_id)
         write(
             f"  split state {state_id} on {fmt_seq(midfix)}: accept {state_id}, "
             f"reject {new_id} ({self.tree.num_states} states)"
@@ -136,8 +136,8 @@ class TransitionResolver:
                     delta = self._total_delta()  # the split rewrote the state set
                 elif status == _UNDECIDED:
                     since_split = 0
-                    for (state, c), target in self.edges.close().items():
-                        delta[state][c] = target
+                    self.edges.close()  # the leaves gained members; re-vote
+                    delta = self._total_delta()
                 else:
                     since_split += 1
                 pbar.set_postfix(

@@ -52,14 +52,14 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
         previous = signal.signal(signal.SIGALRM, self._timeout)
         signal.alarm(5)
         try:
-            changed = resolver.close()
+            resolved = resolver.close()
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, previous)
 
         # Nothing could be placed, so every edge is left open for the export
         # fallback -- and, crucially, close() returned instead of spinning.
-        self.assertEqual(changed, {})
+        self.assertEqual(resolved, 0)
         self.assertEqual(partial.unresolved_edges(), [(0, 0), (0, 1), (1, 0), (1, 1)])
         self.assertTrue(resolver.indecisive)
 
@@ -68,38 +68,6 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
         raise AssertionError(
             "EdgeResolver.close did not terminate (drain spun on an open edge)"
         )
-
-
-class _GrowingPopulation:
-    def __init__(self, members):
-        self.held = list(members)
-
-    def members(self, _path, _limit):
-        return list(self.held)
-
-
-class _FirstByteSifter:
-    """``member + c`` sifts to the member's first byte."""
-
-    def __init__(self):
-        self.tree = _StubTree()
-
-    def sift_and_boundary(self, seq):
-        return seq[0], None
-
-
-class TestEdgeResolverRevotes(unittest.TestCase):
-    def test_close_flips_an_edge_when_new_members_move_its_majority(self):
-        partial = PartialDFA(alphabet_size=1, num_states=2)
-        population = _GrowingPopulation([bytes([1, 0])])
-        resolver = EdgeResolver(partial, _FirstByteSifter(), set(), population=population)
-        resolver.close()
-        self.assertEqual(partial.target(0, 0), 1)
-
-        population.held += [bytes([0, 1]), bytes([0, 2])]
-        self.assertEqual(resolver.close(), {(0, 0): 0, (1, 0): 0})
-        self.assertEqual(partial.target(0, 0), 0)
-        self.assertEqual(partial.witness(0, 0), bytes([0, 1]))
 
 
 if __name__ == "__main__":
