@@ -169,7 +169,6 @@ draw is one column and not two. -/
 noncomputable def prefixesOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range m).image (fun i => prefixDraw j i x)
 
-open scoped Classical in
 /-- Every population's representative prefixes, pooled. -/
 noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
     (x : Run Ω S J) : Finset S :=
@@ -187,7 +186,6 @@ noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
 
 /-! ### Screen -/
 
-open scoped Classical in
 /-- `_screen_cohort`'s statistic: how many representative prefixes the candidate's column
 disagrees with the seed's on.  Its mean separates an accept-preserving candidate from one
 carrying flip mass `φ` by `φ(1−2η)²`. -/
@@ -200,7 +198,6 @@ noncomputable def screened (mq : S → Ω → ℝ) (sc scd : ℕ) (P cands : Fin
     Finset S :=
   cands.filter (fun v => scd * screenCount mq P v ω ≤ sc * P.card)
 
-open scoped Classical in
 /-- The screen at one budget state. -/
 noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
     (x : Run Ω S J) : Finset S :=
@@ -208,7 +205,6 @@ noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B
 
 /-! ### Vote -/
 
-open scoped Classical in
 /-- How many of the family answer accept at `p`.
 
 Every comparison in the algorithm is against a threshold on this count; the real-valued mean
@@ -219,7 +215,6 @@ noncomputable def voteCount (mq : S → Ω → ℝ) (F : Finset S) (p : S) (ω :
 
 /-! ### Cluster -/
 
-open scoped Classical in
 /-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
 noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
     Finset S :=
@@ -227,7 +222,6 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-open scoped Classical in
 /-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
 cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
@@ -235,7 +229,6 @@ noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : �
   ((P.filter (fun p =>
     ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
 
-open scoped Classical in
 /-- `hammingLoss` zeroed off the candidate pool.
 
 `leastLossSubset` is an argmin picked by `Classical.choose`, so it depends on the loss as a
@@ -245,7 +238,6 @@ noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : �
     (ω : Ω) (v : S) : ℝ :=
   if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
 
-open scoped Classical in
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
 candidates — but only while the seed is among them.  `identify_cluster_around` breaks out
 (`if seed_local not in nearest`) rather than let the centre drift off `ε`.
@@ -301,19 +293,16 @@ def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) 
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
 
-open scoped Classical in
 /-- The prefixes the cut accepts, and all the prefixes it decides. -/
 noncomputable def cutSides (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
     Finset S × Finset S :=
   (P.filter (fun p => hi - 1 < voteCount mq F p ω),
     P.filter (fun p => hi - 1 < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
 
-open scoped Classical in
 /-- The accept side's hits plus the reject side's misses. -/
 noncomputable def agreeOf (A Dset U : Finset S) : ℕ :=
   (A ∩ U).card + ((Dset \ A) \ U).card
 
-open scoped Classical in
 /-- The gate's statistic: `(agreements, decided count)`, where `p` agrees when the seed's
 column reads the way the cut calls it.  Its mean is
 
@@ -428,7 +417,6 @@ noncomputable def prefCount (O : Oracle μ S) (populations : Finset J)
     + ⌈64 / εcov⌉₊
     + 1
 
-open scoped Classical in
 /-- The state at a given prefix count: every other field read off the condition it has to
 meet. -/
 noncomputable def solvedStateAt (O : Oracle μ S) (populations : Finset J)
@@ -452,7 +440,6 @@ noncomputable def ladderLen (O : Oracle μ S) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
   Nat.log 2 (prefCount O populations εcov δ α pAP) + 1
 
-open scoped Classical in
 /-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
 noncomputable def schedule (O : Oracle μ S) (populations : Finset J)
     (εcov δ α pAP : ℝ) : Finset State :=
