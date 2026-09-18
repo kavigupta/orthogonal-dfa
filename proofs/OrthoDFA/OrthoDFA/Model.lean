@@ -381,13 +381,13 @@ Both read `certOf`.  A family fitted to the prefixes it is then judged on votes 
 decisively there than on fresh ones, so an FNR read off the table comes out optimistic — and
 a cut is graded only where it decides.  The FNR is read off the same seed-dropped vote as the
 agreement gate, so the two grade one cut. -/
-noncomputable def ret (mq : S → Ω → ℝ) (η : ℝ) (populations : Finset J)
+noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
           ((clusterAt mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∀ j ∈ populations, admitted mq η B.lo B.hi B.gmin εcov α
+    ∧ ∀ j ∈ populations, admitted mq (etaHat mq populations B x) B.lo B.hi B.gmin εcov α
         ((clusterAt mq populations x B).erase 1) (certOf j B.npref x) (oracleNoise x)}
 
 /-! ## The budget, solved rather than searched for
@@ -432,8 +432,17 @@ noncomputable def shareRate (η : ℝ) (εcov : ℝ) : ℝ :=
 count, so the condition refers to `log` of the count itself; `(√(A/r) + 2/r)²` is the closed
 form clearing `A + log (m + 2)` at rate `r`, the logarithm being under the square root. -/
 noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈(Real.sqrt ((Real.log (16 * (populations.card : ℝ) / δ) + 4) / shareRate η εcov)
+  ⌈(Real.sqrt ((Real.log (64 * (populations.card : ℝ) / δ) + 4) / shareRate η εcov)
     + 2 / shareRate η εcov) ^ 2⌉₊
+
+/-- The prefix count the floor's own share asks for.  The rate is read off the floor at one
+rung, so this tail is paid once per rung and the count has to clear the ladder's length as
+well — `shareCount`'s closed form again, at the screen's margin. -/
+noncomputable def screenShareCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
+  ⌈(Real.sqrt ((Real.log (32 * (populations.card : ℝ)
+        * ((poolCount η populations εcov δ pAP : ℝ) + 2) / δ) + 4)
+      / (2 * (screenMargin η populations εcov δ / 2) ^ 2))
+    + 2 / (2 * (screenMargin η populations εcov δ / 2) ^ 2)) ^ 2⌉₊
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
@@ -441,6 +450,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
   ⌈Real.log (32 * (populations.card : ℝ)
       * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
+    + screenShareCount η populations εcov δ pAP
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
@@ -484,35 +494,51 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
 
 /-- What one tested state may cost: the three events `measureReal_admitFail_le` charges,
 summed over the populations — the certification draws repeating or meeting the table, the
-sample missing the wrong set, and the gate passing on a wrong cut. -/
-noncomputable def stateFail (η : ℝ) (populations : Finset J) (εcov ρ : ℝ)
+sample missing the wrong set, and the gate passing on a wrong cut — and then what reading
+the rate off the floor costs, which is the table's own collisions, the floor's tail, and the
+pool's distinctness.
+
+The pool's *findability* is not here: that event does not mention the prefixes, so it is the
+same at every rung and is charged once rather than `L` times. -/
+noncomputable def stateFail (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
     + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
       + 2 * Real.exp (-2 * (εcov / 32 * (B.npref : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)))
+    + (((B.npref : ℝ) ^ 2 * ρ + ((B.nsuff : ℝ) + 2)
+          * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2))
+      + (B.nsuff : ℝ) ^ 2 * ρsf)
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
 
 At a handful of prefixes the gate cannot be sound — a wrong family passes a two-prefix test
 at constant probability — so the loop cannot test there and the guarantee cannot cover it. -/
-structure Capped (η : ℝ) (populations : Finset J) (εcov δ ρ : ℝ) (L : ℕ)
+structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (L : ℕ)
     (B : State) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
+  /-- The centre's boundary is a proper fraction. -/
+  bdry : B.cn < B.cd
+  /-- There are prefixes to read the rate off. -/
+  mpos : 0 < B.npref
+  /-- Two accept-preserving draws are expected in the pool, so one of them is not the seed
+  and the floor has a clean candidate to sit at. -/
+  found : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP / 2)
   /-- The skip guard sits under any sample the soundness argument has to test, so skipping
   below it costs no coverage. -/
   gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.npref : ℝ)
-  /-- The ladder has `L` rungs and they divide `δ/2` between them. -/
-  share : stateFail η populations εcov ρ B ≤ δ / (2 * L)
+  /-- The ladder has `L` rungs and they divide `δ/4` between them; the other `δ/4` of the
+  validity half pays for the pool's findability, once. -/
+  share : stateFail η₀ η populations εcov δ ρ ρsf B ≤ δ / (4 * L)
 
 open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it
-is a finite sum of `δ/(2·L)` terms and no summable weight over all budgets is needed. -/
+is a finite sum of `δ/(4·L)` terms and no summable weight over all budgets is needed. -/
 noncomputable def stoppable (η₀ η : ℝ) (populations : Finset J)
-    (εcov δ α pAP ρ : ℝ) : Finset State :=
+    (εcov δ α pAP ρ ρsf : ℝ) : Finset State :=
   (schedule η₀ populations εcov δ α pAP).filter
-    (Capped η populations εcov δ ρ (ladderLen η₀ populations εcov δ α pAP))
+    (Capped η₀ η populations εcov δ ρ ρsf pAP (ladderLen η₀ populations εcov δ α pAP))
 
 /-- The ladder's length as it enters the collision allowance: each rung carries `δ/(2·L)`,
 so the collision terms have to fit `L` times smaller. -/
@@ -555,17 +581,16 @@ each prefix population the way the noiseless oracle does.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
-it, never from `O.η`.  Liveness asks nothing of how tight `η₀` is: over-estimating the noise
-only lowers the gate's null and widens the screen's cutoff.  What the bound has to be
-accurate for is the gate's soundness, whose whole margin is `sig·εcov`, so an error in `η₀`
-eats it one for one.  The screen used to be the binding constraint, and no longer is: it
-reads its cutoff off `screenBase`, a quantity it measures.
+it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its cutoff off
+`screenBase` and the gate reads its null off `etaHat`, both measured from the same floor, so
+over-estimating the noise only costs prefixes.
 
 The hypotheses, in the order they appear: the oracle's noise is at most `η₀`, which has
-signal, and `η₀` is that accurate; there is a population to certify; the populations are supported on a `Flat` prefix set; their collision mass is at
-most `ρ` and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`
-and `δ` are in range with `cutBudget εcov` inside the indecision the FNR gate tolerates; and
-`ρ` and `Dsf`'s collision mass fit `collisionCap`.
+signal; there is a population to certify; the populations are supported on a `Flat` prefix
+set; their collision mass is at most `ρ` and `pAP` of the suffix measure is
+accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range with `cutBudget εcov`
+inside the indecision the FNR gate tolerates; and `ρ` and `Dsf`'s collision mass fit
+`collisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
@@ -582,7 +607,6 @@ def ClusteringCorrect : Prop :=
     (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4 →
   populations.Nonempty →
   Flat Pre →
   (∀ j ∈ populations, D j Preᶜ = 0) →
@@ -600,10 +624,10 @@ def ClusteringCorrect : Prop :=
   ρ ≤ collisionCap η₀ populations εcov δ α pAP →
   collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
-        x ∈ ret O.mq η₀ populations indecisionLimit εcov α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
-        x ∈ ret O.mq η₀ populations indecisionLimit εcov α B.val →
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)},
+        x ∈ ret O.mq populations indecisionLimit εcov α B.val) ∧
+      ∀ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)},
+        x ∈ ret O.mq populations indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
               (clusterAt O.mq populations x B.val) p (oracleNoise x)}}
