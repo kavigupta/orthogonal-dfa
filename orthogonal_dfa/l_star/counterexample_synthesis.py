@@ -31,6 +31,7 @@ from .prefix_sources import (
     draw_many,
     state_source,
 )
+from .progress import track
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -145,7 +146,7 @@ class Pools:
 
         self._sources = {UNIFORM: UniformSource(self._pst)}
         states = []
-        for leaf in range(resolver.num_states):
+        for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
             aim = aim_at(self._pst, dfa, leaf)
             if aim is None:
                 # Out of reach rather than short: no string of the sampler's
@@ -192,12 +193,7 @@ class Pools:
 
     @property
     def boundary_strings(self) -> int:
-        """Unplaceable strings held, sealed into pools or still buffering.
-
-        Counts both because the stall detector asks whether the round harvested
-        anything, and a round whose harvest was too small to seal still found
-        something.
-        """
+        """Unplaceable strings held, pooled or still buffering."""
         return sum(len(pool) for pool in self._boundaries.values()) + len(self._harvest)
 
     def labels(self) -> list:
@@ -216,10 +212,11 @@ class Pools:
             return []
         return draw_many(source, wanted)
 
-    def more(self, label, wanted: int) -> bool:
-        """Draw ``wanted`` further prefixes for one population, saying whether it
-        could.  A population nothing draws for any more is retired here, table
-        and all: a rate the round cannot answer is not one to hold a family to.
+    def more(self, label) -> bool:
+        """Draw more prefixes for one population, saying whether it could.
+
+        A population nothing draws for any more is retired here, table and all:
+        a rate the round cannot answer is not one to hold a family to.
         """
         source = self._sources.get(label)
         if source is None or not source.worth_drawing():
@@ -229,7 +226,7 @@ class Pools:
             self._pooled.difference_update(self._boundaries.pop(label, ()))
             self._pst.table.drop_population(label)
             return False
-        drawn = draw_many(source, wanted)
+        drawn = draw_many(source, WANTED)
         # Extended, not rebound: a boundary pool's list is the one `_boundaries`
         # holds, which is what the next round republishes it from.  And a
         # population this round did not define is not one it retires either, so
@@ -248,23 +245,6 @@ class Pools:
             if prefixes:
                 self._pst.table.add_prefixes(sorted(set(prefixes)), population=label)
         self._published = set(self.held)
-
-
-class _PoolAccess:
-    """What the next round's family search may ask of this round's populations:
-    more prefixes for one of them, or prefixes to read the split on."""
-
-    def __init__(self, pools):
-        self._pools = pools
-
-    def __call__(self, label):
-        return self._pools.more(label, WANTED)
-
-    def for_split(self, label, wanted):
-        return self._pools.for_split(label, wanted)
-
-    def labels(self):
-        return self._pools.labels()
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -342,14 +322,11 @@ def counterexample_driven_synthesis(
     pools = Pools(pst)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
-    # A view on the pools rather than on one round's sources, so the family
-    # search reaches whatever the last rebuild left behind.
-    grow = _PoolAccess(pools)
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), grow)
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), pools)
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         tracker.on_round_classified(_round_classifier(pst, vs), index)
