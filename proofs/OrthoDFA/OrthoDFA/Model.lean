@@ -396,7 +396,7 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
 Every field of `State` is read off the condition it has to meet.  A condition is always a
 tail `exp (-a) ≤ ε`, which asks only that `a` clear `log (1/ε)`, so a field is a logarithm
 of the error budget.  Where a field's condition mentions the share it will be given — which
-depends on that field — it mentions it only through *its* logarithm, and `log x ≤ 2√x`
+depends on that field — it mentions it only through *its* logarithm, and `log x ≤ x − 1`
 closes the loop in one step. -/
 
 /-- `s = 1/2 − η`. -/
@@ -430,19 +430,15 @@ noncomputable def shareRate (η : ℝ) (εcov : ℝ) : ℝ :=
   εcov * (sig η * εcov / 16) ^ 2 / 16
 
 /-- The prefix count the share asks for.  The ladder's length is logarithmic in the prefix
-count, so the condition refers to `log` of the count itself; `(√(A/r) + 2/r)²` is the closed
-form clearing `A + log (m + 2)` at rate `r`, the logarithm being under the square root. -/
+count, so the condition refers to `log` of the count itself; `2(A + log(2/r))/r` is the
+closed form clearing `A + log (m + 2)` at rate `r`. -/
 noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈(Real.sqrt ((Real.log (64 * (populations.card : ℝ) / δ) + 4) / shareRate η εcov)
-    + 2 / shareRate η εcov) ^ 2⌉₊
+  ⌈2 * (Real.log (64 * (populations.card : ℝ) / δ) + Real.log (2 / shareRate η εcov))
+    / shareRate η εcov⌉₊
 
 /-- The prefix count the floor's own share asks for.  The rate is read off the floor at one
 rung, so this tail is paid once per rung and the count has to clear the ladder's length as
-well.
-
-Same shape as `shareCount` but closed in `log x ≤ x − 1` rather than `log x ≤ 2√x`, which
-costs `log(1/r)/r` rather than `1/r²`.  The screen's margin is a squared flip budget, so at
-this rate the two differ by eighteen orders of magnitude. -/
+well.  Same shape as `shareCount`, at the screen's margin rather than the share's. -/
 noncomputable def screenShareCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
   ⌈2 * (Real.log (32 * (populations.card : ℝ)
         * ((poolCount η populations εcov δ pAP : ℝ) + 2) / δ)

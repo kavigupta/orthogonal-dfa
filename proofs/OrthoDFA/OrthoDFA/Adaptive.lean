@@ -21,7 +21,7 @@ pass, and `exists_passable` shows the computed schedule reaches such a state.  T
 arithmetic is solved in order: the miscut budget `lcut` below the indecision limit, the flip
 budget `Δ` below it over the family size, the screen's two margins below `Δ(1−2η)²`, then the
 prefix count large enough for every exponential — including the share's own condition, which
-mentions `log` of the prefix count and is closed by `log x ≤ 2√x` — then `α` at the gate's
+mentions `log` of the prefix count and is closed by `log x ≤ x − 1` — then `α` at the gate's
 tail, then the pool at `k/(pAP − t)`.
 
 The union bound over `stoppable` is a finite sum: the ladder has `log₂(prefCount) + 1` rungs
@@ -7223,25 +7223,6 @@ lemma one_le_capScale (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : 
   rw [capScale]
   exact_mod_cast ladderLen_pos η₀ populations εcov δ α pAP
 
-/-- `√(m+2) ≤ √m + 2`. -/
-lemma sqrt_add_two_le {m : ℝ} (hm : 0 ≤ m) : Real.sqrt (m + 2) ≤ Real.sqrt m + 2 := by
-  have h : m + 2 ≤ (Real.sqrt m + 2) ^ 2 := by
-    have hsq := Real.sq_sqrt hm
-    nlinarith [Real.sqrt_nonneg m]
-  calc Real.sqrt (m + 2) ≤ Real.sqrt ((Real.sqrt m + 2) ^ 2) := Real.sqrt_le_sqrt h
-    _ = Real.sqrt m + 2 := Real.sqrt_sq (by positivity)
-
-/-- The count that clears its own logarithm.  `(a + C)²` meets `a² + C·√m`, which is
-what turns a bound mentioning `log` of the count into a closed form. -/
-lemma sqrt_step {a C m : ℝ} (ha : 0 ≤ a) (hC : 0 ≤ C) (hm : (a + C) ^ 2 ≤ m) :
-    a ^ 2 + C * Real.sqrt m ≤ m := by
-  have hm0 : 0 ≤ m := le_trans (sq_nonneg _) hm
-  have h1 : a + C ≤ Real.sqrt m := by
-    have h := Real.sqrt_le_sqrt hm
-    rwa [Real.sqrt_sq (by positivity)] at h
-  have h2 : Real.sqrt m ^ 2 = m := Real.sq_sqrt hm0
-  nlinarith [Real.sqrt_nonneg m]
-
 /-- To put `exp (-a)` under `ε` it is enough that `a` clears `log (1/ε)`. -/
 lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) ≤ a) :
     Real.exp (-a) ≤ ε := by
@@ -7249,17 +7230,6 @@ lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) �
   have h2 : Real.exp (-Real.log (1 / ε)) = ε := by
     rw [← Real.log_inv, one_div, inv_inv, Real.exp_log hε]
   linarith [h1, h2.le, h2.ge]
-
-/-- `log x ≤ 2√x`: sublinear enough that a count required to exceed its own logarithm has a
-closed-form solution. -/
-lemma log_le_two_sqrt {x : ℝ} (hx : 0 < x) : Real.log x ≤ 2 * Real.sqrt x := by
-  have hs : (0 : ℝ) < Real.sqrt x := Real.sqrt_pos.2 hx
-  have h := Real.log_le_sub_one_of_pos hs
-  have hlog : Real.log x = 2 * Real.log (Real.sqrt x) := by
-    rw [Real.log_sqrt hx.le]
-    ring
-  rw [hlog]
-  linarith
 
 /-- A count that clears `log (c/ε) / (2γ²)` kills the tail it was read off. -/
 lemma tail_le_of_count {γ ε c : ℝ} {n : ℕ} (hγ : 0 < γ) (hε : 0 < ε) (hc : 0 < c)
@@ -7641,26 +7611,6 @@ lemma log_count_spec {r A m : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (hA : 0 ≤ A)
   rw [div_le_iff₀ hr] at hm
   linarith
 
-/-- A count in closed form that clears `A + log (m + 2)` at rate `r`.  The logarithm is
-under the square root, so one step of `log x ≤ 2√x` closes the loop. -/
-lemma share_count_spec {r A m : ℝ} (hr : 0 < r) (hA : 0 ≤ A)
-    (hm : (Real.sqrt ((A + 4) / r) + 2 / r) ^ 2 ≤ m) :
-    A + Real.log (m + 2) ≤ r * m := by
-  have hr0 : r ≠ 0 := ne_of_gt hr
-  have h0 : 0 ≤ m := le_trans (sq_nonneg _) hm
-  have hlog : Real.log (m + 2) ≤ 2 * Real.sqrt m + 4 := by
-    have h1 := log_le_two_sqrt (by linarith : (0 : ℝ) < m + 2)
-    have h2 := sqrt_add_two_le h0
-    linarith
-  have hstep := sqrt_step (Real.sqrt_nonneg ((A + 4) / r))
-    (by positivity : (0 : ℝ) ≤ 2 / r) hm
-  rw [Real.sq_sqrt (by positivity : (0 : ℝ) ≤ (A + 4) / r)] at hstep
-  have hLHS : (A + 4) / r + 2 / r * Real.sqrt m = (A + 4 + 2 * Real.sqrt m) / r := by
-    field_simp
-  rw [hLHS, div_le_iff₀ hr] at hstep
-  have hcomm : m * r = r * m := mul_comm m r
-  linarith
-
 set_option maxHeartbeats 1000000 in
 /-- The state carries its own share of the error budget. -/
 lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρsf : ℝ}
@@ -7686,6 +7636,14 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
   have hL1 : (1 : ℝ) ≤ (L : ℝ) := by exact_mod_cast hLpos
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hr : 0 < shareRate η₀ εcov := by rw [shareRate]; positivity
+  have hr1 : shareRate η₀ εcov ≤ 1 := by
+    have hb : sig η₀ * εcov / 16 ≤ 1 / 32 := by
+      have ht : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
+      nlinarith [mul_le_mul_of_nonneg_left hε1 hs.le]
+    have hb0 : (0 : ℝ) ≤ sig η₀ * εcov / 16 := by positivity
+    have hsq : (sig η₀ * εcov / 16) ^ 2 ≤ 1 / 1024 := by nlinarith
+    rw [shareRate]
+    nlinarith [hε.le, hε1, hsq, sq_nonneg (sig η₀ * εcov / 16)]
   -- the ladder is shorter than the prefix count it is built from
   have hLm : (L : ℝ) ≤ (m : ℝ) + 2 := by
     have h : L ≤ m + 2 := by
@@ -7696,7 +7654,7 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
   -- the prefix count clears the share's condition
   have hshare : Real.log (64 * (populations.card : ℝ) / δ) + Real.log ((m : ℝ) + 2)
       ≤ shareRate η₀ εcov * (m : ℝ) := by
-    refine share_count_spec hr (Real.log_nonneg ?_) ?_
+    refine log_count_spec hr hr1 (Real.log_nonneg ?_) ?_
     · rw [le_div_iff₀ hδ]; nlinarith
     · have hle : shareCount η₀ populations εcov δ ≤ m := by
         rw [hmdef, prefCount]; omega
