@@ -358,6 +358,21 @@ def admitted (mq : S → Ω → ℝ) (η : ℝ) (lo hi n₀ : ℕ) (εcov α : �
     binomSfGe (agreeCount mq lo hi F P ω).2 (gateAcc η εcov)
       (agreeCount mq lo hi F P ω).1 ≤ α
 
+/-- The noise rate, read off the pool's own floor rather than supplied.
+
+A candidate that preserves acceptance disagrees with the seed's column exactly where the two
+persistent bits differ, so `screenBase / #P` concentrates at `2η(1−η)`.  That map is
+injective below `½` — writing `s = ½ − η` it is `½ − 2s²` — so inverting it recovers the
+rate: `s = √((½ − r)/2)` and `η = ½ − s`.
+
+Out-of-range inputs clamp rather than fail: `Real.sqrt` of a negative is `0`, so a floor
+above `½` reads as `η = ½`, and an empty table reads as `η = 0`. -/
+noncomputable def etaHat (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
+    (x : Run Ω S J) : ℝ :=
+  1 / 2 - Real.sqrt ((1 / 2
+    - (screenBase mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+        (oracleNoise x) : ℝ) / ((prefixesAt populations B.npref x).card : ℝ)) / 2)
+
 open scoped Classical in
 /-- `judge_family`'s two tests, both held per population: the FNR gate and the
 accept-preserving gate.  A family failing either is not returned and the loop samples more.

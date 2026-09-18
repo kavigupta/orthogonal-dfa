@@ -1954,6 +1954,89 @@ lemma gateAcc_mem (η₀ : ℝ) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤
   constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - η₀) h1,
     mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - η₀) h0]
 
+/-- `binomSfGe N · j` differentiated term by term.  Writing
+`g i = C(N,i)·i·p^(i−1)·(1−p)^(N−i)`, the `i`-th term's derivative is `g i − g (i+1)` —
+`C(N,i+1)(i+1) = C(N,i)(N−i)` is what makes the two halves line up — so the sum telescopes
+to `g j`. -/
+lemma hasDerivAt_binomSfGe (N j : ℕ) (p : ℝ) :
+    HasDerivAt (fun q : ℝ => binomSfGe N q j)
+      ((N.choose j : ℝ) * (j : ℝ) * p ^ (j - 1) * (1 - p) ^ (N - j)) p := by
+  classical
+  set g : ℕ → ℝ := fun i => (N.choose i : ℝ) * (i : ℝ) * p ^ (i - 1) * (1 - p) ^ (N - i) with hg
+  have hterm : ∀ i,
+      HasDerivAt (fun q : ℝ => (N.choose i : ℝ) * q ^ i * (1 - q) ^ (N - i))
+        (g i - g (i + 1)) p := by
+    intro i
+    have h1 : HasDerivAt (fun q : ℝ => q ^ i) ((i : ℝ) * p ^ (i - 1)) p := hasDerivAt_pow i p
+    have h2 : HasDerivAt (fun q : ℝ => (1 - q) ^ (N - i))
+        (((N - i : ℕ) : ℝ) * (1 - p) ^ (N - i - 1) * (-1)) p :=
+      ((hasDerivAt_id p).const_sub (1 : ℝ)).pow (N - i)
+    have h3 : HasDerivAt (fun q : ℝ => (N.choose i : ℝ) * q ^ i * (1 - q) ^ (N - i))
+        ((N.choose i : ℝ) * ((i : ℝ) * p ^ (i - 1) * (1 - p) ^ (N - i)
+          + p ^ i * (((N - i : ℕ) : ℝ) * (1 - p) ^ (N - i - 1) * (-1)))) p := by
+      simpa [mul_assoc] using (h1.mul h2).const_mul ((N.choose i : ℝ))
+    have hch : ((N.choose (i + 1) : ℕ) : ℝ) * ((i : ℝ) + 1)
+        = (N.choose i : ℝ) * ((N - i : ℕ) : ℝ) := by
+      have h := Nat.choose_succ_right_eq N i
+      have := congrArg (fun t : ℕ => (t : ℝ)) h
+      push_cast at this
+      linarith
+    refine h3.congr_deriv ?_
+    simp only [hg, Nat.add_sub_cancel, Nat.sub_sub, Nat.cast_add, Nat.cast_one]
+    linear_combination (p ^ i * (1 - p) ^ (N - (i + 1))) * hch
+  have hsum : HasDerivAt (fun q : ℝ => binomSfGe N q j)
+      (∑ i ∈ Finset.Icc j N, (g i - g (i + 1))) p := by
+    have h := HasDerivAt.sum (u := Finset.Icc j N)
+      (A := fun i (q : ℝ) => (N.choose i : ℝ) * q ^ i * (1 - q) ^ (N - i))
+      (A' := fun i => g i - g (i + 1)) (fun i _ => hterm i)
+    have hfun : (fun q : ℝ => binomSfGe N q j)
+        = ∑ i ∈ Finset.Icc j N, fun q : ℝ => (N.choose i : ℝ) * q ^ i * (1 - q) ^ (N - i) := by
+      funext q
+      simp [binomSfGe, Finset.sum_apply]
+    rw [hfun]
+    exact h
+  have htel : ∑ i ∈ Finset.Icc j N, (g i - g (i + 1)) = g j := by
+    rcases le_or_gt j N with hjN | hjN
+    · have hIcc : Finset.Icc j N = Finset.Ico j (N + 1) := by
+        ext i; simp
+      rw [hIcc, Finset.sum_Ico_eq_sum_range]
+      have h := Finset.sum_range_sub' (fun k => g (j + k)) (N + 1 - j)
+      have hjadd : j + (N + 1 - j) = N + 1 := by omega
+      simp only [Nat.add_zero, hjadd, ← Nat.add_assoc] at h
+      rw [h, hg]
+      simp
+    · rw [Finset.Icc_eq_empty (by omega), Finset.sum_empty, hg]
+      simp [Nat.choose_eq_zero_of_lt hjN]
+  rw [htel] at hsum
+  exact hsum
+
+/-- `P[Bin(N,p) ≥ j]` grows with `p`. -/
+lemma binomSfGe_monotoneOn (N j : ℕ) :
+    MonotoneOn (fun p : ℝ => binomSfGe N p j) (Set.Icc 0 1) := by
+  refine monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 1)
+    (f' := fun p => (N.choose j : ℝ) * (j : ℝ) * p ^ (j - 1) * (1 - p) ^ (N - j))
+    (fun p _ => (hasDerivAt_binomSfGe N j p).continuousAt.continuousWithinAt)
+    (fun p _ => (hasDerivAt_binomSfGe N j p).hasDerivWithinAt) (fun p hp => ?_)
+  rw [interior_Icc] at hp
+  obtain ⟨hp0, hp1⟩ := hp
+  have h1 : (0 : ℝ) ≤ 1 - p := by linarith
+  positivity
+
+omit [MeasurableSpace Ω] in
+/-- Admission is monotone in the rate the gate runs at: a higher assumed noise rate lowers
+the null, so what clears the test at the lower rate clears it at the higher. -/
+lemma admitted_mono {mq : S → Ω → ℝ} {η₁ η₂ εcov α : ℝ} {lo hi n₀ : ℕ} {F P : Finset S} {ω : Ω}
+    (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hη1 : 0 ≤ η₁) (h12 : η₁ ≤ η₂) (hη2 : η₂ ≤ 1 / 2)
+    (h : admitted mq η₁ lo hi n₀ εcov α F P ω) :
+    admitted mq η₂ lo hi n₀ εcov α F P ω := by
+  intro hn
+  refine le_trans ?_ (h hn)
+  have hm1 := gateAcc_mem η₁ hε0 hε1 hη1 (h12.trans hη2)
+  have hm2 := gateAcc_mem η₂ hε0 hε1 (hη1.trans h12) hη2
+  refine binomSfGe_monotoneOn _ _ ⟨hm2.1, hm2.2⟩ ⟨hm1.1, hm1.2⟩ ?_
+  unfold gateAcc
+  nlinarith
+
 /-- Markov on a per-prefix failure count.  Both gates ask for a *fraction* of the
 certification sample, not for every prefix to behave, so a per-prefix bound `E` only has to
 beat the limit `l`: the cost is `E / l`, with no union over the sample.
