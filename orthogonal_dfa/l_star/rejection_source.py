@@ -51,14 +51,6 @@ class RejectionSource(ABC):
     def source_repr(self) -> str:
         """Which source this is, for the error when it runs dry."""
 
-    def found(self) -> list:
-        """What has been accepted and not yet served, including during
-        `has_sufficient_yield`."""
-        got = [member for member in self._pool if member not in self._served]
-        self._served.update(got)
-        self._pool.clear()
-        return got
-
     def worth_drawing(self) -> bool:
         """`has_sufficient_yield`, asked once and then remembered: the test is
         what a source costs."""

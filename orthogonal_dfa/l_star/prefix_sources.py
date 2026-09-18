@@ -28,6 +28,21 @@ GOOD_BOUNDARY_YIELD = 0.2
 POOR_BOUNDARY_YIELD = 0.1
 
 
+class UniformSource:
+    """The learner's own sampler.  Every draw is a prefix, so this never fails."""
+
+    def __init__(self, pst):
+        self._pst = pst
+
+    def draw(self) -> bytes:
+        return self._pst.sampler.sample(
+            self._pst.rng, alphabet_size=self._pst.alphabet_size
+        )
+
+    def worth_drawing(self) -> bool:
+        return True
+
+
 class BoundarySource(RejectionSource):
     """Strings the round's tree cannot place, asked about along a probe's walk.
 
@@ -162,3 +177,9 @@ class StateSource(RejectionSource):
 
     def source_repr(self) -> str:
         return f"leaf {self._path}"
+
+
+def draw_many(source, wanted: int) -> list:
+    """``wanted`` prefixes from ``source``, which one worth drawing on always
+    has: its region holds more than a round can use up."""
+    return sorted(source.draw() for _ in range(wanted))

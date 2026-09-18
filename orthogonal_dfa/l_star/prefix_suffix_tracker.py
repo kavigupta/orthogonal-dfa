@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -19,7 +19,9 @@ class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    fnr_limit: float = 0.02
+    #: A rate every prefix population has to meet on its own, not an average
+    #: across them.
+    fnr_limit: float = 0.10
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
@@ -190,16 +192,33 @@ class PrefixSuffixTracker:
         """
         return self.fnr_from_decision(
             self.compute_decision(vs, self.table.representative)
-        )
+        )[0]
 
-    def fnr_from_decision(self, decision) -> float:
-        """``compute_fnr`` for a decision vector already in hand."""
-        arr = np.array(
+    def fnr_from_decision(self, decision) -> Tuple[float, Optional[object]]:
+        """``compute_fnr`` for a decision vector already in hand, and which
+        population it is the rate of.
+
+        The worst population's rate, not the rate across all of them: whether a
+        prefix is decisive is a property of the state it reaches, so one
+        population reading high is averaged away by the rest.  Its label comes
+        back because that is the population a caller has to grow to answer it.
+        """
+        decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
-        ).mean(1)
-        if arr.min() == 0:
-            return 1
-        return 1 - arr.sum()
+        )
+        if decided.mean(1).min() == 0:
+            return 1, None
+        indecisive = ~decided.any(0)
+        rates = [
+            (float(indecisive[m].mean()), label)
+            for label, m in self.table.population_masks().items()
+            if m.any()
+        ]
+        if not rates:
+            return float(indecisive.mean()), None
+        # Keyed on the rate: the labels are not of one type and a tie between
+        # two populations is not a question about their names.
+        return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
     def sample_more_prefixes(self):
         new_prefixes = _distinct_prefixes(
