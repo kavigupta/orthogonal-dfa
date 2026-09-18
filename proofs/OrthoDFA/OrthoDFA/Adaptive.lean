@@ -7621,6 +7621,26 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     rw [hexp, hcε]
     linarith [hcoll1, hcoll2, hε₀le]
 
+/-- A count in closed form that clears `A + log (m + 2)` at rate `r`, from `log x ≤ x − 1`
+at `x = r(m+2)/2`.  Costs `(A + log(1/r))/r`, against the `1/r²` the `√` form below costs;
+at a rate that is itself a squared margin the difference is everything. -/
+lemma log_count_spec {r A m : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (hA : 0 ≤ A)
+    (hm : 2 * (A + Real.log (2 / r)) / r ≤ m) :
+    A + Real.log (m + 2) ≤ r * m := by
+  have hlog2 : 0 ≤ Real.log (2 / r) :=
+    Real.log_nonneg (by rw [le_div_iff₀ hr]; linarith)
+  have hm0 : 0 ≤ m := le_trans (by positivity) hm
+  have hkey : Real.log (r / 2 * (m + 2)) ≤ r / 2 * (m + 2) - 1 :=
+    Real.log_le_sub_one_of_pos (by positivity)
+  rw [Real.log_mul (by positivity) (by positivity)] at hkey
+  have hinv : Real.log (r / 2) = -Real.log (2 / r) := by
+    rw [← Real.log_inv]
+    congr 1
+    field_simp
+  rw [hinv] at hkey
+  rw [div_le_iff₀ hr] at hm
+  linarith
+
 /-- A count in closed form that clears `A + log (m + 2)` at rate `r`.  The logarithm is
 under the square root, so one step of `log x ≤ 2√x` closes the loop. -/
 lemma share_count_spec {r A m : ℝ} (hr : 0 < r) (hA : 0 ≤ A)
@@ -7766,7 +7786,13 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
   have cfloor : Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 2) / δ)
       + Real.log ((m : ℝ) + 2)
       ≤ 2 * (screenMargin η₀ populations εcov δ / 2) ^ 2 * (m : ℝ) := by
-    refine share_count_spec hγ2 (Real.log_nonneg ?_) ?_
+    refine log_count_spec hγ2 ?_ (Real.log_nonneg ?_) ?_
+    · have hfb := flipBudget_le (δ := δ) η₀ populations hε.le hcard1
+      have hs2 : sig η₀ ^ 2 ≤ 1 / 4 := by rw [sig]; nlinarith
+      have hsm : screenMargin η₀ populations εcov δ ≤ 1 / 2048 := by
+        rw [screenMargin]
+        nlinarith [hfb, hscrpos.le, hs2, sq_nonneg (sig η₀), hε.le, hε1]
+      nlinarith [hsm, hscrpos.le]
     · rw [le_div_iff₀ hδ]; nlinarith [Nat.cast_nonneg (α := ℝ) M]
     · have hle : screenShareCount η₀ populations εcov δ pAP ≤ m := by
         rw [hmdef, prefCount, ← hMdef]; omega

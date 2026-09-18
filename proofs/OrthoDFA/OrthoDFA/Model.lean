@@ -438,12 +438,16 @@ noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ
 
 /-- The prefix count the floor's own share asks for.  The rate is read off the floor at one
 rung, so this tail is paid once per rung and the count has to clear the ladder's length as
-well — `shareCount`'s closed form again, at the screen's margin. -/
+well.
+
+Same shape as `shareCount` but closed in `log x ≤ x − 1` rather than `log x ≤ 2√x`, which
+costs `log(1/r)/r` rather than `1/r²`.  The screen's margin is a squared flip budget, so at
+this rate the two differ by eighteen orders of magnitude. -/
 noncomputable def screenShareCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
-  ⌈(Real.sqrt ((Real.log (32 * (populations.card : ℝ)
-        * ((poolCount η populations εcov δ pAP : ℝ) + 2) / δ) + 4)
-      / (2 * (screenMargin η populations εcov δ / 2) ^ 2))
-    + 2 / (2 * (screenMargin η populations εcov δ / 2) ^ 2)) ^ 2⌉₊
+  ⌈2 * (Real.log (32 * (populations.card : ℝ)
+        * ((poolCount η populations εcov δ pAP : ℝ) + 2) / δ)
+      + Real.log (2 / (2 * (screenMargin η populations εcov δ / 2) ^ 2)))
+    / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
