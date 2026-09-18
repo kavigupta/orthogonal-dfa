@@ -405,16 +405,17 @@ noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at. -/
 noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
 
-/-- A clean family's vote fails at `exp (-κ·s²/2)` and the round pays that at the cut
-budget, so `κ` is the logarithm of the two together. -/
+/-- A family's vote fails at `exp (-κ·s²/8)` — the vote is read at a margin of `s/4`, the
+half of `s/2` that a flipping eighth of the family does not already spend — and the round
+pays that at the cut budget, so `κ` is the logarithm of the two together. -/
 noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
+  ⌈8 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
     + ⌈1 / sig η⌉₊ + 1
 
-/-- What one family member may flip: the cut budget spread over the family and the
-populations. -/
-noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  cutBudget εcov / (8 * (populations.card : ℝ) * (famCount η populations εcov δ : ℝ))
+/-- What one family member may flip.  The vote absorbs an eighth of the family flipping, so
+Markov charges the cut budget at a constant and not at the family's size. -/
+noncomputable def flipBudget (_η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
+  cutBudget εcov / (32 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
