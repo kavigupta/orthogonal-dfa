@@ -13,3 +13,12 @@ data/pretrained_models/fm-*.traced.pt
 !data/pretrained_models/fm-1.traced.pt
 scratchpad/
 .coverage
+
+# Lean build output and LaTeX intermediates under proofs/
+proofs/OrthoDFA/.lake/
+proofs/*.aux
+proofs/*.fdb_latexmk
+proofs/*.fls
+proofs/*.log
+proofs/*.out
+proofs/*.pdf
