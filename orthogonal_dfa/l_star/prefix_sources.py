@@ -125,7 +125,7 @@ def state_source(resolver, leaf, aim, *, wanted):
     If this guarantee cannot be made, returns None
     """
     source = StateSource(resolver, leaf, aim, wanted=wanted)
-    return source if source.has_sufficient_yield() else None
+    return source if source.worth_drawing() else None
 
 
 class StateSource(RejectionSource):
