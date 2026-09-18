@@ -264,45 +264,6 @@ lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
   rw [screenMargin]
   exact mul_pos (flipBudget_pos η₀ populations hε hcard) (pow_pos (sig_pos η₀ hsig) 2)
 
-/-- The screen's slack is the binding one: it implies the gate's.  `screenMargin` carries two
-factors of the signal and one of `εcov`, so squaring it lands well under `εcov·s/4`. -/
-lemma screenMargin_sq_le_gate (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
-    (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
-    (hpop : populations.Nonempty) :
-    screenMargin η₀ populations εcov δ ^ 2 ≤ εcov * (1 / 2 - η₀) / 4 := by
-  have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
-  have hκ1 : (1 : ℝ) ≤ (famCount η₀ populations εcov δ : ℝ) := by
-    exact_mod_cast famCount_pos η₀ populations εcov δ
-  have hs0 : (0 : ℝ) < 1 / 2 - η₀ := by linarith
-  have hsle : (1 : ℝ) / 2 - η₀ ≤ 1 / 2 := by linarith
-  have hprod : (1 : ℝ) ≤ (populations.card : ℝ) * (famCount η₀ populations εcov δ : ℝ) := by
-    nlinarith [hc1, hκ1]
-  have hfb : flipBudget η₀ populations εcov δ ≤ εcov := by
-    rw [flipBudget, cutBudget, div_le_iff₀ (by nlinarith [hprod])]
-    nlinarith [hprod, hε.le]
-  have hfb0 : (0 : ℝ) ≤ flipBudget η₀ populations εcov δ :=
-    (flipBudget_pos η₀ populations hε (by linarith)).le
-  have hsm : screenMargin η₀ populations εcov δ
-      = flipBudget η₀ populations εcov δ * (1 / 2 - η₀) ^ 2 := by
-    rw [screenMargin, sig]
-  have hsq : (flipBudget η₀ populations εcov δ * (1 / 2 - η₀) ^ 2) ^ 2
-      = flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) ^ 2) ^ 2 := by ring
-  rw [hsm, hsq]
-  have h4 : ((1 / 2 - η₀) ^ 2) ^ 2 ≤ (1 / 2 - η₀) / 8 := by
-    have hc : ((1 / 2 - η₀) ^ 2) ^ 2 = (1 / 2 - η₀) * (1 / 2 - η₀) ^ 3 := by ring
-    rw [hc]
-    refine mul_le_mul_of_nonneg_left ?_ hs0.le
-    nlinarith [hs0.le, hsle]
-  have hfsq : flipBudget η₀ populations εcov δ ^ 2 ≤ 2 * εcov := by
-    nlinarith [hfb, hfb0, hε.le, hε1]
-  have hpos : (0 : ℝ) ≤ flipBudget η₀ populations εcov δ ^ 2 := sq_nonneg _
-  calc flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) ^ 2) ^ 2
-      ≤ flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) / 8) :=
-        mul_le_mul_of_nonneg_left h4 hpos
-    _ ≤ 2 * εcov * ((1 / 2 - η₀) / 8) :=
-        mul_le_mul_of_nonneg_right hfsq (by linarith)
-    _ = εcov * (1 / 2 - η₀) / 4 := by ring
-
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
 
@@ -7154,7 +7115,6 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hηslack : η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
@@ -7412,7 +7372,6 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (indecisionLimit εcov α : ℝ) (ρ pAP δ : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hηslack : η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
@@ -7426,7 +7385,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
       x ∉ ret O.mq η₀ populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
   obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
-    (collisionMass Dsf) pAP hsig hpop hηle hη₀ hηslack hεcov hε1 hδ hδ1 hαpos hα hindLim
+    (collisionMass Dsf) pAP hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim
     hind1 hcutlim
     hpAPPositive
     hpAPBound hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap hρsf

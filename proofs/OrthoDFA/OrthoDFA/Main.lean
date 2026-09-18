@@ -18,9 +18,6 @@ theorem clustering_correct : ClusteringCorrect := by
     hηle hη₀ hηslack hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
     hε1 hδ hcutlim hρcap hρsf
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
-  have hgate : η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4 :=
-    le_trans hηslack (screenMargin_sq_le_gate η₀ populations
-      ((eta_nonneg O).trans hηle) hη₀ hεcov hε1 hpop)
   rw [O.apSet_eq] at hpAPBound
   by_cases hδ1 : δ ≤ 1
   case neg =>
@@ -31,10 +28,10 @@ theorem clustering_correct : ClusteringCorrect := by
     (fun B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ} =>
       ret O.mq η₀ populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      hηle hη₀ hgate
+      hηle hη₀ hηslack
       Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα pAP)
     (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
-      δ hsig hpop hηle hη₀ hηslack hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim
+      δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim
       hpAPPositive
       hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
         (hρ hpop.choose hpop.choose_spec)) hρcap hρsf)

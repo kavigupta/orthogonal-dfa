@@ -540,11 +540,11 @@ each prefix population the way the noiseless oracle does.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
-it, never from `O.η`.  The bound cannot be loose: the screen sets its cutoff from `η₀` while
-a candidate's disagreement rate sits at the true `η`, and the gap `2(η₀−η)(1−η₀−η)` eats the
-screen's separation, so `η₀` has to be accurate to within `screenMargin η₀` squared.  That
-is the binding constraint — it implies the gate's own, looser `εcov·sig η₀/4`
-(`screenMargin_sq_le_gate`).
+it, never from `O.η`.  Liveness asks nothing of how tight `η₀` is: over-estimating the noise
+only lowers the gate's null and widens the screen's cutoff.  What the bound has to be
+accurate for is the gate's soundness, whose whole margin is `sig·εcov`, so an error in `η₀`
+eats it one for one.  The screen used to be the binding constraint, and no longer is: it
+reads its cutoff off `screenBase`, a quantity it measures.
 
 The hypotheses, in the order they appear: the oracle's noise is at most `η₀`, which has
 signal, and `η₀` is that accurate; there is a population to certify; the populations are supported on a `Flat` prefix set; their collision mass is at
@@ -567,7 +567,7 @@ def ClusteringCorrect : Prop :=
     (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2 →
+  η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4 →
   populations.Nonempty →
   Flat Pre →
   (∀ j ∈ populations, D j Preᶜ = 0) →
