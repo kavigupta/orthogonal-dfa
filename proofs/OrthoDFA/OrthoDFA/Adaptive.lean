@@ -6999,7 +6999,8 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
     have hupd : ηup ≤ 1 / 2 := by rw [hupdef]; nlinarith [hdsmall, hs0, hε1, hεcov.le]
     have hacc : ηup - O.η ≤ εcov * (1 / 2 - ηup) / 4 := by
       rw [hupdef]; nlinarith [hdsmall, hs0, hε1, hεcov.le, hd0]
-    have hγs : γ ≤ (1 / 2 - O.η) ^ 2 := by nlinarith [hγsmall, hε1, hεcov.le, sq_nonneg (1 / 2 - O.η)]
+    have hγs : γ ≤ (1 / 2 - O.η) ^ 2 := by
+      nlinarith [hγsmall, hε1, hεcov.le, sq_nonneg (1 / 2 - O.η)]
     set Rate : Set (Run Ω S J) :=
       {x : Run Ω S J | ¬ |etaHat O.mq populations B x - O.η| ≤ γ / (2 * (1 / 2 - O.η))}
         \ apShort O B.nsuff pAP (pAP / 2) with hRate
@@ -7340,8 +7341,8 @@ lemma solved_findability (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : 
     have hle : ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
         ≤ poolCount η₀ populations εcov δ pAP := by rw [poolCount]; omega
     exact_mod_cast hle
-  have h := tail_le_of_count (γ := pAP / 2) (c := 1) (by positivity) (by positivity : (0:ℝ) < δ / 32)
-    (by norm_num) ctap
+  have h := tail_le_of_count (γ := pAP / 2) (c := 1) (by positivity)
+    (by positivity : (0 : ℝ) < δ / 32) (by norm_num) ctap
   linarith
 
 lemma le_sq_add_two {x : ℝ} (hx : 0 ≤ x) : x + 2 ≤ (x + 2) ^ 2 := by nlinarith
