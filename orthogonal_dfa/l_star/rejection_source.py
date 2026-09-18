@@ -31,6 +31,7 @@ class RejectionSource(ABC):
     def __init__(self):
         self._served = set()
         self._pool = []
+        self._proven = None
 
     @property
     @abstractmethod
@@ -57,6 +58,13 @@ class RejectionSource(ABC):
         self._served.update(got)
         self._pool.clear()
         return got
+
+    def worth_drawing(self) -> bool:
+        """`has_sufficient_yield`, asked once and then remembered: the test is
+        what a source costs."""
+        if self._proven is None:
+            self._proven = self.has_sufficient_yield()
+        return self._proven
 
     def has_sufficient_yield(self) -> bool:
         attempts, accepted = self.proving
