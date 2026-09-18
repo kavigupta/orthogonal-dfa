@@ -474,10 +474,10 @@ structure Capped (η : ℝ) (populations : Finset J) (εcov δ ρ : ℝ) (L : �
 open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it
 is a finite sum of `δ/(2·L)` terms and no summable weight over all budgets is needed. -/
-noncomputable def stoppable (η : ℝ) (populations : Finset J)
+noncomputable def stoppable (η₀ η : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ : ℝ) : Finset State :=
-  (schedule η populations εcov δ α pAP).filter
-    (Capped η populations εcov δ ρ (ladderLen η populations εcov δ α pAP))
+  (schedule η₀ populations εcov δ α pAP).filter
+    (Capped η populations εcov δ ρ (ladderLen η₀ populations εcov δ α pAP))
 
 /-- The ladder's length as it enters the collision allowance: each rung carries `δ/(2·L)`,
 so the collision terms have to fit `L` times smaller. -/
@@ -518,8 +518,16 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εcov` of
 each prefix population the way the noiseless oracle does.
 
-The hypotheses, in the order they appear: the oracle has signal and there is a population to
-certify; the populations are supported on a `Flat` prefix set; their collision mass is at
+The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
+`min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
+it, never from `O.η`.  The bound cannot be loose: the screen sets its cutoff from `η₀` while
+a candidate's disagreement rate sits at the true `η`, and the gap `2(η₀−η)(1−η₀−η)` eats the
+screen's separation, so `η₀` has to be accurate to within `screenMargin η₀` squared.  That
+is the binding constraint — it implies the gate's own, looser `εcov·sig η₀/4`
+(`screenMargin_sq_le_gate`).
+
+The hypotheses, in the order they appear: the oracle's noise is at most `η₀`, which has
+signal, and `η₀` is that accurate; there is a population to certify; the populations are supported on a `Flat` prefix set; their collision mass is at
 most `ρ` and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov`
 and `δ` are in range with `cutBudget εcov` inside the indecision the FNR gate tolerates; and
 `ρ` and `Dsf`'s collision mass fit `collisionCap`.
@@ -536,8 +544,10 @@ def ClusteringCorrect : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (indecisionLimit εcov α δ ρ pAP : ℝ),
-  O.η < 1 / 2 →
+    (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP : ℝ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2 →
   populations.Nonempty →
   Flat Pre →
   (∀ j ∈ populations, D j Preᶜ = 0) →
@@ -552,13 +562,13 @@ def ClusteringCorrect : Prop :=
   εcov ≤ 1 →
   0 < δ →
   cutBudget εcov ≤ indecisionLimit / 2 →
-  ρ ≤ collisionCap O.η populations εcov δ α pAP →
-  collisionMass Dsf ≤ collisionCap O.η populations εcov δ α pAP →
+  ρ ≤ collisionCap η₀ populations εcov δ α pAP →
+  collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
-        x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
-        x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val →
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
+        x ∈ ret O.mq η₀ populations indecisionLimit εcov α B.val) ∧
+      ∀ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
+        x ∈ ret O.mq η₀ populations indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
               (clusterAt O.mq populations x B.val) p (oracleNoise x)}}

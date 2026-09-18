@@ -145,6 +145,7 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
       exacts [ht ⟨j, h⟩, .univ]
 
 variable {J : Type*} [Fintype J]
+variable {η₀ : ℝ}
 
 /-! The whole blocks of a run, as opposed to `suffixDraw`/`prefixDraw`/`certPrefix`, which pick out one draw.
 The marginal arguments slice the product at these boundaries. -/
@@ -217,51 +218,90 @@ budgets — whatever the algorithm chooses, it is covered.  Histories are counta
 union bound still closes. -/
 
 /-- The budget the loop is heading for: the top of the ladder. -/
-noncomputable def solvedState (O : Oracle μ S) (populations : Finset J)
+noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : State :=
-  solvedStateAt O.η populations εcov δ pAP (prefCount O.η populations εcov δ α pAP)
+  solvedStateAt η₀ populations εcov δ pAP (prefCount η₀ populations εcov δ α pAP)
 
-lemma ladderLen_pos (O : Oracle μ S) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < ladderLen O.η populations εcov δ α pAP := by
+lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
+    0 < ladderLen η₀ populations εcov δ α pAP := by
   rw [ladderLen]; omega
 
-lemma solvedState_mem_schedule (O : Oracle μ S) (populations : Finset J)
+lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) :
-    solvedState O populations εcov δ α pAP
-      ∈ schedule O.η populations εcov δ α pAP := by
+    solvedState η₀ populations εcov δ α pAP
+      ∈ schedule η₀ populations εcov δ α pAP := by
   rw [schedule, solvedState]
   refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
   norm_num
 
-lemma schedule_card_le (O : Oracle μ S) (populations : Finset J)
+lemma schedule_card_le (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) :
-    (schedule O.η populations εcov δ α pAP).card
-      ≤ ladderLen O.η populations εcov δ α pAP := by
+    (schedule η₀ populations εcov δ α pAP).card
+      ≤ ladderLen η₀ populations εcov δ α pAP := by
   rw [schedule]
   exact le_trans Finset.card_image_le (by simp)
 
-lemma sig_pos (O : Oracle μ S) (hsig : O.η < 1 / 2) : 0 < sig O.η := by
+lemma sig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < sig η₀ := by
   rw [sig]; linarith
 
 lemma cutBudget_pos {εcov : ℝ} (hε : 0 < εcov) : 0 < cutBudget εcov := by
   rw [cutBudget]; positivity
 
-lemma famCount_pos (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) :
-    0 < famCount O.η populations εcov δ := by
+lemma famCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
+    0 < famCount η₀ populations εcov δ := by
   rw [famCount]; omega
 
-lemma flipBudget_pos (O : Oracle μ S) (populations : Finset J) {εcov δ : ℝ}
+lemma flipBudget_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
     (hε : 0 < εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    0 < flipBudget O.η populations εcov δ := by
+    0 < flipBudget η₀ populations εcov δ := by
   rw [flipBudget]
   refine div_pos (cutBudget_pos hε) (mul_pos (mul_pos (by norm_num) hcard) ?_)
-  exact_mod_cast famCount_pos O populations εcov δ
+  exact_mod_cast famCount_pos η₀ populations εcov δ
 
-lemma screenMargin_pos (O : Oracle μ S) (populations : Finset J) {εcov δ : ℝ}
-    (hsig : O.η < 1 / 2) (hε : 0 < εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    0 < screenMargin O.η populations εcov δ := by
+lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
+    (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
+    0 < screenMargin η₀ populations εcov δ := by
   rw [screenMargin]
-  exact mul_pos (flipBudget_pos O populations hε hcard) (pow_pos (sig_pos O hsig) 2)
+  exact mul_pos (flipBudget_pos η₀ populations hε hcard) (pow_pos (sig_pos η₀ hsig) 2)
+
+/-- The screen's slack is the binding one: it implies the gate's.  `screenMargin` carries two
+factors of the signal and one of `εcov`, so squaring it lands well under `εcov·s/4`. -/
+lemma screenMargin_sq_le_gate (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
+    (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
+    (hpop : populations.Nonempty) :
+    screenMargin η₀ populations εcov δ ^ 2 ≤ εcov * (1 / 2 - η₀) / 4 := by
+  have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
+  have hκ1 : (1 : ℝ) ≤ (famCount η₀ populations εcov δ : ℝ) := by
+    exact_mod_cast famCount_pos η₀ populations εcov δ
+  have hs0 : (0 : ℝ) < 1 / 2 - η₀ := by linarith
+  have hsle : (1 : ℝ) / 2 - η₀ ≤ 1 / 2 := by linarith
+  have hprod : (1 : ℝ) ≤ (populations.card : ℝ) * (famCount η₀ populations εcov δ : ℝ) := by
+    nlinarith [hc1, hκ1]
+  have hfb : flipBudget η₀ populations εcov δ ≤ εcov := by
+    rw [flipBudget, cutBudget, div_le_iff₀ (by nlinarith [hprod])]
+    nlinarith [hprod, hε.le]
+  have hfb0 : (0 : ℝ) ≤ flipBudget η₀ populations εcov δ :=
+    (flipBudget_pos η₀ populations hε (by linarith)).le
+  have hsm : screenMargin η₀ populations εcov δ
+      = flipBudget η₀ populations εcov δ * (1 / 2 - η₀) ^ 2 := by
+    rw [screenMargin, sig]
+  have hsq : (flipBudget η₀ populations εcov δ * (1 / 2 - η₀) ^ 2) ^ 2
+      = flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) ^ 2) ^ 2 := by ring
+  rw [hsm, hsq]
+  have h4 : ((1 / 2 - η₀) ^ 2) ^ 2 ≤ (1 / 2 - η₀) / 8 := by
+    have hc : ((1 / 2 - η₀) ^ 2) ^ 2 = (1 / 2 - η₀) * (1 / 2 - η₀) ^ 3 := by ring
+    rw [hc]
+    refine mul_le_mul_of_nonneg_left ?_ hs0.le
+    nlinarith [hs0.le, hsle]
+  have hfsq : flipBudget η₀ populations εcov δ ^ 2 ≤ 2 * εcov := by
+    nlinarith [hfb, hfb0, hε.le, hε1]
+  have hpos : (0 : ℝ) ≤ flipBudget η₀ populations εcov δ ^ 2 := sq_nonneg _
+  calc flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) ^ 2) ^ 2
+      ≤ flipBudget η₀ populations εcov δ ^ 2 * ((1 / 2 - η₀) / 8) :=
+        mul_le_mul_of_nonneg_left h4 hpos
+    _ ≤ 2 * εcov * ((1 / 2 - η₀) / 8) :=
+        mul_le_mul_of_nonneg_right hfsq (by linarith)
+    _ = εcov * (1 / 2 - η₀) / 4 := by ring
 
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
@@ -1929,12 +1969,11 @@ theorem lt_of_binomSfGe_le (n j : ℕ) (θ τ α : ℝ) (hθ0 : 0 ≤ θ) (hθ1 
 
 /-- The gate's rates are probabilities, with no premise beyond the coverage being a
 fraction: `gateAcc` runs from `1 − η` down to `½` as `εcov` runs from `0` to `1`. -/
-lemma gateAcc_mem (O : Oracle μ S) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤ 1)
-    (hsig : O.η ≤ 1 / 2) : 0 ≤ gateAcc O.η εcov ∧ gateAcc O.η εcov ≤ 1 := by
-  have hη0 := eta_nonneg O
+lemma gateAcc_mem (η₀ : ℝ) {εcov : ℝ} (h0 : 0 ≤ εcov) (h1 : εcov ≤ 1)
+    (hη0 : 0 ≤ η₀) (hsig : η₀ ≤ 1 / 2) : 0 ≤ gateAcc η₀ εcov ∧ gateAcc η₀ εcov ≤ 1 := by
   unfold gateAcc
-  constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h1,
-    mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - O.η) h0]
+  constructor <;> nlinarith [mul_le_of_le_one_right (by linarith : (0:ℝ) ≤ 1 / 2 - η₀) h1,
+    mul_nonneg (by linarith : (0:ℝ) ≤ 1 / 2 - η₀) h0]
 
 /-- Markov on a per-prefix failure count.  Both gates ask for a *fraction* of the
 certification sample, not for every prefix to behave, so a per-prefix bound `E` only has to
@@ -2004,24 +2043,25 @@ theorem admitted_whp (O : Oracle μ S) (C Q : Finset S)
     (hQ : ∀ ω, ∀ p ∈ C, ∀ v ∈ fam ω, p * v ∈ Q)
     (hcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → fam ω = fam ω')
     (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
+    (hη₀0 : 0 ≤ η₀) (hη₀ : η₀ ≤ 1 / 2)
     (hnloC : (nlo : ℝ) ≤ (C.card : ℝ) - wi)
     (hga : ∀ n : ℕ, nlo ≤ n → n ≤ C.card →
-      (n : ℝ) * (gateAcc O.η εcov + τ + τ) ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w)
+      (n : ℝ) * (gateAcc η₀ εcov + τ + τ) ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * w)
     (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α) :
     μ.real {ω | (((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ w)
         ∧ (((C.filter (fun p => ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ wi)
-        ∧ ¬ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω}
+        ∧ ¬ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω}
       ≤ 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2) := by
   classical
   have hsub : {ω | (((C.filter (fun p => ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)
         ≤ w) ∧ (((C.filter (fun p => ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ wi)
-        ∧ ¬ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω}
+        ∧ ¬ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω}
       ⊆ {ω | nlo ≤ (cutSides O.mq lo hi (fam ω) C ω).2.card
           ∧ ((miscutOf O (cutSides O.mq lo hi (fam ω) C ω).1
                 (cutSides O.mq lo hi (fam ω) C ω).2 : ℕ) : ℝ) ≤ w
           ∧ ((agreeOf (cutSides O.mq lo hi (fam ω) C ω).1 (cutSides O.mq lo hi (fam ω) C ω).2
                 (C.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
-              ≤ ((cutSides O.mq lo hi (fam ω) C ω).2.card : ℝ) * (gateAcc O.η εcov + τ)} := by
+              ≤ ((cutSides O.mq lo hi (fam ω) C ω).2.card : ℝ) * (gateAcc η₀ εcov + τ)} := by
     rintro ω ⟨hw, hwi, hadm⟩
     have hdec : (nlo : ℝ) ≤ ((cutSides O.mq lo hi (fam ω) C ω).2.card : ℝ) := by
       have hcompl := Finset.card_filter_add_card_filter_not (s := C)
@@ -2048,14 +2088,14 @@ theorem admitted_whp (O : Oracle μ S) (C Q : Finset S)
       push_neg at hc
       refine absurd ?_ (not_le.2 hbin)
       have hcount : ((agreeCount O.mq lo hi (fam ω) C ω).2 : ℝ)
-          * (gateAcc O.η εcov + τ) ≤ ((agreeCount O.mq lo hi (fam ω) C ω).1 : ℝ) := le_of_lt hc
-      refine le_trans (binomSfGe_le _ _ _ τ (gateAcc_mem O hε0 hε1 hsig).1
-        (gateAcc_mem O hε0 hε1 hsig).2 hτ hcount) ?_
+          * (gateAcc η₀ εcov + τ) ≤ ((agreeCount O.mq lo hi (fam ω) C ω).1 : ℝ) := le_of_lt hc
+      refine le_trans (binomSfGe_le _ _ _ τ (gateAcc_mem η₀ hε0 hε1 hη₀0 hη₀).1
+        (gateAcc_mem η₀ hε0 hε1 hη₀0 hη₀).2 hτ hcount) ?_
       refine le_trans (Real.exp_le_exp.2 ?_) hα
       have hnR : (n₀ : ℝ) ≤ ((agreeCount O.mq lo hi (fam ω) C ω).2 : ℝ) := by exact_mod_cast hn
       nlinarith [sq_nonneg τ]
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-  have hmain := gate_agree_bound O C Q hdisj lo hi fam hQ hcongr (gateAcc O.η εcov + τ) τ w nlo
+  have hmain := gate_agree_bound O C Q hdisj lo hi fam hQ hcongr (gateAcc η₀ εcov + τ) τ w nlo
     hτ hsig (by intro n h1 h2; have := hga n h1 h2; linarith)
   linarith [Real.exp_nonneg (-2 * (nlo : ℝ) * τ ^ 2), hmain]
 
@@ -2188,17 +2228,17 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
         calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
           _ = (m : ℝ) ^ 2 := by push_cast; ring
 
-lemma stoppable_card_le (O : Oracle μ S) (populations : Finset J)
+lemma stoppable_card_le (η₀ η : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ : ℝ) :
-    (stoppable O.η populations εcov δ α pAP ρ).card
-      ≤ ladderLen O.η populations εcov δ α pAP := by
+    (stoppable η₀ η populations εcov δ α pAP ρ).card
+      ≤ ladderLen η₀ populations εcov δ α pAP := by
   classical
-  exact le_trans (Finset.card_filter_le _ _) (schedule_card_le O populations εcov δ α pAP)
+  exact le_trans (Finset.card_filter_le _ _) (schedule_card_le η₀ populations εcov δ α pAP)
 
-lemma capped_of_mem_stoppable {O : Oracle μ S} {populations : Finset J}
+lemma capped_of_mem_stoppable {η₀ η : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ : ℝ} {B : State}
-    (hB : B ∈ stoppable O.η populations εcov δ α pAP ρ) :
-    Capped O.η populations εcov δ ρ (ladderLen O.η populations εcov δ α pAP) B := by
+    (hB : B ∈ stoppable η₀ η populations εcov δ α pAP ρ) :
+    Capped η populations εcov δ ρ (ladderLen η₀ populations εcov δ α pAP) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
 
@@ -3680,18 +3720,19 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (E : ℝ) (hE : 0 ≤ E) (hl : 0 < l) (hlcut : 0 < lcut) (hlcl : lcut ≤ l)
     (hCpos : 0 < C.card)
     (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hsig : O.η ≤ 1 / 2)
+    (hη₀0 : 0 ≤ η₀) (hη₀ : η₀ ≤ 1 / 2)
     (hdec : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
       μ.real {ω | ¬ decided O.mq lo (hi - 1) A₀ p ω} ≤ E)
     (hcut : ∀ p ∈ C, ∀ A₀ ∈ T, A₀ ∈ good p →
       μ.real {ω | ¬ cutCorrect O lo (hi - 1) A₀ p ω} ≤ E)
     (hga : ∀ n : ℕ, nlo ≤ n → n ≤ C.card →
-      (n : ℝ) * (gateAcc O.η εcov + τ + τ)
+      (n : ℝ) * (gateAcc η₀ εcov + τ + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (C.card : ℝ)))
     (hα : Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) ≤ α) :
     μ.real {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
         ∧ ¬ ((((C.filter (fun p => ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ)
                 ≤ 2 * l * (C.card : ℝ))
-            ∧ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω)}
+            ∧ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω)}
       ≤ E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)) := by
   classical
   have hsplit : ∀ (ω : Ω) (Q : S → Prop) [DecidablePred Q],
@@ -3708,7 +3749,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hsub : {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
       ∧ ¬ ((((C.filter (fun p => ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ)
               ≤ 2 * l * (C.card : ℝ))
-          ∧ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω)}
+          ∧ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω)}
       ⊆ {ω | l * (C.card : ℝ)
             < ((C.filter (fun p => fam ω ∈ good p
                 ∧ ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ)}
@@ -3719,7 +3760,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
                 ≤ 2 * lcut * (C.card : ℝ))
               ∧ (((C.filter (fun p => ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ)
                 ≤ 2 * l * (C.card : ℝ))
-              ∧ ¬ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω}) := by
+              ∧ ¬ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω}) := by
     rintro ω ⟨hheavy, hbad⟩
     by_cases hindL : ((C.filter (fun p => fam ω ∈ good p
         ∧ ¬ decided O.mq lo (hi - 1) (fam ω) p ω)).card : ℝ) ≤ l * (C.card : ℝ)
@@ -3743,7 +3784,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
                   ∧ ¬ cutCorrect O lo (hi - 1) (fam ω) p ω)).card : ℝ)
                 + ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) := by exact_mod_cast this
           linarith
-        have hadm : ¬ admitted O.mq O.η lo hi n₀ εcov α (fam ω) C ω := fun h => hbad ⟨hind, h⟩
+        have hadm : ¬ admitted O.mq η₀ lo hi n₀ εcov α (fam ω) C ω := fun h => hbad ⟨hind, h⟩
         exact Or.inr (Or.inr ⟨hmis, hind, hadm⟩)
       · exact Or.inr (Or.inl (not_le.1 hmisL))
     · exact Or.inl (not_le.1 hindL)
@@ -3757,7 +3798,7 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     · exact admitted_whp O C Q hdisjQ lo hi εcov α τ (2 * lcut * (C.card : ℝ))
         (2 * l * (C.card : ℝ)) n₀ nlo
         fam hQ (fun ω ω' h => hcongr ω ω' (fun w hw => h w (hQsup hw)))
-        hτ hε0 hε1 hsig hnloC hga hα
+        hτ hε0 hε1 hsig hη₀0 hη₀ hnloC hga hα
 
 
 
@@ -5076,13 +5117,13 @@ open scoped Classical in
 /-- The gate's verdict is measurable: each side is a fibre of the votes, and the count it
 scores is a fibre of the bits at the certification prefixes. -/
 lemma measurableSet_admittedFixed (O : Oracle μ S) (lo hi n₀ : ℕ) (F A : Finset S)
-    (εcov α : ℝ) : MeasurableSet {ω | admitted O.mq O.η lo hi n₀ εcov α F A ω} := by
+    (εcov α : ℝ) : MeasurableSet {ω | admitted O.mq η₀ lo hi n₀ εcov α F A ω} := by
   classical
-  have hcover : {ω | admitted O.mq O.η lo hi n₀ εcov α F A ω}
+  have hcover : {ω | admitted O.mq η₀ lo hi n₀ εcov α F A ω}
       = ⋃ t ∈ A.powerset ×ˢ A.powerset,
           ({ω | cutSides O.mq lo hi F A ω = t}
             ∩ {ω | n₀ ≤ t.2.card →
-                binomSfGe t.2.card (gateAcc O.η εcov)
+                binomSfGe t.2.card (gateAcc η₀ εcov)
                   (agreeOf t.1 t.2 (A.filter (fun p => O.mq p ω = 1))) ≤ α}) := by
     ext ω
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Finset.mem_coe,
@@ -5112,16 +5153,16 @@ lemma measurableSet_admittedFixed (O : Oracle μ S) (lo hi n₀ : ℕ) (F A : Fi
       (measurableSet_decOf O A F lo hi t.2)
   · by_cases h : n₀ ≤ t.2.card
     · have hrw : {ω : Ω | n₀ ≤ t.2.card →
-          binomSfGe t.2.card (gateAcc O.η εcov)
+          binomSfGe t.2.card (gateAcc η₀ εcov)
             (agreeOf t.1 t.2 (A.filter (fun p => O.mq p ω = 1))) ≤ α}
-          = {ω : Ω | binomSfGe t.2.card (gateAcc O.η εcov)
+          = {ω : Ω | binomSfGe t.2.card (gateAcc η₀ εcov)
             (agreeOf t.1 t.2 (A.filter (fun p => O.mq p ω = 1))) ≤ α} := by
         ext ω; simp [h]
       rw [hrw]
       exact noiseAlg_le O Set.univ _ (measurableSet_filter_pred O (T := Set.univ) (by simp)
-        (fun V => binomSfGe t.2.card (gateAcc O.η εcov) (agreeOf t.1 t.2 V) ≤ α))
+        (fun V => binomSfGe t.2.card (gateAcc η₀ εcov) (agreeOf t.1 t.2 V) ≤ α))
     · have hrw : {ω : Ω | n₀ ≤ t.2.card →
-          binomSfGe t.2.card (gateAcc O.η εcov)
+          binomSfGe t.2.card (gateAcc η₀ εcov)
             (agreeOf t.1 t.2 (A.filter (fun p => O.mq p ω = 1))) ≤ α}
           = (Set.univ : Set Ω) := by
         ext ω; simp [h]
@@ -5138,7 +5179,7 @@ open scoped Classical in
 of its draws — the certification prefixes fresh and nonempty, and the family light on all
 but an `l` fraction of them — holds, and the round's two tests still fail.
 This is the event `ret_at_whp` prices; the rest of the lift charges the draws. -/
-noncomputable def retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (B : State)
+noncomputable def retMiss (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (j : J) (B : State)
     (εcov α l lcut : ℝ) (n₀ kmin kmax : ℕ) : Set (Run Ω S J) :=
   {x | Disjoint (prefixesAt populations B.m x) (certOf j B.m x)
     ∧ (certOf j B.m x).card = B.m
@@ -5149,13 +5190,13 @@ noncomputable def retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (B 
     ∧ ¬ ((((certOf j B.m x).filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
             ((clusterAt O.mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
           ≤ 2 * l * ((certOf j B.m x).card : ℝ)
-        ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α ((clusterAt O.mq populations x B).erase 1)
+        ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α ((clusterAt O.mq populations x B).erase 1)
             (certOf j B.m x) (oracleNoise x))}
 
 open scoped Classical in
 lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (B : State)
     (εcov α l lcut : ℝ) (n₀ kmin kmax : ℕ) :
-    MeasurableSet (retMiss O populations j B εcov α l lcut n₀ kmin kmax) := by
+    MeasurableSet (retMiss O η₀ populations j B εcov α l lcut n₀ kmin kmax) := by
   classical
   have hR : ∀ (P C : Finset S) (tt : Fin B.m → S), MeasurableSet (if (1 : S) ∈ C then
       {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image tt)
@@ -5169,7 +5210,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
                 (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                   ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) p (oracleNoise x))).card : ℝ)
               ≤ 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
-            ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+            ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                 ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1)
                 ((Finset.univ : Finset (Fin B.m)).image tt) (oracleNoise x))} else ∅) := by
     intro P C tt
@@ -5183,7 +5224,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
             ∧ ¬ (((A.filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) p ω)).card : ℝ)
                   ≤ 2 * l * (A.card : ℝ)
-                ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+                ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) A ω)} := by
           refine measurableSet_of_fam (T := C.powerset)
             (fun ω => Finset.mem_powerset.2 (clusterOf_subset O B.cn B.cd B.sc B.scd P C B.k ω hone))
@@ -5193,7 +5234,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
                 ≤ lcut * (A.card : ℝ)
               ∧ ¬ (((A.filter (fun p => ¬ decided O.mq B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
                     ≤ 2 * l * (A.card : ℝ)
-                  ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)})
+                  ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)})
             (fun A₀ => ?_)
           by_cases hlight : ((A.filter (fun p =>
               ¬ famGood O kmin kmax (A₀.erase 1) p)).card : ℝ) ≤ lcut * (A.card : ℝ)
@@ -5203,11 +5244,11 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
                 ∧ ¬ (((A.filter (fun p =>
                       ¬ decided O.mq B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
                       ≤ 2 * l * (A.card : ℝ)
-                    ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)}
+                    ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)}
                 = ({ω : Ω | ((A.filter (fun p =>
                       ¬ decided O.mq B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
                         ≤ 2 * l * (A.card : ℝ)}
-                  ∩ {ω : Ω | admitted O.mq O.η B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω})ᶜ := by
+                  ∩ {ω : Ω | admitted O.mq η₀ B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω})ᶜ := by
               ext ω
               simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_inter_iff, hlight, true_and]
             rw [hrw]
@@ -5220,7 +5261,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
                 ∧ ¬ (((A.filter (fun p =>
                       ¬ decided O.mq B.lo (B.hi - 1) (A₀.erase 1) p ω)).card : ℝ)
                       ≤ 2 * l * (A.card : ℝ)
-                    ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)} = (∅ : Set Ω) := by
+                    ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α (A₀.erase 1) A ω)} = (∅ : Set Ω) := by
               ext ω
               simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
               rintro ⟨h, -⟩
@@ -5234,7 +5275,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
             ∧ ¬ (((A.filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) p (oracleNoise x))).card : ℝ)
                   ≤ 2 * l * (A.card : ℝ)
-                ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+                ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) A (oracleNoise x))}
             = oracleNoise ⁻¹' {ω : Ω |
               ((A.filter (fun p => ¬ famGood O kmin kmax
@@ -5243,7 +5284,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
               ∧ ¬ (((A.filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                       ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) p ω)).card : ℝ)
                     ≤ 2 * l * (A.card : ℝ)
-                  ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+                  ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                       ((clusterOf O B.cn B.cd B.sc B.scd P C B.k ω).erase 1) A ω)} := by
           ext x
           constructor
@@ -5260,7 +5301,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
             ∧ ¬ (((A.filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) p (oracleNoise x))).card : ℝ)
                   ≤ 2 * l * (A.card : ℝ)
-                ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+                ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) A (oracleNoise x))}
             = (∅ : Set (Run Ω S J)) := by
           ext x
@@ -5270,7 +5311,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
         rw [hempty]
         exact MeasurableSet.empty
     · exact MeasurableSet.empty
-  have hrw : retMiss O populations j B εcov α l lcut n₀ kmin kmax
+  have hrw : retMiss O η₀ populations j B εcov α l lcut n₀ kmin kmax
       = {x : Run Ω S J | x ∈ (fun P C tt => if (1 : S) ∈ C then
           {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.m)).image tt)
             ∧ ((Finset.univ : Finset (Fin B.m)).image tt).card = B.m
@@ -5283,7 +5324,7 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
                     (fun p => ¬ decided O.mq B.lo (B.hi - 1)
                       ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1) p (oracleNoise x))).card : ℝ)
                   ≤ 2 * l * (((Finset.univ : Finset (Fin B.m)).image tt).card : ℝ)
-                ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α
+                ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                     ((clusterOf O B.cn B.cd B.sc B.scd P C B.k (oracleNoise x)).erase 1)
                     ((Finset.univ : Finset (Fin B.m)).image tt) (oracleNoise x))} else ∅)
         (prefixesAt populations B.m x) (poolAt B.M x)
@@ -5329,6 +5370,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     (hE : 0 ≤ E) (hl : 0 < l) (hlcut : 0 < lcut) (hlcl : lcut ≤ l) (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1)
     (hl1 : 2 * l ≤ 1) (hnloB : (nlo : ℝ) ≤ (1 - 2 * l) * (B.m : ℝ))
     (hsig : O.η ≤ 1 / 2)
+    (hη₀0 : 0 ≤ η₀) (hη₀ : η₀ ≤ 1 / 2)
     (hdec : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * 0 →
       kmin ≤ F.card → F.card ≤ kmax →
       μ.real {ω | ¬ decided O.mq B.lo (B.hi - 1) F p ω} ≤ E)
@@ -5336,10 +5378,10 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
       kmin ≤ F.card → F.card ≤ kmax →
       μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω} ≤ E)
     (hga : ∀ n c : ℕ, nlo ≤ n → n ≤ c → c ≤ B.m →
-      (n : ℝ) * (gateAcc O.η εcov + τ + τ)
+      (n : ℝ) * (gateAcc η₀ εcov + τ + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (c : ℝ)))
     (hα : Real.exp (-2 * (B.gmin : ℝ) * τ ^ 2) ≤ α) :
-    (runMeasure μ D Dsf).real (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
+    (runMeasure μ D Dsf).real (retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax)
       ≤ E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)) := by
   classical
   set R : ℝ := E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)) with hR
@@ -5349,7 +5391,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     have hcut0 : (0 : ℝ) ≤ E / lcut := div_nonneg hE hlcut.le
     have h2 : (0 : ℝ) ≤ Real.exp (-2 * (nlo : ℝ) * τ ^ 2) := Real.exp_nonneg _
     linarith
-  have hEnn : runMeasure μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)
+  have hEnn : runMeasure μ D Dsf (retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax)
       ≤ ENNReal.ofReal R := by
     refine runMeasure_slice_le D Dsf _
       (measurableSet_retMiss O populations j B εcov α l lcut B.gmin kmin kmax) _ ?_
@@ -5397,7 +5439,7 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
         (fun ω p hp v hv => Finset.mem_union_right _ (mem_readSet hp
           (Finset.mem_erase.2 ⟨(Finset.mem_erase.1 hv).1,
             clusterAt_subset O populations B _ (Finset.mem_erase.1 hv).2⟩)))
-        E hE hl hlcut hlcl hCpos hτ hε0 hε1 hsig
+        E hE hl hlcut hlcl hCpos hτ hε0 hε1 hsig hη₀0 hη₀
         (fun p _ A₀ _ hgp => hdec A₀ p (Finset.mem_filter.1 hgp).2.1
           (Finset.mem_filter.1 hgp).2.2.1 (Finset.mem_filter.1 hgp).2.2.2)
         (fun p _ A₀ _ hgp => hcut A₀ p (Finset.mem_filter.1 hgp).2.1
@@ -5405,12 +5447,12 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
         (fun n hn hnc => hga n Ad.card hn hnc hAcard)
         hα
       have hsec : {ω : Ω | ((ω, d) : Run Ω S J)
-            ∈ retMiss O populations j B εcov α l lcut B.gmin kmin kmax}
+            ∈ retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax}
           ⊆ {ω : Ω | ((Ad.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (Ad.card : ℝ)
             ∧ ¬ ((((Ad.filter (fun p =>
                     ¬ decided O.mq B.lo (B.hi - 1) (fam ω) p ω)).card : ℝ)
                   ≤ 2 * l * (Ad.card : ℝ))
-              ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α (fam ω) Ad ω)} := by
+              ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α (fam ω) Ad ω)} := by
         rintro ω ⟨-, -, -, hlight, hbad⟩
         refine ⟨le_trans (le_of_eq ?_) hlight, hbad⟩
         refine congrArg (fun t : Finset S => (t.card : ℝ)) (Finset.filter_congr ?_)
@@ -5421,31 +5463,31 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
       rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
       exact ENNReal.ofReal_le_ofReal hmain
     · have hsec : {ω : Ω | ((ω, d) : Run Ω S J)
-          ∈ retMiss O populations j B εcov α l lcut B.gmin kmin kmax} = (∅ : Set Ω) := by
+          ∈ retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax} = (∅ : Set Ω) := by
         ext ω
         simp only [Set.mem_empty_iff_false, iff_false]
         rintro ⟨h1, h2, h3, -⟩
         exact hdraw ⟨h1, h2, h3⟩
       simp [hsec]
   rw [measureReal_def]
-  calc (runMeasure μ D Dsf (retMiss O populations j B εcov α l lcut B.gmin kmin kmax)).toReal
+  calc (runMeasure μ D Dsf (retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax)).toReal
       ≤ (ENNReal.ofReal R).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = R := ENNReal.toReal_ofReal hR0
 
 open scoped Classical in
 /-- The round's own test at one population: the FNR count and the gate. -/
-noncomputable def retAt (O : Oracle μ S) (populations : Finset J)
+noncomputable def retAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : State) (j : J) : Set (Run Ω S J) :=
   {x | (((certOf j B.m x).filter (fun p => ¬ decided O.mq B.lo (B.hi - 1)
           ((clusterAt O.mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * ((certOf j B.m x).card : ℝ)
-    ∧ admitted O.mq O.η B.lo B.hi B.gmin εcov α ((clusterAt O.mq populations x B).erase 1)
+    ∧ admitted O.mq η₀ B.lo B.hi B.gmin εcov α ((clusterAt O.mq populations x B).erase 1)
         (certOf j B.m x) (oracleNoise x)}
 
 lemma mem_ret_iff (O : Oracle μ S) (populations : Finset J) (indecisionLimit εcov α : ℝ)
     (B : State) (x : Run Ω S J) :
-    x ∈ ret O.mq O.η populations indecisionLimit εcov α B
-      ↔ ∀ j ∈ populations, x ∈ retAt O populations indecisionLimit εcov α B j := by
+    x ∈ ret O.mq η₀ populations indecisionLimit εcov α B
+      ↔ ∀ j ∈ populations, x ∈ retAt O η₀ populations indecisionLimit εcov α B j := by
   constructor
   · rintro ⟨h1, h2⟩ j hj
     exact ⟨h1 j hj, h2 j hj⟩
@@ -5513,6 +5555,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (hmpos : 0 < B.m) (hsig : O.η ≤ 1 / 2)
+    (hη₀0 : 0 ≤ η₀) (hη₀ : η₀ ≤ 1 / 2)
     (εcov α τ l lcut E Δp ρ th : ℝ) (kmin kmax nlo : ℕ)
     (hE : 0 ≤ E) (hl : 0 < l) (hlcut : 0 < lcut) (hlcl : lcut ≤ l) (hτ : 0 ≤ τ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1)
     (hl1 : 2 * l ≤ 1) (hnloB : (nlo : ℝ) ≤ (1 - 2 * l) * (B.m : ℝ))
@@ -5530,11 +5573,11 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
       kmin ≤ F.card → F.card ≤ kmax →
       μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω} ≤ E)
     (hga : ∀ n c : ℕ, nlo ≤ n → n ≤ c → c ≤ B.m →
-      (n : ℝ) * (gateAcc O.η εcov + τ + τ)
+      (n : ℝ) * (gateAcc η₀ εcov + τ + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (c : ℝ)))
     (hα : Real.exp (-2 * (B.gmin : ℝ) * τ ^ 2) ≤ α) :
     (runMeasure μ D Dsf).real
-        {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+        {x : Run Ω S J | x ∉ retAt O η₀ populations (2 * l) εcov α B j}
       ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
         + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
           + (E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)))))) := by
@@ -5547,8 +5590,8 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
   set E6 : Set (Run Ω S J) :=
     {x | ¬ ∀ v ∈ clusterAt O.mq populations x B, flipMass O (D j) v ≤ Δp} with hE6
   set E7 : Set (Run Ω S J) := heavyHits O populations (D j) j B 0 (Δp * (kmax : ℝ)) th with hE7
-  set E8 : Set (Run Ω S J) := retMiss O populations j B εcov α l lcut B.gmin kmin kmax with hE8
-  have hsub : {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+  set E8 : Set (Run Ω S J) := retMiss O η₀ populations j B εcov α l lcut B.gmin kmin kmax with hE8
+  have hsub : {x : Run Ω S J | x ∉ retAt O η₀ populations (2 * l) εcov α B j}
       ⊆ (E1 ∪ E2) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8))) := by
     intro x hx
     by_cases h1 : Function.Injective (fun i : Fin B.m => certPrefix j i.val x)
@@ -5634,7 +5677,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
         · exact Or.inr (Or.inl h5)
       · exact Or.inl (Or.inr h2)
     · exact Or.inl (Or.inl h1)
-  calc (runMeasure μ D Dsf).real {x : Run Ω S J | x ∉ retAt O populations (2 * l) εcov α B j}
+  calc (runMeasure μ D Dsf).real {x : Run Ω S J | x ∉ retAt O η₀ populations (2 * l) εcov α B j}
       ≤ (runMeasure μ D Dsf).real ((E1 ∪ E2) ∪ (E5 ∪ (E6 ∪ (E7 ∪ E8)))) :=
         measureReal_mono hsub (measure_ne_top _ _)
     _ ≤ ((runMeasure μ D Dsf).real E1 + (runMeasure μ D Dsf).real E2)
@@ -5655,7 +5698,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
         · exact prefix_cert_disjoint_le D Dsf populations j B.m ρ hρ (hρ j hj) hρ0
         · exact measureReal_heavyHits_le D Dsf O populations j B 0 (Δp * (kmax : ℝ)) th hth
         · exact measureReal_retMiss_le hflat O populations D Dsf hsupp j hj B εcov α τ l lcut E
-            kmin kmax nlo hE hl hlcut hlcl hτ hε0 hε1 hl1 hnloB hsig hdec hcut hga hα
+            kmin kmax nlo hE hl hlcut hlcl hτ hε0 hε1 hl1 hnloB hsig hη₀0 hη₀ hdec hcut hga hα
     _ = ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
         + (Estall + (Edirty + (Real.exp (-2 * (B.m : ℝ) * th ^ 2)
           + (E / l + (E / lcut + 2 * Real.exp (-2 * (nlo : ℝ) * τ ^ 2)))))) := by ring
@@ -5698,6 +5741,7 @@ lemma certWrong_le_miscutAt (O : Oracle μ S) (populations : Finset J) (j : J) (
   exact card_cert_wrong_le O populations j B hhi x
 
 open scoped Classical in
+set_option maxHeartbeats 1000000 in
 /-- Part 1 at one state and one population.  A family the gate admits is right on all
 but `εcov` of the population, except on four events: the certification draws repeat, they
 meet the table, the sample misses the wrong set, or the gate admits a cut the sample shows
@@ -5713,11 +5757,13 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (hlohi : B.lo < B.hi) (εcov α ρ : ℝ) (hε0 : 0 ≤ εcov) (hε1 : εcov ≤ 1) (hα : α < 1 / 2)
-    (hsig : O.η ≤ 1 / 2) (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hsig : O.η ≤ 1 / 2) (hηle : O.η ≤ η₀) (hη₀ : η₀ ≤ 1 / 2)
+    (hηslack : η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4)
+    (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hαgate : α + Real.exp (-2 * (εcov / 32 * (B.m : ℝ))
       * ((1 - 2 * O.η) * εcov / 32) ^ 2) < 1)
     (hgmin : (B.gmin : ℝ) ≤ εcov / 32 * (B.m : ℝ)) :
-    (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+    (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
           ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
         ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
             {p | cutCorrect O B.lo B.hi (clusterAt O.mq populations x B) p (oracleNoise x)})})
@@ -5763,8 +5809,8 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
       {x | ¬ Disjoint (prefixesAt populations B.m x) (certOf j B.m x)} with hE2
     set E3 : Set (Run Ω S J) := hitShort O populations (D j) j B εcov (εcov / 4) with hE3
     set E4 : Set (Run Ω S J) :=
-      gateBadAgree O populations j B (gateAcc O.η εcov - τg) Wr n₀ with hE4
-    have hsub : ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+      gateBadAgree O populations j B (gateAcc η₀ εcov - τg) Wr n₀ with hE4
+    have hsub : ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
           ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
         ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
             {p | cutCorrect O B.lo B.hi (clusterAt O.mq populations x B) p (oracleNoise x)})})
@@ -5822,13 +5868,14 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
             · have : (n₀ : ℝ) ≤ ((cutSidesAt O populations j B x).2.card : ℝ) :=
                 le_trans hn₀le hdec
               exact_mod_cast this
-            · refine le_of_lt (lt_of_binomSfGe_le _ _ (gateAcc O.η εcov) τg α
-                (gateAcc_mem O hε0 hε1 hsig).1 (gateAcc_mem O hε0 hε1 hsig).2 hτg0
+            · refine le_of_lt (lt_of_binomSfGe_le _ _ (gateAcc η₀ εcov) τg α
+                (gateAcc_mem η₀ hε0 hε1 (le_trans (eta_nonneg O) hηle) hη₀).1
+                (gateAcc_mem η₀ hε0 hε1 (le_trans (eta_nonneg O) hηle) hη₀).2 hτg0
                 hαside (hadm ?_))
               exact hgminle
         · exact Or.inl (Or.inr hdisj)
       · exact Or.inl (Or.inl hinj)
-    calc (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+    calc (runMeasure μ D Dsf).real ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
           ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
         ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
             {p | cutCorrect O B.lo B.hi (clusterAt O.mq populations x B) p (oracleNoise x)})})
@@ -5849,14 +5896,26 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
           · exact measureReal_hitShort_le D Dsf O populations j B εcov (εcov / 4) hε0
               (by positivity)
           · exact measureReal_gateBadAgree_le hflat O populations D Dsf hsupp j hj B
-              (gateAcc O.η εcov - τg) τg Wr n₀ hτg0 hsig
+              (gateAcc η₀ εcov - τg) τg Wr n₀ hτg0 hsig
               (by
                 intro n hn hnm
                 have hnR : (n₀ : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
                 have hWn : Wr - 1 ≤ (n : ℝ) := le_trans hn₀ge hnR
                 have hnm' : (n : ℝ) ≤ (B.m : ℝ) := by exact_mod_cast hnm
-                rw [hτgdef, gateAcc, hqdef]
-                nlinarith [hWn, hnm', hmR])
+                rw [hτgdef, gateAcc, hqdef, hWrdef]
+                have hs : (0:ℝ) ≤ 1 / 2 - O.η := by linarith
+                have hΔ : (0:ℝ) ≤ η₀ - O.η := by linarith
+                have hΔs : η₀ - O.η ≤ εcov * (1 / 2 - O.η) / 4 := by nlinarith [hηslack, hε0]
+                have hfac : (0:ℝ) ≤ 1 - εcov := by linarith
+                have h1 : (n : ℝ) * ((η₀ - O.η) * (1 - εcov))
+                    ≤ (B.m : ℝ) * (εcov * (1 / 2 - O.η) / 4) := by
+                  have hnn : (0:ℝ) ≤ (η₀ - O.η) * (1 - εcov) := mul_nonneg hΔ hfac
+                  have hstep : (n : ℝ) * ((η₀ - O.η) * (1 - εcov))
+                      ≤ (B.m : ℝ) * ((η₀ - O.η) * (1 - εcov)) :=
+                    mul_le_mul_of_nonneg_right hnm' hnn
+                  refine hstep.trans (mul_le_mul_of_nonneg_left ?_ hmR)
+                  nlinarith [hΔs, hΔ, hfac, hε0]
+                nlinarith [h1, hWn, hnm', hmR, hs, hε0, hε1, mul_nonneg hs hε0])
       _ ≤ ((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
           + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
             + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ)) * q ^ 2)) := by
@@ -5881,19 +5940,19 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
     (indecisionLimit εcov α δ : ℝ) (hδ : 0 ≤ δ) (s : Finset State) (L : ℕ) (hL : 0 < L)
     (hcard : s.card ≤ L)
     (hper : ∀ B ∈ s, (runMeasure μ D Dsf).real
-      (ret O.mq O.η populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
+      (ret O.mq η₀ populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
         ≤ δ / (2 * L)) :
     (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ s},
-        ret O.mq O.η populations indecisionLimit εcov α B.val
+        ret O.mq η₀ populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
   have hLR : (0 : ℝ) < (L : ℕ) := by exact_mod_cast hL
   have hcardR : ((s.card : ℕ) : ℝ) ≤ (L : ℕ) := by exact_mod_cast hcard
   rw [Set.iUnion_subtype]
   calc (runMeasure μ D Dsf).real (⋃ B, ⋃ (_ : B ∈ s),
-        ret O.mq O.η populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
+        ret O.mq η₀ populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B)
       ≤ ∑ B ∈ s, (runMeasure μ D Dsf).real
-          (ret O.mq O.η populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B) :=
+          (ret O.mq η₀ populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B) :=
         measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _B ∈ s, δ / (2 * (L : ℕ)) := Finset.sum_le_sum hper
     _ = (s.card : ℝ) * (δ / (2 * (L : ℕ))) := by rw [Finset.sum_const, nsmul_eq_mul]
@@ -5922,11 +5981,12 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hηslack : η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2)
     (L : ℕ) (hL : 0 < L) (B : State) (hB : Capped O.η populations εcov δ ρ L B) :
-    (runMeasure μ D Dsf).real (ret O.mq O.η populations indecisionLimit εcov α B
+    (runMeasure μ D Dsf).real (ret O.mq η₀ populations indecisionLimit εcov α B
       ∩ FailAt O populations D εcov B) ≤ δ / (2 * L) := by
   classical
   have hρ0 : 0 ≤ ρ := by
@@ -5953,9 +6013,9 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
         nlinarith
       linarith
   by_cases hε1 : εcov ≤ 1
-  · have hsub : ret O.mq O.η populations indecisionLimit εcov α B
+  · have hsub : ret O.mq η₀ populations indecisionLimit εcov α B
           ∩ FailAt O populations D εcov B
-          ⊆ ⋃ j ∈ populations, ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+          ⊆ ⋃ j ∈ populations, ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
               ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
             ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
                 {p | cutCorrect O B.lo B.hi (clusterAt O.mq populations x B) p (oracleNoise x)})})
@@ -5964,17 +6024,17 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
         simp only [FailAt, Set.mem_setOf_eq, not_forall] at hfail
         obtain ⟨j, hj, hfj⟩ := hfail
         exact Set.mem_biUnion hj ⟨hadm j hj, hfj⟩
-    calc (runMeasure μ D Dsf).real (ret O.mq O.η populations indecisionLimit εcov α B
+    calc (runMeasure μ D Dsf).real (ret O.mq η₀ populations indecisionLimit εcov α B
             ∩ FailAt O populations D εcov B)
           ≤ (runMeasure μ D Dsf).real (⋃ j ∈ populations,
-              ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+              ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                 ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
               ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
                   {p | cutCorrect O B.lo B.hi
                     (clusterAt O.mq populations x B) p (oracleNoise x)})})) :=
             measureReal_mono hsub (measure_ne_top _ _)
         _ ≤ ∑ j ∈ populations, (runMeasure μ D Dsf).real
-              ({x : Run Ω S J | admitted O.mq O.η B.lo B.hi B.gmin εcov α
+              ({x : Run Ω S J | admitted O.mq η₀ B.lo B.hi B.gmin εcov α
                 ((clusterAt O.mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
               ∩ {x : Run Ω S J | ¬ (1 - εcov ≤ (D j).real
                   {p | cutCorrect O B.lo B.hi
@@ -5985,7 +6045,7 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
                 + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ))
                     * ((1 - 2 * O.η) * εcov / 32) ^ 2))) :=
             Finset.sum_le_sum (fun j hj => measureReal_admitFail_le hflat O populations D Dsf
-              hsupp j hj B hB.lohi εcov α ρ hεcov.le hε1 hα hsig.le hρ hρ0
+              hsupp j hj B hB.lohi εcov α ρ hεcov.le hε1 hα hsig.le hηle hη₀.le hηslack hρ hρ0
               hαgate hB.gfloor)
         _ = stateFail O.η populations εcov ρ B := by
             rw [Finset.sum_const, nsmul_eq_mul]; rfl
@@ -6033,19 +6093,21 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α : ℝ) (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hηslack : η₀ - O.η ≤ εcov * (1 / 2 - η₀) / 4)
     (Pre : Set S) (hflat : Flat Pre) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (ρ : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2)
     (pAP : ℝ) :
-    (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
-        ret O.mq O.η populations indecisionLimit εcov α B.val
+    (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
+        ret O.mq η₀ populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
   refine validity_of_ladder O populations D Dsf indecisionLimit εcov α δ hδ.le _
-    (ladderLen O.η populations εcov δ α pAP) (ladderLen_pos _ _ _ _ _ _)
-    (stoppable_card_le O populations εcov δ α pAP ρ) (fun B hB => ?_)
-  exact per_state_le O populations D Dsf indecisionLimit εcov α hsig hpop Pre hflat hsupp
-    ρ hρ hεcov δ hδ hδ1 hα _ (ladderLen_pos _ _ _ _ _ _) B (capped_of_mem_stoppable hB)
+    (ladderLen η₀ populations εcov δ α pAP) (ladderLen_pos _ _ _ _ _ _)
+    (stoppable_card_le η₀ O.η populations εcov δ α pAP ρ) (fun B hB => ?_)
+  exact per_state_le O populations D Dsf indecisionLimit εcov α hsig hpop hηle hη₀ hηslack Pre
+    hflat hsupp ρ hρ hεcov δ hδ hδ1 hα _ (ladderLen_pos _ _ _ _ _ _) B
+    (capped_of_mem_stoppable hB)
 
 /-- What one round at one population can cost: the draws, the family's size and cleanliness,
 the sample's two class counts and its heavy fraction, and the round's own two tests. -/
@@ -6067,7 +6129,7 @@ such a state is what the computed ladder is for.
 A population that never rejects is fine: the gate skips a sample below `gmin`, and
 `admitted` is an implication, so a skipped test is passed over rather than failed.  Nothing
 here asks a population to carry both labels. -/
-def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ) (B : State) : Prop :=
   ∃ (τ th tap γdec γscr γdirty gdirty Δ lcut : ℝ),
     0 < B.m ∧ 0 < B.k ∧ B.cn < B.cd ∧ 0 < indecisionLimit ∧ indecisionLimit ≤ 1 / 2
@@ -6093,7 +6155,7 @@ def PassableAt (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) 
     ∧ ((B.lo : ℝ) < ((B.k - 1 : ℕ) : ℝ) * ((1 - O.η) - γdec))
     -- the gate's margin clears its null on every decided count the FNR test allows
     ∧ (∀ n c : ℕ, ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ ≤ n → n ≤ c → c ≤ B.m →
-        (n : ℝ) * (gateAcc O.η εcov + τ + τ)
+        (n : ℝ) * (gateAcc η₀ εcov + τ + τ)
           ≤ (n : ℝ) * (1 - O.η) - (1 - 2 * O.η) * (2 * lcut * (c : ℝ)))
     ∧ (Real.exp (-2 * (B.gmin : ℝ) * τ ^ 2) ≤ α)
     -- and the whole round, over every population, fits in the budget
@@ -6114,10 +6176,10 @@ lemma le_cube_of_nonneg {x : ℝ} (hx : 0 ≤ x) : x ≤ (x + 3) ^ 3 := by
 lemma le_mul_of_one_le_right' {x s c : ℝ} (hxs : x ≤ s) (hs : 0 ≤ s) (hc : 1 ≤ c) :
     x ≤ s * c := by nlinarith
 
-lemma one_le_capScale (O : Oracle μ S) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    1 ≤ capScale O.η populations εcov δ α pAP := by
+lemma one_le_capScale (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
+    1 ≤ capScale η₀ populations εcov δ α pAP := by
   rw [capScale]
-  exact_mod_cast ladderLen_pos O populations εcov δ α pAP
+  exact_mod_cast ladderLen_pos η₀ populations εcov δ α pAP
 
 /-- `√(m+2) ≤ √m + 2`. -/
 lemma sqrt_add_two_le {m : ℝ} (hm : 0 ≤ m) : Real.sqrt (m + 2) ≤ Real.sqrt m + 2 := by
@@ -6180,22 +6242,22 @@ content of the construction; everything else about `PassableAt` is arithmetic on
 definitions. -/
 
 /-- The gate's floor clears its own tail at the error rate `α`. -/
-lemma solved_alpha (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP : ℝ}
-    (hsig : O.η < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hα : 0 < α)
+lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
+    (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hα : 0 < α)
     (hα1 : α < 1 / 2)
     (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    Real.exp (-2 * ((solvedState O populations εcov δ α pAP).gmin : ℝ)
-      * (sig O.η * εcov / 4) ^ 2) ≤ α := by
-  have hs : 0 < sig O.η := sig_pos O hsig
-  have hτ : (0 : ℝ) < sig O.η * εcov / 4 := by positivity
-  have hτ2 : (0 : ℝ) < (sig O.η * εcov / 4) ^ 2 := pow_pos hτ 2
-  set m : ℕ := prefCount O.η populations εcov δ α pAP with hmdef
+    Real.exp (-2 * ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
+      * (sig η₀ * εcov / 4) ^ 2) ≤ α := by
+  have hs : 0 < sig η₀ := sig_pos η₀ hsig
+  have hτ : (0 : ℝ) < sig η₀ * εcov / 4 := by positivity
+  have hτ2 : (0 : ℝ) < (sig η₀ * εcov / 4) ^ 2 := pow_pos hτ 2
+  set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   -- the prefix count clears the gate's tail
-  have hmlog : 64 * Real.log (1 / α) / (εcov * (sig O.η * εcov / 4) ^ 2) ≤ (m : ℝ) := by
+  have hmlog : 64 * Real.log (1 / α) / (εcov * (sig η₀ * εcov / 4) ^ 2) ≤ (m : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈64 * Real.log (1 / α) / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊ ≤ m := by
+    have hle : ⌈64 * Real.log (1 / α) / (εcov * (sig η₀ * εcov / 4) ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount]; omega
     exact_mod_cast hle
   -- and the floor keeps a fraction of it
@@ -6207,14 +6269,14 @@ lemma solved_alpha (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP :
     rw [div_le_iff₀ hε] at hsizeR
     linarith
   have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((solvedState O populations εcov δ α pAP).gmin : ℝ) := by
+      ≤ ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ) := by
     show εcov * (m : ℝ) / 64 ≤ (⌊εcov * (m : ℝ) / 32⌋₊ : ℝ)
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     linarith
-  rw [show (-2 * ((solvedState O populations εcov δ α pAP).gmin : ℝ)
-        * (sig O.η * εcov / 4) ^ 2)
-      = -(2 * ((solvedState O populations εcov δ α pAP).gmin : ℝ)
-        * (sig O.η * εcov / 4) ^ 2) from by ring]
+  rw [show (-2 * ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
+        * (sig η₀ * εcov / 4) ^ 2)
+      = -(2 * ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
+        * (sig η₀ * εcov / 4) ^ 2) from by ring]
   refine exp_neg_le_of_log_le hα ?_
   have hlog0 : 0 ≤ Real.log (1 / α) := Real.log_nonneg (by rw [le_div_iff₀ hα]; linarith)
   rw [div_le_iff₀ (by positivity)] at hmlog
@@ -6222,44 +6284,44 @@ lemma solved_alpha (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP :
 
 set_option maxHeartbeats 1000000 in
 /-- The round's failure, over every population, fits the error budget. -/
-lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
+lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     {indecisionLimit εcov δ α pAP ρ ρsf : ℝ}
-    (hsig : O.η < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hα : 0 < α)
+    (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hα : 0 < α)
     (hα1 : α < 1 / 2)
     (hδ1 : δ ≤ 1)
     (hpAP : 0 < pAP) (hind : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
     (hcutlim : cutBudget εcov ≤ indecisionLimit / 2)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
-    (hρsmall : ρ ≤ collisionCap O.η populations εcov δ α pAP)
-    (hρsfsmall : ρsf ≤ collisionCap O.η populations εcov δ α pAP) :
+    (hρsmall : ρ ≤ collisionCap η₀ populations εcov δ α pAP)
+    (hρsfsmall : ρsf ≤ collisionCap η₀ populations εcov δ α pAP) :
     (populations.card : ℝ)
-        * roundFail populations (indecisionLimit / 2) (cutBudget εcov) (sig O.η * εcov / 4)
+        * roundFail populations (indecisionLimit / 2) (cutBudget εcov) (sig η₀ * εcov / 4)
             (cutBudget εcov / 4)
-            (Real.exp (-2 * (((solvedState O populations εcov δ α pAP).k - 1 : ℕ) : ℝ)
-              * (sig O.η / 2) ^ 2))
-            (screenMargin O.η populations εcov δ) (screenMargin O.η populations εcov δ)
-            ((populations.card : ℝ) * flipBudget O.η populations εcov δ) (pAP / 2) ρ ρsf
-            ⌊(1 - indecisionLimit) * ((solvedState O populations εcov δ α pAP).m : ℝ)⌋₊
-            (solvedState O populations εcov δ α pAP)
+            (Real.exp (-2 * (((solvedState η₀ populations εcov δ α pAP).k - 1 : ℕ) : ℝ)
+              * (sig η₀ / 2) ^ 2))
+            (screenMargin η₀ populations εcov δ) (screenMargin η₀ populations εcov δ)
+            ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) (pAP / 2) ρ ρsf
+            ⌊(1 - indecisionLimit) * ((solvedState η₀ populations εcov δ α pAP).m : ℝ)⌋₊
+            (solvedState η₀ populations εcov δ α pAP)
       ≤ δ / 2 := by
-  have hs : 0 < sig O.η := sig_pos O hsig
+  have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget εcov := cutBudget_pos hε
-  have hΔ : 0 < flipBudget O.η populations εcov δ := flipBudget_pos O populations hε hcard
-  have hγ : 0 < screenMargin O.η populations εcov δ :=
-    screenMargin_pos O populations hsig hε hcard
-  have hτ : (0 : ℝ) < sig O.η * εcov / 4 := by positivity
+  have hΔ : 0 < flipBudget η₀ populations εcov δ := flipBudget_pos η₀ populations hε hcard
+  have hγ : 0 < screenMargin η₀ populations εcov δ :=
+    screenMargin_pos η₀ populations hsig hε hcard
+  have hτ : (0 : ℝ) < sig η₀ * εcov / 4 := by positivity
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
     have h1 : 1 ≤ populations.card := by exact_mod_cast hcard
     exact_mod_cast h1
   set ε₀ : ℝ := δ / (32 * (populations.card : ℝ)) with hε₀def
   have hε₀ : 0 < ε₀ := by rw [hε₀def]; positivity
-  set m : ℕ := prefCount O.η populations εcov δ α pAP with hmdef
-  set M : ℕ := poolCount O.η populations εcov δ pAP with hMdef
-  set κ : ℕ := famCount O.η populations εcov δ with hκdef
-  have hBm : (solvedState O populations εcov δ α pAP).m = m := rfl
-  have hBM : (solvedState O populations εcov δ α pAP).M = M := rfl
-  have hBκ : ((solvedState O populations εcov δ α pAP).k - 1 : ℕ) = κ := by
+  set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
+  set M : ℕ := poolCount η₀ populations εcov δ pAP with hMdef
+  set κ : ℕ := famCount η₀ populations εcov δ with hκdef
+  have hBm : (solvedState η₀ populations εcov δ α pAP).m = m := rfl
+  have hBM : (solvedState η₀ populations εcov δ α pAP).M = M := rfl
+  have hBκ : ((solvedState η₀ populations εcov δ α pAP).k - 1 : ℕ) = κ := by
     show κ + 1 - 1 = κ
     omega
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
@@ -6274,25 +6336,25 @@ lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
       rw [hMdef, poolCount]; omega
     exact_mod_cast hle
   have cscr : Real.log (((M : ℝ) + 1) / ε₀)
-      / (2 * screenMargin O.η populations εcov δ ^ 2) ≤ (m : ℝ) := by
+      / (2 * screenMargin η₀ populations εcov δ ^ 2) ≤ (m : ℝ) := by
     have heq : ((M : ℝ) + 1) / ε₀
         = 32 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ := by
       rw [hε₀def]; field_simp; try ring
     rw [heq]
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ)
-        / (2 * screenMargin O.η populations εcov δ ^ 2)⌉₊ ≤ m := by
+        / (2 * screenMargin η₀ populations εcov δ ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount, ← hMdef]; omega
     exact_mod_cast hle
   have cdirty : Real.log (((M : ℝ) + 1) / ε₀)
-      / (2 * ((populations.card : ℝ) * flipBudget O.η populations εcov δ) ^ 2) ≤ (m : ℝ) := by
+      / (2 * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2) ≤ (m : ℝ) := by
     have heq : ((M : ℝ) + 1) / ε₀
         = 32 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ := by
       rw [hε₀def]; field_simp; try ring
     rw [heq]
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget O.η populations εcov δ) ^ 2)⌉₊ ≤ m := by
+        / (2 * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount, ← hMdef]; omega
     exact_mod_cast hle
   have cth : Real.log (1 / ε₀) / (2 * (cutBudget εcov / 4) ^ 2) ≤ (m : ℝ) := by
@@ -6304,34 +6366,34 @@ lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
         / (2 * (cutBudget εcov / 4) ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount]; omega
     exact_mod_cast hle
-  have cfam : Real.log ((1 / cutBudget εcov) / ε₀) / (2 * (sig O.η / 2) ^ 2) ≤ (κ : ℝ) := by
+  have cfam : Real.log ((1 / cutBudget εcov) / ε₀) / (2 * (sig η₀ / 2) ^ 2) ≤ (κ : ℝ) := by
     have heq : (1 / cutBudget εcov) / ε₀
         = 32 * (populations.card : ℝ) / (cutBudget εcov * δ) := by
       rw [hε₀def]; field_simp; try ring
-    have hsq : 2 * (sig O.η / 2) ^ 2 = sig O.η ^ 2 / 2 := by ring
+    have hsq : 2 * (sig η₀ / 2) ^ 2 = sig η₀ ^ 2 / 2 := by ring
     rw [heq, hsq]
     refine le_trans (le_of_eq ?_) (le_trans (Nat.le_ceil
-      (2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig O.η ^ 2)) ?_)
+      (2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η₀ ^ 2)) ?_)
     · field_simp
     · have hle : ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ))
-          / sig O.η ^ 2⌉₊ ≤ κ := by
+          / sig η₀ ^ 2⌉₊ ≤ κ := by
         rw [hκdef, famCount]; omega
       exact_mod_cast hle
   -- the tails those counts kill
   have ttap : Real.exp (-2 * (M : ℝ) * (pAP / 2) ^ 2) ≤ ε₀ := by
     have h := tail_le_of_count (γ := pAP / 2) (c := 1) (by positivity) hε₀ (by norm_num) ctap
     linarith
-  have tscr : ((M : ℝ) + 1) * Real.exp (-2 * (m : ℝ) * screenMargin O.η populations εcov δ ^ 2)
+  have tscr : ((M : ℝ) + 1) * Real.exp (-2 * (m : ℝ) * screenMargin η₀ populations εcov δ ^ 2)
       ≤ ε₀ := tail_le_of_count hγ hε₀ (by linarith) cscr
   have tdirty : ((M : ℝ) + 1) * Real.exp (-2 * (m : ℝ)
-      * ((populations.card : ℝ) * flipBudget O.η populations εcov δ) ^ 2) ≤ ε₀ :=
+      * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2) ≤ ε₀ :=
     tail_le_of_count (by positivity) hε₀ (by linarith) cdirty
   have tth : Real.exp (-2 * (m : ℝ) * (cutBudget εcov / 4) ^ 2) ≤ ε₀ := by
     have h := tail_le_of_count (γ := cutBudget εcov / 4) (c := 1) (by positivity) hε₀
       (by norm_num) cth
     linarith
-  have tfam : Real.exp (-2 * (κ : ℝ) * (sig O.η / 2) ^ 2) / cutBudget εcov ≤ ε₀ := by
-    have h := tail_le_of_count (γ := sig O.η / 2) (c := 1 / cutBudget εcov) (by positivity) hε₀
+  have tfam : Real.exp (-2 * (κ : ℝ) * (sig η₀ / 2) ^ 2) / cutBudget εcov ≤ ε₀ := by
+    have h := tail_le_of_count (γ := sig η₀ / 2) (c := 1 / cutBudget εcov) (by positivity) hε₀
       (by positivity) cfam
     rw [div_mul_eq_mul_div, one_mul] at h
     linarith
@@ -6344,20 +6406,20 @@ lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
     rw [div_le_iff₀ hε] at hsizeR
     linarith
   have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((solvedState O populations εcov δ α pAP).gmin : ℝ) := by
+      ≤ ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ) := by
     show εcov * (m : ℝ) / 64 ≤ (⌊εcov * (m : ℝ) / 32⌋₊ : ℝ)
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     linarith
-  have cgate : Real.log (2 / ε₀) / (2 * (sig O.η * εcov / 4) ^ 2)
-      ≤ ((solvedState O populations εcov δ α pAP).gmin : ℝ) := by
+  have cgate : Real.log (2 / ε₀) / (2 * (sig η₀ * εcov / 4) ^ 2)
+      ≤ ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ) := by
     have heq : (2 : ℝ) / ε₀ = 64 * (populations.card : ℝ) / δ := by
       rw [hε₀def]; field_simp; try ring
     rw [heq]
     have hmlog : 64 * Real.log (64 * (populations.card : ℝ) / δ)
-        / (εcov * (sig O.η * εcov / 4) ^ 2) ≤ (m : ℝ) := by
+        / (εcov * (sig η₀ * εcov / 4) ^ 2) ≤ (m : ℝ) := by
       refine le_trans (Nat.le_ceil _) ?_
       have hle : ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
-          / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊ ≤ m := by
+          / (εcov * (sig η₀ * εcov / 4) ^ 2)⌉₊ ≤ m := by
         rw [hmdef, prefCount]; omega
       exact_mod_cast hle
     have hlog0 : 0 ≤ Real.log (64 * (populations.card : ℝ) / δ) := by
@@ -6366,40 +6428,40 @@ lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
       nlinarith
     rw [div_le_iff₀ (by positivity)] at hmlog ⊢
     linarith [mul_le_mul_of_nonneg_right hgmin
-      (by positivity : (0 : ℝ) ≤ 2 * (sig O.η * εcov / 4) ^ 2)]
+      (by positivity : (0 : ℝ) ≤ 2 * (sig η₀ * εcov / 4) ^ 2)]
   have tgate : 2 * Real.exp (-2
-      * ((solvedState O populations εcov δ α pAP).gmin : ℝ)
-      * (sig O.η * εcov / 4) ^ 2) ≤ ε₀ :=
+      * ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
+      * (sig η₀ * εcov / 4) ^ 2) ≤ ε₀ :=
     tail_le_of_count hτ hε₀ (by norm_num) cgate
   -- the gate's tail, now floored at the decided count rather than at `gmin`
-  have hfloorge : ((solvedState O populations εcov δ α pAP).gmin : ℝ)
+  have hfloorge : ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
       ≤ ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ) := by
-    have hg : (solvedState O populations εcov δ α pAP).gmin = ⌊εcov * (m : ℝ) / 32⌋₊ := rfl
+    have hg : (solvedState η₀ populations εcov δ α pAP).gmin = ⌊εcov * (m : ℝ) / 32⌋₊ := rfl
     rw [hg]
     have hmono : ⌊εcov * (m : ℝ) / 32⌋₊ ≤ ⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ :=
       Nat.floor_mono (by nlinarith [hmR])
     exact_mod_cast hmono
   have tgate' : 2 * Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
-      * (sig O.η * εcov / 4) ^ 2) ≤ ε₀ := by
+      * (sig η₀ * εcov / 4) ^ 2) ≤ ε₀ := by
     refine le_trans ?_ tgate
     have hexp : Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
-          * (sig O.η * εcov / 4) ^ 2)
-        ≤ Real.exp (-2 * ((solvedState O populations εcov δ α pAP).gmin : ℝ)
-          * (sig O.η * εcov / 4) ^ 2) := by
+          * (sig η₀ * εcov / 4) ^ 2)
+        ≤ Real.exp (-2 * ((solvedState η₀ populations εcov δ α pAP).gmin : ℝ)
+          * (sig η₀ * εcov / 4) ^ 2) := by
       refine Real.exp_le_exp.2 ?_
-      nlinarith [hfloorge, sq_nonneg (sig O.η * εcov / 4)]
+      nlinarith [hfloorge, sq_nonneg (sig η₀ * εcov / 4)]
     linarith
   -- the collision terms, with the state's code kept opaque
-  set c2 : ℝ := capScale O.η populations εcov δ α pAP with hc2def
+  set c2 : ℝ := capScale η₀ populations εcov δ α pAP with hc2def
   have hc21 : (1 : ℝ) ≤ c2 := by
     rw [hc2def]
-    exact one_le_capScale O populations εcov δ α pAP
+    exact one_le_capScale η₀ populations εcov δ α pAP
   have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
       * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by
     have h1 : (0 : ℝ) < ((populations.card : ℝ) + 3) ^ 3 := by positivity
     have h2 : (0 : ℝ) < (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by positivity
     exact mul_pos (mul_pos (mul_pos (by norm_num) h1) h2) (by linarith)
-  have hcapval : collisionCap O.η populations εcov δ α pAP
+  have hcapval : collisionCap η₀ populations εcov δ α pAP
       = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
         * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) := by
     rw [collisionCap, ← hmdef, ← hMdef, ← hc2def]
@@ -6444,11 +6506,11 @@ lemma solved_roundFail (O : Oracle μ S) (populations : Finset J)
       mul_le_mul_of_nonneg_right hstep hρsf0
     linarith
   -- the indecision budget is at least the cut budget, so its tail is no worse
-  have hEl : Real.exp (-2 * (κ : ℝ) * (sig O.η / 2) ^ 2) / (indecisionLimit / 2)
-      ≤ Real.exp (-2 * (κ : ℝ) * (sig O.η / 2) ^ 2) / cutBudget εcov :=
+  have hEl : Real.exp (-2 * (κ : ℝ) * (sig η₀ / 2) ^ 2) / (indecisionLimit / 2)
+      ≤ Real.exp (-2 * (κ : ℝ) * (sig η₀ / 2) ^ 2) / cutBudget εcov :=
     div_le_div_of_nonneg_left (Real.exp_nonneg _) hcut hcutlim
   have tdirty' : (M : ℝ) * Real.exp (-2 * (m : ℝ)
-      * ((populations.card : ℝ) * flipBudget O.η populations εcov δ) ^ 2) ≤ ε₀ := by
+      * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2) ≤ ε₀ := by
     refine le_trans ?_ tdirty
     exact mul_le_mul_of_nonneg_right (by linarith) (Real.exp_nonneg _)
   have hcε : (populations.card : ℝ) * ε₀ = δ / 32 := by
@@ -6489,29 +6551,28 @@ lemma share_count_spec {r A m : ℝ} (hr : 0 < r) (hA : 0 ≤ A)
 
 set_option maxHeartbeats 1000000 in
 /-- The state carries its own share of the error budget. -/
-lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
-    (hsig : O.η < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
+lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ : ℝ}
+    (hη0 : 0 ≤ η₀) (hηle : η ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hα : 0 < α) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ)
-    (hρsmall : ρ ≤ collisionCap O.η populations εcov δ α pAP) :
-    stateFail O.η populations εcov ρ (solvedState O populations εcov δ α pAP)
-      ≤ δ / (2 * (ladderLen O.η populations εcov δ α pAP : ℕ)) := by
+    (hρsmall : ρ ≤ collisionCap η₀ populations εcov δ α pAP) :
+    stateFail η populations εcov ρ (solvedState η₀ populations εcov δ α pAP)
+      ≤ δ / (2 * (ladderLen η₀ populations εcov δ α pAP : ℕ)) := by
   classical
-  have hη0 : 0 ≤ O.η := eta_nonneg O
-  have hs : 0 < sig O.η := sig_pos O hsig
+  have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
     have h : 1 ≤ populations.card := by
       by_contra hc
       have : populations.card = 0 := by omega
       rw [this] at hcard; norm_num at hcard
     exact_mod_cast h
-  set m : ℕ := prefCount O.η populations εcov δ α pAP with hmdef
-  set M : ℕ := poolCount O.η populations εcov δ pAP with hMdef
-  set L : ℕ := ladderLen O.η populations εcov δ α pAP with hLdef
+  set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
+  set M : ℕ := poolCount η₀ populations εcov δ pAP with hMdef
+  set L : ℕ := ladderLen η₀ populations εcov δ α pAP with hLdef
   have hLpos : 0 < L := by rw [hLdef]; exact ladderLen_pos _ _ _ _ _ _
   have hL1 : (1 : ℝ) ≤ (L : ℝ) := by exact_mod_cast hLpos
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
-  have hr : 0 < shareRate O.η εcov := by rw [shareRate]; positivity
+  have hr : 0 < shareRate η₀ εcov := by rw [shareRate]; positivity
   -- the ladder is shorter than the prefix count it is built from
   have hLm : (L : ℝ) ≤ (m : ℝ) + 2 := by
     have h : L ≤ m + 2 := by
@@ -6521,19 +6582,19 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
     exact_mod_cast h
   -- the prefix count clears the share's condition
   have hshare : Real.log (16 * (populations.card : ℝ) / δ) + Real.log ((m : ℝ) + 2)
-      ≤ shareRate O.η εcov * (m : ℝ) := by
+      ≤ shareRate η₀ εcov * (m : ℝ) := by
     refine share_count_spec hr (Real.log_nonneg ?_) ?_
     · rw [le_div_iff₀ hδ]; nlinarith
-    · have hle : shareCount O.η populations εcov δ ≤ m := by
+    · have hle : shareCount η₀ populations εcov δ ≤ m := by
         rw [hmdef, prefCount]; omega
-      have h1 : ((shareCount O.η populations εcov δ : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast hle
+      have h1 : ((shareCount η₀ populations εcov δ : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast hle
       refine le_trans ?_ h1
       rw [shareCount]
       exact Nat.le_ceil _
   set q : ℝ := δ / ((populations.card : ℝ) * (L : ℝ)) with hqdef
   have hq0 : 0 < q := by rw [hqdef]; positivity
   -- the share's own tail
-  have hexp : Real.exp (-(shareRate O.η εcov * (m : ℝ))) ≤ q / 16 := by
+  have hexp : Real.exp (-(shareRate η₀ εcov * (m : ℝ))) ≤ q / 16 := by
     refine exp_neg_le_of_log_le (by positivity) ?_
     have hrw : (1 : ℝ) / (q / 16) = (16 * (populations.card : ℝ) / δ) * (L : ℝ) := by
       rw [hqdef]; field_simp
@@ -6542,20 +6603,20 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
       Real.log_le_log (by linarith) hLm
     linarith
   -- the gate's tail, at the slower of the two rates
-  have hT3 : 2 * Real.exp (-2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * O.η) * εcov / 32) ^ 2)
+  have hT3 : 2 * Real.exp (-2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * η₀) * εcov / 32) ^ 2)
       ≤ q / 8 := by
-    have heq : -2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * O.η) * εcov / 32) ^ 2
-        = -(shareRate O.η εcov * (m : ℝ)) := by
+    have heq : -2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * η₀) * εcov / 32) ^ 2
+        = -(shareRate η₀ εcov * (m : ℝ)) := by
       simp only [shareRate, sig]; ring
     rw [heq]
     linarith
   -- the coverage tail, at the faster one
   have hT2 : Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2) ≤ q / 16 := by
     refine le_trans (Real.exp_le_exp.2 ?_) hexp
-    have hle : shareRate O.η εcov ≤ 2 * (εcov / 4) ^ 2 := by
+    have hle : shareRate η₀ εcov ≤ 2 * (εcov / 4) ^ 2 := by
       simp only [shareRate, sig]
-      have hu2 : (1 / 2 - O.η) ^ 2 ≤ 1 / 4 := by nlinarith
-      have key : εcov * (1 / 2 - O.η) ^ 2 ≤ 512 := by nlinarith
+      have hu2 : (1 / 2 - η₀) ^ 2 ≤ 1 / 4 := by nlinarith
+      have key : εcov * (1 / 2 - η₀) ^ 2 ≤ 512 := by nlinarith
       have key2 := mul_le_mul_of_nonneg_left key (sq_nonneg εcov)
       nlinarith [key2]
     nlinarith
@@ -6563,7 +6624,7 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
   have hT1 : ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ ≤ q / 64 := by
     have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
         * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ) := by positivity
-    have hcap : collisionCap O.η populations εcov δ α pAP
+    have hcap : collisionCap η₀ populations εcov δ α pAP
         = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
           * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ)) := by
       rw [collisionCap, capScale, ← hmdef, ← hMdef, ← hLdef]
@@ -6591,7 +6652,21 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
     have h5 := mul_le_mul_of_nonneg_left h4 hρ0
     linarith
   -- assemble
-  have hBm : (solvedState O populations εcov δ α pAP).m = m := rfl
+  have hT3' : 2 * Real.exp (-2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)
+      ≤ q / 8 := by
+    refine le_trans (by
+      refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 ?_) (by norm_num)
+      have hnn : (0 : ℝ) ≤ εcov / 32 * (m : ℝ) := by positivity
+      have h1 : (0 : ℝ) ≤ (1 - 2 * η₀) * εcov / 32 := by
+        have : (0:ℝ) ≤ 1 - 2 * η₀ := by linarith
+        positivity
+      have h2 : (1 - 2 * η₀) * εcov / 32 ≤ (1 - 2 * η) * εcov / 32 := by
+        have hd : (1:ℝ) - 2 * η₀ ≤ 1 - 2 * η := by linarith
+        nlinarith [hε.le]
+      have hsq : ((1 - 2 * η₀) * εcov / 32) ^ 2 ≤ ((1 - 2 * η) * εcov / 32) ^ 2 := by
+        nlinarith [h1, h2]
+      nlinarith [hnn, hsq]) hT3
+  have hBm : (solvedState η₀ populations εcov δ α pAP).m = m := rfl
   rw [stateFail, hBm]
   have hcardne : (populations.card : ℝ) ≠ 0 := by linarith
   have hLne : (L : ℝ) ≠ 0 := by linarith
@@ -6599,7 +6674,7 @@ lemma solved_share (O : Oracle μ S) (populations : Finset J) {εcov δ α pAP �
     rw [hqdef]; field_simp
   rw [hgoal]
   refine mul_le_mul_of_nonneg_left ?_ (by linarith)
-  linarith
+  linarith [hT1, hT2, hT3']
 
 set_option maxHeartbeats 1000000 in
 /-- The computed ladder holds a state whose round can pass.
@@ -6621,6 +6696,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α δ ρ ρsf pAP : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hηslack : η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
@@ -6629,27 +6706,27 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
-    (hρcap : ρ ≤ collisionCap O.η populations εcov δ α pAP)
-    (hρsfcap : ρsf ≤ collisionCap O.η populations εcov δ α pAP) :
-    ∃ B : State, B ∈ stoppable O.η populations εcov δ α pAP ρ
-      ∧ PassableAt O populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP B := by
+    (hρcap : ρ ≤ collisionCap η₀ populations εcov δ α pAP)
+    (hρsfcap : ρsf ≤ collisionCap η₀ populations εcov δ α pAP) :
+    ∃ B : State, B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ
+      ∧ PassableAt O η₀ populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP B := by
   classical
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by
     exact_mod_cast Finset.card_pos.2 hpop
   have hη0 : 0 ≤ O.η := eta_nonneg O
-  have hs : 0 < sig O.η := sig_pos O hsig
-  have hsval : sig O.η = 1 / 2 - O.η := rfl
+  have hs : 0 < sig η₀ := sig_pos η₀ hη₀
+  have hsval : sig η₀ = 1 / 2 - η₀ := rfl
   have hcut : 0 < cutBudget εcov := cutBudget_pos hεcov
-  have hΔ : 0 < flipBudget O.η populations εcov δ := flipBudget_pos O populations hεcov hcard
-  have hγ : 0 < screenMargin O.η populations εcov δ :=
-    screenMargin_pos O populations hsig hεcov hcard
-  set κ : ℕ := famCount O.η populations εcov δ with hκdef
-  have hκpos : 0 < κ := famCount_pos O populations εcov δ
+  have hΔ : 0 < flipBudget η₀ populations εcov δ := flipBudget_pos η₀ populations hεcov hcard
+  have hγ : 0 < screenMargin η₀ populations εcov δ :=
+    screenMargin_pos η₀ populations hη₀ hεcov hcard
+  set κ : ℕ := famCount η₀ populations εcov δ with hκdef
+  have hκpos : 0 < κ := famCount_pos η₀ populations εcov δ
   have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκpos
-  set m : ℕ := prefCount O.η populations εcov δ α pAP with hmdef
+  set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
   have hmpos : 0 < m := by rw [hmdef, prefCount]; omega
   have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
-  set B : State := solvedState O populations εcov δ α pAP with hBdef
+  set B : State := solvedState η₀ populations εcov δ α pAP with hBdef
   -- the fields, as the definitions give them
   have hBm : B.m = m := rfl
   have hBk : B.k = κ + 1 := rfl
@@ -6670,32 +6747,37 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     rw [hBgmin]
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     linarith
-  have hκs : 1 ≤ (κ : ℝ) * sig O.η := by
-    have h1 : (1 : ℝ) / sig O.η ≤ (κ : ℝ) := by
+  have hκs : 1 ≤ (κ : ℝ) * sig η₀ := by
+    have h1 : (1 : ℝ) / sig η₀ ≤ (κ : ℝ) := by
       refine le_trans (Nat.le_ceil _) ?_
-      have hle : ⌈1 / sig O.η⌉₊ ≤ κ := by rw [hκdef, famCount]; omega
+      have hle : ⌈1 / sig η₀⌉₊ ≤ κ := by rw [hκdef, famCount]; omega
       exact_mod_cast hle
     rw [div_le_iff₀ hs] at h1
     linarith
-  set x : ℝ := (κ : ℝ) * (1 / 2 - sig O.η / 2) with hxdef
+  set x : ℝ := (κ : ℝ) * (1 / 2 - sig η₀ / 2) with hxdef
   have hxpos : 0 < x := by
     rw [hxdef, hsval]
     nlinarith
   have hceil1 : 1 ≤ ⌈x⌉₊ := Nat.one_le_ceil_iff.2 hxpos
   have hceilx : (⌈x⌉₊ : ℝ) ≤ x + 1 := le_of_lt (Nat.ceil_lt_add_one hxpos.le)
-  have hgap : (κ : ℝ) * ((1 - O.η) - sig O.η / 2) - x = (κ : ℝ) * sig O.η := by
+  have hgap : (κ : ℝ) * ((1 - η₀) - sig η₀ / 2) - x = (κ : ℝ) * sig η₀ := by
     rw [hxdef, hsval]; ring
-  have hmid : (κ : ℝ) * (O.η + sig O.η / 2) = x := by
+  have hκ0 : (0 : ℝ) ≤ (κ : ℝ) := Nat.cast_nonneg _
+  have hmonoHi : (κ : ℝ) * ((1 - η₀) - sig η₀ / 2) ≤ (κ : ℝ) * ((1 - O.η) - sig η₀ / 2) :=
+    mul_le_mul_of_nonneg_left (by linarith) hκ0
+  have hmonoLo : (κ : ℝ) * (O.η + sig η₀ / 2) ≤ (κ : ℝ) * (η₀ + sig η₀ / 2) :=
+    mul_le_mul_of_nonneg_left (by linarith) hκ0
+  have hmid : (κ : ℝ) * (η₀ + sig η₀ / 2) = x := by
     rw [hxdef, hsval]; ring
   -- the fields, named before the definitions are made opaque
-  have hBM : B.M = poolCount O.η populations εcov δ pAP := rfl
+  have hBM : B.M = poolCount η₀ populations εcov δ pAP := rfl
   have hBcn : B.cn = 1 := rfl
   have hBcd : B.cd = 2 := rfl
   have hBlo : B.lo = ⌈x⌉₊ - 1 := rfl
   have hBhi : B.hi = ⌈x⌉₊ + 1 := rfl
-  have hBscd : B.scd = ⌈1 / (2 * screenMargin O.η populations εcov δ)⌉₊ + 1 := rfl
-  have hBsc : B.sc = ⌈((⌈1 / (2 * screenMargin O.η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-      * (2 * O.η * (1 - O.η) + screenMargin O.η populations εcov δ)⌉₊ := rfl
+  have hBscd : B.scd = ⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 := rfl
+  have hBsc : B.sc = ⌈((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+      * (2 * η₀ * (1 - η₀) + screenMargin η₀ populations εcov δ)⌉₊ := rfl
   have hMceil : 2 * ((κ : ℝ) + 1) / pAP ≤ ((B.M : ℕ) : ℝ) := by
     rw [hBM, poolCount, ← hκdef]
     push_cast
@@ -6704,15 +6786,15 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         ⌈Real.log (16 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊]
   clear_value B κ m x
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_⟩⟩,
-    sig O.η * εcov / 4, cutBudget εcov / 4, pAP / 2,
-    sig O.η / 2, screenMargin O.η populations εcov δ, screenMargin O.η populations εcov δ,
-    (populations.card : ℝ) * flipBudget O.η populations εcov δ,
-    flipBudget O.η populations εcov δ, cutBudget εcov,
+    sig η₀ * εcov / 4, cutBudget εcov / 4, pAP / 2,
+    sig η₀ / 2, screenMargin η₀ populations εcov δ, screenMargin η₀ populations εcov δ,
+    (populations.card : ℝ) * flipBudget η₀ populations εcov δ,
+    flipBudget η₀ populations εcov δ, cutBudget εcov,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
   · rw [hBdef]
-    exact solvedState_mem_schedule O populations εcov δ α pAP
+    exact solvedState_mem_schedule η₀ populations εcov δ α pAP
   -- Capped
   · rw [hBlo, hBhi]
     omega
@@ -6720,8 +6802,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     refine le_trans hgminLe (le_of_eq ?_)
     ring
   · rw [hBdef]
-    exact solved_share O populations hsig hεcov hε1 hδ hδ1 hαpos hpAPPositive hcard hρ0
-      hρcap
+    exact solved_share η₀ O.η populations (hη0.trans hηle) hηle hη₀ hεcov hε1 hδ hδ1
+      hαpos hpAPPositive hcard hρ0 hρcap
   -- PassableAt
   · rw [hBm]; exact hmpos
   · rw [hBk]; omega
@@ -6747,8 +6829,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · rw [hBkappa]
     clear hBsc hBscd hBlo hBhi hBM hMceil hBcn hBcd hBdef hBk hBgmin hBm
       hρcap hρsfcap hρ hρsf hpAPBound
-    have hid : ((populations.card : ℝ) * flipBudget O.η populations εcov δ
-        + (populations.card : ℝ) * flipBudget O.η populations εcov δ) * (κ : ℝ)
+    have hid : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
+        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) * (κ : ℝ)
         = cutBudget εcov / 4 := by
       rw [flipBudget, ← hκdef]
       field_simp
@@ -6759,31 +6841,114 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · rw [hBscd]
     omega
   · rw [hBsc, hBscd]
-    exact Nat.le_ceil _
+    refine le_trans ?_ (Nat.le_ceil _)
+    refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)
+    have h2 : (0 : ℝ) ≤ η₀ - O.η := by linarith
+    nlinarith [h2, eta_nonneg O, hη₀]
   · rw [hBsc, hBscd]
     clear hBsc hBscd hBlo hBhi hBM hMceil hBcn hBcd hBdef hBk hBkappa hBgmin hBm
       hceilx hmid hgap hκs hgminLe hgminGe hsize hsizeR
       hρcap hρsfcap hρ hρsf hpAPBound
-    have hsq : flipBudget O.η populations εcov δ * (1 - 2 * O.η) ^ 2
-        = 4 * screenMargin O.η populations εcov δ := by
+    have hsq : flipBudget η₀ populations εcov δ * (1 - 2 * η₀) ^ 2
+        = 4 * screenMargin η₀ populations εcov δ := by
       rw [screenMargin, hsval]
       ring
-    rw [hsq]
-    have hone : (1 : ℝ) ≤ 2 * ((⌈1 / (2 * screenMargin O.η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-        * screenMargin O.η populations εcov δ := by
-      have hcl : (1 : ℝ) / (2 * screenMargin O.η populations εcov δ)
-          ≤ ((⌈1 / (2 * screenMargin O.η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) := by
+    have hflip0 : (0 : ℝ) ≤ flipBudget η₀ populations εcov δ := hΔ.le
+    have hsqmono : flipBudget η₀ populations εcov δ * (1 - 2 * η₀) ^ 2
+        ≤ flipBudget η₀ populations εcov δ * (1 - 2 * O.η) ^ 2 := by
+      refine mul_le_mul_of_nonneg_left ?_ hflip0
+      have h1 : (0 : ℝ) ≤ 1 - 2 * η₀ := by linarith
+      nlinarith [h1, hηle]
+    have hA : 2 * (η₀ - O.η) * (1 - η₀ - O.η)
+        ≤ 2 * screenMargin η₀ populations εcov δ ^ 2 := by
+      have h1 : (0 : ℝ) ≤ 2 * (η₀ - O.η) := by linarith
+      have h2 : (1 : ℝ) - η₀ - O.η ≤ 1 := by linarith [eta_nonneg O]
+      have h3 : 2 * (η₀ - O.η) * (1 - η₀ - O.η) ≤ 2 * (η₀ - O.η) := by
+        nlinarith [h1, h2, eta_nonneg O]
+      linarith [hηslack]
+    rw [hsq] at hsqmono
+    have hone : (1 : ℝ) ≤ 2 * ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+        * screenMargin η₀ populations εcov δ := by
+      have hcl : (1 : ℝ) / (2 * screenMargin η₀ populations εcov δ)
+          ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) := by
         refine le_trans (Nat.le_ceil _) ?_
         push_cast
         linarith
       rw [div_le_iff₀ (by positivity)] at hcl
       linarith
-    have hnn : (0 : ℝ) ≤ ((⌈1 / (2 * screenMargin O.η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-        * (2 * O.η * (1 - O.η) + screenMargin O.η populations εcov δ) := by
-      have h2η : (0 : ℝ) ≤ 2 * O.η * (1 - O.η) := by nlinarith
+    have honesharp : (1 : ℝ) + 2 * screenMargin η₀ populations εcov δ
+        ≤ 2 * ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+          * screenMargin η₀ populations εcov δ := by
+      have hcl : (1 : ℝ) / (2 * screenMargin η₀ populations εcov δ)
+          ≤ (⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ : ℝ) := Nat.le_ceil _
+      rw [div_le_iff₀ (by positivity)] at hcl
+      push_cast
+      nlinarith [hcl, hγ.le]
+    have hscdub : (((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ)) : ℝ)
+        ≤ 1 / (2 * screenMargin η₀ populations εcov δ) + 2 := by
+      have := le_of_lt (Nat.ceil_lt_add_one
+        (by positivity : (0:ℝ) ≤ 1 / (2 * screenMargin η₀ populations εcov δ)))
+      push_cast
+      linarith
+    have hγsmall : screenMargin η₀ populations εcov δ ≤ 1 / 4 := by
+      have hκ1 : (1 : ℝ) ≤ (famCount η₀ populations εcov δ : ℝ) := by
+        exact_mod_cast famCount_pos η₀ populations εcov δ
+      have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
+        exact_mod_cast Finset.card_pos.2 hpop
+      have hden : (1 : ℝ) ≤ 8 * (populations.card : ℝ)
+          * (famCount η₀ populations εcov δ : ℝ) := by nlinarith [hκ1, hc1]
+      have hfb : flipBudget η₀ populations εcov δ ≤ 1 := by
+        rw [flipBudget, div_le_one (by linarith)]
+        have hcb : cutBudget εcov ≤ 1 := by rw [cutBudget]; linarith
+        linarith
+      have hs0 : (0 : ℝ) ≤ 1 / 2 - η₀ := by linarith
+      have hsig2 : (1 / 2 - η₀) ^ 2 ≤ 1 / 4 := by nlinarith [hs0, eta_nonneg O, hηle]
+      rw [screenMargin, hsval]
+      nlinarith [hfb, hΔ.le, hsig2, sq_nonneg (1 / 2 - η₀)]
+    have hnn : (0 : ℝ) ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+        * (2 * η₀ * (1 - η₀) + screenMargin η₀ populations εcov δ) := by
+      have h2η : (0 : ℝ) ≤ 2 * η₀ * (1 - η₀) := by
+        nlinarith [eta_nonneg O, hηle, hη₀]
       exact mul_nonneg (Nat.cast_nonneg _) (by linarith [hγ.le])
     have hsc := le_of_lt (Nat.ceil_lt_add_one hnn)
-    linarith
+    have hscdA : (((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ)) : ℝ)
+        * (2 * (η₀ - O.η) * (1 - η₀ - O.η))
+        ≤ screenMargin η₀ populations εcov δ
+          + 4 * screenMargin η₀ populations εcov δ ^ 2 := by
+      have hAnn : (0 : ℝ) ≤ 2 * (η₀ - O.η) * (1 - η₀ - O.η) := by
+        have h1 : (0 : ℝ) ≤ 2 * (η₀ - O.η) := by linarith
+        have h3 : (0 : ℝ) ≤ 1 - η₀ - O.η := by linarith [eta_nonneg O]
+        exact mul_nonneg h1 h3
+      have hub0 : (0 : ℝ) ≤ 1 / (2 * screenMargin η₀ populations εcov δ) + 2 := by
+        have : (0:ℝ) < 1 / (2 * screenMargin η₀ populations εcov δ) := by positivity
+        linarith
+      have hstep := mul_le_mul hscdub hA hAnn hub0
+      have hid : (1 / (2 * screenMargin η₀ populations εcov δ) + 2)
+          * (2 * screenMargin η₀ populations εcov δ ^ 2)
+          = screenMargin η₀ populations εcov δ
+            + 4 * screenMargin η₀ populations εcov δ ^ 2 := by
+        field_simp; ring
+      rw [hid] at hstep
+      exact hstep
+    have hAid : 2 * η₀ * (1 - η₀)
+        = 2 * O.η * (1 - O.η) + 2 * (η₀ - O.η) * (1 - η₀ - O.η) := by ring
+    rw [hAid] at hsc ⊢
+    have hS0 : (0 : ℝ) ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) :=
+      Nat.cast_nonneg _
+    have hFS := mul_le_mul_of_nonneg_left hsqmono hS0
+    have hγ2 : 4 * screenMargin η₀ populations εcov δ ^ 2
+        ≤ screenMargin η₀ populations εcov δ := by nlinarith [hγsmall, hγ.le]
+    refine le_trans hsc ?_
+    set S : ℝ := ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) with hSdef
+    set gm : ℝ := screenMargin η₀ populations εcov δ with hgmdef
+    set A : ℝ := 2 * (η₀ - O.η) * (1 - η₀ - O.η) with hAdef
+    set F : ℝ := flipBudget η₀ populations εcov δ * (1 - 2 * O.η) ^ 2 with hFdef
+    have e1 : S * (2 * O.η * (1 - O.η) + A + gm)
+        = S * (2 * O.η * (1 - O.η)) + S * A + S * gm := by ring
+    have e2 : S * (2 * O.η * (1 - O.η) + F - gm)
+        = S * (2 * O.η * (1 - O.η)) + S * F - S * gm := by ring
+    rw [e1, e2]
+    linarith [hscdA, honesharp, hγ2, hFS]
   -- the pool holds a family
   · rw [hBk]
     have hceil := hMceil
@@ -6793,16 +6958,16 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   -- the thresholds decide, and decide right
   · rw [hBhi, hBk, show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega,
       show (κ + 1 - 1 : ℕ) = κ from by omega]
-    linarith [hceilx, hgap, hκs]
-  · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1, hmid]
-    push_cast
-    linarith [Nat.le_ceil x]
-  · rw [hBhi, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega,
-      show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega, hmid]
-    exact Nat.le_ceil x
+    linarith [hceilx, hgap, hκs, hmonoHi]
   · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1]
     push_cast
-    linarith [hceilx, hgap, hκs]
+    linarith [Nat.le_ceil x, hmid, hmonoLo]
+  · rw [hBhi, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega,
+      show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega]
+    linarith [Nat.le_ceil x, hmid, hmonoLo]
+  · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1]
+    push_cast
+    linarith [hceilx, hgap, hκs, hmonoHi]
   -- the gate's two sides clear their thresholds
   · intro n c hn₀ hnc hcm
     have hcR : (c : ℝ) ≤ (m : ℝ) := by rw [← hBm]; exact_mod_cast hcm
@@ -6825,13 +6990,16 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       have hcn : (c : ℝ) ≤ 8 * (n : ℝ) := by nlinarith [hcR, hlow, hm64, hind1]
       nlinarith [hcn, hεcov.le]
     have hs' : (0 : ℝ) ≤ 1 / 2 - O.η := by linarith
+    have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
+    have hslackn : (0 : ℝ) ≤ (n : ℝ) * ((η₀ - O.η) * (1 - εcov)) :=
+      mul_nonneg hn0 (mul_nonneg (by linarith) (by linarith))
     rw [gateAcc]
     simp only [sig]
-    linarith [mul_le_mul_of_nonneg_left key hs']
+    nlinarith [mul_le_mul_of_nonneg_left key hs', hslackn]
   · rw [hBdef]
-    exact solved_alpha O populations hsig hεcov hε1 hδ hαpos hα hpAPPositive hcard
+    exact solved_alpha η₀ populations hη₀ hεcov hε1 hδ hαpos hα hpAPPositive hcard
   · rw [hBdef]
-    exact solved_roundFail O populations hsig hεcov hε1 hδ hαpos hα hδ1 hpAPPositive
+    exact solved_roundFail η₀ populations hη₀ hεcov hε1 hδ hαpos hα hδ1 hpAPPositive
       hindLim hind1 hcutlim hcard hρ0 hρsf0 hρcap hρsfcap
 
 set_option maxHeartbeats 1000000 in
@@ -6861,6 +7029,8 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (indecisionLimit εcov α : ℝ) (ρ pAP δ : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hηslack : η₀ - O.η ≤ screenMargin η₀ populations εcov δ ^ 2)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
@@ -6868,13 +7038,14 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap O.η populations εcov δ α pAP)
-    (hρsf : collisionMass Dsf ≤ collisionCap O.η populations εcov δ α pAP) :
-    (runMeasure μ D Dsf).real {x | ∀ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
-      x ∉ ret O.mq O.η populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
+    (hρcap : ρ ≤ collisionCap η₀ populations εcov δ α pAP)
+    (hρsf : collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP) :
+    (runMeasure μ D Dsf).real {x | ∀ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
+      x ∉ ret O.mq η₀ populations indecisionLimit εcov α B.val} ≤ δ / 2 := by
   classical
   obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
-    (collisionMass Dsf) pAP hsig hpop hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim
+    (collisionMass Dsf) pAP hsig hpop hηle hη₀ hηslack hεcov hε1 hδ hδ1 hαpos hα hindLim
+    hind1 hcutlim
     hpAPPositive
     hpAPBound hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap hρsf
   obtain ⟨τ, th, tap, γdec, γscr, γdirty, gdirty, Δ, lcut, hmpos, hkpos, hcd, hindLim,
@@ -6889,10 +7060,10 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   obtain ⟨j₀, hj₀⟩ := hpop
   have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
   -- the whole failure at the one state, population by population
-  have hsub : {x : Run Ω S J | ∀ B' : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
-        x ∉ ret O.mq O.η populations indecisionLimit εcov α B'.val}
+  have hsub : {x : Run Ω S J | ∀ B' : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ},
+        x ∉ ret O.mq η₀ populations indecisionLimit εcov α B'.val}
       ⊆ ⋃ j ∈ populations,
-        {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j} := by
+        {x : Run Ω S J | x ∉ retAt O η₀ populations indecisionLimit εcov α B j} := by
     intro x hx
     by_contra hc
     simp only [Set.mem_iUnion, not_exists, exists_prop, Set.mem_setOf_eq, not_and] at hc
@@ -6903,7 +7074,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   refine le_trans (measureReal_biUnion_finset_le _ _) ?_
   have hper : ∀ j ∈ populations,
       (runMeasure μ D Dsf).real
-          {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
+          {x : Run Ω S J | x ∉ retAt O η₀ populations indecisionLimit εcov α B j}
         ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ B := by
     intro j hj
     have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp B hcd hkpos j₀ hj₀
@@ -6950,6 +7121,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
       rw [hl]
       linarith [hfl]
     have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp j hj B hmpos hsig.le
+      ((eta_nonneg O).trans hηle) hη₀.le
       εcov α τ l lcut E ((populations.card : ℝ) * Δ + gdirty) ρ th κ κ
       ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊
       (Real.exp_nonneg _) hlpos hlcut (by rw [hl]; exact hlcl) hτ hεcov.le hε1
@@ -6962,7 +7134,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     unfold roundFail
     ring
   calc ∑ j ∈ populations, (runMeasure μ D Dsf).real
-        {x : Run Ω S J | x ∉ retAt O populations indecisionLimit εcov α B j}
+        {x : Run Ω S J | x ∉ retAt O η₀ populations indecisionLimit εcov α B j}
       ≤ ∑ _j ∈ populations,
           roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.m : ℝ)⌋₊ B :=
         Finset.sum_le_sum hper
