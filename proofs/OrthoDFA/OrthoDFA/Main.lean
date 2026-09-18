@@ -23,9 +23,9 @@ theorem clustering_correct : ClusteringCorrect := by
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg
   have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ} =>
-      ret O populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
+      ret O.mq O.η populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
     (fun B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ} =>
-      ret O populations indecisionLimit εcov α B.val) δ
+      ret O.mq O.η populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
       Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα pAP)
     (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP

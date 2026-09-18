@@ -51,7 +51,7 @@ noncomputable def Oracle.label {S : Type*} [MeasurableSpace S] (O : Oracle μ S)
   Set.indicator O.L 1
 
 /-- The membership query the oracle answers, `MQ w = ℓ(w) ⊕ noise(w)`. -/
-noncomputable def mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
+noncomputable def Oracle.mq {S : Type*} [MeasurableSpace S] (O : Oracle μ S) (w : S) (ω : Ω) : ℝ :=
   O.label w + (1 - 2 * O.label w) * O.noise w ω
 
 /-- General string-like type restriction. Satisfied by all strings over a finite alphabet. -/
@@ -180,7 +180,7 @@ noncomputable def prefixesAt (populations : Finset J) (m : ℕ)
 The gate must be judged here and not on `prefixesOf`.  The cluster is chosen to agree with
 the seed's *noisy* column on the representative prefixes — the very agreement the gate then
 measures — so with a large enough pool it can match that column exactly, at which point the
-accept side is `{p | mq p = 1}`, the agreement is total, and the gate admits a family whose
+accept side is `{p | O.mq p = 1}`, the agreement is total, and the gate admits a family whose
 cut is the noise. -/
 noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range m).image (fun i => certPrefix j i x)
@@ -191,20 +191,20 @@ open scoped Classical in
 /-- `_screen_cohort`'s statistic: how many representative prefixes the candidate's column
 disagrees with the seed's on.  Its mean separates an accept-preserving candidate from one
 carrying flip mass `φ` by `φ(1−2η)²`. -/
-noncomputable def screenCount (O : Oracle μ S) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
-  (P.filter (fun p => ¬ ((mq O (p * v) ω = 1) ↔ (mq O p ω = 1)))).card
+noncomputable def screenCount (mq : S → Ω → ℝ) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
+  (P.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card
 
 /-- The candidates the clustering actually sees.  A suffix the screen rejects never becomes
 a fully observed column, so `identify_cluster_around` never ranks it. -/
-noncomputable def screened (O : Oracle μ S) (sc scd : ℕ) (P cands : Finset S) (ω : Ω) :
+noncomputable def screened (mq : S → Ω → ℝ) (sc scd : ℕ) (P cands : Finset S) (ω : Ω) :
     Finset S :=
-  cands.filter (fun v => scd * screenCount O P v ω ≤ sc * P.card)
+  cands.filter (fun v => scd * screenCount mq P v ω ≤ sc * P.card)
 
 open scoped Classical in
 /-- The screen at one budget state. -/
-noncomputable def screenedAt (O : Oracle μ S) (populations : Finset J) (B : State)
+noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
     (x : Run Ω S J) : Finset S :=
-  screened O B.sc B.scd (prefixesAt populations B.m x) (poolAt B.M x) (oracleNoise x)
+  screened mq B.sc B.scd (prefixesAt populations B.m x) (poolAt B.M x) (oracleNoise x)
 
 /-! ### Vote -/
 
@@ -214,8 +214,8 @@ open scoped Classical in
 Every comparison in the algorithm is against a threshold on this count; the real-valued mean
 carries no more information (`vote_mem_grid`, in `OrthoDFA.Adaptive`), which is what keeps
 `State` integer data. -/
-noncomputable def voteCount (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω) : ℕ :=
-  (F.filter (fun v => mq O (p * v) ω = 1)).card
+noncomputable def voteCount (mq : S → Ω → ℝ) (F : Finset S) (p : S) (ω : Ω) : ℕ :=
+  (F.filter (fun v => mq (p * v) ω = 1)).card
 
 /-! ### Cluster -/
 
@@ -230,10 +230,10 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
 open scoped Classical in
 /-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
 cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`. -/
-noncomputable def hammingLoss (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P : Finset S)
+noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
-    ¬ ((mq O (p * v) ω = 1) ↔ cn * F.card < cd * voteCount O F p ω))).card : ℝ)
+    ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
 
 open scoped Classical in
 /-- `hammingLoss` zeroed off the candidate pool.
@@ -241,9 +241,9 @@ open scoped Classical in
 `leastLossSubset` is an argmin picked by `Classical.choose`, so it depends on the loss as a
 function and not only on its values over `cands`.  Zeroing it elsewhere makes two draws
 agreeing on the reads give literally the same loss, which `clusterAround_congr_mq` needs. -/
-noncomputable def clusterLoss (O : Oracle μ S) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
+noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
     (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss O F cn cd P ω v else 0
+  if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
 
 open scoped Classical in
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
@@ -254,35 +254,35 @@ The cohort is the seed with the `k−1` next best, taken only when that really i
 subset.  `np.argsort` is stable and the seed is the table's first column, so the seed wins
 ties for the `k`-th place; modelling the ranking as an arbitrary argmin would let a tie throw
 the seed out and stall the clustering at `{ε}`. -/
-noncomputable def lloydStep (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
+noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
   if ∀ w ∈ cands, w ∉ insert (1 : S)
-        (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)) →
+        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) →
       ∀ v ∈ insert (1 : S)
-        (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)),
-      clusterLoss O F cn cd P cands ω v ≤ clusterLoss O F cn cd P cands ω w
+        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)),
+      clusterLoss mq F cn cd P cands ω v ≤ clusterLoss mq F cn cd P cands ω w
   then insert (1 : S)
-    (leastLossSubset (clusterLoss O F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
+    (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
 
 /-- `identify_cluster_around` iterated to its fixed point.  The total loss is a natural
 number bounded by `k·#P` that strictly decreases at each improving step, so `k·#P + 1`
 iterations from the seed already sit at the fixed point. -/
-noncomputable def clusterAround (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
+noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
     (k : ℕ) : Finset S :=
-  (lloydStep O cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
+  (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
 
 /-- The cluster at one budget state. -/
-noncomputable def clusterAt (O : Oracle μ S) (populations : Finset J)
+noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  clusterAround O B.cn B.cd (prefixesAt populations B.m x) (screenedAt O populations B x)
+  clusterAround mq B.cn B.cd (prefixesAt populations B.m x) (screenedAt mq populations B x)
     (oracleNoise x) B.k
 
 /-! ### The cut -/
 
 /-- `p` is decided when the family's vote clears the accept or reject threshold; otherwise
 it lands in the indecisive band and counts towards the FNR. -/
-def decided (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
-  hi < voteCount O F p ω ∨ voteCount O F p ω ≤ lo
+def decided (mq : S → Ω → ℝ) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
+  hi < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo
 
 /-- Where the family decides `p`, it decides the way the noiseless label does.
 
@@ -291,7 +291,7 @@ separately caps how much of a population can be indecisive.  Note this is the fa
 and not per-member accept preservation: a family of `k` votes correctly while one member
 drifts, since one member moves the vote by `1/k`. -/
 def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) : Prop :=
-  (hi < voteCount O F p ω → O.label p = 1) ∧ (voteCount O F p ω ≤ lo → O.label p = 0)
+  (hi < voteCount O.mq F p ω → O.label p = 1) ∧ (voteCount O.mq F p ω ≤ lo → O.label p = 0)
 
 /-! ## The gate
 
@@ -303,10 +303,10 @@ noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
 
 open scoped Classical in
 /-- The prefixes the cut accepts, and all the prefixes it decides. -/
-noncomputable def cutSides (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
+noncomputable def cutSides (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
     Finset S × Finset S :=
-  (P.filter (fun p => hi - 1 < voteCount O F p ω),
-    P.filter (fun p => hi - 1 < voteCount O F p ω ∨ voteCount O F p ω ≤ lo))
+  (P.filter (fun p => hi - 1 < voteCount mq F p ω),
+    P.filter (fun p => hi - 1 < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
 
 open scoped Classical in
 /-- The accept side's hits plus the reject side's misses. -/
@@ -324,10 +324,10 @@ over `n` decided prefixes of which `W` are mis-cut.
 One statistic and not one per side: a side may hold as little as an `εcov` fraction of the
 sample, and a rate test is only as sharp as its own denominator.  The decided count is
 floored by the FNR test at `(1 − indecisionLimit)·m` instead. -/
-noncomputable def agreeCount (O : Oracle μ S) (lo hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  (agreeOf (cutSides O lo hi F P ω).1 (cutSides O lo hi F P ω).2
-      (P.filter (fun p => mq O p ω = 1)),
-    (cutSides O lo hi F P ω).2.card)
+noncomputable def agreeCount (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
+  (agreeOf (cutSides mq lo hi F P ω).1 (cutSides mq lo hi F P ω).2
+      (P.filter (fun p => mq p ω = 1)),
+    (cutSides mq lo hi F P ω).2.card)
 
 /-- The gate's null rate, `ACCEPT_PRESERVING_DRIFT`.  A correct cut reads at `1 − η` and one
 wrong on an `εcov` fraction at `(1 − η) − εcov(1 − 2η)`; the null sits midway, which
@@ -335,8 +335,8 @@ minimises the worse of the two failure modes at a given sample size.
 
 The vote cutoffs cannot serve here: `hi/k` sits a fixed distance below `1 − η`, so drift
 finer than that reads as clean however many prefixes are certified on. -/
-noncomputable def gateAcc (O : Oracle μ S) (εcov : ℝ) : ℝ :=
-  (1 - O.η) - (1 / 2 - O.η) * εcov
+noncomputable def gateAcc (η εcov : ℝ) : ℝ :=
+  (1 - η) - (1 / 2 - η) * εcov
 
 /-- `drift_verdict`'s ADMITTED, at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE`).
 
@@ -344,10 +344,10 @@ noncomputable def gateAcc (O : Oracle μ S) (εcov : ℝ) : ℝ :=
 
 `ret` applies this to the family with `ε` removed, because `ε` is in every family and the
 vote would otherwise contain `mq p` — the very bit the agreement is scored against. -/
-def admitted (O : Oracle μ S) (lo hi n₀ : ℕ) (εcov α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
-  n₀ ≤ (agreeCount O lo hi F P ω).2 →
-    binomSfGe (agreeCount O lo hi F P ω).2 (gateAcc O εcov)
-      (agreeCount O lo hi F P ω).1 ≤ α
+def admitted (mq : S → Ω → ℝ) (η : ℝ) (lo hi n₀ : ℕ) (εcov α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+  n₀ ≤ (agreeCount mq lo hi F P ω).2 →
+    binomSfGe (agreeCount mq lo hi F P ω).2 (gateAcc η εcov)
+      (agreeCount mq lo hi F P ω).1 ≤ α
 
 open scoped Classical in
 /-- `judge_family`'s two tests, both held per population: the FNR gate and the
@@ -357,14 +357,14 @@ Both read `certOf`.  A family fitted to the prefixes it is then judged on votes 
 decisively there than on fresh ones, so an FNR read off the table comes out optimistic — and
 a cut is graded only where it decides.  The FNR is read off the same seed-dropped vote as the
 agreement gate, so the two grade one cut. -/
-noncomputable def ret (O : Oracle μ S) (populations : Finset J)
+noncomputable def ret (mq : S → Ω → ℝ) (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
-      (((certOf j B.m x).filter (fun p => ¬ decided O B.lo (B.hi - 1)
-          ((clusterAt O populations x B).erase 1) p (oracleNoise x))).card : ℝ)
+      (((certOf j B.m x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
+          ((clusterAt mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.m x).card)
-    ∧ ∀ j ∈ populations, admitted O B.lo B.hi B.gmin εcov α
-        ((clusterAt O populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
+    ∧ ∀ j ∈ populations, admitted mq η B.lo B.hi B.gmin εcov α
+        ((clusterAt mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
 
 /-! ## The budget, solved rather than searched for
 
@@ -375,7 +375,7 @@ depends on that field — it mentions it only through *its* logarithm, and `log 
 closes the loop in one step. -/
 
 /-- `s = 1/2 − η`. -/
-noncomputable def sig (O : Oracle μ S) : ℝ := 1 / 2 - O.η
+noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at. -/
 noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
@@ -383,8 +383,8 @@ noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
 /-- A clean family's vote fails at `exp (-κ·s²/2)` and the round pays that at the cut
 budget, so `κ` is the logarithm of the two together. -/
 noncomputable def famCount (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig O ^ 2⌉₊
-    + ⌈1 / sig O⌉₊ + 1
+  ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig O.η ^ 2⌉₊
+    + ⌈1 / sig O.η⌉₊ + 1
 
 /-- What one family member may flip: the cut budget spread over the family and the
 populations. -/
@@ -393,7 +393,7 @@ noncomputable def flipBudget (O : Oracle μ S) (populations : Finset J) (εcov �
 
 /-- The screen's margin, at the flip budget. -/
 noncomputable def screenMargin (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  flipBudget O populations εcov δ * sig O ^ 2
+  flipBudget O populations εcov δ * sig O.η ^ 2
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (O : Oracle μ S) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
@@ -402,7 +402,7 @@ noncomputable def poolCount (O : Oracle μ S) (populations : Finset J) (εcov δ
 
 /-- The slower of the two rates the state's own share is measured at. -/
 noncomputable def shareRate (O : Oracle μ S) (εcov : ℝ) : ℝ :=
-  εcov * (sig O * εcov / 16) ^ 2 / 16
+  εcov * (sig O.η * εcov / 16) ^ 2 / 16
 
 /-- The prefix count the share asks for.  The ladder's length is logarithmic in the prefix
 count, so the condition refers to `log` of the count itself; `(√(A/r) + 2/r)²` is the closed
@@ -418,9 +418,9 @@ noncomputable def prefCount (O : Oracle μ S) (populations : Finset J)
       * ((poolCount O populations εcov δ pAP : ℝ) + 1) / δ)
       / (2 * screenMargin O populations εcov δ ^ 2)⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
-    + ⌈64 * Real.log (1 / α) / (εcov * (sig O * εcov / 4) ^ 2)⌉₊
+    + ⌈64 * Real.log (1 / α) / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
-        / (εcov * (sig O * εcov / 4) ^ 2)⌉₊
+        / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ)
         * ((poolCount O populations εcov δ pAP : ℝ) + 1) / δ)
         / (2 * ((populations.card : ℝ) * flipBudget O populations εcov δ) ^ 2)⌉₊
@@ -438,8 +438,8 @@ noncomputable def solvedStateAt (O : Oracle μ S) (populations : Finset J)
   k := famCount O populations εcov δ + 1
   cn := 1
   cd := 2
-  lo := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O / 2)⌉₊ - 1
-  hi := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O / 2)⌉₊ + 1
+  lo := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O.η / 2)⌉₊ - 1
+  hi := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O.η / 2)⌉₊ + 1
   sc := ⌈((⌈1 / (2 * screenMargin O populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * (2 * O.η * (1 - O.η) + screenMargin O populations εcov δ)⌉₊
   scd := ⌈1 / (2 * screenMargin O populations εcov δ)⌉₊ + 1
@@ -569,11 +569,11 @@ def ClusteringCorrect : Prop :=
   collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ},
-        x ∈ ret O populations indecisionLimit εcov α B.val) ∧
+        x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ},
-        x ∈ ret O populations indecisionLimit εcov α B.val →
+        x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt O populations x B.val) p (oracleNoise x)}}
+              (clusterAt O.mq populations x B.val) p (oracleNoise x)}}
 
 end OrthoDFA
