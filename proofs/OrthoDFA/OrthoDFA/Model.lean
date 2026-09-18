@@ -371,97 +371,97 @@ noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
 
 /-- A clean family's vote fails at `exp (-κ·s²/2)` and the round pays that at the cut
 budget, so `κ` is the logarithm of the two together. -/
-noncomputable def famCount (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig O.η ^ 2⌉₊
-    + ⌈1 / sig O.η⌉₊ + 1
+noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
+  ⌈2 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
+    + ⌈1 / sig η⌉₊ + 1
 
 /-- What one family member may flip: the cut budget spread over the family and the
 populations. -/
-noncomputable def flipBudget (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  cutBudget εcov / (8 * (populations.card : ℝ) * (famCount O populations εcov δ : ℝ))
+noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
+  cutBudget εcov / (8 * (populations.card : ℝ) * (famCount η populations εcov δ : ℝ))
 
 /-- The screen's margin, at the flip budget. -/
-noncomputable def screenMargin (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  flipBudget O populations εcov δ * sig O.η ^ 2
+noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
+  flipBudget η populations εcov δ * sig η ^ 2
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
-noncomputable def poolCount (O : Oracle μ S) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
-  ⌈2 * ((famCount O populations εcov δ : ℝ) + 1) / pAP⌉₊
+noncomputable def poolCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
+  ⌈2 * ((famCount η populations εcov δ : ℝ) + 1) / pAP⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
 
 /-- The slower of the two rates the state's own share is measured at. -/
-noncomputable def shareRate (O : Oracle μ S) (εcov : ℝ) : ℝ :=
-  εcov * (sig O.η * εcov / 16) ^ 2 / 16
+noncomputable def shareRate (η : ℝ) (εcov : ℝ) : ℝ :=
+  εcov * (sig η * εcov / 16) ^ 2 / 16
 
 /-- The prefix count the share asks for.  The ladder's length is logarithmic in the prefix
 count, so the condition refers to `log` of the count itself; `(√(A/r) + 2/r)²` is the closed
 form clearing `A + log (m + 2)` at rate `r`, the logarithm being under the square root. -/
-noncomputable def shareCount (O : Oracle μ S) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈(Real.sqrt ((Real.log (16 * (populations.card : ℝ) / δ) + 4) / shareRate O εcov)
-    + 2 / shareRate O εcov) ^ 2⌉₊
+noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
+  ⌈(Real.sqrt ((Real.log (16 * (populations.card : ℝ) / δ) + 4) / shareRate η εcov)
+    + 2 / shareRate η εcov) ^ 2⌉₊
 
 /-- The counts the round's tails ask for, summed so each is met. -/
-noncomputable def prefCount (O : Oracle μ S) (populations : Finset J)
+noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
   ⌈Real.log (32 * (populations.card : ℝ)
-      * ((poolCount O populations εcov δ pAP : ℝ) + 1) / δ)
-      / (2 * screenMargin O populations εcov δ ^ 2)⌉₊
+      * ((poolCount η populations εcov δ pAP : ℝ) + 1) / δ)
+      / (2 * screenMargin η populations εcov δ ^ 2)⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
-    + ⌈64 * Real.log (1 / α) / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊
+    + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
-        / (εcov * (sig O.η * εcov / 4) ^ 2)⌉₊
+        / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ)
-        * ((poolCount O populations εcov δ pAP : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget O populations εcov δ) ^ 2)⌉₊
-    + shareCount O populations εcov δ
+        * ((poolCount η populations εcov δ pAP : ℝ) + 1) / δ)
+        / (2 * ((populations.card : ℝ) * flipBudget η populations εcov δ) ^ 2)⌉₊
+    + shareCount η populations εcov δ
     + ⌈64 / εcov⌉₊
     + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
 meet. -/
-noncomputable def solvedStateAt (O : Oracle μ S) (populations : Finset J)
+noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
     (εcov δ pAP : ℝ) (mi : ℕ) : State where
-  M := poolCount O populations εcov δ pAP
+  M := poolCount η populations εcov δ pAP
   m := mi
-  k := famCount O populations εcov δ + 1
+  k := famCount η populations εcov δ + 1
   cn := 1
   cd := 2
-  lo := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O.η / 2)⌉₊ - 1
-  hi := ⌈(famCount O populations εcov δ : ℝ) * (1 / 2 - sig O.η / 2)⌉₊ + 1
-  sc := ⌈((⌈1 / (2 * screenMargin O populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-    * (2 * O.η * (1 - O.η) + screenMargin O populations εcov δ)⌉₊
-  scd := ⌈1 / (2 * screenMargin O populations εcov δ)⌉₊ + 1
+  lo := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ - 1
+  hi := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ + 1
+  sc := ⌈((⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+    * (2 * η * (1 - η) + screenMargin η populations εcov δ)⌉₊
+  scd := ⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
   gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  This is
 the number of states the error budget is divided among; there is no other state the loop
 can return at. -/
-noncomputable def ladderLen (O : Oracle μ S) (populations : Finset J)
+noncomputable def ladderLen (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
-  Nat.log 2 (prefCount O populations εcov δ α pAP) + 1
+  Nat.log 2 (prefCount η populations εcov δ α pAP) + 1
 
 /-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
-noncomputable def schedule (O : Oracle μ S) (populations : Finset J)
+noncomputable def schedule (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : Finset State :=
-  (Finset.range (ladderLen O populations εcov δ α pAP)).image
-    (fun i => solvedStateAt O populations εcov δ pAP
-      (prefCount O populations εcov δ α pAP / 2 ^ i))
+  (Finset.range (ladderLen η populations εcov δ α pAP)).image
+    (fun i => solvedStateAt η populations εcov δ pAP
+      (prefCount η populations εcov δ α pAP / 2 ^ i))
 
 /-- What one tested state may cost: the three events `measureReal_admitFail_le` charges,
 summed over the populations — the certification draws repeating or meeting the table, the
 sample missing the wrong set, and the gate passing on a wrong cut. -/
-noncomputable def stateFail (O : Oracle μ S) (populations : Finset J) (εcov ρ : ℝ)
+noncomputable def stateFail (η : ℝ) (populations : Finset J) (εcov ρ : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
     + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
-      + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ)) * ((1 - 2 * O.η) * εcov / 32) ^ 2)))
+      + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
 
 At a handful of prefixes the gate cannot be sound — a wrong family passes a two-prefix test
 at constant probability — so the loop cannot test there and the guarantee cannot cover it. -/
-structure Capped (O : Oracle μ S) (populations : Finset J) (εcov δ ρ : ℝ) (L : ℕ)
+structure Capped (η : ℝ) (populations : Finset J) (εcov δ ρ : ℝ) (L : ℕ)
     (B : State) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
@@ -469,30 +469,30 @@ structure Capped (O : Oracle μ S) (populations : Finset J) (εcov δ ρ : ℝ) 
   below it costs no coverage. -/
   gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.m : ℝ)
   /-- The ladder has `L` rungs and they divide `δ/2` between them. -/
-  share : stateFail O populations εcov ρ B ≤ δ / (2 * L)
+  share : stateFail η populations εcov ρ B ≤ δ / (2 * L)
 
 open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it
 is a finite sum of `δ/(2·L)` terms and no summable weight over all budgets is needed. -/
-noncomputable def stoppable (O : Oracle μ S) (populations : Finset J)
+noncomputable def stoppable (η : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ : ℝ) : Finset State :=
-  (schedule O populations εcov δ α pAP).filter
-    (Capped O populations εcov δ ρ (ladderLen O populations εcov δ α pAP))
+  (schedule η populations εcov δ α pAP).filter
+    (Capped η populations εcov δ ρ (ladderLen η populations εcov δ α pAP))
 
 /-- The ladder's length as it enters the collision allowance: each rung carries `δ/(2·L)`,
 so the collision terms have to fit `L` times smaller. -/
-noncomputable def capScale (O : Oracle μ S) (populations : Finset J)
+noncomputable def capScale (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℝ :=
-  (ladderLen O populations εcov δ α pAP : ℝ)
+  (ladderLen η populations εcov δ α pAP : ℝ)
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
-noncomputable def collisionCap (O : Oracle μ S) (populations : Finset J)
+noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℝ :=
   δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-    * ((prefCount O populations εcov δ α pAP : ℝ) ^ 2
-      + (poolCount O populations εcov δ pAP : ℝ) ^ 2 + 1)
-    * capScale O populations εcov δ α pAP)
+    * ((prefCount η populations εcov δ α pAP : ℝ) ^ 2
+      + (poolCount η populations εcov δ pAP : ℝ) ^ 2 + 1)
+    * capScale η populations εcov δ α pAP)
 
 /-! ## What the input distributions must satisfy -/
 
@@ -552,12 +552,12 @@ def ClusteringCorrect : Prop :=
   εcov ≤ 1 →
   0 < δ →
   cutBudget εcov ≤ indecisionLimit / 2 →
-  ρ ≤ collisionCap O populations εcov δ α pAP →
-  collisionMass Dsf ≤ collisionCap O populations εcov δ α pAP →
+  ρ ≤ collisionCap O.η populations εcov δ α pAP →
+  collisionMass Dsf ≤ collisionCap O.η populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ},
+    {x | (∃ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
         x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable O populations εcov δ α pAP ρ},
+      ∀ B : {B : State // B ∈ stoppable O.η populations εcov δ α pAP ρ},
         x ∈ ret O.mq O.η populations indecisionLimit εcov α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
