@@ -146,6 +146,11 @@ def _split_counts(pst, decision, column):
     return tuple(counts)
 
 
+def _sides(counts):
+    """``(kind, hits, n)`` for the accept and reject sides of the cut."""
+    return [(kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts)]
+
+
 def drift_verdict(pst, counts) -> str:
     """Whether each side of the cut reads as its own class on the split, or as
     the other's, or whether the counts do not say.
@@ -160,21 +165,25 @@ def drift_verdict(pst, counts) -> str:
     Neither is a rate anything has to be estimated against, which is what a gap
     between the sides would have needed, and would have had to name a signal for.
     """
-    hits_a, n_a = counts[0]
-    hits_r, n_r = counts[1]
     alpha = ACCEPT_PRESERVING_ERROR_RATE
+    sides = _sides(counts)
+
+    def rejects_null(kind, hits, n, level):
+        if kind == "accept":
+            return scipy.stats.binom.sf(hits - 1, n, pst.accept_thresh) <= level
+        return scipy.stats.binom.cdf(hits, n, pst.reject_thresh) <= level
+
+    def drifted(kind, hits, n, level):
+        if kind == "accept":
+            return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
+        return scipy.stats.binom.sf(hits - 1, n, pst.reject_thresh) <= level
+
     # Both sides must clear their own test, so between them they cannot exceed
     # the rate either one spends.
-    if (
-        scipy.stats.binom.sf(hits_a - 1, n_a, pst.accept_thresh) <= alpha
-        and scipy.stats.binom.cdf(hits_r, n_r, pst.reject_thresh) <= alpha
-    ):
+    if all(rejects_null(*side, alpha) for side in sides):
         return ADMITTED
     # Either side drifting on its own is enough to say so, so they share.
-    if (
-        scipy.stats.binom.cdf(hits_a, n_a, pst.accept_thresh) <= alpha / 2
-        or scipy.stats.binom.sf(hits_r - 1, n_r, pst.reject_thresh) <= alpha / 2
-    ):
+    if any(drifted(*side, alpha / len(sides)) for side in sides):
         return DRIFTED
     return UNCERTIFIED
 
