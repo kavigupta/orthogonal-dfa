@@ -4049,6 +4049,24 @@ lemma measurableSet_le_screenBase (O : Oracle μ S) (P cands : Finset S) (n : �
     · simpa [h] using MeasurableSet.empty (α := Ω) (m := noiseAlg O Set.univ)
 
 open scoped Classical in
+/-- Any predicate of the floor, which is `ℕ`-valued, so this is a countable union of the
+two comparisons. -/
+lemma measurableSet_screenBase_pred (O : Oracle μ S) (P cands : Finset S) (Q : ℕ → Prop) :
+    MeasurableSet[noiseAlg O Set.univ] {ω | Q (screenBase O.mq P cands ω)} := by
+  classical
+  have hrw : {ω | Q (screenBase O.mq P cands ω)}
+      = ⋃ n ∈ {n : ℕ | Q n}, ({ω | screenBase O.mq P cands ω ≤ n}
+          ∩ {ω | n ≤ screenBase O.mq P cands ω}) := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, exists_prop]
+    exact ⟨fun h => ⟨_, h, le_rfl, le_rfl⟩,
+      fun ⟨n, hn, h1, h2⟩ => by rwa [le_antisymm h1 h2]⟩
+  rw [hrw]
+  exact MeasurableSet.biUnion (Set.to_countable _)
+    (fun n _ => (measurableSet_screenBase_le O P cands n).inter
+      (measurableSet_le_screenBase O P cands n))
+
+open scoped Classical in
 /-- The screen's own comparison, now relative to the pool's floor. -/
 lemma measurableSet_screenRate (O : Oracle μ S) (P cands : Finset S) (v : S) (sc scd : ℕ) :
     MeasurableSet[noiseAlg O Set.univ]
@@ -4319,6 +4337,57 @@ theorem screen_pass_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn c
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
   have h1 := screenCount_upper hflat O hcd hP v hv γ hγ hclean
+  have h2 : μ.real (⋃ w ∈ cands.erase 1,
+        {ω | (screenCount O.mq P w ω : ℝ) ≤ (P.card : ℝ) * (b - γ)})
+      ≤ (cands.card : ℝ) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+    refine le_trans (measureReal_biUnion_finset_le _ _) ?_
+    have hper : ∀ w ∈ cands.erase 1,
+        μ.real {ω | (screenCount O.mq P w ω : ℝ) ≤ (P.card : ℝ) * (b - γ)}
+          ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) :=
+      fun w hw => screenCount_lower hflat O hcd hP w (Finset.ne_of_mem_erase hw) γ hγ hsig
+    refine le_trans (Finset.sum_le_sum hper) ?_
+    rw [Finset.sum_const, nsmul_eq_mul]
+    have hcardle : ((cands.erase 1).card : ℝ) ≤ (cands.card : ℝ) := by
+      exact_mod_cast Finset.card_erase_le
+    exact mul_le_mul_of_nonneg_right hcardle (Real.exp_nonneg _)
+  linarith [h1, h2]
+
+/-- The pool's floor lands within `γ` of the clean rate `2η(1−η)`.  Never far below, by a
+union bound over the pool — every candidate's disagreement has mean at least that; and never
+far above, because the clean reference `w₀` caps the floor at its own count. -/
+theorem screenBase_band {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (w₀ : S) (hw₀ : w₀ ∈ cands.erase 1) (hw₀clean : ∀ p ∈ P, O.flip w₀ p = 0)
+    (γ : ℝ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2) :
+    μ.real {ω | ¬ |(screenBase O.mq P cands ω : ℝ) - (P.card : ℝ) * (2 * O.η * (1 - O.η))|
+        ≤ (P.card : ℝ) * γ}
+      ≤ ((cands.card : ℝ) + 1) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
+  classical
+  have hne : (cands.erase 1).Nonempty := ⟨w₀, hw₀⟩
+  set b : ℝ := 2 * O.η * (1 - O.η) with hb
+  have hsub : {ω | ¬ |(screenBase O.mq P cands ω : ℝ) - (P.card : ℝ) * b| ≤ (P.card : ℝ) * γ}
+      ⊆ {ω | (P.card : ℝ) * (b + γ) ≤ (screenCount O.mq P w₀ ω : ℝ)}
+        ∪ ⋃ w ∈ cands.erase 1,
+            {ω | (screenCount O.mq P w ω : ℝ) ≤ (P.card : ℝ) * (b - γ)} := by
+    intro ω hω
+    by_contra hnot
+    simp only [Set.mem_union, not_or, Set.mem_iUnion, not_exists, Set.mem_setOf_eq,
+      not_le, exists_prop, not_and] at hnot
+    obtain ⟨hwU, hBl⟩ := hnot
+    have hup : (screenBase O.mq P cands ω : ℝ) ≤ (screenCount O.mq P w₀ ω : ℝ) := by
+      have h : screenBase O.mq P cands ω ≤ screenCount O.mq P w₀ ω := by
+        rw [screenBase, dif_pos hne]
+        exact Finset.inf'_le _ hw₀
+      exact_mod_cast h
+    have hlo : (P.card : ℝ) * (b - γ) < (screenBase O.mq P cands ω : ℝ) := by
+      rw [screenBase, dif_pos hne]
+      obtain ⟨w, hw, hweq⟩ := Finset.exists_mem_eq_inf' hne (fun w => screenCount O.mq P w ω)
+      rw [hweq]
+      exact hBl w hw
+    exact hω (abs_le.2 ⟨by linarith, by linarith⟩)
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  refine le_trans (measureReal_union_le _ _) ?_
+  have h1 := screenCount_upper hflat O hcd hP w₀ (Finset.ne_of_mem_erase hw₀) γ hγ hw₀clean
   have h2 : μ.real (⋃ w ∈ cands.erase 1,
         {ω | (screenCount O.mq P w ω : ℝ) ≤ (P.card : ℝ) * (b - γ)})
       ≤ (cands.card : ℝ) * Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
@@ -4650,6 +4719,279 @@ theorem measureReal_noCleanRef_le (D : J → Measure S) (Dsf : Measure S)
   gcongr
   · exact measureReal_apShort_le D Dsf O B.nsuff pAP t hpAP0 ht hpAPBound
   · exact suffix_not_injective_le D Dsf B.nsuff ρsf hρsf hρsf0
+
+/-- `|√a − √c| ≤ |a − c| / √c`, from `(√a − √c)(√a + √c) = a − c`. -/
+lemma abs_sqrt_sub_le {a c : ℝ} (ha : 0 ≤ a) (hc : 0 < c) :
+    |Real.sqrt a - Real.sqrt c| ≤ |a - c| / Real.sqrt c := by
+  have hsa : 0 ≤ Real.sqrt a := Real.sqrt_nonneg a
+  have hsc : 0 < Real.sqrt c := Real.sqrt_pos.2 hc
+  have h1 : Real.sqrt a ^ 2 = a := Real.sq_sqrt ha
+  have h2 : Real.sqrt c ^ 2 = c := Real.sq_sqrt hc.le
+  have hkey : |Real.sqrt a - Real.sqrt c| * (Real.sqrt a + Real.sqrt c) = |a - c| := by
+    rw [← abs_of_pos (show (0 : ℝ) < Real.sqrt a + Real.sqrt c by linarith), ← abs_mul]
+    congr 1
+    nlinarith [h1, h2]
+  rw [le_div_iff₀ hsc]
+  nlinarith [hkey, abs_nonneg (Real.sqrt a - Real.sqrt c), hsa]
+
+/-- Inverting the clean disagreement rate.  Below `½` it is `½ − 2s²` for `s = ½ − η`, so a
+floor measured to within `γ` recovers the rate to within `γ/(2s)`. -/
+lemma etaOf_close {η r γ : ℝ} (hη : 0 ≤ η) (hsig : η < 1 / 2) (hγ : 0 ≤ γ)
+    (hγs : γ ≤ (1 / 2 - η) ^ 2) (hr : |r - 2 * η * (1 - η)| ≤ γ) :
+    |(1 / 2 - Real.sqrt ((1 / 2 - r) / 2)) - η| ≤ γ / (2 * (1 / 2 - η)) := by
+  set s : ℝ := 1 / 2 - η with hs
+  have hs0 : 0 < s := by rw [hs]; linarith
+  set a : ℝ := (1 / 2 - r) / 2 with ha
+  have hac : |a - s ^ 2| ≤ γ / 2 := by
+    have hrw : a - s ^ 2 = -((r - 2 * η * (1 - η)) / 2) := by rw [ha, hs]; ring
+    rw [hrw, abs_neg, abs_div]
+    rw [abs_of_nonneg (by norm_num : (0:ℝ) ≤ (2:ℝ))]
+    linarith [hr]
+  have ha0 : 0 ≤ a := by
+    have := abs_le.1 hac
+    nlinarith [this.1, hγs, hs0]
+  have hsq : 0 < s ^ 2 := by positivity
+  have hroot : Real.sqrt (s ^ 2) = s := Real.sqrt_sq hs0.le
+  have hmain := abs_sqrt_sub_le ha0 hsq
+  rw [hroot] at hmain
+  have hgoal : |(1 / 2 - Real.sqrt a) - η| = |Real.sqrt a - s| := by
+    rw [hs, ← abs_neg]
+    congr 1
+    ring
+  rw [hgoal]
+  refine le_trans hmain ?_
+  rw [div_le_div_iff₀ hs0 (by positivity)]
+  nlinarith [hac, hs0]
+
+open scoped Classical in
+/-- The runs where the pool's floor misses the clean rate `2η(1−η)` by more than `γ`, among
+the runs that could have measured it: a full table, and a clean reference in the pool. -/
+noncomputable def floorOff (O : Oracle μ S) (populations : Finset J) (B : State) (γ : ℝ) :
+    Set (Run Ω S J) :=
+  {x | B.npref ≤ (prefixesAt populations B.npref x).card
+    ∧ (∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+        ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0)
+    ∧ ¬ |(screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+            (oracleNoise x) : ℝ)
+          - ((prefixesAt populations B.npref x).card : ℝ) * (2 * O.η * (1 - O.η))|
+        ≤ ((prefixesAt populations B.npref x).card : ℝ) * γ}
+
+open scoped Classical in
+lemma measurableSet_floorOff (O : Oracle μ S) (populations : Finset J) (B : State) (γ : ℝ) :
+    MeasurableSet (floorOff O populations B γ) := by
+  classical
+  have hClean : MeasurableSet {x : Run Ω S J | ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+      ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0} := by
+    have hR : ∀ P C : Finset S, MeasurableSet
+        {_x : Run Ω S J | ∃ w₀ ∈ C.erase 1, ∀ p ∈ P, O.flip w₀ p = 0} := by
+      intro P C
+      by_cases h : ∃ w₀ ∈ C.erase 1, ∀ p ∈ P, O.flip w₀ p = 0
+      · simpa [h] using (MeasurableSet.univ : MeasurableSet (Set.univ : Set (Run Ω S J)))
+      · simpa [h] using (MeasurableSet.empty : MeasurableSet (∅ : Set (Run Ω S J)))
+    exact measurableSet_of_run_data populations B _ hR
+  have hRest : MeasurableSet {x : Run Ω S J
+      | B.npref ≤ (prefixesAt populations B.npref x).card
+        ∧ ¬ |(screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+                (oracleNoise x) : ℝ)
+              - ((prefixesAt populations B.npref x).card : ℝ) * (2 * O.η * (1 - O.η))|
+            ≤ ((prefixesAt populations B.npref x).card : ℝ) * γ} := by
+    have hR : ∀ P C : Finset S, MeasurableSet
+        {x : Run Ω S J | B.npref ≤ P.card
+          ∧ ¬ |(screenBase O.mq P C (oracleNoise x) : ℝ)
+                - (P.card : ℝ) * (2 * O.η * (1 - O.η))| ≤ (P.card : ℝ) * γ} := by
+      intro P C
+      by_cases hm : B.npref ≤ P.card
+      swap
+      · have hrw : {x : Run Ω S J | B.npref ≤ P.card
+              ∧ ¬ |(screenBase O.mq P C (oracleNoise x) : ℝ)
+                    - (P.card : ℝ) * (2 * O.η * (1 - O.η))| ≤ (P.card : ℝ) * γ}
+            = (∅ : Set (Run Ω S J)) := by
+          ext x; simp [hm]
+        rw [hrw]; exact MeasurableSet.empty
+      have hrw : {x : Run Ω S J | B.npref ≤ P.card
+            ∧ ¬ |(screenBase O.mq P C (oracleNoise x) : ℝ)
+                  - (P.card : ℝ) * (2 * O.η * (1 - O.η))| ≤ (P.card : ℝ) * γ}
+          = oracleNoise ⁻¹' {ω : Ω | ¬ |((screenBase O.mq P C ω : ℕ) : ℝ)
+                - (P.card : ℝ) * (2 * O.η * (1 - O.η))| ≤ (P.card : ℝ) * γ} := by
+        ext x; simp [hm]
+      rw [hrw]
+      exact measurable_nz (noiseAlg_le O Set.univ _
+        (measurableSet_screenBase_pred O P C
+          (fun n => ¬ |((n : ℕ) : ℝ) - (P.card : ℝ) * (2 * O.η * (1 - O.η))|
+            ≤ (P.card : ℝ) * γ)))
+    exact measurableSet_of_run_data populations B _ hR
+  have hsplit : floorOff O populations B γ
+      = {x : Run Ω S J | ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+          ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0}
+        ∩ {x : Run Ω S J | B.npref ≤ (prefixesAt populations B.npref x).card
+          ∧ ¬ |(screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+                  (oracleNoise x) : ℝ)
+                - ((prefixesAt populations B.npref x).card : ℝ) * (2 * O.η * (1 - O.η))|
+              ≤ ((prefixesAt populations B.npref x).card : ℝ) * γ} := by
+    ext x
+    exact ⟨fun ⟨h0, hw, hb⟩ => ⟨hw, h0, hb⟩, fun ⟨hw, h0, hb⟩ => ⟨h0, hw, hb⟩⟩
+  rw [hsplit]
+  exact hClean.inter hRest
+
+/-- The floor concentrates: one `screenBase_band` at each fixed table. -/
+theorem measureReal_floorOff_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : State) (hcd : B.cn < B.cd)
+    (hsig : O.η ≤ 1 / 2) (γ : ℝ) (hγ : 0 ≤ γ) :
+    (runMeasure μ D Dsf).real (floorOff O populations B γ)
+      ≤ ((B.nsuff : ℝ) + 2) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
+  classical
+  set E : ℝ := ((B.nsuff : ℝ) + 2) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) with hEdef
+  have hE0 : 0 ≤ E := by positivity
+  have hEnn : runMeasure μ D Dsf (floorOff O populations B γ) ≤ ENNReal.ofReal E := by
+    refine runMeasure_slice_le D Dsf _ (measurableSet_floorOff O populations B γ) _ ?_
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    set Pd : Finset S := populations.biUnion
+      (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPd
+    set Cd : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i)) with hCd
+    have hP : ∀ q ∈ Pd, q ∈ Pre := by
+      intro q hq
+      obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
+      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
+      exact hd j' hj' i
+    by_cases hcl : ∃ w₀ ∈ Cd.erase 1, ∀ p ∈ Pd, O.flip w₀ p = 0
+    swap
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ floorOff O populations B γ}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨-, hw, -⟩
+        exact hcl (by simpa [hPd, hCd, prefixesAt, prefixesOf, poolAt, suffixDraw,
+          prefixDraw] using hw)
+      rw [hsec]
+      simpa using ENNReal.ofReal_le_ofReal hE0
+    obtain ⟨w₀, hw₀, hw₀c⟩ := hcl
+    by_cases hm : B.npref ≤ Pd.card
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ floorOff O populations B γ}
+          ⊆ {ω : Ω | ¬ |(screenBase O.mq Pd Cd ω : ℝ)
+                - (Pd.card : ℝ) * (2 * O.η * (1 - O.η))| ≤ (Pd.card : ℝ) * γ} := by
+        rintro ω ⟨-, -, hbad⟩
+        simpa [hPd, hCd, prefixesAt, prefixesOf, poolAt, suffixDraw, prefixDraw,
+          oracleNoise] using hbad
+      refine le_trans (measure_mono hsec) ?_
+      have htail := screenBase_band hflat O hcd hP w₀ hw₀ hw₀c γ hγ hsig
+      rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal (le_trans htail ?_)
+      have hcardR : (B.npref : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
+      have hrangeC : (Finset.range B.nsuff).card ≤ B.nsuff := by simp
+      have hCard : Cd.card ≤ B.nsuff + 1 :=
+        le_trans (Finset.card_insert_le _ _)
+          (by simpa using le_trans Finset.card_image_le hrangeC)
+      have hCdc : (Cd.card : ℝ) ≤ (B.nsuff : ℝ) + 1 := by exact_mod_cast hCard
+      have hmono : Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2)
+          ≤ Real.exp (-2 * (B.npref : ℝ) * γ ^ 2) := by
+        refine Real.exp_le_exp.2 ?_
+        nlinarith [sq_nonneg γ]
+      have hexp0 : (0 : ℝ) ≤ Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2) := Real.exp_nonneg _
+      rw [hEdef]
+      refine mul_le_mul ?_ hmono hexp0 (by positivity)
+      linarith [hCdc]
+    · have hsec : {ω : Ω | ((ω, d) : Run Ω S J) ∈ floorOff O populations B γ}
+          = (∅ : Set Ω) := by
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, -⟩
+        exact hm (by simpa [hPd, prefixesAt, prefixesOf, prefixDraw] using h1)
+      simp [hsec]
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf (floorOff O populations B γ)).toReal
+      ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = E := ENNReal.toReal_ofReal hE0
+
+open scoped Classical in
+/-- The rate the algorithm measures lands within `γ/(2s)` of the oracle's own.  Three ways
+it can miss: the table collides, the pool holds no clean reference, or the floor misses its
+mean.  Nothing here is a hypothesis about `η` — the estimate is read off the table. -/
+theorem measureReal_etaHat_off_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j₀ : J) (hj₀ : j₀ ∈ populations)
+    (B : State) (hcd : B.cn < B.cd) (hsig : O.η < 1 / 2) (hmpos : 0 < B.npref)
+    (γ pAP tap ρ ρsf : ℝ) (hγ : 0 ≤ γ) (hγs : γ ≤ (1 / 2 - O.η) ^ 2)
+    (hpAP0 : 0 ≤ pAP) (htap : 0 ≤ tap)
+    (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
+    (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
+    (hρ : collisionMass (D j₀) ≤ ρ) (hρ0 : 0 ≤ ρ)
+    (hcount : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP - tap)) :
+    (runMeasure μ D Dsf).real
+        {x : Run Ω S J | ¬ |etaHat O.mq populations B x - O.η| ≤ γ / (2 * (1 / 2 - O.η))}
+      ≤ ((B.npref : ℝ) ^ 2 * ρ + ((B.nsuff : ℝ) + 2) * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2))
+        + (Real.exp (-2 * (B.nsuff : ℝ) * tap ^ 2) + (B.nsuff : ℝ) ^ 2 * ρsf) := by
+  classical
+  set E1 : Set (Run Ω S J) :=
+    {x | ¬ Function.Injective (fun i : Fin B.npref => prefixDraw j₀ i.val x)} with hE1
+  set E2 : Set (Run Ω S J) := floorOff O populations B γ with hE2
+  set E3 : Set (Run Ω S J) := {x : Run Ω S J |
+      ¬ ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+        ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0} with hE3
+  have hsub : {x : Run Ω S J | ¬ |etaHat O.mq populations B x - O.η| ≤ γ / (2 * (1 / 2 - O.η))}
+      ⊆ (E1 ∪ E2) ∪ E3 := by
+    intro x hx
+    by_contra hnot
+    simp only [Set.mem_union, not_or] at hnot
+    obtain ⟨⟨h1, h2⟩, h3⟩ := hnot
+    have hinjP : Function.Injective (fun i : Fin B.npref => prefixDraw j₀ i.val x) := by
+      by_contra h; exact h1 h
+    have hcardPre : B.npref ≤ (prefixesAt populations B.npref x).card := by
+      have hinjOn : Set.InjOn (fun i => prefixDraw j₀ i x) ↑(Finset.range B.npref) := by
+        intro a ha b hb hab
+        have := hinjP (show (fun i : Fin B.npref => prefixDraw j₀ i.val x)
+            ⟨a, Finset.mem_range.1 (by simpa using ha)⟩
+          = (fun i : Fin B.npref => prefixDraw j₀ i.val x)
+            ⟨b, Finset.mem_range.1 (by simpa using hb)⟩ from hab)
+        simpa using congrArg Fin.val this
+      have hcardOf : (prefixesOf j₀ B.npref x).card = B.npref := by
+        unfold prefixesOf
+        rw [Finset.card_image_of_injOn hinjOn, Finset.card_range]
+      calc B.npref = (prefixesOf j₀ B.npref x).card := hcardOf.symm
+        _ ≤ (prefixesAt populations B.npref x).card :=
+            Finset.card_le_card (fun q hq => Finset.mem_biUnion.2 ⟨j₀, hj₀, hq⟩)
+    have hclean : ∃ w₀ ∈ (poolAt B.nsuff x).erase 1,
+        ∀ p ∈ prefixesAt populations B.npref x, O.flip w₀ p = 0 := by
+      by_contra h; exact h3 h
+    have hband : |(screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+            (oracleNoise x) : ℝ)
+          - ((prefixesAt populations B.npref x).card : ℝ) * (2 * O.η * (1 - O.η))|
+        ≤ ((prefixesAt populations B.npref x).card : ℝ) * γ := by
+      by_contra h
+      exact h2 ⟨hcardPre, hclean, h⟩
+    have hcpos : (0 : ℝ) < ((prefixesAt populations B.npref x).card : ℝ) := by
+      have : 0 < (prefixesAt populations B.npref x).card := lt_of_lt_of_le hmpos hcardPre
+      exact_mod_cast this
+    have hr : |(screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+            (oracleNoise x) : ℝ) / ((prefixesAt populations B.npref x).card : ℝ)
+          - 2 * O.η * (1 - O.η)| ≤ γ := by
+      have hrw : (screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+              (oracleNoise x) : ℝ) / ((prefixesAt populations B.npref x).card : ℝ)
+            - 2 * O.η * (1 - O.η)
+          = ((screenBase O.mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
+                (oracleNoise x) : ℝ)
+              - ((prefixesAt populations B.npref x).card : ℝ) * (2 * O.η * (1 - O.η)))
+            / ((prefixesAt populations B.npref x).card : ℝ) := by
+        field_simp
+      rw [hrw, abs_div, abs_of_pos hcpos, div_le_iff₀ hcpos]
+      exact hband.trans_eq (mul_comm _ _)
+    exact hx (etaOf_close (eta_nonneg O) hsig hγ hγs hr)
+  calc (runMeasure μ D Dsf).real
+        {x : Run Ω S J | ¬ |etaHat O.mq populations B x - O.η| ≤ γ / (2 * (1 / 2 - O.η))}
+      ≤ (runMeasure μ D Dsf).real ((E1 ∪ E2) ∪ E3) := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ ((runMeasure μ D Dsf).real E1 + (runMeasure μ D Dsf).real E2)
+        + (runMeasure μ D Dsf).real E3 := by
+        have h12 := measureReal_union_le (μ := runMeasure μ D Dsf) E1 E2
+        have h123 := measureReal_union_le (μ := runMeasure μ D Dsf) (E1 ∪ E2) E3
+        linarith
+    _ ≤ _ := by
+        gcongr
+        · exact prefix_not_injective_le D Dsf j₀ B.npref ρ hρ hρ0
+        · exact measureReal_floorOff_le hflat O populations D Dsf hsupp B hcd hsig.le γ hγ
+        · exact measureReal_noCleanRef_le D Dsf O populations B pAP tap ρsf hpAP0 htap
+            hpAPBound hρsf hρsf0 hcount
 
 /-- The screen keeps the accept-preserving candidates.  One `screen_pass` per pool
 member; the cutoff sits above the clean rate `2η(1−η)` by `γ`. -/
