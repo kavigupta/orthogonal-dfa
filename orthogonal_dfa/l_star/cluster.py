@@ -113,8 +113,19 @@ class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def certification_sample(pst, vs, amount: int):
-    """Prefixes drawn only to read the split on, and never added to the table.
+def draw_to_certify(pst, amount: int) -> list:
+    """Prefixes for the split alone, straight from the sampler and not
+    deduplicated against the table: they stand for what the learner will meet,
+    so they are drawn the way it meets them."""
+    return [
+        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
+        for _ in range(amount)
+    ]
+
+
+def certification_sample(pst, vs, prefixes):
+    """The family means and split column for prefixes read only to settle the
+    split, and never added to the table.
 
     Reading one costs a query per family member, plus the one for the split
     itself.  Adding it to the table instead costs a query per fully observed
@@ -122,10 +133,6 @@ def certification_sample(pst, vs, amount: int):
     unsettles the FNR the round has only just met, which is bought back with a
     fresh cohort of suffixes that every later prefix is then read against.
     """
-    prefixes = [
-        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        for _ in range(amount)
-    ]
     suffixes = [pst.table.suffix(v) for v in vs]
     pairs = [p + sfx for p in prefixes for sfx in suffixes]
     read = pst.table.memo.membership_queries(pairs + prefixes)
@@ -238,12 +245,16 @@ class AcceptPreservingGate:
             max(1, int(pst.table.representative.sum())),
             certification_budget(pst, voters),
         )
-        decision, column = certification_sample(pst, voters, drawn)
+        decision, column = certification_sample(
+            pst, voters, draw_to_certify(pst, drawn)
+        )
         counts = _split_counts(pst, decision, column)
         verdict = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
             wanted = prefixes_to_certify(pst, counts, drawn, voters)
-            more_decision, more_column = certification_sample(pst, voters, wanted)
+            more_decision, more_column = certification_sample(
+                pst, voters, draw_to_certify(pst, wanted)
+            )
             decision = np.concatenate([decision, more_decision])
             column = np.concatenate([column, more_column])
             counts = _split_counts(pst, decision, column)
