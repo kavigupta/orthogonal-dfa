@@ -111,16 +111,18 @@ the state, and unlike a history this index is countable. -/
 @[ext]
 structure State where
   /-- How many suffixes have been drawn. -/
-  M : ℕ
+  nsuff : ℕ
   /-- How many prefixes each population has drawn. -/
-  m : ℕ
+  npref : ℕ
   k : ℕ
-  /-- The cluster centre's cutoff, as the ratio `cn/cd`: `p` is on the accept side when
-  `cn · #F < cd · voteCount F p`.
+  /-- The centre's decision boundary, as the ratio `cn/cd`: `p` is on the accept side when
+  more than a `cn/cd` fraction of `F` answers accept at `p`, written cross-multiplied as
+  `cn · #F < cd · voteCount F p` so the state stays integral.
 
-  A ratio and not a count because `identify_cluster_around` centres on
-  `masks[cluster].mean(0) > decision_boundary`, a fraction of the current cluster — which
-  has one member at the first iteration and `k` afterwards. -/
+  This is `identify_cluster_around`'s `decision_boundary`, which it compares the cluster's
+  thresholded mean `masks[cluster].mean(0)` against.  A ratio and not a count because that
+  cluster has one member at the first iteration and `k` afterwards, so no fixed count serves
+  both; `solvedStateAt` sets it to `1/2`, a majority vote. -/
   cn : ℕ
   cd : ℕ
   /-- Reject at or below this count. -/
@@ -146,7 +148,7 @@ deriving instance DecidableEq for State
 
 instance : Countable State :=
   Function.Injective.countable
-    (f := fun b => (b.M, b.m, b.k, b.cn, b.cd, b.lo, b.hi, b.sc, b.scd, b.gmin))
+    (f := fun b => (b.nsuff, b.npref, b.k, b.cn, b.cd, b.lo, b.hi, b.sc, b.scd, b.gmin))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-! ## The algorithm
@@ -192,16 +194,34 @@ carrying flip mass `φ` by `φ(1−2η)²`. -/
 noncomputable def screenCount (mq : S → Ω → ℝ) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
   (P.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card
 
-/-- The candidates the clustering actually sees.  A suffix the screen rejects never becomes
-a fully observed column, so `identify_cluster_around` never ranks it. -/
+/-- The pool's own disagreement floor: the least disagreement any non-seed candidate shows
+against the seed's column.
+
+A candidate's disagreement rate is `2η(1−η) + φ(1−2η)²` for its flip mass `φ`, so the floor
+sits at `2η(1−η)` once the pool holds an accept-preserving suffix — which is what `pAP` and
+`poolCount` buy.  The screen reads its cutoff off this, so the noise rate never enters the
+algorithm: `_screen_cohort`'s `same_family_rate` is measured, not assumed.
+
+The seed is excluded because its two reads are the *same* query string, so it disagrees on
+nothing and would pin the floor at zero. -/
+noncomputable def screenBase (mq : S → Ω → ℝ) (P cands : Finset S) (ω : Ω) : ℕ :=
+  if h : (cands.erase 1).Nonempty then
+    (cands.erase 1).inf' h (fun v => screenCount mq P v ω)
+  else 0
+
+open scoped Classical in
+/-- The candidates the clustering actually sees: those within `sc/scd` of the pool's floor.
+A suffix the screen rejects never becomes a fully observed column, so
+`identify_cluster_around` never ranks it. -/
 noncomputable def screened (mq : S → Ω → ℝ) (sc scd : ℕ) (P cands : Finset S) (ω : Ω) :
     Finset S :=
-  cands.filter (fun v => scd * screenCount mq P v ω ≤ sc * P.card)
+  cands.filter (fun v =>
+    scd * screenCount mq P v ω ≤ scd * screenBase mq P cands ω + sc * P.card)
 
 /-- The screen at one budget state. -/
 noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
     (x : Run Ω S J) : Finset S :=
-  screened mq B.sc B.scd (prefixesAt populations B.m x) (poolAt B.M x) (oracleNoise x)
+  screened mq B.sc B.scd (prefixesAt populations B.npref x) (poolAt B.nsuff x) (oracleNoise x)
 
 /-! ### Vote -/
 
@@ -266,7 +286,7 @@ noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands :
 /-- The cluster at one budget state. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  clusterAround mq B.cn B.cd (prefixesAt populations B.m x) (screenedAt mq populations B x)
+  clusterAround mq B.cn B.cd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     (oracleNoise x) B.k
 
 /-! ### The cut -/
@@ -349,11 +369,11 @@ agreement gate, so the two grade one cut. -/
 noncomputable def ret (mq : S → Ω → ℝ) (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | (∀ j ∈ populations,
-      (((certOf j B.m x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
           ((clusterAt mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
-        ≤ indecisionLimit * (certOf j B.m x).card)
+        ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq η B.lo B.hi B.gmin εcov α
-        ((clusterAt mq populations x B).erase 1) (certOf j B.m x) (oracleNoise x)}
+        ((clusterAt mq populations x B).erase 1) (certOf j B.npref x) (oracleNoise x)}
 
 /-! ## The budget, solved rather than searched for
 
@@ -404,8 +424,8 @@ noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
   ⌈Real.log (32 * (populations.card : ℝ)
-      * ((poolCount η populations εcov δ pAP : ℝ) + 1) / δ)
-      / (2 * screenMargin η populations εcov δ ^ 2)⌉₊
+      * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
+      / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
@@ -421,15 +441,15 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
 meet. -/
 noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
     (εcov δ pAP : ℝ) (mi : ℕ) : State where
-  M := poolCount η populations εcov δ pAP
-  m := mi
+  nsuff := poolCount η populations εcov δ pAP
+  npref := mi
   k := famCount η populations εcov δ + 1
   cn := 1
   cd := 2
   lo := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ - 1
   hi := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ + 1
   sc := ⌈((⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-    * (2 * η * (1 - η) + screenMargin η populations εcov δ)⌉₊
+    * screenMargin η populations εcov δ⌉₊
   scd := ⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
   gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
@@ -452,9 +472,9 @@ summed over the populations — the certification draws repeating or meeting the
 sample missing the wrong set, and the gate passing on a wrong cut. -/
 noncomputable def stateFail (η : ℝ) (populations : Finset J) (εcov ρ : ℝ)
     (B : State) : ℝ :=
-  (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.m : ℝ) ^ 2 * ρ
-    + (Real.exp (-2 * (B.m : ℝ) * (εcov / 4) ^ 2)
-      + 2 * Real.exp (-2 * (εcov / 32 * (B.m : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)))
+  (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
+    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+      + 2 * Real.exp (-2 * (εcov / 32 * (B.npref : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
@@ -467,7 +487,7 @@ structure Capped (η : ℝ) (populations : Finset J) (εcov δ ρ : ℝ) (L : �
   lohi : B.lo < B.hi
   /-- The skip guard sits under any sample the soundness argument has to test, so skipping
   below it costs no coverage. -/
-  gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.m : ℝ)
+  gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.npref : ℝ)
   /-- The ladder has `L` rungs and they divide `δ/2` between them. -/
   share : stateFail η populations εcov ρ B ≤ δ / (2 * L)
 
