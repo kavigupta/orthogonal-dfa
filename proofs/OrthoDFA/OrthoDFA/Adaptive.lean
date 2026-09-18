@@ -20,12 +20,11 @@ They meet at `PassableAt`, the arithmetic a round has to satisfy for both of its
 pass, and `exists_passable` shows the computed schedule reaches such a state.  That
 arithmetic is solved in order: the miscut budget `lcut` below the indecision limit, the flip
 budget `Δ` below it over the family size, the screen's two margins below `Δ(1−2η)²`, then the
-prefix count large enough for every exponential — including the share's own condition, which
-mentions `log` of the prefix count and is closed by `log x ≤ x − 1` — then `α` at the gate's
-tail, then the pool at `k/(pAP − t)`.
+prefix count large enough for every exponential — the share's own among them — then `α` at
+the gate's tail, then the pool at `k/(pAP − t)`.
 
-The union bound over `stoppable` is a finite sum: the ladder has `log₂(prefCount) + 1` rungs
-each carrying `δ/(4·L)`, so no summable weight over all budgets is needed and no state has to
+The union bound over `stoppable` is a finite sum: a rung carries `δ·npref/(8·N)` and the
+ladder's counts halve, so no summable weight over all budgets is needed and no state has to
 be encoded as a number.  `vote_mem_grid` is what lets the state be a `State` at all — a
 threshold enters every event only through the count it cuts at.
 
@@ -248,12 +247,55 @@ lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α 
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   rfl
 
-lemma schedule_card_le (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) :
-    (schedule η₀ populations εcov δ α pAP).card
-      ≤ ladderLen η₀ populations εcov δ α pAP := by
-  rw [schedule]
-  exact le_trans Finset.card_image_le (by simp)
+lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
+    0 < prefCount η₀ populations εcov δ α pAP := by
+  rw [prefCount]; omega
+
+/-- Every rung's prefix count is under the top rung's. -/
+lemma npref_le_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    (hB : B ∈ schedule η₀ populations εcov δ α pAP) :
+    B.npref ≤ prefCount η₀ populations εcov δ α pAP := by
+  rw [schedule] at hB
+  obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
+  exact Nat.div_le_self _ _
+
+/-- Collapsing an image can only drop terms, never add them. -/
+lemma sum_image_le_sum {β : Type*} [DecidableEq β] (g : β → ℝ) (hg : ∀ b, 0 ≤ g b)
+    (f : ℕ → β) (s : Finset ℕ) :
+    ∑ b ∈ s.image f, g b ≤ ∑ i ∈ s, g (f i) := by
+  classical
+  refine Finset.induction_on s (by simp) ?_
+  intro a t ha ih
+  rw [Finset.image_insert, Finset.sum_insert ha]
+  by_cases h : f a ∈ t.image f
+  · rw [Finset.insert_eq_of_mem h]
+    linarith [ih, hg (f a)]
+  · rw [Finset.sum_insert h]
+    linarith [ih]
+
+/-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
+the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
+lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
+    ∑ B ∈ schedule η₀ populations εcov δ α pAP, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations εcov δ α pAP : ℝ) := by
+  classical
+  set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
+  set L : ℕ := ladderLen η₀ populations εcov δ α pAP with hLdef
+  calc ∑ B ∈ schedule η₀ populations εcov δ α pAP, (B.npref : ℝ)
+      ≤ ∑ i ∈ Finset.range L,
+          ((solvedStateAt η₀ populations εcov δ pAP (m / 2 ^ i)).npref : ℝ) := by
+        rw [schedule, ← hmdef, ← hLdef]
+        exact sum_image_le_sum _ (fun B => Nat.cast_nonneg _) _ _
+    _ ≤ ∑ i ∈ Finset.range L, (m : ℝ) * (1 / 2) ^ i := by
+        refine Finset.sum_le_sum (fun i _ => ?_)
+        show ((m / 2 ^ i : ℕ) : ℝ) ≤ (m : ℝ) * (1 / 2) ^ i
+        have h2 : ((2 ^ i : ℕ) : ℝ) = (2 : ℝ) ^ i := by push_cast; ring
+        refine le_trans Nat.cast_div_le (le_of_eq ?_)
+        rw [h2, div_pow, one_pow, mul_one_div]
+    _ = (m : ℝ) * ∑ i ∈ Finset.range L, (1 / 2 : ℝ) ^ i := by rw [Finset.mul_sum]
+    _ ≤ (m : ℝ) * 2 :=
+        mul_le_mul_of_nonneg_left (sum_geometric_two_le _) (Nat.cast_nonneg _)
+    _ = 2 * (m : ℝ) := by ring
 
 lemma sig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < sig η₀ := by
   rw [sig]; linarith
@@ -2316,17 +2358,20 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
         calc (κ.card : ℝ) ≤ ((m * m : ℕ) : ℝ) := by exact_mod_cast h1
           _ = (m : ℝ) ^ 2 := by push_cast; ring
 
-lemma stoppable_card_le (η₀ η : ℝ) (populations : Finset J)
+lemma stoppable_npref_sum_le (η₀ η : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ ρsf : ℝ) :
-    (stoppable η₀ η populations εcov δ α pAP ρ ρsf).card
-      ≤ ladderLen η₀ populations εcov δ α pAP := by
+    ∑ B ∈ stoppable η₀ η populations εcov δ α pAP ρ ρsf, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations εcov δ α pAP : ℝ) := by
   classical
-  exact le_trans (Finset.card_filter_le _ _) (schedule_card_le η₀ populations εcov δ α pAP)
+  refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
+    (schedule_npref_sum_le η₀ populations εcov δ α pAP)
+  rw [stoppable]
+  exact Finset.filter_subset _ _
 
 lemma capped_of_mem_stoppable {η₀ η : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ ρsf : ℝ} {B : State}
     (hB : B ∈ stoppable η₀ η populations εcov δ α pAP ρ ρsf) :
-    Capped η₀ η populations εcov δ ρ ρsf pAP (ladderLen η₀ populations εcov δ α pAP) B := by
+    Capped η₀ η populations εcov δ ρ ρsf pAP (prefCount η₀ populations εcov δ α pAP) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
 
@@ -6862,30 +6907,31 @@ theorem measureReal_admitFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
             Real.exp_nonneg _
           nlinarith [hmono, hpos]
 
-/-- Part 1, reduced to one state.  The ladder is finite, so the union over the states
-the loop may stop at is a finite sum: at most `L` rungs, each carrying `δ/(4·L)`.  No
-summable weight over all budgets is needed, and so no encoding of a budget as a number.
+/-- Part 1, reduced to one state.  The ladder is finite, so the union over the states the
+loop may stop at is a finite sum: a rung carries `δ·npref/(8·N)`, and the counts sum to at
+most `2N`.  No summable weight over all budgets is needed, and so no encoding of a budget as
+a number.
 
 `G` is what the rungs share.  The pool's findability does not mention the prefixes, so it is
-one event for the whole ladder; charging it once rather than `L` times is what keeps the
-pool count free of the ladder's length, which the prefix count determines.
+one event for the whole ladder; charging it once rather than per rung is what keeps the pool
+count free of the ladder's length, which the prefix count determines.
 
 What remains of Part 1 is `hper`: at one rung, off `G`, a family that passes both gates is
-valid on every population except with probability `δ/(4·L)`. -/
+valid on every population except with probability that rung's share. -/
 theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (indecisionLimit εcov α δ : ℝ) (hδ : 0 ≤ δ) (s : Finset State) (L : ℕ) (hL : 0 < L)
-    (hcard : s.card ≤ L) (G : Set (Run Ω S J)) (hG : (runMeasure μ D Dsf).real G ≤ δ / 4)
+    (indecisionLimit εcov α δ : ℝ) (hδ : 0 ≤ δ) (s : Finset State) (N : ℕ) (hN : 0 < N)
+    (hsum : ∑ B ∈ s, (B.npref : ℝ) ≤ 2 * N)
+    (G : Set (Run Ω S J)) (hG : (runMeasure μ D Dsf).real G ≤ δ / 4)
     (hper : ∀ B ∈ s, (runMeasure μ D Dsf).real
       ((ret O.mq populations indecisionLimit εcov α B ∩ FailAt O populations D εcov B) \ G)
-        ≤ δ / (4 * L)) :
+        ≤ δ * (B.npref : ℝ) / (8 * N)) :
     (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ s},
         ret O.mq populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
-  have hLR : (0 : ℝ) < (L : ℕ) := by exact_mod_cast hL
-  have hcardR : ((s.card : ℕ) : ℝ) ≤ (L : ℕ) := by exact_mod_cast hcard
+  have hNR : (0 : ℝ) < (N : ℕ) := by exact_mod_cast hN
   have hsplit : (⋃ B : {B : State // B ∈ s},
         ret O.mq populations indecisionLimit εcov α B.val
           ∩ FailAt O populations D εcov B.val)
@@ -6909,11 +6955,13 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
             ((ret O.mq populations indecisionLimit εcov α B
               ∩ FailAt O populations D εcov B) \ G) :=
           measureReal_biUnion_finset_le _ _
-      _ ≤ ∑ _B ∈ s, δ / (4 * (L : ℕ)) := Finset.sum_le_sum hper
-      _ = (s.card : ℝ) * (δ / (4 * (L : ℕ))) := by rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ (L : ℝ) * (δ / (4 * (L : ℕ))) := by
-          refine mul_le_mul_of_nonneg_right hcardR (by positivity)
-      _ = δ / 4 := by field_simp
+      _ ≤ ∑ B ∈ s, δ * (B.npref : ℝ) / (8 * (N : ℕ)) := Finset.sum_le_sum hper
+      _ = (δ / (8 * (N : ℕ))) * ∑ B ∈ s, (B.npref : ℝ) := by
+          rw [Finset.mul_sum]
+          exact Finset.sum_congr rfl (fun B _ => by ring)
+      _ ≤ (δ / (8 * (N : ℕ))) * (2 * (N : ℕ)) :=
+          mul_le_mul_of_nonneg_left hsum (by positivity)
+      _ = δ / 4 := by field_simp; ring
   linarith [hmain, hG]
 
 /-- Part 1 — whatever is returned is valid, whenever it is returned.
@@ -6942,14 +6990,18 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
     (ρ ρsf pAP : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : α < 1 / 2)
-    (L : ℕ) (hL : 0 < L) (B : State)
-    (hB : Capped η₀ O.η populations εcov δ ρ ρsf pAP L B) :
+    (N : ℕ) (B : State) (hnp : B.npref ≤ N)
+    (hB : Capped η₀ O.η populations εcov δ ρ ρsf pAP N B) :
     (runMeasure μ D Dsf).real ((ret O.mq populations indecisionLimit εcov α B
-      ∩ FailAt O populations D εcov B) \ apShort O B.nsuff pAP (pAP / 2)) ≤ δ / (4 * L) := by
+      ∩ FailAt O populations D εcov B) \ apShort O B.nsuff pAP (pAP / 2))
+      ≤ δ * (B.npref : ℝ) / (8 * N) := by
   classical
   obtain ⟨j₀, hj₀⟩ := hpop
   have hρ0 : 0 ≤ ρ := le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ j₀ hj₀)
-  have hLR : (1 : ℝ) ≤ (L : ℕ) := by exact_mod_cast hL
+  have hnpR : ((B.npref : ℕ) : ℝ) ≤ (N : ℕ) := by exact_mod_cast hnp
+  have hNR : (0 : ℝ) < (N : ℕ) := by
+    have h : 0 < N := lt_of_lt_of_le hB.mpos hnp
+    exact_mod_cast h
   have hpopone : (1 : ℝ) ≤ (populations.card : ℝ) := by
     exact_mod_cast Finset.card_pos.2 ⟨j₀, hj₀⟩
   have hαgate : α + Real.exp (-2 * (εcov / 32 * (B.npref : ℝ))
@@ -6969,9 +7021,9 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
       have hstate : 2 * E ≤ stateFail η₀ O.η populations εcov δ ρ ρsf B := by
         rw [stateFail]
         nlinarith [hE0.le]
-      have hdiv : δ / (4 * (L : ℕ)) ≤ 1 / 2 := by
-        rw [div_le_iff₀ (by positivity : (0 : ℝ) < 4 * ((L : ℕ) : ℝ))]
-        nlinarith
+      have hdiv : δ * ((B.npref : ℕ) : ℝ) / (8 * (N : ℕ)) ≤ 1 / 2 := by
+        rw [div_le_iff₀ (by positivity : (0 : ℝ) < 8 * ((N : ℕ) : ℝ))]
+        nlinarith [Nat.cast_nonneg (α := ℝ) B.npref]
       linarith
   by_cases hε1 : εcov ≤ 1
   · -- the measured rate, and how far it can sit above the oracle's
@@ -7064,14 +7116,14 @@ theorem per_state_le (O : Oracle μ S) (populations : Finset J)
                 hB.gfloor)) hrate
         _ = stateFail η₀ O.η populations εcov δ ρ ρsf B := by
             rw [Finset.sum_const, nsmul_eq_mul, stateFail, hγdef]
-        _ ≤ δ / (4 * (L : ℝ)) := hB.share
+        _ ≤ δ * (B.npref : ℝ) / (8 * (N : ℝ)) := hB.share
   · have hempty : FailAt O populations D εcov B = (∅ : Set (Run Ω S J)) := by
         ext x
         simp only [FailAt, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false, not_not]
         intro j _
         exact le_trans (by linarith [not_le.1 hε1]) measureReal_nonneg
     rw [hempty, Set.inter_empty, Set.empty_diff]
-    simpa using (by positivity : (0 : ℝ) ≤ δ / (4 * (L : ℝ)))
+    simpa using (by positivity : (0 : ℝ) ≤ δ * ((B.npref : ℕ) : ℝ) / (8 * (N : ℝ)))
 
 
 /-! ### How `per_state_le` gets its bound
@@ -7123,8 +7175,8 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
             ∩ FailAt O populations D εcov B.val) ≤ δ / 2 := by
   classical
   refine validity_of_ladder O populations D Dsf indecisionLimit εcov α δ hδ.le _
-    (ladderLen η₀ populations εcov δ α pAP) (ladderLen_pos _ _ _ _ _ _)
-    (stoppable_card_le η₀ O.η populations εcov δ α pAP ρ ρsf)
+    (prefCount η₀ populations εcov δ α pAP) (prefCount_pos _ _ _ _ _ _)
+    (stoppable_npref_sum_le η₀ O.η populations εcov δ α pAP ρ ρsf)
     (apShort O (poolCount η₀ populations εcov δ pAP) pAP (pAP / 2))
     (le_trans (measureReal_apShort_le D Dsf O _ pAP (pAP / 2) hpAP0 (by linarith) hpAPBound)
       hfind) (fun B hB => ?_)
@@ -7132,8 +7184,8 @@ theorem validity_of_returned (O : Oracle μ S) (populations : Finset J)
     nsuff_of_mem_schedule (Finset.mem_filter.1 hB).1
   rw [← hM]
   exact per_state_le O populations D Dsf indecisionLimit εcov α hsig hpop hηle hη₀ Pre
-    hflat hsupp ρ ρsf pAP hρ hρsf hρsf0 hεcov δ hδ hδ1 hα _ (ladderLen_pos _ _ _ _ _ _) B
-    (capped_of_mem_stoppable hB)
+    hflat hsupp ρ ρsf pAP hρ hρsf hρsf0 hεcov δ hδ hδ1 hα _ B
+    (npref_le_of_mem_schedule (Finset.mem_filter.1 hB).1) (capped_of_mem_stoppable hB)
 
 /-- What one round at one population can cost: the draws, the family's size and cleanliness,
 the sample's two class counts and its heavy fraction, and the round's own two tests. -/
@@ -7214,14 +7266,6 @@ lemma mul_self_add_le_cube {x : ℝ} (hx : 0 ≤ x) : x * (x + 3) ≤ (x + 3) ^ 
 lemma le_cube_of_nonneg {x : ℝ} (hx : 0 ≤ x) : x ≤ (x + 3) ^ 3 := by
   have h : (x + 3) ^ 3 - x = x ^ 3 + 9 * x ^ 2 + 26 * x + 27 := by ring
   linarith [h, pow_nonneg hx 3, sq_nonneg x, hx]
-
-lemma le_mul_of_one_le_right' {x s c : ℝ} (hxs : x ≤ s) (hs : 0 ≤ s) (hc : 1 ≤ c) :
-    x ≤ s * c := by nlinarith
-
-lemma one_le_capScale (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    1 ≤ capScale η₀ populations εcov δ α pAP := by
-  rw [capScale]
-  exact_mod_cast ladderLen_pos η₀ populations εcov δ α pAP
 
 /-- To put `exp (-a)` under `ε` it is enough that `a` clears `log (1/ε)`. -/
 lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) ≤ a) :
@@ -7496,57 +7540,47 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
       nlinarith [hfloorge, sq_nonneg (sig η₀ * εcov / 4)]
     linarith
   -- the collision terms, with the state's code kept opaque
-  set c2 : ℝ := capScale η₀ populations εcov δ α pAP with hc2def
-  have hc21 : (1 : ℝ) ≤ c2 := by
-    rw [hc2def]
-    exact one_le_capScale η₀ populations εcov δ α pAP
   have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
-      * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by
+      * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) := by
     have h1 : (0 : ℝ) < ((populations.card : ℝ) + 3) ^ 3 := by positivity
     have h2 : (0 : ℝ) < (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by positivity
-    exact mul_pos (mul_pos (mul_pos (by norm_num) h1) h2) (by linarith)
+    exact mul_pos (mul_pos (by norm_num) h1) h2
   have hcapval : collisionCap η₀ populations εcov δ α pAP
       = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) := by
-    rw [collisionCap, ← hmdef, ← hMdef, ← hc2def]
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) := by
+    rw [collisionCap, ← hmdef, ← hMdef]
   have hcoll1 : (populations.card : ℝ) * (((populations.card : ℝ) + 3) * (m : ℝ) ^ 2 * ρ)
       ≤ δ / 64 := by
     have hstep : (populations.card : ℝ) * (((populations.card : ℝ) + 3) * (m : ℝ) ^ 2)
-        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by
+        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) := by
       have h1 : (populations.card : ℝ) * ((populations.card : ℝ) + 3)
           ≤ ((populations.card : ℝ) + 3) ^ 3 := mul_self_add_le_cube hcard.le
-      have h2 : (m : ℝ) ^ 2 ≤ ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 :=
-        le_mul_of_one_le_right' (by nlinarith [sq_nonneg (M : ℝ)]) (by positivity) hc21
+      have h2 : (m : ℝ) ^ 2 ≤ (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by
+        nlinarith [sq_nonneg (M : ℝ)]
       calc (populations.card : ℝ) * (((populations.card : ℝ) + 3) * (m : ℝ) ^ 2)
           = ((populations.card : ℝ) * ((populations.card : ℝ) + 3)) * (m : ℝ) ^ 2 := by ring
-        _ ≤ (((populations.card : ℝ) + 3) ^ 3)
-              * (((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) :=
+        _ ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) :=
             mul_le_mul h1 h2 (by positivity) (by positivity)
-        _ = ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by ring
-    have hρ' : ρ ≤ δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) := by rwa [hcapval] at hρsmall
-    rw [le_div_iff₀ hden] at hρ'
+    have hro : ρ ≤ δ / (64 * ((populations.card : ℝ) + 3) ^ 3
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) := by rwa [hcapval] at hρsmall
+    rw [le_div_iff₀ hden] at hro
     have h3 : (populations.card : ℝ) * (((populations.card : ℝ) + 3) * (m : ℝ) ^ 2) * ρ
-        ≤ (((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) * ρ :=
+        ≤ (((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) * ρ :=
       mul_le_mul_of_nonneg_right hstep hρ0
     linarith
   have hcoll2 : (populations.card : ℝ) * ((M : ℝ) ^ 2 * ρsf) ≤ δ / 64 := by
     have hstep : (populations.card : ℝ) * (M : ℝ) ^ 2
-        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by
+        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) := by
       have h1 : (populations.card : ℝ) ≤ ((populations.card : ℝ) + 3) ^ 3 :=
         le_cube_of_nonneg hcard.le
-      have h2 : (M : ℝ) ^ 2 ≤ ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 :=
-        le_mul_of_one_le_right' (by nlinarith [sq_nonneg (m : ℝ)]) (by positivity) hc21
-      calc (populations.card : ℝ) * (M : ℝ) ^ 2
-          ≤ (((populations.card : ℝ) + 3) ^ 3)
-              * (((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) :=
-            mul_le_mul h1 h2 (by positivity) (by positivity)
-        _ = ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2 := by ring
-    have hρ' : ρsf ≤ δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) := by rwa [hcapval] at hρsfsmall
-    rw [le_div_iff₀ hden] at hρ'
+      have h2 : (M : ℝ) ^ 2 ≤ (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by
+        nlinarith [sq_nonneg (m : ℝ)]
+      exact mul_le_mul h1 h2 (by positivity) (by positivity)
+    have hro : ρsf ≤ δ / (64 * ((populations.card : ℝ) + 3) ^ 3
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) := by rwa [hcapval] at hρsfsmall
+    rw [le_div_iff₀ hden] at hro
     have h3 : (populations.card : ℝ) * (M : ℝ) ^ 2 * ρsf
-        ≤ (((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * c2) * ρsf :=
+        ≤ (((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) * ρsf :=
       mul_le_mul_of_nonneg_right hstep hρsf0
     linarith
   -- the indecision budget is at least the cut budget, so its tail is no worse
@@ -7591,36 +7625,16 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     rw [hexp, hcε]
     linarith [hcoll1, hcoll2, hε₀le]
 
-/-- A count in closed form that clears `A + log (m + 2)` at rate `r`, from `log x ≤ x − 1`
-at `x = r(m+2)/2`.  Costs `(A + log(1/r))/r`, against the `1/r²` the `√` form below costs;
-at a rate that is itself a squared margin the difference is everything. -/
-lemma log_count_spec {r A m : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (hA : 0 ≤ A)
-    (hm : 2 * (A + Real.log (2 / r)) / r ≤ m) :
-    A + Real.log (m + 2) ≤ r * m := by
-  have hlog2 : 0 ≤ Real.log (2 / r) :=
-    Real.log_nonneg (by rw [le_div_iff₀ hr]; linarith)
-  have hm0 : 0 ≤ m := le_trans (by positivity) hm
-  have hkey : Real.log (r / 2 * (m + 2)) ≤ r / 2 * (m + 2) - 1 :=
-    Real.log_le_sub_one_of_pos (by positivity)
-  rw [Real.log_mul (by positivity) (by positivity)] at hkey
-  have hinv : Real.log (r / 2) = -Real.log (2 / r) := by
-    rw [← Real.log_inv]
-    congr 1
-    field_simp
-  rw [hinv] at hkey
-  rw [div_le_iff₀ hr] at hm
-  linarith
-
 set_option maxHeartbeats 1000000 in
-/-- The state carries its own share of the error budget. -/
+/-- The top rung carries its own share of the error budget, `δ/8`. -/
 lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρsf : ℝ}
-    (hη0 : 0 ≤ η₀) (hηle : η ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
-    (hα : 0 < α) (hpAP : 0 < pAP)
+    (hη0 : 0 ≤ η₀) (hηle : η ≤ η₀) (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1)
+    (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
     (hρsmall : ρ ≤ collisionCap η₀ populations εcov δ α pAP)
     (hρsfsmall : ρsf ≤ collisionCap η₀ populations εcov δ α pAP) :
     stateFail η₀ η populations εcov δ ρ ρsf (solvedState η₀ populations εcov δ α pAP)
-      ≤ δ / (4 * (ladderLen η₀ populations εcov δ α pAP : ℕ)) := by
+      ≤ δ / 8 := by
   classical
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
@@ -7631,48 +7645,28 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
     exact_mod_cast h
   set m : ℕ := prefCount η₀ populations εcov δ α pAP with hmdef
   set M : ℕ := poolCount η₀ populations εcov δ pAP with hMdef
-  set L : ℕ := ladderLen η₀ populations εcov δ α pAP with hLdef
-  have hLpos : 0 < L := by rw [hLdef]; exact ladderLen_pos _ _ _ _ _ _
-  have hL1 : (1 : ℝ) ≤ (L : ℝ) := by exact_mod_cast hLpos
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
+  have hMR : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
   have hr : 0 < shareRate η₀ εcov := by rw [shareRate]; positivity
-  have hr1 : shareRate η₀ εcov ≤ 1 := by
-    have hb : sig η₀ * εcov / 16 ≤ 1 / 32 := by
-      have ht : sig η₀ ≤ 1 / 2 := by rw [sig]; linarith
-      nlinarith [mul_le_mul_of_nonneg_left hε1 hs.le]
-    have hb0 : (0 : ℝ) ≤ sig η₀ * εcov / 16 := by positivity
-    have hsq : (sig η₀ * εcov / 16) ^ 2 ≤ 1 / 1024 := by nlinarith
-    rw [shareRate]
-    nlinarith [hε.le, hε1, hsq, sq_nonneg (sig η₀ * εcov / 16)]
-  -- the ladder is shorter than the prefix count it is built from
-  have hLm : (L : ℝ) ≤ (m : ℝ) + 2 := by
-    have h : L ≤ m + 2 := by
-      rw [hLdef, ladderLen, ← hmdef]
-      have := Nat.log_le_self 2 m
-      omega
-    exact_mod_cast h
   -- the prefix count clears the share's condition
-  have hshare : Real.log (64 * (populations.card : ℝ) / δ) + Real.log ((m : ℝ) + 2)
-      ≤ shareRate η₀ εcov * (m : ℝ) := by
-    refine log_count_spec hr hr1 (Real.log_nonneg ?_) ?_
-    · rw [le_div_iff₀ hδ]; nlinarith
-    · have hle : shareCount η₀ populations εcov δ ≤ m := by
-        rw [hmdef, prefCount]; omega
-      have h1 : ((shareCount η₀ populations εcov δ : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast hle
+  have hshare : Real.log (64 * (populations.card : ℝ) / δ) ≤ shareRate η₀ εcov * (m : ℝ) := by
+    have hle : shareCount η₀ populations εcov δ ≤ m := by rw [hmdef, prefCount]; omega
+    have h1 : ((shareCount η₀ populations εcov δ : ℕ) : ℝ) ≤ (m : ℝ) := by exact_mod_cast hle
+    have h2 : Real.log (64 * (populations.card : ℝ) / δ) / shareRate η₀ εcov ≤ (m : ℝ) := by
       refine le_trans ?_ h1
       rw [shareCount]
       exact Nat.le_ceil _
-  set q : ℝ := δ / ((populations.card : ℝ) * (L : ℝ)) with hqdef
+    rw [div_le_iff₀ hr] at h2
+    linarith [mul_comm (m : ℝ) (shareRate η₀ εcov)]
+  set q : ℝ := δ / (populations.card : ℝ) with hqdef
   have hq0 : 0 < q := by rw [hqdef]; positivity
   -- the share's own tail
   have hexp : Real.exp (-(shareRate η₀ εcov * (m : ℝ))) ≤ q / 64 := by
     refine exp_neg_le_of_log_le (by positivity) ?_
-    have hrw : (1 : ℝ) / (q / 64) = (64 * (populations.card : ℝ) / δ) * (L : ℝ) := by
+    have hrw : (1 : ℝ) / (q / 64) = 64 * (populations.card : ℝ) / δ := by
       rw [hqdef]; field_simp
-    rw [hrw, Real.log_mul (by positivity) (by positivity)]
-    have hlogL : Real.log (L : ℝ) ≤ Real.log ((m : ℝ) + 2) :=
-      Real.log_le_log (by linarith) hLm
-    linarith
+    rw [hrw]
+    exact hshare
   -- the gate's tail, at the slower of the two rates
   have hT3 : 2 * Real.exp (-2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * η₀) * εcov / 32) ^ 2)
       ≤ q / 32 := by
@@ -7691,19 +7685,19 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
       have key2 := mul_le_mul_of_nonneg_left key (sq_nonneg εcov)
       nlinarith [key2]
     nlinarith
-  -- the collisions, against the allowance
+  -- the collision allowance, with the ladder's length gone from it
+  have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
+      * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) := by positivity
+  have hcap : collisionCap η₀ populations εcov δ α pAP
+      = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) := by
+    rw [collisionCap, ← hmdef, ← hMdef]
   have hT1 : ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ ≤ q / 64 := by
-    have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ) := by positivity
-    have hcap : collisionCap η₀ populations εcov δ α pAP
-        = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-          * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ)) := by
-      rw [collisionCap, capScale, ← hmdef, ← hMdef, ← hLdef]
     rw [hcap] at hρsmall
     rw [hqdef, div_div,
-      le_div_iff₀ (by positivity : (0 : ℝ) < (populations.card : ℝ) * (L : ℝ) * 64)]
+      le_div_iff₀ (by positivity : (0 : ℝ) < (populations.card : ℝ) * 64)]
     have hρden : ρ * (64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ)) ≤ δ := by
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) ≤ δ := by
       rw [← le_div_iff₀ hden]
       exact hρsmall
     have hc0 : (0 : ℝ) ≤ (populations.card : ℝ) := Nat.cast_nonneg _
@@ -7719,9 +7713,52 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
     have h3 : (populations.card : ℝ) * ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2
         ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) :=
       mul_le_mul h1 h2 (by positivity) (by positivity)
-    have h4 := mul_le_mul_of_nonneg_right h3 (by positivity : (0 : ℝ) ≤ 64 * (L : ℝ))
+    have h4 := mul_le_mul_of_nonneg_right h3 (by norm_num : (0 : ℝ) ≤ 64)
     have h5 := mul_le_mul_of_nonneg_left h4 hρ0
     linarith
+  have hT5 : (M : ℝ) ^ 2 * ρsf ≤ q / 64 := by
+    rw [hcap] at hρsfsmall
+    rw [hqdef, div_div,
+      le_div_iff₀ (by positivity : (0 : ℝ) < (populations.card : ℝ) * 64)]
+    have hρden : ρsf * (64 * ((populations.card : ℝ) + 3) ^ 3
+        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) ≤ δ := by
+      rw [← le_div_iff₀ hden]
+      exact hρsfsmall
+    have h1 : (populations.card : ℝ) ≤ ((populations.card : ℝ) + 3) ^ 3 :=
+      le_cube_of_nonneg hcard.le
+    have h2 : (M : ℝ) ^ 2 ≤ (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by
+      nlinarith [sq_nonneg ((m : ℕ) : ℝ)]
+    have h3 : (populations.card : ℝ) * (M : ℝ) ^ 2
+        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) :=
+      mul_le_mul h1 h2 (by positivity) (by positivity)
+    have h4 := mul_le_mul_of_nonneg_right h3 (by norm_num : (0 : ℝ) ≤ 64)
+    have h5 := mul_le_mul_of_nonneg_left h4 hρsf0
+    linarith
+  have hT1' : (m : ℝ) ^ 2 * ρ ≤ q / 64 := by
+    have hstep : (m : ℝ) ^ 2 * ρ ≤ ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ := by
+      nlinarith [mul_nonneg (mul_nonneg (Nat.cast_nonneg (α := ℝ) populations.card)
+        (sq_nonneg (m : ℝ))) hρ0]
+    linarith [hT1]
+  -- the floor's own tail, off the same count the screen's tail is read at
+  have hscrpos : 0 < screenMargin η₀ populations εcov δ :=
+    screenMargin_pos η₀ populations hsig hε hcard
+  have cscr : Real.log ((((M : ℝ) + 2) ^ 2) / (q / 32))
+      / (2 * (screenMargin η₀ populations εcov δ / 2) ^ 2) ≤ (m : ℝ) := by
+    have heq : (((M : ℝ) + 2) ^ 2) / (q / 32)
+        = 32 * (populations.card : ℝ) * ((M : ℝ) + 2) ^ 2 / δ := by
+      rw [hqdef]; field_simp
+    rw [heq]
+    refine le_trans (Nat.le_ceil _) ?_
+    have hle : ⌈Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 2) ^ 2 / δ)
+        / (2 * (screenMargin η₀ populations εcov δ / 2) ^ 2)⌉₊ ≤ m := by
+      rw [hmdef, prefCount, ← hMdef]; omega
+    exact_mod_cast hle
+  have tscr : ((M : ℝ) + 2) ^ 2
+      * Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2) ≤ q / 32 :=
+    tail_le_of_count (by positivity) (by positivity) (by positivity) cscr
+  have hT4 : ((M : ℝ) + 2)
+      * Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2) ≤ q / 32 :=
+    le_trans (mul_le_mul_of_nonneg_right (le_sq_add_two hMR) (Real.exp_nonneg _)) tscr
   -- assemble
   have hT3' : 2 * Real.exp (-2 * (εcov / 32 * (m : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)
       ≤ q / 32 := by
@@ -7737,92 +7774,10 @@ lemma solved_share (η₀ η : ℝ) (populations : Finset J) {εcov δ α pAP ρ
       have hsq : ((1 - 2 * η₀) * εcov / 32) ^ 2 ≤ ((1 - 2 * η) * εcov / 32) ^ 2 := by
         nlinarith [h1, h2]
       nlinarith [hnn, hsq]) hT3
-  -- the floor's own tail, which is paid once per rung and so clears the ladder too
-  have hscrpos : 0 < screenMargin η₀ populations εcov δ :=
-    screenMargin_pos η₀ populations hsig hε hcard
-  have hγ2 : (0 : ℝ) < 2 * (screenMargin η₀ populations εcov δ / 2) ^ 2 := by positivity
-  have cfloor : Real.log (32 * (populations.card : ℝ) * ((M : ℝ) + 2) / δ)
-      + Real.log ((m : ℝ) + 2)
-      ≤ 2 * (screenMargin η₀ populations εcov δ / 2) ^ 2 * (m : ℝ) := by
-    refine log_count_spec hγ2 ?_ (Real.log_nonneg ?_) ?_
-    · have hfb := flipBudget_le (δ := δ) η₀ populations hε.le hcard1
-      have hs2 : sig η₀ ^ 2 ≤ 1 / 4 := by rw [sig]; nlinarith
-      have hsm : screenMargin η₀ populations εcov δ ≤ 1 / 2048 := by
-        rw [screenMargin]
-        nlinarith [hfb, hscrpos.le, hs2, sq_nonneg (sig η₀), hε.le, hε1]
-      nlinarith [hsm, hscrpos.le]
-    · rw [le_div_iff₀ hδ]; nlinarith [Nat.cast_nonneg (α := ℝ) M]
-    · have hle : screenShareCount η₀ populations εcov δ pAP ≤ m := by
-        rw [hmdef, prefCount, ← hMdef]; omega
-      have h1 : ((screenShareCount η₀ populations εcov δ pAP : ℕ) : ℝ) ≤ (m : ℝ) := by
-        exact_mod_cast hle
-      refine le_trans ?_ h1
-      rw [screenShareCount, ← hMdef]
-      exact Nat.le_ceil _
-  have hT4 : ((M : ℝ) + 2)
-      * Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2) ≤ q / 32 := by
-    have hMpos : (0 : ℝ) < (M : ℝ) + 2 := by positivity
-    have hcst : (0 : ℝ) < 32 * (populations.card : ℝ) * ((M : ℝ) + 2) * ((m : ℝ) + 2) :=
-      mul_pos (mul_pos (by linarith : (0 : ℝ) < 32 * (populations.card : ℝ)) hMpos)
-        (by positivity)
-    have hstep : Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2)
-        ≤ δ / (32 * (populations.card : ℝ) * ((M : ℝ) + 2) * ((m : ℝ) + 2)) := by
-      rw [show (-2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2)
-        = -(2 * (m : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2) from by ring]
-      refine exp_neg_le_of_log_le (div_pos hδ hcst) ?_
-      have hrw : (1 : ℝ) / (δ / (32 * (populations.card : ℝ) * ((M : ℝ) + 2) * ((m : ℝ) + 2)))
-          = (32 * (populations.card : ℝ) * ((M : ℝ) + 2) / δ) * ((m : ℝ) + 2) := by
-        field_simp
-      rw [hrw, Real.log_mul (by positivity) (by positivity)]
-      nlinarith [cfloor]
-    have hmul := mul_le_mul_of_nonneg_left hstep hMpos.le
-    refine le_trans hmul ?_
-    have hmid : ((M : ℝ) + 2) * (δ / (32 * (populations.card : ℝ) * ((M : ℝ) + 2)
-          * ((m : ℝ) + 2)))
-        = δ / (32 * (populations.card : ℝ) * ((m : ℝ) + 2)) := by
-      field_simp
-    have hd1 : (0 : ℝ) < 32 * (populations.card : ℝ) * ((m : ℝ) + 2) :=
-      mul_pos (by linarith : (0 : ℝ) < 32 * (populations.card : ℝ)) (by positivity)
-    have hd2 : (0 : ℝ) < (populations.card : ℝ) * (L : ℝ) * 32 :=
-      mul_pos (mul_pos hcard (by linarith)) (by norm_num)
-    rw [hmid, hqdef, div_div, div_le_div_iff₀ hd1 hd2]
-    have hc0 : (0 : ℝ) ≤ δ * (populations.card : ℝ) * 32 :=
-      mul_nonneg (mul_nonneg hδ.le (Nat.cast_nonneg _)) (by norm_num)
-    linarith [mul_le_mul_of_nonneg_left hLm hc0]
-  have hT5 : (M : ℝ) ^ 2 * ρsf ≤ q / 64 := by
-    have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ) := by positivity
-    have hcap : collisionCap η₀ populations εcov δ α pAP
-        = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-          * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ)) := by
-      rw [collisionCap, capScale, ← hmdef, ← hMdef, ← hLdef]
-    rw [hcap] at hρsfsmall
-    rw [hqdef, div_div,
-      le_div_iff₀ (by positivity : (0 : ℝ) < (populations.card : ℝ) * (L : ℝ) * 64)]
-    have hρden : ρsf * (64 * ((populations.card : ℝ) + 3) ^ 3
-        * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) * (L : ℝ)) ≤ δ := by
-      rw [← le_div_iff₀ hden]
-      exact hρsfsmall
-    have h1 : (populations.card : ℝ) ≤ ((populations.card : ℝ) + 3) ^ 3 :=
-      le_cube_of_nonneg hcard.le
-    have h2 : (M : ℝ) ^ 2 ≤ (m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1 := by
-      nlinarith [sq_nonneg ((m : ℕ) : ℝ)]
-    have h3 : (populations.card : ℝ) * (M : ℝ) ^ 2
-        ≤ ((populations.card : ℝ) + 3) ^ 3 * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) :=
-      mul_le_mul h1 h2 (by positivity) (by positivity)
-    have h4 := mul_le_mul_of_nonneg_right h3 (by positivity : (0 : ℝ) ≤ 64 * (L : ℝ))
-    have h5 := mul_le_mul_of_nonneg_left h4 hρsf0
-    linarith
-  have hT1' : (m : ℝ) ^ 2 * ρ ≤ q / 64 := by
-    have hstep : (m : ℝ) ^ 2 * ρ ≤ ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ := by
-      nlinarith [mul_nonneg (mul_nonneg (Nat.cast_nonneg (α := ℝ) populations.card)
-        (sq_nonneg (m : ℝ))) hρ0]
-    linarith [hT1]
   have hBm : (solvedState η₀ populations εcov δ α pAP).npref = m := rfl
   have hBM : (solvedState η₀ populations εcov δ α pAP).nsuff = M := rfl
   rw [stateFail, hBm, hBM]
-  have hq0 : 0 < q := by rw [hqdef]; positivity
-  have hgoal : δ / (4 * (L : ℕ)) = (populations.card : ℝ) * (q / 4) := by
+  have hgoal : δ / 8 = (populations.card : ℝ) * (q / 8) := by
     rw [hqdef]; field_simp
   rw [hgoal]
   have hleft : ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ
@@ -7847,8 +7802,8 @@ The order the constants come out in: the miscut budget `lcut = cutBudget εcov` 
 indecision limit (`hcutlim`), the flip budget
 `Δ = flipBudget` under `lcut` over the family size, the screen's two margins at
 `screenMargin` (so the rate window is non-empty), then the prefix count large enough for
-every exponential — including the share's own condition, which mentions the ladder's length
-and hence `log` of the prefix count — then `α` at the gate's own tail `exp(−2·gmin·τ²)`,
+every exponential — the share's own among them — then `α` at the gate's own tail
+`exp(−2·gmin·τ²)`,
 then the pool at `k/(pAP − t)`.  The collision masses enter as `m²ρ`, which is what
 `collisionCap` bounds. -/
 theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
@@ -7969,7 +7924,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · rw [hBm]
     refine le_trans hgminLe (le_of_eq ?_)
     ring
-  · rw [hBdef]
+  · have hval : δ * (m : ℝ) / (8 * (m : ℝ)) = δ / 8 := by
+      rw [mul_comm (8 : ℝ) (m : ℝ), mul_comm δ (m : ℝ),
+        mul_div_mul_left _ _ (ne_of_gt hmR)]
+    rw [hBm, ← hmdef, hval, hBdef]
     exact solved_share η₀ O.η populations (hη0.trans hηle) hηle hη₀ hεcov hε1 hδ hδ1
       hαpos hpAPPositive hcard hρ0 hρsf0 hρcap hρsfcap
   -- PassableAt

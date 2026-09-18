@@ -395,9 +395,9 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
 
 Every field of `State` is read off the condition it has to meet.  A condition is always a
 tail `exp (-a) ≤ ε`, which asks only that `a` clear `log (1/ε)`, so a field is a logarithm
-of the error budget.  Where a field's condition mentions the share it will be given — which
-depends on that field — it mentions it only through *its* logarithm, and `log x ≤ x − 1`
-closes the loop in one step. -/
+of the error budget.  No condition refers to the count solving it: a rung is charged in
+proportion to its own prefix count, so the ladder's length — which is `log` of that count —
+never enters. -/
 
 /-- `s = 1/2 − η`. -/
 noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
@@ -429,21 +429,9 @@ noncomputable def poolCount (η : ℝ) (populations : Finset J) (εcov δ pAP : 
 noncomputable def shareRate (η : ℝ) (εcov : ℝ) : ℝ :=
   εcov * (sig η * εcov / 16) ^ 2 / 16
 
-/-- The prefix count the share asks for.  The ladder's length is logarithmic in the prefix
-count, so the condition refers to `log` of the count itself; `2(A + log(2/r))/r` is the
-closed form clearing `A + log (m + 2)` at rate `r`. -/
+/-- The prefix count the share asks for. -/
 noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈2 * (Real.log (64 * (populations.card : ℝ) / δ) + Real.log (2 / shareRate η εcov))
-    / shareRate η εcov⌉₊
-
-/-- The prefix count the floor's own share asks for.  The rate is read off the floor at one
-rung, so this tail is paid once per rung and the count has to clear the ladder's length as
-well.  Same shape as `shareCount`, at the screen's margin rather than the share's. -/
-noncomputable def screenShareCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
-  ⌈2 * (Real.log (32 * (populations.card : ℝ)
-        * ((poolCount η populations εcov δ pAP : ℝ) + 2) / δ)
-      + Real.log (2 / (2 * (screenMargin η populations εcov δ / 2) ^ 2)))
-    / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
+  ⌈Real.log (64 * (populations.card : ℝ) / δ) / shareRate η εcov⌉₊
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
@@ -451,7 +439,6 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
   ⌈Real.log (32 * (populations.card : ℝ)
       * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
-    + screenShareCount η populations εcov δ pAP
     + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
@@ -479,9 +466,8 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   scd := ⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
   gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
-/-- How many times the loop runs the gate: the prefix count halves down to one.  This is
-the number of states the error budget is divided among; there is no other state the loop
-can return at. -/
+/-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
+other state the loop can return at. -/
 noncomputable def ladderLen (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
   Nat.log 2 (prefCount η populations εcov δ α pAP) + 1
@@ -515,7 +501,7 @@ prefixes to carry its share of the error budget.
 
 At a handful of prefixes the gate cannot be sound — a wrong family passes a two-prefix test
 at constant probability — so the loop cannot test there and the guarantee cannot cover it. -/
-structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (L : ℕ)
+structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (N : ℕ)
     (B : State) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
@@ -529,23 +515,21 @@ structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP
   /-- The skip guard sits under any sample the soundness argument has to test, so skipping
   below it costs no coverage. -/
   gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.npref : ℝ)
-  /-- The ladder has `L` rungs and they divide `δ/4` between them; the other `δ/4` of the
-  validity half pays for the pool's findability, once. -/
-  share : stateFail η₀ η populations εcov δ ρ ρsf B ≤ δ / (4 * L)
+  /-- The rungs divide `δ/4` between them in proportion to their prefix counts, which halve
+  down the ladder and so sum to at most `2N`; the other `δ/4` of the validity half pays for
+  the pool's findability, once.
+
+  Proportional and not uniform: a rung's tails are exponential in its own count, so a
+  `δ/(4·L)` split would make every count clear `log L`, and `L` is read off the top count. -/
+  share : stateFail η₀ η populations εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
 
 open scoped Classical in
-/-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it
-is a finite sum of `δ/(4·L)` terms and no summable weight over all budgets is needed. -/
+/-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
+a finite sum and no summable weight over all budgets is needed. -/
 noncomputable def stoppable (η₀ η : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ ρsf : ℝ) : Finset State :=
   (schedule η₀ populations εcov δ α pAP).filter
-    (Capped η₀ η populations εcov δ ρ ρsf pAP (ladderLen η₀ populations εcov δ α pAP))
-
-/-- The ladder's length as it enters the collision allowance: each rung carries `δ/(2·L)`,
-so the collision terms have to fit `L` times smaller. -/
-noncomputable def capScale (η : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) : ℝ :=
-  (ladderLen η populations εcov δ α pAP : ℝ)
+    (Capped η₀ η populations εcov δ ρ ρsf pAP (prefCount η₀ populations εcov δ α pAP))
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
@@ -553,8 +537,7 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℝ :=
   δ / (64 * ((populations.card : ℝ) + 3) ^ 3
     * ((prefCount η populations εcov δ α pAP : ℝ) ^ 2
-      + (poolCount η populations εcov δ pAP : ℝ) ^ 2 + 1)
-    * capScale η populations εcov δ α pAP)
+      + (poolCount η populations εcov δ pAP : ℝ) ^ 2 + 1))
 
 /-! ## What the input distributions must satisfy -/
 
