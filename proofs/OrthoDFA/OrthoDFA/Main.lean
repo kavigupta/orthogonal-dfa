@@ -15,21 +15,29 @@ open MeasureTheory ProbabilityTheory
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
 theorem clustering_correct : ClusteringCorrect := by
   intro Ω _ μ _ S _ J _ O populations D Dsf _ _ Pre η₀ indecisionLimit εcov α δ ρ pAP
-    hηle hη₀ hηslack hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
+    hηle hη₀ hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
     hε1 hδ hcutlim hρcap hρsf
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
   rw [O.apSet_eq] at hpAPBound
   by_cases hδ1 : δ ≤ 1
   case neg =>
     exact le_trans (by linarith [not_le.1 hδ1] : (1 : ℝ) - δ ≤ 0) measureReal_nonneg
+  have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
+    exact_mod_cast Finset.card_pos.2 hpop
+  have hfind : Real.exp (-2 * (poolCount η₀ populations εcov δ pAP : ℝ) * (pAP / 2) ^ 2)
+      ≤ δ / 4 :=
+    le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
   have h := sound_and_terminating (runMeasure μ D Dsf)
-    (fun B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ} =>
-      ret O.mq η₀ populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
-    (fun B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ} =>
-      ret O.mq η₀ populations indecisionLimit εcov α B.val) δ
+    (fun B : {B : State //
+        B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)} =>
+      ret O.mq populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
+    (fun B : {B : State //
+        B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)} =>
+      ret O.mq populations indecisionLimit εcov α B.val) δ
     (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      hηle hη₀ hηslack
-      Pre hflat hsupp ρ hρ hεcov δ hδ hδ1 hα pAP)
+      hηle hη₀
+      Pre hflat hsupp ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
+      hεcov δ hδ hδ1 hα pAP hpAPPositive.le hpAPBound hfind)
     (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
       δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim
       hpAPPositive

@@ -199,8 +199,9 @@ against the seed's column.
 
 A candidate's disagreement rate is `2η(1−η) + φ(1−2η)²` for its flip mass `φ`, so the floor
 sits at `2η(1−η)` once the pool holds an accept-preserving suffix — which is what `pAP` and
-`poolCount` buy.  The screen reads its cutoff off this, so the noise rate never enters the
-algorithm: `_screen_cohort`'s `same_family_rate` is measured, not assumed.
+`poolCount` buy.  Both the screen's cutoff and the gate's null are read off this, so the
+noise rate never enters the algorithm: `_screen_cohort`'s `same_family_rate` is measured,
+not assumed.
 
 The seed is excluded because its two reads are the *same* query string, so it disagrees on
 nothing and would pin the floor at zero. -/
