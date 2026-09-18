@@ -405,17 +405,19 @@ noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at. -/
 noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
 
-/-- A family's vote fails at `exp (-κ·s²/8)` — the vote is read at a margin of `s/4`, the
-half of `s/2` that a flipping eighth of the family does not already spend — and the round
-pays that at the cut budget, so `κ` is the logarithm of the two together. -/
+/-- A family's vote fails at `exp (-κ·s²/32)`: the vote sits `s` from either clean mean and
+a flipping `3/8` of the family spends `3s/4` of that, leaving the margin `s/8` the count is
+read at.  The round pays that tail at the cut budget, so `κ` is the logarithm of the two
+together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
+costs. -/
 noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈8 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
-    + ⌈1 / sig η⌉₊ + 1
+  ⌈32 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
+    + ⌈8 / sig η⌉₊ + 1
 
-/-- What one family member may flip.  The vote absorbs an eighth of the family flipping, so
-Markov charges the cut budget at a constant and not at the family's size. -/
+/-- What one family member may flip.  The vote absorbs three eighths of the family flipping,
+so Markov charges the cut budget at a constant and not at the family's size. -/
 noncomputable def flipBudget (_η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
-  cutBudget εcov / (32 * (populations.card : ℝ))
+  cutBudget εcov / (8 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
@@ -460,8 +462,8 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   k := famCount η populations εcov δ + 1
   cn := 1
   cd := 2
-  lo := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ - 1
-  hi := ⌈(famCount η populations εcov δ : ℝ) * (1 / 2 - sig η / 2)⌉₊ + 1
+  lo := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ - 1
+  hi := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ + 1
   sc := ⌈((⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations εcov δ⌉₊
   scd := ⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
