@@ -29,15 +29,14 @@ theorem clustering_correct : ClusteringCorrect := by
     le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
   have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : State //
-        B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)} =>
-      ret O.mq populations indecisionLimit εcov α B.val ∩ FailAt O populations D εcov B.val)
+        B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)} =>
+      ret O.mq populations indecisionLimit α B.val ∩ FailAt O populations D εcov B.val)
     (fun B : {B : State //
-        B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)} =>
-      ret O.mq populations indecisionLimit εcov α B.val) δ
-    (validity_of_returned O populations D Dsf indecisionLimit εcov α hsig hpop
-      hηle hη₀
-      Pre hflat hsupp ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
-      hεcov δ hδ hδ1 hα pAP hpAPPositive.le hpAPBound hfind)
+        B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)} =>
+      ret O.mq populations indecisionLimit α B.val) δ
+    (validity_of_returned hflat O populations D Dsf hsupp indecisionLimit εcov α hsig hpop
+      hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
+      hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind)
     (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
       δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hcutlim
       hpAPPositive

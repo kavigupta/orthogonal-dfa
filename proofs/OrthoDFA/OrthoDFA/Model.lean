@@ -199,8 +199,8 @@ against the seed's column.
 
 A candidate's disagreement rate is `2η(1−η) + φ(1−2η)²` for its flip mass `φ`, so the floor
 sits at `2η(1−η)` once the pool holds an accept-preserving suffix — which is what `pAP` and
-`poolCount` buy.  Both the screen's cutoff and the gate's null are read off this, so the
-noise rate never enters the algorithm: `_screen_cohort`'s `same_family_rate` is measured,
+`poolCount` buy.  The screen's cutoff is read off this, so the noise rate never enters
+the screen: `_screen_cohort`'s `same_family_rate` is measured,
 not assumed.
 
 The seed is excluded because its two reads are the *same* query string, so it disagrees on
@@ -339,56 +339,38 @@ noncomputable def agreeCount (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset
       (P.filter (fun p => mq p ω = 1)),
     (cutSides mq lo hi F P ω).2.card)
 
-/-- The gate's null rate, `ACCEPT_PRESERVING_DRIFT`.  A correct cut reads at `1 − η` and one
-wrong on an `εcov` fraction at `(1 − η) − εcov(1 − 2η)`; the null sits midway, which
-minimises the worse of the two failure modes at a given sample size.
+/-- `drift_verdict`'s ADMITTED, at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE`): the cut
+agrees with the seed's own read significantly more often than a coin flip.
 
-The vote cutoffs cannot serve here: `hi/k` sits a fixed distance below `1 − η`, so drift
-finer than that reads as clean however many prefixes are certified on. -/
-noncomputable def gateAcc (η εcov : ℝ) : ℝ :=
-  (1 - η) - (1 / 2 - η) * εcov
-
-/-- `drift_verdict`'s ADMITTED, at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE`).
+`drift_verdict` holds each side to the family's own thresholds.  The sides are pooled here,
+since a side can be a vanishing fraction of the sample, and held to the centre they straddle.
+Nothing is certified by this test: validity comes from how the family is built, and the test
+only has to pass a family that was built well.
 
 `n₀` is `State.gmin`, the size below which the test is skipped rather than failed.
 
 `ret` applies this to the family with `ε` removed, because `ε` is in every family and the
 vote would otherwise contain `mq p` — the very bit the agreement is scored against. -/
-def admitted (mq : S → Ω → ℝ) (η : ℝ) (lo hi n₀ : ℕ) (εcov α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
   n₀ ≤ (agreeCount mq lo hi F P ω).2 →
-    binomSfGe (agreeCount mq lo hi F P ω).2 (gateAcc η εcov)
-      (agreeCount mq lo hi F P ω).1 ≤ α
-
-/-- The noise rate, read off the pool's own floor rather than supplied.
-
-A candidate that preserves acceptance disagrees with the seed's column exactly where the two
-persistent bits differ, so `screenBase / #P` concentrates at `2η(1−η)`.  That map is
-injective below `½` — writing `s = ½ − η` it is `½ − 2s²` — so inverting it recovers the
-rate: `s = √((½ − r)/2)` and `η = ½ − s`.
-
-Out-of-range inputs clamp rather than fail: `Real.sqrt` of a negative is `0`, so a floor
-above `½` reads as `η = ½`, and an empty table reads as `η = 0`. -/
-noncomputable def etaHat (mq : S → Ω → ℝ) (populations : Finset J) (B : State)
-    (x : Run Ω S J) : ℝ :=
-  1 / 2 - Real.sqrt ((1 / 2
-    - (screenBase mq (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (oracleNoise x) : ℝ) / ((prefixesAt populations B.npref x).card : ℝ)) / 2)
+    binomSfGe (agreeCount mq lo hi F P ω).2 (1 / 2) (agreeCount mq lo hi F P ω).1 ≤ α
 
 open scoped Classical in
-/-- `judge_family`'s two tests, both held per population: the FNR gate and the
-accept-preserving gate.  A family failing either is not returned and the loop samples more.
+/-- `judge_family`: a family smaller than the round asked for is not used whatever it would
+measure; otherwise the FNR gate and the accept-preserving gate, both held per population.
 
 Both read `certOf`.  A family fitted to the prefixes it is then judged on votes more
 decisively there than on fresh ones, so an FNR read off the table comes out optimistic — and
 a cut is graded only where it decides.  The FNR is read off the same seed-dropped vote as the
 agreement gate, so the two grade one cut. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
-    (indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
-  {x | (∀ j ∈ populations,
+    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
+  {x | B.k ≤ (clusterAt mq populations x B).card
+    ∧ (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
           ((clusterAt mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∀ j ∈ populations, admitted mq (etaHat mq populations B x) B.lo B.hi B.gmin εcov α
+    ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
         ((clusterAt mq populations x B).erase 1) (certOf j B.npref x) (oracleNoise x)}
 
 /-! ## The budget, solved rather than searched for
@@ -411,7 +393,7 @@ read at.  The round pays that tail at the cut budget, so `κ` is the logarithm o
 together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
 costs. -/
 noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈32 * Real.log (32 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
+  ⌈32 * Real.log (128 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
     + ⌈8 / sig η⌉₊ + 1
 
 /-- What one family member may flip.  The vote absorbs three eighths of the family flipping,
@@ -426,30 +408,21 @@ noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : �
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
   ⌈2 * ((famCount η populations εcov δ : ℝ) + 1) / pAP⌉₊
-    + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
-
-/-- The slower of the two rates the state's own share is measured at. -/
-noncomputable def shareRate (η : ℝ) (εcov : ℝ) : ℝ :=
-  εcov * (sig η * εcov / 16) ^ 2 / 16
-
-/-- The prefix count the share asks for. -/
-noncomputable def shareCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈Real.log (64 * (populations.card : ℝ) / δ) / shareRate η εcov⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) : ℕ :=
-  ⌈Real.log (32 * (populations.card : ℝ)
+  ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
-    + ⌈Real.log (32 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
-    + ⌈64 * Real.log (64 * (populations.card : ℝ) / δ)
+    + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
         / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
-    + ⌈Real.log (32 * (populations.card : ℝ)
+    + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations εcov δ pAP : ℝ) + 1) / δ)
         / (2 * ((populations.card : ℝ) * flipBudget η populations εcov δ) ^ 2)⌉₊
-    + shareCount η populations εcov δ
     + ⌈64 / εcov⌉₊
     + 1
 
@@ -482,29 +455,32 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
     (fun i => solvedStateAt η populations εcov δ pAP
       (prefCount η populations εcov δ α pAP / 2 ^ i))
 
-/-- What one tested state may cost: the three events `measureReal_admitFail_le` charges,
-summed over the populations — the certification draws repeating or meeting the table, the
-sample missing the wrong set, and the gate passing on a wrong cut — and then what reading
-the rate off the floor costs, which is the table's own collisions, the floor's tail, and the
-pool's distinctness.
+/-- What one tested state may cost, summed over the populations: the certification draws
+repeating or meeting the table, the sample missing the wrong set, a family member flipping more
+than the screen allows, the sample holding too many prefixes the family flips, and the family's
+vote misfiring on too many of the rest — and then, once, the pool's draws colliding.
 
 The pool's *findability* is not here: that event does not mention the prefixes, so it is the
-same at every rung and is charged once rather than `L` times. -/
-noncomputable def stateFail (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf : ℝ)
+same at every rung and is charged once rather than per rung. -/
+noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (εcov δ ρ ρsf : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
     + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
-      + 2 * Real.exp (-2 * (εcov / 32 * (B.npref : ℝ)) * ((1 - 2 * η) * εcov / 32) ^ 2)))
-    + (((B.npref : ℝ) ^ 2 * ρ + ((B.nsuff : ℝ) + 2)
-          * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2))
-      + (B.nsuff : ℝ) ^ 2 * ρsf)
+      + (((B.npref : ℝ) ^ 2 * ρ
+          + ((B.nsuff : ℝ) + 2) ^ 2
+            * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2)
+          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
+            * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2))
+        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget εcov / 4) ^ 2)
+          + Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) / cutBudget εcov))))
+    + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
 
-At a handful of prefixes the gate cannot be sound — a wrong family passes a two-prefix test
-at constant probability — so the loop cannot test there and the guarantee cannot cover it. -/
-structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (N : ℕ)
+At a handful of prefixes neither the screen nor the certification sample can see a dirty
+family, so the guarantee cannot cover a stop there. -/
+structure Capped (η₀ : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (N : ℕ)
     (B : State) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
@@ -515,24 +491,21 @@ structure Capped (η₀ η : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP
   /-- Two accept-preserving draws are expected in the pool, so one of them is not the seed
   and the floor has a clean candidate to sit at. -/
   found : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP / 2)
-  /-- The skip guard sits under any sample the soundness argument has to test, so skipping
-  below it costs no coverage. -/
-  gfloor : (B.gmin : ℝ) ≤ εcov / 32 * (B.npref : ℝ)
   /-- The rungs divide `δ/4` between them in proportion to their prefix counts, which halve
   down the ladder and so sum to at most `2N`; the other `δ/4` of the validity half pays for
   the pool's findability, once.
 
   Proportional and not uniform: a rung's tails are exponential in its own count, so a
   `δ/(4·L)` split would make every count clear `log L`, and `L` is read off the top count. -/
-  share : stateFail η₀ η populations εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
+  share : stateFail η₀ populations εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
 
 open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
 a finite sum and no summable weight over all budgets is needed. -/
-noncomputable def stoppable (η₀ η : ℝ) (populations : Finset J)
+noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ ρsf : ℝ) : Finset State :=
   (schedule η₀ populations εcov δ α pAP).filter
-    (Capped η₀ η populations εcov δ ρ ρsf pAP (prefCount η₀ populations εcov δ α pAP))
+    (Capped η₀ populations εcov δ ρ ρsf pAP (prefCount η₀ populations εcov δ α pAP))
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
@@ -569,8 +542,8 @@ each prefix population the way the noiseless oracle does.
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
 it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its cutoff off
-`screenBase` and the gate reads its null off `etaHat`, both measured from the same floor, so
-over-estimating the noise only costs prefixes.
+`screenBase`, a quantity it measures, and the gate is held to a coin flip, so over-estimating
+the noise only costs prefixes.
 
 The hypotheses, in the order they appear: the oracle's noise is at most `η₀`, which has
 signal; there is a population to certify; the populations are supported on a `Flat` prefix
@@ -611,10 +584,10 @@ def ClusteringCorrect : Prop :=
   ρ ≤ collisionCap η₀ populations εcov δ α pAP →
   collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)},
-        x ∈ ret O.mq populations indecisionLimit εcov α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ O.η populations εcov δ α pAP ρ (collisionMass Dsf)},
-        x ∈ ret O.mq populations indecisionLimit εcov α B.val →
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)},
+        x ∈ ret O.mq populations indecisionLimit α B.val) ∧
+      ∀ B : {B : State // B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)},
+        x ∈ ret O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
               (clusterAt O.mq populations x B.val) p (oracleNoise x)}}
