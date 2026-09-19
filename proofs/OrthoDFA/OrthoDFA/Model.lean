@@ -24,6 +24,13 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 So the guarantee is for the fixed-centre algorithm, and its signal is the worse rate's margin
 `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2` a boundary between the two
 classes' rates would see.
+
+Known modelling gap.  The Python sizes the family with `population_size_and_evidence_margin`
+at FPR and FNR `0.01`, about `6/s²` suffixes, and reads it with a calibrated band around the
+boundary; here the family is `famCount` and the band is one count.  At the Python's size a
+clean prefix goes undecided at a fixed rate near `0.01` and is misread at a fixed rate near
+`1e-14`, neither depending on `indecisionLimit` or `εcov`, so its guarantee would need both
+bounded below by those rates.
 -/
 
 namespace OrthoDFA
@@ -409,11 +416,12 @@ noncomputable def cutBudget (η εcov : ℝ) : ℝ := min εcov (sig η) / 64
 
 /-- A family's vote fails at `exp (-κ·s²/32)`: a clean vote sits `s` from the centre, a
 flipping `3s/4` of the family can spend `3s/4` of that — a flip moves a read by up to a whole
-bit, not by `2s` — and the count is read `s/8` into what is left.  The round pays that tail
-at the cut budget, so `κ` is the logarithm of the two together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
-costs. -/
-noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈32 * Real.log (128 * (populations.card : ℝ) / (cutBudget η εcov * δ)) / sig η ^ 2⌉₊
+bit, not by `2s` — and the count is read `s/8` into what is left.  That rate only has to sit
+under half the cut budget: the misfires on the certification sample are independent given the
+family, so their count concentrates below the budget.  `⌈8/s⌉` is what makes `κ·s/8` clear
+the `1` that rounding `κ/2` to a count costs. -/
+noncomputable def famCount (η : ℝ) (_populations : Finset J) (εcov _δ : ℝ) : ℕ :=
+  ⌈32 * Real.log (2 / cutBudget η εcov) / sig η ^ 2⌉₊
     + ⌈8 / sig η⌉₊ + 1
 
 /-- What one family member may flip.  The vote absorbs `3s/4` of the family flipping, so
@@ -492,7 +500,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (εcov δ ρ 
           + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
             * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2))
         + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ εcov / 4) ^ 2)
-          + Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) / cutBudget η₀ εcov))))
+          + Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ εcov / 2) ^ 2)))))
     + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
