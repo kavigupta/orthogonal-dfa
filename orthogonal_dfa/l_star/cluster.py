@@ -24,21 +24,11 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
-    # Only keep clustering while the seed belongs to the cluster.
-    # We want to avoid drifting the cluster center away from the seed, which can
-    # happen if the seed has a very small cluster relative to `count`.
-    cluster = [seed_local]
-    loss = float("inf")
-    while True:
-        cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = (masks != cluster_center).sum(1)
-        nearest = losses.argsort()[:count]
-        if seed_local not in nearest:
-            break
-        new_loss = losses[nearest].sum()
-        if new_loss >= loss:
-            break
-        cluster, loss = nearest, new_loss
+    # One ranking against the seed's own column.  Ranking again against the
+    # cluster's vote can walk the centre off the seed's classes.
+    nearest = (masks != masks[seed_local]).sum(1).argsort()[:count]
+    cluster = nearest if seed_local in nearest else [seed_local]
+    cluster_center = masks[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)
