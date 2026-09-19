@@ -2345,8 +2345,8 @@ The band is what turns "few members flip" into "the cut is right".  A rejecting 
 accepted only when the vote clears the centre, and members preserving at `p` contribute only
 through noise, so with a fraction `f` flipping the vote's mean is at most `η + (1 − η)·f` — a
 flip can cost a whole read when the rates are lopsided.  The vote therefore absorbs a flipping
-`s/2` of the family, and Markov over the members' flip masses charges the misclassified mass
-at `2Δ/s`. -/
+`3s/4` of the family, and Markov over the members' flip masses charges the misclassified mass
+at `4Δ/3s`. -/
 
 open scoped Classical in
 /-- The number of the family's members that flip at a prefix, as a real. -/
@@ -5974,23 +5974,23 @@ never saw: a cut wrong on `εcov` of the population is wrong on `3εcov/4` of th
 (`hitShort`), few of those can be prefixes the family flips (`heavyHits`), and few of the
 rest can be misread by a family that barely flips there (`validMiss`, Markov). -/
 
-/-- The vote's two clean means, pushed by a flipping `s/2` of the family and read `s/8` in,
+/-- The vote's two clean means, pushed by a flipping `3s/4` of the family and read `s/8` in,
 still straddle the centre `κ/2` with a count to spare. -/
 lemma vote_shifts (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) {κ : ℝ}
     (hκ0 : 0 ≤ κ) (hκs : 8 ≤ κ * sig η₀) :
-    κ * ((O.η + (1 - O.η) * (sig η₀ / 2)) + sig η₀ / 8) ≤ κ / 2
-      ∧ κ / 2 + 1 ≤ κ * (((1 - O.η) * (1 - sig η₀ / 2)) - sig η₀ / 8) := by
+    κ * ((O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8) ≤ κ / 2
+      ∧ κ / 2 + 1 ≤ κ * (((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8) := by
   have hs := sig_pos η₀ hη₀
   have hsv : sig η₀ = 1 / 2 - η₀ := rfl
   have hη0 := eta_nonneg O
   have hs2 : sig η₀ ≤ 1 / 2 := by rw [hsv]; linarith
-  have hf : (0 : ℝ) ≤ 1 - sig η₀ / 2 := by linarith
+  have hf : (0 : ℝ) ≤ 1 - 3 * sig η₀ / 4 := by linarith
   have hm := mul_le_mul_of_nonneg_right hηle hf
-  have hu : (O.η + (1 - O.η) * (sig η₀ / 2)) + sig η₀ / 8 ≤ 1 / 2 - sig η₀ / 4 := by
+  have hu : (O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8 ≤ 1 / 2 - sig η₀ / 8 := by
     have : η₀ = 1 / 2 - sig η₀ := by rw [hsv]; ring
     rw [this] at hm
     nlinarith [hm, hs, hs2]
-  have hl : 1 / 2 + sig η₀ / 4 ≤ ((1 - O.η) * (1 - sig η₀ / 2)) - sig η₀ / 8 := by
+  have hl : 1 / 2 + sig η₀ / 8 ≤ ((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8 := by
     have : η₀ = 1 / 2 - sig η₀ := by rw [hsv]; ring
     rw [this] at hm
     nlinarith [hm, hs, hs2]
@@ -6014,11 +6014,11 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
         * (flipBudget η₀ populations εcov δ * (1 - 2 * O.η) ^ 2
           - 2 * (screenMargin η₀ populations εcov δ / 2))
     ∧ (((solvedStateAt η₀ populations εcov δ pAP mi).k - 1 : ℕ) : ℝ)
-        * ((O.η + (1 - O.η) * (sig η₀ / 2)) + sig η₀ / 8)
+        * ((O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8)
       ≤ (((solvedStateAt η₀ populations εcov δ pAP mi).hi - 1 : ℕ) : ℝ)
     ∧ ((solvedStateAt η₀ populations εcov δ pAP mi).lo : ℝ)
       < (((solvedStateAt η₀ populations εcov δ pAP mi).k - 1 : ℕ) : ℝ)
-        * (((1 - O.η) * (1 - sig η₀ / 2)) - sig η₀ / 8) := by
+        * (((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8) := by
   classical
   have hs : 0 < sig η₀ := sig_pos η₀ hη₀
   have hsval : sig η₀ = 1 / 2 - η₀ := rfl
@@ -6224,24 +6224,24 @@ theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hcut0 : 0 < cutBudget η₀ εcov := cutBudget_pos η₀ hη₀ hεcov
   have hs : 0 < sig η₀ := sig_pos η₀ hη₀
   have hbudget : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-      + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (sig η₀ / 2)
+      + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
       + cutBudget η₀ εcov / 4 + cutBudget η₀ εcov ≤ 3 * εcov / 4 := by
     have hne : (populations.card : ℝ) ≠ 0 := ne_of_gt hcard
     have hid : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (sig η₀ / 2)
-        = cutBudget η₀ εcov / 2 := by
+        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
+        = cutBudget η₀ εcov * (2 / 3) := by
       rw [flipBudget]
       field_simp
       ring
     rw [hid]
     linarith [(cutBudget_le η₀ εcov).1]
-  have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * (sig η₀ / 2) →
+  have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * (3 * sig η₀ / 4) →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω}
         ≤ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) := by
     intro F p hf hmin hmax
     have hcardF : F.card = B.k - 1 := le_antisymm hmax hmin
-    refine le_trans (cutCorrect_whp O F p _ _ (sig η₀ / 2) (sig η₀ / 8) hsig.le hf (by positivity)
+    refine le_trans (cutCorrect_whp O F p _ _ (3 * sig η₀ / 4) (sig η₀ / 8) hsig.le hf (by positivity)
       ?_ ?_)
       (le_of_eq ?_)
     · rw [hcardF]; exact hhi
@@ -6253,7 +6253,7 @@ theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (by have := hcap.found; linarith)
     (flipBudget η₀ populations εcov δ) (screenMargin η₀ populations εcov δ / 2)
     ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) (cutBudget η₀ εcov / 4)
-    (sig η₀ / 2) (cutBudget η₀ εcov) (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2))
+    (3 * sig η₀ / 4) (cutBudget η₀ εcov) (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2))
     hΔ (by positivity) (by positivity) (by positivity) (by positivity) hcut0
     (Real.exp_nonneg _) hsc hbudget hcut) (le_trans (le_of_eq ?_) hcap.share)
   rfl
@@ -6853,7 +6853,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     sig η₀ / 8, screenMargin η₀ populations εcov δ / 2,
     screenMargin η₀ populations εcov δ / 2,
     (populations.card : ℝ) * flipBudget η₀ populations εcov δ,
-    flipBudget η₀ populations εcov δ, cutBudget η₀ εcov, sig η₀ / 2,
+    flipBudget η₀ populations εcov δ, cutBudget η₀ εcov, 3 * sig η₀ / 4,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
@@ -6902,8 +6902,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   -- the family's flips fit the cut budget
   · have hne : ((populations.card : ℝ)) ≠ 0 := ne_of_gt hcard
     have hid : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (sig η₀ / 2)
-        = cutBudget η₀ εcov / 2 := by
+        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
+        = cutBudget η₀ εcov * (2 / 3) := by
       rw [flipBudget]
       field_simp
       ring

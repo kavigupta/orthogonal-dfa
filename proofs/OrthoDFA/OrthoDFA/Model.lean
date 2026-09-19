@@ -402,18 +402,18 @@ read when the rates are lopsided, so the budget is held under `s` as well as `ε
 noncomputable def cutBudget (η εcov : ℝ) : ℝ := min εcov (sig η) / 64
 
 /-- A family's vote fails at `exp (-κ·s²/32)`: a clean vote sits `s` from the centre, a
-flipping `s/2` of the family can spend `s/2` of that — a flip moves a read by up to a whole
-bit, not by `2s` — and the count is read `s/8` from what is left.  The round pays that tail
+flipping `3s/4` of the family can spend `3s/4` of that — a flip moves a read by up to a whole
+bit, not by `2s` — and the count is read `s/8` into what is left.  The round pays that tail
 at the cut budget, so `κ` is the logarithm of the two together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
 costs. -/
 noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
   ⌈32 * Real.log (128 * (populations.card : ℝ) / (cutBudget η εcov * δ)) / sig η ^ 2⌉₊
     + ⌈8 / sig η⌉₊ + 1
 
-/-- What one family member may flip.  The vote absorbs `s/2` of the family flipping, so
+/-- What one family member may flip.  The vote absorbs `3s/4` of the family flipping, so
 Markov charges the cut budget at that fraction and not at the family's size. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
-  cutBudget η εcov * sig η / (8 * (populations.card : ℝ))
+  cutBudget η εcov * sig η / (4 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
@@ -559,8 +559,8 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 `screenBase`, a quantity it measures, and the gate is held to a coin flip, so over-estimating
 the noise only costs prefixes.
 
-The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`, which has
-signal; there is a population to certify; the populations are supported on a `Flat` prefix
+The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
+which has signal; there is a population to certify; the populations are supported on a `Flat` prefix
 set; their collision mass is at most `ρ` and `pAP` of the suffix measure is
 accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range with `cutBudget η₀ εcov`
 inside the indecision the FNR gate tolerates; and `ρ` and `Dsf`'s collision mass fit
