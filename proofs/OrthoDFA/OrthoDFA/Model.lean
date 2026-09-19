@@ -18,6 +18,12 @@ sampling without replacement.  Deduplicated i.i.d. draws give a pool at most as 
 this is the conservative model, but the collision mass enters as `m²ρ` and the statement
 therefore caps `ρ` at `collisionCap`.  Lifting that cap needs without-replacement
 concentration (Hoeffding 1963) or a non-atomic prefix distribution.
+
+Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
+(`transition_resolver`, `counterexample_synthesis`); here it is held at `½` (`State.cn/cd`).
+So the guarantee is for the fixed-centre algorithm, and its signal is the worse rate's margin
+`½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2` a boundary between the two
+classes' rates would see.
 -/
 
 namespace OrthoDFA
