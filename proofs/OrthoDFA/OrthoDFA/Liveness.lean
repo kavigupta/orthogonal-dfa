@@ -482,16 +482,75 @@ variable {ι : Type*} (pref : ι → S)
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w).aemeasurable (O.noise_icc w)
 
-/-- Derived read mean (this is `read_disagreement_mean`, now a fact about the
-oracle, not a field): `E[read v i] = η + (1−2η)·flip v (pref i)`. -/
+open scoped Classical in
+/-- The noise rate at one string. -/
+noncomputable def rate (w : S) : ℝ := if w ∈ O.L then O.ηIn else O.ηOut
+
+lemma noise_mean (w : S) : μ[O.noise w] = O.rate w := by
+  unfold rate
+  split_ifs with h
+  · exact O.noise_mean_in w h
+  · exact O.noise_mean_out w h
+
+lemma rate_nonneg (w : S) : 0 ≤ O.rate w := by
+  rw [← O.noise_mean w]
+  refine integral_nonneg_of_ae ?_
+  filter_upwards [O.noise_icc w] with ω hω
+  exact hω.1
+
+lemma rate_le_eta (w : S) : O.rate w ≤ O.η := by
+  unfold rate Oracle.η
+  split_ifs
+  · exact le_max_left _ _
+  · exact le_max_right _ _
+
+/-- Two strings in the same class share a rate. -/
+lemma rate_eq_of_label_eq {x y : S} (h : O.label x = O.label y) : O.rate x = O.rate y := by
+  have hxy := (O.label_eq_iff x y).1 h
+  unfold rate
+  by_cases hx : x ∈ O.L
+  · rw [if_pos hx, if_pos (hxy.1 hx)]
+  · rw [if_neg hx, if_neg (fun hy => hx (hxy.2 hy))]
+
+/-- `E[read v i] = r + (1−2r)·flip v (pref i)` at the concatenated string's rate `r`. -/
 lemma read_mean (v : S) (i : ι) :
-    μ[O.read pref v i] = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by
-  have h := read_disagreement_mean μ O.η (O.flip v (pref i)) (O.noise (pref i * v))
-    (O.noise_int _) (O.noise_mean _)
+    μ[O.read pref v i]
+      = O.rate (pref i * v) + (1 - 2 * O.rate (pref i * v)) * O.flip v (pref i) := by
+  have h := read_disagreement_mean μ (O.rate (pref i * v)) (O.flip v (pref i))
+    (O.noise (pref i * v)) (O.noise_int _) (O.noise_mean _)
   calc μ[O.read pref v i]
       = ∫ ω, (O.flip v (pref i) + (1 - 2 * O.flip v (pref i)) * O.noise (pref i * v) ω) ∂μ := rfl
-    _ = O.η + O.flip v (pref i) * (1 - 2 * O.η) := h
-    _ = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by ring
+    _ = O.rate (pref i * v) + O.flip v (pref i) * (1 - 2 * O.rate (pref i * v)) := h
+    _ = O.rate (pref i * v) + (1 - 2 * O.rate (pref i * v)) * O.flip v (pref i) := by ring
+
+lemma rate_eq_eta (hsym : O.ηIn = O.ηOut) (w : S) : O.rate w = O.η := by
+  unfold rate Oracle.η
+  rw [hsym, max_self]
+  split_ifs <;> rfl
+
+lemma read_mean_sym (hsym : O.ηIn = O.ηOut) (v : S) (i : ι) :
+    μ[O.read pref v i] = O.η + (1 - 2 * O.η) * O.flip v (pref i) := by
+  rw [O.read_mean, O.rate_eq_eta hsym]
+
+/-- A read sits at its prefix's rate, and `1 − 2η` above it where `v` flips. -/
+lemma read_mean_bounds (v : S) (i : ι) :
+    O.rate (pref i) + (1 - 2 * O.η) * O.flip v (pref i) ≤ μ[O.read pref v i]
+      ∧ (O.flip v (pref i) = 0 → μ[O.read pref v i] = O.rate (pref i)) := by
+  rw [O.read_mean]
+  have hr0 := O.rate_nonneg (pref i * v)
+  have hr1 := O.rate_le_eta (pref i * v)
+  have hp0 := O.rate_nonneg (pref i)
+  have hp1 := O.rate_le_eta (pref i)
+  rcases O.flip_bit v (pref i) with h | h
+  · have hlab : O.label (pref i * v) = O.label (pref i) := by
+      have := h
+      unfold Oracle.flip at this
+      rcases O.label_bit (pref i * v) with h1 | h1 <;> rcases O.label_bit (pref i) with h2 | h2 <;>
+        rw [h1, h2] at this ⊢ <;> norm_num at this
+    rw [h, O.rate_eq_of_label_eq hlab]
+    exact ⟨le_of_eq (by ring), fun _ => by ring⟩
+  · rw [h]
+    exact ⟨by nlinarith, fun h' => absurd h' (by norm_num)⟩
 
 lemma read_meas (v : S) (i : ι) : Measurable (O.read pref v i) := by
   show Measurable
@@ -521,7 +580,7 @@ lemma read_icc (v : S) (i : ι) : ∀ᵐ ω ∂μ, O.read pref v i ω ∈ Set.Ic
 end Oracle
 
 theorem greedy_picks_good {S : Type*} [DecidableEq S] [MeasurableSpace S] [Mul S] [IsRightCancelMul S]
-    (O : Oracle μ S) (pref : ℕ → S) (hpref : Function.Injective pref)
+    (O : Oracle μ S) (hη : O.η ≤ 1 / 2) (pref : ℕ → S) (hpref : Function.Injective pref)
     (good bad : S → Prop) [DecidablePred good] [DecidablePred bad]
     (hdisj : ∀ v, bad v → ¬ good v)
     (cands : Finset S) (k m : ℕ) (εcov : ℝ)
@@ -536,24 +595,36 @@ theorem greedy_picks_good {S : Type*} [DecidableEq S] [MeasurableSpace S] [Mul S
           ≤ ∑ i ∈ Finset.range m, O.read pref w i ω) :
     μ.real {ω | ¬ ∀ w ∈ chosen ω, ¬ bad w}
       ≤ (cands.card : ℝ) * Real.exp (-2 * (m : ℝ) * ((1 / 2 - O.η) * εcov) ^ 2) := by
-  have hsum : ∀ v, ∑ i ∈ Finset.range m, μ[O.read pref v i]
-      = (m : ℝ) * O.η + (1 - 2 * O.η) * ∑ i ∈ Finset.range m, O.flip v (pref i) := by
-    intro v
-    have h := denoised_loss_eq_flip (μ := μ) m O.η (1 / 2 - O.η) (fun i => O.flip v (pref i))
-      (O.read pref v) (fun j => by rw [O.read_mean]; ring)
-    rw [h]; ring
+  set c : ℝ := (∑ i ∈ Finset.range m, O.rate (pref i)) / (m : ℝ) with hc
+  have hmc : (m : ℝ) * c = ∑ i ∈ Finset.range m, O.rate (pref i) := by
+    rcases Nat.eq_zero_or_pos m with hm | hm
+    · subst hm; simp
+    · rw [hc]; field_simp
   have hgm : ∀ v ∈ cands, good v →
-      ∑ i ∈ Finset.range m, μ[O.read pref v i] ≤ (m : ℝ) * O.η := by
-    intro v hv hg; rw [hsum v, hgoodflip v hv hg]; simp
+      ∑ i ∈ Finset.range m, μ[O.read pref v i] ≤ (m : ℝ) * c := by
+    intro v hv hg
+    have hz : ∀ i ∈ Finset.range m, O.flip v (pref i) = 0 := by
+      have hnn : ∀ i ∈ Finset.range m, 0 ≤ O.flip v (pref i) := fun i _ => by
+        rcases O.flip_bit v (pref i) with h | h <;> rw [h] <;> norm_num
+      exact (Finset.sum_eq_zero_iff_of_nonneg hnn).1 (hgoodflip v hv hg)
+    rw [hmc]
+    exact le_of_eq (Finset.sum_congr rfl
+      (fun i hi => (O.read_mean_bounds pref v i).2 (hz i hi)))
   have hbm : ∀ v ∈ cands, bad v →
-      (m : ℝ) * (O.η + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
-    intro v hv hb; rw [hsum v]; nlinarith [hbadflip v hv hb, O.hη]
-  have hgapb : O.η + (1 / 2 - O.η) * εcov
-      ≤ (O.η + (1 - 2 * O.η) * εcov) - (1 / 2 - O.η) * εcov := by nlinarith [hεcov0, O.hη]
+      (m : ℝ) * (c + (1 - 2 * O.η) * εcov) ≤ ∑ i ∈ Finset.range m, μ[O.read pref v i] := by
+    intro v hv hb
+    have hlow := Finset.sum_le_sum (fun i (_ : i ∈ Finset.range m) =>
+      (O.read_mean_bounds pref v i).1)
+    rw [Finset.sum_add_distrib, ← Finset.mul_sum] at hlow
+    have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
+    have := mul_le_mul_of_nonneg_left (hbadflip v hv hb) h2η
+    nlinarith [hmc]
+  have hgapb : c + (1 / 2 - O.η) * εcov
+      ≤ (c + (1 - 2 * O.η) * εcov) - (1 / 2 - O.η) * εcov := by nlinarith [hεcov0]
   have hγb : (0 : ℝ) ≤ (1 / 2 - O.η) * εcov :=
-    mul_nonneg (by linarith [O.hη]) hεcov0
-  have h := chosen_avoids_bad_whp good bad hdisj cands k (Finset.range m) O.η
-    (O.η + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov) (O.read pref)
+    mul_nonneg (by linarith) hεcov0
+  have h := chosen_avoids_bad_whp good bad hdisj cands k (Finset.range m) c
+    (c + (1 - 2 * O.η) * εcov) ((1 / 2 - O.η) * εcov) (O.read pref)
     (fun v i => (O.read_meas pref v i).aemeasurable)
     (O.read_indep pref hpref) (O.read_icc pref)
     (by simpa [Finset.card_range] using hgm) (by simpa [Finset.card_range] using hbm)

@@ -204,7 +204,7 @@ lemma injective_meas : MeasurableSet {x : (ι → S) × Ω | Function.Injective 
 distinct — so the persistent oracle is never read twice at the same query string, and its
 bits really are independent (`read_indep`, via right-cancellation) — the loss concentrates
 around its conditional mean `N·η + (1−2η)·(flip count)`. -/
-lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
+lemma ploss_cond_upper (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
     (persistentMeasure (μ := μ) Dfam).real
@@ -222,7 +222,7 @@ lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
   · -- slice
     by_cases hinj : Function.Injective p
     · have hmeanEq : ∑ z, μ[O.read p v z] = N * (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) := by
-        rw [Finset.sum_congr rfl (fun z _ => O.read_mean p v z), Finset.sum_add_distrib,
+        rw [Finset.sum_congr rfl (fun z _ => O.read_mean_sym p hsym v z), Finset.sum_add_distrib,
           Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum, ← hN]
         field_simp
       have h := sumUpper_le (O.read p v) (Finset.univ : Finset ι)
@@ -247,7 +247,7 @@ lemma ploss_cond_upper (O : Oracle μ S) (Dfam : ι → Measure S)
       rw [this]; simpa using (Real.exp_pos _).le
 
 /-- Level 1, lower tail (symmetric). -/
-lemma ploss_cond_lower (O : Oracle μ S) (Dfam : ι → Measure S)
+lemma ploss_cond_lower (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g : ℝ) (hg : 0 ≤ g)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ)) :
     (persistentMeasure (μ := μ) Dfam).real
@@ -265,7 +265,7 @@ lemma ploss_cond_lower (O : Oracle μ S) (Dfam : ι → Measure S)
   · by_cases hinj : Function.Injective p
     · have hmeanEq : ∑ z, μ[O.read p v z]
           = N * (O.η + (1 - 2 * O.η) * (∑ z, O.flip v (p z)) / N) := by
-        rw [Finset.sum_congr rfl (fun z _ => O.read_mean p v z), Finset.sum_add_distrib,
+        rw [Finset.sum_congr rfl (fun z _ => O.read_mean_sym p hsym v z), Finset.sum_add_distrib,
           Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum, ← hN]
         field_simp
       have h := sumLower_le (O.read p v) (Finset.univ : Finset ι)
@@ -378,7 +378,7 @@ lemma pflip_lower (O : Oracle μ S) (Dfam : ι → Measure S)
 keeps its loss below the band, except for three sources: a collision (the persistent
 oracle read twice at the same query string — which is why a spread-out prefix
 distribution is genuinely necessary), the sampling tail, and the noise tail. -/
-lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
+lemma ploss_good_upper (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hη : O.η ≤ 1 / 2) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
     (hcoll : (persistentMeasure (μ := μ) Dfam).real
@@ -389,7 +389,7 @@ lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
             * (O.η + (1 - 2 * O.η) * g₂ + g₁) ≤ ploss (μ := μ) O v x}
       ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
           + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₁ ^ 2) := by
-  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
   have hincl : {x : (ι → S) × Ω | ((Finset.univ : Finset ι).card : ℝ)
         * (O.η + (1 - 2 * O.η) * g₂ + g₁) ≤ ploss (μ := μ) O v x}
       ⊆ {x : (ι → S) × Ω | ¬ Function.Injective x.1}
@@ -429,11 +429,11 @@ lemma ploss_good_upper (O : Oracle μ S) (Dfam : ι → Measure S)
       ((Finset.univ : Finset ι).card : ℝ) * O.η + (1 - 2 * O.η) * pflip (μ := μ) O v x
         + ((Finset.univ : Finset ι).card : ℝ) * g₁ ≤ ploss (μ := μ) O v x}
   linarith [hu1, hu2, hu3, hcoll, pflip_upper O Dfam v g₂ hg₂ hNpos,
-    ploss_cond_upper O Dfam v g₁ hg₁ hNpos]
+    ploss_cond_upper O hsym Dfam v g₁ hg₁ hNpos]
 
 /-- Per-suffix lower tail, persistent oracle.  A suffix whose summed flip-mass is at
 least `σ` keeps its loss *above* the band, provided the band leaves room (`hband`). -/
-lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
+lemma ploss_bad_lower (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hη : O.η ≤ 1 / 2) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (v : S) (g₁ g₂ κ σ : ℝ)
     (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
@@ -449,7 +449,7 @@ lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
             * (O.η + (1 - 2 * O.η) * g₂ + g₁)}
       ≤ κ + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₂ ^ 2)
           + Real.exp (-2 * ((Finset.univ : Finset ι).card : ℝ) * g₁ ^ 2) := by
-  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith [O.hη]
+  have h2η : (0 : ℝ) ≤ 1 - 2 * O.η := by linarith
   have hincl : {x : (ι → S) × Ω | ploss (μ := μ) O v x
         ≤ ((Finset.univ : Finset ι).card : ℝ) * (O.η + (1 - 2 * O.η) * g₂ + g₁)}
       ⊆ {x : (ι → S) × Ω | ¬ Function.Injective x.1}
@@ -492,7 +492,7 @@ lemma ploss_bad_lower (O : Oracle μ S) (Dfam : ι → Measure S)
         + (1 - 2 * O.η) * pflip (μ := μ) O v x
         - ((Finset.univ : Finset ι).card : ℝ) * g₁}
   linarith [hu1, hu2, hu3, hcoll, pflip_lower O Dfam v g₂ hg₂ hNpos,
-    ploss_cond_lower O Dfam v g₁ hg₁ hNpos]
+    ploss_cond_lower O hsym Dfam v g₁ hg₁ hNpos]
 
 end Persistent
 
@@ -619,7 +619,7 @@ noncomputable def pthresh (O : Oracle μ S) (g₁ g₂ N : ℝ) : ℝ :=
 For draw index `c`, the event that the drawn suffix is good yet reads above the band, or
 bad yet reads below it.  Bounded by the persistent-oracle per-suffix tails (collision +
 sampling + noise), transferred to the product by `prod_le_of_slice`. -/
-theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (Dfam : ι → Measure S)
+theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hη : O.η ≤ 1 / 2) (Dfam : ι → Measure S)
     [∀ z, IsProbabilityMeasure (Dfam z)] (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M : ℕ) (c : Fin M) (g₁ g₂ κ σ : ℝ) (hg₁ : 0 ≤ g₁) (hg₂ : 0 ≤ g₂) (hσpos : 0 < σ)
     (hNpos : 0 < ((Finset.univ : Finset ι).card : ℝ))
@@ -667,14 +667,14 @@ theorem pindex_event_le {ι : Type*} [Fintype ι] (O : Oracle μ S) (Dfam : ι �
     intro s
     by_cases hg : ∑ z, flipMass O (Dfam z) (s c) = 0
     · refine le_trans (measureReal_mono ?_)
-        (ploss_good_upper O Dfam (s c) g₁ g₂ κ hg₁ hg₂ hNpos hcoll hg)
+        (ploss_good_upper O hsym hη Dfam (s c) g₁ g₂ κ hg₁ hg₂ hNpos hcoll hg)
       intro w hw
       rcases hw with ⟨-, h⟩ | ⟨hb, -⟩
       · exact h
       · exfalso; rw [hg] at hb; linarith
     · by_cases hb : σ ≤ ∑ z, flipMass O (Dfam z) (s c)
       · refine le_trans (measureReal_mono ?_)
-          (ploss_bad_lower O Dfam (s c) g₁ g₂ κ σ hg₁ hg₂ hNpos hcoll hband hb)
+          (ploss_bad_lower O hsym hη Dfam (s c) g₁ g₂ κ σ hg₁ hg₂ hNpos hcoll hband hb)
         intro w hw
         rcases hw with ⟨hg', -⟩ | ⟨-, h⟩
         · exact absurd hg' hg
@@ -713,7 +713,7 @@ theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α
 
 /-- Distributional clustering, fixed budget, persistent oracle.  Failure form. -/
 theorem clustering_budget {J : Type*} [Fintype J]
-    (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hη : O.η ≤ 1 / 2) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M m k : ℕ) (cands : Finset (Fin M)) (hkcands : k ≤ cands.card) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
     (εpop : ℝ) (hεpop : 0 < εpop)
@@ -861,7 +861,7 @@ theorem clustering_budget {J : Type*} [Fintype J]
   have hEbound : ∀ c, ((Measure.pi (fun _ : Fin M => Dsf)).prod
       (persistentMeasure (μ := μ) Dfam)).real (E c)
       ≤ κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2) :=
-    fun c => pindex_event_le O Dfam Dsf M c g₁ g₂ κ σ hg₁ hg₂ hσpos hNpos hcoll hband
+    fun c => pindex_event_le O hsym hη Dfam Dsf M c g₁ g₂ κ σ hg₁ hg₂ hσpos hNpos hcoll hband
   have hUnion : ((Measure.pi (fun _ : Fin M => Dsf)).prod
       (persistentMeasure (μ := μ) Dfam)).real (⋃ c ∈ cands, E c)
       ≤ (cands.card : ℝ) * (κ + Real.exp (-2 * N * g₂ ^ 2) + Real.exp (-2 * N * g₁ ^ 2)) := by
@@ -897,7 +897,7 @@ prefix distribution every draw hits the same string and no concentration is poss
 
 With probability `≥ 1 − δ`, the returned family preserves acceptance on `≥ 1 − εcov` of
 each population. -/
-theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
+theorem clustering_pac (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hsig : O.η < 1 / 2)
     {J : Type*} (populations : Finset J) (hpop : populations.Nonempty)
     (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
@@ -968,7 +968,7 @@ theorem clustering_pac (O : Oracle μ S) (hsig : O.η < 1 / 2)
     have h := tail_le (t := pAP / 2) (c := 1) (ε := δ / 3) (k := (M : ℝ))
       (by linarith) one_pos (by linarith) hthr
     simpa using h
-  have hcore := clustering_budget O (fun j : {j // j ∈ populations} => D j.val) Dsf M m k
+  have hcore := clustering_budget O hsym hsig.le (fun j : {j // j ∈ populations} => D j.val) Dsf M m k
     (Finset.univ : Finset (Fin M)) (by rw [Finset.card_univ, Fintype.card_fin]; exact hkM)
     hmpos hPpos εpop hεpop g₁ g₂ κ pAP (pAP / 2) δ hg₁ hg₂ (by linarith)
     hcoll (by rw [← hN, ← hσ]; exact hband) hfind hcount ?_
@@ -1003,7 +1003,7 @@ stops at — under *any* stopping rule, the FNR test included — the family it 
 satisfies the guarantee.  The rounds share the draws and the persistent noise; round `t`
 differs only in its candidate pool `pool t`, which is how the loop grows. -/
 theorem clustering_pac_iter {J : Type*} [Fintype J]
-    (O : Oracle μ S) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    (O : Oracle μ S) (hsym : O.ηIn = O.ηOut) (hη : O.η ≤ 1 / 2) (D : J → Measure S) [∀ j, IsProbabilityMeasure (D j)]
     (Dsf : Measure S) [IsProbabilityMeasure Dsf]
     (M m k : ℕ) (hmpos : 0 < m) (hJ : 0 < Fintype.card J)
     (T : ℕ) (hT : 0 < T) (pool : Fin T → Finset (Fin M))
@@ -1039,7 +1039,7 @@ theorem clustering_pac_iter {J : Type*} [Fintype J]
           O.label (p * v) = O.label p}} with hFail
   -- each round fails with probability at most δ/T
   have hper : ∀ t, ρ.real (Fail t) ≤ δ / T := fun t =>
-    clustering_budget O D Dsf M m k (pool t) (hkpool t) hmpos hJ εpop hεpop
+    clustering_budget O hsym hη D Dsf M m k (pool t) (hkpool t) hmpos hJ εpop hεpop
       g₁ g₂ κ pAP γsuf (δ / T) hg₁ hg₂ hγsuf hcoll hband hfind (hcount t) (hbudget t)
   -- union over the rounds
   have hTR : (0 : ℝ) < (T : ℝ) := by exact_mod_cast hT

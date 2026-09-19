@@ -35,15 +35,26 @@ structure Oracle {Ω : Type*} [MeasurableSpace Ω] (μ : Measure Ω)
   /-- The language.  Membership in it is the bit the oracle is asked for. -/
   L : Set S
   L_meas : MeasurableSet L
-  /-- One persistent RCN bit per query string. -/
+  /-- One persistent noise bit per query string. -/
   noise : S → Ω → ℝ
-  η : ℝ
-  hη : η ≤ 1 / 2
-  /-- The noise is an IID bernoulli with parameter η -/
+  ηIn : ℝ
+  ηOut : ℝ
+  /-- The bits are independent Bernoullis, at one rate on the language and another off it. -/
   noise_meas : ∀ w, Measurable (noise w)
   noise_indep : iIndepFun noise μ
   noise_bit : ∀ w, ∀ᵐ ω ∂μ, noise w ω = 0 ∨ noise w ω = 1
-  noise_mean : ∀ w, μ[noise w] = η
+  noise_mean_in : ∀ w ∈ L, μ[noise w] = ηIn
+  noise_mean_out : ∀ w ∉ L, μ[noise w] = ηOut
+
+/-- The worse of the two noise rates.  `½ − η` is the signal: every read leans toward its
+true bit by at least that much.
+
+`learn.py`'s `P(MQ = 1 | ∈ L) − P(MQ = 1 | ∉ L) = 1 − ηIn − ηOut` is at least `2(½ − η)`
+and equal to it when the rates agree, but it cannot stand in for this: the vote is held to
+the fixed centre `½`, and at `ηIn = 0, ηOut = ½` that difference is `½` while every
+non-member reads as a coin. -/
+noncomputable def Oracle.η {S : Type*} [MeasurableSpace S] (O : Oracle μ S) : ℝ :=
+  max O.ηIn O.ηOut
 
 /-- Membership as a bit, `ℓ(w) = 1[w ∈ L]`.  The arithmetic form, since every use sums or
 averages it. -/
@@ -190,16 +201,16 @@ noncomputable def certOf (j : J) (m : ℕ) (x : Run Ω S J) : Finset S :=
 
 /-- `_screen_cohort`'s statistic: how many representative prefixes the candidate's column
 disagrees with the seed's on.  Its mean separates an accept-preserving candidate from one
-carrying flip mass `φ` by `φ(1−2η)²`. -/
+carrying flip mass `φ` by at least `φ(1−2η)²`. -/
 noncomputable def screenCount (mq : S → Ω → ℝ) (P : Finset S) (v : S) (ω : Ω) : ℕ :=
   (P.filter (fun p => ¬ ((mq (p * v) ω = 1) ↔ (mq p ω = 1)))).card
 
 /-- The pool's own disagreement floor: the least disagreement any non-seed candidate shows
 against the seed's column.
 
-A candidate's disagreement rate is `2η(1−η) + φ(1−2η)²` for its flip mass `φ`, so the floor
-sits at `2η(1−η)` once the pool holds an accept-preserving suffix — which is what `pAP` and
-`poolCount` buy.  The screen's cutoff is read off this, so the noise rate never enters
+At a prefix of noise rate `r` a candidate disagrees at `2r(1−r)`, and by at least `(1−2η)²`
+more where it flips, so the floor sits at the clean rate once the pool holds an
+accept-preserving suffix — which is what `pAP` and `poolCount` buy.  The screen's cutoff is read off this, so the noise rate never enters
 the screen: `_screen_cohort`'s `same_family_rate` is measured,
 not assumed.
 
@@ -325,11 +336,12 @@ noncomputable def agreeOf (A Dset U : Finset S) : ℕ :=
   (A ∩ U).card + ((Dset \ A) \ U).card
 
 /-- The gate's statistic: `(agreements, decided count)`, where `p` agrees when the seed's
-column reads the way the cut calls it.  Its mean is
+column reads the way the cut calls it.  Its mean is at least
 
-    n·(1 − η) − W·(1 − 2η)
+    (n − W)·(1 − η)
 
-over `n` decided prefixes of which `W` are mis-cut.
+over `n` decided prefixes of which `W` are mis-cut: a right cut reads as agreeing at `1 − r`
+for the prefix's rate `r`, and a wrong one at `r`, which may be `0`.
 
 One statistic and not one per side: a side may hold as little as an `εcov` fraction of the
 sample, and a rate test is only as sharp as its own denominator.  The decided count is
@@ -384,22 +396,24 @@ never enters. -/
 /-- `s = 1/2 − η`. -/
 noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 
-/-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at. -/
-noncomputable def cutBudget (εcov : ℝ) : ℝ := εcov / 64
+/-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
+right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
+read when the rates are lopsided, so the budget is held under `s` as well as `εcov`. -/
+noncomputable def cutBudget (η εcov : ℝ) : ℝ := min εcov (sig η) / 64
 
-/-- A family's vote fails at `exp (-κ·s²/32)`: the vote sits `s` from either clean mean and
-a flipping `3/8` of the family spends `3s/4` of that, leaving the margin `s/8` the count is
-read at.  The round pays that tail at the cut budget, so `κ` is the logarithm of the two
-together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
+/-- A family's vote fails at `exp (-κ·s²/32)`: a clean vote sits `s` from the centre, a
+flipping `s/2` of the family can spend `s/2` of that — a flip moves a read by up to a whole
+bit, not by `2s` — and the count is read `s/8` from what is left.  The round pays that tail
+at the cut budget, so `κ` is the logarithm of the two together.  `⌈8/s⌉` is what makes `κ·s/8` clear the `1` that rounding `κ/2` to a count
 costs. -/
 noncomputable def famCount (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℕ :=
-  ⌈32 * Real.log (128 * (populations.card : ℝ) / (cutBudget εcov * δ)) / sig η ^ 2⌉₊
+  ⌈32 * Real.log (128 * (populations.card : ℝ) / (cutBudget η εcov * δ)) / sig η ^ 2⌉₊
     + ⌈8 / sig η⌉₊ + 1
 
-/-- What one family member may flip.  The vote absorbs three eighths of the family flipping,
-so Markov charges the cut budget at a constant and not at the family's size. -/
-noncomputable def flipBudget (_η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
-  cutBudget εcov / (8 * (populations.card : ℝ))
+/-- What one family member may flip.  The vote absorbs `s/2` of the family flipping, so
+Markov charges the cut budget at that fraction and not at the family's size. -/
+noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
+  cutBudget η εcov * sig η / (8 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
@@ -416,7 +430,7 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
   ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget εcov / 4) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget η εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
         / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
@@ -471,8 +485,8 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (εcov δ ρ 
             * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2)
           + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
             * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2))
-        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget εcov / 4) ^ 2)
-          + Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) / cutBudget εcov))))
+        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ εcov / 4) ^ 2)
+          + Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) / cutBudget η₀ εcov))))
     + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
@@ -545,10 +559,10 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 `screenBase`, a quantity it measures, and the gate is held to a coin flip, so over-estimating
 the noise only costs prefixes.
 
-The hypotheses, in the order they appear: the oracle's noise is at most `η₀`, which has
+The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`, which has
 signal; there is a population to certify; the populations are supported on a `Flat` prefix
 set; their collision mass is at most `ρ` and `pAP` of the suffix measure is
-accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range with `cutBudget εcov`
+accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range with `cutBudget η₀ εcov`
 inside the indecision the FNR gate tolerates; and `ρ` and `Dsf`'s collision mass fit
 `collisionCap`.
 
@@ -580,7 +594,7 @@ def ClusteringCorrect : Prop :=
   0 < εcov →
   εcov ≤ 1 →
   0 < δ →
-  cutBudget εcov ≤ indecisionLimit / 2 →
+  cutBudget η₀ εcov ≤ indecisionLimit / 2 →
   ρ ≤ collisionCap η₀ populations εcov δ α pAP →
   collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
