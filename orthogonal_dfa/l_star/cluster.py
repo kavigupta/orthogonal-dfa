@@ -10,6 +10,49 @@ from .statistics import (
 )
 
 
+#: Shortlisted candidates per family member, carried from the table to the re-rank.
+RERANK_SHORTLIST = 2
+
+#: Fewest prefixes a re-rank is worth drawing for.
+MIN_RERANK_PREFIXES = 64
+
+
+def _rerank_on_fresh_prefixes(pst, cluster, losses, count, decision_boundary):
+    """The ``count`` suffixes nearest the cluster's vote, read on prefixes that had
+    no part in choosing them.
+
+    The table's reads both pick the cluster and are what its members would be
+    scored on, so a candidate that read well by luck keeps that luck in the score.
+    A shortlist off the table and a ranking on fresh prefixes separate the two.
+    The ranking also runs against the cluster's vote rather than the seed's single
+    column, so a flip costs a candidate the whole gap between the classes where
+    against one noisy column it costs only ``gap * (1 - 2 * rate)``.
+
+    Reads cost a query per shortlisted suffix per drawn prefix, so the shortlist is
+    a small multiple of the family and the draw a fraction of the table.
+    """
+    share = pst.config.rerank_share
+    if share <= 0:
+        return cluster
+    # The cluster came off an earlier iteration's ranking, so it is not always
+    # inside this one's best few; it is shortlisted either way.
+    shortlist = np.array(
+        list(dict.fromkeys(list(cluster) + list(losses.argsort()[: RERANK_SHORTLIST * count])))
+    )
+    if len(shortlist) <= count:
+        return cluster
+    drawn = max(MIN_RERANK_PREFIXES, int(share * int(pst.table.representative.sum())))
+    prefixes = draw_to_certify(pst, drawn)
+    suffixes = [pst.table.suffix(row) for row in pst.table.fully_observed()[shortlist]]
+    read = np.asarray(
+        pst.table.memo.membership_queries([p + sfx for p in prefixes for sfx in suffixes])
+    ).reshape(len(prefixes), len(suffixes))
+    where = {row: i for i, row in enumerate(shortlist)}
+    centre = read[:, [where[row] for row in cluster]].mean(1) > decision_boundary
+    nearest = (read != centre[:, None]).sum(0).argsort(kind="stable")[:count]
+    return shortlist[nearest]
+
+
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
@@ -39,6 +82,8 @@ def identify_cluster_around(
         if new_loss >= loss:
             break
         cluster, loss = nearest, new_loss
+
+    cluster = _rerank_on_fresh_prefixes(pst, cluster, losses, count, decision_boundary)
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)

@@ -20,6 +20,10 @@ class SearchConfig:
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
+    #: Fraction of the table's size drawn as fresh prefixes for the clustering's
+    #: final ranking.  0 ranks on the table alone, which scores every candidate on
+    #: the reads that picked it.
+    rerank_share: float = 0.10
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the

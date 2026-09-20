@@ -29,7 +29,9 @@ class _Table:
 
 def _boundary(masks, signal=SIGNAL):
     pst = SimpleNamespace(
-        table=_Table(masks), config=SimpleNamespace(min_signal_strength=signal)
+        table=_Table(masks),
+        # The boundary is read off the table, so this reads no fresh prefixes.
+        config=SimpleNamespace(min_signal_strength=signal, rerank_share=0),
     )
     _, boundary = identify_cluster_around(pst, 0, 4, 0.5)
     return boundary
