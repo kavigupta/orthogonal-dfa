@@ -102,7 +102,11 @@ def assertDoesNotMeetProperty(
 # larger than that explains -- by a binomial test at `round_verify_alpha` -- was
 # not cut by a family holding one opinion about it.  Neither is a budget over the
 # pool as a whole; nothing sums misclassifications across states any more.
-round_verify_fpr = 0.01  # within-state disagreement a round may show
+#
+# Not `SearchConfig.acceptable_fpr`, which bounds a prefix on the boundary being
+# called either way.  A state's prefixes carry the full signal, so the family
+# misreads them at around 1e-6, and this is loose by orders of magnitude.
+round_verify_fpr = 0.01  # wrong decisions per prefix within one state
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
