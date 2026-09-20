@@ -20,12 +20,13 @@ class SearchConfig:
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
-    #: ``(fpr, fnr)`` the family size is solved for: how often a prefix carrying no
-    #: signal reads decisively, and how often one carrying signal does not read at
-    #: all.  Neither is the chance of reading a prefix the wrong way, which stays
-    #: orders of magnitude below both, so what these buy is family size.  The
-    #: second has to leave room under ``fnr_limit``.
-    read_rates: tuple = (0.25, 0.01)
+    #: How often the family size is solved to call a prefix carrying no signal
+    #: decisive.  Not the chance of reading one the wrong way, which stays orders
+    #: of magnitude below it, so what this buys is family size.
+    acceptable_fpr: float = 0.25
+    #: How often it is solved to leave a prefix carrying signal undecided.  This
+    #: one has to leave room under ``fnr_limit``, which the round holds it to.
+    acceptable_fnr: float = 0.01
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
