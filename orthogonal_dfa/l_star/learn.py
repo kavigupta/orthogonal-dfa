@@ -38,6 +38,7 @@ def build_pst(
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     require_accept_preserving: bool = True,
+    read_rates: tuple = (0.25, 0.01),
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -61,6 +62,7 @@ def build_pst(
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
         require_accept_preserving=require_accept_preserving,
+        read_rates=read_rates,
     )
     return PrefixSuffixTracker.create(
         sampler,
@@ -81,6 +83,7 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     require_accept_preserving: bool = True,
+    read_rates: tuple = (0.25, 0.01),
     tracker: SynthesisTracker = SynthesisTracker(),
 ):
     """Learn a DFA from `oracle_creator`.  Failure raises
@@ -100,6 +103,7 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
         require_accept_preserving=require_accept_preserving,
+        read_rates=read_rates,
     )
     dfa = do_counterexample_driven_synthesis(
         pst, acc_threshold=acc_threshold, tracker=tracker

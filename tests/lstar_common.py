@@ -102,7 +102,7 @@ def assertDoesNotMeetProperty(
 # larger than that explains -- by a binomial test at `round_verify_alpha` -- was
 # not cut by a family holding one opinion about it.  Neither is a budget over the
 # pool as a whole; nothing sums misclassifications across states any more.
-round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
+round_verify_fpr = 0.01  # within-state disagreement a round may show
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 

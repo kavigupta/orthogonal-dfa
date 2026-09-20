@@ -67,19 +67,20 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def smallest_readable_family(min_signal_strength, decision_boundary):
+def smallest_readable_family(min_signal_strength, decision_boundary, rates):
     """Fewest suffixes a decision at this boundary can be read over.
 
     How many it needs depends on where the boundary sits: the two classes draw
-    from binomials whose variance differs once it leaves 0.5.
+    from binomials whose variance differs once it leaves 0.5.  ``rates`` is the
+    ``(fpr, fnr)`` the size is solved for.
     """
     size, _ = population_size_and_evidence_margin(
-        min_signal_strength, 0.01, 0.01, center=decision_boundary
+        min_signal_strength, rates[0], rates[1], center=decision_boundary
     )
     return size
 
 
-def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
+def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest, rates):
     """The largest size at or below ``have`` whose band holds both error rates, and
     the margin that reads it.  ``have`` must be at least ``smallest``.
 
@@ -90,7 +91,7 @@ def readable_size_and_margin(min_signal_strength, decision_boundary, have, small
     """
     for size in range(have, smallest - 1, -1):
         found = evidence_margin_for_population_size(
-            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
+            min_signal_strength, rates[0], rates[1], size, center=decision_boundary
         )
         if found is not None:
             return size, found[1]
@@ -307,6 +308,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         pst.decision_boundary,
         len(vs),
         family_size,
+        pst.config.read_rates,
     )
     # By loss rank, and the seed's rank is arbitrary, so put it back: the round
     # check and the accept-preserving null are both stated about a family seeded
@@ -338,7 +340,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     family_size = smallest_readable_family(
-        pst.config.min_signal_strength, decision_boundary
+        pst.config.min_signal_strength, decision_boundary, pst.config.read_rates
     )
     gate = AcceptPreservingGate(pst.config)
 
@@ -358,7 +360,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
-                pst.config.min_signal_strength, decision_boundary
+                pst.config.min_signal_strength, decision_boundary, pst.config.read_rates
             )
             if len(vs) >= family_size:
                 break
