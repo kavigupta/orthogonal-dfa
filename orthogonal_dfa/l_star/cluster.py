@@ -80,7 +80,9 @@ def smallest_readable_family(min_signal_strength, decision_boundary, rates):
     return size
 
 
-def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest, rates):
+def readable_size_and_margin(
+    min_signal_strength, decision_boundary, have, smallest, rates
+):
     """The largest size at or below ``have`` whose band holds both error rates, and
     the margin that reads it.  ``have`` must be at least ``smallest``.
 
