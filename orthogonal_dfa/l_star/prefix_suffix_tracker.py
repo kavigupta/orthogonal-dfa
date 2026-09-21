@@ -33,6 +33,18 @@ class SearchConfig:
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
+    #: Upper bound on the probability that the family calls a prefix decisively
+    #: accept when it is in fact reject, or vice versa, purely on the noise in a
+    #: small number of draws.  Specifically the probability of a hypothetical
+    #: prefix landing exactly at the boundary being called decisive either way,
+    #: which is the worst case: a prefix that carries signal is misread far more
+    #: rarely.
+    acceptable_fpr: float = 0.25
+    #: Same metric for the probability that a prefix carrying the weakest signal
+    #: the caller promised -- accept rate a whole ``min_signal_strength`` off the
+    #: boundary -- is classified undecided.  ``fnr_limit`` measures that rate over
+    #: the pool, so this has to stay below it or a clean family fails its round.
+    acceptable_fnr: float = 0.01
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the

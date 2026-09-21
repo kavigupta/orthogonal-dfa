@@ -13,6 +13,7 @@ from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.cluster import smallest_readable_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
 from orthogonal_dfa.l_star.structures import (
     NoiseModel,
     NoisyOracle,
@@ -248,7 +249,10 @@ class TestSuffixFamily(unittest.TestCase):
         sampler = SuperSampler(vocab, 20)
         rng = np.random.default_rng(1)
         wanted = smallest_readable_family(
-            pst.config.min_signal_strength, pst.decision_boundary
+            pst.config.min_signal_strength,
+            pst.decision_boundary,
+            pst.config.acceptable_fpr,
+            pst.config.acceptable_fnr,
         )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this
@@ -277,7 +281,9 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s):
                 seen.add(tuple(s))
         self.assertEqual(len(seen), 1)
-        wanted = smallest_readable_family(0.3, 0.5)
+        wanted = smallest_readable_family(
+            0.3, 0.5, SearchConfig.acceptable_fpr, SearchConfig.acceptable_fnr
+        )
         self.assertGreater(wanted, len(seen))
 
 

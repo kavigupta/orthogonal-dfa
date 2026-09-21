@@ -102,7 +102,13 @@ def assertDoesNotMeetProperty(
 # larger than that explains -- by a binomial test at `round_verify_alpha` -- was
 # not cut by a family holding one opinion about it.  Neither is a budget over the
 # pool as a whole; nothing sums misclassifications across states any more.
-round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
+#
+# Not `SearchConfig.acceptable_fpr`, which bounds a prefix sitting on the boundary
+# being called either way.  Where the family agrees about a state its vote sits a
+# whole signal from the boundary, so its prefixes read the same way but for the
+# far tail.  Where it does not -- some members flipping the state, leaving the
+# vote near a threshold -- the prefixes split, and that is what this flags.
+round_verify_fpr = 0.01  # wrong decisions per prefix within one state
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
