@@ -408,25 +408,39 @@ never enters. -/
 /-- `s = 1/2 − η`. -/
 noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 
+/-- What fraction of the family the vote absorbs flipping.  A flip moves a read by a whole
+bit rather than by `2s`, so it costs the vote `(1 − η)·f`, and what is left is `voteSlack`:
+
+    (1 − η) · flipFrac η + voteSlack η = sig η
+
+exactly, at `η` as well as below it.  Nothing else fixes the split; scaling with `s` is what
+keeps both sides positive up to `η = 1/2`. -/
+noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
+
+/-- How far into the margin left by `flipFrac` the vote's count is read. -/
+noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
+
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
 read when the rates are lopsided, so the budget is held under `s` as well as `εcov`. -/
 noncomputable def cutBudget (η εcov : ℝ) : ℝ := min εcov (sig η) / 64
 
-/-- A family's vote fails at `exp (-κ·s²/32)`: a clean vote sits `s` from the centre, a
-flipping `3s/4` of the family can spend `3s/4` of that — a flip moves a read by up to a whole
-bit, not by `2s` — and the count is read `s/8` into what is left.  That rate only has to sit
-under half the cut budget: the misfires on the certification sample are independent given the
-family, so their count concentrates below the budget.  `⌈8/s⌉` is what makes `κ·s/8` clear
-the `1` that rounding `κ/2` to a count costs. -/
-noncomputable def famCount (η : ℝ) (_populations : Finset J) (εcov _δ : ℝ) : ℕ :=
-  ⌈32 * Real.log (2 / cutBudget η εcov) / sig η ^ 2⌉₊
-    + ⌈8 / sig η⌉₊ + 1
+/-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
+a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the count is read
+the rest of the way in.  That rate only has to sit under half the cut budget: the misfires on
+the certification sample are independent given the family, so their count concentrates below
+the budget.
 
-/-- What one family member may flip.  The vote absorbs `3s/4` of the family flipping, so
-Markov charges the cut budget at that fraction and not at the family's size. -/
+The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
+the margin exactly: the thresholds sit at `κ/2`, and an odd `κ` would round that up past what
+`voteSlack` has left to pay with. -/
+noncomputable def famCount (η : ℝ) (_populations : Finset J) (εcov _δ : ℝ) : ℕ :=
+  2 * (⌈Real.log (2 / cutBudget η εcov) / (4 * voteSlack η ^ 2)⌉₊ + 1)
+
+/-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
+flipping, so Markov charges the cut budget at that fraction and not at the family's size. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
-  cutBudget η εcov * sig η / (4 * (populations.card : ℝ))
+  cutBudget η εcov * flipFrac η / (3 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget.
 

@@ -321,9 +321,41 @@ lemma cutBudget_le (η₀ εcov : ℝ) : cutBudget η₀ εcov ≤ εcov / 64 �
   ⟨div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num),
     div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)⟩
 
+lemma voteSlack_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSlack η₀ := by
+  rw [voteSlack]
+  have := sig_pos η₀ hsig
+  positivity
+
+lemma flipFrac_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < flipFrac η₀ := by
+  rw [flipFrac]
+  have := sig_pos η₀ hsig
+  exact div_pos (by linarith) (by linarith)
+
+lemma flipFrac_lt_one (η₀ : ℝ) (hsig : η₀ < 1 / 2) : flipFrac η₀ < 1 := by
+  rw [flipFrac, sig, div_lt_one (by linarith)]
+  linarith
+
+/-- The split `flipFrac`/`voteSlack` was solved against. -/
+lemma flipFrac_voteSlack (η₀ : ℝ) (hsig : η₀ < 1 / 2) :
+    (1 - η₀) * flipFrac η₀ + voteSlack η₀ = sig η₀ := by
+  have hne : (1 : ℝ) - η₀ ≠ 0 := by intro h; rw [sub_eq_zero] at h; linarith [h.symm]
+  rw [flipFrac, voteSlack]
+  field_simp
+  ring
+
 lemma famCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
     0 < famCount η₀ populations εcov δ := by
   rw [famCount]; omega
+
+/-- The family's size is even, so its centre is a count. -/
+lemma famCount_half (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
+    (⌈(famCount η₀ populations εcov δ : ℝ) / 2⌉₊ : ℝ)
+      = (famCount η₀ populations εcov δ : ℝ) / 2 := by
+  rw [famCount]
+  rw [show ((2 * (⌈Real.log (2 / cutBudget η₀ εcov) / (4 * voteSlack η₀ ^ 2)⌉₊ + 1) : ℕ) : ℝ) / 2
+      = ((⌈Real.log (2 / cutBudget η₀ εcov) / (4 * voteSlack η₀ ^ 2)⌉₊ + 1 : ℕ) : ℝ) by
+    push_cast; ring]
+  rw [Nat.ceil_natCast]
 
 /-- To put `exp (-a)` under `ε` it is enough that `a` clears `log (1/ε)`. -/
 lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) ≤ a) :
@@ -335,19 +367,18 @@ lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) �
 
 lemma famCount_tail (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hsig : η₀ < 1 / 2)
     (hε : 0 < εcov) :
-    Real.exp (-2 * (famCount η₀ populations εcov δ : ℝ) * (sig η₀ / 8) ^ 2)
+    Real.exp (-2 * (famCount η₀ populations εcov δ : ℝ) * voteSlack η₀ ^ 2)
       ≤ cutBudget η₀ εcov / 2 := by
-  have hs := sig_pos η₀ hsig
+  have hs := voteSlack_pos η₀ hsig
   have hcut := cutBudget_pos η₀ hsig hε
-  have hκ : 32 * Real.log (2 / cutBudget η₀ εcov) / sig η₀ ^ 2
-      ≤ (famCount η₀ populations εcov δ : ℝ) := by
-    refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈32 * Real.log (2 / cutBudget η₀ εcov) / sig η₀ ^ 2⌉₊
-        ≤ famCount η₀ populations εcov δ := by rw [famCount]; omega
-    exact_mod_cast hle
-  rw [div_le_iff₀ (by positivity)] at hκ
-  rw [show -2 * (famCount η₀ populations εcov δ : ℝ) * (sig η₀ / 8) ^ 2
-      = -((famCount η₀ populations εcov δ : ℝ) * sig η₀ ^ 2 / 32) by ring]
+  have hhalf : (⌈Real.log (2 / cutBudget η₀ εcov) / (4 * voteSlack η₀ ^ 2)⌉₊ : ℝ)
+      ≤ (famCount η₀ populations εcov δ : ℝ) / 2 := by
+    rw [famCount]; push_cast; linarith
+  have h4 := le_trans (Nat.le_ceil (Real.log (2 / cutBudget η₀ εcov)
+    / (4 * voteSlack η₀ ^ 2))) hhalf
+  rw [div_le_iff₀ (by positivity : (0 : ℝ) < 4 * voteSlack η₀ ^ 2)] at h4
+  rw [show -2 * (famCount η₀ populations εcov δ : ℝ) * voteSlack η₀ ^ 2
+      = -(2 * (famCount η₀ populations εcov δ : ℝ) * voteSlack η₀ ^ 2) by ring]
   refine exp_neg_le_of_log_le (by positivity) ?_
   rw [one_div_div]
   linarith
@@ -356,7 +387,7 @@ lemma flipBudget_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     0 < flipBudget η₀ populations εcov δ := by
   rw [flipBudget]
-  exact div_pos (mul_pos (cutBudget_pos η₀ hsig hε) (sig_pos η₀ hsig))
+  exact div_pos (mul_pos (cutBudget_pos η₀ hsig hε) (flipFrac_pos η₀ hsig))
     (mul_pos (by norm_num) hcard)
 
 lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
@@ -2270,8 +2301,8 @@ The band is what turns "few members flip" into "the cut is right".  A rejecting 
 accepted only when the vote clears the centre, and members preserving at `p` contribute only
 through noise, so with a fraction `f` flipping the vote's mean is at most `η + (1 − η)·f` — a
 flip can cost a whole read when the rates are lopsided.  The vote therefore absorbs a flipping
-`3s/4` of the family, and Markov over the members' flip masses charges the misclassified mass
-at `4Δ/3s`. -/
+`flipFrac` of the family, and Markov over the members' flip masses charges the misclassified
+mass at `Δ/flipFrac`. -/
 
 open scoped Classical in
 /-- The number of the family's members that flip at a prefix, as a real. -/
@@ -6221,26 +6252,21 @@ never saw: a cut wrong on `εcov` of the population is wrong on `3εcov/4` of th
 (`hitShort`), few of those can be prefixes the family flips (`heavyHits`), and few of the
 rest can be misread by a family that barely flips there (`validMiss`, Hoeffding). -/
 
-/-- The vote's two clean means, pushed by a flipping `3s/4` of the family and read `s/8` in,
-still straddle the centre `κ/2` with a count to spare. -/
+/-- The vote's two clean means, pushed by a flipping `flipFrac` of the family and read
+`voteSlack` in, still straddle the centre `κ/2`.
+
+Both sides are tight at `O.η = η₀`: the two means sum to `1`, so the budget `flipFrac` and
+`voteSlack` split spends one side exactly when it spends the other. -/
 lemma vote_shifts (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) {κ : ℝ}
-    (hκ0 : 0 ≤ κ) (hκs : 8 ≤ κ * sig η₀) :
-    κ * ((O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8) ≤ κ / 2
-      ∧ κ / 2 + 1 ≤ κ * (((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8) := by
-  have hs := sig_pos η₀ hη₀
+    (hκ0 : 0 ≤ κ) :
+    κ * ((O.η + (1 - O.η) * flipFrac η₀) + voteSlack η₀) ≤ κ / 2
+      ∧ κ / 2 ≤ κ * (((1 - O.η) * (1 - flipFrac η₀)) - voteSlack η₀) := by
+  have hsplit := flipFrac_voteSlack η₀ hη₀
   have hsv : sig η₀ = 1 / 2 - η₀ := rfl
-  have hη0 := eta_nonneg O
-  have hs2 : sig η₀ ≤ 1 / 2 := by rw [hsv]; linarith
-  have hf : (0 : ℝ) ≤ 1 - 3 * sig η₀ / 4 := by linarith
-  have hm := mul_le_mul_of_nonneg_right hηle hf
-  have hu : (O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8 ≤ 1 / 2 - sig η₀ / 8 := by
-    have : η₀ = 1 / 2 - sig η₀ := by rw [hsv]; ring
-    rw [this] at hm
-    nlinarith [hm, hs, hs2]
-  have hl : 1 / 2 + sig η₀ / 8 ≤ ((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8 := by
-    have : η₀ = 1 / 2 - sig η₀ := by rw [hsv]; ring
-    rw [this] at hm
-    nlinarith [hm, hs, hs2]
+  have hF1 := flipFrac_lt_one η₀ hη₀
+  have hu : (O.η + (1 - O.η) * flipFrac η₀) + voteSlack η₀ ≤ 1 / 2 := by
+    nlinarith [mul_nonneg (sub_nonneg.2 hηle) (by linarith : (0 : ℝ) ≤ 1 - flipFrac η₀)]
+  have hl : 1 / 2 ≤ ((1 - O.η) * (1 - flipFrac η₀)) - voteSlack η₀ := by nlinarith [hu]
   constructor
   · nlinarith [mul_le_mul_of_nonneg_left hu hκ0]
   · nlinarith [mul_le_mul_of_nonneg_left hl hκ0]
@@ -6319,13 +6345,13 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
         * (flipBudget η₀ populations εcov δ * (1 - 2 * O.η) ^ 2
           - 2 * (screenMargin η₀ populations εcov δ / 2))
     ∧ (((solvedStateAt η₀ populations εcov δ pAP mi).k - 1 : ℕ) : ℝ)
-        * ((O.η + (1 - O.η) * (3 * sig η₀ / 4)) + sig η₀ / 8)
+        * ((O.η + (1 - O.η) * flipFrac η₀) + voteSlack η₀)
       ≤ (((solvedStateAt η₀ populations εcov δ pAP mi).hi - 1 : ℕ) : ℝ)
     ∧ ((solvedStateAt η₀ populations εcov δ pAP mi).lo : ℝ)
       < (((solvedStateAt η₀ populations εcov δ pAP mi).k - 1 : ℕ) : ℝ)
-        * (((1 - O.η) * (1 - 3 * sig η₀ / 4)) - sig η₀ / 8)
+        * (((1 - O.η) * (1 - flipFrac η₀)) - voteSlack η₀)
     ∧ Real.exp (-2 * (((solvedStateAt η₀ populations εcov δ pAP mi).k - 1 : ℕ) : ℝ)
-        * (sig η₀ / 8) ^ 2) ≤ cutBudget η₀ εcov / 2 := by
+        * voteSlack η₀ ^ 2) ≤ cutBudget η₀ εcov / 2 := by
   classical
   have hs : 0 < sig η₀ := sig_pos η₀ hη₀
   have hsval : sig η₀ = 1 / 2 - η₀ := rfl
@@ -6335,21 +6361,14 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   set κ : ℕ := famCount η₀ populations εcov δ with hκdef
   have hκpos : 0 < κ := famCount_pos η₀ populations εcov δ
   have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκpos
-  have hκs : 8 ≤ (κ : ℝ) * sig η₀ := by
-    have h1 : (8 : ℝ) / sig η₀ ≤ (κ : ℝ) := by
-      refine le_trans (Nat.le_ceil _) ?_
-      have hle : ⌈8 / sig η₀⌉₊ ≤ κ := by rw [hκdef, famCount]; omega
-      exact_mod_cast hle
-    rw [div_le_iff₀ hs] at h1
-    linarith
   set x : ℝ := (κ : ℝ) / 2 with hxdef
   have hxpos : 0 < x := by
     rw [hxdef]
     exact div_pos hκR (by norm_num)
   have hceil1 : 1 ≤ ⌈x⌉₊ := Nat.one_le_ceil_iff.2 hxpos
-  have hceilx : (⌈x⌉₊ : ℝ) ≤ x + 1 := le_of_lt (Nat.ceil_lt_add_one hxpos.le)
+  have hxexact : (⌈x⌉₊ : ℝ) = x := by rw [hxdef, hκdef]; exact famCount_half η₀ populations εcov δ
   have hκ0 : (0 : ℝ) ≤ (κ : ℝ) := Nat.cast_nonneg _
-  obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hηle hη₀ hκ0 hκs
+  obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hηle hη₀ hκ0
   set B : State := solvedStateAt η₀ populations εcov δ pAP mi with hBdef
   have hBk : B.k = κ + 1 := rfl
   have hBcn : B.cn = 1 := rfl
@@ -6395,10 +6414,10 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
     nlinarith [hceilub, hone, hFS, hγ.le, hS0]
   · rw [hBhi, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega,
       show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega]
-    linarith [Nat.le_ceil x, hlowShift]
+    linarith [hxexact, hlowShift]
   · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1]
     push_cast
-    linarith [hceilx, hhiShift]
+    linarith [hxexact, hhiShift]
   · rw [hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, hκdef]
     exact famCount_tail η₀ populations hη₀ hεcov
 
@@ -6542,24 +6561,26 @@ theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     screenMargin_pos η₀ populations hη₀ hεcov hcard
   have hs : 0 < sig η₀ := sig_pos η₀ hη₀
   have hbudget : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-      + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
+      + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / flipFrac η₀
       + cutBudget η₀ εcov / 4 + cutBudget η₀ εcov ≤ 3 * εcov / 4 := by
     have hne : (populations.card : ℝ) ≠ 0 := ne_of_gt hcard
+    have hFne : flipFrac η₀ ≠ 0 := ne_of_gt (flipFrac_pos η₀ hη₀)
     have hid : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
+        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / flipFrac η₀
         = cutBudget η₀ εcov * (2 / 3) := by
       rw [flipBudget]
       field_simp
       ring
     rw [hid]
     linarith [(cutBudget_le η₀ εcov).1]
-  have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * (3 * sig η₀ / 4) →
+  have hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * flipFrac η₀ →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ cutCorrect O B.lo (B.hi - 1) F p ω}
-        ≤ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) := by
+        ≤ Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * voteSlack η₀ ^ 2) := by
     intro F p hf hmin hmax
     have hcardF : F.card = B.k - 1 := le_antisymm hmax hmin
-    refine le_trans (cutCorrect_whp O F p _ _ (3 * sig η₀ / 4) (sig η₀ / 8) hsig.le hf (by positivity)
+    refine le_trans (cutCorrect_whp O F p _ _ (flipFrac η₀) (voteSlack η₀) hsig.le hf
+      (voteSlack_pos η₀ hη₀).le
       ?_ ?_)
       (le_of_eq ?_)
     · rw [hcardF]; exact hhi
@@ -6571,9 +6592,10 @@ theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     (by have := hcap.found; linarith)
     (flipBudget η₀ populations εcov δ) (screenMargin η₀ populations εcov δ / 2)
     ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) (cutBudget η₀ εcov / 4)
-    (3 * sig η₀ / 4) (cutBudget η₀ εcov) (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (sig η₀ / 8) ^ 2))
+    (flipFrac η₀) (cutBudget η₀ εcov) (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * voteSlack η₀ ^ 2))
     hΔ (by linarith) (mul_nonneg hcard.le hΔ.le) (by linarith [cutBudget_pos η₀ hη₀ hεcov])
-    (by linarith) (Real.exp_nonneg _) hEc hsc hbudget hcut) (le_trans (le_of_eq ?_) hcap.share)
+    (flipFrac_pos η₀ hη₀) (Real.exp_nonneg _) hEc hsc hbudget hcut)
+    (le_trans (le_of_eq ?_) hcap.share)
   rfl
 
 /-- What one round at one population can cost: the draws, the family's size and cleanliness,
@@ -6889,7 +6911,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
         * roundFail populations (indecisionLimit / 2) (cutBudget η₀ εcov) (sig η₀ * εcov / 4)
             (cutBudget η₀ εcov / 4)
             (Real.exp (-2 * (((solvedState η₀ populations εcov δ α pAP).k - 1 : ℕ) : ℝ)
-              * (sig η₀ / 8) ^ 2))
+              * voteSlack η₀ ^ 2))
             (screenMargin η₀ populations εcov δ / 2) (screenMargin η₀ populations εcov δ / 2)
             ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) (pAP / 2) ρ ρsf
             ⌊(1 - indecisionLimit) * ((solvedState η₀ populations εcov δ α pAP).npref : ℝ)⌋₊
@@ -6969,14 +6991,14 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     linarith
   -- the vote's misfire rate sits under half the cut budget, so both count tails are no worse
   -- than the threshold's
-  have hEc : Real.exp (-2 * (κ : ℝ) * (sig η₀ / 8) ^ 2) ≤ cutBudget η₀ εcov / 2 :=
+  have hEc : Real.exp (-2 * (κ : ℝ) * voteSlack η₀ ^ 2) ≤ cutBudget η₀ εcov / 2 :=
     famCount_tail η₀ populations hsig hε
-  have hE0 : 0 ≤ Real.exp (-2 * (κ : ℝ) * (sig η₀ / 8) ^ 2) := Real.exp_nonneg _
+  have hE0 : 0 ≤ Real.exp (-2 * (κ : ℝ) * voteSlack η₀ ^ 2) := Real.exp_nonneg _
   have tl : Real.exp (-2 * (m : ℝ) * (indecisionLimit / 2
-      - Real.exp (-2 * (κ : ℝ) * (sig η₀ / 8) ^ 2)) ^ 2) ≤ ε₀ :=
+      - Real.exp (-2 * (κ : ℝ) * voteSlack η₀ ^ 2)) ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
   have tlc : Real.exp (-2 * (m : ℝ) * (cutBudget η₀ εcov
-      - Real.exp (-2 * (κ : ℝ) * (sig η₀ / 8) ^ 2)) ^ 2) ≤ ε₀ :=
+      - Real.exp (-2 * (κ : ℝ) * voteSlack η₀ ^ 2)) ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
   have hcε : (populations.card : ℝ) * ε₀ = δ / 128 := by
     rw [hε₀def]
@@ -7127,21 +7149,14 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     rw [hBgmin]
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     linarith
-  have hκs : 8 ≤ (κ : ℝ) * sig η₀ := by
-    have h1 : (8 : ℝ) / sig η₀ ≤ (κ : ℝ) := by
-      refine le_trans (Nat.le_ceil _) ?_
-      have hle : ⌈8 / sig η₀⌉₊ ≤ κ := by rw [hκdef, famCount]; omega
-      exact_mod_cast hle
-    rw [div_le_iff₀ hs] at h1
-    linarith
   set x : ℝ := (κ : ℝ) / 2 with hxdef
   have hxpos : 0 < x := by
     rw [hxdef]
     exact div_pos hκR (by norm_num)
   have hceil1 : 1 ≤ ⌈x⌉₊ := Nat.one_le_ceil_iff.2 hxpos
-  have hceilx : (⌈x⌉₊ : ℝ) ≤ x + 1 := le_of_lt (Nat.ceil_lt_add_one hxpos.le)
+  have hxexact : (⌈x⌉₊ : ℝ) = x := by rw [hxdef, hκdef]; exact famCount_half η₀ populations εcov δ
   have hκ0 : (0 : ℝ) ≤ (κ : ℝ) := Nat.cast_nonneg _
-  obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hηle hη₀ hκ0 hκs
+  obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hηle hη₀ hκ0
   -- the fields, named before the definitions are made opaque
   have hBM : B.nsuff = poolCount η₀ populations εcov δ pAP := rfl
   have hBcn : B.cn = 1 := rfl
@@ -7160,10 +7175,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   clear_value B κ m x
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_, ?_⟩⟩,
     sig η₀ * εcov / 4, cutBudget η₀ εcov / 4, pAP / 2,
-    sig η₀ / 8, screenMargin η₀ populations εcov δ / 2,
+    voteSlack η₀, screenMargin η₀ populations εcov δ / 2,
     screenMargin η₀ populations εcov δ / 2,
     (populations.card : ℝ) * flipBudget η₀ populations εcov δ,
-    flipBudget η₀ populations εcov δ, cutBudget η₀ εcov, 3 * sig η₀ / 4,
+    flipBudget η₀ populations εcov δ, cutBudget η₀ εcov, flipFrac η₀,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   -- in the schedule
@@ -7198,12 +7213,12 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · exact div_nonneg (mul_nonneg hs.le hεcov.le) (by norm_num)
   · linarith
   · linarith
-  · linarith
+  · exact (voteSlack_pos η₀ hη₀).le
   · linarith [hγ.le]
   · linarith [hγ.le]
   · exact mul_nonneg hcard.le hΔ.le
   · exact hΔ
-  · linarith
+  · exact flipFrac_pos η₀ hη₀
   · linarith
   · exact hcut
   · exact hcutlim
@@ -7211,8 +7226,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · exact hρsf
   -- the family's flips fit the cut budget
   · have hne : ((populations.card : ℝ)) ≠ 0 := ne_of_gt hcard
+    have hFne : flipFrac η₀ ≠ 0 := ne_of_gt (flipFrac_pos η₀ hη₀)
     have hid : ((populations.card : ℝ) * flipBudget η₀ populations εcov δ
-        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / (3 * sig η₀ / 4)
+        + (populations.card : ℝ) * flipBudget η₀ populations εcov δ) / flipFrac η₀
         = cutBudget η₀ εcov * (2 / 3) := by
       rw [flipBudget]
       field_simp
@@ -7239,16 +7255,16 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   -- the thresholds decide, and decide right
   · rw [hBhi, hBk, show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega,
       show (κ + 1 - 1 : ℕ) = κ from by omega]
-    linarith [hceilx, hhiShift]
+    linarith [hxexact, hhiShift]
   · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1]
     push_cast
-    linarith [Nat.le_ceil x, hlowShift]
+    linarith [hxexact, hlowShift]
   · rw [hBhi, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega,
       show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega]
-    linarith [Nat.le_ceil x, hlowShift]
+    linarith [hxexact, hlowShift]
   · rw [hBlo, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, Nat.cast_sub hceil1]
     push_cast
-    linarith [hceilx, hhiShift]
+    linarith [hxexact, hhiShift]
   -- the gate's two sides clear their thresholds
   · intro n c hn₀ hnc hcm
     have hcR : (c : ℝ) ≤ (m : ℝ) := by rw [← hBm]; exact_mod_cast hcm
@@ -7264,7 +7280,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       rw [div_le_iff₀ hεcov] at h1
       nlinarith
     clear hBsc hBscd hBlo hBhi hBM hMceil hBcn hBcd hBdef hBk hBkappa hBgmin hBm
-      hceilx hlowShift hhiShift hκs hgminLe hgminGe hnR hfloor hsize hsizeR
+      hxexact hlowShift hhiShift hgminLe hgminGe hnR hfloor hsize hsizeR
       hρcap hρsfcap hρ hρsf hpAPBound
     have hcn : (c : ℝ) ≤ 4 * (n : ℝ) := by nlinarith [hcR, hlow, hm64, hind1]
     have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
