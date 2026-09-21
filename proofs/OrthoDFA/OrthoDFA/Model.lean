@@ -422,8 +422,13 @@ noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
-read when the rates are lopsided, so the budget is held under `s` as well as `εcov`. -/
-noncomputable def cutBudget (η εcov : ℝ) : ℝ := min εcov (sig η) / 64
+read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
+
+The two are held at their own divisors and not a common one: `εcov/16` is what the round's
+own budget leaves once the cut, the coverage tail and the threshold tail have taken their
+shares, and `s/64` is what the gate needs to clear a coin flip.  Neither answers the other's
+constraint, so the tighter divisor is not the safer choice for both. -/
+noncomputable def cutBudget (η εcov : ℝ) : ℝ := min (εcov / 16) (sig η / 64)
 
 /-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
 a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the count is read

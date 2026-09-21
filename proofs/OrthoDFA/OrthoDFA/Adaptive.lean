@@ -315,11 +315,10 @@ lemma sig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < sig η₀ := by
 lemma cutBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 < εcov) :
     0 < cutBudget η₀ εcov := by
   rw [cutBudget]
-  exact div_pos (lt_min hε (sig_pos η₀ hsig)) (by norm_num)
+  exact lt_min (div_pos hε (by norm_num)) (div_pos (sig_pos η₀ hsig) (by norm_num))
 
-lemma cutBudget_le (η₀ εcov : ℝ) : cutBudget η₀ εcov ≤ εcov / 64 ∧ cutBudget η₀ εcov ≤ sig η₀ / 64 :=
-  ⟨div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num),
-    div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)⟩
+lemma cutBudget_le (η₀ εcov : ℝ) : cutBudget η₀ εcov ≤ εcov / 16 ∧ cutBudget η₀ εcov ≤ sig η₀ / 64 :=
+  ⟨min_le_left _ _, min_le_right _ _⟩
 
 lemma voteSlack_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSlack η₀ := by
   rw [voteSlack]
