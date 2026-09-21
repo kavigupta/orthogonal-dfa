@@ -62,8 +62,11 @@ def population_size_and_evidence_margin(
 def fpr_for_coverage_error(
     signal_strength, acceptable_fnr, max_coverage_error, *, center
 ):
-    """The loosest false-decisive rate whose band still holds the cut's error
-    under ``max_coverage_error``.
+    """The loosest false-decisive rate whose band still holds the split's
+    disagreement with the language under ``max_coverage_error``.
+
+    The rate itself says only how crisply the split reads; what it buys here is
+    the band, and the band is what ties the split to accept preservation.
 
     A side of the cut reads as its own class while the fraction of it belonging
     to the other one stays under ``(1 - eps/signal)/2``: a prefix on the wrong

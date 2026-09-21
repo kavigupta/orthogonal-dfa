@@ -65,9 +65,10 @@ def identify_cluster_around(
 def read_rates(config, decision_boundary):
     """The false-decisive and undecided rates a family is read at.
 
-    The cut's error is bounded by the band, and the band by the false-decisive
-    rate, so the rate the caller asked for is only used where it is already tight
-    enough to hold ``max_coverage_error``.
+    Both are properties of the split alone, and a caller is free to ask for any of
+    them.  How far the split may sit from accept preservation is a different
+    question, answered by the band those rates buy, so the rate asked for is used
+    only where it is already tight enough to hold ``max_coverage_error``.
     """
     return (
         min(

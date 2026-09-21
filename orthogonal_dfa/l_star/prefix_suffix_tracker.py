@@ -33,23 +33,25 @@ class SearchConfig:
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
-    #: Upper bound on the probability that the family calls a prefix decisively
-    #: accept when it is in fact reject, or vice versa, purely on the noise in a
-    #: small number of draws.  Specifically the probability of a hypothetical
-    #: prefix landing exactly at the boundary being called decisive either way,
-    #: which is the worst case: a prefix that carries signal is misread far more
-    #: rarely.
+    #: Chance the split calls a prefix carrying no signal -- one sitting exactly at
+    #: the boundary -- decisive either way.  A property of the split alone: it says
+    #: nothing about which side such a prefix lands on, and nothing about whether
+    #: the split it lands in is the accept-preserving one.
     acceptable_fpr: float = 0.01
-    #: Same metric for the probability that a prefix carrying the weakest signal
-    #: the caller promised -- accept rate a whole ``min_signal_strength`` off the
-    #: boundary -- is classified undecided.  ``fnr_limit`` measures that rate over
-    #: the pool, so this has to stay below it or a clean family fails its round.
+    #: The same for a prefix carrying the weakest signal the caller promised -- an
+    #: accept rate a whole ``min_signal_strength`` off the boundary -- being left
+    #: undecided.  Also a property of the split alone.  ``fnr_limit`` measures that
+    #: rate over the pool, so this has to stay below it or a clean family fails its
+    #: round.
     acceptable_fnr: float = 0.01
-    #: Share of a population the cut may get backwards while the accept-preserving
-    #: test still passes it.  The test holds each side of the cut a band's margin
-    #: off the boundary, so the band is what bounds this, and asking for a smaller
-    #: share asks for a wider band -- which is bought with a tighter
-    #: ``acceptable_fpr`` and paid for in prefixes left undecided.
+    #: Share of a population the split puts on the side the language does not.
+    #: Where the two rates above are properties of the split by itself, this is the
+    #: correspondence between the split and accept preservation: a family can read
+    #: every prefix crisply, at any rates it likes, and still divide the classes in
+    #: the wrong place.  The accept-preserving test bounds this at
+    #: ``(1 - eps/signal)/2``, so asking for a smaller share asks for a wider band,
+    #: which is bought with a tighter ``acceptable_fpr`` and paid for in prefixes
+    #: left undecided.
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
