@@ -82,6 +82,35 @@ lemma mq_mean (O : Oracle μ S) (p : S) :
   simp only [measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
   ring
 
+/-- The midpoint of the two clean class means, `(ηOut + (1 − ηIn))/2`. -/
+noncomputable def Oracle.mid (O : Oracle μ S) : ℝ := (1 + O.ηOut - O.ηIn) / 2
+
+/-- Half the distance between them, `((1 − ηIn) − ηOut)/2`. -/
+noncomputable def Oracle.hgap (O : Oracle μ S) : ℝ := (1 - O.ηIn - O.ηOut) / 2
+
+lemma mid_sub_hgap (O : Oracle μ S) : O.mid - O.hgap = O.ηOut := by
+  unfold Oracle.mid Oracle.hgap; ring
+
+lemma mid_add_hgap (O : Oracle μ S) : O.mid + O.hgap = 1 - O.ηIn := by
+  unfold Oracle.mid Oracle.hgap; ring
+
+lemma hgap_nonneg (O : Oracle μ S) (hη : O.η ≤ 1 / 2) : 0 ≤ O.hgap := by
+  unfold Oracle.η at hη
+  have hin : O.ηIn ≤ 1 / 2 := le_trans (le_max_left _ _) hη
+  have hout : O.ηOut ≤ 1 / 2 := le_trans (le_max_right _ _) hη
+  unfold Oracle.hgap
+  linarith
+
+/-- Each query sits exactly at its own class's mean: `mid − hgap` off the language and
+`mid + hgap` on it. -/
+lemma mq_mean_centred (O : Oracle μ S) (w : S) :
+    μ[O.mq w] = (O.mid - O.hgap) + 2 * O.hgap * O.label w := by
+  rw [mq_mean]
+  unfold Oracle.rate Oracle.label Oracle.mid Oracle.hgap
+  by_cases h : w ∈ O.L
+  · rw [if_pos h, Set.indicator_of_mem h, Pi.one_apply]; ring
+  · rw [if_neg h, Set.indicator_of_notMem h]; ring
+
 lemma eta_nonneg (O : Oracle μ S) : 0 ≤ O.η :=
   le_trans (O.rate_nonneg (1 : S)) (O.rate_le_eta 1)
 
@@ -2386,6 +2415,48 @@ theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p =
   exact sumLower_le (fun v : S => O.mq (p * v)) F ((1 - O.η) * (1 - f)) γ
     (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
 
+/-- `voteSum_upper` recentred: a clean member sits at `mid − hgap` and a flipping one at the
+other class's mean `mid + hgap`, so a flip fraction of `f` lifts the vote's mean by exactly
+`2·hgap·f` — a flip costs the displacement between the classes, not a whole bit. -/
+theorem voteSum_upper_gap (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 0)
+    (f γ : ℝ) (hgap0 : 0 ≤ O.hgap) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | (F.card : ℝ) * (((O.mid - O.hgap) + 2 * O.hgap * f) + γ) ≤ voteSum O F p ω}
+      ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  have hper : ∀ v ∈ F, μ[O.mq (p * v)] = (O.mid - O.hgap) + 2 * O.hgap * O.flip v p := by
+    intro v _
+    have hlab : O.label (p * v) = O.flip v p := by
+      show O.label (p * v) = O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
+      rw [hp]; ring
+    rw [mq_mean_centred, hlab]
+  have hmean : ∑ v ∈ F, μ[O.mq (p * v)]
+      ≤ (F.card : ℝ) * ((O.mid - O.hgap) + 2 * O.hgap * f) := by
+    rw [Finset.sum_congr rfl hper, Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul,
+      ← Finset.mul_sum, ← flipCount_eq_sum]
+    nlinarith [mul_le_mul_of_nonneg_left hf hgap0]
+  exact sumUpper_le (fun v : S => O.mq (p * v)) F ((O.mid - O.hgap) + 2 * O.hgap * f) γ
+    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
+
+/-- `voteSum_lower` recentred.  Mirror of `voteSum_upper_gap`. -/
+theorem voteSum_lower_gap (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 1)
+    (f γ : ℝ) (hgap0 : 0 ≤ O.hgap) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | voteSum O F p ω ≤ (F.card : ℝ) * (((O.mid + O.hgap) - 2 * O.hgap * f) - γ)}
+      ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  have hper : ∀ v ∈ F, μ[O.mq (p * v)] = (O.mid + O.hgap) - 2 * O.hgap * O.flip v p := by
+    intro v _
+    have hlab : O.label (p * v) = 1 - O.flip v p := by
+      show O.label (p * v) = 1 - (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p)
+      rw [hp]; ring
+    rw [mq_mean_centred, hlab]; ring
+  have hmean : (F.card : ℝ) * ((O.mid + O.hgap) - 2 * O.hgap * f)
+      ≤ ∑ v ∈ F, μ[O.mq (p * v)] := by
+    rw [Finset.sum_congr rfl hper, Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul,
+      ← Finset.mul_sum, ← flipCount_eq_sum]
+    nlinarith [mul_le_mul_of_nonneg_left hf hgap0]
+  exact sumLower_le (fun v : S => O.mq (p * v)) F ((O.mid + O.hgap) - 2 * O.hgap * f) γ
+    (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
+
 lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A → ω ∈ B) :
     μ.real A ≤ μ.real B :=
   ENNReal.toReal_mono (measure_ne_top μ B) (measure_mono_ae h)
@@ -2421,6 +2492,38 @@ theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f
       exact hrej (fun h => absurd h hc)
     have : (voteCount O.mq F p ω : ℝ) ≤ (lo : ℝ) := by exact_mod_cast hle
     show voteSum O F p ω ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ)
+    rw [← heq]; linarith
+
+/-- `cutCorrect_whp` recentred, relaying `voteSum_upper_gap`/`voteSum_lower_gap`. -/
+theorem cutCorrect_whp_gap (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ)
+    (hgap0 : 0 ≤ O.hgap)
+    (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ)
+    (hhi : (F.card : ℝ) * (((O.mid - O.hgap) + 2 * O.hgap * f) + γ) ≤ (hi : ℝ))
+    (hlo : (lo : ℝ) < (F.card : ℝ) * (((O.mid + O.hgap) - 2 * O.hgap * f) - γ)) :
+    μ.real {ω | ¬ cutCorrect O lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  rcases O.label_bit p with hp | hp
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper_gap O F p hp f γ hgap0 hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hacc : ¬ (hi < voteCount O.mq F p ω → O.label p = 1) := by
+      intro hacc
+      exact hbad ⟨hacc, fun _ => hp⟩
+    have hgt : hi < voteCount O.mq F p ω := by
+      by_contra hc
+      exact hacc (fun h => absurd h hc)
+    have : (hi : ℝ) < (voteCount O.mq F p ω : ℝ) := by exact_mod_cast hgt
+    show (F.card : ℝ) * (((O.mid - O.hgap) + 2 * O.hgap * f) + γ) ≤ voteSum O F p ω
+    rw [← heq]; linarith
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower_gap O F p hp f γ hgap0 hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hrej : ¬ (voteCount O.mq F p ω ≤ lo → O.label p = 0) := by
+      intro hrej
+      exact hbad ⟨fun _ => hp, hrej⟩
+    have hle : voteCount O.mq F p ω ≤ lo := by
+      by_contra hc
+      exact hrej (fun h => absurd h hc)
+    have : (voteCount O.mq F p ω : ℝ) ≤ (lo : ℝ) := by exact_mod_cast hle
+    show voteSum O F p ω ≤ (F.card : ℝ) * (((O.mid + O.hgap) - 2 * O.hgap * f) - γ)
     rw [← heq]; linarith
 
 /-! ### From a per-prefix bound to a population bound
@@ -3034,6 +3137,35 @@ theorem decided_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ
     rw [← heq]
     linarith
 
+open scoped Classical in
+/-- `decided_whp` recentred, relaying `voteSum_upper_gap`/`voteSum_lower_gap`. -/
+theorem decided_whp_gap (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ)
+    (hγ : 0 ≤ γ) (hgap0 : 0 ≤ O.hgap)
+    (hf : flipCount O F p ≤ (F.card : ℝ) * f)
+    (hhi : (hi : ℝ) ≤ (F.card : ℝ) * (((O.mid + O.hgap) - 2 * O.hgap * f) - γ))
+    (hlo : (F.card : ℝ) * (((O.mid - O.hgap) + 2 * O.hgap * f) + γ) ≤ (lo : ℝ) + 1) :
+    μ.real {ω | ¬ decided O.mq lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+  classical
+  rcases O.label_bit p with hp | hp
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper_gap O F p hp f γ hgap0 hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hgt : lo < voteCount O.mq F p ω := by
+      by_contra hc
+      exact hbad (Or.inr (not_lt.1 hc))
+    have hcast : (lo : ℝ) + 1 ≤ (voteCount O.mq F p ω : ℝ) := by exact_mod_cast hgt
+    show (F.card : ℝ) * (((O.mid - O.hgap) + 2 * O.hgap * f) + γ) ≤ voteSum O F p ω
+    rw [← heq]
+    linarith
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower_gap O F p hp f γ hgap0 hf hγ)
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
+    have hle : voteCount O.mq F p ω ≤ hi := by
+      by_contra hc
+      exact hbad (Or.inl (not_le.1 hc))
+    have hcast : (voteCount O.mq F p ω : ℝ) ≤ (hi : ℝ) := by exact_mod_cast hle
+    show voteSum O F p ω ≤ (F.card : ℝ) * (((O.mid + O.hgap) - 2 * O.hgap * f) - γ)
+    rw [← heq]
+    linarith
+
 /-! ### From the clustering's empirical bound to the population's
 
 The clustering scores a candidate on the *deduplicated* table, the sampler draws `m` times
@@ -3329,6 +3461,89 @@ theorem count_frac_hoeffding (O : Oracle μ S) (C : Finset S) (blk : S → Finse
   rw [hsum, show E + (l - E) = l by ring]
   have h' : l * (C.card : ℝ) < ((C.filter (fun p => ω ∈ Bad p)).card : ℝ) := hω
   linarith
+
+open scoped Classical in
+/-- The table's own vote concentrates: off an `exp (−2·#P·(b − E)²)` set, every `κ`-subset
+of the pool votes within `#F·γ` of its mean at all but a `b` fraction of the table's
+prefixes.  Each prefix reads its own block `p · F`, which flatness keeps apart from the
+others, so the per-prefix deviations are independent.
+
+Unlike `frac_selected_le` this says nothing about the family the table selects; it is
+uniform over the families instead, which is what the selection's own reads cost. -/
+theorem tableVote_unif_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+    (P Cd : Finset S) (hP : ∀ p ∈ P, p ∈ Pre) (κ : ℕ) (γ b : ℝ) (hγ : 0 ≤ γ)
+    (hb : 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2) ≤ b) :
+    μ.real {ω | ∃ F ∈ Cd.powersetCard κ, b * (P.card : ℝ)
+        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
+            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
+      ≤ (Cd.card.choose κ : ℝ)
+        * Real.exp (-2 * (P.card : ℝ) * (b - 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) ^ 2) := by
+  classical
+  have hper : ∀ (F : Finset S) (p : S),
+      μ.real {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
+          ≤ (F.card : ℝ) * γ} ≤ 2 * Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
+    intro F p
+    have hup := sumUpper_le_total (fun v : S => O.mq (p * v)) F
+      (∑ v ∈ F, μ[O.mq (p * v)]) γ (fun _ => (mq_meas O _).aemeasurable)
+      (mq_indep_shift O p) (fun _ => mq_icc O _) le_rfl hγ
+    have hlo := sumLower_le_total (fun v : S => O.mq (p * v)) F
+      (∑ v ∈ F, μ[O.mq (p * v)]) γ (fun _ => (mq_meas O _).aemeasurable)
+      (mq_indep_shift O p) (fun _ => mq_icc O _) le_rfl hγ
+    have hsub : ∀ᵐ ω ∂μ, ω ∈ {ω | ¬ |(voteCount O.mq F p ω : ℝ)
+          - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ} →
+        ω ∈ ({ω | ∑ v ∈ F, μ[O.mq (p * v)] + (F.card : ℝ) * γ ≤ ∑ v ∈ F, O.mq (p * v) ω}
+          ∪ {ω | ∑ v ∈ F, O.mq (p * v) ω
+              ≤ ∑ v ∈ F, μ[O.mq (p * v)] - (F.card : ℝ) * γ}) := by
+      filter_upwards [voteCount_eq_voteSum O F p] with ω heq hω
+      have hω' : (F.card : ℝ) * γ ≤ |voteSum O F p ω - ∑ v ∈ F, μ[O.mq (p * v)]| := by
+        rw [← heq]; exact le_of_lt (not_le.mp hω)
+      rcases le_abs.mp hω' with h | h
+      · exact Or.inl (show _ ≤ voteSum O F p ω by
+          simp only [voteSum] at h ⊢; linarith)
+      · exact Or.inr (show voteSum O F p ω ≤ _ by
+          simp only [voteSum] at h ⊢; linarith)
+    calc μ.real {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
+            ≤ (F.card : ℝ) * γ}
+        ≤ μ.real ({ω | ∑ v ∈ F, μ[O.mq (p * v)] + (F.card : ℝ) * γ
+              ≤ ∑ v ∈ F, O.mq (p * v) ω}
+            ∪ {ω | ∑ v ∈ F, O.mq (p * v) ω
+              ≤ ∑ v ∈ F, μ[O.mq (p * v)] - (F.card : ℝ) * γ}) :=
+          measureReal_le_of_ae_imp hsub
+      _ ≤ _ + _ := measureReal_union_le _ _
+      _ ≤ 2 * Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by linarith
+  have hcount : ∀ F ∈ Cd.powersetCard κ,
+      μ.real {ω | b * (P.card : ℝ) < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
+            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
+        ≤ Real.exp (-2 * (P.card : ℝ) * (b - 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) ^ 2) := by
+    intro F hF
+    have hFκ : F.card = κ := (Finset.mem_powersetCard.mp hF).2
+    have h := count_frac_hoeffding O P (fun p => F.image (fun v => p * v)) ?_
+      (fun p => {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
+        ≤ (F.card : ℝ) * γ}) ?_
+      (2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) b hb (fun p _ => by rw [← hFκ]; exact hper F p)
+    · simpa only [Set.mem_setOf_eq] using h
+    · intro p hp q hq hpq
+      rw [Finset.disjoint_left]
+      intro z hz hz'
+      obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
+      obtain ⟨v', -, hv'⟩ := Finset.mem_image.1 hz'
+      exact hpq (hflat p (hP p hp) q (hP q hq) v v' hv'.symm)
+    · intro p
+      exact measurableSet_filter_pred_map O (fun v => p * v)
+        (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv))
+        (fun W => ¬ |((W.card : ℕ) : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)
+  have hunion : {ω | ∃ F ∈ Cd.powersetCard κ, b * (P.card : ℝ)
+        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
+            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)}
+      = ⋃ F ∈ Cd.powersetCard κ, {ω | b * (P.card : ℝ)
+        < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
+            - ∑ v ∈ F, μ[O.mq (p * v)]| ≤ (F.card : ℝ) * γ)).card : ℝ)} := by
+    ext ω
+    simp only [Set.mem_setOf_eq, Set.mem_iUnion, exists_prop]
+  rw [hunion]
+  refine le_trans (measureReal_biUnion_finset_le _ _)
+    (le_trans (Finset.sum_le_sum hcount) ?_)
+  rw [Finset.sum_const, nsmul_eq_mul, Finset.card_powersetCard]
 
 open scoped Classical in
 /-- A per-prefix failure count on the certification sample, for the family the table
@@ -4769,6 +4984,95 @@ theorem measureReal_hitShort_le (D : J → Measure S) (Dsf : Measure S)
       ≤ (ENNReal.ofReal E).toReal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
     _ = E := ENNReal.toReal_ofReal (Real.exp_nonneg _)
 
+open scoped Classical in
+/-- A class thin on the certification sample is thin on the population: the class is fixed
+before the sample is drawn, so this is `cert_hits_wrongSet` at the class's own set. -/
+theorem measureReal_thinClass_le (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (O : Oracle μ S)
+    (j : J) (B : State) (b εcov t : ℝ) (hε : 0 ≤ εcov) (ht : 0 ≤ t) :
+    (runMeasure μ D Dsf).real
+        {x : Run Ω S J | Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+          ∧ εcov ≤ (D j).real {p | O.label p = b}
+          ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+            ≤ (B.npref : ℝ) * (εcov - t)}
+      ≤ Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := by
+  classical
+  have hmeas : MeasurableSet {x : Run Ω S J |
+      Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+        ∧ εcov ≤ (D j).real {p | O.label p = b}
+        ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+          ≤ (B.npref : ℝ) * (εcov - t)} := by
+    have hR : ∀ (P C : Finset S) (tt : Fin B.npref → S), MeasurableSet
+        {_x : Run Ω S J | Function.Injective tt ∧ εcov ≤ (D j).real {p | O.label p = b}
+          ∧ ((((Finset.univ : Finset (Fin B.npref)).image tt).filter
+              (fun p => O.label p = b)).card : ℝ) ≤ (B.npref : ℝ) * (εcov - t)} := by
+      intro P C tt
+      by_cases h : Function.Injective tt ∧ εcov ≤ (D j).real {p | O.label p = b}
+          ∧ ((((Finset.univ : Finset (Fin B.npref)).image tt).filter
+              (fun p => O.label p = b)).card : ℝ) ≤ (B.npref : ℝ) * (εcov - t)
+      · simp [h]
+      · simp [h]
+    have hrw : {x : Run Ω S J |
+        Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+          ∧ εcov ≤ (D j).real {p | O.label p = b}
+          ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+            ≤ (B.npref : ℝ) * (εcov - t)}
+        = {x : Run Ω S J | x ∈ (fun (_P _C : Finset S) (tt : Fin B.npref → S) =>
+            {_x : Run Ω S J | Function.Injective tt ∧ εcov ≤ (D j).real {p | O.label p = b}
+              ∧ ((((Finset.univ : Finset (Fin B.npref)).image tt).filter
+                  (fun p => O.label p = b)).card : ℝ) ≤ (B.npref : ℝ) * (εcov - t)})
+          (prefixesAt (∅ : Finset J) B.npref x) (poolAt B.nsuff x)
+          (fun i : Fin B.npref => certPrefix j i.val x)} := by
+      ext x
+      simp only [Set.mem_setOf_eq, ← certOf_eq_image j B.npref x]
+    rw [hrw]
+    exact measurableSet_of_run_data_cert (∅ : Finset J) j B _ hR
+  have hEnn : runMeasure μ D Dsf {x : Run Ω S J |
+      Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+        ∧ εcov ≤ (D j).real {p | O.label p = b}
+        ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+          ≤ (B.npref : ℝ) * (εcov - t)}
+      ≤ ENNReal.ofReal (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)) := by
+    refine runMeasure_slice_cert_le D Dsf _ hmeas _ ?_
+    intro y
+    by_cases hmass : εcov ≤ (D j).real {p | O.label p = b}
+    · have hsec : {c : J → ℕ → S | ((y.1, (y.2, c)) : Run Ω S J) ∈ {x : Run Ω S J |
+            Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+              ∧ εcov ≤ (D j).real {p | O.label p = b}
+              ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+                ≤ (B.npref : ℝ) * (εcov - t)}}
+          ⊆ {c | (((Finset.range B.npref).filter
+              (fun i => c j i ∈ {p | O.label p = b})).card : ℝ)
+            ≤ (B.npref : ℝ) * (εcov - t)} := by
+        rintro c ⟨hinj, -, hcount⟩
+        change (((Finset.range B.npref).filter
+          (fun i => c j i ∈ {p | O.label p = b})).card : ℝ) ≤ (B.npref : ℝ) * (εcov - t)
+        calc (((Finset.range B.npref).filter
+              (fun i => c j i ∈ {p | O.label p = b})).card : ℝ)
+            = (((certOf j B.npref ((y.1, (y.2, c)) : Run Ω S J)).filter
+                (fun p => O.label p = b)).card : ℝ) :=
+              congrArg (fun n : ℕ => (n : ℝ)) (card_filter_certOf j B.npref
+                ((y.1, (y.2, c)) : Run Ω S J) (fun p => O.label p = b) _ _ hinj)
+          _ ≤ (B.npref : ℝ) * (εcov - t) := hcount
+      refine le_trans (measure_mono hsec) ?_
+      rw [← ENNReal.ofReal_toReal (measure_ne_top
+          (Measure.pi fun j : J => Measure.infinitePi fun _ : ℕ => D j) _), ← measureReal_def]
+      refine ENNReal.ofReal_le_ofReal ?_
+      have hcert := cert_hits_wrongSet D j B.npref {p | O.label p = b} εcov t hε ht hmass
+      convert hcert using 3
+    · refine le_trans (measure_mono (show _ ⊆ (∅ : Set (J → ℕ → S)) from ?_)) (by simp)
+      rintro c ⟨-, hm, -⟩
+      exact absurd hm hmass
+  rw [measureReal_def]
+  calc (runMeasure μ D Dsf {x : Run Ω S J |
+        Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)
+          ∧ εcov ≤ (D j).real {p | O.label p = b}
+          ∧ (((certOf j B.npref x).filter (fun p => O.label p = b)).card : ℝ)
+            ≤ (B.npref : ℝ) * (εcov - t)}).toReal
+      ≤ (ENNReal.ofReal (Real.exp (-2 * (B.npref : ℝ) * t ^ 2))).toReal :=
+        ENNReal.toReal_mono ENNReal.ofReal_ne_top hEnn
+    _ = Real.exp (-2 * (B.npref : ℝ) * t ^ 2) := ENNReal.toReal_ofReal (Real.exp_nonneg _)
+
 /-- The sample counts draws, the table counts strings: a repeated draw is one string. -/
 lemma card_filter_certOf_le (j : J) (m : ℕ) (x : Run Ω S J) (Q : S → Prop)
     (instA : DecidablePred Q) (instB : DecidablePred (fun i : ℕ => Q (certPrefix j i x))) :
@@ -5938,6 +6242,64 @@ lemma vote_shifts (O : Oracle μ S) {η₀ : ℝ} (hηle : O.η ≤ η₀) (hη�
   constructor
   · nlinarith [mul_le_mul_of_nonneg_left hu hκ0]
   · nlinarith [mul_le_mul_of_nonneg_left hl hκ0]
+
+/-- The same straddle read off the half-gap rather than off the worse rate: the two clean
+means are `c ± hgap` for `c = (1 + ηOut − ηIn)/2` and `hgap = (1 − ηIn − ηOut)/2`, a flipping
+member answers at the other mean and so moves the vote by `2·hgap`, and the centre is held at
+the rational `cn/cd` rather than at `c`.
+
+The flip fraction is the constant `3/8` whatever the asymmetry: at the true centre the margin
+is `hgap` and one unit of flip fraction spends `2·hgap`. -/
+lemma vote_shifts_gap {c hgap κ : ℝ} {cn cd : ℕ}
+    (hκ0 : 0 ≤ κ) (hκs : 8 ≤ κ * hgap)
+    (hcbelow : (cn : ℝ) / cd ≤ c) (hcabove : c ≤ (cn : ℝ) / cd + hgap / 8) :
+    κ * ((c - hgap) + 2 * hgap * (3 / 8) + hgap / 8) ≤ κ * ((cn : ℝ) / cd)
+      ∧ κ * ((cn : ℝ) / cd) + 1
+        ≤ κ * ((c + hgap) - 2 * hgap * (3 / 8) - hgap / 8) := by
+  constructor
+  · nlinarith [mul_le_mul_of_nonneg_left hcabove hκ0]
+  · nlinarith [mul_le_mul_of_nonneg_left hcbelow hκ0]
+
+/-- `rung_facts`' threshold clauses at a centre held at `cn/cd`, with `lo = ⌈κ·cn/cd⌉ − 1`
+and `hi = ⌈κ·cn/cd⌉ + 1`.  The slack `κ·hgap/8` covers the rounding to a count as well as the
+gap between `c` and `cn/cd`. -/
+lemma rung_thresholds_gap {c hgap : ℝ} {κ cn cd : ℕ}
+    (hκpos : 0 < κ) (hκs : 8 ≤ (κ : ℝ) * hgap)
+    (hcn : 0 < cn) (hcd : cn < cd)
+    (hcbelow : (cn : ℝ) / cd ≤ c) (hcabove : c ≤ (cn : ℝ) / cd + hgap / 8) :
+    ⌈(κ : ℝ) * cn / cd⌉₊ - 1 < ⌈(κ : ℝ) * cn / cd⌉₊ + 1
+    ∧ (((⌈(κ : ℝ) * cn / cd⌉₊ + 1) - 1 : ℕ) : ℝ)
+        ≤ (κ : ℝ) * ((c + hgap) - 2 * hgap * (3 / 8) - hgap / 8)
+    ∧ (κ : ℝ) * ((c - hgap) + 2 * hgap * (3 / 8) + hgap / 8)
+        ≤ ((⌈(κ : ℝ) * cn / cd⌉₊ - 1 : ℕ) : ℝ) + 1
+    ∧ (κ : ℝ) * ((c - hgap) + 2 * hgap * (3 / 8) + hgap / 8)
+        ≤ (((⌈(κ : ℝ) * cn / cd⌉₊ + 1) - 1 : ℕ) : ℝ)
+    ∧ ((⌈(κ : ℝ) * cn / cd⌉₊ - 1 : ℕ) : ℝ)
+        < (κ : ℝ) * ((c + hgap) - 2 * hgap * (3 / 8) - hgap / 8) := by
+  have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκpos
+  have hcdR : (0 : ℝ) < (cd : ℝ) := by
+    exact_mod_cast lt_of_le_of_lt (Nat.zero_le cn) hcd
+  have hcnR : (0 : ℝ) < (cn : ℝ) := by exact_mod_cast hcn
+  set x : ℝ := (κ : ℝ) * cn / cd with hxdef
+  have hxpos : 0 < x := by rw [hxdef]; positivity
+  have hxeq : x = (κ : ℝ) * ((cn : ℝ) / cd) := by rw [hxdef]; ring
+  obtain ⟨hlowShift, hhiShift⟩ :=
+    vote_shifts_gap (c := c) (κ := (κ : ℝ)) (cn := cn) (cd := cd) hκR.le hκs hcbelow hcabove
+  rw [← hxeq] at hlowShift hhiShift
+  have hceil1 : 1 ≤ ⌈x⌉₊ := Nat.one_le_ceil_iff.2 hxpos
+  have hceilx : (⌈x⌉₊ : ℝ) ≤ x + 1 := le_of_lt (Nat.ceil_lt_add_one hxpos.le)
+  have hxceil : x ≤ (⌈x⌉₊ : ℝ) := Nat.le_ceil x
+  refine ⟨by omega, ?_, ?_, ?_, ?_⟩
+  · rw [show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega]
+    linarith
+  · rw [Nat.cast_sub hceil1]
+    push_cast
+    linarith
+  · rw [show (⌈x⌉₊ + 1 - 1 : ℕ) = ⌈x⌉₊ from by omega]
+    linarith
+  · rw [Nat.cast_sub hceil1]
+    push_cast
+    linarith
 
 /-- What every rung of the ladder satisfies whatever its prefix count: only the prefix count
 and the skip guard change down the ladder, and none of these read either. -/
