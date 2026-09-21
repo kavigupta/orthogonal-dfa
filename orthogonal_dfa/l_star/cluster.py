@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -320,6 +321,38 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict)
 
 
+#: Flip mass the ranking is required to resolve.
+CLUSTER_COVERAGE = 0.1
+
+
+def prefixes_for_pool(min_signal_strength: float, pool_size: int) -> int:
+    """Prefixes needed for the least-loss ranking over ``pool_size`` candidates to track
+    flip mass rather than luck:
+
+        m >= (1/4 - s^2) log M / (2 s^2 eps^2)
+
+    A candidate whose flip mass is ``eps`` sits ``2 s eps m`` higher in expected loss, but
+    each loss has spread ``sqrt(m (1/4 - s^2))`` and the best of ``M`` tries gets
+    ``sqrt(2 log M)`` of that for free.  Below the line the winner is whichever candidate
+    drew the luckiest cells, and re-reading does not help: the noise is per-cell and
+    persistent.
+
+    This says nothing about *what* the ranking tracks -- that is the centre's business, and
+    at the first iteration the centre is the seed's own column.
+    """
+    s = min_signal_strength
+    spread = 0.25 - s**2
+    needed = spread * math.log(max(pool_size, 2)) / (2 * s**2 * CLUSTER_COVERAGE**2)
+    return math.ceil(needed)
+
+
+def pool_may_grow(pst, amount: int) -> bool:
+    """Whether ``amount`` more candidates would leave the pool still rankable."""
+    pool = len(pst.table.fully_observed()) + amount
+    have = int(pst.table.representative.sum())
+    return prefixes_for_pool(pst.config.min_signal_strength, pool) <= have
+
+
 def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
@@ -380,6 +413,11 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
             f"{judged.reason}, sampling more {strategy}es; "
             f"decision_boundary: {decision_boundary:.4f}"
         )
+
+        # Past the line the least-loss selection reads noise, not flip mass.
+        if strategy == "suffix" and not pool_may_grow(pst, family_size):
+            print("  pool has outgrown its prefixes; sampling prefixes instead")
+            strategy = "prefix"
 
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
