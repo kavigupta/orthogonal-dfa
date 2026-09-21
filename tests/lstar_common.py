@@ -1,7 +1,6 @@
 import signal
 
 import numpy as np
-import scipy.stats
 
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -110,20 +109,11 @@ round_verify_alpha = 1e-4  # binomial significance for flagging a state
 #: comparisons it makes to get the rate any single state is held to.
 round_check_run_fpr = 0.01
 
-
-def _common_in_prefixes_threshold(strength: float, fpr: float) -> float:
-    """Prefixes a state needs before it counts as common in prefixes.
-
-    A family that labels state q correctly and one that does not differ only on
-    the prefixes that *reach* q -- everywhere else both predict the same thing.
-    Each such prefix votes correctly with probability 1/2 + strength, so q's label
-    is a binomial vote over m_q of them, and lands the wrong way more often than
-    ``fpr`` unless
-
-        m_q >= z^2 (1/4 - strength^2) / strength^2,   z = Phi^-1(1 - fpr)
-    """
-    z = scipy.stats.norm.ppf(1 - fpr)
-    return z**2 * (0.25 - strength**2) / strength**2
+#: Share of a round's prefixes that may reach states it cut against the language.
+#: A state cut backwards costs the round the mass reaching it, so this is a share
+#: and not a prefix count -- a count holds a large pool to a tighter share than a
+#: small one, and the pool grows across rounds.
+round_miscut_mass = 0.03
 
 
 def _reached_states(prefixes, true_dfa):
@@ -177,38 +167,43 @@ def _split_states(cuts):
     ]
 
 
-def _wrongly_cut_states(cuts, true_dfa, threshold):
-    """States the round cut against the language, that it had the prefixes to know.
+def _wrongly_cut_states(cuts, true_dfa, failure_prob):
+    """States the round cut against the language, carrying more than it may.
 
-    Below ``threshold`` prefixes the state's label is a coin flip whichever way
-    the round called it, so being wrong there is the sampler's doing.  Above it,
-    the round had the evidence and still cut the other way.
+    A state the round cut backwards costs it every prefix that reaches the state,
+    so what matters is the share of the round's prefixes they are, held to
+    ``round_miscut_mass`` by a binomial test so a rare state is not flagged on the
+    handful of prefixes that happened to reach it.
     """
+    total = sum(accepted + rejected for accepted, rejected in cuts.values())
     return [
-        (state, accepted + rejected)
+        (state, accepted + rejected, total)
         for state, (accepted, rejected) in cuts.items()
         if (accepted >= rejected) != (state in true_dfa.final_states)
-        and accepted + rejected >= threshold
+        and binomial_side_of_boundary(
+            accepted + rejected,
+            total,
+            round_miscut_mass,
+            failure_prob=failure_prob,
+        )
     ]
 
 
-def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
+def assert_rounds_accept_preserving(classifiers, true_dfa):
     """The per-round accept-preserving invariant.
 
     Each round's family is seeded at the empty suffix, so its decisive
     classifications should realise the accept-preserving split.  Checked a state
     at a time: tally how the round cut each one, require it to have had a single
-    opinion about each, and require the ones it got backwards to be states its
-    prefixes barely reached.
+    opinion about each, and require the ones it got backwards to carry little of
+    the round between them.
     """
     assert classifiers, "no rounds recorded -- did the tracker reach synthesis?"
     per_round = [_state_cuts(c, true_dfa) for c in classifiers]
-    # Every state the round reached, not just those held to the threshold: the
-    # count must not depend on the threshold it is used to compute.
+    # Every state the round reached, not just the ones flagged: the count must not
+    # depend on the rate it is used to compute.
     comparisons = max(1, sum(len(c) for c in per_round))
-    threshold = _common_in_prefixes_threshold(
-        min_signal_strength, round_check_run_fpr / comparisons
-    )
+    failure_prob = round_check_run_fpr / comparisons
     for cuts in per_round:
 
         split = _split_states(cuts)
@@ -221,14 +216,14 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
                 f"had no single opinion about the state"
             )
 
-        wrong = _wrongly_cut_states(cuts, true_dfa, threshold)
+        wrong = _wrongly_cut_states(cuts, true_dfa, failure_prob)
         if wrong:
-            state, reached = wrong[0]
+            state, reached, total = wrong[0]
             raise AssertionError(
                 f"a synthesis round cut state {state} against the language, on "
-                f"{reached} prefixes -- at or above the {threshold:.1f} needed for "
-                f"the state's label to be more than a coin flip, so the round had "
-                f"the evidence and still cut the other way"
+                f"{reached} of its {total} prefixes -- above the "
+                f"{round_miscut_mass:.0%} of a round the states it cuts backwards "
+                f"may carry between them"
             )
 
 
@@ -237,9 +232,7 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     tracker = RecordingTracker()
     dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
-    assert_rounds_accept_preserving(
-        tracker.classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
-    )
+    assert_rounds_accept_preserving(tracker.classifiers, truth_oracle.target_dfa())
     return dfa
 
 
