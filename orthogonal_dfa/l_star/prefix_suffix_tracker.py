@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
+import scipy.stats
 
 from .mask_table import UNIFORM, MaskTable
 from .progress import counter
@@ -12,6 +13,18 @@ from .structures import Oracle
 
 #: Below this a signal is not worth sizing a population for.
 MIN_SIGNAL_STRENGTH = 0.001
+
+
+def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
+    """How high the cohort's clean disagreement rate can be, given its smallest count.
+
+    The smallest of many draws sits below the rate it is drawn from, and by more
+    when there are few prefixes, so the floor is the upper end of the interval
+    around it rather than the count itself.
+    """
+    return float(
+        scipy.stats.beta.ppf(1 - failure_prob, fewest + 1, num_prefixes - fewest)
+    )
 
 
 @dataclass
@@ -139,9 +152,17 @@ class PrefixSuffixTracker:
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows still explicable as ``reference`` plus per-cell noise, which
-        flips one of the two observations at rate ``2*eta*(1-eta)``."""
+        flips one of the two observations at rate ``2*eta*(1-eta)``.
+
+        That rate is read off the cohort rather than off ``min_signal_strength``:
+        a caller who promises less signal than the oracle carries would otherwise
+        widen the screen to admit suffixes that flip a third of the prefixes.  The
+        smallest disagreement in the cohort is noise alone once the cohort holds an
+        accept-preserving suffix, and the declared rate stays as a ceiling so the
+        screen can only tighten.
+        """
         eta = 0.5 - self.config.min_signal_strength
-        same_family_rate = 2 * eta * (1 - eta)
+        declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
@@ -156,6 +177,9 @@ class PrefixSuffixTracker:
             disagreements = (
                 self.table.observed_masks(alive, subset) != ref[subset]
             ).sum(1)
+            same_family_rate = min(
+                declared_rate, _floor_rate(int(disagreements.min()), p, alpha)
+            )
             alive = [
                 row
                 for row, count in zip(alive, disagreements)
