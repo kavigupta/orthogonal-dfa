@@ -17,7 +17,6 @@ import unittest
 import numpy as np
 import pytest
 from automata.fa.dfa import DFA
-from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
@@ -92,11 +91,12 @@ class TestHeavyCoverageErrorTarget(unittest.TestCase):
 
 @pytest.mark.slow
 class TestHeavyCoverageErrorLearns(unittest.TestCase):
-    @parameterized.expand([(seed,) for seed in range(3)])
-    def test_learns_despite_heavy_miscut(self, seed):
+    def test_learns_despite_heavy_miscut(self):
+        # One seed: nine measured seeds all miscut 0.107-0.116 at round level and
+        # all returned 0.9999, so the draw is not what this is guarding against.
         target = build_target()
         oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
-        dfa = learn_dfa(oracle_creator, min_signal_strength=SIGNAL, seed=seed)
+        dfa = learn_dfa(oracle_creator, min_signal_strength=SIGNAL, seed=0)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator, symbols=ALPHABET)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
