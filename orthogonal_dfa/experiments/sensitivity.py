@@ -116,7 +116,7 @@ def plot_sensitivity(
     }
     for x, ((name, _), orig) in zip(xlocs, results.items()):
         if orig.shape[0] == 1:
-            lo, hi = simulate_bootstrap_confusion(metric, orig[0])
+            (lo, hi) = simulate_bootstrap_confusion(metric, orig[0])
             plt.errorbar(
                 [x],
                 [(lo + hi) / 2],
