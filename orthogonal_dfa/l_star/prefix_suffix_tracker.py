@@ -33,6 +33,23 @@ class SearchConfig:
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
     fnr_limit: float = 0.02
+    #: The first two bound the split's crispness, and say nothing about whether the
+    #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
+    #: is called indecisive, all indecision counting against it; `acceptable_fpr`
+    #: bounds the chance a prefix on one side of the boundary is decisively called
+    #: the other, at its worst the chance one exactly on the boundary is called
+    #: either way.
+    #:
+    #: `max_coverage_error` bounds instead how far the split may deviate from the
+    #: true accept-preserving distinction: the share of the prefixes it decides that
+    #: it decides against the denoised oracle.  The accept-preserving test holds
+    #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
+    #: bought with a tighter `acceptable_fpr` and paid for in indecision.  Keep
+    #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
+    #: the pool, or a clean family fails its round.
+    acceptable_fpr: float = 0.01
+    acceptable_fnr: float = 0.01
+    max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
