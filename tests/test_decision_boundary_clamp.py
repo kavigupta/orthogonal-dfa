@@ -1,7 +1,7 @@
 """A cluster that lands all on one side estimates a boundary off the scale the
 rates live on: ``identify_cluster_around`` reads the boundary off the accepting
 group alone when it finds no rejects, and off the rejecting group alone when it
-finds no accepts.
+finds no accepts, stepping a signal off that group's mean.
 """
 
 import unittest
@@ -52,6 +52,13 @@ class TestDecisionBoundaryClamp(unittest.TestCase):
         masks = np.zeros((NUM_SUFFIXES, NUM_PREFIXES), dtype=np.int8)
         masks[:, : NUM_PREFIXES // 2] = 1
         self.assertAlmostEqual(_boundary(masks), 0.5)
+
+    def test_a_one_sided_cluster_clears_the_class_it_found(self):
+        # Three of the four clustered rows accept, so the single group's mean is
+        # 0.75 and the boundary has to sit a signal below it rather than on it.
+        masks = np.ones((NUM_SUFFIXES, NUM_PREFIXES), dtype=np.int8)
+        masks[3:] = 0
+        self.assertAlmostEqual(_boundary(masks, 0.2), 0.55)
 
     def test_a_weak_signal_clamps_further_out(self):
         wide = _boundary(np.ones((NUM_SUFFIXES, NUM_PREFIXES), dtype=np.int8), 0.3)
