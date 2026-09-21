@@ -63,12 +63,11 @@ def identify_cluster_around(
 
 
 def read_rates(config, decision_boundary):
-    """The false-decisive and undecided rates a family is read at.
+    """The rates a family is read at.
 
-    Both are properties of the split alone, and a caller is free to ask for any of
-    them.  How far the split may sit from accept preservation is a different
-    question, answered by the band those rates buy, so the rate asked for is used
-    only where it is already tight enough to hold ``max_coverage_error``.
+    A caller may ask for any crispness it likes; how far the split then sits from
+    accept preservation is bounded by the band those rates buy, so the rate asked
+    for is used only where it already holds ``max_coverage_error``.
     """
     return (
         min(

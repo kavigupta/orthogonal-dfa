@@ -62,21 +62,15 @@ def population_size_and_evidence_margin(
 def fpr_for_coverage_error(
     signal_strength, acceptable_fnr, max_coverage_error, *, center
 ):
-    """The loosest false-decisive rate whose band still holds the split's
-    disagreement with the language under ``max_coverage_error``.
+    """The loosest false-decisive rate whose band holds ``max_coverage_error``.
 
-    The rate itself says only how crisply the split reads; what it buys here is
-    the band, and the band is what ties the split to accept preservation.
+    A side of the cut keeps its class while the share of it belonging to the other
+    stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
+    ``2 * signal`` from where the side is held.  So the bound asks the band for a
+    width, and width is bought by asking for a smaller rate.
 
-    A side of the cut reads as its own class while the fraction of it belonging
-    to the other one stays under ``(1 - eps/signal)/2``: a prefix on the wrong
-    side of the cut reads ``2 * signal`` away from where the side is held, so
-    ``eps`` of margin buys that fraction.  Bounding the fraction is therefore
-    asking the band for a width, and width is bought by asking the test for a
-    smaller false-decisive rate.
-
-    ``eps`` only grows as the rate falls, so the rates that meet the width are an
-    interval from zero and the largest is worth finding.
+    ``eps`` only grows as the rate falls, so the rates meeting the width are an
+    interval from zero and the largest is the one worth finding.
     """
     wanted = signal_strength * (1 - 2 * max_coverage_error)
     if wanted <= 0:
