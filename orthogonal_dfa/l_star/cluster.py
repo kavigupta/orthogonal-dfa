@@ -44,14 +44,18 @@ def identify_cluster_around(
     prefix_means = masks[cluster].mean(0)
     accept_prefixes = prefix_means[cluster_center]
     reject_prefixes = prefix_means[~cluster_center]
-    # A one-sided cluster has no separation to read.  Putting the boundary at that
-    # side's own mean would cut the one class present down the middle, so keep the
-    # boundary we came in with.
+    signal = pst.config.min_signal_strength
+    # A one-sided cluster has only the one class's mean to go on, which sits a
+    # signal away from the boundary.  Reading the boundary off it directly would
+    # cut that class down the middle, so step off it by the signal we were promised.
     if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
         decision_boundary = (accept_prefixes.mean() + reject_prefixes.mean()) / 2
+    elif len(accept_prefixes) > 0:
+        decision_boundary = accept_prefixes.mean() - signal
+    elif len(reject_prefixes) > 0:
+        decision_boundary = reject_prefixes.mean() + signal
 
     # Keep the implied rates, boundary +/- the signal, probabilities.
-    signal = pst.config.min_signal_strength
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
