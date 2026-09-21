@@ -25,12 +25,11 @@ So the guarantee is for the fixed-centre algorithm, and its signal is the worse 
 `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2` a boundary between the two
 classes' rates would see.
 
-Known modelling gap.  The Python sizes the family with `population_size_and_evidence_margin`
-at FPR and FNR `0.01`, about `6/s²` suffixes, and reads it with a calibrated band around the
-boundary; here the family is `famCount` and the band is one count.  At the Python's size a
-clean prefix goes undecided at a fixed rate near `0.01` and is misread at a fixed rate near
-`1e-14`, neither depending on `indecisionLimit` or `εcov`, so its guarantee would need both
-bounded below by those rates.
+Known modelling gap.  The Python reads the family with a calibrated band around the
+boundary; here the band is one count.  `population_size_and_evidence_margin` searches for the
+smallest family whose band meets the FPR and FNR it is asked for, so it is the call sites that
+fix those at `0.01`, not the mechanism: modelling the band means deriving the two rates from
+`εcov` and `indecisionLimit`, not bounding either below.
 -/
 
 namespace OrthoDFA
@@ -429,9 +428,14 @@ Markov charges the cut budget at that fraction and not at the family's size. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
   cutBudget η εcov * sig η / (4 * (populations.card : ℝ))
 
-/-- The screen's margin, at the flip budget. -/
+/-- The screen's margin, at the flip budget.
+
+The separation is `(1 − 2η)² = 4·sig η²`, and the test spends four one-sided deviations on it
+— the seed's and the candidate's, each against the measured floor — so the factor here is
+capped below `2`.  `sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `15/2`
+in `solvedStateAt`; the two constants move together. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  flipBudget η populations εcov δ * sig η ^ 2
+  flipBudget η populations εcov δ * sig η ^ 2 * (15 / 8)
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
@@ -465,9 +469,9 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   cd := 2
   lo := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ - 1
   hi := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ + 1
-  sc := ⌈((⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+  sc := ⌈((⌈15 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations εcov δ⌉₊
-  scd := ⌈1 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
+  scd := ⌈15 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
   gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no

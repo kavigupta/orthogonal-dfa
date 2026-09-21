@@ -363,7 +363,9 @@ lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     0 < screenMargin η₀ populations εcov δ := by
   rw [screenMargin]
-  exact mul_pos (flipBudget_pos η₀ populations hsig hε hcard) (pow_pos (sig_pos η₀ hsig) 2)
+  have h1 := flipBudget_pos η₀ populations (δ := δ) hsig hε hcard
+  have h2 := sig_pos η₀ hsig
+  positivity
 
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
@@ -6354,8 +6356,8 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   have hBcd : B.cd = 2 := rfl
   have hBlo : B.lo = ⌈x⌉₊ - 1 := rfl
   have hBhi : B.hi = ⌈x⌉₊ + 1 := rfl
-  have hBscd : B.scd = ⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 := rfl
-  have hBsc : B.sc = ⌈((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+  have hBscd : B.scd = ⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 := rfl
+  have hBsc : B.sc = ⌈((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
       * screenMargin η₀ populations εcov δ⌉₊ := rfl
   clear_value B κ x
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
@@ -6364,18 +6366,18 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   · rw [hBscd]; omega
   · rw [hBlo, hBhi]; omega
   · rw [hBsc, hBscd]
-    have hone : (1 : ℝ) ≤ 2 * ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+    have hone : (15 : ℝ) ≤ 2 * ((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
         * screenMargin η₀ populations εcov δ := by
-      have hcl : (1 : ℝ) / (2 * screenMargin η₀ populations εcov δ)
-          ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) := by
+      have hcl : (15 : ℝ) / (2 * screenMargin η₀ populations εcov δ)
+          ≤ ((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) := by
         refine le_trans (Nat.le_ceil _) ?_
         push_cast
         linarith
       rw [div_le_iff₀ (by positivity)] at hcl
       linarith
-    have hceilub : (⌈((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+    have hceilub : (⌈((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
         * screenMargin η₀ populations εcov δ⌉₊ : ℝ)
-        ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+        ≤ ((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
           * screenMargin η₀ populations εcov δ + 1 :=
       le_of_lt (Nat.ceil_lt_add_one (by positivity))
     have hmonoF : flipBudget η₀ populations εcov δ * (1 - 2 * η₀) ^ 2
@@ -6384,10 +6386,10 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
       have h1 : (0 : ℝ) ≤ 1 - 2 * η₀ := by linarith
       nlinarith [h1, hηle]
     have hFeq : flipBudget η₀ populations εcov δ * (1 - 2 * η₀) ^ 2
-        = 4 * screenMargin η₀ populations εcov δ := by
+        = 32 / 15 * screenMargin η₀ populations εcov δ := by
       rw [screenMargin, hsval]; ring
     rw [hFeq] at hmonoF
-    have hS0 : (0 : ℝ) ≤ ((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) :=
+    have hS0 : (0 : ℝ) ≤ ((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ) :=
       Nat.cast_nonneg _
     have hFS := mul_le_mul_of_nonneg_left hmonoF hS0
     nlinarith [hceilub, hone, hFS, hγ.le, hS0]
@@ -7146,8 +7148,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   have hBcd : B.cd = 2 := rfl
   have hBlo : B.lo = ⌈x⌉₊ - 1 := rfl
   have hBhi : B.hi = ⌈x⌉₊ + 1 := rfl
-  have hBscd : B.scd = ⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 := rfl
-  have hBsc : B.sc = ⌈((⌈1 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+  have hBscd : B.scd = ⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 := rfl
+  have hBsc : B.sc = ⌈((⌈15 / (2 * screenMargin η₀ populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
       * screenMargin η₀ populations εcov δ⌉₊ := rfl
   have hMceil : 2 * ((κ : ℝ) + 1) / pAP ≤ ((B.nsuff : ℕ) : ℝ) := by
     rw [hBM, poolCount, ← hκdef]
