@@ -4,12 +4,12 @@ Builds the discrimination tree (states) and the transition function together.
 
 The tree starts as the initial distinguisher family v_eps, partitioning the
 prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting a member of the state extended by the
-symbol: the leaf it lands on is the target, and the member is kept as the edge's
-witness (the tree is consistent, so any member resolves it the same way).  A leaf
-every one of whose members is indecisive, or that no prefix reaches, leaves its
-edge open; the export totalises those -- self-looping them and feeding their
-boundary strings back so the next round's family resolves them (see EdgeResolver).
+(state, symbol) edge is resolved by sifting the state's members extended by the
+symbol: the first one the tree places, and every later one it can place from reads
+already made, vote, and the edge points where most of them land, with a member that
+landed there as its witness.  A leaf every one of whose members is indecisive, or
+that no prefix reaches, leaves its edge open; the export totalises those --
+self-looping them and feeding their boundary strings back so the next round's family resolves them (see EdgeResolver).
 
 States beyond the initial two are found by the counterexample pass: random probe
 strings are walked through a *totalised* copy of the transition function and
@@ -28,13 +28,12 @@ remapping on export.
 
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -42,9 +41,6 @@ from .suffix_family import SuffixFamily
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
-
-#: Probes sifted per batched pass.
-_PROBE_BLOCK = 16
 
 
 class TransitionResolver:
@@ -130,14 +126,11 @@ class TransitionResolver:
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
-                if status == _SPLIT:
-                    since_split = 0
-                    self.edges.close()  # the split dropped edges; refill
-                    delta = self._total_delta()  # the split rewrote the state set
-                elif status == _UNDECIDED:
-                    since_split = 0
-                else:
-                    since_split += 1
+                since_split = 0 if status in (_SPLIT, _UNDECIDED) else since_split + 1
+                # A split drops edges and rewrites the state set, and any probe may
+                # have read successors a re-vote counts.
+                self.edges.close()
+                delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
                     clean=f"{since_split}/{patience}",
@@ -163,7 +156,7 @@ class TransitionResolver:
         while drawn < max_probes:
             block = [
                 self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-                for _ in range(min(_PROBE_BLOCK, max_probes - drawn))
+                for _ in range(min(PROBE_BLOCK, max_probes - drawn))
             ]
             drawn += len(block)
             self.sifter.prefill(block)
@@ -260,15 +253,3 @@ class TransitionResolver:
             allow_partial=False,
         )
         return dfa, self.tree
-
-
-def resolve_dfa(pst):
-    """
-    Build the (DFA, MidfixTree) for the current prefix pool via the resolver.
-    """
-    v_idx = pst.table.intern_suffix(b"")
-    vs, boundary = sample_suffix_family(pst, v_idx)
-    pst.decision_boundary = boundary
-    resolver = TransitionResolver(pst, vs)
-    resolver.close_edges()
-    return resolver.to_dfa_and_tree()

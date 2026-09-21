@@ -24,7 +24,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import aim_at, state_source
+from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
@@ -134,6 +134,21 @@ def _per_state_members(pst, resolver, dfa, per_state):
             continue
         held[leaf] = sorted(source.draw() for _ in range(per_state))
     return held
+
+
+def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
+    """Probe for up to ``wanted`` more boundary strings, keeping what the yield
+    test turned up even when the source fails it."""
+    if wanted <= 0:
+        return
+    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
+    worth_drawing = source.has_sufficient_yield()
+    found = source.found()
+    if worth_drawing:
+        found += [source.draw() for _ in range(wanted - len(found))]
+    for string in found[:wanted]:
+        state.seen.add(string)
+        state.accumulated.append(string)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -313,7 +328,8 @@ def counterexample_driven_synthesis(
             return best
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
-        _accumulate_indecisive(resolver, state, target - taken)
+        taken += _accumulate_indecisive(resolver, state, target - taken)
+        _top_up_boundary(pst, resolver, dfa, state, target - taken)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

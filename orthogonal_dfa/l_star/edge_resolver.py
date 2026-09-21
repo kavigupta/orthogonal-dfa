@@ -1,19 +1,19 @@
 """
-Deciding where the partial DFA's open edges point.
+Deciding where the partial DFA's edges point.
 
 PartialDFA owns the edges and the witnesses, but cannot decide where an
 edge *goes*, because that needs the oracle.
 
-We pick an arbitrary member of a source state, and ask the oracle
-where its successor under the edge's character goes.
-
-    - If the family can place that successor, we point the edge there and
-      record the member as the witness.
-    - If the family cannot place that successor, we harvest it as a boundary
-      string and leave the edge open.
+We ask the oracle where members' successors under the edge's character go, in
+order, until the family places one; the ones it cannot place are harvested as
+boundary strings, and if it places none the edge stays open.  Every later member
+whose successor is already placeable without a new query (split evidence reads
+these) also votes, and the edge points at the majority, with a member that voted
+for it as the witness.  Closing re-votes every edge, so the edge follows that
+evidence as it accumulates.
 """
 
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from .progress import track
 from .split_evidence import _MEMBER_LIMIT
@@ -34,26 +34,42 @@ class EdgeResolver:
     def decisive_target(
         self, state: int, c: int
     ) -> Tuple[Optional[int], Optional[bytes]]:
-        for member in self.leaf_members(state):
+        members = self.leaf_members(state)
+        for i, member in enumerate(members):
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
-                return target, member
+                break
             self.indecisive.add(boundary)
-        return None, None
+        else:
+            return None, None
+        votes: Dict[int, List[bytes]] = {target: [member]}
+        for other in members[i + 1 :]:
+            known = self.sifter.known_sift(other + bytes([c]))
+            if known is not None:
+                votes.setdefault(known, []).append(other)
+        # Ties keep the current target, so an edge does not flap between them.
+        current = self.dfa.target(state, c)
+        target = max(votes, key=lambda t: (len(votes[t]), t == current))
+        return target, votes[target][0]
 
     def resolve(self, state: int, c: int) -> None:
         target, witness = self.decisive_target(state, c)
-        if target is not None:
+        if target is not None and target != self.dfa.target(state, c):
+            self.dfa.clear_edge(state, c)
             self.dfa.set_edge(state, c, target, witness)
 
     def close(self) -> int:
         """
-        Resolve every open edge once, returning how many are now closed.
+        Re-vote every edge once, returning how many are closed.
 
         Edge resolution never splits, so one pass resolves all it can; the rest stay
         open for the export to totalise.
         """
-        edges = self.dfa.unresolved_edges()
+        edges = [
+            (state, c)
+            for state in self.dfa.transitions
+            for c in range(self.dfa.alphabet_size)
+        ]
         for state, c in track(edges, "Closing edges"):
             self.resolve(state, c)
         return sum(1 for state, c in edges if self.dfa.has_edge(state, c))
