@@ -97,9 +97,7 @@ class TestHeavyCoverageErrorLearns(unittest.TestCase):
         target = build_target()
         oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=SIGNAL, seed=seed)
-        accuracy, fp, fn = compute_dfa_accuracy(
-            dfa, oracle_creator, symbols=ALPHABET
-        )
+        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator, symbols=ALPHABET)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.4f}). "
