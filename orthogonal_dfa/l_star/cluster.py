@@ -86,6 +86,7 @@ def readable_size_and_margin(
     decision_boundary,
     have,
     smallest,
+    *,
     acceptable_fpr,
     acceptable_fnr,
 ):
@@ -320,8 +321,8 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         pst.decision_boundary,
         len(vs),
         family_size,
-        pst.config.acceptable_fpr,
-        pst.config.acceptable_fnr,
+        acceptable_fpr=pst.config.acceptable_fpr,
+        acceptable_fnr=pst.config.acceptable_fnr,
     )
     # By loss rank, and the seed's rank is arbitrary, so put it back: the round
     # check and the accept-preserving null are both stated about a family seeded
