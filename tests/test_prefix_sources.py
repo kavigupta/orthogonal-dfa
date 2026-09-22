@@ -122,10 +122,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         for prefix in resting:
             population.add(prefix, at=(True,))
         source = state_source(
-            _Resolver(population),
-            1,
-            aim_at(_Pst(8), reachable, 1),
-            wanted=20,
+            _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
         )
 
         drawn = [source.draw() for _ in range(20)]
@@ -160,12 +157,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
             harvest=lambda _string: None,
         )
         aims = itertools.cycle(support)
-        source = state_source(
-            _Resolver(population),
-            1,
-            lambda: next(aims),
-            wanted=20,
-        )
+        source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
 
         drawn = [source.draw() for _ in range(len(support))]
 
@@ -271,10 +263,7 @@ _PROBE = bytes([0, 1, 0, 1])
 class TestABoundarySourceProbes(unittest.TestCase):
     def _source(self, places, *, known):
         return BoundarySource(
-            _Probes(_PROBE),
-            _Walk(places),
-            _STEPS_TO_ONE,
-            known=known,
+            _Probes(_PROBE), _Walk(places), _STEPS_TO_ONE, known=known
         )
 
     def test_a_prefix_the_tree_cannot_place_is_kept(self):
