@@ -7,11 +7,11 @@ it heads, leaving a family of one that no amount of further sampling grows.
 """
 
 import unittest
-from types import SimpleNamespace
 
 import numpy as np
 
 from orthogonal_dfa.l_star.cluster import identify_cluster_around
+from tests.lstar_common import cluster_pst
 
 SIGNAL = 0.3
 NUM_PREFIXES = 16
@@ -20,28 +20,13 @@ NUM_PREFIXES = 16
 NUM_SUFFIXES, COUNT = 200, 150
 
 
-class _Table:
-    def __init__(self, masks):
-        self._masks = masks
-        self.representative = np.ones(masks.shape[1], dtype=bool)
-
-    def fully_observed(self):
-        return np.arange(self._masks.shape[0])
-
-    def observed_masks(self, rows, prefixes):
-        return self._masks[np.asarray(rows)][:, prefixes]
-
-
 def _cluster(masks, seed):
-    pst = SimpleNamespace(
-        table=_Table(masks), config=SimpleNamespace(min_signal_strength=SIGNAL)
-    )
-    vs, _ = identify_cluster_around(pst, seed, COUNT, 0.5)
+    vs, _ = identify_cluster_around(cluster_pst(masks, SIGNAL), seed, COUNT, 0.5)
     return vs
 
 
-def _agreeing(num_suffixes=NUM_SUFFIXES):
-    masks = np.zeros((num_suffixes, NUM_PREFIXES), dtype=np.int8)
+def _agreeing():
+    masks = np.zeros((NUM_SUFFIXES, NUM_PREFIXES), dtype=np.int8)
     masks[:, : NUM_PREFIXES // 2] = 1
     return masks
 
