@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
+import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
@@ -76,6 +77,49 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+
+#: Prefixes drawn per hypothesis state for the homogeneity check, and the rate
+#: at which it may call a single-class state mixed.  The check resolves a
+#: contaminating share down to ``z * sqrt(p(1-p)/n) / (2 * signal)``, so the
+#: count is what buys resolution.
+HOMOGENEITY_PREFIXES = 1600
+HOMOGENEITY_ALPHA = 0.01
+
+
+def mixed_states(pst, dfa, *, count=HOMOGENEITY_PREFIXES, alpha=HOMOGENEITY_ALPHA):
+    """Hypothesis states whose own prefixes do not read as one class.
+
+    A state holding a single Myhill-Nerode class has prefixes that share a
+    label, so reading them at the empty suffix gives iid draws at ``1/2 + s`` or
+    ``1/2 - s``.  One that merged an accepting class into a rejecting one reads
+    between the two, and neither pure hypothesis survives.  The read is the
+    oracle on the prefix itself, not a comparison against the tree, so it sees
+    an error the tree and the hypothesis share.
+    """
+    signal = pst.config.min_signal_strength
+    pools = {q: [] for q in dfa.states}
+    wanted = count * len(dfa.states)
+    drawn = 0
+    while drawn < 8 * wanted and any(len(v) < count for v in pools.values()):
+        p = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        drawn += 1
+        q = dfa.initial_state
+        for c in p:
+            q = dfa.transitions[q][c]
+        if len(pools[q]) < count:
+            pools[q].append(p)
+    mixed = []
+    for q, ps in pools.items():
+        if len(ps) < 50:
+            continue
+        hits = int(np.asarray(pst.oracle.membership_queries(ps), dtype=int).sum())
+        n = len(ps)
+        not_accept = scipy.stats.binom.cdf(hits, n, 0.5 + signal)
+        not_reject = scipy.stats.binom.sf(hits - 1, n, 0.5 - signal)
+        if not_accept < alpha / 2 and not_reject < alpha / 2:
+            mixed.append((q, n, hits / n))
+    return mixed
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -301,7 +345,17 @@ def counterexample_driven_synthesis(
             boundary=pst.decision_boundary,
             round_index=index,
         )
-        if true_acc >= acc_threshold:
+        mixed = mixed_states(pst, dfa)
+        if true_acc >= acc_threshold and mixed:
+            print(
+                f"[round {index}] consistency {true_acc:.4f} clears "
+                f"{acc_threshold:.4f}, but "
+                + ", ".join(
+                    f"state {q} reads {r:.4f} over {n} prefixes" for q, n, r in mixed
+                )
+                + " -- neither class, so a class was merged; continuing"
+            )
+        if true_acc >= acc_threshold and not mixed:
             print(
                 f"[round {index}] reached the target DFA/DT consistency of "
                 f"{acc_threshold:.4f}; stopping synthesis"
