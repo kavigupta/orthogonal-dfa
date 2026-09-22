@@ -130,9 +130,13 @@ def _top_up_boundary(state, wanted) -> None:
     if wanted <= 0 or state.harvesting is None:
         return
     source = state.sources[state.harvesting]
-    if not source.worth_drawing():
-        return
-    drawn = [source.draw() for _ in range(wanted)]
+    # What the yield test turned up is kept whether or not it passed: the probes
+    # were spent either way.
+    worth_drawing = source.worth_drawing()
+    drawn = source.found()
+    if worth_drawing:
+        drawn += [source.draw() for _ in range(wanted - len(drawn))]
+    drawn = drawn[:wanted]
     state.held[state.harvesting].extend(drawn)
     state.seen.update(drawn)
 
