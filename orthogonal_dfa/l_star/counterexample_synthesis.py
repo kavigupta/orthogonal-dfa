@@ -15,29 +15,18 @@ in the next round.
 import math
 import time
 from dataclasses import dataclass
-from types import SimpleNamespace
 from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import (
-    identify_cluster_around,
-    read_rates,
-    sample_suffix_family,
-    smallest_readable_family,
-)
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .preconditions import DEFAULT_MIN_COVERAGE
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
+from .split_evidence import SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -90,116 +79,64 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 COUNTEREXAMPLE_PROBES = 4000
 
 
-#: Prefixes of a class the cut has to land on each side before the two are read
-#: as classes rather than as the tail of one.  The split is already held a
-#: margin off the boundary, so a prefix reaching a side it does not belong to is
-#: rare by construction and a handful of them is not a cut.
-MIN_SHATTERED_SIDE = 30
-
-
-def state_pool_size(pool_share, min_coverage=DEFAULT_MIN_COVERAGE):
-    """Prefixes to aim at a state for a class of ``min_coverage`` mass to hold
-    ``MIN_SHATTERED_SIDE`` of them.
-
-    Such a class is a ``min_coverage / pool_share`` share of the state, so the
-    pool grows with the state's share and the states worth many prefixes are the
-    large ones a rare class can hide in.  It grows linearly, where reading the
-    state's own accept rate would need the square: clustering reads every suffix
-    against a prefix rather than the one empty suffix.
-    """
-    return int(
-        np.ceil(MIN_SHATTERED_SIDE * max(pool_share, min_coverage) / min_coverage)
-    )
-
-
-class _PoolTable:
-    """The reads ``identify_cluster_around`` makes, over one state's prefixes."""
-
-    def __init__(self, masks):
-        self._masks = masks
-        self.representative = np.ones(masks.shape[1], dtype=bool)
-
-    def fully_observed(self):
-        return np.arange(self._masks.shape[0])
-
-    def observed_masks(self, rows, prefix_mask):
-        return self._masks[np.asarray(rows)][:, prefix_mask]
-
-    def population_masks(self):
-        # One state's prefixes, aimed at it and nothing else, so there is no
-        # sub-population here for the weighting to hold apart.
-        return {UNIFORM: self.representative}
-
-
-def shatter_state(pst, pool, suffixes, seed):
-    """Cluster ``suffixes`` over ``pool`` and return the two sides the cut makes.
-
-    Clustered around the empty suffix, which reads a prefix's own label, so the
-    family that comes back is the one agreeing with that label -- the suffixes
-    preserving whatever classes the pool holds, however few of them there are.
-    Taking every suffix instead would average the separating ones away.
-
-    The cut is the one the round's own thresholds read, so a prefix counts to a
-    side only where the family puts it there decisively.
-    """
-    pairs = [p + v for v in suffixes for p in pool]
-    read = pst.table.memo.membership_queries(pairs)
-    masks = np.asarray(read, dtype=np.int8).reshape(len(suffixes), len(pool))
-    scoped = SimpleNamespace(table=_PoolTable(masks), config=pst.config)
-    family = smallest_readable_family(
-        pst.config.min_signal_strength,
-        pst.decision_boundary,
-        read_rates(pst.config, pst.decision_boundary),
-    )
-    vs, _ = identify_cluster_around(
-        scoped, seed, min(family, len(suffixes)), pst.decision_boundary
-    )
-    decision = masks[vs].mean(0)
-    accept = decision >= pst.accept_thresh
-    reject = decision < pst.reject_thresh
-    return [p for p, a in zip(pool, accept) if a], [
-        p for p, r in zip(pool, reject) if r
-    ]
-
-
-def mixed_states(pst, dfa):
-    """Hypothesis states holding an accept-preserving distinction of their own.
-
-    A state holding one class has no suffix family that cuts its prefixes in
-    two: every prefix in it answers every suffix alike, up to noise.  So
-    clustering over a pool aimed at one state, and asking whether the cut lands
-    prefixes decisively on both sides, asks whether the state merged two.
-
-    Clustered from scratch over every screened suffix rather than over the
-    family the round resolved: that family is the one that just failed to
-    separate this state, so a distinction it does not already hold is exactly
-    the one worth looking for.
-
-    The prefixes are aimed straight at each state off the path counts that say
-    what share of the sampler it holds, so none are drawn to be discarded.
-    """
-    length = pst.sampler.length
-    space = pst.alphabet_size**length
-    weights = uniform_weights(dfa)
-    suffixes = [pst.table.suffix(v) for v in pst.table.fully_observed()]
-    if b"" not in suffixes:
-        return []
-    seed = suffixes.index(b"")
-    mixed = []
-    for q in dfa.states:
-        reaching = count_paths_to_state(dfa, q, length, weights)
-        share = reaching[length][dfa.initial_state] / space
-        drawn = (
-            sample_string_reaching_state(dfa, reaching, pst.rng, weights)
-            for _ in range(state_pool_size(share))
+def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoes):
+    """Split every leaf the split test will take, re-reading the hypothesis each
+    time so the round returns the split one."""
+    (
+        dfa,
+        dt,
+    ) = resolver.to_dfa_and_tree()
+    while vetoes < STALL_PATIENCE:
+        reached = split_unreached_leaves(resolver, pst, vs)
+        if not reached:
+            break
+        vetoes += 1
+        dfa, dt = resolver.to_dfa_and_tree()
+        true_acc = estimate_agreement_rate(
+            pst,
+            pst.sampler,
+            pst.oracle,
+            dt,
+            dfa,
+            num_samples=2000,
+            acc_threshold=acc_threshold,
         )
-        pool = [p for p in drawn if p is not None]
-        if len(pool) < 2 * MIN_SHATTERED_SIDE:
-            continue
-        accept, reject = shatter_state(pst, pool, suffixes, seed)
-        if min(len(accept), len(reject)) >= MIN_SHATTERED_SIDE:
-            mixed.append((q, len(pool), len(accept), len(reject)))
-    return mixed
+        best.consider(
+            consistency=true_acc,
+            dfa=dfa,
+            tree=dt,
+            boundary=pst.decision_boundary,
+            round_index=index,
+        )
+        print(
+            f"[round {index}] the split test reached {reached} leaf(s) the "
+            f"counterexample pass could not: {dt.num_states} states, "
+            f"consistency {true_acc:.4f}"
+        )
+
+
+def split_unreached_leaves(resolver, pst, vs) -> int:
+    """Put every leaf to the split test with the round's own suffixes, returning
+    how many split.
+
+    The counterexample pass proposes a distinguisher only where the tree and the
+    DFA disagree, so a leaf they agree about is never weighed at all -- and a
+    leaf holding two classes the family votes the same way is exactly that.
+    Asking costs the members the test pulls; the test itself is unchanged, and
+    it groups on one half of the family and scores on the disjoint other, so a
+    leaf holding one class cannot be split by the noise that grouped it.
+    """
+    split = 0
+    for leaf in list(range(resolver.num_states)):
+        for v in vs:
+            distinguisher = pst.table.suffix(v)
+            if not distinguisher:
+                continue
+            if resolver.splits.verdict(leaf, distinguisher) == SPLIT:
+                resolver.split_on(leaf, distinguisher)
+                split += 1
+                break
+    return split
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -484,28 +421,20 @@ def counterexample_driven_synthesis(
             round_index=index,
         )
         if true_acc >= acc_threshold:
-            # Only where the run is otherwise done: the reads are worth their
-            # cost against returning, not against every round.
-            mixed = mixed_states(pst, dfa) if vetoes < STALL_PATIENCE else []
-            if not mixed:
-                print(
-                    f"[round {index}] reached the target DFA/DT consistency of "
-                    f"{acc_threshold:.4f}; stopping synthesis"
-                )
-                return best
-            vetoes += 1
-            print(
-                f"[round {index}] consistency {true_acc:.4f} clears "
-                f"{acc_threshold:.4f}, but clustering each state's own prefixes "
-                "splits "
-                + ", ".join(
-                    f"state {q} into {a} accepted and {r} rejected of {n}"
-                    for q, n, a, r in mixed
-                )
-                + " -- a state holding one class has no such split, so the "
-                f"hypothesis merged two; re-running (veto {vetoes} of "
-                f"{STALL_PATIENCE})"
+            _split_until_settled(
+                pst,
+                resolver,
+                vs,
+                best,
+                index=index,
+                acc_threshold=acc_threshold,
+                vetoes=vetoes,
             )
+            print(
+                f"[round {index}] reached the target DFA/DT consistency of "
+                f"{acc_threshold:.4f}; stopping synthesis"
+            )
+            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)

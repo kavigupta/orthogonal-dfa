@@ -111,6 +111,11 @@ class TransitionResolver:
             f"reject {new_id} ({self.tree.num_states} states)"
         )
 
+    def split_on(self, state_id, distinguisher) -> None:
+        """Split a leaf on a distinguisher the counterexample pass never had one
+        for, once the split test has weighed it."""
+        self._split(state_id, distinguisher)
+
     # -- counterexamples ----------------------------------------------------
 
     def counterexample_pass(self, *, max_probes, patience):
