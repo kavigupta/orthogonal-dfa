@@ -252,14 +252,8 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator)
 
-    @pytest.mark.slow
     def test_one_sided_noise(self):
-        """One class is pure coin-flip (p_0=0.50), only the other carries signal.
-
-        Slow: the narrowest margin in the suite, so the search buys the most
-        prefixes, and a round it does not settle in leaves the next one paying
-        for a pool several times the size.
-        """
+        """One class is pure coin-flip (p_0=0.50), only the other carries signal."""
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )

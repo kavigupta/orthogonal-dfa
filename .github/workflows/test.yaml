@@ -84,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v3
       - name: Install uv
@@ -102,7 +102,7 @@ jobs:
       - name: Run slow shard ${{ matrix.shard }}
         run: |
           tests=$(uv run python -m pytest tests/test_lstar.py --collect-only -q \
-            -m slow | grep '::' | awk 'NR % 9 == ${{ matrix.shard }}')
+            -m slow | grep '::' | awk 'NR % 8 == ${{ matrix.shard }}')
           echo "$tests"
           # Bare pytest would run the whole suite, so an empty shard must not reach it.
           [ -n "$tests" ] || exit 0
