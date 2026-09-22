@@ -21,10 +21,17 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import (identify_cluster_around, read_rates,
-                      sample_suffix_family, smallest_readable_family)
-from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
-                        uniform_weights)
+from .cluster import (
+    identify_cluster_around,
+    read_rates,
+    sample_suffix_family,
+    smallest_readable_family,
+)
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -150,24 +157,26 @@ def shatter_state(pst, pool, suffixes, seed):
     ]
 
 
-def mixed_states(pst, dfa, vs):
+def mixed_states(pst, dfa):
     """Hypothesis states holding an accept-preserving distinction of their own.
 
     A state holding one class has no suffix family that cuts its prefixes in
     two: every prefix in it answers every suffix alike, up to noise.  So
-    clustering the round's suffixes over a pool aimed at one state, and asking
-    whether the cut lands prefixes decisively on both sides, asks whether the
-    state merged two classes -- including two that share a label, which reading
-    the state's own accept rate cannot see.
+    clustering over a pool aimed at one state, and asking whether the cut lands
+    prefixes decisively on both sides, asks whether the state merged two.
+
+    Clustered from scratch over every screened suffix rather than over the
+    family the round resolved: that family is the one that just failed to
+    separate this state, so a distinction it does not already hold is exactly
+    the one worth looking for.
 
     The prefixes are aimed straight at each state off the path counts that say
-    what share of the sampler it holds, so none are drawn to be discarded; the
-    queries are the pool read against the family.
+    what share of the sampler it holds, so none are drawn to be discarded.
     """
     length = pst.sampler.length
     space = pst.alphabet_size**length
     weights = uniform_weights(dfa)
-    suffixes = [pst.table.suffix(v) for v in vs]
+    suffixes = [pst.table.suffix(v) for v in pst.table.fully_observed()]
     if b"" not in suffixes:
         return []
     seed = suffixes.index(b"")
@@ -472,7 +481,7 @@ def counterexample_driven_synthesis(
         if true_acc >= acc_threshold:
             # Only where the run is otherwise done: the reads are worth their
             # cost against returning, not against every round.
-            mixed = mixed_states(pst, dfa, vs) if vetoes < STALL_PATIENCE else []
+            mixed = mixed_states(pst, dfa) if vetoes < STALL_PATIENCE else []
             if not mixed:
                 print(
                     f"[round {index}] reached the target DFA/DT consistency of "
