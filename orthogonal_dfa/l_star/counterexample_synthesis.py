@@ -108,7 +108,7 @@ def homogeneity_prefixes(
     return int(np.ceil(p * (1 - p) * (z / (2 * signal * want)) ** 2))
 
 
-def mixed_states(pst, resolver, dfa, *, alpha=HOMOGENEITY_ALPHA):
+def mixed_states(pst, dfa, *, alpha=HOMOGENEITY_ALPHA):
     """Hypothesis states whose own prefixes do not read as one class.
 
     A state holding a single class has prefixes that share a label, so reading
@@ -117,28 +117,40 @@ def mixed_states(pst, resolver, dfa, *, alpha=HOMOGENEITY_ALPHA):
     neither pure hypothesis survives.  The read asks the oracle about the prefix
     itself, so it sees an error the tree and the hypothesis share -- which is
     what the DFA/DT consistency estimate cannot do.
+
+    Only the reads are queries: a prefix is placed by running it through the
+    hypothesis, and the count each state needs comes from its share of the
+    sampler, which the transitions already say.
     """
     signal = pst.config.min_signal_strength
     length = pst.sampler.length
     space = pst.alphabet_size**length
-    mixed = []
-    for leaf in range(resolver.num_states):
-        aim = aim_at(pst, dfa, leaf)
-        if aim is None:
-            continue
-        reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
+    counts = {}
+    for q in dfa.states:
+        reaching = count_paths_to_state(dfa, q, length, uniform_weights(dfa))
         share = reaching[length][dfa.initial_state] / space
-        wanted = homogeneity_prefixes(signal, share, alpha=alpha)
-        source = state_source(resolver, leaf, aim, wanted=wanted)
-        if source is None:
+        counts[q] = homogeneity_prefixes(signal, share, alpha=alpha)
+    pools = {q: [] for q in dfa.states}
+    budget = 20 * sum(counts.values())
+    drawn = 0
+    while drawn < budget and any(len(pools[q]) < counts[q] for q in pools):
+        prefix = pst.sampler.sample(pst.rng, pst.alphabet_size)
+        drawn += 1
+        q = dfa.initial_state
+        for c in prefix:
+            q = dfa.transitions[q][c]
+        if len(pools[q]) < counts[q]:
+            pools[q].append(prefix)
+    mixed = []
+    for q, ps in pools.items():
+        if len(ps) < 30:
             continue
-        ps = [source.draw() for _ in range(wanted)]
         hits = int(np.asarray(pst.oracle.membership_queries(ps), dtype=int).sum())
         n = len(ps)
         not_accept = scipy.stats.binom.cdf(hits, n, 0.5 + signal)
         not_reject = scipy.stats.binom.sf(hits - 1, n, 0.5 - signal)
         if not_accept < alpha / 2 and not_reject < alpha / 2:
-            mixed.append((leaf, n, hits / n))
+            mixed.append((q, n, hits / n))
     return mixed
 
 
@@ -369,7 +381,7 @@ def counterexample_driven_synthesis(
         if true_acc >= acc_threshold:
             # Only where the run is otherwise done: the reads are worth their
             # cost against returning, not against every round.
-            mixed = mixed_states(pst, resolver, dfa) if vetoes < STALL_PATIENCE else []
+            mixed = mixed_states(pst, dfa) if vetoes < STALL_PATIENCE else []
             if not mixed:
                 print(
                     f"[round {index}] reached the target DFA/DT consistency of "
