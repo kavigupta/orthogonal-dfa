@@ -75,6 +75,21 @@ class SplitEvidence:
     def _edge_count(self) -> int:
         return self._tree.num_states * self.pst.alphabet_size
 
+    def first_split(self, state: int, distinguishers):
+        """The first of ``distinguishers`` the leaf's members split on, or
+        ``None``.
+
+        The members are pulled once and weighed against each candidate: they do
+        not depend on the candidate, and pulling one settles strings onto the
+        leaf rather than reading them, which is the cost of asking.
+        """
+        members = self._members(state)
+        tests = self._edge_count()
+        for distinguisher in distinguishers:
+            if self._weigh(members, distinguisher, tests) == SPLIT:
+                return distinguisher
+        return None
+
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
         assert self.family.test_idx  # vs is sized to the family size, never empty
         a1, r1, a2, r2, n_a, n_b = self._tally(members, distinguisher)

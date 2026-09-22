@@ -26,7 +26,6 @@ from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
-from .split_evidence import SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -122,20 +121,18 @@ def split_unreached_leaves(resolver, pst, vs) -> int:
     The counterexample pass proposes a distinguisher only where the tree and the
     DFA disagree, so a leaf they agree about is never weighed at all -- and a
     leaf holding two classes the family votes the same way is exactly that.
-    Asking costs the members the test pulls; the test itself is unchanged, and
-    it groups on one half of the family and scores on the disjoint other, so a
-    leaf holding one class cannot be split by the noise that grouped it.
+    Asking costs the members the test pulls, once per leaf; the test itself is
+    unchanged, and it groups on one half of the family and scores on the
+    disjoint other, so a leaf holding one class cannot be split by the noise
+    that grouped it.
     """
+    candidates = [v for v in (pst.table.suffix(i) for i in vs) if v]
     split = 0
     for leaf in list(range(resolver.num_states)):
-        for v in vs:
-            distinguisher = pst.table.suffix(v)
-            if not distinguisher:
-                continue
-            if resolver.splits.verdict(leaf, distinguisher) == SPLIT:
-                resolver.split_on(leaf, distinguisher)
-                split += 1
-                break
+        distinguisher = resolver.splits.first_split(leaf, candidates)
+        if distinguisher is not None:
+            resolver.split_on(leaf, distinguisher)
+            split += 1
     return split
 
 
