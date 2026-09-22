@@ -25,10 +25,7 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
-    # A prefix is decisive or not according to the suffixes picked here, so a
-    # population with no say in the picking is one the family is not chosen to
-    # separate -- and the FNR is then read over it population by population.
-    # Weighted so each contributes the same however many prefixes it holds.
+    # Weigh each population equally in clustering
     weights = np.zeros(masks.shape[1])
     for population in pst.table.population_masks().values():
         weights[population] += 1 / population.sum()
@@ -319,8 +316,8 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
-    #: The prefix population ``fnr`` is the rate of, and so the one to grow to
-    #: answer it.  ``None`` where no population in particular is at fault.
+    #: FNR is a min, this is the corresponding argmin: the pool that the family is most
+    #: indecisive on.
     worst: Optional[object] = None
 
 
@@ -369,9 +366,8 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
 
-    ``grow_pool(label)`` grows one prefix population, the one the FNR is the
-    rate of, and says whether it could.  The populations are the previous
-    round's -- that is what defines them -- so the caller supplies this.
+    ``grow_pool(label)`` attempts to grow one prefix population, returning
+    whether it was able to or not.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
