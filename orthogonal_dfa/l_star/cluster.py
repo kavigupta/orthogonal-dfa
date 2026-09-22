@@ -194,22 +194,27 @@ def _sides(counts):
     return [(kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts)]
 
 
-def drift_verdict(pst, by_population) -> str:
-    """Whether each side of the cut reads as its own class on the split, or as
-    the other's, or whether the counts do not say.
+def drift_verdict(pst, by_population):
+    """``(verdict, label)``: whether the family cuts with the classes, against
+    them, or not readably -- and which population says so.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
-    split's column says what the oracle makes of the prefixes themselves.  A
-    family realises the accept-preserving split when the prefixes it calls
-    accepting read there as accepting -- by the same thresholds the family is
-    read with, since it is that reading being checked and not another.
+    split's column says what the oracle makes of the prefixes themselves.
 
-    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
-    Neither is a rate anything has to be estimated against, which is what a gap
-    between the sides would have needed, and would have had to name a signal for.
+    Any population may veto, only the uniform one may admit.  A population read
+    as the class it is not says the family drifted, whatever else reads right --
+    a state's prefixes are one class, so a backwards reading puts every one of
+    them where the oracle contradicts it.  Separating the classes *at all* is a
+    claim about the distribution the thresholds are calibrated on, which only
+    the uniform pool is drawn from.
+
+    Drift is read first: a family can separate the classes on the pool and still
+    invert a state.  The label is what the search grows to answer the refusal,
+    so an unreadable split names the pool, which is the one that could admit it.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
-    sides = _sides(by_population[UNIFORM])
+    sides = {label: _sides(counts) for label, counts in by_population.items()}
+    num_tests = sum(len(held) for held in sides.values())
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
@@ -221,14 +226,15 @@ def drift_verdict(pst, by_population) -> str:
             return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
         return scipy.stats.binom.sf(hits - 1, n, pst.reject_thresh) <= level
 
-    # Both sides must clear their own test, so between them they cannot exceed
-    # the rate either one spends.
-    if all(rejects_null(*side, alpha) for side in sides):
-        return ADMITTED
-    # Either side drifting on its own is enough to say so, so they share.
-    if any(drifted(*side, alpha / len(sides)) for side in sides):
-        return DRIFTED
-    return UNCERTIFIED
+    # Shared out between the sides, so saying drifted at all costs half the rate
+    # however many are read.
+    for label, held in sides.items():
+        if any(drifted(*side, alpha / num_tests) for side in held):
+            return DRIFTED, label
+    pool = sides.get(UNIFORM, [])
+    if pool and all(rejects_null(*side, alpha) for side in pool):
+        return ADMITTED, None
+    return UNCERTIFIED, UNIFORM
 
 
 def certification_budget(pst, vs) -> int:
@@ -249,14 +255,22 @@ def prefixes_to_certify(pst, counts, drawn, vs) -> int:
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would the
     verdict come out decided?  The first multiple that would is the answer.
+
+    Only the uniform pool is drawn from, so only its counts grow with the
+    multiple.  Scaling the rest would be asking what a draw nobody makes would
+    say.
     """
     budget = certification_budget(pst, vs)
+    empty = ((0, 0), (0, 0))
     for multiple in range(2, 2 + budget // drawn):
         supposed = {
-            label: tuple((hits * multiple, n * multiple) for hits, n in sides)
-            for label, sides in counts.items()
+            **counts,
+            UNIFORM: tuple(
+                (hits * multiple, n * multiple)
+                for hits, n in counts.get(UNIFORM, empty)
+            ),
         }
-        if drift_verdict(pst, supposed) is not UNCERTIFIED:
+        if drift_verdict(pst, supposed)[0] is not UNCERTIFIED:
             return drawn * (multiple - 1)
     return budget
 
@@ -273,9 +287,11 @@ class AcceptPreservingGate:
         self.enabled = config.require_accept_preserving
         self.refusals = 0
 
-    def verdict(self, pst, seed_row, vs) -> str:
+    def verdict(self, pst, seed_row, vs):
+        """``(verdict, label)``: what the split says, and which population said
+        it, for the search to answer."""
         if not self.enabled:
-            return ADMITTED
+            return ADMITTED, None
         # The family was clustered over the table's prefixes, and a large enough
         # pool fits their noise, so only prefixes it never saw can test it.  The
         # seed votes on p with the very read of p being scored, so it sits out.
@@ -284,30 +300,31 @@ class AcceptPreservingGate:
             max(1, int(pst.table.representative.sum())),
             certification_budget(pst, voters),
         )
-        read = certification_sample(pst, voters, {UNIFORM: draw_to_certify(pst, drawn)})
-        counts = _split_counts(pst, read)
-        verdict = drift_verdict(pst, counts)
+        prefixes = {UNIFORM: draw_to_certify(pst, drawn)}
+        counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
+        verdict, blamed = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            wanted = prefixes_to_certify(pst, counts, drawn, voters)
-            more = certification_sample(
-                pst, voters, {UNIFORM: draw_to_certify(pst, wanted)}
+            more = draw_to_certify(pst, prefixes_to_certify(pst, counts, drawn, voters))
+            extra = _split_counts(
+                pst, certification_sample(pst, voters, {UNIFORM: more})
             )
-            decision, column = read[UNIFORM]
-            more_decision, more_column = more[UNIFORM]
-            read = {
-                UNIFORM: (
-                    np.concatenate([decision, more_decision]),
-                    np.concatenate([column, more_column]),
-                )
+            empty = ((0, 0), (0, 0))
+            counts = {
+                **counts,
+                UNIFORM: tuple(
+                    (hits + grown_hits, n + grown_n)
+                    for (hits, n), (grown_hits, grown_n) in zip(
+                        counts.get(UNIFORM, empty), extra.get(UNIFORM, empty)
+                    )
+                ),
             }
-            counts = _split_counts(pst, read)
-            verdict = drift_verdict(pst, counts)
+            verdict, blamed = drift_verdict(pst, counts)
         if verdict is ADMITTED:
-            return ADMITTED
+            return ADMITTED, None
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            hits_a, n_a = counts[UNIFORM][0]
-            hits_r, n_r = counts[UNIFORM][1]
+            hits_a, n_a = counts[blamed][0]
+            hits_r, n_r = counts[blamed][1]
             read = "read" if verdict is DRIFTED else "could not be read"
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
@@ -317,7 +334,7 @@ class AcceptPreservingGate:
                 f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
                 f"family realises the accept-preserving split on this target"
             )
-        return verdict
+        return verdict, blamed
 
 
 @dataclass
@@ -362,7 +379,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED)
     # Certify only right before returning, as certifying is expensive.
-    verdict = gate.verdict(pst, v, vs)
+    verdict, _ = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
         return Judged(vs, 1.0, "not accept-preserving", verdict)
     if verdict is UNCERTIFIED:
