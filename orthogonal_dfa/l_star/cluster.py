@@ -33,8 +33,8 @@ def identify_cluster_around(
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
-        # Suffixes tie at the same loss constantly, and an unstable sort picks
-        # between them afresh every pass, so the cluster never settles.
+        # Ties here are common, and breaking them differently each pass churns
+        # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]
         if losses[seed_local] > losses[nearest[-1]]:
             break
