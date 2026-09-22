@@ -11,8 +11,7 @@ from orthogonal_dfa.l_star.tracker import RecordingTracker
 
 us = UniformSampler(40)
 
-# Separates "recovered every state" from "merged one", which costs that state's
-# prefix mass and whatever the merge damages downstream.  Not a quality tolerance.
+# How far a learned DFA may sit from the target before a test calls it wrong.
 assertion_allowed_error = 0.05
 
 
