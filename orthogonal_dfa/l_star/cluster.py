@@ -31,8 +31,7 @@ def identify_cluster_around(
     # Weighted so each contributes the same however many prefixes it holds.
     weights = np.zeros(masks.shape[1])
     for population in pst.table.population_masks().values():
-        if population.any():
-            weights[population] = 1 / population.sum()
+        weights[population] += 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -133,7 +132,6 @@ def readable_size_and_margin(
 #: exist.  More suffixes is the only remedy, and none help against a target where
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
-
 
 #: Chance of calling a family drifted when it is not, or clean when it is not.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
