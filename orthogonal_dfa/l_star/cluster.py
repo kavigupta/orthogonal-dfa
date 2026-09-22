@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import scipy.stats
@@ -25,14 +25,6 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
-    # A prefix is decisive or not according to the suffixes picked here, so a
-    # population with no say in the picking is one the family is not chosen to
-    # separate -- and the FNR is then read over it population by population.
-    # Weighted so each contributes the same however many prefixes it holds.
-    weights = np.zeros(masks.shape[1])
-    for population in pst.table.population_masks().values():
-        if population.any():
-            weights[population] = 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -40,7 +32,7 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = ((masks != cluster_center) * weights).sum(1)
+        losses = (masks != cluster_center).sum(1)
         nearest = losses.argsort()[:count]
         if seed_local not in nearest:
             break
@@ -133,7 +125,6 @@ def readable_size_and_margin(
 #: exist.  More suffixes is the only remedy, and none help against a target where
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
-
 
 #: Chance of calling a family drifted when it is not, or clean when it is not.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
@@ -321,9 +312,6 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
-    #: The prefix population ``fnr`` is the rate of, and so the one to grow to
-    #: answer it.  ``None`` where no population in particular is at fault.
-    worst: Optional[object] = None
 
 
 def judge_family(pst, gate, v, vs, family_size) -> Judged:
@@ -350,30 +338,26 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
     decision = pst.compute_decision(vs, pst.table.representative)
-    fnr, worst = pst.fnr_from_decision(decision)
+    fnr = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
-        return Judged(vs, fnr, too_high, ADMITTED, worst)
+        return Judged(vs, fnr, too_high, ADMITTED)
     # Certify only right before returning, as certifying is expensive.
     verdict = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
         return Judged(vs, 1.0, "not accept-preserving", verdict)
     if verdict is UNCERTIFIED:
         return Judged(vs, 1.0, "accept-preserving not established", verdict)
-    return Judged(vs, fnr, too_high, verdict, worst)
+    return Judged(vs, fnr, too_high, verdict)
 
 
-def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
     ``v`` is the empty suffix from either caller, and the gate reads the split
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
-
-    ``grow_pool(label)`` grows one prefix population, the one the FNR is the
-    rate of, and says whether it could.  The populations are the previous
-    round's -- that is what defines them -- so the caller supplies this.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -435,12 +419,5 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
-        elif judged.worst is None:
+        else:
             pst.sample_more_prefixes()
-        elif not grow_pool(judged.worst):
-            # The population is retired by that ask.  Its strings are gone from
-            # the table, so what is left to answer this family is the suffixes
-            # the rest of the populations are read over.
-            kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
-            print(f"  nothing draws for {judged.worst}; kept {kept} of {drawn}")
-            strategy = "suffix"

@@ -194,8 +194,6 @@ class _PoolState:
     def __init__(self, uniform):
         self.uniform = list(uniform)
         self.held = {}
-        #: What draws more of each population, for the round that asks.
-        self.sources = {}
         self.seen = set()
         #: Boundary populations named so far, which is what numbers them.
         self.named = 0
@@ -210,7 +208,6 @@ class _PoolState:
         publishing."""
         for stale in [label for label in self.held if label[0] == "state"]:
             self.held.pop(stale)
-            self.sources.pop(stale, None)
 
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
@@ -237,7 +234,6 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         if source is None:
             continue
         state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
-        state.sources[("state", leaf)] = source
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
@@ -253,31 +249,6 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     for string in found[:wanted]:
         state.seen.add(string)
         state.harvest().append(string)
-    if state.harvesting is not None:
-        state.sources[state.harvesting] = source
-
-
-def grow_population(pst, state, label) -> bool:
-    """Draw more prefixes for one population, saying whether it could.
-
-    A population nothing draws for any more is retired here, table and all: a
-    rate the round cannot answer is not one to hold a family to.
-    """
-    if label == UNIFORM:
-        pst.sample_more_prefixes()
-        return True
-    source = state.sources.get(label)
-    if source is None or not source.worth_drawing():
-        # Forgotten, not held aside, so a later round that strands one of these
-        # again can pool it behind a source that does draw.
-        state.seen.difference_update(state.held.pop(label, ()))
-        state.sources.pop(label, None)
-        pst.table.drop_population(label)
-        return False
-    drawn = [source.draw() for _ in range(PER_STATE)]
-    state.held.setdefault(label, []).extend(drawn)
-    pst.table.add_prefixes(sorted(set(drawn)), population=label)
-    return True
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -396,11 +367,7 @@ def counterexample_driven_synthesis(
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(
-            pst,
-            pst.table.intern_suffix(b""),
-            lambda label: grow_population(pst, state, label),
-        )
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)

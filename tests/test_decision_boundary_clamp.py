@@ -10,7 +10,6 @@ from types import SimpleNamespace
 import numpy as np
 
 from orthogonal_dfa.l_star.cluster import identify_cluster_around
-from orthogonal_dfa.l_star.mask_table import UNIFORM
 
 SIGNAL = 0.3
 NUM_SUFFIXES, NUM_PREFIXES = 8, 16
@@ -26,9 +25,6 @@ class _Table:
 
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]
-
-    def population_masks(self):
-        return {UNIFORM: self.representative}
 
 
 def _boundary(masks, signal=SIGNAL):
