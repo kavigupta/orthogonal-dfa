@@ -432,9 +432,12 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         elif judged.worst is None:
             pst.sample_more_prefixes()
         elif not grow_pool(judged.worst):
-            # The population is retired by that ask.  Its strings are gone from
-            # the table, so what is left to answer this family is the suffixes
-            # the rest of the populations are read over.
+            # Fallback, this should very rarely happen. At this point, the
+            # algorithm has detected a precondition violation, so later
+            # results do not follow the theory.
+
+            # Likely precondition violation is too-high collision probability
+            # among suffixes.
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  nothing draws for {judged.worst}; kept {kept} of {drawn}")
             strategy = "suffix"
