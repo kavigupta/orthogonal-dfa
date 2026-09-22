@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -113,10 +113,6 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-
-    #: The suffix family the last round settled on, which the next round's
-    #: clustering gives its ties to.  Empty until a round has settled one.
-    settled_family: List[int] = field(default_factory=list)
 
     @property
     def num_prefixes(self) -> int:
