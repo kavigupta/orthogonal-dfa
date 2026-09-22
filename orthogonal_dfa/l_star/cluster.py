@@ -45,13 +45,8 @@ def identify_cluster_around(
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = np.round(((masks != cluster_center) * weights).sum(1) / quantum)
         # Ties here are common, and breaking them differently each pass churns
-        # the family; every suffix that joins it costs a column of queries.  So
-        # the pass before this one keeps its suffixes unless one outside the
-        # family reads better by a prefix or more, which is the least a
-        # disagreement can weigh.
-        held = np.zeros(len(losses), dtype=bool)
-        held[cluster] = True
-        nearest = (losses - held).argsort(kind="stable")[:count]
+        # the family; every suffix that joins it costs a column of queries.
+        nearest = losses.argsort(kind="stable")[:count]
         if losses[seed_local] > losses[nearest[-1]]:
             break
         if seed_local not in nearest:
