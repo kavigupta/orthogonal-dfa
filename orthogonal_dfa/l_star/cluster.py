@@ -37,10 +37,7 @@ def identify_cluster_around(
         if losses[seed_local] > losses[nearest[-1]]:
             break
         if seed_local not in nearest:
-            # Only a tie can have kept it out, and ties are the rule rather
-            # than the exception: the quieter the oracle the more suffixes
-            # match the center exactly, so ordering within one decides whether
-            # the seed stays in the cluster it heads.
+            # The check above did not fire, so the seed is out on a tie.
             nearest[-1] = seed_local
         new_loss = losses[nearest].sum()
         if new_loss >= loss:
