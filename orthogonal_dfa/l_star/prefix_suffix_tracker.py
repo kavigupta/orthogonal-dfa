@@ -34,7 +34,7 @@ class SearchConfig:
     num_addtl_prefixes: Optional[int] = None
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
-    fnr_limit: float = 0.10
+    fnr_limit: float = 0.02
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
     #: is called indecisive, all indecision counting against it; `acceptable_fpr`
