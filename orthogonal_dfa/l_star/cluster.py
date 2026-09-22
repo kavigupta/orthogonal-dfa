@@ -371,10 +371,9 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
 
-    ``grow_pool.more(label)`` grows one prefix population, the one the FNR is
-    the rate of, and ``grow_pool.for_split`` draws from it without keeping the
-    draw.  The populations are the previous round's -- that is what defines
-    them -- so the caller supplies this.
+    ``grow_pool(label)`` grows one prefix population, the one the FNR is the
+    rate of, and says whether it could.  The populations are the previous
+    round's -- that is what defines them -- so the caller supplies this.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -438,7 +437,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         elif judged.worst is None:
             pst.sample_more_prefixes()
-        elif not grow_pool.more(judged.worst):
+        elif not grow_pool(judged.worst):
             # The population is retired by that ask.  Its strings are gone from
             # the table, so what is left to answer this family is the suffixes
             # the rest of the populations are read over.
