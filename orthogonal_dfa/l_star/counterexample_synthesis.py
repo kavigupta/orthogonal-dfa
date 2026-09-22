@@ -22,9 +22,11 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
+from .dfa_utils import count_paths_to_state, uniform_weights
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
+from .preconditions import DEFAULT_MIN_COVERAGE
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
@@ -79,46 +81,64 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 COUNTEREXAMPLE_PROBES = 4000
 
 
-#: Prefixes drawn per hypothesis state for the homogeneity check, and the rate
-#: at which it may call a single-class state mixed.  The check resolves a
-#: contaminating share down to ``z * sqrt(p(1-p)/n) / (2 * signal)``, so the
-#: count is what buys resolution.
-HOMOGENEITY_PREFIXES = 1600
+#: Rate at which the homogeneity check may call a single-class state mixed.
 HOMOGENEITY_ALPHA = 0.01
 
 
-def mixed_states(pst, dfa, *, count=HOMOGENEITY_PREFIXES, alpha=HOMOGENEITY_ALPHA):
+def homogeneity_prefixes(
+    signal, pool_share, min_coverage=DEFAULT_MIN_COVERAGE, alpha=HOMOGENEITY_ALPHA
+):
+    """Reads a state needs for a class of mass ``min_coverage`` to show in it.
+
+    Reading `n` of a state's prefixes at the empty suffix estimates its accept
+    rate to `sqrt(p(1-p)/n)`, and a contaminating share `w` moves that rate by
+    `2 * signal * w`, so the share the read resolves is
+
+        w  =  z * sqrt(p(1-p)/n) / (2 * signal)
+
+    A class of mass `min_coverage` inside a state holding `pool_share` of the
+    prefixes is a `min_coverage / pool_share` share of it, which is what the
+    read has to resolve.  Inverting for `n` leaves it growing as the square of
+    the state's share, so the states worth many reads are the large ones a rare
+    class can hide in.
+    """
+    z = scipy.stats.norm.isf(alpha / 2)
+    p = 0.5 + signal
+    want = min_coverage / max(pool_share, min_coverage)
+    return int(np.ceil(p * (1 - p) * (z / (2 * signal * want)) ** 2))
+
+
+def mixed_states(pst, resolver, dfa, *, alpha=HOMOGENEITY_ALPHA):
     """Hypothesis states whose own prefixes do not read as one class.
 
-    A state holding a single Myhill-Nerode class has prefixes that share a
-    label, so reading them at the empty suffix gives iid draws at ``1/2 + s`` or
-    ``1/2 - s``.  One that merged an accepting class into a rejecting one reads
-    between the two, and neither pure hypothesis survives.  The read is the
-    oracle on the prefix itself, not a comparison against the tree, so it sees
-    an error the tree and the hypothesis share.
+    A state holding a single class has prefixes that share a label, so reading
+    them at the empty suffix gives iid draws at ``1/2 + s`` or ``1/2 - s``.  One
+    that merged an accepting class into a rejecting one reads between the two and
+    neither pure hypothesis survives.  The read asks the oracle about the prefix
+    itself, so it sees an error the tree and the hypothesis share -- which is
+    what the DFA/DT consistency estimate cannot do.
     """
     signal = pst.config.min_signal_strength
-    pools = {q: [] for q in dfa.states}
-    wanted = count * len(dfa.states)
-    drawn = 0
-    while drawn < 8 * wanted and any(len(v) < count for v in pools.values()):
-        p = pst.sampler.sample(pst.rng, pst.alphabet_size)
-        drawn += 1
-        q = dfa.initial_state
-        for c in p:
-            q = dfa.transitions[q][c]
-        if len(pools[q]) < count:
-            pools[q].append(p)
+    length = pst.sampler.length
+    space = pst.alphabet_size**length
     mixed = []
-    for q, ps in pools.items():
-        if len(ps) < 50:
+    for leaf in range(resolver.num_states):
+        aim = aim_at(pst, dfa, leaf)
+        if aim is None:
             continue
+        reaching = count_paths_to_state(dfa, leaf, length, uniform_weights(dfa))
+        share = reaching[length][dfa.initial_state] / space
+        wanted = homogeneity_prefixes(signal, share, alpha=alpha)
+        source = state_source(resolver, leaf, aim, wanted=wanted)
+        if source is None:
+            continue
+        ps = [source.draw() for _ in range(wanted)]
         hits = int(np.asarray(pst.oracle.membership_queries(ps), dtype=int).sum())
         n = len(ps)
         not_accept = scipy.stats.binom.cdf(hits, n, 0.5 + signal)
         not_reject = scipy.stats.binom.sf(hits - 1, n, 0.5 - signal)
         if not_accept < alpha / 2 and not_reject < alpha / 2:
-            mixed.append((q, n, hits / n))
+            mixed.append((leaf, n, hits / n))
     return mixed
 
 
@@ -302,6 +322,7 @@ def counterexample_driven_synthesis(
     ]
     state = _PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
+    vetoes = 0
     best = BestRound()
     index = 0
     while True:
@@ -345,22 +366,26 @@ def counterexample_driven_synthesis(
             boundary=pst.decision_boundary,
             round_index=index,
         )
-        mixed = mixed_states(pst, dfa)
-        if true_acc >= acc_threshold and mixed:
+        if true_acc >= acc_threshold:
+            # Only where the run is otherwise done: the reads are worth their
+            # cost against returning, not against every round.
+            mixed = mixed_states(pst, resolver, dfa) if vetoes < STALL_PATIENCE else []
+            if not mixed:
+                print(
+                    f"[round {index}] reached the target DFA/DT consistency of "
+                    f"{acc_threshold:.4f}; stopping synthesis"
+                )
+                return best
+            vetoes += 1
             print(
                 f"[round {index}] consistency {true_acc:.4f} clears "
                 f"{acc_threshold:.4f}, but "
                 + ", ".join(
                     f"state {q} reads {r:.4f} over {n} prefixes" for q, n, r in mixed
                 )
-                + " -- neither class, so a class was merged; continuing"
+                + f" -- neither class, so a class was merged; continuing "
+                f"({vetoes} of {STALL_PATIENCE})"
             )
-        if true_acc >= acc_threshold and not mixed:
-            print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
-            )
-            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         by_state = _per_state_members(pst, resolver, dfa, per_state)
