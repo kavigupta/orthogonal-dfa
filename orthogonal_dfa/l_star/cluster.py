@@ -36,14 +36,9 @@ def identify_cluster_around(
     # happen if the seed has a very small cluster relative to `count`.
     cluster = [seed_local]
     loss = float("inf")
-    # One prefix of the largest population, which is the least a disagreement
-    # can weigh.  Read in those units, two suffixes that differ by less are
-    # tied rather than ordered on float dust -- and where the pool is the only
-    # population, the units are prefixes and the reading is a plain count.
-    quantum = weights[weights > 0].min()
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = np.round(((masks != cluster_center) * weights).sum(1) / quantum)
+        losses = ((masks != cluster_center) * weights).sum(1)
         # Ties here are common, and breaking them differently each pass churns
         # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]
