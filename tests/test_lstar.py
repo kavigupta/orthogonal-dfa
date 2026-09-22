@@ -173,8 +173,8 @@ class TestLStar(unittest.TestCase):
     def test_confounded_frame_product(self):
         """A confounder turns a phase/frame automaton into a 28-state product
         whose class-preserving suffixes are rare.  The learner cannot resolve it
-        in one round: it grows the pool over several rounds until the partition
-        stabilizes, then converges on all 28 states."""
+        in one round: it grows the pool over a couple of rounds until the
+        partition stabilizes, then converges on all 28 states."""
         target = _confounded_frame_product()
         self.assertEqual(len(target.states), 28)
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -185,7 +185,6 @@ class TestLStar(unittest.TestCase):
             min_signal_strength=0.45,
             seed=0,
             sampler=_CONFOUNDED_SAMPLER,
-            noise_model=AsymmetricBernoulli(p_0=0.0, p_1=1.0),
         )
         self.assertEqual(len(dfa.states), 28)
         assertDFA(self, dfa, oracle_creator, symbols=5)
