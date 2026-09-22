@@ -33,6 +33,12 @@ MEMBERS_TO_RULE_OUT_A_SPLIT = math.ceil(
 #: populous leaf.
 _MEMBER_LIMIT = 1500
 
+#: Members pulled when scanning a leaf no counterexample pointed at.  Enough for
+#: a minority of ``_MIN_DETECTABLE_SPLIT`` to put up the one-sided members that
+#: rule a split out, which is all the scan asks of them -- where ``_MEMBER_LIMIT``
+#: is what a leaf a counterexample already accused is worth.
+SCAN_MEMBER_LIMIT = math.ceil(MEMBERS_TO_RULE_OUT_A_SPLIT / _MIN_DETECTABLE_SPLIT)
+
 SPLIT = "split"
 NO_SPLIT = "no_split"
 UNDECIDED = "undecided"
@@ -75,7 +81,12 @@ class SplitEvidence:
     def _edge_count(self) -> int:
         return self._tree.num_states * self.pst.alphabet_size
 
-    def first_split(self, state: int, distinguishers, *, patience):
+    def scan_members(self, state: int):
+        """The members a scan weighs, pulled once for both the cheap read and
+        the candidates that follow it."""
+        return self._population.members(self._tree.path_of(state), SCAN_MEMBER_LIMIT)
+
+    def first_split(self, state: int, distinguishers, *, members, patience):
         """The first of ``distinguishers`` the leaf's members split on, or
         ``None`` once ``patience`` of them have ruled a split out.
 
@@ -83,23 +94,17 @@ class SplitEvidence:
         not depend on the candidate, and pulling one settles strings onto the
         leaf rather than reading them, which is the cost of asking.
 
-        A leaf holding two classes meets a distinguisher that separates them
-        after about one over their class-preserving share of tries, where one
-        holding a single class answers ``NO_SPLIT`` to every candidate there is.
-        So the patience is what a clean leaf costs, and it is spent on the
-        verdict that says so rather than on exhausting the family.
+        A candidate costs every member read against the whole family behind it,
+        so the patience is the scan's price: a leaf holding two classes meets a
+        distinguisher that separates them after about one over their
+        class-preserving share of tries, and one holding a single class never
+        does however many are spent on it.
         """
-        members = self._members(state)
+        members = self._population.members(self._tree.path_of(state), SCAN_MEMBER_LIMIT)
         tests = self._edge_count()
-        ruled_out = 0
-        for distinguisher in distinguishers:
-            verdict = self._weigh(members, distinguisher, tests)
-            if verdict == SPLIT:
+        for distinguisher in distinguishers[:patience]:
+            if self._weigh(members, distinguisher, tests) == SPLIT:
                 return distinguisher
-            if verdict == NO_SPLIT:
-                ruled_out += 1
-                if ruled_out >= patience:
-                    return None
         return None
 
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:

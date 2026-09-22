@@ -18,14 +18,21 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
+import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
+from .split_evidence import _MIN_DETECTABLE_SPLIT, MEMBERS_TO_RULE_OUT_A_SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -77,10 +84,14 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
-#: Candidates that must rule a split out before a leaf is left alone.  Every
-#: run pays this on every leaf it ends with, where only a run that merged a
-#: class gets anything back, so it is the price of asking at all.
-SPLIT_CANDIDATE_PATIENCE = 8
+#: Candidates weighed against a leaf that does not read as one class.  Each
+#: costs every member read against the whole family behind it, so this is the
+#: scan's price where the cheap read has already found something.
+SPLIT_CANDIDATE_PATIENCE = 24
+
+#: Rate at which the cheap read may call a single-class leaf mixed.  A false one
+#: costs the candidates above; missing a real one costs the merge.
+SPLIT_SCAN_ALPHA = 1e-3
 
 
 def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoes):
@@ -91,7 +102,7 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
         dt,
     ) = resolver.to_dfa_and_tree()
     while vetoes < STALL_PATIENCE:
-        reached = split_unreached_leaves(resolver, pst, vs)
+        reached = split_unreached_leaves(resolver, pst, vs, dfa)
         if not reached:
             break
         vetoes += 1
@@ -119,23 +130,70 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
         )
 
 
-def split_unreached_leaves(resolver, pst, vs) -> int:
-    """Put every leaf to the split test with the round's own suffixes, returning
-    how many split.
+def scan_prefixes(signal, boundary, alpha=SPLIT_SCAN_ALPHA):
+    """Prefixes to read at a state for a minority of ``_MIN_DETECTABLE_SPLIT``
+    to show in its accept rate.
+
+    A minority of share `w` moves the rate by `2 * signal * w` against a
+    standard error of `sqrt(p(1-p)/n)`.  The share to resolve is the smallest
+    split the test that follows is built to find, not the smallest class worth
+    keeping: a rarer one is for that test to rule on, if this read ever hands it
+    the leaf.
+    """
+    z = scipy.stats.norm.isf(alpha / 2)
+    p = boundary + signal
+    return int(np.ceil(p * (1 - p) * (z / (2 * signal * _MIN_DETECTABLE_SPLIT)) ** 2))
+
+
+def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
+    """Whether a state's own prefixes read as a single class at the empty suffix.
+
+    The prefixes are aimed straight at the state off the path counts, so none
+    are drawn to be discarded and none are read against anything but themselves
+    -- one query each, where a candidate distinguisher costs every member read
+    against the whole family behind it.  This sees a class merged with one of
+    the opposite label and not two that share one; the split test would catch
+    those, but not at a price every run can pay.
+    """
+    signal = pst.config.min_signal_strength
+    weights = uniform_weights(dfa)
+    reaching = count_paths_to_state(dfa, state, pst.sampler.length, weights)
+    wanted = scan_prefixes(signal, pst.decision_boundary, alpha)
+    drawn = (
+        sample_string_reaching_state(dfa, reaching, pst.rng, weights)
+        for _ in range(wanted)
+    )
+    pool = [p for p in drawn if p is not None]
+    if len(pool) < MEMBERS_TO_RULE_OUT_A_SPLIT:
+        return True
+    hits = int(sum(pst.table.memo.membership_queries(pool)))
+    n = len(pool)
+    not_accept = scipy.stats.binom.cdf(hits, n, pst.decision_boundary + signal)
+    not_reject = scipy.stats.binom.sf(hits - 1, n, pst.decision_boundary - signal)
+    return not (not_accept < alpha / 2 and not_reject < alpha / 2)
+
+
+def split_unreached_leaves(resolver, pst, vs, dfa) -> int:
+    """Put the leaves that do not read as one class to the split test with the
+    round's own suffixes, returning how many split.
 
     The counterexample pass proposes a distinguisher only where the tree and the
     DFA disagree, so a leaf they agree about is never weighed at all -- and a
     leaf holding two classes the family votes the same way is exactly that.
-    Asking costs the members the test pulls, once per leaf; the test itself is
-    unchanged, and it groups on one half of the family and scores on the
-    disjoint other, so a leaf holding one class cannot be split by the noise
-    that grouped it.
+    The split test itself is unchanged: it groups on one half of the family and
+    scores on the disjoint other, so a leaf holding one class cannot be split by
+    the noise that grouped it.
     """
     candidates = [v for v in (pst.table.suffix(i) for i in vs) if v]
     split = 0
     for leaf in list(range(resolver.num_states)):
+        if leaf not in dfa.states or reads_as_one_class(pst, dfa, leaf):
+            continue
         distinguisher = resolver.splits.first_split(
-            leaf, candidates, patience=SPLIT_CANDIDATE_PATIENCE
+            leaf,
+            candidates,
+            members=resolver.splits.scan_members(leaf),
+            patience=SPLIT_CANDIDATE_PATIENCE,
         )
         if distinguisher is not None:
             resolver.split_on(leaf, distinguisher)
