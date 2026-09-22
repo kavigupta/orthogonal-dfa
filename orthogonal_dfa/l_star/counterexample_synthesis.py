@@ -81,8 +81,11 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 COUNTEREXAMPLE_PROBES = 4000
 
 
-#: Rate at which the homogeneity check may call a single-class state mixed.
-HOMOGENEITY_ALPHA = 0.01
+#: Rate at which the homogeneity check may call a single-class state mixed.  A
+#: false one costs a whole round, where the reads themselves are well under a
+#: percent of a run, so it is worth paying for the reads to make one rare: the
+#: count grows with ``z**2``, the round it would spend does not.
+HOMOGENEITY_ALPHA = 1e-4
 
 
 def homogeneity_prefixes(
