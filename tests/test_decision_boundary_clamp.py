@@ -16,7 +16,7 @@ NUM_SUFFIXES, NUM_PREFIXES = 8, 16
 
 
 def _boundary(masks, signal=SIGNAL):
-    _, boundary = identify_cluster_around(cluster_pst(masks, signal), 0, 4, 0.5)
+    _, boundary = identify_cluster_around(cluster_pst(masks, signal), 0, 4, 0.5, [])
     return boundary
 
 

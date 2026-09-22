@@ -21,7 +21,7 @@ NUM_SUFFIXES, COUNT = 200, 150
 
 
 def _cluster(masks, seed):
-    vs, _ = identify_cluster_around(cluster_pst(masks, SIGNAL), seed, COUNT, 0.5)
+    vs, _ = identify_cluster_around(cluster_pst(masks, SIGNAL), seed, COUNT, 0.5, [])
     return vs
 
 

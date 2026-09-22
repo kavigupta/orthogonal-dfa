@@ -14,8 +14,12 @@ from .statistics import (
 
 
 def identify_cluster_around(
-    pst, seed: int, count: int, decision_boundary: float
+    pst, seed: int, count: int, decision_boundary: float, held: List[int]
 ) -> Tuple[List[int], float]:
+    """``held`` is the family the last round settled on, or empty on the first.
+    A suffix outside it has to read strictly better to take a place in it:
+    swapping over a tie costs a column of queries and buys nothing.
+    """
     # Cluster only over fully-observed suffix columns -- the sampled acceptance-
     # family suffixes -- to avoid forcing a bunch of additional computation on the
     # partially-observed transition distinguishers.
@@ -41,17 +45,13 @@ def identify_cluster_around(
     # tied rather than ordered on float dust -- and where the pool is the only
     # population, the units are prefixes and the reading is a plain count.
     quantum = weights[weights > 0].min()
+    kept = np.isin(candidate, held)
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = np.round(((masks != cluster_center) * weights).sum(1) / quantum)
-        # Ties here are common, and breaking them differently each pass churns
-        # the family; every suffix that joins it costs a column of queries.  So
-        # the pass before this one keeps its suffixes unless one outside the
-        # family reads better by a prefix or more, which is the least a
-        # disagreement can weigh.
-        held = np.zeros(len(losses), dtype=bool)
-        held[cluster] = True
-        nearest = (losses - held).argsort(kind="stable")[:count]
+        # Ties here are common, and breaking them differently every round churns
+        # the family, so the last round's suffixes win them.
+        nearest = np.lexsort((~kept, losses))[:count]
         if losses[seed_local] > losses[nearest[-1]]:
             break
         if seed_local not in nearest:
@@ -462,6 +462,8 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
+    #: The family the last round returned, empty until one has.
+    settled = pst.settled_family
     decision_boundary = pst.decision_boundary
     family_size = smallest_readable_family(
         pst.config.min_signal_strength,
@@ -482,7 +484,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         # queries on suffixes to cover a handful.
         for _ in range(2):
             vs, decision_boundary = identify_cluster_around(
-                pst, v, family_size, decision_boundary
+                pst, v, family_size, decision_boundary, settled
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
@@ -496,6 +498,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         judged = judge_family(pst, gate, v, vs, family_size)
 
         if judged.fnr <= pst.config.fnr_limit:
+            pst.settled_family = judged.vs
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
