@@ -21,7 +21,12 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import identify_cluster_around, sample_suffix_family
+from .cluster import (
+    identify_cluster_around,
+    read_rates,
+    sample_suffix_family,
+    smallest_readable_family,
+)
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
@@ -124,6 +129,11 @@ class _PoolTable:
 def shatter_state(pst, pool, suffixes, seed):
     """Cluster ``suffixes`` over ``pool`` and return the two sides the cut makes.
 
+    Clustered around the empty suffix, which reads a prefix's own label, so the
+    family that comes back is the one agreeing with that label -- the suffixes
+    preserving whatever classes the pool holds, however few of them there are.
+    Taking every suffix instead would average the separating ones away.
+
     The cut is the one the round's own thresholds read, so a prefix counts to a
     side only where the family puts it there decisively.
     """
@@ -131,7 +141,14 @@ def shatter_state(pst, pool, suffixes, seed):
     read = pst.table.memo.membership_queries(pairs)
     masks = np.asarray(read, dtype=np.int8).reshape(len(suffixes), len(pool))
     scoped = SimpleNamespace(table=_PoolTable(masks), config=pst.config)
-    vs, _ = identify_cluster_around(scoped, seed, len(suffixes), pst.decision_boundary)
+    family = smallest_readable_family(
+        pst.config.min_signal_strength,
+        pst.decision_boundary,
+        read_rates(pst.config, pst.decision_boundary),
+    )
+    vs, _ = identify_cluster_around(
+        scoped, seed, min(family, len(suffixes)), pst.decision_boundary
+    )
     decision = masks[vs].mean(0)
     accept = decision >= pst.accept_thresh
     reject = decision < pst.reject_thresh
@@ -140,7 +157,7 @@ def shatter_state(pst, pool, suffixes, seed):
     ]
 
 
-def mixed_states(pst, dfa):
+def mixed_states(pst, dfa, vs):
     """Hypothesis states holding an accept-preserving distinction of their own.
 
     A state holding one class has no suffix family that cuts its prefixes in
@@ -157,8 +174,7 @@ def mixed_states(pst, dfa):
     length = pst.sampler.length
     space = pst.alphabet_size**length
     weights = uniform_weights(dfa)
-    rows = pst.table.fully_observed()
-    suffixes = [pst.table.suffix(v) for v in rows]
+    suffixes = [pst.table.suffix(v) for v in vs]
     if b"" not in suffixes:
         return []
     seed = suffixes.index(b"")
@@ -430,7 +446,7 @@ def counterexample_driven_synthesis(
         if true_acc >= acc_threshold:
             # Only where the run is otherwise done: the reads are worth their
             # cost against returning, not against every round.
-            mixed = mixed_states(pst, dfa) if vetoes < STALL_PATIENCE else []
+            mixed = mixed_states(pst, dfa, vs) if vetoes < STALL_PATIENCE else []
             if not mixed:
                 print(
                     f"[round {index}] reached the target DFA/DT consistency of "
