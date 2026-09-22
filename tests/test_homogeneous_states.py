@@ -70,7 +70,7 @@ TRAPS = [(200, 4, 170), (200, 4, 180)]
 
 
 class TestTrapTargets(unittest.TestCase):
-    @parameterized.expand([(k, a, d) for k, a, d in TRAPS])
+    @parameterized.expand(list(TRAPS))
     def test_admitted_and_still_heavy(self, alphabet, arms, disarm):
         target = build_trap(alphabet, arms, disarm)
         report = satisfies_preconditions(target, length=LENGTH, short_circuit=False)
