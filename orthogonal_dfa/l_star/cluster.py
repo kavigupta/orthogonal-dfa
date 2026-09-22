@@ -6,6 +6,7 @@ import scipy.stats
 
 from .statistics import (
     evidence_margin_for_population_size,
+    fpr_for_coverage_error,
     population_size_and_evidence_margin,
 )
 
@@ -52,42 +53,60 @@ def identify_cluster_around(
     prefix_means = masks[cluster].mean(0)
     accept_prefixes = prefix_means[cluster_center]
     reject_prefixes = prefix_means[~cluster_center]
-    accept_mean = (
-        accept_prefixes.mean() if len(accept_prefixes) > 0 else decision_boundary
-    )
-    reject_mean = (
-        reject_prefixes.mean() if len(reject_prefixes) > 0 else decision_boundary
-    )
-    if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
-        decision_boundary = (accept_mean + reject_mean) / 2
-    elif len(accept_prefixes) > 0:
-        # didn't find any rejects, so just put the boundary in the middle of the accepts
-        decision_boundary = accept_mean
-    elif len(reject_prefixes) > 0:
-        # symmetric to above
-        decision_boundary = reject_mean
-
-    # A cluster all on one side estimates a boundary whose implied rates,
-    # boundary +/- the signal, are no longer probabilities.
     signal = pst.config.min_signal_strength
+    # A one-sided cluster has only the one class's mean to go on, which sits a
+    # signal away from the boundary.  Reading the boundary off it directly would
+    # cut that class down the middle, so step off it by the signal we were promised.
+    if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
+        decision_boundary = (accept_prefixes.mean() + reject_prefixes.mean()) / 2
+    elif len(accept_prefixes) > 0:
+        decision_boundary = accept_prefixes.mean() - signal
+    elif len(reject_prefixes) > 0:
+        decision_boundary = reject_prefixes.mean() + signal
+
+    # Keep the implied rates, boundary +/- the signal, probabilities.
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
 
 
-def smallest_readable_family(min_signal_strength, decision_boundary):
+def read_rates(config, decision_boundary):
+    """The rates a family is read at.
+
+    A caller may ask for any crispness it likes; how far the split then sits from
+    accept preservation is bounded by the band those rates buy, so the rate asked
+    for is used only where it already holds ``max_coverage_error``.
+    """
+    return (
+        min(
+            config.acceptable_fpr,
+            fpr_for_coverage_error(
+                config.min_signal_strength,
+                config.acceptable_fnr,
+                config.max_coverage_error,
+                center=decision_boundary,
+            ),
+        ),
+        config.acceptable_fnr,
+    )
+
+
+def smallest_readable_family(min_signal_strength, decision_boundary, rates):
     """Fewest suffixes a decision at this boundary can be read over.
 
     How many it needs depends on where the boundary sits: the two classes draw
     from binomials whose variance differs once it leaves 0.5.
     """
+    acceptable_fpr, acceptable_fnr = rates
     size, _ = population_size_and_evidence_margin(
-        min_signal_strength, 0.01, 0.01, center=decision_boundary
+        min_signal_strength, acceptable_fpr, acceptable_fnr, center=decision_boundary
     )
     return size
 
 
-def readable_size_and_margin(min_signal_strength, decision_boundary, have, smallest):
+def readable_size_and_margin(
+    min_signal_strength, decision_boundary, have, smallest, rates
+):
     """The largest size at or below ``have`` whose band holds both error rates, and
     the margin that reads it.  ``have`` must be at least ``smallest``.
 
@@ -96,9 +115,14 @@ def readable_size_and_margin(min_signal_strength, decision_boundary, have, small
     a family that is large enough undersized. ``smallest`` always admits one, so
     the walk cannot run off the end.
     """
+    acceptable_fpr, acceptable_fnr = rates
     for size in range(have, smallest - 1, -1):
         found = evidence_margin_for_population_size(
-            min_signal_strength, 0.01, 0.01, size, center=decision_boundary
+            min_signal_strength,
+            acceptable_fpr,
+            acceptable_fnr,
+            size,
+            center=decision_boundary,
         )
         if found is not None:
             return size, found[1]
@@ -319,6 +343,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         pst.decision_boundary,
         len(vs),
         family_size,
+        read_rates(pst.config, pst.decision_boundary),
     )
     # By loss rank, and the seed's rank is arbitrary, so put it back: the round
     # check and the accept-preserving null are both stated about a family seeded
@@ -355,7 +380,9 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     strategy = "suffix"
     decision_boundary = pst.decision_boundary
     family_size = smallest_readable_family(
-        pst.config.min_signal_strength, decision_boundary
+        pst.config.min_signal_strength,
+        decision_boundary,
+        read_rates(pst.config, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config)
 
@@ -375,7 +402,9 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
             )
             pst.decision_boundary = decision_boundary
             family_size = smallest_readable_family(
-                pst.config.min_signal_strength, decision_boundary
+                pst.config.min_signal_strength,
+                decision_boundary,
+                read_rates(pst.config, decision_boundary),
             )
             if len(vs) >= family_size:
                 break

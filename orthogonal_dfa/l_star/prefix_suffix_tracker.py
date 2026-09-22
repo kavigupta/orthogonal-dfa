@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import numpy as np
+import scipy.stats
 
 from .mask_table import UNIFORM, MaskTable
 from .progress import counter
@@ -14,6 +15,18 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
+def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
+    """How high the cohort's clean disagreement rate can be, given its smallest count.
+
+    The smallest of many draws sits below the rate it is drawn from, and by more
+    when there are few prefixes, so the floor is the upper end of the interval
+    around it rather than the count itself.
+    """
+    return float(
+        scipy.stats.beta.ppf(1 - failure_prob, fewest + 1, num_prefixes - fewest)
+    )
+
+
 @dataclass
 class SearchConfig:
     suffix_size_counterexample_gen: int
@@ -22,6 +35,23 @@ class SearchConfig:
     #: A rate every prefix population has to meet on its own, not an average
     #: across them.
     fnr_limit: float = 0.10
+    #: The first two bound the split's crispness, and say nothing about whether the
+    #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
+    #: is called indecisive, all indecision counting against it; `acceptable_fpr`
+    #: bounds the chance a prefix on one side of the boundary is decisively called
+    #: the other, at its worst the chance one exactly on the boundary is called
+    #: either way.
+    #:
+    #: `max_coverage_error` bounds instead how far the split may deviate from the
+    #: true accept-preserving distinction: the share of the prefixes it decides that
+    #: it decides against the denoised oracle.  The accept-preserving test holds
+    #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
+    #: bought with a tighter `acceptable_fpr` and paid for in indecision.  Keep
+    #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
+    #: the pool, or a clean family fails its round.
+    acceptable_fpr: float = 0.01
+    acceptable_fnr: float = 0.01
+    max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
@@ -141,9 +171,17 @@ class PrefixSuffixTracker:
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows still explicable as ``reference`` plus per-cell noise, which
-        flips one of the two observations at rate ``2*eta*(1-eta)``."""
+        flips one of the two observations at rate ``2*eta*(1-eta)``.
+
+        That rate is read off the cohort rather than off ``min_signal_strength``:
+        a caller who promises less signal than the oracle carries would otherwise
+        widen the screen to admit suffixes that flip a third of the prefixes.  The
+        smallest disagreement in the cohort is noise alone once the cohort holds an
+        accept-preserving suffix, and the declared rate stays as a ceiling so the
+        screen can only tighten.
+        """
         eta = 0.5 - self.config.min_signal_strength
-        same_family_rate = 2 * eta * (1 - eta)
+        declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
@@ -158,6 +196,9 @@ class PrefixSuffixTracker:
             disagreements = (
                 self.table.observed_masks(alive, subset) != ref[subset]
             ).sum(1)
+            same_family_rate = min(
+                declared_rate, _floor_rate(int(disagreements.min()), p, alpha)
+            )
             alive = [
                 row
                 for row, count in zip(alive, disagreements)

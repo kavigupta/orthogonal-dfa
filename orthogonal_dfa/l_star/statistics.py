@@ -59,6 +59,38 @@ def population_size_and_evidence_margin(
     return res
 
 
+def fpr_for_coverage_error(
+    signal_strength, acceptable_fnr, max_coverage_error, *, center
+):
+    """The loosest false-decisive rate whose band holds ``max_coverage_error``.
+
+    A side of the cut keeps its class while the share of it belonging to the other
+    stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
+    ``2 * signal`` from where the side is held.  So the bound asks the band for a
+    width, and width is bought by asking for a smaller rate.
+
+    ``eps`` only grows as the rate falls, so the rates meeting the width are an
+    interval from zero and the largest is the one worth finding.
+    """
+    wanted = signal_strength * (1 - 2 * max_coverage_error)
+    if wanted <= 0:
+        return 1.0
+    low, high = 0.0, 1.0
+    for _ in range(24):
+        mid = (low + high) / 2
+        _, eps = population_size_and_evidence_margin(
+            signal_strength, mid, acceptable_fnr, center=center
+        )
+        low, high = (mid, high) if eps >= wanted else (low, mid)
+    # A band this wide leaves the class it is meant to admit inside it, so no
+    # rate buys one: the undecided rate has to give first.
+    assert low > 0, (
+        f"no false-decisive rate holds the cut's error under {max_coverage_error} "
+        f"at a signal of {signal_strength} and an undecided rate of {acceptable_fnr}"
+    )
+    return low
+
+
 def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
     """Every test over N samples, ascending in margin, as (k_low, k_high, eps):
     reject at counts <= k_low, accept at counts >= k_high, undecided between.
