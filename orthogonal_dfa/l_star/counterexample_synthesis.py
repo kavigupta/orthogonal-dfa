@@ -22,7 +22,8 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import count_paths_to_state, uniform_weights
+from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
+                        uniform_weights)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import BOUNDARY, STATE, UNIFORM
 from .midfix_tree import MidfixTree
@@ -125,31 +126,24 @@ def mixed_states(pst, dfa, *, alpha=HOMOGENEITY_ALPHA):
     itself, so it sees an error the tree and the hypothesis share -- which is
     what the DFA/DT consistency estimate cannot do.
 
-    Only the reads are queries: a prefix is placed by running it through the
-    hypothesis, and the count each state needs comes from its share of the
-    sampler, which the transitions already say.
+    Only the reads are queries: the prefixes are drawn straight at each state
+    off the same path counts that say what share of the sampler it holds, so a
+    state is read on its own prefixes without drawing any it has to discard.
     """
     signal = pst.config.min_signal_strength
     length = pst.sampler.length
     space = pst.alphabet_size**length
-    counts = {}
+    weights = uniform_weights(dfa)
+    pools = {}
     for q in dfa.states:
-        reaching = count_paths_to_state(dfa, q, length, uniform_weights(dfa))
+        reaching = count_paths_to_state(dfa, q, length, weights)
         share = reaching[length][dfa.initial_state] / space
-        counts[q] = homogeneity_prefixes(
-            signal, share, pst.decision_boundary, alpha=alpha
+        wanted = homogeneity_prefixes(signal, share, pst.decision_boundary, alpha=alpha)
+        drawn = (
+            sample_string_reaching_state(dfa, reaching, pst.rng, weights)
+            for _ in range(wanted)
         )
-    pools = {q: [] for q in dfa.states}
-    budget = 20 * sum(counts.values())
-    drawn = 0
-    while drawn < budget and any(len(pools[q]) < counts[q] for q in pools):
-        prefix = pst.sampler.sample(pst.rng, pst.alphabet_size)
-        drawn += 1
-        q = dfa.initial_state
-        for c in prefix:
-            q = dfa.transitions[q][c]
-        if len(pools[q]) < counts[q]:
-            pools[q].append(prefix)
+        pools[q] = [p for p in drawn if p is not None]
     mixed = []
     for q, ps in pools.items():
         if len(ps) < 30:
