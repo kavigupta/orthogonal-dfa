@@ -33,7 +33,9 @@ def identify_cluster_around(
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
-        nearest = losses.argsort()[:count]
+        # Suffixes tie at the same loss constantly, and an unstable sort picks
+        # between them afresh every pass, so the cluster never settles.
+        nearest = losses.argsort(kind="stable")[:count]
         if seed_local not in nearest:
             break
         new_loss = losses[nearest].sum()
