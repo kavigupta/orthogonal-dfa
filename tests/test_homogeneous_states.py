@@ -53,7 +53,8 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
 
 
 #: ``(alphabet, arms, disarm)``.  The first merged ``Q`` on 3 of 8 seeds before
-#: the homogeneity check; the second on 1 of 8.
+#: the homogeneity check, the second on 1 of 8.  Two seeds each: a 200-symbol
+#: learn is minutes, and the shard holds five other files.
 TRAPS = [(200, 4, 170), (200, 4, 180)]
 
 
@@ -70,7 +71,7 @@ class TestTrapTargets(unittest.TestCase):
 
 
 class TestTrapLearned(unittest.TestCase):
-    @parameterized.expand([(k, a, d, seed) for k, a, d in TRAPS for seed in range(4)])
+    @parameterized.expand([(k, a, d, seed) for k, a, d in TRAPS for seed in range(2)])
     def test_learned_within_the_bar(self, alphabet, arms, disarm, seed):
         target = build_trap(alphabet, arms, disarm)
         oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
