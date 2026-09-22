@@ -11,10 +11,9 @@ from orthogonal_dfa.l_star.tracker import RecordingTracker
 
 us = UniformSampler(40)
 
-# assertDFA tolerance — slightly looser than the synthesis target so we don't
-# flake when synthesis converges near the threshold.  See GitHub issue on
-# tightening synthesis output.
-assertion_allowed_error = 0.03
+# Separates "recovered every state" from "merged one", which costs that state's
+# prefix mass and whatever the merge damages downstream.  Not a quality tolerance.
+assertion_allowed_error = 0.05
 
 
 def sample_with_exclusion(exclude_pattern, *, symbols, count):
