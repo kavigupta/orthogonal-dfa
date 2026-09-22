@@ -36,8 +36,11 @@ def identify_cluster_around(
         # Suffixes tie at the same loss constantly, and an unstable sort picks
         # between them afresh every pass, so the cluster never settles.
         nearest = losses.argsort(kind="stable")[:count]
-        if seed_local not in nearest:
+        if losses[seed_local] > losses[nearest[-1]]:
             break
+        if seed_local not in nearest:
+            # The check above did not fire, so the seed is out on a tie.
+            nearest[-1] = seed_local
         new_loss = losses[nearest].sum()
         if new_loss >= loss:
             break
