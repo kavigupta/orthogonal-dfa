@@ -348,9 +348,9 @@ class AcceptPreservingGate:
         )
         if not more:
             return counts
-        # Not kept: drawing a prefix is a sample, but reading one is a query
-        # per family member, and the family a later candidate brings is not
-        # this one.  The top-up settles this verdict and no other.
+        # Kept, so a later family is read on these too rather than buying them
+        # again.
+        self._prefixes[UNIFORM] = held + more
         extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
         empty = ((0, 0), (0, 0))
         return {

@@ -228,15 +228,18 @@ class _Populations:
     def for_split(self, label, wanted: int) -> list:
         """Prefixes for one population, to read the split on and not to keep.
 
-        Empty where nothing draws for it any more: no say in the split rather
-        than a split held up.  `grow` is what retires it.
+        Empty where nothing draws for it: no say in the split rather than a
+        split held up.  `grow` is what retires it.
         """
         source = (
             UniformSource(self._pst)
             if label == UNIFORM
             else self._state.sources.get(label)
         )
-        if source is None or not source.worth_drawing():
+        # Already proven, or not drawn from: proving one costs a round's worth
+        # of probes, which is not what a handful of prefixes to read a split on
+        # is worth.  A population the round never proved sits this one out.
+        if source is None or not source.proven:
             return []
         return draw_many(source, wanted)
 

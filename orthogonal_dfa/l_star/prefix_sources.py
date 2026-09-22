@@ -42,6 +42,10 @@ class UniformSource:
     def worth_drawing(self) -> bool:
         return True
 
+    @property
+    def proven(self) -> bool:
+        return True
+
 
 class BoundarySource(RejectionSource):
     """Strings the round's tree cannot place, asked about along a probe's walk.
