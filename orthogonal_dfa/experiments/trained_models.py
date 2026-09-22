@@ -3,14 +3,11 @@ from functools import cached_property, lru_cache
 from typing import Callable, Tuple
 
 from orthogonal_dfa.experiments.gate_experiments import (
-    train_psam_linear,
-    train_psam_linear_on_others,
-    train_psam_linear_with_alternates,
-    train_rnn_direct,
-    train_rnn_psams,
-    train_rnn_psams_sparse,
-)
-from orthogonal_dfa.experiments.training_curves import pdfa_results, process_results
+    train_psam_linear, train_psam_linear_on_others,
+    train_psam_linear_with_alternates, train_rnn_direct, train_rnn_psams,
+    train_rnn_psams_sparse)
+from orthogonal_dfa.experiments.training_curves import (pdfa_results,
+                                                        process_results)
 from orthogonal_dfa.module.rnn import LSTMProcessor
 from orthogonal_dfa.utils.pdfa import PDFAHyberbolicParameterization
 

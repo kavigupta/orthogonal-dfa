@@ -464,7 +464,8 @@ def _panel_class_dfa(ax, learner, colors, final_states, flipped):
 
 
 def _halo():
-    from matplotlib import patheffects  # pylint: disable=import-outside-toplevel
+    from matplotlib import \
+        patheffects  # pylint: disable=import-outside-toplevel
 
     return [patheffects.withStroke(linewidth=1.6, foreground="#00000055")]
 

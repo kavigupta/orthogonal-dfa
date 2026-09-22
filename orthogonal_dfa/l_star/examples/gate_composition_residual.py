@@ -17,16 +17,11 @@ from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.l_star.examples.composition_residual import (
-    CompositionResidualScore,
-    _fit_composition_bins,
-    bow_features,
-)
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (
-    SpliceModelOracle,
-    flanks,
-    median_threshold,
-    run_over_middles,
-)
+    CompositionResidualScore, _fit_composition_bins, bow_features)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (SpliceModelOracle,
+                                                            flanks,
+                                                            median_threshold,
+                                                            run_over_middles)
 from orthogonal_dfa.module.monotonic import Monotonic1D
 from orthogonal_dfa.spliceai.exon_score import device_of
 

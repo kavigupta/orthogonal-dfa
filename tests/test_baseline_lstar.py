@@ -13,10 +13,7 @@ import numpy as np
 
 from orthogonal_dfa.baseline_lstar.baseline_lstar import run_baseline_lstar
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-    AllFramesClosedOracle,
-    BernoulliParityOracle,
-    BernoulliRegex,
-)
+    AllFramesClosedOracle, BernoulliParityOracle, BernoulliRegex)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 from tests.lstar_common import assertDFA, evaluate_accuracy

@@ -21,9 +21,7 @@ from .benchmark import FAMILY_OURS, Benchmark
 def our_benchmarks() -> List[Benchmark]:
     """The oracles from `tests/test_lstar.py` that the findings doc reports on."""
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-        BernoulliParityOracle,
-        BernoulliRegex,
-    )
+        BernoulliParityOracle, BernoulliRegex)
 
     def regex_case(name: str, regex: str, symbols: int = 2) -> Benchmark:
         target = build_regex_dfa(regex, symbols)

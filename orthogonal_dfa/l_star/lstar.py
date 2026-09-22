@@ -9,19 +9,12 @@ them lives in ``counterexample_synthesis``.
 
 from automata.fa.dfa import DFA
 
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    states_intermediate,
-    uniform_weights,
-)
+from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
+                        states_intermediate, uniform_weights)
 from .midfix_tree import oracle_decider
 from .progress import counter
-from .statistics import (
-    DENOISE_FAILURE_PROB,
-    binomial_side_of_boundary,
-    denoise_sample_size,
-)
+from .statistics import (DENOISE_FAILURE_PROB, binomial_side_of_boundary,
+                         denoise_sample_size)
 
 
 def _oracle_classify(tree, oracle, *, accept, reject, suffix_limit=None):

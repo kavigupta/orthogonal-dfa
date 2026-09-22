@@ -1,9 +1,8 @@
 import pickle
 import unittest
 
-from orthogonal_dfa.l_star.counterexample_synthesis import (
-    counterexample_driven_synthesis,
-)
+from orthogonal_dfa.l_star.counterexample_synthesis import \
+    counterexample_driven_synthesis
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
 from orthogonal_dfa.l_star.learn import build_pst, learn_dfa
 from orthogonal_dfa.l_star.structures import NoisyOracle

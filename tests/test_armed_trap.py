@@ -16,11 +16,8 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.l_star.tracker import RecordingTracker
-from tests.lstar_common import (
-    assertion_allowed_error,
-    compute_dfa_accuracy,
-    endpoint_mass,
-)
+from tests.lstar_common import (assertion_allowed_error, compute_dfa_accuracy,
+                                endpoint_mass)
 
 ALPHABET = 5
 LENGTH = 40

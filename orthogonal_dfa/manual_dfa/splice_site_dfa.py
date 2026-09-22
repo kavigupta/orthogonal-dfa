@@ -3,7 +3,8 @@ import copy
 import torch
 
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
-from orthogonal_dfa.spliceai.best_psams_for_lssi import train_psams_for_splice_site
+from orthogonal_dfa.spliceai.best_psams_for_lssi import \
+    train_psams_for_splice_site
 from orthogonal_dfa.utils.pdfa import PDFA
 from orthogonal_dfa.utils.probability import ZeroProbability
 

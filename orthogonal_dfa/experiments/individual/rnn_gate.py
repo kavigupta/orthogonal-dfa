@@ -1,10 +1,8 @@
 # pylint: disable=duplicate-code
 import argparse
 
-from orthogonal_dfa.experiments.gate_experiments import (
-    get_starting_gates,
-    train_rnn_direct,
-)
+from orthogonal_dfa.experiments.gate_experiments import (get_starting_gates,
+                                                         train_rnn_direct)
 from orthogonal_dfa.module.rnn import LSTMProcessor, RNNProcessor
 
 

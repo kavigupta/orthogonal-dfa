@@ -10,9 +10,7 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions as P
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
-    DFAOracle,
-    sample_random_dfa,
-)
+    DFAOracle, sample_random_dfa)
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from tests.lstar_common import compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa

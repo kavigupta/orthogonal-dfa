@@ -4,8 +4,10 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
-from orthogonal_dfa.l_star.structures import NoisyOracle, Oracle, SymmetricBernoulli
+from orthogonal_dfa.l_star.examples.bernoulli_parity import \
+    BernoulliParityOracle
+from orthogonal_dfa.l_star.structures import (NoisyOracle, Oracle,
+                                              SymmetricBernoulli)
 
 CLEAN = SymmetricBernoulli(p_correct=1.0)
 NOISY = SymmetricBernoulli(p_correct=0.7)
@@ -80,7 +82,8 @@ class TestNoisyOracle(unittest.TestCase):
     def test_the_string_length_is_what_it_was(self):
         # SetDifferenceOracle reads this off its operands, so a noised operand
         # has to keep answering it.
-        from orthogonal_dfa.l_star.examples.set_difference import SetDifferenceOracle
+        from orthogonal_dfa.l_star.examples.set_difference import \
+            SetDifferenceOracle
 
         class _Fixed(_Parity):
             string_length = 12

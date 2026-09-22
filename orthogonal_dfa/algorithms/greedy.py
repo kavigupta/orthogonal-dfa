@@ -6,10 +6,8 @@ from permacache import permacache
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.mutation.mutation import Mutation
-from orthogonal_dfa.oracle.evaluate import (
-    ConditionalMutualInformation,
-    multidimensional_confusion,
-)
+from orthogonal_dfa.oracle.evaluate import (ConditionalMutualInformation,
+                                            multidimensional_confusion)
 from orthogonal_dfa.utils.dfa import TorchDFA, hash_dfa
 
 

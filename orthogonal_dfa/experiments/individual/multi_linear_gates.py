@@ -1,6 +1,5 @@
-from orthogonal_dfa.experiments.gate_experiments import (
-    train_psam_linear_with_alternates,
-)
+from orthogonal_dfa.experiments.gate_experiments import \
+    train_psam_linear_with_alternates
 
 
 def main():

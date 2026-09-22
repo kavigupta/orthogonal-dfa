@@ -9,12 +9,5 @@ Each writes a self-contained JSON under `data/capal/` carrying config and one
 record per (benchmark, learner, eta, seed) cell.
 """
 
-from .core import (
-    LEARNER_CAPAL,
-    LEARNER_ELSTAR,
-    SCHEMA_VERSION,
-    Cell,
-    run_capal_cell,
-    run_elstar_cell,
-    write_experiment,
-)
+from .core import (LEARNER_CAPAL, LEARNER_ELSTAR, SCHEMA_VERSION, Cell,
+                   run_capal_cell, run_elstar_cell, write_experiment)

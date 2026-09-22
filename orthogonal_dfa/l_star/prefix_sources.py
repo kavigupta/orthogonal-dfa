@@ -7,11 +7,8 @@ one.  Only the tree's answer counts.
 
 from math import isqrt
 
-from .dfa_utils import (
-    count_paths_to_state,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
+                        uniform_weights)
 from .rejection_source import RejectionSource, proving_attempts
 from .sifting import PROBE_BLOCK, anchored_walk, first_disagreeing_edge
 

@@ -5,21 +5,16 @@ import torch
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (
-    SpliceModelOracle,
-    flanks,
-    median_threshold,
-    run_over_middles,
-    wrap_with_flanks,
-)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (SpliceModelOracle,
+                                                            flanks,
+                                                            median_threshold,
+                                                            run_over_middles,
+                                                            wrap_with_flanks)
 from orthogonal_dfa.oracle.run_model import compute_exon_scores
-from orthogonal_dfa.spliceai.exon_score import (
-    FLANK_MARGIN,
-    SpliceAIExonScore,
-    forward_batch,
-    full_lengths,
-    spliceai_exon_scores,
-)
+from orthogonal_dfa.spliceai.exon_score import (FLANK_MARGIN,
+                                                SpliceAIExonScore,
+                                                forward_batch, full_lengths,
+                                                spliceai_exon_scores)
 from orthogonal_dfa.spliceai.module import SpliceAIModule
 
 # cl=4 -> trim = cl//2+2 = 4, so the flanks are the first/last 4 bases of the text.

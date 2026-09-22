@@ -6,17 +6,11 @@ import pythomata
 from matplotlib import pyplot as plt
 from permacache import drop_if_equal, permacache
 
-from orthogonal_dfa.mutation.mutation import (
-    Mutation,
-    RandomSingleMutation,
-    RepeatedMutations,
-)
-from orthogonal_dfa.oracle.evaluate import (
-    Metric,
-    evaluate_dfas,
-    multidimensional_confusion,
-    simulate_bootstrap_confusion,
-)
+from orthogonal_dfa.mutation.mutation import (Mutation, RandomSingleMutation,
+                                              RepeatedMutations)
+from orthogonal_dfa.oracle.evaluate import (Metric, evaluate_dfas,
+                                            multidimensional_confusion,
+                                            simulate_bootstrap_confusion)
 from orthogonal_dfa.utils.dfa import TorchDFA, hash_dfa
 from orthogonal_dfa.utils.plotting import plot_vertical_histogram
 

@@ -2,10 +2,8 @@ from matplotlib import pyplot as plt
 
 from orthogonal_dfa.psams.data import SpliceDataLoader
 from orthogonal_dfa.psams.train import train_psams
-from orthogonal_dfa.spliceai.evaluate_lssi import (
-    evaluate_3prime_psams,
-    evaluate_5prime_psams,
-)
+from orthogonal_dfa.spliceai.evaluate_lssi import (evaluate_3prime_psams,
+                                                   evaluate_5prime_psams)
 
 
 def train_and_evaluate_lssi_psams(which, *, num_batches, **kwargs):

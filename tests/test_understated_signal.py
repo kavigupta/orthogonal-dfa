@@ -11,7 +11,8 @@ merged into one accepting state and the learner returned ``sum = 0 (mod 3)``.
 
 import unittest
 
-from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
+from orthogonal_dfa.l_star.examples.bernoulli_parity import \
+    BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import assertion_allowed_error, evaluate_accuracy

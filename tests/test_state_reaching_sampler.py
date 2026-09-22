@@ -11,12 +11,10 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.dfa_utils import (
-    count_paths_to_state,
-    per_state_sample,
-    sample_string_reaching_state,
-    uniform_weights,
-)
+from orthogonal_dfa.l_star.dfa_utils import (count_paths_to_state,
+                                             per_state_sample,
+                                             sample_string_reaching_state,
+                                             uniform_weights)
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
 from tests.dfas import PARITY
 

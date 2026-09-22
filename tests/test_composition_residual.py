@@ -5,18 +5,12 @@ import numpy as np
 from permacache import no_cache_global
 
 from orthogonal_dfa.l_star.examples.composition_residual import (
-    _fit_bin,
-    _fit_composition_bins,
-    _residual_module,
-    bow_features,
-    fit_composition_residual,
-)
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (
-    SpliceModelOracle,
-    flanks,
-    median_threshold,
-    run_over_middles,
-)
+    _fit_bin, _fit_composition_bins, _residual_module, bow_features,
+    fit_composition_residual)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (SpliceModelOracle,
+                                                            flanks,
+                                                            median_threshold,
+                                                            run_over_middles)
 from tests.spliceai_small import random_middles, small_score_model_and_exon
 
 

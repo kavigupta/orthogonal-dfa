@@ -7,11 +7,8 @@ import torch
 from permacache import drop_if_equal, permacache, stable_hash
 
 from orthogonal_dfa.oracle.evaluate import (
-    batch_run,
-    conditional_mutual_information_from_log_confusion,
-    evaluate_pdfas,
-    multidimensional_confusion_from_proabilistic_results,
-)
+    batch_run, conditional_mutual_information_from_log_confusion,
+    evaluate_pdfas, multidimensional_confusion_from_proabilistic_results)
 from orthogonal_dfa.oracle.run_model import create_dataset
 from orthogonal_dfa.psams.psams import TorchPSAMs, UnionedPSAMs, flip_log_probs
 

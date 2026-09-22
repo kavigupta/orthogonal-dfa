@@ -3,9 +3,7 @@ import unittest
 import numpy as np
 
 from orthogonal_dfa.analysis.prefix_information import (
-    independence_floor,
-    prefix_explained_variance,
-)
+    independence_floor, prefix_explained_variance)
 
 
 class TestPrefixExplainedVariance(unittest.TestCase):

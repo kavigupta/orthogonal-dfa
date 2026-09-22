@@ -6,7 +6,8 @@ from permacache import stable_hash
 from torch import nn
 
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
-from orthogonal_dfa.spliceai.load_model import PRETRAINED_DIR, TracedFM, load_fm
+from orthogonal_dfa.spliceai.load_model import (PRETRAINED_DIR, TracedFM,
+                                                load_fm)
 
 FM_SEED1 = os.path.join(PRETRAINED_DIR, "fm-1.traced.pt")
 

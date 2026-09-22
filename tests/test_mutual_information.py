@@ -3,9 +3,8 @@ import unittest
 import numpy as np
 import torch
 
-from orthogonal_dfa.oracle.evaluate import (
-    multidimensional_confusion_from_proabilistic_results,
-)
+from orthogonal_dfa.oracle.evaluate import \
+    multidimensional_confusion_from_proabilistic_results
 
 
 class TestConfusionProbabilistic(unittest.TestCase):

@@ -12,12 +12,8 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
-from orthogonal_dfa.l_star.prefix_sources import (
-    BoundarySource,
-    StateSource,
-    aim_at,
-    state_source,
-)
+from orthogonal_dfa.l_star.prefix_sources import (BoundarySource, StateSource,
+                                                  aim_at, state_source)
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
 

@@ -7,9 +7,7 @@ import numpy as np
 from permacache import no_cache_global
 
 from orthogonal_dfa.analysis.nonlinear_motif_miner import (
-    ScoreOracle,
-    marginal_records_until,
-)
+    ScoreOracle, marginal_records_until)
 
 L = 24
 
