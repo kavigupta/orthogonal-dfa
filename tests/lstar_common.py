@@ -1,9 +1,11 @@
 import signal
+from types import SimpleNamespace
 
 import numpy as np
 import scipy.stats
 
 from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
@@ -254,3 +256,28 @@ def assert_terminates(call, *, seconds: int, message: str):
     finally:
         signal.alarm(0)
         signal.signal(signal.SIGALRM, previous)
+
+
+class _ClusterTable:
+    """The reads ``identify_cluster_around`` makes, over a mask block whose rows
+    are suffixes and columns prefixes."""
+
+    def __init__(self, masks):
+        self._masks = masks
+        self.representative = np.ones(masks.shape[1], dtype=bool)
+
+    def fully_observed(self):
+        return np.arange(self._masks.shape[0])
+
+    def observed_masks(self, rows, prefixes):
+        return self._masks[np.asarray(rows)][:, prefixes]
+
+    def population_masks(self):
+        return {UNIFORM: self.representative}
+
+
+def cluster_pst(masks, min_signal_strength):
+    return SimpleNamespace(
+        table=_ClusterTable(masks),
+        config=SimpleNamespace(min_signal_strength=min_signal_strength),
+    )

@@ -38,8 +38,11 @@ def identify_cluster_around(
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = ((masks != cluster_center) * weights).sum(1)
         nearest = losses.argsort()[:count]
-        if seed_local not in nearest:
+        if losses[seed_local] > losses[nearest[-1]]:
             break
+        if seed_local not in nearest:
+            # The check above did not fire, so the seed is out on a tie.
+            nearest[-1] = seed_local
         new_loss = losses[nearest].sum()
         if new_loss >= loss:
             break
