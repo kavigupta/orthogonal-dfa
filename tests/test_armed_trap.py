@@ -9,7 +9,6 @@ even though it is non-final.  At ``cp = 0.0315`` a 149-suffix family draws about
 
 import unittest
 
-import numpy as np
 from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
@@ -17,7 +16,11 @@ from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 from orthogonal_dfa.l_star.structures import NoisyOracle
 from orthogonal_dfa.l_star.tracker import RecordingTracker
-from tests.lstar_common import assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import (
+    assertion_allowed_error,
+    compute_dfa_accuracy,
+    endpoint_mass,
+)
 
 ALPHABET = 5
 LENGTH = 40
@@ -42,21 +45,6 @@ def build_target() -> DFA:
         final_states={"A"},
         allow_partial=False,
     )
-
-
-def endpoint_mass(target: DFA) -> dict:
-    """Exact share of uniform length-``LENGTH`` strings ending in each state."""
-    states = sorted(target.states)
-    index = {s: i for i, s in enumerate(states)}
-    step = np.zeros((len(states), len(states)))
-    for q in states:
-        for c in range(ALPHABET):
-            step[index[q], index[target.transitions[q][c]]] += 1 / ALPHABET
-    mass = np.zeros(len(states))
-    mass[index[target.initial_state]] = 1.0
-    for _ in range(LENGTH):
-        mass = mass @ step
-    return dict(zip(states, mass))
 
 
 def miscut_mass(target: DFA, suffixes) -> float:

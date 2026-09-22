@@ -12,7 +12,6 @@ cannot, since it does not ask the tree anything.
 
 import unittest
 
-import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
@@ -20,7 +19,11 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 from orthogonal_dfa.l_star.structures import NoisyOracle
-from tests.lstar_common import assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import (
+    assertion_allowed_error,
+    compute_dfa_accuracy,
+    endpoint_mass,
+)
 
 LENGTH = 40
 SIGNAL = 0.2
@@ -49,21 +52,6 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
     )
 
 
-def endpoint_mass(target: DFA, alphabet: int) -> dict:
-    """Exact share of uniform length-``LENGTH`` strings ending in each state."""
-    states = sorted(target.states)
-    index = {s: i for i, s in enumerate(states)}
-    step = np.zeros((len(states), len(states)))
-    for q in states:
-        for c in range(alphabet):
-            step[index[q], index[target.transitions[q][c]]] += 1 / alphabet
-    mass = np.zeros(len(states))
-    mass[index[target.initial_state]] = 1.0
-    for _ in range(LENGTH):
-        mass = mass @ step
-    return dict(zip(states, mass))
-
-
 #: ``(alphabet, arms, disarm)``.  The first merged ``Q`` on 3 of 8 seeds before
 #: the homogeneity check; the second on 1 of 8.
 TRAPS = [(200, 4, 170), (200, 4, 180)]
@@ -77,7 +65,7 @@ class TestTrapTargets(unittest.TestCase):
         self.assertTrue(report.satisfied, report.reasons)
         # A merge only costs accuracy while the merged class carries mass, and
         # is only reachable while class-preserving suffixes are scarce.
-        self.assertGreater(endpoint_mass(target, alphabet)["Q"], 0.05)
+        self.assertGreater(endpoint_mass(target, alphabet, LENGTH)["Q"], 0.05)
         self.assertLess(report.class_preserving_fraction, 0.10)
 
 

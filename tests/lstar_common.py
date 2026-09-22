@@ -15,6 +15,21 @@ us = UniformSampler(40)
 assertion_allowed_error = 0.05
 
 
+def endpoint_mass(target, alphabet, length):
+    """Exact share of uniform length-``length`` strings ending in each state."""
+    states = sorted(target.states)
+    index = {s: i for i, s in enumerate(states)}
+    step = np.zeros((len(states), len(states)))
+    for q in states:
+        for c in range(alphabet):
+            step[index[q], index[target.transitions[q][c]]] += 1 / alphabet
+    mass = np.zeros(len(states))
+    mass[index[target.initial_state]] = 1.0
+    for _ in range(length):
+        mass = mass @ step
+    return dict(zip(states, mass))
+
+
 def sample_with_exclusion(exclude_pattern, *, symbols, count):
     rng = np.random.default_rng(0x1234)
     results = []
