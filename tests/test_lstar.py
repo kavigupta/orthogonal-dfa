@@ -169,7 +169,6 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
         assertDFA(self, dfa, oracle_creator)
 
-    @pytest.mark.slow
     def test_confounded_frame_product(self):
         """A confounder turns a phase/frame automaton into a 28-state product
         whose class-preserving suffixes are rare.  The learner cannot resolve it
