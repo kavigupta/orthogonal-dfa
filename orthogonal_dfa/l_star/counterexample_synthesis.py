@@ -22,8 +22,11 @@ import scipy.stats
 from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
-from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
-                        uniform_weights)
+from .dfa_utils import (
+    count_paths_to_state,
+    sample_string_reaching_state,
+    uniform_weights,
+)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
