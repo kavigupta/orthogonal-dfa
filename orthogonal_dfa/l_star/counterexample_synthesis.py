@@ -15,13 +15,13 @@ in the next round.
 import math
 import time
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import List, Optional
 
 import numpy as np
-import scipy.stats
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .cluster import identify_cluster_around, sample_suffix_family
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
@@ -85,78 +85,97 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 COUNTEREXAMPLE_PROBES = 4000
 
 
-#: Rate at which the homogeneity check may call a single-class state mixed.  A
-#: false one costs a whole round, where the reads themselves are well under a
-#: percent of a run, so it is worth paying for the reads to make one rare: the
-#: count grows with ``z**2``, the round it would spend does not.
-HOMOGENEITY_ALPHA = 1e-4
+#: Prefixes of a class the cut has to land on each side before the two are read
+#: as classes rather than as the tail of one.  The split is already held a
+#: margin off the boundary, so a prefix reaching a side it does not belong to is
+#: rare by construction and a handful of them is not a cut.
+MIN_SHATTERED_SIDE = 30
 
 
-def homogeneity_prefixes(
-    signal,
-    pool_share,
-    boundary,
-    min_coverage=DEFAULT_MIN_COVERAGE,
-    alpha=HOMOGENEITY_ALPHA,
-):
-    """Reads a state needs for a class of mass ``min_coverage`` to show in it.
+def state_pool_size(pool_share, min_coverage=DEFAULT_MIN_COVERAGE):
+    """Prefixes to aim at a state for a class of ``min_coverage`` mass to hold
+    ``MIN_SHATTERED_SIDE`` of them.
 
-    Reading `n` of a state's prefixes at the empty suffix estimates its accept
-    rate to `sqrt(p(1-p)/n)`, and a contaminating share `w` moves that rate by
-    `2 * signal * w`, so the share the read resolves is
-
-        w  =  z * sqrt(p(1-p)/n) / (2 * signal)
-
-    A class of mass `min_coverage` inside a state holding `pool_share` of the
-    prefixes is a `min_coverage / pool_share` share of it, which is what the
-    read has to resolve.  Inverting for `n` leaves it growing as the square of
-    the state's share, so the states worth many reads are the large ones a rare
-    class can hide in.
+    Such a class is a ``min_coverage / pool_share`` share of the state, so the
+    pool grows with the state's share and the states worth many prefixes are the
+    large ones a rare class can hide in.  It grows linearly, where reading the
+    state's own accept rate would need the square: clustering reads every suffix
+    against a prefix rather than the one empty suffix.
     """
-    z = scipy.stats.norm.isf(alpha / 2)
-    p = boundary + signal
-    want = min_coverage / max(pool_share, min_coverage)
-    return int(np.ceil(p * (1 - p) * (z / (2 * signal * want)) ** 2))
+    return int(
+        np.ceil(MIN_SHATTERED_SIDE * max(pool_share, min_coverage) / min_coverage)
+    )
 
 
-def mixed_states(pst, dfa, *, alpha=HOMOGENEITY_ALPHA):
-    """Hypothesis states whose own prefixes do not read as one class.
+class _PoolTable:
+    """The reads ``identify_cluster_around`` makes, over one state's prefixes."""
 
-    A state holding a single class has prefixes that share a label, so reading
-    them at the empty suffix gives iid draws at ``1/2 + s`` or ``1/2 - s``.  One
-    that merged an accepting class into a rejecting one reads between the two and
-    neither pure hypothesis survives.  The read asks the oracle about the prefix
-    itself, so it sees an error the tree and the hypothesis share -- which is
-    what the DFA/DT consistency estimate cannot do.
+    def __init__(self, masks):
+        self._masks = masks
+        self.representative = np.ones(masks.shape[1], dtype=bool)
 
-    Only the reads are queries: the prefixes are drawn straight at each state
-    off the same path counts that say what share of the sampler it holds, so a
-    state is read on its own prefixes without drawing any it has to discard.
+    def fully_observed(self):
+        return np.arange(self._masks.shape[0])
+
+    def observed_masks(self, rows, prefix_mask):
+        return self._masks[np.asarray(rows)][:, prefix_mask]
+
+
+def shatter_state(pst, pool, suffixes, seed):
+    """Cluster ``suffixes`` over ``pool`` and return the two sides the cut makes.
+
+    The cut is the one the round's own thresholds read, so a prefix counts to a
+    side only where the family puts it there decisively.
     """
-    signal = pst.config.min_signal_strength
+    pairs = [p + v for v in suffixes for p in pool]
+    read = pst.table.memo.membership_queries(pairs)
+    masks = np.asarray(read, dtype=np.int8).reshape(len(suffixes), len(pool))
+    scoped = SimpleNamespace(table=_PoolTable(masks), config=pst.config)
+    vs, _ = identify_cluster_around(scoped, seed, len(suffixes), pst.decision_boundary)
+    decision = masks[vs].mean(0)
+    accept = decision >= pst.accept_thresh
+    reject = decision < pst.reject_thresh
+    return [p for p, a in zip(pool, accept) if a], [
+        p for p, r in zip(pool, reject) if r
+    ]
+
+
+def mixed_states(pst, dfa):
+    """Hypothesis states holding an accept-preserving distinction of their own.
+
+    A state holding one class has no suffix family that cuts its prefixes in
+    two: every prefix in it answers every suffix alike, up to noise.  So
+    clustering the round's suffixes over a pool aimed at one state, and asking
+    whether the cut lands prefixes decisively on both sides, asks whether the
+    state merged two classes -- including two that share a label, which reading
+    the state's own accept rate cannot see.
+
+    The prefixes are aimed straight at each state off the path counts that say
+    what share of the sampler it holds, so none are drawn to be discarded; the
+    queries are the pool read against the family.
+    """
     length = pst.sampler.length
     space = pst.alphabet_size**length
     weights = uniform_weights(dfa)
-    pools = {}
+    rows = pst.table.fully_observed()
+    suffixes = [pst.table.suffix(v) for v in rows]
+    if b"" not in suffixes:
+        return []
+    seed = suffixes.index(b"")
+    mixed = []
     for q in dfa.states:
         reaching = count_paths_to_state(dfa, q, length, weights)
         share = reaching[length][dfa.initial_state] / space
-        wanted = homogeneity_prefixes(signal, share, pst.decision_boundary, alpha=alpha)
         drawn = (
             sample_string_reaching_state(dfa, reaching, pst.rng, weights)
-            for _ in range(wanted)
+            for _ in range(state_pool_size(share))
         )
-        pools[q] = [p for p in drawn if p is not None]
-    mixed = []
-    for q, ps in pools.items():
-        if len(ps) < 30:
+        pool = [p for p in drawn if p is not None]
+        if len(pool) < 2 * MIN_SHATTERED_SIDE:
             continue
-        hits = int(np.asarray(pst.oracle.membership_queries(ps), dtype=int).sum())
-        n = len(ps)
-        not_accept = scipy.stats.binom.cdf(hits, n, pst.decision_boundary + signal)
-        not_reject = scipy.stats.binom.sf(hits - 1, n, pst.decision_boundary - signal)
-        if not_accept < alpha / 2 and not_reject < alpha / 2:
-            mixed.append((q, n, hits / n))
+        accept, reject = shatter_state(pst, pool, suffixes, seed)
+        if min(len(accept), len(reject)) >= MIN_SHATTERED_SIDE:
+            mixed.append((q, len(pool), len(accept), len(reject)))
     return mixed
 
 
@@ -421,12 +440,15 @@ def counterexample_driven_synthesis(
             vetoes += 1
             print(
                 f"[round {index}] consistency {true_acc:.4f} clears "
-                f"{acc_threshold:.4f}, but "
+                f"{acc_threshold:.4f}, but clustering each state's own prefixes "
+                "splits "
                 + ", ".join(
-                    f"state {q} reads {r:.4f} over {n} prefixes" for q, n, r in mixed
+                    f"state {q} into {a} accepted and {r} rejected of {n}"
+                    for q, n, a, r in mixed
                 )
-                + f" -- neither class, so a class was merged; continuing "
-                f"({vetoes} of {STALL_PATIENCE})"
+                + " -- a state holding one class has no such split, so the "
+                f"hypothesis merged two; re-running (veto {vetoes} of "
+                f"{STALL_PATIENCE})"
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
