@@ -17,6 +17,8 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
+from orthogonal_dfa.superlanguage.sampler import SuperSampler
+from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
     assert_terminates,
     assertDFA,
@@ -24,6 +26,64 @@ from tests.lstar_common import (
     compute_dfa_accuracy,
 )
 from tests.lstar_common import learn_dfa_verified as learn_dfa
+
+
+def _confounded_frame_product():
+    """A 28-state target: the product of a phase/frame automaton and a parity
+    confounder over a 5-symbol alphabet.
+
+    frame:  symbols 3,4 advance a phase (mod 3); symbols 0,1,2 close frame f0 at
+            phase 0 and f1 at phase 1.  Reject once both are closed.
+    parity: (count of 3,4 is odd) AND (count of 3 is odd).
+    accept = (not both frames closed) XOR parity.
+
+    State ``(phase6, f0, f1, ones3)`` -- ``phase6`` is the 3,4 count mod 6 (its
+    mod-3 is the frame phase, its parity feeds the confounder); ``ones3`` is the
+    count of 3s mod 2.  Minimizes to 28 states.
+    """
+
+    def step(state, symbol):
+        phase6, f0, f1, ones3 = state
+        if symbol >= 3:
+            return ((phase6 + 1) % 6, f0, f1, ones3 ^ (symbol == 3))
+        phase = phase6 % 3
+        if phase == 0:
+            return (phase6, True, f1, ones3)
+        if phase == 1:
+            return (phase6, f0, True, ones3)
+        return state
+
+    def accepts(state):
+        phase6, f0, f1, ones3 = state
+        parity = (phase6 % 2 == 1) and ones3
+        return (not (f0 and f1)) ^ parity
+
+    start = (0, False, False, False)
+    states, transitions, frontier = {start}, {}, [start]
+    while frontier:
+        state = frontier.pop()
+        transitions[state] = {}
+        for symbol in range(5):
+            nxt = step(state, symbol)
+            transitions[state][symbol] = nxt
+            if nxt not in states:
+                states.add(nxt)
+                frontier.append(nxt)
+    return DFA(
+        states=set(states),
+        input_symbols=set(range(5)),
+        transitions=transitions,
+        initial_state=start,
+        final_states={s for s in states if accepts(s)},
+        allow_partial=False,
+    ).minify()
+
+
+#: Phase-structured sampling keeps the frame substructure live (under uniform
+#: sampling both frames close at once, only the ~4-state parity survives).
+_CONFOUNDED_SAMPLER = SuperSampler(
+    KmerVocabulary(kmers=((3, 0, 2), (3, 0, 0), (3, 2, 0)), base_alphabet_size=4), 36
+)
 
 
 def _poor_case_target(transitions):
@@ -108,6 +168,25 @@ class TestLStar(unittest.TestCase):
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
         assertDFA(self, dfa, oracle_creator)
+
+    def test_confounded_frame_product(self):
+        """A confounder turns a phase/frame automaton into a 28-state product
+        whose class-preserving suffixes are rare.  The learner cannot resolve it
+        in one round: it grows the pool over a couple of rounds until the
+        partition stabilizes, then converges on all 28 states."""
+        target = _confounded_frame_product()
+        self.assertEqual(len(target.states), 28)
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            DFAOracle(target), noise_model, seed
+        )
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=0.45,
+            seed=0,
+            sampler=_CONFOUNDED_SAMPLER,
+        )
+        self.assertEqual(len(dfa.states), 28)
+        assertDFA(self, dfa, oracle_creator, symbols=5)
 
     def test_two_subsequences_with_alternation(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
