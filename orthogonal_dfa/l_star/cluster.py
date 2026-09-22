@@ -33,7 +33,12 @@ def identify_cluster_around(
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = (masks != cluster_center).sum(1)
-        nearest = losses.argsort()[:count]
+        # Rank the seed first among equal losses.  The less noise the oracle
+        # carries the more suffixes match the center exactly, and an unstable
+        # sort drops the seed out of a tie it belongs to -- so the cluster
+        # collapses to the seed alone exactly where it agreed with the most
+        # suffixes.  Only a strictly worse loss is drift.
+        nearest = np.lexsort((np.arange(len(losses)) != seed_local, losses))[:count]
         if seed_local not in nearest:
             break
         new_loss = losses[nearest].sum()
