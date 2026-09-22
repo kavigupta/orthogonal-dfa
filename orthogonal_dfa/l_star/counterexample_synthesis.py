@@ -25,7 +25,7 @@ from .cluster import sample_suffix_family
 from .dfa_utils import (count_paths_to_state, sample_string_reaching_state,
                         uniform_weights)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
-from .mask_table import BOUNDARY, STATE, UNIFORM
+from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .preconditions import DEFAULT_MIN_COVERAGE
 from .prefix_sources import BoundarySource, aim_at, state_source
@@ -180,27 +180,49 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
         state.seen.add(string)
-        state.accumulated.append(string)
+        state.harvest().append(string)
     return min(wanted, len(taken))
 
 
 class _PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
     the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), the accumulated
-    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
+    sampling distribution even if the per-state sample is skewed), and the
+    populations the rounds have made, with a ``seen`` set to dedup the boundary
+    strings across them."""
 
     def __init__(self, uniform):
         self.uniform = list(uniform)
-        self.accumulated = []
+        self.held = {}
         self.seen = set()
-        self.sampled = []
+        #: Boundary populations named so far, which is what numbers them.
+        self.named = 0
+        #: The one this round is filling, or None before it strands anything.
+        self.harvesting = None
+        #: Labels the table holds, so a round retires what it does not renew.
+        self.published = set()
+
+    def retire_states(self) -> None:
+        """Forget last round's state populations: this round's states are the
+        ones there are, and a leaf it does not have is not one to go on
+        publishing."""
+        for stale in [label for label in self.held if label[0] == "state"]:
+            self.held.pop(stale)
+
+    def harvest(self) -> list:
+        """This round's boundary population, named on the first string to reach
+        it."""
+        if self.harvesting is None:
+            self.named += 1
+            self.harvesting = ("boundary", self.named)
+            self.held[self.harvesting] = []
+        return self.held[self.harvesting]
 
 
-def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, ``per_state`` of them resting at each state that has
-    a source."""
-    held = {}
+def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
+    """``("state", leaf) -> members``, ``per_state`` of them resting at each
+    state that has a source."""
+    state.retire_states()
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -211,8 +233,7 @@ def _per_state_members(pst, resolver, dfa, per_state):
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        held[leaf] = sorted(source.draw() for _ in range(per_state))
-    return held
+        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
@@ -227,7 +248,7 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
         found += [source.draw() for _ in range(wanted - len(found))]
     for string in found[:wanted]:
         state.seen.add(string)
-        state.accumulated.append(string)
+        state.harvest().append(string)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -244,17 +265,20 @@ def _aimed_at(pst, resolver, dfa) -> set:
 
 def _publish_pool(pst, state) -> int:
     """Put the round's populations in the table, returning how many of its
-    prefixes are representative."""
+    prefixes are representative.
+
+    Ends the round: the next one names a boundary population of its own.
+    """
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
-    for population, prefixes in (
-        (UNIFORM, state.uniform),
-        (BOUNDARY, state.accumulated),
-        (STATE, state.sampled),
-    ):
-        pst.table.drop_population(population)
+    for label in state.published - state.held.keys():
+        pst.table.drop_population(label)
+    for label, prefixes in ((UNIFORM, state.uniform), *state.held.items()):
+        pst.table.drop_population(label)
         if prefixes:
-            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
+            pst.table.add_prefixes(sorted(set(prefixes)), population=label)
+    state.published = set(state.held)
+    state.harvesting = None
     return int(pst.table.representative.sum())
 
 
@@ -403,8 +427,7 @@ def counterexample_driven_synthesis(
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
-        by_state = _per_state_members(pst, resolver, dfa, per_state)
-        state.sampled = sorted({m for members in by_state.values() for m in members})
+        _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.
         if stall.stalled(
@@ -427,7 +450,7 @@ def counterexample_driven_synthesis(
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
-            f"{len(state.accumulated)} boundary strings harvested so far"
+            f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
         if max_rounds is not None and index >= max_rounds:
