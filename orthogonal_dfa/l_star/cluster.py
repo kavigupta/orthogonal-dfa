@@ -25,14 +25,23 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    # Weigh each population equally in clustering
+    weights = np.zeros(masks.shape[1])
+    for population in pst.table.population_masks().values():
+        weights[population] += 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
     cluster = [seed_local]
     loss = float("inf")
+    # One prefix of the largest population, which is the least a disagreement
+    # can weigh.  Read in those units, two suffixes that differ by less are
+    # tied rather than ordered on float dust -- and where the pool is the only
+    # population, the units are prefixes and the reading is a plain count.
+    quantum = weights[weights > 0].min()
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = (masks != cluster_center).sum(1)
+        losses = np.round(((masks != cluster_center) * weights).sum(1) / quantum)
         # Ties here are common, and breaking them differently each pass churns
         # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]

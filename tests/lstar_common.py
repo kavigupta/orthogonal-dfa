@@ -5,6 +5,7 @@ import numpy as np
 import scipy.stats
 
 from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
@@ -270,6 +271,9 @@ class _ClusterTable:
 
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]
+
+    def population_masks(self):
+        return {UNIFORM: self.representative}
 
 
 def cluster_pst(masks, min_signal_strength):
