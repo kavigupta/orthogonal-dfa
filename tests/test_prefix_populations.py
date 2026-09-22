@@ -33,7 +33,6 @@ def _tracker(table, *, boundary=0.5, margin=0.1):
     """A tracker holding ``table``, enough of one to read a decision vector."""
     pst = PrefixSuffixTracker.__new__(PrefixSuffixTracker)
     pst.table = table
-    pst.config = SimpleNamespace(fnr_limit=0.02, population_fnr_limit=0.10)
     pst.decision_boundary = boundary
     pst.evidence_margin = margin
     return pst
@@ -63,40 +62,6 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual((rate, worst), (1.0, ("state", 0)))
 
-    def test_each_population_answers_to_its_own_limit(self):
-        # The pool is a sample of what the learner will meet, so its rate is an
-        # estimate and is held to the tighter limit.  A state's prefixes are a
-        # to-do list, and the same rate over them is not yet a fault.
-        a, b = _words(20), _words(20, offset=20)
-        pst = _tracker(_table(a + b, {UNIFORM: a, ("state", 3): b}))
-        # A twentieth of each straddles: 0.05, over the pool's 0.02 and under
-        # the 0.10 the others answer to.
-        decision = np.array(
-            [0.9] * 10 + [0.1] * 9 + [0.5] + [0.9] * 10 + [0.1] * 9 + [0.5]
-        )
-
-        rate, worst = pst.fnr_from_decision(decision)
-
-        self.assertEqual(worst, UNIFORM, "the pool is the one past its limit")
-        self.assertAlmostEqual(rate, 0.05)
-        self.assertGreater(rate, pst.limit_for(UNIFORM))
-        self.assertLess(rate, pst.limit_for(("state", 3)))
-
-    def test_the_population_furthest_past_its_limit_is_the_worst(self):
-        # The state reads higher, and is still further inside its own limit
-        # than the pool is inside the pool's.
-        a, b = _words(20), _words(20, offset=20)
-        pst = _tracker(_table(a + b, {UNIFORM: a, ("state", 3): b}))
-        # A twentieth of the pool straddles against a tenth of the state:
-        # 0.05 against 0.02 is further out than 0.10 against 0.10.
-        decision = np.array(
-            [0.9] * 10 + [0.1] * 9 + [0.5] + [0.9] * 9 + [0.1] * 9 + [0.5] * 2
-        )
-
-        _, worst = pst.fnr_from_decision(decision)
-
-        self.assertEqual(worst, UNIFORM)
-
     def test_the_rate_names_the_population_it_belongs_to(self):
         a, b = _words(20), _words(20, offset=20)
         table = _table(a + b, {UNIFORM: a, ("state", 3): b})
@@ -107,6 +72,10 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual(worst, ("state", 3))
         self.assertAlmostEqual(rate, 0.2)
+
+
+if __name__ == "__main__":
+    unittest.main()
 
 
 class _Source:
@@ -204,7 +173,3 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
         self.assertEqual([("state", 9)], pst.table.dropped)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -60,11 +60,6 @@ class RejectionSource(ABC):
         return got
 
     @property
-    def pooled(self) -> int:
-        """Members in hand, which cost no draw to serve."""
-        return len(self._pool)
-
-    @property
     def proven(self) -> bool:
         """Whether the yield test has been asked *and* passed.  A source nobody
         has proved is not worth 905 probes to a caller that wants five

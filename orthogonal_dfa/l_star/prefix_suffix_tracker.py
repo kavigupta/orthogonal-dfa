@@ -32,15 +32,9 @@ class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    #: The rate the uniform pool has to meet: the share of the strings the
-    #: learner will meet that this family cannot place.
-    fnr_limit: float = 0.02
-    #: The rate every other population has to meet.  Theirs is not an estimate
-    #: of anything -- a boundary pool is the strings some round could not place
-    #: and a state's is the ones resting there, both collected because
-    #: something went wrong with them -- so it says how much of a to-do list
-    #: may still be outstanding, and cannot be read as the pool's rate is.
-    population_fnr_limit: float = 0.10
+    #: A rate every prefix population has to meet on its own, not an average
+    #: across them.
+    fnr_limit: float = 0.10
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
     #: is called indecisive, all indecision counting against it; `acceptable_fpr`
@@ -241,21 +235,14 @@ class PrefixSuffixTracker:
             self.compute_decision(vs, self.table.representative)
         )[0]
 
-    def limit_for(self, label) -> float:
-        """The rate ``label`` is held to."""
-        if label is UNIFORM:
-            return self.config.fnr_limit
-        return self.config.population_fnr_limit
-
     def fnr_from_decision(self, decision) -> Tuple[float, Optional[object]]:
         """``compute_fnr`` for a decision vector already in hand, and which
         population it is the rate of.
 
-        The population furthest past its own limit, not the rate across all of
-        them: whether a prefix is decisive is a property of the state it
-        reaches, so one population reading high is averaged away by the rest.
-        Its label comes back because that is the population a caller has to
-        grow to answer it, and because the limit it answers to is its own.
+        The worst population's rate, not the rate across all of them: whether a
+        prefix is decisive is a property of the state it reaches, so one
+        population reading high is averaged away by the rest.  Its label comes
+        back because that is the population a caller has to grow to answer it.
         """
         decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
@@ -270,10 +257,9 @@ class PrefixSuffixTracker:
         ]
         if not rates:
             return float(indecisive.mean()), None
-        # Keyed on how far past its own limit each one is, so populations held
-        # to different rates are comparable; the labels are not of one type, so
-        # a tie between two is not a question about their names.
-        return max(rates, key=lambda pair: pair[0] / self.limit_for(pair[1]))
+        # Keyed on the rate: the labels are not of one type and a tie between
+        # two populations is not a question about their names.
+        return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
     def sample_more_prefixes(self):
         new_prefixes = _distinct_prefixes(

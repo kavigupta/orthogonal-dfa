@@ -26,10 +26,10 @@ from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_sources import (
     BoundarySource,
-    StateSource,
     UniformSource,
     aim_at,
     draw_many,
+    state_source,
 )
 from .progress import track
 from .tracker import SynthesisTracker
@@ -160,11 +160,8 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
             # length arrive here to draw from, so no round is going to fill it
             # and this one is not waiting on a draw.
             continue
-        source = StateSource(resolver, leaf, aim, wanted=per_state)
-        # A leaf already holding what the round wants has nothing to aim for,
-        # and proving a yield nothing will draw on costs a round's worth of
-        # aims.  One that is short has to prove it can make up the rest.
-        if source.pooled < per_state and not source.worth_drawing():
+        source = state_source(resolver, leaf, aim, wanted=per_state)
+        if source is None:
             continue
         state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
         state.sources[("state", leaf)] = source
