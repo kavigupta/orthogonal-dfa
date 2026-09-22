@@ -4,6 +4,7 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
+from .mask_table import UNIFORM
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
@@ -152,9 +153,9 @@ def draw_to_certify(pst, amount: int) -> list:
     ]
 
 
-def certification_sample(pst, vs, prefixes):
-    """The family means and split column for prefixes read only to settle the
-    split, and never added to the table.
+def certification_sample(pst, vs, by_population):
+    """``label -> (family means, split column)`` for prefixes read only to
+    settle the split, and never added to the table.
 
     Reading one costs a query per family member, plus the one for the split
     itself.  Adding it to the table instead costs a query per fully observed
@@ -163,23 +164,29 @@ def certification_sample(pst, vs, prefixes):
     fresh cohort of suffixes that every later prefix is then read against.
     """
     suffixes = [pst.table.suffix(v) for v in vs]
-    pairs = [p + sfx for p in prefixes for sfx in suffixes]
-    read = pst.table.memo.membership_queries(pairs + prefixes)
-    family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
-    return family.mean(1), np.asarray(read[len(pairs) :])
+    out = {}
+    for label, prefixes in by_population.items():
+        pairs = [p + sfx for p in prefixes for sfx in suffixes]
+        read = pst.table.memo.membership_queries(pairs + prefixes)
+        family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
+        out[label] = (family.mean(1), np.asarray(read[len(pairs) :]))
+    return out
 
 
-def _split_counts(pst, decision, column):
-    """``((hits, n), (hits, n))`` for the accept and reject sides of the cut,
-    counted on the split's own column.
+def _split_counts(pst, reads):
+    """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
+    cut counted on the split's own column, one entry per prefix population.
 
     A side can come up empty on a small draw, which leaves the verdict
     uncertified rather than failing.
     """
-    counts = []
-    for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
-        counts.append((int(column[side].sum()), int(side.sum())))
-    return tuple(counts)
+    return {
+        label: tuple(
+            (int(column[side].sum()), int(side.sum()))
+            for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh)
+        )
+        for label, (decision, column) in reads.items()
+    }
 
 
 def _sides(counts):
@@ -187,7 +194,7 @@ def _sides(counts):
     return [(kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts)]
 
 
-def drift_verdict(pst, counts) -> str:
+def drift_verdict(pst, by_population) -> str:
     """Whether each side of the cut reads as its own class on the split, or as
     the other's, or whether the counts do not say.
 
@@ -202,7 +209,7 @@ def drift_verdict(pst, counts) -> str:
     between the sides would have needed, and would have had to name a signal for.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
-    sides = _sides(counts)
+    sides = _sides(by_population[UNIFORM])
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
@@ -245,7 +252,10 @@ def prefixes_to_certify(pst, counts, drawn, vs) -> int:
     """
     budget = certification_budget(pst, vs)
     for multiple in range(2, 2 + budget // drawn):
-        supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
+        supposed = {
+            label: tuple((hits * multiple, n * multiple) for hits, n in sides)
+            for label, sides in counts.items()
+        }
         if drift_verdict(pst, supposed) is not UNCERTIFIED:
             return drawn * (multiple - 1)
     return budget
@@ -274,26 +284,30 @@ class AcceptPreservingGate:
             max(1, int(pst.table.representative.sum())),
             certification_budget(pst, voters),
         )
-        decision, column = certification_sample(
-            pst, voters, draw_to_certify(pst, drawn)
-        )
-        counts = _split_counts(pst, decision, column)
+        read = certification_sample(pst, voters, {UNIFORM: draw_to_certify(pst, drawn)})
+        counts = _split_counts(pst, read)
         verdict = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
             wanted = prefixes_to_certify(pst, counts, drawn, voters)
-            more_decision, more_column = certification_sample(
-                pst, voters, draw_to_certify(pst, wanted)
+            more = certification_sample(
+                pst, voters, {UNIFORM: draw_to_certify(pst, wanted)}
             )
-            decision = np.concatenate([decision, more_decision])
-            column = np.concatenate([column, more_column])
-            counts = _split_counts(pst, decision, column)
+            decision, column = read[UNIFORM]
+            more_decision, more_column = more[UNIFORM]
+            read = {
+                UNIFORM: (
+                    np.concatenate([decision, more_decision]),
+                    np.concatenate([column, more_column]),
+                )
+            }
+            counts = _split_counts(pst, read)
             verdict = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            hits_a, n_a = counts[0]
-            hits_r, n_r = counts[1]
+            hits_a, n_a = counts[UNIFORM][0]
+            hits_r, n_r = counts[UNIFORM][1]
             read = "read" if verdict is DRIFTED else "could not be read"
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
