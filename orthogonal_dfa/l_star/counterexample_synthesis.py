@@ -86,7 +86,11 @@ HOMOGENEITY_ALPHA = 0.01
 
 
 def homogeneity_prefixes(
-    signal, pool_share, min_coverage=DEFAULT_MIN_COVERAGE, alpha=HOMOGENEITY_ALPHA
+    signal,
+    pool_share,
+    boundary,
+    min_coverage=DEFAULT_MIN_COVERAGE,
+    alpha=HOMOGENEITY_ALPHA,
 ):
     """Reads a state needs for a class of mass ``min_coverage`` to show in it.
 
@@ -103,7 +107,7 @@ def homogeneity_prefixes(
     class can hide in.
     """
     z = scipy.stats.norm.isf(alpha / 2)
-    p = 0.5 + signal
+    p = boundary + signal
     want = min_coverage / max(pool_share, min_coverage)
     return int(np.ceil(p * (1 - p) * (z / (2 * signal * want)) ** 2))
 
@@ -129,7 +133,9 @@ def mixed_states(pst, dfa, *, alpha=HOMOGENEITY_ALPHA):
     for q in dfa.states:
         reaching = count_paths_to_state(dfa, q, length, uniform_weights(dfa))
         share = reaching[length][dfa.initial_state] / space
-        counts[q] = homogeneity_prefixes(signal, share, alpha=alpha)
+        counts[q] = homogeneity_prefixes(
+            signal, share, pst.decision_boundary, alpha=alpha
+        )
     pools = {q: [] for q in dfa.states}
     budget = 20 * sum(counts.values())
     drawn = 0
@@ -147,8 +153,8 @@ def mixed_states(pst, dfa, *, alpha=HOMOGENEITY_ALPHA):
             continue
         hits = int(np.asarray(pst.oracle.membership_queries(ps), dtype=int).sum())
         n = len(ps)
-        not_accept = scipy.stats.binom.cdf(hits, n, 0.5 + signal)
-        not_reject = scipy.stats.binom.sf(hits - 1, n, 0.5 - signal)
+        not_accept = scipy.stats.binom.cdf(hits, n, pst.decision_boundary + signal)
+        not_reject = scipy.stats.binom.sf(hits - 1, n, pst.decision_boundary - signal)
         if not_accept < alpha / 2 and not_reject < alpha / 2:
             mixed.append((q, n, hits / n))
     return mixed
