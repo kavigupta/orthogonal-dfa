@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from math import ceil, log
 from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
 
+from .mask_table import UNIFORM
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
@@ -151,17 +153,7 @@ class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def draw_to_certify(pst, amount: int) -> list:
-    """Prefixes for the split alone, straight from the sampler and not
-    deduplicated against the table: they stand for what the learner will meet,
-    so they are drawn the way it meets them."""
-    return [
-        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        for _ in range(amount)
-    ]
-
-
-def certification_sample(pst, vs, prefixes):
+def certification_sample(pst, vs, by_population):
     """The family means and split column for prefixes read only to settle the
     split, and never added to the table.
 
@@ -172,46 +164,63 @@ def certification_sample(pst, vs, prefixes):
     fresh cohort of suffixes that every later prefix is then read against.
     """
     suffixes = [pst.table.suffix(v) for v in vs]
-    pairs = [p + sfx for p in prefixes for sfx in suffixes]
-    read = pst.table.memo.membership_queries(pairs + prefixes)
-    family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
-    return family.mean(1), np.asarray(read[len(pairs) :])
+    out = {}
+    for label, prefixes in by_population.items():
+        pairs = [p + sfx for p in prefixes for sfx in suffixes]
+        read = pst.table.memo.membership_queries(pairs + prefixes)
+        family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
+        out[label] = (family.mean(1), np.asarray(read[len(pairs) :]))
+    return out
 
 
-def _split_counts(pst, decision, column):
-    """``((hits, n), (hits, n))`` for the accept and reject sides of the cut,
-    counted on the split's own column.
+def _split_counts(pst, reads):
+    """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
+    cut counted on the split's own column, one entry per prefix population.
 
-    A side can come up empty on a small draw, which leaves the verdict
-    uncertified rather than failing.
+    A population holds one class or both, so a side of ``n = 0`` is the ordinary
+    case: `drift_verdict` reads the sides that are there.
     """
-    counts = []
-    for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh):
-        counts.append((int(column[side].sum()), int(side.sum())))
-    return tuple(counts)
+    out = {}
+    for label, (decision, column) in reads.items():
+        counts = tuple(
+            (int(column[side].sum()), int(side.sum()))
+            for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh)
+        )
+        if any(n for _, n in counts):
+            out[label] = counts
+    assert out, "the split needs a population to read"
+    return out
 
 
 def _sides(counts):
-    """``(kind, hits, n)`` for the accept and reject sides of the cut."""
-    return [(kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts)]
+    """The sides of ``counts`` that hold prefixes, as ``(kind, hits, n)``."""
+    return [
+        (kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts) if n
+    ]
 
 
-def drift_verdict(pst, counts) -> str:
-    """Whether each side of the cut reads as its own class on the split, or as
-    the other's, or whether the counts do not say.
+def drift_verdict(pst, by_population):
+    """``(verdict, label)``: whether the family cuts with the classes, against
+    them, or not readably -- and which population says so.
 
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
-    split's column says what the oracle makes of the prefixes themselves.  A
-    family realises the accept-preserving split when the prefixes it calls
-    accepting read there as accepting -- by the same thresholds the family is
-    read with, since it is that reading being checked and not another.
+    split's column says what the oracle makes of the prefixes themselves.
 
-    So the sides are held to ``accept_thresh`` and ``reject_thresh`` directly.
-    Neither is a rate anything has to be estimated against, which is what a gap
-    between the sides would have needed, and would have had to name a signal for.
+    Any population may veto, only the uniform one may admit.  A population read
+    as the class it is not says the family drifted, whatever else reads right --
+    a state's prefixes are one class, so a backwards reading puts every one of
+    them where the oracle contradicts it.  Separating the classes *at all* is a
+    claim about the distribution the thresholds are calibrated on, which only
+    the uniform pool is drawn from.
+
+    Drift is read first: a family can separate the classes on the pool and still
+    invert a state.  The label is what the search grows to answer the refusal,
+    so an unreadable split names the pool, which is the one that could admit it.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
-    sides = _sides(counts)
+    sides = {label: _sides(counts) for label, counts in by_population.items()}
+    spent = sum(len(held) for held in sides.values())
+    assert spent, "the split needs a side to read"
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
@@ -223,14 +232,29 @@ def drift_verdict(pst, counts) -> str:
             return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
         return scipy.stats.binom.sf(hits - 1, n, pst.reject_thresh) <= level
 
-    # Both sides must clear their own test, so between them they cannot exceed
-    # the rate either one spends.
-    if all(rejects_null(*side, alpha) for side in sides):
-        return ADMITTED
-    # Either side drifting on its own is enough to say so, so they share.
-    if any(drifted(*side, alpha / len(sides)) for side in sides):
-        return DRIFTED
-    return UNCERTIFIED
+    # Shared out between the sides, so saying drifted at all costs half the rate
+    # however many are read.
+    for label, held in sides.items():
+        if any(drifted(*side, alpha / spent) for side in held):
+            return DRIFTED, label
+    pool = sides.get(UNIFORM, [])
+    if pool and all(rejects_null(*side, alpha) for side in pool):
+        return ADMITTED, None
+    return UNCERTIFIED, UNIFORM
+
+
+def veto_size(pst, populations) -> int:
+    """Prefixes a population needs before it can veto at all: the fewest at which
+    one reading entirely as the other class clears the level the vetoes share,
+
+        n = log(alpha / (2 * populations)) / log(max(1 - accept_thresh, reject_thresh))
+
+    Finer drift than that takes more prefixes than this buys.  The uniform pool
+    is what the certification budget is spent on, since it is the only one that
+    can admit.
+    """
+    level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
+    return ceil(log(level) / log(max(1 - pst.accept_thresh, pst.reject_thresh)))
 
 
 def certification_budget(pst, vs) -> int:
@@ -251,11 +275,22 @@ def prefixes_to_certify(pst, counts, drawn, vs) -> int:
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would the
     verdict come out decided?  The first multiple that would is the answer.
+
+    Only the uniform pool is drawn from, so only its counts grow with the
+    multiple.  Scaling the rest would be asking what a draw nobody makes would
+    say.
     """
     budget = certification_budget(pst, vs)
+    empty = ((0, 0), (0, 0))
     for multiple in range(2, 2 + budget // drawn):
-        supposed = tuple((hits * multiple, n * multiple) for hits, n in counts)
-        if drift_verdict(pst, supposed) is not UNCERTIFIED:
+        supposed = {
+            **counts,
+            UNIFORM: tuple(
+                (hits * multiple, n * multiple)
+                for hits, n in counts.get(UNIFORM, empty)
+            ),
+        }
+        if drift_verdict(pst, supposed)[0] is not UNCERTIFIED:
             return drawn * (multiple - 1)
     return budget
 
@@ -268,41 +303,82 @@ class AcceptPreservingGate:
     Nothing resets that budget: admitting a family is the round returning, and
     the gate is made afresh for the next search."""
 
-    def __init__(self, config):
+    def __init__(self, config, populations):
         self.enabled = config.require_accept_preserving
         self.refusals = 0
+        self._populations = populations
+        self._prefixes = None
 
-    def verdict(self, pst, seed_row, vs) -> str:
+    def _to_read(self, pst, voters):
+        """``label -> prefixes`` to read the split on, drawn once and read by
+        every family the round tries -- none of them was clustered on these, and
+        a set per candidate would buy every population again on each refusal.
+        """
+        if self._prefixes is None:
+            labels = self._populations.labels()
+            pool = min(
+                max(1, int(pst.table.representative.sum())),
+                certification_budget(pst, voters),
+            )
+            veto = veto_size(pst, len(labels))
+            drawn = {
+                label: self._populations.for_split(
+                    label, pool if label == UNIFORM else veto
+                )
+                for label in labels
+            }
+            self._prefixes = {label: held for label, held in drawn.items() if held}
+        return self._prefixes
+
+    def _certify_further(self, pst, counts, voters):
+        """Read the split on more of the uniform pool.
+
+        Undecided means no population vetoed and the pool could not admit, so
+        the pool is the only one short of anything.  A population that could
+        have vetoed and did not has already said what it has to say.
+        """
+        held = self._prefixes[UNIFORM]
+        more = self._populations.for_split(
+            UNIFORM, prefixes_to_certify(pst, counts, len(held), voters)
+        )
+        if not more:
+            return counts
+        # Kept, so a later family is read on these too rather than buying them
+        # again.
+        self._prefixes[UNIFORM] = held + more
+        extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
+        empty = ((0, 0), (0, 0))
+        return {
+            **counts,
+            UNIFORM: tuple(
+                (hits + grown_hits, n + grown_n)
+                for (hits, n), (grown_hits, grown_n) in zip(
+                    counts.get(UNIFORM, empty), extra.get(UNIFORM, empty)
+                )
+            ),
+        }
+
+    def verdict(self, pst, seed_row, vs):
+        """``(verdict, label)``: what the split says, and which population said
+        it, for the search to answer."""
         if not self.enabled:
-            return ADMITTED
+            return ADMITTED, None
         # The family was clustered over the table's prefixes, and a large enough
         # pool fits their noise, so only prefixes it never saw can test it.  The
         # seed votes on p with the very read of p being scored, so it sits out.
         voters = [u for u in vs if u != seed_row]
-        drawn = min(
-            max(1, int(pst.table.representative.sum())),
-            certification_budget(pst, voters),
-        )
-        decision, column = certification_sample(
-            pst, voters, draw_to_certify(pst, drawn)
-        )
-        counts = _split_counts(pst, decision, column)
-        verdict = drift_verdict(pst, counts)
+        prefixes = self._to_read(pst, voters)
+        counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
+        verdict, blamed = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            wanted = prefixes_to_certify(pst, counts, drawn, voters)
-            more_decision, more_column = certification_sample(
-                pst, voters, draw_to_certify(pst, wanted)
-            )
-            decision = np.concatenate([decision, more_decision])
-            column = np.concatenate([column, more_column])
-            counts = _split_counts(pst, decision, column)
-            verdict = drift_verdict(pst, counts)
+            counts = self._certify_further(pst, counts, voters)
+            verdict, blamed = drift_verdict(pst, counts)
         if verdict is ADMITTED:
-            return ADMITTED
+            return ADMITTED, None
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            hits_a, n_a = counts[0]
-            hits_r, n_r = counts[1]
+            hits_a, n_a = counts[blamed][0]
+            hits_r, n_r = counts[blamed][1]
             read = "read" if verdict is DRIFTED else "could not be read"
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families running {read} as cutting against the "
@@ -312,7 +388,7 @@ class AcceptPreservingGate:
                 f"{pst.accept_thresh:.0%} and {pst.reject_thresh:.0%}; no suffix "
                 f"family realises the accept-preserving split on this target"
             )
-        return verdict
+        return verdict, blamed
 
 
 @dataclass
@@ -360,11 +436,11 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
     # Certify only right before returning, as certifying is expensive.
-    verdict = gate.verdict(pst, v, vs)
+    verdict, blamed = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
-        return Judged(vs, 1.0, "not accept-preserving", verdict)
+        return Judged(vs, 1.0, "not accept-preserving", verdict, blamed)
     if verdict is UNCERTIFIED:
-        return Judged(vs, 1.0, "accept-preserving not established", verdict)
+        return Judged(vs, 1.0, "accept-preserving not established", verdict, blamed)
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
@@ -387,7 +463,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         decision_boundary,
         read_rates(pst.config, decision_boundary),
     )
-    gate = AcceptPreservingGate(pst.config)
+    gate = AcceptPreservingGate(pst.config, grow_pool)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
