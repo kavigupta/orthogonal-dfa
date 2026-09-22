@@ -125,6 +125,11 @@ class _PoolTable:
     def observed_masks(self, rows, prefix_mask):
         return self._masks[np.asarray(rows)][:, prefix_mask]
 
+    def population_masks(self):
+        # One state's prefixes, aimed at it and nothing else, so there is no
+        # sub-population here for the weighting to hold apart.
+        return {UNIFORM: self.representative}
+
 
 def shatter_state(pst, pool, suffixes, seed):
     """Cluster ``suffixes`` over ``pool`` and return the two sides the cut makes.
