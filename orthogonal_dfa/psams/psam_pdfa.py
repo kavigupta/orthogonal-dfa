@@ -2,9 +2,11 @@ import torch
 from torch import nn
 
 from orthogonal_dfa.module.sparsity.notifiable import NotifiableByLoss
-from orthogonal_dfa.psams.psams import (TorchPSAMs,
-                                        conditional_cascade_log_probs,
-                                        flip_log_probs)
+from orthogonal_dfa.psams.psams import (
+    TorchPSAMs,
+    conditional_cascade_log_probs,
+    flip_log_probs,
+)
 from orthogonal_dfa.utils.pdfa import PDFA
 
 

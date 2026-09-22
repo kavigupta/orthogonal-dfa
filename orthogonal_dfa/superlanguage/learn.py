@@ -2,8 +2,11 @@
 
 from typing import Any, Optional
 
-from orthogonal_dfa.l_star.learn import (DEFAULT_ACC_THRESHOLD,
-                                         DEFAULT_SAMPLE_LENGTH, learn_dfa)
+from orthogonal_dfa.l_star.learn import (
+    DEFAULT_ACC_THRESHOLD,
+    DEFAULT_SAMPLE_LENGTH,
+    learn_dfa,
+)
 from orthogonal_dfa.l_star.structures import NoiseModel, NoisyOracle, Oracle
 from orthogonal_dfa.l_star.tracker import SynthesisTracker
 

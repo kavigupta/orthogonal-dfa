@@ -5,8 +5,7 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.examples.bernoulli_parity import \
-    BernoulliParityOracle
+from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, build_pst
 from orthogonal_dfa.l_star.sampler import Sampler, UniformSampler
 from orthogonal_dfa.l_star.structures import NoisyOracle

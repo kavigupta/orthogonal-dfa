@@ -6,12 +6,14 @@ import numpy as np
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.dfa_utils import (count_paths_to_state,
-                                             per_state_sample,
-                                             rank_string_reaching_state,
-                                             states_intermediate,
-                                             uniform_weights,
-                                             unrank_string_reaching_state)
+from orthogonal_dfa.l_star.dfa_utils import (
+    count_paths_to_state,
+    per_state_sample,
+    rank_string_reaching_state,
+    states_intermediate,
+    uniform_weights,
+    unrank_string_reaching_state,
+)
 
 # Even number of 1s; strongly connected over {0, 1}.
 PARITY = DFA(

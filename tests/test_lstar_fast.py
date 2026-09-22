@@ -11,10 +11,11 @@ from automata.fa.dfa import DFA
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-    BernoulliParityOracle, BernoulliRegex)
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import (assert_terminates, assertDFA,
-                                assertDoesNotMeetProperty)
+from tests.lstar_common import assert_terminates, assertDFA, assertDoesNotMeetProperty
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 

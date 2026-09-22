@@ -2,7 +2,9 @@
 import argparse
 
 from orthogonal_dfa.experiments.gate_experiments import (
-    get_starting_gates, train_rnn_psams_sparse)
+    get_starting_gates,
+    train_rnn_psams_sparse,
+)
 
 
 def main():

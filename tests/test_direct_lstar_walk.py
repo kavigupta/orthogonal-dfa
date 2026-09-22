@@ -11,8 +11,7 @@ up as a state count that also moves for unrelated reasons.
 import unittest
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.transition_resolver import (_RESOLVED,
-                                                       TransitionResolver)
+from orthogonal_dfa.l_star.transition_resolver import _RESOLVED, TransitionResolver
 
 
 class _StubSifter:

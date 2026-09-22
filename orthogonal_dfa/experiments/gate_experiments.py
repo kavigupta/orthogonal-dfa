@@ -2,17 +2,21 @@ import gc
 
 import torch
 
-from orthogonal_dfa.baseline import (MonolithicLinearLayer,
-                                     PSAMsFollowedByLinear)
+from orthogonal_dfa.baseline import MonolithicLinearLayer, PSAMsFollowedByLinear
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.experiments.train_from_scratch import oracle
 from orthogonal_dfa.experiments.train_gate import (
-    evaluate_multiple, train_multiple, train_multiple_with_alternates)
+    evaluate_multiple,
+    train_multiple,
+    train_multiple_with_alternates,
+)
 from orthogonal_dfa.module.residual_gate import InputMonotonicModelingGate
-from orthogonal_dfa.module.rnn import (RNNProcessor, RNNPSAMProcessorNoise,
-                                       RNNPSAMProcessorSparse)
-from orthogonal_dfa.module.sparsity.automatic_sparsity import \
-    AutomaticSparseLayer
+from orthogonal_dfa.module.rnn import (
+    RNNProcessor,
+    RNNPSAMProcessorNoise,
+    RNNPSAMProcessorSparse,
+)
+from orthogonal_dfa.module.sparsity.automatic_sparsity import AutomaticSparseLayer
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA
 from orthogonal_dfa.psams.psams import TorchPSAMs
 from orthogonal_dfa.utils.pdfa import PDFA

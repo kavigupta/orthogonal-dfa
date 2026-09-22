@@ -11,14 +11,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from orthogonal_dfa.experiments.capal_comparison import (LEARNER_CAPAL,
-                                                         LEARNER_ELSTAR,
-                                                         SCHEMA_VERSION, Cell,
-                                                         run_capal_cell,
-                                                         run_elstar_cell,
-                                                         write_experiment)
-from orthogonal_dfa.experiments.capal_comparison.capal_targets import \
-    capal_benchmarks
+from orthogonal_dfa.experiments.capal_comparison import (
+    LEARNER_CAPAL,
+    LEARNER_ELSTAR,
+    SCHEMA_VERSION,
+    Cell,
+    run_capal_cell,
+    run_elstar_cell,
+    write_experiment,
+)
+from orthogonal_dfa.experiments.capal_comparison.capal_targets import capal_benchmarks
 from orthogonal_dfa.experiments.capal_comparison.core import eval_words
 from orthogonal_dfa.experiments.capal_comparison.sweep import run_cell
 from tests.test_capal_bridge import _ensure_capal_checkout

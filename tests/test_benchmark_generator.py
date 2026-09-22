@@ -5,8 +5,12 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
-    DFAOracle, build_star_l_star_dfa, sample_balanced_benchmark,
-    sample_inner_dfa, sample_star_l_star)
+    DFAOracle,
+    build_star_l_star_dfa,
+    sample_balanced_benchmark,
+    sample_inner_dfa,
+    sample_star_l_star,
+)
 from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 
 # ===================================================================

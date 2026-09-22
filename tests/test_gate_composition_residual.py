@@ -5,13 +5,14 @@ from permacache import no_cache_global
 
 from orthogonal_dfa.l_star.examples.composition_residual import bow_features
 from orthogonal_dfa.l_star.examples.gate_composition_residual import (
-    GateCompositionResidualScore, _fit_gate_bins,
-    fit_gate_composition_residual, gate_residual_oracle)
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (flanks,
-                                                            run_over_middles)
+    GateCompositionResidualScore,
+    _fit_gate_bins,
+    fit_gate_composition_residual,
+    gate_residual_oracle,
+)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import flanks, run_over_middles
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
-from tests.spliceai_small import (QUERY_LENGTH, random_middles,
-                                  small_module_and_exon)
+from tests.spliceai_small import QUERY_LENGTH, random_middles, small_module_and_exon
 
 # small monotonic fit so the tests stay fast on CPU
 FAST = dict(n_max=2, per_bin=400, epochs=30, device="cpu", chunk=64)

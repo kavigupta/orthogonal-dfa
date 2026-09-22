@@ -1,8 +1,10 @@
 # pylint: disable=duplicate-code
 import argparse
 
-from orthogonal_dfa.experiments.gate_experiments import (get_starting_gates,
-                                                         train_rnn_psams)
+from orthogonal_dfa.experiments.gate_experiments import (
+    get_starting_gates,
+    train_rnn_psams,
+)
 
 
 def main():

@@ -13,8 +13,11 @@ from __future__ import annotations
 
 from typing import List
 
-from orthogonal_dfa.capal_official import (import_capal, resolve_capal_dir,
-                                           to_automata_dfa)
+from orthogonal_dfa.capal_official import (
+    import_capal,
+    resolve_capal_dir,
+    to_automata_dfa,
+)
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
 from .benchmark import FAMILY_CAPAL, Benchmark

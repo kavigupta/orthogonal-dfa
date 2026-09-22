@@ -4,8 +4,7 @@ import numpy as np
 from parameterized import parameterized
 
 from orthogonal_dfa.manual_dfa.stop_codon_dfa import stop_codon_dfa
-from orthogonal_dfa.utils.dfa import (canonicalize_states, hash_dfa,
-                                      rename_states)
+from orthogonal_dfa.utils.dfa import canonicalize_states, hash_dfa, rename_states
 
 
 class TestCanonicalizeDFA(unittest.TestCase):

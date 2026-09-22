@@ -77,6 +77,11 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
+#: Candidates that must rule a split out before a leaf is left alone.  Every
+#: run pays this on every leaf it ends with, where only a run that merged a
+#: class gets anything back, so it is the price of asking at all.
+SPLIT_CANDIDATE_PATIENCE = 8
+
 
 def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoes):
     """Split every leaf the split test will take, re-reading the hypothesis each
@@ -129,7 +134,9 @@ def split_unreached_leaves(resolver, pst, vs) -> int:
     candidates = [v for v in (pst.table.suffix(i) for i in vs) if v]
     split = 0
     for leaf in list(range(resolver.num_states)):
-        distinguisher = resolver.splits.first_split(leaf, candidates)
+        distinguisher = resolver.splits.first_split(
+            leaf, candidates, patience=SPLIT_CANDIDATE_PATIENCE
+        )
         if distinguisher is not None:
             resolver.split_on(leaf, distinguisher)
             split += 1

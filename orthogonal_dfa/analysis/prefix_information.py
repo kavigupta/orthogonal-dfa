@@ -15,11 +15,12 @@ import numpy as np
 from permacache import permacache
 
 from orthogonal_dfa.data.exon import default_exon
-from orthogonal_dfa.l_star.examples.composition_residual import \
-    fit_composition_residual
+from orthogonal_dfa.l_star.examples.composition_residual import fit_composition_residual
 from orthogonal_dfa.l_star.examples.set_difference import SetDifferenceOracle
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (SpliceModelOracle,
-                                                            median_threshold)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (
+    SpliceModelOracle,
+    median_threshold,
+)
 from orthogonal_dfa.spliceai.exon_score import SpliceAIExonScore
 from orthogonal_dfa.spliceai.load_model import load_fm, load_spliceai
 

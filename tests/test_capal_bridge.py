@@ -11,11 +11,17 @@ import subprocess
 import unittest
 from pathlib import Path
 
-from orthogonal_dfa.capal_official import (PINNED_COMMIT, build_modulo_dfa,
-                                           build_regex_dfa, fit_with_fallback,
-                                           import_capal, make_learner,
-                                           resolve_capal_dir, to_automata_dfa,
-                                           verify_pinned)
+from orthogonal_dfa.capal_official import (
+    PINNED_COMMIT,
+    build_modulo_dfa,
+    build_regex_dfa,
+    fit_with_fallback,
+    import_capal,
+    make_learner,
+    resolve_capal_dir,
+    to_automata_dfa,
+    verify_pinned,
+)
 from orthogonal_dfa.capal_official.adapter import UPSTREAM_URL
 from orthogonal_dfa.l_star.structures import NoisyOracle
 
@@ -97,8 +103,9 @@ class TestCapalBridge(unittest.TestCase):
     def test_ported_dfa_matches_the_oracle(self):
         # The head-to-head is only meaningful if the upstream DFA and the Oracle
         # it stands in for denote the same language under the same symbol order.
-        from orthogonal_dfa.l_star.examples.bernoulli_parity import \
-            BernoulliParityOracle
+        from orthogonal_dfa.l_star.examples.bernoulli_parity import (
+            BernoulliParityOracle,
+        )
         from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 
         dfa = build_modulo_dfa(9, (3, 6))

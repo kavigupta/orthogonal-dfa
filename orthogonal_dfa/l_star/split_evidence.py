@@ -75,19 +75,31 @@ class SplitEvidence:
     def _edge_count(self) -> int:
         return self._tree.num_states * self.pst.alphabet_size
 
-    def first_split(self, state: int, distinguishers):
+    def first_split(self, state: int, distinguishers, *, patience):
         """The first of ``distinguishers`` the leaf's members split on, or
-        ``None``.
+        ``None`` once ``patience`` of them have ruled a split out.
 
         The members are pulled once and weighed against each candidate: they do
         not depend on the candidate, and pulling one settles strings onto the
         leaf rather than reading them, which is the cost of asking.
+
+        A leaf holding two classes meets a distinguisher that separates them
+        after about one over their class-preserving share of tries, where one
+        holding a single class answers ``NO_SPLIT`` to every candidate there is.
+        So the patience is what a clean leaf costs, and it is spent on the
+        verdict that says so rather than on exhausting the family.
         """
         members = self._members(state)
         tests = self._edge_count()
+        ruled_out = 0
         for distinguisher in distinguishers:
-            if self._weigh(members, distinguisher, tests) == SPLIT:
+            verdict = self._weigh(members, distinguisher, tests)
+            if verdict == SPLIT:
                 return distinguisher
+            if verdict == NO_SPLIT:
+                ruled_out += 1
+                if ruled_out >= patience:
+                    return None
         return None
 
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:

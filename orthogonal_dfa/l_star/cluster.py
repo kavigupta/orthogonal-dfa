@@ -4,9 +4,11 @@ from typing import List, Optional, Tuple
 import numpy as np
 import scipy.stats
 
-from .statistics import (evidence_margin_for_population_size,
-                         fpr_for_coverage_error,
-                         population_size_and_evidence_margin)
+from .statistics import (
+    evidence_margin_for_population_size,
+    fpr_for_coverage_error,
+    population_size_and_evidence_margin,
+)
 
 
 def identify_cluster_around(

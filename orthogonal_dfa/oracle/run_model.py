@@ -4,9 +4,13 @@ from permacache import permacache, stable_hash
 
 from orthogonal_dfa.data.exon import RawExon
 from orthogonal_dfa.data.sample_text import sample_text
-from orthogonal_dfa.spliceai.exon_score import (assert_output_width, device_of,
-                                                forward_batch, full_lengths,
-                                                spliceai_exon_scores)
+from orthogonal_dfa.spliceai.exon_score import (
+    assert_output_width,
+    device_of,
+    forward_batch,
+    full_lengths,
+    spliceai_exon_scores,
+)
 
 
 def batched_run(model, arr, batch_size=1024):

@@ -31,8 +31,7 @@ from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.utils.dfa import (al_dfa_symbols_to_int,
-                                      al_dfa_symbols_to_str)
+from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, al_dfa_symbols_to_str
 
 
 def sample_random_dfa(

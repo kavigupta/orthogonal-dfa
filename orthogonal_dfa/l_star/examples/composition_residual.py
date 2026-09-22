@@ -6,9 +6,11 @@ from permacache import permacache, stable_hash
 from torch import nn
 
 from orthogonal_dfa.data.exon import RawExon
-from orthogonal_dfa.l_star.examples.spliceai_oracle import (flanks,
-                                                            run_over_middles,
-                                                            symbols)
+from orthogonal_dfa.l_star.examples.spliceai_oracle import (
+    flanks,
+    run_over_middles,
+    symbols,
+)
 from orthogonal_dfa.spliceai.exon_score import device_of
 
 # Minimal number of samples per free coefficient to fit an unregularized linear model effectively.

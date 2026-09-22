@@ -5,8 +5,7 @@ import unittest
 import numpy as np
 from automata.fa.dfa import DFA
 
-from orthogonal_dfa.l_star.examples.bernoulli_parity import \
-    AllFramesClosedOracle
+from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 from orthogonal_dfa.superlanguage.target import super_target_dfa
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary

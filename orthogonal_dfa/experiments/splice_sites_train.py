@@ -3,8 +3,10 @@ from matplotlib import pyplot as plt
 
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.manual_dfa.splice_site_dfa import splice_site_psam_pdfa
-from orthogonal_dfa.psams.train import (identify_first_best_by_validation,
-                                        train_psam_pdfa_full_learning_curve)
+from orthogonal_dfa.psams.train import (
+    identify_first_best_by_validation,
+    train_psam_pdfa_full_learning_curve,
+)
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
 tolerance = 0.5e-3

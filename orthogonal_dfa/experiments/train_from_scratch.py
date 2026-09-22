@@ -5,12 +5,13 @@ import torch
 from matplotlib import pyplot as plt
 from sklearn.base import defaultdict
 
-from orthogonal_dfa.baseline import (MonolithicLinearLayer,
-                                     PSAMsFollowedByLinear)
+from orthogonal_dfa.baseline import MonolithicLinearLayer, PSAMsFollowedByLinear
 from orthogonal_dfa.data.exon import default_exon
 from orthogonal_dfa.psams.psam_pdfa import PSAMPDFA, PSAMPDFAWithTemperature
-from orthogonal_dfa.psams.train import (identify_first_best_by_validation,
-                                        train_psam_pdfa_full_learning_curve)
+from orthogonal_dfa.psams.train import (
+    identify_first_best_by_validation,
+    train_psam_pdfa_full_learning_curve,
+)
 from orthogonal_dfa.spliceai.load_model import load_spliceai
 
 

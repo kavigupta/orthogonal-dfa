@@ -7,9 +7,14 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import (
-    DFAOracle, sample_random_dfa)
+    DFAOracle,
+    sample_random_dfa,
+)
 from orthogonal_dfa.l_star.examples.bernoulli_parity import (
-    AllFramesClosedOracle, BernoulliParityOracle, BernoulliRegex)
+    AllFramesClosedOracle,
+    BernoulliParityOracle,
+    BernoulliRegex,
+)
 from orthogonal_dfa.l_star.examples.spliceai_oracle import SpliceModelOracle
 from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
 

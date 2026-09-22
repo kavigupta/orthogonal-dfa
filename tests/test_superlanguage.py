@@ -11,11 +11,14 @@ from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.cluster import read_rates, smallest_readable_family
-from orthogonal_dfa.l_star.examples.bernoulli_parity import \
-    AllFramesClosedOracle
+from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import build_pst
-from orthogonal_dfa.l_star.structures import (NoiseModel, NoisyOracle, Oracle,
-                                              SymmetricBernoulli)
+from orthogonal_dfa.l_star.structures import (
+    NoiseModel,
+    NoisyOracle,
+    Oracle,
+    SymmetricBernoulli,
+)
 from orthogonal_dfa.l_star.tracker import RecordingTracker
 from orthogonal_dfa.superlanguage.learn import learn_superlanguage
 from orthogonal_dfa.superlanguage.oracle import LiftedOracle

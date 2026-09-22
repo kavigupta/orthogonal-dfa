@@ -6,9 +6,12 @@ import unittest
 import matplotlib
 import numpy as np
 
-from orthogonal_dfa.l_star.visualize import (_class_colors, _dot_layout,
-                                             render_diagnostics,
-                                             sample_class_distribution)
+from orthogonal_dfa.l_star.visualize import (
+    _class_colors,
+    _dot_layout,
+    render_diagnostics,
+    sample_class_distribution,
+)
 from tests.dfas import PARITY
 
 # render_diagnostics imports pyplot lazily, so this lands before any backend is

@@ -3,8 +3,11 @@ import unittest
 import numpy as np
 import torch
 
-from orthogonal_dfa.psams.psams import (conditional_cascade_log_probs,
-                                        flip_log_probs, union_log_probs)
+from orthogonal_dfa.psams.psams import (
+    conditional_cascade_log_probs,
+    flip_log_probs,
+    union_log_probs,
+)
 
 
 class TestTorchProbabilityFns(unittest.TestCase):

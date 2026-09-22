@@ -6,8 +6,7 @@ from automata.fa.dfa import DFA
 from automata.fa.nfa import NFA
 
 from orthogonal_dfa.l_star.structures import Oracle
-from orthogonal_dfa.utils.dfa import (al_dfa_symbols_to_int,
-                                      dfa_symbols_to_num, p_to_al)
+from orthogonal_dfa.utils.dfa import al_dfa_symbols_to_int, dfa_symbols_to_num, p_to_al
 
 
 @dataclass(frozen=True)

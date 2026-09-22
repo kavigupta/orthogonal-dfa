@@ -4,8 +4,7 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.prefix_suffix_tracker import (_distinct_prefixes,
-                                                         _draw_budget)
+from orthogonal_dfa.l_star.prefix_suffix_tracker import _distinct_prefixes, _draw_budget
 
 
 class _Sampler:

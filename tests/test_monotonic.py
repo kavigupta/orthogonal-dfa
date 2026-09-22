@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from parameterized import parameterized
 
-from orthogonal_dfa.module.monotonic import (Monotonic1DFixedRange,
-                                             inv_batch_norm)
+from orthogonal_dfa.module.monotonic import Monotonic1DFixedRange, inv_batch_norm
 
 eps = 1e-3
 

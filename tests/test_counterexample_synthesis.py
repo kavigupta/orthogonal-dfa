@@ -8,8 +8,12 @@ import numpy as np
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
-    STALL_PATIENCE, _accumulate_indecisive, _PoolState, _publish_pool,
-    _StallDetector)
+    STALL_PATIENCE,
+    _accumulate_indecisive,
+    _PoolState,
+    _publish_pool,
+    _StallDetector,
+)
 
 
 def _resolver(*strings):

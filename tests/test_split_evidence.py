@@ -3,9 +3,13 @@ from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.split_evidence import (MEMBERS_TO_RULE_OUT_A_SPLIT,
-                                                  NO_SPLIT, SPLIT, UNDECIDED,
-                                                  SplitEvidence)
+from orthogonal_dfa.l_star.split_evidence import (
+    MEMBERS_TO_RULE_OUT_A_SPLIT,
+    NO_SPLIT,
+    SPLIT,
+    UNDECIDED,
+    SplitEvidence,
+)
 
 
 class _StubFamily:

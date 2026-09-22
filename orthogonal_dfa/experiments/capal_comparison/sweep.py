@@ -16,9 +16,17 @@ from typing import Any, Callable, Dict, List, Sequence
 from orthogonal_dfa.l_star.preconditions import PreconditionReport
 
 from .benchmark import Benchmark
-from .core import (LEARNER_CAPAL, LEARNER_ELSTAR, REPO_ROOT, SCHEMA_VERSION,
-                   Cell, eval_words, run_capal_cell, run_elstar_cell,
-                   write_experiment)
+from .core import (
+    LEARNER_CAPAL,
+    LEARNER_ELSTAR,
+    REPO_ROOT,
+    SCHEMA_VERSION,
+    Cell,
+    eval_words,
+    run_capal_cell,
+    run_elstar_cell,
+    write_experiment,
+)
 
 #: Every sweep runs the whole grid of these against the benchmarks handed to it.
 ETAS = [0.05, 0.10, 0.20, 0.30]
