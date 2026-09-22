@@ -37,7 +37,9 @@ def identify_cluster_around(
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
         losses = ((masks != cluster_center) * weights).sum(1)
-        nearest = losses.argsort()[:count]
+        # Ties here are common, and breaking them differently each pass churns
+        # the family; every suffix that joins it costs a column of queries.
+        nearest = losses.argsort(kind="stable")[:count]
         if losses[seed_local] > losses[nearest[-1]]:
             break
         if seed_local not in nearest:
