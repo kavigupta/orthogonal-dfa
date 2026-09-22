@@ -123,6 +123,13 @@ class _PoolState:
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
 
+    def retire_states(self) -> None:
+        """Forget last round's state populations: this round's states are the
+        ones there are, and a leaf it does not have is not one to go on
+        publishing."""
+        for stale in [label for label in self.held if label[0] == "state"]:
+            self.held.pop(stale)
+
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
         it."""
@@ -136,10 +143,7 @@ class _PoolState:
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
-    # This round's states are the ones there are: a leaf an earlier round had
-    # and this one does not is not a population to go on publishing.
-    for stale in [label for label in state.held if label[0] == "state"]:
-        state.held.pop(stale)
+    state.retire_states()
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:

@@ -2,11 +2,16 @@
 
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
+import numpy as np
+
+from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
     _PoolState,
+    _publish_pool,
     _StallDetector,
 )
 
@@ -24,8 +29,28 @@ def _state(held=()):
 
 
 def _taken(state):
-    """Every string the round's populations hold, in the order they arrived."""
+    """Every string the round's boundary population holds."""
     return [string for strings in state.held.values() for string in strings]
+
+
+class _Table:
+    """Just enough of the table for `_publish_pool`: which populations it holds."""
+
+    def __init__(self):
+        self.populations = {}
+        self.representative = np.zeros(0, dtype=bool)
+
+    def drop_population(self, label):
+        self.populations.pop(label, None)
+
+    def add_prefixes(self, prefixes, *, population):
+        self.populations[population] = list(prefixes)
+
+
+def _published(state):
+    pst = SimpleNamespace(table=_Table())
+    _publish_pool(pst, state)
+    return pst.table.populations
 
 
 class TestWhatARoundTakes(unittest.TestCase):
@@ -73,6 +98,15 @@ class TestWhatARoundTakes(unittest.TestCase):
         _accumulate_indecisive(_resolver(b"a", b"b"), state, 1)
 
         self.assertEqual(1, len(state.held), "one population for the round")
+
+    def test_each_round_names_a_population_of_its_own(self):
+        state = _state()
+
+        _accumulate_indecisive(_resolver(b"a"), state, 5)
+        _published(state)
+        _accumulate_indecisive(_resolver(b"b"), state, 5)
+
+        self.assertEqual([("boundary", 1), ("boundary", 2)], sorted(state.held))
 
     def test_what_it_takes_it_also_remembers(self):
         state = _state()
@@ -128,3 +162,38 @@ class TestWhenARoundGivesUp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestWhatARoundPublishes(unittest.TestCase):
+    def test_the_round_draws_over_last_rounds_states(self):
+        state = _state()
+        state.held[("state", 7)] = [b"x"]
+        drawn = SimpleNamespace(draw=lambda: b"y")
+
+        with mock.patch.object(cs, "aim_at", lambda *_: object()), mock.patch.object(
+            cs, "state_source", lambda *_, **__: drawn
+        ):
+            cs._per_state_members(  # pylint: disable=protected-access
+                None, SimpleNamespace(num_states=1), None, state, 1
+            )
+
+        self.assertEqual([("state", 0)], sorted(state.held))
+
+    def test_last_rounds_states_are_not_this_rounds(self):
+        state = _state()
+        state.held[("state", 0)] = [b"x"]
+
+        state.retire_states()
+
+        self.assertEqual([], sorted(state.held))
+
+    def test_a_population_the_round_no_longer_has_leaves_the_table(self):
+        state = _state()
+        state.held[("state", 0)] = [b"x"]
+        pst = SimpleNamespace(table=_Table())
+        _publish_pool(pst, state)
+
+        state.held.pop(("state", 0))
+        _publish_pool(pst, state)
+
+        self.assertNotIn(("state", 0), pst.table.populations)
