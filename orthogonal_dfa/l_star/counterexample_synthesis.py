@@ -24,7 +24,13 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_sources import BoundarySource, aim_at, state_source
+from .prefix_sources import (
+    BoundarySource,
+    UniformSource,
+    aim_at,
+    draw_many,
+    state_source,
+)
 from .progress import track
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
@@ -195,10 +201,44 @@ def grow_population(pst, state, label) -> bool:
         state.sources.pop(label, None)
         pst.table.drop_population(label)
         return False
-    drawn = [source.draw() for _ in range(PER_STATE)]
+    # As many as the uniform draw this stands in for adds: growing the
+    # population a refusal names is a substitution, not a token.
+    drawn = [source.draw() for _ in range(pst.config.num_addtl_prefixes)]
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
     return True
+
+
+class _Populations:
+    """What the next round's family search may ask of this round's populations:
+    more prefixes for one of them, or prefixes to read the split on."""
+
+    def __init__(self, pst, state):
+        self._pst = pst
+        self._state = state
+
+    def labels(self) -> list:
+        """The populations a family is read over: this round's, and the uniform
+        pool the table keeps across rounds."""
+        return [UNIFORM, *self._state.held]
+
+    def grow(self, label) -> bool:
+        return grow_population(self._pst, self._state, label)
+
+    def for_split(self, label, wanted: int) -> list:
+        """Prefixes for one population, to read the split on and not to keep.
+
+        Empty where nothing draws for it any more: no say in the split rather
+        than a split held up.  `grow` is what retires it.
+        """
+        source = (
+            UniformSource(self._pst)
+            if label == UNIFORM
+            else self._state.sources.get(label)
+        )
+        if source is None or not source.worth_drawing():
+            return []
+        return draw_many(source, wanted)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -317,9 +357,7 @@ def counterexample_driven_synthesis(
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
         vs, boundary = sample_suffix_family(
-            pst,
-            pst.table.intern_suffix(b""),
-            lambda label: grow_population(pst, state, label),
+            pst, pst.table.intern_suffix(b""), _Populations(pst, state)
         )
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)

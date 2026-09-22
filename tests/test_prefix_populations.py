@@ -6,6 +6,7 @@ the limit on its own, and grows whichever one the rate belongs to.
 """
 
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -105,12 +106,17 @@ class _Table:
         self.added.setdefault(population, []).extend(prefixes)
 
 
+#: What a uniform draw adds, and so what growing a named population adds.
+_A_DRAW = 8
+
+
 class _Pst:
     """Enough of a tracker for `grow_population`: what it grew, and how."""
 
     def __init__(self):
         self.drawn_uniformly = 0
         self.table = _Table()
+        self.config = SimpleNamespace(num_addtl_prefixes=_A_DRAW)
 
     def sample_more_prefixes(self):
         self.drawn_uniformly += 1
@@ -132,13 +138,15 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
         self.assertEqual(1, pst.drawn_uniformly)
 
     def test_a_population_with_a_source_draws_through_it(self):
+        # As many as the uniform draw it stands in for, so a named population
+        # is not outgrown by the fallback for the ones nothing names.
         pst = _Pst()
         state = _holding(("state", 0), _Source(_words(100), worth=True))
 
         self.assertTrue(grow_population(pst, state, ("state", 0)))
 
-        self.assertEqual(_words(50), state.held[("state", 0)])
-        self.assertEqual(_words(50), pst.table.added[("state", 0)])
+        self.assertEqual(_words(_A_DRAW), state.held[("state", 0)])
+        self.assertEqual(_words(_A_DRAW), pst.table.added[("state", 0)])
 
     def test_a_population_nothing_draws_for_is_retired(self):
         pst = _Pst()
