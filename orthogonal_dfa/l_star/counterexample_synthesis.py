@@ -110,7 +110,7 @@ SPLIT_SCAN_ALPHA = 1e-3
 SPLIT_SCAN_MIN_DEVIATION = 0.05
 
 
-def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoes):
+def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold):
     """Split every leaf the split test will take, re-reading the hypothesis each
     time so the round returns the split one."""
     (
@@ -119,11 +119,10 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
     ) = resolver.to_dfa_and_tree()
     merged = []
     true_acc = None
-    while vetoes < STALL_PATIENCE:
+    for _ in range(STALL_PATIENCE):
         reached, merged = split_unreached_leaves(resolver, pst, vs, dfa)
         if not reached:
             break
-        vetoes += 1
         dfa, dt = resolver.to_dfa_and_tree()
         true_acc = estimate_agreement_rate(
             pst,
@@ -417,7 +416,6 @@ def counterexample_driven_synthesis(
     ]
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
-    vetoes = 0
     best = BestRound()
     index = 0
     while True:
@@ -462,7 +460,6 @@ def counterexample_driven_synthesis(
                 best,
                 index=index,
                 acc_threshold=acc_threshold,
-                vetoes=vetoes,
             )
             best.consider(
                 consistency=true_acc,
