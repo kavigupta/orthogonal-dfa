@@ -109,6 +109,36 @@ SPLIT_SCAN_ALPHA = 1e-3
 #: floor on the minority worth another round rather than on the rate alone.
 SPLIT_SCAN_MIN_DEVIATION = 0.05
 
+#: Prefixes read before the rest of the draw is.  The floor above is a fixed distance, so a
+#: few hundred reads settle it whatever the leaf's share, while `scan_prefixes` sizes for
+#: the binomial test below -- which has to resolve a `min_coverage` minority, and so grows
+#: with the square of the leaf's share.  Most leaves read flatly pure and never need that.
+#:
+#: The whole draw still happens: what is staged is the reading, not the drawing, so the rng
+#: is consumed identically either way.  Noise is keyed by the string, so a prefix left
+#: unread costs nothing and changes nothing about what the rest of them answer.
+SPLIT_SCAN_STAGE = 700
+
+#: Standard errors of headroom the staged read keeps before it settles the question, so its
+#: own sampling noise cannot exit on a leaf the whole pool would have flagged.
+SPLIT_SCAN_STAGE_SIGMA = 2.5
+
+
+def _reads_inside(hits: int, n: int, accept_rate: float, reject_rate: float) -> float:
+    """How far the rate sits inside the two pure rates: negative outside either."""
+    rate = hits / n
+    return min(accept_rate - rate, rate - reject_rate)
+
+
+def _settles_pure(pst, stage, accept_rate: float, reject_rate: float) -> bool:
+    """Whether this much of the pool already places the leaf too near a pure rate to
+    be worth reading the rest of it."""
+    hits = int(sum(pst.table.memo.membership_queries(stage)))
+    rate = hits / len(stage)
+    error = math.sqrt(max(rate * (1 - rate), 0.0) / len(stage))
+    inside = _reads_inside(hits, len(stage), accept_rate, reject_rate)
+    return inside + SPLIT_SCAN_STAGE_SIGMA * error < SPLIT_SCAN_MIN_DEVIATION
+
 
 def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold):
     """Split every leaf the split test will take, re-reading the hypothesis each
@@ -191,12 +221,16 @@ def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
     pool = [p for p in drawn if p is not None]
     if len(pool) < MEMBERS_TO_RULE_OUT_A_SPLIT:
         return True
-    hits = int(sum(pst.table.memo.membership_queries(pool)))
-    n = len(pool)
     accept_rate = pst.decision_boundary + signal
     reject_rate = pst.decision_boundary - signal
-    inside = min(accept_rate - hits / n, hits / n - reject_rate)
-    if inside < SPLIT_SCAN_MIN_DEVIATION:
+    stage = pool[:SPLIT_SCAN_STAGE]
+    if len(stage) >= MEMBERS_TO_RULE_OUT_A_SPLIT and _settles_pure(
+        pst, stage, accept_rate, reject_rate
+    ):
+        return True
+    hits = int(sum(pst.table.memo.membership_queries(pool)))
+    n = len(pool)
+    if _reads_inside(hits, n, accept_rate, reject_rate) < SPLIT_SCAN_MIN_DEVIATION:
         return True
     not_accept = scipy.stats.binom.cdf(hits, n, accept_rate)
     not_reject = scipy.stats.binom.sf(hits - 1, n, reject_rate)
