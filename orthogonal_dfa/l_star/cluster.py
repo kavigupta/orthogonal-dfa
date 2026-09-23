@@ -332,8 +332,7 @@ class AcceptPreservingGate:
         return self._prefixes
 
     def _certify_further(self, pst, counts, voters):
-        """Read the split on more of the uniform pool, which is the only one an
-        undecided verdict leaves short."""
+        """``counts`` with a further read of the uniform pool added into it."""
         held = self._prefixes[UNIFORM]
         more = self._populations.for_split(
             UNIFORM, prefixes_to_certify(pst, counts, len(held), voters)
