@@ -246,6 +246,8 @@ def veto_size(pst, populations) -> int:
     at ``reject_thresh`` rather than at nothing, so the size is asked for the
     miss rate and not the level alone.
     """
+    # Two sides apiece, which is the most `drift_verdict` can share the rate
+    # between: sizing for more of them than it reads only oversizes the draw.
     level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
     return max(
         low_tail_detection_size(null, alt, level, ACCEPT_PRESERVING_ERROR_RATE)
@@ -394,9 +396,9 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
-    #: FNR is a max over populations, this is the corresponding argmax: the pool
-    #: that the family is most indecisive on.
-    worst: Optional[object] = None
+    #: The population the search grows to answer this: the FNR's argmax, or the
+    #: one the gate refused on.
+    blamed: Optional[object]
 
 
 def judge_family(pst, gate, v, vs, family_size) -> Judged:
@@ -408,7 +410,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # testing it would spend a budget that means no accept-preserving family
     # exists.
     if len(vs) < family_size:
-        return Judged(vs, 1.0, "undersized", ADMITTED)
+        return Judged(vs, 1.0, "undersized", ADMITTED, None)
     # Both rates are properties of the population the test runs over, so read
     # the family at a size calibrated for it.
     size, pst.evidence_margin = readable_size_and_margin(
@@ -507,9 +509,9 @@ def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
-        elif judged.worst is None:
+        elif judged.blamed is None:
             pst.sample_more_prefixes()
-        elif not populations.grow(judged.worst):
+        elif not populations.grow(judged.blamed):
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
             # results do not follow the theory.
@@ -517,5 +519,5 @@ def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
             # Likely precondition violation is too-high collision probability
             # among suffixes.
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
-            print(f"  nothing draws for {judged.worst}; kept {kept} of {drawn}")
+            print(f"  nothing draws for {judged.blamed}; kept {kept} of {drawn}")
             strategy = "suffix"

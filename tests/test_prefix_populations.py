@@ -29,12 +29,13 @@ def _table(prefixes, populations):
     return table
 
 
-def _tracker(table, *, boundary=0.5, margin=0.1):
-    """A tracker holding ``table``, enough of one to read a decision vector."""
+def _tracker(table):
+    """A tracker holding ``table``, enough of one to read a decision vector
+    against a band of 0.4 to 0.6."""
     pst = PrefixSuffixTracker.__new__(PrefixSuffixTracker)
     pst.table = table
-    pst.decision_boundary = boundary
-    pst.evidence_margin = margin
+    pst.decision_boundary = 0.5
+    pst.evidence_margin = 0.1
     return pst
 
 
@@ -72,10 +73,6 @@ class TestTheRateIsPerPopulation(unittest.TestCase):
         rate, worst = pst.fnr_from_decision(decision)
         self.assertEqual(worst, ("state", 3))
         self.assertAlmostEqual(rate, 0.2)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class _Source:
@@ -173,3 +170,7 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
         self.assertEqual([("state", 9)], pst.table.dropped)
+
+
+if __name__ == "__main__":
+    unittest.main()
