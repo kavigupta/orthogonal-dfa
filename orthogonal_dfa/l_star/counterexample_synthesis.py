@@ -95,6 +95,20 @@ SPLIT_CANDIDATE_PATIENCE = 24
 #: costs the candidates above; missing a real one costs the merge.
 SPLIT_SCAN_ALPHA = 1e-3
 
+#: How far a leaf's accept rate must sit inside the two pure rates before the read
+#: above is believed.
+#:
+#: The rates it is compared against are `decision_boundary +- min_signal_strength`, and
+#: the boundary is re-estimated every round -- it moves by a percent or two between
+#: them.  The count of prefixes grows with the leaf's share, so the largest leaves are
+#: read precisely enough to resolve far below that drift, and a pure leaf then reads
+#: many sigma off a rate that is itself wrong.  Under this much, the deviation says the
+#: boundary is mis-estimated rather than the leaf is mixed.
+#:
+#: A minority of share `w` moves the rate by `2 * min_signal_strength * w`, so this is a
+#: floor on the minority worth another round rather than on the rate alone.
+SPLIT_SCAN_MIN_DEVIATION = 0.05
+
 
 def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoes):
     """Split every leaf the split test will take, re-reading the hypothesis each
@@ -180,8 +194,13 @@ def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
         return True
     hits = int(sum(pst.table.memo.membership_queries(pool)))
     n = len(pool)
-    not_accept = scipy.stats.binom.cdf(hits, n, pst.decision_boundary + signal)
-    not_reject = scipy.stats.binom.sf(hits - 1, n, pst.decision_boundary - signal)
+    accept_rate = pst.decision_boundary + signal
+    reject_rate = pst.decision_boundary - signal
+    inside = min(accept_rate - hits / n, hits / n - reject_rate)
+    if inside < SPLIT_SCAN_MIN_DEVIATION:
+        return True
+    not_accept = scipy.stats.binom.cdf(hits, n, accept_rate)
+    not_reject = scipy.stats.binom.sf(hits - 1, n, reject_rate)
     return not (not_accept < alpha / 2 and not_reject < alpha / 2)
 
 

@@ -47,7 +47,7 @@ def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler=None):
 
 
 def compute_dfa_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000, sampler=None
+    dfa, oracle_creator, *, exclude_pattern=None, symbols=2, count=10_000, sampler=None
 ):
     """Evaluate dfa against a noiseless oracle. Returns (accuracy, false_positives, false_negatives)."""
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
@@ -70,7 +70,11 @@ def evaluate_accuracy(
 ):
     """Return accuracy of dfa against a noiseless oracle."""
     accuracy, _, _ = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
+        dfa,
+        oracle_creator,
+        exclude_pattern=exclude_pattern,
+        symbols=symbols,
+        count=count,
     )
     return accuracy
 
@@ -79,7 +83,11 @@ def assertDFA(
     testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
 ):
     accuracy, false_positives, false_negatives = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
+        dfa,
+        oracle_creator,
+        exclude_pattern=exclude_pattern,
+        symbols=symbols,
+        count=count,
     )
     if accuracy < 1 - assertion_allowed_error:
         print("DFA is incorrect!")
@@ -301,4 +309,20 @@ def cluster_pst(masks, min_signal_strength):
     return SimpleNamespace(
         table=_ClusterTable(masks),
         config=SimpleNamespace(min_signal_strength=min_signal_strength),
+    )
+
+
+def assert_not_merged(testcase, dfa, target, *, oracle_creator, symbols, sampler=None):
+    """Grade ``dfa`` and fail naming the state counts and the error split: a merged
+    rejecting state shows as false positives alone, which is what tells a merge from
+    ordinary shortfall."""
+    accuracy, false_positives, false_negatives = compute_dfa_accuracy(
+        dfa, oracle_creator, symbols=symbols, sampler=sampler
+    )
+    if accuracy >= 1 - assertion_allowed_error:
+        return
+    testcase.fail(
+        f"merged the armed state (accuracy {accuracy:.4f}, "
+        f"{len(dfa.states)} of {len(target.states)} states). "
+        f"FP: {len(false_positives)}, FN: {len(false_negatives)}"
     )

@@ -16,11 +16,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.preconditions import satisfies_preconditions
 from orthogonal_dfa.l_star.structures import NoisyOracle
-from tests.lstar_common import (
-    assertion_allowed_error,
-    compute_dfa_accuracy,
-    endpoint_mass,
-)
+from tests.lstar_common import assert_not_merged, endpoint_mass
 
 LENGTH = 40
 SIGNAL = 0.2
@@ -88,10 +84,6 @@ class TestTrapLearned(unittest.TestCase):
         target = build_trap(alphabet, arms, disarm)
         oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=SIGNAL, seed=seed)
-        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator, symbols=alphabet)
-        if accuracy < 1 - assertion_allowed_error:
-            self.fail(
-                f"merged the armed state (accuracy {accuracy:.4f}, "
-                f"{len(dfa.states)} of {len(target.states)} states). "
-                f"FP: {len(fp)}, FN: {len(fn)}"
-            )
+        assert_not_merged(
+            self, dfa, target, oracle_creator=oracle_creator, symbols=alphabet
+        )

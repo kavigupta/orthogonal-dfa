@@ -30,7 +30,7 @@ from orthogonal_dfa.l_star.preconditions import (
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import NoisyOracle
-from tests.lstar_common import assertion_allowed_error, compute_dfa_accuracy
+from tests.lstar_common import assert_not_merged
 
 ALPHABET = 12
 #: Symbols that arm the trap.  One: two of them let the round separate ``Q`` and the target is
@@ -99,12 +99,11 @@ class TestArmedMergeLearned(unittest.TestCase):
         )
         # Graded at the length it was learned at: a hypothesis that merges ``Q`` still reads
         # well on strings long enough that almost all of them reach ``A`` anyway.
-        accuracy, fp, fn = compute_dfa_accuracy(
-            dfa, oracle_creator, symbols=ALPHABET, sampler=sampler
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ALPHABET,
+            sampler=sampler,
         )
-        if accuracy < 1 - assertion_allowed_error:
-            self.fail(
-                f"merged the armed state (accuracy {accuracy:.4f}, "
-                f"{len(dfa.states)} of {len(target.states)} states). "
-                f"FP: {len(fp)}, FN: {len(fn)}"
-            )
