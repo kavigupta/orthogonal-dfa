@@ -190,10 +190,8 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
 
 
 def grow_population(pst, state, label) -> bool:
-    """Draw more prefixes for one population, saying whether it could.
-
-    A population nothing draws for any more is retired here, table and all.
-    """
+    """Draw more prefixes for one population, or retire it, table and all, when
+    nothing draws for it any more."""
     if label == UNIFORM:
         pst.sample_more_prefixes()
         return True
@@ -213,7 +211,11 @@ def grow_population(pst, state, label) -> bool:
 
 
 class _Populations:
-    """What a family search may ask of a round's prefix populations."""
+    """What the family search may ask of a round's populations.
+
+    The search is handed this rather than the state itself: `cluster` is
+    imported from here, so it cannot import `_PoolState` back.
+    """
 
     def __init__(self, pst, state):
         self._pst = pst
