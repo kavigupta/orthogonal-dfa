@@ -61,9 +61,8 @@ class RejectionSource(ABC):
 
     @property
     def proven(self) -> bool:
-        """Whether the yield test has been asked *and* passed.  A source nobody
-        has proved is not worth 905 probes to a caller that wants five
-        prefixes."""
+        """Whether the yield test has been asked, as `worth_drawing` asks it,
+        *and* passed."""
         return self._proven is True
 
     def worth_drawing(self) -> bool:

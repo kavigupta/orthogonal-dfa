@@ -184,6 +184,6 @@ class StateSource(RejectionSource):
 
 
 def draw_many(source, wanted: int) -> list:
-    """``wanted`` prefixes from ``source``, which one worth drawing on always
-    has: its region holds more than a round can use up."""
+    """``wanted`` prefixes from ``source``, which raises rather than come up
+    short: a region worth drawing on holds more than a round can use up."""
     return sorted(source.draw() for _ in range(wanted))

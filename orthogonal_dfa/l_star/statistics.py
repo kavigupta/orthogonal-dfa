@@ -244,9 +244,9 @@ def low_tail_detection_size(null, alternative, level, miss_rate) -> int:
     """Fewest samples at which a rate of ``alternative`` is called low at
     ``level`` under ``null``, all but ``miss_rate`` of the time.
 
-    Sizing on ``level`` alone gives the size at which the test can fire at all,
-    which is the size at which a reading of nothing but zeroes is significant.
-    A rate that merely sits at ``alternative`` is missed there.
+    Sizing on ``level`` alone gives the size at which a reading of nothing but
+    zeroes is significant, which misses a rate that merely sits at
+    ``alternative``.
     """
     assert 0 <= alternative < null <= 1, (alternative, null)
     low, high = 1, None

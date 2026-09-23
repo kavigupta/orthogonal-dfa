@@ -177,8 +177,7 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     """
     source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
     if wanted > 0:
-        # Asked rather than `has_sufficient_yield`, which answers without
-        # remembering: the same probes, and a later caller reads the verdict.
+        # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
         drawing = source.worth_drawing()
         found = source.found()
         if drawing:
@@ -193,22 +192,20 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
 def grow_population(pst, state, label) -> bool:
     """Draw more prefixes for one population, saying whether it could.
 
-    A population nothing draws for any more is retired here, table and all: a
-    rate the round cannot answer is not one to hold a family to.
+    A population nothing draws for any more is retired here, table and all.
     """
     if label == UNIFORM:
         pst.sample_more_prefixes()
         return True
     source = state.sources.get(label)
     if source is None or not source.worth_drawing():
-        # Forgotten, not held aside, so a later round that strands one of these
-        # again can pool it behind a source that does draw.
+        # Forgotten rather than held aside, so a later round that strands one
+        # of these again can pool it behind a source that does draw.
         state.seen.difference_update(state.held.pop(label, ()))
         state.sources.pop(label, None)
         pst.table.drop_population(label)
         return False
-    # As many as the uniform draw this stands in for adds: growing the
-    # population a refusal names is a substitution, not a token.
+    # As many as the uniform draw this stands in for adds.
     drawn = [source.draw() for _ in range(pst.config.num_addtl_prefixes)]
     state.held.setdefault(label, []).extend(drawn)
     pst.table.add_prefixes(sorted(set(drawn)), population=label)
@@ -216,16 +213,15 @@ def grow_population(pst, state, label) -> bool:
 
 
 class _Populations:
-    """What the next round's family search may ask of this round's populations:
-    more prefixes for one of them, or prefixes to read the split on."""
+    """What a family search may ask of a round's prefix populations."""
 
     def __init__(self, pst, state):
         self._pst = pst
         self._state = state
 
     def labels(self) -> list:
-        """The populations a family is read over: this round's, and the uniform
-        pool the table keeps across rounds."""
+        """This round's populations, and the uniform pool the table keeps across
+        rounds."""
         return [UNIFORM, *self._state.held]
 
     def grow(self, label) -> bool:
@@ -234,17 +230,15 @@ class _Populations:
     def for_split(self, label, wanted: int) -> list:
         """Prefixes for one population, to read the split on and not to keep.
 
-        Empty where nothing draws for it: no say in the split rather than a
-        split held up.  `grow` is what retires it.
+        Empty where nothing draws for it, so the split goes ahead without it.
         """
         source = (
             UniformSource(self._pst)
             if label == UNIFORM
             else self._state.sources.get(label)
         )
-        # Already proven, or not drawn from: proving one costs a round's worth
-        # of probes, which is not what a handful of prefixes to read a split on
-        # is worth.  A population the round never proved sits this one out.
+        # Not proved here: proving costs a round's worth of probes, which the
+        # split is not worth.
         if source is None or not source.proven:
             return []
         return draw_many(source, wanted)

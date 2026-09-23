@@ -57,7 +57,7 @@ class TestOnlyThePoolAdmits(unittest.TestCase):
 
 class TestAnyPopulationVetoes(unittest.TestCase):
     """A state's prefixes all reach one state, so they are all one class and land
-    all on one side.  That is the ordinary case, not a fault."""
+    all on one side."""
 
     def test_a_one_sided_population_read_right_does_not_block(self):
         # 200 accepting prefixes the family also calls accepting.

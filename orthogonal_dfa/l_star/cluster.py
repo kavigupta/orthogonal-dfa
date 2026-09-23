@@ -238,15 +238,9 @@ def drift_verdict(pst, by_population):
 def veto_size(pst, populations) -> int:
     """Prefixes a population needs for a veto to catch a family read backwards.
 
-    An inverted population is not read unanimously against the family: its accept
-    side holds reject-class prefixes, and the oracle reads those at
-    ``reject_thresh`` rather than at nothing.  So the size is asked for the miss
-    rate as well as the level, against that reading.
-
-    The two sides are sized separately -- they share the gap between the
-    thresholds but not the null it sits under -- and the larger is what lets
-    either of them fire.  The uniform pool is what the certification budget is
-    spent on instead, since it is the only one that can admit.
+    An inverted accept side holds reject-class prefixes, which the oracle reads
+    at ``reject_thresh`` rather than at nothing, so the size is asked for the
+    miss rate and not the level alone.
     """
     level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
     return max(
@@ -319,10 +313,8 @@ class AcceptPreservingGate:
         self._prefixes = None
 
     def _to_read(self, pst, voters):
-        """``label -> prefixes`` to read the split on, drawn once and read by
-        every family the round tries -- none of them was clustered on these, and
-        a set per candidate would buy every population again on each refusal.
-        """
+        """``label -> prefixes`` to read the split on, drawn once for the round
+        and read by every family it tries."""
         if self._prefixes is None:
             labels = self._populations.labels()
             pool = min(
@@ -340,20 +332,15 @@ class AcceptPreservingGate:
         return self._prefixes
 
     def _certify_further(self, pst, counts, voters):
-        """Read the split on more of the uniform pool.
-
-        Undecided means no population vetoed and the pool could not admit, so
-        the pool is the only one short of anything.  A population that could
-        have vetoed and did not has already said what it has to say.
-        """
+        """Read the split on more of the uniform pool, which is the only one an
+        undecided verdict leaves short."""
         held = self._prefixes[UNIFORM]
         more = self._populations.for_split(
             UNIFORM, prefixes_to_certify(pst, counts, len(held), voters)
         )
         if not more:
             return counts
-        # Kept, so a later family is read on these too rather than buying them
-        # again.
+        # Kept, so a later family is read on these rather than buying them again.
         self._prefixes[UNIFORM] = held + more
         extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
         empty = ((0, 0), (0, 0))
