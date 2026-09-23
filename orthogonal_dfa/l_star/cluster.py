@@ -5,6 +5,7 @@ import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM
+from .prefix_sources import UniformSource, draw_many
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
@@ -147,10 +148,7 @@ def draw_to_certify(pst, amount: int) -> list:
     """Prefixes for the split alone, straight from the sampler and not
     deduplicated against the table: they stand for what the learner will meet,
     so they are drawn the way it meets them."""
-    return [
-        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        for _ in range(amount)
-    ]
+    return draw_many(UniformSource(pst), amount)
 
 
 def certification_sample(pst, vs, by_population):
