@@ -10,10 +10,10 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
-    _PoolState,
     _publish_pool,
     _StallDetector,
 )
+from orthogonal_dfa.l_star.prefix_populations import PoolState
 
 
 def _resolver(*strings):
@@ -21,7 +21,7 @@ def _resolver(*strings):
 
 
 def _state(held=()):
-    state = _PoolState([])
+    state = PoolState([])
     for string in held:
         state.seen.add(string)
         state.harvest().append(string)

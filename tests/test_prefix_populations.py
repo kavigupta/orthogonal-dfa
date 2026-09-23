@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from orthogonal_dfa.l_star.counterexample_synthesis import _PoolState, grow_population
 from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
+from orthogonal_dfa.l_star.prefix_populations import PoolState, grow_population
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
 
 #: Anything: the table below is never asked a membership question.
@@ -120,7 +120,7 @@ class _Pst:
 
 
 def _holding(label, source, prefixes=()):
-    state = _PoolState([])
+    state = PoolState([])
     state.held[label] = list(prefixes)
     state.seen.update(prefixes)
     state.sources[label] = source
@@ -129,7 +129,7 @@ def _holding(label, source, prefixes=()):
 
 class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
     def test_the_uniform_pool_grows_the_way_the_learner_always_grew_it(self):
-        pst, state = _Pst(), _PoolState([])
+        pst, state = _Pst(), PoolState([])
 
         self.assertTrue(grow_population(pst, state, UNIFORM))
         self.assertEqual(1, pst.drawn_uniformly)
@@ -165,7 +165,7 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
         self.assertEqual(set(), state.seen)
 
     def test_a_population_this_round_has_no_source_for_is_retired_too(self):
-        pst, state = _Pst(), _PoolState([])
+        pst, state = _Pst(), PoolState([])
         state.held[("state", 9)] = _words(3)
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))

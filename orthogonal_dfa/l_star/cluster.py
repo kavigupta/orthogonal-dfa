@@ -5,6 +5,7 @@ import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM
+from .prefix_populations import grow_population, population_labels, prefixes_for_split
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
@@ -305,25 +306,25 @@ class AcceptPreservingGate:
     Nothing resets that budget: admitting a family is the round returning, and
     the gate is made afresh for the next search."""
 
-    def __init__(self, config, populations):
+    def __init__(self, config, state):
         self.enabled = config.require_accept_preserving
         self.refusals = 0
-        self._populations = populations
+        self._state = state
         self._prefixes = None
 
     def _to_read(self, pst, voters):
         """``label -> prefixes`` to read the split on, drawn once for the round
         and read by every family it tries."""
         if self._prefixes is None:
-            labels = self._populations.labels()
+            labels = population_labels(self._state)
             pool = min(
                 max(1, int(pst.table.representative.sum())),
                 certification_budget(pst, voters),
             )
             veto = veto_size(pst, len(labels))
             drawn = {
-                label: self._populations.for_split(
-                    label, pool if label == UNIFORM else veto
+                label: prefixes_for_split(
+                    pst, self._state, label, pool if label == UNIFORM else veto
                 )
                 for label in labels
             }
@@ -333,8 +334,11 @@ class AcceptPreservingGate:
     def _certify_further(self, pst, counts, voters):
         """``counts`` with a further read of the uniform pool added into it."""
         held = self._prefixes[UNIFORM]
-        more = self._populations.for_split(
-            UNIFORM, prefixes_to_certify(pst, counts, len(held), voters)
+        more = prefixes_for_split(
+            pst,
+            self._state,
+            UNIFORM,
+            prefixes_to_certify(pst, counts, len(held), voters),
         )
         if not more:
             return counts
@@ -438,7 +442,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
@@ -446,8 +450,7 @@ def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
 
-    ``populations.grow(label)`` draws more of one prefix population, returning
-    whether it was able to or not.
+    ``state`` carries the round's prefix populations, which a refusal grows.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -457,7 +460,7 @@ def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
         decision_boundary,
         read_rates(pst.config, decision_boundary),
     )
-    gate = AcceptPreservingGate(pst.config, populations)
+    gate = AcceptPreservingGate(pst.config, state)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -511,7 +514,7 @@ def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         elif judged.blamed is None:
             pst.sample_more_prefixes()
-        elif not populations.grow(judged.blamed):
+        elif not grow_population(pst, state, judged.blamed):
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
             # results do not follow the theory.
