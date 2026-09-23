@@ -175,16 +175,13 @@ def _split_counts(pst, reads):
     A population holds one class or both, so a side of ``n = 0`` is the ordinary
     case: `drift_verdict` reads the sides that are there.
     """
-    out = {}
-    for label, (decision, column) in reads.items():
-        counts = tuple(
+    return {
+        label: tuple(
             (int(column[side].sum()), int(side.sum()))
             for side in (decision >= pst.accept_thresh, decision < pst.reject_thresh)
         )
-        if any(n for _, n in counts):
-            out[label] = counts
-    assert out, "the split needs a population to read"
-    return out
+        for label, (decision, column) in reads.items()
+    }
 
 
 def _sides(counts):
@@ -214,8 +211,8 @@ def drift_verdict(pst, by_population):
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     sides = {label: _sides(counts) for label, counts in by_population.items()}
-    spent = sum(len(held) for held in sides.values())
-    assert spent, "the split needs a side to read"
+    num_tests = sum(len(held) for held in sides.values())
+    assert num_tests, "the split needs a side to read"
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
@@ -230,7 +227,7 @@ def drift_verdict(pst, by_population):
     # Shared out between the sides, so saying drifted at all costs half the rate
     # however many are read.
     for label, held in sides.items():
-        if any(drifted(*side, alpha / spent) for side in held):
+        if any(drifted(*side, alpha / num_tests) for side in held):
             return DRIFTED, label
     pool = sides.get(UNIFORM, [])
     if pool and all(rejects_null(*side, alpha) for side in pool):
@@ -414,8 +411,8 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
-    #: FNR is a min, this is the corresponding argmin: the pool that the family is most
-    #: indecisive on.
+    #: FNR is a max over populations, this is the corresponding argmax: the pool
+    #: that the family is most indecisive on.
     worst: Optional[object] = None
 
 
