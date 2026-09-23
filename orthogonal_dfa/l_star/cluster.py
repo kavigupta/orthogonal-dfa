@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from math import ceil, log
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -9,6 +8,7 @@ from .mask_table import UNIFORM
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
+    low_tail_detection_size,
     population_size_and_evidence_margin,
 )
 
@@ -239,17 +239,34 @@ def drift_verdict(pst, by_population):
 
 
 def veto_size(pst, populations) -> int:
-    """Prefixes a population needs before it can veto at all: the fewest at which
-    one reading entirely as the other class clears the level the vetoes share,
+    """Prefixes a population needs for a veto to catch a family read backwards.
 
-        n = log(alpha / (2 * populations)) / log(max(1 - accept_thresh, reject_thresh))
+    An inverted population is not read unanimously against the family: its accept
+    side holds reject-class prefixes, and the oracle reads those at
+    ``reject_thresh`` rather than at nothing.  So the size is asked for the miss
+    rate as well as the level, against that reading.
 
-    Finer drift than that takes more prefixes than this buys.  The uniform pool
-    is what the certification budget is spent on, since it is the only one that
-    can admit.
+    The two sides are sized separately -- they share the gap between the
+    thresholds but not the null it sits under -- and the larger is what lets
+    either of them fire.  The uniform pool is what the certification budget is
+    spent on instead, since it is the only one that can admit.
     """
     level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
-    return ceil(log(level) / log(max(1 - pst.accept_thresh, pst.reject_thresh)))
+    return max(
+        low_tail_detection_size(
+            pst.accept_thresh,
+            pst.reject_thresh,
+            level,
+            ACCEPT_PRESERVING_ERROR_RATE,
+        ),
+        # The reject side rejects high, which is the same test on ``n - hits``.
+        low_tail_detection_size(
+            1 - pst.reject_thresh,
+            1 - pst.accept_thresh,
+            level,
+            ACCEPT_PRESERVING_ERROR_RATE,
+        ),
+    )
 
 
 def certification_budget(pst, vs) -> int:

@@ -6,10 +6,12 @@ claim that some population is read as the class it is not, and every population
 carries that -- which is why the rate is kept per population in the first place.
 """
 
+import itertools
 import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.cluster import (
+    ACCEPT_PRESERVING_ERROR_RATE,
     ADMITTED,
     DRIFTED,
     UNCERTIFIED,
@@ -18,6 +20,7 @@ from orthogonal_dfa.l_star.cluster import (
     veto_size,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
+from orthogonal_dfa.l_star.statistics import binom_cdf
 
 #: The thresholds a family is read with, and so the ones the split is held to.
 ACCEPT, REJECT = 0.671, 0.333
@@ -79,39 +82,56 @@ class TestAnyPopulationVetoes(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+def _vetoes(hits, n):
+    """Whether the gate calls a state population of ``n`` reading ``hits`` drifted,
+    against a pool it is happy with."""
+    backwards = {("state", 0): ((hits, n), (0, 0))}
+    return drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **backwards})[0] == DRIFTED
+
+
+def _caught(n):
+    """Chance the gate vetoes a population of ``n`` the family has inverted, which
+    the oracle reads at ``REJECT`` rather than at nothing."""
+    return sum(
+        binom_cdf(hits, n, REJECT) - binom_cdf(hits - 1, n, REJECT)
+        for hits in range(n + 1)
+        if _vetoes(hits, n)
+    )
+
+
+def _smallest_that_can_fire():
+    """Fewest prefixes at which a population reading as nothing but the other
+    class vetoes: what sizing on the level alone buys."""
+    return next(n for n in itertools.count(1) if _vetoes(0, n))
 
 
 class TestWhatAVetoCosts(unittest.TestCase):
-    """`veto_size` is what a population has to hold before the test can fire."""
+    """`veto_size` is what a population has to hold for a backwards reading to be
+    caught, which is more than it has to hold to fire at all: an inverted
+    population is read at ``reject_thresh``, not at nothing."""
 
-    def test_a_population_that_size_read_backwards_vetoes(self):
-        for populations in (1, 5, 20):
-            n = veto_size(_PST, populations)
-            backwards = {("state", 0): ((0, n), (0, 0))}
-            self.assertEqual(
-                drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **backwards})[0],
-                DRIFTED,
-                f"{populations} populations, {n} prefixes",
-            )
-
-    def test_a_smaller_one_cannot(self):
-        n = veto_size(_PST, 1) - 1
-        self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, ("state", 0): ((0, n), (0, 0))})[
-                0
-            ],
-            ADMITTED,
-            "the pool still admits over a population too small to say anything",
+    def test_an_inverted_population_is_caught_all_but_alpha_of_the_time(self):
+        self.assertGreaterEqual(
+            _caught(veto_size(_PST, 2)), 1 - ACCEPT_PRESERVING_ERROR_RATE
         )
+
+    def test_a_size_that_can_only_fire_misses_more_than_that(self):
+        firing = _smallest_that_can_fire()
+
+        self.assertLess(_caught(firing), 1 - ACCEPT_PRESERVING_ERROR_RATE)
+        self.assertGreater(veto_size(_PST, 2), firing)
+
+    def test_a_population_reading_as_its_own_class_is_left_alone(self):
+        n = veto_size(_PST, 2)
+
+        self.assertFalse(_vetoes(round(n * ACCEPT), n))
 
 
 class TestWhatTheTopUpAssumes(unittest.TestCase):
     def test_only_the_pool_is_scaled(self):
-        # Scaling a population nobody draws from asks what a draw that is never
-        # made would say -- here, a state of six that turns into a veto at twice
-        # the size, cutting the pool's top-up to a fifth of what it needs.
+        # Scaling a population nobody draws from asks what a draw that is
+        # never made would say, and cuts the pool's top-up to a fraction of what
+        # it needs.
         pool = ((75, 100), (30, 100))
         pst = SimpleNamespace(
             accept_thresh=ACCEPT,
@@ -127,10 +147,6 @@ class TestWhatTheTopUpAssumes(unittest.TestCase):
         self.assertEqual(
             wanted, prefixes_to_certify(pst, {UNIFORM: pool}, 200, range(8))
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TestARefusalNamesAPopulation(unittest.TestCase):
@@ -151,3 +167,7 @@ class TestARefusalNamesAPopulation(unittest.TestCase):
 
     def test_an_admitted_family_blames_nobody(self):
         self.assertEqual((ADMITTED, None), drift_verdict(_PST, {UNIFORM: _CLEAN_POOL}))
+
+
+if __name__ == "__main__":
+    unittest.main()
