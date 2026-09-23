@@ -39,9 +39,6 @@ class UniformSource:
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
 
-    def worth_drawing(self) -> bool:
-        return True
-
 
 class BoundarySource(RejectionSource):
     """Strings the round's tree cannot place, asked about along a probe's walk.
@@ -180,6 +177,5 @@ class StateSource(RejectionSource):
 
 
 def draw_many(source, wanted: int) -> list:
-    """``wanted`` prefixes from ``source``, which raises rather than come up
-    short: a region worth drawing on holds more than a round can use up."""
+    """``wanted`` prefixes from ``source``, sorted rather than in draw order."""
     return sorted(source.draw() for _ in range(wanted))
