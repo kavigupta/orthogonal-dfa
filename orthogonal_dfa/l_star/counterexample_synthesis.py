@@ -30,10 +30,11 @@ from .dfa_utils import (
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
+from .preconditions import DEFAULT_MIN_COVERAGE
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
-from .split_evidence import _MIN_DETECTABLE_SPLIT, MEMBERS_TO_RULE_OUT_A_SPLIT
+from .split_evidence import MEMBERS_TO_RULE_OUT_A_SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -131,19 +132,22 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
         )
 
 
-def scan_prefixes(signal, boundary, alpha=SPLIT_SCAN_ALPHA):
-    """Prefixes to read at a state for a minority of ``_MIN_DETECTABLE_SPLIT``
-    to show in its accept rate.
+def scan_prefixes(signal, leaf_share, boundary, min_coverage=DEFAULT_MIN_COVERAGE):
+    """Prefixes to read at a leaf for a class of ``min_coverage`` mass to show
+    in its accept rate.
 
-    A minority of share `w` moves the rate by `2 * signal * w` against a
-    standard error of `sqrt(p(1-p)/n)`.  The share to resolve is the smallest
-    split the test that follows is built to find, not the smallest class worth
-    keeping: a rarer one is for that test to rule on, if this read ever hands it
-    the leaf.
+    A minority of share `w` within the leaf moves the rate by `2 * signal * w`
+    against a standard error of `sqrt(p(1-p)/n)`.  Such a class is a
+    `min_coverage / leaf_share` share of the leaf, so the count grows with the
+    square of that share: the leaves worth many prefixes are the large ones a
+    rare class can hide in, and a flat share to resolve would miss it in exactly
+    those.  One query each, so a leaf holding most of the sampler costs tens of
+    thousands and the rest cost far less.
     """
-    z = scipy.stats.norm.isf(alpha / 2)
+    z = scipy.stats.norm.isf(SPLIT_SCAN_ALPHA / 2)
     p = boundary + signal
-    return int(np.ceil(p * (1 - p) * (z / (2 * signal * _MIN_DETECTABLE_SPLIT)) ** 2))
+    want = min_coverage / max(leaf_share, min_coverage)
+    return int(np.ceil(p * (1 - p) * (z / (2 * signal * want)) ** 2))
 
 
 def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
@@ -159,7 +163,9 @@ def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
     signal = pst.config.min_signal_strength
     weights = uniform_weights(dfa)
     reaching = count_paths_to_state(dfa, state, pst.sampler.length, weights)
-    wanted = scan_prefixes(signal, pst.decision_boundary, alpha)
+    space = pst.alphabet_size**pst.sampler.length
+    share = reaching[pst.sampler.length][dfa.initial_state] / space
+    wanted = scan_prefixes(signal, share, pst.decision_boundary)
     drawn = (
         sample_string_reaching_state(dfa, reaching, pst.rng, weights)
         for _ in range(wanted)

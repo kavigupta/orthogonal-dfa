@@ -32,23 +32,29 @@ def endpoint_mass(target, alphabet, length):
     return dict(zip(states, mass))
 
 
-def sample_with_exclusion(exclude_pattern, *, symbols, count):
+def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler=None):
+    """Draws from ``sampler``, defaulting to the shared length-40 one.  A target learned at
+    another length has to be graded at that length: a DFA that is wrong everywhere the
+    learner looked can still read as right on strings twice as long."""
+    sampler = us if sampler is None else sampler
     rng = np.random.default_rng(0x1234)
     results = []
     while len(results) < count:
-        s = us.sample(rng, symbols)
+        s = sampler.sample(rng, symbols)
         if exclude_pattern is None or not exclude_pattern(s):
             results.append(s)
     return results
 
 
 def compute_dfa_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
+    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000, sampler=None
 ):
     """Evaluate dfa against a noiseless oracle. Returns (accuracy, false_positives, false_negatives)."""
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     false_positives, false_negatives = [], []
-    for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
+    for s in sample_with_exclusion(
+        exclude_pattern, symbols=symbols, count=count, sampler=sampler
+    ):
         expected = oracle.membership_query(s)
         actual = dfa.accepts_input(s)
         if expected and not actual:

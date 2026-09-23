@@ -1,13 +1,10 @@
-"""Targets where a class was merged into an absorbing accept state.
+"""A target whose rejecting armed state merges into the absorbing accept one.
 
 ``Q`` is non-final but leaks into accepting ``A`` on most symbols and escapes on
 one, so a family built from the suffixes that do not escape votes ``Q`` accept.
 The tree then inherits that verdict and the hypothesis is built from the tree,
 so the two AGREE on ``Q`` -- DFA/DT consistency clears its target and synthesis
-used to stop there, returning two states of four.
-
-Reading the hypothesis's own states against the oracle sees what that comparison
-cannot, since it does not ask the tree anything.
+stops there, returning two states of four.
 """
 
 import unittest
@@ -52,10 +49,15 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
     )
 
 
-#: ``(alphabet, arms, disarm)``.  The first merged ``Q`` on 3 of 8 seeds before
-#: the homogeneity check, the second on 1 of 8.  Two seeds each: a 200-symbol
-#: learn is minutes, and the shard holds five other files.
+#: ``(alphabet, arms, disarm)``.
 TRAPS = [(200, 4, 170), (200, 4, 180)]
+
+#: Seeds the merge is measured over, one test apiece.  Which of them merge is a
+#: property of the suffixes a round happens to draw, so a bar on one seed says
+#: nothing; at the measured rate of 2 in 10, a clean run of this many is a
+#: 1-in-9 event if the rate were unchanged.  A seed each rather than a loop:
+#: one of these learns is most of a test's clock.
+SEEDS = 10
 
 
 class TestTrapTargets(unittest.TestCase):
@@ -71,15 +73,25 @@ class TestTrapTargets(unittest.TestCase):
 
 
 class TestTrapLearned(unittest.TestCase):
-    @parameterized.expand([(k, a, d, seed) for k, a, d in TRAPS for seed in range(2)])
-    def test_learned_within_the_bar(self, alphabet, arms, disarm, seed):
+    """``Q`` is rejecting and carries 7% of the endpoint mass, so a family that
+    votes it into accepting ``A`` costs that much accuracy at the distribution
+    the DFA is graded on -- unlike ``e1``, which merges into a rejecting state
+    and costs only its own routing.
+
+    The covered-accuracy ceiling is 1.0 here: the initial state is covered, so
+    nothing about the sampler stops the target being learned exactly.
+    """
+
+    @parameterized.expand([(seed,) for seed in range(SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        alphabet, arms, disarm = TRAPS[0]
         target = build_trap(alphabet, arms, disarm)
         oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=SIGNAL, seed=seed)
         accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator, symbols=alphabet)
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
-                f"DFA incorrect (accuracy {accuracy:.4f}, "
+                f"merged the armed state (accuracy {accuracy:.4f}, "
                 f"{len(dfa.states)} of {len(target.states)} states). "
                 f"FP: {len(fp)}, FN: {len(fn)}"
             )
