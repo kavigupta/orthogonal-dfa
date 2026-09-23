@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 import scipy.stats
 
+from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -17,19 +18,21 @@ us = UniformSampler(40)
 assertion_allowed_error = 0.05
 
 
-def endpoint_mass(target, alphabet, length):
-    """Exact share of uniform length-``length`` strings ending in each state."""
-    states = sorted(target.states)
-    index = {s: i for i, s in enumerate(states)}
-    step = np.zeros((len(states), len(states)))
-    for q in states:
-        for c in range(alphabet):
-            step[index[q], index[target.transitions[q][c]]] += 1 / alphabet
-    mass = np.zeros(len(states))
-    mass[index[target.initial_state]] = 1.0
-    for _ in range(length):
-        mass = mass @ step
-    return dict(zip(states, mass))
+def endpoint_mass(target, length):
+    """Exact share of uniform length-``length`` strings ending in each state.
+
+    `count_paths_to_state` counts in whole strings under `uniform_weights`, so the
+    shares divide out of exact integers.
+    """
+    weights = uniform_weights(target)
+    space = len(target.input_symbols) ** length
+    return {
+        q: count_paths_to_state(target, q, length, weights)[length][
+            target.initial_state
+        ]
+        / space
+        for q in sorted(target.states)
+    }
 
 
 def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler=None):
