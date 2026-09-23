@@ -310,12 +310,12 @@ class AcceptPreservingGate:
         self.enabled = config.require_accept_preserving
         self.refusals = 0
         self._state = state
-        self._prefixes = None
+        self._drawn = None
 
-    def _to_read(self, pst, voters):
-        """``label -> prefixes`` to read the split on, drawn once for the round
-        and read by every family it tries."""
-        if self._prefixes is None:
+    def _certification_prefixes(self, pst, voters):
+        """``label -> prefixes`` to certify a family over, drawn once for the
+        round and read by every family it tries."""
+        if self._drawn is None:
             labels = population_labels(self._state)
             pool = min(
                 max(1, int(pst.table.representative.sum())),
@@ -328,12 +328,12 @@ class AcceptPreservingGate:
                 )
                 for label in labels
             }
-            self._prefixes = {label: held for label, held in drawn.items() if held}
-        return self._prefixes
+            self._drawn = {label: held for label, held in drawn.items() if held}
+        return self._drawn
 
     def _certify_further(self, pst, counts, voters):
         """``counts`` with a further read of the uniform pool added into it."""
-        held = self._prefixes[UNIFORM]
+        held = self._drawn[UNIFORM]
         more = prefixes_for_split(
             pst,
             self._state,
@@ -343,7 +343,7 @@ class AcceptPreservingGate:
         if not more:
             return counts
         # Kept, so a later family is read on these rather than buying them again.
-        self._prefixes[UNIFORM] = held + more
+        self._drawn[UNIFORM] = held + more
         extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
         empty = ((0, 0), (0, 0))
         return {
@@ -365,7 +365,7 @@ class AcceptPreservingGate:
         # pool fits their noise, so only prefixes it never saw can test it.  The
         # seed votes on p with the very read of p being scored, so it sits out.
         voters = [u for u in vs if u != seed_row]
-        prefixes = self._to_read(pst, voters)
+        prefixes = self._certification_prefixes(pst, voters)
         counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
         verdict, blamed = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
