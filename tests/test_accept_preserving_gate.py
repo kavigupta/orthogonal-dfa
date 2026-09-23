@@ -43,6 +43,19 @@ class TestOnlyThePoolAdmits(unittest.TestCase):
             drift_verdict(_PST, {UNIFORM: ((9, 10), (1, 10))})[0], UNCERTIFIED
         )
 
+    def test_a_pool_with_nothing_on_one_side_can_still_admit(self):
+        # The cut put every prefix it read on the accepting side, and the oracle
+        # agrees about them.  There is no reject side to fail.
+        self.assertEqual(
+            drift_verdict(_PST, {UNIFORM: ((900, 1000), (0, 0))})[0], ADMITTED
+        )
+
+    def test_a_split_with_no_decisive_prefix_at_all_is_uncertified(self):
+        # Every prefix read in the undecided band, so neither side holds one.
+        self.assertEqual(
+            drift_verdict(_PST, {UNIFORM: ((0, 0), (0, 0))}), (UNCERTIFIED, UNIFORM)
+        )
+
     def test_without_a_pool_nothing_can_admit(self):
         # A state's prefixes are one class, so they cannot say whether the
         # family separates two.

@@ -188,8 +188,14 @@ def _split_counts(pst, reads):
 
 
 def _sides(counts):
-    """``(kind, hits, n)`` for the accept and reject sides of the cut."""
-    return [(kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts)]
+    """The sides of ``counts`` that hold prefixes, as ``(kind, hits, n)``.
+
+    A side of ``n = 0`` is not a side read and failed: at that size neither test
+    can clear its level, so counting it refuses every admit.
+    """
+    return [
+        (kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts) if n
+    ]
 
 
 def drift_verdict(pst, by_population):
@@ -213,6 +219,8 @@ def drift_verdict(pst, by_population):
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     sides = {label: _sides(counts) for label, counts in by_population.items()}
     num_tests = sum(len(held) for held in sides.values())
+    if not num_tests:
+        return UNCERTIFIED, UNIFORM
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
