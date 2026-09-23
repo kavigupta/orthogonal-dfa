@@ -138,7 +138,6 @@ def readable_size_and_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-
 #: Chance of calling a family drifted when it is not, or clean when it is not.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
 
