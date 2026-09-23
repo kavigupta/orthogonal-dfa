@@ -5,6 +5,7 @@ import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM
+from .prefix_sources import UniformSource, draw_many
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
@@ -156,10 +157,7 @@ def draw_to_certify(pst, amount: int) -> list:
     """Prefixes for the split alone, straight from the sampler and not
     deduplicated against the table: they stand for what the learner will meet,
     so they are drawn the way it meets them."""
-    return [
-        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-        for _ in range(amount)
-    ]
+    return draw_many(UniformSource(pst), amount)
 
 
 def certification_sample(pst, vs, by_population):
@@ -296,6 +294,21 @@ class AcceptPreservingGate:
         self.enabled = config.require_accept_preserving
         self.refusals = 0
 
+    def _certify_further(self, pst, counts, drawn, voters):
+        """``counts`` with a further read of the uniform pool added into it."""
+        more = draw_to_certify(pst, prefixes_to_certify(pst, counts, drawn, voters))
+        extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
+        empty = ((0, 0), (0, 0))
+        return {
+            **counts,
+            UNIFORM: tuple(
+                (hits + grown_hits, n + grown_n)
+                for (hits, n), (grown_hits, grown_n) in zip(
+                    counts.get(UNIFORM, empty), extra.get(UNIFORM, empty)
+                )
+            ),
+        }
+
     def verdict(self, pst, seed_row, vs):
         """``(verdict, label)``: what the split says, and which population said
         it, for the search to answer."""
@@ -313,20 +326,7 @@ class AcceptPreservingGate:
         counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
         verdict, blamed = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            more = draw_to_certify(pst, prefixes_to_certify(pst, counts, drawn, voters))
-            extra = _split_counts(
-                pst, certification_sample(pst, voters, {UNIFORM: more})
-            )
-            empty = ((0, 0), (0, 0))
-            counts = {
-                **counts,
-                UNIFORM: tuple(
-                    (hits + grown_hits, n + grown_n)
-                    for (hits, n), (grown_hits, grown_n) in zip(
-                        counts.get(UNIFORM, empty), extra.get(UNIFORM, empty)
-                    )
-                ),
-            }
+            counts = self._certify_further(pst, counts, drawn, voters)
             verdict, blamed = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED, None
