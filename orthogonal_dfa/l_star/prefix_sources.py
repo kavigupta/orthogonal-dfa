@@ -39,6 +39,10 @@ class UniformSource:
             self._pst.rng, alphabet_size=self._pst.alphabet_size
         )
 
+    @property
+    def proven(self) -> bool:
+        return True
+
 
 class BoundarySource(RejectionSource):
     """Strings the round's tree cannot place, asked about along a probe's walk.

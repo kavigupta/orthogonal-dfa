@@ -1,14 +1,15 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM
-from .prefix_sources import UniformSource, draw_many
+from .prefix_populations import grow_population, population_labels, prefixes_for_split
 from .statistics import (
     evidence_margin_for_population_size,
     fpr_for_coverage_error,
+    low_tail_detection_size,
     population_size_and_evidence_margin,
 )
 
@@ -27,6 +28,10 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     seed_local = int(np.searchsorted(candidate, seed))
     assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    # Weigh each population equally in clustering
+    weights = np.zeros(masks.shape[1])
+    for population in pst.table.population_masks().values():
+        weights[population] += 1 / population.sum()
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -34,7 +39,7 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = (masks != cluster_center).sum(1)
+        losses = ((masks != cluster_center) * weights).sum(1)
         # Ties here are common, and breaking them differently each pass churns
         # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]
@@ -144,13 +149,6 @@ class NoAcceptPreservingFamily(Exception):
     """No accept-preserving suffix family could be sampled for this target."""
 
 
-def draw_to_certify(pst, amount: int) -> list:
-    """Prefixes for the split alone, straight from the sampler and not
-    deduplicated against the table: they stand for what the learner will meet,
-    so they are drawn the way it meets them."""
-    return draw_many(UniformSource(pst), amount)
-
-
 def certification_sample(pst, vs, by_population):
     """``label -> (family means, split column)`` for prefixes read only to
     settle the split, and never added to the table.
@@ -175,8 +173,7 @@ def _split_counts(pst, reads):
     """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
     cut counted on the split's own column, one entry per prefix population.
 
-    A side can come up empty on a small draw, which leaves the verdict
-    uncertified rather than failing.
+    A population holds one class or both, so a side of ``n = 0`` is ordinary.
     """
     return {
         label: tuple(
@@ -243,6 +240,26 @@ def drift_verdict(pst, by_population):
     return UNCERTIFIED, UNIFORM
 
 
+def veto_size(pst, populations) -> int:
+    """Prefixes a population needs for a veto to catch a family read backwards.
+
+    An inverted accept side holds reject-class prefixes, which the oracle reads
+    at ``reject_thresh`` rather than at nothing, so the size is asked for the
+    miss rate and not the level alone.
+    """
+    # Two sides apiece, which is the most `drift_verdict` can share the rate
+    # between: sizing for more of them than it reads only oversizes the draw.
+    level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
+    return max(
+        low_tail_detection_size(null, alt, level, ACCEPT_PRESERVING_ERROR_RATE)
+        # The reject side rejects high, which is the same test on ``n - hits``.
+        for null, alt in (
+            (pst.accept_thresh, pst.reject_thresh),
+            (1 - pst.reject_thresh, 1 - pst.accept_thresh),
+        )
+    )
+
+
 def certification_budget(pst, vs) -> int:
     """Never more prefixes than the round of pooled prefixes this stands in for
     would have cost.  One of those spends a query on every fully observed
@@ -289,13 +306,44 @@ class AcceptPreservingGate:
     Nothing resets that budget: admitting a family is the round returning, and
     the gate is made afresh for the next search."""
 
-    def __init__(self, config):
+    def __init__(self, config, state):
         self.enabled = config.require_accept_preserving
         self.refusals = 0
+        self._state = state
+        self._drawn = None
 
-    def _certify_further(self, pst, counts, drawn, voters):
+    def _certification_prefixes(self, pst, voters):
+        """``label -> prefixes`` to certify a family over, drawn once for the
+        round and read by every family it tries."""
+        if self._drawn is None:
+            labels = population_labels(self._state)
+            pool = min(
+                max(1, int(pst.table.representative.sum())),
+                certification_budget(pst, voters),
+            )
+            veto = veto_size(pst, len(labels))
+            drawn = {
+                label: prefixes_for_split(
+                    pst, self._state, label, pool if label == UNIFORM else veto
+                )
+                for label in labels
+            }
+            self._drawn = {label: held for label, held in drawn.items() if held}
+        return self._drawn
+
+    def _certify_further(self, pst, counts, voters):
         """``counts`` with a further read of the uniform pool added into it."""
-        more = draw_to_certify(pst, prefixes_to_certify(pst, counts, drawn, voters))
+        held = self._drawn[UNIFORM]
+        more = prefixes_for_split(
+            pst,
+            self._state,
+            UNIFORM,
+            prefixes_to_certify(pst, counts, len(held), voters),
+        )
+        if not more:
+            return counts
+        # Kept, so a later family is read on these rather than buying them again.
+        self._drawn[UNIFORM] = held + more
         extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
         empty = ((0, 0), (0, 0))
         return {
@@ -317,15 +365,11 @@ class AcceptPreservingGate:
         # pool fits their noise, so only prefixes it never saw can test it.  The
         # seed votes on p with the very read of p being scored, so it sits out.
         voters = [u for u in vs if u != seed_row]
-        drawn = min(
-            max(1, int(pst.table.representative.sum())),
-            certification_budget(pst, voters),
-        )
-        prefixes = {UNIFORM: draw_to_certify(pst, drawn)}
+        prefixes = self._certification_prefixes(pst, voters)
         counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
         verdict, blamed = drift_verdict(pst, counts)
         if verdict is UNCERTIFIED:
-            counts = self._certify_further(pst, counts, drawn, voters)
+            counts = self._certify_further(pst, counts, voters)
             verdict, blamed = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED, None
@@ -356,6 +400,9 @@ class Judged:
     fnr: float
     reason: str
     verdict: str
+    #: The population the search grows to answer this: the FNR's argmax, or the
+    #: one the gate refused on.
+    blamed: Optional[object]
 
 
 def judge_family(pst, gate, v, vs, family_size) -> Judged:
@@ -367,7 +414,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # testing it would spend a budget that means no accept-preserving family
     # exists.
     if len(vs) < family_size:
-        return Judged(vs, 1.0, "undersized", ADMITTED)
+        return Judged(vs, 1.0, "undersized", ADMITTED, None)
     # Both rates are properties of the population the test runs over, so read
     # the family at a size calibrated for it.
     size, pst.evidence_margin = readable_size_and_margin(
@@ -382,26 +429,28 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
     decision = pst.compute_decision(vs, pst.table.representative)
-    fnr = pst.fnr_from_decision(decision)
+    fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
-        return Judged(vs, fnr, too_high, ADMITTED)
+        return Judged(vs, fnr, too_high, ADMITTED, worst)
     # Certify only right before returning, as certifying is expensive.
-    verdict, _ = gate.verdict(pst, v, vs)
+    verdict, blamed = gate.verdict(pst, v, vs)
     if verdict is DRIFTED:
-        return Judged(vs, 1.0, "not accept-preserving", verdict)
+        return Judged(vs, 1.0, "not accept-preserving", verdict, blamed)
     if verdict is UNCERTIFIED:
-        return Judged(vs, 1.0, "accept-preserving not established", verdict)
-    return Judged(vs, fnr, too_high, verdict)
+        return Judged(vs, 1.0, "accept-preserving not established", verdict, blamed)
+    return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
     ``v`` is the empty suffix from either caller, and the gate reads the split
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
+
+    ``state`` carries the round's prefix populations, which a refusal grows.
     """
     prev_effective_fnr = 1.0
     strategy = "suffix"
@@ -411,7 +460,7 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         decision_boundary,
         read_rates(pst.config, decision_boundary),
     )
-    gate = AcceptPreservingGate(pst.config)
+    gate = AcceptPreservingGate(pst.config, state)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -463,5 +512,15 @@ def sample_suffix_family(pst, v: int) -> Tuple[List[int], float]:
         if strategy == "suffix":
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
-        else:
+        elif judged.blamed is None:
             pst.sample_more_prefixes()
+        elif not grow_population(pst, state, judged.blamed):
+            # Fallback, this should very rarely happen. At this point, the
+            # algorithm has detected a precondition violation, so later
+            # results do not follow the theory.
+
+            # Likely precondition violation is too-high collision probability
+            # among suffixes.
+            kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
+            print(f"  nothing draws for {judged.blamed}; kept {kept} of {drawn}")
+            strategy = "suffix"

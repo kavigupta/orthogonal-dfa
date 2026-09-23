@@ -6,17 +6,21 @@ claim that some population is read as the class it is not, which any population
 can carry.
 """
 
+import itertools
 import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.cluster import (
+    ACCEPT_PRESERVING_ERROR_RATE,
     ADMITTED,
     DRIFTED,
     UNCERTIFIED,
     drift_verdict,
     prefixes_to_certify,
+    veto_size,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
+from orthogonal_dfa.l_star.statistics import binom_cdf
 
 #: The thresholds a family is read with, and so the ones the split is held to.
 ACCEPT, REJECT = 0.671, 0.333
@@ -89,6 +93,51 @@ class TestAnyPopulationVetoes(unittest.TestCase):
             _verdict(**{"a": ((190, 200), (0, 0)), "b": ((0, 0), (190, 200))}),
             DRIFTED,
         )
+
+
+def _vetoes(hits, n):
+    """Whether the gate calls a state population of ``n`` reading ``hits`` drifted,
+    against a pool it is happy with."""
+    backwards = {("state", 0): ((hits, n), (0, 0))}
+    return drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **backwards})[0] == DRIFTED
+
+
+def _caught(n):
+    """Chance the gate vetoes a population of ``n`` the family has inverted, which
+    the oracle reads at ``REJECT`` rather than at nothing."""
+    return sum(
+        binom_cdf(hits, n, REJECT) - binom_cdf(hits - 1, n, REJECT)
+        for hits in range(n + 1)
+        if _vetoes(hits, n)
+    )
+
+
+def _smallest_that_can_fire():
+    """Fewest prefixes at which a population reading as nothing but the other
+    class vetoes: what sizing on the level alone buys."""
+    return next(n for n in itertools.count(1) if _vetoes(0, n))
+
+
+class TestWhatAVetoCosts(unittest.TestCase):
+    """`veto_size` is what a population has to hold for a backwards reading to be
+    caught, which is more than it has to hold to fire at all: an inverted
+    population is read at ``reject_thresh``, not at nothing."""
+
+    def test_an_inverted_population_is_caught_all_but_alpha_of_the_time(self):
+        self.assertGreaterEqual(
+            _caught(veto_size(_PST, 2)), 1 - ACCEPT_PRESERVING_ERROR_RATE
+        )
+
+    def test_a_size_that_can_only_fire_misses_more_than_that(self):
+        firing = _smallest_that_can_fire()
+
+        self.assertLess(_caught(firing), 1 - ACCEPT_PRESERVING_ERROR_RATE)
+        self.assertGreater(veto_size(_PST, 2), firing)
+
+    def test_a_population_reading_as_its_own_class_is_left_alone(self):
+        n = veto_size(_PST, 2)
+
+        self.assertFalse(_vetoes(round(n * ACCEPT), n))
 
 
 class TestWhatTheTopUpAssumes(unittest.TestCase):

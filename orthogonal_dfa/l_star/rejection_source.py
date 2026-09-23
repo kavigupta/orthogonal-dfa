@@ -59,6 +59,12 @@ class RejectionSource(ABC):
         self._pool.clear()
         return got
 
+    @property
+    def proven(self) -> bool:
+        """Whether the yield test has been asked, as `worth_drawing` asks it,
+        *and* passed."""
+        return self._proven is True
+
     def worth_drawing(self) -> bool:
         """`has_sufficient_yield`, asked once and then remembered: the test is
         what a source costs."""
