@@ -16,14 +16,17 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.learn import learn_dfa as learn_dfa_unchecked
+from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
+    assert_not_merged,
     assert_terminates,
     assertDFA,
     assertion_allowed_error,
     compute_dfa_accuracy,
+    endpoint_mass,
 )
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
@@ -498,3 +501,158 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
         oracle_creator = lambda nm, s, _d=outer: NoisyOracle(DFAOracle(_d), nm, s)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(self, learned, oracle_creator)
+
+
+# -- a rejecting state folded into the accepting one --------------------------
+#
+# ``Q`` is non-final but reaches the absorbing accept state ``A`` on every symbol it does
+# not hold on, so all but a thin slice of suffixes carry it to an accepting endpoint and a
+# family built from the rest votes it accept.  The tree inherits that verdict and the
+# hypothesis is built from the tree, so the two AGREE on ``Q``: DFA/DT consistency clears
+# its target and synthesis stops with ``Q`` inside ``A``.
+#
+# The merge is expensive here where a merge of two REJECTING classes is not: ``Q`` rejects
+# and ``A`` accepts, so every string truly ending in ``Q`` is accepted by the hypothesis.
+
+ARMED_ALPHABET = 12
+#: Symbols that arm the trap.  One: two of them let the round separate ``Q`` and the target
+#: is learned exactly.
+ARMED_ARMS = 1
+#: Symbols ``Q`` holds on.  The rest reach ``A``, so this sets how many suffixes preserve
+#: ``Q``'s class -- `holds/alphabet` to the sampler's length, which has to clear the 2% the
+#: preconditions ask for without clearing it by much.
+ARMED_HOLDS = 10
+ARMED_LENGTH = 20
+ARMED_SIGNAL = 0.3
+
+#: Seeds each merge rate is measured over, one test apiece: which of them merge is a
+#: property of the suffixes a round draws, so a bar on one seed says nothing.
+MERGE_SEEDS = 10
+
+
+def build_armed_target() -> DFA:
+    arm = set(range(ARMED_ALPHABET - ARMED_ARMS, ARMED_ALPHABET))
+    return DFA(
+        states={"c0", "Q", "A"},
+        input_symbols=set(range(ARMED_ALPHABET)),
+        transitions={
+            "c0": {c: ("Q" if c in arm else "c0") for c in range(ARMED_ALPHABET)},
+            "Q": {c: ("Q" if c < ARMED_HOLDS else "A") for c in range(ARMED_ALPHABET)},
+            "A": {c: "A" for c in range(ARMED_ALPHABET)},
+        },
+        initial_state="c0",
+        final_states={"A"},
+        allow_partial=False,
+    )
+
+
+class TestArmedMergeTarget(unittest.TestCase):
+    """The construction, not the learner: cheap, and guards the stressor."""
+
+    def test_admitted_and_learnable(self):
+        target = build_armed_target()
+        sampler = UniformSampler(ARMED_LENGTH)
+        report = P.satisfies_preconditions(
+            target, length=ARMED_LENGTH, short_circuit=False, sampler=sampler
+        )
+        self.assertTrue(report.satisfied, report.reasons)
+        # The merge is only reachable while the suffixes that preserve ``Q`` are scarce,
+        # and only costly while ``Q`` carries mass.  Either drifting leaves the test below
+        # passing without exercising anything.
+        self.assertLess(report.class_preserving_fraction, 0.05)
+        # Nothing about the sampler stops this being learned exactly, so the shortfall
+        # below is the learner's and not the target's.
+        self.assertAlmostEqual(
+            P.covered_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
+            1.0,
+        )
+
+
+class TestArmedMergeLearned(unittest.TestCase):
+    @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        target = build_armed_target()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(ARMED_LENGTH)
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=ARMED_SIGNAL,
+            seed=seed,
+            sampler=sampler,
+        )
+        # Graded at the length it was learned at: a hypothesis that merges ``Q`` still
+        # reads well on strings long enough that almost all of them reach ``A`` anyway.
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ARMED_ALPHABET,
+            sampler=sampler,
+        )
+
+
+# -- the same merge with an escape route --------------------------------------
+
+TRAP_LENGTH = 40
+TRAP_SIGNAL = 0.2
+
+
+def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
+    """``arms`` symbols reach ``Q``; from ``Q``, ``disarm`` escapes and the symbols above
+    it leak into the absorbing accept state."""
+    arm = range(alphabet - arms, alphabet)
+    transitions = {
+        "c0": {c: ("Q" if c in arm else "c0") for c in range(alphabet)},
+        "Q": {
+            c: ("Q" if c < disarm else "e1" if c == disarm else "A")
+            for c in range(alphabet)
+        },
+        "e1": {c: "c0" for c in range(alphabet)},
+        "A": {c: "A" for c in range(alphabet)},
+    }
+    return DFA(
+        states={"c0", "Q", "e1", "A"},
+        input_symbols=set(range(alphabet)),
+        transitions=transitions,
+        initial_state="c0",
+        final_states={"A"},
+        allow_partial=False,
+    )
+
+
+#: ``(alphabet, arms, disarm)``.
+TRAPS = [(200, 4, 170), (200, 4, 180)]
+
+
+class TestTrapTargets(unittest.TestCase):
+    @parameterized.expand(list(TRAPS))
+    def test_admitted_and_still_heavy(self, alphabet, arms, disarm):
+        target = build_trap(alphabet, arms, disarm)
+        report = P.satisfies_preconditions(
+            target, length=TRAP_LENGTH, short_circuit=False
+        )
+        self.assertTrue(report.satisfied, report.reasons)
+        # A merge only costs accuracy while the merged class carries mass, and is only
+        # reachable while class-preserving suffixes are scarce.
+        self.assertGreater(endpoint_mass(target, alphabet, TRAP_LENGTH)["Q"], 0.05)
+        self.assertLess(report.class_preserving_fraction, 0.10)
+
+
+class TestTrapLearned(unittest.TestCase):
+    """``Q`` is rejecting and carries 7% of the endpoint mass, so a family that votes it
+    into accepting ``A`` costs that much accuracy at the distribution the DFA is graded
+    on -- unlike ``e1``, which merges into a rejecting state and costs only its own
+    routing."""
+
+    @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        alphabet, arms, disarm = TRAPS[0]
+        target = build_trap(alphabet, arms, disarm)
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        dfa = learn_dfa_unchecked(
+            oracle_creator, min_signal_strength=TRAP_SIGNAL, seed=seed
+        )
+        assert_not_merged(
+            self, dfa, target, oracle_creator=oracle_creator, symbols=alphabet
+        )
