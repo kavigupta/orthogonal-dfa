@@ -169,17 +169,23 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     """Probe for up to ``wanted`` more boundary strings, keeping what the yield
-    test turned up even when the source fails it."""
-    if wanted <= 0:
-        return
+    test turned up even when the source fails it.
+
+    A round with its fill already still leaves the population a source, unproved:
+    otherwise the only population the counterexample pass fills for free is the
+    one a later round has nothing to draw with.
+    """
     source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
-    worth_drawing = source.has_sufficient_yield()
-    found = source.found()
-    if worth_drawing:
-        found += [source.draw() for _ in range(wanted - len(found))]
-    for string in found[:wanted]:
-        state.seen.add(string)
-        state.harvest().append(string)
+    if wanted > 0:
+        # Asked rather than `has_sufficient_yield`, which answers without
+        # remembering: the same probes, and a later caller reads the verdict.
+        drawing = source.worth_drawing()
+        found = source.found()
+        if drawing:
+            found += [source.draw() for _ in range(wanted - len(found))]
+        for string in found[:wanted]:
+            state.seen.add(string)
+            state.harvest().append(string)
     if state.harvesting is not None:
         state.sources[state.harvesting] = source
 
