@@ -149,8 +149,8 @@ class NoAcceptPreservingFamily(Exception):
 
 
 def certification_sample(pst, vs, by_population):
-    """The family means and split column for prefixes read only to settle the
-    split, and never added to the table.
+    """``label -> (family means, split column)`` for prefixes read only to
+    settle the split, and never added to the table.
 
     Reading one costs a query per family member, plus the one for the split
     itself.  Adding it to the table instead costs a query per fully observed
