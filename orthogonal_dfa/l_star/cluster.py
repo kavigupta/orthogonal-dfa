@@ -288,12 +288,7 @@ class AcceptPreservingGate:
         self.refusals = 0
 
     def _certify_further(self, pst, counts, drawn, voters):
-        """Read the split on more of the uniform pool, and add what it says to
-        ``counts``.
-
-        Undecided means the pool could not admit, so it is the one short of
-        prefixes.
-        """
+        """``counts`` with a further read of the uniform pool added into it."""
         more = draw_to_certify(pst, prefixes_to_certify(pst, counts, drawn, voters))
         extra = _split_counts(pst, certification_sample(pst, voters, {UNIFORM: more}))
         empty = ((0, 0), (0, 0))
