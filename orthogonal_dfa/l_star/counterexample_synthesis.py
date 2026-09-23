@@ -222,7 +222,7 @@ def split_unreached_leaves(resolver, pst, vs, dfa) -> Tuple[int, List[int]]:
     for leaf in list(range(resolver.num_states)):
         if leaf not in dfa.states or reads_as_one_class(pst, dfa, leaf):
             continue
-        distinguisher = resolver.splits.first_clustered_split(
+        distinguisher = resolver.splits.first_split(
             resolver.splits.scan_members(leaf),
             candidates,
             patience=SPLIT_CANDIDATE_PATIENCE,
