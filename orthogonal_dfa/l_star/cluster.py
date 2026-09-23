@@ -172,8 +172,7 @@ def _split_counts(pst, reads):
     """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
     cut counted on the split's own column, one entry per prefix population.
 
-    A population holds one class or both, so a side of ``n = 0`` is the ordinary
-    case: `drift_verdict` reads the sides that are there.
+    A population holds one class or both, so a side of ``n = 0`` is ordinary.
     """
     return {
         label: tuple(
@@ -185,7 +184,11 @@ def _split_counts(pst, reads):
 
 
 def _sides(counts):
-    """The sides of ``counts`` that hold prefixes, as ``(kind, hits, n)``."""
+    """The sides of ``counts`` that hold prefixes, as ``(kind, hits, n)``.
+
+    A side of ``n = 0`` is not a side read and failed: at that size neither test
+    can clear its level, so counting it refuses every admit.
+    """
     return [
         (kind, hits, n) for kind, (hits, n) in zip(("accept", "reject"), counts) if n
     ]
@@ -212,7 +215,8 @@ def drift_verdict(pst, by_population):
     alpha = ACCEPT_PRESERVING_ERROR_RATE
     sides = {label: _sides(counts) for label, counts in by_population.items()}
     num_tests = sum(len(held) for held in sides.values())
-    assert num_tests, "the split needs a side to read"
+    if not num_tests:
+        return UNCERTIFIED, UNIFORM
 
     def rejects_null(kind, hits, n, level):
         if kind == "accept":
@@ -244,19 +248,12 @@ def veto_size(pst, populations) -> int:
     """
     level = ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
     return max(
-        low_tail_detection_size(
-            pst.accept_thresh,
-            pst.reject_thresh,
-            level,
-            ACCEPT_PRESERVING_ERROR_RATE,
-        ),
+        low_tail_detection_size(null, alt, level, ACCEPT_PRESERVING_ERROR_RATE)
         # The reject side rejects high, which is the same test on ``n - hits``.
-        low_tail_detection_size(
-            1 - pst.reject_thresh,
-            1 - pst.accept_thresh,
-            level,
-            ACCEPT_PRESERVING_ERROR_RATE,
-        ),
+        for null, alt in (
+            (pst.accept_thresh, pst.reject_thresh),
+            (1 - pst.reject_thresh, 1 - pst.accept_thresh),
+        )
     )
 
 
@@ -439,7 +436,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     return Judged(vs, fnr, too_high, verdict, worst)
 
 
-def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
+def sample_suffix_family(pst, v: int, populations) -> Tuple[List[int], float]:
     """A suffix family clustered around ``v``, held to the accept-preserving
     split before it is returned.
 
@@ -447,7 +444,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
     off its column on the strength of that: membership of ``p + v`` is
     membership of ``p`` only while ``v`` is empty.
 
-    ``grow_pool(label)`` attempts to grow one prefix population, returning
+    ``populations.grow(label)`` draws more of one prefix population, returning
     whether it was able to or not.
     """
     prev_effective_fnr = 1.0
@@ -458,7 +455,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
         decision_boundary,
         read_rates(pst.config, decision_boundary),
     )
-    gate = AcceptPreservingGate(pst.config, grow_pool)
+    gate = AcceptPreservingGate(pst.config, populations)
 
     while True:
         # Promotes the seed to fully observed, which identify_cluster_around
@@ -512,7 +509,7 @@ def sample_suffix_family(pst, v: int, grow_pool) -> Tuple[List[int], float]:
             print(f"  wanted {family_size} more suffixes, kept {kept} of {drawn} drawn")
         elif judged.worst is None:
             pst.sample_more_prefixes()
-        elif not grow_pool.grow(judged.worst):
+        elif not populations.grow(judged.worst):
             # Fallback, this should very rarely happen. At this point, the
             # algorithm has detected a precondition violation, so later
             # results do not follow the theory.

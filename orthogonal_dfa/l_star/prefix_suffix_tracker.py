@@ -252,7 +252,6 @@ class PrefixSuffixTracker:
         rates = [
             (float(indecisive[m].mean()), label)
             for label, m in self.table.population_masks().items()
-            if m.any()
         ]
         if not rates:
             return float(indecisive.mean()), None
