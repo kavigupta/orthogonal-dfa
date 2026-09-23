@@ -190,9 +190,8 @@ def split_unreached_leaves(resolver, pst, vs, dfa) -> int:
         if leaf not in dfa.states or reads_as_one_class(pst, dfa, leaf):
             continue
         distinguisher = resolver.splits.first_split(
-            leaf,
+            resolver.splits.scan_members(leaf),
             candidates,
-            members=resolver.splits.scan_members(leaf),
             patience=SPLIT_CANDIDATE_PATIENCE,
         )
         if distinguisher is not None:
