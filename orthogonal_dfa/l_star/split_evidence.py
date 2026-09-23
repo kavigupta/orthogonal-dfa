@@ -14,6 +14,7 @@ Otherwise the verdict is undecided and more members accumulate before the next.
 """
 
 import math
+from typing import List, Optional
 
 from .statistics import binom_cdf
 
@@ -39,6 +40,10 @@ _MEMBER_LIMIT = 1500
 #: is what a leaf a counterexample already accused is worth.
 SCAN_MEMBER_LIMIT = math.ceil(MEMBERS_TO_RULE_OUT_A_SPLIT / _MIN_DETECTABLE_SPLIT)
 
+#: Passes of Lloyd's over the members' train-half means.  One dimension and two centres
+#: seeded at the extremes, so it settles almost at once.
+_TWO_MEANS_PASSES = 8
+
 SPLIT = "split"
 NO_SPLIT = "no_split"
 UNDECIDED = "undecided"
@@ -46,6 +51,64 @@ UNDECIDED = "undecided"
 
 def _log_beta(a: float, b: float) -> float:
     return math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+
+
+def _separating_half(cols: List[List[int]]) -> List[int]:
+    """Which of ``cols`` read the members the same way as each other.
+
+    A column is one train-half suffix's accept bits across the leaf's members.  Only the
+    suffixes that preserve the merged class say anything about it, and they say the same
+    thing -- they all reject the same members -- while the rest are noise on that question.
+    Averaging over every column drowns the few that separate in the many that do not, so the
+    grouping below reads only this cluster.
+
+    Lloyd's, seeded at the column furthest from the consensus, which is where a separating
+    column sits when the merged class is the minority.
+    """
+    if len(cols) < 2:
+        return list(range(len(cols)))
+    n = len(cols[0])
+    consensus = [sum(c[i] for c in cols) / len(cols) for i in range(n)]
+    far = max(
+        range(len(cols)),
+        key=lambda k: sum(abs(cols[k][i] - consensus[i]) for i in range(n)),
+    )
+    picked = [far]
+    for _ in range(_TWO_MEANS_PASSES):
+        centre = [sum(cols[k][i] for k in picked) / len(picked) for i in range(n)]
+        dist = [
+            (sum(abs(c[i] - centre[i]) for i in range(n)), k)
+            for k, c in enumerate(cols)
+        ]
+        dist.sort()
+        keep = [k for _, k in dist[: max(2, len(cols) // 2)]]
+        if keep == picked:
+            break
+        picked = keep
+    return picked
+
+
+def _two_means(xs: List[float]) -> Optional[float]:
+    """Where two clusters of ``xs`` part, or ``None`` if they do not.
+
+    One dimension, two centres seeded at the extremes.  What is wanted is the point the
+    members separate at relative to each other, which a threshold fixed in advance cannot
+    know: inside a leaf that merged two classes, both can sit on the same side of it.
+    """
+    lo, hi = min(xs), max(xs)
+    if hi <= lo:
+        return None
+    c0, c1 = lo, hi
+    for _ in range(_TWO_MEANS_PASSES):
+        left = [x for x in xs if abs(x - c0) <= abs(x - c1)]
+        right = [x for x in xs if abs(x - c0) > abs(x - c1)]
+        if not left or not right:
+            return None
+        n0, n1 = sum(left) / len(left), sum(right) / len(right)
+        if n0 == c0 and n1 == c1:
+            break
+        c0, c1 = n0, n1
+    return (c0 + c1) / 2
 
 
 class SplitEvidence:
@@ -99,6 +162,55 @@ class SplitEvidence:
         tests = self._edge_count()
         for distinguisher in distinguishers[:patience]:
             if self._weigh(members, distinguisher, tests) == SPLIT:
+                return distinguisher
+        return None
+
+    def _clustered_tally(self, members, distinguisher: bytes):
+        """``_tally``, but grouping the members by where they fall relative to each other
+        rather than to the table's thresholds.
+
+        Those thresholds are global calibration.  Inside a leaf that merged two classes both
+        of them can sit above the accept threshold -- which is exactly the leaf this is asked
+        about -- and the grouping then puts every member on one side and sees nothing.  The
+        test half still scores whatever the clustering proposes, so a leaf holding one class
+        cannot be split by the noise that grouped it.
+        """
+        self.family.prefill([member + distinguisher for member in members])
+        train, test = self.family.train_idx, self.family.test_idx
+        votes = [self.family.votes(member, distinguisher) for member in members]
+        if not votes or not train or not test:
+            return None
+        cols = [[v[i] for v in votes] for i in train]
+        sep = _separating_half(cols)
+        means = [
+            sum(votes[m][train[k]] for k in sep) / len(sep) for m in range(len(votes))
+        ]
+        cut = _two_means(means)
+        if cut is None:
+            return None
+        a1 = r1 = a2 = r2 = n_a = n_b = 0
+        for v, mean in zip(votes, means):
+            accepts = sum(v[i] for i in test)
+            if mean >= cut:
+                a1, r1, n_a = a1 + accepts, r1 + len(test) - accepts, n_a + 1
+            else:
+                a2, r2, n_b = a2 + accepts, r2 + len(test) - accepts, n_b + 1
+        return a1, r1, a2, r2, n_a, n_b
+
+    def first_clustered_split(self, members, distinguishers, *, patience):
+        """The first of ``distinguishers`` whose clustering of ``members`` the held-out half
+        confirms, or ``None``.
+
+        No ``NO_SPLIT`` verdict here: the caller is asking whether a leaf nothing accused can
+        be split, so the only answer worth acting on is that one can.
+        """
+        tests = self._edge_count()
+        for distinguisher in distinguishers[:patience]:
+            tallied = self._clustered_tally(members, distinguisher)
+            if tallied is None:
+                continue
+            a1, r1, a2, r2, _, _ = tallied
+            if self._log_bf_scores(a1, r1, a2, r2) >= self._split_threshold(tests):
                 return distinguisher
         return None
 

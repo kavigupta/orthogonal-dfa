@@ -15,7 +15,7 @@ in the next round.
 import math
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
@@ -103,8 +103,10 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
         dfa,
         dt,
     ) = resolver.to_dfa_and_tree()
+    merged = []
+    true_acc = None
     while vetoes < STALL_PATIENCE:
-        reached = split_unreached_leaves(resolver, pst, vs, dfa)
+        reached, merged = split_unreached_leaves(resolver, pst, vs, dfa)
         if not reached:
             break
         vetoes += 1
@@ -118,18 +120,21 @@ def _split_until_settled(pst, resolver, vs, best, *, index, acc_threshold, vetoe
             num_samples=2000,
             acc_threshold=acc_threshold,
         )
+        print(
+            f"[round {index}] the split test reached {reached} leaf(s) the "
+            f"counterexample pass could not: {dt.num_states} states, "
+            f"consistency {true_acc:.4f}"
+        )
+    if true_acc is not None:
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
+            merged=bool(merged),
         )
-        print(
-            f"[round {index}] the split test reached {reached} leaf(s) the "
-            f"counterexample pass could not: {dt.num_states} states, "
-            f"consistency {true_acc:.4f}"
-        )
+    return merged
 
 
 def scan_prefixes(signal, leaf_share, boundary, min_coverage=DEFAULT_MIN_COVERAGE):
@@ -180,9 +185,10 @@ def reads_as_one_class(pst, dfa, state, alpha=SPLIT_SCAN_ALPHA):
     return not (not_accept < alpha / 2 and not_reject < alpha / 2)
 
 
-def split_unreached_leaves(resolver, pst, vs, dfa) -> int:
+def split_unreached_leaves(resolver, pst, vs, dfa) -> Tuple[int, List[int]]:
     """Put the leaves that do not read as one class to the split test with the
-    round's own suffixes, returning how many split.
+    round's own suffixes, returning how many split and which of the rest the
+    gate flagged.
 
     The counterexample pass proposes a distinguisher only where the tree and the
     DFA disagree, so a leaf they agree about is never weighed at all -- and a
@@ -193,18 +199,21 @@ def split_unreached_leaves(resolver, pst, vs, dfa) -> int:
     """
     candidates = [v for v in (pst.table.suffix(i) for i in vs) if v]
     split = 0
+    merged = []
     for leaf in list(range(resolver.num_states)):
         if leaf not in dfa.states or reads_as_one_class(pst, dfa, leaf):
             continue
-        distinguisher = resolver.splits.first_split(
+        distinguisher = resolver.splits.first_clustered_split(
             resolver.splits.scan_members(leaf),
             candidates,
             patience=SPLIT_CANDIDATE_PATIENCE,
         )
-        if distinguisher is not None:
-            resolver.split_on(leaf, distinguisher)
-            split += 1
-    return split
+        if distinguisher is None:
+            merged.append(leaf)
+            continue
+        resolver.split_on(leaf, distinguisher)
+        split += 1
+    return split, merged
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -348,14 +357,19 @@ class BestRound:
     boundary comes with it because denoising reads the labels against it."""
 
     consistency: float = -1.0
+    #: Whether a leaf of this hypothesis still read as more than one class.
+    merged: bool = True
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index):
-        if consistency > self.consistency:
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, merged=False):
+        # A merge is what consistency scores best on, so the score cannot be the whole
+        # ranking: a hypothesis a leaf check caught is behind every one it did not.
+        if (not merged, consistency) > (not self.merged, self.consistency):
             self.consistency = consistency
+            self.merged = merged
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
 
@@ -421,15 +435,8 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
-        best.consider(
-            consistency=true_acc,
-            dfa=dfa,
-            tree=dt,
-            boundary=pst.decision_boundary,
-            round_index=index,
-        )
         if true_acc >= acc_threshold:
-            _split_until_settled(
+            merged = _split_until_settled(
                 pst,
                 resolver,
                 vs,
@@ -438,11 +445,34 @@ def counterexample_driven_synthesis(
                 acc_threshold=acc_threshold,
                 vetoes=vetoes,
             )
-            print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
+            best.consider(
+                consistency=true_acc,
+                dfa=dfa,
+                tree=dt,
+                boundary=pst.decision_boundary,
+                round_index=index,
+                merged=bool(merged),
             )
-            return best
+            if not merged:
+                print(
+                    f"[round {index}] reached the target DFA/DT consistency of "
+                    f"{acc_threshold:.4f}; stopping synthesis"
+                )
+                return best
+            print(
+                f"[round {index}] consistency {true_acc:.4f} is at target, but "
+                f"leaf(s) {merged} read as more than one class and no candidate "
+                f"cut them; carrying on"
+            )
+            dfa, dt = resolver.to_dfa_and_tree()
+        else:
+            best.consider(
+                consistency=true_acc,
+                dfa=dfa,
+                tree=dt,
+                boundary=pst.decision_boundary,
+                round_index=index,
+            )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
