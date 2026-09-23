@@ -241,8 +241,7 @@ class PrefixSuffixTracker:
 
         The worst population's rate, not the rate across all of them: whether a
         prefix is decisive is a property of the state it reaches, so one
-        population reading high is averaged away by the rest.  Its label comes
-        back because that is the population a caller has to grow to answer it.
+        population reading high is averaged away by the rest.
         """
         decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
@@ -253,12 +252,11 @@ class PrefixSuffixTracker:
         rates = [
             (float(indecisive[m].mean()), label)
             for label, m in self.table.population_masks().items()
-            if m.any()
         ]
         if not rates:
             return float(indecisive.mean()), None
-        # Keyed on the rate: the labels are not of one type and a tie between
-        # two populations is not a question about their names.
+        # Not max(rates): a tie falls through to the labels, which are not all
+        # one type.
         return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
     def sample_more_prefixes(self):
