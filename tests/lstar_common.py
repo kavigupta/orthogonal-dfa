@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import numpy as np
 import scipy.stats
 
-from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -16,23 +15,6 @@ us = UniformSampler(40)
 
 # How far a learned DFA may sit from the target before a test calls it wrong.
 assertion_allowed_error = 0.05
-
-
-def endpoint_mass(target, length):
-    """Exact share of uniform length-``length`` strings ending in each state.
-
-    `count_paths_to_state` counts in whole strings under `uniform_weights`, so the
-    shares divide out of exact integers.
-    """
-    weights = uniform_weights(target)
-    space = len(target.input_symbols) ** length
-    return {
-        q: count_paths_to_state(target, q, length, weights)[length][
-            target.initial_state
-        ]
-        / space
-        for q in sorted(target.states)
-    }
 
 
 def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler=None):
