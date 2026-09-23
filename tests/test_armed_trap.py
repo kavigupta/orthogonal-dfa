@@ -57,7 +57,7 @@ def miscut_mass(target: DFA, suffixes) -> float:
     0.7685 at the shipped rates) so that changing those rates does not move this
     measurement.
     """
-    mass = endpoint_mass(target, ALPHABET, LENGTH)
+    mass = endpoint_mass(target, LENGTH)
     cut = 0.0
     for q in target.states:
         if q in target.final_states:

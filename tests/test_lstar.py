@@ -635,7 +635,7 @@ class TestTrapTargets(unittest.TestCase):
         self.assertTrue(report.satisfied, report.reasons)
         # A merge only costs accuracy while the merged class carries mass, and is only
         # reachable while class-preserving suffixes are scarce.
-        self.assertGreater(endpoint_mass(target, alphabet, TRAP_LENGTH)["Q"], 0.05)
+        self.assertGreater(endpoint_mass(target, TRAP_LENGTH)["Q"], 0.05)
         self.assertLess(report.class_preserving_fraction, 0.10)
 
 
