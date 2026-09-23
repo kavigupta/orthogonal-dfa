@@ -424,11 +424,13 @@ noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
 read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
 
-The two are held at their own divisors and not a common one: `εcov/16` is what the round's
+The three are held at their own divisors and not a common one: `εcov/16` is what the round's
 own budget leaves once the cut, the coverage tail and the threshold tail have taken their
-shares, and `s/64` is what the gate needs to clear a coin flip.  Neither answers the other's
-constraint, so the tighter divisor is not the safer choice for both. -/
-noncomputable def cutBudget (η εcov : ℝ) : ℝ := min (εcov / 16) (sig η / 64)
+shares, `s/64` is what the gate needs to clear a coin flip, and `indecisionLimit/2` is what
+the FNR gate tolerates.  None answers another's constraint, so the tightest divisor is not
+the safer choice for all three. -/
+noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
+  min (εcov / 16) (min (sig η / 64) (indecisionLimit / 2))
 
 /-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
 a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the count is read
@@ -439,13 +441,13 @@ the budget.
 The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
 the margin exactly: the thresholds sit at `κ/2`, and an odd `κ` would round that up past what
 `voteSlack` has left to pay with. -/
-noncomputable def famCount (η : ℝ) (_populations : Finset J) (εcov _δ : ℝ) : ℕ :=
-  2 * (⌈Real.log (2 / cutBudget η εcov) / (4 * voteSlack η ^ 2)⌉₊ + 1)
+noncomputable def famCount (η : ℝ) (_populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℕ :=
+  2 * (⌈Real.log (2 / cutBudget η indecisionLimit εcov) / (4 * voteSlack η ^ 2)⌉₊ + 1)
 
 /-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
 flipping, so Markov charges the cut budget at that fraction and not at the family's size. -/
-noncomputable def flipBudget (η : ℝ) (populations : Finset J) (εcov _δ : ℝ) : ℝ :=
-  cutBudget η εcov * flipFrac η / (3 * (populations.card : ℝ))
+noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
+  cutBudget η indecisionLimit εcov * flipFrac η / (3 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget.
 
@@ -453,58 +455,85 @@ The separation is `(1 − 2η)² = 4·sig η²`, and the test spends four one-si
 — the seed's and the candidate's, each against the measured floor — so the factor here is
 capped below `2`.  `sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `15/2`
 in `solvedStateAt`; the two constants move together. -/
-noncomputable def screenMargin (η : ℝ) (populations : Finset J) (εcov δ : ℝ) : ℝ :=
-  flipBudget η populations εcov δ * sig η ^ 2 * (15 / 8)
+noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℝ :=
+  flipBudget η populations indecisionLimit εcov δ * sig η ^ 2 * (15 / 8)
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
-noncomputable def poolCount (η : ℝ) (populations : Finset J) (εcov δ pAP : ℝ) : ℕ :=
-  ⌈2 * ((famCount η populations εcov δ : ℝ) + 1) / pAP⌉₊
+noncomputable def poolCount (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ pAP : ℝ) : ℕ :=
+  ⌈2 * ((famCount η populations indecisionLimit εcov δ : ℝ) + 1) / pAP⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
+
+/-- The scale the counts are resolved against: the smallest rate the round has to clear.
+
+Stated in the rates themselves rather than in `cutBudget`, which is one particular way of
+taking their minimum.  What a reader checks is that the budget is polynomial in the rates
+asked for; which divisors the proof chose to hold each of them at is the proof's business. -/
+noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
+  min εcov (min (sig η) indecisionLimit)
+
+/-- The log factor the counts share.  Every tail is a deviation bound at one of the failure
+probabilities or rates in play, over a number of draws that is itself polynomial in them, so
+a log of their reciprocals covers all of it up to a constant. -/
+noncomputable def budgetLog (populations : Finset J)
+    (η indecisionLimit εcov δ α pAP : ℝ) : ℝ :=
+  Real.log (((populations.card : ℝ) + 2)
+    / (δ * α * pAP * budgetScale η indecisionLimit εcov))
+
+/-- What a budget of `k` buys.
+
+`sig` enters at the sixth power and the scale at the second because the screen's tail binds:
+its margin is a rate times `sig³`, and a deviation bound squares the margin it is given.  The
+population count enters squared because that margin is divided by it. -/
+noncomputable def budgetCap (populations : Finset J)
+    (η indecisionLimit εcov δ α pAP k : ℝ) : ℝ :=
+  k * (populations.card : ℝ) ^ 2 * budgetLog populations η indecisionLimit εcov δ α pAP
+    / (sig η ^ 6 * budgetScale η indecisionLimit εcov ^ 2)
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) : ℕ :=
+    (indecisionLimit εcov δ α pAP : ℝ) : ℕ :=
   ⌈Real.log (128 * (populations.card : ℝ)
-      * ((poolCount η populations εcov δ pAP : ℝ) + 2) ^ 2 / δ)
-      / (2 * (screenMargin η populations εcov δ / 2) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget η εcov / 4) ^ 2)⌉₊
+      * ((poolCount η populations indecisionLimit εcov δ pAP : ℝ) + 2) ^ 2 / δ)
+      / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget η indecisionLimit εcov / 4) ^
+      2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
         / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
-        * ((poolCount η populations εcov δ pAP : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget η populations εcov δ) ^ 2)⌉₊
+        * ((poolCount η populations indecisionLimit εcov δ pAP : ℝ) + 1) / δ)
+        / (2 * ((populations.card : ℝ) * flipBudget η populations indecisionLimit εcov δ) ^ 2)⌉₊
     + ⌈64 / εcov⌉₊
     + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
 meet. -/
 noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
-    (εcov δ pAP : ℝ) (mi : ℕ) : State where
-  nsuff := poolCount η populations εcov δ pAP
+    (indecisionLimit εcov δ pAP : ℝ) (mi : ℕ) : State where
+  nsuff := poolCount η populations indecisionLimit εcov δ pAP
   npref := mi
-  k := famCount η populations εcov δ + 1
+  k := famCount η populations indecisionLimit εcov δ + 1
   cn := 1
   cd := 2
-  lo := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ - 1
-  hi := ⌈(famCount η populations εcov δ : ℝ) / 2⌉₊ + 1
-  sc := ⌈((⌈15 / (2 * screenMargin η populations εcov δ)⌉₊ + 1 : ℕ) : ℝ)
-    * screenMargin η populations εcov δ⌉₊
-  scd := ⌈15 / (2 * screenMargin η populations εcov δ)⌉₊ + 1
+  lo := ⌈(famCount η populations indecisionLimit εcov δ : ℝ) / 2⌉₊ - 1
+  hi := ⌈(famCount η populations indecisionLimit εcov δ : ℝ) / 2⌉₊ + 1
+  sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
+    * screenMargin η populations indecisionLimit εcov δ⌉₊
+  scd := ⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
   gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
 noncomputable def ladderLen (η : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) : ℕ :=
-  Nat.log 2 (prefCount η populations εcov δ α pAP) + 1
+    (indecisionLimit εcov δ α pAP : ℝ) : ℕ :=
+  Nat.log 2 (prefCount η populations indecisionLimit εcov δ α pAP) + 1
 
 /-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
 noncomputable def schedule (η : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) : Finset State :=
-  (Finset.range (ladderLen η populations εcov δ α pAP)).image
-    (fun i => solvedStateAt η populations εcov δ pAP
-      (prefCount η populations εcov δ α pAP / 2 ^ i))
+    (indecisionLimit εcov δ α pAP : ℝ) : Finset State :=
+  (Finset.range (ladderLen η populations indecisionLimit εcov δ α pAP)).image
+    (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP
+      (prefCount η populations indecisionLimit εcov δ α pAP / 2 ^ i))
 
 /-- What one tested state may cost, summed over the populations: the certification draws
 repeating or meeting the table, the sample missing the wrong set, a family member flipping more
@@ -513,17 +542,18 @@ vote misfiring on too many of the rest — and then, once, the pool's draws coll
 
 The pool's *findability* is not here: that event does not mention the prefixes, so it is the
 same at every rung and is charged once rather than per rung. -/
-noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (εcov δ ρ ρsf : ℝ)
+noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ ρsf : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
     + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
       + (((B.npref : ℝ) ^ 2 * ρ
           + ((B.nsuff : ℝ) + 2) ^ 2
-            * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations εcov δ / 2) ^ 2)
+            * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations indecisionLimit εcov δ /
+              2) ^ 2)
           + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
-            * ((populations.card : ℝ) * flipBudget η₀ populations εcov δ) ^ 2))
-        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ εcov / 4) ^ 2)
-          + Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ εcov / 2) ^ 2)))))
+            * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2))
+        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2)
+          + Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 2) ^ 2)))))
     + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
@@ -531,8 +561,8 @@ prefixes to carry its share of the error budget.
 
 At a handful of prefixes neither the screen nor the certification sample can see a dirty
 family, so the guarantee cannot cover a stop there. -/
-structure Capped (η₀ : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : ℝ) (N : ℕ)
-    (B : State) : Prop where
+structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ ρsf pAP : ℝ)
+    (N : ℕ) (B : State) : Prop where
   /-- Reject strictly below accept, so the two gate sides are disjoint. -/
   lohi : B.lo < B.hi
   /-- The centre's boundary is a proper fraction. -/
@@ -548,23 +578,24 @@ structure Capped (η₀ : ℝ) (populations : Finset J) (εcov δ ρ ρsf pAP : 
 
   Proportional and not uniform: a rung's tails are exponential in its own count, so a
   `δ/(4·L)` split would make every count clear `log L`, and `L` is read off the top count. -/
-  share : stateFail η₀ populations εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
+  share : stateFail η₀ populations indecisionLimit εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
 
 open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
 a finite sum and no summable weight over all budgets is needed. -/
 noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
-    (εcov δ α pAP ρ ρsf : ℝ) : Finset State :=
-  (schedule η₀ populations εcov δ α pAP).filter
-    (Capped η₀ populations εcov δ ρ ρsf pAP (prefCount η₀ populations εcov δ α pAP))
+    (indecisionLimit εcov δ α pAP ρ ρsf : ℝ) : Finset State :=
+  (schedule η₀ populations indecisionLimit εcov δ α pAP).filter
+    (Capped η₀ populations indecisionLimit εcov δ ρ ρsf pAP (prefCount η₀ populations
+      indecisionLimit εcov δ α pAP))
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
 noncomputable def collisionCap (η : ℝ) (populations : Finset J)
-    (εcov δ α pAP : ℝ) : ℝ :=
+    (indecisionLimit εcov δ α pAP : ℝ) : ℝ :=
   δ / (64 * ((populations.card : ℝ) + 3) ^ 3
-    * ((prefCount η populations εcov δ α pAP : ℝ) ^ 2
-      + (poolCount η populations εcov δ pAP : ℝ) ^ 2 + 1))
+    * ((prefCount η populations indecisionLimit εcov δ α pAP : ℝ) ^ 2
+      + (poolCount η populations indecisionLimit εcov δ pAP : ℝ) ^ 2 + 1))
 
 /-! ## What the input distributions must satisfy -/
 
@@ -586,6 +617,54 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 
 /-! ## The theorem -/
 
+/-- What a reader has to audit.
+
+`ClusteringCorrect` names the schedule the loop runs and the collision cap it tolerates, and
+both are solved-for formulas: to check that statement is to check `solvedStateAt`'s ten fields
+and the six tails behind `prefCount`.  None of that is the claim.  The claim is that *some*
+budget works, that it costs no more than `budgetCap` says, and that the cut it returns covers
+every population -- so here the formulas sit behind existentials and only the cost is named.
+
+`budgetCap` is left visible on purpose: what the algorithm costs is part of what is being
+promised, not an implementation detail. -/
+def ClusteringGuarantee : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (Pre : Set S)
+    (η₀ indecisionLimit εcov α δ pAP : ℝ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  populations.Nonempty →
+  Flat Pre →
+  0 < pAP →
+  0 < indecisionLimit →
+  indecisionLimit ≤ 1 / 2 →
+  0 < α →
+  α < 1 / 2 →
+  0 < εcov →
+  εcov ≤ 1 →
+  0 < δ →
+  δ ≤ 1 →
+  ∃ (k cap : ℝ) (states : Finset State),
+    0 < cap ∧
+    (∀ B ∈ states,
+      (B.npref : ℝ) ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP k) ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      ∀ ρ : ℝ,
+      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+      ρ ≤ cap →
+      collisionMass Dsf ≤ cap →
+      1 - δ ≤ (runMeasure μ D Dsf).real
+        {x | (∃ B : {B : State // B ∈ states}, x ∈ ret O.mq populations indecisionLimit α B.val)
+          ∧ ∀ B : {B : State // B ∈ states},
+            x ∈ ret O.mq populations indecisionLimit α B.val →
+            ∀ j ∈ populations, 1 - εcov
+              ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
+                  (clusterAt O.mq populations x B.val) p (oracleNoise x)}}
+
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ` the loop
 terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εcov` of
 each prefix population the way the noiseless oracle does.
@@ -599,9 +678,8 @@ the noise only costs prefixes.
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
 which has signal; there is a population to certify; the populations are supported on a `Flat` prefix
 set; their collision mass is at most `ρ` and `pAP` of the suffix measure is
-accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range with `cutBudget η₀ εcov`
-inside the indecision the FNR gate tolerates; and `ρ` and `Dsf`'s collision mass fit
-`collisionCap`.
+accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range; and `ρ` and `Dsf`'s
+collision mass fit `collisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
@@ -615,7 +693,7 @@ def ClusteringCorrect : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP : ℝ),
+    (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
@@ -631,13 +709,20 @@ def ClusteringCorrect : Prop :=
   0 < εcov →
   εcov ≤ 1 →
   0 < δ →
-  cutBudget η₀ εcov ≤ indecisionLimit / 2 →
-  ρ ≤ collisionCap η₀ populations εcov δ α pAP →
-  collisionMass Dsf ≤ collisionCap η₀ populations εcov δ α pAP →
+  -- The budget the schedule is built from costs no more than `k` buys: a count that is
+  -- logarithmic in the failure probability and polynomial in the rates it resolves.
+  -- Derivable rather than assumed -- `prefCount_le_poly` discharges it -- and carried
+  -- here so the statement says what the algorithm costs and not only that it works.
+  (prefCount η₀ populations indecisionLimit εcov δ α pAP : ℝ)
+    ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP k →
+  ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP →
+  collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)},
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP ρ
+      (collisionMass Dsf)},
         x ∈ ret O.mq populations indecisionLimit α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ populations εcov δ α pAP ρ (collisionMass Dsf)},
+      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP ρ
+        (collisionMass Dsf)},
         x ∈ ret O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi

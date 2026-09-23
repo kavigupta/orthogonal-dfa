@@ -14,4 +14,5 @@ import OrthoDFA.Complexity
 import OrthoDFA.Distributional
 import OrthoDFA.Model
 import OrthoDFA.Adaptive
+import OrthoDFA.Budget
 import OrthoDFA.Main
