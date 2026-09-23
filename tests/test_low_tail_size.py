@@ -21,8 +21,8 @@ def _power(n, null, alternative, level):
     """Chance ``n`` samples drawn at ``alternative`` land where a test at
     ``level`` under ``null`` calls them low.
 
-    The region is found by walking every count rather than by the search under
-    test, so this does not agree with it by construction.
+    Walks every count rather than calling the search under test, which would
+    agree with it whatever either of them did.
     """
     region = [k for k in range(n + 1) if scipy.stats.binom.cdf(k, n, null) <= level]
     if not region:
@@ -58,9 +58,9 @@ class TestWhatTheSizeRespondsTo(unittest.TestCase):
         self.assertGreater(narrow, wide)
 
     def test_sizing_on_the_level_alone_is_not_enough(self):
-        """The size at which a reading of nothing but zeroes is significant, which
-        is what the level alone buys, misses the alternative far more often."""
         null, alt, level, miss = 0.65, 0.35, 0.025, 0.05
+        # The size the level alone buys: the first at which a reading of nothing
+        # but zeroes is significant.
 
         firing = next(
             n for n in range(1, 500) if scipy.stats.binom.cdf(0, n, null) <= level
@@ -72,6 +72,14 @@ class TestWhatTheSizeRespondsTo(unittest.TestCase):
     def test_an_alternative_at_or_above_the_null_is_refused(self):
         with self.assertRaises(AssertionError):
             low_tail_detection_size(0.5, 0.5, 0.05, 0.05)
+
+    def test_a_level_or_miss_rate_no_size_can_reach_is_refused(self):
+        # Left alone, a level of zero is cleared only when the tail underflows,
+        # and a zero miss rate doubles until the counts overflow.
+        with self.assertRaises(AssertionError):
+            low_tail_detection_size(0.65, 0.35, 0.0, 0.05)
+        with self.assertRaises(AssertionError):
+            low_tail_detection_size(0.65, 0.35, 0.05, 0.0)
 
 
 if __name__ == "__main__":

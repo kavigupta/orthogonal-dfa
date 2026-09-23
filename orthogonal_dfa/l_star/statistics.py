@@ -243,12 +243,13 @@ def _low_tail_power(n, null, alternative, level) -> float:
 def low_tail_detection_size(null, alternative, level, miss_rate) -> int:
     """Fewest samples at which a rate of ``alternative`` is called low at
     ``level`` under ``null``, all but ``miss_rate`` of the time.
-
-    Sizing on ``level`` alone gives the size at which a reading of nothing but
-    zeroes is significant, which misses a rate that merely sits at
-    ``alternative``.
     """
     assert 0 <= alternative < null <= 1, (alternative, null)
+    # Both have to leave something for a finite size to reach: at a level of zero
+    # the tails clear it only once they underflow, and at a zero miss rate no
+    # size holds, so the search below doubles until the counts overflow.
+    assert 0 < level < 1, level
+    assert 0 < miss_rate < 1, miss_rate
     low, high = 1, None
     while high is None or low < high:
         n = low * 2 if high is None else (low + high) // 2
@@ -256,8 +257,8 @@ def low_tail_detection_size(null, alternative, level, miss_rate) -> int:
             high = n
         else:
             low = n + 1
-    # The power moves in steps as the rejection count crosses the lattice, so the
-    # bisection can stop one side of the smallest size that holds.
+    # The power moves in steps as the rejection count crosses the lattice, so
+    # the bisection can stop above the smallest size that holds.
     while (
         high > 1
         and _low_tail_power(high - 1, null, alternative, level) >= 1 - miss_rate
