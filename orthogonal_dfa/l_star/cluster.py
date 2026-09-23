@@ -205,8 +205,8 @@ def drift_verdict(pst, by_population):
     as the class it is not says the family drifted, whatever else reads right --
     a state's prefixes are one class, so a backwards reading puts every one of
     them where the oracle contradicts it.  Separating the classes *at all* is a
-    claim about the distribution the thresholds are calibrated on, which only
-    the uniform pool is drawn from.
+    claim about the distribution the learner is scored on, and the pool is the
+    only population drawn from it.
 
     Drift is read first: a family can separate the classes on the pool and still
     invert a state.  The label is what the search grows to answer the refusal,
