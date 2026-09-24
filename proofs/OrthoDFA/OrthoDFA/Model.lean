@@ -471,10 +471,14 @@ def ClusteringGuarantee : Prop :=
         -- is given; the population count squared because that margin is divided by it; and
         -- the smallest rate a round has to clear at the third, because the coverage tails
         -- divide by `εcov` before squaring a margin that already carries it.
-        (∀ B ∈ states, (B.npref : ℝ) ≤ k * (populations.card : ℝ) ^ 2
-          * Real.log (((populations.card : ℝ) + 2)
-              / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit)))
-          / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)) ∧
+        (∀ B ∈ states, (B.npref : ℝ) ≤
+          k
+          * (populations.card : ℝ) ^ 2
+          * Real.log (
+            ((populations.card : ℝ) + 2)/ (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+          )
+          / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+        ) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)
