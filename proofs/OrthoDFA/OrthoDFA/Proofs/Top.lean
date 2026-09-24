@@ -1,4 +1,4 @@
-import OrthoDFA.Discharge
+import OrthoDFA.Proofs.Discharge
 
 /-!
 # Clustering correctness (top theorem, axiom-free, DFA-free)

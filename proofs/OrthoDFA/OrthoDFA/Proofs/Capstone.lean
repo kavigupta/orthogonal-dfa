@@ -1,5 +1,5 @@
-import OrthoDFA.Algorithm
-import OrthoDFA.Fuse
+import OrthoDFA.Proofs.Algorithm
+import OrthoDFA.Proofs.Fuse
 
 /-!
 # The finished capstone

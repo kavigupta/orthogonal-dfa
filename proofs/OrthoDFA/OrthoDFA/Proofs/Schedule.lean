@@ -1,4 +1,4 @@
-import OrthoDFA.Model
+import OrthoDFA.Clustering
 
 /-!
 # The schedule, and what it is solved from

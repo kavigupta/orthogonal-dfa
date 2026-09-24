@@ -1,4 +1,4 @@
-import OrthoDFA.Adaptive
+import OrthoDFA.Proofs.Adaptive
 
 /-!
 # What the budget costs

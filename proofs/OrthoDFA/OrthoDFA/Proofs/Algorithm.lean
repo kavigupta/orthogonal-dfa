@@ -1,5 +1,5 @@
-import OrthoDFA.Termination
-import OrthoDFA.Top
+import OrthoDFA.Proofs.Termination
+import OrthoDFA.Proofs.Top
 
 /-!
 # The gate-driven algorithm over N rounds (joint measure, fully constructed)

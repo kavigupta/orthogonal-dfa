@@ -1,6 +1,6 @@
-import OrthoDFA.Liveness
-import OrthoDFA.Complexity
-import OrthoDFA.Termination
+import OrthoDFA.Proofs.Liveness
+import OrthoDFA.Proofs.Complexity
+import OrthoDFA.Proofs.Termination
 
 /-!
 # The distributional clustering guarantee (PR #257) — target statement + proof

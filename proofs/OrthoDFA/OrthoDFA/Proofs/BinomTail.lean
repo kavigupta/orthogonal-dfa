@@ -1,4 +1,4 @@
-import OrthoDFA.Estimate
+import OrthoDFA.Proofs.Estimate
 import Mathlib.Probability.Distributions.Binomial
 import Mathlib.Probability.Independence.InfinitePi
 import Mathlib.Probability.ProductMeasure

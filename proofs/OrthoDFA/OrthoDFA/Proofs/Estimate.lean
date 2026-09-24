@@ -1,4 +1,4 @@
-import OrthoDFA.Discharge
+import OrthoDFA.Proofs.Discharge
 
 /-!
 # Sample → distribution: two-sided concentration

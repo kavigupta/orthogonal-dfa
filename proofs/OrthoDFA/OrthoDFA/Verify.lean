@@ -1,9 +1,9 @@
-import OrthoDFA.Budget
+import OrthoDFA.Proofs.Budget
 
 /-!
 # The theorem
 
-`ClusteringGuarantee`, stated in `OrthoDFA.Model`, holds.
+`ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, holds.
 -/
 
 namespace OrthoDFA

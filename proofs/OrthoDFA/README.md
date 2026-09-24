@@ -6,6 +6,15 @@ proved from Mathlib — **no bespoke axioms, no `sorry`**. Each theorem carries 
 `#print axioms` line; all report only Lean's core (`propext`, `Classical.choice`,
 `Quot.sound`).
 
+## What to read
+
+- `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim.
+  It imports only Mathlib.
+- `OrthoDFA/Verify.lean` — names the proof of `ClusteringGuarantee` and prints its axioms.
+
+Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to trust the claim.
+The table below lists its older intermediate results; file names there are under `Proofs/`.
+
 ## What is proved
 
 The clustering guarantee is stated in the algorithm's own terms — prefixes, oracle

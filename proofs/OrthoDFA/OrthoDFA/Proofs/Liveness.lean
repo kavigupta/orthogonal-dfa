@@ -1,8 +1,8 @@
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
-import OrthoDFA.Estimate
-import OrthoDFA.Schedule
-import OrthoDFA.Top
+import OrthoDFA.Proofs.Estimate
+import OrthoDFA.Proofs.Schedule
+import OrthoDFA.Proofs.Top
 
 /-!
 # Liveness, step 1: the clustering selects an accept-preserving family

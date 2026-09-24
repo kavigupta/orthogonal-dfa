@@ -1,15 +1,14 @@
-import OrthoDFA.Distributional
-import OrthoDFA.Schedule
-import OrthoDFA.BinomTail
-import OrthoDFA.Grouping
+import OrthoDFA.Proofs.Distributional
+import OrthoDFA.Proofs.Schedule
+import OrthoDFA.Proofs.BinomTail
+import OrthoDFA.Proofs.Grouping
 import Mathlib.Probability.ProductMeasure
 import Mathlib.Probability.Independence.InfinitePi
 
 /-!
 # The adaptive clustering loop: the proof
 
-`ClusteringCorrect`, in `OrthoDFA.Model`, is what is claimed; this file is how it is
-reached.  Two parts, composed by `sound_and_terminating`:
+`ClusteringCorrect`, in `OrthoDFA.Proofs.Schedule`, is what this file proves.  Two parts, composed by `sound_and_terminating`:
 
 * `validity_of_returned` — whatever is returned is valid, whenever it is returned;
 * `loop_terminates` — the loop returns at some round;
@@ -140,7 +139,7 @@ lemma hits_eq_sum (O : Oracle μ S) (A : Finset S) :
 `runMeasure` is a concrete space with a concrete measure, so the marginals the concentration
 arguments consume (`map_firstDraws`, `map_drawBlock`) are lemmas rather than hypotheses.
 
-On the deduplication gap `OrthoDFA.Model` records: do not be tempted to close it by modelling
+On the deduplication gap `OrthoDFA.Clustering` records: do not close it by modelling
 the without-replacement law as "i.i.d. conditioned on the block being injective".  Those
 conditioned laws are inconsistent across `n` — for `Dsf = (½,¼,¼)` the first marginal of the
 `n = 2` law puts mass `⅖` on the first atom, not `½` — so no space carries them all and

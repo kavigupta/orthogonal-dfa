@@ -1,4 +1,4 @@
-import OrthoDFA.Hoeffding
+import OrthoDFA.Proofs.Hoeffding
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
 /-!

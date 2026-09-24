@@ -1,4 +1,4 @@
-import OrthoDFA.Estimate
+import OrthoDFA.Proofs.Estimate
 
 /-!
 # The gate model: what the gate accepts and rejects
