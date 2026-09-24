@@ -19,6 +19,39 @@ open scoped ENNReal
 variable {S : Type*} [Stringlike S]
 variable {J : Type*} [Fintype J]
 
+/-- `s = 1/2 − η`. -/
+noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
+
+/-- The scale the counts are resolved against: the smallest rate the round has to clear.
+
+Stated in the rates themselves rather than in `cutBudget`, which is one particular way of
+taking their minimum.  What a reader checks is that the budget is polynomial in the rates
+asked for; which divisors the proof chose to hold each of them at is the proof's business. -/
+noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
+  min εcov (min (sig η) indecisionLimit)
+
+/-- The log factor the counts share.  Every tail is a deviation bound at one of the failure
+probabilities or rates in play, over a number of draws that is itself polynomial in them, so
+a log of their reciprocals covers all of it up to a constant. -/
+noncomputable def budgetLog (populations : Finset J)
+    (η indecisionLimit εcov δ α pAP : ℝ) : ℝ :=
+  Real.log (((populations.card : ℝ) + 2)
+    / (δ * α * pAP * budgetScale η indecisionLimit εcov))
+
+/-- What a budget of `k` buys.
+
+`sig` enters at the sixth power because the screen's tail binds: its margin is a rate times
+`sig³`, and a deviation bound squares the margin it is given.  The population count enters
+squared because that margin is divided by it.
+
+The scale enters at the *third* power, not the second: the coverage tails divide by `εcov`
+once before squaring a margin that already carries `εcov`, so they are cubic in it, and a
+cap quadratic in the scale is exceeded as `εcov → 0`. -/
+noncomputable def budgetCap (populations : Finset J)
+    (η indecisionLimit εcov δ α pAP k : ℝ) : ℝ :=
+  k * (populations.card : ℝ) ^ 2 * budgetLog populations η indecisionLimit εcov δ α pAP
+    / (sig η ^ 6 * budgetScale η indecisionLimit εcov ^ 3)
+
 /-- What fraction of the family the vote absorbs flipping.  A flip moves a read by a whole
 bit rather than by `2s`, so it costs the vote `(1 − η)·f`, and what is left is `voteSlack`:
 

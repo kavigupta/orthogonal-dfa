@@ -408,39 +408,6 @@ of the error budget.  No condition refers to the count solving it: a rung is cha
 proportion to its own prefix count, so the ladder's length — which is `log` of that count —
 never enters. -/
 
-/-- `s = 1/2 − η`. -/
-noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
-
-/-- The scale the counts are resolved against: the smallest rate the round has to clear.
-
-Stated in the rates themselves rather than in `cutBudget`, which is one particular way of
-taking their minimum.  What a reader checks is that the budget is polynomial in the rates
-asked for; which divisors the proof chose to hold each of them at is the proof's business. -/
-noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
-  min εcov (min (sig η) indecisionLimit)
-
-/-- The log factor the counts share.  Every tail is a deviation bound at one of the failure
-probabilities or rates in play, over a number of draws that is itself polynomial in them, so
-a log of their reciprocals covers all of it up to a constant. -/
-noncomputable def budgetLog (populations : Finset J)
-    (η indecisionLimit εcov δ α pAP : ℝ) : ℝ :=
-  Real.log (((populations.card : ℝ) + 2)
-    / (δ * α * pAP * budgetScale η indecisionLimit εcov))
-
-/-- What a budget of `k` buys.
-
-`sig` enters at the sixth power because the screen's tail binds: its margin is a rate times
-`sig³`, and a deviation bound squares the margin it is given.  The population count enters
-squared because that margin is divided by it.
-
-The scale enters at the *third* power, not the second: the coverage tails divide by `εcov`
-once before squaring a margin that already carries `εcov`, so they are cubic in it, and a
-cap quadratic in the scale is exceeded as `εcov → 0`. -/
-noncomputable def budgetCap (populations : Finset J)
-    (η indecisionLimit εcov δ α pAP k : ℝ) : ℝ :=
-  k * (populations.card : ℝ) ^ 2 * budgetLog populations η indecisionLimit εcov δ α pAP
-    / (sig η ^ 6 * budgetScale η indecisionLimit εcov ^ 3)
-
 /-- Two prefixes of a flat set never extend to the same query string.
 
 `UniformSampler(DEFAULT_SAMPLE_LENGTH)` draws every probe at one fixed length, so
@@ -464,12 +431,12 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 `ClusteringCorrect`, in `OrthoDFA.Schedule`, names the schedule the loop runs and the collision
 cap it tolerates, and both are solved-for formulas: to check that statement is to check
 `solvedStateAt`'s ten fields and the six tails behind `prefCount`.  None of that is the claim.
-The claim is that *some* budget works, that it costs no more than `budgetCap` says, and that
+The claim is that *some* budget works, that it costs no more than the count below, and that
 the cut it returns covers every population -- so here the formulas sit behind existentials and
-only the cost is named.
+only the cost is written out.
 
-`budgetCap` is left visible on purpose: what the algorithm costs is part of what is being
-promised, not an implementation detail. -/
+The cost is written out rather than named: what the algorithm costs is part of what is being
+promised, and a reader should not have to unfold three definitions to see it. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -499,8 +466,15 @@ def ClusteringGuarantee : Prop :=
       ρ ≤ cap →
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
-        (∀ B ∈ states,
-          (B.npref : ℝ) ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP k) ∧
+        -- What the algorithm costs, written out.  The signal `½ − η₀` enters at the sixth
+        -- power because the screen's tail binds and a deviation bound squares the margin it
+        -- is given; the population count squared because that margin is divided by it; and
+        -- the smallest rate a round has to clear at the third, because the coverage tails
+        -- divide by `εcov` before squaring a margin that already carries it.
+        (∀ B ∈ states, (B.npref : ℝ) ≤ k * (populations.card : ℝ) ^ 2
+          * Real.log (((populations.card : ℝ) + 2)
+              / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit)))
+          / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)
