@@ -19,6 +19,19 @@ open scoped ENNReal
 variable {S : Type*} [Stringlike S]
 variable {J : Type*} [Fintype J]
 
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+instance (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] : IsProbabilityMeasure (runMeasure μ D Dsf) := by
+  unfold runMeasure; infer_instance
+
+deriving instance DecidableEq for State
+
+instance : Countable State :=
+  Function.Injective.countable
+    (f := fun b => (b.nsuff, b.npref, b.k, b.cn, b.cd, b.lo, b.hi, b.sc, b.scd, b.gmin))
+    (by rintro ⟨⟩ ⟨⟩ h; simp_all)
+
 /-- `s = 1/2 − η`. -/
 noncomputable def sig (η : ℝ) : ℝ := 1 / 2 - η
 
@@ -215,8 +228,6 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
   δ / (64 * ((populations.card : ℝ) + 3) ^ 3
     * ((prefCount η populations indecisionLimit εcov δ α pAP : ℝ) ^ 2
       + (poolCount η populations indecisionLimit εcov δ pAP : ℝ) ^ 2 + 1))
-
-/-! ## What the input distributions must satisfy -/
 
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ` the loop
 terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εcov` of

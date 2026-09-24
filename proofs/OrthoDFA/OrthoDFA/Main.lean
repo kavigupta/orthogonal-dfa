@@ -58,12 +58,13 @@ theorem clustering_correct : ClusteringCorrect := by
 budget are supplied here rather than named in the claim.  `prefCount_le_poly` is what says the
 budget supplied is within `budgetCap`. -/
 theorem clustering_guarantee : ClusteringGuarantee := by
+  refine ⟨524288, ?_⟩
   intro Ω _ μ _ S _ J _ O populations Pre η₀ indecisionLimit εcov α δ pAP
     hηle hη₀ hpop hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1
   classical
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  refine ⟨524288, collisionCap η₀ populations indecisionLimit εcov δ α pAP, ?_, ?_⟩
+  refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP, ?_, ?_⟩
   · simp only [collisionCap]
     positivity
   intro D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf
