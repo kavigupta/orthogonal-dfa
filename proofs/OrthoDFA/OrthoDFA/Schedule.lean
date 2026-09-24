@@ -247,11 +247,7 @@ collision mass fit `collisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
-may stop wherever on the ladder it likes.
-
-Closed: the spaces, their instances and the data are all quantified here, so
-`clustering_correct : ClusteringCorrect` is the whole claim and nothing is hidden in a
-binder on the theorem. -/
+may stop wherever on the ladder it likes. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
