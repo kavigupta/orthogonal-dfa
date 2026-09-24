@@ -592,6 +592,36 @@ class TestArmedMergeLearned(unittest.TestCase):
         )
 
 
+class TestArmedMergeLearnedAsymmetric(unittest.TestCase):
+    """The same target read through a band centred above a half.  Rejecting strings
+    read at 0.35, so a suffix sending ``Q`` to ``A`` barely disagrees more with the
+    empty suffix than one holding it does, and a screen that pools the two sides
+    keeps them all."""
+
+    @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        target = build_armed_target()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(ARMED_LENGTH)
+        # A half-width of ARMED_SIGNAL about 0.65.
+        noise_model = AsymmetricBernoulli(p_0=0.35, p_1=0.95)
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=ARMED_SIGNAL,
+            seed=seed,
+            sampler=sampler,
+            noise_model=noise_model,
+        )
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ARMED_ALPHABET,
+            sampler=sampler,
+        )
+
+
 # -- the same merge with an escape route --------------------------------------
 
 TRAP_LENGTH = 40

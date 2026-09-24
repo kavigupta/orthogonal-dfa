@@ -51,6 +51,7 @@ class MaskTable:
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
+        self._retired: set = set()
 
     # -- sizes / prefix side ------------------------------------------------
 
@@ -118,7 +119,9 @@ class MaskTable:
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
         # Flatten out the pairs to update
         full_cols = [
-            i for i, col in enumerate(self._masks) if (col != UNOBSERVED).all()
+            i
+            for i, col in enumerate(self._masks)
+            if (col != UNOBSERVED).all() and i not in self._retired
         ]
         adds = {}
         if full_cols:
@@ -197,4 +200,10 @@ class MaskTable:
         if not self._masks:
             return np.array([], dtype=int)
         matrix = np.array(self._masks)
-        return np.flatnonzero((matrix != UNOBSERVED).all(axis=1))
+        full = np.flatnonzero((matrix != UNOBSERVED).all(axis=1))
+        return np.array([row for row in full if row not in self._retired], dtype=int)
+
+    def retire_suffixes(self, rows) -> None:
+        """Take ``rows`` out of ``fully_observed`` for good, and stop topping them
+        up as prefixes arrive."""
+        self._retired.update(rows)
