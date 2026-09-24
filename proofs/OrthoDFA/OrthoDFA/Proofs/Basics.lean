@@ -1,22 +1,6 @@
-import Mathlib.Data.Real.Basic
-import Mathlib.Tactic
-import OrthoDFA.Proofs.Estimate
-import OrthoDFA.Proofs.Schedule
+import OrthoDFA.Clustering
 
-/-!
-# Liveness, step 1: the clustering selects an accept-preserving family
-
-The ε-anchored greedy returns the `k` suffixes of least loss against its centre.
-This file proves the *selection* fact that liveness rests on, with no probability:
-if the accept-preserving suffixes are separated *below* the non-accept-preserving
-ones (every AP loss strictly under every non-AP loss) and there are at least `k`
-of them, then the `k` least-loss suffixes are all accept-preserving.
-
-`chosen` abstracts the greedy's output — any least-loss `k`-subset. Separability
-(`hsep`) is the substantive hypothesis: the noisy losses must actually split the
-two classes, which downstream is a concentration statement about the pool once it
-is rich enough to expose every non-accept-preserving suffix's flip.
--/
+/-! # Facts about the oracle, the greedy's argmin, and the retry loop -/
 
 namespace OrthoDFA
 
@@ -114,7 +98,6 @@ lemma noise_icc (w) : ∀ᵐ ω ∂μ, O.noise w ω ∈ Set.Icc (0 : ℝ) 1 := b
   filter_upwards [O.noise_bit w] with ω hω
   rcases hω with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
 
-variable {ι : Type*} (pref : ι → S)
 
 lemma noise_int (w) : Integrable (O.noise w) μ :=
   MeasureTheory.Integrable.of_mem_Icc 0 1 (O.noise_meas w).aemeasurable (O.noise_icc w)
@@ -151,9 +134,64 @@ lemma rate_eq_of_label_eq {x y : S} (h : O.label x = O.label y) : O.rate x = O.r
 
 end Oracle
 
-namespace Oracle
-variable {S : Type*} [MeasurableSpace S] [Mul S] [DecidableEq S] (O : Oracle μ S)
+section Flip
+variable {S : Type*} [MeasurableSpace S] [Monoid S] [MeasurableMul S]
 
-end Oracle
+/-- The `Dj`-flip-mass of a suffix: the probability that `v` flips a `Dj`-drawn prefix.
+This is the *distributional* quantity `good`/`bad` are defined by. -/
+noncomputable def flipMass (O : Oracle μ S) (Dj : Measure S) (v : S) : ℝ :=
+  ∫ p, O.flip v p ∂Dj
+
+lemma flip_meas (O : Oracle μ S) (v : S) : Measurable (fun p => O.flip v p) := by
+  have h1 : Measurable (fun p : S => O.label (p * v)) :=
+    O.label_meas.comp (measurable_mul_const v)
+  show Measurable (fun p => O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p)
+  exact (h1.add O.label_meas).sub ((measurable_const.mul h1).mul O.label_meas)
+
+lemma flip_icc (O : Oracle μ S) (v p : S) : O.flip v p ∈ Set.Icc (0 : ℝ) 1 := by
+  rcases O.flip_bit v p with h | h <;> rw [Set.mem_Icc, h] <;> constructor <;> norm_num
+
+end Flip
+
+open scoped ENNReal in
+/-- A failure bound gives the complementary success bound, with no measurability
+needed: outer measure is subadditive and `s ∪ sᶜ = univ`. -/
+theorem one_sub_le_compl_real {α : Type*} [MeasurableSpace α] (ν : Measure α)
+    [IsProbabilityMeasure ν] (s : Set α) (d : ℝ) (h : ν.real s ≤ d) : 1 - d ≤ ν.real sᶜ := by
+  have hsub : (1 : ℝ≥0∞) ≤ ν s + ν sᶜ := by
+    calc (1 : ℝ≥0∞) = ν Set.univ := measure_univ.symm
+      _ = ν (s ∪ sᶜ) := by rw [Set.union_compl_self]
+      _ ≤ ν s + ν sᶜ := measure_union_le _ _
+  have hreal : (1 : ℝ) ≤ ν.real s + ν.real sᶜ := by
+    have := ENNReal.toReal_mono (by finiteness) hsub
+    rwa [ENNReal.toReal_add (measure_ne_top _ _) (measure_ne_top _ _), ENNReal.toReal_one] at this
+  linarith
+
+/-- Soundness + termination ⇒ correctness.  The two halves of a retry loop compose by
+a union bound: if whatever is returned is valid except w.p. `δ/2` (uniformly over *when*
+it is returned), and the loop returns at all except w.p. `δ/2`, then with probability
+`≥ 1 − δ` the loop returns something *and* what it returns is valid. -/
+theorem sound_and_terminating {α : Type*} [MeasurableSpace α] (ν : Measure α)
+    [IsProbabilityMeasure ν] {T : Type*} [Countable T]
+    (Fail Ret : T → Set α) (δ : ℝ)
+    (hvalid : ν.real (⋃ t, Fail t) ≤ δ / 2)
+    (hterm : ν.real {y | ∀ t, y ∉ Ret t} ≤ δ / 2) :
+    1 - δ ≤ ν.real {y | (∃ t, y ∈ Ret t) ∧ ∀ t, y ∉ Fail t} := by
+  have hcompl : {y : α | (∃ t, y ∈ Ret t) ∧ ∀ t, y ∉ Fail t}
+      = ((⋃ t, Fail t) ∪ {y | ∀ t, y ∉ Ret t})ᶜ := by
+    ext y
+    simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_union, Set.mem_iUnion, not_or,
+      not_exists, not_forall, not_not]
+    constructor
+    · rintro ⟨⟨t, ht⟩, hF⟩
+      exact ⟨hF, ⟨t, ht⟩⟩
+    · rintro ⟨hF, ⟨t, ht⟩⟩
+      exact ⟨⟨t, ht⟩, hF⟩
+  rw [hcompl]
+  refine one_sub_le_compl_real ν _ δ ?_
+  calc ν.real ((⋃ t, Fail t) ∪ {y | ∀ t, y ∉ Ret t})
+      ≤ ν.real (⋃ t, Fail t) + ν.real {y | ∀ t, y ∉ Ret t} := measureReal_union_le _ _
+    _ ≤ δ / 2 + δ / 2 := add_le_add hvalid hterm
+    _ = δ := by ring
 
 end OrthoDFA

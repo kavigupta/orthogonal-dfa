@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Estimate
+import OrthoDFA.Proofs.Hoeffding
 import Mathlib.Probability.Distributions.Binomial
 import Mathlib.Probability.Independence.InfinitePi
 import Mathlib.Probability.ProductMeasure
@@ -8,7 +8,7 @@ import Mathlib.Probability.ProductMeasure
 
 The gate's verdict is a binomial p-value, and what the proof needs of it is a tail bound.
 Mathlib's `Bin(n, p)` is the size of a random subset of `Iio n` whose elements are taken
-independently, so its coordinates are exactly the independent bits `wrongDecisive_le`
+independently, so its coordinates are exactly the independent bits `sumUpper_le`
 consumes — no "sum of i.i.d. Bernoulli is binomial" law has to be proved separately.
 -/
 
@@ -133,7 +133,7 @@ theorem binomial_real_ge_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
   have hmean : ∑ i ∈ Finset.range n, ν[X i] ≤ ((Finset.range n).card : ℝ) * (p : ℝ) := by
     rw [Finset.sum_congr rfl (fun i hi => integral_binBit n p (Finset.mem_range.1 hi)),
       Finset.sum_const, nsmul_eq_mul]
-  have hmain := wrongDecisive_le X (Finset.range n) (p : ℝ) τ hmeasX (binBits_indep n p) hIcc
+  have hmain := sumUpper_le X (Finset.range n) (p : ℝ) τ hmeasX (binBits_indep n p) hIcc
     hmean hτ
   rw [Finset.card_range] at hmain
   have hmapmeas : Measurable (fun q : ℕ → Prop => ({i | q i}).ncard) :=

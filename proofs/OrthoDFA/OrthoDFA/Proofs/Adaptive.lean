@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Distributional
+import OrthoDFA.Proofs.Basics
 import OrthoDFA.Proofs.Schedule
 import OrthoDFA.Proofs.BinomTail
 import OrthoDFA.Proofs.Grouping
