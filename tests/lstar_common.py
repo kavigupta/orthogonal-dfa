@@ -92,13 +92,13 @@ def assertDFA(
 
 
 def assertDoesNotMeetProperty(
-    testcase, oracle_creator, counterexample_generator, count=10_000
+    testcase, oracle_creator, counterexample_generator, *, sampler, count=10_000
 ):
     rng = np.random.default_rng(0)
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     valid = []
     for _ in range(count):
-        suffix = DEFAULT_SAMPLER.sample(rng, 2)
+        suffix = sampler.sample(rng, 2)
         prefix = counterexample_generator(suffix)
         s = prefix + suffix
         if oracle.membership_query(s) == oracle.membership_query(prefix):

@@ -69,7 +69,9 @@ class TestLStarFast(unittest.TestCase):
                 return bytes([1]) * 4
             return bytes([0]) * 4
 
-        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
+        assertDoesNotMeetProperty(
+            self, oracle_creator, counterexample_generator, sampler=DEFAULT_SAMPLER
+        )
 
     def test_specific_alternation_with_only_one_at_end_does_not_meet_property(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -81,7 +83,9 @@ class TestLStarFast(unittest.TestCase):
                 return bytes([1]) * 5
             return bytes([0]) * 4
 
-        assertDoesNotMeetProperty(self, oracle_creator, counterexample_generator)
+        assertDoesNotMeetProperty(
+            self, oracle_creator, counterexample_generator, sampler=DEFAULT_SAMPLER
+        )
 
     def test_transient_states_terminate(self):
         # Regression for issue #128. This target -- {w : |w| >= 3 and
