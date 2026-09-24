@@ -1,5 +1,5 @@
 import OrthoDFA.Distributional
-import OrthoDFA.Model
+import OrthoDFA.Schedule
 import OrthoDFA.BinomTail
 import OrthoDFA.Grouping
 import Mathlib.Probability.ProductMeasure

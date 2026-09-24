@@ -1,7 +1,7 @@
 import Mathlib.Data.Real.Basic
 import Mathlib.Tactic
 import OrthoDFA.Estimate
-import OrthoDFA.Model
+import OrthoDFA.Schedule
 import OrthoDFA.Top
 
 /-!

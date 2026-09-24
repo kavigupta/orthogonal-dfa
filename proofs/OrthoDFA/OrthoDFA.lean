@@ -13,6 +13,7 @@ import OrthoDFA.Liveness
 import OrthoDFA.Complexity
 import OrthoDFA.Distributional
 import OrthoDFA.Model
+import OrthoDFA.Schedule
 import OrthoDFA.Adaptive
 import OrthoDFA.Budget
 import OrthoDFA.Main
