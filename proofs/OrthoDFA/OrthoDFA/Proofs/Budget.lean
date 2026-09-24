@@ -611,14 +611,6 @@ theorem prefCount_le_poly (populations : Finset J)
   rw [hLeq, hfin]
   linarith only [hbound, m1, m2, m3, m4, m5, m6, t7, hQnn]
 
-/-- The ladder is `log` of the budget, so any bound on the budget bounds the number of times
-the loop runs the gate, logarithmically. -/
-theorem ladderLen_le_of_prefCount_le (populations : Finset J)
-    (η indecisionLimit εcov δ α pAP : ℝ) {N : ℕ}
-    (h : prefCount η populations indecisionLimit εcov δ α pAP ≤ N) :
-    ladderLen η populations indecisionLimit εcov δ α pAP ≤ Nat.log 2 N + 1 :=
-  Nat.succ_le_succ (Nat.log_mono_right h)
-
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and collision cap it names as the witnesses,
 and `prefCount_le_poly` for the cost. -/

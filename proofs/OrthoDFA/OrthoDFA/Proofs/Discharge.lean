@@ -29,58 +29,6 @@ open scoped ENNReal NNReal
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 
-/-- Chernoff admit-threshold margin: the per-read excess over `β+τ` at which the
-sub-Gaussian tail of `n` reads equals the level `α`. -/
-noncomputable def certMargin (n : ℕ) (α : ℝ) : ℝ :=
-  Real.sqrt (Real.log (1 / α) / (2 * (n : ℝ)))
-
-/-- T1 (discharged).  A drifted side is admitted with probability at most `α`. -/
-theorem certErr_bound
-    (Xc : ℕ → Ω → ℝ) (n : ℕ) (β τ α : ℝ)
-    (hmeas : ∀ i, AEMeasurable (Xc i) μ)
-    (h_indep : iIndepFun Xc μ)
-    (hIcc : ∀ i, ∀ᵐ ω ∂μ, Xc i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean_sum : ∑ i ∈ Finset.range n, μ[Xc i] ≤ (n : ℝ) * (β + τ))
-    (hn : 0 < n) (hα0 : 0 < α) (hα1 : α ≤ 1) :
-    μ.real {ω | (n : ℝ) * ((β + τ) + certMargin n α)
-        ≤ ∑ i ∈ Finset.range n, Xc i ω} ≤ α := by
-  set t := certMargin n α with ht
-  have htnn : 0 ≤ t := Real.sqrt_nonneg _
-  have hbound :=
-    wrongDecisive_le Xc (Finset.range n) (β + τ) t hmeas h_indep hIcc
-      (by simpa [Finset.card_range] using hmean_sum) htnn
-  rw [Finset.card_range] at hbound
-  refine hbound.trans_eq ?_
-  have hnne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
-  have h1α : (1 : ℝ) ≤ 1 / α := by rw [le_div_iff₀ hα0, one_mul]; exact hα1
-  have harg : (0 : ℝ) ≤ Real.log (1 / α) / (2 * (n : ℝ)) := by
-    apply div_nonneg (Real.log_nonneg h1α)
-    positivity
-  have ht2 : t ^ 2 = Real.log (1 / α) / (2 * (n : ℝ)) := by
-    rw [ht, certMargin]; exact Real.sq_sqrt harg
-  rw [ht2]
-  have hexp : -2 * (n : ℝ) * (Real.log (1 / α) / (2 * (n : ℝ))) = Real.log α := by
-    rw [one_div, Real.log_inv]; field_simp
-  rw [hexp, Real.exp_log hα0]
-
-/-- Decisiveness / placement (non-member side).  Reads independent, each in
-`[0,1]`, with total mean at most `k(β-s)` (a non-member under an accept-preserving
-family: per-read mean `β-s`).  The vote failing to decide REJECT (sum reaching
-`k(β-τ)`, i.e. indecisive or wrongly accepted) has probability at most
-`exp(-2k(s-τ)²)`. -/
-theorem misplacedNonmember_le {ι : Type*}
-    (X : ι → Ω → ℝ) (idx : Finset ι) (β s τ : ℝ)
-    (hmeas : ∀ i, AEMeasurable (X i) μ)
-    (h_indep : iIndepFun X μ)
-    (hIcc : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean_sum : ∑ i ∈ idx, μ[X i] ≤ (idx.card : ℝ) * (β - s))
-    (hτs : τ ≤ s) :
-    μ.real {ω | (idx.card : ℝ) * (β - τ) ≤ ∑ i ∈ idx, X i ω}
-      ≤ Real.exp (-2 * (idx.card : ℝ) * (s - τ) ^ 2) := by
-  have h := wrongDecisive_le X idx (β - s) (s - τ) hmeas h_indep hIcc hmean_sum (by linarith)
-  have heq : (β - s) + (s - τ) = β - τ := by ring
-  simpa only [heq] using h
-
 /-- Decisiveness / placement (member side).  Reads independent, each in
 `[0,1]`, with total mean at least `k(β+s)` (a member under an accept-preserving
 family).  The vote failing to decide ACCEPT (sum at most `k(β+τ)`) has probability
@@ -128,6 +76,4 @@ theorem misplacedMember_le {ι : Type*}
   · intro hge; nlinarith [hge]
 
 end OrthoDFA
-#print axioms OrthoDFA.certErr_bound
-#print axioms OrthoDFA.misplacedNonmember_le
 #print axioms OrthoDFA.misplacedMember_le

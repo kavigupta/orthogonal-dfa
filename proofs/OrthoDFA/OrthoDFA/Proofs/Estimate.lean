@@ -41,40 +41,4 @@ theorem sumLower_le {ι : Type*} (X : ι → Ω → ℝ) (idx : Finset ι) (b γ
   have h := misplacedMember_le X idx (b - γ) γ 0 hmeas h_indep hIcc hmean' hγ
   simpa only [add_zero, sub_zero] using h
 
-/-- Two-sided concentration.  Total mean `= k·p`: the sum deviates from `k·p`
-by `k·γ` w.p. ≤ `2·exp(-2kγ²)`.  With per-prefix `[0,1]` indicators of mean `p`
-(the distributional rate), this is empirical-mean-concentrates-on-`p`. -/
-theorem twoSided (X : ℕ → Ω → ℝ) (k : ℕ) (p γ : ℝ)
-    (hmeas : ∀ i, AEMeasurable (X i) μ) (h_indep : iIndepFun X μ)
-    (hIcc : ∀ i, ∀ᵐ ω ∂μ, X i ω ∈ Set.Icc (0 : ℝ) 1)
-    (hmean : ∑ i ∈ Finset.range k, μ[X i] = (k : ℝ) * p) (hγ : 0 ≤ γ) :
-    μ.real {ω | (k : ℝ) * γ ≤ |(∑ i ∈ Finset.range k, X i ω) - (k : ℝ) * p|}
-      ≤ 2 * Real.exp (-2 * (k : ℝ) * γ ^ 2) := by
-  set S : Ω → ℝ := fun ω => ∑ i ∈ Finset.range k, X i ω with hS
-  have hup : μ.real {ω | (k : ℝ) * (p + γ) ≤ S ω} ≤ Real.exp (-2 * (k : ℝ) * γ ^ 2) :=
-    by simpa [Finset.card_range] using
-      sumUpper_le X (Finset.range k) p γ hmeas h_indep hIcc
-        (by simpa [Finset.card_range] using le_of_eq hmean) hγ
-  have hlo : μ.real {ω | S ω ≤ (k : ℝ) * (p - γ)} ≤ Real.exp (-2 * (k : ℝ) * γ ^ 2) :=
-    by simpa [Finset.card_range] using
-      sumLower_le X (Finset.range k) p γ hmeas h_indep hIcc
-        (by simpa [Finset.card_range] using ge_of_eq hmean) hγ
-  have hsub : {ω | (k : ℝ) * γ ≤ |S ω - (k : ℝ) * p|}
-      ⊆ {ω | (k : ℝ) * (p + γ) ≤ S ω} ∪ {ω | S ω ≤ (k : ℝ) * (p - γ)} := by
-    intro ω hω
-    simp only [Set.mem_setOf_eq, Set.mem_union] at hω ⊢
-    rcases le_abs.mp hω with h | h
-    · left; nlinarith [h]
-    · right; nlinarith [h]
-  calc μ.real {ω | (k : ℝ) * γ ≤ |S ω - (k : ℝ) * p|}
-      ≤ μ.real ({ω | (k : ℝ) * (p + γ) ≤ S ω} ∪ {ω | S ω ≤ (k : ℝ) * (p - γ)}) :=
-        measureReal_mono hsub
-    _ ≤ μ.real {ω | (k : ℝ) * (p + γ) ≤ S ω} + μ.real {ω | S ω ≤ (k : ℝ) * (p - γ)} :=
-        measureReal_union_le _ _
-    _ ≤ Real.exp (-2 * (k : ℝ) * γ ^ 2) + Real.exp (-2 * (k : ℝ) * γ ^ 2) :=
-        add_le_add hup hlo
-    _ = 2 * Real.exp (-2 * (k : ℝ) * γ ^ 2) := by ring
-
-#print axioms twoSided
-
 end OrthoDFA

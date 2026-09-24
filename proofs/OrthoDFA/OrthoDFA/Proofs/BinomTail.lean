@@ -157,47 +157,6 @@ theorem binomial_real_ge_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
   exact hmain
 
 open scoped Classical in
-/-- Hoeffding's lower tail for the binomial. -/
-theorem binomial_real_le_le (n : ℕ) (p : I) (τ : ℝ) (hτ : 0 ≤ τ) :
-    (ProbabilityTheory.binomial n p).real {i : ℕ | (i : ℝ) ≤ (n : ℝ) * ((p : ℝ) - τ)}
-      ≤ Real.exp (-2 * (n : ℝ) * τ ^ 2) := by
-  classical
-  set ν : Measure (ℕ → Prop) := Measure.infinitePi (binBits n p) with hν
-  set X : ℕ → (ℕ → Prop) → ℝ := fun i q => if q i then (1 : ℝ) else 0 with hX
-  have hmeasX : ∀ i, AEMeasurable (X i) ν := fun i =>
-    ((measurable_from_top (f := fun P : Prop => if P then (1 : ℝ) else 0)).comp
-      (measurable_pi_apply i)).aemeasurable
-  have hIcc : ∀ i, ∀ᵐ q ∂ν, X i q ∈ Set.Icc (0 : ℝ) 1 := by
-    intro i
-    filter_upwards with q
-    by_cases h : q i <;> simp [hX, h]
-  have hmean : ((Finset.range n).card : ℝ) * (p : ℝ) ≤ ∑ i ∈ Finset.range n, ν[X i] := by
-    rw [Finset.sum_congr rfl (fun i hi => integral_binBit n p (Finset.mem_range.1 hi)),
-      Finset.sum_const, nsmul_eq_mul]
-  have hmain := sumLower_le X (Finset.range n) (p : ℝ) τ hmeasX (binBits_indep n p) hIcc
-    hmean hτ
-  rw [Finset.card_range] at hmain
-  have hmapmeas : Measurable (fun q : ℕ → Prop => ({i | q i}).ncard) :=
-    measurable_ncard.comp (by fun_prop)
-  have hAmeas : MeasurableSet {i : ℕ | (i : ℝ) ≤ (n : ℝ) * ((p : ℝ) - τ)} :=
-    (Set.to_countable _).measurableSet
-  have hpre : (ProbabilityTheory.binomial n p).real
-        {i : ℕ | (i : ℝ) ≤ (n : ℝ) * ((p : ℝ) - τ)}
-      = ν.real {q : ℕ → Prop | ((({i | q i}).ncard : ℝ)) ≤ (n : ℝ) * ((p : ℝ) - τ)} := by
-    rw [binomial_eq_map_bits, measureReal_def, Measure.map_apply hmapmeas hAmeas,
-      ← measureReal_def]
-    rfl
-  have hae : ν.real {q : ℕ → Prop | ((({i | q i}).ncard : ℝ)) ≤ (n : ℝ) * ((p : ℝ) - τ)}
-      = ν.real {q : ℕ → Prop | ∑ i ∈ Finset.range n, X i q ≤ (n : ℝ) * ((p : ℝ) - τ)} := by
-    refine measureReal_congr ?_
-    filter_upwards [ae_bits_lt n p] with q hq
-    show ((({i | q i}).ncard : ℝ) ≤ (n : ℝ) * ((p : ℝ) - τ))
-      = (∑ i ∈ Finset.range n, X i q ≤ (n : ℝ) * ((p : ℝ) - τ))
-    rw [ncard_eq_sum_bits hq]
-  rw [hpre, hae]
-  exact hmain
-
-open scoped Classical in
 /-- The binomial mass of a finite set of counts is the sum of its terms. -/
 lemma binomial_real_finset (N : ℕ) (p : I) (s : Finset ℕ) :
     (ProbabilityTheory.binomial N p).real ↑s
