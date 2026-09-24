@@ -20,6 +20,7 @@ from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
+    DEFAULT_SAMPLER,
     assert_terminates,
     assertDFA,
     assertion_allowed_error,
@@ -159,7 +160,7 @@ class TestLStar(unittest.TestCase):
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.2, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @pytest.mark.slow
     def test_modulo_even_harder(self):
@@ -167,7 +168,7 @@ class TestLStar(unittest.TestCase):
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.1, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_confounded_frame_product(self):
         """A confounder turns a phase/frame automaton into a 28-state product
@@ -186,21 +187,21 @@ class TestLStar(unittest.TestCase):
             sampler=_CONFOUNDED_SAMPLER,
         )
         self.assertEqual(len(dfa.states), 28)
-        assertDFA(self, dfa, oracle_creator, symbols=5)
+        assertDFA(self, dfa, oracle_creator, symbols=5, sampler=_CONFOUNDED_SAMPLER)
 
     def test_two_subsequences_with_alternation(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliRegex(regex=r".*1111.*(1111|0000)11.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_specific_alternation_with_nothing_at_end_3_syms(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliRegex(regex=r".*(111|000).*", alphabet_size=3), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator, symbols=3)
+        assertDFA(self, dfa, oracle_creator, symbols=3, sampler=DEFAULT_SAMPLER)
 
     @parameterized.expand(POOR_CASE_TARGETS)
     def test_poor_case_learned_at_a_reachable_bar(self, _name, target):
@@ -209,7 +210,7 @@ class TestLStar(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.3, seed=0, acc_threshold=0.97
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @parameterized.expand(POOR_CASE_TARGETS)
     def test_poor_case_terminates_at_the_default_bar(self, _name, target):
@@ -238,7 +239,7 @@ class TestLStarAsymmetric(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.2, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @parameterized.expand([(0.10, 0.40), (0.60, 0.90)])
     def test_modulo_asymmetric_non_straddling(self, p_0, p_1):
@@ -250,7 +251,7 @@ class TestLStarAsymmetric(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_one_sided_noise(self):
         """One class is pure coin-flip (p_0=0.50), only the other carries signal."""
@@ -262,7 +263,7 @@ class TestLStarAsymmetric(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
 @pytest.mark.slow
@@ -271,7 +272,7 @@ class TestLStarORF(unittest.TestCase):
     def test_no_orf(self, signal):
         oracle_creator = lambda nm, s: NoisyOracle(AllFramesClosedOracle(), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=signal, seed=0)
-        assertDFA(self, dfa, oracle_creator, symbols=4)
+        assertDFA(self, dfa, oracle_creator, symbols=4, sampler=DEFAULT_SAMPLER)
 
 
 class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
@@ -287,7 +288,9 @@ class TestLStarOnGeneratedBenchmarks(unittest.TestCase):
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        accuracy, fp, fn = compute_dfa_accuracy(
+            dfa, oracle_creator, sampler=DEFAULT_SAMPLER
+        )
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
@@ -317,7 +320,9 @@ class TestLStarOnLargeGeneratedBenchmarks(unittest.TestCase):
         print(outer)
         oracle_creator = lambda nm, s, _dfa=outer: NoisyOracle(DFAOracle(_dfa), nm, s)
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        accuracy, fp, fn = compute_dfa_accuracy(
+            dfa, oracle_creator, sampler=DEFAULT_SAMPLER
+        )
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
@@ -393,7 +398,9 @@ class TestLStarBimodalReproducer(unittest.TestCase):
         # learner the other tests use.
         self.assertLess(P.class_preserving_fraction(self.DFA, length=40), 0.01)
         dfa = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=0)
-        accuracy, fp, fn = compute_dfa_accuracy(dfa, oracle_creator)
+        accuracy, fp, fn = compute_dfa_accuracy(
+            dfa, oracle_creator, sampler=DEFAULT_SAMPLER
+        )
         if accuracy < 1 - assertion_allowed_error:
             self.fail(
                 f"DFA incorrect (accuracy {accuracy:.3f}). "
@@ -426,7 +433,7 @@ class TestLStarDeepCounter(unittest.TestCase):
         )
         oracle_creator = lambda nm, s, _d=dfa: NoisyOracle(DFAOracle(_d), nm, s)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, learned, oracle_creator)
+        assertDFA(self, learned, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
 def _worst_pair_distinguishing_fraction(dfa, length=40):
@@ -497,4 +504,4 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
             )
         oracle_creator = lambda nm, s, _d=outer: NoisyOracle(DFAOracle(_d), nm, s)
         learned = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, learned, oracle_creator)
+        assertDFA(self, learned, oracle_creator, sampler=DEFAULT_SAMPLER)

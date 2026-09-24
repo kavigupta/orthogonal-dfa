@@ -4,36 +4,40 @@ from types import SimpleNamespace
 import numpy as np
 import scipy.stats
 
-from orthogonal_dfa.l_star.learn import learn_dfa
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, learn_dfa
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import SymmetricBernoulli
 from orthogonal_dfa.l_star.tracker import RecordingTracker
 
-us = UniformSampler(40)
+DEFAULT_SAMPLER = UniformSampler(DEFAULT_SAMPLE_LENGTH)
 
 # How far a learned DFA may sit from the target before a test calls it wrong.
 assertion_allowed_error = 0.05
 
 
-def sample_with_exclusion(exclude_pattern, *, symbols, count):
+def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler):
+    """Draws from ``sampler``.  A hypothesis read on longer strings than it was learned
+    on can score well while being wrong everywhere the learner looked."""
     rng = np.random.default_rng(0x1234)
     results = []
     while len(results) < count:
-        s = us.sample(rng, symbols)
+        s = sampler.sample(rng, symbols)
         if exclude_pattern is None or not exclude_pattern(s):
             results.append(s)
     return results
 
 
 def compute_dfa_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
+    dfa, oracle_creator, *, sampler, exclude_pattern=None, symbols=2, count=10_000
 ):
     """Evaluate dfa against a noiseless oracle. Returns (accuracy, false_positives, false_negatives)."""
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     false_positives, false_negatives = [], []
-    for s in sample_with_exclusion(exclude_pattern, symbols=symbols, count=count):
+    for s in sample_with_exclusion(
+        exclude_pattern, symbols=symbols, count=count, sampler=sampler
+    ):
         expected = oracle.membership_query(s)
         actual = dfa.accepts_input(s)
         if expected and not actual:
@@ -45,20 +49,37 @@ def compute_dfa_accuracy(
 
 
 def evaluate_accuracy(
-    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000
+    dfa, oracle_creator, exclude_pattern=None, symbols=2, count=10_000, *, sampler
 ):
     """Return accuracy of dfa against a noiseless oracle."""
     accuracy, _, _ = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
+        dfa,
+        oracle_creator,
+        exclude_pattern=exclude_pattern,
+        symbols=symbols,
+        count=count,
+        sampler=sampler,
     )
     return accuracy
 
 
 def assertDFA(
-    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
+    testcase,
+    dfa,
+    oracle_creator,
+    exclude_pattern=None,
+    symbols=2,
+    *,
+    sampler,
+    count=10_000,
 ):
     accuracy, false_positives, false_negatives = compute_dfa_accuracy(
-        dfa, oracle_creator, exclude_pattern, symbols, count
+        dfa,
+        oracle_creator,
+        exclude_pattern=exclude_pattern,
+        symbols=symbols,
+        count=count,
+        sampler=sampler,
     )
     if accuracy < 1 - assertion_allowed_error:
         print("DFA is incorrect!")
@@ -71,13 +92,13 @@ def assertDFA(
 
 
 def assertDoesNotMeetProperty(
-    testcase, oracle_creator, counterexample_generator, count=10_000
+    testcase, oracle_creator, counterexample_generator, *, sampler, count=10_000
 ):
     rng = np.random.default_rng(0)
     oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     valid = []
     for _ in range(count):
-        suffix = us.sample(rng, 2)
+        suffix = sampler.sample(rng, 2)
         prefix = counterexample_generator(suffix)
         s = prefix + suffix
         if oracle.membership_query(s) == oracle.membership_query(prefix):

@@ -14,7 +14,11 @@ import unittest
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import learn_dfa
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import assertion_allowed_error, evaluate_accuracy
+from tests.lstar_common import (
+    DEFAULT_SAMPLER,
+    assertion_allowed_error,
+    evaluate_accuracy,
+)
 
 UNDERSTATED_SIGNAL = 0.2
 
@@ -32,7 +36,7 @@ class TestUnderstatedSignal(unittest.TestCase):
             seed=0,
             noise_model=AsymmetricBernoulli(p_0=0.0, p_1=1.0),
         )
-        accuracy = evaluate_accuracy(dfa, _oracle_creator)
+        accuracy = evaluate_accuracy(dfa, _oracle_creator, sampler=DEFAULT_SAMPLER)
         self.assertGreaterEqual(accuracy, 1 - assertion_allowed_error)
         self.assertEqual(len(dfa.states), 9)
 
