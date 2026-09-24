@@ -475,7 +475,8 @@ def ClusteringGuarantee : Prop :=
           k
           * (populations.card : ℝ) ^ 2
           * Real.log (
-            ((populations.card : ℝ) + 2)/ (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+            ((populations.card : ℝ) + 2)
+            / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
           )
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
