@@ -14,7 +14,7 @@ from orthogonal_dfa.l_star.examples.benchmark_generator import (
     sample_random_dfa,
 )
 from orthogonal_dfa.l_star.structures import NoisyOracle
-from tests.lstar_common import compute_dfa_accuracy
+from tests.lstar_common import DEFAULT_SAMPLER, compute_dfa_accuracy
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 NUM_DFAS = 600
@@ -63,7 +63,7 @@ def _elstar_accuracy(aut) -> float:
         signal.signal(signal.SIGALRM, old)
     if dfa is None:
         return 0.0
-    acc, _, _ = compute_dfa_accuracy(dfa, oracle_creator)
+    acc, _, _ = compute_dfa_accuracy(dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
     return acc
 
 

@@ -15,7 +15,12 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
     BernoulliRegex,
 )
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from tests.lstar_common import assert_terminates, assertDFA, assertDoesNotMeetProperty
+from tests.lstar_common import (
+    DEFAULT_SAMPLER,
+    assert_terminates,
+    assertDFA,
+    assertDoesNotMeetProperty,
+)
 from tests.lstar_common import learn_dfa_verified as learn_dfa
 
 
@@ -25,21 +30,21 @@ class TestLStarFast(unittest.TestCase):
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_specific_subsequence(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliRegex(regex=r".*1010101.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_two_subsequences(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliRegex(regex=r".*1111.*1111.*"), noise_model, seed
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_specific_alternation(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -47,7 +52,11 @@ class TestLStarFast(unittest.TestCase):
         )
         dfa = learn_dfa(oracle_creator, min_signal_strength=0.3, seed=0)
         assertDFA(
-            self, dfa, oracle_creator, exclude_pattern=lambda s: s[:5] == bytes([1] * 5)
+            self,
+            dfa,
+            oracle_creator,
+            exclude_pattern=lambda s: s[:5] == bytes([1] * 5),
+            sampler=DEFAULT_SAMPLER,
         )
 
     def test_specific_alternation_with_nothing_at_end_does_not_meet_property(self):
@@ -116,7 +125,7 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.35, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_modulo_asymmetric_skewed(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -127,7 +136,7 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_rare_accept_class(self):
         """Only 1 of 7 states is accepting, so boundary estimation sees mostly rejects."""
@@ -139,7 +148,7 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @unittest.skip(
         "Trimodal over seeds -- 4/8 resolve 9 states, 2/8 collapse to 3, 2/8 raise "
@@ -159,7 +168,7 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         dfa = learn_dfa(
             oracle_creator, min_signal_strength=0.15, seed=0, noise_model=noise_model
         )
-        assertDFA(self, dfa, oracle_creator)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
 if __name__ == "__main__":
