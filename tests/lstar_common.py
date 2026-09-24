@@ -65,7 +65,14 @@ def evaluate_accuracy(
 
 
 def assertDFA(
-    testcase, dfa, oracle_creator, exclude_pattern=None, symbols=2, *, count=10_000
+    testcase,
+    dfa,
+    oracle_creator,
+    exclude_pattern=None,
+    symbols=2,
+    *,
+    count=10_000,
+    sampler=None,
 ):
     accuracy, false_positives, false_negatives = compute_dfa_accuracy(
         dfa,
@@ -73,6 +80,7 @@ def assertDFA(
         exclude_pattern=exclude_pattern,
         symbols=symbols,
         count=count,
+        sampler=sampler,
     )
     if accuracy < 1 - assertion_allowed_error:
         print("DFA is incorrect!")
