@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -15,16 +15,64 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
-    """How high the cohort's clean disagreement rate can be, given its smallest count.
+def _floor_rate(
+    fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
+) -> float:
+    """The largest rate r at which the least of ``num_rows`` independent
+    Binomial(``num_prefixes``, r) counts is still at most ``fewest`` with
+    probability ``failure_prob``:
 
-    The smallest of many draws sits below the rate it is drawn from, and by more
-    when there are few prefixes, so the floor is the upper end of the interval
-    around it rather than the count itself.
+        1 - (1 - P(Binomial(num_prefixes, r) <= fewest)) ^ num_rows = failure_prob
     """
-    return float(
-        scipy.stats.beta.ppf(1 - failure_prob, fewest + 1, num_prefixes - fewest)
+    if fewest == num_prefixes:
+        return 1.0
+    per_row = 1 - (1 - failure_prob) ** (1 / num_rows)
+    return float(scipy.stats.beta.ppf(1 - per_row, fewest + 1, num_prefixes - fewest))
+
+
+def _same_family_rate(boundary, signal, reference_rate, read: bool):
+    """P(X != R | R = ``read``) for a prefix of class C, with R its read under the
+    reference and X its read under a suffix preserving C, independent given C:
+
+        P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
+                                      boundary - signal   if C rejects
+
+    and P(C accepts) set so that P(R = 1) = ``reference_rate``, clipped to [0, 1].
+    """
+    reject_rate, accept_rate = boundary - signal, boundary + signal
+    pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
+    if not read:
+        reject_rate, accept_rate = 1 - reject_rate, 1 - accept_rate
+    reads = pi * accept_rate + (1 - pi) * reject_rate
+    assert reads > 0, f"P(R = {read:d}) = 0"
+    accept_given_read = pi * accept_rate / reads
+    return accept_given_read * (1 - accept_rate) + (1 - accept_given_read) * (
+        1 - reject_rate
     )
+
+
+def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
+    """``read`` -> the maximum of ``_same_family_rate`` over reference rates in
+    the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
+
+        P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
+
+    for each ``read`` the reference gives at least once.  Each rate is monotone in
+    the reference rate, so the interval's ends attain it.
+    """
+    ends = [
+        scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
+        (
+            scipy.stats.beta.ppf(1 - failure_prob, ones + 1, reads - ones)
+            if ones < reads
+            else 1.0
+        ),
+    ]
+    return {
+        read: max(_same_family_rate(boundary, signal, float(end), read) for end in ends)
+        for read, seen in ((True, ones), (False, reads - ones))
+        if seen
+    }
 
 
 @dataclass
@@ -54,8 +102,8 @@ class SearchConfig:
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    #: Chance of screening out a suffix that does belong, spent across the
-    #: whole staircase rather than per test.
+    #: Chance of screening out a suffix that does belong, over every screening of
+    #: it and every test within one.
     screening_alpha: float = 0.1
     #: Require the suffix family to be accept-preserving.  Only meaningful where
     #: such a family exists, which is the class-preserving precondition; a caller
@@ -113,6 +161,13 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
+    #: Whether ``decision_boundary`` has been read off a family yet, rather than
+    #: standing at its starting guess.
+    calibrated: bool = False
+    #: Suffixes drawn for the pool so far, whatever became of them.
+    suffixes_drawn: int = 0
+    #: The suffix rows clustering picks families from.
+    suffix_pool: List[int] = field(default_factory=list)
 
     @property
     def num_prefixes(self) -> int:
@@ -169,44 +224,121 @@ class PrefixSuffixTracker:
         out.append(available)
         return out
 
-    def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows still explicable as ``reference`` plus per-cell noise, which
-        flips one of the two observations at rate ``2*eta*(1-eta)``.
+    def _screen_cohort(
+        self, rows: List[int], reference: int, *, predict: bool
+    ) -> List[int]:
+        """The ``rows`` not screened out.  At each prefix count n of the staircase,
+        and on each side s in {R = 1, R = 0} of the reference over those prefixes,
+        row x is screened out if its n_s disagreements D_s(x) reject
 
-        That rate is read off the cohort rather than off ``min_signal_strength``:
-        a caller who promises less signal than the oracle carries would otherwise
-        widen the screen to admit suffixes that flip a third of the prefixes.  The
-        smallest disagreement in the cohort is noise alone once the cohort holds an
-        accept-preserving suffix, and the declared rate stays as a ceiling so the
-        screen can only tighten.
+            H0: D_s(x) ~ Binomial(n_s, rho_s)
+
+        in the upper tail at ``alpha``, where rho_s is the smaller of
+        ``_loosest_same_family_rates``' rate for s, if ``predict``, and
+        ``_floor_rate`` of the row nearest the reference.  Pooled over s, a row
+        sending a rejecting class to accept shifts E[D] by
+
+            (p_1 - p_0) (1 - 2 p_0)
+
+        per prefix of that class, which is 0 at p_0 = 1/2.
         """
-        eta = 0.5 - self.config.min_signal_strength
-        declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        alpha = self.config.screening_alpha / len(staircase)
+        # Per screening: each step, on each side, a test and a floor; the reference
+        # rate's interval, two tails.  A row is screened at most twice.
+        alpha = self.config.screening_alpha / (2 * (4 * len(staircase) + 2))
+        predicted = (
+            _loosest_same_family_rates(
+                self.decision_boundary,
+                self.config.min_signal_strength,
+                int(ref[candidates].sum()),
+                len(candidates),
+                alpha,
+            )
+            if predict
+            else {True: 1.0, False: 1.0}
+        )
         alive = list(rows)
         for p in staircase:
             if not alive:
                 break
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
-            disagreements = (
-                self.table.observed_masks(alive, subset) != ref[subset]
-            ).sum(1)
-            same_family_rate = min(
-                declared_rate, _floor_rate(int(disagreements.min()), p, alpha)
-            )
-            alive = [
-                row
-                for row, count in zip(alive, disagreements)
-                if not binomial_side_of_boundary(
-                    int(count), p, same_family_rate, failure_prob=alpha
-                )
+            observed = self.table.observed_masks(alive, subset)
+            sides = [
+                (ref[subset] == read, predicted[read])
+                for read in (True, False)
+                if (ref[subset] == read).any()
             ]
+            disagreements = [
+                (observed[:, side] != ref[subset][side]).sum(1) for side, _ in sides
+            ]
+            closest = np.argmin(
+                sum(
+                    count / side.sum() for count, (side, _) in zip(disagreements, sides)
+                )
+            )
+            too_far = np.zeros(len(alive), dtype=bool)
+            for count, (side, rate) in zip(disagreements, sides):
+                n = int(side.sum())
+                same_family_rate = min(
+                    rate, _floor_rate(int(count[closest]), n, alpha, len(alive))
+                )
+                too_far |= [
+                    binomial_side_of_boundary(
+                        int(c), n, same_family_rate, failure_prob=alpha
+                    )
+                    is True
+                    for c in count
+                ]
+            alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
+
+    def _refutes(self, kept: int, drawn: int, *, screenings: int, looks: int) -> bool:
+        """Whether ``kept`` rows surviving ``screenings`` screenings each, out of
+        ``drawn`` distinct draws, are significantly too few at one of ``looks``
+        looks:
+
+            P(Binomial(drawn, f (1 - screenings screening_alpha / 2)) <= kept)
+                < screening_alpha / looks,
+
+        f = ``min_suffix_frequency``, the least share of the sampler's draws that
+        preserve every class, each of which a screening right about
+        the noise drops with probability at most screening_alpha / 2."""
+        rate = self.config.min_suffix_frequency * (
+            1 - screenings * self.config.screening_alpha / 2
+        )
+        return (
+            scipy.stats.binom.cdf(kept, drawn, rate)
+            < self.config.screening_alpha / looks
+        )
+
+    def calibrate(self, reference: int) -> int:
+        """Removes from ``suffix_pool`` the rows other than ``reference`` that the
+        prediction screens out, and sets ``calibrated``, if
+
+            _refutes(0, suffixes_drawn, screenings=2, looks=1)
+            and not _refutes(kept, suffixes_drawn, screenings=2, looks=1)
+
+        for ``kept`` of them surviving the prediction; returns how many were
+        removed."""
+        if self.calibrated:
+            return 0
+        if not self._refutes(0, self.suffixes_drawn, screenings=2, looks=1):
+            # Too few draws to refute even a prediction that keeps nothing.
+            return 0
+        admitted = [row for row in self.suffix_pool if row != reference]
+        if not admitted:
+            return 0
+        kept = set(self._screen_cohort(admitted, reference, predict=True))
+        if self._refutes(len(kept), self.suffixes_drawn, screenings=2, looks=1):
+            return 0
+        self.calibrated = True
+        dropped = set(admitted) - kept
+        self.suffix_pool = [row for row in self.suffix_pool if row not in dropped]
+        return len(dropped)
 
     def _draw_cohort(self, size: int) -> List[int]:
         """``size`` unseen suffixes, interned but not yet observed."""
@@ -270,29 +402,43 @@ class PrefixSuffixTracker:
         if new_prefixes:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
-    def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
+    def sample_more_suffixes(self, *, amount: int, reference: int):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
         survive screening against ``reference``, returning ``(kept, drawn)``.
+
+        Once calibrated, cohorts are screened with the prediction until what it has
+        kept of this call's draws ``_refutes`` it, at one of the call's cohorts as
+        looks; the rows it dropped are then screened again without it, in the
+        order drawn, before any new draw.
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
-        every = np.ones(self.num_prefixes, dtype=bool)
+        looks = int(np.ceil(max_draws / amount))
+        predicting = self.calibrated
+        # Dropped by the prediction, so not yet settled.
+        withheld = []
         with counter(amount, "Completing suffix family") as pbar:
-            while kept < amount and drawn < max_draws:
-                cohort = self._draw_cohort(min(amount, max_draws - drawn))
-                drawn += len(cohort)
-                survivors = (
-                    cohort
-                    if reference is None
-                    else self._screen_cohort(cohort, reference)
-                )
-                if survivors:
-                    # The dropped ones stay partial, keeping them out of
-                    # fully_observed() and so out of add_prefixes' top-ups.
-                    self.table.observed_masks(survivors, every)
+            while kept < amount:
+                if withheld and not predicting:
+                    cohort = withheld[: amount - kept]
+                    withheld = withheld[amount - kept :]
+                elif drawn < max_draws:
+                    cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                    drawn += len(cohort)
+                    self.suffixes_drawn += len(cohort)
+                else:
+                    break
+                survivors = self._screen_cohort(cohort, reference, predict=predicting)
+                if predicting:
+                    kept_rows = set(survivors)
+                    withheld += [r for r in cohort if r not in kept_rows]
+                    predicting = not self._refutes(
+                        kept + len(survivors), drawn, screenings=1, looks=looks
+                    )
+                self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
         return kept, drawn

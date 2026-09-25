@@ -17,17 +17,13 @@ from .statistics import (
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
-    # Cluster only over fully-observed suffix columns -- the sampled acceptance-
-    # family suffixes -- to avoid forcing a bunch of additional computation on the
-    # partially-observed transition distinguishers.
-    #
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
-    candidate = pst.table.fully_observed()
+    candidate = np.array(pst.suffix_pool)
     masks = pst.table.observed_masks(candidate, pst.table.representative)
-    seed_local = int(np.searchsorted(candidate, seed))
-    assert candidate[seed_local] == seed, "cluster seed must be fully observed"
+    assert seed in pst.suffix_pool, "cluster seed must be in the pool"
+    seed_local = pst.suffix_pool.index(seed)
     # Weigh each population equally in clustering
     weights = np.zeros(masks.shape[1])
     for population in pst.table.population_masks().values():
@@ -154,8 +150,8 @@ def certification_sample(pst, vs, by_population):
     settle the split, and never added to the table.
 
     Reading one costs a query per family member, plus the one for the split
-    itself.  Adding it to the table instead costs a query per fully observed
-    column -- an order of magnitude more once the pool has grown -- and it
+    itself.  Adding it to the table instead costs a query per pooled
+    suffix -- an order of magnitude more once the pool has grown -- and it
     unsettles the FNR the round has only just met, which is bought back with a
     fresh cohort of suffixes that every later prefix is then read against.
     """
@@ -262,12 +258,11 @@ def veto_size(pst, populations) -> int:
 
 def certification_budget(pst, vs) -> int:
     """Never more prefixes than the round of pooled prefixes this stands in for
-    would have cost.  One of those spends a query on every fully observed
-    column, where one read for the split spends a query per family member and
-    one for the split itself, so the budget in prefixes is the ratio between
-    them.
+    would have cost.  One of those spends a query on every pooled suffix, where
+    one read for the split spends a query per family member and one for the
+    split itself, so the budget in prefixes is the ratio between them.
     """
-    columns = max(1, len(pst.table.fully_observed()))
+    columns = max(1, len(pst.suffix_pool))
     return max(1, pst.config.num_addtl_prefixes * columns // (len(vs) + 1))
 
 
@@ -462,17 +457,20 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
     )
     gate = AcceptPreservingGate(pst.config, state)
 
+    if v not in pst.suffix_pool:
+        pst.suffix_pool.append(v)
     while True:
-        # Promotes the seed to fully observed, which identify_cluster_around
-        # requires of it. Redone each round, since more prefixes may have
-        # arrived since the last one.
-        pst.table.column(v)
         # The cluster is capped at the size asked for, and the boundary it
         # estimates decides the size wanted, so a boundary that moves far enough
         # leaves it short by construction.  The pool usually already holds the
         # rest: ask again at the new size before spending a cohort of oracle
         # queries on suffixes to cover a handful.
-        for _ in range(2):
+        #
+        # A family of more than one suffix gives the first boundary that is not a
+        # guess; if calibrating the screen on it removes part of the pool, the
+        # family is clustered again from what is left.
+        attempts = 0
+        while True:
             vs, decision_boundary = identify_cluster_around(
                 pst, v, family_size, decision_boundary
             )
@@ -482,7 +480,10 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 decision_boundary,
                 read_rates(pst.config, decision_boundary),
             )
-            if len(vs) >= family_size:
+            if len(vs) > 1 and pst.calibrate(v):
+                continue
+            attempts += 1
+            if len(vs) >= family_size or attempts >= 2:
                 break
 
         judged = judge_family(pst, gate, v, vs, family_size)
