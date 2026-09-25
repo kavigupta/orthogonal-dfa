@@ -21,8 +21,8 @@ from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
-    assert_not_merged,
     DEFAULT_SAMPLER,
+    assert_not_merged,
     assert_terminates,
     assertDFA,
     assertion_allowed_error,

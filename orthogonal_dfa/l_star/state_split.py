@@ -227,7 +227,9 @@ class _Aimed:
         return [p for p in (self._aim() for _ in range(count)) if p is not None]
 
     def suffix(self) -> bytes:
-        return self._pst.sampler.sample(self._pst.rng, alphabet_size=self._pst.alphabet_size)
+        return self._pst.sampler.sample(
+            self._pst.rng, alphabet_size=self._pst.alphabet_size
+        )
 
 
 def state_split(pst, dfa, state, *, alpha):
@@ -292,4 +294,6 @@ class SplitSource(RejectionSource):
         return True
 
     def source_repr(self) -> str:
-        return f"SplitSource(side={self._side}, over {len(self._split.suffixes)} suffixes)"
+        return (
+            f"SplitSource(side={self._side}, over {len(self._split.suffixes)} suffixes)"
+        )
