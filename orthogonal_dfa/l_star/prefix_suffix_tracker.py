@@ -1,11 +1,12 @@
 import math
-from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM, MaskTable
+from .preconditions import DEFAULT_MIN_CLASS_PRESERVING_FRAC
 from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
@@ -18,13 +19,11 @@ MIN_SIGNAL_STRENGTH = 0.001
 def _floor_rate(
     fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
 ) -> float:
-    """How high the cohort's clean disagreement rate can be, given the smallest
-    count among ``num_rows``.
+    """The largest rate r at which the least of ``num_rows`` independent
+    Binomial(``num_prefixes``, r) counts is still at most ``fewest`` with
+    probability ``failure_prob``:
 
-    The upper end of the interval around that count, at the level where the least
-    of ``num_rows`` independent draws falls that low with ``failure_prob``:
-
-        1 - (1 - F(fewest; n, r)) ^ num_rows = failure_prob
+        1 - (1 - P(Binomial(num_prefixes, r) <= fewest)) ^ num_rows = failure_prob
     """
     if fewest == num_prefixes:
         return 1.0
@@ -33,11 +32,14 @@ def _floor_rate(
 
 
 def _same_family_rates(boundary, signal, reference_rate):
-    """The rate a row of the reference's family disagrees with it, where the
-    reference reads 1 and where it reads 0.
+    """(P(X != R | R = 1), P(X != R | R = 0)) for a prefix of class C, with R its
+    read under the reference and X its read under a suffix preserving C,
+    independent given C:
 
-    Classes read at ``boundary -+ signal``, and the reference's own accept rate
-    says what share ``pi`` of the prefixes accept.
+        P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
+                                      boundary - signal   if C rejects
+
+    and P(C accepts) set so that P(R = 1) = ``reference_rate``, clipped to [0, 1].
     """
     reject_rate, accept_rate = boundary - signal, boundary + signal
     pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
@@ -52,9 +54,13 @@ def _same_family_rates(boundary, signal, reference_rate):
 
 
 def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """``_same_family_rates`` at the loosest the reference's accept rate allows,
-    over its exact interval.  Each side's rate is monotone in that rate, so the
-    interval's ends bound it."""
+    """The componentwise maximum of ``_same_family_rates`` over reference rates
+    in the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
+
+        P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
+
+    Each rate is monotone in the reference rate, so the interval's ends attain it.
+    """
     ends = [
         scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
         (
@@ -159,6 +165,9 @@ class PrefixSuffixTracker:
     #: Whether ``decision_boundary`` has been read off a family yet, rather than
     #: standing at its starting guess.
     calibrated: bool = False
+    #: ``decision_boundary -> [kept, screened]``: rows the prediction at that
+    #: boundary has screened, and kept.
+    predicted: Dict[float, List[int]] = field(default_factory=dict)
 
     @property
     def num_prefixes(self) -> int:
@@ -215,19 +224,23 @@ class PrefixSuffixTracker:
         out.append(available)
         return out
 
-    def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows still explicable as ``reference`` plus per-cell noise.
+    def _screen_cohort(
+        self, rows: List[int], reference: int, *, predict: bool
+    ) -> List[int]:
+        """The ``rows`` not screened out.  At each prefix count n of the staircase,
+        and on each side s in {R = 1, R = 0} of the reference over those prefixes,
+        row x is screened out if its n_s disagreements D_s(x) reject
 
-        Disagreements are counted apart where ``reference`` reads 1 and where it
-        reads 0: pooled, a row that moves a rejecting class to accept gains them on
-        one side and sheds them on the other, and the count moves by only
+            H0: D_s(x) ~ Binomial(n_s, rho_s)
+
+        in the upper tail at ``alpha``, where rho_s is the smaller of
+        ``_loosest_same_family_rates``' rate for s, if ``predict``, and
+        ``_floor_rate`` of the row nearest the reference.  Pooled over s, a row
+        sending a rejecting class to accept shifts E[D] by
 
             (p_1 - p_0) (1 - 2 p_0)
 
-        per prefix of that class.  Each side is held to the lower of the rate the
-        boundary and signal predict, which a caller understating the signal would
-        widen, and the one the cohort's closest row allows.  Before calibration
-        there is no prediction, only the cohort.
+        per prefix of that class, which is 0 at p_0 = 1/2.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
@@ -244,7 +257,7 @@ class PrefixSuffixTracker:
                 len(candidates),
                 alpha,
             )
-            if self.calibrated
+            if predict
             else (1.0, 1.0)
         )
         alive = list(rows)
@@ -283,23 +296,48 @@ class PrefixSuffixTracker:
             alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
 
-    def calibrate(self, reference: int) -> int:
-        """Mark the boundary calibrated, the first time, and retire the admitted
-        suffixes it screens out, returning how many.
+    def _refutes(self, kept: int, screened: int) -> bool:
+        """Whether keeping ``kept`` of ``screened`` rows is significantly too few,
 
-        Those were screened before there was a boundary to predict their noise
-        from.  This is the second and last screening a row gets, which is what
-        ``screening_alpha`` is split over.  Fully observed, so no queries.
+            P(Binomial(screened, f (1 - screening_alpha)) <= kept) < screening_alpha,
+
+        for a screen keeping each class-preserving row with probability at least
+        1 - ``screening_alpha``, among rows at least f of which are class-preserving
+        (f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``)."""
+        rate = DEFAULT_MIN_CLASS_PRESERVING_FRAC * (1 - self.config.screening_alpha)
+        return scipy.stats.binom.cdf(kept, screened, rate) < self.config.screening_alpha
+
+    def _screen(self, rows: List[int], reference: int) -> List[int]:
+        """``_screen_cohort`` of ``rows``: with the prediction once calibrated, unless
+        what it has kept at the current boundary so far ``_refutes`` it."""
+        if self.calibrated:
+            tally = self.predicted.setdefault(self.decision_boundary, [0, 0])
+            if not self._refutes(*tally):
+                kept = self._screen_cohort(rows, reference, predict=True)
+                tally[0] += len(kept)
+                tally[1] += len(rows)
+                if not self._refutes(*tally):
+                    return kept
+        return self._screen_cohort(rows, reference, predict=False)
+
+    def calibrate(self, reference: int) -> int:
+        """Until it first succeeds, screens the fully observed rows other than
+        ``reference`` with the prediction and, unless that ``_refutes`` itself, sets
+        ``calibrated`` and retires the rows screened out, returning how many; 0
+        otherwise.  A row's fate is decided at most twice, on admission and here,
+        and ``screening_alpha`` is split over both.
         """
         if self.calibrated:
             return 0
-        self.calibrated = True
         admitted = [
             row for row in self.table.fully_observed().tolist() if row != reference
         ]
         if not admitted:
             return 0
-        kept = set(self._screen_cohort(admitted, reference))
+        kept = set(self._screen_cohort(admitted, reference, predict=True))
+        if self._refutes(len(kept), len(admitted)):
+            return 0
+        self.calibrated = True
         retired = [row for row in admitted if row not in kept]
         self.table.retire_suffixes(retired)
         return len(retired)
@@ -381,9 +419,7 @@ class PrefixSuffixTracker:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
                 survivors = (
-                    cohort
-                    if reference is None
-                    else self._screen_cohort(cohort, reference)
+                    cohort if reference is None else self._screen(cohort, reference)
                 )
                 if survivors:
                     self.table.observed_masks(survivors, every)

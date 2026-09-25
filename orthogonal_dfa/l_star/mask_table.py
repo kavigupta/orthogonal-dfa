@@ -204,6 +204,6 @@ class MaskTable:
         return np.array([row for row in full if row not in self._retired], dtype=int)
 
     def retire_suffixes(self, rows) -> None:
-        """Take ``rows`` out of ``fully_observed`` for good, and stop topping them
-        up as prefixes arrive."""
+        """Exclude ``rows`` from ``fully_observed`` and from the columns filled for
+        new prefixes, permanently."""
         self._retired.update(rows)
