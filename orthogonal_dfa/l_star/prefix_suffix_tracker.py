@@ -213,18 +213,22 @@ class PrefixSuffixTracker:
         return out
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows still explicable as ``reference`` plus per-cell noise.
+        """The rows whose disagreements with ``reference`` are explained by noise
+        alone.
 
-        Disagreements are counted apart where ``reference`` reads 1 and where it
-        reads 0: pooled, a row that moves a rejecting class to accept gains them on
-        one side and sheds them on the other, and the count moves by only
+        Disagreements are counted separately over the prefixes ``reference`` reads
+        as 1 and those it reads as 0.  A row that sends a rejecting class to accept
+        disagrees more where ``reference`` reads 0 and less where it reads 1, so a
+        single pooled count moves by only
 
             (p_1 - p_0) (1 - 2 p_0)
 
-        per prefix of that class.  Each side is held to the lower of the rate the
-        boundary and signal predict, which a caller understating the signal would
-        widen, and the one the cohort's closest row allows.  Before calibration
-        there is no prediction, only the cohort.
+        per prefix of that class, and not at all when p_0 = 1/2.
+
+        On each side a row may disagree up to the smaller of two rates: the rate
+        the boundary and signal predict for a row of the reference's family, and
+        the rate the cohort's closest row is consistent with.  Before calibration
+        only the second is available.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
