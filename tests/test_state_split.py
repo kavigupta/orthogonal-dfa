@@ -116,6 +116,7 @@ def _check(masses, p_0, p_1, seed):
         _oracle(p_0, p_1, seed),
         signal=(p_1 - p_0) / 2,
         minority_share=MERGED_MINORITY_MASS / sum(masses.values()),
+        preserving_share=SearchConfig.min_suffix_frequency,
         alpha=SPLIT_SCAN_ALPHA,
         rng=rng,
     )

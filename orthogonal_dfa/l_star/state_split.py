@@ -18,7 +18,6 @@ import numpy as np
 import scipy.stats
 
 from .dfa_utils import count_paths_to_state, uniform_weights
-from .preconditions import DEFAULT_MIN_CLASS_PRESERVING_FRAC
 from .prefix_sources import aim_at
 from .rejection_source import _MISREAD, RejectionSource
 
@@ -37,14 +36,15 @@ def tail_ladder(members, minority_share) -> List[int]:
     return sizes
 
 
-def fresh_suffixes(miss_rate, separating=DEFAULT_MIN_CLASS_PRESERVING_FRAC) -> int:
+def fresh_suffixes(miss_rate, preserving_share) -> int:
     """The least m with
 
-        P(Binomial(m, separating) <= 1) <= miss_rate,
+        P(Binomial(m, preserving_share) <= 1) <= miss_rate,
 
-    ``separating`` being the class-preserving share the preconditions promise."""
+    ``preserving_share`` being the least class-preserving share of the sampler's
+    draws."""
     m = 2
-    while scipy.stats.binom.cdf(1, m, separating) > miss_rate:
+    while scipy.stats.binom.cdf(1, m, preserving_share) > miss_rate:
         m += 1
     return m
 
@@ -176,11 +176,13 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
     return split, least
 
 
-def split_by_looks(draw, family, oracle, *, signal, minority_share, alpha, rng):
+def split_by_looks(
+    draw, family, oracle, *, signal, minority_share, preserving_share, alpha, rng
+):
     """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
     half with n_0 = ``first_look`` and L = ``most_looks``, each at level
     ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/2."""
-    fresh_count = fresh_suffixes(alpha)
+    fresh_count = fresh_suffixes(alpha, preserving_share)
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(family) | fresh)
     looks = most_looks(signal, minority_share, 2, len(candidates))
@@ -240,6 +242,7 @@ def state_split(pst, dfa, state, family, *, alpha):
         pst.oracle,
         signal=pst.config.min_signal_strength,
         minority_share=minority_share,
+        preserving_share=pst.config.min_suffix_frequency,
         alpha=alpha,
         rng=pst.rng,
     )
