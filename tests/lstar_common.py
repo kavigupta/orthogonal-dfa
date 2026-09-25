@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
 from orthogonal_dfa.l_star.learn import (
     DEFAULT_MAX_COVERAGE_ERROR,
     DEFAULT_SAMPLE_LENGTH,
@@ -18,6 +19,23 @@ DEFAULT_SAMPLER = UniformSampler(DEFAULT_SAMPLE_LENGTH)
 
 # How far a learned DFA may sit from the target before a test calls it wrong.
 assertion_allowed_error = 0.05
+
+
+def endpoint_mass(target, length):
+    """Exact share of uniform length-``length`` strings ending in each state.
+
+    `count_paths_to_state` counts in whole strings under `uniform_weights`, so the
+    shares divide out of exact integers.
+    """
+    weights = uniform_weights(target)
+    space = len(target.input_symbols) ** length
+    return {
+        q: count_paths_to_state(target, q, length, weights)[length][
+            target.initial_state
+        ]
+        / space
+        for q in sorted(target.states)
+    }
 
 
 def sample_with_exclusion(exclude_pattern, *, symbols, count, sampler):
@@ -283,4 +301,20 @@ def cluster_pst(masks, min_signal_strength):
     return SimpleNamespace(
         table=_ClusterTable(masks),
         config=SimpleNamespace(min_signal_strength=min_signal_strength),
+    )
+
+
+def assert_not_merged(testcase, dfa, target, *, oracle_creator, symbols, sampler):
+    """Grade ``dfa`` and fail naming the state counts and the error split: a merged
+    rejecting state shows as false positives alone, which is what tells a merge from
+    ordinary shortfall."""
+    accuracy, false_positives, false_negatives = compute_dfa_accuracy(
+        dfa, oracle_creator, symbols=symbols, sampler=sampler
+    )
+    if accuracy >= 1 - assertion_allowed_error:
+        return
+    testcase.fail(
+        f"merged the armed state (accuracy {accuracy:.4f}, "
+        f"{len(dfa.states)} of {len(target.states)} states). "
+        f"FP: {len(false_positives)}, FN: {len(false_negatives)}"
     )
