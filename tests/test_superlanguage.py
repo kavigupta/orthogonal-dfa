@@ -10,9 +10,9 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions
-from orthogonal_dfa.l_star.cluster import smallest_readable_family
+from orthogonal_dfa.l_star.cluster import read_rates, smallest_readable_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
-from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.learn import DEFAULT_MAX_COVERAGE_ERROR, build_pst
 from orthogonal_dfa.l_star.structures import (
     NoiseModel,
     NoisyOracle,
@@ -248,7 +248,9 @@ class TestSuffixFamily(unittest.TestCase):
         sampler = SuperSampler(vocab, 20)
         rng = np.random.default_rng(1)
         wanted = smallest_readable_family(
-            pst.config.min_signal_strength, pst.decision_boundary
+            pst.config.min_signal_strength,
+            pst.decision_boundary,
+            read_rates(pst.config, pst.decision_boundary),
         )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this
@@ -277,7 +279,7 @@ class TestSuffixFamily(unittest.TestCase):
             if all(vocab.is_unknown(y) for y in s):
                 seen.add(tuple(s))
         self.assertEqual(len(seen), 1)
-        wanted = smallest_readable_family(0.3, 0.5)
+        wanted = smallest_readable_family(0.3, 0.5, (0.01, 0.01))
         self.assertGreater(wanted, len(seen))
 
 
@@ -300,7 +302,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
         oracle = LiftedOracle(base, vocab, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
         assert_rounds_accept_preserving(
-            tracker.classifiers, oracle.target_dfa(), signal
+            tracker.classifiers, oracle.target_dfa(), DEFAULT_MAX_COVERAGE_ERROR
         )
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)

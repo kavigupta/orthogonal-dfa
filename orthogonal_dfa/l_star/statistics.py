@@ -59,6 +59,38 @@ def population_size_and_evidence_margin(
     return res
 
 
+def fpr_for_coverage_error(
+    signal_strength, acceptable_fnr, max_coverage_error, *, center
+):
+    """The loosest false-decisive rate whose band holds ``max_coverage_error``.
+
+    A side of the cut keeps its class while the share of it belonging to the other
+    stays under ``(1 - eps/signal)/2``, since a prefix on the wrong side reads
+    ``2 * signal`` from where the side is held.  So the bound asks the band for a
+    width, and width is bought by asking for a smaller rate.
+
+    ``eps`` only grows as the rate falls, so the rates meeting the width are an
+    interval from zero and the largest is the one worth finding.
+    """
+    wanted = signal_strength * (1 - 2 * max_coverage_error)
+    if wanted <= 0:
+        return 1.0
+    low, high = 0.0, 1.0
+    for _ in range(24):
+        mid = (low + high) / 2
+        _, eps = population_size_and_evidence_margin(
+            signal_strength, mid, acceptable_fnr, center=center
+        )
+        low, high = (mid, high) if eps >= wanted else (low, mid)
+    # A band this wide leaves the class it is meant to admit inside it, so no
+    # rate buys one: the undecided rate has to give first.
+    assert low > 0, (
+        f"no false-decisive rate holds the cut's error under {max_coverage_error} "
+        f"at a signal of {signal_strength} and an undecided rate of {acceptable_fnr}"
+    )
+    return low
+
+
 def candidate_tests(N: int, center: float) -> Iterator[Tuple[int, int, float]]:
     """Every test over N samples, ascending in margin, as (k_low, k_high, eps):
     reject at counts <= k_low, accept at counts >= k_high, undecided between.
@@ -187,3 +219,49 @@ def binomial_side_of_boundary(num_accepts, num_samples, boundary, *, failure_pro
     if below < failure_prob:
         return False
     return None
+
+
+def _largest_rejecting_count(n, null, level) -> Optional[int]:
+    """Largest count a test at ``level`` under ``null`` still calls low."""
+    if binom_cdf(0, n, null) > level:
+        return None
+    low, high = 0, n
+    while low < high:
+        mid = (low + high + 1) // 2
+        if binom_cdf(mid, n, null) <= level:
+            low = mid
+        else:
+            high = mid - 1
+    return low
+
+
+def _low_tail_power(n, null, alternative, level) -> float:
+    k = _largest_rejecting_count(n, null, level)
+    return 0.0 if k is None else binom_cdf(k, n, alternative)
+
+
+def low_tail_detection_size(null, alternative, level, miss_rate) -> int:
+    """Fewest samples at which a rate of ``alternative`` is called low at
+    ``level`` under ``null``, all but ``miss_rate`` of the time.
+    """
+    assert 0 <= alternative < null <= 1, (alternative, null)
+    # Both have to leave something for a finite size to reach: at a level of zero
+    # the tails clear it only once they underflow, and at a zero miss rate no
+    # size holds, so the search below doubles until the counts overflow.
+    assert 0 < level < 1, level
+    assert 0 < miss_rate < 1, miss_rate
+    low, high = 1, None
+    while high is None or low < high:
+        n = low * 2 if high is None else (low + high) // 2
+        if _low_tail_power(n, null, alternative, level) >= 1 - miss_rate:
+            high = n
+        else:
+            low = n + 1
+    # The power moves in steps as the rejection count crosses the lattice, so
+    # the bisection can stop above the smallest size that holds.
+    while (
+        high > 1
+        and _low_tail_power(high - 1, null, alternative, level) >= 1 - miss_rate
+    ):
+        high -= 1
+    return high

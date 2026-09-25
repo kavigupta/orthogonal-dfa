@@ -22,8 +22,9 @@ from automata.fa.dfa import DFA
 
 from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
-from .mask_table import BOUNDARY, STATE, UNIFORM
+from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
+from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
@@ -101,27 +102,14 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
         state.seen.add(string)
-        state.accumulated.append(string)
+        state.harvest().append(string)
     return min(wanted, len(taken))
 
 
-class _PoolState:
-    """The pool state carried across rounds: the initial uniform sample (kept in
-    the representative set every round so global calibration stays anchored to the
-    sampling distribution even if the per-state sample is skewed), the accumulated
-    boundary strings (with a ``seen`` set to dedup them), and last round's sample."""
-
-    def __init__(self, uniform):
-        self.uniform = list(uniform)
-        self.accumulated = []
-        self.seen = set()
-        self.sampled = []
-
-
-def _per_state_members(pst, resolver, dfa, per_state):
-    """``state -> members``, ``per_state`` of them resting at each state that has
-    a source."""
-    held = {}
+def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
+    """``("state", leaf) -> members``, ``per_state`` of them resting at each
+    state that has a source."""
+    state.retire_states()
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -132,23 +120,30 @@ def _per_state_members(pst, resolver, dfa, per_state):
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        held[leaf] = sorted(source.draw() for _ in range(per_state))
-    return held
+        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
+        state.sources[("state", leaf)] = source
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     """Probe for up to ``wanted`` more boundary strings, keeping what the yield
-    test turned up even when the source fails it."""
-    if wanted <= 0:
-        return
+    test turned up even when the source fails it.
+
+    A round with its fill already still leaves the population a source, unproved:
+    otherwise the only population the counterexample pass fills for free is the
+    one a later round has nothing to draw with.
+    """
     source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
-    worth_drawing = source.has_sufficient_yield()
-    found = source.found()
-    if worth_drawing:
-        found += [source.draw() for _ in range(wanted - len(found))]
-    for string in found[:wanted]:
-        state.seen.add(string)
-        state.accumulated.append(string)
+    if wanted > 0:
+        # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
+        drawing = source.worth_drawing()
+        found = source.found()
+        if drawing:
+            found += [source.draw() for _ in range(wanted - len(found))]
+        for string in found[:wanted]:
+            state.seen.add(string)
+            state.harvest().append(string)
+    if state.harvesting is not None:
+        state.sources[state.harvesting] = source
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -165,17 +160,20 @@ def _aimed_at(pst, resolver, dfa) -> set:
 
 def _publish_pool(pst, state) -> int:
     """Put the round's populations in the table, returning how many of its
-    prefixes are representative."""
+    prefixes are representative.
+
+    Ends the round: the next one names a boundary population of its own.
+    """
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
-    for population, prefixes in (
-        (UNIFORM, state.uniform),
-        (BOUNDARY, state.accumulated),
-        (STATE, state.sampled),
-    ):
-        pst.table.drop_population(population)
+    for label in state.published - state.held.keys():
+        pst.table.drop_population(label)
+    for label, prefixes in ((UNIFORM, state.uniform), *state.held.items()):
+        pst.table.drop_population(label)
         if prefixes:
-            pst.table.add_prefixes(sorted(set(prefixes)), population=population)
+            pst.table.add_prefixes(sorted(set(prefixes)), population=label)
+    state.published = set(state.held)
+    state.harvesting = None
     return int(pst.table.representative.sum())
 
 
@@ -256,14 +254,14 @@ def counterexample_driven_synthesis(
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    state = _PoolState(uniform)
+    state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""))
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
@@ -309,8 +307,7 @@ def counterexample_driven_synthesis(
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
-        by_state = _per_state_members(pst, resolver, dfa, per_state)
-        state.sampled = sorted({m for members in by_state.values() for m in members})
+        _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.
         if stall.stalled(
@@ -333,7 +330,7 @@ def counterexample_driven_synthesis(
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
-            f"{len(state.accumulated)} boundary strings harvested so far"
+            f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
         if max_rounds is not None and index >= max_rounds:

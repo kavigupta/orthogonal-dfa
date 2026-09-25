@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
@@ -32,7 +32,26 @@ class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    fnr_limit: float = 0.02
+    #: A rate every prefix population has to meet on its own, not an average
+    #: across them.
+    fnr_limit: float = 0.10
+    #: The first two bound the split's crispness, and say nothing about whether the
+    #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
+    #: is called indecisive, all indecision counting against it; `acceptable_fpr`
+    #: bounds the chance a prefix on one side of the boundary is decisively called
+    #: the other, at its worst the chance one exactly on the boundary is called
+    #: either way.
+    #:
+    #: `max_coverage_error` bounds instead how far the split may deviate from the
+    #: true accept-preserving distinction: the share of the prefixes it decides that
+    #: it decides against the denoised oracle.  The accept-preserving test holds
+    #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
+    #: bought with a tighter `acceptable_fpr` and paid for in indecision.  Keep
+    #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
+    #: the pool, or a clean family fails its round.
+    acceptable_fpr: float = 0.01
+    acceptable_fnr: float = 0.01
+    max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
     #: Chance of screening out a suffix that does belong, spent across the
@@ -214,16 +233,31 @@ class PrefixSuffixTracker:
         """
         return self.fnr_from_decision(
             self.compute_decision(vs, self.table.representative)
-        )
+        )[0]
 
-    def fnr_from_decision(self, decision) -> float:
-        """``compute_fnr`` for a decision vector already in hand."""
-        arr = np.array(
+    def fnr_from_decision(self, decision) -> Tuple[float, Optional[object]]:
+        """``compute_fnr`` for a decision vector already in hand, and which
+        population it is the rate of.
+
+        The worst population's rate, not the rate across all of them: whether a
+        prefix is decisive is a property of the state it reaches, so one
+        population reading high is averaged away by the rest.
+        """
+        decided = np.array(
             [decision < self.reject_thresh, decision >= self.accept_thresh]
-        ).mean(1)
-        if arr.min() == 0:
-            return 1
-        return 1 - arr.sum()
+        )
+        if decided.mean(1).min() == 0:
+            return 1, None
+        indecisive = ~decided.any(0)
+        rates = [
+            (float(indecisive[m].mean()), label)
+            for label, m in self.table.population_masks().items()
+        ]
+        if not rates:
+            return float(indecisive.mean()), None
+        # Not max(rates): a tie falls through to the labels, which are not all
+        # one type.
+        return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
     def sample_more_prefixes(self):
         new_prefixes = _distinct_prefixes(

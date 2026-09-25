@@ -19,7 +19,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import NoisyOracle, SymmetricBernoulli
-from tests.lstar_common import assertDFA, evaluate_accuracy
+from tests.lstar_common import DEFAULT_SAMPLER, assertDFA, evaluate_accuracy
 
 us = UniformSampler(40)
 
@@ -42,7 +42,7 @@ class TestBaselineLStarNoiseless(unittest.TestCase):
         dfa = run_baseline_lstar(oracle)
         num_states = len(dfa.states)
         print(f"  Learned DFA with {num_states} states")
-        assertDFA(self, dfa, oracle_creator, symbols=symbols)
+        assertDFA(self, dfa, oracle_creator, symbols=symbols, sampler=DEFAULT_SAMPLER)
 
     def test_modulo(self):
         self._run(
@@ -86,7 +86,9 @@ class TestBaselineLStarNoisy(unittest.TestCase):
         dfa = run_baseline_lstar(oracle, max_states=max_states)
 
         num_states = len(dfa.states)
-        accuracy = evaluate_accuracy(dfa, oracle_creator, symbols=symbols)
+        accuracy = evaluate_accuracy(
+            dfa, oracle_creator, symbols=symbols, sampler=DEFAULT_SAMPLER
+        )
         expected = base_rate_accuracy(oracle_creator, symbols=symbols)
         threshold = (1 + expected) / 2
         print(
