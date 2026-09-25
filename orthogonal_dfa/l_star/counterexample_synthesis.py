@@ -84,7 +84,7 @@ COUNTEREXAMPLE_PROBES = 4000
 SPLIT_SCAN_ALPHA = 1e-3
 
 
-def split_merged_states(pst, dfa, vs, state, *, index) -> List[int]:
+def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
     """The states holding a minority of the other label, each side handed to the
     next round as a population of its own.
 
@@ -101,8 +101,9 @@ def split_merged_states(pst, dfa, vs, state, *, index) -> List[int]:
         split, aim = found
         for side in (False, True):
             label = ("split", index, leaf, side)
-            state.held[label] = sorted(split.groups[side])
-            state.sources[label] = SplitSource(split, side, aim, pst.table.memo)
+            source = SplitSource(split, side, aim, pst.oracle)
+            state.held[label] = sorted(source.draw() for _ in range(per_state))
+            state.sources[label] = source
         merged.append(leaf)
     return merged
 
@@ -328,7 +329,7 @@ def counterexample_driven_synthesis(
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the check's reads.
         merged = (
-            split_merged_states(pst, dfa, vs, state, index=index)
+            split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
             if true_acc >= acc_threshold
             else []
         )

@@ -236,7 +236,8 @@ def state_split(pst, dfa, state, family, *, alpha):
     found = split_by_looks(
         _Aimed(pst, aim),
         [pst.table.suffix(v) for v in family],
-        pst.table.memo,
+        # Every look reads fresh members, which the memo would only accumulate.
+        pst.oracle,
         signal=pst.config.min_signal_strength,
         minority_share=minority_share,
         alpha=alpha,
