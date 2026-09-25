@@ -18,13 +18,11 @@ MIN_SIGNAL_STRENGTH = 0.001
 def _floor_rate(
     fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
 ) -> float:
-    """How high the cohort's clean disagreement rate can be, given the smallest
-    count among ``num_rows``.
+    """The largest rate r at which the least of ``num_rows`` independent
+    Binomial(``num_prefixes``, r) counts is still at most ``fewest`` with
+    probability ``failure_prob``:
 
-    The upper end of the interval around that count, at the level where the least
-    of ``num_rows`` independent draws falls that low with ``failure_prob``:
-
-        1 - (1 - F(fewest; n, r)) ^ num_rows = failure_prob
+        1 - (1 - P(Binomial(num_prefixes, r) <= fewest)) ^ num_rows = failure_prob
     """
     if fewest == num_prefixes:
         return 1.0
@@ -33,17 +31,14 @@ def _floor_rate(
 
 
 def _same_family_rates(boundary, signal, reference_rate):
-    """The rate a row of the reference's family disagrees with it, where the
-    reference reads 1 and where it reads 0.  With p_0, p_1 = boundary -+ signal
-    and m = ``reference_rate``:
+    """(P(X != R | R = 1), P(X != R | R = 0)) for a prefix of class C, with R its
+    read under the reference and X its read under a suffix preserving C,
+    independent given C:
 
-        pi  = (m - p_0) / (p_1 - p_0), clipped to [0, 1]
-        r   = pi p_1 + (1 - pi) p_0
-        a_1 = pi p_1 / r                  (share accepting, where it reads 1)
-        a_0 = pi (1 - p_1) / (1 - r)      (share accepting, where it reads 0)
+        P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
+                                      boundary - signal   if C rejects
 
-        reads 1:  a_1 (1 - p_1) + (1 - a_1) (1 - p_0)
-        reads 0:  a_0 p_1       + (1 - a_0) p_0
+    and P(C accepts) set so that P(R = 1) = ``reference_rate``, clipped to [0, 1].
     """
     reject_rate, accept_rate = boundary - signal, boundary + signal
     pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
@@ -58,9 +53,13 @@ def _same_family_rates(boundary, signal, reference_rate):
 
 
 def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """``_same_family_rates`` at the loosest the reference's accept rate allows,
-    over its exact interval.  Each side's rate is monotone in that rate, so the
-    interval's ends bound it."""
+    """The componentwise maximum of ``_same_family_rates`` over reference rates
+    in the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
+
+        P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
+
+    Each rate is monotone in the reference rate, so the interval's ends attain it.
+    """
     ends = [
         scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
         (
@@ -219,18 +218,20 @@ class PrefixSuffixTracker:
         return out
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows whose disagreements with ``reference`` are explained by noise
-        alone.  A row is dropped if, where ``reference`` reads 1 or where it reads
-        0, its count of disagreements is significantly above
+        """The ``rows`` not screened out.  At each prefix count n of the staircase,
+        and on each side s in {R = 1, R = 0} of the reference over those prefixes,
+        row x is screened out if its n_s disagreements D_s(x) reject
 
-            min(that side's `_loosest_same_family_rates`, the closest row's rate)
+            H0: D_s(x) ~ Binomial(n_s, rho_s)
 
-        before calibration, the closest row's rate alone.  Pooled over both sides,
-        a row that sends a rejecting class to accept would move the count by only
+        in the upper tail at ``alpha``, where rho_s is the smaller of
+        ``_loosest_same_family_rates``' rate for s, once calibrated, and
+        ``_floor_rate`` of the row nearest the reference.  Pooled over s, a row
+        sending a rejecting class to accept shifts E[D] by
 
             (p_1 - p_0) (1 - 2 p_0)
 
-        per prefix of that class.
+        per prefix of that class, which is 0 at p_0 = 1/2.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
@@ -287,12 +288,10 @@ class PrefixSuffixTracker:
         return alive
 
     def calibrate(self, reference: int) -> int:
-        """Mark the boundary calibrated, the first time, and retire the admitted
-        suffixes it screens out, returning how many.
-
-        Those were screened before there was a boundary to predict their noise
-        from.  This is the second and last screening a row gets, which is what
-        ``screening_alpha`` is split over.  Fully observed, so no queries.
+        """On the first call only, sets ``calibrated`` and retires the fully observed
+        rows other than ``reference`` that ``_screen_cohort`` screens out, returning
+        how many; 0 otherwise.  No row is screened more than twice, on admission and
+        here, and ``screening_alpha`` is split over both.
         """
         if self.calibrated:
             return 0
