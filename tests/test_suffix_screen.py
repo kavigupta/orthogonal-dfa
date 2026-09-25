@@ -76,7 +76,9 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
         for kind in ("hold", "escape", "arm"):
             rows = [pst.table.intern_suffix(v) for v in _suffixes(rng, kind)]
             kept[kind] = len(
-                pst._screen(rows, reference)  # pylint: disable=protected-access
+                pst._screen_cohort(  # pylint: disable=protected-access
+                    rows, reference, predict=True
+                )
             )
         # Dropping a class-preserving suffix is what the screen bounds.
         self.assertGreater(
@@ -112,3 +114,36 @@ class TestScreenedOutStayOut(unittest.TestCase):
         # The reference is fully observed too.
         self.assertEqual(len(pst.table.fully_observed()), kept + 1)
         self.assertLess(kept, drawn)
+
+
+class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
+    def test_overstated_signal(self):
+        # Declaring 0.45 where the band holds 0.3 predicts less noise than there is,
+        # as a boundary estimated far off does: every class-preserving suffix then
+        # looks like an impostor to the prediction.
+        pst = build_pst(
+            lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
+            min_signal_strength=0.45,
+            seed=0,
+            sampler=UniformSampler(LENGTH),
+            noise_model=AsymmetricBernoulli(p_0=0.2, p_1=0.8),
+        )
+        pst.calibrated = True
+        reference = pst.table.intern_suffix(b"")
+        pst.table.column(reference)
+        wanted = 20
+        kept, _ = pst.sample_more_suffixes(amount=wanted, reference=reference)
+        self.assertGreaterEqual(kept, wanted)
+        pool = set(pst.table.fully_observed().tolist())
+        drawn = len(pst.table._suffixes)  # pylint: disable=protected-access
+        held = [
+            row
+            for row in range(drawn)
+            if row != reference and max(pst.table.suffix(row)) < HOLDS
+        ]
+        dropped = sum(row not in pool for row in held)
+        self.assertGreater(
+            scipy.stats.binom.sf(dropped - 1, len(held), pst.config.screening_alpha),
+            LEVEL,
+            f"dropped {dropped} of {len(held)} class-preserving suffixes",
+        )
