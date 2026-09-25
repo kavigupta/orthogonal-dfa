@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -113,6 +113,8 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
+    #: The suffix rows clustering picks families from.
+    suffix_pool: List[int] = field(default_factory=list)
 
     @property
     def num_prefixes(self) -> int:
@@ -279,7 +281,6 @@ class PrefixSuffixTracker:
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
-        every = np.ones(self.num_prefixes, dtype=bool)
         with counter(amount, "Completing suffix family") as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
@@ -289,10 +290,7 @@ class PrefixSuffixTracker:
                     if reference is None
                     else self._screen_cohort(cohort, reference)
                 )
-                if survivors:
-                    # The dropped ones stay partial, keeping them out of
-                    # fully_observed() and so out of add_prefixes' top-ups.
-                    self.table.observed_masks(survivors, every)
+                self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
         return kept, drawn
