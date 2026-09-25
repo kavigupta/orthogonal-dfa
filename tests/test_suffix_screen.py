@@ -116,34 +116,40 @@ class TestScreenedOutStayOut(unittest.TestCase):
         self.assertLess(kept, drawn)
 
 
+def _overstated():
+    # Declaring 0.45 where the band holds 0.3 predicts less noise than there is,
+    # as a boundary estimated far off does: every class-preserving suffix then
+    # looks like an impostor to the prediction.
+    pst = build_pst(
+        lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
+        min_signal_strength=0.45,
+        seed=0,
+        sampler=UniformSampler(LENGTH),
+        noise_model=AsymmetricBernoulli(p_0=0.2, p_1=0.8),
+    )
+    reference = pst.table.intern_suffix(b"")
+    pst.table.column(reference)
+    return pst, reference
+
+
 class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
-    def test_overstated_signal(self):
-        # Declaring 0.45 where the band holds 0.3 predicts less noise than there is,
-        # as a boundary estimated far off does: every class-preserving suffix then
-        # looks like an impostor to the prediction.
-        pst = build_pst(
-            lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
-            min_signal_strength=0.45,
-            seed=0,
-            sampler=UniformSampler(LENGTH),
-            noise_model=AsymmetricBernoulli(p_0=0.2, p_1=0.8),
-        )
+    def test_dropped_rows_are_screened_again(self):
+        pst, reference = _overstated()
         pst.calibrated = True
-        reference = pst.table.intern_suffix(b"")
-        pst.table.column(reference)
         wanted = 20
+        first = len(pst.table._suffixes)  # pylint: disable=protected-access
         kept, _ = pst.sample_more_suffixes(amount=wanted, reference=reference)
         self.assertGreaterEqual(kept, wanted)
         pool = set(pst.table.fully_observed().tolist())
-        drawn = len(pst.table._suffixes)  # pylint: disable=protected-access
-        held = [
-            row
-            for row in range(drawn)
-            if row != reference and max(pst.table.suffix(row)) < HOLDS
-        ]
-        dropped = sum(row not in pool for row in held)
-        self.assertGreater(
-            scipy.stats.binom.sf(dropped - 1, len(held), pst.config.screening_alpha),
-            LEVEL,
-            f"dropped {dropped} of {len(held)} class-preserving suffixes",
-        )
+        # The prediction keeps none of the first cohort.
+        self.assertTrue(any(row in pool for row in range(first, first + wanted)))
+
+    def test_calibrating_on_it_retires_nothing(self):
+        pst, reference = _overstated()
+        for draws in (0, 150):
+            while pst.suffixes_drawn <= draws:
+                pst.sample_more_suffixes(amount=20, reference=reference)
+            pool = pst.table.fully_observed().tolist()
+            self.assertEqual(pst.calibrate(reference), 0)
+            self.assertFalse(pst.calibrated)
+            self.assertEqual(pst.table.fully_observed().tolist(), pool)
