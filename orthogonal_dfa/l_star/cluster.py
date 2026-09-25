@@ -472,7 +472,12 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         # leaves it short by construction.  The pool usually already holds the
         # rest: ask again at the new size before spending a cohort of oracle
         # queries on suffixes to cover a handful.
-        for _ in range(2):
+        #
+        # The first family of more than one suffix is the first boundary that is
+        # not a guess: the pool drawn before it is screened again at it, and
+        # clustered afresh.
+        attempts = 0
+        while True:
             vs, decision_boundary = identify_cluster_around(
                 pst, v, family_size, decision_boundary
             )
@@ -482,7 +487,10 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 decision_boundary,
                 read_rates(pst.config, decision_boundary),
             )
-            if len(vs) >= family_size:
+            attempts += 1
+            if len(vs) > 1 and pst.calibrate(v):
+                continue
+            if len(vs) >= family_size or attempts >= 2:
                 break
 
         judged = judge_family(pst, gate, v, vs, family_size)
