@@ -34,10 +34,16 @@ def _floor_rate(
 
 def _same_family_rates(boundary, signal, reference_rate):
     """The rate a row of the reference's family disagrees with it, where the
-    reference reads 1 and where it reads 0.
+    reference reads 1 and where it reads 0.  With p_0, p_1 = boundary -+ signal
+    and m = ``reference_rate``:
 
-    Classes read at ``boundary -+ signal``, and the reference's own accept rate
-    says what share ``pi`` of the prefixes accept.
+        pi  = (m - p_0) / (p_1 - p_0), clipped to [0, 1]
+        r   = pi p_1 + (1 - pi) p_0
+        a_1 = pi p_1 / r                  (share accepting, where it reads 1)
+        a_0 = pi (1 - p_1) / (1 - r)      (share accepting, where it reads 0)
+
+        reads 1:  a_1 (1 - p_1) + (1 - a_1) (1 - p_0)
+        reads 0:  a_0 p_1       + (1 - a_0) p_0
     """
     reject_rate, accept_rate = boundary - signal, boundary + signal
     pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
@@ -214,21 +220,17 @@ class PrefixSuffixTracker:
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows whose disagreements with ``reference`` are explained by noise
-        alone.
+        alone.  A row is dropped if, where ``reference`` reads 1 or where it reads
+        0, its count of disagreements is significantly above
 
-        Disagreements are counted separately over the prefixes ``reference`` reads
-        as 1 and those it reads as 0.  A row that sends a rejecting class to accept
-        disagrees more where ``reference`` reads 0 and less where it reads 1, so a
-        single pooled count moves by only
+            min(that side's `_loosest_same_family_rates`, the closest row's rate)
+
+        before calibration, the closest row's rate alone.  Pooled over both sides,
+        a row that sends a rejecting class to accept would move the count by only
 
             (p_1 - p_0) (1 - 2 p_0)
 
-        per prefix of that class, and not at all when p_0 = 1/2.
-
-        On each side a row may disagree up to the smaller of two rates: the rate
-        the boundary and signal predict for a row of the reference's family, and
-        the rate the cohort's closest row is consistent with.  Before calibration
-        only the second is available.
+        per prefix of that class.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
