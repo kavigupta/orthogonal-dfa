@@ -168,8 +168,9 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
 
 /-- What one tested state may cost, summed over the populations: the certification draws
 repeating or meeting the table, the sample missing the wrong set, a family member flipping more
-than the screen allows, the sample holding too many prefixes the family flips, and the family's
-vote misfiring on too many of the rest — and then, once, the pool's draws colliding.
+than the screen allows, the sample holding too many prefixes the family flips, the family's
+vote misfiring on too many of the rest, and the sample missing the undecided set — and then,
+once, the pool's draws colliding.
 
 The pool's *findability* is not here: that event does not mention the prefixes, so it is the
 same at every rung and is charged once rather than per rung. -/
@@ -184,7 +185,8 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
           + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
             * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2))
         + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2)
-          + Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 2) ^ 2)))))
+          + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 2) ^ 2)
+            + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2))))))
     + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
@@ -286,6 +288,9 @@ def ClusteringCorrect : Prop :=
         x ∈ ret O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt O.mq populations x B.val) p (oracleNoise x)}}
+              (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+          ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
+              ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
+            ≤ 2 * indecisionLimit}
 
 end OrthoDFA
