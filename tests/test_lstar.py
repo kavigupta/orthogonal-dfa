@@ -166,10 +166,6 @@ class TestLStar(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @pytest.mark.slow
-    @unittest.skip(
-        "Learns the mod-3 DFA on about a quarter of seeds, main included: a merge "
-        "at the gate's coverage tolerance, which the merge check (#325) repairs"
-    )
     def test_modulo_even_harder(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
