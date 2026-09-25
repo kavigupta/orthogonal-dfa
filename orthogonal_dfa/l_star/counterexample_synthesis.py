@@ -27,6 +27,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
+from .state_split import SplitSource, state_split
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -77,6 +78,34 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+#: Rate at which a state holding one class is called mixed.  A false one costs a
+#: round; missing a real one costs the merge.
+SPLIT_SCAN_ALPHA = 1e-3
+
+
+def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
+    """The states holding a minority of the other label, each side handed to the
+    next round as a population of its own.
+
+    The counterexample pass proposes a distinguisher only where the tree and the
+    DFA disagree, so a state holding two classes the family votes the same way is
+    never weighed there.  Split into two populations, neither side can be read as
+    the other without the family failing it.
+    """
+    merged = []
+    for leaf in sorted(dfa.states):
+        found = state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA)
+        if found is None:
+            continue
+        split, aim = found
+        for side in (False, True):
+            label = ("split", index, leaf, side)
+            source = SplitSource(split, side, aim, pst.oracle)
+            state.held[label] = sorted(source.draw() for _ in range(per_state))
+            state.sources[label] = source
+        merged.append(leaf)
+    return merged
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -220,14 +249,20 @@ class BestRound:
     boundary comes with it because denoising reads the labels against it."""
 
     consistency: float = -1.0
+    #: Whether a state of this hypothesis was found holding a minority of the
+    #: other label.
+    merged: bool = True
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index):
-        if consistency > self.consistency:
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, merged):
+        # A merge is what consistency scores best on, so the score cannot be the whole
+        # ranking: a hypothesis the state check caught is behind every one it did not.
+        if (not merged, consistency) > (not self.merged, self.consistency):
             self.consistency = consistency
+            self.merged = merged
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
 
@@ -292,19 +327,32 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
+        # Only a round that would otherwise return is worth the check's reads.
+        merged = (
+            split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
+            if true_acc >= acc_threshold
+            else []
+        )
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
+            merged=bool(merged),
         )
         if true_acc >= acc_threshold:
+            if not merged:
+                print(
+                    f"[round {index}] reached the target DFA/DT consistency of "
+                    f"{acc_threshold:.4f}; stopping synthesis"
+                )
+                return best
             print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
+                f"[round {index}] consistency {true_acc:.4f} is at target, but "
+                f"state(s) {merged} split in two; carrying on with each side as a "
+                f"population"
             )
-            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
