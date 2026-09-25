@@ -30,10 +30,9 @@ def _floor_rate(
     return float(scipy.stats.beta.ppf(1 - per_row, fewest + 1, num_prefixes - fewest))
 
 
-def _same_family_rates(boundary, signal, reference_rate):
-    """(P(X != R | R = 1), P(X != R | R = 0)) for a prefix of class C, with R its
-    read under the reference and X its read under a suffix preserving C,
-    independent given C:
+def _same_family_rate(boundary, signal, reference_rate, read: bool):
+    """P(X != R | R = ``read``) for a prefix of class C, with R its read under the
+    reference and X its read under a suffix preserving C, independent given C:
 
         P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
                                       boundary - signal   if C rejects
@@ -42,23 +41,24 @@ def _same_family_rates(boundary, signal, reference_rate):
     """
     reject_rate, accept_rate = boundary - signal, boundary + signal
     pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
-    reads_one = pi * accept_rate + (1 - pi) * reject_rate
-    # A side the reference never reads is never screened, so its share is moot.
-    accept_if_one = pi * accept_rate / reads_one if reads_one > 0 else pi
-    accept_if_zero = pi * (1 - accept_rate) / (1 - reads_one) if reads_one < 1 else pi
-    return (
-        accept_if_one * (1 - accept_rate) + (1 - accept_if_one) * (1 - reject_rate),
-        accept_if_zero * accept_rate + (1 - accept_if_zero) * reject_rate,
+    if not read:
+        reject_rate, accept_rate = 1 - reject_rate, 1 - accept_rate
+    reads = pi * accept_rate + (1 - pi) * reject_rate
+    assert reads > 0, f"P(R = {read:d}) = 0"
+    accept_given_read = pi * accept_rate / reads
+    return accept_given_read * (1 - accept_rate) + (1 - accept_given_read) * (
+        1 - reject_rate
     )
 
 
 def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """The componentwise maximum of ``_same_family_rates`` over reference rates
-    in the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
+    """``read`` -> the maximum of ``_same_family_rate`` over reference rates in
+    the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
 
         P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
 
-    Each rate is monotone in the reference rate, so the interval's ends attain it.
+    for each ``read`` the reference gives at least once.  Each rate is monotone in
+    the reference rate, so the interval's ends attain it.
     """
     ends = [
         scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
@@ -68,8 +68,11 @@ def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
             else 1.0
         ),
     ]
-    rates = [_same_family_rates(boundary, signal, float(end)) for end in ends]
-    return tuple(max(side) for side in zip(*rates))
+    return {
+        read: max(_same_family_rate(boundary, signal, float(end), read) for end in ends)
+        for read, seen in ((True, ones), (False, reads - ones))
+        if seen
+    }
 
 
 @dataclass
@@ -253,7 +256,7 @@ class PrefixSuffixTracker:
                 alpha,
             )
             if predict
-            else (1.0, 1.0)
+            else {True: 1.0, False: 1.0}
         )
         alive = list(rows)
         for p in staircase:
@@ -263,8 +266,8 @@ class PrefixSuffixTracker:
             subset[order[:p]] = True
             observed = self.table.observed_masks(alive, subset)
             sides = [
-                (ref[subset] == read, rate)
-                for read, rate in zip((True, False), predicted)
+                (ref[subset] == read, predicted[read])
+                for read in (True, False)
                 if (ref[subset] == read).any()
             ]
             disagreements = [
