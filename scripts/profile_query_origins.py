@@ -30,7 +30,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 )
 from orthogonal_dfa.l_star.structures import NoisyOracle, Oracle
 from orthogonal_dfa.l_star.learn import learn_dfa
-from tests.lstar_common import evaluate_accuracy
+from tests.lstar_common import DEFAULT_SAMPLER, evaluate_accuracy
 
 _ANOTHER_POOR_DFA = DFA(
     states=set(range(10)),
@@ -179,7 +179,9 @@ def profile_one(name: str) -> None:
         return o
 
     dfa = learn_dfa(creator, min_signal_strength=signal, seed=0)
-    acc = evaluate_accuracy(dfa, oracle_creator, symbols=symbols)
+    acc = evaluate_accuracy(
+        dfa, oracle_creator, symbols=symbols, sampler=DEFAULT_SAMPLER
+    )
     o = holder["o"]
 
     print(f"\n\n===== QUERY ORIGINS: {name} "
