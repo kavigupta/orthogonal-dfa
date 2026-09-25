@@ -28,6 +28,9 @@ DEFAULT_ACC_THRESHOLD = 0.98
 #: Prefixes to start from.
 NUM_PREFIXES = 200
 
+#: Share of the prefixes a family decides that it may decide against the language.
+DEFAULT_MAX_COVERAGE_ERROR = 1 / 3
+
 
 def build_pst(
     oracle_creator: Callable[[Any, int], Any],
@@ -40,7 +43,7 @@ def build_pst(
     require_accept_preserving: bool = True,
     acceptable_fpr: float = 0.01,
     acceptable_fnr: float = 0.01,
-    max_coverage_error: float = 1 / 3,
+    max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
 ) -> PrefixSuffixTracker:
     """A PrefixSuffixTracker sized for an oracle carrying `min_signal_strength`.
 
@@ -89,7 +92,7 @@ def learn_dfa(
     require_accept_preserving: bool = True,
     acceptable_fpr: float = 0.01,
     acceptable_fnr: float = 0.01,
-    max_coverage_error: float = 1 / 3,
+    max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
     tracker: SynthesisTracker = SynthesisTracker(),
 ):
     """Learn a DFA from `oracle_creator`.  Failure raises

@@ -12,7 +12,7 @@ from parameterized import parameterized
 from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.cluster import read_rates, smallest_readable_family
 from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
-from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.learn import DEFAULT_MAX_COVERAGE_ERROR, build_pst
 from orthogonal_dfa.l_star.structures import (
     NoiseModel,
     NoisyOracle,
@@ -302,7 +302,7 @@ class TestLearnSuperlanguage(unittest.TestCase):
         oracle = LiftedOracle(base, vocab, seed=0)
         # Every family the clustering produced, not just the DFA it ended on.
         assert_rounds_accept_preserving(
-            tracker.classifiers, oracle.target_dfa(), signal
+            tracker.classifiers, oracle.target_dfa(), DEFAULT_MAX_COVERAGE_ERROR
         )
         sampler = SuperSampler(vocab, 40)
         rng = np.random.default_rng(0x1234)
