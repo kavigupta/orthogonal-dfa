@@ -1,20 +1,13 @@
 """Whether a hypothesis state holds members of the opposite label.
 
-The empty suffix reads each member's own label, so across a state's members its
-reads are independent of every other suffix's -- unless the state holds a minority
-of the other label, which the class-preserving suffixes read at the other label's
-rate too.  On half the members, the candidate suffixes that go with the empty suffix
-best are picked out; on the other half, only those are read, and the members'
-empty-suffix reads are asked whether they follow them.
+For members p of the state, with E_p the read of p itself and X_pv the read of p v:
+if the state is one class, E_p is independent of every X_pv across members.  A
+minority of the other label makes E depend on the class-preserving v's.  The test
+picks candidate suffixes v on one half of the members and rejects
 
-The candidates are the pool and fresh draws.  The pool is screened towards the
-class-preserving suffixes but nothing guarantees it holds them; the fresh draws do,
-at the share the preconditions promise.
+    H0: E independent of sum over picked v of X_pv
 
-The minority worth finding is one of at least ``merged_minority_mass`` of the
-sampler's mass.  How many members that takes depends on how well the picked
-suffixes read a member's label, which only the data says, so the check starts at
-the size a perfect reading would need and doubles while the answer is unclear.
+on the other half, exactly, at a level spread over looks of doubling size.
 """
 
 import math
@@ -34,9 +27,8 @@ _MAX_READ_VARIANCE = 0.25
 
 
 def tail_ladder(members, minority_share) -> List[int]:
-    """Tail sizes to test, doubling from the least minority worth finding: a larger
-    minority fills a tail of its own size, and a smaller tail holds an arbitrary
-    part of it."""
+    """[ceil(w n) 2^k for k >= 0, while at most n / 2], w = ``minority_share``,
+    n = ``members``."""
     sizes = []
     size = max(1, math.ceil(minority_share * members))
     while size <= members // 2:
@@ -46,11 +38,11 @@ def tail_ladder(members, minority_share) -> List[int]:
 
 
 def fresh_suffixes(miss_rate, separating=DEFAULT_MIN_CLASS_PRESERVING_FRAC) -> int:
-    """Fewest fresh draws that hold two separating suffixes but with ``miss_rate``.
+    """The least m with
 
-    Every class-preserving suffix separates two states of opposite labels, and the
-    preconditions hold those to ``separating`` of the draws.
-    """
+        P(Binomial(m, separating) <= 1) <= miss_rate,
+
+    ``separating`` being the class-preserving share the preconditions promise."""
     m = 2
     while scipy.stats.binom.cdf(1, m, separating) > miss_rate:
         m += 1
@@ -58,22 +50,28 @@ def fresh_suffixes(miss_rate, separating=DEFAULT_MIN_CLASS_PRESERVING_FRAC) -> i
 
 
 def _label_signal(signal, minority_share) -> float:
-    """Squared correlation between a member's true label and its empty-suffix read,
-    at the noisiest placement of the two rates."""
+    """w (1 - w) (2 signal)^2 / v_max, w = ``minority_share``: the squared
+    correlation between a member's label and its own read, the labels reading at
+    1/2 -+ signal."""
     spread = minority_share * (1 - minority_share)
     return spread * (2 * signal) ** 2 / _MAX_READ_VARIANCE
 
 
 def first_look(signal, minority_share, level, miss_rate) -> int:
-    """Members each half needs if the picked suffixes read every member's label
-    perfectly, which no score can beat.  Sizing only: the test itself is exact."""
+    """ceil((z_level + z_miss)^2 / ``_label_signal``), the members per half at
+    which a test on each member's true label would reach power 1 - ``miss_rate``
+    at ``level``.  Sizing only, by the normal approximation; the test is exact."""
     z = scipy.stats.norm.isf(level) + scipy.stats.norm.isf(miss_rate)
     return math.ceil(z**2 / _label_signal(signal, minority_share))
 
 
 def most_looks(signal, minority_share, separating, candidates) -> int:
-    """Doublings from ``first_look`` to the size a score counting every candidate,
-    unpicked, needs when ``separating`` of them separate."""
+    """ceil(log2(1 / q)) + 1, with
+
+        q = m^2 (2 signal)^2 w (1 - w) / (M v_max + m^2 (2 signal)^2 w (1 - w))
+
+    the squared correlation with a member's label of its count of ones over all
+    M = ``candidates``, of which m = ``separating`` separate."""
     # Squared correlation of that count with a member's label.
     carried = separating**2 * (2 * signal) ** 2 * minority_share * (1 - minority_share)
     quality = carried / (candidates * _MAX_READ_VARIANCE + carried)
@@ -89,9 +87,8 @@ def _tail(scores, size, rng, top) -> np.ndarray:
 
 
 def _label_pvalue(tail, empty, top) -> float:
-    """Exact one-sided p-value for the tail's empty-suffix reads leaning the way its
-    score does.  The tail is a function of the score alone, and the score of other
-    suffixes' reads, so given the counts the tail's ones are hypergeometric."""
+    """P(H >= h) if ``top`` else P(H <= h), H ~ Hypergeometric(n, sum(E), |T|),
+    h = sum over the tail T of E: exact when T is independent of E."""
     dist = scipy.stats.hypergeom(len(tail), int(empty.sum()), int(tail.sum()))
     ones = int(empty[tail].sum())
     return float(dist.sf(ones - 1) if top else dist.cdf(ones))
@@ -121,12 +118,10 @@ def _reads(oracle, members, suffixes) -> np.ndarray:
 
 
 def _going_with(reads, empty) -> np.ndarray:
-    """The suffixes to read on the held-out members, the ones going with the empty
-    suffix best first.
+    """Candidates ordered by P(H_v >= co-ones of v with E), H_v hypergeometric
+    on the picking members, cut to the leading K maximising
 
-    Ranked by the exact p-value of their ones falling with the empty suffix's, and
-    cut where the count over those so far goes with the empty suffix most strongly.
-    """
+        corr(sum over the first K of X_.v, E)."""
     dist = scipy.stats.hypergeom(len(empty), int(empty.sum()), reads.sum(0))
     order = np.argsort(dist.sf((reads & empty[:, None]).sum(0) - 1), kind="stable")
     counts = np.cumsum(reads[:, order], axis=1).astype(float)
@@ -139,13 +134,10 @@ def _going_with(reads, empty) -> np.ndarray:
 
 
 def split_members(picking, testing, candidates, oracle, *, minority_share, level, rng):
-    """One look: the split ``picking`` and ``testing`` show at ``level``, or
-    ``None``, and the least p-value, corrected over the tails tried.
-
-    Both tails of the score are tried, since the minority may be either label, at
-    every size ``tail_ladder`` gives.  The split is the smallest tail that clears
-    ``level``: a larger one holds the minority diluted.
-    """
+    """(split, p*): p* = min over tail sizes t in ``tail_ladder`` and both ends
+    of T * ``_label_pvalue``, T the number of such tails, on the ``testing``
+    members' counts over the suffixes ``_going_with`` picks on ``picking``.  The
+    split is at the least t with T p <= ``level``, or ``None``."""
     suffixes = [v for v in candidates if v]
     members = picking + testing
     empty = np.asarray(oracle.membership_queries(members), dtype=np.int8)
@@ -185,13 +177,9 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
 
 
 def split_by_looks(draw, pool, oracle, *, signal, minority_share, alpha, rng):
-    """The split of a state, or ``None``, from members ``draw(count)`` returns.
-
-    Each look draws its own members, so the looks are independent and share
-    ``alpha`` between them.  A look whose evidence is weaker than even odds calls
-    the state one population; one in between doubles the members, since the picked
-    suffixes read labels less well than ``first_look`` assumed.
-    """
+    """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
+    half with n_0 = ``first_look`` and L = ``most_looks``, each at level
+    ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/2."""
     fresh_count = fresh_suffixes(alpha)
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(pool) | fresh)
