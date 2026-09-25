@@ -47,9 +47,9 @@ def _oracle(p_0, p_1, seed):
 
 
 @lru_cache(maxsize=None)
-def _pool(p_0, p_1, seed):
-    """The suffixes a round leaves fully observed once its family search is done,
-    which is the pool the check reads at the end of that round."""
+def _family(p_0, p_1, seed):
+    """The family a round's search settles on, which the check reads at the end of
+    that round."""
     pst = build_pst(
         lambda nm, s: NoisyOracle(DFAOracle(build_armed_target()), nm, s),
         min_signal_strength=(p_1 - p_0) / 2,
@@ -60,8 +60,8 @@ def _pool(p_0, p_1, seed):
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
-    sample_suffix_family(pst, pst.table.intern_suffix(b""), PoolState(uniform))
-    return tuple(pst.table.suffix(v) for v in pst.table.fully_observed())
+    vs, _ = sample_suffix_family(pst, pst.table.intern_suffix(b""), PoolState(uniform))
+    return tuple(pst.table.suffix(v) for v in vs)
 
 
 def _true_mass(state):
@@ -112,7 +112,7 @@ def _check(masses, p_0, p_1, seed):
     draw = _Mixture(masses, rng)
     split = split_by_looks(
         draw,
-        _pool(p_0, p_1, seed),
+        _family(p_0, p_1, seed),
         _oracle(p_0, p_1, seed),
         signal=(p_1 - p_0) / 2,
         minority_share=MERGED_MINORITY_MASS / sum(masses.values()),
@@ -178,11 +178,13 @@ class TestAllFramesClosedDoesNotSplit(unittest.TestCase):
         uniform = [
             p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
         ]
-        sample_suffix_family(pst, pst.table.intern_suffix(b""), PoolState(uniform))
+        vs, _ = sample_suffix_family(
+            pst, pst.table.intern_suffix(b""), PoolState(uniform)
+        )
         target = LiftedOracle(base, vocab, seed=0).target_dfa()
         split = [
             state
             for state in sorted(target.states)
-            if state_split(pst, target, state, alpha=SPLIT_SCAN_ALPHA) is not None
+            if state_split(pst, target, state, vs, alpha=SPLIT_SCAN_ALPHA) is not None
         ]
         self.assertEqual(split, [])

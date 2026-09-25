@@ -176,13 +176,13 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
     return split, least
 
 
-def split_by_looks(draw, pool, oracle, *, signal, minority_share, alpha, rng):
+def split_by_looks(draw, family, oracle, *, signal, minority_share, alpha, rng):
     """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
     half with n_0 = ``first_look`` and L = ``most_looks``, each at level
     ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/2."""
     fresh_count = fresh_suffixes(alpha)
     fresh = {draw.suffix() for _ in range(fresh_count)}
-    candidates = sorted(set(pool) | fresh)
+    candidates = sorted(set(family) | fresh)
     looks = most_looks(signal, minority_share, 2, len(candidates))
     level = alpha / looks
     size = first_look(signal, minority_share, level, level)
@@ -220,9 +220,9 @@ class _Aimed:
         )
 
 
-def state_split(pst, dfa, state, *, alpha):
-    """``split_by_looks`` over prefixes aimed at ``state``, and the aim that drew
-    them."""
+def state_split(pst, dfa, state, family, *, alpha):
+    """``split_by_looks`` over prefixes aimed at ``state`` and the suffixes
+    ``family``, and the aim that drew the prefixes."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -235,7 +235,7 @@ def state_split(pst, dfa, state, *, alpha):
         return None
     found = split_by_looks(
         _Aimed(pst, aim),
-        [pst.table.suffix(v) for v in pst.table.fully_observed()],
+        [pst.table.suffix(v) for v in family],
         pst.table.memo,
         signal=pst.config.min_signal_strength,
         minority_share=minority_share,
