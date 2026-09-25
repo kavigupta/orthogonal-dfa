@@ -6,7 +6,6 @@ import numpy as np
 import scipy.stats
 
 from .mask_table import UNIFORM, MaskTable
-from .preconditions import DEFAULT_MIN_CLASS_PRESERVING_FRAC
 from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
@@ -303,10 +302,10 @@ class PrefixSuffixTracker:
             P(Binomial(drawn, f (1 - screenings screening_alpha / 2)) <= kept)
                 < screening_alpha / looks,
 
-        f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``, the least share of the sampler's
-        draws that preserve every class, each of which a screening right about
+        f = ``min_suffix_frequency``, the least share of the sampler's draws that
+        preserve every class, each of which a screening right about
         the noise drops with probability at most screening_alpha / 2."""
-        rate = DEFAULT_MIN_CLASS_PRESERVING_FRAC * (
+        rate = self.config.min_suffix_frequency * (
             1 - screenings * self.config.screening_alpha / 2
         )
         return (

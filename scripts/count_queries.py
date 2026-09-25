@@ -96,7 +96,7 @@ def _measure(root: str, names: list[str]) -> dict:
     from orthogonal_dfa.l_star.structures import NoisyOracle
     from orthogonal_dfa.l_star.structures import Oracle, AsymmetricBernoulli
     from orthogonal_dfa.l_star.learn import learn_dfa
-    from tests.lstar_common import evaluate_accuracy
+    from tests.lstar_common import DEFAULT_SAMPLER, evaluate_accuracy
 
     class CountingOracle(Oracle):
         def __init__(self, inner):
@@ -157,7 +157,8 @@ def _measure(root: str, names: list[str]) -> dict:
             dfa = learn_dfa(
                 counting_creator, min_signal_strength=bench["signal"], seed=0,
                 noise_model=noise_model)
-            acc = evaluate_accuracy(dfa, creator, symbols=bench["symbols"])
+            acc = evaluate_accuracy(
+                dfa, creator, symbols=bench["symbols"], sampler=DEFAULT_SAMPLER)
         all_batches = [n for c in counters for n in c.batches]
         results[name] = {
             "queries": sum(c.count for c in counters),
