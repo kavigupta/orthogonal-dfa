@@ -2,9 +2,12 @@ import signal
 from types import SimpleNamespace
 
 import numpy as np
-import scipy.stats
 
-from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, learn_dfa
+from orthogonal_dfa.l_star.learn import (
+    DEFAULT_MAX_COVERAGE_ERROR,
+    DEFAULT_SAMPLE_LENGTH,
+    learn_dfa,
+)
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
@@ -115,36 +118,20 @@ def assertDoesNotMeetProperty(
 # Every synthesis round's family is seeded at the empty suffix, so its decisive
 # classifications should realise the accept-preserving split: the noiseless
 # membership 1[x in L]. learn_dfa_verified reads each round's RoundClassifier
-# off a tracker and checks it a state at a time over the prefixes the round
-# decides (indecisive ones are boundary strings, excluded).
+# off a tracker and checks it over the prefixes the round decides (indecisive ones
+# are boundary strings, excluded).
 #
 # These two bound the *within-state* disagreement: a round is entitled to
 # `round_verify_fpr` wrong decisions per prefix, so a state whose minority side is
 # larger than that explains -- by a binomial test at `round_verify_alpha` -- was
-# not cut by a family holding one opinion about it.  Neither is a budget over the
-# pool as a whole; nothing sums misclassifications across states any more.
+# not cut by a family holding one opinion about it.
 round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
 #: Rate at which one verified run is expected to fail spuriously, divided by the
-#: comparisons it makes to get the rate any single state is held to.
+#: rounds it checks to get the rate any single round is held to.
 round_check_run_fpr = 0.01
-
-
-def _common_in_prefixes_threshold(strength: float, fpr: float) -> float:
-    """Prefixes a state needs before it counts as common in prefixes.
-
-    A family that labels state q correctly and one that does not differ only on
-    the prefixes that *reach* q -- everywhere else both predict the same thing.
-    Each such prefix votes correctly with probability 1/2 + strength, so q's label
-    is a binomial vote over m_q of them, and lands the wrong way more often than
-    ``fpr`` unless
-
-        m_q >= z^2 (1/4 - strength^2) / strength^2,   z = Phi^-1(1 - fpr)
-    """
-    z = scipy.stats.norm.ppf(1 - fpr)
-    return z**2 * (0.25 - strength**2) / strength**2
 
 
 def _reached_states(prefixes, true_dfa):
@@ -198,38 +185,28 @@ def _split_states(cuts):
     ]
 
 
-def _wrongly_cut_states(cuts, true_dfa, threshold):
-    """States the round cut against the language, that it had the prefixes to know.
-
-    Below ``threshold`` prefixes the state's label is a coin flip whichever way
-    the round called it, so being wrong there is the sampler's doing.  Above it,
-    the round had the evidence and still cut the other way.
-    """
-    return [
-        (state, accepted + rejected)
+def _miscut(cuts, true_dfa):
+    """Prefixes the round decided against the language, and prefixes it decided."""
+    against = sum(
+        rejected if state in true_dfa.final_states else accepted
         for state, (accepted, rejected) in cuts.items()
-        if (accepted >= rejected) != (state in true_dfa.final_states)
-        and accepted + rejected >= threshold
-    ]
+    )
+    return against, sum(accepted + rejected for accepted, rejected in cuts.values())
 
 
-def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
+def assert_rounds_accept_preserving(classifiers, true_dfa, max_coverage_error):
     """The per-round accept-preserving invariant.
 
     Each round's family is seeded at the empty suffix, so its decisive
-    classifications should realise the accept-preserving split.  Checked a state
-    at a time: tally how the round cut each one, require it to have had a single
-    opinion about each, and require the ones it got backwards to be states its
-    prefixes barely reached.
+    classifications should realise the accept-preserving split -- to within the
+    ``max_coverage_error`` the gate certifies it at, which is a share of the prefixes
+    it decides and not a promise about any one state: a state light enough can be
+    cut against the language whole.  Checked a round at a time: require it to have
+    had a single opinion about each state, and the share it decided against the
+    language not to be significantly above what the gate allows.
     """
     assert classifiers, "no rounds recorded -- did the tracker reach synthesis?"
     per_round = [_state_cuts(c, true_dfa) for c in classifiers]
-    # Every state the round reached, not just those held to the threshold: the
-    # count must not depend on the threshold it is used to compute.
-    comparisons = max(1, sum(len(c) for c in per_round))
-    threshold = _common_in_prefixes_threshold(
-        min_signal_strength, round_check_run_fpr / comparisons
-    )
     for cuts in per_round:
 
         split = _split_states(cuts)
@@ -242,14 +219,17 @@ def assert_rounds_accept_preserving(classifiers, true_dfa, min_signal_strength):
                 f"had no single opinion about the state"
             )
 
-        wrong = _wrongly_cut_states(cuts, true_dfa, threshold)
-        if wrong:
-            state, reached = wrong[0]
+        against, decided = _miscut(cuts, true_dfa)
+        if binomial_side_of_boundary(
+            against,
+            decided,
+            max_coverage_error,
+            failure_prob=round_check_run_fpr / len(per_round),
+        ):
             raise AssertionError(
-                f"a synthesis round cut state {state} against the language, on "
-                f"{reached} prefixes -- at or above the {threshold:.1f} needed for "
-                f"the state's label to be more than a coin flip, so the round had "
-                f"the evidence and still cut the other way"
+                f"a synthesis round decided {against} of {decided} prefixes against "
+                f"the language -- significantly more than the {max_coverage_error:.3f} "
+                f"share its gate certifies"
             )
 
 
@@ -259,7 +239,9 @@ def learn_dfa_verified(oracle_creator, **kwargs):
     dfa = learn_dfa(oracle_creator, tracker=tracker, **kwargs)
     truth_oracle = oracle_creator(SymmetricBernoulli(p_correct=1.0), 0)
     assert_rounds_accept_preserving(
-        tracker.classifiers, truth_oracle.target_dfa(), kwargs["min_signal_strength"]
+        tracker.classifiers,
+        truth_oracle.target_dfa(),
+        kwargs.get("max_coverage_error", DEFAULT_MAX_COVERAGE_ERROR),
     )
     return dfa
 
