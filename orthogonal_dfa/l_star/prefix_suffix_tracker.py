@@ -402,7 +402,7 @@ class PrefixSuffixTracker:
         if new_prefixes:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
-    def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
+    def sample_more_suffixes(self, *, amount: int, reference: int):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
         survive screening against ``reference``, returning ``(kept, drawn)``.
 
@@ -418,7 +418,7 @@ class PrefixSuffixTracker:
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         looks = int(np.ceil(max_draws / amount))
         every = np.ones(self.num_prefixes, dtype=bool)
-        predicting = reference is not None and self.calibrated
+        predicting = self.calibrated
         # Dropped by the prediction, so not yet settled.
         withheld = []
         with counter(amount, "Completing suffix family") as pbar:
@@ -432,25 +432,17 @@ class PrefixSuffixTracker:
                     self.suffixes_drawn += len(cohort)
                 else:
                     break
-                if reference is None:
-                    survivors = cohort
-                else:
-                    survivors = self._screen_cohort(
-                        cohort, reference, predict=predicting
+                survivors = self._screen_cohort(cohort, reference, predict=predicting)
+                kept_rows = set(survivors)
+                dropped = [r for r in cohort if r not in kept_rows]
+                if predicting:
+                    withheld += dropped
+                    predicting = not self._refutes(
+                        kept + len(survivors), drawn, screenings=1, looks=looks
                     )
-                    kept_rows = set(survivors)
-                    dropped = [r for r in cohort if r not in kept_rows]
-                    if predicting:
-                        withheld += dropped
-                        predicting = not self._refutes(
-                            kept + len(survivors),
-                            drawn,
-                            screenings=1,
-                            looks=looks,
-                        )
-                    else:
-                        # The screen's last step can read a row on every prefix.
-                        self.table.retire_suffixes(dropped)
+                else:
+                    # The screen's last step can read a row on every prefix.
+                    self.table.retire_suffixes(dropped)
                 if survivors:
                     self.table.observed_masks(survivors, every)
                 kept += len(survivors)
