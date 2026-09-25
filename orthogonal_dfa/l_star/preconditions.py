@@ -31,6 +31,9 @@ DEFAULT_NUM_SAMPLES = 2000
 #: "covered" by it.
 DEFAULT_MIN_COVERAGE = 0.01
 
+#: Share of suffixes that must preserve every class.
+DEFAULT_MIN_CLASS_PRESERVING_FRAC = 0.02
+
 
 @lru_cache(maxsize=None)
 def _sample_strings(
@@ -195,7 +198,7 @@ def satisfies_preconditions(
     dfa: DFA,
     *,
     length: int,
-    min_class_preserving_frac: float = 0.02,
+    min_class_preserving_frac: float = DEFAULT_MIN_CLASS_PRESERVING_FRAC,
     min_covered_accuracy: float = 0.99,
     num_samples: int = DEFAULT_NUM_SAMPLES,
     short_circuit: bool = True,

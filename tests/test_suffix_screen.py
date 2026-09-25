@@ -76,7 +76,7 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
         for kind in ("hold", "escape", "arm"):
             rows = [pst.table.intern_suffix(v) for v in _suffixes(rng, kind)]
             kept[kind] = len(
-                pst._screen_cohort(rows, reference)  # pylint: disable=protected-access
+                pst._screen(rows, reference)  # pylint: disable=protected-access
             )
         # Dropping a class-preserving suffix is what the screen bounds.
         self.assertGreater(
