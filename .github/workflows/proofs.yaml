@@ -1,0 +1,37 @@
+name: Lean proof
+
+on:
+  push:
+    paths:
+      - 'proofs/**'
+      - '.github/workflows/proofs.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: proofs/OrthoDFA
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch prebuilt Mathlib
+        run: lake exe cache get
+      - name: Build
+        run: lake build 2>&1 | tee build.log
+      - name: No sorry, and the claim rests on the core axioms alone
+        run: |
+          if grep -E "declaration uses .sorry." build.log; then
+            echo "::error::a declaration uses sorry"; exit 1
+          fi
+          grep -F "'OrthoDFA.clustering_guarantee' depends on axioms: [propext, Classical.choice, Quot.sound]" build.log \
+            || { echo "::error::clustering_guarantee depends on more than the core axioms"; exit 1; }

@@ -295,29 +295,38 @@ class PrefixSuffixTracker:
             alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
 
-    def _refutes(self, kept: int, drawn: int, screenings: int) -> bool:
+    def _refutes(self, kept: int, drawn: int, *, screenings: int, looks: int) -> bool:
         """Whether ``kept`` rows surviving ``screenings`` screenings each, out of
-        ``drawn`` draws, are significantly too few:
+        ``drawn`` distinct draws, are significantly too few at one of ``looks``
+        looks:
 
-            P(Binomial(drawn, f (1 - screening_alpha) ^ screenings) <= kept)
-                < screening_alpha,
+            P(Binomial(drawn, f (1 - screenings screening_alpha / 2)) <= kept)
+                < screening_alpha / looks,
 
-        f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``: at least that share of draws
-        preserve every class, and a screen that is right about the noise keeps each
-        such with probability at least 1 - ``screening_alpha``."""
-        rate = (
-            DEFAULT_MIN_CLASS_PRESERVING_FRAC
-            * (1 - self.config.screening_alpha) ** screenings
+        f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``, the least share of the sampler's
+        draws that preserve every class, each of which a screening right about
+        the noise drops with probability at most screening_alpha / 2."""
+        rate = DEFAULT_MIN_CLASS_PRESERVING_FRAC * (
+            1 - screenings * self.config.screening_alpha / 2
         )
-        return scipy.stats.binom.cdf(kept, drawn, rate) < self.config.screening_alpha
+        return (
+            scipy.stats.binom.cdf(kept, drawn, rate)
+            < self.config.screening_alpha / looks
+        )
 
     def calibrate(self, reference: int) -> int:
-        """The fully observed rows other than ``reference`` that the prediction
-        screens out are retired, and ``calibrated`` set, unless that leaves them
-        ``_refutes``-ingly few of ``suffixes_drawn``; returns how many were retired.
-        A no-op once ``calibrated``.
-        """
+        """Retires the fully observed rows other than ``reference`` that the
+        prediction screens out, and sets ``calibrated``, if
+
+            _refutes(0, suffixes_drawn, screenings=2, looks=1)
+            and not _refutes(kept, suffixes_drawn, screenings=2, looks=1)
+
+        for ``kept`` of them surviving the prediction; returns how many were
+        retired."""
         if self.calibrated:
+            return 0
+        if not self._refutes(0, self.suffixes_drawn, screenings=2, looks=1):
+            # Too few draws to refute even a prediction that keeps nothing.
             return 0
         admitted = [
             row for row in self.table.fully_observed().tolist() if row != reference
@@ -325,7 +334,7 @@ class PrefixSuffixTracker:
         if not admitted:
             return 0
         kept = set(self._screen_cohort(admitted, reference, predict=True))
-        if self._refutes(len(kept), self.suffixes_drawn, screenings=2):
+        if self._refutes(len(kept), self.suffixes_drawn, screenings=2, looks=1):
             return 0
         self.calibrated = True
         retired = [row for row in admitted if row not in kept]
@@ -399,23 +408,31 @@ class PrefixSuffixTracker:
         survive screening against ``reference``, returning ``(kept, drawn)``.
 
         Once calibrated, cohorts are screened with the prediction until what it has
-        kept of this call's draws ``_refutes`` it; then every row it dropped is
-        screened again without it, as is every cohort after.
+        kept of this call's draws ``_refutes`` it, at one of the call's cohorts as
+        looks; the rows it dropped are then screened again without it, in the
+        order drawn, before any new draw.
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
+        looks = int(np.ceil(max_draws / amount))
         every = np.ones(self.num_prefixes, dtype=bool)
         predicting = reference is not None and self.calibrated
         # Dropped by the prediction, so not yet settled.
         withheld = []
         with counter(amount, "Completing suffix family") as pbar:
-            while kept < amount and drawn < max_draws:
-                cohort = self._draw_cohort(min(amount, max_draws - drawn))
-                drawn += len(cohort)
-                self.suffixes_drawn += len(cohort)
+            while kept < amount:
+                if withheld and not predicting:
+                    cohort = withheld[: amount - kept]
+                    withheld = withheld[amount - kept :]
+                elif drawn < max_draws:
+                    cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                    drawn += len(cohort)
+                    self.suffixes_drawn += len(cohort)
+                else:
+                    break
                 if reference is None:
                     survivors = cohort
                 else:
@@ -426,15 +443,13 @@ class PrefixSuffixTracker:
                     dropped = [r for r in cohort if r not in kept_rows]
                     if predicting:
                         withheld += dropped
-                        if self._refutes(kept + len(survivors), drawn, screenings=1):
-                            predicting = False
-                            survivors += self._screen_cohort(
-                                withheld, reference, predict=False
-                            )
-                            kept_rows = set(survivors)
-                            dropped = [r for r in withheld if r not in kept_rows]
-                            withheld = []
-                    if not predicting:
+                        predicting = not self._refutes(
+                            kept + len(survivors),
+                            drawn,
+                            screenings=1,
+                            looks=looks,
+                        )
+                    else:
                         # The screen's last step can read a row on every prefix.
                         self.table.retire_suffixes(dropped)
                 if survivors:
