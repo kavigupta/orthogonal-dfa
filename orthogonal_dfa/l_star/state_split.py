@@ -138,12 +138,13 @@ def _going_with(reads, empty) -> np.ndarray:
     return order[: int(np.argmax(strength)) + 1]
 
 
-def split_members(picking, testing, candidates, oracle, *, minority_share, rng):
-    """One look: the split ``picking`` and ``testing`` point to, and its p-value,
-    corrected over the tails tried.
+def split_members(picking, testing, candidates, oracle, *, minority_share, level, rng):
+    """One look: the split ``picking`` and ``testing`` show at ``level``, or
+    ``None``, and the least p-value, corrected over the tails tried.
 
     Both tails of the score are tried, since the minority may be either label, at
-    every size ``tail_ladder`` gives.
+    every size ``tail_ladder`` gives.  The split is the smallest tail that clears
+    ``level``: a larger one holds the minority diluted.
     """
     suffixes = [v for v in candidates if v]
     members = picking + testing
@@ -160,7 +161,11 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, rng):
     ]
     if not tests:
         return None, 1.0
-    p, size, top = min(tests)
+    least = min(1.0, min(tests)[0] * len(tests))
+    clearing = [(size, p, top) for p, size, top in tests if p * len(tests) <= level]
+    if not clearing:
+        return None, least
+    size, _, top = min(clearing)
     weights = np.ones(len(chosen)) if top else -np.ones(len(chosen))
     scores = np.empty(len(members))
     scores[picks] = picked_reads[:, picked] @ weights
@@ -176,7 +181,7 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, rng):
         weights=weights,
         cut=scores[inside].min(),
     )
-    return split, min(1.0, p * len(tests))
+    return split, least
 
 
 def split_by_looks(draw, pool, oracle, *, signal, minority_share, alpha, rng):
@@ -195,9 +200,15 @@ def split_by_looks(draw, pool, oracle, *, signal, minority_share, alpha, rng):
     size = first_look(signal, minority_share, level, level)
     for _ in range(looks):
         split, p = split_members(
-            draw(size), draw(size), candidates, oracle, minority_share=minority_share, rng=rng
+            draw(size),
+            draw(size),
+            candidates,
+            oracle,
+            minority_share=minority_share,
+            level=level,
+            rng=rng,
         )
-        if p <= level:
+        if split is not None:
             return split
         if p > 1 / 2:
             return None

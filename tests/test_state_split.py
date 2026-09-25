@@ -10,7 +10,11 @@ import numpy as np
 import pytest
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.cluster import sample_suffix_family
+from orthogonal_dfa.l_star.cluster import (
+    read_rates,
+    sample_suffix_family,
+    smallest_readable_family,
+)
 from orthogonal_dfa.l_star.counterexample_synthesis import SPLIT_SCAN_ALPHA
 from orthogonal_dfa.l_star.dfa_utils import (
     count_paths_to_state,
@@ -46,7 +50,8 @@ def _oracle(p_0, p_1, seed):
 
 @lru_cache(maxsize=None)
 def _pool(p_0, p_1, seed):
-    """The suffixes the learner's first family search leaves fully observed."""
+    """The suffixes the learner's screen admits for its first family, drawn and
+    screened against the empty suffix as a round draws them."""
     pst = build_pst(
         lambda nm, s: NoisyOracle(DFAOracle(build_armed_target()), nm, s),
         min_signal_strength=(p_1 - p_0) / 2,
@@ -54,8 +59,13 @@ def _pool(p_0, p_1, seed):
         sampler=UniformSampler(ARMED_LENGTH),
         noise_model=AsymmetricBernoulli(p_0=p_0, p_1=p_1),
     )
-    uniform = [p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep]
-    sample_suffix_family(pst, pst.table.intern_suffix(b""), PoolState(uniform))
+    empty = pst.table.intern_suffix(b"")
+    pst.table.column(empty)
+    rates = read_rates(pst.config, pst.decision_boundary)
+    wanted = smallest_readable_family(
+        pst.config.min_signal_strength, pst.decision_boundary, rates
+    )
+    pst.sample_more_suffixes(amount=wanted, reference=empty)
     return tuple(pst.table.suffix(v) for v in pst.table.fully_observed())
 
 
