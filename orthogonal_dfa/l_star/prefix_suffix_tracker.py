@@ -1,6 +1,6 @@
 import math
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
@@ -165,9 +165,8 @@ class PrefixSuffixTracker:
     #: Whether ``decision_boundary`` has been read off a family yet, rather than
     #: standing at its starting guess.
     calibrated: bool = False
-    #: ``decision_boundary -> [kept, screened]``: rows the prediction at that
-    #: boundary has screened, and kept.
-    predicted: Dict[float, List[int]] = field(default_factory=dict)
+    #: Suffixes drawn for the pool so far, whatever became of them.
+    suffixes_drawn: int = 0
 
     @property
     def num_prefixes(self) -> int:
@@ -296,36 +295,27 @@ class PrefixSuffixTracker:
             alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
 
-    def _refutes(self, kept: int, screened: int) -> bool:
-        """Whether keeping ``kept`` of ``screened`` rows is significantly too few,
+    def _refutes(self, kept: int, drawn: int, screenings: int) -> bool:
+        """Whether ``kept`` rows surviving ``screenings`` screenings each, out of
+        ``drawn`` draws, are significantly too few:
 
-            P(Binomial(screened, f (1 - screening_alpha)) <= kept) < screening_alpha,
+            P(Binomial(drawn, f (1 - screening_alpha) ^ screenings) <= kept)
+                < screening_alpha,
 
-        for a screen keeping each class-preserving row with probability at least
-        1 - ``screening_alpha``, among rows at least f of which are class-preserving
-        (f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``)."""
-        rate = DEFAULT_MIN_CLASS_PRESERVING_FRAC * (1 - self.config.screening_alpha)
-        return scipy.stats.binom.cdf(kept, screened, rate) < self.config.screening_alpha
-
-    def _screen(self, rows: List[int], reference: int) -> List[int]:
-        """``_screen_cohort`` of ``rows``: with the prediction once calibrated, unless
-        what it has kept at the current boundary so far ``_refutes`` it."""
-        if self.calibrated:
-            tally = self.predicted.setdefault(self.decision_boundary, [0, 0])
-            if not self._refutes(*tally):
-                kept = self._screen_cohort(rows, reference, predict=True)
-                tally[0] += len(kept)
-                tally[1] += len(rows)
-                if not self._refutes(*tally):
-                    return kept
-        return self._screen_cohort(rows, reference, predict=False)
+        f = ``DEFAULT_MIN_CLASS_PRESERVING_FRAC``: at least that share of draws
+        preserve every class, and a screen that is right about the noise keeps each
+        such with probability at least 1 - ``screening_alpha``."""
+        rate = (
+            DEFAULT_MIN_CLASS_PRESERVING_FRAC
+            * (1 - self.config.screening_alpha) ** screenings
+        )
+        return scipy.stats.binom.cdf(kept, drawn, rate) < self.config.screening_alpha
 
     def calibrate(self, reference: int) -> int:
-        """Until it first succeeds, screens the fully observed rows other than
-        ``reference`` with the prediction and, unless that ``_refutes`` itself, sets
-        ``calibrated`` and retires the rows screened out, returning how many; 0
-        otherwise.  A row's fate is decided at most twice, on admission and here,
-        and ``screening_alpha`` is split over both.
+        """The fully observed rows other than ``reference`` that the prediction
+        screens out are retired, and ``calibrated`` set, unless that leaves them
+        ``_refutes``-ingly few of ``suffixes_drawn``; returns how many were retired.
+        A no-op once ``calibrated``.
         """
         if self.calibrated:
             return 0
@@ -335,7 +325,7 @@ class PrefixSuffixTracker:
         if not admitted:
             return 0
         kept = set(self._screen_cohort(admitted, reference, predict=True))
-        if self._refutes(len(kept), len(admitted)):
+        if self._refutes(len(kept), self.suffixes_drawn, screenings=2):
             return 0
         self.calibrated = True
         retired = [row for row in admitted if row not in kept]
@@ -408,26 +398,50 @@ class PrefixSuffixTracker:
         """Grow the pool of clustering candidates by ``amount`` suffixes that
         survive screening against ``reference``, returning ``(kept, drawn)``.
 
+        Once calibrated, cohorts are screened with the prediction until what it has
+        kept of this call's draws ``_refutes`` it; then every row it dropped is
+        screened again without it, as is every cohort after.
+
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         every = np.ones(self.num_prefixes, dtype=bool)
+        predicting = reference is not None and self.calibrated
+        # Dropped by the prediction, so not yet settled.
+        withheld = []
         with counter(amount, "Completing suffix family") as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
-                survivors = (
-                    cohort if reference is None else self._screen(cohort, reference)
-                )
+                self.suffixes_drawn += len(cohort)
+                if reference is None:
+                    survivors = cohort
+                else:
+                    survivors = self._screen_cohort(
+                        cohort, reference, predict=predicting
+                    )
+                    kept_rows = set(survivors)
+                    dropped = [r for r in cohort if r not in kept_rows]
+                    if predicting:
+                        withheld += dropped
+                        if self._refutes(kept + len(survivors), drawn, screenings=1):
+                            predicting = False
+                            survivors += self._screen_cohort(
+                                withheld, reference, predict=False
+                            )
+                            kept_rows = set(survivors)
+                            dropped = [r for r in withheld if r not in kept_rows]
+                            withheld = []
+                    if not predicting:
+                        # The screen's last step can read a row on every prefix.
+                        self.table.retire_suffixes(dropped)
                 if survivors:
                     self.table.observed_masks(survivors, every)
-                # The screen's last step can read a dropped row on every prefix.
-                kept_rows = set(survivors)
-                self.table.retire_suffixes([r for r in cohort if r not in kept_rows])
                 kept += len(survivors)
                 pbar.update(len(survivors))
+        self.table.retire_suffixes(withheld)
         return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
