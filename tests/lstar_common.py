@@ -269,9 +269,6 @@ class _ClusterTable:
         self._masks = masks
         self.representative = np.ones(masks.shape[1], dtype=bool)
 
-    def fully_observed(self):
-        return np.arange(self._masks.shape[0])
-
     def observed_masks(self, rows, prefixes):
         return self._masks[np.asarray(rows)][:, prefixes]
 
@@ -282,5 +279,6 @@ class _ClusterTable:
 def cluster_pst(masks, min_signal_strength):
     return SimpleNamespace(
         table=_ClusterTable(masks),
+        suffix_pool=list(range(masks.shape[0])),
         config=SimpleNamespace(min_signal_strength=min_signal_strength),
     )

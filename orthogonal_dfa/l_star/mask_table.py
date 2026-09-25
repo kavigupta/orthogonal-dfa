@@ -9,9 +9,7 @@ Each cell is int8: ``0`` (reject), ``1`` (accept), or ``UNOBSERVED (-1)`` for a
 ``(prefix, suffix)`` pair whose membership query has not been issued yet.  A new
 suffix (``intern_suffix``) reserves an all-``UNOBSERVED`` column and queries
 nothing; a cell is filled the first time some read (``observed_masks`` /
-``column``) actually needs it.  ``add_prefixes`` reserves ``UNOBSERVED`` cells
-for partially-observed columns but does query the new prefixes for already
-fully-observed (family) columns, to keep them clustering candidates.  Because the
+``column``) actually needs it, ``add_prefixes``' new cells included.  Because the
 oracle is deterministic per string, lazy filling returns exactly the values eager
 filling would, so callers cannot tell the difference except in query count.
 """
@@ -28,8 +26,8 @@ UNIFORM = "uniform"
 BOUNDARY = "boundary"
 STATE = "state"
 
-# Sentinel for a not-yet-queried cell.  Private to this module: callers ask about
-# observation through ``fully_observed`` / ``observed_masks`` and never see it.
+# Sentinel for a not-yet-queried cell.  Private to this module: callers read
+# through ``observed_masks`` / ``column`` and never see it.
 UNOBSERVED = np.int8(-1)
 
 
@@ -51,7 +49,6 @@ class MaskTable:
         self._suffixes: List[bytes] = []
         self._suffix_index = {}  # suffix -> row
         self._masks: List[np.ndarray] = []  # one int8 column per suffix
-        self._retired: set = set()
 
     # -- sizes / prefix side ------------------------------------------------
 
@@ -111,29 +108,8 @@ class MaskTable:
         )
 
     def _add_columns(self, new_prefixes: List[bytes]) -> None:
-        # A column that is already fully observed is a family suffix: keep it
-        # fully observed by querying the new prefixes, so it stays a clustering
-        # candidate.  A partially-observed column (a transition distinguisher)
-        # gets UNOBSERVED cells, filled later on demand only if some read needs
-        # them.
         pad = np.full(len(new_prefixes), UNOBSERVED, dtype=np.int8)
-        # Flatten out the pairs to update
-        full_cols = [
-            i
-            for i, col in enumerate(self._masks)
-            if (col != UNOBSERVED).all() and i not in self._retired
-        ]
-        adds = {}
-        if full_cols:
-            strings = [p + self._suffixes[i] for i in full_cols for p in new_prefixes]
-            observed = np.asarray(
-                self._oracle.membership_queries(strings), dtype=np.int8
-            ).reshape(len(full_cols), len(new_prefixes))
-            adds = {i: observed[k] for k, i in enumerate(full_cols)}
-        updated = [
-            np.concatenate([col, adds.get(i, pad)]) for i, col in enumerate(self._masks)
-        ]
-        self._masks = updated
+        self._masks = [np.concatenate([col, pad]) for col in self._masks]
         fresh = range(self.num_prefixes, self.num_prefixes + len(new_prefixes))
         self._prefix_index.update(zip(new_prefixes, fresh))
 
@@ -187,23 +163,7 @@ class MaskTable:
         return np.array([self._masks[r][prefix_mask] for r in rows])
 
     def column(self, row: int) -> np.ndarray:
-        """Fully observe suffix ``row`` over every prefix and return its column.
-        Also used to promote a suffix to "fully observed" (a clustering
-        candidate)."""
+        """Suffix ``row``'s column over every prefix, querying any cells not yet
+        observed."""
         self._ensure([row], np.ones(self.num_prefixes, dtype=bool))
         return self._masks[row].copy()
-
-    def fully_observed(self) -> np.ndarray:
-        """Row indices of the suffixes whose whole column is observed -- the
-        sampled acceptance-family suffixes.  Partially-observed transition
-        distinguishers are excluded."""
-        if not self._masks:
-            return np.array([], dtype=int)
-        matrix = np.array(self._masks)
-        full = np.flatnonzero((matrix != UNOBSERVED).all(axis=1))
-        return np.array([row for row in full if row not in self._retired], dtype=int)
-
-    def retire_suffixes(self, rows) -> None:
-        """Exclude ``rows`` from ``fully_observed`` and from the columns filled for
-        new prefixes, permanently."""
-        self._retired.update(rows)

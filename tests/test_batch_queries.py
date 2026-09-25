@@ -97,63 +97,16 @@ class TestMaskTableBatching(unittest.TestCase):
                         (prefix, suffix),
                     )
 
-    def test_add_prefixes_fills_family_columns(self):
-        # add_prefixes flattens (suffix, prefix) pairs into one call and reshapes the
-        # answers back, so the fixture has to be able to see both ways that can go
-        # wrong: 2 full columns x 3 new prefixes is non-square (a reshape with the dims
-        # swapped no longer fits), and the block is checked to be order-sensitive (a
-        # swapped comprehension order changes the values, not just the layout).
+    def test_add_prefixes_queries_nothing(self):
         oracle, table = self._table()
-        full = [
-            table.intern_suffix(bytes([1, 1])),
-            table.intern_suffix(bytes([0, 1, 0])),
-        ]
-        partial = table.intern_suffix(bytes([0]))
-        for row in full:
-            table.column(row)
-        table._ensure([partial], np.array([True, False, True]))
-        new_prefixes = [bytes([1, 1]), bytes([0, 0, 1]), bytes([1, 0, 0])]
-        block = [
-            [oracle.membership_query(p + table.suffix(r)) for p in new_prefixes]
-            for r in full
-        ]
-        self.assertNotEqual(len(full), len(new_prefixes), "fixture is reshape-blind")
-        self.assertNotEqual(
-            [c for row in block for c in row],
-            [row[j] for j in range(len(new_prefixes)) for row in block],
-            "fixture is order-blind",
-        )
-
-        table.add_prefixes(new_prefixes, population="uniform")
-        self._assert_cells_correct(oracle, table)
-        # The fully-observed columns stay fully observed; the partial one does not
-        # acquire cells it was never asked for.
-        for row in full:
-            self.assertFalse((table._masks[row] == UNOBSERVED).any())
-        self.assertEqual(
-            1 + len(new_prefixes), int((table._masks[partial] == UNOBSERVED).sum())
-        )
-
-    def test_every_prefix_gates_a_columns_candidacy(self):
-        # Regression: scoping "fully observed" to the *representative* rows made a
-        # column a clustering candidate while its non-representative cells -- still
-        # prefixes -- were unobserved.  That silently changed which suffixes
-        # clustering could pick, and with them the whole search path, surfacing
-        # only as a distant end-to-end timeout.
-        oracle, table = self._table()  # prefix 2 is non-representative
-        row = table.intern_suffix(bytes([1, 1]))
-
-        # Observing just the representative cells leaves a prefix unobserved, so
-        # the column is not a candidate yet.
-        table._ensure([row], table.representative)
-        self.assertTrue((table._masks[row] == UNOBSERVED).any())
-        self.assertNotIn(row, list(table.fully_observed()))
-
-        # Observing every prefix makes it one.
+        rows = [table.intern_suffix(bytes([1, 1])), table.intern_suffix(bytes([0]))]
+        table.column(rows[0])
         oracle.calls.clear()
-        table.column(row)
-        self.assertEqual([int((~table.representative).sum())], oracle.calls)
-        self.assertIn(row, list(table.fully_observed()))
+        new_prefixes = [bytes([1, 1]), bytes([0, 0, 1]), bytes([1, 0, 0])]
+        table.add_prefixes(new_prefixes, population="uniform")
+        self.assertEqual([], oracle.calls)
+        table.observed_masks(rows, table.representative)
+        self._assert_cells_correct(oracle, table)
 
     def test_ensure_queries_only_missing_cells_in_one_call(self):
         oracle, table = self._table()

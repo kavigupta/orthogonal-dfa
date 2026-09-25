@@ -149,7 +149,7 @@ class TestWhatTheTopUpAssumes(unittest.TestCase):
         pst = SimpleNamespace(
             accept_thresh=ACCEPT,
             reject_thresh=REJECT,
-            table=SimpleNamespace(fully_observed=lambda: range(8)),
+            suffix_pool=list(range(8)),
             config=SimpleNamespace(num_addtl_prefixes=2000),
         )
 

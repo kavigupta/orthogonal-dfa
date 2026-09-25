@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -166,6 +166,8 @@ class PrefixSuffixTracker:
     calibrated: bool = False
     #: Suffixes drawn for the pool so far, whatever became of them.
     suffixes_drawn: int = 0
+    #: The suffix rows clustering picks families from.
+    suffix_pool: List[int] = field(default_factory=list)
 
     @property
     def num_prefixes(self) -> int:
@@ -314,31 +316,29 @@ class PrefixSuffixTracker:
         )
 
     def calibrate(self, reference: int) -> int:
-        """Retires the fully observed rows other than ``reference`` that the
+        """Removes from ``suffix_pool`` the rows other than ``reference`` that the
         prediction screens out, and sets ``calibrated``, if
 
             _refutes(0, suffixes_drawn, screenings=2, looks=1)
             and not _refutes(kept, suffixes_drawn, screenings=2, looks=1)
 
         for ``kept`` of them surviving the prediction; returns how many were
-        retired."""
+        removed."""
         if self.calibrated:
             return 0
         if not self._refutes(0, self.suffixes_drawn, screenings=2, looks=1):
             # Too few draws to refute even a prediction that keeps nothing.
             return 0
-        admitted = [
-            row for row in self.table.fully_observed().tolist() if row != reference
-        ]
+        admitted = [row for row in self.suffix_pool if row != reference]
         if not admitted:
             return 0
         kept = set(self._screen_cohort(admitted, reference, predict=True))
         if self._refutes(len(kept), self.suffixes_drawn, screenings=2, looks=1):
             return 0
         self.calibrated = True
-        retired = [row for row in admitted if row not in kept]
-        self.table.retire_suffixes(retired)
-        return len(retired)
+        dropped = set(admitted) - kept
+        self.suffix_pool = [row for row in self.suffix_pool if row not in dropped]
+        return len(dropped)
 
     def _draw_cohort(self, size: int) -> List[int]:
         """``size`` unseen suffixes, interned but not yet observed."""
@@ -417,7 +417,6 @@ class PrefixSuffixTracker:
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         looks = int(np.ceil(max_draws / amount))
-        every = np.ones(self.num_prefixes, dtype=bool)
         predicting = self.calibrated
         # Dropped by the prediction, so not yet settled.
         withheld = []
@@ -433,21 +432,15 @@ class PrefixSuffixTracker:
                 else:
                     break
                 survivors = self._screen_cohort(cohort, reference, predict=predicting)
-                kept_rows = set(survivors)
-                dropped = [r for r in cohort if r not in kept_rows]
                 if predicting:
-                    withheld += dropped
+                    kept_rows = set(survivors)
+                    withheld += [r for r in cohort if r not in kept_rows]
                     predicting = not self._refutes(
                         kept + len(survivors), drawn, screenings=1, looks=looks
                     )
-                else:
-                    # The screen's last step can read a row on every prefix.
-                    self.table.retire_suffixes(dropped)
-                if survivors:
-                    self.table.observed_masks(survivors, every)
+                self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
-        self.table.retire_suffixes(withheld)
         return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:

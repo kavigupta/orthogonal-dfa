@@ -99,23 +99,6 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
             self.assertLess(p, LEVEL, f"kept by kind: {kept}")
 
 
-class TestScreenedOutStayOut(unittest.TestCase):
-    def test_dropped_suffixes_are_not_clustering_candidates(self):
-        pst = build_pst(
-            lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
-            min_signal_strength=0.3,
-            seed=0,
-            sampler=UniformSampler(LENGTH),
-            noise_model=AsymmetricBernoulli(p_0=0.35, p_1=0.95),
-        )
-        reference = pst.table.intern_suffix(b"")
-        pst.table.column(reference)
-        kept, drawn = pst.sample_more_suffixes(amount=PER_KIND, reference=reference)
-        # The reference is fully observed too.
-        self.assertEqual(len(pst.table.fully_observed()), kept + 1)
-        self.assertLess(kept, drawn)
-
-
 def _overstated():
     # Declaring 0.45 where the band holds 0.3 predicts less noise than there is,
     # as a boundary estimated far off does: every class-preserving suffix then
@@ -140,7 +123,7 @@ class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
         first = len(pst.table._suffixes)  # pylint: disable=protected-access
         kept, _ = pst.sample_more_suffixes(amount=wanted, reference=reference)
         self.assertGreaterEqual(kept, wanted)
-        pool = set(pst.table.fully_observed().tolist())
+        pool = set(pst.suffix_pool)
         # The prediction keeps none of the first cohort.
         self.assertTrue(any(row in pool for row in range(first, first + wanted)))
 
@@ -149,7 +132,7 @@ class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
         for draws in (0, 150):
             while pst.suffixes_drawn <= draws:
                 pst.sample_more_suffixes(amount=20, reference=reference)
-            pool = pst.table.fully_observed().tolist()
+            pool = list(pst.suffix_pool)
             self.assertEqual(pst.calibrate(reference), 0)
             self.assertFalse(pst.calibrated)
-            self.assertEqual(pst.table.fully_observed().tolist(), pool)
+            self.assertEqual(pst.suffix_pool, pool)
