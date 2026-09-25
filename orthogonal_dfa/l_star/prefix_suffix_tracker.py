@@ -52,12 +52,9 @@ def _same_family_rates(boundary, signal, reference_rate):
 
 
 def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """``_same_family_rates`` at the loosest the reference's accept rate allows.
-
-    The class share is read off that rate, which is only known to its exact
-    interval, and an error in it moves the prediction by ``1 / (2 * signal)`` times
-    as much.  Taken at both ends, each side at whichever is looser.
-    """
+    """``_same_family_rates`` at the loosest the reference's accept rate allows,
+    over its exact interval.  Each side's rate is monotone in that rate, so the
+    interval's ends bound it."""
     ends = [
         scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
         (
@@ -97,8 +94,8 @@ class SearchConfig:
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    #: Chance of screening out a suffix that does belong, spent across the
-    #: whole staircase rather than per test.
+    #: Chance of screening out a suffix that does belong, over every screening of
+    #: it and every test within one.
     screening_alpha: float = 0.1
     #: Require the suffix family to be accept-preserving.  Only meaningful where
     #: such a family exists, which is the class-preserving precondition; a caller
@@ -218,26 +215,24 @@ class PrefixSuffixTracker:
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows still explicable as ``reference`` plus per-cell noise.
 
-        Disagreements are counted apart among the prefixes ``reference`` reads as
-        accepting and those it reads as rejecting.  Pooled, a row that moves a
-        rejecting class to accept disagrees more where the reference read 0 and
-        less where it read 1, and the pooled count moves by only
+        Disagreements are counted apart where ``reference`` reads 1 and where it
+        reads 0: pooled, a row that moves a rejecting class to accept gains them on
+        one side and sheds them on the other, and the count moves by only
 
             (p_1 - p_0) (1 - 2 p_0)
 
-        per prefix of that class, which vanishes at a reject rate of a half and
-        inverts past it.  Within one side a class change moves the count one way.
-
-        Each side's noise rate is the lower of the one the boundary and signal
-        predict and the one the cohort's closest row allows: a caller who promises
-        less signal than the oracle carries would otherwise widen the screen.
-        Until the boundary is calibrated there is no prediction, only the cohort.
+        per prefix of that class.  Each side is held to the lower of the rate the
+        boundary and signal predict, which a caller understating the signal would
+        widen, and the one the cohort's closest row allows.  Before calibration
+        there is no prediction, only the cohort.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        alpha = self.config.screening_alpha / (2 * len(staircase))
+        # Per screening: each step, on each side, a test and a floor; the reference
+        # rate's interval, two tails.  A row is screened at most twice.
+        alpha = self.config.screening_alpha / (2 * (4 * len(staircase) + 2))
         predicted = (
             _loosest_same_family_rates(
                 self.decision_boundary,
@@ -290,9 +285,8 @@ class PrefixSuffixTracker:
         suffixes it screens out, returning how many.
 
         Those were screened before there was a boundary to predict their noise
-        from.  They are screened once more and no more: each screen spends
-        ``screening_alpha`` on the suffixes that belong, so screening a pool on
-        every move of the boundary drains it.  Fully observed, so no queries.
+        from.  This is the second and last screening a row gets, which is what
+        ``screening_alpha`` is split over.  Fully observed, so no queries.
         """
         if self.calibrated:
             return 0
@@ -389,9 +383,10 @@ class PrefixSuffixTracker:
                     else self._screen_cohort(cohort, reference)
                 )
                 if survivors:
-                    # The dropped ones stay partial, keeping them out of
-                    # fully_observed() and so out of add_prefixes' top-ups.
                     self.table.observed_masks(survivors, every)
+                # The screen's last step can read a dropped row on every prefix.
+                kept_rows = set(survivors)
+                self.table.retire_suffixes([r for r in cohort if r not in kept_rows])
                 kept += len(survivors)
                 pbar.update(len(survivors))
         return kept, drawn

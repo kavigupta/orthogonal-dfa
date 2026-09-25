@@ -1,6 +1,7 @@
-"""The suffix screen on a band centred above a half, where a rejecting state reads at
-0.35: suffixes that move it to accept must be screened out more often than the
-class-preserving ones, which must survive at the rate the screen promises."""
+"""The suffix screen on the armed target: suffixes that move its rejecting state to
+accept must be screened out more often than the class-preserving ones, which must
+survive at the rate the screen promises -- including on a band centred above a
+half, where that state reads at 0.35."""
 
 import unittest
 
@@ -94,3 +95,20 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
                 alternative="greater",
             )
             self.assertLess(p, LEVEL, f"kept by kind: {kept}")
+
+
+class TestScreenedOutStayOut(unittest.TestCase):
+    def test_dropped_suffixes_are_not_clustering_candidates(self):
+        pst = build_pst(
+            lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
+            min_signal_strength=0.3,
+            seed=0,
+            sampler=UniformSampler(LENGTH),
+            noise_model=AsymmetricBernoulli(p_0=0.35, p_1=0.95),
+        )
+        reference = pst.table.intern_suffix(b"")
+        pst.table.column(reference)
+        kept, drawn = pst.sample_more_suffixes(amount=PER_KIND, reference=reference)
+        # The reference is fully observed too.
+        self.assertEqual(len(pst.table.fully_observed()), kept + 1)
+        self.assertLess(kept, drawn)

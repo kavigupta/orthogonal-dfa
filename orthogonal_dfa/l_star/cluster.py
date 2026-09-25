@@ -487,9 +487,9 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 decision_boundary,
                 read_rates(pst.config, decision_boundary),
             )
-            attempts += 1
             if len(vs) > 1 and pst.calibrate(v):
                 continue
+            attempts += 1
             if len(vs) >= family_size or attempts >= 2:
                 break
 
