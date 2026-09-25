@@ -15,16 +15,59 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
-    """How high the cohort's clean disagreement rate can be, given its smallest count.
+def _floor_rate(
+    fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
+) -> float:
+    """How high the cohort's clean disagreement rate can be, given the smallest
+    count among ``num_rows``.
 
-    The smallest of many draws sits below the rate it is drawn from, and by more
-    when there are few prefixes, so the floor is the upper end of the interval
-    around it rather than the count itself.
+    The upper end of the interval around that count, at the level where the least
+    of ``num_rows`` independent draws falls that low with ``failure_prob``:
+
+        1 - (1 - F(fewest; n, r)) ^ num_rows = failure_prob
     """
-    return float(
-        scipy.stats.beta.ppf(1 - failure_prob, fewest + 1, num_prefixes - fewest)
+    if fewest == num_prefixes:
+        return 1.0
+    per_row = 1 - (1 - failure_prob) ** (1 / num_rows)
+    return float(scipy.stats.beta.ppf(1 - per_row, fewest + 1, num_prefixes - fewest))
+
+
+def _same_family_rates(boundary, signal, reference_rate):
+    """The rate a row of the reference's family disagrees with it, where the
+    reference reads 1 and where it reads 0.
+
+    Classes read at ``boundary -+ signal``, and the reference's own accept rate
+    says what share ``pi`` of the prefixes accept.
+    """
+    reject_rate, accept_rate = boundary - signal, boundary + signal
+    pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
+    reads_one = pi * accept_rate + (1 - pi) * reject_rate
+    # A side the reference never reads is never screened, so its share is moot.
+    accept_if_one = pi * accept_rate / reads_one if reads_one > 0 else pi
+    accept_if_zero = pi * (1 - accept_rate) / (1 - reads_one) if reads_one < 1 else pi
+    return (
+        accept_if_one * (1 - accept_rate) + (1 - accept_if_one) * (1 - reject_rate),
+        accept_if_zero * accept_rate + (1 - accept_if_zero) * reject_rate,
     )
+
+
+def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
+    """``_same_family_rates`` at the loosest the reference's accept rate allows.
+
+    The class share is read off that rate, which is only known to its exact
+    interval, and an error in it moves the prediction by ``1 / (2 * signal)`` times
+    as much.  Taken at both ends, each side at whichever is looser.
+    """
+    ends = [
+        scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
+        (
+            scipy.stats.beta.ppf(1 - failure_prob, ones + 1, reads - ones)
+            if ones < reads
+            else 1.0
+        ),
+    ]
+    rates = [_same_family_rates(boundary, signal, float(end)) for end in ends]
+    return tuple(max(side) for side in zip(*rates))
 
 
 @dataclass
@@ -116,6 +159,9 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
+    #: Whether ``decision_boundary`` has been read off a family yet, rather than
+    #: standing at its starting guess.
+    calibrated: bool = False
 
     @property
     def num_prefixes(self) -> int:
@@ -173,43 +219,96 @@ class PrefixSuffixTracker:
         return out
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows still explicable as ``reference`` plus per-cell noise, which
-        flips one of the two observations at rate ``2*eta*(1-eta)``.
+        """The rows still explicable as ``reference`` plus per-cell noise.
 
-        That rate is read off the cohort rather than off ``min_signal_strength``:
-        a caller who promises less signal than the oracle carries would otherwise
-        widen the screen to admit suffixes that flip a third of the prefixes.  The
-        smallest disagreement in the cohort is noise alone once the cohort holds an
-        accept-preserving suffix, and the declared rate stays as a ceiling so the
-        screen can only tighten.
+        Disagreements are counted apart among the prefixes ``reference`` reads as
+        accepting and those it reads as rejecting.  Pooled, a row that moves a
+        rejecting class to accept disagrees more where the reference read 0 and
+        less where it read 1, and the pooled count moves by only
+
+            (p_1 - p_0) (1 - 2 p_0)
+
+        per prefix of that class, which vanishes at a reject rate of a half and
+        inverts past it.  Within one side a class change moves the count one way.
+
+        Each side's noise rate is the lower of the one the boundary and signal
+        predict and the one the cohort's closest row allows: a caller who promises
+        less signal than the oracle carries would otherwise widen the screen.
+        Until the boundary is calibrated there is no prediction, only the cohort.
         """
-        eta = 0.5 - self.config.min_signal_strength
-        declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        alpha = self.config.screening_alpha / len(staircase)
+        alpha = self.config.screening_alpha / (2 * len(staircase))
+        predicted = (
+            _loosest_same_family_rates(
+                self.decision_boundary,
+                self.config.min_signal_strength,
+                int(ref[candidates].sum()),
+                len(candidates),
+                alpha,
+            )
+            if self.calibrated
+            else (1.0, 1.0)
+        )
         alive = list(rows)
         for p in staircase:
             if not alive:
                 break
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
-            disagreements = (
-                self.table.observed_masks(alive, subset) != ref[subset]
-            ).sum(1)
-            same_family_rate = min(
-                declared_rate, _floor_rate(int(disagreements.min()), p, alpha)
-            )
-            alive = [
-                row
-                for row, count in zip(alive, disagreements)
-                if not binomial_side_of_boundary(
-                    int(count), p, same_family_rate, failure_prob=alpha
-                )
+            observed = self.table.observed_masks(alive, subset)
+            sides = [
+                (ref[subset] == read, rate)
+                for read, rate in zip((True, False), predicted)
+                if (ref[subset] == read).any()
             ]
+            disagreements = [
+                (observed[:, side] != ref[subset][side]).sum(1) for side, _ in sides
+            ]
+            closest = np.argmin(
+                sum(
+                    count / side.sum() for count, (side, _) in zip(disagreements, sides)
+                )
+            )
+            too_far = np.zeros(len(alive), dtype=bool)
+            for count, (side, rate) in zip(disagreements, sides):
+                n = int(side.sum())
+                same_family_rate = min(
+                    rate, _floor_rate(int(count[closest]), n, alpha, len(alive))
+                )
+                too_far |= [
+                    binomial_side_of_boundary(
+                        int(c), n, same_family_rate, failure_prob=alpha
+                    )
+                    is True
+                    for c in count
+                ]
+            alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
+
+    def calibrate(self, reference: int) -> int:
+        """Mark the boundary calibrated, the first time, and retire the admitted
+        suffixes it screens out, returning how many.
+
+        Those were screened before there was a boundary to predict their noise
+        from.  They are screened once more and no more: each screen spends
+        ``screening_alpha`` on the suffixes that belong, so screening a pool on
+        every move of the boundary drains it.  Fully observed, so no queries.
+        """
+        if self.calibrated:
+            return 0
+        self.calibrated = True
+        admitted = [
+            row for row in self.table.fully_observed().tolist() if row != reference
+        ]
+        if not admitted:
+            return 0
+        kept = set(self._screen_cohort(admitted, reference))
+        retired = [row for row in admitted if row not in kept]
+        self.table.retire_suffixes(retired)
+        return len(retired)
 
     def _draw_cohort(self, size: int) -> List[int]:
         """``size`` unseen suffixes, interned but not yet observed."""
