@@ -20,7 +20,7 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .cluster import NoAcceptPreservingFamily, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -267,6 +267,28 @@ class BestRound:
             self.boundary, self.round_index = boundary, round_index
 
 
+def _family_unless_refused(pst, state, index, repairing_since):
+    """The round's family, or None where a repair's split sides leave the gate no
+    family to admit."""
+    try:
+        return sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+    except NoAcceptPreservingFamily:
+        if repairing_since is None:
+            raise
+        print(f"[round {index}] no family reads the split sides apart; stopping")
+        return None
+
+
+def _repair_exhausted(index, repairing_since) -> bool:
+    if repairing_since is None or index - repairing_since < STALL_PATIENCE:
+        return False
+    print(
+        f"[round {index}] no hypothesis the check passes in {STALL_PATIENCE} "
+        "rounds since the split; stopping synthesis"
+    )
+    return True
+
+
 def counterexample_driven_synthesis(
     pst,
     *,
@@ -292,11 +314,17 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    # The round a state was first split, from which a repair has the stall's
+    # patience to return a hypothesis the check does not catch.
+    repairing_since = None
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        found = _family_unless_refused(pst, state, index, repairing_since)
+        if found is None:
+            return best
+        vs, boundary = found
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
@@ -353,6 +381,9 @@ def counterexample_driven_synthesis(
                 f"state(s) {merged} split in two; carrying on with each side as a "
                 f"population"
             )
+            repairing_since = index if repairing_since is None else repairing_since
+        if _repair_exhausted(index, repairing_since):
+            return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
