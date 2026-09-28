@@ -1,12 +1,13 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.ReturnAccuracy
+import OrthoDFA.Proofs.Termination
 
 /-!
 # The theorem
 
-`ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, and `ReturnAccuracy`, stated in `OrthoDFA.ReturnAccuracy`, hold.
+The claims hold: `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and the others, each
+stated in the file named after it.
 -/
 
 namespace OrthoDFA
@@ -23,5 +24,9 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 theorem return_accuracy : ReturnAccuracy := return_accuracy_holds
 
 #print axioms return_accuracy
+
+theorem termination : Termination := termination_holds
+
+#print axioms termination
 
 end OrthoDFA

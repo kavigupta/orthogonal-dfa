@@ -6,8 +6,10 @@
   It imports only Mathlib.
 - `OrthoDFA/ClusteringQuality.lean` — the target as a DFA, the quality of a suffix family, and
   `ClusteringQualityGuarantee`: the returned family is as good as its populations force.
-- `OrthoDFA/ReturnAccuracy.lean` — `ReturnAccuracy`: whatever hypothesis the L\* stage builds,
-  once its labels are denoised it is rarely both passed by the merge check and inaccurate.
+- `OrthoDFA/ReturnAccuracy.lean` — `ReturnAccuracy`: whatever the L\* stage does, the learner
+  rarely returns a hypothesis the merge check passed that is inaccurate once denoised.
+- `OrthoDFA/Termination.lean` — `Termination`: if each round's clustering, stage and check meet
+  their specs, at most `2·|Q|` rounds fail the check.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -15,8 +17,9 @@ Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to t
 
 ## Scope
 
-This proves the clustering step (`sample_suffix_family` and its gate) correct. It does not prove
-that the E-L\* learner outputs the target DFA.
+This proves the clustering step (`sample_suffix_family` and its gate) correct, that the learner
+returns only accurate hypotheses, and that it stops once the L\* stage meets its spec. It does not
+prove that the L\* stage meets it.
 
 ## Building
 
