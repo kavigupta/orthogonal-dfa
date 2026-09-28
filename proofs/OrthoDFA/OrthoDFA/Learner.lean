@@ -37,12 +37,14 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 
 open scoped Classical in
 /-- `(states F cuts wrongly, states F leaves undecided)`, ordered componentwise.  A state counts
-when its prefixes suffer that more than `θ` of the time; every prefix of a state suffers it
-equally often, since the vote's distribution depends only on the state. -/
-noncomputable def quality (A : DFA S Q) (O : Oracle μ S) (θ : ℝ) (B : State) (F : Finset S) :
-    ℕ × ℕ :=
-  ((Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < miscutProb O B.lo B.hi F p).card,
-    (Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < undecidedProb O B.lo B.hi F p).card)
+when its prefixes suffer that more than `tolerance` of the time; every prefix of a state suffers
+it equally often, since the vote's distribution depends only on the state. -/
+noncomputable def quality (A : DFA S Q) (O : Oracle μ S) (tolerance : ℝ) (B : State)
+    (F : Finset S) : ℕ × ℕ :=
+  ((Finset.univ.filter fun q =>
+      ∃ p, A.state p = q ∧ tolerance < miscutProb O B.lo B.hi F p).card,
+    (Finset.univ.filter fun q =>
+      ∃ p, A.state p = q ∧ tolerance < undecidedProb O B.lo B.hi F p).card)
 
 /-- The mass a population puts on a state. -/
 noncomputable def stateMass (A : DFA S Q) (D : Measure S) (q : Q) : ℝ :=
@@ -50,14 +52,15 @@ noncomputable def stateMass (A : DFA S Q) (D : Measure S) (q : Q) : ℝ :=
 
 open scoped Classical in
 /-- The quality the populations force.  A state is safe from being cut wrongly once some
-population puts more than `2·εcov/θ` on it, and from being left undecided once some population
-puts more than `4·indecisionLimit/θ` on it; every other state may go either way. -/
+population puts more than `2·εcov/tolerance` on it, and from being left undecided once some
+population puts more than `4·indecisionLimit/tolerance` on it; every other state may go either
+way. -/
 noncomputable def qualityBound (A : DFA S Q) {J : Type*} (populations : Finset J)
-    (D : J → Measure S) (θ εcov indecisionLimit : ℝ) : ℕ × ℕ :=
+    (D : J → Measure S) (tolerance εcov indecisionLimit : ℝ) : ℕ × ℕ :=
   (Fintype.card Q - (Finset.univ.filter fun q =>
-      ∃ j ∈ populations, 2 * εcov / θ < stateMass A (D j) q).card,
+      ∃ j ∈ populations, 2 * εcov / tolerance < stateMass A (D j) q).card,
     Fintype.card Q - (Finset.univ.filter fun q =>
-      ∃ j ∈ populations, 4 * indecisionLimit / θ < stateMass A (D j) q).card)
+      ∃ j ∈ populations, 4 * indecisionLimit / tolerance < stateMass A (D j) q).card)
 
 /-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
 there is at least as good as its populations force. -/
@@ -65,7 +68,7 @@ def QualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J] {Q : Type*} [Fintype Q]
     (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (Pre : Set S)
-    (η₀ indecisionLimit εcov α δ pAP θ : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP tolerance : ℝ),
   O.L = {w | A.state w ∈ A.accept} →
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
@@ -80,7 +83,7 @@ def QualityGuarantee : Prop :=
   εcov ≤ 1 →
   0 < δ →
   δ ≤ 1 →
-  0 < θ →
+  0 < tolerance →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -97,7 +100,7 @@ def QualityGuarantee : Prop :=
                 x ∈ ret O.mq populations indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations indecisionLimit α B.val →
-              quality A O θ B.val (clusterAt O.mq populations x B.val)
-                ≤ qualityBound A populations D θ εcov indecisionLimit}
+              quality A O tolerance B.val (clusterAt O.mq populations x B.val)
+                ≤ qualityBound A populations D tolerance εcov indecisionLimit}
 
 end OrthoDFA

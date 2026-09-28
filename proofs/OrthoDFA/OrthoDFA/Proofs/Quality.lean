@@ -494,8 +494,8 @@ lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s
 /-! ## The theorem -/
 
 theorem quality_guarantee_holds : QualityGuarantee := by
-  intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP θ
-    hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hθ
+  intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP tolerance
+    hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance
   classical
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
@@ -664,7 +664,7 @@ theorem quality_guarantee_holds : QualityGuarantee := by
   refine Prod.mk_le_mk.2 ⟨?_, ?_⟩
   · apply card_le_sub_of_forall_notMem
     intro q hq hq2
-    obtain ⟨p₀, hp₀, hθp⟩ := (Finset.mem_filter.1 hq).2
+    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
     obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvC B.val G p (oracleNoise x))
@@ -684,15 +684,15 @@ theorem quality_guarantee_holds : QualityGuarantee := by
       have := hPmass j hj
       unfold stateMass
       linarith
-    have h1 : 2 * εcov < θ * stateMass A (D j) q := by
-      rw [div_lt_iff₀ hθ] at hmass
+    have h1 : 2 * εcov < tolerance * stateMass A (D j) q := by
+      rw [div_lt_iff₀ htolerance] at hmass
       linarith
     have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
-    have h3 := mul_le_mul_of_nonneg_left hθp.le h2
+    have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
     linarith
   · apply card_le_sub_of_forall_notMem
     intro q hq hq2
-    obtain ⟨p₀, hp₀, hθp⟩ := (Finset.mem_filter.1 hq).2
+    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
     obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvU B.val G p (oracleNoise x))
@@ -709,11 +709,11 @@ theorem quality_guarantee_holds : QualityGuarantee := by
       have := hPmass j hj
       unfold stateMass
       linarith
-    have h1 : 4 * indecisionLimit < θ * stateMass A (D j) q := by
-      rw [div_lt_iff₀ hθ] at hmass
+    have h1 : 4 * indecisionLimit < tolerance * stateMass A (D j) q := by
+      rw [div_lt_iff₀ htolerance] at hmass
       linarith
     have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
-    have h3 := mul_le_mul_of_nonneg_left hθp.le h2
+    have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
     linarith
 
 end OrthoDFA
