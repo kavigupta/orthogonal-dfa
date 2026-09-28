@@ -232,10 +232,12 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
         scores[picks] = picked_reads[:, kept] @ weights
         scores[~picks] = _reads(oracle, testing, chosen) @ weights
         inside = scores >= cut
+    # The picking members chose the suffixes, and with them their own reads of
+    # the empty suffix; only the testing ones sit on a side independently of it.
     split = StateSplit(
         groups=(
-            [m for m, h in zip(members, inside) if not h],
-            [m for m, h in zip(members, inside) if h],
+            [m for m, h in zip(testing, inside[~picks]) if not h],
+            [m for m, h in zip(testing, inside[~picks]) if h],
         ),
         suffixes=chosen,
         weights=weights,
