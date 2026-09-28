@@ -5,7 +5,7 @@ import OrthoDFA.Proofs.Quality
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `QualityGuarantee`, stated in
-`OrthoDFA.Learner`, hold.
+`OrthoDFA.ClusteringQuality`, hold.
 -/
 
 namespace OrthoDFA

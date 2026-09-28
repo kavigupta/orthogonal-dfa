@@ -1,4 +1,4 @@
-import OrthoDFA.Learner
+import OrthoDFA.ClusteringQuality
 import OrthoDFA.Proofs.Budget
 
 /-!
