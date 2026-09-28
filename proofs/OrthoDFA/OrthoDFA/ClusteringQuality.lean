@@ -64,7 +64,7 @@ noncomputable def qualityBound (A : DFA S Q) {J : Type*} (populations : Finset J
 
 /-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
 there is at least as good as its populations force. -/
-def QualityGuarantee : Prop :=
+def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J] {Q : Type*} [Fintype Q]
     (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (Pre : Set S)

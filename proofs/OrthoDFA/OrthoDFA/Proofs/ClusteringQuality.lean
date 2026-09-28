@@ -493,7 +493,7 @@ lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s
 
 /-! ## The theorem -/
 
-theorem quality_guarantee_holds : QualityGuarantee := by
+theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP tolerance
     hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance
   classical

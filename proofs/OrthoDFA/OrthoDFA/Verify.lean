@@ -1,10 +1,10 @@
 import OrthoDFA.Proofs.Budget
-import OrthoDFA.Proofs.Quality
+import OrthoDFA.Proofs.ClusteringQuality
 
 /-!
 # The theorem
 
-`ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `QualityGuarantee`, stated in
+`ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, and `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, hold.
 -/
 
@@ -14,8 +14,9 @@ theorem clustering_guarantee : ClusteringGuarantee := clustering_guarantee_of_co
 
 #print axioms clustering_guarantee
 
-theorem quality_guarantee : QualityGuarantee := quality_guarantee_holds
+theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
+  clustering_quality_guarantee_holds
 
-#print axioms quality_guarantee
+#print axioms clustering_quality_guarantee
 
 end OrthoDFA
