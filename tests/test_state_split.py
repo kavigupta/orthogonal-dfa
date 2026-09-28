@@ -141,12 +141,12 @@ class TestOppositeLabelsSplit(unittest.TestCase):
     def _assert_split_along(self, masses, p_0, p_1, seed):
         split, truth = _check(masses, p_0, p_1, seed)
         self.assertIsNotNone(split, "a minority of the other label went unseen")
-        # The next round holds each side as a population, so a family reading this
-        # side as its majority must cut more of it wrongly than the gate allows.
+        # The next round holds each side as a population, and the gate's veto is
+        # sized for one a family reads nearly all backwards.
         minority = Counter(truth[m] for m in split.groups[True])
         self.assertGreater(
             minority["Q"] / sum(minority.values()),
-            DEFAULT_MAX_COVERAGE_ERROR,
+            1 - DEFAULT_MAX_COVERAGE_ERROR,
             f"the minority's side holds {dict(minority)}",
         )
 

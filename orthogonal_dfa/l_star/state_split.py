@@ -133,6 +133,62 @@ def _going_with(reads, empty) -> np.ndarray:
     return order[: int(np.argmax(strength)) + 1]
 
 
+def _oriented(reads, inside, level):
+    """(indices K, orientations o) of the suffixes v with
+
+        2 min(P(H_v <= h_v), P(H_v >= h_v)) <= ``level`` / #suffixes,
+        H_v ~ Hypergeometric(n, ones of v, |``inside``|),
+
+    h_v the ones of v inside; o_v = +1 where inside reads above its share."""
+    ones = reads.sum(0)
+    dist = scipy.stats.hypergeom(len(inside), ones, int(inside.sum()))
+    hits = reads[inside].sum(0)
+    pvalues = 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
+    kept = np.flatnonzero(pvalues <= level / reads.shape[1])
+    above = hits[kept] >= ones[kept] * inside.mean()
+    return kept, np.where(above, 1, -1)
+
+
+def _bayes_cut(adjusted, inside, size) -> float:
+    """The least k with
+
+        w B(k; K, r_in) >= (1 - w) B(k; K, r_out),
+
+    K = ``size``, w the share ``inside``, r_in and r_out the mean rates of
+    ``adjusted`` / K inside and out; inf unless 0 < r_out < r_in < 1."""
+    share = inside.mean()
+    rate_in = adjusted[inside].mean() / size
+    rate_out = adjusted[~inside].mean() / size
+    if not 0 < rate_out < rate_in < 1:
+        return math.inf
+    slope = math.log(rate_in * (1 - rate_out) / (rate_out * (1 - rate_in)))
+    offset = math.log((1 - share) / share) + size * math.log(
+        (1 - rate_out) / (1 - rate_in)
+    )
+    return offset / slope
+
+
+def _sharpened(reads, inside, level):
+    """(K, o, k*) at the fixed point of relabelling each member by whether its
+    count of reads agreeing with o over K is at least k*, K and o by
+    ``_oriented`` and k* by ``_bayes_cut`` on the current labels, starting from
+    ``inside``; None if a step keeps no suffix or no cut separates."""
+    seen = {inside.tobytes()}
+    while True:
+        kept, signs = _oriented(reads, inside, level)
+        if kept.size == 0:
+            return None
+        adjusted = np.where(signs > 0, reads[:, kept], 1 - reads[:, kept]).sum(1)
+        cut = _bayes_cut(adjusted, inside, len(kept))
+        relabelled = adjusted >= cut
+        if relabelled.all() or not relabelled.any():
+            return None
+        if relabelled.tobytes() in seen:
+            return kept, signs, cut
+        seen.add(relabelled.tobytes())
+        inside = relabelled
+
+
 def split_members(picking, testing, candidates, oracle, *, minority_share, level, rng):
     """(split, p*): p* = min over tail sizes t in ``tail_ladder`` and both ends
     of T * ``_label_pvalue``, T the number of such tails, on the ``testing``
@@ -164,6 +220,18 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
     scores[~picks] = held if top else -held
     # The minority is the same share of every member.
     inside = _tail(scores, math.ceil(size / len(testing) * len(members)), rng, True)
+    cut = scores[inside].min()
+    # The tail only has to hold more of the minority than chance to be detected;
+    # the sides handed on are placed by every suffix that goes with it.
+    sharpened = _sharpened(picked_reads, inside[picks], level)
+    if sharpened is not None:
+        kept, weights, count = sharpened
+        chosen = [suffixes[k] for k in kept]
+        # A count of agreeing reads is the weighted reads plus the flipped ones.
+        cut = count - (weights < 0).sum()
+        scores[picks] = picked_reads[:, kept] @ weights
+        scores[~picks] = _reads(oracle, testing, chosen) @ weights
+        inside = scores >= cut
     split = StateSplit(
         groups=(
             [m for m, h in zip(members, inside) if not h],
@@ -171,7 +239,7 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
         ),
         suffixes=chosen,
         weights=weights,
-        cut=scores[inside].min(),
+        cut=cut,
     )
     return split, least
 
