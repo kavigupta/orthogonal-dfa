@@ -130,24 +130,24 @@ lemma label_mul_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w
   simp only [DFA.state] at h
   rw [h]
 
-lemma miscutAt_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
+lemma miscutProb_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
     (lo hi : ℕ) (G : Finset S) {p p' : S} (h : A.state p = A.state p') :
-    miscutAt O lo hi G p = miscutAt O lo hi G p' := by
+    miscutProb O lo hi G p = miscutProb O lo hi G p' := by
   classical
   have hl : O.label p = O.label p' := by simpa using label_mul_congr A O hL h 1
   have e := measureReal_filter_congr O G (label_mul_congr A O hL h)
     (fun U => ¬ ((hi < U.card → O.label p' = 1) ∧ (U.card ≤ lo → O.label p' = 0)))
-  unfold miscutAt cutCorrect voteCount
+  unfold miscutProb cutCorrect voteCount
   rw [hl]
   convert e using 1
 
-lemma undecidedAt_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
+lemma undecidedProb_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
     (lo hi : ℕ) (G : Finset S) {p p' : S} (h : A.state p = A.state p') :
-    undecidedAt O lo hi G p = undecidedAt O lo hi G p' := by
+    undecidedProb O lo hi G p = undecidedProb O lo hi G p' := by
   classical
   have e := measureReal_filter_congr O (G.erase 1) (label_mul_congr A O hL h)
     (fun U => ¬ (hi - 1 < U.card ∨ U.card ≤ lo))
-  unfold undecidedAt decided voteCount
+  unfold undecidedProb decided voteCount
   convert e using 1
 
 /-! ## Weighted concentration at a fixed family -/
@@ -668,9 +668,9 @@ theorem quality_guarantee_holds : QualityGuarantee := by
     obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvC B.val G p (oracleNoise x))
-      (fun p => miscutAt O B.val.lo B.val.hi G p) (miscutAt O B.val.lo B.val.hi G p₀)
+      (fun p => miscutProb O B.val.lo B.val.hi G p) (miscutProb O B.val.lo B.val.hi G p₀)
       measureReal_nonneg measureReal_le_one (fun p => measureReal_nonneg)
-      (fun p hp => miscutAt_congr A O hL _ _ G (hp.trans hp₀.symm))
+      (fun p hp => miscutProb_congr A O hL _ _ G (hp.trans hp₀.symm))
       (devAt O populations B.val (D j) (F j) (EvC B.val) x) rfl
     have hdev : devAt O populations B.val (D j) (F j) (EvC B.val) x < εcov / 2 :=
       not_le.1 (hnb j hj).1
@@ -679,7 +679,7 @@ theorem quality_guarantee_holds : QualityGuarantee := by
       rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _),
         probReal_univ]
       linarith [(hgood j hj).1]
-    have hsm : stateMass A (D j) q * miscutAt O B.val.lo B.val.hi G p₀ ≤ 2 * εcov := by
+    have hsm : stateMass A (D j) q * miscutProb O B.val.lo B.val.hi G p₀ ≤ 2 * εcov := by
       have := hFtail j
       have := hPmass j hj
       unfold stateMass
@@ -696,14 +696,14 @@ theorem quality_guarantee_holds : QualityGuarantee := by
     obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvU B.val G p (oracleNoise x))
-      (fun p => undecidedAt O B.val.lo B.val.hi G p) (undecidedAt O B.val.lo B.val.hi G p₀)
+      (fun p => undecidedProb O B.val.lo B.val.hi G p) (undecidedProb O B.val.lo B.val.hi G p₀)
       measureReal_nonneg measureReal_le_one (fun p => measureReal_nonneg)
-      (fun p hp => undecidedAt_congr A O hL _ _ G (hp.trans hp₀.symm))
+      (fun p hp => undecidedProb_congr A O hL _ _ G (hp.trans hp₀.symm))
       (devAt O populations B.val (D j) (F j) (EvU B.val) x) rfl
     have hdev : devAt O populations B.val (D j) (F j) (EvU B.val) x < indecisionLimit :=
       not_le.1 (hnb j hj).2
     have hreal := (hgood j hj).2
-    have hsm : stateMass A (D j) q * undecidedAt O B.val.lo B.val.hi G p₀
+    have hsm : stateMass A (D j) q * undecidedProb O B.val.lo B.val.hi G p₀
         ≤ 4 * indecisionLimit := by
       have := hFtail j
       have := hPmass j hj

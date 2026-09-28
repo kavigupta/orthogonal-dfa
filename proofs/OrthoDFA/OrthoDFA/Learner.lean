@@ -28,11 +28,11 @@ variable {Q : Type*} [Fintype Q]
 def DFA.state (A : DFA S Q) (p : S) : Q := A.step A.start p
 
 /-- The chance, over the oracle's noise, that `G` decides `p` on the wrong side. -/
-noncomputable def miscutAt (O : Oracle μ S) (lo hi : ℕ) (G : Finset S) (p : S) : ℝ :=
+noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (G : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ cutCorrect O lo hi G p ω}
 
 /-- The chance that `G`, read as the gate reads it, leaves `p` undecided. -/
-noncomputable def undecidedAt (O : Oracle μ S) (lo hi : ℕ) (G : Finset S) (p : S) : ℝ :=
+noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (G : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ decided O.mq lo (hi - 1) (G.erase 1) p ω}
 
 open scoped Classical in
@@ -41,8 +41,8 @@ when its prefixes suffer that more than `θ` of the time; every prefix of a stat
 equally often, since the vote's distribution depends only on the state. -/
 noncomputable def quality (A : DFA S Q) (O : Oracle μ S) (θ : ℝ) (B : State) (G : Finset S) :
     ℕ × ℕ :=
-  ((Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < miscutAt O B.lo B.hi G p).card,
-    (Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < undecidedAt O B.lo B.hi G p).card)
+  ((Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < miscutProb O B.lo B.hi G p).card,
+    (Finset.univ.filter fun q => ∃ p, A.state p = q ∧ θ < undecidedProb O B.lo B.hi G p).card)
 
 /-- The mass a population puts on a state. -/
 noncomputable def stateMass (A : DFA S Q) (D : Measure S) (q : Q) : ℝ :=
