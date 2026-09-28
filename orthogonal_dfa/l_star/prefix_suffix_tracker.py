@@ -344,13 +344,15 @@ class PrefixSuffixTracker:
         return len(dropped)
 
     def _draw_cohort(self, size: int) -> List[int]:
-        """``size`` unseen suffixes, interned but not yet observed."""
+        """``size`` unseen suffixes, interned but not yet observed, and counted in
+        ``suffixes_drawn``."""
         rows = []
         while len(rows) < size:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if self.table.contains_suffix(v):
                 continue
             rows.append(self.table.intern_suffix(v))
+        self.suffixes_drawn += len(rows)
         return rows
 
     def compute_fnr(self, vs):
@@ -406,44 +408,52 @@ class PrefixSuffixTracker:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
     def sample_more_suffixes(self, *, amount: int, reference: int):
-        """Grow the pool of clustering candidates by ``amount`` suffixes that
-        survive screening against ``reference``, returning ``(kept, drawn)``.
+        """Grow ``suffix_pool`` by ``amount`` suffixes that survive screening
+        against ``reference``, returning ``(kept, drawn)``.
 
         Once calibrated, cohorts are screened with the prediction until what it has
         kept of this call's draws ``_refutes`` it, at one of the call's cohorts as
-        looks; the rows it dropped are then screened again without it, in the
-        order drawn, before any new draw.
+        looks.  Only then are its drops screened again, on the floor alone, before
+        any new draw.
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
-        kept = 0
-        drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
-        looks = int(np.ceil(max_draws / amount))
-        predicting = self.calibrated
-        # Dropped by the prediction, so not yet settled.
-        withheld = []
+        kept = drawn = 0
         with counter(amount, "Completing suffix family") as pbar:
-            while kept < amount:
-                if withheld and not predicting:
-                    cohort = withheld[: amount - kept]
-                    withheld = withheld[amount - kept :]
-                elif drawn < max_draws:
-                    cohort = self._draw_cohort(min(amount, max_draws - drawn))
-                    drawn += len(cohort)
-                    self.suffixes_drawn += len(cohort)
-                else:
-                    break
-                survivors = self._screen_cohort(cohort, reference, predict=predicting)
-                if predicting:
-                    kept_rows = set(survivors)
-                    withheld += [r for r in cohort if r not in kept_rows]
-                    predicting = not self._refutes(
-                        kept + len(survivors), drawn, screenings=1, looks=looks
-                    )
+
+            def draw():
+                nonlocal drawn
+                cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                drawn += len(cohort)
+                return cohort
+
+            def keep(survivors):
+                nonlocal kept
                 self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
+
+            # Dropped by the prediction, and screened again only if it is refuted.
+            withheld = []
+            if self.calibrated:
+                looks = int(np.ceil(max_draws / amount))
+                while kept < amount and drawn < max_draws:
+                    cohort = draw()
+                    survivors = self._screen_cohort(cohort, reference, predict=True)
+                    kept_rows = set(survivors)
+                    withheld += [r for r in cohort if r not in kept_rows]
+                    keep(survivors)
+                    if self._refutes(kept, drawn, screenings=1, looks=looks):
+                        break
+                else:
+                    return kept, drawn
+            while kept < amount and withheld:
+                cohort = withheld[: amount - kept]
+                withheld = withheld[amount - kept :]
+                keep(self._screen_cohort(cohort, reference, predict=False))
+            while kept < amount and drawn < max_draws:
+                keep(self._screen_cohort(draw(), reference, predict=False))
         return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
