@@ -251,7 +251,11 @@ def split_by_looks(
 ):
     """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
     half with n_0 = ``first_look`` and L = ``most_looks``, each at level
-    ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/2."""
+    ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/4.
+
+    p* is super-uniform under a pure state, so
+
+        P(look k) <= 4^-k,   E[members] <= n_0 sum_k (2 / 4)^k = 2 n_0."""
     fresh_count = fresh_suffixes(alpha, preserving_share)
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(family) | fresh)
@@ -270,7 +274,7 @@ def split_by_looks(
         )
         if split is not None:
             return split
-        if p > 1 / 2:
+        if p > 1 / 4:
             return None
         size *= 2
     return None
