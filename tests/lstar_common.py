@@ -124,8 +124,9 @@ def assertDoesNotMeetProperty(
 # These two bound the *within-state* disagreement: a round is entitled to
 # `round_verify_fpr` wrong decisions per prefix, so a state whose minority side is
 # larger than that explains -- by a binomial test at `round_verify_alpha` -- was
-# not cut by a family holding one opinion about it.
-round_verify_fpr = 0.01  # matches acceptable_fpr in learn.build_pst
+# not cut by a family holding one opinion about it.  The default band decides a
+# state on the boundary about this often.
+round_verify_fpr = 0.01
 round_verify_alpha = 1e-4  # binomial significance for flagging a state
 
 
