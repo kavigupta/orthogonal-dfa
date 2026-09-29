@@ -242,10 +242,10 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 the noise only costs prefixes.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; there is a population to certify; the populations are supported on a `Flat` prefix
-set; their collision mass is at most `ρ` and `pAP` of the suffix measure is
-accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range; and `ρ` and `Dsf`'s
-collision mass fit `collisionCap`.
+which has signal; there is a population to certify; the populations and the suffix measure are
+supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
+the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
+and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
@@ -255,12 +255,13 @@ def ClusteringCorrect : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre : Set S) (η₀ indecisionLimit εcov α δ ρ pAP k : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
-  Flat Pre →
+  Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
+  Dsf Sufᶜ = 0 →
   (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
   0 < pAP →
   pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →

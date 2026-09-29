@@ -67,13 +67,13 @@ there is at least as good as its populations force. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J] {Q : Type*} [Fintype Q]
-    (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (Pre : Set S)
+    (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
     (η₀ indecisionLimit εcov α δ pAP tolerance : ℝ),
   O.L = {w | A.state w ∈ A.accept} →
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
-  Flat Pre →
+  Flat Pre Suf →
   0 < pAP →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
@@ -89,6 +89,7 @@ def ClusteringQualityGuarantee : Prop :=
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       ∀ ρ : ℝ,
       (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
