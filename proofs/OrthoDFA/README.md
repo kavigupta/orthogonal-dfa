@@ -8,6 +8,8 @@
   `ClusteringQualityGuarantee`: the returned family is as good as its populations force.
 - `OrthoDFA/ReturnAccuracy.lean` — `ReturnAccuracy`: whatever the L\* stage does, the learner
   rarely returns a hypothesis the merge check passed that is inaccurate once denoised.
+- `OrthoDFA/Check.lean` — the merge check, and `CheckGuarantee`: it rarely fails a state whose
+  label is pure, and rarely passes one with a large minority.
 - `OrthoDFA/Termination.lean` — `Termination`: if each round's clustering, stage and check meet
   their specs, at most `2·|Q|` rounds fail the check.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
