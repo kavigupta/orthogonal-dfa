@@ -46,10 +46,12 @@ lemma leaning_take (O : Oracle μ S) (n : ℕ) (L : List S) (v : S) :
   simp only [List.getD_eq_getElem?_getD, List.getElem?_take,
     if_pos (show 2 * k < 2 * n by omega), if_pos (show 2 * k + 1 < 2 * n by omega)]
 
-lemma ne_mul_of_flat {Pre : Set S} (hflat : Flat Pre) {v : S}
-    (hv : v ≠ 1) {l : List S} (hl : ∀ x ∈ l, x ∈ Pre) : ∀ x ∈ l, ∀ z ∈ l, x ≠ z * v := by
+lemma ne_mul_of_flat {Pre Suf : Set S} (hflat : Flat Pre Suf) {v : S}
+    (hv : v ≠ 1) (hvS : v ∈ Suf) {l : List S} (hl : ∀ x ∈ l, x ∈ Pre) :
+    ∀ x ∈ l, ∀ z ∈ l, x ≠ z * v := by
   intro x hx z hz e
-  have hxz : x = z := hflat x (hl x hx) z (hl z hz) 1 v (by rw [mul_one]; exact e)
+  have hxz : x = z := hflat x (hl x hx) z (hl z hz) 1 (Set.mem_insert _ _) v
+    (Set.mem_insert_of_mem _ hvS) (by rw [mul_one]; exact e)
   rw [← hxz] at e
   exact hv (mul_left_cancel ((mul_one x).trans e)).symm
 
@@ -130,8 +132,8 @@ open MeasureTheory ProbabilityTheory Real CheckProof
 open scoped ENNReal
 
 theorem check_guarantee_holds : CheckGuarantee := by
-  intro Ω _ μ _ S _ Q R _ _ A O Dsamp Dsf Pre H h U b N m n T η₀ ε κ t pAP w hD hDsf hL hflat
-    hPre hκ hε hheavy hU ht
+  intro Ω _ μ _ S _ Q R _ _ A O Dsamp Dsf Pre Suf H h U b N m n T η₀ ε κ t pAP w hD hDsf hL
+    hflat hPre hSuf hκ hε hheavy hU ht
   classical
   set Hh : Set S := {v | H.state v = h}
   set ρ := reaching H Dsamp h
@@ -216,11 +218,11 @@ theorem check_guarantee_holds : CheckGuarantee := by
         + (if ∃ x ∈ l, x ∈ {y | id y ∈ U} then 1 else 0)
         + (if ∃ x ∈ l, x ∈ Preᶜ then 1 else 0)
         + ∑ j, (if ∃ x ∈ l, x ∈ {y | y * v j ∈ U} then 1 else 0) + m * ENNReal.ofReal e
-    have hpt : ∀ v u, μc {ω | (ω, (u, v)) ∈ {z : Ω × ((Fin N → S) × (Fin m → S)) |
-        checkFails O H n t h z.2 z.1}}
+    have hpt : ∀ v, (∀ j, v j ∈ Suf) → ∀ u, μc {ω | (ω, (u, v)) ∈
+        {z : Ω × ((Fin N → S) × (Fin m → S)) | checkFails O H n t h z.2 z.1}}
           ≤ if 2 * n ≤ (membersOf H h u).length
             then Gs v ((membersOf H h u).take (2 * n)) else 0 := by
-      intro v u
+      intro v hvS u
       split_ifs with hlen
       swap
       · have : {ω | (ω, (u, v)) ∈ {z : Ω × ((Fin N → S) × (Fin m → S)) |
@@ -270,7 +272,7 @@ theorem check_guarantee_holds : CheckGuarantee := by
                 (fun x hx => by simpa using hUv j x hx)) _
               (measurableSet_le measurable_const (measurable_leanN O n l (v j)))
               (readsOn_le_leanN O n l (v j) hl _)).trans ?_
-            exact sound_tail O (v j) n l t ht hl hnd (ne_mul_of_flat hflat hvj hPl')
+            exact sound_tail O (v j) n l t ht hl hnd (ne_mul_of_flat hflat hvj (hvS j) hPl')
               (hMlab l (fun ⟨x, hx, hm⟩ => hM x hx hm))
         _ = m * ENNReal.ofReal e := by simp
         _ ≤ Gs v l := le_add_self
@@ -319,8 +321,12 @@ theorem check_guarantee_holds : CheckGuarantee := by
           checkFails O H n t h z.2 z.1}} ∂νN ∂νm
         ≤ ∫⁻ _v, ENNReal.ofReal (2 * n * minorityShare A H Dsamp h + (2 * n).choose 2 * κr
           + 2 * n * T * κr + m * (2 * n * T * κr) + m * e) ∂νm := by
-          refine lintegral_mono fun v => ?_
-          exact (lintegral_mono (hpt v)).trans
+          have hae : ∀ᵐ v ∂νm, ∀ j, v j ∈ Suf := by
+            rw [ae_all_iff]
+            exact fun j => ae_iff.2 (Measure.pi_eval_preimage_null
+              (fun _ : Fin m => Dsf) (i := j) (s := Sufᶜ) hSuf)
+          refine lintegral_mono_ae (hae.mono fun v hv => ?_)
+          exact (lintegral_mono (hpt v hv)).trans
             ((lintegral_members_le H h Dsamp hHh N (2 * n) (Gs v)).trans (hGs v))
       _ = ENNReal.ofReal (2 * n * minorityShare A H Dsamp h + (2 * n).choose 2 * κr
           + 2 * n * T * κr + m * (2 * n * T * κr) + m * e) := by simp
@@ -331,7 +337,14 @@ theorem check_guarantee_holds : CheckGuarantee := by
           nlinarith [mul_le_mul_of_nonneg_right this hκr0]
   · -- power
     intro hη hη₀ hpAP hw hN hmargin
-    set AP : Set S := {v | v ≠ 1 ∧ ∀ p, p * v ∈ O.L ↔ p ∈ O.L}
+    set AP : Set S := {v | v ≠ 1 ∧ (∀ p, p * v ∈ O.L ↔ p ∈ O.L) ∧ v ∈ Suf}
+    replace hpAP : pAP ≤ Dsf.real AP := by
+      have hsub : {v | v ≠ 1 ∧ ∀ p, p * v ∈ O.L ↔ p ∈ O.L} ⊆ AP ∪ Sufᶜ := fun v hv => by
+        by_cases hvS : v ∈ Suf
+        exacts [Or.inl ⟨hv.1, hv.2, hvS⟩, Or.inr hvS]
+      have h0 : Dsf.real Sufᶜ = 0 := by rw [measureReal_def, hSuf, ENNReal.toReal_zero]
+      linarith [hpAP.trans ((measureReal_mono hsub (measure_ne_top _ _)).trans
+        (measureReal_union_le AP Sufᶜ))]
     set eN := exp (-2 * (N * ε / Fintype.card R - 2 * n) ^ 2 / N)
     set eH := exp (-(n * w * (1 - 2 * η₀) ^ 2 - 2 * t) ^ 2 / (2 * n))
     set Bp := ENNReal.ofReal (eN + eH + κr * (2 * n ^ 2 + 2 * n * (m + 1) * T))
@@ -346,7 +359,7 @@ theorem check_guarantee_holds : CheckGuarantee := by
         ∫⁻ u, μc {ω | (ω, (u, v)) ∈ {z : Ω × ((Fin N → S) × (Fin m → S)) |
           checkFails O H n t h z.2 z.1}ᶜ} ∂νN ≤ Bp := by
       intro v hAP
-      obtain ⟨j₀, hj₀1, hj₀AP⟩ := hAP
+      obtain ⟨j₀, hj₀1, hj₀AP, hj₀S⟩ := hAP
       have hm1 : 1 ≤ m := Fin.pos j₀
       set vs := v j₀
       set G : List S → Prop := fun l => l.Nodup ∧ ∀ x ∈ l, x ∈ Pre ∧ x ∉ U ∧ x * vs ∉ U
@@ -415,7 +428,7 @@ theorem check_guarantee_holds : CheckGuarantee := by
         · exact hexU id Function.injective_id
         · exact hexU _ (mul_left_injective vs)
         · exact power_avg O ρ vs hj₀AP G
-            (fun l hG => ⟨hG.1, ne_mul_of_flat hflat hj₀1 fun x hx => (hG.2 x hx).1⟩)
+            (fun l hG => ⟨hG.1, ne_mul_of_flat hflat hj₀1 hj₀S fun x hx => (hG.2 x hx).1⟩)
             n t η₀ w ht hη hη₀ hwρ hmargin
       calc ∫⁻ u, μc {ω | (ω, (u, v)) ∈ {z : Ω × ((Fin N → S) × (Fin m → S)) |
             checkFails O H n t h z.2 z.1}ᶜ} ∂νN

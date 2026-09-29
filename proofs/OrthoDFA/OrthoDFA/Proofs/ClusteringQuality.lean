@@ -500,11 +500,12 @@ lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s
 
 /-- `clustering_correct` as a bound on where it fails, which, unlike a bound on where it holds,
 bounds every smaller set. -/
-theorem clustering_correct_bad {Pre : Set S} (O : Oracle μ S) (populations : Finset J)
+theorem clustering_correct_bad {Pre Suf : Set S} (O : Oracle μ S) (populations : Finset J)
     (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] {η₀ indecisionLimit εcov α δ ρ pAP : ℝ}
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hpop : populations.Nonempty) (hflat : Flat Pre)
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hpop : populations.Nonempty) (hflat : Flat Pre Suf)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsuppSf : Dsf Sufᶜ = 0)
+    (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hpAPPositive : 0 < pAP) (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
     (hindLim : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hαpos : 0 < α)
     (hα : α < 1 / 2) (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
@@ -532,10 +533,10 @@ theorem clustering_correct_bad {Pre : Set S} (O : Oracle μ S) (populations : Fi
   have hfind : Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP : ℝ)
       * (pAP / 2) ^ 2) ≤ δ / 4 :=
     le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
-  have hval := validity_of_returned hflat O populations D Dsf hsupp indecisionLimit εcov α hindLim
-    hsig hpop hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
-    hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind
-  have hterm := loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
+  have hval := validity_of_returned hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α
+    hindLim hsig hpop hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl
+    (tsum_nonneg (fun a => sq_nonneg _)) hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind
+  have hterm := loop_terminates hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α ρ pAP
     δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hpAPPositive
     hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
       (hρ hpop.choose hpop.choose_spec)) hρcap hρsf
@@ -562,10 +563,10 @@ def QualityGood (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (D : J 
 
 /-- The set form of `ClusteringQualityGuarantee`, at the states `stoppable` names. -/
 theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
-    (populations : Finset J) (Pre : Set S)
+    (populations : Finset J) (Pre Suf : Set S)
     {η₀ indecisionLimit εcov α δ pAP tolerance : ℝ}
     (hL : O.L = {w | A.state w ∈ A.accept}) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hpop : populations.Nonempty) (hflat : Flat Pre) (hpAP : 0 < pAP)
+    (hpop : populations.Nonempty) (hflat : Flat Pre Suf) (hpAP : 0 < pAP)
     (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hα : 0 < α)
     (hα1 : α < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
     (htolerance : 0 < tolerance) :
@@ -573,6 +574,7 @@ theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       ∀ ρ : ℝ,
       (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
@@ -614,7 +616,7 @@ theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP ρ (collisionMass Dsf)
     with hstates
   have hcc := clustering_correct_bad (Pre := Pre) O populations D Dsf hηle hη₀ hpop hflat hsupp
-    hρ hpAP hpAPBound hind hind1 hα hα1 hε hε1 hδ' (le_trans hρcap (min_le_left _ _))
+    hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε hε1 hδ' (le_trans hρcap (min_le_left _ _))
     (le_trans hρsf (min_le_left _ _))
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ ε₁ / 4 :=
@@ -786,16 +788,16 @@ theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
     linarith
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP tolerance
+  intro Ω _ μ _ S _ J _ Q _ A O populations Pre Suf η₀ indecisionLimit εcov α δ pAP tolerance
     hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance
   classical
-  obtain ⟨cap, hcap, hbad⟩ := clustering_quality_bad A O populations Pre hL hηle hη₀ hpop hflat
+  obtain ⟨cap, hcap, hbad⟩ := clustering_quality_bad A O populations Pre Suf hL hηle hη₀ hpop hflat
     hpAP hind hind1 hα hα1 hε hε1 hδ htolerance
-  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
   have := hD
   have := hDsf
   refine ⟨stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP ρ (collisionMass Dsf),
-    (one_sub_le_compl_real _ _ δ (hbad D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf)).trans
+    (one_sub_le_compl_real _ _ δ (hbad D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf)).trans
       (measureReal_mono ?_ (measure_ne_top _ _))⟩
   intro x hx
   simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_not] at hx

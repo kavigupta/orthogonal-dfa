@@ -51,12 +51,13 @@ Both bounds also allow for strings read twice. -/
 def CheckGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {Q R : Type*} [Fintype Q] [Fintype R]
-    (A : DFA S Q) (O : Oracle μ S) (Dsamp Dsf : Measure S) (Pre : Set S) (H : DFA S R) (h : R)
+    (A : DFA S Q) (O : Oracle μ S) (Dsamp Dsf : Measure S) (Pre Suf : Set S) (H : DFA S R) (h : R)
     (U : Finset S) (b : S → ℝ) (N m n T : ℕ) (η₀ ε κ t pAP w : ℝ),
   IsProbabilityMeasure Dsamp → IsProbabilityMeasure Dsf →
   O.L = {v | A.state v ∈ A.accept} →
-  Flat Pre →
+  Flat Pre Suf →
   Dsamp Preᶜ = 0 →
+  Dsf Sufᶜ = 0 →
   (∀ a, Dsamp.real {a} ≤ κ) →
   0 < ε →
   ε / Fintype.card R ≤ Dsamp.real {v | H.state v = h} →
