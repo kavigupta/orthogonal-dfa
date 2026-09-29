@@ -41,7 +41,7 @@ def build_pst(
     min_suffix_frequency: float = 0.02,
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     require_accept_preserving: bool = True,
-    acceptable_fpr: float = 0.01,
+    cross_limit: float = 1.5e-7,
     acceptable_fnr: float = 0.01,
     max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
 ) -> PrefixSuffixTracker:
@@ -67,7 +67,7 @@ def build_pst(
         num_addtl_prefixes=NUM_PREFIXES,
         min_suffix_frequency=min_suffix_frequency,
         require_accept_preserving=require_accept_preserving,
-        acceptable_fpr=acceptable_fpr,
+        cross_limit=cross_limit,
         acceptable_fnr=acceptable_fnr,
         max_coverage_error=max_coverage_error,
     )
@@ -90,7 +90,7 @@ def learn_dfa(
     sampler: Sampler = UniformSampler(DEFAULT_SAMPLE_LENGTH),
     acc_threshold: float = DEFAULT_ACC_THRESHOLD,
     require_accept_preserving: bool = True,
-    acceptable_fpr: float = 0.01,
+    cross_limit: float = 1.5e-7,
     acceptable_fnr: float = 0.01,
     max_coverage_error: float = DEFAULT_MAX_COVERAGE_ERROR,
     tracker: SynthesisTracker = SynthesisTracker(),
@@ -112,7 +112,7 @@ def learn_dfa(
         min_suffix_frequency=min_suffix_frequency,
         sampler=sampler,
         require_accept_preserving=require_accept_preserving,
-        acceptable_fpr=acceptable_fpr,
+        cross_limit=cross_limit,
         acceptable_fnr=acceptable_fnr,
         max_coverage_error=max_coverage_error,
     )
