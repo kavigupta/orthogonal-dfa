@@ -147,6 +147,35 @@ def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
     return sorted(drawn)
 
 
+class _Draws:
+    """One call's draws towards ``amount`` suffixes: cohorts of at most
+    ``amount``, and at most ``amount / min_suffix_frequency`` draws in all."""
+
+    def __init__(self, pst, amount, pbar):
+        self._pst = pst
+        self._pbar = pbar
+        self.amount = amount
+        self.max_draws = int(np.ceil(amount / pst.config.min_suffix_frequency))
+        self.looks = int(np.ceil(self.max_draws / amount))
+        self.kept = 0
+        self.drawn = 0
+
+    def wanting(self) -> bool:
+        return self.kept < self.amount and self.drawn < self.max_draws
+
+    def draw(self) -> List[int]:
+        cohort = self._pst._draw_cohort(  # pylint: disable=protected-access
+            min(self.amount, self.max_draws - self.drawn)
+        )
+        self.drawn += len(cohort)
+        return cohort
+
+    def keep(self, rows) -> None:
+        self._pst.suffix_pool.extend(rows)
+        self.kept += len(rows)
+        self._pbar.update(len(rows))
+
+
 @dataclass
 class PrefixSuffixTracker:
     """Owns the search calibration (decision boundary, evidence margin, family
@@ -407,42 +436,39 @@ class PrefixSuffixTracker:
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
-        max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
-        kept = drawn = 0
         with counter(amount, "Completing suffix family") as pbar:
+            draws = _Draws(self, amount, pbar)
+            withheld = (
+                self._screen_predicted(draws, reference) if self.calibrated else []
+            )
+            if withheld is not None:
+                self._screen_floor(draws, reference, withheld)
+        return draws.kept, draws.drawn
 
-            def draw():
-                nonlocal drawn
-                cohort = self._draw_cohort(min(amount, max_draws - drawn))
-                drawn += len(cohort)
-                return cohort
+    def _screen_predicted(self, draws, reference) -> Optional[List[int]]:
+        """Screens cohorts with the prediction until ``draws`` is done, or until
+        what it has kept ``_refutes`` it, at one of the call's cohorts as looks;
+        then, the rows it dropped, else None."""
+        dropped = []
+        while draws.wanting():
+            cohort = draws.draw()
+            survivors = self._screen_cohort(cohort, reference, predict=True)
+            kept = set(survivors)
+            dropped += [row for row in cohort if row not in kept]
+            draws.keep(survivors)
+            if self._refutes(draws.kept, draws.drawn, screenings=1, looks=draws.looks):
+                return dropped
+        return None
 
-            def keep(survivors):
-                nonlocal kept
-                self.suffix_pool.extend(survivors)
-                kept += len(survivors)
-                pbar.update(len(survivors))
-
-            withheld = []
-            if self.calibrated:
-                looks = int(np.ceil(max_draws / amount))
-                while kept < amount and drawn < max_draws:
-                    cohort = draw()
-                    survivors = self._screen_cohort(cohort, reference, predict=True)
-                    kept_rows = set(survivors)
-                    withheld += [r for r in cohort if r not in kept_rows]
-                    keep(survivors)
-                    if self._refutes(kept, drawn, screenings=1, looks=looks):
-                        break
-                else:
-                    return kept, drawn
-            while kept < amount and withheld:
-                cohort = withheld[: amount - kept]
-                withheld = withheld[amount - kept :]
-                keep(self._screen_cohort(cohort, reference, predict=False))
-            while kept < amount and drawn < max_draws:
-                keep(self._screen_cohort(draw(), reference, predict=False))
-        return kept, drawn
+    def _screen_floor(self, draws, reference, withheld) -> None:
+        """Screens ``withheld``, in order, and then fresh cohorts, on the floor
+        alone, until ``draws`` is done."""
+        while draws.kept < draws.amount and withheld:
+            cohort = withheld[: draws.amount - draws.kept]
+            withheld = withheld[draws.amount - draws.kept :]
+            draws.keep(self._screen_cohort(cohort, reference, predict=False))
+        while draws.wanting():
+            draws.keep(self._screen_cohort(draws.draw(), reference, predict=False))
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
