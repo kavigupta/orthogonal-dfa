@@ -85,23 +85,30 @@ SPLIT_SCAN_ALPHA = 1e-3
 
 
 def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
-    """The states holding a minority of the other label, each side handed to the
-    next round as a population of its own.
+    """The states holding a minority of the other label, each part of their
+    splits handed to the next round as a population of its own.
 
     The counterexample pass proposes a distinguisher only where the tree and the
     DFA disagree, so a state holding two classes the family votes the same way is
     never weighed there.  Split into two populations, neither side can be read as
     the other without the family failing it.
     """
+    found = [
+        (leaf, state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA))
+        for leaf in sorted(dfa.states)
+    ]
+    found = [(leaf, split) for leaf, split in found if split is not None]
+    if found:
+        # A round's split describes its own hypothesis, so it replaces the last
+        # one's rather than joining it, as a state's members do.
+        for label in [label for label in state.held if label[0] == "split"]:
+            del state.held[label]
+            del state.sources[label]
     merged = []
-    for leaf in sorted(dfa.states):
-        found = state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA)
-        if found is None:
-            continue
-        split, aim = found
-        for side in (False, True):
-            label = ("split", index, leaf, side)
-            source = SplitSource(split, side, aim, pst.oracle)
+    for leaf, (splits, aim) in found:
+        for part in range(len(splits) + 1):
+            label = ("split", index, leaf, part)
+            source = SplitSource(splits, part, aim, pst.oracle)
             state.held[label] = sorted(source.draw() for _ in range(per_state))
             state.sources[label] = source
         merged.append(leaf)
@@ -279,6 +286,22 @@ def _family_unless_refused(pst, state, index, repairing_since):
         return None
 
 
+def _done_at_target(index, consistency, acc_threshold, merged):
+    """Whether a round at the target ends synthesis: when the check passes it."""
+    if not merged:
+        print(
+            f"[round {index}] reached the target DFA/DT consistency of "
+            f"{acc_threshold:.4f}; stopping synthesis"
+        )
+        return True
+    print(
+        f"[round {index}] consistency {consistency:.4f} is at target, but "
+        f"state(s) {merged} split in two; carrying on with each side as a "
+        f"population"
+    )
+    return False
+
+
 def _repair_exhausted(index, repairing_since) -> bool:
     if repairing_since is None or index - repairing_since < STALL_PATIENCE:
         return False
@@ -370,17 +393,8 @@ def counterexample_driven_synthesis(
             merged=bool(merged),
         )
         if true_acc >= acc_threshold:
-            if not merged:
-                print(
-                    f"[round {index}] reached the target DFA/DT consistency of "
-                    f"{acc_threshold:.4f}; stopping synthesis"
-                )
+            if _done_at_target(index, true_acc, acc_threshold, merged):
                 return best
-            print(
-                f"[round {index}] consistency {true_acc:.4f} is at target, but "
-                f"state(s) {merged} split in two; carrying on with each side as a "
-                f"population"
-            )
             repairing_since = index if repairing_since is None else repairing_since
         if _repair_exhausted(index, repairing_since):
             return best

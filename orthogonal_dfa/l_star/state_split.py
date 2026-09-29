@@ -133,33 +133,35 @@ def _going_with(reads, empty) -> np.ndarray:
     return order[: int(np.argmax(strength)) + 1]
 
 
-def _oriented(reads, inside, level):
-    """(indices K, orientations o) of the suffixes v with
-
-        2 min(P(H_v <= h_v), P(H_v >= h_v)) <= ``level`` / #suffixes,
-        H_v ~ Hypergeometric(n, ones of v, |``inside``|),
-
-    h_v the ones of v inside; o_v = +1 where inside reads above its share."""
-    ones = reads.sum(0)
-    dist = scipy.stats.hypergeom(len(inside), ones, int(inside.sum()))
+def _pvalue(reads, inside) -> np.ndarray:
+    """2 min(P(H_v <= h_v), P(H_v >= h_v)) per suffix v, H_v ~ Hypergeometric(n,
+    ones of v, |``inside``|) and h_v the ones of v inside."""
+    dist = scipy.stats.hypergeom(len(inside), reads.sum(0), int(inside.sum()))
     hits = reads[inside].sum(0)
-    pvalues = 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
+    return 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
+
+
+def _oriented(reads, inside, level, held_out=None):
+    """(indices K, orientations o) of the suffixes v with ``_pvalue`` <= ``level`` /
+    #suffixes against ``inside``; o_v = +1 where inside reads above its share.
+    ``held_out`` = (J, L) tests suffix J[j] against the labels L[:, j] instead."""
+    pvalues = _pvalue(reads, inside)
+    labels = np.repeat(inside[:, None], reads.shape[1], axis=1)
+    if held_out is not None:
+        for j, v in enumerate(held_out[0]):
+            labels[:, v] = held_out[1][:, j]
+            pvalues[v] = _pvalue(reads[:, [v]], labels[:, v])[0]
     kept = np.flatnonzero(pvalues <= level / reads.shape[1])
-    above = hits[kept] >= ones[kept] * inside.mean()
+    hits = np.array([reads[labels[:, v], v].sum() for v in kept])
+    shares = np.array([labels[:, v].mean() for v in kept])
+    above = hits >= reads[:, kept].sum(0) * shares
     return kept, np.where(above, 1, -1)
 
 
-def _bayes_cut(adjusted, inside, size) -> float:
-    """The least k with
-
-        w B(k; K, r_in) >= (1 - w) B(k; K, r_out),
-
-    K = ``size``, w the share ``inside``, r_in and r_out the mean rates of
-    ``adjusted`` / K inside and out; inf unless 0 < r_out < r_in < 1."""
-    share = inside.mean()
-    rate_in = adjusted[inside].mean() / size
-    rate_out = adjusted[~inside].mean() / size
-    if not 0 < rate_out < rate_in < 1:
+def _cut(share, rate_in, rate_out, size) -> float:
+    """The least k with w B(k; K, r_in) >= (1 - w) B(k; K, r_out), K = ``size``;
+    inf unless 0 < w < 1 and 0 < r_out < r_in < 1."""
+    if not (0 < share < 1 and 0 < rate_out < rate_in < 1):
         return math.inf
     slope = math.log(rate_in * (1 - rate_out) / (rate_out * (1 - rate_in)))
     offset = math.log((1 - share) / share) + size * math.log(
@@ -168,25 +170,72 @@ def _bayes_cut(adjusted, inside, size) -> float:
     return offset / slope
 
 
-def _sharpened(reads, inside, level):
-    """(K, o, k*) at the fixed point of relabelling each member by whether its
-    count of reads agreeing with o over K is at least k*, K and o by
-    ``_oriented`` and k* by ``_bayes_cut`` on the current labels, starting from
-    ``inside``; None if a step keeps no suffix or no cut separates."""
-    seen = {inside.tobytes()}
+def _mixture(adjusted, inside, size):
+    """(w, r_in, r_out) at the maximum-likelihood fit of
+
+        w Binomial(K, r_in) + (1 - w) Binomial(K, r_out)
+
+    to the counts ``adjusted``, K = ``size``, reached by EM from the share and
+    rates of the labels ``inside`` and run until the labels ``_cut`` gives stop
+    changing."""
+    share = inside.mean()
+    rate_in = adjusted[inside].mean() / size
+    rate_out = adjusted[~inside].mean() / size
+    labels = inside
+    while not math.isinf(_cut(share, rate_in, rate_out, size)):
+        log_in = math.log(share) + scipy.stats.binom.logpmf(adjusted, size, rate_in)
+        log_out = math.log(1 - share) + scipy.stats.binom.logpmf(
+            adjusted, size, rate_out
+        )
+        posterior = 1 / (1 + np.exp(log_out - log_in))
+        share = posterior.mean()
+        rate_in = (posterior * adjusted).sum() / (size * posterior.sum())
+        rate_out = ((1 - posterior) * adjusted).sum() / (size * (1 - posterior).sum())
+        relabelled = adjusted >= _cut(share, rate_in, rate_out, size)
+        if (relabelled == labels).all():
+            break
+        labels = relabelled
+    return share, rate_in, rate_out
+
+
+def _sharpened(reads, inside, left_out, level):
+    """(K, o, k*) at the fixed point of labelling each member by whether its count
+    of reads agreeing with o over K is at least k* = ``_cut`` of ``_mixture``, K
+    and o by ``_oriented`` on the labels -- each suffix that set them against the
+    labels its own read is left out of, ``left_out`` for the first -- starting
+    from the labels ``inside``; None if a step keeps no suffix or no cut
+    separates."""
+    kept, signs = _oriented(reads, inside, level, held_out=left_out)
+    seen = set()
     while True:
-        kept, signs = _oriented(reads, inside, level)
         if kept.size == 0:
             return None
-        adjusted = np.where(signs > 0, reads[:, kept], 1 - reads[:, kept]).sum(1)
-        cut = _bayes_cut(adjusted, inside, len(kept))
-        relabelled = adjusted >= cut
-        if relabelled.all() or not relabelled.any():
+        agree = np.where(signs > 0, reads[:, kept], 1 - reads[:, kept])
+        adjusted = agree.sum(1)
+        share, rate_in, rate_out = _mixture(adjusted, inside, len(kept))
+        cut = _cut(share, rate_in, rate_out, len(kept))
+        labels = adjusted >= cut
+        if labels.all() or not labels.any():
             return None
-        if relabelled.tobytes() in seen:
+        if labels.tobytes() in seen:
             return kept, signs, cut
-        seen.add(relabelled.tobytes())
-        inside = relabelled
+        seen.add(labels.tobytes())
+        inside = labels
+        left_out = adjusted[:, None] - agree >= _cut(
+            share, rate_in, rate_out, len(kept) - 1
+        )
+        kept, signs = _oriented(reads, inside, level, held_out=(kept, left_out))
+
+
+def _tails_without(reads, picked, weights, tail):
+    """(J, L): L[:, j] the ``tail``'s size of members ranked highest by their
+    weighted reads over the suffixes J = ``picked`` bar J[j]."""
+    scores = reads[:, picked] @ weights
+    labels = np.zeros((len(tail), len(picked)), dtype=bool)
+    for j, v in enumerate(picked):
+        order = np.argsort(-(scores - weights[j] * reads[:, v]), kind="stable")
+        labels[order[: int(tail.sum())], j] = True
+    return picked, labels
 
 
 def split_members(picking, testing, candidates, oracle, *, minority_share, level, rng):
@@ -222,8 +271,13 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
     inside = _tail(scores, math.ceil(size / len(testing) * len(members)), rng, True)
     cut = scores[inside].min()
     # The tail only has to hold more of the minority than chance to be detected;
-    # the sides handed on are placed by every suffix that goes with it.
-    sharpened = _sharpened(picked_reads, inside[picks], level)
+    # the sides handed on are placed by every suffix that goes with the label.
+    sharpened = _sharpened(
+        picked_reads,
+        inside[picks],
+        _tails_without(picked_reads, picked, weights, inside[picks]),
+        level,
+    )
     if sharpened is not None:
         kept, weights, count = sharpened
         chosen = [suffixes[k] for k in kept]
@@ -231,9 +285,10 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
         cut = count - (weights < 0).sum()
         scores[picks] = picked_reads[:, kept] @ weights
         scores[~picks] = _reads(oracle, testing, chosen) @ weights
+        if (scores[~picks] >= cut).mean() > 1 / 2:
+            # The minority is what the cut leaves out; scores are integers.
+            weights, scores, cut = -weights, -scores, math.floor(-cut) + 1
         inside = scores >= cut
-    # The picking members chose the suffixes, and with them their own reads of
-    # the empty suffix; only the testing ones sit on a side independently of it.
     split = StateSplit(
         groups=(
             [m for m, h in zip(testing, inside[~picks]) if not h],
@@ -295,15 +350,47 @@ class _Aimed:
         )
 
 
+class _Outside:
+    """Draws of ``draw`` that ``split`` places on its majority side."""
+
+    def __init__(self, draw, split, oracle):
+        self._draw = draw
+        self._split = split
+        self._oracle = oracle
+
+    def __call__(self, count) -> List[bytes]:
+        kept = []
+        while len(kept) < count:
+            drawn = self._draw(count - len(kept))
+            if not drawn:
+                break
+            sides = self._split.sides(drawn, self._oracle)
+            kept += [p for p, side in zip(drawn, sides) if not side]
+        return kept
+
+    def suffix(self) -> bytes:
+        return self._draw.suffix()
+
+
+def _minority_bound(split, alpha) -> float:
+    """m_hi with P(Binomial(n, m_hi) <= k) = ``alpha``, for k of the split's n
+    members on its minority side."""
+    minority = len(split.groups[True])
+    members = minority + len(split.groups[False])
+    if minority == members:
+        return 1.0
+    return float(scipy.stats.beta.ppf(1 - alpha, minority + 1, members - minority))
+
+
 def state_split(pst, dfa, state, family, *, alpha):
-    """``split_by_looks`` over prefixes aimed at ``state`` and the suffixes
-    ``family``, and the aim that drew the prefixes; None unless the minority's
-    mass may reach ``merged_minority_mass``,
+    """The splits S_1, S_2, ... that ``split_by_looks`` finds over prefixes aimed at
+    ``state`` and the suffixes ``family``, S_j on the members that S_1, ...,
+    S_(j-1) all place on their majority side, up to the first S_m with
 
-        share * m_hi >= merged_minority_mass,
-        P(Binomial(n, m_hi) <= k) = ``alpha``,
+        share * sum_(j <= m) ``_minority_bound``(S_j) >= merged_minority_mass,
 
-    share the state's mass and k of the split's n members on the minority side."""
+    share the state's mass; and the aim that drew the prefixes.  None if a split
+    goes unfound first."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -314,50 +401,68 @@ def state_split(pst, dfa, state, family, *, alpha):
     if minority_share >= 1:
         # The whole state is lighter than the least minority worth finding.
         return None
-    found = split_by_looks(
-        _Aimed(pst, aim),
-        [pst.table.suffix(v) for v in family],
-        # Every look reads fresh members, which the memo would only accumulate.
-        pst.oracle,
-        signal=pst.config.min_signal_strength,
-        minority_share=minority_share,
-        preserving_share=pst.config.min_suffix_frequency,
-        alpha=alpha,
-        rng=pst.rng,
-    )
-    if found is None:
-        return None
-    minority = len(found.groups[True])
-    members = minority + len(found.groups[False])
-    upper = (
-        scipy.stats.beta.ppf(1 - alpha, minority + 1, members - minority)
-        if minority < members
-        else 1.0
-    )
-    if share * upper < pst.config.merged_minority_mass:
-        return None
-    return found, aim
+    draw = _Aimed(pst, aim)
+    splits = []
+    mass = 0.0
+    # A minority of several classes is found a class at a time, so a light first
+    # one does not show the rest is light too.
+    while mass < pst.config.merged_minority_mass:
+        found = split_by_looks(
+            draw,
+            [pst.table.suffix(v) for v in family],
+            # Every look reads fresh members, which the memo would only accumulate.
+            pst.oracle,
+            signal=pst.config.min_signal_strength,
+            minority_share=minority_share,
+            preserving_share=pst.config.min_suffix_frequency,
+            alpha=alpha,
+            rng=pst.rng,
+        )
+        if found is None:
+            return None
+        splits.append(found)
+        mass += share * _minority_bound(found, alpha)
+        draw = _Outside(draw, found, pst.oracle)
+    return splits, aim
+
+
+def _placed(splits, prefixes, oracle) -> np.ndarray:
+    """For each prefix, the least j with S_j = ``splits[j]`` placing it on its
+    minority side, or len(``splits``) if none does."""
+    part = np.full(len(prefixes), len(splits))
+    pending = np.arange(len(prefixes))
+    for j, split in enumerate(splits):
+        if not pending.size:
+            break
+        inside = split.sides([prefixes[i] for i in pending], oracle)
+        part[pending[inside]] = j
+        pending = pending[~inside]
+    return part
 
 
 class SplitSource(RejectionSource):
-    """More of one side of a split: aimed at the split state, kept where the split's
-    score places them on this side.
+    """Fresh members of one part of a chain of splits: aimed at the split state,
+    kept where ``_placed`` puts them in this part.
 
-    Proven on the members the split was found over, which were drawn by the same aim
-    and placed the same way, so their count on this side is the yield test.  Called
+    Proven on the first split's members, which were drawn by the same aim and
+    placed the same way, so their count in this part is the yield test.  Called
     dry below the rate that count puts a floor under.
     """
 
-    def __init__(self, split: StateSplit, side: bool, aim, oracle):
+    def __init__(self, splits, part, aim, oracle):
         super().__init__()
-        self._split = split
-        self._side = side
+        self._splits = splits
+        self._part = part
         self._aim = aim
         self._oracle = oracle
-        on_side = len(split.groups[side])
-        drawn = on_side + len(split.groups[not side])
-        self._poor = float(scipy.stats.beta.ppf(_MISREAD, on_side, drawn - on_side + 1))
-        self._pool.extend(split.groups[side])
+        first = splits[0]
+        drawn = first.groups[True] + first.groups[False]
+        on_part = int((_placed(splits, drawn, oracle) == part).sum())
+        self._poor = float(
+            scipy.stats.beta.ppf(_MISREAD, on_part, len(drawn) - on_part + 1)
+        )
+        # Not seeded with the split's own members: whichever half they came from,
+        # their reads of the empty suffix decided the split.
         self._proven = True
 
     @property
@@ -370,12 +475,10 @@ class SplitSource(RejectionSource):
 
     def attempt_draw(self) -> bool:
         prefix = self._aim()
-        if self._split.sides([prefix], self._oracle)[0] != self._side:
+        if _placed(self._splits, [prefix], self._oracle)[0] != self._part:
             return False
         self._pool.append(prefix)
         return True
 
     def source_repr(self) -> str:
-        return (
-            f"SplitSource(side={self._side}, over {len(self._split.suffixes)} suffixes)"
-        )
+        return f"SplitSource(part {self._part} of {len(self._splits) + 1})"
