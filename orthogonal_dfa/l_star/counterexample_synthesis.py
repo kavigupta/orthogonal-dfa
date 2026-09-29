@@ -402,8 +402,9 @@ def counterexample_driven_synthesis(
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
-        # leaf nothing aims at is not one the round waits on.
-        if stall.stalled(
+        # leaf nothing aims at is not one the round waits on.  A repair has its
+        # own patience, so its rounds are not weighed for a stall.
+        if repairing_since is None and stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
             settled=lambda: resolver.splits.nothing_left_to_split(

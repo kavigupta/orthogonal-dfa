@@ -238,16 +238,17 @@ def _tails_without(reads, picked, weights, tail):
     return picked, labels
 
 
-def split_members(picking, testing, candidates, oracle, *, minority_share, level, rng):
+def split_members(
+    picking, picked_reads, testing, suffixes, oracle, *, minority_share, level, rng
+):
     """(split, p*): p* = min over tail sizes t in ``tail_ladder`` and both ends
     of T * ``_label_pvalue``, T the number of such tails, on the ``testing``
-    members' counts over the suffixes ``_going_with`` picks on ``picking``.  The
-    split is at the least t with T p <= ``level``, or ``None``."""
-    suffixes = [v for v in candidates if v]
+    members' counts over the ``suffixes`` that ``_going_with`` picks on
+    ``picking``, whose reads of them are ``picked_reads``.  The split is at the
+    least t with T p <= ``level``, or ``None``."""
     members = picking + testing
     empty = np.asarray(oracle.membership_queries(members), dtype=np.int8)
     picks = np.arange(len(members)) < len(picking)
-    picked_reads = _reads(oracle, picking, suffixes)
     picked = _going_with(picked_reads, empty[picks])
     chosen = [suffixes[k] for k in picked]
     held = _reads(oracle, testing, chosen).sum(1)
@@ -304,8 +305,9 @@ def split_members(picking, testing, candidates, oracle, *, minority_share, level
 def split_by_looks(
     draw, family, oracle, *, signal, minority_share, preserving_share, alpha, rng
 ):
-    """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
-    half with n_0 = ``first_look`` and L = ``most_looks``, each at level
+    """The split from looks k = 0, 1, ..., L - 1, n_0 2^k members per half with
+    n_0 = ``first_look`` and L = ``most_looks``, the testing half fresh and the
+    picking half every earlier look's topped up with fresh draws, each at level
     ``alpha`` / L: the first look's split, or ``None`` once look k's p* exceeds
     2^-(k+1).  p* is super-uniform under a pure state, so
 
@@ -313,14 +315,22 @@ def split_by_looks(
     fresh_count = fresh_suffixes(alpha, preserving_share)
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(family) | fresh)
+    suffixes = [v for v in candidates if v]
     looks = most_looks(signal, minority_share, 2, len(candidates))
     level = alpha / looks
     size = first_look(signal, minority_share, level, level)
+    picking = []
+    picked_reads = np.zeros((0, len(suffixes)), dtype=np.int8)
     for look in range(looks):
+        # Independent of any later look's testing half, so reused.
+        drawn = draw(size - len(picking))
+        picking = picking + drawn
+        picked_reads = np.concatenate([picked_reads, _reads(oracle, drawn, suffixes)])
         split, p = split_members(
+            picking,
+            picked_reads,
             draw(size),
-            draw(size),
-            candidates,
+            suffixes,
             oracle,
             minority_share=minority_share,
             level=level,
