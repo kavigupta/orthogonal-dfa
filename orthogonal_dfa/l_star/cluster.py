@@ -7,8 +7,8 @@ import scipy.stats
 from .mask_table import UNIFORM
 from .prefix_populations import grow_population, population_labels, prefixes_for_split
 from .statistics import (
+    cross_limit_for_coverage_error,
     evidence_margin_for_population_size,
-    fpr_for_coverage_error,
     low_tail_detection_size,
     population_size_and_evidence_margin,
 )
@@ -79,8 +79,8 @@ def read_rates(config, decision_boundary):
     """
     return (
         min(
-            config.acceptable_fpr,
-            fpr_for_coverage_error(
+            config.cross_limit,
+            cross_limit_for_coverage_error(
                 config.min_signal_strength,
                 config.acceptable_fnr,
                 config.max_coverage_error,
@@ -97,9 +97,9 @@ def smallest_readable_family(min_signal_strength, decision_boundary, rates):
     How many it needs depends on where the boundary sits: the two classes draw
     from binomials whose variance differs once it leaves 0.5.
     """
-    acceptable_fpr, acceptable_fnr = rates
+    cross_limit, acceptable_fnr = rates
     size, _ = population_size_and_evidence_margin(
-        min_signal_strength, acceptable_fpr, acceptable_fnr, center=decision_boundary
+        min_signal_strength, cross_limit, acceptable_fnr, center=decision_boundary
     )
     return size
 
@@ -115,11 +115,11 @@ def readable_size_and_margin(
     a family that is large enough undersized. ``smallest`` always admits one, so
     the walk cannot run off the end.
     """
-    acceptable_fpr, acceptable_fnr = rates
+    cross_limit, acceptable_fnr = rates
     for size in range(have, smallest - 1, -1):
         found = evidence_margin_for_population_size(
             min_signal_strength,
-            acceptable_fpr,
+            cross_limit,
             acceptable_fnr,
             size,
             center=decision_boundary,

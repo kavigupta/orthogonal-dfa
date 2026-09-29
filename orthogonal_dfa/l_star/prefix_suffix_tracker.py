@@ -85,19 +85,18 @@ class SearchConfig:
     fnr_limit: float = 0.10
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
-    #: is called indecisive, all indecision counting against it; `acceptable_fpr`
-    #: bounds the chance a prefix on one side of the boundary is decisively called
-    #: the other, at its worst the chance one exactly on the boundary is called
-    #: either way.
+    #: is called indecisive, all indecision counting against it; `cross_limit`
+    #: bounds the chance a prefix whose rate lies outside the band is decisively
+    #: called the other side.  A prefix inside the band has no such bound.
     #:
     #: `max_coverage_error` bounds instead how far the split may deviate from the
     #: true accept-preserving distinction: the share of the prefixes it decides that
     #: it decides against the denoised oracle.  The accept-preserving test holds
     #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
-    #: bought with a tighter `acceptable_fpr` and paid for in indecision.  Keep
+    #: bought with a tighter `cross_limit` and paid for in indecision.  Keep
     #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
     #: the pool, or a clean family fails its round.
-    acceptable_fpr: float = 0.01
+    cross_limit: float = 1.5e-7
     acceptable_fnr: float = 0.01
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
