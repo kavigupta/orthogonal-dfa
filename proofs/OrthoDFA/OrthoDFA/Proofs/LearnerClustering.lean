@@ -208,25 +208,207 @@ lemma pinned_prod_le {V : Type*} [MeasurableSpace V] [Countable V] [MeasurableSi
         rw [lintegral_const_mul _ (measurable_of_countable _),
           lintegral_add_right _ (measurable_one.indicator hHit), lintegral_indicator_one hHit]
 
+/-! ## A harvest's law -/
+
+section Harvest
+
+/-- `hv` reads the noise only at `rd`, choosing it as it goes. -/
+def HarvReads (hv : Harvester S) (rd : S → (S → ℝ) → Finset S) : Prop :=
+  ∀ p (f f' : S → ℝ), (∀ t ∈ rd p f, f t = f' t) → rd p f' = rd p f ∧ hv p f' = hv p f
+
+/-- The runs whose every bit is `0` or `1`. -/
+def allClean (O : Oracle μ S) : Set Ω := {ω | ∀ s, O.noise s ω = 0 ∨ O.noise s ω = 1}
+
+lemma measurableSet_allClean (O : Oracle μ S) : MeasurableSet (allClean O) := by
+  have : allClean O = ⋂ s, O.noise s ⁻¹' ({0, 1} : Set ℝ) := by
+    ext ω; simp [allClean]
+  rw [this]
+  exact MeasurableSet.iInter fun s => O.noise_meas s (by measurability)
+
+lemma measure_allClean_compl (O : Oracle μ S) : μ (allClean O)ᶜ = 0 := by
+  have : (allClean O)ᶜ = ⋃ s, {ω | ¬ (O.noise s ω = 0 ∨ O.noise s ω = 1)} := by
+    ext ω; simp [allClean]
+  rw [this]
+  exact measure_iUnion_null fun s => ae_iff.1 (O.noise_bit s)
+
+/-- The clean runs on which `hv`'s verdict on `p` satisfies `Z`, as an event of its reads. -/
+def harvSet (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S) (p : S)
+    (Z : Option S → Prop) : Set Ω :=
+  ⋃ R : Finset S, ({ω | rd p (fun t => O.mq t ω) = R ∧ Z (hv p fun t => O.mq t ω)}
+    ∩ noiseClean O R)
+
+lemma measurableSet_harvSet (O : Oracle μ S) {hv : Harvester S} {rd : S → (S → ℝ) → Finset S}
+    (hrd : HarvReads hv rd) (p : S) (Z : Option S → Prop) :
+    MeasurableSet (harvSet O hv rd p Z) := by
+  refine MeasurableSet.iUnion fun R => noiseAlg_le O (↑R) _ ?_
+  refine measurableSet_inter_noiseClean O R _ fun ω ω' h => ?_
+  have hsym : ∀ ω ω' : Ω, (∀ w ∈ R, O.noise w ω = O.noise w ω') →
+      rd p (fun t => O.mq t ω) = R ∧ Z (hv p fun t => O.mq t ω) →
+      rd p (fun t => O.mq t ω') = R ∧ Z (hv p fun t => O.mq t ω') := by
+    rintro ω ω' h ⟨hR, hZ⟩
+    have := hrd p (fun t => O.mq t ω) (fun t => O.mq t ω') fun t ht =>
+      mq_congr O (h t (hR ▸ ht))
+    exact ⟨this.1.trans hR, this.2 ▸ hZ⟩
+  exact ⟨hsym ω ω' h, hsym ω' ω fun w hw => (h w hw).symm⟩
+
+lemma harvSet_subset (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S)
+    (p : S) (Z : Option S → Prop) :
+    harvSet O hv rd p Z ⊆ {ω | Z (hv p fun t => O.mq t ω)} := by
+  intro ω hω
+  obtain ⟨R, hR, -⟩ := Set.mem_iUnion.1 hω
+  exact hR.2
+
+lemma harvSet_clean (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S)
+    (p : S) (Z : Option S → Prop) :
+    {ω | Z (hv p fun t => O.mq t ω)} ∩ allClean O ⊆ harvSet O hv rd p Z := by
+  rintro ω ⟨hZ, hc⟩
+  exact Set.mem_iUnion.2 ⟨rd p (fun t => O.mq t ω), ⟨rfl, hZ⟩, fun w _ => hc w⟩
+
+/-- The pairs `(p, ω)` whose verdict satisfies `Z`, on clean runs. -/
+def harvProd (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S)
+    (Z : Option S → Prop) : Set (S × Ω) :=
+  ⋃ p, {p} ×ˢ harvSet O hv rd p Z
+
+lemma measurableSet_harvProd (O : Oracle μ S) {hv : Harvester S}
+    {rd : S → (S → ℝ) → Finset S} (hrd : HarvReads hv rd) (Z : Option S → Prop) :
+    MeasurableSet (harvProd O hv rd Z) :=
+  MeasurableSet.iUnion fun p => (measurableSet_singleton p).prod (measurableSet_harvSet O hrd p Z)
+
+lemma harvProd_ae_eq (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S)
+    (Z : Option S → Prop) (ν : Measure S) [SFinite ν] :
+    harvProd O hv rd Z =ᵐ[ν.prod μ] {q : S × Ω | Z (hv q.1 fun t => O.mq t q.2)} := by
+  refine (ae_eq_set.2 ⟨?_, ?_⟩)
+  · refine measure_mono_null (fun q hq => ?_) (measure_empty (μ := ν.prod μ))
+    obtain ⟨p, hp⟩ := Set.mem_iUnion.1 hq.1
+    obtain ⟨hp1, hp2⟩ := hp
+    rw [Set.mem_singleton_iff] at hp1
+    rw [← hp1] at hp2
+    exact hq.2 (harvSet_subset O hv rd q.1 Z hp2)
+  · refine measure_mono_null (t := Set.univ ×ˢ (allClean O)ᶜ) (fun q hq => ?_) ?_
+    · refine ⟨trivial, fun hc => hq.2 ?_⟩
+      exact Set.mem_iUnion.2 ⟨q.1, rfl, harvSet_clean O hv rd q.1 Z ⟨hq.1, hc⟩⟩
+    · rw [Measure.prod_prod, measure_allClean_compl, mul_zero]
+
+lemma harvest_prod_eq (O : Oracle μ S) (hv : Harvester S) (rd : S → (S → ℝ) → Finset S)
+    (Z : Option S → Prop) (ν : Measure S) [SFinite ν] :
+    (ν.prod μ) {q : S × Ω | Z (hv q.1 fun t => O.mq t q.2)} = (ν.prod μ) (harvProd O hv rd Z) :=
+  (measure_congr (harvProd_ae_eq O hv rd Z ν)).symm
+
+lemma harvestLaw_apply_singleton (O : Oracle μ S) (hv : Harvester S) (Dsamp : Measure S) (a : S) :
+    harvestLaw O hv Dsamp {a} = ENNReal.ofReal
+      ((Dsamp.prod μ).real {q | hv q.1 (fun t => O.mq t q.2) = some a}
+        / harvestYield O hv Dsamp) := by
+  classical
+  rw [harvestLaw, Measure.sum_apply _ (measurableSet_singleton a)]
+  rw [tsum_eq_single a fun b hb => by simp [hb]]
+  simp
+
+lemma isProbabilityMeasure_harvestLaw (O : Oracle μ S) (hv : Harvester S)
+    {rd : S → (S → ℝ) → Finset S} (hrd : HarvReads hv rd) (Dsamp : Measure S)
+    [IsProbabilityMeasure Dsamp] (hy : 0 < harvestYield O hv Dsamp) :
+    IsProbabilityMeasure (harvestLaw O hv Dsamp) := by
+  classical
+  set ν := Dsamp.prod μ
+  set E : S → Set (S × Ω) := fun a => {q | hv q.1 (fun t => O.mq t q.2) = some a}
+  have hnull : ∀ a, NullMeasurableSet (E a) ν := fun a =>
+    (measurableSet_harvProd O hrd (fun o => o = some a)).nullMeasurableSet.congr
+      (harvProd_ae_eq O hv rd (fun o => o = some a) Dsamp)
+  have hdisj : Pairwise (Function.onFun (AEDisjoint ν) E) := fun a b hab =>
+    Disjoint.aedisjoint (Set.disjoint_left.2 fun q ha hb => hab (Option.some.inj (ha.symm.trans hb)))
+  have hunion : (⋃ a, E a) = {q : S × Ω | (hv q.1 fun t => O.mq t q.2).isSome} := by
+    ext q
+    simp only [Set.mem_iUnion, Set.mem_ofPred_eq, E, Option.isSome_iff_exists]
+  have hsum : ∑' a, ν (E a) = ENNReal.ofReal (harvestYield O hv Dsamp) := by
+    rw [← measure_iUnion₀ hdisj hnull, hunion, harvestYield, ofReal_measureReal]
+  constructor
+  rw [harvestLaw, Measure.sum_apply _ MeasurableSet.univ]
+  simp only [Measure.smul_apply, Measure.dirac_apply_of_mem (Set.mem_univ _), smul_eq_mul,
+    mul_one]
+  have hterm : ∀ a, ENNReal.ofReal ((ν.real (E a)) / harvestYield O hv Dsamp)
+      = ν (E a) / ENNReal.ofReal (harvestYield O hv Dsamp) := fun a => by
+    rw [ENNReal.ofReal_div_of_pos hy, ofReal_measureReal]
+  simp only [ν, E] at hterm hsum ⊢
+  simp_rw [hterm]
+  simp_rw [div_eq_mul_inv]
+  rw [ENNReal.tsum_mul_right, hsum, ENNReal.mul_inv_cancel (ENNReal.ofReal_pos.2 hy).ne'
+    ENNReal.ofReal_ne_top]
+
+omit [IsProbabilityMeasure μ] in
+lemma harvestLaw_compl (O : Oracle μ S) (hv : Harvester S) (Dsamp : Measure S) {Pre : Set S}
+    (hPre : ∀ p f a, hv p f = some a → a ∈ Pre) : harvestLaw O hv Dsamp Preᶜ = 0 := by
+  classical
+  rw [harvestLaw, Measure.sum_apply _ (Set.to_countable _).measurableSet]
+  refine ENNReal.tsum_eq_zero.2 fun a => ?_
+  by_cases ha : a ∈ Pre
+  · simp [ha]
+  · have : {q : S × Ω | hv q.1 (fun t => O.mq t q.2) = some a} = ∅ :=
+      Set.eq_empty_of_forall_notMem fun q hq => ha (hPre _ _ _ hq)
+    simp [this]
+
+lemma harvestLaw_atom_le (O : Oracle μ S) (hv : Harvester S)
+    {rd : S → (S → ℝ) → Finset S} (hrd : HarvReads hv rd) (Dsamp : Measure S)
+    [IsProbabilityMeasure Dsamp] {κa : ℝ} (hκa : ∀ f a, Dsamp.real {p | hv p f = some a} ≤ κa)
+    (hy : 0 < harvestYield O hv Dsamp) (a : S) :
+    (harvestLaw O hv Dsamp).real {a} ≤ κa / harvestYield O hv Dsamp := by
+  have hκa0 : 0 ≤ κa := le_trans measureReal_nonneg (hκa (fun _ => 0) a)
+  have hp : (Dsamp.prod μ) {q : S × Ω | hv q.1 (fun t => O.mq t q.2) = some a}
+      ≤ ENNReal.ofReal κa := by
+    rw [harvest_prod_eq O hv rd (fun o => o = some a) Dsamp,
+      Measure.prod_apply_symm (measurableSet_harvProd O hrd _)]
+    calc ∫⁻ ω, Dsamp ((fun p => (p, ω)) ⁻¹' harvProd O hv rd (fun o => o = some a)) ∂μ
+        ≤ ∫⁻ _ω, ENNReal.ofReal κa ∂μ := lintegral_mono fun ω => by
+          refine (measure_mono fun p hp => ?_).trans
+            (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _) hκa0 |>.2
+              (hκa (fun t => O.mq t ω) a))
+          obtain ⟨p', hp'⟩ := Set.mem_iUnion.1 hp
+          obtain ⟨h1, h2⟩ := hp'
+          rw [Set.mem_singleton_iff] at h1
+          subst h1
+          exact harvSet_subset O hv rd _ _ h2
+      _ = ENNReal.ofReal κa := by rw [lintegral_const, measure_univ, mul_one]
+  rw [measureReal_def, harvestLaw_apply_singleton, ENNReal.toReal_ofReal (by positivity)]
+  gcongr
+  exact ENNReal.toReal_le_of_le_ofReal hκa0 hp
+
+end Harvest
+
 /-! ## One round's clustering -/
 
 section Round
 
 variable {K : ℕ} {R : Type*} {Q : Type*}
 
-/-- The populations' laws after the rounds `past`: the sampler, and each failed state's own. -/
-noncomputable def popMeasure (Dsamp : Measure S) (past : List (Outcome S R)) :
-    Option (Fin K × R) → Measure S
+/-- The populations' laws after the rounds `past`: the sampler; the strings reaching a state; and
+what a harvest keeps, when it keeps anything. -/
+noncomputable def popMeasure (O : Oracle μ S) (Dsamp : Measure S) (past : List (Outcome S R)) :
+    Pop K R → Measure S
   | none => Dsamp
-  | some (i, h) => match past[i.val]? with
+  | some (i, some h) => match past[i.val]? with
     | some o => reaching o.1 Dsamp h
     | none => Dsamp
+  | some (i, none) => match past[i.val]? with
+    | some (_, _, _, some hv) =>
+      if 0 < harvestYield O hv Dsamp then harvestLaw O hv Dsamp else Dsamp
+    | _ => Dsamp
 
-lemma isProbabilityMeasure_popMeasure (Dsamp : Measure S) [IsProbabilityMeasure Dsamp]
-    (past : List (Outcome S R)) (j : Option (Fin K × R)) :
-    IsProbabilityMeasure (popMeasure Dsamp past j) := by
-  rcases j with _ | ⟨i, h⟩
+/-- Every harvest in `past` reads the noise only at some `rd`. -/
+def PastReads (past : List (Outcome S R)) : Prop :=
+  ∀ o ∈ past, ∀ hv, o.2.2.2 = some hv → ∃ rd, HarvReads hv rd
+
+lemma isProbabilityMeasure_popMeasure (O : Oracle μ S) (Dsamp : Measure S)
+    [IsProbabilityMeasure Dsamp] (past : List (Outcome S R)) (hpast : PastReads past)
+    (j : Pop K R) : IsProbabilityMeasure (popMeasure O Dsamp past j) := by
+  rcases j with _ | ⟨i, _ | h⟩
   · simp only [popMeasure]; infer_instance
+  · simp only [popMeasure]
+    rcases hget : past[i.val]? with _ | ⟨H, g, fl, _ | hv⟩
+    · simp only; infer_instance
+    · simp only; infer_instance
+    · simp only
+      split_ifs with hy
+      · obtain ⟨rd, hrd⟩ := hpast _ (List.mem_of_getElem? hget) hv rfl
+        exact isProbabilityMeasure_harvestLaw O hv hrd Dsamp hy
+      · infer_instance
   · simp only [popMeasure]
     cases past[i.val]? with
     | none => simp only; infer_instance
@@ -234,394 +416,16 @@ lemma isProbabilityMeasure_popMeasure (Dsamp : Measure S) [IsProbabilityMeasure 
 
 variable [Fintype R]
 
-/-- The first `M` suffixes and the first `P` prefixes and certification prefixes of each
-population. -/
-abbrev Trunc (S : Type*) (K : ℕ) (R : Type*) (M P : ℕ) :=
-  ((Fin M → S) × (Option (Fin K × R) → Fin P → S)) × (Option (Fin K × R) → Fin P → S)
-
-open scoped Classical in
-/-- Population `j`'s first `P` draws, if it is a population. -/
-noncomputable def popTrunc (Dsamp : Measure S) (ε : ℝ) {M : ℕ} (P : ℕ) (past : List (Outcome S R))
-    (j : Option (Fin K × R)) (a : Fin M → S) : Fin P → S :=
-  if j ∈ populationsAfter Dsamp ε past then fun i => populationDraws past j a i else fun _ => 1
-
-noncomputable def truncL (Dsamp : Measure S) (ε : ℝ) {M : ℕ} (P : ℕ) (past : List (Outcome S R))
-    (e : ClusterPart S K R M) : Trunc S K R M P :=
-  ((e.1, fun j => popTrunc Dsamp ε P past j (e.2.1 j)),
-    fun j => popTrunc Dsamp ε P past j (e.2.2 j))
-
-open scoped Classical in
-/-- A stream's first `P` draws, if it is a population's. -/
-noncomputable def streamTrunc (P : ℕ) (pops : Finset (Option (Fin K × R)))
-    (j : Option (Fin K × R)) (u : ℕ → S) : Fin P → S :=
-  if j ∈ pops then fun i => u i else fun _ => 1
-
-noncomputable def truncR (M P : ℕ) (pops : Finset (Option (Fin K × R))) :
-    ((ℕ → S) × (Option (Fin K × R) → ℕ → S)) × (Option (Fin K × R) → ℕ → S) →
-      Trunc S K R M P :=
-  Prod.map (Prod.map (fun (u : ℕ → S) (i : Fin M) => u i)
-    (fun a j => streamTrunc P pops j (a j))) (fun a j => streamTrunc P pops j (a j))
-
-noncomputable def untrunc {M P : ℕ} (v : Trunc S K R M P) :
-    ((ℕ → S) × (Option (Fin K × R) → ℕ → S)) × (Option (Fin K × R) → ℕ → S) :=
-  ((padded v.1.1, fun j => padded (v.1.2 j)), fun j => padded (v.2 j))
-
-section Finsets
-
-variable {J : Type*}
-
-omit [MeasurableSpace Ω] in
-lemma prefixesAt_congr (pops : Finset J) (n : ℕ) {x x' : Run Ω S J}
-    (h : ∀ j ∈ pops, ∀ i < n, prefixDraw j i x = prefixDraw j i x') :
-    prefixesAt pops n x = prefixesAt pops n x' := by
-  classical
-  exact Finset.biUnion_congr rfl fun j hj =>
-    Finset.image_congr fun i hi => h j hj i (Finset.mem_range.1 hi)
-
-omit [MeasurableSpace Ω] in
-lemma certOf_congr (j : J) (n : ℕ) {x x' : Run Ω S J}
-    (h : ∀ i < n, certPrefix j i x = certPrefix j i x') : certOf j n x = certOf j n x' := by
-  classical
-  exact Finset.image_congr fun i hi => h i (Finset.mem_range.1 hi)
-
-omit [MeasurableSpace Ω] in
-lemma poolAt_congr (n : ℕ) {x x' : Run Ω S J} (h : ∀ i < n, suffixDraw i x = suffixDraw i x') :
-    poolAt n x = poolAt n x' := by
-  classical
-  unfold poolAt
-  rw [Finset.image_congr fun i hi => h i (Finset.mem_range.1 hi)]
-
-end Finsets
-
-omit [IsProbabilityMeasure μ] in
-lemma good_truncL (A : DFA S Q) (O : Oracle μ S) (D : Option (Fin K × R) → Measure S)
-    (states : Finset State) (il α tolerance εcov : ℝ) {M P : ℕ}
-    (hst : ∀ B ∈ states, B.npref ≤ P ∧ B.nsuff ≤ M) (Dsamp : Measure S) (ε : ℝ)
-    (past : List (Outcome S R)) (ω : Ω) (e : ClusterPart S K R M) :
-    QualityGood A O (populationsAfter Dsamp ε past) D states il α tolerance εcov
-        ((ω, clusterDraws past e) : Run Ω S (Option (Fin K × R)))
-      ↔ QualityGood A O (populationsAfter Dsamp ε past) D states il α tolerance εcov
-        ((ω, untrunc (truncL Dsamp ε P past e)) : Run Ω S (Option (Fin K × R))) := by
-  classical
-  refine qualityGood_congr_draws A O _ D states il α tolerance εcov rfl fun B hB => ?_
-  obtain ⟨hp, hs⟩ := hst B hB
-  refine ⟨prefixesAt_congr _ _ fun j hj i hi => ?_, poolAt_congr _ fun i hi => ?_,
-    fun j hj => certOf_congr _ _ fun i hi => ?_⟩
-  · change populationDraws past j (e.2.1 j) i = padded _ i
-    simp [padded, show i < P by omega, hj, truncL, popTrunc]
-  · rfl
-  · change populationDraws past j (e.2.2 j) i = padded _ i
-    simp [padded, show i < P by omega, hj, truncL, popTrunc]
-
-omit [Fintype R] [IsProbabilityMeasure μ] in
-lemma good_truncR (A : DFA S Q) (O : Oracle μ S) (D : Option (Fin K × R) → Measure S)
-    (pops : Finset (Option (Fin K × R))) (states : Finset State) (il α tolerance εcov : ℝ)
-    {M P : ℕ} (hst : ∀ B ∈ states, B.npref ≤ P ∧ B.nsuff ≤ M) (ω : Ω)
-    (xd : ((ℕ → S) × (Option (Fin K × R) → ℕ → S)) × (Option (Fin K × R) → ℕ → S)) :
-    QualityGood A O pops D states il α tolerance εcov ((ω, xd) : Run Ω S (Option (Fin K × R)))
-      ↔ QualityGood A O pops D states il α tolerance εcov
-        ((ω, untrunc (truncR M P pops xd)) : Run Ω S (Option (Fin K × R))) := by
-  classical
-  refine qualityGood_congr_draws A O _ D states il α tolerance εcov rfl fun B hB => ?_
-  obtain ⟨hp, hs⟩ := hst B hB
-  refine ⟨prefixesAt_congr _ _ fun j hj i hi => ?_, poolAt_congr _ fun i hi => ?_,
-    fun j hj => certOf_congr _ _ fun i hi => ?_⟩
-  · change xd.1.2 j i = padded _ i
-    simp [padded, show i < P by omega, hj, truncR, streamTrunc]
-  · change xd.1.1 i = padded _ i
-    simp [padded, show i < M by omega, truncR]
-  · change xd.2 j i = padded _ i
-    simp [padded, show i < P by omega, hj, truncR, streamTrunc]
-
-/-- The strings the clustering reads at the states of `states`, from the truncated draws. -/
-noncomputable def truncReads {M P : ℕ} (pops : Finset (Option (Fin K × R)))
-    (v : Trunc S K R M P) : Finset S :=
-  readSet (pops.biUnion fun j => Finset.univ.image (v.1.2 j) ∪ Finset.univ.image (v.2 j))
-    (insert 1 (Finset.univ.image v.1.1))
-
-set_option linter.unusedFintypeInType false in
-lemma good_noise (A : DFA S Q) (O : Oracle μ S) (D : Option (Fin K × R) → Measure S)
-    (pops : Finset (Option (Fin K × R))) (states : Finset State) (il α tolerance εcov : ℝ)
-    {M P : ℕ} (hst : ∀ B ∈ states, B.npref ≤ P ∧ B.nsuff ≤ M) (v : Trunc S K R M P)
-    {ω ω' : Ω} (h : ∀ w ∈ truncReads pops v, O.noise w ω = O.noise w ω') :
-    QualityGood A O pops D states il α tolerance εcov
-        ((ω, untrunc v) : Run Ω S (Option (Fin K × R)))
-      ↔ QualityGood A O pops D states il α tolerance εcov
-        ((ω', untrunc v) : Run Ω S (Option (Fin K × R))) := by
-  classical
-  refine qualityGood_congr_noise A O pops D states il α tolerance εcov _ fun B hB w hw => h w ?_
-  obtain ⟨hp, hs⟩ := hst B hB
-  refine readSet_mono ?_ ?_ hw
-  · refine Finset.union_subset ?_ ?_
-    · intro p hp'
-      obtain ⟨j, hj, hp'⟩ := Finset.mem_biUnion.1 hp'
-      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hp'
-      have hi : i < P := by have := Finset.mem_range.1 hi; omega
-      refine Finset.mem_biUnion.2 ⟨j, hj, Finset.mem_union_left _ (Finset.mem_image.2
-        ⟨⟨i, hi⟩, Finset.mem_univ _, ?_⟩)⟩
-      simp [prefixDraw, untrunc, padded, hi]
-    · intro p hp'
-      obtain ⟨j, hj, hp'⟩ := Finset.mem_biUnion.1 hp'
-      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hp'
-      have hi : i < P := by have := Finset.mem_range.1 hi; omega
-      refine Finset.mem_biUnion.2 ⟨j, hj, Finset.mem_union_right _ (Finset.mem_image.2
-        ⟨⟨i, hi⟩, Finset.mem_univ _, ?_⟩)⟩
-      simp [certPrefix, untrunc, padded, hi]
-  · intro w hw'
-    rcases Finset.mem_insert.1 hw' with rfl | hw'
-    · exact Finset.mem_insert_self _ _
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.1 hw'
-    have hi : i < M := by have := Finset.mem_range.1 hi; omega
-    refine Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨⟨i, hi⟩, Finset.mem_univ _, ?_⟩)
-    simp [suffixDraw, untrunc, padded, hi]
-
-/-! ### The laws of the truncated draws -/
-
-open scoped Classical in
-noncomputable def popLaw (Dsamp : Measure S) (ε : ℝ) (P : ℕ) (past : List (Outcome S R))
-    (j : Option (Fin K × R)) : Measure (Fin P → S) :=
-  if j ∈ populationsAfter Dsamp ε past then Measure.pi fun _ : Fin P => popMeasure Dsamp past j
-  else Measure.dirac fun _ => 1
-
-lemma isProbabilityMeasure_popLaw (Dsamp : Measure S) [IsProbabilityMeasure Dsamp] (ε : ℝ) (P : ℕ)
-    (past : List (Outcome S R)) (j : Option (Fin K × R)) :
-    IsProbabilityMeasure (popLaw Dsamp ε P past j) := by
-  have := isProbabilityMeasure_popMeasure Dsamp past j
-  unfold popLaw
-  split_ifs <;> infer_instance
-
-/-- The law the clustering's truncated draws have under i.i.d. streams. -/
-noncomputable def truncLaw (Dsamp Dsf : Measure S) (ε : ℝ) (M P : ℕ) (past : List (Outcome S R)) :
-    Measure (Trunc S K R M P) :=
-  ((Measure.pi fun _ : Fin M => Dsf).prod (Measure.pi (popLaw Dsamp ε P past))).prod
-    (Measure.pi (popLaw Dsamp ε P past))
-
 /-- The law of a round's clustering draws. -/
 noncomputable def clusterLaw (Dsamp Dsf : Measure S) (M : ℕ) : Measure (ClusterPart S K R M) :=
   (Measure.pi fun _ : Fin M => Dsf).prod
-    ((Measure.pi fun _ : Option (Fin K × R) => Measure.pi fun _ : Fin M => Dsamp).prod
-      (Measure.pi fun _ : Option (Fin K × R) => Measure.pi fun _ : Fin M => Dsamp))
+    ((Measure.pi fun _ : Pop K R => Measure.pi fun _ : Fin M => Dsamp).prod
+      (Measure.pi fun _ : Pop K R => Measure.pi fun _ : Fin M => Dsamp))
 
 instance isProbabilityMeasure_clusterLaw (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
     [IsProbabilityMeasure Dsf] (M : ℕ) :
     IsProbabilityMeasure (clusterLaw (K := K) (R := R) Dsamp Dsf M) := by
   unfold clusterLaw; infer_instance
-
-lemma isProbabilityMeasure_truncLaw (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
-    [IsProbabilityMeasure Dsf] (ε : ℝ) (M P : ℕ) (past : List (Outcome S R)) :
-    IsProbabilityMeasure (truncLaw (K := K) Dsamp Dsf ε M P past) := by
-  have := isProbabilityMeasure_popLaw (K := K) Dsamp ε P past
-  unfold truncLaw; infer_instance
-
-/-- `runMeasure` without the noise. -/
-noncomputable def runDraws {J : Type*} [Fintype J] (D : J → Measure S) (Dsf : Measure S) :
-    Measure (((ℕ → S) × (J → ℕ → S)) × (J → ℕ → S)) :=
-  ((Measure.infinitePi fun _ : ℕ => Dsf).prod
-    (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => D j)).prod
-    (Measure.pi fun j => Measure.infinitePi fun _ : ℕ => D j)
-
-lemma measurePreserving_truncR (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
-    [IsProbabilityMeasure Dsf] (ε : ℝ) (M P : ℕ) (past : List (Outcome S R)) :
-    MeasurePreserving (truncR M P (populationsAfter Dsamp ε past))
-      (runDraws (popMeasure Dsamp past) Dsf) (truncLaw (K := K) Dsamp Dsf ε M P past) := by
-  classical
-  have := isProbabilityMeasure_popMeasure (K := K) Dsamp past
-  have := isProbabilityMeasure_popLaw (K := K) Dsamp ε P past
-  have hj : ∀ j : Option (Fin K × R),
-      MeasurePreserving (streamTrunc P (populationsAfter Dsamp ε past) j)
-      (Measure.infinitePi fun _ : ℕ => popMeasure Dsamp past j) (popLaw Dsamp ε P past j) := by
-    intro j
-    unfold streamTrunc popLaw
-    by_cases hmem : j ∈ populationsAfter Dsamp ε past
-    · simp only [hmem, if_true]
-      exact measurePreserving_finRestrict _ P
-    · simp only [hmem, if_false]
-      refine ⟨measurable_const, ?_⟩
-      rw [Measure.map_const, measure_univ, one_smul]
-  exact ((measurePreserving_finRestrict Dsf M).prod (measurePreserving_pi _ _ hj)).prod
-    (measurePreserving_pi _ _ hj)
-
-/-- Population `j` has at least `P` hits among the draws `a`. -/
-def enoughAt (P : ℕ) (past : List (Outcome S R)) {M : ℕ} :
-    Option (Fin K × R) → (Fin M → S) → Prop
-  | none, _ => True
-  | some (i, h), a => ∀ o ∈ past[i.val]?, P ≤ hitCount o.1 h a
-
-/-- Every population has at least `P` hits among its prefix draws and its certification draws. -/
-def enoughSet (Dsamp : Measure S) (ε : ℝ) {M : ℕ} (P : ℕ) (past : List (Outcome S R)) :
-    Set (ClusterPart S K R M) :=
-  {e | ∀ j ∈ populationsAfter Dsamp ε past,
-    enoughAt P past j (e.2.1 j) ∧ enoughAt P past j (e.2.2 j)}
-
-lemma pi_padded_eq (Dsamp : Measure S) [IsProbabilityMeasure Dsamp] {M P : ℕ} (hPM : P ≤ M)
-    (t : Fin P → S) :
-    (Measure.pi fun _ : Fin M => Dsamp) {a | (fun i : Fin P => padded a i) = t}
-      = Measure.pi (fun _ : Fin P => Dsamp) {t} := by
-  have hM := measurePreserving_finRestrict Dsamp M
-  have hP := measurePreserving_finRestrict Dsamp P
-  rw [← hM.measure_preimage (Set.to_countable _).measurableSet.nullMeasurableSet,
-    ← hP.measure_preimage (measurableSet_singleton t).nullMeasurableSet]
-  congr 1
-  ext u
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_singleton_iff, funext_iff]
-  refine forall_congr' fun i => ?_
-  simp [padded, show (i : ℕ) < M by omega]
-
-omit [Fintype R] in
-lemma measure_fiber_le {M P : ℕ} (Dsamp : Measure S) [IsProbabilityMeasure Dsamp] (hPM : P ≤ M)
-    [Fintype R] {ε : ℝ} (past : List (Outcome S R))
-    (hpos : ∀ (i : Fin K) (h : R) o, past[i.val]? = some o →
-      ε / Fintype.card R ≤ Dsamp.real {v | o.1.state v = h} → Dsamp {v | o.1.state v = h} ≠ 0)
-    (j : Option (Fin K × R)) (t : Fin P → S) :
-    (Measure.pi fun _ : Fin M => Dsamp)
-        {a | (j ∈ populationsAfter Dsamp ε past → enoughAt P past j a)
-          ∧ popTrunc Dsamp ε P past j a = t}
-      ≤ popLaw Dsamp ε P past j {t} := by
-  classical
-  unfold popLaw
-  by_cases hj : j ∈ populationsAfter Dsamp ε past
-  · rw [if_pos hj]
-    rcases j with _ | ⟨i, h⟩
-    · refine (measure_mono fun a ha => ?_).trans (pi_padded_eq Dsamp hPM t).le
-      have := ha.2
-      simp only [popTrunc, if_pos hj] at this
-      exact this
-    · obtain ⟨o, ho, hho⟩ := (Finset.mem_filter.1 hj).2
-      have ho' : past[i.val]? = some o := by simpa using ho
-      have hpm : popMeasure Dsamp past (some (i, h)) = reaching o.1 Dsamp h := by
-        simp [popMeasure, ho']
-      have := isProbabilityMeasure_reaching o.1 Dsamp h
-      rw [hpm, Measure.pi_singleton]
-      refine (measure_mono fun a ha => ?_).trans (pi_hitsIn_le Dsamp o.1 h
-        (hpos i h o ho' hho) M P t)
-      obtain ⟨hen, ht⟩ := ha
-      refine ⟨hen hj o (by simp [ho']), ?_⟩
-      simpa [popTrunc, hj, populationDraws, ho'] using ht
-  · rw [if_neg hj]
-    by_cases ht : (fun _ : Fin P => (1 : S)) = t
-    · rw [Measure.dirac_apply_of_mem (by simp [ht])]
-      exact prob_le_one
-    · refine le_of_eq_of_le (measure_mono_null (fun a ha => ?_) measure_empty) zero_le
-      have := ha.2
-      simp only [popTrunc, if_neg hj] at this
-      exact ht this
-
-/-- With enough hits, the truncated draws are no likelier than under i.i.d. streams to take
-any value. -/
-lemma clusterLaw_fiber_le (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
-    [IsProbabilityMeasure Dsf] {M P : ℕ} (hPM : P ≤ M) {ε : ℝ} (past : List (Outcome S R))
-    (hpos : ∀ (i : Fin K) (h : R) o, past[i.val]? = some o →
-      ε / Fintype.card R ≤ Dsamp.real {v | o.1.state v = h} → Dsamp {v | o.1.state v = h} ≠ 0)
-    (s : Trunc S K R M P) :
-    clusterLaw Dsamp Dsf M (enoughSet Dsamp ε P past ∩ truncL Dsamp ε P past ⁻¹' {s})
-      ≤ truncLaw Dsamp Dsf ε M P past {s} := by
-  classical
-  have := isProbabilityMeasure_popLaw (K := K) Dsamp ε P past
-  set Aj : Option (Fin K × R) → (Fin P → S) → Set (Fin M → S) := fun j t =>
-    {a | (j ∈ populationsAfter Dsamp ε past → enoughAt P past j a)
-      ∧ popTrunc Dsamp ε P past j a = t}
-  have hsub : enoughSet Dsamp ε P past ∩ truncL Dsamp ε P past ⁻¹' {s}
-      ⊆ {s.1.1} ×ˢ (Set.univ.pi (fun j => Aj j (s.1.2 j))
-        ×ˢ Set.univ.pi (fun j => Aj j (s.2 j))) := by
-    rintro e ⟨hen, hs⟩
-    simp only [Set.mem_preimage, Set.mem_singleton_iff, truncL] at hs
-    rw [← hs]
-    refine ⟨rfl, fun j _ => ⟨fun hj => (hen j hj).1, rfl⟩, fun j _ => ⟨fun hj => (hen j hj).2, rfl⟩⟩
-  have hs : ({s} : Set (Trunc S K R M P))
-      = ({s.1.1} ×ˢ Set.univ.pi (fun j => {s.1.2 j})) ×ˢ Set.univ.pi (fun j => {s.2 j}) := by
-    ext x
-    simp only [Set.mem_singleton_iff, Set.mem_prod, Set.mem_pi, Set.mem_univ, forall_const]
-    constructor
-    · rintro rfl; exact ⟨⟨rfl, fun _ => rfl⟩, fun _ => rfl⟩
-    · rintro ⟨⟨h1, h2⟩, h3⟩
-      exact Prod.ext (Prod.ext h1 (funext h2)) (funext h3)
-  refine (measure_mono hsub).trans ?_
-  rw [hs, clusterLaw, truncLaw, Measure.prod_prod, Measure.prod_prod, Measure.prod_prod,
-    Measure.prod_prod, Measure.pi_pi, Measure.pi_pi, Measure.pi_pi, Measure.pi_pi, mul_assoc]
-  gcongr with j _ j _
-  · exact measure_fiber_le Dsamp hPM past hpos j (s.1.2 j)
-  · exact measure_fiber_le Dsamp hPM past hpos j (s.2 j)
-
-/-- A population short of hits: a Hoeffding tail per array. -/
-lemma clusterLaw_short_le (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
-    [IsProbabilityMeasure Dsf] {M P : ℕ} (hM : 1 ≤ M) (past : List (Outcome S R))
-    {ε : ℝ} (hP : (P : ℝ) ≤ M * ε / Fintype.card R) :
-    clusterLaw Dsamp Dsf M (enoughSet (K := K) Dsamp ε P past)ᶜ
-      ≤ ENNReal.ofReal (2 * Fintype.card (Option (Fin K × R))
-        * Real.exp (-2 * (M * ε / Fintype.card R - P) ^ 2 / M)) := by
-  classical
-  set tail := Real.exp (-2 * (M * ε / Fintype.card R - P) ^ 2 / M)
-  have hM0 : (0 : ℝ) < M := by exact_mod_cast hM
-  have harr : ∀ j ∈ populationsAfter (K := K) Dsamp ε past,
-      (Measure.pi fun _ : Fin M => Dsamp).real {a | ¬ enoughAt P past j a} ≤ tail := by
-    intro j hj
-    rcases j with _ | ⟨i, h⟩
-    · rw [show {a : Fin M → S | ¬ enoughAt P past (none : Option (Fin K × R)) a} = ∅ from
-        Set.eq_empty_of_forall_notMem fun a ha => ha trivial, measureReal_empty]
-      exact (Real.exp_pos _).le
-    obtain ⟨o, ho, hho⟩ := (Finset.mem_filter.1 hj).2
-    have ho' : past[i.val]? = some o := by simpa using ho
-    set W := {v : S | o.1.state v = h}
-    set q := Dsamp.real W
-    have hq : ε / Fintype.card R ≤ q := hho
-    have hPq : (P : ℝ) / M ≤ q := by
-      rw [div_le_iff₀ hM0]
-      calc (P : ℝ) ≤ M * ε / Fintype.card R := hP
-        _ = ε / Fintype.card R * M := by ring
-        _ ≤ q * M := by gcongr
-    have hsub : {a : Fin M → S | ¬ enoughAt P past (some (i, h)) a}
-        ⊆ {r | (((Finset.univ : Finset (Fin M)).filter (fun k => r k ∈ W)).card : ℝ)
-          ≤ (M : ℝ) * (q - (q - P / M))} := by
-      intro a ha
-      simp only [enoughAt, ho', Option.mem_def, Option.some.injEq, forall_eq', not_le,
-        Set.mem_ofPred_eq] at ha
-      rw [hitCount_eq_card] at ha
-      simp only [Set.mem_ofPred_eq]
-      rw [sub_sub_cancel, mul_div_cancel₀ _ hM0.ne']
-      exact_mod_cast ha.le
-    refine (measureReal_mono hsub (measure_ne_top _ _)).trans ?_
-    refine (pi_hits_lower Dsamp M W q (q - P / M) measureReal_nonneg (by linarith) le_rfl).trans ?_
-    refine Real.exp_le_exp.2 ?_
-    have h1 : 0 ≤ M * ε / Fintype.card R - P := by linarith
-    have h2 : M * ε / Fintype.card R - P ≤ M * q - P := by
-      have : M * ε / Fintype.card R = M * (ε / Fintype.card R) := by ring
-      rw [this]
-      nlinarith
-    have h3 : (M * ε / Fintype.card R - P) ^ 2 ≤ (M * q - P) ^ 2 := by nlinarith
-    have h4 : -2 * (M : ℝ) * (q - P / M) ^ 2 = -2 * (M * q - P) ^ 2 / M := by
-      field_simp
-    rw [h4]
-    exact div_le_div_of_nonneg_right (by nlinarith) hM0.le
-  have hproj1 : ∀ j, MeasurePreserving (fun e : ClusterPart S K R M => e.2.1 j)
-      (clusterLaw Dsamp Dsf M) (Measure.pi fun _ : Fin M => Dsamp) := fun j =>
-    (measurePreserving_eval _ j).comp (measurePreserving_fst.comp measurePreserving_snd)
-  have hproj2 : ∀ j, MeasurePreserving (fun e : ClusterPart S K R M => e.2.2 j)
-      (clusterLaw Dsamp Dsf M) (Measure.pi fun _ : Fin M => Dsamp) := fun j =>
-    (measurePreserving_eval _ j).comp (measurePreserving_snd.comp measurePreserving_snd)
-  have hsub : (enoughSet (M := M) Dsamp ε P past)ᶜ ⊆ ⋃ j ∈ populationsAfter (K := K) Dsamp ε past,
-      ((fun e : ClusterPart S K R M => e.2.1 j) ⁻¹' {a | ¬ enoughAt P past j a}
-        ∪ (fun e : ClusterPart S K R M => e.2.2 j) ⁻¹' {a | ¬ enoughAt P past j a}) := by
-    intro e he
-    simp only [enoughSet, Set.mem_compl_iff, Set.mem_ofPred_eq, not_forall, not_and_or] at he
-    obtain ⟨j, hj, h⟩ := he
-    exact Set.mem_biUnion hj h
-  rw [← ofReal_measureReal (μ := clusterLaw Dsamp Dsf M)]
-  refine ENNReal.ofReal_le_ofReal ?_
-  calc (clusterLaw Dsamp Dsf M).real (enoughSet (K := K) Dsamp ε P past)ᶜ
-      ≤ ∑ j ∈ populationsAfter (K := K) Dsamp ε past, (clusterLaw Dsamp Dsf M).real
-          ((fun e : ClusterPart S K R M => e.2.1 j) ⁻¹' {a | ¬ enoughAt P past j a}
-            ∪ (fun e : ClusterPart S K R M => e.2.2 j) ⁻¹' {a | ¬ enoughAt P past j a}) :=
-        (measureReal_mono hsub (measure_ne_top _ _)).trans (measureReal_biUnion_finset_le _ _)
-    _ ≤ ∑ _j ∈ populationsAfter (K := K) Dsamp ε past, 2 * tail := by
-        refine Finset.sum_le_sum fun j hj => (measureReal_union_le _ _).trans ?_
-        rw [(hproj1 j).measureReal_preimage (Set.to_countable _).measurableSet.nullMeasurableSet,
-          (hproj2 j).measureReal_preimage (Set.to_countable _).measurableSet.nullMeasurableSet]
-        linarith [harr j hj]
-    _ ≤ Fintype.card (Option (Fin K × R)) * (2 * tail) := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-        exact mul_le_mul_of_nonneg_right (by exact_mod_cast Finset.card_le_univ _)
-          (by positivity)
-    _ = _ := by ring
 
 lemma measure_mul_mem_le (ρ : Measure S) [IsFiniteMeasure ρ] {c : ℝ}
     (hc : ∀ a, ρ.real {a} ≤ c) (U : Finset S) (x : S) :
@@ -661,222 +465,40 @@ lemma prod_mul_mem_le (Dsf ρ : Measure S) [IsProbabilityMeasure Dsf] [IsFiniteM
   rw [measureReal_def]
   exact ENNReal.toReal_le_of_le_ofReal (by positivity) h
 
-/-- Some string the clustering reads is pinned: a prefix, or a prefix extended by a suffix,
-lands on one of `|U|` strings. -/
-lemma truncLaw_hit_le (Dsamp Dsf : Measure S) [IsProbabilityMeasure Dsamp]
-    [IsProbabilityMeasure Dsf] {M P : ℕ} (past : List (Outcome S R)) (U : Finset S)
-    {c : ℝ} (hc0 : 0 ≤ c)
-    (hc : ∀ j ∈ populationsAfter (K := K) Dsamp ε past, ∀ a,
-      (popMeasure Dsamp past j).real {a} ≤ c) :
-    (truncLaw (K := K) Dsamp Dsf ε M P past).real
-        {v | ¬ Disjoint U (truncReads (populationsAfter Dsamp ε past) v)}
-      ≤ 2 * Fintype.card (Option (Fin K × R)) * P * (M + 1) * U.card * c := by
-  classical
-  have := isProbabilityMeasure_popLaw (K := K) Dsamp ε P past
-  have := isProbabilityMeasure_popMeasure (K := K) Dsamp past
-  have := isProbabilityMeasure_truncLaw (K := K) Dsamp Dsf ε M P past
-  set L := truncLaw (K := K) Dsamp Dsf ε M P past
-  set pops := populationsAfter (K := K) Dsamp ε past
-  set E : Set (S × S) := {q | q.2 * q.1 ∈ U}
-  have hE : MeasurableSet E := (Set.to_countable E).measurableSet
-  have hUm : MeasurableSet (U : Set S) := (Set.to_countable _).measurableSet
-  have hB : ∀ j ∈ pops, ∀ i : Fin P, MeasurePreserving
-      (fun w : Option (Fin K × R) → Fin P → S => w j i) (Measure.pi (popLaw Dsamp ε P past))
-      (popMeasure Dsamp past j) := fun j hj i => by
-    have h1 := measurePreserving_eval (popLaw Dsamp ε P past) j
-    rw [show popLaw Dsamp ε P past j = Measure.pi fun _ : Fin P => popMeasure Dsamp past j
-      from if_pos hj] at h1
-    exact (measurePreserving_eval _ i).comp h1
-  have hU1 : ∀ j ∈ pops, (popMeasure Dsamp past j).real U ≤ U.card * c := fun j hj =>
-    calc (popMeasure Dsamp past j).real U ≤ (popMeasure Dsamp past j).real (⋃ v ∈ U, {v}) :=
-          measureReal_mono (fun v hv => by simpa using hv) (measure_ne_top _ _)
-      _ ≤ ∑ v ∈ U, (popMeasure Dsamp past j).real {v} := measureReal_biUnion_finset_le _ _
-      _ ≤ ∑ _v ∈ U, c := Finset.sum_le_sum fun v _ => hc j hj v
-      _ = U.card * c := by rw [Finset.sum_const, nsmul_eq_mul]
-  have hU2 : ∀ j ∈ pops, (Dsf.prod (popMeasure Dsamp past j)).real E ≤ U.card * c :=
-    fun j hj => prod_mul_mem_le Dsf _ hc0 (hc j hj) U
-  set A1 : Option (Fin K × R) → Fin P → Set (Trunc S K R M P) := fun j i =>
-    (fun v => v.1.2 j i) ⁻¹' U
-  set A2 : Option (Fin K × R) → Fin P → Set (Trunc S K R M P) := fun j i =>
-    (fun v => v.2 j i) ⁻¹' U
-  set A3 : Option (Fin K × R) → Fin P → Fin M → Set (Trunc S K R M P) := fun j i l =>
-    (fun v => (v.1.1 l, v.1.2 j i)) ⁻¹' E
-  set A4 : Option (Fin K × R) → Fin P → Fin M → Set (Trunc S K R M P) := fun j i l =>
-    (fun v => (v.1.1 l, v.2 j i)) ⁻¹' E
-  have h1 : ∀ j ∈ pops, ∀ i, L.real (A1 j i) ≤ U.card * c := fun j hj i =>
-    (((hB j hj i).comp (measurePreserving_snd.comp measurePreserving_fst)).measureReal_preimage
-      hUm.nullMeasurableSet).le.trans (hU1 j hj)
-  have h2 : ∀ j ∈ pops, ∀ i, L.real (A2 j i) ≤ U.card * c := fun j hj i =>
-    (((hB j hj i).comp measurePreserving_snd).measureReal_preimage
-      hUm.nullMeasurableSet).le.trans (hU1 j hj)
-  have h3 : ∀ j ∈ pops, ∀ i l, L.real (A3 j i l) ≤ U.card * c := fun j hj i l =>
-    ((((measurePreserving_eval _ l).prod (hB j hj i)).comp
-      measurePreserving_fst).measureReal_preimage hE.nullMeasurableSet).le.trans (hU2 j hj)
-  have h4 : ∀ j ∈ pops, ∀ i l, L.real (A4 j i l) ≤ U.card * c := fun j hj i l =>
-    ((((measurePreserving_eval _ l).comp measurePreserving_fst).prod
-      (hB j hj i)).measureReal_preimage hE.nullMeasurableSet).le.trans (hU2 j hj)
-  have hsub : {v | ¬ Disjoint U (truncReads pops v)}
-      ⊆ ⋃ j ∈ pops, ⋃ i : Fin P, (A1 j i ∪ A2 j i ∪ ⋃ l : Fin M, (A3 j i l ∪ A4 j i l)) := by
-    intro v hv
-    obtain ⟨w, hwU, hwR⟩ := Finset.not_disjoint_iff.1 hv
-    obtain ⟨⟨p, x⟩, hpx, rfl⟩ := Finset.mem_image.1 hwR
-    obtain ⟨hp, hx⟩ := Finset.mem_product.1 hpx
-    obtain ⟨j, hj, hp⟩ := Finset.mem_biUnion.1 hp
-    refine Set.mem_biUnion hj ?_
-    simp only [Set.mem_iUnion, Set.mem_union]
-    rcases Finset.mem_union.1 hp with hp | hp <;>
-      obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hp <;> refine ⟨i, ?_⟩ <;>
-      rcases Finset.mem_insert.1 hx with rfl | hx
-    · left; left; simpa [A1] using hwU
-    · obtain ⟨l, -, rfl⟩ := Finset.mem_image.1 hx
-      right; exact ⟨l, Or.inl hwU⟩
-    · left; right; simpa [A2] using hwU
-    · obtain ⟨l, -, rfl⟩ := Finset.mem_image.1 hx
-      right; exact ⟨l, Or.inr hwU⟩
-  have hpops : (pops.card : ℝ) ≤ Fintype.card (Option (Fin K × R)) := by
-    exact_mod_cast Finset.card_le_univ _
-  have hUc : 0 ≤ (U.card : ℝ) * c := by positivity
-  calc L.real {v | ¬ Disjoint U (truncReads pops v)}
-      ≤ ∑ j ∈ pops, L.real (⋃ i : Fin P, (A1 j i ∪ A2 j i ∪ ⋃ l : Fin M, (A3 j i l ∪ A4 j i l))) :=
-        (measureReal_mono hsub (measure_ne_top _ _)).trans (measureReal_biUnion_finset_le _ _)
-    _ ≤ ∑ _j ∈ pops, (P * ((2 + 2 * M) * (U.card * c)) : ℝ) := by
-        refine Finset.sum_le_sum fun j hj => (measureReal_iUnion_fintype_le _).trans ?_
-        calc ∑ i : Fin P, L.real (A1 j i ∪ A2 j i ∪ ⋃ l : Fin M, (A3 j i l ∪ A4 j i l))
-            ≤ ∑ _i : Fin P, ((2 + 2 * M) * (U.card * c) : ℝ) := by
-              refine Finset.sum_le_sum fun i _ => ?_
-              refine (measureReal_union_le _ _).trans ?_
-              have hl : L.real (⋃ l : Fin M, (A3 j i l ∪ A4 j i l)) ≤ M * (2 * (U.card * c)) :=
-                calc L.real (⋃ l : Fin M, (A3 j i l ∪ A4 j i l))
-                    ≤ ∑ l : Fin M, L.real (A3 j i l ∪ A4 j i l) := measureReal_iUnion_fintype_le _
-                  _ ≤ ∑ _l : Fin M, (2 * (U.card * c) : ℝ) := Finset.sum_le_sum fun l _ =>
-                      (measureReal_union_le _ _).trans (by linarith [h3 j hj i l, h4 j hj i l])
-                  _ = M * (2 * (U.card * c)) := by simp
-              linarith [measureReal_union_le (μ := L) (A1 j i) (A2 j i), h1 j hj i, h2 j hj i]
-          _ = P * ((2 + 2 * M) * (U.card * c)) := by simp
-    _ = pops.card * (P * ((2 + 2 * M) * (U.card * c))) := by
-        rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ Fintype.card (Option (Fin K × R)) * (P * ((2 + 2 * M) * (U.card * c))) :=
-        mul_le_mul_of_nonneg_right hpops (by positivity)
-    _ = _ := by ring
-
-/-- One round's clustering, on a pinned cell: it fails `QualityGood` no more often than i.i.d.
-streams under fresh noise do, beyond a population short of hits and a pinned string read. -/
+/-- One round's clustering, on a pinned cell, over populations whose harvests keep at least
+`π₀` of the sampler: it fails `QualityGood` no more often than i.i.d. streams under fresh noise
+do, beyond a population short of draws and a read landing where another read did. -/
 theorem cluster_cell_le (A : DFA S Q) (O : Oracle μ S) (Dsamp Dsf : Measure S)
     [IsProbabilityMeasure Dsamp] [IsProbabilityMeasure Dsf] (past : List (Outcome S R))
-    (states : Finset State) (il α tolerance εcov : ℝ) {M P : ℕ} (hM : 1 ≤ M) (hPM : P ≤ M)
-    (hst : ∀ B ∈ states, B.npref ≤ P ∧ B.nsuff ≤ M) {ε κ δc : ℝ} (hε : 0 < ε) (hκ : 0 ≤ κ)
-    (hP : (P : ℝ) ≤ M * ε / Fintype.card R)
+    (rd : Harvester S → S → (S → ℝ) → Finset S)
+    (states : Finset State) (il α tolerance εcov : ℝ) {M P Th : ℕ} (hM : 1 ≤ M) (hPM : P ≤ M)
+    (hst : ∀ B ∈ states, B.npref ≤ P ∧ B.nsuff ≤ M) {ε κ κh κf π₀ δc : ℝ} (hε : 0 < ε)
+    (hκ : 0 ≤ κ) (hP : (P : ℝ) ≤ M * ε / Fintype.card R) (hPπ : (P : ℝ) ≤ M * π₀)
+    (hπ₀ : 0 < π₀)
+    (hharv : ∀ o ∈ past, ∀ hv, o.2.2.2 = some hv → HarvReads hv (rd hv)
+      ∧ π₀ ≤ harvestYield O hv Dsamp
+      ∧ (∀ p f, (rd hv p f).card ≤ Th)
+      ∧ (∀ f t, Dsamp.real {p | t ∈ rd hv p f} ≤ κh)
+      ∧ ∀ p f a, hv p f = some a → a ∉ rd hv p f)
+    (hκf : ∀ a, Dsf.real {a} ≤ κf)
     (hatom : ∀ j ∈ populationsAfter (K := K) Dsamp ε past, ∀ a,
-      (popMeasure Dsamp past j).real {a} ≤ κ * Fintype.card R / ε)
-    (hbad : (runMeasure μ (popMeasure (K := K) Dsamp past) Dsf).real
-      {x | ¬ QualityGood A O (populationsAfter Dsamp ε past) (popMeasure Dsamp past) states il α
+      (popMeasure O Dsamp past j).real {a} ≤ κ * Fintype.card R / ε)
+    (hbad : (runMeasure μ (popMeasure (K := K) O Dsamp past) Dsf).real
+      {x | ¬ QualityGood A O (populationsAfter Dsamp ε past) (popMeasure O Dsamp past) states il α
         tolerance εcov x} ≤ δc)
     (U : Finset S) (b : S → ℝ) :
     ((μ.restrict (pinned O U b)).prod (clusterLaw (K := K) Dsamp Dsf M))
-        {q | ¬ QualityGood A O (populationsAfter Dsamp ε past) (popMeasure Dsamp past) states il α
-          tolerance εcov ((q.1, clusterDraws past q.2) : Run Ω S (Option (Fin K × R)))}
+        {q | ¬ QualityGood A O (populationsAfter Dsamp ε past) (popMeasure O Dsamp past) states
+          il α tolerance εcov ((q.1, clusterDraws O q.1 past q.2) : Run Ω S (Pop K R))}
       ≤ μ (pinned O U b) * ENNReal.ofReal (δc
-        + 2 * Fintype.card (Option (Fin K × R))
-          * Real.exp (-2 * (M * ε / Fintype.card R - P) ^ 2 / M)
-        + 2 * Fintype.card (Option (Fin K × R)) * M * (M + 1) * U.card
-          * (κ * Fintype.card R / ε)) := by
-  classical
-  have := isProbabilityMeasure_popMeasure (K := K) Dsamp past
-  have := isProbabilityMeasure_truncLaw (K := K) Dsamp Dsf ε M P past
-  set pops := populationsAfter (K := K) Dsamp ε past
-  set D := popMeasure (K := K) Dsamp past
-  set Good : Run Ω S (Option (Fin K × R)) → Prop :=
-    QualityGood A O pops D states il α tolerance εcov
-  set RV : Trunc S K R M P → Finset S := truncReads pops
-  set G : Set (Ω × Trunc S K R M P) :=
-    {q | q.1 ∈ noiseClean O (RV q.2) ∧ ¬ Good (q.1, untrunc q.2)}
-  set c := κ * Fintype.card R / ε
-  have hc0 : 0 ≤ c := by positivity
-  have hδ0 : 0 ≤ δc := le_trans measureReal_nonneg hbad
-  have hpos : ∀ (i : Fin K) (h : R) o, past[i.val]? = some o →
-      ε / Fintype.card R ≤ Dsamp.real {v | o.1.state v = h} → Dsamp {v | o.1.state v = h} ≠ 0 := by
-    intro i h o _ this h0
-    have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos_iff.2 ⟨h⟩
-    rw [measureReal_def, h0, ENNReal.toReal_zero] at this
-    exact absurd this (not_le.2 (div_pos hε hR))
-  have hGv : ∀ v, MeasurableSet[noiseAlg O ↑(RV v)] ((fun ω => (ω, v)) ⁻¹' G) := fun v => by
-    have := measurableSet_inter_noiseClean O (RV v) {ω | ¬ Good (ω, untrunc v)}
-      fun ω ω' h => not_congr (good_noise A O D pops states il α tolerance εcov hst v h)
-    convert this using 1
-    ext ω
-    simp only [G, Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_inter_iff]
-    exact and_comm
-  have hG : MeasurableSet G := by
-    have : G = ⋃ v, ((fun ω => (ω, v)) ⁻¹' G) ×ˢ {v} := by
-      ext ⟨ω, v⟩
-      simp only [Set.mem_iUnion, Set.mem_prod, Set.mem_preimage, Set.mem_singleton_iff]
-      exact ⟨fun h => ⟨v, h, rfl⟩, fun ⟨v', h, hv⟩ => hv ▸ h⟩
-    rw [this]
-    exact MeasurableSet.iUnion fun v =>
-      (noiseAlg_le O _ _ (hGv v)).prod (measurableSet_singleton v)
-  set N0 := {ω : Ω | ∃ s, ¬ (O.noise s ω = 0 ∨ O.noise s ω = 1)}
-  have hN0 : μ N0 = 0 := by
-    have : N0 = ⋃ s, {ω | ¬ (O.noise s ω = 0 ∨ O.noise s ω = 1)} := by
-      ext ω; simp only [N0, Set.mem_ofPred_eq, Set.mem_iUnion]
-    rw [this]
-    exact measure_iUnion_null fun s => ae_iff.1 (O.noise_bit s)
-  have hsub : {q : Ω × ClusterPart S K R M | ¬ Good (q.1, clusterDraws past q.2)}
-      ⊆ Prod.map id (truncL Dsamp ε P past) ⁻¹' G ∪ N0 ×ˢ Set.univ := by
-    rintro ⟨ω, e⟩ hq
-    by_cases h0 : ω ∈ N0
-    · exact Or.inr ⟨h0, trivial⟩
-    · left
-      refine ⟨fun s _ => ?_, ?_⟩
-      · by_contra hc; exact h0 ⟨s, hc⟩
-      · exact (not_congr (good_truncL A O D states il α tolerance εcov hst Dsamp ε past ω e)).1 hq
-  have hcouple := prod_preimage_le (μ.restrict (pinned O U b)) (clusterLaw (K := K) Dsamp Dsf M)
-    (truncLaw Dsamp Dsf ε M P past) (truncL Dsamp ε P past) (enoughSet Dsamp ε P past)
-    (fun s => clusterLaw_fiber_le Dsamp Dsf hPM (ε := ε) past hpos s) hG
-  have hpin := pinned_prod_le O U b (truncLaw (K := K) Dsamp Dsf ε M P past) RV hG hGv
-  have hrun : (μ.prod (truncLaw (K := K) Dsamp Dsf ε M P past)) G ≤ ENNReal.ofReal δc := by
-    have : IsProbabilityMeasure (runDraws D Dsf) := by unfold runDraws; infer_instance
-    have hmp := (MeasurePreserving.id μ).prod
-      (measurePreserving_truncR (K := K) Dsamp Dsf ε M P past)
-    rw [← hmp.measure_preimage hG.nullMeasurableSet]
-    have hb' : runMeasure μ D Dsf {x | ¬ Good x} ≤ ENNReal.ofReal δc :=
-      (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top _ _) hδ0).2 hbad
-    refine le_trans (measure_mono ?_) hb'
-    rintro ⟨ω, xd⟩ ⟨-, hq⟩
-    exact (not_congr (good_truncR A O D pops states il α tolerance εcov hst ω xd)).2 hq
-  have hhit : truncLaw (K := K) Dsamp Dsf ε M P past {v | ¬ Disjoint U (RV v)}
-      ≤ ENNReal.ofReal (2 * Fintype.card (Option (Fin K × R)) * M * (M + 1) * U.card * c) := by
-    rw [← ofReal_measureReal]
-    refine ENNReal.ofReal_le_ofReal ((truncLaw_hit_le Dsamp Dsf past U hc0 hatom).trans ?_)
-    have : (P : ℝ) ≤ M := by exact_mod_cast hPM
-    gcongr
-  have hshort := clusterLaw_short_le (K := K) Dsamp Dsf hM past hP
-  set tail := Real.exp (-2 * (M * ε / Fintype.card R - P) ^ 2 / M)
-  calc ((μ.restrict (pinned O U b)).prod (clusterLaw (K := K) Dsamp Dsf M))
-        {q | ¬ Good (q.1, clusterDraws past q.2)}
-      ≤ ((μ.restrict (pinned O U b)).prod (clusterLaw (K := K) Dsamp Dsf M))
-          (Prod.map id (truncL Dsamp ε P past) ⁻¹' G)
-        + ((μ.restrict (pinned O U b)).prod (clusterLaw (K := K) Dsamp Dsf M))
-          (N0 ×ˢ Set.univ) := (measure_mono hsub).trans (measure_union_le _ _)
-    _ ≤ (((μ.restrict (pinned O U b)).prod (truncLaw Dsamp Dsf ε M P past)) G
-          + μ (pinned O U b) * clusterLaw (K := K) Dsamp Dsf M (enoughSet Dsamp ε P past)ᶜ)
-          + 0 := by
-        gcongr
-        · refine hcouple.trans (le_of_eq ?_)
-          rw [Measure.restrict_apply_univ]
-        · rw [Measure.prod_prod]
-          exact le_of_eq (by rw [Measure.restrict_apply' (measurableSet_pinned O U b),
-            measure_mono_null Set.inter_subset_left hN0, zero_mul])
-    _ ≤ μ (pinned O U b) * (ENNReal.ofReal δc
-          + ENNReal.ofReal (2 * Fintype.card (Option (Fin K × R)) * M * (M + 1) * U.card * c))
-        + μ (pinned O U b) * ENNReal.ofReal (2 * Fintype.card (Option (Fin K × R)) * tail) := by
-        rw [add_zero]
-        gcongr
-        exact hpin.trans (by gcongr)
-    _ = _ := by
-        rw [← mul_add, ← ENNReal.ofReal_add hδ0 (by positivity), ← ENNReal.ofReal_add
-          (by positivity) (by positivity)]
-        congr 2
-        ring
+        + 2 * Fintype.card (Pop K R) * Real.exp (-2 * (M * ε / Fintype.card R - P) ^ 2 / M)
+        + 2 * Fintype.card (Pop K R) * Real.exp (-2 * (M * π₀ - P) ^ 2 / M)
+        + 2 * Fintype.card (Pop K R) * M * (M + 1) * U.card * (κ * Fintype.card R / ε)
+        + 2 * Fintype.card (Pop K R) * M
+          * (U.card + 2 * Fintype.card (Pop K R) * M * (M + 1)
+            + 2 * Fintype.card (Pop K R) * M * Th) * κh
+        + 2 * Fintype.card (Pop K R) * M * (M + 1) * Th * κf) := by
+  sorry
 
 end Round
 

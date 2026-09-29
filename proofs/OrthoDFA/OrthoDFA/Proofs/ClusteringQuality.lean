@@ -520,8 +520,8 @@ theorem clustering_correct_bad {Pre Suf : Set S} (O : Oracle μ S) (populations 
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
                 (clusterAt O.mq populations x B.val) p (oracleNoise x)}
-            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
-                ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
+            ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
+                (clusterAt O.mq populations x B.val) p (oracleNoise x)}
               ≤ 2 * indecisionLimit)} ≤ δ := by
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
   rw [O.apSet_eq] at hpAPBound

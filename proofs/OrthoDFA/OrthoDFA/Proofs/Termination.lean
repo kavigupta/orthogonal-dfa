@@ -205,6 +205,148 @@ lemma exists_heavy_badlyCut [Fintype Q] [Fintype R] (A : DFA S Q) (O : Oracle μ
         measureReal_mono (fun v hv => ⟨hv.1.2, hv.2⟩) (measure_ne_top _ _)
     _ ≤ stateMass A (reaching H Dsamp h) q := le_reaching_real hne0 _
 
+/-- A run on which none of the first `2·|Q| + 1` rounds returns breaks some round's spec. -/
+theorem exists_bad_round [Fintype Q] [Fintype R] {J Θ : Type*} (A : DFA S Q) (O : Oracle μ S)
+    (Dsamp : Measure S) (populations : Finset J) (D : J → Measure S)
+    (family : ℕ → Θ → State × Finset S) (hyp : ℕ → Θ → DFA S R) (gate : ℕ → Θ → Prop)
+    (fails : ℕ → Θ → Finset R) (harvest : ℕ → Θ → Measure S) (kept : ℕ → Θ → Prop)
+    {tolerance εcov indecisionLimit ε ζ x₀ θh wₛ : ℝ}
+    (hD : IsProbabilityMeasure Dsamp) (hε : 0 < ε) (hζ : 0 ≤ ζ) (htol : 0 < tolerance)
+    (hεcov : 0 ≤ εcov)
+    (hcC : 2 * εcov / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
+    (hcU : 4 * indecisionLimit / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
+    (hgC : 2 * εcov / tolerance < (x₀ - ε) / (Fintype.card R * Fintype.card Q))
+    (hgU : 4 * indecisionLimit / tolerance < (x₀ - ε) / (Fintype.card R * Fintype.card Q))
+    (hθC : 2 * εcov / tolerance ≤ θh) (hθU : 4 * indecisionLimit / tolerance ≤ θh)
+    (hmass : ∀ r θ, ∀ h ∈ fails r θ, ε / Fintype.card R ≤ Dsamp.real {v | (hyp r θ).state v = h})
+    (θ : Θ) (hall : ∀ r < 2 * Fintype.card Q + 1, ¬ gate r θ ∨ (fails r θ).Nonempty) :
+    ∃ r < 2 * Fintype.card Q + 1,
+      (∃ q,
+        ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+            2 * εcov / tolerance < stateMass A D' q)
+          ∧ ∃ p, A.state p = q
+            ∧ tolerance < miscutProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+        ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+            4 * indecisionLimit / tolerance < stateMass A D' q)
+          ∧ ∃ p, A.state p = q
+            ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p))
+      ∨ (gate r θ ∧ ζ < mislabelledWellCut A O tolerance (family r θ).1 (family r θ).2
+          (hyp r θ) Dsamp)
+      ∨ (¬ gate r θ
+        ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀
+        ∧ ¬ (kept r θ ∧ ∃ q, (∃ p, A.state p = q
+            ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+          ∧ θh < stateMass A (harvest r θ) q))
+      ∨ ∃ h ∈ fails r θ, minorityShare A (hyp r θ) Dsamp h < wₛ := by
+  classical
+  set x := (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q
+  have hx : 0 < x := lt_of_le_of_lt (div_nonneg (by linarith) htol.le) hcC
+  have hx₀ : 0 < (x₀ - ε) / (Fintype.card R * Fintype.card Q) :=
+    lt_of_le_of_lt (div_nonneg (by linarith) htol.le) hgC
+  let Cb : ℕ → Set Θ := fun r => {θ | ∃ q,
+      ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+          2 * εcov / tolerance < stateMass A D' q)
+        ∧ ∃ p, A.state p = q
+          ∧ tolerance < miscutProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+      ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+          4 * indecisionLimit / tolerance < stateMass A D' q)
+        ∧ ∃ p, A.state p = q
+          ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)}
+  let Sb : ℕ → Set Θ := fun r => {θ | gate r θ ∧ ζ < mislabelledWellCut A O tolerance
+      (family r θ).1 (family r θ).2 (hyp r θ) Dsamp}
+  let Gb : ℕ → Set Θ := fun r => {θ | ¬ gate r θ
+      ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀
+      ∧ ¬ (kept r θ ∧ ∃ q, (∃ p, A.state p = q
+          ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+        ∧ θh < stateMass A (harvest r θ) q)}
+  let Ab : ℕ → Set Θ := fun r => {θ | ∃ h ∈ fails r θ, minorityShare A (hyp r θ) Dsamp h < wₛ}
+  by_contra hne
+  have hnot : ∀ r < 2 * Fintype.card Q + 1,
+      ¬ (((θ ∈ Cb r ∨ θ ∈ Sb r) ∨ θ ∈ Gb r) ∨ θ ∈ Ab r) := fun r hr h =>
+    hne ⟨r, hr, by
+      rcases h with ((h | h) | h) | h
+      exacts [Or.inl h, Or.inr (Or.inl h), Or.inr (Or.inr (Or.inl h)),
+        Or.inr (Or.inr (Or.inr h))]⟩
+  have hgood : ∀ r < 2 * Fintype.card Q + 1,
+      θ ∉ Cb r ∧ θ ∉ Sb r ∧ θ ∉ Gb r ∧ θ ∉ Ab r := fun r hr =>
+    ⟨fun h => hnot r hr (Or.inl (Or.inl (Or.inl h))),
+      fun h => hnot r hr (Or.inl (Or.inl (Or.inr h))),
+      fun h => hnot r hr (Or.inl (Or.inr h)), fun h => hnot r hr (Or.inr h)⟩
+  let covC : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
+    ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+      2 * εcov / tolerance < stateMass A D' q
+  let covU : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
+    ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+      4 * indecisionLimit / tolerance < stateMass A D' q
+  have hpools : ∀ r, poolsAt populations D Dsamp ε hyp harvest kept r θ
+      ⊆ poolsAt populations D Dsamp ε hyp harvest kept (r + 1) θ := by
+    rintro r D' (h | ⟨i, hi, h'⟩ | ⟨i, hi, h'⟩)
+    exacts [Or.inl h, Or.inr (Or.inl ⟨i, Nat.lt_succ_of_lt hi, h'⟩),
+      Or.inr (Or.inr ⟨i, Nat.lt_succ_of_lt hi, h'⟩)]
+  have hmonoC : ∀ r, covC r ⊆ covC (r + 1) := fun r q hq => by
+    obtain ⟨D', hD', hm⟩ := (Finset.mem_filter.1 hq).2
+    exact Finset.mem_filter.2 ⟨Finset.mem_univ _, D', hpools r hD', hm⟩
+  have hmonoU : ∀ r, covU r ⊆ covU (r + 1) := fun r q hq => by
+    obtain ⟨D', hD', hm⟩ := (Finset.mem_filter.1 hq).2
+    exact Finset.mem_filter.2 ⟨Finset.mem_univ _, D', hpools r hD', hm⟩
+  have hgrow : ∀ r ≤ 2 * Fintype.card Q + 1, r ≤ (covC r).card + (covU r).card := by
+    intro r
+    induction r with
+    | zero => intro _; exact Nat.zero_le _
+    | succ r ih =>
+      intro hr
+      have hr' : r < 2 * Fintype.card Q + 1 := hr
+      have ih := ih hr'.le
+      obtain ⟨hCr, hSr, hGr, hAr⟩ := hgood r hr'
+      -- A new pool at round `r + 1`, heavy on a state the family cut badly at round `r`.
+      obtain ⟨D', hnew, q, hqC, hqU, p, hpq, hbad⟩ : ∃ D' ∈ poolsAt populations D Dsamp ε hyp
+          harvest kept (r + 1) θ, ∃ q, 2 * εcov / tolerance < stateMass A D' q
+            ∧ 4 * indecisionLimit / tolerance < stateMass A D' q
+            ∧ ∃ p, A.state p = q ∧ (tolerance < miscutProb O (family r θ).1.lo
+              (family r θ).1.hi (family r θ).2 p ∨ tolerance < undecidedProb O
+              (family r θ).1.lo (family r θ).1.hi (family r θ).2 p) := by
+        by_cases hg : gate r θ
+        · obtain ⟨h, hh⟩ := (hall r hr').resolve_left (not_not.2 hg)
+          have hwell : mislabelledWellCut A O tolerance (family r θ).1 (family r θ).2
+              (hyp r θ) Dsamp ≤ ζ := not_lt.1 fun hlt => hSr ⟨hg, hlt⟩
+          have hmin : wₛ ≤ minorityShare A (hyp r θ) Dsamp h :=
+            not_lt.1 fun hlt => hAr ⟨h, hh, hlt⟩
+          obtain ⟨q, hq, p, hpq, hbad⟩ := exists_heavy_badState A O (hyp r θ) h
+            (family r θ).1 (family r θ).2 hε hζ hx (hmass r θ h hh) hwell hmin
+          exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hmass r θ h hh, rfl⟩), q,
+            hcC.trans_le hq, hcU.trans_le hq, p, hpq, hbad⟩
+        · by_cases hk : kept r θ ∧ ∃ q, (∃ p, A.state p = q ∧ tolerance < undecidedProb O
+              (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+              ∧ θh < stateMass A (harvest r θ) q
+          · obtain ⟨hk, q, ⟨p, hpq, hbad⟩, hq⟩ := hk
+            exact ⟨_, Or.inr (Or.inr ⟨r, Nat.lt_succ_self r, hk, rfl⟩), q,
+              hθC.trans_lt hq, hθU.trans_lt hq, p, hpq, Or.inr hbad⟩
+          have hbc : x₀ ≤ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp :=
+            not_lt.1 fun hlt => hGr ⟨hg, hlt, hk⟩
+          obtain ⟨h, hh, q, hq, p, hpq, hbad⟩ := exists_heavy_badlyCut A O (hyp r θ)
+            (family r θ).1 (family r θ).2 hε hx₀ hbc
+          exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hh, rfl⟩), q, hgC.trans_le hq,
+            hgU.trans_le hq, p, hpq, hbad⟩
+      rcases hbad with hbad | hbad
+      · have hout : q ∉ covC r := fun hin =>
+          hCr ⟨q, Or.inl ⟨(Finset.mem_filter.1 hin).2, p, hpq, hbad⟩⟩
+        have hin : q ∈ covC (r + 1) := Finset.mem_filter.2 ⟨Finset.mem_univ _, _, hnew, hqC⟩
+        have h1 := Finset.card_lt_card
+          ((Finset.ssubset_iff_of_subset (hmonoC r)).2 ⟨q, hin, hout⟩)
+        have h2 := Finset.card_le_card (hmonoU r)
+        omega
+      · have hout : q ∉ covU r := fun hin =>
+          hCr ⟨q, Or.inr ⟨(Finset.mem_filter.1 hin).2, p, hpq, hbad⟩⟩
+        have hin : q ∈ covU (r + 1) := Finset.mem_filter.2 ⟨Finset.mem_univ _, _, hnew, hqU⟩
+        have h1 := Finset.card_lt_card
+          ((Finset.ssubset_iff_of_subset (hmonoU r)).2 ⟨q, hin, hout⟩)
+        have h2 := Finset.card_le_card (hmonoC r)
+        omega
+  have h1 := hgrow _ le_rfl
+  have h2 := Finset.card_le_univ (covC (2 * Fintype.card Q + 1))
+  have h3 := Finset.card_le_univ (covU (2 * Fintype.card Q + 1))
+  omega
+
 /-- `Termination`, with the specs asked of the first `2·|Q| + 1` rounds only. -/
 theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace Θ]
     (P : Measure Θ) [IsProbabilityMeasure P] (A : DFA S Q) (O : Oracle μ S) (Dsamp : Measure S)
@@ -266,88 +408,11 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
   have hsub : {θ | ∀ r < 2 * Fintype.card Q + 1, ¬ gate r θ ∨ (fails r θ).Nonempty}
       ⊆ ⋃ r ∈ Finset.range (2 * Fintype.card Q + 1), (Cb r ∪ Sb r ∪ Gb r ∪ Ab r) := by
     intro θ hall
-    replace hall : ∀ r < 2 * Fintype.card Q + 1, ¬ gate r θ ∨ (fails r θ).Nonempty := hall
-    by_contra hnot
-    simp only [Set.mem_iUnion, Finset.mem_range, not_exists] at hnot
-    have hgood : ∀ r < 2 * Fintype.card Q + 1,
-        θ ∉ Cb r ∧ θ ∉ Sb r ∧ θ ∉ Gb r ∧ θ ∉ Ab r := fun r hr =>
-      ⟨fun h => hnot r hr (Or.inl (Or.inl (Or.inl h))),
-        fun h => hnot r hr (Or.inl (Or.inl (Or.inr h))),
-        fun h => hnot r hr (Or.inl (Or.inr h)), fun h => hnot r hr (Or.inr h)⟩
-    let covC : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
-      ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
-        2 * εcov / tolerance < stateMass A D' q
-    let covU : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
-      ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
-        4 * indecisionLimit / tolerance < stateMass A D' q
-    have hpools : ∀ r, poolsAt populations D Dsamp ε hyp harvest kept r θ
-        ⊆ poolsAt populations D Dsamp ε hyp harvest kept (r + 1) θ := by
-      rintro r D' (h | ⟨i, hi, h'⟩ | ⟨i, hi, h'⟩)
-      exacts [Or.inl h, Or.inr (Or.inl ⟨i, Nat.lt_succ_of_lt hi, h'⟩),
-        Or.inr (Or.inr ⟨i, Nat.lt_succ_of_lt hi, h'⟩)]
-    have hmonoC : ∀ r, covC r ⊆ covC (r + 1) := fun r q hq => by
-      obtain ⟨D', hD', hm⟩ := (Finset.mem_filter.1 hq).2
-      exact Finset.mem_filter.2 ⟨Finset.mem_univ _, D', hpools r hD', hm⟩
-    have hmonoU : ∀ r, covU r ⊆ covU (r + 1) := fun r q hq => by
-      obtain ⟨D', hD', hm⟩ := (Finset.mem_filter.1 hq).2
-      exact Finset.mem_filter.2 ⟨Finset.mem_univ _, D', hpools r hD', hm⟩
-    have hgrow : ∀ r ≤ 2 * Fintype.card Q + 1, r ≤ (covC r).card + (covU r).card := by
-      intro r
-      induction r with
-      | zero => intro _; exact Nat.zero_le _
-      | succ r ih =>
-        intro hr
-        have hr' : r < 2 * Fintype.card Q + 1 := hr
-        have ih := ih hr'.le
-        obtain ⟨hCr, hSr, hGr, hAr⟩ := hgood r hr'
-        -- A new pool at round `r + 1`, heavy on a state the family cut badly at round `r`.
-        obtain ⟨D', hnew, q, hqC, hqU, p, hpq, hbad⟩ : ∃ D' ∈ poolsAt populations D Dsamp ε hyp
-            harvest kept (r + 1) θ, ∃ q, 2 * εcov / tolerance < stateMass A D' q
-              ∧ 4 * indecisionLimit / tolerance < stateMass A D' q
-              ∧ ∃ p, A.state p = q ∧ (tolerance < miscutProb O (family r θ).1.lo
-                (family r θ).1.hi (family r θ).2 p ∨ tolerance < undecidedProb O
-                (family r θ).1.lo (family r θ).1.hi (family r θ).2 p) := by
-          by_cases hg : gate r θ
-          · obtain ⟨h, hh⟩ := (hall r hr').resolve_left (not_not.2 hg)
-            have hwell : mislabelledWellCut A O tolerance (family r θ).1 (family r θ).2
-                (hyp r θ) Dsamp ≤ ζ := not_lt.1 fun hlt => hSr ⟨hg, hlt⟩
-            have hmin : wₛ ≤ minorityShare A (hyp r θ) Dsamp h :=
-              not_lt.1 fun hlt => hAr ⟨h, hh, hlt⟩
-            obtain ⟨q, hq, p, hpq, hbad⟩ := exists_heavy_badState A O (hyp r θ) h
-              (family r θ).1 (family r θ).2 hε hζ hx (hmass r θ h hh) hwell hmin
-            exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hmass r θ h hh, rfl⟩), q,
-              hcC.trans_le hq, hcU.trans_le hq, p, hpq, hbad⟩
-          · by_cases hk : kept r θ ∧ ∃ q, (∃ p, A.state p = q ∧ tolerance < undecidedProb O
-                (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
-                ∧ θh < stateMass A (harvest r θ) q
-            · obtain ⟨hk, q, ⟨p, hpq, hbad⟩, hq⟩ := hk
-              exact ⟨_, Or.inr (Or.inr ⟨r, Nat.lt_succ_self r, hk, rfl⟩), q,
-                hθC.trans_lt hq, hθU.trans_lt hq, p, hpq, Or.inr hbad⟩
-            have hbc : x₀ ≤ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp :=
-              not_lt.1 fun hlt => hGr ⟨hg, hlt, hk⟩
-            obtain ⟨h, hh, q, hq, p, hpq, hbad⟩ := exists_heavy_badlyCut A O (hyp r θ)
-              (family r θ).1 (family r θ).2 hε hx₀ hbc
-            exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hh, rfl⟩), q, hgC.trans_le hq,
-              hgU.trans_le hq, p, hpq, hbad⟩
-        rcases hbad with hbad | hbad
-        · have hout : q ∉ covC r := fun hin =>
-            hCr ⟨q, Or.inl ⟨(Finset.mem_filter.1 hin).2, p, hpq, hbad⟩⟩
-          have hin : q ∈ covC (r + 1) := Finset.mem_filter.2 ⟨Finset.mem_univ _, _, hnew, hqC⟩
-          have h1 := Finset.card_lt_card
-            ((Finset.ssubset_iff_of_subset (hmonoC r)).2 ⟨q, hin, hout⟩)
-          have h2 := Finset.card_le_card (hmonoU r)
-          omega
-        · have hout : q ∉ covU r := fun hin =>
-            hCr ⟨q, Or.inr ⟨(Finset.mem_filter.1 hin).2, p, hpq, hbad⟩⟩
-          have hin : q ∈ covU (r + 1) := Finset.mem_filter.2 ⟨Finset.mem_univ _, _, hnew, hqU⟩
-          have h1 := Finset.card_lt_card
-            ((Finset.ssubset_iff_of_subset (hmonoU r)).2 ⟨q, hin, hout⟩)
-          have h2 := Finset.card_le_card (hmonoC r)
-          omega
-    have h1 := hgrow _ le_rfl
-    have h2 := Finset.card_le_univ (covC (2 * Fintype.card Q + 1))
-    have h3 := Finset.card_le_univ (covU (2 * Fintype.card Q + 1))
-    omega
+    obtain ⟨r, hr, h⟩ := exists_bad_round A O Dsamp populations D family hyp gate fails harvest
+      kept hD hε hζ htol hεcov hcC hcU hgC hgU hθC hθU hmass θ hall
+    refine Set.mem_biUnion (Finset.mem_range.2 hr) ?_
+    rcases h with h | h | h | h
+    exacts [Or.inl (Or.inl (Or.inl h)), Or.inl (Or.inl (Or.inr h)), Or.inl (Or.inr h), Or.inr h]
   calc P.real {θ | ∀ r < 2 * Fintype.card Q + 1, ¬ gate r θ ∨ (fails r θ).Nonempty}
       ≤ P.real (⋃ r ∈ Finset.range (2 * Fintype.card Q + 1), (Cb r ∪ Sb r ∪ Gb r ∪ Ab r)) :=
         measureReal_mono hsub (measure_ne_top _ _)
