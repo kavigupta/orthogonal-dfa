@@ -21,8 +21,8 @@ half-gap `(1 − ηIn − ηOut)/2`.
 Known modelling gap.  The Python reads the family with a calibrated band around the
 boundary; here the band is one count.
 
-Known modelling gap.  The cut here reads the family without its seed `ε`, as `judge_family`
-does, where `SuffixFamily.is_accept` reads it with.
+Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
+it and `SuffixFamily.is_accept` reads it.
 -/
 
 namespace OrthoDFA
@@ -111,6 +111,7 @@ structure State where
   nsuff : ℕ
   /-- How many prefixes each population has drawn. -/
   npref : ℕ
+  /-- The cluster's size, seed included. -/
   k : ℕ
   /-- `identify_cluster_around`'s `decision_boundary`, as the ratio `cn/cd`: `p` is on the
   accept side when `cn · #F < cd · voteCount F p`. -/
@@ -230,10 +231,11 @@ noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands :
     (k : ℕ) : Finset S :=
   (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
 
+/-- The cluster without its seed. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  clusterAround mq B.cn B.cd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
-    (oracleNoise x) B.k
+  (clusterAround mq B.cn B.cd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+    (oracleNoise x) B.k).erase 1
 
 /-! ### The cut -/
 
@@ -258,8 +260,8 @@ noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
 /-- The prefixes the cut accepts, and all the prefixes it decides. -/
 noncomputable def cutSides (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
     Finset S × Finset S :=
-  (P.filter (fun p => hi - 1 < voteCount mq F p ω),
-    P.filter (fun p => hi - 1 < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
+  (P.filter (fun p => hi < voteCount mq F p ω),
+    P.filter (fun p => hi < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
 
 /-- The accept side's hits plus the reject side's misses. -/
 noncomputable def agreeOf (A Dset U : Finset S) : ℕ :=
@@ -282,17 +284,16 @@ def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-gate and the accept-preserving gate, each per population on `certOf`.  Both read the vote with
-the seed dropped, since `ε` would put `mq p` itself in it. -/
+gate and the accept-preserving gate, each per population on `certOf`. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
-  {x | B.k ≤ (clusterAt mq populations x B).card
+  {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi - 1)
-          ((clusterAt mq populations x B).erase 1) p (oracleNoise x))).card : ℝ)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo B.hi
+          (clusterAt mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
-        ((clusterAt mq populations x B).erase 1) (certOf j B.npref x) (oracleNoise x)}
+        (clusterAt mq populations x B) (certOf j B.npref x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -366,10 +367,10 @@ def ClusteringGuarantee : Prop :=
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
-                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi - 1)
-                    ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
-                ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
-                    ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
+                ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
+                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+                ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
+                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
 end OrthoDFA

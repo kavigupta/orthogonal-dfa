@@ -27,14 +27,13 @@ variable {Q : Type*} [Fintype Q]
 /-- The state a prefix reaches. -/
 def DFA.state (A : DFA S Q) (p : S) : Q := A.step A.start p
 
-/-- The chance, over the oracle's noise, that `F`, read as the gate reads it, decides `p` on the
-wrong side. -/
+/-- The chance, over the oracle's noise, that `F` decides `p` on the wrong side. -/
 noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
-  μ.real {ω | ¬ cutCorrect O lo (hi - 1) (F.erase 1) p ω}
+  μ.real {ω | ¬ cutCorrect O lo hi F p ω}
 
-/-- The chance that `F`, read as the gate reads it, leaves `p` undecided. -/
+/-- The chance that `F` leaves `p` undecided. -/
 noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
-  μ.real {ω | ¬ decided O.mq lo (hi - 1) (F.erase 1) p ω}
+  μ.real {ω | ¬ decided O.mq lo hi F p ω}
 
 open scoped Classical in
 /-- `(states F cuts wrongly, states F leaves undecided)`, ordered componentwise.  A state counts
