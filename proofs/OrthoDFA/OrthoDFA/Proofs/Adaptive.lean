@@ -516,7 +516,8 @@ lemma flipBudget_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
     (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     0 < flipBudget η₀ populations indecisionLimit εcov δ := by
   rw [flipBudget]
-  exact div_pos (mul_pos (cutBudget_pos η₀ hsig hε hind) (flipFrac_pos η₀ hsig))
+  exact div_pos
+    (mul_pos (mul_pos (by norm_num) (cutBudget_pos η₀ hsig hε hind)) (flipFrac_pos η₀ hsig))
     (mul_pos (by norm_num) hcard)
 
 lemma screenMargin_pos (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
@@ -7345,11 +7346,10 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
         ≤ δ / (128 * (populations.card : ℝ))
     ∧ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
         * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
-          * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2)
+          * (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
     ∧ Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
-        * (cutBudget η₀
-      indecisionLimit εcov / 4) ^ 2)
+        * (cutBudget η₀ indecisionLimit εcov / 32) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
     ∧ (populations.card : ℝ) * (((populations.card : ℝ) + 3)
         * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) ^ 2 * ρ) ≤ δ
@@ -7359,8 +7359,7 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
         ≤ δ / 64 := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
-  have hΔ : 0 < flipBudget η₀ populations indecisionLimit εcov δ :=
-    flipBudget_pos η₀ populations hsig hε hind hcard
+  have hf : 0 < flipFrac η₀ := flipFrac_pos η₀ hsig
   have hγ : 0 < screenMargin η₀ populations indecisionLimit εcov δ :=
     screenMargin_pos η₀ populations hsig hε hind hcard
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
@@ -7391,7 +7390,7 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
       rw [hmdef, prefCount, ← hMdef]; omega
     exact_mod_cast hle
   have cdirty : Real.log (((M : ℝ) + 1) / ε₀)
-      / (2 * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2)
+      / (2 * (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2)
       ≤ (m : ℝ) := by
     have heq : ((M : ℝ) + 1) / ε₀
         = 128 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ := by
@@ -7399,17 +7398,17 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     rw [heq]
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (128 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2)⌉₊ ≤
+        / (2 * (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2)⌉₊ ≤
           m := by
       rw [hmdef, prefCount, ← hMdef]; omega
     exact_mod_cast hle
-  have cth : Real.log (1 / ε₀) / (2 * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2) ≤ (m : ℝ) := by
+  have cth : Real.log (1 / ε₀) / (2 * (cutBudget η₀ indecisionLimit εcov / 32) ^ 2) ≤ (m : ℝ) := by
     have heq : (1 : ℝ) / ε₀ = 128 * (populations.card : ℝ) / δ := by
       rw [hε₀def]; field_simp
     rw [heq]
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ)
-        / (2 * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2)⌉₊ ≤ m := by
+        / (2 * (cutBudget η₀ indecisionLimit εcov / 32) ^ 2)⌉₊ ≤ m := by
       rw [hmdef, prefCount]; omega
     exact_mod_cast hle
   -- the tails those counts kill
@@ -7420,14 +7419,14 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
       * Real.exp (-2 * (m : ℝ) * (screenMargin η₀ populations indecisionLimit εcov δ / 2) ^ 2)
       ≤ ε₀ := tail_le_of_count (by positivity) hε₀ (by positivity) cscr
   have tdirty : ((M : ℝ) + 1) * Real.exp (-2 * (m : ℝ)
-      * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2) ≤ ε₀ :=
+      * (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2) ≤ ε₀ :=
     tail_le_of_count (by positivity) hε₀ (by linarith) cdirty
   have tdirty' : (M : ℝ) * Real.exp (-2 * (m : ℝ)
-      * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2) ≤ ε₀ := by
+      * (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) ^ 2) ≤ ε₀ := by
     refine le_trans ?_ tdirty
     exact mul_le_mul_of_nonneg_right (by linarith) (Real.exp_nonneg _)
-  have tth : Real.exp (-2 * (m : ℝ) * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2) ≤ ε₀ := by
-    have h := tail_le_of_count (γ := cutBudget η₀ indecisionLimit εcov / 4) (c := 1) (by
+  have tth : Real.exp (-2 * (m : ℝ) * (cutBudget η₀ indecisionLimit εcov / 32) ^ 2) ≤ ε₀ := by
+    have h := tail_le_of_count (γ := cutBudget η₀ indecisionLimit εcov / 32) (c := 1) (by
       positivity) hε₀
       (by norm_num) cth
     linarith
@@ -7487,14 +7486,14 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     (populations.card : ℝ)
         * roundFail populations (indecisionLimit / 2) (cutBudget η₀ indecisionLimit εcov)
             (sig η₀ * εcov / 4)
-            (cutBudget η₀ indecisionLimit εcov / 4)
+            (cutBudget η₀ indecisionLimit εcov / 32)
             (Real.exp (-2
               * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).k
                   - 1 : ℕ) : ℝ)
               * (voteSlack η₀ / 2) ^ 2))
             (screenMargin η₀ populations indecisionLimit εcov δ / 2)
             (screenMargin η₀ populations indecisionLimit εcov δ / 2)
-            ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ)
+            (3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32)
             (pAP / 2) ρ ρsf
             ⌊(1 - indecisionLimit)
               * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref :
@@ -7647,12 +7646,8 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     rw [screenMargin, validMargin]
     nlinarith [mul_le_mul_of_nonneg_right hflipv (sq_nonneg (sig η₀)),
       flipBudget_pos (δ := δ) η₀ populations hsig hε hind hcard, sq_nonneg (sig η₀)]
-  have hmdirty : (populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ
+  have hmdirty : 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32
       ≤ εcov * validFrac η₀ / 16 := by
-    rw [flipBudget]
-    rw [show (populations.card : ℝ) * (cutBudget η₀ indecisionLimit εcov * flipFrac η₀
-        / (3 * (populations.card : ℝ))) = cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 3 by
-      field_simp]
     nlinarith [mul_le_mul_of_nonneg_right hcle.1 hf.le,
       mul_le_mul_of_nonneg_left (flipFrac_le_validFrac η₀ hsig) hε.le]
   have tscr' : ((M : ℝ) + 2) ^ 2
@@ -7660,8 +7655,7 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     le_trans (mul_le_mul_of_nonneg_left (exp_tail_anti hmR (by positivity) hmscr)
       (by positivity)) tscr
   have tdirty'' : (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2) ≤ ε₀ :=
-    le_trans (mul_le_mul_of_nonneg_left (exp_tail_anti hmR
-      (mul_nonneg hcard.le (flipBudget_pos (δ := δ) η₀ populations hsig hε hind hcard).le) hmdirty)
+    le_trans (mul_le_mul_of_nonneg_left (exp_tail_anti hmR (by positivity) hmdirty)
       (Nat.cast_nonneg _)) tdirty'
   have tsix : Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
@@ -8066,10 +8060,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊]
   clear_value B b κ m x
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_, ?_⟩⟩,
-    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 4, pAP / 2,
+    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, pAP / 2,
     voteSlack η₀ / 2, screenMargin η₀ populations indecisionLimit εcov δ / 2,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
-    (populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ,
+    3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32,
     flipBudget η₀ populations indecisionLimit εcov δ, cutBudget η₀ indecisionLimit εcov, flipFrac
       η₀,
     ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
@@ -8109,7 +8103,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · exact (half_pos hv).le
   · linarith [hγ.le]
   · linarith [hγ.le]
-  · exact mul_nonneg hcard.le hΔ.le
+  · have := flipFrac_pos η₀ hη₀
+    positivity
   · exact hΔ
   · exact flipFrac_pos η₀ hη₀
   · linarith
@@ -8121,8 +8116,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · have hne : ((populations.card : ℝ)) ≠ 0 := ne_of_gt hcard
     have hFne : flipFrac η₀ ≠ 0 := ne_of_gt (flipFrac_pos η₀ hη₀)
     have hid : ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ
-        + (populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) / flipFrac η₀
-        = cutBudget η₀ indecisionLimit εcov * (2 / 3) := by
+        + 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32) / flipFrac η₀
+        = cutBudget η₀ indecisionLimit εcov * (31 / 32) := by
       rw [flipBudget]
       field_simp
       ring
