@@ -288,8 +288,8 @@ def ClusteringCorrect : Prop :=
         (collisionMass Dsf)},
         x ∈ ret O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+          ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi - 1)
+              ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
               ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}

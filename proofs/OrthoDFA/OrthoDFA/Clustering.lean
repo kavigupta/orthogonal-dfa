@@ -20,6 +20,9 @@ half-gap `(1 − ηIn − ηOut)/2`.
 
 Known modelling gap.  The Python reads the family with a calibrated band around the
 boundary; here the band is one count.
+
+Known modelling gap.  The cut here reads the family without its seed `ε`, as `judge_family`
+does, where `SuffixFamily.is_accept` reads it with.
 -/
 
 namespace OrthoDFA
@@ -363,8 +366,8 @@ def ClusteringGuarantee : Prop :=
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
-                ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi - 1)
+                    ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
                 ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
                     ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}

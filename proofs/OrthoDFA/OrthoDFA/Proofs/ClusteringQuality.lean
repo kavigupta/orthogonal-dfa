@@ -135,8 +135,8 @@ lemma miscutProb_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state 
     miscutProb O lo hi G p = miscutProb O lo hi G p' := by
   classical
   have hl : O.label p = O.label p' := by simpa using label_mul_congr A O hL h 1
-  have e := measureReal_filter_congr O G (label_mul_congr A O hL h)
-    (fun U => ¬ ((hi < U.card → O.label p' = 1) ∧ (U.card ≤ lo → O.label p' = 0)))
+  have e := measureReal_filter_congr O (G.erase 1) (label_mul_congr A O hL h)
+    (fun U => ¬ ((hi - 1 < U.card → O.label p' = 1) ∧ (U.card ≤ lo → O.label p' = 0)))
   unfold miscutProb cutCorrect voteCount
   rw [hl]
   convert e using 1
@@ -544,13 +544,15 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     fun j => exists_finset_tail (D j) Pre (by positivity)
   choose F hFPre hFtail using hF
   set EvC : State → Finset S → S → Ω → Prop :=
-    fun B G p ω => ¬ cutCorrect O B.lo B.hi G p ω with hEvC
+    fun B G p ω => ¬ cutCorrect O B.lo (B.hi - 1) (G.erase 1) p ω with hEvC
   set EvU : State → Finset S → S → Ω → Prop :=
     fun B G p ω => ¬ decided O.mq B.lo (B.hi - 1) (G.erase 1) p ω with hEvU
   have hEvCm : ∀ B A₀ p (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
       MeasurableSet[noiseAlg O U] {ω | EvC B A₀ p ω} := fun B A₀ p U hU =>
-    measurableSet_filter_pred_map O (T := U) (fun v => p * v) hU
-      (fun W => ¬ ((B.hi < Finset.card W → O.label p = 1) ∧ (Finset.card W ≤ B.lo → O.label p = 0)))
+    measurableSet_filter_pred_map O (T := U) (A := A₀.erase 1) (fun v => p * v)
+      (fun v hv => hU v (Finset.mem_of_mem_erase hv))
+      (fun W => ¬ ((B.hi - 1 < Finset.card W → O.label p = 1)
+        ∧ (Finset.card W ≤ B.lo → O.label p = 0)))
   have hEvUm : ∀ B A₀ p (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
       MeasurableSet[noiseAlg O U] {ω | EvU B A₀ p ω} := fun B A₀ p U hU =>
     measurableSet_filter_pred_map O (T := U) (A := A₀.erase 1) (fun v => p * v)
@@ -613,8 +615,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           x ∈ ret O.mq populations indecisionLimit α B.val) ∧
         ∀ B : {B : State // B ∈ states}, x ∈ ret O.mq populations indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
-            ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+            ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi - 1)
+                ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
                 ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
               ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
@@ -679,8 +681,9 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       (devAt O populations B.val (D j) (F j) (EvC B.val) x) rfl
     have hdev : devAt O populations B.val (D j) (F j) (EvC B.val) x < εcov / 2 :=
       not_le.1 (hnb j hj).1
-    have hreal : (D j).real {p | ¬ cutCorrect O B.val.lo B.val.hi G p (oracleNoise x)}
-        ≤ εcov := by
+    have hreal :
+        (D j).real {p | ¬ cutCorrect O B.val.lo (B.val.hi - 1) (G.erase 1) p (oracleNoise x)}
+          ≤ εcov := by
       rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _),
         probReal_univ]
       linarith [(hgood j hj).1]
