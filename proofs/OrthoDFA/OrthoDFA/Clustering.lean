@@ -316,8 +316,8 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
-of it undecided; no state draws more prefixes than the count below, for one constant `k`
-across every input.
+of it undecided; no state draws more prefixes than the count below, nor asks for a family or a
+suffix pool larger than the sizes below, for one constant `k` across every input.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
@@ -361,6 +361,12 @@ def ClusteringGuarantee : Prop :=
           )
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
+        (∀ B ∈ states,
+          (B.k : ℝ) ≤ k * Real.log (2 / min εcov (min (1 / 2 - η₀) indecisionLimit))
+            / (1 / 2 - η₀) ^ 2
+          ∧ (B.nsuff : ℝ) ≤ k * (Real.log (2 / min εcov (min (1 / 2 - η₀) indecisionLimit))
+              / ((1 / 2 - η₀) ^ 2 * pAP)
+            + Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)
