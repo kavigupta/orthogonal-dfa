@@ -563,7 +563,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
         / (sig η ^ 6 * min εcov indecisionLimit ^ 2) := by
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   have hvm : validMargin η populations εcov
-      = εcov * validFrac η * sig η ^ 2 / (2 * (populations.card : ℝ)) := by
+      = 77 * εcov * validFrac η * sig η ^ 2 / (64 * (populations.card : ℝ)) := by
     rw [validMargin, validFlip]; ring
   rw [validCount]
   push_cast
@@ -605,28 +605,28 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
   have hg1 : μ * s ^ 3 ≤ εcov * validFrac η * s ^ 2 := by
     nlinarith [mul_le_mul_of_nonneg_right hf (mul_nonneg hεcov.le (sq_nonneg s)),
       mul_le_mul_of_nonneg_right hμε (pow_nonneg hsig.le 3)]
-  have hw1 : 3 * s ^ 6 * μ ^ 2 ≤ 12 * c ^ 2 * (εcov * validFrac η * s ^ 2 / (2 * c)) ^ 2 := by
+  have hw1 : 3 * s ^ 6 * μ ^ 2
+      ≤ 3 * c ^ 2 * (77 * εcov * validFrac η * s ^ 2 / (64 * c)) ^ 2 := by
     have h := mul_self_le_mul_self (by positivity) hg1
-    have hid : 12 * c ^ 2 * (εcov * validFrac η * s ^ 2 / (2 * c)) ^ 2
-        = 3 * (εcov * validFrac η * s ^ 2) ^ 2 := by
+    have hid : 3 * c ^ 2 * (77 * εcov * validFrac η * s ^ 2 / (64 * c)) ^ 2
+        = 3 * (77 / 64) ^ 2 * (εcov * validFrac η * s ^ 2) ^ 2 := by
       field_simp
-      ring
     rw [hid]
     nlinarith [h, sq_nonneg (εcov * validFrac η * s ^ 2)]
-  have hg2 : μ * s ≤ 16 * (εcov * validFrac η / 16) := by
+  have hg2 : μ * s ≤ 8 * (εcov * validFrac η / 8) := by
     nlinarith [mul_le_mul_of_nonneg_left hf hεcov.le, mul_le_mul_of_nonneg_right hμε hsig.le]
-  have hw2 : 3 * s ^ 6 * μ ^ 2 ≤ 48 * c ^ 2 * (εcov * validFrac η / 16) ^ 2 := by
+  have hw2 : 3 * s ^ 6 * μ ^ 2 ≤ 12 * c ^ 2 * (εcov * validFrac η / 8) ^ 2 := by
     have h := mul_self_le_mul_self (by positivity) hg2
     have hc2 : 1 ≤ c ^ 2 := by nlinarith
     have hs6' : s ^ 6 ≤ s ^ 2 / 16 := by nlinarith [mul_le_mul_of_nonneg_left hs4 (sq_nonneg s)]
     have e1 := mul_le_mul_of_nonneg_right hs6' (sq_nonneg μ)
-    have e2 := mul_le_mul_of_nonneg_right hc2 (sq_nonneg (εcov * validFrac η / 16))
-    linarith [h, e1, e2, mul_nonneg (sq_nonneg c) (sq_nonneg (εcov * validFrac η / 16))]
-  have hw3 : 3 * s ^ 6 * μ ^ 2 ≤ 12 * c ^ 2 * (εcov / 16) ^ 2 := by
+    have e2 := mul_le_mul_of_nonneg_right hc2 (sq_nonneg (εcov * validFrac η / 8))
+    linarith [h, e1, e2, mul_nonneg (sq_nonneg c) (sq_nonneg (εcov * validFrac η / 8))]
+  have hw3 : 3 * s ^ 6 * μ ^ 2 ≤ 48 * c ^ 2 * (εcov / 32) ^ 2 := by
     have hc2 : 1 ≤ c ^ 2 := by nlinarith
     have h := mul_self_le_mul_self hμ.le hμε
     nlinarith [mul_le_mul_of_nonneg_right hs6 (sq_nonneg μ),
-      mul_le_mul_of_nonneg_right hc2 (sq_nonneg (εcov / 16))]
+      mul_le_mul_of_nonneg_right hc2 (sq_nonneg (εcov / 32))]
   have hw4 : 3 * s ^ 6 * μ ^ 2 ≤ 1 * c ^ 2 * indecisionLimit ^ 2 := by
     have hc2 : 1 ≤ c ^ 2 := by nlinarith
     have h := mul_self_le_mul_self hμ.le hμi
