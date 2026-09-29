@@ -18,8 +18,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 (`cn/cd`).  So the signal is the worse rate's margin `½ − max(ηIn, ηOut)` rather than the
 half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  The Python reads the family with a calibrated band around the
-boundary; here the band is one count.
+Known modelling gap.  The Python sizes the band around the boundary from its reads
+(`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
+its far side at most `crossLimit` of the time.
 
 Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
 it and `SuffixFamily.is_accept` reads it.
@@ -189,6 +190,10 @@ noncomputable def screenedAt (mq : S → Ω → ℝ) (populations : Finset J) (B
 noncomputable def voteCount (mq : S → Ω → ℝ) (F : Finset S) (p : S) (ω : Ω) : ℕ :=
   (F.filter (fun v => mq (p * v) ω = 1)).card
 
+/-- What `voteCount` averages to over the oracle's noise. -/
+noncomputable def meanVote (O : Oracle μ S) (F : Finset S) (p : S) : ℝ :=
+  ∑ v ∈ F, μ.real {ω | O.mq (p * v) ω = 1}
+
 /-! ### Cluster -/
 
 /-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
@@ -317,7 +322,10 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
 of it undecided; no state draws more prefixes than the count below, nor asks for a family or a
-suffix pool larger than the sizes below, for one constant `k` across every input.
+suffix pool larger than the sizes below, for one constant `k` across every input.  Every state's
+band is wide enough that a vote over a family no larger than its own, whose mean lies above the
+band, lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`, at most
+`crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
@@ -326,7 +334,7 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
@@ -340,6 +348,8 @@ def ClusteringGuarantee : Prop :=
   εcov ≤ 1 →
   0 < δ →
   δ ≤ 1 →
+  0 < crossLimit →
+  crossLimit ≤ 1 →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -356,17 +366,21 @@ def ClusteringGuarantee : Prop :=
           k
           * (populations.card : ℝ) ^ 2
           * Real.log (
-            ((populations.card : ℝ) + 2)
+            ((populations.card : ℝ) + 2) * B.nsuff
             / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
           )
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ k * Real.log (2 / min εcov (min (1 / 2 - η₀) indecisionLimit))
+          (B.k : ℝ) ≤ k * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
             / (1 / 2 - η₀) ^ 2
-          ∧ (B.nsuff : ℝ) ≤ k * (Real.log (2 / min εcov (min (1 / 2 - η₀) indecisionLimit))
+          ∧ (B.nsuff : ℝ) ≤ k * (Real.log
+                (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)) ∧
+        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)

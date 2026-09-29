@@ -63,12 +63,13 @@ noncomputable def qualityBound (A : DFA S Q) {J : Type*} (populations : Finset J
       ∃ j ∈ populations, 4 * indecisionLimit / tolerance < stateMass A (D j) q).card)
 
 /-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
-there is at least as good as its populations force. -/
+there is at least as good as its populations force.  Every state's band is as wide as
+`ClusteringGuarantee`'s. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J] {Q : Type*} [Fintype Q]
     (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP tolerance : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP tolerance crossLimit : ℝ),
   O.L = {w | A.state w ∈ A.accept} →
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
@@ -84,6 +85,7 @@ def ClusteringQualityGuarantee : Prop :=
   0 < δ →
   δ ≤ 1 →
   0 < tolerance →
+  0 < crossLimit →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -96,6 +98,9 @@ def ClusteringQualityGuarantee : Prop :=
       ρ ≤ cap →
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
+        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)
