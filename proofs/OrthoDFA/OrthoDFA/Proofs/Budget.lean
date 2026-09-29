@@ -50,12 +50,12 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2),
     Real.log (128 * (populations.card : ℝ) / δ)
-      / (2 * (cutBudget η indecisionLimit εcov / 4) ^ 2),
+      / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2),
     64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2),
     64 * Real.log (256 * (populations.card : ℝ) / δ) / (εcov * (sig η * εcov / 4) ^ 2),
     Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-      / (2 * ((populations.card : ℝ) * flipBudget η populations indecisionLimit εcov δ) ^ 2),
+      / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2),
     64 / εcov ]
 
 /-- Rounding up a list of reals costs one apiece. -/
@@ -131,13 +131,13 @@ private lemma log_le_of_le_pow {T Z : ℝ} (hZ : 0 < Z) (n : ℕ) (h : Z ≤ T ^
 `B²` and `c²` all come from; the third power of `B` is slack paid for by `B ≤ 1/2`. -/
 private lemma screen_tail_le {c s B L X M : ℝ}
     (hs : 0 < s) (hB : 0 < B) (hB2 : B ≤ 1 / 2) (hL : 1 ≤ L)
-    (hX : 0 ≤ X) (hXL : X ≤ 16 * L) (hM : 0 < M) (hMlb : 7 * B * s ^ 3 ≤ 1024 * c * M) :
-    X / (2 * (M / 2) ^ 2) ≤ 393216 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
-  rw [show 393216 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 393216 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
+    (hX : 0 ≤ X) (hXL : X ≤ 16 * L) (hM : 0 < M) (hMlb : 7 * B * s ^ 3 ≤ 512 * c * M) :
+    X / (2 * (M / 2) ^ 2) ≤ 98304 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
+  rw [show 98304 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 98304 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
       by ring,
     div_le_div_iff₀ (mul_pos (by norm_num) (pow_pos (by linarith) 2))
       (mul_pos (pow_pos hs 6) (pow_pos hB 3))]
-  have hsq : 49 * B ^ 2 * s ^ 6 ≤ 1048576 * c ^ 2 * M ^ 2 := by
+  have hsq : 49 * B ^ 2 * s ^ 6 ≤ 262144 * c ^ 2 * M ^ 2 := by
     nlinarith [mul_self_le_mul_self
       (mul_nonneg (by linarith : (0 : ℝ) ≤ 7 * B) (pow_nonneg hs.le 3)) hMlb]
   have hXB : X * B ≤ 8 * L := by
@@ -152,8 +152,8 @@ private lemma screen_tail_le {c s B L X M : ℝ}
 private lemma cut_tail_le {c s B L R cut : ℝ}
     (hc : 1 ≤ c) (hs : 0 < s) (hs2 : s ≤ 1 / 2) (hB : 0 < B) (hB2 : B ≤ 1 / 2) (hL : 1 ≤ L)
     (hR : 0 ≤ R) (hRL : R ≤ 4 * L) (hcut : 0 < cut) (hcutlb : B ≤ 64 * cut) :
-    R / (2 * (cut / 4) ^ 2) ≤ 2048 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
-  rw [show 2048 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 2048 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
+    R / (2 * (cut / 32) ^ 2) ≤ 65536 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
+  rw [show 65536 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 65536 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
       by ring,
     div_le_div_iff₀ (mul_pos (by norm_num) (pow_pos (by linarith) 2))
       (mul_pos (pow_pos hs 6) (pow_pos hB 3))]
@@ -208,20 +208,20 @@ private lemma coverage_tail_le {c s B L P ε k K : ℝ}
       (mul_nonneg (mul_nonneg (mul_nonneg hk hLnn) (sq_nonneg s)) (pow_nonneg hε.le 3))
   linarith
 
-/-- The flip tail: a log over the squared per-member flip budget, which carries `B · s`. -/
+/-- The flip tail: a log over a squared margin that carries `B · s`. -/
 private lemma flip_tail_le {c s B L Y W : ℝ}
     (hc : 1 ≤ c) (hs : 0 < s) (hs2 : s ≤ 1 / 2) (hB : 0 < B) (hB2 : B ≤ 1 / 2) (hL : 1 ≤ L)
-    (hY : 0 ≤ Y) (hYL : Y ≤ 10 * L) (hW : 0 < W) (hWlb : 7 * B * s ≤ 1920 * W) :
-    Y / (2 * W ^ 2) ≤ 16384 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
-  rw [show 16384 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 16384 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
+    (hY : 0 ≤ Y) (hYL : Y ≤ 10 * L) (hW : 0 < W) (hWlb : 21 * B * s ≤ 20480 * W) :
+    Y / (2 * W ^ 2) ≤ 163840 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) := by
+  rw [show 163840 * (c ^ 2 * L / (s ^ 6 * B ^ 3)) = 163840 * c ^ 2 * L / (s ^ 6 * B ^ 3) from
       by ring,
     div_le_div_iff₀ (mul_pos (by norm_num) (pow_pos hW 2))
       (mul_pos (pow_pos hs 6) (pow_pos hB 3))]
   have hLnn : (0 : ℝ) ≤ L := by linarith
   have hc2 : (1 : ℝ) ≤ c ^ 2 := by nlinarith
-  have hsq : 49 * B ^ 2 * s ^ 2 ≤ 3686400 * W ^ 2 := by
+  have hsq : 441 * B ^ 2 * s ^ 2 ≤ 419430400 * W ^ 2 := by
     nlinarith [mul_self_le_mul_self
-      (mul_nonneg (by linarith : (0 : ℝ) ≤ 7 * B) hs.le) hWlb]
+      (mul_nonneg (by linarith : (0 : ℝ) ≤ 21 * B) hs.le) hWlb]
   have hs4 : s ^ 4 ≤ 1 / 16 := by
     have h := pow_le_pow_left₀ hs.le hs2 4; norm_num at h; linarith
   have hs6 : s ^ 6 ≤ s ^ 2 / 16 := by
@@ -232,7 +232,7 @@ private lemma flip_tail_le {c s B L Y W : ℝ}
     le_mul2 (pow_nonneg hs.le 6) (pow_nonneg hB.le 3) hs6 hB3
   have h2 : Y * (s ^ 6 * B ^ 3) ≤ 10 * L * (s ^ 2 / 16 * (B ^ 2 / 2)) :=
     le_mul2 hY (mul_nonneg (pow_nonneg hs.le 6) (pow_nonneg hB.le 3)) hYL h1
-  have h3 : L * (49 * B ^ 2 * s ^ 2) ≤ L * (3686400 * W ^ 2) :=
+  have h3 : L * (441 * B ^ 2 * s ^ 2) ≤ L * (419430400 * W ^ 2) :=
     mul_le_mul_of_nonneg_left hsq hLnn
   have h4 : 1 * (L * W ^ 2) ≤ c ^ 2 * (L * W ^ 2) :=
     mul_le_mul_of_nonneg_right hc2 (mul_nonneg hLnn (sq_nonneg W))
@@ -271,7 +271,7 @@ union-bounds over its pairs and the flip tail over its members, and nothing else
 `0 ≤ η` is what bounds `sig η` above; without it the noise rate may be negative, `sig` may be
 arbitrarily large, and the `sig ^ 6` in the denominator sends the bound below the count.
 
-The `524288` is not tight -- the worst term reaches about a quarter of it.  It is a constant
+The `524288` is not tight -- the worst term reaches under a third of it.  It is a constant
 that covers every term at once, which is what makes the statement one bound rather than six. -/
 theorem prefCount_le_poly (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit : ℝ)
@@ -331,25 +331,26 @@ theorem prefCount_le_poly (populations : Finset J)
       le_mul2 hBpos.le (by linarith only [hsig]) hcutlb hf
     linarith only [h]
   -- the screen's margin and the family's flip budget
-  have hMeq : 1024 * c * screenMargin η populations indecisionLimit εcov δ
-      = 640 * (cut * flipFrac η) * s ^ 2 := by
+  have hcf : 0 ≤ cut * flipFrac η := by
+    have h7 : (0 : ℝ) < 7 * B * s := by positivity
+    linarith only [h7, hcutf]
+  have hMeq : 512 * c * screenMargin η populations indecisionLimit εcov δ
+      = 840 * (cut * flipFrac η) * s ^ 2 := by
     simp only [screenMargin, flipBudget, ← hsdef, ← hcdef, ← hcutdef]
     field_simp
     ring
   have hMlb : 7 * B * s ^ 3
-      ≤ 1024 * c * screenMargin η populations indecisionLimit εcov δ := by
+      ≤ 512 * c * screenMargin η populations indecisionLimit εcov δ := by
     rw [hMeq]
-    linarith only [mul_le_mul_of_nonneg_right hcutf (sq_nonneg s)]
+    linarith only [mul_le_mul_of_nonneg_right hcutf (sq_nonneg s),
+      mul_nonneg hcf (sq_nonneg s)]
   have hMpos : 0 < screenMargin η populations indecisionLimit εcov δ := by
     have h7 : (0 : ℝ) < 7 * B * s ^ 3 := by positivity
     nlinarith only [lt_of_lt_of_le h7 hMlb, hcpos]
-  have hWeq : c * flipBudget η populations indecisionLimit εcov δ
-      = cut * flipFrac η / 3 := by
-    simp only [flipBudget, ← hcdef, ← hcutdef]; field_simp
-  have hWlb : 7 * B * s ≤ 1920 * (c * flipBudget η populations indecisionLimit εcov δ) := by
-    rw [hWeq]; linarith only [hcutf]
-  have hWpos : 0 < c * flipBudget η populations indecisionLimit εcov δ := by
-    have h7 : (0 : ℝ) < 7 * B * s := by positivity
+  have hWlb : 21 * B * s ≤ 20480 * (3 * cut * flipFrac η / 32) := by
+    linarith only [hcutf]
+  have hWpos : 0 < 3 * cut * flipFrac η / 32 := by
+    have h7 : (0 : ℝ) < 21 * B * s := by positivity
     linarith only [h7, hWlb]
   -- the pool, which enters only through the log
   have hM1 : (1 : ℝ) ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by

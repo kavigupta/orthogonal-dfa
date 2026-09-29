@@ -89,9 +89,12 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
   ⌊(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η / 2⌋₊
 
 /-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
-flipping, so Markov charges the cut budget at that fraction and not at the family's size. -/
+flipping, so Markov charges the cut budget at that fraction and not at the family's size.
+
+The screen's tail binds and is read at this, so it takes seven eighths of the cut budget; the
+heavy-prefix count's slack and threshold, whose tails are cheap, share the rest. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
-  cutBudget η indecisionLimit εcov * flipFrac η / (3 * (populations.card : ℝ))
+  7 * cutBudget η indecisionLimit εcov * flipFrac η / (8 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget.
 
@@ -149,14 +152,14 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
   ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget η indecisionLimit εcov / 4) ^
-      2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ)
+        / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
         / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget η populations indecisionLimit εcov δ) ^ 2)⌉₊
+        / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
     + ⌈64 / εcov⌉₊
     + 1
 
