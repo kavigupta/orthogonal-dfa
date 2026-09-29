@@ -16,8 +16,8 @@ Known modelling gap.  `EdgeResolver` lets a member after the first vote only whe
 already memoized; here every member the tree places votes.
 
 Known modelling gap.  `SplitEvidence` splits on a Bayes factor between one pooled Beta-Bernoulli
-rate and two; here it splits when the two groups' held-out rates differ by more than a Hoeffding
-bound allows at `splitFpr` over the tests it makes.
+rate and two; here it splits when the two groups' held-out votes differ in rate by more than a
+Hoeffding bound over those votes allows at `splitFpr` over the tests it makes.
 
 Known modelling gap.  `SuffixFamily` holds the family in order and trains on its even places;
 here the training half is a given subset of the family.
@@ -214,7 +214,7 @@ noncomputable def tally (t : DTree α) (pool : List (FreeMonoid α)) (path : Lis
     else if R.F.card * s ≤ R.B.lo * (K.train R.F).card then (acc.1, (acc.2.1 + e, acc.2.2 + 1))
     else acc) ((0, 0), (0, 0))
 
-/-- `SplitEvidence.verdict`: split when the two sides' held-out rates differ by more than
+/-- `SplitEvidence.verdict`: split when the two sides' held-out votes differ in rate by more than
 Hoeffding allows at `splitFpr` over `tests` tests; no split when one side is too small for a
 `minSplit` share to be missed more than `missRate` of the time; otherwise undecided. -/
 noncomputable def verdict (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool)
@@ -223,7 +223,7 @@ noncomputable def verdict (t : DTree α) (pool : List (FreeMonoid α)) (path : L
   let E : ℝ := (R.F \ K.train R.F).card
   if 0 < x.1.2 ∧ 0 < x.2.2 ∧ 0 < E ∧
       Real.log (2 * tests / K.splitFpr)
-        ≤ 2 * ((x.1.2 * x.2.2 : ℕ) : ℝ) / (x.1.2 + x.2.2)
+        ≤ 2 * E * ((x.1.2 * x.2.2 : ℕ) : ℝ) / (x.1.2 + x.2.2)
           * ((x.1.1 : ℝ) / (x.1.2 * E) - (x.2.1 : ℝ) / (x.2.2 * E)) ^ 2 then .split
   else if 0 < x.1.2 + x.2.2
       ∧ 1 - binomSfGe (x.1.2 + x.2.2) K.minSplit (min x.1.2 x.2.2 + 1) ≤ K.missRate
