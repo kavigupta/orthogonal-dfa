@@ -18,8 +18,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 (`cn/cd`).  So the signal is the worse rate's margin `½ − max(ηIn, ηOut)` rather than the
 half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  The Python reads the family with a calibrated band around the
-boundary; here the band is one count.
+Known modelling gap.  The Python sizes the band around the boundary from its reads
+(`evidence_margin`); here it is sized so that no string's vote lands on both sides of it more
+than `straddleLimit` of the time.
 
 Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
 it and `SuffixFamily.is_accept` reads it.
@@ -317,7 +318,8 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
 of it undecided; no state draws more prefixes than the count below, for one constant `k`
-across every input.
+across every input.  Every state's band is wide enough that no string's vote over its family
+lands above it and below it each more than `straddleLimit` of the time (Hoeffding).
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
@@ -326,7 +328,7 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP straddleLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
@@ -340,6 +342,8 @@ def ClusteringGuarantee : Prop :=
   εcov ≤ 1 →
   0 < δ →
   δ ≤ 1 →
+  0 < straddleLimit →
+  straddleLimit ≤ 1 →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -357,10 +361,12 @@ def ClusteringGuarantee : Prop :=
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2)
-            / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+            / (δ * α * pAP * straddleLimit * min εcov (min (1 / 2 - η₀) indecisionLimit))
           )
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
+        (∀ B ∈ states, B.lo ≤ B.hi
+          ∧ 2 * ((B.k : ℝ) - 1) * Real.log (1 / straddleLimit) ≤ ((B.hi : ℝ) - B.lo) ^ 2) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
                 x ∈ ret O.mq populations indecisionLimit α B.val)
