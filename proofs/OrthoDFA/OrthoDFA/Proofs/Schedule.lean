@@ -55,6 +55,13 @@ noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
 noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 
+/-- What fraction of the family validity lets flip.  A cut is wrong only where the vote lands
+beyond the band, not where it is undecided, so the flips may spend all of the signal and leave
+the band's half-width, `voteSlack/2` of the family, to the deviation:
+
+    (1 − η) · validFrac η = sig η -/
+noncomputable def validFrac (η : ℝ) : ℝ := sig η / (1 - η)
+
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
 read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
@@ -107,7 +114,7 @@ screen's cutoff is solved at the far finer `flipBudget`, which termination needs
 flipping `validFlip` misses that cutoff by a wide margin, so validity pays for its screen tail at
 this scale rather than at the cutoff's. -/
 noncomputable def validFlip (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
-  εcov * flipFrac η / (2 * (populations.card : ℝ))
+  εcov * validFrac η / (2 * (populations.card : ℝ))
 
 /-- A quarter of the separation `validFlip·(1 − 2η)²`. -/
 noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
@@ -169,7 +176,7 @@ noncomputable def validCount (η : ℝ) (populations : Finset J)
       / (2 * validMargin η populations εcov ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * (εcov * flipFrac η / 16) ^ 2)⌉₊
+        / (2 * (εcov * validFrac η / 16) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 16) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
     + 1
@@ -219,7 +226,7 @@ noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLi
       + (((B.npref : ℝ) ^ 2 * ρ
           + ((B.nsuff : ℝ) + 2) ^ 2
             * Real.exp (-2 * (B.npref : ℝ) * validMargin η₀ populations εcov ^ 2)
-          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * flipFrac η₀ / 16) ^ 2))
+          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * validFrac η₀ / 16) ^ 2))
         + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
           + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
             + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2))))))
