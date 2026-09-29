@@ -381,7 +381,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hρ0 : 0 ≤ ρ :=
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit ρ
-    (collisionMass Dsf) with hstates
+    with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ' ρ pAP
