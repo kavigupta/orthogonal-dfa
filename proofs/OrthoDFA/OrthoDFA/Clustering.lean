@@ -293,13 +293,14 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
 
 /-! ## What the input distributions must satisfy -/
 
-/-- Two prefixes of a flat set never extend to the same query string.
+/-- Two prefixes never extend, by drawn suffixes or by `ε`, to the same query string.
 
-`UniformSampler(DEFAULT_SAMPLE_LENGTH)` draws every probe at one fixed length, so
-`p * v = p' * v'` forces `p = p'` on length alone.  Stated this way because `Monoid` on its
-own does not know that strings factor. -/
-def Flat (Pre : Set S) : Prop :=
-  ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v v' : S, p * v = p' * v' → p = p'
+`sample_more_suffixes` draws every suffix at the sampler's length `L`, so `p * v = p' * v'`
+with both suffixes drawn forces `p = p'` on length alone.  Against the seed `ε` it would need
+`p` to be longer than `p'` by `L`, which prefixes whose lengths lie within a window narrower than
+`L` never are.  Stated this way because `Monoid` on its own does not know that strings factor. -/
+def Flat (Pre Suf : Set S) : Prop :=
+  ∀ p ∈ Pre, ∀ p' ∈ Pre, ∀ v ∈ insert 1 Suf, ∀ v' ∈ insert 1 Suf, p * v = p' * v' → p = p'
 
 /-- The chance two independent draws coincide, `∑ₐ D({a})²`.  The oracle is persistent, so
 draws carry independent noise only where they are distinct; `S` is countable, so this is never
@@ -320,12 +321,12 @@ def ClusteringGuarantee : Prop :=
   ∃ k : ℝ,
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (populations : Finset J) (Pre : Set S)
+    (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
     (η₀ indecisionLimit εcov α δ pAP : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   populations.Nonempty →
-  Flat Pre →
+  Flat Pre Suf →
   0 < pAP →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
@@ -340,6 +341,7 @@ def ClusteringGuarantee : Prop :=
     ∀ (D : J → Measure S) (Dsf : Measure S),
       (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
       (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
       ∀ ρ : ℝ,
       (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
