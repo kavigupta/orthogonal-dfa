@@ -147,7 +147,7 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   cn := 1
   cd := 2
   lo := ⌈(famCount η populations indecisionLimit εcov δ : ℝ) / 2⌉₊ - 1
-  hi := ⌈(famCount η populations indecisionLimit εcov δ : ℝ) / 2⌉₊ + 1
+  hi := ⌈(famCount η populations indecisionLimit εcov δ : ℝ) / 2⌉₊
   sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations indecisionLimit εcov δ⌉₊
   scd := ⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
@@ -196,8 +196,8 @@ At a handful of prefixes neither the screen nor the certification sample can see
 family, so the guarantee cannot cover a stop there. -/
 structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ ρsf pAP : ℝ)
     (N : ℕ) (B : State) : Prop where
-  /-- Reject strictly below accept, so the two gate sides are disjoint. -/
-  lohi : B.lo < B.hi
+  /-- Reject at or below accept, so the two gate sides are disjoint. -/
+  lohi : B.lo ≤ B.hi
   /-- The centre's boundary is a proper fraction. -/
   bdry : B.cn < B.cd
   /-- There are prefixes to read the rate off. -/
@@ -290,8 +290,8 @@ def ClusteringCorrect : Prop :=
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
               (clusterAt O.mq populations x B.val) p (oracleNoise x)}
-          ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
-              ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
+          ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
+              (clusterAt O.mq populations x B.val) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA
