@@ -251,18 +251,17 @@ def split_by_looks(
 ):
     """The split from looks k = 0, 1, ..., L - 1 on fresh members, n_0 2^k per
     half with n_0 = ``first_look`` and L = ``most_looks``, each at level
-    ``alpha`` / L: the first look's split, or ``None`` once a look's p* > 1/4.
+    ``alpha`` / L: the first look's split, or ``None`` once look k's p* exceeds
+    2^-(k+1).  p* is super-uniform under a pure state, so
 
-    p* is super-uniform under a pure state, so
-
-        P(look k) <= 4^-k,   E[members] <= n_0 sum_k (2 / 4)^k = 2 n_0."""
+        P(look k) <= 2^-k(k+1)/2,   E[members] <= n_0 sum_k 2^k 2^-k(k+1)/2 < 3 n_0."""
     fresh_count = fresh_suffixes(alpha, preserving_share)
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(family) | fresh)
     looks = most_looks(signal, minority_share, 2, len(candidates))
     level = alpha / looks
     size = first_look(signal, minority_share, level, level)
-    for _ in range(looks):
+    for look in range(looks):
         split, p = split_members(
             draw(size),
             draw(size),
@@ -274,7 +273,7 @@ def split_by_looks(
         )
         if split is not None:
             return split
-        if p > 1 / 4:
+        if p > 2 ** -(look + 1):
             return None
         size *= 2
     return None
@@ -298,7 +297,13 @@ class _Aimed:
 
 def state_split(pst, dfa, state, family, *, alpha):
     """``split_by_looks`` over prefixes aimed at ``state`` and the suffixes
-    ``family``, and the aim that drew the prefixes."""
+    ``family``, and the aim that drew the prefixes; None unless the minority's
+    mass may reach ``merged_minority_mass``,
+
+        share * m_hi >= merged_minority_mass,
+        P(Binomial(n, m_hi) <= k) = ``alpha``,
+
+    share the state's mass and k of the split's n members on the minority side."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -320,7 +325,18 @@ def state_split(pst, dfa, state, family, *, alpha):
         alpha=alpha,
         rng=pst.rng,
     )
-    return None if found is None else (found, aim)
+    if found is None:
+        return None
+    minority = len(found.groups[True])
+    members = minority + len(found.groups[False])
+    upper = (
+        scipy.stats.beta.ppf(1 - alpha, minority + 1, members - minority)
+        if minority < members
+        else 1.0
+    )
+    if share * upper < pst.config.merged_minority_mass:
+        return None
+    return found, aim
 
 
 class SplitSource(RejectionSource):
