@@ -276,7 +276,8 @@ that covers every term at once, which is what makes the statement one bound rath
 theorem prefCount_le_poly (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit : ℝ)
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hpop : populations.Nonempty)
-    (hind : 0 < indecisionLimit) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
+    (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2)
+    (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (prefCount η populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
@@ -315,8 +316,12 @@ theorem prefCount_le_poly (populations : Finset J)
   have hcutlb : B ≤ 64 * cut := by
     have h : B / 64 ≤ cut := by
       simp only [hcutdef, cutBudget, ← hsdef]
-      exact le_min (by linarith only [hBε, hεcov])
-        (le_min (by linarith only [hBs, hBpos]) (by linarith only [hBind, hind]))
+      refine le_min (by linarith only [hBε, hεcov]) (le_min ?_ (by linarith only [hBind, hind]))
+      have hab : (1 / 2 : ℝ) * (1 / 2) ≤ (1 - εcov / 2) * (1 - indecisionLimit) :=
+        mul_le_mul (by linarith only [hεcov1]) (by linarith only [hind1]) (by norm_num)
+          (by linarith only [hεcov1])
+      rw [le_div_iff₀ (by linarith only [hηlt] : (0 : ℝ) < 32 * (1 - η))]
+      linarith only [mul_le_mul_of_nonneg_left hab hsig.le, mul_nonneg hBpos.le hη, hBs, hsig]
     linarith only [h]
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- what the vote absorbs is at least seven tenths of the signal
@@ -657,7 +662,8 @@ omit [Fintype J] in
 /-- The family, seed included.  The cut budget is only `≥ B/64`, so its log carries a `log 64`,
 which `log (2/B) ≥ log 4` pays for; the band's term is the rest of `log (2/(B·crossLimit))`. -/
 theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ crossLimit : ℝ)
-    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
+    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1
       ≤ 100 * Real.log (2 / (budgetScale η indecisionLimit εcov * crossLimit)) / sig η ^ 2 := by
@@ -667,6 +673,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
     rw [famCount]
     push_cast
     ring
+  have hηlt : η < 1 / 2 := by rw [sig] at hsig; linarith only [hsig]
   set s : ℝ := sig η with hsdef
   have hs2 : s ≤ 1 / 2 := by rw [hsdef, sig]; linarith only [hη]
   set B : ℝ := budgetScale η indecisionLimit εcov with hBdef
@@ -684,8 +691,12 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   have hcutlb : B ≤ 64 * cut := by
     have h : B / 64 ≤ cut := by
       simp only [hcutdef, cutBudget, ← hsdef]
-      exact le_min (by linarith only [hBε, hεcov])
-        (le_min (by linarith only [hBs, hBpos]) (by linarith only [hBind, hind]))
+      refine le_min (by linarith only [hBε, hεcov]) (le_min ?_ (by linarith only [hBind, hind]))
+      have hab : (1 / 2 : ℝ) * (1 / 2) ≤ (1 - εcov / 2) * (1 - indecisionLimit) :=
+        mul_le_mul (by linarith only [hεcov1]) (by linarith only [hind1]) (by norm_num)
+          (by linarith only [hεcov1])
+      rw [le_div_iff₀ (by linarith only [hηlt] : (0 : ℝ) < 32 * (1 - η))]
+      linarith only [mul_le_mul_of_nonneg_left hab hsig.le, mul_nonneg hBpos.le hη, hBs, hsig]
     linarith only [h]
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- `G = log (2/B)` is at least `log 4`, so it covers `log 64` three times over
@@ -737,7 +748,8 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
 omit [Fintype J] in
 /-- The suffix pool: the family over `pAP`, and the findability tail over `pAP²`. -/
 theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
-    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
+    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
@@ -747,8 +759,8 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   set c : ℝ := (populations.card : ℝ) with hcdef
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
-  have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hεcov
-    hζ hζ1
+  have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hind1
+    hεcov hεcov1 hζ hζ1
   set P : ℝ := 100 * Real.log (2 / (budgetScale η indecisionLimit εcov * crossLimit))
     / sig η ^ 2 with hPdef
   have hPnn : 0 ≤ P := le_trans (by positivity) hf
@@ -811,7 +823,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hpoly := prefCount_le_poly populations η₀ indecisionLimit εcov δ α pAP crossLimit
-    hsig hη0 hpop hindLim hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
+    hsig hη0 hpop hindLim hind1 hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
   refine ⟨stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ,
     ?_, ?_, ?_, fun B hB => cross_of_mem_schedule O hη0 hη₀ hζ
       (Finset.mem_of_mem_filter _ hB), ?_⟩
@@ -858,9 +870,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   · intro B hB
     obtain ⟨i, _, rfl⟩ := Finset.mem_image.1 (Finset.mem_of_mem_filter _ hB)
     have hk := famCount_succ_le populations η₀ indecisionLimit εcov δ crossLimit hsig hη0
-      hindLim hεcov hζ hζ1
+      hindLim hind1 hεcov hε1 hζ hζ1
     have hpool := poolCount_le populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0
-      hindLim hεcov hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
+      hindLim hind1 hεcov hε1 hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
     simp only [budgetScale, sig] at hk hpool
     rw [mul_div_assoc] at hk
     have hG : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
