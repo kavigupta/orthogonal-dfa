@@ -6,9 +6,9 @@ import OrthoDFA.Termination
 Count, for each round, the target states some population so far is heavy enough on to force
 them cut well, once for each of `qualityBound`'s two thresholds.  The count never falls and is
 at most `2·|Q|`.  On the event that every round meets its four specs, a failing state's own
-population, or after a refusal some heavy state's, is heavy on a state the family cuts badly,
-which the specs say no earlier population was; so each round that does not return raises the
-count.
+population, or after a refusal some heavy state's or the kept harvest, is heavy on a state the
+family cuts badly, which the specs say no earlier population was; so each round that does not
+return raises the count.
 -/
 
 namespace OrthoDFA
@@ -210,19 +210,21 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
     (P : Measure Θ) [IsProbabilityMeasure P] (A : DFA S Q) (O : Oracle μ S) (Dsamp : Measure S)
     (populations : Finset J) (D : J → Measure S) (family : ℕ → Θ → State × Finset S)
     (hyp : ℕ → Θ → DFA S R) (gate : ℕ → Θ → Prop) (fails : ℕ → Θ → Finset R)
-    {tolerance εcov indecisionLimit ε ζ x₀ wₛ δc δs δg δa : ℝ}
+    (harvest : ℕ → Θ → Measure S) (kept : ℕ → Θ → Prop)
+    {tolerance εcov indecisionLimit ε ζ x₀ θh wₛ δc δs δg δa : ℝ}
     (hD : IsProbabilityMeasure Dsamp) (hε : 0 < ε) (hζ : 0 ≤ ζ) (htol : 0 < tolerance)
     (hεcov : 0 ≤ εcov)
     (hcC : 2 * εcov / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
     (hcU : 4 * indecisionLimit / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
     (hgC : 2 * εcov / tolerance < (x₀ - ε) / (Fintype.card R * Fintype.card Q))
     (hgU : 4 * indecisionLimit / tolerance < (x₀ - ε) / (Fintype.card R * Fintype.card Q))
+    (hθC : 2 * εcov / tolerance ≤ θh) (hθU : 4 * indecisionLimit / tolerance ≤ θh)
     (hC : ∀ r < 2 * Fintype.card Q + 1, P.real {θ | ∃ q,
-      ((∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ,
+      ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
           2 * εcov / tolerance < stateMass A D' q)
         ∧ ∃ p, A.state p = q
           ∧ tolerance < miscutProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
-      ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ,
+      ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
           4 * indecisionLimit / tolerance < stateMass A D' q)
         ∧ ∃ p, A.state p = q
           ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)}
@@ -230,7 +232,10 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
     (hS : ∀ r < 2 * Fintype.card Q + 1, P.real {θ | gate r θ ∧ ζ < mislabelledWellCut A O
       tolerance (family r θ).1 (family r θ).2 (hyp r θ) Dsamp} ≤ δs)
     (hG : ∀ r < 2 * Fintype.card Q + 1, P.real {θ | ¬ gate r θ
-      ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀} ≤ δg)
+      ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀
+      ∧ ¬ (kept r θ ∧ ∃ q, (∃ p, A.state p = q
+          ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+        ∧ θh < stateMass A (harvest r θ) q)} ≤ δg)
     (hA : ∀ r < 2 * Fintype.card Q + 1,
       P.real {θ | ∃ h ∈ fails r θ, minorityShare A (hyp r θ) Dsamp h < wₛ} ≤ δa)
     (hmass : ∀ r θ, ∀ h ∈ fails r θ, ε / Fintype.card R ≤ Dsamp.real {v | (hyp r θ).state v = h}) :
@@ -242,18 +247,21 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
   have hx₀ : 0 < (x₀ - ε) / (Fintype.card R * Fintype.card Q) :=
     lt_of_le_of_lt (div_nonneg (by linarith) htol.le) hgC
   let Cb : ℕ → Set Θ := fun r => {θ | ∃ q,
-      ((∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ,
+      ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
           2 * εcov / tolerance < stateMass A D' q)
         ∧ ∃ p, A.state p = q
           ∧ tolerance < miscutProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
-      ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ,
+      ∨ ((∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
           4 * indecisionLimit / tolerance < stateMass A D' q)
         ∧ ∃ p, A.state p = q
           ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)}
   let Sb : ℕ → Set Θ := fun r => {θ | gate r θ ∧ ζ < mislabelledWellCut A O tolerance
       (family r θ).1 (family r θ).2 (hyp r θ) Dsamp}
   let Gb : ℕ → Set Θ := fun r => {θ | ¬ gate r θ
-      ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀}
+      ∧ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp < x₀
+      ∧ ¬ (kept r θ ∧ ∃ q, (∃ p, A.state p = q
+          ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+        ∧ θh < stateMass A (harvest r θ) q)}
   let Ab : ℕ → Set Θ := fun r => {θ | ∃ h ∈ fails r θ, minorityShare A (hyp r θ) Dsamp h < wₛ}
   have hsub : {θ | ∀ r < 2 * Fintype.card Q + 1, ¬ gate r θ ∨ (fails r θ).Nonempty}
       ⊆ ⋃ r ∈ Finset.range (2 * Fintype.card Q + 1), (Cb r ∪ Sb r ∪ Gb r ∪ Ab r) := by
@@ -267,14 +275,16 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
         fun h => hnot r hr (Or.inl (Or.inl (Or.inr h))),
         fun h => hnot r hr (Or.inl (Or.inr h)), fun h => hnot r hr (Or.inr h)⟩
     let covC : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
-      ∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ, 2 * εcov / tolerance < stateMass A D' q
+      ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
+        2 * εcov / tolerance < stateMass A D' q
     let covU : ℕ → Finset Q := fun r => Finset.univ.filter fun q =>
-      ∃ D' ∈ poolsAt populations D Dsamp ε hyp r θ,
+      ∃ D' ∈ poolsAt populations D Dsamp ε hyp harvest kept r θ,
         4 * indecisionLimit / tolerance < stateMass A D' q
-    have hpools : ∀ r, poolsAt populations D Dsamp ε hyp r θ
-        ⊆ poolsAt populations D Dsamp ε hyp (r + 1) θ := by
-      rintro r D' (h | ⟨i, hi, h'⟩)
-      exacts [Or.inl h, Or.inr ⟨i, Nat.lt_succ_of_lt hi, h'⟩]
+    have hpools : ∀ r, poolsAt populations D Dsamp ε hyp harvest kept r θ
+        ⊆ poolsAt populations D Dsamp ε hyp harvest kept (r + 1) θ := by
+      rintro r D' (h | ⟨i, hi, h'⟩ | ⟨i, hi, h'⟩)
+      exacts [Or.inl h, Or.inr (Or.inl ⟨i, Nat.lt_succ_of_lt hi, h'⟩),
+        Or.inr (Or.inr ⟨i, Nat.lt_succ_of_lt hi, h'⟩)]
     have hmonoC : ∀ r, covC r ⊆ covC (r + 1) := fun r q hq => by
       obtain ⟨D', hD', hm⟩ := (Finset.mem_filter.1 hq).2
       exact Finset.mem_filter.2 ⟨Finset.mem_univ _, D', hpools r hD', hm⟩
@@ -292,7 +302,7 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
         obtain ⟨hCr, hSr, hGr, hAr⟩ := hgood r hr'
         -- A new pool at round `r + 1`, heavy on a state the family cut badly at round `r`.
         obtain ⟨D', hnew, q, hqC, hqU, p, hpq, hbad⟩ : ∃ D' ∈ poolsAt populations D Dsamp ε hyp
-            (r + 1) θ, ∃ q, 2 * εcov / tolerance < stateMass A D' q
+            harvest kept (r + 1) θ, ∃ q, 2 * εcov / tolerance < stateMass A D' q
               ∧ 4 * indecisionLimit / tolerance < stateMass A D' q
               ∧ ∃ p, A.state p = q ∧ (tolerance < miscutProb O (family r θ).1.lo
                 (family r θ).1.hi (family r θ).2 p ∨ tolerance < undecidedProb O
@@ -305,13 +315,19 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
               not_lt.1 fun hlt => hAr ⟨h, hh, hlt⟩
             obtain ⟨q, hq, p, hpq, hbad⟩ := exists_heavy_badState A O (hyp r θ) h
               (family r θ).1 (family r θ).2 hε hζ hx (hmass r θ h hh) hwell hmin
-            exact ⟨_, Or.inr ⟨r, Nat.lt_succ_self r, h, hmass r θ h hh, rfl⟩, q,
+            exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hmass r θ h hh, rfl⟩), q,
               hcC.trans_le hq, hcU.trans_le hq, p, hpq, hbad⟩
-          · have hbc : x₀ ≤ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp :=
-              not_lt.1 fun hlt => hGr ⟨hg, hlt⟩
+          · by_cases hk : kept r θ ∧ ∃ q, (∃ p, A.state p = q ∧ tolerance < undecidedProb O
+                (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+                ∧ θh < stateMass A (harvest r θ) q
+            · obtain ⟨hk, q, ⟨p, hpq, hbad⟩, hq⟩ := hk
+              exact ⟨_, Or.inr (Or.inr ⟨r, Nat.lt_succ_self r, hk, rfl⟩), q,
+                hθC.trans_lt hq, hθU.trans_lt hq, p, hpq, Or.inr hbad⟩
+            have hbc : x₀ ≤ badlyCut O tolerance (family r θ).1 (family r θ).2 Dsamp :=
+              not_lt.1 fun hlt => hGr ⟨hg, hlt, hk⟩
             obtain ⟨h, hh, q, hq, p, hpq, hbad⟩ := exists_heavy_badlyCut A O (hyp r θ)
               (family r θ).1 (family r θ).2 hε hx₀ hbc
-            exact ⟨_, Or.inr ⟨r, Nat.lt_succ_self r, h, hh, rfl⟩, q, hgC.trans_le hq,
+            exact ⟨_, Or.inr (Or.inl ⟨r, Nat.lt_succ_self r, h, hh, rfl⟩), q, hgC.trans_le hq,
               hgU.trans_le hq, p, hpq, hbad⟩
         rcases hbad with hbad | hbad
         · have hout : q ∉ covC r := fun hin =>
@@ -354,10 +370,11 @@ theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace �
         ring
 
 theorem termination_holds : Termination := by
-  intro Ω _ μ _ S _ Q R _ _ J Θ _ P _ A O Dsamp populations D family hyp gate fails tolerance
-    εcov indecisionLimit ε ζ x₀ wₛ δc δs δg δa hD hε hζ htol hεcov hcC hcU hgC hgU hC hS hG hA
-    hmass
-  exact termination_le P A O Dsamp populations D family hyp gate fails hD hε hζ htol hεcov hcC
-    hcU hgC hgU (fun r _ => hC r) (fun r _ => hS r) (fun r _ => hG r) (fun r _ => hA r) hmass
+  intro Ω _ μ _ S _ Q R _ _ J Θ _ P _ A O Dsamp populations D family hyp gate fails harvest kept
+    tolerance εcov indecisionLimit ε ζ x₀ θh wₛ δc δs δg δa hD hε hζ htol hεcov hcC hcU hgC hgU
+    hθC hθU hC hS hG hA hmass
+  exact termination_le P A O Dsamp populations D family hyp gate fails harvest kept hD hε hζ htol
+    hεcov hcC hcU hgC hgU hθC hθU (fun r _ => hC r) (fun r _ => hS r) (fun r _ => hG r)
+    (fun r _ => hA r) hmass
 
 end OrthoDFA
