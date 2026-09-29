@@ -321,11 +321,13 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
-of it undecided; no state draws more prefixes than the count below, nor asks for a family or a
-suffix pool larger than the sizes below, for one constant `k` across every input.  Every state's
-band is wide enough that a vote over a family no larger than its own, whose mean lies above the
-band, lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`, at most
-`crossLimit` of the time.
+of it undecided; no state draws more prefixes than the first count below, nor asks for a family
+or a suffix pool larger than the sizes below, for one constant `k` across every input.  Some
+state draws no more than the second count, which is what validity alone costs, so a stop is
+covered from there; the first count is what the loop may need before a round passes.  Every
+state's band is wide enough that a vote over a family no larger than its own, whose mean lies
+above the band, lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`,
+at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
@@ -370,6 +372,12 @@ def ClusteringGuarantee : Prop :=
             / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
           )
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+        ) ∧
+        (∃ B ∈ states, (B.npref : ℝ) ≤
+          k
+          * (populations.card : ℝ) ^ 2
+          * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
+          / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2)
         ) ∧
         (∀ B ∈ states,
           (B.k : ℝ) ≤ k * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
