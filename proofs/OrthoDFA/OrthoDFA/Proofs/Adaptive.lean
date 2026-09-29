@@ -383,8 +383,8 @@ lemma cutBudget_pos (η₀ : ℝ) {εcov : ℝ} (hsig : η₀ < 1 / 2) (hε : 0 
     (lt_min (div_pos (sig_pos η₀ hsig) (by norm_num)) (by linarith))
 
 lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
-    cutBudget η₀ indecisionLimit εcov ≤ εcov / 16
-    ∧ cutBudget η₀ indecisionLimit εcov ≤ sig η₀ / 64
+    cutBudget η₀ indecisionLimit εcov ≤ εcov / 8
+    ∧ cutBudget η₀ indecisionLimit εcov ≤ sig η₀ / 10
     ∧ cutBudget η₀ indecisionLimit εcov ≤ indecisionLimit / 2 :=
   ⟨min_le_left _ _, (min_le_right _ _).trans (min_le_left _ _),
     (min_le_right _ _).trans (min_le_right _ _)⟩
@@ -8116,16 +8116,19 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       hb hb1 hb0 hκv
       hxexact hlowShift hhiShift hgminLe hgminGe hnR hfloor hsize hsizeR
       hρcap hρsfcap hρ hρsf hpAPBound
-    have hcn : (c : ℝ) ≤ 4 * (n : ℝ) := by nlinarith [hcR, hlow, hm64, hind1]
+    have hhalf : (m : ℝ) / 2 ≤ (1 - indecisionLimit) * (m : ℝ) := by
+      nlinarith [mul_le_mul_of_nonneg_right (by linarith : (1 : ℝ) / 2 ≤ 1 - indecisionLimit)
+        hmR.le]
+    have hcn : 2 * (c : ℝ) ≤ 5 * (n : ℝ) := by linarith [hcR, hlow, hm64, hhalf]
     have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
     have hc0 : (0 : ℝ) ≤ (c : ℝ) := Nat.cast_nonneg _
     have hss : sig η₀ ≤ 1 / 2 - O.η := by rw [sig]; linarith
     -- a wrong cut can cost the gate a whole read, so the cut budget is held under `s`
-    have ha : 2 * cutBudget η₀ indecisionLimit εcov * (c : ℝ) ≤ sig η₀ * (n : ℝ) / 8 := by
-      nlinarith [mul_le_mul (cutBudget_le η₀ indecisionLimit εcov).2.1 hcn hc0
-        (by linarith : (0 : ℝ) ≤ sig η₀ / 64)]
+    have ha : 2 * cutBudget η₀ indecisionLimit εcov * (c : ℝ) ≤ sig η₀ * (n : ℝ) / 2 := by
+      nlinarith [mul_le_mul_of_nonneg_right (cutBudget_le η₀ indecisionLimit εcov).2.1 hc0,
+        mul_le_mul_of_nonneg_left hcn (by linarith : (0 : ℝ) ≤ sig η₀ / 10)]
     have h1 : (1 - O.η) * (2 * cutBudget η₀ indecisionLimit εcov * (c : ℝ))
-        ≤ sig η₀ * (n : ℝ) / 8 := by
+        ≤ sig η₀ * (n : ℝ) / 2 := by
       have hb : (0 : ℝ) ≤ 2 * cutBudget η₀ indecisionLimit εcov * (c : ℝ) := by positivity
       nlinarith [mul_le_mul_of_nonneg_right (by linarith : 1 - O.η ≤ 1) hb]
     have h2 : (n : ℝ) * (sig η₀ * εcov / 4 + sig η₀ * εcov / 4) ≤ (n : ℝ) * (sig η₀ / 2) := by
