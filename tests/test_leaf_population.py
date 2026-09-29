@@ -72,6 +72,19 @@ class TestLeafPopulation(unittest.TestCase):
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
         self.assertEqual(calls["batches"], 2)  # root once, then (False,) once
 
+    def test_add_first_is_a_member_of_a_full_leaf(self):
+        classify, _ = _classifier()
+        pop = _population(classify, chunk=16)
+        for i in range(5):
+            pop.add(bytes([1, i]), at=(True,))
+        pop.add_first(bytes([1, 9]), (True,))
+        self.assertEqual(pop.members((True,), 3)[0], bytes([1, 9]))
+        pop.add_first(bytes([1, 3]), (True,))
+        self.assertEqual(
+            pop.members((True,), 10),
+            [bytes([1, 3]), bytes([1, 9])] + [bytes([1, i]) for i in (0, 1, 2, 4)],
+        )
+
     def test_add_at_a_known_leaf_skips_classification(self):
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
