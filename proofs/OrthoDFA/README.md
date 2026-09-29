@@ -1,4 +1,4 @@
-# Machine-checked correctness of the E-L\* clustering algorithm
+# Machine-checked correctness of the E-L\* learner
 
 ## What to read
 
@@ -12,6 +12,8 @@
   label is pure, and rarely passes one with a large minority.
 - `OrthoDFA/Termination.lean` — `Termination`: if each round's clustering, stage and check meet
   their specs, at most `2·|Q|` rounds fail the check.
+- `OrthoDFA/Learner.lean` — the learner, and `LearnerCorrect`: given an L\* stage that labels
+  what the family cuts well, it rarely fails to return or returns an inaccurate hypothesis.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -19,9 +21,9 @@ Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to t
 
 ## Scope
 
-This proves the clustering step (`sample_suffix_family` and its gate) correct, that the learner
-returns only accurate hypotheses, and that it stops once the L\* stage meets its spec. It does not
-prove that the L\* stage meets it.
+`LearnerCorrect` is the end-to-end claim; the others are its parts. It holds for any L\* stage
+that reads the noise at few strings and labels what the family cuts well (`mislabelledWellCut`).
+Nothing here proves that the L\* stage meets that.
 
 ## Building
 

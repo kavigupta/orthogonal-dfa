@@ -1,6 +1,7 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.Check
 import OrthoDFA.Proofs.ClusteringQuality
+import OrthoDFA.Proofs.Learner
 import OrthoDFA.Proofs.ReturnAccuracy
 import OrthoDFA.Proofs.Termination
 
@@ -33,5 +34,9 @@ theorem termination : Termination := termination_holds
 theorem check_guarantee : CheckGuarantee := check_guarantee_holds
 
 #print axioms check_guarantee
+
+theorem learner_correct : LearnerCorrect := learner_correct_of_check check_guarantee_holds
+
+#print axioms learner_correct
 
 end OrthoDFA
