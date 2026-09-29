@@ -4,8 +4,9 @@
 
 - `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim.
   It imports only Mathlib.
-- `OrthoDFA/ClusteringQuality.lean` — the target as a DFA, the quality of a suffix family, and
-  `ClusteringQualityGuarantee`: the returned family is as good as its populations force.
+- `OrthoDFA/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over each
+  population, the returned family decides a prefix wrongly at most `εcov + slack` of the time
+  and leaves it undecided at most `2·indecisionLimit + slack` of the time.
 - `OrthoDFA/Verify.lean` — names the proofs of both claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

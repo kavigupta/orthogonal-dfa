@@ -5,13 +5,13 @@ import OrthoDFA.Proofs.Budget
 # The quality of the returned family
 
 `clustering_correct` bounds what the family miscuts, or leaves undecided, under the one noise
-draw the run used.  `quality` asks the same of fresh noise, one DFA state at a time.
+draw the run used.  `miscutProb` and `undecidedProb` ask the same of fresh noise, averaged over
+the population.
 
 The two meet because the family reads the noise only at the table's strings.  At any other
 population prefix its verdict is a fresh draw, independent across prefixes, so a weighted
 Hoeffding bound ties the realized mass to its mean; the table's own prefixes carry little mass
-once the collision mass is small.  The mean groups by state because the vote's law at a prefix
-depends only on the state it reaches.
+once the collision mass is small.
 -/
 
 namespace OrthoDFA
@@ -22,122 +22,6 @@ open scoped ENNReal NNReal
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable {S : Type*} [Stringlike S]
 variable {J : Type*} [Fintype J]
-
-/-! ## The vote's law depends only on the state -/
-
-lemma measure_mq_eq_one_congr (O : Oracle μ S) {w w' : S} (h : O.label w = O.label w') :
-    μ (O.mq w ⁻¹' {1}) = μ (O.mq w' ⁻¹' {1}) := by
-  have hr : μ.real {ω | O.mq w ω = 1} = μ.real {ω | O.mq w' ω = 1} := by
-    rw [measureReal_mq_eq_one, measureReal_mq_eq_one, mq_mean, mq_mean,
-      O.rate_eq_of_label_eq h, h]
-  rw [measureReal_def, measureReal_def] at hr
-  exact (ENNReal.toReal_eq_toReal_iff' (measure_ne_top _ _) (measure_ne_top _ _)).1 hr
-
-open scoped Classical in
-/-- Two prefixes whose extensions carry the same labels read the same family's votes with the
-same law. -/
-lemma measureReal_filter_congr (O : Oracle μ S) (G : Finset S) {p p' : S}
-    (hlab : ∀ v, O.label (p * v) = O.label (p' * v)) (Φ : Finset S → Prop) :
-    μ.real {ω | Φ (G.filter (fun v => O.mq (p * v) ω = 1))}
-      = μ.real {ω | Φ (G.filter (fun v => O.mq (p' * v) ω = 1))} := by
-  classical
-  have hfib : ∀ (r : S) (U : Finset S), U ⊆ G →
-      {ω | G.filter (fun v => O.mq (r * v) ω = 1) = U}
-        = ⋂ v ∈ G, (fun ω => O.mq (r * v) ω) ⁻¹'
-            (if v ∈ U then ({1} : Set ℝ) else ({1} : Set ℝ)ᶜ) := by
-    intro r U hU
-    ext ω
-    simp only [Set.mem_ofPred_eq, Set.mem_iInter, Set.mem_preimage]
-    constructor
-    · rintro rfl v hv
-      by_cases h : O.mq (r * v) ω = 1 <;> simp [h, hv]
-    · intro h
-      ext v
-      simp only [Finset.mem_filter]
-      constructor
-      · rintro ⟨hvG, h1⟩
-        by_contra hvU
-        have := h v hvG
-        simp only [hvU, if_false, Set.mem_compl_iff, Set.mem_singleton_iff] at this
-        exact this h1
-      · intro hvU
-        refine ⟨hU hvU, ?_⟩
-        have := h v (hU hvU)
-        simpa [hvU] using this
-  have hprob : ∀ U ∈ G.powerset, μ {ω | G.filter (fun v => O.mq (p * v) ω = 1) = U}
-      = μ {ω | G.filter (fun v => O.mq (p' * v) ω = 1) = U} := by
-    intro U hU
-    have hU' := Finset.mem_powerset.1 hU
-    have hsets : ∀ v, v ∈ G →
-        MeasurableSet (if v ∈ U then ({1} : Set ℝ) else ({1} : Set ℝ)ᶜ) := by
-      intro v _
-      split_ifs
-      · exact measurableSet_singleton 1
-      · exact (measurableSet_singleton 1).compl
-    rw [hfib p U hU', hfib p' U hU',
-      (mq_indep_shift O p).measure_inter_preimage_eq_mul G hsets,
-      (mq_indep_shift O p').measure_inter_preimage_eq_mul G hsets]
-    refine Finset.prod_congr rfl (fun v _ => ?_)
-    have h1 := measure_mq_eq_one_congr O (hlab v)
-    split_ifs
-    · exact h1
-    · rw [Set.preimage_compl, Set.preimage_compl,
-        prob_compl_eq_one_sub ((mq_meas O _) (measurableSet_singleton 1)),
-        prob_compl_eq_one_sub ((mq_meas O _) (measurableSet_singleton 1)), h1]
-  have hcov : ∀ r : S, {ω | Φ (G.filter (fun v => O.mq (r * v) ω = 1))}
-      = ⋃ U ∈ G.powerset.filter Φ, {ω | G.filter (fun v => O.mq (r * v) ω = 1) = U} := by
-    intro r
-    ext ω
-    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Finset.mem_filter, Finset.mem_powerset,
-      exists_prop]
-    refine ⟨fun h => ⟨_, ⟨Finset.filter_subset _ _, h⟩, rfl⟩, ?_⟩
-    rintro ⟨U, ⟨-, hU⟩, rfl⟩
-    exact hU
-  have hdisj : ∀ r : S, (↑(G.powerset.filter Φ) : Set (Finset S)).PairwiseDisjoint
-      (fun U => {ω | G.filter (fun v => O.mq (r * v) ω = 1) = U}) := by
-    intro r a _ b _ hab
-    simp only [Function.onFun, Set.disjoint_left, Set.mem_ofPred_eq]
-    exact fun ω ha hb => hab (ha.symm.trans hb)
-  have hmeas : ∀ (r : S) (U : Finset S),
-      MeasurableSet {ω | G.filter (fun v => O.mq (r * v) ω = 1) = U} := fun r U =>
-    noiseAlg_le O Set.univ _ (measurableSet_filter_pred_map O (T := Set.univ) (fun v => r * v)
-      (by simp) (fun W => W = U))
-  rw [hcov p, hcov p', measureReal_biUnion_finset (hdisj p) (fun U _ => hmeas p U),
-    measureReal_biUnion_finset (hdisj p') (fun U _ => hmeas p' U)]
-  refine Finset.sum_congr rfl (fun U hU => ?_)
-  rw [measureReal_def, measureReal_def,
-    hprob U (Finset.mem_of_mem_filter _ hU)]
-
-variable {Q : Type*}
-
-lemma label_mul_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
-    {p p' : S} (h : A.state p = A.state p') (v : S) :
-    O.label (p * v) = O.label (p' * v) := by
-  refine (O.label_eq_iff _ _).2 ?_
-  rw [hL]
-  simp only [Set.mem_ofPred_eq, DFA.state, A.step_mul]
-  simp only [DFA.state] at h
-  rw [h]
-
-lemma miscutProb_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
-    (lo hi : ℕ) (G : Finset S) {p p' : S} (h : A.state p = A.state p') :
-    miscutProb O lo hi G p = miscutProb O lo hi G p' := by
-  classical
-  have hl : O.label p = O.label p' := by simpa using label_mul_congr A O hL h 1
-  have e := measureReal_filter_congr O G (label_mul_congr A O hL h)
-    (fun U => ¬ ((hi < U.card → O.label p' = 1) ∧ (U.card ≤ lo → O.label p' = 0)))
-  unfold miscutProb cutCorrect voteCount
-  rw [hl]
-  convert e using 1
-
-lemma undecidedProb_congr (A : DFA S Q) (O : Oracle μ S) (hL : O.L = {w | A.state w ∈ A.accept})
-    (lo hi : ℕ) (G : Finset S) {p p' : S} (h : A.state p = A.state p') :
-    undecidedProb O lo hi G p = undecidedProb O lo hi G p' := by
-  classical
-  have e := measureReal_filter_congr O G (label_mul_congr A O hL h)
-    (fun U => ¬ (hi < U.card ∨ U.card ≤ lo))
-  unfold undecidedProb decided voteCount
-  convert e using 1
 
 /-! ## Weighted concentration at a fixed family -/
 
@@ -424,81 +308,57 @@ lemma measureReal_finset_le (Dj : Measure S) [IsProbabilityMeasure Dj] (P : Fins
         exact sum_sq_le_collisionMass Dj P
 
 open scoped Classical in
-/-- A state's mass times its failure rate is at most the realized failure mass, the deviation,
-and the mass outside the prefixes the deviation covers. -/
-lemma stateMass_mul_le (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set S}
-    (hsupp : Dj Preᶜ = 0) (F P : Finset S) (Sq : Set S) (bad : S → Prop) (m : S → ℝ) (c : ℝ)
-    (hc0 : 0 ≤ c) (hc1 : c ≤ 1) (hm0 : ∀ p, 0 ≤ m p) (hm : ∀ p ∈ Sq, m p = c) (dev : ℝ)
+/-- A failure rate's mean over the population is at most the realized failure mass, the
+deviation, and the mass outside the prefixes the deviation covers. -/
+lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set S}
+    (hsupp : Dj Preᶜ = 0) (F P : Finset S) (bad : S → Prop) (m : S → ℝ)
+    (hm0 : ∀ p, 0 ≤ m p) (hm1 : ∀ p, m p ≤ 1) (dev : ℝ)
     (hdev : dev = ∑ p ∈ F \ P, Dj.real {p} * m p
       - ∑ p ∈ (F \ P).filter (fun p => bad p), Dj.real {p}) :
-    Dj.real Sq * c ≤ Dj.real {p | bad p} + dev + Dj.real (Pre \ ↑F) + Dj.real ↑P := by
+    ∫ p, m p ∂Dj ≤ Dj.real {p | bad p} + dev + Dj.real (Pre \ ↑F) + Dj.real ↑P := by
   classical
-  have hR0 : 0 ≤ Dj.real (Pre \ ↑F) + Dj.real ↑P := add_nonneg measureReal_nonneg measureReal_nonneg
-  set CS := (F \ P).filter (fun p => p ∈ Sq) with hCS
-  have h1 : Dj.real Sq ≤ Dj.real ↑CS + (Dj.real (Pre \ ↑F) + Dj.real ↑P) := by
-    have hsub : Sq ⊆ ((↑CS ∪ (Pre \ ↑F)) ∪ ↑P) ∪ Preᶜ := by
+  have hint : Integrable m Dj :=
+    Integrable.of_bound (measurable_of_countable m).aestronglyMeasurable 1
+      (ae_of_all _ (fun p => by rw [Real.norm_eq_abs, abs_of_nonneg (hm0 p)]; exact hm1 p))
+  rw [← integral_add_compl (measurableSet_of_countable (↑(F \ P) : Set S)) hint,
+    setIntegral_finset (F \ P) hint.integrableOn]
+  have h1 : ∫ p in (↑(F \ P) : Set S)ᶜ, m p ∂Dj ≤ Dj.real (Pre \ ↑F) + Dj.real ↑P := by
+    have hsub : (↑(F \ P) : Set S)ᶜ ⊆ ((Pre \ ↑F) ∪ ↑P) ∪ Preᶜ := by
       intro p hp
       by_cases hpre : p ∈ Pre
       · by_cases hF : p ∈ F
-        · by_cases hP : p ∈ P
-          · exact Or.inl (Or.inr hP)
-          · exact Or.inl (Or.inl (Or.inl (Finset.mem_coe.2
-              (Finset.mem_filter.2 ⟨Finset.mem_sdiff.2 ⟨hF, hP⟩, hp⟩))))
-        · exact Or.inl (Or.inl (Or.inr ⟨hpre, hF⟩))
+        · refine Or.inl (Or.inr (Finset.mem_coe.2 ?_))
+          by_contra hP
+          exact hp (Finset.mem_coe.2 (Finset.mem_sdiff.2 ⟨hF, hP⟩))
+        · exact Or.inl (Or.inl ⟨hpre, hF⟩)
       · exact Or.inr hpre
     have hnull : Dj.real Preᶜ = 0 := by rw [measureReal_def, hsupp, ENNReal.toReal_zero]
-    calc Dj.real Sq ≤ Dj.real (((↑CS ∪ (Pre \ ↑F)) ∪ ↑P) ∪ Preᶜ) :=
-          measureReal_mono hsub (measure_ne_top _ _)
-      _ ≤ Dj.real ((↑CS ∪ (Pre \ ↑F)) ∪ ↑P) + Dj.real Preᶜ := measureReal_union_le _ _
-      _ ≤ Dj.real (↑CS ∪ (Pre \ ↑F)) + Dj.real ↑P + 0 := by
-          rw [hnull]
-          gcongr
+    calc ∫ p in (↑(F \ P) : Set S)ᶜ, m p ∂Dj ≤ ∫ p in (↑(F \ P) : Set S)ᶜ, (1 : ℝ) ∂Dj :=
+          setIntegral_mono hint.integrableOn (integrableOn_const (measure_ne_top _ _)) hm1
+      _ = Dj.real (↑(F \ P) : Set S)ᶜ := by rw [setIntegral_const, smul_eq_mul, mul_one]
+      _ ≤ Dj.real (((Pre \ ↑F) ∪ ↑P) ∪ Preᶜ) := measureReal_mono hsub (measure_ne_top _ _)
+      _ ≤ Dj.real ((Pre \ ↑F) ∪ ↑P) + Dj.real Preᶜ := measureReal_union_le _ _
+      _ ≤ Dj.real (Pre \ ↑F) + Dj.real ↑P := by
+          rw [hnull, add_zero]
           exact measureReal_union_le _ _
-      _ ≤ Dj.real ↑CS + Dj.real (Pre \ ↑F) + Dj.real ↑P + 0 := by
-          gcongr
-          exact measureReal_union_le _ _
-      _ = _ := by ring
-  have h2 : Dj.real ↑CS * c ≤ ∑ p ∈ F \ P, Dj.real {p} * m p := by
-    rw [← sum_measureReal_singleton, Finset.sum_mul]
-    calc ∑ p ∈ CS, Dj.real {p} * c = ∑ p ∈ CS, Dj.real {p} * m p :=
-          Finset.sum_congr rfl (fun p hp => by rw [hm p (Finset.mem_filter.1 hp).2])
-      _ ≤ ∑ p ∈ F \ P, Dj.real {p} * m p :=
-          Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
-            (fun p _ _ => mul_nonneg measureReal_nonneg (hm0 p))
   have h3 : ∑ p ∈ (F \ P).filter (fun p => bad p), Dj.real {p} ≤ Dj.real {p | bad p} := by
     rw [sum_measureReal_singleton]
     exact measureReal_mono (fun p hp => (Finset.mem_filter.1 (Finset.mem_coe.1 hp)).2)
       (measure_ne_top _ _)
-  have h4 : Dj.real Sq * c ≤ Dj.real ↑CS * c + (Dj.real (Pre \ ↑F) + Dj.real ↑P) := by
-    calc Dj.real Sq * c ≤ (Dj.real ↑CS + (Dj.real (Pre \ ↑F) + Dj.real ↑P)) * c :=
-          mul_le_mul_of_nonneg_right h1 hc0
-      _ = Dj.real ↑CS * c + (Dj.real (Pre \ ↑F) + Dj.real ↑P) * c := by ring
-      _ ≤ _ := by
-          gcongr
-          exact mul_le_of_le_one_right hR0 hc1
+  simp only [smul_eq_mul]
   rw [hdev]
   linarith
-
-lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s, q ∉ t) :
-    s.card ≤ Fintype.card Q - t.card := by
-  classical
-  rw [← Finset.card_compl]
-  exact Finset.card_le_card (fun q hq => Finset.mem_compl.2 (h q hq))
 
 /-! ## The theorem -/
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ Q _ A O populations Pre Suf η₀ indecisionLimit εcov α δ pAP tolerance
-    crossLimit hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance hstr
+  intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit slack
+    hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
   classical
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  set ε₁ : ℝ := min εcov (2 * indecisionLimit) with hε₁def
-  have hε₁ : 0 < ε₁ := lt_min hε (by linarith)
-  have hε₁c : ε₁ ≤ εcov := min_le_left _ _
-  have hε₁u : ε₁ ≤ 2 * indecisionLimit := min_le_right _ _
   set N : ℝ := (populations.card : ℝ)
     * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit : ℝ) with hNdef
   have hN0 : 0 ≤ N := by positivity
@@ -507,16 +367,16 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hL0 : 0 ≤ L := Nat.cast_nonneg _
   have hJc0 : 0 ≤ Jc := Nat.cast_nonneg _
   refine ⟨min (collisionCap η₀ populations indecisionLimit εcov δ' α pAP crossLimit)
-      (min (ε₁ ^ 2 / (64 * (N + 1))) (δ * ε₁ ^ 2 / (16 * (L + 1) * (Jc + 1)))), ?_, ?_⟩
+      (min (slack ^ 2 / (64 * (N + 1))) (δ * slack ^ 2 / (16 * (L + 1) * (Jc + 1)))), ?_, ?_⟩
   · refine lt_min ?_ (lt_min (by positivity) (by positivity))
     simp only [collisionCap]
     positivity
   intro D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
   have := hD
   have := hDsf
-  have hρ1 : ρ ≤ ε₁ ^ 2 / (64 * (N + 1)) :=
+  have hρ1 : ρ ≤ slack ^ 2 / (64 * (N + 1)) :=
     le_trans hρcap (le_trans (min_le_right _ _) (min_le_left _ _))
-  have hρ2 : ρ ≤ δ * ε₁ ^ 2 / (16 * (L + 1) * (Jc + 1)) :=
+  have hρ2 : ρ ≤ δ * slack ^ 2 / (16 * (L + 1) * (Jc + 1)) :=
     le_trans hρcap (le_trans (min_le_right _ _) (min_le_right _ _))
   have hρ0 : 0 ≤ ρ :=
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
@@ -531,7 +391,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
     (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
   -- A finite part of each population's support, off which it has little mass.
-  have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ ε₁ / 4 :=
+  have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
   choose F hFPre hFtail using hF
   set EvC : State → Finset S → S → Ω → Prop :=
@@ -547,33 +407,26 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     measurableSet_filter_pred_map O (T := U) (fun v => p * v) hU
       (fun W => ¬ (B.hi < Finset.card W ∨ Finset.card W ≤ B.lo))
   set badC : State → J → Set (Run Ω S J) :=
-    fun B j => {x | εcov / 2 ≤ devAt O populations B (D j) (F j) (EvC B) x} with hbadC
+    fun B j => {x | slack / 2 ≤ devAt O populations B (D j) (F j) (EvC B) x} with hbadC
   set badU : State → J → Set (Run Ω S J) :=
-    fun B j => {x | indecisionLimit ≤ devAt O populations B (D j) (F j) (EvU B) x} with hbadU
+    fun B j => {x | slack / 2 ≤ devAt O populations B (D j) (F j) (EvU B) x} with hbadU
   set Bad : Set (Run Ω S J) := ⋃ B ∈ states, ⋃ j ∈ populations, (badC B j ∪ badU B j)
     with hBaddef
   have hsq : ∀ j ∈ populations, ∑ p ∈ F j, (D j).real {p} ^ 2 ≤ ρ := fun j hj =>
     le_trans (sum_sq_le_collisionMass (D j) (F j)) (hρ j hj)
   have hper : ∀ B, ∀ j ∈ populations,
-      (runMeasure μ D Dsf).real (badC B j ∪ badU B j) ≤ 8 * ρ / ε₁ ^ 2 := by
+      (runMeasure μ D Dsf).real (badC B j ∪ badU B j) ≤ 8 * ρ / slack ^ 2 := by
     intro B j hj
     have h1 := runMeasure_dev_le hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
-      (EvC B) (hEvCm B) (εcov / 2) (by positivity) ρ (hsq j hj)
+      (EvC B) (hEvCm B) (slack / 2) (by positivity) ρ (hsq j hj)
     have h2 := runMeasure_dev_le hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
-      (EvU B) (hEvUm B) indecisionLimit hind ρ (hsq j hj)
-    have e1 : ρ / (εcov / 2) ^ 2 ≤ 4 * ρ / ε₁ ^ 2 := by
-      calc ρ / (εcov / 2) ^ 2 = 4 * ρ / εcov ^ 2 := by field_simp; ring
-        _ ≤ 4 * ρ / ε₁ ^ 2 := div_le_div_of_nonneg_left (by positivity) (by positivity)
-          (pow_le_pow_left₀ hε₁.le hε₁c 2)
-    have e2 : ρ / indecisionLimit ^ 2 ≤ 4 * ρ / ε₁ ^ 2 := by
-      calc ρ / indecisionLimit ^ 2 = 4 * ρ / (2 * indecisionLimit) ^ 2 := by field_simp; ring
-        _ ≤ 4 * ρ / ε₁ ^ 2 := div_le_div_of_nonneg_left (by positivity) (by positivity)
-          (pow_le_pow_left₀ hε₁.le hε₁u 2)
+      (EvU B) (hEvUm B) (slack / 2) (by positivity) ρ (hsq j hj)
+    have e : ρ / (slack / 2) ^ 2 = 4 * ρ / slack ^ 2 := by field_simp; ring
     calc (runMeasure μ D Dsf).real (badC B j ∪ badU B j)
         ≤ (runMeasure μ D Dsf).real (badC B j) + (runMeasure μ D Dsf).real (badU B j) :=
           measureReal_union_le _ _
-      _ ≤ 4 * ρ / ε₁ ^ 2 + 4 * ρ / ε₁ ^ 2 := add_le_add (h1.trans e1) (h2.trans e2)
-      _ = 8 * ρ / ε₁ ^ 2 := by ring
+      _ ≤ 4 * ρ / slack ^ 2 + 4 * ρ / slack ^ 2 := add_le_add (h1.trans e.le) (h2.trans e.le)
+      _ = 8 * ρ / slack ^ 2 := by ring
   have hcardst : (states.card : ℝ) ≤ L := by
     have : states.card ≤ ladderLen η₀ populations indecisionLimit εcov δ' α pAP crossLimit :=
       le_trans (Finset.card_le_card (Finset.filter_subset _ _))
@@ -581,7 +434,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     rw [hLdef]
     exact_mod_cast this
   have hBad : (runMeasure μ D Dsf).real Bad ≤ δ / 2 := by
-    have hρ2' : 16 * (L + 1) * (Jc + 1) * ρ ≤ δ * ε₁ ^ 2 := by
+    have hρ2' : 16 * (L + 1) * (Jc + 1) * ρ ≤ δ * slack ^ 2 := by
       rw [le_div_iff₀ (by positivity)] at hρ2
       linarith
     calc (runMeasure μ D Dsf).real Bad
@@ -589,13 +442,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
             (⋃ j ∈ populations, (badC B j ∪ badU B j)) := measureReal_biUnion_finset_le _ _
       _ ≤ ∑ B ∈ states, ∑ j ∈ populations, (runMeasure μ D Dsf).real (badC B j ∪ badU B j) :=
           Finset.sum_le_sum (fun B _ => measureReal_biUnion_finset_le _ _)
-      _ ≤ ∑ _B ∈ states, ∑ _j ∈ populations, 8 * ρ / ε₁ ^ 2 :=
+      _ ≤ ∑ _B ∈ states, ∑ _j ∈ populations, 8 * ρ / slack ^ 2 :=
           Finset.sum_le_sum (fun B _ => Finset.sum_le_sum (fun j hj => hper B j hj))
-      _ = (states.card : ℝ) * (Jc * (8 * ρ / ε₁ ^ 2)) := by
+      _ = (states.card : ℝ) * (Jc * (8 * ρ / slack ^ 2)) := by
           simp only [Finset.sum_const, nsmul_eq_mul, hJcdef]
-      _ ≤ L * (Jc * (8 * ρ / ε₁ ^ 2)) := mul_le_mul_of_nonneg_right hcardst (by positivity)
+      _ ≤ L * (Jc * (8 * ρ / slack ^ 2)) := mul_le_mul_of_nonneg_right hcardst (by positivity)
       _ ≤ δ / 2 := by
-          rw [show L * (Jc * (8 * ρ / ε₁ ^ 2)) = 8 * L * Jc * ρ / ε₁ ^ 2 by ring,
+          rw [show L * (Jc * (8 * ρ / slack ^ 2)) = 8 * L * Jc * ρ / slack ^ 2 by ring,
             div_le_iff₀ (by positivity)]
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
@@ -626,7 +479,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     exact ⟨fun h => this (Or.inl h), fun h => this (Or.inr h)⟩
   set G := clusterAt O.mq populations x B.val with hG
   set P := prefixesAt populations B.val.npref x with hP
-  have hPmass : ∀ j ∈ populations, (D j).real ↑P ≤ ε₁ / 4 := by
+  have hPmass : ∀ j ∈ populations, (D j).real ↑P ≤ slack / 4 := by
     intro j hj
     have hnpref :
         B.val.npref ≤ prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit := by
@@ -643,73 +496,38 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit : ℝ) := by
         exact_mod_cast le_trans h1 h2
       exact h3
-    set τ : ℝ := ε₁ / (8 * (N + 1)) with hτ
+    set τ : ℝ := slack / (8 * (N + 1)) with hτ
     have hτ0 : 0 < τ := by positivity
-    have a1 : (P.card : ℝ) * τ ≤ ε₁ / 8 := by
+    have a1 : (P.card : ℝ) * τ ≤ slack / 8 := by
       calc (P.card : ℝ) * τ ≤ N * τ := mul_le_mul_of_nonneg_right hcard hτ0.le
-        _ ≤ ε₁ / 8 := by
+        _ ≤ slack / 8 := by
           rw [hτ, mul_div_assoc', div_le_div_iff₀ (by positivity) (by positivity)]
           nlinarith
-    have a2 : collisionMass (D j) / τ ≤ ε₁ / 8 := by
+    have a2 : collisionMass (D j) / τ ≤ slack / 8 := by
       rw [div_le_iff₀ hτ0]
       calc collisionMass (D j) ≤ ρ := hρ j hj
-        _ ≤ ε₁ ^ 2 / (64 * (N + 1)) := hρ1
-        _ = ε₁ / 8 * τ := by rw [hτ]; field_simp; ring
+        _ ≤ slack ^ 2 / (64 * (N + 1)) := hρ1
+        _ = slack / 8 * τ := by rw [hτ]; field_simp; ring
     linarith [measureReal_finset_le (D j) P hτ0]
-  unfold quality qualityBound
-  refine Prod.mk_le_mk.2 ⟨?_, ?_⟩
-  · apply card_le_sub_of_forall_notMem
-    intro q hq hq2
-    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
-    obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
-    have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
-      (fun p => EvC B.val G p (oracleNoise x))
-      (fun p => miscutProb O B.val.lo B.val.hi G p) (miscutProb O B.val.lo B.val.hi G p₀)
-      measureReal_nonneg measureReal_le_one (fun p => measureReal_nonneg)
-      (fun p hp => miscutProb_congr A O hL _ _ G (hp.trans hp₀.symm))
-      (devAt O populations B.val (D j) (F j) (EvC B.val) x) rfl
-    have hdev : devAt O populations B.val (D j) (F j) (EvC B.val) x < εcov / 2 :=
-      not_le.1 (hnb j hj).1
-    have hreal : (D j).real {p | ¬ cutCorrect O B.val.lo B.val.hi G p (oracleNoise x)}
-        ≤ εcov := by
-      rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _),
-        probReal_univ]
-      linarith [(hgood j hj).1]
-    have hsm : stateMass A (D j) q * miscutProb O B.val.lo B.val.hi G p₀ ≤ 2 * εcov := by
-      have := hFtail j
-      have := hPmass j hj
-      unfold stateMass
-      linarith
-    have h1 : 2 * εcov < tolerance * stateMass A (D j) q := by
-      rw [div_lt_iff₀ htolerance] at hmass
-      linarith
-    have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
-    have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
-    linarith
-  · apply card_le_sub_of_forall_notMem
-    intro q hq hq2
-    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
-    obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
-    have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
-      (fun p => EvU B.val G p (oracleNoise x))
-      (fun p => undecidedProb O B.val.lo B.val.hi G p) (undecidedProb O B.val.lo B.val.hi G p₀)
-      measureReal_nonneg measureReal_le_one (fun p => measureReal_nonneg)
-      (fun p hp => undecidedProb_congr A O hL _ _ G (hp.trans hp₀.symm))
-      (devAt O populations B.val (D j) (F j) (EvU B.val) x) rfl
-    have hdev : devAt O populations B.val (D j) (F j) (EvU B.val) x < indecisionLimit :=
-      not_le.1 (hnb j hj).2
-    have hreal := (hgood j hj).2
-    have hsm : stateMass A (D j) q * undecidedProb O B.val.lo B.val.hi G p₀
-        ≤ 4 * indecisionLimit := by
-      have := hFtail j
-      have := hPmass j hj
-      unfold stateMass
-      linarith
-    have h1 : 4 * indecisionLimit < tolerance * stateMass A (D j) q := by
-      rw [div_lt_iff₀ htolerance] at hmass
-      linarith
-    have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
-    have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
-    linarith
+  intro j hj
+  have hC := integral_le_realized (D j) (hsupp j hj) (F j) P
+    (fun p => EvC B.val G p (oracleNoise x)) (fun p => miscutProb O B.val.lo B.val.hi G p)
+    (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
+    (devAt O populations B.val (D j) (F j) (EvC B.val) x) rfl
+  have hU := integral_le_realized (D j) (hsupp j hj) (F j) P
+    (fun p => EvU B.val G p (oracleNoise x)) (fun p => undecidedProb O B.val.lo B.val.hi G p)
+    (fun p => measureReal_nonneg) (fun p => measureReal_le_one)
+    (devAt O populations B.val (D j) (F j) (EvU B.val) x) rfl
+  have hdevC : devAt O populations B.val (D j) (F j) (EvC B.val) x < slack / 2 :=
+    not_le.1 (hnb j hj).1
+  have hdevU : devAt O populations B.val (D j) (F j) (EvU B.val) x < slack / 2 :=
+    not_le.1 (hnb j hj).2
+  have hrealC : (D j).real {p | ¬ cutCorrect O B.val.lo B.val.hi G p (oracleNoise x)} ≤ εcov := by
+    rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _), probReal_univ]
+    linarith [(hgood j hj).1]
+  have hrealU := (hgood j hj).2
+  have := hFtail j
+  have := hPmass j hj
+  exact ⟨by linarith, by linarith⟩
 
 end OrthoDFA
