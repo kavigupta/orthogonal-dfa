@@ -25,17 +25,6 @@ variable {J : Type*} [Fintype J]
 
 /-! ## The vote's law depends only on the state -/
 
-lemma measureReal_mq_eq_one (O : Oracle μ S) (w : S) :
-    μ.real {ω | O.mq w ω = 1} = μ[O.mq w] := by
-  have hmeas : MeasurableSet {ω | O.mq w ω = 1} :=
-    measurableSet_eq_fun (mq_meas O w) measurable_const
-  have hae : O.mq w =ᵐ[μ] ({ω | O.mq w ω = 1} : Set Ω).indicator 1 := by
-    filter_upwards [mq_bit O w] with ω hω
-    rcases hω with h | h
-    · simp [h]
-    · simp [h]
-  rw [integral_congr_ae hae, integral_indicator_one hmeas]
-
 lemma measure_mq_eq_one_congr (O : Oracle μ S) {w w' : S} (h : O.label w = O.label w') :
     μ (O.mq w ⁻¹' {1}) = μ (O.mq w' ⁻¹' {1}) := by
   have hr : μ.real {ω | O.mq w ω = 1} = μ.real {ω | O.mq w' ω = 1} := by
@@ -496,33 +485,25 @@ lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s
   rw [← Finset.card_compl]
   exact Finset.card_le_card (fun q hq => Finset.mem_compl.2 (h q hq))
 
-/-- A band solved at a straddle limit capped at one is wide enough for the uncapped one. -/
-lemma band_of_mem_schedule_min {η₀ : ℝ} {populations : Finset J}
-    {indecisionLimit εcov δ α pAP straddleLimit : ℝ} {B : State}
-    (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hstr : 0 < straddleLimit)
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP (min straddleLimit 1)) :
-    B.lo ≤ B.hi
-      ∧ 2 * ((B.k : ℝ) - 1) * Real.log (1 / straddleLimit) ≤ ((B.hi : ℝ) - B.lo) ^ 2 := by
-  obtain ⟨hlohi, hband⟩ := band_of_mem_schedule hη0 hη₀ hB
-  refine ⟨hlohi, le_trans ?_ hband⟩
-  have hk : 1 ≤ B.k := by
-    rw [schedule] at hB
-    obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
-    exact Nat.le_add_left _ _
-  have hkR : (1 : ℝ) ≤ B.k := by exact_mod_cast hk
-  have hlog : Real.log (1 / straddleLimit) ≤ Real.log (1 / min straddleLimit 1) :=
-    Real.log_le_log (by positivity)
-      (one_div_le_one_div_of_le (lt_min hstr one_pos) (min_le_left _ _))
-  linarith [mul_le_mul_of_nonneg_left hlog (by linarith : (0 : ℝ) ≤ 2 * ((B.k : ℝ) - 1))]
+/-- A band solved at a crossing limit capped at one also meets the uncapped limit. -/
+lemma cross_of_mem_schedule_min (O : Oracle μ S) {η₀ : ℝ} {populations : Finset J}
+    {indecisionLimit εcov δ α pAP crossLimit : ℝ} {B : State}
+    (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hcross : 0 < crossLimit)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP (min crossLimit 1))
+    (F : Finset S) (hF : F.card + 1 ≤ B.k) (p : S) :
+    (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+    ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit) := by
+  obtain ⟨h1, h2⟩ := cross_of_mem_schedule O hη0 hη₀ (lt_min hcross one_pos) hB F hF p
+  exact ⟨fun h => (h1 h).trans (min_le_left _ _), fun h => (h2 h).trans (min_le_left _ _)⟩
 
 /-! ## The theorem -/
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ Q _ A O populations Pre Suf η₀ indecisionLimit εcov α δ pAP tolerance
-    straddleLimit hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance hstr
+    crossLimit hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance hstr
   classical
-  -- the cost bound needs a limit of at most one, and capping it never narrows the band
-  set ζ : ℝ := min straddleLimit 1 with hζdef
+  -- the cost bound needs a limit of at most one, and capping it only tightens the crossing bound
+  set ζ : ℝ := min crossLimit 1 with hζdef
   have hζ : 0 < ζ := lt_min hstr one_pos
   have hζ1 : ζ ≤ 1 := min_le_right _ _
   set δ' : ℝ := δ / 2 with hδ'def
@@ -557,7 +538,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP ζ ρ (collisionMass Dsf)
     with hstates
   refine ⟨states, fun B hB =>
-    band_of_mem_schedule_min hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
+    cross_of_mem_schedule_min O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ' ρ pAP
     ζ 524288 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP ζ hsig hη0 hpop hind hε hε1

@@ -171,7 +171,7 @@ lemma measurePreserving_finRestrict (D : Measure S) [IsProbabilityMeasure D] (n 
 variable {J : Type*} [Fintype J]
 variable {η₀ : ℝ}
 variable {indecisionLimit : ℝ}
-variable {straddleLimit : ℝ}
+variable {crossLimit : ℝ}
 
 /-! The whole blocks of a run, as opposed to `suffixDraw`/`prefixDraw`/`certPrefix`, which pick out one draw.
 The marginal arguments slice the product at these boundaries. -/
@@ -245,32 +245,32 @@ union bound still closes. -/
 
 /-- The budget the loop is heading for: the top of the ladder. -/
 noncomputable def solvedState (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP straddleLimit : ℝ) : State :=
-  solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
+    (indecisionLimit εcov δ α pAP crossLimit : ℝ) : State :=
+  solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
+    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
 
 lemma ladderLen_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < ladderLen η₀ populations indecisionLimit εcov δ α pAP straddleLimit := by
+    0 < ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
   rw [ladderLen]; omega
 
 lemma solvedState_mem_schedule (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP : ℝ) :
-    solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit
-      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP straddleLimit := by
+    solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit
+      ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
   rw [schedule, solvedState]
   refine Finset.mem_image.2 ⟨0, Finset.mem_range.2 (ladderLen_pos _ _ _ _ _ _), ?_⟩
   norm_num
 
 /-- Every rung draws the same pool: only the prefix count halves along the ladder. -/
 lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
-    B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit := by
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
   rw [schedule] at hB
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   rfl
 
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    0 < prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit := by
+    0 < prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
   rw [prefCount]; omega
 
 /-- Collapsing an image can only drop terms, never add them. -/
@@ -290,14 +290,14 @@ lemma sum_image_le_sum {β : Type*} [DecidableEq β] (g : β → ℝ) (hg : ∀ 
 /-- The ladder's prefix counts halve, so they sum to under twice the top rung's however long
 the ladder is.  This is what lets the rungs be paid in proportion to their counts. -/
 lemma schedule_npref_sum_le (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
-    ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP straddleLimit, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ) := by
+    ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) := by
   classical
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
-  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hLdef
-  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP straddleLimit, (B.npref : ℝ)
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  set L : ℕ := ladderLen η₀ populations indecisionLimit εcov δ α pAP crossLimit with hLdef
+  calc ∑ B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit, (B.npref : ℝ)
       ≤ ∑ i ∈ Finset.range L,
-          ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit
+          ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
             (m / 2 ^ i)).npref : ℝ) := by
         rw [schedule, ← hmdef, ← hLdef]
         exact sum_image_le_sum _ (fun B => Nat.cast_nonneg _) _ _
@@ -351,14 +351,14 @@ lemma flipFrac_voteSlack (η₀ : ℝ) (hsig : η₀ < 1 / 2) :
   ring
 
 lemma famCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
-    0 < famCount η₀ populations indecisionLimit εcov δ straddleLimit := by
+    0 < famCount η₀ populations indecisionLimit εcov δ crossLimit := by
   rw [famCount]; omega
 
 /-- The family's size is even, so its centre is a count. -/
 lemma famCount_half (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
-    (⌈(famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2⌉₊ : ℝ)
-      = (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2 := by
-  obtain ⟨n, hn⟩ : ∃ n : ℕ, famCount η₀ populations indecisionLimit εcov δ straddleLimit = 2 * n :=
+    (⌈(famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊ : ℝ)
+      = (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
+  obtain ⟨n, hn⟩ : ∃ n : ℕ, famCount η₀ populations indecisionLimit εcov δ crossLimit = 2 * n :=
     ⟨_, rfl⟩
   rw [hn, Nat.cast_mul, Nat.cast_ofNat, mul_div_cancel_left₀ _ two_ne_zero, Nat.ceil_natCast]
 
@@ -372,33 +372,33 @@ lemma exp_neg_le_of_log_le {a ε : ℝ} (hε : 0 < ε) (h : Real.log (1 / ε) �
 
 lemma famCount_tail (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ} (hsig : η₀ < 1 / 2)
     (hε : 0 < εcov) (hind : 0 < indecisionLimit) :
-    Real.exp (-2 * (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ)
+    Real.exp (-2 * (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
         * (voteSlack η₀ / 2) ^ 2)
       ≤ cutBudget η₀ indecisionLimit εcov / 2 := by
   have hs := voteSlack_pos η₀ hsig
   have hcut := cutBudget_pos η₀ hsig hε hind
   have hhalf : (⌈Real.log (2 / cutBudget η₀ indecisionLimit εcov) / voteSlack η₀ ^ 2⌉₊ : ℝ)
-      ≤ (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2 := by
+      ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
     rw [famCount]; push_cast
-    linarith [Nat.cast_nonneg (α := ℝ) ⌈4 * Real.log (1 / straddleLimit) / voteSlack η₀ ^ 2⌉₊]
+    linarith [Nat.cast_nonneg (α := ℝ) ⌈Real.log (1 / crossLimit) / voteSlack η₀ ^ 2⌉₊]
   have h4 := le_trans (Nat.le_ceil (Real.log (2 / cutBudget η₀ indecisionLimit εcov)
     / voteSlack η₀ ^ 2)) hhalf
   rw [div_le_iff₀ (by positivity : (0 : ℝ) < voteSlack η₀ ^ 2)] at h4
-  rw [show -2 * (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ)
+  rw [show -2 * (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
         * (voteSlack η₀ / 2) ^ 2
-      = -((famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2
+      = -((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2
         * voteSlack η₀ ^ 2) by ring]
   refine exp_neg_le_of_log_le (by positivity) ?_
   rw [one_div_div]
   linarith
 
-/-- The straddle term in `famCount`, in the form the band's width is checked against. -/
-lemma famCount_straddle (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
-    8 * Real.log (1 / straddleLimit)
-      ≤ (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) * voteSlack η₀ ^ 2 := by
+/-- The crossing term in `famCount`, in the form the band's width is checked against. -/
+lemma famCount_cross (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
+    2 * Real.log (1 / crossLimit)
+      ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ ^ 2 := by
   have hs := voteSlack_pos η₀ hsig
-  have hle : 4 * Real.log (1 / straddleLimit) / voteSlack η₀ ^ 2
-      ≤ (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2 := by
+  have hle : Real.log (1 / crossLimit) / voteSlack η₀ ^ 2
+      ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2 := by
     refine le_trans (Nat.le_ceil _) ?_
     rw [famCount]; push_cast
     linarith [Nat.cast_nonneg (α := ℝ)
@@ -407,36 +407,36 @@ lemma famCount_straddle (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) 
   linarith
 
 lemma bandHalf_le (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2) :
-    (bandHalf η₀ populations indecisionLimit εcov δ straddleLimit : ℝ)
-      ≤ (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) * voteSlack η₀ / 2 :=
+    (bandHalf η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
+      ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ / 2 :=
   Nat.floor_le (by have := voteSlack_pos η₀ hsig; positivity)
 
 /-- The band spans at least `κ·voteSlack/2` counts. -/
 lemma bandHalf_wide (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
-    (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) * voteSlack η₀ / 2
-      ≤ 2 * (bandHalf η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) + 1 := by
+    (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ / 2
+      ≤ 2 * (bandHalf η₀ populations indecisionLimit εcov δ crossLimit : ℝ) + 1 := by
   have h := Nat.lt_floor_add_one
-    ((famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) * voteSlack η₀ / 2)
+    ((famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η₀ / 2)
   rw [← bandHalf] at h
-  linarith [Nat.cast_nonneg (α := ℝ) (bandHalf η₀ populations indecisionLimit εcov δ straddleLimit)]
+  linarith [Nat.cast_nonneg (α := ℝ) (bandHalf η₀ populations indecisionLimit εcov δ crossLimit)]
 
 /-- The band fits below the centre, so `lo` is not truncated. -/
 lemma bandHalf_lt (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hη0 : 0 ≤ η₀)
     (hsig : η₀ < 1 / 2) :
-    bandHalf η₀ populations indecisionLimit εcov δ straddleLimit + 1
-      ≤ ⌈(famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2⌉₊ := by
-  have hκ : (0 : ℝ) < (famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) := by
+    bandHalf η₀ populations indecisionLimit εcov δ crossLimit + 1
+      ≤ ⌈(famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊ := by
+  have hκ : (0 : ℝ) < (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) := by
     exact_mod_cast famCount_pos η₀ populations εcov δ
   have hv : voteSlack η₀ ≤ 3 / 20 := by rw [voteSlack, sig]; linarith
-  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
-  have hc := famCount_half (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hc := famCount_half (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ
-  have hlt : (bandHalf η₀ populations indecisionLimit εcov δ straddleLimit : ℝ)
-      < (⌈(famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2⌉₊ : ℝ) := by
+  have hlt : (bandHalf η₀ populations indecisionLimit εcov δ crossLimit : ℝ)
+      < (⌈(famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊ : ℝ) := by
     rw [hc]; nlinarith
-  have : bandHalf η₀ populations indecisionLimit εcov δ straddleLimit
-      < ⌈(famCount η₀ populations indecisionLimit εcov δ straddleLimit : ℝ) / 2⌉₊ := by
+  have : bandHalf η₀ populations indecisionLimit εcov δ crossLimit
+      < ⌈(famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊ := by
     exact_mod_cast hlt
   omega
 
@@ -2005,8 +2005,8 @@ lemma pi_not_injective_le (Dj : Measure S) [IsProbabilityMeasure Dj] (m : ℕ) (
 
 lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
     (εcov δ α pAP ρ ρsf : ℝ) :
-    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ ρsf, (B.npref : ℝ)
-      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ) := by
+    ∑ B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ ρsf, (B.npref : ℝ)
+      ≤ 2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) := by
   classical
   refine le_trans (Finset.sum_le_sum_of_subset_of_nonneg ?_ (fun _ _ _ => Nat.cast_nonneg _))
     (schedule_npref_sum_le η₀ populations εcov δ α pAP)
@@ -2015,9 +2015,9 @@ lemma stoppable_npref_sum_le (η₀ : ℝ) (populations : Finset J)
 
 lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
     {εcov δ α pAP ρ ρsf : ℝ} {B : State}
-    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ ρsf) :
+    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ ρsf) :
     Capped η₀ populations indecisionLimit εcov δ ρ ρsf pAP (prefCount η₀ populations
-      indecisionLimit εcov δ α pAP straddleLimit) B := by
+      indecisionLimit εcov δ α pAP crossLimit) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
 
@@ -2536,6 +2536,87 @@ theorem voteSum_lower_gap (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label
 lemma measureReal_le_of_ae_imp {A B : Set Ω} (h : ∀ᵐ ω ∂μ, ω ∈ A → ω ∈ B) :
     μ.real A ≤ μ.real B :=
   ENNReal.toReal_mono (measure_ne_top μ B) (measure_mono_ae h)
+
+lemma measureReal_mq_eq_one (O : Oracle μ S) (w : S) :
+    μ.real {ω | O.mq w ω = 1} = μ[O.mq w] := by
+  have hmeas : MeasurableSet {ω | O.mq w ω = 1} :=
+    measurableSet_eq_fun (mq_meas O w) measurable_const
+  have hae : O.mq w =ᵐ[μ] ({ω | O.mq w ω = 1} : Set Ω).indicator 1 := by
+    filter_upwards [mq_bit O w] with ω hω
+    rcases hω with h | h
+    · simp [h]
+    · simp [h]
+  rw [integral_congr_ae hae, integral_indicator_one hmeas]
+
+/-- A vote whose mean lies above `hi` falls to `lo` or below, and one whose mean lies at or
+below `lo` rises above `hi`, each with probability at most `exp (-2 (hi − lo)² / n)` for a
+family of at most `n`. -/
+theorem vote_cross_le (O : Oracle μ S) (F : Finset S) (p : S) {lo hi n : ℕ} (hlohi : lo ≤ hi)
+    (hn : F.card ≤ n) (hn0 : 0 < n) :
+    (hi < meanVote O F p →
+      μ.real {ω | voteCount O.mq F p ω ≤ lo} ≤ Real.exp (-2 * ((hi : ℝ) - lo) ^ 2 / n))
+    ∧ (meanVote O F p ≤ lo →
+      μ.real {ω | hi < voteCount O.mq F p ω} ≤ Real.exp (-2 * ((hi : ℝ) - lo) ^ 2 / n)) := by
+  classical
+  have hmean : meanVote O F p = ∑ v ∈ F, μ[O.mq (p * v)] :=
+    Finset.sum_congr rfl (fun v _ => measureReal_mq_eq_one O (p * v))
+  have hd : (0 : ℝ) ≤ (hi : ℝ) - lo := by
+    have : (lo : ℝ) ≤ hi := by exact_mod_cast hlohi
+    linarith
+  rcases Nat.eq_zero_or_pos F.card with h0 | hpos
+  · obtain rfl : F = ∅ := Finset.card_eq_zero.1 h0
+    refine ⟨fun h => ?_, fun _ => ?_⟩
+    · rw [meanVote, Finset.sum_empty] at h
+      exact absurd h (not_lt.2 (Nat.cast_nonneg _))
+    · have : {ω | hi < voteCount O.mq ∅ p ω} = ∅ := by
+        ext ω; simp [voteCount]
+      rw [this, measureReal_empty]
+      exact (Real.exp_pos _).le
+  have hc : (0 : ℝ) < F.card := by exact_mod_cast hpos
+  have hc0 : (F.card : ℝ) ≠ 0 := hc.ne'
+  have hcn : (F.card : ℝ) ≤ n := by exact_mod_cast hn
+  -- a deviation of `d` over the family's own size costs at least `hi − lo` over `n`
+  have hexp : ∀ d : ℝ, (hi : ℝ) - lo ≤ d →
+      Real.exp (-2 * (F.card : ℝ) * (d / F.card) ^ 2)
+        ≤ Real.exp (-2 * ((hi : ℝ) - lo) ^ 2 / n) := by
+    intro d hdd
+    refine Real.exp_le_exp.2 ?_
+    have e : -2 * (F.card : ℝ) * (d / F.card) ^ 2 = -2 * (d ^ 2 / F.card) := by
+      field_simp
+    have e' : -2 * ((hi : ℝ) - lo) ^ 2 / n = -2 * (((hi : ℝ) - lo) ^ 2 / n) := by ring
+    have h1 : ((hi : ℝ) - lo) ^ 2 / n ≤ d ^ 2 / F.card :=
+      div_le_div₀ (sq_nonneg _) (pow_le_pow_left₀ hd hdd 2) hc hcn
+    rw [e, e']
+    linarith
+  constructor
+  · intro hm
+    set γ : ℝ := (meanVote O F p - lo) / F.card with hγ
+    have hγ0 : 0 ≤ γ := div_nonneg (by linarith) hc.le
+    have hT := sumLower_le_total (fun v : S => O.mq (p * v)) F (meanVote O F p) γ
+      (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _)
+      hmean.le hγ0
+    have hcg : meanVote O F p - (F.card : ℝ) * γ = lo := by
+      rw [hγ]; field_simp; ring
+    rw [hcg] at hT
+    refine le_trans (measureReal_le_of_ae_imp ?_) (hT.trans (hexp _ (by linarith)))
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq h
+    have h' : (voteCount O.mq F p ω : ℝ) ≤ lo := by exact_mod_cast h
+    rw [heq] at h'
+    exact h'
+  · intro hm
+    set γ : ℝ := ((hi : ℝ) - meanVote O F p) / F.card with hγ
+    have hγ0 : 0 ≤ γ := div_nonneg (by linarith) hc.le
+    have hT := sumUpper_le_total (fun v : S => O.mq (p * v)) F (meanVote O F p) γ
+      (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _)
+      hmean.ge hγ0
+    have hcg : meanVote O F p + (F.card : ℝ) * γ = hi := by
+      rw [hγ]; field_simp; ring
+    rw [hcg] at hT
+    refine le_trans (measureReal_le_of_ae_imp ?_) (hT.trans (hexp _ (by linarith)))
+    filter_upwards [voteCount_eq_voteSum O F p] with ω heq h
+    have h' : (hi : ℝ) < (voteCount O.mq F p ω : ℝ) := by exact_mod_cast h
+    rw [heq] at h'
+    exact h'.le
 
 /-- The cut is correct at a prefix the family barely flips.  Only the side the prefix
 actually sits on can fail, so one tail — not two — pays for it. -/
@@ -6561,22 +6642,22 @@ and the skip guard change down the ladder, and none of these read either. -/
 lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ} (mi : ℕ)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hεcov : 0 < εcov)
     (hind : 0 < indecisionLimit) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    0 < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).k
-    ∧ (solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).cn
-      < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).cd
-    ∧ 0 < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).scd
-    ∧ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).sc : ℝ)
-      ≤ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).scd : ℝ)
+    0 < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).k
+    ∧ (solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).cn
+      < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).cd
+    ∧ 0 < (solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).scd
+    ∧ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).sc : ℝ)
+      ≤ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).scd : ℝ)
         * (flipBudget η₀ populations indecisionLimit εcov δ * (1 - 2 * O.η) ^ 2
           - 2 * (screenMargin η₀ populations indecisionLimit εcov δ / 2))
-    ∧ (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).k - 1 : ℕ) : ℝ)
+    ∧ (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).k - 1 : ℕ) : ℝ)
         * ((O.η + (1 - O.η) * flipFrac η₀) + voteSlack η₀ / 2)
-      ≤ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).hi : ℝ)
-    ∧ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).lo : ℝ)
-      < (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).k - 1 : ℕ) : ℝ)
+      ≤ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).hi : ℝ)
+    ∧ ((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).lo : ℝ)
+      < (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).k - 1 : ℕ) : ℝ)
         * (((1 - O.η) * (1 - flipFrac η₀)) - voteSlack η₀ / 2)
     ∧ Real.exp (-2
-        * (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi).k
+        * (((solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi).k
             - 1 : ℕ) : ℝ)
         * (voteSlack η₀ / 2) ^ 2) ≤ cutBudget η₀ indecisionLimit εcov / 2 := by
   classical
@@ -6588,12 +6669,12 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
     screenMargin_pos η₀ populations hη₀ hεcov hind hcard
   have hv := voteSlack_pos η₀ hη₀
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη₀
-  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη0 hη₀
-  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ straddleLimit with hbdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
+  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ crossLimit with hbdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   have hκpos : 0 < κ := famCount_pos η₀ populations εcov δ
   have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκpos
   set x : ℝ := (κ : ℝ) / 2 with hxdef
@@ -6605,7 +6686,7 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hηle hη₀ hκ0
   have hb0 : (0 : ℝ) ≤ (b : ℝ) := Nat.cast_nonneg _
   have hκv : (0 : ℝ) ≤ (κ : ℝ) * voteSlack η₀ := mul_nonneg hκ0 hv.le
-  set B : State := solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit mi
+  set B : State := solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit mi
     with hBdef
   have hBk : B.k = κ + 1 := rfl
   have hBcn : B.cn = 1 := rfl
@@ -6661,39 +6742,63 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   · rw [hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, hκdef]
     exact famCount_tail η₀ populations hη₀ hεcov hind
 
-/-- Every rung's band is wide enough that no vote over its family lands on both sides of it
-more than `straddleLimit` of the time. -/
+/-- The band is wide enough for `cross_of_mem_schedule` to read the crossing bound off. -/
 lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
     (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2)
-    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
-    B.lo ≤ B.hi
-      ∧ 2 * ((B.k : ℝ) - 1) * Real.log (1 / straddleLimit) ≤ ((B.hi : ℝ) - B.lo) ^ 2 := by
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    B.lo ≤ B.hi ∧ 2 ≤ B.k
+      ∧ ((B.k : ℝ) - 1) * Real.log (1 / crossLimit) ≤ 2 * ((B.hi : ℝ) - B.lo) ^ 2 := by
   rw [schedule] at hB
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   have hv := voteSlack_pos η₀ hη₀
-  have hb := bandHalf_wide (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hκpos := famCount_pos (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ
-  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb := bandHalf_wide (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
+    η₀ populations εcov δ
+  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη0 hη₀
-  have hL := famCount_straddle (indecisionLimit := indecisionLimit)
-    (straddleLimit := straddleLimit) η₀ populations εcov δ hη₀
-  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ straddleLimit with hbdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
+  have hL := famCount_cross (indecisionLimit := indecisionLimit)
+    (crossLimit := crossLimit) η₀ populations εcov δ hη₀
+  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ crossLimit with hbdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   set c : ℕ := ⌈(κ : ℝ) / 2⌉₊ with hcdef
-  set B : State := solvedStateAt η₀ populations indecisionLimit εcov δ pAP straddleLimit
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit / 2 ^ i) with hBdef
+  set B : State := solvedStateAt η₀ populations indecisionLimit εcov δ pAP crossLimit
+    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i) with hBdef
   have hBk : B.k = κ + 1 := rfl
   have hBlo : B.lo = c - b - 1 := rfl
   have hBhi : B.hi = c + b := rfl
   clear_value B b κ c
   rw [hBk, hBlo, hBhi]
-  refine ⟨by omega, ?_⟩
+  refine ⟨by omega, by omega, ?_⟩
   rw [Nat.sub_sub, Nat.cast_sub hb1]
   push_cast
   have hκ0 : (0 : ℝ) ≤ κ := Nat.cast_nonneg _
   have hy : 0 ≤ (κ : ℝ) * voteSlack η₀ / 2 := by positivity
   have hsq := pow_le_pow_left₀ hy hb 2
   nlinarith [mul_le_mul_of_nonneg_left hL hκ0]
+
+/-- A vote over a family no larger than a rung's own, whose mean lies outside the rung's band,
+reaches the band's far side at most `crossLimit` of the time. -/
+theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov δ α pAP : ℝ}
+    {B : State} (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hcross : 0 < crossLimit)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (F : Finset S) (hF : F.card + 1 ≤ B.k) (p : S) :
+    (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+    ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit) := by
+  obtain ⟨hlohi, hk, hband⟩ := band_of_mem_schedule hη0 hη₀ hB
+  have hnpos : (0 : ℝ) < ((B.k - 1 : ℕ) : ℝ) := by
+    have : 0 < B.k - 1 := by omega
+    exact_mod_cast this
+  have hnR : ((B.k - 1 : ℕ) : ℝ) = (B.k : ℝ) - 1 := by
+    rw [Nat.cast_sub (by omega)]; simp
+  have hexp : Real.exp (-2 * ((B.hi : ℝ) - B.lo) ^ 2 / ((B.k - 1 : ℕ) : ℝ)) ≤ crossLimit := by
+    rw [show -2 * ((B.hi : ℝ) - B.lo) ^ 2 / ((B.k - 1 : ℕ) : ℝ)
+        = -(2 * ((B.hi : ℝ) - B.lo) ^ 2 / ((B.k - 1 : ℕ) : ℝ)) by ring]
+    refine exp_neg_le_of_log_le hcross ?_
+    rw [le_div_iff₀ hnpos, hnR]
+    linarith
+  obtain ⟨h1, h2⟩ := vote_cross_le O F p hlohi (n := B.k - 1) (by omega) (by omega)
+  exact ⟨fun h => (h1 h).trans hexp, fun h => (h2 h).trans hexp⟩
 
 open scoped Classical in
 set_option maxHeartbeats 1000000 in
@@ -6817,12 +6922,12 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
     (pAP : ℝ) (hpAP0 : 0 ≤ pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
-    (hfind : Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ)
+    (hfind : Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
         * (pAP / 2) ^ 2)
       ≤ δ / 4) :
     (runMeasure μ D Dsf).real
         (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
-            straddleLimit ρ ρsf},
+            crossLimit ρ ρsf},
           ret O.mq populations indecisionLimit α B.val
             ∩ FailAt O populations D indecisionLimit εcov B.val) ≤ δ / 2 := by
   classical
@@ -6831,21 +6936,21 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by
     exact_mod_cast Finset.card_pos.2 ⟨j₀, hj₀⟩
   refine validity_of_ladder O populations D Dsf indecisionLimit εcov α δ hδ.le _
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
+    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
     (prefCount_pos _ _ _ _ _ _)
     (stoppable_npref_sum_le η₀ populations εcov δ α pAP ρ ρsf)
-    (apShort O (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit) pAP (pAP / 2))
+    (apShort O (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit) pAP (pAP / 2))
     (le_trans (measureReal_apShort_le D Dsf O _ pAP (pAP / 2) hpAP0 (by linarith) hpAPBound)
       hfind) (fun B hB => ?_)
   have hcap := capped_of_mem_stoppable hB
   have hsched := (Finset.mem_filter.1 hB).1
-  have hM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit :=
+  have hM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit :=
     nsuff_of_mem_schedule hsched
   rw [schedule] at hsched
   obtain ⟨i, -, hBeq⟩ := Finset.mem_image.1 hsched
   obtain ⟨hk, hcd, hscd, hsc, hhi, hlo, hEc⟩ := rung_facts O populations
     (δ := δ) (pAP := pAP)
-    (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit / 2 ^ i)
+    (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i)
     hηle hη₀ hεcov hindLim hcard
   rw [hBeq] at hk hcd hscd hsc hhi hlo hEc
   have hΔ : 0 < flipBudget η₀ populations indecisionLimit εcov δ :=
@@ -7003,12 +7108,12 @@ lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
     (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     Real.exp (-2
-        * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+        * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
       * (sig η₀ * εcov / 4) ^ 2) ≤ α := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hτ : (0 : ℝ) < sig η₀ * εcov / 4 := by positivity
   have hτ2 : (0 : ℝ) < (sig η₀ * εcov / 4) ^ 2 := pow_pos hτ 2
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   -- the prefix count clears the gate's tail
   have hmlog : 64 * Real.log (1 / α) / (εcov * (sig η₀ * εcov / 4) ^ 2) ≤ (m : ℝ) := by
@@ -7025,13 +7130,13 @@ lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
     rw [div_le_iff₀ hε] at hsizeR
     linarith
   have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ) := by
+      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ) := by
     show εcov * (m : ℝ) / 64 ≤ (⌊εcov * (m : ℝ) / 32⌋₊ : ℝ)
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     linarith
-  rw [show (-2 * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+  rw [show (-2 * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
         * (sig η₀ * εcov / 4) ^ 2)
-      = -(2 * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+      = -(2 * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
         * (sig η₀ * εcov / 4) ^ 2) from by ring]
   refine exp_neg_le_of_log_le hα ?_
   have hlog0 : 0 ≤ Real.log (1 / α) := Real.log_nonneg (by rw [le_div_iff₀ hα]; linarith)
@@ -7042,10 +7147,10 @@ lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
 ladder shares, so it is charged once against `δ/4` rather than per rung. -/
 lemma solved_findability (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : ℝ}
     (hδ : 0 < δ) (hpAP : 0 < pAP) (hcard : (1 : ℝ) ≤ (populations.card : ℝ)) :
-    Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ)
+    Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
       * (pAP / 2) ^ 2) ≤ δ / 32 := by
   have ctap : Real.log (1 / (δ / 32)) / (2 * (pAP / 2) ^ 2)
-      ≤ ((poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℕ) : ℝ) := by
+      ≤ ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℕ) : ℝ) := by
     have hmono : Real.log (1 / (δ / 32))
         ≤ Real.log (128 * (populations.card : ℝ) / δ) := by
       refine Real.log_le_log (by positivity) ?_
@@ -7054,7 +7159,7 @@ lemma solved_findability (η₀ : ℝ) (populations : Finset J) {εcov δ pAP : 
     refine le_trans (div_le_div_of_nonneg_right hmono (by positivity)) ?_
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (pAP / 2) ^ 2)⌉₊
-        ≤ poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit := by
+        ≤ poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
       rw [poolCount]; omega
     exact_mod_cast hle
   have h := tail_le_of_count (γ := pAP / 2) (c := 1) (by positivity)
@@ -7066,28 +7171,28 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
-    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
-    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
-    Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ)
+    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
         * (pAP / 2) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
-    ∧ ((poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ) + 2) ^ 2
-        * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ)
+    ∧ ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2
+        * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
           * (screenMargin η₀ populations indecisionLimit εcov δ / 2) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
-    ∧ (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ)
-        * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ)
+    ∧ (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
+        * Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
           * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
-    ∧ Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ)
+    ∧ Real.exp (-2 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
         * (cutBudget η₀
       indecisionLimit εcov / 4) ^ 2)
         ≤ δ / (128 * (populations.card : ℝ))
     ∧ (populations.card : ℝ) * (((populations.card : ℝ) + 3)
-        * (prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit : ℝ) ^ 2 * ρ) ≤ δ
+        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ) ^ 2 * ρ) ≤ δ
             / 64
     ∧ (populations.card : ℝ)
-        * ((poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ) ^ 2 * ρsf)
+        * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) ^ 2 * ρsf)
         ≤ δ / 64 := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
@@ -7097,9 +7202,9 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     screenMargin_pos η₀ populations hsig hε hind hcard
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
   have hε₀ : 0 < ε₀ := by rw [hε₀def]; positivity
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
-  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit with hMdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
   have hMR : (0 : ℝ) ≤ (M : ℝ) := Nat.cast_nonneg _
   -- each count clears the logarithm its tail asks for
@@ -7166,7 +7271,7 @@ lemma solved_tails (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
   -- the collision terms, with the state's code kept opaque
   have hden : (0 : ℝ) < 64 * ((populations.card : ℝ) + 3) ^ 3
       * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1) := by positivity
-  have hcapval : collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit
+  have hcapval : collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit
       = δ / (64 * ((populations.card : ℝ) + 3) ^ 3
         * ((m : ℝ) ^ 2 + (M : ℝ) ^ 2 + 1)) := by
     rw [collisionCap, ← hmdef, ← hMdef]
@@ -7214,14 +7319,14 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     (hpAP : 0 < pAP) (hind : 0 < indecisionLimit)
     (hind1 : indecisionLimit ≤ 1 / 2)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
-    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
-    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
+    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
     (populations.card : ℝ)
         * roundFail populations (indecisionLimit / 2) (cutBudget η₀ indecisionLimit εcov)
             (sig η₀ * εcov / 4)
             (cutBudget η₀ indecisionLimit εcov / 4)
             (Real.exp (-2
-              * (((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).k
+              * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).k
                   - 1 : ℕ) : ℝ)
               * (voteSlack η₀ / 2) ^ 2))
             (screenMargin η₀ populations indecisionLimit εcov δ / 2)
@@ -7229,9 +7334,9 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
             ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ)
             (pAP / 2) ρ ρsf
             ⌊(1 - indecisionLimit)
-              * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).npref :
+              * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref :
                   ℝ)⌋₊
-            (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
+            (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit)
       ≤ δ / 2 := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
@@ -7241,14 +7346,14 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     solved_tails η₀ populations hsig hε hind hδ hpAP hcard hρ0 hρsf0 hρsmall hρsfsmall
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
   have hε₀ : 0 < ε₀ := by rw [hε₀def]; positivity
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
-  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit with hMdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).npref = m :=
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
+  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref = m :=
     rfl
-  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).nsuff = M :=
+  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).nsuff = M :=
     rfl
-  have hBκ : ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).k - 1 : ℕ)
+  have hBκ : ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).k - 1 : ℕ)
       = κ := by
     show κ + 1 - 1 = κ
     omega
@@ -7259,13 +7364,13 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     have hle : ⌈64 / εcov⌉₊ ≤ m := by rw [hmdef, prefCount]; omega
     exact_mod_cast hle
   have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ) := by
+      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ) := by
     show εcov * (m : ℝ) / 64 ≤ (⌊εcov * (m : ℝ) / 32⌋₊ : ℝ)
     have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
     rw [div_le_iff₀ hε] at hsizeR
     linarith
   have cgate : Real.log (2 / ε₀) / (2 * (sig η₀ * εcov / 4) ^ 2)
-      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ) := by
+      ≤ ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ) := by
     have heq : (2 : ℝ) / ε₀ = 256 * (populations.card : ℝ) / δ := by
       rw [hε₀def]; field_simp; try ring
     rw [heq]
@@ -7287,13 +7392,13 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     linarith [mul_le_mul_of_nonneg_right hgmin
       (by positivity : (0 : ℝ) ≤ 2 * (sig η₀ * εcov / 4) ^ 2)]
   have tgate : 2 * Real.exp (-2
-      * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+      * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
       * (sig η₀ * εcov / 4) ^ 2) ≤ ε₀ :=
     tail_le_of_count hτ hε₀ (by norm_num) cgate
   -- the gate's tail, now floored at the decided count rather than at `gmin`
-  have hfloorge : ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+  have hfloorge : ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
       ≤ ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ) := by
-    have hg : (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin = ⌊εcov
+    have hg : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin = ⌊εcov
         * (m : ℝ) /
       32⌋₊ := rfl
     rw [hg]
@@ -7307,7 +7412,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     have hexp : Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
           * (sig η₀ * εcov / 4) ^ 2)
         ≤ Real.exp (-2
-            * ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).gmin : ℝ)
+            * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).gmin : ℝ)
           * (sig η₀ * εcov / 4) ^ 2) := by
       refine Real.exp_le_exp.2 ?_
       nlinarith [hfloorge, sq_nonneg (sig η₀ * εcov / 4)]
@@ -7349,23 +7454,23 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hind : 0 < indecisionLimit)
     (hδ : 0 < δ) (hpAP : 0 < pAP)
     (hcard : (0 : ℝ) < (populations.card : ℝ)) (hρ0 : 0 ≤ ρ) (hρsf0 : 0 ≤ ρsf)
-    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
-    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
+    (hρsmall : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
     stateFail η₀ populations indecisionLimit εcov δ ρ ρsf (solvedState η₀ populations
-      indecisionLimit εcov δ α pAP straddleLimit)
+      indecisionLimit εcov δ α pAP crossLimit)
       ≤ δ / 8 := by
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
   obtain ⟨-, tscr, tdirty', tth, hcoll1, hcoll2⟩ :=
     solved_tails η₀ populations hsig hε hind hδ hpAP hcard hρ0 hρsf0 hρsmall hρsfsmall
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
-  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit with hMdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
-  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).npref = m :=
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
+  have hBm : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref = m :=
     rfl
-  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).nsuff = M :=
+  have hBM : (solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).nsuff = M :=
     rfl
-  have hBκ : ((solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit).k - 1 : ℕ)
+  have hBκ : ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).k - 1 : ℕ)
       = κ := by
     show κ + 1 - 1 = κ
     omega
@@ -7443,9 +7548,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
-    (hρsfcap : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
-    ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ ρsf
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+    (hρsfcap : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    ∃ B : State, B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ ρsf
       ∧ PassableAt O η₀ populations D Dsf indecisionLimit εcov α δ ρ ρsf pAP B := by
   classical
   have hcard : (0 : ℝ) < (populations.card : ℝ) := by
@@ -7460,18 +7565,18 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     screenMargin_pos η₀ populations hη₀ hεcov hindLim hcard
   have hv := voteSlack_pos η₀ hη₀
   have hη0' : 0 ≤ η₀ := le_trans hη0 hηle
-  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb := bandHalf_le (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη₀
-  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (straddleLimit := straddleLimit)
+  have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη0' hη₀
-  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ straddleLimit with hbdef
-  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ straddleLimit with hκdef
+  set b : ℕ := bandHalf η₀ populations indecisionLimit εcov δ crossLimit with hbdef
+  set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   have hκpos : 0 < κ := famCount_pos η₀ populations εcov δ
   have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκpos
-  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hmdef
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
   have hmpos : 0 < m := by rw [hmdef, prefCount]; omega
   have hmR : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hmpos
-  set B : State := solvedState η₀ populations indecisionLimit εcov δ α pAP straddleLimit with hBdef
+  set B : State := solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit with hBdef
   -- the fields, as the definitions give them
   have hBm : B.npref = m := rfl
   have hBk : B.k = κ + 1 := rfl
@@ -7502,7 +7607,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   have hb0 : (0 : ℝ) ≤ (b : ℝ) := Nat.cast_nonneg _
   have hκv : (0 : ℝ) ≤ (κ : ℝ) * voteSlack η₀ := mul_nonneg hκ0 hv.le
   -- the fields, named before the definitions are made opaque
-  have hBM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit := rfl
+  have hBM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := rfl
   have hBcn : B.cn = 1 := rfl
   have hBcd : B.cd = 2 := rfl
   have hBlo : B.lo = ⌈x⌉₊ - b - 1 := rfl
@@ -7591,7 +7696,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     exact Nat.le_ceil _
   · rw [hBdef]
     exact (rung_facts O populations (δ := δ) (pAP := pAP) (prefCount η₀ populations indecisionLimit
-      εcov δ α pAP straddleLimit)
+      εcov δ α pAP crossLimit)
       hηle hη₀ hεcov hindLim hcard).2.2.2.1
   -- the pool holds a family
   · rw [hBk]
@@ -7652,7 +7757,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     exact solved_alpha η₀ populations hη₀ hεcov hε1 hδ hαpos hα hpAPPositive hcard
   · rw [hBdef]
     exact (rung_facts O populations (δ := δ) (pAP := pAP) (prefCount η₀ populations indecisionLimit
-      εcov δ α pAP straddleLimit)
+      εcov δ α pAP crossLimit)
       hηle hη₀ hεcov hindLim hcard).2.2.2.2.2.2
   · rw [hBdef]
     exact solved_roundFail η₀ populations hη₀ hεcov hε1 hδ hδ1 hpAPPositive hindLim hind1
@@ -7692,11 +7797,11 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     (hpAPPositive : 0 < pAP)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
-    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit)
     (hρsf : collisionMass Dsf
-        ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP straddleLimit) :
+        ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
     (runMeasure μ D Dsf).real {x | ∀ B : {B : State //
-        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ (collisionMass
+        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ (collisionMass
             Dsf)},
       x ∉ ret O.mq populations indecisionLimit α B.val} ≤ δ / 2 := by
   classical
@@ -7718,7 +7823,7 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
   have hρsf0 : (0 : ℝ) ≤ collisionMass Dsf := tsum_nonneg (fun a => sq_nonneg _)
   -- the whole failure at the one state, population by population
   have hsub : {x : Run Ω S J | ∀ B' : {B : State //
-          B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ (collisionMass
+          B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ (collisionMass
               Dsf)},
         x ∉ ret O.mq populations indecisionLimit α B'.val}
       ⊆ ⋃ j ∈ populations,
@@ -7827,7 +7932,7 @@ end Loop
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
 theorem clustering_correct : ClusteringCorrect := by
   intro Ω _ μ _ S _ J _ O populations D Dsf _ _ Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
-    straddleLimit k
+    crossLimit k
     hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
     hε1 hδ _hbudget hρcap hρsf
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
@@ -7838,16 +7943,16 @@ theorem clustering_correct : ClusteringCorrect := by
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
     exact_mod_cast Finset.card_pos.2 hpop
   have hfind : Real.exp (-2
-      * (poolCount η₀ populations indecisionLimit εcov δ pAP straddleLimit : ℝ)
+      * (poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ)
       * (pAP / 2) ^ 2) ≤ δ / 4 :=
     le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
   have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : State //
-        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ (collisionMass
+        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ (collisionMass
             Dsf)} =>
       ret O.mq populations indecisionLimit α B.val ∩ FailAt O populations D indecisionLimit εcov B.val)
     (fun B : {B : State //
-        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP straddleLimit ρ (collisionMass
+        B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ (collisionMass
             Dsf)} =>
       ret O.mq populations indecisionLimit α B.val) δ
     (validity_of_returned hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α hindLim
