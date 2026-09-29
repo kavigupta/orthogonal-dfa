@@ -466,9 +466,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
         # rest: ask again at the new size before spending a cohort of oracle
         # queries on suffixes to cover a handful.
         #
-        # A family of more than one suffix gives the first boundary that is not a
-        # guess; if calibrating the screen on it removes part of the pool, the
-        # family is clustered again from what is left.
+        # One suffix places no boundary to calibrate on.
         attempts = 0
         while True:
             vs, decision_boundary = identify_cluster_around(

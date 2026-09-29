@@ -164,10 +164,9 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-    #: Whether ``decision_boundary`` has been read off a family yet, rather than
-    #: standing at its starting guess.
+    #: Whether ``decision_boundary`` has been read off a family.
     calibrated: bool = False
-    #: Suffixes drawn for the pool so far, whatever became of them.
+    #: Every suffix drawn for the pool, kept or not.
     suffixes_drawn: int = 0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
@@ -238,19 +237,14 @@ class PrefixSuffixTracker:
 
         in the upper tail at ``alpha``, where rho_s is the smaller of
         ``_loosest_same_family_rates``' rate for s, if ``predict``, and
-        ``_floor_rate`` of the row nearest the reference.  Pooled over s, a row
-        sending a rejecting class to accept shifts E[D] by
-
-            (p_1 - p_0) (1 - 2 p_0)
-
-        per prefix of that class, which is 0 at p_0 = 1/2.
+        ``_floor_rate`` of the row nearest the reference.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        # Per screening: each step, on each side, a test and a floor; the reference
-        # rate's interval, two tails.  A row is screened at most twice.
+        # Per screening: a test and a floor on each side at each step, and the
+        # reference rate's two tails.  A row is screened at most twice.
         alpha = self.config.screening_alpha / (2 * (4 * len(staircase) + 2))
         predicted = (
             _loosest_same_family_rates(
@@ -411,11 +405,6 @@ class PrefixSuffixTracker:
         """Grow ``suffix_pool`` by ``amount`` suffixes that survive screening
         against ``reference``, returning ``(kept, drawn)``.
 
-        Once calibrated, cohorts are screened with the prediction until what it has
-        kept of this call's draws ``_refutes`` it, at one of the call's cohorts as
-        looks.  Only then are its drops screened again, on the floor alone, before
-        any new draw.
-
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
@@ -434,7 +423,6 @@ class PrefixSuffixTracker:
                 kept += len(survivors)
                 pbar.update(len(survivors))
 
-            # Dropped by the prediction, and screened again only if it is refuted.
             withheld = []
             if self.calibrated:
                 looks = int(np.ceil(max_draws / amount))

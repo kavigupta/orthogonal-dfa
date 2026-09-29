@@ -1,7 +1,5 @@
-"""The suffix screen on the armed target: suffixes that move its rejecting state to
-accept must be screened out more often than the class-preserving ones, which must
-survive at the rate the screen promises -- including on a band centred above a
-half, where that state reads at 0.35."""
+"""The suffix screen on the armed target: it keeps class-preserving suffixes at the
+rate it promises, and suffixes that move the rejecting state to accept less often."""
 
 import unittest
 
@@ -20,7 +18,6 @@ LENGTH = 20
 #: ``Q`` holds on the symbols below this and leaves for the accepting sink on the rest.
 HOLDS = 10
 ARM = ALPHABET - 1
-#: Suffixes of each kind put to the screen.
 PER_KIND = 100
 LEVEL = 1e-3
 
@@ -67,7 +64,7 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
             sampler=UniformSampler(LENGTH),
             noise_model=AsymmetricBernoulli(p_0=p_0, p_1=p_1),
         )
-        # Calibrated where the classes read, so this is the screen alone.
+        # The true boundary, so only the screen is under test.
         pst.decision_boundary = (p_0 + p_1) / 2
         pst.calibrated = True
         reference = pst.table.intern_suffix(b"")
@@ -100,9 +97,8 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
 
 
 def _overstated():
-    # Declaring 0.45 where the band holds 0.3 predicts less noise than there is,
-    # as a boundary estimated far off does: every class-preserving suffix then
-    # looks like an impostor to the prediction.
+    # 0.45 against a band holding 0.3 predicts too little noise, as a boundary
+    # estimated far off does.
     pst = build_pst(
         lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
         min_signal_strength=0.45,
@@ -127,7 +123,7 @@ class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
         # The prediction keeps none of the first cohort.
         self.assertTrue(any(row in pool for row in range(first, first + wanted)))
 
-    def test_calibrating_on_it_retires_nothing(self):
+    def test_calibrating_on_it_removes_nothing(self):
         pst, reference = _overstated()
         for draws in (0, 150):
             while pst.suffixes_drawn <= draws:
