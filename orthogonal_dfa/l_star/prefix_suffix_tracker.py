@@ -1,5 +1,5 @@
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -37,19 +37,18 @@ class SearchConfig:
     fnr_limit: float = 0.10
     #: The first two bound the split's crispness, and say nothing about whether the
     #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
-    #: is called indecisive, all indecision counting against it; `acceptable_fpr`
-    #: bounds the chance a prefix on one side of the boundary is decisively called
-    #: the other, at its worst the chance one exactly on the boundary is called
-    #: either way.
+    #: is called indecisive, all indecision counting against it; `cross_limit`
+    #: bounds the chance a prefix whose rate lies outside the band is decisively
+    #: called the other side.  A prefix inside the band has no such bound.
     #:
     #: `max_coverage_error` bounds instead how far the split may deviate from the
     #: true accept-preserving distinction: the share of the prefixes it decides that
     #: it decides against the denoised oracle.  The accept-preserving test holds
     #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
-    #: bought with a tighter `acceptable_fpr` and paid for in indecision.  Keep
+    #: bought with a tighter `cross_limit` and paid for in indecision.  Keep
     #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
     #: the pool, or a clean family fails its round.
-    acceptable_fpr: float = 0.01
+    cross_limit: float = 1.5e-7
     acceptable_fnr: float = 0.01
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
@@ -113,6 +112,8 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
+    #: The suffix rows clustering picks families from.
+    suffix_pool: List[int] = field(default_factory=list)
 
     @property
     def num_prefixes(self) -> int:
@@ -279,16 +280,12 @@ class PrefixSuffixTracker:
         kept = 0
         drawn = 0
         max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
-        every = np.ones(self.num_prefixes, dtype=bool)
         with counter(amount, "Completing suffix family") as pbar:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
                 survivors = self._screen_cohort(cohort, reference)
-                if survivors:
-                    # The dropped ones stay partial, keeping them out of
-                    # fully_observed() and so out of add_prefixes' top-ups.
-                    self.table.observed_masks(survivors, every)
+                self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
         return kept, drawn

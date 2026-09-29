@@ -65,9 +65,8 @@ BENCHMARKS = {
 # The bulk prefix x suffix queries live in MaskTable. We support both layouts
 # it has had: the EAGER one (queries in `_query`, reached via `intern_suffix`
 # for a new suffix column or `add_prefixes` for a new prefix row) and the LAZY
-# one (per-cell queries in `_ensure`, reached via `observed_masks`/`column`;
-# `add_prefixes` queries fully-observed family columns directly). `predict` and
-# `relabel` query the oracle directly in both. Attribution below is by role, so
+# one (per-cell queries in `_ensure`, reached via `observed_masks`/`column`).
+# `predict` and `relabel` query the oracle directly in both. Attribution below is by role, so
 # it survives either layout.
 
 # A new-suffix-column query goes through one of these functions.
