@@ -316,7 +316,7 @@ theorem prefCount_le_poly (populations : Finset J)
     have h : B / 64 ≤ cut := by
       simp only [hcutdef, cutBudget, ← hsdef]
       exact le_min (by linarith only [hBε, hεcov])
-        (le_min (by linarith only [hBs]) (by linarith only [hBind, hind]))
+        (le_min (by linarith only [hBs, hBpos]) (by linarith only [hBind, hind]))
     linarith only [h]
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- what the vote absorbs is at least seven tenths of the signal
@@ -688,7 +688,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
     have h : B / 64 ≤ cut := by
       simp only [hcutdef, cutBudget, ← hsdef]
       exact le_min (by linarith only [hBε, hεcov])
-        (le_min (by linarith only [hBs]) (by linarith only [hBind, hind]))
+        (le_min (by linarith only [hBs, hBpos]) (by linarith only [hBind, hind]))
     linarith only [h]
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- `G = log (2/B)` is at least `log 4`, so it covers `log 64` three times over

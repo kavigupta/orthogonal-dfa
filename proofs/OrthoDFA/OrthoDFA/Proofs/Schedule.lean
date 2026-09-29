@@ -59,13 +59,13 @@ noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
 read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
 
-The three are held at their own divisors and not a common one: `εcov/16` is what the round's
-own budget leaves once the cut, the coverage tail and the threshold tail have taken their
-shares, `s/64` is what the gate needs to clear a coin flip, and `indecisionLimit/2` is what
-the FNR gate tolerates.  None answers another's constraint, so the tightest divisor is not
-the safer choice for all three. -/
+The three are held at their own divisors and not a common one: `εcov/8` keeps the vote's
+misfire rate and the screen's cutoff under what validity charges at, `s/10` is what the gate
+needs to clear a coin flip once the decided count is at least two fifths of the sample, and
+`indecisionLimit/2` is what the FNR gate tolerates.  None answers another's constraint, so the
+tightest divisor is not the safer choice for all three. -/
 noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
-  min (εcov / 16) (min (sig η / 64) (indecisionLimit / 2))
+  min (εcov / 8) (min (sig η / 10) (indecisionLimit / 2))
 
 /-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
 a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the band's far edge
