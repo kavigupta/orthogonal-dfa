@@ -1,4 +1,5 @@
 import OrthoDFA.ClusteringQuality
+import OrthoDFA.Automaton
 import Mathlib.Data.Nat.Nth
 
 /-!

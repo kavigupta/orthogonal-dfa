@@ -205,6 +205,10 @@ class TransitionResolver:
         if verdict == SPLIT:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
+        # The leaf may hold too few members of sprime's state to split on; keeping
+        # sprime, ahead of the member limit, lets the next probe through that state
+        # weigh one more.
+        self.population.add_first(sprime, self.tree.path_of(s1))
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
     def _apply_split(self, s1, distinguisher, witness, sprime):

@@ -56,6 +56,14 @@ class LeafPopulation:
             del self._at[resting][string]
         self._at.setdefault(at, {})[string] = None
 
+    def add_first(self, string, at: Path) -> None:
+        """A leaf-targeted add that puts ``string`` ahead of the leaf's other
+        strings, so it is among the members however many the leaf holds."""
+        self.add(string, at)
+        held = self._at[at]
+        del held[string]
+        self._at[at] = {string: None, **held}
+
     def members(self, at: Path, count: int) -> List[bytes]:
         """Up to ``count`` strings reaching leaf ``at``, pulling from ancestors as
         needed and stopping as soon as ``count`` are in hand."""

@@ -1,4 +1,5 @@
 import OrthoDFA.ClusteringQuality
+import OrthoDFA.Automaton
 
 /-!
 # The L\* stage
