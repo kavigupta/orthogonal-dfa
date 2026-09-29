@@ -237,7 +237,8 @@ noncomputable def settle (t : DTree α) (pool : List (FreeMonoid α))
 /-- What one probe does: `_process` and `_act_on_disagreement`.  The anchor joins the
 population; a disagreement the evidence confirms splits its leaf, whose edges are cleared, and
 the two strings that exhibited it join the population.  Otherwise the probe's own string at the
-leaf joins it.  Then every edge is re-voted. -/
+leaf joins it ahead of the rest, so it is a member however many the leaf holds.  Then every edge
+is re-voted. -/
 noncomputable def probeStep (s : PassState α) (w : FreeMonoid α) : PassState α :=
   let t := s.tree
   match anchoredWalk R t s.edges w with
@@ -268,7 +269,7 @@ noncomputable def probeStep (s : PassState α) (w : FreeMonoid α) : PassState �
             match t.firstDisagreement R.cut x sprime (FreeMonoid.of c) with
             | none => clean
             | some d =>
-              let kept := if sprime ∈ pool then pool else pool ++ [sprime]
+              let kept := sprime :: pool.filter (· ≠ sprime)
               match verdict K R t pool s1 d (t.paths.length * Fintype.card α) with
               | .split =>
                 let cleared := fun p c' => match s.edges p c' with
