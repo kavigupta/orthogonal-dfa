@@ -255,9 +255,10 @@ theorem weighted_dev_le (O : Oracle μ S) (C : Finset S) (blk : S → Finset S)
 open scoped Classical in
 /-- `weighted_dev_le` for the family the table selects.  The selection reads `readSet P cands`,
 and on a flat alphabet the prefixes of `C` are read nowhere in it. -/
-theorem selected_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ⊆ cands)
+theorem selected_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (hCPre : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) (fam : Ω → Finset S)
+    (hfam : ∀ ω, fam ω ⊆ cands)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
     (Ev : Finset S → S → Ω → Prop)
     (hEv : ∀ (A₀ : Finset S) (p : S) (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
@@ -271,7 +272,7 @@ theorem selected_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hdisjR : Disjoint (↑R : Set S) (↑(readSet P cands) : Set S) := by
     rw [Finset.disjoint_coe, hR, Finset.disjoint_biUnion_left]
     intro p hp
-    exact Finset.disjoint_coe.1 (disjoint_image_readSet hflat hP (hCPre p hp)
+    exact Finset.disjoint_coe.1 (disjoint_image_readSet hflat hP hV (hCPre p hp)
       (Finset.disjoint_right.1 hPC hp))
   set Bad : Finset S → Set Ω := fun A₀ => {ω | t ≤ ∑ p ∈ C, w p * μ.real {ω' | Ev A₀ p ω'}
       - ∑ p ∈ C.filter (fun p => Ev A₀ p ω), w p} with hBad
@@ -285,7 +286,7 @@ theorem selected_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         ⟨p, hp, Finset.mem_image_of_mem _ (Finset.mem_powerset.1 hA₀ hv)⟩)))
       (fun U => t ≤ ∑ p ∈ C, w p * μ.real {ω' | Ev A₀ p ω'} - ∑ p ∈ U, w p)
   have hfixed : ∀ A₀ ∈ cands.powerset, μ.real (Bad A₀) ≤ (∑ p ∈ C, w p ^ 2) / t ^ 2 := by
-    intro A₀ _
+    intro A₀ hA₀
     refine weighted_dev_le O C (fun p => A₀.image (fun v => p * v)) ?_
       (fun p => {ω | Ev A₀ p ω})
       (fun p => hEv A₀ p _ (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv)))
@@ -293,9 +294,10 @@ theorem selected_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     intro p hp q hq hpq
     rw [Finset.disjoint_left]
     intro z hz hz'
-    obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
-    obtain ⟨v', -, hv'⟩ := Finset.mem_image.1 hz'
-    exact hpq (hflat p (hCPre p hp) q (hCPre q hq) v v' hv'.symm)
+    obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hz
+    obtain ⟨v', hv'A, hv'⟩ := Finset.mem_image.1 hz'
+    exact hpq (hflat p (hCPre p hp) q (hCPre q hq) v (hV v (Finset.mem_powerset.1 hA₀ hv)) v'
+      (hV v' (Finset.mem_powerset.1 hA₀ hv'A)) hv'.symm)
   exact selection_block_bound O R (readSet P cands) hdisjR cands.powerset ∅
     (Finset.empty_mem_powerset _) fam (fun ω => Finset.mem_powerset.2 (hfam ω)) hcongr Bad
     hmeasU hmeasR _ (div_nonneg (Finset.sum_nonneg (fun _ _ => sq_nonneg _)) (sq_nonneg _))
@@ -314,9 +316,10 @@ noncomputable def devAt (O : Oracle μ S) (populations : Finset J) (B : State) (
         (fun p => Ev (clusterAt O.mq populations x B) p (oracleNoise x)), Dj.real {p}
 
 open scoped Classical in
-theorem runMeasure_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (populations : Finset J) (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0)
     (B : State) (Dj : Measure S) (F : Finset S) (hF : ∀ p ∈ F, p ∈ Pre)
     (Ev : Finset S → S → Ω → Prop)
     (hEv : ∀ (A₀ : Finset S) (p : S) (U : Set S), (∀ v ∈ A₀, p * v ∈ U) →
@@ -354,17 +357,19 @@ theorem runMeasure_dev_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hEnn : runMeasure μ D Dsf {x | t ≤ devAt O populations B Dj F Ev x}
       ≤ ENNReal.ofReal (ρ / t ^ 2) := by
     refine runMeasure_slice_le D Dsf _ hmeas _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_sfx_mem_Suf D Dsf Suf hsuppSf] with d hd hdS
     set P : Finset S :=
       populations.biUnion (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPdef
     set cands : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i))
       with hcands
+    have hV : ∀ v ∈ cands, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     have hP : ∀ q ∈ P, q ∈ Pre := by
       intro q hq
       obtain ⟨j, hj, hq'⟩ := Finset.mem_biUnion.1 hq
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
       exact hd j hj i
-    have h := selected_dev_le hflat O P cands (F \ P) hP
+    have h := selected_dev_le hflat O P cands (F \ P) hP hV
       (fun p hp => hF p (Finset.mem_sdiff.1 hp).1) Finset.disjoint_sdiff
       (fun ω => clusterAt O.mq populations ((ω, d) : Run Ω S J) B)
       (fun ω => clusterAt_subset O populations B _)
@@ -597,7 +602,7 @@ theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
   · refine lt_min ?_ (lt_min (by positivity) (by positivity))
     simp only [collisionCap]
     positivity
-  intro D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf
+  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
   have := hD
   have := hDsf
   have hρ1 : ρ ≤ ε₁ ^ 2 / (64 * (N + 1)) :=
@@ -639,9 +644,9 @@ theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
   have hper : ∀ B, ∀ j ∈ populations,
       (runMeasure μ D Dsf).real (badC B j ∪ badU B j) ≤ 8 * ρ / ε₁ ^ 2 := by
     intro B j hj
-    have h1 := runMeasure_dev_le hflat O D Dsf populations hsupp B (D j) (F j) (hFPre j)
+    have h1 := runMeasure_dev_le hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
       (EvC B) (hEvCm B) (εcov / 2) (by positivity) ρ (hsq j hj)
-    have h2 := runMeasure_dev_le hflat O D Dsf populations hsupp B (D j) (F j) (hFPre j)
+    have h2 := runMeasure_dev_le hflat O D Dsf populations hsupp hsuppSf B (D j) (F j) (hFPre j)
       (EvU B) (hEvUm B) indecisionLimit hind ρ (hsq j hj)
     have e1 : ρ / (εcov / 2) ^ 2 ≤ 4 * ρ / ε₁ ^ 2 := by
       calc ρ / (εcov / 2) ^ 2 = 4 * ρ / εcov ^ 2 := by field_simp; ring

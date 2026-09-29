@@ -862,15 +862,15 @@ the gate's null to be honest those must be different strings, and that is a prop
 where prefixes come from, not of the algorithm. -/
 
 /-- No prefix is another prefix extended. -/
-lemma flat_eq_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre) (hp' : p' ∈ Pre)
-    {v : S} (h : p * v = p') : v = 1 := by
-  have hpp : p = p' := hflat p hp p' hp' v 1 (by rw [h, mul_one])
+lemma flat_eq_one {Pre Suf : Set S} (hflat : Flat Pre Suf) {p p' : S} (hp : p ∈ Pre)
+    (hp' : p' ∈ Pre) {v : S} (hv : v ∈ insert 1 Suf) (h : p * v = p') : v = 1 := by
+  have hpp : p = p' := hflat p hp p' hp' v hv 1 (Set.mem_insert _ _) (by rw [h, mul_one])
   exact mul_left_cancel (a := p) (by rw [h, hpp, mul_one])
 
 /-- On a flat alphabet the gate's query string is never one of the split's. -/
-lemma flat_ne_of_ne_one {Pre : Set S} (hflat : Flat Pre) {p p' : S} (hp : p ∈ Pre)
-    (hp' : p' ∈ Pre) {v : S} (hv : v ≠ 1) : p * v ≠ p' :=
-  fun h => hv (flat_eq_one hflat hp hp' h)
+lemma flat_ne_of_ne_one {Pre Suf : Set S} (hflat : Flat Pre Suf) {p p' : S} (hp : p ∈ Pre)
+    (hp' : p' ∈ Pre) {v : S} (hvS : v ∈ insert 1 Suf) (hv : v ≠ 1) : p * v ≠ p' :=
+  fun h => hv (flat_eq_one hflat hp hp' hvS h)
 
 lemma clusterAround_subset (O : Oracle μ S) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (hone : (1 : S) ∈ cands) : clusterAround O.mq cn cd P cands ω k ⊆ cands := by
@@ -925,41 +925,44 @@ lemma voteCount_le_erase_succ (O : Oracle μ S) (F : Finset S) (p : S) (ω : Ω)
   exact le_trans (Finset.card_le_card hsub) (Finset.card_insert_le _ _)
 
 /-- The gate's own query strings are not read by the clustering.  A prefix is never
-`p · v` for a prefix `p` and any suffix, on a flat alphabet — so the bits the gate scores
+`p · v` for a prefix `p` and a pool suffix `v ≠ ε`, on a flat alphabet — so the bits the gate scores
 are untouched by everything that decides which side each prefix falls on. -/
-lemma disjoint_readSet {Pre : Set S} (hflat : Flat Pre) {P cands C : Finset S}
-    (hP : ∀ p ∈ P, p ∈ Pre) (hC : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) :
-    Disjoint C (readSet P cands) := by
+lemma disjoint_readSet {Pre Suf : Set S} (hflat : Flat Pre Suf) {P cands C : Finset S}
+    (hP : ∀ p ∈ P, p ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf) (hC : ∀ p ∈ C, p ∈ Pre)
+    (hPC : Disjoint P C) : Disjoint C (readSet P cands) := by
   classical
   refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
   obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
-  obtain ⟨hp, -⟩ := Finset.mem_product.1 hpv
-  have hv1 : v = 1 := flat_eq_one hflat (hP p hp) (hC _ hz) rfl
+  obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
+  have hv1 : v = 1 := flat_eq_one hflat (hP p hp) (hC _ hz) (hV v hv) rfl
   rw [hv1, mul_one] at hz
   exact (Finset.disjoint_left.1 hPC hp) hz
 
 /-- The same, for the gate's own prefixes against their own votes: those read `p · v` with
 `v ≠ ε`, which is never a prefix. -/
-lemma disjoint_readSet_erase {Pre : Set S} (hflat : Flat Pre) {cands C : Finset S}
-    (hC : ∀ p ∈ C, p ∈ Pre) : Disjoint C (readSet C (cands.erase 1)) := by
+lemma disjoint_readSet_erase {Pre Suf : Set S} (hflat : Flat Pre Suf) {cands C : Finset S}
+    (hV : ∀ v ∈ cands, v ∈ insert 1 Suf) (hC : ∀ p ∈ C, p ∈ Pre) :
+    Disjoint C (readSet C (cands.erase 1)) := by
   classical
   refine Finset.disjoint_left.2 (fun z hz hmem => ?_)
   obtain ⟨⟨p, v⟩, hpv, rfl⟩ := Finset.mem_image.1 hmem
   obtain ⟨hp, hv⟩ := Finset.mem_product.1 hpv
-  exact (Finset.mem_erase.1 hv).1 (flat_eq_one hflat (hC p hp) (hC _ hz) rfl)
+  exact (Finset.mem_erase.1 hv).1 (flat_eq_one hflat (hC p hp) (hC _ hz)
+    (hV v (Finset.mem_of_mem_erase hv)) rfl)
 
 /-- A population prefix the table does not hold is read nowhere by the clustering.  Its
 query strings `p · v` collide with the clustering's `q · v'` only if `p = q`. -/
-lemma disjoint_image_readSet {Pre : Set S} (hflat : Flat Pre) {P cands : Finset S} {p : S}
-    (hP : ∀ q ∈ P, q ∈ Pre) (hp : p ∈ Pre) (hpP : p ∉ P) :
+lemma disjoint_image_readSet {Pre Suf : Set S} (hflat : Flat Pre Suf) {P cands : Finset S}
+    {p : S} (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf) (hp : p ∈ Pre)
+    (hpP : p ∉ P) :
     Disjoint (↑(cands.image (fun v => p * v)) : Set S) (↑(readSet P cands) : Set S) := by
   classical
   rw [Finset.disjoint_coe, Finset.disjoint_left]
   rintro z hz hmem
-  obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
+  obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hz
   obtain ⟨⟨q, v'⟩, hqv, hq⟩ := Finset.mem_image.1 hmem
-  obtain ⟨hqP, -⟩ := Finset.mem_product.1 hqv
-  exact hpP (hflat p hp q (hP q hqP) v v' hq.symm ▸ hqP)
+  obtain ⟨hqP, hv'⟩ := Finset.mem_product.1 hqv
+  exact hpP (hflat p hp q (hP q hqP) v (hV v hv) v' (hV v' hv') hq.symm ▸ hqP)
 
 /-! ### Independence of the score from the side
 
@@ -2146,8 +2149,8 @@ lemma screenCount_eq_sum (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P : Fi
 function of two strings, `p` and `p · v`, and those pairs are pairwise disjoint: `p · v` by
 right-cancellation, the bare prefixes by distinctness, and the two kinds from each other by
 flatness. -/
-lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd : ℕ)
-    {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) :
+lemma seedLoss_indep {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) (cn cd : ℕ)
+    {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hvS : v ∈ insert 1 Suf) :
     iIndepFun (fun p : {p // p ∈ P} => seedLoss O cn cd v p.val) μ := by
   refine iIndepFun_blocks (X := O.noise) (fun w => O.noise_meas w) O.noise_indep
     (fun p : {p // p ∈ P} => {p.val, p.val * v}) ?_ _ ?_
@@ -2158,10 +2161,10 @@ lemma seedLoss_indep {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) (cn cd :
     · exact hab (Subtype.ext hb)
     · by_cases hv1 : v = 1
       · exact hab (Subtype.ext (by rw [hb, hv1, mul_one]))
-      · exact flat_ne_of_ne_one hflat (hP _ b.property) (hP _ a.property) hv1 hb.symm
+      · exact flat_ne_of_ne_one hflat (hP _ b.property) (hP _ a.property) hvS hv1 hb.symm
     · by_cases hv1 : v = 1
       · exact hab (Subtype.ext (by rw [← hb, hv1, mul_one]))
-      · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hv1 hb
+      · exact flat_ne_of_ne_one hflat (hP _ a.property) (hP _ b.property) hvS hv1 hb
     · exact hab (Subtype.ext (mul_right_cancel hb))
   · intro p
     have hsup : (⨆ w ∈ ({p.val, p.val * v} : Finset S),
@@ -2229,9 +2232,10 @@ lemma screenCount_eq_attach (O : Oracle μ S) {cn cd : ℕ} (hcd : cn < cd) (P :
 open scoped Classical in
 /-- A clean candidate's disagreement count, against a real threshold: its mean is exactly
 `cleanLoss`, so it exceeds that by `γ` per prefix only in the upper tail. -/
-theorem screenCount_upper {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
-    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
-    (γ : ℝ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2) (hclean : ∀ p ∈ P, O.flip v p = 0) :
+theorem screenCount_upper {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hvS : v ∈ insert 1 Suf)
+    (hv : v ≠ 1) (γ : ℝ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2)
+    (hclean : ∀ p ∈ P, O.flip v p = 0) :
     μ.real {ω | cleanLoss O P + (P.card : ℝ) * γ ≤ (screenCount O.mq P v ω : ℝ)}
       ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) := by
   classical
@@ -2242,7 +2246,7 @@ theorem screenCount_upper {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn
       (seedLoss_mean O hcd v i.val (mul_ne_self i.val v hv) hsig).2 (hclean i.val i.property)))
   have htail := sumUpper_le_total (fun (i : {p // p ∈ P}) => seedLoss O cn cd v i.val)
     Finset.univ _ γ (fun i => (seedLoss_meas O cn cd v i.val).aemeasurable)
-    (seedLoss_indep hflat O cn cd hP v) (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
+    (seedLoss_indep hflat O cn cd hP v hvS) (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
   simp only [Finset.card_univ, Fintype.card_coe] at htail
   refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) htail
   change _ ≤ ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω
@@ -2253,9 +2257,9 @@ open scoped Classical in
 /-- Any candidate's disagreement count sits at least `cleanLoss` in mean — the flip term is
 nonnegative — so it falls `γ` per prefix below that only in the lower tail.  This is what puts
 a floor under `screenBase`. -/
-theorem screenCount_lower {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
-    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
-    (Δ γ : ℝ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2)
+theorem screenCount_lower {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hvS : v ∈ insert 1 Suf)
+    (hv : v ≠ 1) (Δ γ : ℝ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2)
     (hflip : Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip v p) :
     μ.real {ω | (screenCount O.mq P v ω : ℝ)
         ≤ cleanLoss O P + (P.card : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 - γ)}
@@ -2272,7 +2276,7 @@ theorem screenCount_lower {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn
     nlinarith [mul_le_mul_of_nonneg_right hflip (sq_nonneg (1 - 2 * O.η))]
   have htail := sumLower_le_total (fun (i : {p // p ∈ P}) => seedLoss O cn cd v i.val)
     Finset.univ _ γ (fun i => (seedLoss_meas O cn cd v i.val).aemeasurable)
-    (seedLoss_indep hflat O cn cd hP v) (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
+    (seedLoss_indep hflat O cn cd hP v hvS) (fun i => seedLoss_icc O cn cd v i.val) hmean hγ
   simp only [Finset.card_univ, Fintype.card_coe] at htail
   refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) htail
   change ∑ i : {p // p ∈ P}, seedLoss O cn cd v i.val ω ≤ _
@@ -2632,7 +2636,8 @@ lemma map_drawCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilit
 
 /-- A bound at almost every fixed draw is a bound on the run.  The clustering's prefixes
 and candidates are draws, so its guarantees are stated for the noise at a fixed table; this
-is what lifts them.  The `a.e.` is what lets the table be assumed inside the flat set. -/
+is what lifts them.  The `a.e.` is what lets the table and pool be assumed inside the flat
+pair. -/
 lemma runMeasure_slice_le (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
     [IsProbabilityMeasure Dsf] (A : Set (Run Ω S J)) (hA : MeasurableSet A) (E : ℝ≥0∞)
     (h : ∀ᵐ d ∂(drawMeasure D Dsf), μ {ω | ((ω, d) : Run Ω S J) ∈ A} ≤ E) :
@@ -2661,6 +2666,39 @@ lemma ae_draws_mem_Pre (D : J → Measure S) (Dsf : Measure S)
       exact absurd hjj hj
   filter_upwards [ae_all_iff.2 hcoord] with d hd j hj i
   exact hd (j, i) hj
+
+/-- One suffix coordinate has the suffix law. -/
+lemma map_sfxCoord (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] (i : ℕ) :
+    Measure.map (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.1 i)
+        (drawMeasure D Dsf) = Dsf := by
+  have hstep : (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.1 i)
+      = (fun p : ℕ → S => p i) ∘ (Prod.fst ∘ Prod.fst) := rfl
+  rw [hstep, ← Measure.map_map (by fun_prop) (by fun_prop),
+    ← Measure.map_map measurable_fst measurable_fst, drawMeasure, Measure.map_fst_prod]
+  simp only [measure_univ, one_smul]
+  rw [Measure.map_fst_prod]
+  simp only [measure_univ, one_smul]
+  rw [(measurePreserving_eval_infinitePi (fun _ : ℕ => Dsf) i).map_eq]
+
+lemma ae_sfx_mem_Suf (D : J → Measure S) (Dsf : Measure S)
+    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf] (Suf : Set S)
+    (hsuppSf : Dsf Sufᶜ = 0) :
+    ∀ᵐ d ∂(drawMeasure D Dsf), ∀ i : ℕ, d.1.1 i ∈ Suf := by
+  have hmeasSuf : MeasurableSet (Sufᶜ : Set S) := (Set.to_countable _).measurableSet
+  refine ae_all_iff.2 (fun i => ae_iff.2 ?_)
+  rw [show {d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) | ¬ d.1.1 i ∈ Suf}
+      = (fun d : ((((ℕ → S) × (J → ℕ → S))) × (J → ℕ → S)) => d.1.1 i) ⁻¹' Sufᶜ from rfl,
+    ← Measure.map_apply (by fun_prop) hmeasSuf, map_sfxCoord D Dsf i]
+  exact hsuppSf
+
+lemma pool_mem_Suf {Suf : Set S} (M : ℕ) (s : ℕ → S) (hs : ∀ i, s i ∈ Suf) :
+    ∀ v ∈ insert 1 ((Finset.range M).image s), v ∈ insert 1 Suf := by
+  intro v hv
+  rcases Finset.mem_insert.1 hv with rfl | hv
+  · exact Set.mem_insert _ _
+  · obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hv
+    exact Set.mem_insert_of_mem _ (hs i)
 
 /-- A bound at every fixed noise-and-table slice is a bound on the run.  The
 certification draws are the last factor, so they can be sliced off on their own — which is
@@ -3370,13 +3408,14 @@ theorem prefix_cert_disjoint_le (D : J → Measure S) (Dsf : Measure S)
         rw [hcard]; push_cast; ring
 
 /-- The certification prefixes are read by neither the clustering nor the split. -/
-lemma disjoint_gateReads {Pre : Set S} (hflat : Flat Pre) (P C A : Finset S)
-    (hP : ∀ q ∈ P, q ∈ Pre) (hA : ∀ p ∈ A, p ∈ Pre) (hPA : Disjoint P A) :
+lemma disjoint_gateReads {Pre Suf : Set S} (hflat : Flat Pre Suf) (P C A : Finset S)
+    (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ C, v ∈ insert 1 Suf) (hA : ∀ p ∈ A, p ∈ Pre)
+    (hPA : Disjoint P A) :
     Disjoint (↑A : Set S) (↑(readSet P C ∪ readSet A (C.erase 1)) : Set S) := by
   classical
   rw [Finset.coe_union, Set.disjoint_union_right]
-  exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hA hPA),
-    Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hA)⟩
+  exact ⟨Finset.disjoint_coe.2 (disjoint_readSet hflat hP hV hA hPA),
+    Finset.disjoint_coe.2 (disjoint_readSet_erase hflat hV hA)⟩
 
 lemma measurableSet_of_fam {fam : Ω → Finset S} {T : Finset (Finset S)}
     (hfam : ∀ ω, fam ω ∈ T) (hfamMeas : ∀ A₀, MeasurableSet {ω | fam ω = A₀})
@@ -3516,8 +3555,9 @@ others, so the per-prefix deviations are independent.
 
 Unlike `frac_selected_le` this says nothing about the family the table selects; it is
 uniform over the families instead, which is what the selection's own reads cost. -/
-theorem tableVote_unif_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P Cd : Finset S) (hP : ∀ p ∈ P, p ∈ Pre) (κ : ℕ) (γ b : ℝ) (hγ : 0 ≤ γ)
+theorem tableVote_unif_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P Cd : Finset S) (hP : ∀ p ∈ P, p ∈ Pre) (hV : ∀ v ∈ Cd, v ∈ insert 1 Suf) (κ : ℕ)
+    (γ b : ℝ) (hγ : 0 ≤ γ)
     (hb : 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2) ≤ b) :
     μ.real {ω | ∃ F ∈ Cd.powersetCard κ, b * (P.card : ℝ)
         < ((P.filter (fun p => ¬ |(voteCount O.mq F p ω : ℝ)
@@ -3563,6 +3603,7 @@ theorem tableVote_unif_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         ≤ Real.exp (-2 * (P.card : ℝ) * (b - 2 * Real.exp (-2 * (κ : ℝ) * γ ^ 2)) ^ 2) := by
     intro F hF
     have hFκ : F.card = κ := (Finset.mem_powersetCard.mp hF).2
+    have hFV : ∀ v ∈ F, v ∈ insert 1 Suf := fun v hv => hV v ((Finset.mem_powersetCard.mp hF).1 hv)
     have h := count_frac_hoeffding O P (fun p => F.image (fun v => p * v)) ?_
       (fun p => {ω | ¬ |(voteCount O.mq F p ω : ℝ) - ∑ v ∈ F, μ[O.mq (p * v)]|
         ≤ (F.card : ℝ) * γ}) ?_
@@ -3571,9 +3612,9 @@ theorem tableVote_unif_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     · intro p hp q hq hpq
       rw [Finset.disjoint_left]
       intro z hz hz'
-      obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
-      obtain ⟨v', -, hv'⟩ := Finset.mem_image.1 hz'
-      exact hpq (hflat p (hP p hp) q (hP q hq) v v' hv'.symm)
+      obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hz
+      obtain ⟨v', hv'F, hv'⟩ := Finset.mem_image.1 hz'
+      exact hpq (hflat p (hP p hp) q (hP q hq) v (hFV v hv) v' (hFV v' hv'F) hv'.symm)
     · intro p
       exact measurableSet_filter_pred_map O (fun v => p * v)
         (fun v hv => Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv))
@@ -3595,9 +3636,9 @@ open scoped Classical in
 /-- A per-prefix failure count on the certification sample, for the family the table
 selects, off an `exp (−2·#C·(l − E)²)` set.  Given the family, the vote at each sample prefix
 reads its own block `p · A₀`, and flatness keeps those blocks apart. -/
-theorem frac_selected_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C)
+theorem frac_selected_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (hCPre : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C)
     (T : Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
     (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
@@ -3613,7 +3654,7 @@ theorem frac_selected_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
   have hdisjR : Disjoint (↑R : Set S) (↑(readSet P cands) : Set S) := by
     rw [Finset.disjoint_coe, hR, Finset.disjoint_biUnion_left]
     intro p hp
-    exact Finset.disjoint_coe.1 (disjoint_image_readSet hflat hP (hCPre p hp)
+    exact Finset.disjoint_coe.1 (disjoint_image_readSet hflat hP hV (hCPre p hp)
       (Finset.disjoint_right.1 hPC hp))
   set Bad : Finset S → Set Ω := fun A₀ =>
     {ω | l * (C.card : ℝ) < ((C.filter (fun p => Ev A₀ p ω)).card : ℝ)} with hBad
@@ -3636,18 +3677,19 @@ theorem frac_selected_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     · intro p hp q hq hpq
       rw [Finset.disjoint_left]
       intro z hz hz'
-      obtain ⟨v, -, rfl⟩ := Finset.mem_image.1 hz
-      obtain ⟨v', -, hv'⟩ := Finset.mem_image.1 hz'
-      exact hpq (hflat p (hCPre p hp) q (hCPre q hq) v v' hv'.symm)
+      obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hz
+      obtain ⟨v', hv'A, hv'⟩ := Finset.mem_image.1 hz'
+      exact hpq (hflat p (hCPre p hp) q (hCPre q hq) v (hV v (hTC A₀ hA₀ hv)) v'
+        (hV v' (hTC A₀ hA₀ hv'A)) hv'.symm)
   exact selection_block_bound O R (readSet P cands) hdisjR T t₀ ht₀ fam hfam hcongr Bad
     hmeasU hmeasR _ (Real.exp_nonneg _) hfixed
 
 open scoped Classical in
 /-- The indecision rate on the certification sample is below the limit, off a Hoeffding
 tail. -/
-theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C) (lo ha : ℕ)
+theorem indecision_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (hCPre : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) (lo ha : ℕ)
     (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
     (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
@@ -3657,7 +3699,7 @@ theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ decided O.mq lo ha (fam ω) p ω)).card : ℝ)}
       ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
   classical
-  have h := frac_selected_le hflat O P cands C hP hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
+  have h := frac_selected_le hflat O P cands C hP hV hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
     (fun A₀ p ω => A₀ ∈ good p ∧ ¬ decided O.mq lo ha A₀ p ω) (fun A₀ p U hU => by
       by_cases hg : A₀ ∈ good p
       · have hset : {ω | A₀ ∈ good p ∧ ¬ decided O.mq lo ha A₀ p ω}
@@ -3674,9 +3716,9 @@ theorem indecision_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
 
 open scoped Classical in
 /-- The same for the rate at which the cut is wrong. -/
-theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C) (lo ha : ℕ)
+theorem miscut_frac_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (hCPre : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) (lo ha : ℕ)
     (T : Finset (Finset S)) (good : S → Finset (Finset S)) (t₀ : Finset S) (ht₀ : t₀ ∈ T)
     (hTC : ∀ t ∈ T, t ⊆ cands) (fam : Ω → Finset S) (hfam : ∀ ω, fam ω ∈ T)
     (hcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') → fam ω = fam ω')
@@ -3686,7 +3728,7 @@ theorem miscut_frac_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
         < ((C.filter (fun p => fam ω ∈ good p ∧ ¬ cutCorrect O lo ha (fam ω) p ω)).card : ℝ)}
       ≤ Real.exp (-2 * (C.card : ℝ) * (l - E) ^ 2) := by
   classical
-  have h := frac_selected_le hflat O P cands C hP hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
+  have h := frac_selected_le hflat O P cands C hP hV hCPre hPC T t₀ ht₀ hTC fam hfam hcongr
     (fun A₀ p ω => A₀ ∈ good p ∧ ¬ cutCorrect O lo ha A₀ p ω) (fun A₀ p U hU => by
       by_cases hg : A₀ ∈ good p
       · have hset : {ω | A₀ ∈ good p ∧ ¬ cutCorrect O lo ha A₀ p ω}
@@ -3712,9 +3754,9 @@ available at all.
 The certification sample's class counts are what the sides are measured against — an
 all-accepting population leaves the reject side empty and nothing can admit — so they stay
 as hypotheses about the draws rather than becoming a knob. -/
-theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
-    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hCPre : ∀ p ∈ C, p ∈ Pre)
-    (hPC : Disjoint P C) (Q : Finset S) (hQsup : readSet P cands ⊆ Q)
+theorem ret_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
+    (P cands C : Finset S) (hP : ∀ q ∈ P, q ∈ Pre) (hV : ∀ v ∈ cands, v ∈ insert 1 Suf)
+    (hCPre : ∀ p ∈ C, p ∈ Pre) (hPC : Disjoint P C) (Q : Finset S) (hQsup : readSet P cands ⊆ Q)
     (hdisjQ : Disjoint (↑C : Set S) (↑Q : Set S))
     (lo hi : ℕ) (α τ l lcut : ℝ) (n₀ nlo : ℕ)
     (hnloC : (nlo : ℝ) ≤ (C.card : ℝ) - 2 * l * (C.card : ℝ))
@@ -3795,10 +3837,10 @@ theorem ret_at_whp {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     · exact Or.inl (not_le.1 hindL)
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
-  · exact indecision_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
+  · exact indecision_frac_le hflat O P cands C hP hV hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
       fam hfam hcongr E l hE (le_trans hElcut hlcl) hdec
   · refine le_trans (measureReal_union_le _ _) (add_le_add ?_ ?_)
-    · exact miscut_frac_le hflat O P cands C hP hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
+    · exact miscut_frac_le hflat O P cands C hP hV hCPre hPC lo (hi - 1) T good t₀ ht₀ hTC
         fam hfam hcongr E lcut hE hElcut hcut
     · exact admitted_whp O C Q hdisjQ lo hi α τ (2 * lcut * (C.card : ℝ))
         (2 * l * (C.card : ℝ)) n₀ nlo
@@ -4050,8 +4092,9 @@ lemma measurableSet_screenBad (O : Oracle μ S) (populations : Finset J) (B : St
 at least `Δ(1−2η)²` above the pool's floor, so it clears a cutoff of `Δ(1−2η)² − 2γ` only in
 a tail — one `γ` for its own count, one for the floor, whose upper bound is what a clean
 candidate `w₀` in the pool buys. -/
-theorem screen_tail_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
-    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
+theorem screen_tail_rel {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (hV : ∀ v ∈ cands, v ∈ insert 1 Suf) (v : S) (hvS : v ∈ insert 1 Suf) (hv : v ≠ 1)
     (w₀ : S) (hw₀ : w₀ ∈ cands.erase 1) (hw₀clean : ∀ p ∈ P, O.flip w₀ p = 0)
     (Δ γ : ℝ) (sc scd : ℕ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2) (hscd : 0 < scd)
     (hflip : Δ * (P.card : ℝ) ≤ ∑ p ∈ P, O.flip v p)
@@ -4083,17 +4126,17 @@ theorem screen_tail_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn c
     nlinarith [hsc, hbase, hwU, hvL, hscdR, hPc]
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
-  have h1 := screenCount_upper hflat O hcd hP w₀ (Finset.ne_of_mem_erase hw₀) γ hγ hsig
-    hw₀clean
-  have h2 := screenCount_lower hflat O hcd hP v hv Δ γ hγ hsig hflip
+  have h1 := screenCount_upper hflat O hcd hP w₀ (hV w₀ (Finset.mem_of_mem_erase hw₀))
+    (Finset.ne_of_mem_erase hw₀) γ hγ hsig hw₀clean
+  have h2 := screenCount_lower hflat O hcd hP v hvS hv Δ γ hγ hsig hflip
   linarith [h1, h2]
 
 /-- The relative screen's liveness.  A clean candidate's count is within `γ` of `cleanLoss`
 and the floor is within `γ` below it, so `2γ` of cutoff admits it.  The floor's lower bound
 is a union bound over the pool, which is where the `#cands` factor comes from. -/
-theorem screen_pass_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn cd : ℕ}
-    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre) (v : S) (hv : v ≠ 1)
-    (hvc : v ∈ cands)
+theorem screen_pass_rel {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S) {cn cd : ℕ}
+    (hcd : cn < cd) {P cands : Finset S} (hP : ∀ p ∈ P, p ∈ Pre)
+    (hV : ∀ v ∈ cands, v ∈ insert 1 Suf) (v : S) (hv : v ≠ 1) (hvc : v ∈ cands)
     (γ : ℝ) (sc scd : ℕ) (hγ : 0 ≤ γ) (hsig : O.η ≤ 1 / 2) (hscd : 0 < scd)
     (hclean : ∀ p ∈ P, O.flip v p = 0)
     (hsc : (scd : ℝ) * (2 * γ) ≤ (sc : ℝ)) :
@@ -4126,7 +4169,7 @@ theorem screen_pass_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn c
     nlinarith [hsc, hbase, hvU, hωR, hscdR, hPc]
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   refine le_trans (measureReal_union_le _ _) ?_
-  have h1 := screenCount_upper hflat O hcd hP v hv γ hγ hsig hclean
+  have h1 := screenCount_upper hflat O hcd hP v (hV v hvc) hv γ hγ hsig hclean
   have h2 : μ.real (⋃ w ∈ cands.erase 1,
         {ω | (screenCount O.mq P w ω : ℝ)
           ≤ cleanLoss O P + (P.card : ℝ) * (0 * (1 - 2 * O.η) ^ 2 - γ)})
@@ -4136,7 +4179,8 @@ theorem screen_pass_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn c
         μ.real {ω | (screenCount O.mq P w ω : ℝ)
           ≤ cleanLoss O P + (P.card : ℝ) * (0 * (1 - 2 * O.η) ^ 2 - γ)}
           ≤ Real.exp (-2 * (P.card : ℝ) * γ ^ 2) :=
-      fun w hw => screenCount_lower hflat O hcd hP w (Finset.ne_of_mem_erase hw) 0 γ hγ hsig
+      fun w hw => screenCount_lower hflat O hcd hP w (hV w (Finset.mem_of_mem_erase hw))
+        (Finset.ne_of_mem_erase hw) 0 γ hγ hsig
         (by rw [zero_mul]; exact Finset.sum_nonneg (fun p _ => by
           rcases O.flip_bit w p with h | h <;> rw [h] <;> norm_num))
     refine le_trans (Finset.sum_le_sum hper) ?_
@@ -4149,10 +4193,11 @@ theorem screen_pass_rel {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S) {cn c
 /-- The screen rarely lets a badly-flipping candidate through.  One `screen_tail_rel` per
 pool member, at a fixed table: the flip counts are deterministic once the draws are, so this
 is a plain union bound and costs `M + 1`. -/
-theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_screenBad_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : State) (hcd : B.cn < B.cd)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (B : State) (hcd : B.cn < B.cd)
     (hsig : O.η ≤ 1 / 2) (hmpos : 0 < B.npref) (Δ γ : ℝ) (hΔ : 0 < Δ) (hγ : 0 ≤ γ)
     (hscd : 0 < B.scd)
     (hsc : (B.sc : ℝ) ≤ (B.scd : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 - 2 * γ)) :
@@ -4163,10 +4208,12 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
   have hE0 : 0 ≤ E := by positivity
   have hEnn : runMeasure μ D Dsf (screenBad O populations B Δ) ≤ ENNReal.ofReal E := by
     refine runMeasure_slice_le D Dsf _ (measurableSet_screenBad O populations B Δ) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_sfx_mem_Suf D Dsf Suf hsuppSf] with d hd hdS
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i)) with hCd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
       obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
@@ -4211,8 +4258,8 @@ theorem measureReal_screenBad_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
           rw [hz] at hflip
           exact absurd hflip (not_le.2 (mul_pos hΔ (by exact_mod_cast hPpos)))
         have hcardR : (B.npref : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
-        have htail := screen_tail_rel hflat O hcd hP v hv1 w₀ hw₀ hw₀c
-          Δ γ B.sc B.scd hγ hsig hscd hflip hsc
+        have htail := screen_tail_rel hflat O hcd hP hV v (hV v (Finset.mem_filter.1 hv).1) hv1
+          w₀ hw₀ hw₀c Δ γ B.sc B.scd hγ hsig hscd hflip hsc
         rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def]
         refine ENNReal.ofReal_le_ofReal (le_trans htail ?_)
         have hmono : Real.exp (-2 * (Pd.card : ℝ) * γ ^ 2)
@@ -4498,10 +4545,11 @@ theorem measureReal_noCleanRef_le (D : J → Measure S) (Dsf : Measure S)
 
 /-- The screen keeps the accept-preserving candidates.  One `screen_pass_rel` per pool
 member; the cutoff sits above the clean rate by `γ`. -/
-theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_screenFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : State) (hcd : B.cn < B.cd)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (B : State) (hcd : B.cn < B.cd)
     (γ : ℝ) (hγ : 0 ≤ γ) (hscd : 0 < B.scd)
     (hsig : O.η ≤ 1 / 2)
     (hsc : (B.scd : ℝ) * (2 * γ) ≤ (B.sc : ℝ)) :
@@ -4512,10 +4560,12 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
   have hE0 : 0 ≤ E := by positivity
   have hEnn : runMeasure μ D Dsf (screenFail O populations B) ≤ ENNReal.ofReal E := by
     refine runMeasure_slice_le D Dsf _ (measurableSet_screenFail O populations B) _ ?_
-    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp] with d hd
+    filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
+      ae_sfx_mem_Suf D Dsf Suf hsuppSf] with d hd hdS
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i)) with hCd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
       obtain ⟨j', hj', hq'⟩ := Finset.mem_biUnion.1 hq
@@ -4547,7 +4597,7 @@ theorem measureReal_screenFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle �
           show O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p = 0
           rw [hap p]
           rcases O.label_bit p with hl | hl <;> rw [hl] <;> ring
-        have htail := screen_pass_rel (cands := Cd) hflat O hcd hP v hv1 hvC γ B.sc B.scd hγ
+        have htail := screen_pass_rel (cands := Cd) hflat O hcd hP hV v hv1 hvC γ B.sc B.scd hγ
           hsig hscd hclean hsc
         have hcardR : (B.npref : ℝ) ≤ (Pd.card : ℝ) := by exact_mod_cast hm
         have hrangeC : (Finset.range B.nsuff).card ≤ B.nsuff := by simp
@@ -4598,10 +4648,11 @@ open scoped Classical in
 /-- The screened pool is big enough to cluster.  Findability puts `k` accept-preserving
 suffixes in the pool, the screen keeps them, and distinct draws keep them distinct — so the
 clustering has `k` candidates to choose from and does not stall. -/
-theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_smallScreen_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : State) (hcd : B.cn < B.cd)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (B : State) (hcd : B.cn < B.cd)
     (j₀ : J) (hj₀ : j₀ ∈ populations)
     (γ pAP t ρsf ρ : ℝ) (hγ : 0 ≤ γ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
@@ -4700,18 +4751,19 @@ theorem measureReal_smallScreen_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
         · exact suffix_not_injective_le D Dsf B.nsuff ρsf hρsf hρsf0
         · exact measureReal_apShort_le D Dsf O B.nsuff pAP t hpAP0 ht hpAPBound
         · exact prefix_not_injective_le D Dsf j₀ B.npref ρ hρj hρ0
-        · exact measureReal_screenFail_le hflat O populations D Dsf hsupp B hcd γ hγ hscd hsig
-            hsc
+        · exact measureReal_screenFail_le hflat O populations D Dsf hsupp hsuppSf B hcd γ hγ hscd
+            hsig hsc
 
 open scoped Classical in
 /-- Every member the clustering keeps is clean.  Three things have to go right: the
 population's draws distinct, the screen holding, and the drawn prefixes not understating a
 candidate's flip mass.  The Lloyd ranking does not appear — the family is a subset of what
 the screen left, so it inherits the bound. -/
-theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_dirtyMember_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations)
     (B : State) (hcd : B.cn < B.cd) (hsig : O.η ≤ 1 / 2) (hmpos : 0 < B.npref)
     (Δ γ g ρ : ℝ) (hΔ : 0 < Δ) (hγ : 0 ≤ γ) (hg : 0 ≤ g) (hρ0 : 0 ≤ ρ)
     (hρD : collisionMass (D j) ≤ ρ)
@@ -4797,8 +4849,8 @@ theorem measureReal_dirtyMember_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle 
     _ ≤ _ := by
         gcongr
         · exact prefix_not_injective_le D Dsf j B.npref ρ hρD hρ0
-        · exact measureReal_screenBad_le hflat O populations D Dsf hsupp B hcd hsig hmpos Δ γ
-            hΔ hγ hscd hsc
+        · exact measureReal_screenBad_le hflat O populations D Dsf hsupp hsuppSf B hcd hsig hmpos
+            Δ γ hΔ hγ hscd hsc
         · exact pool_flipMass_le D Dsf O j B.npref B.nsuff Δp g hg (by positivity)
 
 lemma measurableSet_cutCorrect' (O : Oracle μ S) (lo hi : ℕ) (A₀ : Finset S) (p : S) :
@@ -5642,10 +5694,11 @@ lemma measurableSet_retMiss (O : Oracle μ S) (populations : Finset J) (j : J) (
 open scoped Classical in
 /-- The lift of `ret_at_whp`.  At every table the state's own round fails only as often
 as the two fractional counts and the two gate tails allow; the draws are charged elsewhere. -/
-theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_retMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (α τ l lcut f E : ℝ) (kmin kmax nlo : ℕ)
     (hE : 0 ≤ E) (hElcut : E ≤ lcut) (hlcl : lcut ≤ l) (hτ : 0 ≤ τ)
     (hl1 : 2 * l ≤ 1) (hnloB : (nlo : ℝ) ≤ (1 - 2 * l) * (B.npref : ℝ))
@@ -5674,10 +5727,12 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
     refine runMeasure_slice_le D Dsf _
       (measurableSet_retMiss O populations j B α l lcut f B.gmin kmin kmax) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
+      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+      with d hdP hdC hdS
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i)) with hCd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     set Ad : Finset S := (Finset.range B.npref).image (fun i => d.2 j i) with hAd
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
@@ -5700,9 +5755,9 @@ theorem measureReal_retMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
         flipCount O t p ≤ (t.card : ℝ) * f ∧ kmin ≤ t.card ∧ t.card ≤ kmax) with hgood
       have hfamT : ∀ ω, fam ω ∈ T := fun ω => Finset.mem_powerset.2
         (fun v hv => clusterAt_subset O populations B _ (Finset.mem_erase.1 hv).2)
-      have hmain := ret_at_whp hflat O Pd Cd Ad hP hA hdisj
+      have hmain := ret_at_whp hflat O Pd Cd Ad hP hV hA hdisj
         (readSet Pd Cd ∪ readSet Ad (Cd.erase 1)) Finset.subset_union_left
-        (disjoint_gateReads hflat Pd Cd Ad hP hA hdisj)
+        (disjoint_gateReads hflat Pd Cd Ad hP hV hA hdisj)
         B.lo B.hi α τ l lcut B.gmin nlo
         (by
           have hcard : (Ad.card : ℝ) = (B.npref : ℝ) := by exact_mod_cast hAdm
@@ -5868,10 +5923,11 @@ open scoped Classical in
 /-- Hoeffding over the certification sample: the family is chosen from the table's reads, the
 sample's reads are at other strings, so the light prefixes misfire independently, each at most
 `E`. -/
-theorem measureReal_validMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_validMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (lcut f E : ℝ) (kmin kmax : ℕ) (hE : 0 ≤ E) (hElcut : E ≤ lcut)
     (hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
       kmin ≤ F.card → F.card ≤ kmax →
@@ -5886,10 +5942,12 @@ theorem measureReal_validMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
     refine runMeasure_slice_le D Dsf _
       (measurableSet_validMiss O populations j B lcut f kmin kmax) _ ?_
     filter_upwards [ae_draws_mem_Pre D Dsf Pre populations hsupp,
-      ae_cert_mem_Pre D Dsf Pre populations hsupp] with d hdP hdC
+      ae_cert_mem_Pre D Dsf Pre populations hsupp, ae_sfx_mem_Suf D Dsf Suf hsuppSf]
+      with d hdP hdC hdS
     set Pd : Finset S := populations.biUnion
       (fun j => (Finset.range B.npref).image (fun i => d.1.2 j i)) with hPd
     set Cd : Finset S := insert 1 ((Finset.range B.nsuff).image (fun i => d.1.1 i)) with hCd
+    have hV : ∀ v ∈ Cd, v ∈ insert 1 Suf := pool_mem_Suf B.nsuff (fun i => d.1.1 i) hdS
     set Ad : Finset S := (Finset.range B.npref).image (fun i => d.2 j i) with hAd
     have hP : ∀ q ∈ Pd, q ∈ Pre := by
       intro q hq
@@ -5909,7 +5967,7 @@ theorem measureReal_validMiss_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
         flipCount O t p ≤ (t.card : ℝ) * f ∧ kmin ≤ t.card ∧ t.card ≤ kmax) with hgood
       have hfamT : ∀ ω, fam ω ∈ T := fun ω => Finset.mem_powerset.2
         (fun v hv => clusterAt_subset O populations B _ (Finset.mem_erase.1 hv).2)
-      have hmain := miscut_frac_le hflat O Pd Cd Ad hP hA hdisj B.lo (B.hi - 1) T good ∅
+      have hmain := miscut_frac_le hflat O Pd Cd Ad hP hV hA hdisj B.lo (B.hi - 1) T good ∅
         (Finset.mem_powerset.2 (Finset.empty_subset _))
         (fun t ht => Finset.mem_powerset.1 ht) fam hfamT
         (fun ω ω' h => congrArg (fun t : Finset S => t.erase 1)
@@ -5950,10 +6008,11 @@ prefixes the sample holds are then either ones the family flips — few, once no
 much — or ones where the vote of a barely-flipped family misfires — few, by Hoeffding.  One
 that leaves more than `2·indecisionLimit` undecided is seen to by the sample the FNR test
 counted at `indecisionLimit`. -/
-theorem measureReal_validFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (hkpos : 0 < B.k) (hhi : 1 ≤ B.hi)
     (indecisionLimit εcov lcut f E Δp ρ th : ℝ) (hil : 0 ≤ indecisionLimit) (hε0 : 0 ≤ εcov)
     (hE : 0 ≤ E) (hElcut : E ≤ lcut)
@@ -6147,7 +6206,7 @@ theorem measureReal_validFail_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ
         · exact measureReal_hitShort_le D Dsf O populations j B εcov (εcov / 4) hε0
             (by positivity)
         · exact measureReal_heavyHits_le D Dsf O populations j B f (Δp / f) th hth
-        · exact measureReal_validMiss_le hflat O populations D Dsf hsupp j hj B lcut f E
+        · exact measureReal_validMiss_le hflat O populations D Dsf hsupp hsuppSf j hj B lcut f E
             (B.k - 1) (B.k - 1) hE hElcut hcut
         · exact measureReal_undecidedShort_le D Dsf O populations j B (2 * indecisionLimit)
             indecisionLimit (by linarith) hil
@@ -6206,10 +6265,11 @@ lemma stalled_subset (O : Oracle μ S) (populations : Finset J) (B : State)
 open scoped Classical in
 /-- The liveness half's obligation, discharged: the clustering has a family of the round's
 own size except on the events `measureReal_smallScreen_le` prices. -/
-theorem measureReal_stalled_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_stalled_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (B : State) (hcd : B.cn < B.cd)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (B : State) (hcd : B.cn < B.cd)
     (hkpos : 0 < B.k) (j₀ : J) (hj₀ : j₀ ∈ populations)
     (γ pAP t ρsf ρ : ℝ) (hγ : 0 ≤ γ) (hpAP0 : 0 ≤ pAP) (ht : 0 ≤ t)
     (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, O.label (p * v) = O.label p})
@@ -6223,7 +6283,7 @@ theorem measureReal_stalled_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S
         + ((B.npref : ℝ) ^ 2 * ρ
           + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2))) :=
   le_trans (measureReal_mono (stalled_subset O populations B hcd hkpos) (measure_ne_top _ _))
-    (measureReal_smallScreen_le hflat O populations D Dsf hsupp B hcd j₀ hj₀ γ pAP t ρsf ρ
+    (measureReal_smallScreen_le hflat O populations D Dsf hsupp hsuppSf B hcd j₀ hj₀ γ pAP t ρsf ρ
       hγ hpAP0 ht hpAPBound hscd hsig hsc hcount hρsf hρsf0 hρj hρ0)
 
 open scoped Classical in
@@ -6232,10 +6292,11 @@ set_option maxHeartbeats 1000000 in
 the draws: the certification prefixes repeat, or meet the table, or under-represent a class,
 or the family is dirty and the sample sees it.  The cluster's own size is the liveness
 half's business and is carried as `Estall`. -/
-theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem measureReal_notRetAt_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (hmpos : 0 < B.npref) (hsig : O.η ≤ 1 / 2)
     (α τ l lcut f E Δp ρ th : ℝ) (kmin kmax nlo : ℕ) (hkmin : B.k ≤ kmin + 1)
     (hE : 0 ≤ E) (hElcut : E ≤ lcut) (hlcl : lcut ≤ l) (hτ : 0 ≤ τ)
@@ -6376,7 +6437,7 @@ theorem measureReal_notRetAt_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ 
         · exact cert_not_injective_le D Dsf j B.npref ρ (hρ j hj) hρ0
         · exact prefix_cert_disjoint_le D Dsf populations j B.npref ρ hρ (hρ j hj) hρ0
         · exact measureReal_heavyHits_le D Dsf O populations j B f (Δp / f) th hth
-        · exact measureReal_retMiss_le hflat O populations D Dsf hsupp j hj B α τ l lcut f E
+        · exact measureReal_retMiss_le hflat O populations D Dsf hsupp hsuppSf j hj B α τ l lcut f E
             kmin kmax nlo hE hElcut hlcl hτ hl1 hnloB hsig hdec hcut hga hα
     _ = ((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
         + (Estall + (Edirty + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
@@ -6634,10 +6695,11 @@ set_option maxHeartbeats 1000000 in
 /-- Part 1 at one state.  Off the pool's findability, a returned family is valid on every
 population except where the certification draws, the screen or the vote fail, charged per
 population, and where the pool's own draws collide, charged once. -/
-theorem per_state_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hsig : O.η ≤ 1 / 2)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0) (hsig : O.η ≤ 1 / 2)
     (indecisionLimit εcov α ρ ρsf pAP : ℝ) (hil : 0 ≤ indecisionLimit) (hε0 : 0 ≤ εcov)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
@@ -6709,7 +6771,7 @@ theorem per_state_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
                 + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))))) := by
     refine le_trans (measureReal_biUnion_finset_le _ _) (Finset.sum_le_sum (fun j hj => ?_))
     refine le_trans (measureReal_union_le _ _) ?_
-    have hv := measureReal_validFail_le hflat O populations D Dsf hsupp j hj B hkpos hhi
+    have hv := measureReal_validFail_le hflat O populations D Dsf hsupp hsuppSf j hj B hkpos hhi
       indecisionLimit εcov lcut f E Δp ρ th hil hε0 hE (by linarith) (by rw [hΔp]; positivity) hth hf0 hbudget hρ hρ0 hcut
     have htail : Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
         ≤ Real.exp (-2 * (B.npref : ℝ) * (lcut / 2) ^ 2) := by
@@ -6717,8 +6779,8 @@ theorem per_state_le {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
       have hm : (0 : ℝ) ≤ (B.npref : ℝ) := Nat.cast_nonneg _
       have h1 : (lcut / 2) ^ 2 ≤ (lcut - E) ^ 2 := by nlinarith
       nlinarith [mul_le_mul_of_nonneg_left h1 hm]
-    have hd := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig hmpos
-      Δ γ g ρ hΔ hγ hg hρ0 (hρ j hj) hscd hsc
+    have hd := measureReal_dirtyMember_le hflat O populations D Dsf hsupp hsuppSf j hj B hcd hsig
+      hmpos Δ γ g ρ hΔ hγ hg hρ0 (hρ j hj) hscd hsc
     have hv' : (runMeasure μ D Dsf).real (V j \ Dy j)
         ≤ ((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
           + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
@@ -6737,10 +6799,11 @@ open scoped Classical in
 /-- Part 1 — whatever is returned is valid, whenever it is returned.
 
 Except with probability `δ/2`, no rung the loop may stop at returns an invalid family. -/
-theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α : ℝ) (hindLim : 0 < indecisionLimit)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
@@ -6810,8 +6873,8 @@ theorem validity_of_returned {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
     · rw [hcardF]; exact hlo
     · rw [hcardF]
   rw [← hM]
-  refine le_trans (per_state_le hflat O populations D Dsf hsupp hsig.le indecisionLimit εcov α
-    ρ ρsf pAP hindLim.le hεcov.le hρ hρ0 hρsf hρsf0 B hk (by omega) hcd hcap.mpos hscd
+  refine le_trans (per_state_le hflat O populations D Dsf hsupp hsuppSf hsig.le indecisionLimit
+    εcov α ρ ρsf pAP hindLim.le hεcov.le hρ hρ0 hρsf hρsf0 B hk (by omega) hcd hcap.mpos hscd
     (by have := hcap.found; linarith)
     (flipBudget η₀ populations indecisionLimit εcov δ) (screenMargin η₀ populations indecisionLimit
       εcov δ / 2)
@@ -7582,10 +7645,11 @@ admitted.  What the round pays for that is coverage, which is why `gmin ≤ εco
 
 `cutBudget` is held under `indecisionLimit/2` by its own definition, so the family size is
 solved against a single misfire rate rather than the max of the round's two. -/
-theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
+theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
     [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
+    (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α : ℝ) (ρ pAP δ : ℝ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
     (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
@@ -7637,11 +7701,11 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
           {x : Run Ω S J | x ∉ retAt O populations indecisionLimit α B j}
         ≤ roundFail populations l lcut τ th E γscr γdirty gdirty tap ρ (collisionMass Dsf) ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ B := by
     intro j hj
-    have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp B hcd (by omega) j₀ hj₀
-      γscr pAP tap (collisionMass Dsf) ρ hγscr hpAP0 htap hpAPBound hscd hsig.le hscLow hcount hρsf hρsf0
-      (hρ j₀ hj₀) hρ0
-    have hdirtyI := measureReal_dirtyMember_le hflat O populations D Dsf hsupp j hj B hcd hsig.le
-      hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscd hscHigh
+    have hstall := measureReal_stalled_le hflat O populations D Dsf hsupp hsuppSf B hcd (by omega)
+      j₀ hj₀ γscr pAP tap (collisionMass Dsf) ρ hγscr hpAP0 htap hpAPBound hscd hsig.le hscLow
+      hcount hρsf hρsf0 (hρ j₀ hj₀) hρ0
+    have hdirtyI := measureReal_dirtyMember_le hflat O populations D Dsf hsupp hsuppSf j hj B hcd
+      hsig.le hmpos Δ γdirty gdirty ρ hΔ hγdirty hgdirty hρ0 (hρ j hj) hscd hscHigh
     have hnoclean := measureReal_noCleanRef_le D Dsf O populations B pAP tap
       (collisionMass Dsf) hpAP0 htap hpAPBound le_rfl hρsf0
       (by
@@ -7697,7 +7761,7 @@ theorem loop_terminates {Pre : Set S} (hflat : Flat Pre) (O : Oracle μ S)
       have hfl := Nat.floor_le hnn
       rw [hl]
       linarith [hfl]
-    have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp j hj B
+    have hmain := measureReal_notRetAt_le hflat O populations D Dsf hsupp hsuppSf j hj B
       hmpos hsig.le
       α τ l lcut f E ((populations.card : ℝ) * Δ + gdirty) ρ th κ κ
       ⌊(1 - indecisionLimit) * (B.npref : ℝ)⌋₊ (by omega)
@@ -7726,8 +7790,8 @@ end Loop
 /-- `validity_of_returned` (whatever the loop returns is good, whenever it is returned) and
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
 theorem clustering_correct : ClusteringCorrect := by
-  intro Ω _ μ _ S _ J _ O populations D Dsf _ _ Pre η₀ indecisionLimit εcov α δ ρ pAP k
-    hηle hη₀ hpop hflat hsupp hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
+  intro Ω _ μ _ S _ J _ O populations D Dsf _ _ Pre Suf η₀ indecisionLimit εcov α δ ρ pAP k
+    hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim hind1 hαpos hα hεcov
     hε1 hδ _hbudget hρcap hρsf
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
   rw [O.apSet_eq] at hpAPBound
@@ -7746,10 +7810,10 @@ theorem clustering_correct : ClusteringCorrect := by
     (fun B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP ρ (collisionMass Dsf)} =>
       ret O.mq populations indecisionLimit α B.val) δ
-    (validity_of_returned hflat O populations D Dsf hsupp indecisionLimit εcov α hindLim hsig hpop
-      hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
-      hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind)
-    (loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
+    (validity_of_returned hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α hindLim
+      hsig hpop hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl
+      (tsum_nonneg (fun a => sq_nonneg _)) hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind)
+    (loop_terminates hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α ρ pAP
       δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1
       hpAPPositive
       hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
