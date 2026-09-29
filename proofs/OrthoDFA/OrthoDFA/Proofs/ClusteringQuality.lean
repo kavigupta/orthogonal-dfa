@@ -493,9 +493,89 @@ lemma card_le_sub_of_forall_notMem [Fintype Q] {s t : Finset Q} (h : ∀ q ∈ s
 
 /-! ## The theorem -/
 
-theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP tolerance
-    hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance
+/-- `clustering_correct` as a bound on where it fails, which, unlike a bound on where it holds,
+bounds every smaller set. -/
+theorem clustering_correct_bad {Pre : Set S} (O : Oracle μ S) (populations : Finset J)
+    (D : J → Measure S) (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)]
+    [IsProbabilityMeasure Dsf] {η₀ indecisionLimit εcov α δ ρ pAP : ℝ}
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hpop : populations.Nonempty) (hflat : Flat Pre)
+    (hsupp : ∀ j ∈ populations, D j Preᶜ = 0) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
+    (hpAPPositive : 0 < pAP) (hpAPBound : pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L})
+    (hindLim : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hαpos : 0 < α)
+    (hα : α < 1 / 2) (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
+    (hρcap : ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP)
+    (hρsf : collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP) :
+    (runMeasure μ D Dsf).real
+      {x | ¬ ((∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP ρ
+          (collisionMass Dsf)}, x ∈ ret O.mq populations indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP ρ
+          (collisionMass Dsf)},
+          x ∈ ret O.mq populations indecisionLimit α B.val →
+          ∀ j ∈ populations, 1 - εcov
+            ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
+                (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
+                ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
+              ≤ 2 * indecisionLimit)} ≤ δ := by
+  have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
+  rw [O.apSet_eq] at hpAPBound
+  by_cases hδ1 : δ ≤ 1
+  case neg =>
+    exact measureReal_le_one.trans (le_of_lt (not_le.1 hδ1))
+  have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
+    exact_mod_cast Finset.card_pos.2 hpop
+  have hfind : Real.exp (-2 * (poolCount η₀ populations indecisionLimit εcov δ pAP : ℝ)
+      * (pAP / 2) ^ 2) ≤ δ / 4 :=
+    le_trans (solved_findability η₀ populations hδ hpAPPositive hcard1) (by linarith)
+  have hval := validity_of_returned hflat O populations D Dsf hsupp indecisionLimit εcov α hindLim
+    hsig hpop hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl (tsum_nonneg (fun a => sq_nonneg _))
+    hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind
+  have hterm := loop_terminates hflat O populations D Dsf hsupp indecisionLimit εcov α ρ pAP
+    δ hsig hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα hindLim hind1 hpAPPositive
+    hpAPBound hρ (le_trans (tsum_nonneg (fun a => sq_nonneg _))
+      (hρ hpop.choose hpop.choose_spec)) hρcap hρsf
+  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
+    ((measureReal_union_le _ _).trans (add_le_add hval hterm) |>.trans (by linarith))
+  intro x hx
+  rw [Set.mem_ofPred_eq, not_and_or] at hx
+  rcases hx with hx | hx
+  · exact Or.inr fun B hB => hx ⟨B, hB⟩
+  · obtain ⟨B, hB⟩ := not_forall.1 hx
+    obtain ⟨hret, hfail⟩ := Classical.not_imp.1 hB
+    exact Or.inl (Set.mem_iUnion.2 ⟨B, hret, hfail⟩)
+
+/-- The returned family cuts well every state some population forces it to. -/
+def QualityGood (A : DFA S Q) (O : Oracle μ S) (populations : Finset J) (D : J → Measure S)
+    (states : Finset State) (indecisionLimit α tolerance εcov : ℝ) (x : Run Ω S J) : Prop :=
+  (∃ B ∈ states, x ∈ ret O.mq populations indecisionLimit α B) ∧
+    ∀ B ∈ states, x ∈ ret O.mq populations indecisionLimit α B → ∀ q,
+      ((∃ j ∈ populations, 2 * εcov / tolerance < stateMass A (D j) q) → ∀ p, A.state p = q →
+          miscutProb O B.lo B.hi (clusterAt O.mq populations x B) p ≤ tolerance)
+      ∧ ((∃ j ∈ populations, 4 * indecisionLimit / tolerance < stateMass A (D j) q) →
+        ∀ p, A.state p = q →
+          undecidedProb O B.lo B.hi (clusterAt O.mq populations x B) p ≤ tolerance)
+
+/-- The set form of `ClusteringQualityGuarantee`, at the states `stoppable` names. -/
+theorem clustering_quality_bad (A : DFA S Q) (O : Oracle μ S)
+    (populations : Finset J) (Pre : Set S)
+    {η₀ indecisionLimit εcov α δ pAP tolerance : ℝ}
+    (hL : O.L = {w | A.state w ∈ A.accept}) (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2)
+    (hpop : populations.Nonempty) (hflat : Flat Pre) (hpAP : 0 < pAP)
+    (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hα : 0 < α)
+    (hα1 : α < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ)
+    (htolerance : 0 < tolerance) :
+    ∃ cap : ℝ, 0 < cap ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      ∀ ρ : ℝ,
+      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+      ρ ≤ cap →
+      collisionMass Dsf ≤ cap →
+      (runMeasure μ D Dsf).real {x | ¬ QualityGood A O populations D
+          (stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP ρ (collisionMass Dsf))
+          indecisionLimit α tolerance εcov x} ≤ δ := by
   classical
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
@@ -528,12 +608,9 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
   set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP ρ (collisionMass Dsf)
     with hstates
-  refine ⟨states, ?_⟩
-  have hcc := clustering_correct O populations D Dsf Pre η₀ indecisionLimit εcov α δ' ρ pAP
-    524288 hηle hη₀ hpop hflat hsupp hρ hpAP hpAPBound hind hind1 hα hα1 hε hε1 hδ'
-    (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP hsig hη0 hpop hind hε hε1
-      hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
-    (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
+  have hcc := clustering_correct_bad (Pre := Pre) O populations D Dsf hηle hη₀ hpop hflat hsupp
+    hρ hpAP hpAPBound hind hind1 hα hα1 hε hε1 hδ' (le_trans hρcap (min_le_left _ _))
+    (le_trans hρsf (min_le_left _ _))
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ ε₁ / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
@@ -604,25 +681,17 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
             div_le_iff₀ (by positivity)]
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
-  have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ ret O.mq populations indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ ret O.mq populations indecisionLimit α B.val →
-          ∀ j ∈ populations, 1 - εcov
-            ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                (clusterAt O.mq populations x B.val) p (oracleNoise x)}
-            ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi - 1)
-                ((clusterAt O.mq populations x B.val).erase 1) p (oracleNoise x)}
-              ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
-      1 - δ ≤ (runMeasure μ D Dsf).real T := by
-    intro T hT
-    have := le_trans hcc (le_trans (measureReal_mono hT (measure_ne_top _ _))
-      (measureReal_union_le T Bad))
-    linarith
-  apply key
-  intro x hx
-  by_cases hxb : x ∈ Bad
-  · exact Or.inr hxb
-  refine Or.inl ⟨hx.1, fun B hret => ?_⟩
+  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans
+    ((measureReal_union_le _ Bad).trans (add_le_add hcc hBad) |>.trans (by linarith))
+  intro x hxq
+  by_contra hx'
+  simp only [Set.mem_union, not_or, Set.mem_ofPred_eq, not_not] at hx'
+  obtain ⟨hx, hxb⟩ := hx'
+  apply hxq
+  refine ⟨?_, fun B0 hB0 hret q => ?_⟩
+  · obtain ⟨B, hB⟩ := hx.1
+    exact ⟨B.val, B.property, hB⟩
+  obtain ⟨B, rfl⟩ : ∃ B : {B : State // B ∈ states}, B.val = B0 := ⟨⟨B0, hB0⟩, rfl⟩
   have hgood := hx.2 B hret
   have hnb : ∀ j ∈ populations, x ∉ badC B.val j ∧ x ∉ badU B.val j := by
     intro j hj
@@ -660,12 +729,9 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
         _ ≤ ε₁ ^ 2 / (64 * (N + 1)) := hρ1
         _ = ε₁ / 8 * τ := by rw [hτ]; field_simp; ring
     linarith [measureReal_finset_le (D j) P hτ0]
-  unfold quality qualityBound
-  refine Prod.mk_le_mk.2 ⟨?_, ?_⟩
-  · apply card_le_sub_of_forall_notMem
-    intro q hq hq2
-    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
-    obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
+  refine ⟨fun ⟨j, hj, hmass⟩ p₀ hp₀ => ?_, fun ⟨j, hj, hmass⟩ p₀ hp₀ => ?_⟩
+  · by_contra htol'
+    have htolerancep := not_le.1 htol'
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvC B.val G p (oracleNoise x))
       (fun p => miscutProb O B.val.lo B.val.hi G p) (miscutProb O B.val.lo B.val.hi G p₀)
@@ -690,10 +756,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
     have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
     linarith
-  · apply card_le_sub_of_forall_notMem
-    intro q hq hq2
-    obtain ⟨p₀, hp₀, htolerancep⟩ := (Finset.mem_filter.1 hq).2
-    obtain ⟨j, hj, hmass⟩ := (Finset.mem_filter.1 hq2).2
+  · by_contra htol'
+    have htolerancep := not_le.1 htol'
     have hkey := stateMass_mul_le (D j) (hsupp j hj) (F j) P {p | A.state p = q}
       (fun p => EvU B.val G p (oracleNoise x))
       (fun p => undecidedProb O B.val.lo B.val.hi G p) (undecidedProb O B.val.lo B.val.hi G p₀)
@@ -715,5 +779,31 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have h2 : 0 ≤ stateMass A (D j) q := measureReal_nonneg
     have h3 := mul_le_mul_of_nonneg_left htolerancep.le h2
     linarith
+
+theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
+  intro Ω _ μ _ S _ J _ Q _ A O populations Pre η₀ indecisionLimit εcov α δ pAP tolerance
+    hL hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 htolerance
+  classical
+  obtain ⟨cap, hcap, hbad⟩ := clustering_quality_bad A O populations Pre hL hηle hη₀ hpop hflat
+    hpAP hind hind1 hα hα1 hε hε1 hδ htolerance
+  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  have := hD
+  have := hDsf
+  refine ⟨stoppable η₀ populations indecisionLimit εcov (δ / 2) α pAP ρ (collisionMass Dsf),
+    (one_sub_le_compl_real _ _ δ (hbad D Dsf hD hDsf hsupp hpAPBound ρ hρ hρcap hρsf)).trans
+      (measureReal_mono ?_ (measure_ne_top _ _))⟩
+  intro x hx
+  simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_not] at hx
+  refine ⟨?_, fun B hret => ?_⟩
+  · obtain ⟨B, hB, hret⟩ := hx.1
+    exact ⟨⟨B, hB⟩, hret⟩
+  have hq := hx.2 B.val B.property hret
+  unfold quality qualityBound
+  refine Prod.mk_le_mk.2 ⟨card_le_sub_of_forall_notMem fun q hq1 hq2 => ?_,
+    card_le_sub_of_forall_notMem fun q hq1 hq2 => ?_⟩
+  · obtain ⟨p, hp, hbad'⟩ := (Finset.mem_filter.1 hq1).2
+    exact absurd ((hq q).1 (Finset.mem_filter.1 hq2).2 p hp) (not_le.2 hbad')
+  · obtain ⟨p, hp, hbad'⟩ := (Finset.mem_filter.1 hq1).2
+    exact absurd ((hq q).2 (Finset.mem_filter.1 hq2).2 p hp) (not_le.2 hbad')
 
 end OrthoDFA

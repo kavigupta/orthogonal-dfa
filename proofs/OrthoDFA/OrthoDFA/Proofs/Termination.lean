@@ -107,9 +107,33 @@ lemma exists_heavy_badState [Fintype Q] [Fintype R] (A : DFA S Q) (O : Oracle μ
   refine ⟨q, hq.trans (measureReal_mono Set.inter_subset_right), p, hpq, ?_⟩
   exact (not_and_or.1 hpT.2).imp not_le.1 not_le.1
 
-theorem termination_holds : Termination := by
-  intro Ω _ μ _ S _ Q R _ _ J Θ _ P _ A O Dsamp populations D family hyp fails tolerance εcov
-    indecisionLimit ε ζ wₛ δc δs δa hD hε hζ htol hεcov hcC hcU hC hS hA hmass
+/-- `Termination`, with the specs asked of the first `2·|Q| + 1` rounds only. -/
+theorem termination_le [Fintype Q] [Fintype R] {J Θ : Type*} [MeasurableSpace Θ]
+    (P : Measure Θ) [IsProbabilityMeasure P] (A : DFA S Q) (O : Oracle μ S) (Dsamp : Measure S)
+    (populations : Finset J) (D : J → Measure S) (family : ℕ → Θ → State × Finset S)
+    (hyp : ℕ → Θ → DFA S R) (fails : ℕ → Θ → Finset R)
+    {tolerance εcov indecisionLimit ε ζ wₛ δc δs δa : ℝ}
+    (hD : IsProbabilityMeasure Dsamp) (hε : 0 < ε) (hζ : 0 ≤ ζ) (htol : 0 < tolerance)
+    (hεcov : 0 ≤ εcov)
+    (hcC : 2 * εcov / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
+    (hcU : 4 * indecisionLimit / tolerance < (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q)
+    (hC : ∀ r < 2 * Fintype.card Q + 1, P.real {θ | ∃ q,
+      ((∃ D' ∈ poolsAt populations D Dsamp hyp fails r θ,
+          2 * εcov / tolerance < stateMass A D' q)
+        ∧ ∃ p, A.state p = q
+          ∧ tolerance < miscutProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)
+      ∨ ((∃ D' ∈ poolsAt populations D Dsamp hyp fails r θ,
+          4 * indecisionLimit / tolerance < stateMass A D' q)
+        ∧ ∃ p, A.state p = q
+          ∧ tolerance < undecidedProb O (family r θ).1.lo (family r θ).1.hi (family r θ).2 p)}
+      ≤ δc)
+    (hS : ∀ r < 2 * Fintype.card Q + 1, P.real {θ | ζ < mislabelledWellCut A O tolerance
+      (family r θ).1 (family r θ).2 (hyp r θ) Dsamp} ≤ δs)
+    (hA : ∀ r < 2 * Fintype.card Q + 1,
+      P.real {θ | ∃ h ∈ fails r θ, minorityShare A (hyp r θ) Dsamp h < wₛ} ≤ δa)
+    (hmass : ∀ r θ, ∀ h ∈ fails r θ, ε / Fintype.card R ≤ Dsamp.real {v | (hyp r θ).state v = h}) :
+    P.real {θ | ∀ r < 2 * Fintype.card Q + 1, (fails r θ).Nonempty}
+      ≤ (2 * Fintype.card Q + 1) * (δc + δs + δa) := by
   classical
   set x := (wₛ - ζ * Fintype.card R / ε) / Fintype.card Q
   have hx : 0 < x := lt_of_le_of_lt (div_nonneg (by linarith) htol.le) hcC
@@ -193,16 +217,23 @@ theorem termination_holds : Termination := by
     _ ≤ ∑ r ∈ Finset.range (2 * Fintype.card Q + 1), P.real (Cb r ∪ Sb r ∪ Ab r) :=
         measureReal_biUnion_finset_le _ _
     _ ≤ ∑ _r ∈ Finset.range (2 * Fintype.card Q + 1), (δc + δs + δa) := by
-        refine Finset.sum_le_sum fun r _ => ?_
+        refine Finset.sum_le_sum fun r hr => ?_
+        have hr := Finset.mem_range.1 hr
         have h1 := measureReal_union_le (μ := P) (Cb r ∪ Sb r) (Ab r)
         have h2 := measureReal_union_le (μ := P) (Cb r) (Sb r)
-        have h3 : P.real (Cb r) ≤ δc := hC r
-        have h4 : P.real (Sb r) ≤ δs := hS r
-        have h5 : P.real (Ab r) ≤ δa := hA r
+        have h3 : P.real (Cb r) ≤ δc := hC r hr
+        have h4 : P.real (Sb r) ≤ δs := hS r hr
+        have h5 : P.real (Ab r) ≤ δa := hA r hr
         linarith
     _ = (2 * Fintype.card Q + 1) * (δc + δs + δa) := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
         push_cast
         ring
+
+theorem termination_holds : Termination := by
+  intro Ω _ μ _ S _ Q R _ _ J Θ _ P _ A O Dsamp populations D family hyp fails tolerance εcov
+    indecisionLimit ε ζ wₛ δc δs δa hD hε hζ htol hεcov hcC hcU hC hS hA hmass
+  exact termination_le P A O Dsamp populations D family hyp fails hD hε hζ htol hεcov hcC hcU
+    (fun r _ => hC r) (fun r _ => hS r) (fun r _ => hA r) hmass
 
 end OrthoDFA
