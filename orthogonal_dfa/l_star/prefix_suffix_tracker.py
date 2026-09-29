@@ -18,9 +18,9 @@ MIN_SIGNAL_STRENGTH = 0.001
 def _floor_rate(
     fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
 ) -> float:
-    """The largest rate r at which the least of ``num_rows`` independent
-    Binomial(``num_prefixes``, r) counts is still at most ``fewest`` with
-    probability ``failure_prob``:
+    """The largest rate r at which the least of num_rows independent
+    Binomial(num_prefixes, r) counts is still at most fewest with
+    probability failure_prob:
 
         1 - (1 - P(Binomial(num_prefixes, r) <= fewest)) ^ num_rows = failure_prob
     """
@@ -31,13 +31,13 @@ def _floor_rate(
 
 
 def _same_family_rate(boundary, signal, reference_rate, read: bool):
-    """P(X != R | R = ``read``) for a prefix of class C, with R its read under the
+    """P(X != R | R = read) for a prefix of class C, with R its read under the
     reference and X its read under a suffix preserving C, independent given C:
 
         P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
                                       boundary - signal   if C rejects
 
-    and P(C accepts) set so that P(R = 1) = ``reference_rate``, clipped to [0, 1].
+    and P(C accepts) set so that P(R = 1) = reference_rate, clipped to [0, 1].
     """
     reject_rate, accept_rate = boundary - signal, boundary + signal
     pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
@@ -52,12 +52,12 @@ def _same_family_rate(boundary, signal, reference_rate, read: bool):
 
 
 def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """``read`` -> the maximum of ``_same_family_rate`` over reference rates in
-    the exact interval [m_lo, m_hi] for ``ones`` of ``reads``,
+    """read -> the maximum of _same_family_rate over reference rates in
+    the exact interval [m_lo, m_hi] for ones of reads,
 
         P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
 
-    for each ``read`` the reference gives at least once.  Each rate is monotone in
+    for each read the reference gives at least once.  Each rate is monotone in
     the reference rate, so the interval's ends attain it.
     """
     ends = [
@@ -148,8 +148,9 @@ def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
 
 
 class _Draws:
-    """One call's draws towards ``amount`` suffixes: cohorts of at most
-    ``amount``, and at most ``amount / min_suffix_frequency`` draws in all."""
+    """One sample_more_suffixes call's tally: it draws cohorts of at most amount
+    suffixes until amount are kept or amount / min_suffix_frequency have been
+    drawn."""
 
     def __init__(self, pst, amount, pbar):
         self._pst = pst
@@ -193,7 +194,7 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-    #: Whether ``decision_boundary`` has been read off a family.
+    #: Whether decision_boundary has been read off a family.
     calibrated: bool = False
     #: Every suffix drawn for the pool, kept or not.
     suffixes_drawn: int = 0
@@ -258,15 +259,15 @@ class PrefixSuffixTracker:
     def _screen_cohort(
         self, rows: List[int], reference: int, *, predict: bool
     ) -> List[int]:
-        """The ``rows`` not screened out.  At each prefix count n of the staircase,
+        """The rows not screened out.  At each prefix count n of the staircase,
         and on each side s in {R = 1, R = 0} of the reference over those prefixes,
         row x is screened out if its n_s disagreements D_s(x) reject
 
             H0: D_s(x) ~ Binomial(n_s, rho_s)
 
-        in the upper tail at ``alpha``, where rho_s is the smaller of
-        ``_loosest_same_family_rates``' rate for s, if ``predict``, and
-        ``_floor_rate`` of the row nearest the reference.
+        in the upper tail at alpha, where rho_s is the smaller of
+        _loosest_same_family_rates' rate for s, if predict, and
+        _floor_rate of the row nearest the reference.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
@@ -323,16 +324,14 @@ class PrefixSuffixTracker:
         return alive
 
     def _refutes(self, kept: int, drawn: int, *, screenings: int, looks: int) -> bool:
-        """Whether ``kept`` rows surviving ``screenings`` screenings each, out of
-        ``drawn`` distinct draws, are significantly too few at one of ``looks``
-        looks:
+        """Whether k = kept survivors of d = drawn distinct draws, each screened
+        s = screenings times, are significantly too few at one of L = looks looks:
 
-            P(Binomial(drawn, f (1 - screenings screening_alpha / 2)) <= kept)
-                < screening_alpha / looks,
+            P(Binomial(d, f (1 - s a / 2)) <= k) < a / L,
 
-        f = ``min_suffix_frequency``, the least share of the sampler's draws that
-        preserve every class, each of which a screening right about
-        the noise drops with probability at most screening_alpha / 2."""
+        a = screening_alpha and f = min_suffix_frequency, the least share of the
+        sampler's draws that preserve every class, each of which a screening
+        right about the noise drops with probability at most a / 2."""
         rate = self.config.min_suffix_frequency * (
             1 - screenings * self.config.screening_alpha / 2
         )
@@ -342,13 +341,13 @@ class PrefixSuffixTracker:
         )
 
     def calibrate(self, reference: int) -> int:
-        """Removes from ``suffix_pool`` the rows other than ``reference`` that the
-        prediction screens out, and sets ``calibrated``, if
+        """Removes from suffix_pool the rows other than reference that the
+        prediction screens out, and sets calibrated, if
 
             _refutes(0, suffixes_drawn, screenings=2, looks=1)
             and not _refutes(kept, suffixes_drawn, screenings=2, looks=1)
 
-        for ``kept`` of them surviving the prediction; returns how many were
+        for kept of them surviving the prediction; returns how many were
         removed."""
         if self.calibrated:
             return 0
@@ -367,8 +366,8 @@ class PrefixSuffixTracker:
         return len(dropped)
 
     def _draw_cohort(self, size: int) -> List[int]:
-        """``size`` unseen suffixes, interned but not yet observed, and counted in
-        ``suffixes_drawn``."""
+        """size unseen suffixes, interned but not yet observed, and counted in
+        suffixes_drawn."""
         rows = []
         while len(rows) < size:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
@@ -431,8 +430,8 @@ class PrefixSuffixTracker:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
     def sample_more_suffixes(self, *, amount: int, reference: int):
-        """Grow ``suffix_pool`` by ``amount`` suffixes that survive screening
-        against ``reference``, returning ``(kept, drawn)``.
+        """Grow suffix_pool by amount suffixes that survive screening
+        against reference, returning (kept, drawn).
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
@@ -446,8 +445,8 @@ class PrefixSuffixTracker:
         return draws.kept, draws.drawn
 
     def _screen_predicted(self, draws, reference) -> Optional[List[int]]:
-        """Screens cohorts with the prediction until ``draws`` is done, or until
-        what it has kept ``_refutes`` it, at one of the call's cohorts as looks;
+        """Screens cohorts with the prediction until draws is done, or until
+        what it has kept _refutes it, at one of the call's cohorts as looks;
         then, the rows it dropped, else None."""
         dropped = []
         while draws.wanting():
@@ -461,8 +460,8 @@ class PrefixSuffixTracker:
         return None
 
     def _screen_floor(self, draws, reference, withheld) -> None:
-        """Screens ``withheld``, in order, and then fresh cohorts, on the floor
-        alone, until ``draws`` is done."""
+        """Screens withheld, in order, and then fresh cohorts, on the floor
+        alone, until draws is done."""
         while draws.kept < draws.amount and withheld:
             cohort = withheld[: draws.amount - draws.kept]
             withheld = withheld[draws.amount - draws.kept :]

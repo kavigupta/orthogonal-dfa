@@ -15,7 +15,7 @@ from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 
 ALPHABET = 12
 LENGTH = 20
-#: ``Q`` holds on the symbols below this and leaves for the accepting sink on the rest.
+#: Q holds on the symbols below this and leaves for the accepting sink on the rest.
 HOLDS = 10
 ARM = ALPHABET - 1
 PER_KIND = 100
@@ -38,8 +38,8 @@ def _target() -> DFA:
 
 
 def _suffixes(rng, kind):
-    """``PER_KIND`` distinct suffixes: ``hold`` preserves every class, ``escape``
-    preserves all but ``Q``'s (it never arms, and leaves ``Q``), ``arm`` arms."""
+    """PER_KIND distinct suffixes: hold preserves every class, escape
+    preserves all but Q's (it never arms, and leaves Q), arm arms."""
     out = set()
     while len(out) < PER_KIND:
         if kind == "hold":
