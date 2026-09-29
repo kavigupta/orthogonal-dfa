@@ -15,19 +15,35 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _floor_rate(
-    fewest: int, num_prefixes: int, failure_prob: float, num_rows: int
-) -> float:
-    """The largest rate r at which the least of num_rows independent
-    Binomial(num_prefixes, r) counts is still at most fewest with
-    probability failure_prob:
+def _low_cluster_rate(counts, n, failure_prob) -> float:
+    """r_hi with P(Binomial(n m, r_hi) <= c) = failure_prob, for the m rows and
+    summed count c that the maximum-likelihood fit of
 
-        1 - (1 - P(Binomial(num_prefixes, r) <= fewest)) ^ num_rows = failure_prob
-    """
-    if fewest == num_prefixes:
+        w Binomial(n, r_lo) + (1 - w) Binomial(n, r_up),   r_lo < r_up,
+
+    to counts assigns to the lower component, reached by EM from the split at the
+    median; all the rows if no two components separate."""
+    counts = np.asarray(counts)
+    low = counts <= np.median(counts)
+    while low.any() and not low.all():
+        share = low.mean()
+        rate_lo = counts[low].mean() / n
+        rate_up = counts[~low].mean() / n
+        if not 0 < rate_lo < rate_up < 1:
+            break
+        log_lo = np.log(share) + scipy.stats.binom.logpmf(counts, n, rate_lo)
+        log_up = np.log(1 - share) + scipy.stats.binom.logpmf(counts, n, rate_up)
+        relabelled = log_lo >= log_up
+        if (relabelled == low).all():
+            break
+        low = relabelled
+    if not low.any() or low.all():
+        low = np.ones(len(counts), dtype=bool)
+    total = int(counts[low].sum())
+    trials = n * int(low.sum())
+    if total == trials:
         return 1.0
-    per_row = 1 - (1 - failure_prob) ** (1 / num_rows)
-    return float(scipy.stats.beta.ppf(1 - per_row, fewest + 1, num_prefixes - fewest))
+    return float(scipy.stats.beta.ppf(1 - failure_prob, total + 1, trials - total))
 
 
 def _same_family_rate(boundary, signal, reference_rate, read: bool):
@@ -263,7 +279,7 @@ class PrefixSuffixTracker:
 
         in the upper tail at alpha, where rho_s is the smaller of
         _loosest_same_family_rates' rate for s, if predict, and
-        _floor_rate of the row nearest the reference.
+        _low_cluster_rate of the rows' counts.
         """
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
@@ -298,17 +314,10 @@ class PrefixSuffixTracker:
             disagreements = [
                 (observed[:, side] != ref[subset][side]).sum(1) for side, _ in sides
             ]
-            closest = np.argmin(
-                sum(
-                    count / side.sum() for count, (side, _) in zip(disagreements, sides)
-                )
-            )
             too_far = np.zeros(len(alive), dtype=bool)
             for count, (side, rate) in zip(disagreements, sides):
                 n = int(side.sum())
-                same_family_rate = min(
-                    rate, _floor_rate(int(count[closest]), n, alpha, len(alive))
-                )
+                same_family_rate = min(rate, _low_cluster_rate(count, n, alpha))
                 too_far |= [
                     binomial_side_of_boundary(
                         int(c), n, same_family_rate, failure_prob=alpha
