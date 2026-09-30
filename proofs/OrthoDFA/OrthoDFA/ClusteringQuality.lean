@@ -23,7 +23,7 @@ noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p :
 noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ decided O.mq lo hi F p ω}
 
-/-- With probability `≥ 1 − δ` the loop stops at one of `states`, and on every population the
+/-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and on every population the
 family it returns there, averaged over the population, decides a prefix the wrong way at most
 `εcov + slack` of the time and leaves it undecided at most `2·indecisionLimit + slack` of the
 time.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
@@ -31,7 +31,7 @@ def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP qmin crossLimit slack : ℝ) (a : ℕ),
+    (η₀ indecisionLimit εcov α δ pAP qmin crossLimit slack : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -50,7 +50,8 @@ def ClusteringQualityGuarantee : Prop :=
   0 < crossLimit →
   crossLimit ≤ 1 →
   0 < slack →
-  prefixNeed populations η₀ indecisionLimit εcov (δ / 2) α pAP qmin crossLimit ≤ 2 * a / pAP →
+  prefixNeed populations η₀ indecisionLimit εcov (δ / 2) α pAP qmin crossLimit v ≤ 2 * a / pAP →
+  0 < v →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -68,11 +69,11 @@ def ClusteringQualityGuarantee : Prop :=
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
           (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
-        1 - δ ≤ (runMeasure μ D Dsf).real
+        1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val)
+                x ∈ ret rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val →
+              x ∈ ret rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
               ∀ j ∈ populations,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt rule O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack
