@@ -14,9 +14,10 @@ sampling without replacement.  Deduplicated i.i.d. draws give a pool at most as 
 is the conservative model, but it is why the claim caps the collision mass.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
-(`transition_resolver`, `counterexample_synthesis`); here it is a field of `State`
-(`cn/cd`).  So the signal is the worse rate's margin `½ − max(ηIn, ηOut)` rather than the
-half-gap `(1 − ηIn − ηOut)/2`.
+(`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
+family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
+the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.  The
+boundary the clustering recentres on is not a gap: `Clusterer` covers any.
 
 Known modelling gap.  The Python sizes the band around the boundary from its reads
 (`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
@@ -114,10 +115,6 @@ structure State where
   npref : ℕ
   /-- The cluster's size, seed included. -/
   k : ℕ
-  /-- `identify_cluster_around`'s `decision_boundary`, as the ratio `cn/cd`: `p` is on the
-  accept side when `cn · #F < cd · voteCount F p`. -/
-  cn : ℕ
-  cd : ℕ
   /-- Reject at or below this count. -/
   lo : ℕ
   /-- Accept above this count. -/
@@ -196,51 +193,32 @@ noncomputable def meanVote (O : Oracle μ S) (F : Finset S) (p : S) : ℝ :=
 
 /-! ### Cluster -/
 
-/-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
-noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
-    Finset S :=
-  if h : (cands.powersetCard k).Nonempty then
-    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
-  else ∅
+/-- A way of picking the family out of the screened candidates from their reads: `reads w` says
+the oracle answered accept at `w`, and `P`, `cands` and `k` are the prefixes, the candidates and
+the size asked for.
 
-/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`. -/
-noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  ((P.filter (fun p =>
-    ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
-
-/-- `hammingLoss`, zeroed off the candidates: `leastLossSubset` picks by `Classical.choose`,
-so it sees the loss as a function, and two draws agreeing on the reads must give the same one. -/
-noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
-
-/-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them -- `identify_cluster_around` breaks out
-(`if seed_local not in nearest`).  The seed wins ties for the `k`-th place, as it does under the
-stable `argsort`. -/
-noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    (F : Finset S) : Finset S :=
-  if ∀ w ∈ cands, w ∉ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) →
-      ∀ v ∈ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)),
-      clusterLoss mq F cn cd P cands ω v ≤ clusterLoss mq F cn cd P cands ω w
-  then insert (1 : S)
-    (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
-
-/-- `identify_cluster_around` iterated to its fixed point, which `k·#P + 1` steps reach: the
-total loss is a natural number at most `k·#P` and falls at every improving step. -/
-noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
-    (k : ℕ) : Finset S :=
-  (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
+`identify_cluster_around` is one for each boundary it is handed.  It reads only the candidates'
+columns on the representative prefixes, starts from `ε` and stops before `ε` would leave, and
+returns `count` rows once the pool holds that many.  How it weighs populations, when it stops
+recentring, and how it breaks ties are its own business, which is why the claim is stated for
+every such rule.  A boundary handed in from reads outside the round is independent of the
+round's bits, so the claim holds with it fixed first. -/
+structure Clusterer (S : Type*) [Stringlike S] where
+  pick : (S → Prop) → Finset S → Finset S → ℕ → Finset S
+  seed_mem : ∀ reads P cands k, (1 : S) ∈ cands → (1 : S) ∈ pick reads P cands k
+  subset : ∀ reads P cands k, (1 : S) ∈ cands → pick reads P cands k ⊆ cands
+  card_le : ∀ reads P cands k, 0 < k → (pick reads P cands k).card ≤ k
+  card_eq : ∀ reads P cands k, (1 : S) ∈ cands → k ≤ cands.card → 0 < k →
+    (pick reads P cands k).card = k
+  congr : ∀ reads reads' P cands k, (1 : S) ∈ cands →
+    (∀ p ∈ P, ∀ v ∈ cands, (reads (p * v) ↔ reads' (p * v))) →
+    pick reads P cands k = pick reads' P cands k
 
 /-- The cluster without its seed. -/
-noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
+noncomputable def clusterAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (clusterAround mq B.cn B.cd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
-    (oracleNoise x) B.k).erase 1
+  (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixesAt populations B.npref x)
+    (screenedAt mq populations B x) B.k).erase 1
 
 /-! ### The cut -/
 
@@ -290,15 +268,15 @@ def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 gate and the accept-preserving gate, each per population on `certOf`. -/
-noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
+noncomputable def ret (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
-  {x | B.k ≤ (clusterAt mq populations x B).card + 1
+  {x | B.k ≤ (clusterAt rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo B.hi
-          (clusterAt mq populations x B) p (oracleNoise x))).card : ℝ)
+          (clusterAt rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
-        (clusterAt mq populations x B) (certOf j B.npref x) (oracleNoise x)}
+        (clusterAt rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -334,7 +312,7 @@ of suffixes that preserve membership for every prefix, and `cap` bounds the coll
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (Pre Suf : Set S)
     (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
@@ -390,14 +368,14 @@ def ClusteringGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations indecisionLimit α B.val)
+                x ∈ ret rule O.mq populations indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations indecisionLimit α B.val →
+              x ∈ ret rule O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+                    (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
                 ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+                    (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
 end OrthoDFA

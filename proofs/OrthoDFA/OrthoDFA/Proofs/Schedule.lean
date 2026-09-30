@@ -17,6 +17,7 @@ open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
 variable {S : Type*} [Stringlike S]
+variable {rule : Clusterer S}
 variable {J : Type*} [Fintype J]
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
@@ -29,7 +30,7 @@ deriving instance DecidableEq for State
 
 instance : Countable State :=
   Function.Injective.countable
-    (f := fun b => (b.nsuff, b.npref, b.k, b.cn, b.cd, b.lo, b.hi, b.sc, b.scd, b.gmin))
+    (f := fun b => (b.nsuff, b.npref, b.k, b.lo, b.hi, b.sc, b.scd, b.gmin))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-- `s = 1/2 − η`. -/
@@ -195,8 +196,6 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   nsuff := poolCount η populations indecisionLimit εcov δ pAP crossLimit
   npref := mi
   k := famCount η populations indecisionLimit εcov δ crossLimit + 1
-  cn := 1
-  cd := 2
   lo := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
     - bandHalf η populations indecisionLimit εcov δ crossLimit - 1
   hi := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
@@ -247,8 +246,6 @@ structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov �
     (N V : ℕ) (B : State) : Prop where
   /-- Reject at or below accept, so the two gate sides are disjoint. -/
   lohi : B.lo ≤ B.hi
-  /-- The centre's boundary is a proper fraction. -/
-  bdry : B.cn < B.cd
   /-- There are prefixes to read the rate off. -/
   mpos : 0 < B.npref
   /-- Two accept-preserving draws are expected in the pool, so one of them is not the seed
@@ -307,8 +304,8 @@ may stop wherever on the ladder it likes. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (populations : Finset J) (D : J → Measure S) (Dsf : Measure S)
-    [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (D : J → Measure S)
+    (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
@@ -337,15 +334,15 @@ def ClusteringCorrect : Prop :=
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ ret O.mq populations indecisionLimit α B.val) ∧
+        x ∈ ret rule O.mq populations indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ ret O.mq populations indecisionLimit α B.val →
+        x ∈ ret rule O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-              (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA
