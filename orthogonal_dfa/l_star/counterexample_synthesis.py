@@ -21,7 +21,7 @@ import numpy as np
 from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
-from .cluster import NoAcceptPreservingFamily, sample_suffix_family
+from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -242,18 +242,6 @@ class BestRound:
             self.certified = certified
 
 
-def _family_unless_refused(pst, state, index, uncertified_since):
-    """The round's family, or None where the gate gives up on a round after the
-    certificate has refused one."""
-    try:
-        return sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
-    except NoAcceptPreservingFamily:
-        if uncertified_since is None:
-            raise
-        print(f"[round {index}] no family admitted since the refusal; stopping")
-        return None
-
-
 def _certified(pst, dfa, *, index):
     """The DFA synthesis would return, if the certificate passes it."""
     output = denoise_accept_labels(pst, dfa)
@@ -307,10 +295,7 @@ def counterexample_driven_synthesis(
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        found = _family_unless_refused(pst, state, index, uncertified_since)
-        if found is None:
-            return best
-        vs, boundary = found
+        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
