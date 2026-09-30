@@ -157,15 +157,12 @@ class PrefixSuffixTracker:
             count=num_prefixes,
             held=(),
         )
-        table = MaskTable(oracle, prefixes, population=UNIFORM)
         return cls(
             sampler=sampler,
             rng=rng,
-            # Every read goes through the memo, which is what tells the certificate
-            # a string the learner has seen.
-            oracle=table.memo,
+            oracle=oracle,
             config=config,
-            table=table,
+            table=MaskTable(oracle, prefixes, population=UNIFORM),
         )
 
     def _screening_staircase(self, available: int) -> List[int]:
