@@ -24,7 +24,6 @@ Known modelling gap.  The Python sizes the family and its band from the boundary
 the band is sized so that a vote whose mean lies outside it lands on its far side at most
 `crossLimit` of the time.
 
-
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
