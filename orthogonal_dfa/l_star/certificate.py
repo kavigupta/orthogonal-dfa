@@ -9,7 +9,7 @@ the same difference against the noiseless labels f, and
 
     P(h(x) != f(x)) <= max(q, 1 - q) (1 - A_f(h)),   q = P(h(x) = 1),
 
-so where p_1 - p_0 = 2 s, A(h) >= 2 s (1 - e / max(q, 1 - q)) holds h's error
+so where p_1 - p_0 = 2 s, A(h) > 2 s (1 - e / max(q, 1 - q)) holds h's error
 within e.
 
 The strings of each side are drawn as the state-reaching walks draw them, each
@@ -17,7 +17,6 @@ position independently by the sampler's symbol weights.
 """
 
 import math
-from typing import Tuple
 
 import numpy as np
 import scipy.stats
@@ -25,37 +24,21 @@ import scipy.stats
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 
 
-class TooMuchRead(Exception):
-    """More of the sampler's strings on the two sides of a DFA were read before
-    than the certificate's slack allows it to leave unconstrained."""
+def clears(ones, drawn, gap, level) -> bool:
+    """Whether d = ones[0] - ones[1] >= drawn gap + 1 and
 
+        P(Bin(2 drawn, (1 + gap) / 2) >= d + drawn) <= level,
 
-def advantage_bounds(sides, level) -> Tuple[float, float]:
-    """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for
-
-        A = P(O = 1 | h = 1) - P(O = 1 | h = 0)
-
-    and sides[s] the (drawn, read, ones) of _rate_bounds given h = s."""
-    low_1, high_1 = _rate_bounds(*sides[0], level / 4)
-    low_0, high_0 = _rate_bounds(*sides[1], level / 4)
-    return low_1 - high_0, high_1 - low_0
-
-
-def _rate_bounds(drawn, read, ones, level) -> Tuple[float, float]:
-    """(low, high) with P(r < low) <= 2 level and P(r > high) <= 2 level, for r
-    the rate of O = 1 over what the drawn strings are drawn from: read of them
-    were read before, and may read anything, and ones of the rest read 1."""
-    _, read_high = _clopper_pearson(read, drawn, level)
-    unread_low, unread_high = _clopper_pearson(ones, drawn - read, level)
-    return (1 - read_high) * unread_low, unread_high + read_high * (1 - unread_high)
-
-
-def _clopper_pearson(hits, drawn, level) -> Tuple[float, float]:
-    low = scipy.stats.beta.ppf(level, hits, drawn - hits + 1) if hits else 0.0
-    high = (
-        scipy.stats.beta.ppf(1 - level, hits + 1, drawn - hits) if hits < drawn else 1.0
-    )
-    return float(low), float(high)
+    which bounds P(K_1 - K_0 >= d) by level for every K_1 ~ Bin(drawn, p_1) and
+    independent K_0 ~ Bin(drawn, p_0) with p_1 - p_0 <= gap: K_1 + (drawn - K_0)
+    is a sum of Bernoullis whose rates sum to at most drawn (1 + gap), and above
+    its mean the tail is largest when the rates are equal (Hoeffding 1956,
+    Theorem 4)."""
+    difference = int(ones[0]) - int(ones[1])
+    if difference < drawn * gap + 1:
+        return False
+    tail = scipy.stats.binom.sf(difference + drawn - 1, 2 * drawn, (1 + gap) / 2)
+    return bool(tail <= level)
 
 
 def look_level(alpha, look) -> float:
@@ -63,66 +46,52 @@ def look_level(alpha, look) -> float:
     return alpha * 6 / (math.pi * (look + 1)) ** 2
 
 
-def first_look(target, level) -> int:
-    """The least m with 2 (level / 4)^(2 / m) - 1 >= target: below it not even m
-    strings a side, none read before and every one read as h reads it, clear the
-    target at level."""
-    return math.ceil(2 * math.log(level / 4) / math.log((1 + target) / 2))
+def first_look(gap, level) -> int:
+    """The least n at which ones = (n, 0) clears gap at level."""
+    return max(
+        math.ceil(1 / (1 - gap)),
+        math.ceil(math.log(level) / (2 * math.log((1 + gap) / 2))),
+    )
 
 
 def certifies(pst, dfa, *, alpha) -> bool:
-    """Whether advantage_bounds, on m_k strings a side at look k drawn given
-    dfa's label, at level look_level(alpha, k), put
+    """Whether the ones on n_k strings a side at look k, drawn given dfa's label,
+    clear the gap
 
-        A(dfa) >= 2 s - d,   d = 2 s e / max(q, 1 - q),
+        2 s - d,   d = 2 s e / max(q, 1 - q),
 
-    s = min_signal_strength, e = certified_error, q = P(dfa(x) = 1), before they
-    put it below or narrow to d apart; m_k doubles from first_look at look 0's
-    level.  P(certifies and A(dfa) < 2 s - d) <= alpha.  Raises TooMuchRead once
-    more of the two sides was read before than d, which no further draw can
-    undo."""
+    at level look_level(alpha, k), before the mirrored test puts A(dfa) below
+    2 s at that level; s = min_signal_strength, e = certified_error,
+    q = P(dfa(x) = 1), and n_k doubles from first_look.
+    P(certifies and A(dfa) <= 2 s - d) <= alpha."""
     (draw_1, mass_1), (draw_0, mass_0) = (
         _given_label(pst, dfa, True),
         _given_label(pst, dfa, False),
     )
     if not mass_1 or not mass_0:
         return False
-    sides = [draw_1, draw_0]
     signal = pst.config.min_signal_strength
     accepted = mass_1 / (mass_1 + mass_0)
-    slack = 2 * signal * pst.config.certified_error / max(accepted, 1 - accepted)
-    target = 2 * signal - slack
-    memo = pst.table.memo
-    counts = np.zeros((2, 3), dtype=int)
-    # Whether each string drawn was read before this certificate first drew it.
-    read_before = {}
-    size = first_look(target, look_level(alpha, 0))
+    gap = 2 * signal * (1 - pst.config.certified_error / max(accepted, 1 - accepted))
+    ones = np.zeros(2, dtype=int)
+    drawn = 0
+    size = first_look(gap, look_level(alpha, 0))
     look = 0
     while True:
         level = look_level(alpha, look)
-        for side, draw in enumerate(sides):
-            strings = [draw() for _ in range(size - counts[side, 0])]
-            new = sorted(set(strings) - read_before.keys())
-            read_before.update(zip(new, memo.seen(new)))
-            earlier = np.array([read_before[string] for string in strings])
-            ones = np.asarray(memo.membership_queries(strings), dtype=bool)
-            counts[side] += (len(strings), earlier.sum(), (ones & ~earlier).sum())
-        lo, hi = advantage_bounds(counts, level)
-        read_low = sum(
-            _clopper_pearson(read, drawn, level / 4)[0] for drawn, read, _ in counts
-        )
+        for side, draw in enumerate((draw_1, draw_0)):
+            strings = [draw() for _ in range(size - drawn)]
+            ones[side] += sum(pst.oracle.membership_queries(strings))
+        drawn = size
         print(
-            f"  certificate look {look}: {size} strings a side, advantage in "
-            f"[{lo:.4f}, {hi:.4f}] against {target:.4f}"
+            f"  certificate look {look}: {drawn} strings a side, advantage "
+            f"{(ones[0] - ones[1]) / drawn:.4f} against {gap:.4f}"
         )
-        if lo >= target:
+        if clears(ones, drawn, gap, level):
             return True
-        if read_low > slack:
-            raise TooMuchRead(
-                f"at least {read_low:.3f} of the strings on the two sides of the "
-                f"DFA were read before, over the certificate's slack of {slack:.3f}"
-            )
-        if hi < target or hi - lo <= slack:
+        # The mirror of clears, which carries no guarantee: refusing only costs a
+        # round.
+        if clears(drawn - ones, drawn, -2 * signal, level):
             return False
         size *= 2
         look += 1
