@@ -24,10 +24,7 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    # Weigh each population equally in clustering
-    weights = np.zeros(masks.shape[1])
-    for population in pst.table.population_masks().values():
-        weights[population] += 1 / population.sum()
+    populations = list(pst.table.population_masks().values())
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -35,7 +32,12 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = ((masks != cluster_center) * weights).sum(1)
+        # A suffix's worst population, which is where the FNR judges the family.
+        disagreements = masks != cluster_center
+        losses = np.max(
+            [disagreements[:, population].mean(1) for population in populations],
+            axis=0,
+        )
         # Ties here are common, and breaking them differently each pass churns
         # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]
