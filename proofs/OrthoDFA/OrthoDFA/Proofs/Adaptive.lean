@@ -1572,16 +1572,18 @@ lemma agreeOf_eq_sum (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
   ring
 
 open scoped Classical in
-/-- The agreement statistic's mean: at least `1 − η` per decided prefix the cut gets right.  A
-wrong one is charged its whole `1 − η`, since at a rate near `0` it reads as agreeing almost
-never. -/
-lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
-    (Dset.card : ℝ) * (1 - O.η) - (1 - O.η) * ((miscutOf O A Dset : ℕ) : ℝ)
+/-- The agreement statistic's mean: at least `r` per decided prefix the cut gets right, where `r`
+is at most the agreeing rate of each correct prefix's class.  A wrong one is charged its whole
+`r`, since at a rate near `0` it reads as agreeing almost never. -/
+lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) (r : ℝ)
+    (hrA : ∀ p ∈ A, O.label p = 1 → r ≤ 1 - O.ηIn)
+    (hrR : ∀ p ∈ Dset \ A, O.label p = 0 → r ≤ 1 - O.ηOut) :
+    (Dset.card : ℝ) * r - r * ((miscutOf O A Dset : ℕ) : ℝ)
       ≤ ∑ p ∈ Dset, μ[agreeVar O A p] := by
   classical
   have hnn : ∀ p, 0 ≤ μ[agreeVar O A p] := fun p =>
     integral_nonneg_of_ae ((agreeVar_icc O A p).mono fun ω h => h.1)
-  have hA : (1 - O.η) * ((A.filter (fun p => O.label p = 1)).card : ℝ)
+  have hA : r * ((A.filter (fun p => O.label p = 1)).card : ℝ)
       ≤ ∑ p ∈ A, μ[agreeVar O A p] := by
     refine le_trans ?_ (Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset (fun p => O.label p = 1) A)
       (fun p _ _ => hnn p))
@@ -1589,9 +1591,13 @@ lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
     refine Finset.sum_le_sum (fun p hp => ?_)
     obtain ⟨hpA, hl⟩ := Finset.mem_filter.1 hp
     have hfun : agreeVar O A p = O.mq p := by funext ω; simp [agreeVar, hpA]
-    rw [hfun, mq_mean, hl]
-    linarith [O.rate_le_eta p]
-  have hR : (1 - O.η) * (((Dset \ A).filter (fun p => O.label p = 0)).card : ℝ)
+    have hin : p ∈ O.L := by
+      by_contra hout
+      simp [Oracle.label, Set.indicator_apply, hout] at hl
+    have hr : O.rate p = O.ηIn := by simp [Oracle.rate, hin]
+    rw [hfun, mq_mean, hl, hr]
+    linarith [hrA p hpA hl]
+  have hR : r * (((Dset \ A).filter (fun p => O.label p = 0)).card : ℝ)
       ≤ ∑ p ∈ Dset \ A, μ[agreeVar O A p] := by
     refine le_trans ?_ (Finset.sum_le_sum_of_subset_of_nonneg
       (Finset.filter_subset (fun p => O.label p = 0) (Dset \ A)) (fun p _ _ => hnn p))
@@ -1603,7 +1609,12 @@ lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
     rw [hfun, integral_sub (integrable_const 1) (mq_integrable O p), integral_const,
       mq_mean O p, hl]
     simp only [measureReal_def, measure_univ, ENNReal.toReal_one, smul_eq_mul, one_mul]
-    linarith [O.rate_le_eta p]
+    have hout : p ∉ O.L := by
+      intro hin
+      simp [Oracle.label, Set.indicator_apply, hin] at hl
+    have hr : O.rate p = O.ηOut := by simp [Oracle.rate, hout]
+    rw [hr]
+    linarith [hrR p hpR hl]
   have hcA : ((A.filter (fun p => O.label p = 1)).card : ℝ)
       + ((A.filter (fun p => ¬ (O.label p = 1))).card : ℝ) = (A.card : ℝ) := by
     exact_mod_cast Finset.card_filter_add_card_filter_not (s := A) (fun p => O.label p = 1)
@@ -1619,9 +1630,9 @@ lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
       = ((A.filter (fun p => ¬ (O.label p = 1))).card : ℝ)
         + (((Dset \ A).filter (fun p => ¬ (O.label p = 0))).card : ℝ) := by
     rw [miscutOf]; push_cast; ring
-  have hid : (1 - O.η) * ((A.filter (fun p => O.label p = 1)).card : ℝ)
-      + (1 - O.η) * (((Dset \ A).filter (fun p => O.label p = 0)).card : ℝ)
-      = (Dset.card : ℝ) * (1 - O.η) - (1 - O.η) * ((miscutOf O A Dset : ℕ) : ℝ) := by
+  have hid : r * ((A.filter (fun p => O.label p = 1)).card : ℝ)
+      + r * (((Dset \ A).filter (fun p => O.label p = 0)).card : ℝ)
+      = (Dset.card : ℝ) * r - r * ((miscutOf O A Dset : ℕ) : ℝ) := by
     rw [hmis, ← hcards, ← hcA, ← hcR]; ring
   linarith [hA, hR, hid, hsplit]
 
@@ -1629,10 +1640,12 @@ lemma agree_mean_ge (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset) :
 side-wise tests this replaces, the denominator is the whole decided set, so the bound does
 not degrade when one side of the cut is small. -/
 lemma agree_sound_of_wrong (O : Oracle μ S) (A Dset : Finset S) (hAD : A ⊆ Dset)
-    (θ τ w : ℝ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
+    (θ τ w r : ℝ) (hτ : 0 ≤ τ) (hr0 : 0 ≤ r)
+    (hrA : ∀ p ∈ A, O.label p = 1 → r ≤ 1 - O.ηIn)
+    (hrR : ∀ p ∈ Dset \ A, O.label p = 0 → r ≤ 1 - O.ηOut)
     (hw : ((miscutOf O A Dset : ℕ) : ℝ) ≤ w)
     (hθ : (Dset.card : ℝ) * (θ + τ)
-      ≤ (Dset.card : ℝ) * (1 - O.η) - (1 - O.η) * w) :
+      ≤ (Dset.card : ℝ) * r - r * w) :
     μ.real {ω | ((agreeOf A Dset (Dset.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
         ≤ (Dset.card : ℝ) * θ}
       ≤ Real.exp (-2 * (Dset.card : ℝ) * τ ^ 2) := by
@@ -1696,9 +1709,11 @@ theorem side_agree_bound (O : Oracle μ S) (C Q : Finset S)
     (sel : Ω → Finset S × Finset S) (hsel : ∀ ω, sel ω ∈ C.powerset ×ˢ C.powerset)
     (hAD : ∀ ω, (sel ω).1 ⊆ (sel ω).2)
     (hselcongr : ∀ ω ω', (∀ w ∈ Q, O.noise w ω = O.noise w ω') → sel ω = sel ω')
-    (θ τ w : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hsig : O.η ≤ 1 / 2)
+    (θ τ w r : ℝ) (n₀ : ℕ) (hτ : 0 ≤ τ) (hr0 : 0 ≤ r)
+    (hrA : r ≤ 1 - O.ηIn ∨ ∀ ω, (sel ω).1 = ∅)
+    (hrR : r ≤ 1 - O.ηOut ∨ ∀ ω, (sel ω).2 = (sel ω).1)
     (hθ : ∀ n : ℕ, n₀ ≤ n → n ≤ C.card →
-      (n : ℝ) * (θ + τ) ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * w) :
+      (n : ℝ) * (θ + τ) ≤ (n : ℝ) * r - r * w) :
     μ.real {ω | n₀ ≤ (sel ω).2.card
         ∧ ((miscutOf O (sel ω).1 (sel ω).2 : ℕ) : ℝ) ≤ w
         ∧ ((agreeOf (sel ω).1 (sel ω).2 (C.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
@@ -1706,15 +1721,26 @@ theorem side_agree_bound (O : Oracle μ S) (C Q : Finset S)
       ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
   classical
   set Pr : (Finset S × Finset S) → Finset S → Prop := fun t U =>
-    t.1 ⊆ t.2 ∧ n₀ ≤ t.2.card
+    t.1 ⊆ t.2 ∧ (r ≤ 1 - O.ηIn ∨ t.1 = ∅) ∧ (r ≤ 1 - O.ηOut ∨ t.2 = t.1) ∧ n₀ ≤ t.2.card
       ∧ ((miscutOf O t.1 t.2 : ℕ) : ℝ) ≤ w
       ∧ ((agreeOf t.1 t.2 U : ℕ) : ℝ) ≤ (t.2.card : ℝ) * θ with hPr
   have hbad : ∀ t ∈ C.powerset ×ˢ C.powerset,
       μ.real {ω | Pr t (C.filter (fun p => O.mq p ω = 1))}
         ≤ Real.exp (-2 * (n₀ : ℝ) * τ ^ 2) := by
     rintro ⟨A, Dset⟩ hmem
-    by_cases hADt : A ⊆ Dset
-    · by_cases hn : n₀ ≤ Dset.card
+    by_cases hADt : A ⊆ Dset ∧ (r ≤ 1 - O.ηIn ∨ A = ∅) ∧ (r ≤ 1 - O.ηOut ∨ Dset = A)
+    · obtain ⟨hADt, hA', hR'⟩ := hADt
+      have hrA' : ∀ p ∈ A, O.label p = 1 → r ≤ 1 - O.ηIn := by
+        intro p hp _
+        rcases hA' with h | h
+        · exact h
+        · rw [h] at hp; simp at hp
+      have hrR' : ∀ p ∈ Dset \ A, O.label p = 0 → r ≤ 1 - O.ηOut := by
+        intro p hp _
+        rcases hR' with h | h
+        · exact h
+        · rw [h] at hp; simp at hp
+      by_cases hn : n₀ ≤ Dset.card
       · by_cases hwc : ((miscutOf O A Dset : ℕ) : ℝ) ≤ w
         · have hDC : Dset ⊆ C := Finset.mem_powerset.1 (Finset.mem_product.1 hmem).2
           have hDcard : Dset.card ≤ C.card := Finset.card_le_card hDC
@@ -1722,10 +1748,10 @@ theorem side_agree_bound (O : Oracle μ S) (C Q : Finset S)
               ⊆ {ω | ((agreeOf A Dset (Dset.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
                     ≤ (Dset.card : ℝ) * θ} := by
             intro ω hω
-            have h4 := hω.2.2.2
+            have h4 := hω.2.2.2.2.2
             rwa [agreeOf_filter_of_subset O A Dset C hADt hDC ω] at h4
           refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
-          refine le_trans (agree_sound_of_wrong O A Dset hADt θ τ w hτ hsig hwc
+          refine le_trans (agree_sound_of_wrong O A Dset hADt θ τ w r hτ hr0 hrA' hrR' hwc
             (hθ Dset.card hn hDcard)) ?_
           refine Real.exp_le_exp.2 ?_
           have hc : (n₀ : ℝ) ≤ (Dset.card : ℝ) := by exact_mod_cast hn
@@ -1737,13 +1763,16 @@ theorem side_agree_bound (O : Oracle μ S) (C Q : Finset S)
           ext ω; simp [hPr, hn]
         rw [hz]; simpa using Real.exp_nonneg _
     · have hz : {ω | Pr (A, Dset) (C.filter (fun p => O.mq p ω = 1))} = (∅ : Set Ω) := by
-        ext ω; simp [hPr, hADt]
+        ext ω
+        simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+        rintro ⟨h1, h2, h3, -⟩
+        exact hADt ⟨h1, h2, h3⟩
       rw [hz]; simpa using Real.exp_nonneg _
   have hmain := selection_read_bound O C Q hdisj (C.powerset ×ˢ C.powerset) (∅, ∅)
     (Finset.mem_product.2 ⟨Finset.empty_mem_powerset C, Finset.empty_mem_powerset C⟩)
     sel hsel hselcongr Pr _ (Real.exp_nonneg _) hbad
   refine le_trans (measureReal_mono (fun ω hω => ?_) (measure_ne_top _ _)) hmain
-  exact ⟨hAD ω, hω.1, hω.2.1, hω.2.2⟩
+  exact ⟨hAD ω, hrA.imp_right (fun h => h ω), hrR.imp_right (fun h => h ω), hω.1, hω.2.1, hω.2.2⟩
 
 open scoped Classical in
 /-- Both of the gate's wrong-counts are charged to the same mis-cut set.  A prefix the
@@ -2395,56 +2424,74 @@ lemma mq_indep_shift (O : Oracle μ S) (p : S) :
     iIndepFun (fun v : S => O.mq (p * v)) μ :=
   (mq_indep O).precomp (mul_right_injective p)
 
-/-- Upper tail on a rejecting prefix.  A clean member reads accepting at most at rate `η` and a
-flipping one at most always, so a flip fraction of `f` lifts the vote's mean only to
-`η + (1 − η)·f`. -/
+/-- Upper tail on a rejecting prefix.  A clean member reads accepting at most at the bound `β₀`
+on the rate off the language, and a flipping one at most always, so a flip fraction of `f` lifts
+the vote's mean only to `β₀ + (1 − β₀)·f`. -/
 theorem voteSum_upper (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 0)
-    (f γ : ℝ) (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
-    μ.real {ω | (F.card : ℝ) * ((O.η + (1 - O.η) * f) + γ) ≤ voteSum O F p ω}
+    (f γ β₀ : ℝ) (hβ : O.ηOut ≤ β₀) (hβ1 : β₀ ≤ 1)
+    (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | (F.card : ℝ) * ((β₀ + (1 - β₀) * f) + γ) ≤ voteSum O F p ω}
       ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
   classical
-  have hper : ∀ v ∈ F, μ[O.mq (p * v)] ≤ O.η + (1 - O.η) * O.flip v p := by
+  have hper : ∀ v ∈ F, μ[O.mq (p * v)] ≤ β₀ + (1 - β₀) * O.flip v p := by
     intro v _
     have hlab : O.label (p * v) = O.flip v p := by
       show O.label (p * v) = O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p
       rw [hp]; ring
     rw [mq_mean, hlab]
     have hr0 := O.rate_nonneg (p * v)
-    have hr1 := O.rate_le_eta (p * v)
-    rcases O.flip_bit v p with h | h <;> rw [h] <;> linarith
-  have hmean : ∑ v ∈ F, μ[O.mq (p * v)] ≤ (F.card : ℝ) * (O.η + (1 - O.η) * f) := by
+    rcases O.flip_bit v p with h | h
+    · have hl : O.label (p * v) = 0 := by rw [hlab, h]
+      have hout : p * v ∉ O.L := by
+        intro hin
+        simp [Oracle.label, Set.indicator_apply, hin] at hl
+      have hr : O.rate (p * v) = O.ηOut := by simp [Oracle.rate, hout]
+      rw [h, hr]
+      linarith
+    · rw [h]
+      linarith
+  have hmean : ∑ v ∈ F, μ[O.mq (p * v)] ≤ (F.card : ℝ) * (β₀ + (1 - β₀) * f) := by
     refine le_trans (Finset.sum_le_sum hper) ?_
     rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul, ← Finset.mul_sum,
       ← flipCount_eq_sum]
-    have h1 : (0 : ℝ) ≤ 1 - O.η := by linarith
+    have h1 : (0 : ℝ) ≤ 1 - β₀ := by linarith
     nlinarith [mul_le_mul_of_nonneg_left hf h1]
-  exact sumUpper_le (fun v : S => O.mq (p * v)) F (O.η + (1 - O.η) * f) γ
+  exact sumUpper_le (fun v : S => O.mq (p * v)) F (β₀ + (1 - β₀) * f) γ
     (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
 
 /-- Lower tail on an accepting prefix.  Mirror of `voteSum_upper`: a clean member reads
-accepting at rate at least `1 − η` and a flipping one possibly never, so the vote's mean only
-falls to `(1 − η)(1 − f)`. -/
+accepting at rate at least `1 − β₁`, for `β₁` a bound on the rate on the language, and a
+flipping one possibly never, so the vote's mean only falls to `(1 − β₁)(1 − f)`. -/
 theorem voteSum_lower (O : Oracle μ S) (F : Finset S) (p : S) (hp : O.label p = 1)
-    (f γ : ℝ) (hsig : O.η ≤ 1 / 2) (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
-    μ.real {ω | voteSum O F p ω ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ)}
+    (f γ β₁ : ℝ) (hβ : O.ηIn ≤ β₁) (hβ1 : β₁ ≤ 1)
+    (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ) :
+    μ.real {ω | voteSum O F p ω ≤ (F.card : ℝ) * (((1 - β₁) * (1 - f)) - γ)}
       ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
   classical
-  have hper : ∀ v ∈ F, (1 - O.η) * (1 - O.flip v p) ≤ μ[O.mq (p * v)] := by
+  have hper : ∀ v ∈ F, (1 - β₁) * (1 - O.flip v p) ≤ μ[O.mq (p * v)] := by
     intro v _
     have hlab : O.label (p * v) = 1 - O.flip v p := by
       show O.label (p * v) = 1 - (O.label (p * v) + O.label p - 2 * O.label (p * v) * O.label p)
       rw [hp]; ring
     rw [mq_mean, hlab]
     have hr0 := O.rate_nonneg (p * v)
-    have hr1 := O.rate_le_eta (p * v)
-    rcases O.flip_bit v p with h | h <;> rw [h] <;> linarith
-  have hmean : (F.card : ℝ) * ((1 - O.η) * (1 - f)) ≤ ∑ v ∈ F, μ[O.mq (p * v)] := by
+    rcases O.flip_bit v p with h | h
+    · have hl : O.label (p * v) = 1 := by rw [hlab, h]; ring
+      have hin : p * v ∈ O.L := by
+        by_contra hout
+        simp [Oracle.label, Set.indicator_apply, hout] at hl
+      have hr : O.rate (p * v) = O.ηIn := by simp [Oracle.rate, hin]
+      rw [h, hr]
+      linarith
+    · rw [h]
+      linarith
+  have hmean : (F.card : ℝ) * ((1 - β₁) * (1 - f)) ≤ ∑ v ∈ F, μ[O.mq (p * v)] := by
     refine le_trans ?_ (Finset.sum_le_sum hper)
     rw [← Finset.mul_sum, Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul, mul_one,
       ← flipCount_eq_sum]
-    have h1 : (0 : ℝ) ≤ 1 - O.η := by linarith
+    have h1 : (0 : ℝ) ≤ 1 - β₁ := by linarith
     nlinarith [mul_le_mul_of_nonneg_left hf h1]
-  exact sumLower_le (fun v : S => O.mq (p * v)) F ((1 - O.η) * (1 - f)) γ
+  exact sumLower_le (fun v : S => O.mq (p * v)) F ((1 - β₁) * (1 - f)) γ
     (fun v => (mq_meas O _).aemeasurable) (mq_indep_shift O p) (fun v => mq_icc O _) hmean hγ
 
 /-- `voteSum_upper` recentred: a clean member sits at `mid − hgap` and a flipping one at the
@@ -2577,14 +2624,14 @@ theorem vote_cross_le (O : Oracle μ S) (F : Finset S) (p : S) {lo hi n : ℕ} (
 /-- The cut is correct at a prefix the family barely flips.  Only the side the prefix
 actually sits on can fail, so one tail — not two — pays for it. -/
 theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ)
-    (hsig : O.η ≤ 1 / 2)
+    (β₀ β₁ : ℝ) (hβ₀ : O.ηOut ≤ β₀) (hβ₁ : O.ηIn ≤ β₁) (hβ₀1 : β₀ ≤ 1) (hβ₁1 : β₁ ≤ 1)
     (hf : flipCount O F p ≤ (F.card : ℝ) * f) (hγ : 0 ≤ γ)
-    (hhi : (F.card : ℝ) * ((O.η + (1 - O.η) * f) + γ) ≤ (hi : ℝ) + 1)
-    (hlo : (lo : ℝ) ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ)) :
+    (hhi : (F.card : ℝ) * ((β₀ + (1 - β₀) * f) + γ) ≤ (hi : ℝ) + 1)
+    (hlo : (lo : ℝ) ≤ (F.card : ℝ) * (((1 - β₁) * (1 - f)) - γ)) :
     μ.real {ω | ¬ cutCorrect O lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
   classical
   rcases O.label_bit p with hp | hp
-  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp f γ hsig hf hγ)
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp f γ β₀ hβ₀ hβ₀1 hf hγ)
     filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
     have hacc : ¬ (hi < voteCount O.mq F p ω → O.label p = 1) := by
       intro hacc
@@ -2593,9 +2640,9 @@ theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f
       by_contra hc
       exact hacc (fun h => absurd h hc)
     have : (hi : ℝ) + 1 ≤ (voteCount O.mq F p ω : ℝ) := by exact_mod_cast hgt
-    show (F.card : ℝ) * ((O.η + (1 - O.η) * f) + γ) ≤ voteSum O F p ω
+    show (F.card : ℝ) * ((β₀ + (1 - β₀) * f) + γ) ≤ voteSum O F p ω
     rw [← heq]; linarith
-  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp f γ hsig hf hγ)
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp f γ β₁ hβ₁ hβ₁1 hf hγ)
     filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
     have hrej : ¬ (voteCount O.mq F p ω ≤ lo → O.label p = 0) := by
       intro hrej
@@ -2604,7 +2651,7 @@ theorem cutCorrect_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f
       by_contra hc
       exact hrej (fun h => absurd h hc)
     have : (voteCount O.mq F p ω : ℝ) ≤ (lo : ℝ) := by exact_mod_cast hle
-    show voteSum O F p ω ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ)
+    show voteSum O F p ω ≤ (F.card : ℝ) * (((1 - β₁) * (1 - f)) - γ)
     rw [← heq]; linarith
 
 /-- `cutCorrect_whp` recentred, relaying `voteSum_upper_gap`/`voteSum_lower_gap`. -/
@@ -3256,31 +3303,31 @@ theorem suffix_not_injective_le (D : J → Measure S) (Dsf : Measure S)
 
 open scoped Classical in
 /-- The vote is decisive at a prefix the family barely flips.  As in `cutCorrect_whp` a flip
-fraction of `f` moves the mean by up to `(1 − η)·f`, so both thresholds shift by that. -/
+fraction of `f` moves each class's mean toward the other by up to `(1 − β)·f`. -/
 theorem decided_whp (O : Oracle μ S) (F : Finset S) (p : S) (lo hi : ℕ) (f γ : ℝ) (hγ : 0 ≤ γ)
-    (hsig : O.η ≤ 1 / 2)
+    (β₀ β₁ : ℝ) (hβ₀ : O.ηOut ≤ β₀) (hβ₁ : O.ηIn ≤ β₁) (hβ₀1 : β₀ ≤ 1) (hβ₁1 : β₁ ≤ 1)
     (hf : flipCount O F p ≤ (F.card : ℝ) * f)
-    (hhi : (hi : ℝ) ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ))
-    (hlo : (F.card : ℝ) * ((O.η + (1 - O.η) * f) + γ) ≤ (lo : ℝ) + 1) :
+    (hhi : (hi : ℝ) ≤ (F.card : ℝ) * (((1 - β₁) * (1 - f)) - γ))
+    (hlo : (F.card : ℝ) * ((β₀ + (1 - β₀) * f) + γ) ≤ (lo : ℝ) + 1) :
     μ.real {ω | ¬ decided O.mq lo hi F p ω} ≤ Real.exp (-2 * (F.card : ℝ) * γ ^ 2) := by
   classical
   rcases O.label_bit p with hp | hp
-  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp f γ hsig hf hγ)
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_upper O F p hp f γ β₀ hβ₀ hβ₀1 hf hγ)
     filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
     have hgt : lo < voteCount O.mq F p ω := by
       by_contra hc
       exact hbad (Or.inr (not_lt.1 hc))
     have hcast : (lo : ℝ) + 1 ≤ (voteCount O.mq F p ω : ℝ) := by exact_mod_cast hgt
-    show (F.card : ℝ) * ((O.η + (1 - O.η) * f) + γ) ≤ voteSum O F p ω
+    show (F.card : ℝ) * ((β₀ + (1 - β₀) * f) + γ) ≤ voteSum O F p ω
     rw [← heq]
     linarith
-  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp f γ hsig hf hγ)
+  · refine le_trans (measureReal_le_of_ae_imp ?_) (voteSum_lower O F p hp f γ β₁ hβ₁ hβ₁1 hf hγ)
     filter_upwards [voteCount_eq_voteSum O F p] with ω heq hbad
     have hle : voteCount O.mq F p ω ≤ hi := by
       by_contra hc
       exact hbad (Or.inl (not_le.1 hc))
     have hcast : (voteCount O.mq F p ω : ℝ) ≤ (hi : ℝ) := by exact_mod_cast hle
-    show voteSum O F p ω ≤ (F.card : ℝ) * (((1 - O.η) * (1 - f)) - γ)
+    show voteSum O F p ω ≤ (F.card : ℝ) * (((1 - β₁) * (1 - f)) - γ)
     rw [← heq]
     linarith
 
@@ -4035,10 +4082,10 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hlohi : lo + 1 ≤ κ) (hhi : hi + 1 ≤ κ)
     (hga : ∀ n : ℕ, n₁ ≤ n → n ≤ C.card →
       (n : ℝ) * ((((hi : ℝ) + 1) / κ + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (C.card : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηIn) - (1 - O.ηIn) * (2 * lcut * (C.card : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ C.card →
       (n : ℝ) * (((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (C.card : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηOut) - (1 - O.ηOut) * (2 * lcut * (C.card : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     μ.real {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
         ∧ ¬ (certified O.mq lo hi α (fam ω) C ω
@@ -4090,12 +4137,16 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (fun ω => Finset.mem_product.2 ⟨Finset.mem_powerset.2 (Finset.filter_subset _ _),
       Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩)
     (fun ω => le_rfl) (fun ω ω' h => by rw [hAcongr ω ω' h])
-    (((hi : ℝ) + 1) / κ + τ) τ (2 * lcut * (C.card : ℝ)) n₁ hτ hsig hga
+    (((hi : ℝ) + 1) / κ + τ) τ (2 * lcut * (C.card : ℝ)) (1 - O.ηIn) n₁ hτ
+    (by linarith [le_trans (le_max_left O.ηIn O.ηOut) hsig]) (Or.inl le_rfl)
+    (Or.inr (fun ω => rfl)) hga
   have hmB6 := side_agree_bound O C Q hdisjQ (fun ω => ((∅ : Finset S), Rω ω))
     (fun ω => Finset.mem_product.2 ⟨Finset.empty_mem_powerset _,
       Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩)
     (fun ω => Finset.empty_subset _) (fun ω ω' h => by rw [hRcongr ω ω' h])
-    ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ) τ (2 * lcut * (C.card : ℝ)) n₁ hτ hsig hgr
+    ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ) τ (2 * lcut * (C.card : ℝ)) (1 - O.ηOut) n₁ hτ
+    (by linarith [le_trans (le_max_right O.ηIn O.ηOut) hsig]) (Or.inr (fun ω => rfl))
+    (Or.inl le_rfl) hgr
   -- off the six events, a light family passes
   have hsub : {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
         ∧ ¬ (certified O.mq lo hi α (fam ω) C ω
@@ -6318,10 +6369,10 @@ theorem measureReal_gateMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     (hn₁pos : 0 < n₁) (hκ : 0 < kmin) (hlohi : B.lo + 1 ≤ kmin) (hhi : B.hi + 1 ≤ kmin)
     (hga : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
       (n : ℝ) * ((((B.hi : ℝ) + 1) / kmin + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηIn) - (1 - O.ηIn) * (2 * lcut * (B.npref : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
       (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (kmin + 1)) + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηOut) - (1 - O.ηOut) * (2 * lcut * (B.npref : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     (runMeasure μ D Dsf).real (gateMiss rule O populations j B α q lcut f kmin kmax)
       ≤ 2 * Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
@@ -7244,10 +7295,10 @@ theorem measureReal_notRetAt_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
     (hn₁pos : 0 < n₁) (hκ : 0 < kmin) (hlohi : B.lo + 1 ≤ kmin) (hhi : B.hi + 1 ≤ kmin)
     (hga : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
       (n : ℝ) * ((((B.hi : ℝ) + 1) / kmin + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηIn) - (1 - O.ηIn) * (2 * lcut * (B.npref : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
       (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (kmin + 1)) + τ) + τ)
-        ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+        ≤ (n : ℝ) * (1 - O.ηOut) - (1 - O.ηOut) * (2 * lcut * (B.npref : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     (runMeasure μ D Dsf).real
         {x : Run Ω S J | x ∉ retAt rule O populations uni (2 * l) α nveto B j}
@@ -8189,12 +8240,12 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (D : J �
     -- the pool holds a family
     ∧ ((B.k : ℝ) ≤ (B.nsuff : ℝ) * (pAP - tap))
     -- the thresholds decide, and decide right, on a family of the round's size an `f`
-    -- fraction of which flips, so both means move toward the centre by up to `(1 − η)·f`;
+    -- fraction of which flips, so each class's mean moves toward the other by up to `f`;
     -- the FNR reads the family with its seed, cut one count higher
-    ∧ ((B.hi : ℝ) + 1 ≤ (B.k : ℝ) * (((1 - O.η) * (1 - f)) - γdec))
-    ∧ ((B.k : ℝ) * ((O.η + (1 - O.η) * f) + γdec) ≤ (B.lo : ℝ) + 1)
-    ∧ (((B.k - 1 : ℕ) : ℝ) * ((O.η + (1 - O.η) * f) + γdec) ≤ (B.hi : ℝ))
-    ∧ ((B.lo : ℝ) < ((B.k - 1 : ℕ) : ℝ) * (((1 - O.η) * (1 - f)) - γdec))
+    ∧ ((B.hi : ℝ) + 1 ≤ (B.k : ℝ) * (((1 - O.ηIn) * (1 - f)) - γdec))
+    ∧ ((B.k : ℝ) * ((O.ηOut + (1 - O.ηOut) * f) + γdec) ≤ (B.lo : ℝ) + 1)
+    ∧ (((B.k - 1 : ℕ) : ℝ) * ((O.ηOut + (1 - O.ηOut) * f) + γdec) ≤ (B.hi : ℝ))
+    ∧ ((B.lo : ℝ) < ((B.k - 1 : ℕ) : ℝ) * (((1 - O.ηIn) * (1 - f)) - γdec))
     -- each side of the cut holds `n₁` of the uniform pool's sample, and reads its class past
     -- the rate the cut splits at by `τ` more than a coin flip's deviation
     ∧ 0 ≤ qmin ∧ 0 < n₁ ∧ lcut < 1
@@ -8202,10 +8253,10 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (D : J �
     ∧ B.lo + 1 ≤ B.k - 1 ∧ B.hi + 1 ≤ B.k - 1
     ∧ (∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
         (n : ℝ) * ((((B.hi : ℝ) + 1) / ((B.k - 1 : ℕ) : ℝ) + τ) + τ)
-          ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+          ≤ (n : ℝ) * (1 - O.ηIn) - (1 - O.ηIn) * (2 * lcut * (B.npref : ℝ)))
     ∧ (∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
         (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (((B.k - 1 : ℕ) : ℝ) + 1)) + τ) + τ)
-          ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
+          ≤ (n : ℝ) * (1 - O.ηOut) - (1 - O.ηOut) * (2 * lcut * (B.npref : ℝ)))
     ∧ (Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α)
     -- a side each of whose prefixes is of its class reads it past the rate the cut splits at,
     -- so the veto's test on it is valid
@@ -10002,6 +10053,8 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
       refine le_trans (measureReal_mono hcov (measure_ne_top _ _)) ?_
       refine le_trans (measureReal_union_le _ _) ?_
       gcongr
+    have hIn1 : O.ηIn ≤ 1 := by linarith [le_trans (le_max_left O.ηIn O.ηOut) hsig.le]
+    have hOut1 : O.ηOut ≤ 1 := by linarith [le_trans (le_max_right O.ηIn O.ηOut) hsig.le]
     have hdec : ∀ (F : Finset S) (p : S), (1 : S) ∉ F → flipCount O F p ≤ (F.card : ℝ) * f →
         κ ≤ F.card → F.card ≤ κ →
         μ.real {ω | ¬ decided O.mq B.lo (B.hi + 1) (insert 1 F) p ω} ≤ E := by
@@ -10017,8 +10070,8 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
       have hflI : flipCount O (insert 1 F) p ≤ ((insert 1 F).card : ℝ) * f :=
         le_trans (flipCount_insert_one O F p)
           (le_trans hfl (mul_le_mul_of_nonneg_right hcle hf0.le))
-      refine le_trans (decided_whp O (insert 1 F) p B.lo (B.hi + 1) f γdec hγdec hsig.le hflI
-        ?_ ?_) ?_
+      refine le_trans (decided_whp O (insert 1 F) p B.lo (B.hi + 1) f γdec hγdec O.ηOut O.ηIn
+        le_rfl le_rfl hOut1 hIn1 hflI ?_ ?_) ?_
       · rw [hcardI]; push_cast; exact hhiUp
       · rw [hcardI]; exact hloUp
       · rw [hE, hcardI]
@@ -10030,7 +10083,8 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
         μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E := by
       intro F p hfl hmin hmax
       have hcardF : F.card = κ := le_antisymm hmax hmin
-      refine le_trans (cutCorrect_whp O F p B.lo B.hi f γdec hsig.le hfl hγdec ?_ ?_) ?_
+      refine le_trans (cutCorrect_whp O F p B.lo B.hi f γdec O.ηOut O.ηIn le_rfl le_rfl hOut1
+        hIn1 hfl hγdec ?_ ?_) ?_
       · rw [hcardF]; linarith [hhiLo]
       · rw [hcardF]; exact hloLo.le
       · rw [hE, hcardF]
