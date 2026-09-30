@@ -13,14 +13,18 @@ class SuffixFamily:
     """The round's suffixes ``vs`` (rows into ``pst.table``), and confident
     classification of a string against a midfix node through their mean."""
 
-    def __init__(self, pst, vs: List[int]):
+    def __init__(self, pst, vs: List[int], reserve: List[int]):
         self.pst = pst
         self.vs = list(vs)
+        # Read only where ``vs`` leaves a string in the band, one family's worth at
+        # a time.
+        self.reserve = list(reserve)
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
         # keyed by seq + midfix, which is all a mean depends on
         self._means: Dict[bytes, float] = {}
+        self._rereads: Dict[bytes, Optional[bool]] = {}
 
     def bits(self, base) -> List[int]:
         """Membership of ``base`` under each family suffix, through the table's
@@ -48,13 +52,44 @@ class SuffixFamily:
         return value
 
     def knows(self, seq, midfix) -> bool:
-        return seq + midfix in self._means
+        """Whether ``is_accept`` can answer without a new query."""
+        base = seq + midfix
+        if base not in self._means:
+            return False
+        decided = self._side(self._means[base]) is not None
+        return decided or not self.reserve or base in self._rereads
 
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
-        ``None`` in the indecisive band between them."""
-        mean = self.mean(seq, midfix)
+        ``None`` in the indecisive band between them.
+
+        A mean in the band is read again over more of the reserve, against the
+        same thresholds.  More votes only make a mean outside the band land
+        outside it more often, so this settles a string whose mean sits just past
+        a threshold and leaves one whose mean is inside the band undecided."""
+        side = self._side(self.mean(seq, midfix))
+        if side is not None or not self.reserve:
+            return side
+        base = seq + midfix
+        if base not in self._rereads:
+            self._rereads[base] = self._reread(base)
+        return self._rereads[base]
+
+    def _reread(self, base) -> Optional[bool]:
+        table = self.pst.table
+        bits = list(self.bits(base))
+        for start in range(0, len(self.reserve), len(self.vs)):
+            more = self.reserve[start : start + len(self.vs)]
+            bits += list(
+                table.memo.membership_queries([base + table.suffix(v) for v in more])
+            )
+            side = self._side(sum(bits) / len(bits))
+            if side is not None:
+                return side
+        return None
+
+    def _side(self, mean) -> Optional[bool]:
         if mean >= self.pst.accept_thresh:
             return True
         if mean < self.pst.reject_thresh:
@@ -71,9 +106,4 @@ class SuffixFamily:
         """
         Which side of the distinguisher the votes fall on (on the training half only).
         """
-        mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
-        if mean >= self.pst.accept_thresh:
-            return True
-        if mean < self.pst.reject_thresh:
-            return False
-        return None
+        return self._side(sum(votes[i] for i in self.train_idx) / len(self.train_idx))

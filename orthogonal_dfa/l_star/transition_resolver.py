@@ -44,10 +44,10 @@ _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate memb
 
 
 class TransitionResolver:
-    def __init__(self, pst, vs):
+    def __init__(self, pst, vs, reserve):
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
-        self.family = SuffixFamily(pst, vs)
+        self.family = SuffixFamily(pst, vs, reserve)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
         self.population = LeafPopulation(

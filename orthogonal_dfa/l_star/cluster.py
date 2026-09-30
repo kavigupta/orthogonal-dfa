@@ -14,6 +14,14 @@ from .statistics import (
 )
 
 
+def _population_weights(pst, width) -> np.ndarray:
+    """Per representative prefix, so each population weighs the same in clustering."""
+    weights = np.zeros(width)
+    for population in pst.table.population_masks().values():
+        weights[population] += 1 / population.sum()
+    return weights
+
+
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
@@ -24,10 +32,7 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    # Weigh each population equally in clustering
-    weights = np.zeros(masks.shape[1])
-    for population in pst.table.population_masks().values():
-        weights[population] += 1 / population.sum()
+    weights = _population_weights(pst, masks.shape[1])
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -517,3 +522,23 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             kept, drawn = pst.sample_more_suffixes(amount=family_size, reference=v)
             print(f"  nothing draws for {judged.blamed}; kept {kept} of {drawn}")
             strategy = "suffix"
+
+
+def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
+    """``amount`` suffixes outside ``vs`` nearest its cluster, drawing screened ones
+    against ``v`` while the pool is short.
+
+    Only a suffix that reads every prefix as ``vs`` does leaves a vote's mean where
+    ``vs`` put it, so these are what a read ``vs`` leaves in the band can go on to.
+    """
+    spare = [s for s in pst.suffix_pool if s not in vs]
+    if len(spare) < amount:
+        pst.sample_more_suffixes(amount=amount - len(spare), reference=v)
+        spare = [s for s in pst.suffix_pool if s not in vs]
+    if not spare:
+        return []
+    representative = pst.table.representative
+    center = pst.compute_decision(vs, representative) > pst.decision_boundary
+    masks = pst.table.observed_masks(np.array(spare), representative)
+    losses = ((masks != center) * _population_weights(pst, masks.shape[1])).sum(1)
+    return np.array(spare)[losses.argsort(kind="stable")[:amount]].tolist()

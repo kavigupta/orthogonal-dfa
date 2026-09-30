@@ -20,7 +20,7 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .cluster import family_reserve, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -77,6 +77,13 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+#: Families' worth of reserve a read left in the band is taken over.  A search
+#: needs every one of its dozens of reads decided, so a family that leaves each
+#: state undecided a tenth of the time blocks nearly every search; four families'
+#: votes bring a state whose mean sits just past a threshold down to a few in a
+#: thousand.
+RESERVE_FAMILIES = 3
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -261,13 +268,15 @@ def counterexample_driven_synthesis(
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        empty = pst.table.intern_suffix(b"")
+        vs, boundary = sample_suffix_family(pst, empty, state)
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs)
+        reserve = family_reserve(pst, empty, vs, RESERVE_FAMILIES * len(vs))
+        resolver = TransitionResolver(pst, vs, reserve)
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience

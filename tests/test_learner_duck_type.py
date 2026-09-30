@@ -18,7 +18,7 @@ from tests.direct_lstar_stubs import make_pst
 
 
 def _learner():
-    return TransitionResolver(make_pst(), [0, 1])
+    return TransitionResolver(make_pst(), [0, 1], [])
 
 
 class TestVisualizeDuckType(unittest.TestCase):
