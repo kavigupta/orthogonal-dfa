@@ -55,17 +55,24 @@ noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
 noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 
+/-- What fraction of the family validity lets flip.  A cut is wrong only where the vote lands
+beyond the band, not where it is undecided, so the flips may spend all of the signal and leave
+the band's half-width, `voteSlack/2` of the family, to the deviation:
+
+    (1 − η) · validFrac η = sig η -/
+noncomputable def validFrac (η : ℝ) : ℝ := sig η / (1 - η)
+
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
 read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
 
-The three are held at their own divisors and not a common one: `εcov/16` is what the round's
-own budget leaves once the cut, the coverage tail and the threshold tail have taken their
-shares, `s/64` is what the gate needs to clear a coin flip, and `indecisionLimit/2` is what
-the FNR gate tolerates.  None answers another's constraint, so the tightest divisor is not
-the safer choice for all three. -/
+The three are held at their own divisors and not a common one: `εcov/8` keeps the vote's
+misfire rate and the screen's cutoff under what validity charges at, `s/10` is what the gate
+needs to clear a coin flip once the decided count is at least two fifths of the sample, and
+`indecisionLimit/2` is what the FNR gate tolerates.  None answers another's constraint, so the
+tightest divisor is not the safer choice for all three. -/
 noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
-  min (εcov / 16) (min (sig η / 64) (indecisionLimit / 2))
+  min (εcov / 8) (min (sig η / 10) (indecisionLimit / 2))
 
 /-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
 a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the band's far edge
@@ -89,9 +96,12 @@ noncomputable def bandHalf (η : ℝ) (populations : Finset J)
   ⌊(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) * voteSlack η / 2⌋₊
 
 /-- What one family member may flip.  The vote absorbs a `flipFrac` fraction of the family
-flipping, so Markov charges the cut budget at that fraction and not at the family's size. -/
+flipping, so Markov charges the cut budget at that fraction and not at the family's size.
+
+The screen's tail binds and is read at this, so it takes seven eighths of the cut budget; the
+heavy-prefix count's slack and threshold, whose tails are cheap, share the rest. -/
 noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimit εcov _δ : ℝ) : ℝ :=
-  cutBudget η indecisionLimit εcov * flipFrac η / (3 * (populations.card : ℝ))
+  7 * cutBudget η indecisionLimit εcov * flipFrac η / (8 * (populations.card : ℝ))
 
 /-- The screen's margin, at the flip budget.
 
@@ -101,6 +111,21 @@ capped below `2`.  `sc/scd` then has to resolve finer than `a/(4 − 2a)`, which
 in `solvedStateAt`; the two constants move together. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℝ :=
   flipBudget η populations indecisionLimit εcov δ * sig η ^ 2 * (15 / 8)
+
+/-- What one family member may flip for the cut to hold `εcov`.  Only validity reads this: the
+screen's cutoff is solved at the far finer `flipBudget`, which termination needs, and a candidate
+flipping `validFlip` misses that cutoff by a wide margin, so validity pays for its screen tail at
+this scale rather than at the cutoff's.
+
+That tail binds, so the flips take eleven sixteenths of `εcov`; the certification sample's
+slacks, whose tails are cheap, share the rest. -/
+noncomputable def validFlip (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
+  11 * εcov * validFrac η / (16 * (populations.card : ℝ))
+
+/-- Seven sixteenths of the separation `validFlip·(1 − 2η)²`.  The cutoff sits at most an eighth
+of the way up it, so each of the two deviations may take half of the rest. -/
+noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
+  7 * validFlip η populations εcov * sig η ^ 2 / 4
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
@@ -138,15 +163,29 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
   ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (cutBudget η indecisionLimit εcov / 4) ^
-      2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ)
+        / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
     + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
         / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * ((populations.card : ℝ) * flipBudget η populations indecisionLimit εcov δ) ^ 2)⌉₊
+        / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
     + ⌈64 / εcov⌉₊
+    + 1
+
+/-- The fewest prefixes at which a stop is covered: each of `stateFail`'s tails at
+`δ/(128·|populations|)`. -/
+noncomputable def validCount (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
+  ⌈Real.log (128 * (populations.card : ℝ)
+      * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
+      / (2 * validMargin η populations εcov ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ)
+        * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
+        / (2 * (εcov * validFrac η / 8) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 32) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
     + 1
 
 /-- The state at a given prefix count: every other field read off the condition it has to
@@ -182,34 +221,30 @@ noncomputable def schedule (η : ℝ) (populations : Finset J)
 
 /-- What one tested state may cost, summed over the populations: the certification draws
 repeating or meeting the table, the sample missing the wrong set, a family member flipping more
-than the screen allows, the sample holding too many prefixes the family flips, the family's
-vote misfiring on too many of the rest, and the sample missing the undecided set — and then,
-once, the pool's draws colliding.
+than `validFlip`, the sample holding too many prefixes the family flips, the family's vote
+misfiring on too many of the rest, and the sample missing the undecided set.
 
-The pool's *findability* is not here: that event does not mention the prefixes, so it is the
-same at every rung and is charged once rather than per rung. -/
-noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ ρsf : ℝ)
+The pool's findability and its draws colliding are not here: neither mentions the prefixes, so
+each is the same event at every rung and is charged once. -/
+noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
       + (((B.npref : ℝ) ^ 2 * ρ
           + ((B.nsuff : ℝ) + 2) ^ 2
-            * Real.exp (-2 * (B.npref : ℝ) * (screenMargin η₀ populations indecisionLimit εcov δ /
-              2) ^ 2)
-          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ)
-            * ((populations.card : ℝ) * flipBudget η₀ populations indecisionLimit εcov δ) ^ 2))
-        + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 4) ^ 2)
-          + (Real.exp (-2 * (B.npref : ℝ) * (cutBudget η₀ indecisionLimit εcov / 2) ^ 2)
+            * Real.exp (-2 * (B.npref : ℝ) * validMargin η₀ populations εcov ^ 2)
+          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
+        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
+          + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
             + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2))))))
-    + (B.nsuff : ℝ) ^ 2 * ρsf
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
 prefixes to carry its share of the error budget.
 
 At a handful of prefixes neither the screen nor the certification sample can see a dirty
 family, so the guarantee cannot cover a stop there. -/
-structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ ρsf pAP : ℝ)
-    (N : ℕ) (B : State) : Prop where
+structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov δ ρ pAP : ℝ)
+    (N V : ℕ) (B : State) : Prop where
   /-- Reject at or below accept, so the two gate sides are disjoint. -/
   lohi : B.lo ≤ B.hi
   /-- The centre's boundary is a proper fraction. -/
@@ -219,23 +254,28 @@ structure Capped (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov �
   /-- Two accept-preserving draws are expected in the pool, so one of them is not the seed
   and the floor has a clean candidate to sit at. -/
   found : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP / 2)
-  /-- The rungs divide `δ/4` between them in proportion to their prefix counts, which halve
-  down the ladder and so sum to at most `2N`; the other `δ/4` of the validity half pays for
-  the pool's findability, once.
+  /-- Two shares, each summing to at most `δ/8` over the ladder.  One is proportional to the
+  prefix count, whose sum halves down from the top count `N`; it is what the top rung and the
+  collision terms, which grow with the count, are paid from.  The other goes to the rungs at or
+  above `V` in inverse proportion to their counts, whose sum halves up from `V`; it is what a low
+  rung's tails are paid from, and it asks nothing of `N`.
 
-  Proportional and not uniform: a rung's tails are exponential in its own count, so a
-  `δ/(4·L)` split would make every count clear `log L`, and `L` is read off the top count. -/
-  share : stateFail η₀ populations indecisionLimit εcov δ ρ ρsf B ≤ δ * (B.npref : ℝ) / (8 * N)
+  A share uniform over the ladder would make every count clear `log L`, and `L` is read off the
+  top count. -/
+  share : stateFail η₀ populations indecisionLimit εcov ρ B
+    ≤ δ * (B.npref : ℝ) / (8 * N)
+      + if V ≤ B.npref then δ * (V : ℝ) / (16 * B.npref) else 0
 
 open scoped Classical in
 
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
 a finite sum and no summable weight over all budgets is needed. -/
 noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit ρ ρsf : ℝ) : Finset State :=
+    (indecisionLimit εcov δ α pAP crossLimit ρ : ℝ) : Finset State :=
   (schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit).filter
-    (Capped η₀ populations indecisionLimit εcov δ ρ ρsf pAP (prefCount η₀ populations
-      indecisionLimit εcov δ α pAP crossLimit))
+    (Capped η₀ populations indecisionLimit εcov δ ρ pAP
+      (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
+      (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
@@ -296,10 +336,10 @@ def ClusteringCorrect : Prop :=
   collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
-      crossLimit ρ (collisionMass Dsf)},
+      crossLimit ρ},
         x ∈ ret O.mq populations indecisionLimit α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ
-        (collisionMass Dsf)},
+      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
+        ρ},
         x ∈ ret O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
