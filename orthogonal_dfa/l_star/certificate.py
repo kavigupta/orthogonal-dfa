@@ -25,15 +25,18 @@ from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 
 
 def clears(ones, drawn, gap, level) -> bool:
-    """Whether d = ones[0] - ones[1] >= drawn gap + 1 and
+    """True only if, with d = ones[0] - ones[1],
 
-        P(Bin(2 drawn, (1 + gap) / 2) >= d + drawn) <= level,
+        P(K_1 - K_0 >= d) <= level
 
-    which bounds P(K_1 - K_0 >= d) by level for every K_1 ~ Bin(drawn, p_1) and
-    independent K_0 ~ Bin(drawn, p_0) with p_1 - p_0 <= gap: K_1 + (drawn - K_0)
-    is a sum of Bernoullis whose rates sum to at most drawn (1 + gap), and above
-    its mean the tail is largest when the rates are equal (Hoeffding 1956,
-    Theorem 4)."""
+    for every independent K_1 ~ Bin(drawn, p_1) and K_0 ~ Bin(drawn, p_0) with
+    p_1 - p_0 <= gap.
+
+    K_1 + (drawn - K_0) is a sum of 2 drawn Bernoullis whose rates sum to at most
+    drawn (1 + gap).  Above its mean its tail is largest when the rates are
+    equal (Hoeffding 1956, Theorem 4), so for d >= drawn gap + 1 the left side
+    is at most P(Bin(2 drawn, (1 + gap) / 2) >= d + drawn).  Below that nothing
+    is claimed, and the test fails."""
     difference = int(ones[0]) - int(ones[1])
     if difference < drawn * gap + 1:
         return False
