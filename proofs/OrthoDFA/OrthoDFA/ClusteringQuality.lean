@@ -30,7 +30,7 @@ time.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (Pre Suf : Set S)
+    (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
     (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
@@ -64,13 +64,13 @@ def ClusteringQualityGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret rule O.mq populations indecisionLimit α B.val)
+                x ∈ ret O.mq populations indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret rule O.mq populations indecisionLimit α B.val →
+              x ∈ ret O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations,
-                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt rule O.mq populations x B.val) p
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack
-                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt rule O.mq populations x B.val) p
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
 end OrthoDFA
