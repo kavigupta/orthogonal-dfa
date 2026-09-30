@@ -218,10 +218,11 @@ PER_STATE = 50
 
 @dataclass
 class BestRound:
-    """The most consistent round's hypothesis. Rounds are not monotone --
-    rebuilding the representative pool re-clusters, so a later family can
-    classify worse -- so the run keeps this rather than the last round's. The
-    boundary comes with it because denoising reads the labels against it."""
+    """The certified round's hypothesis, or else the most consistent one. Rounds
+    are not monotone -- rebuilding the representative pool re-clusters, so a
+    later family can classify worse -- so the run keeps this rather than the last
+    round's. The boundary comes with it because denoising reads the labels
+    against it."""
 
     consistency: float = -1.0
     dfa: Optional[DFA] = None
@@ -242,11 +243,13 @@ class BestRound:
             self.certified = certified
 
 
-def _certified(pst, dfa, *, index):
+def _certified(pst, dfa, *, index, tracker):
     """The DFA synthesis would return, if the certificate passes it."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
-    if certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index)):
+    passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
+    tracker.on_certificate_decided(passed, index)
+    if passed:
         print(f"[round {index}] certified; stopping synthesis")
         return output
     print(f"[round {index}] at target, not certified")
@@ -273,9 +276,10 @@ def counterexample_driven_synthesis(
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> BestRound:
-    """Rounds until the hypothesis is consistent enough, the pool stalls, or
-    ``max_rounds`` of them have run.  Only a caller driving the loop itself can
-    set that cap; `learn_dfa` does not forward one."""
+    """Rounds until a hypothesis is certified, the pool stalls, the rounds since
+    the first refusal run out of patience, or max_rounds of them have run.
+    Only a caller driving the loop itself can set that cap; `learn_dfa` does not
+    forward one."""
     # The cap is read at the foot of the body, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     patience = _default_patience(acc_threshold)
@@ -329,7 +333,7 @@ def counterexample_driven_synthesis(
         # Only a round that would otherwise return is worth the certificate's reads.
         output = None
         if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, index=index)
+            output = _certified(pst, dfa, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )

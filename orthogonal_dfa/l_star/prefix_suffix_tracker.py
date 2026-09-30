@@ -68,6 +68,7 @@ class SearchConfig:
         # Population size goes as 1/signal^2, so a signal much below this asks for
         # one no suffix family could hold, and the search doubles N looking for it.
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
+        assert 0 < self.certified_signal_share < 1, self.certified_signal_share
 
 
 def _draw_budget(count: int) -> int:
@@ -155,12 +156,15 @@ class PrefixSuffixTracker:
             count=num_prefixes,
             held=(),
         )
+        table = MaskTable(oracle, prefixes, population=UNIFORM)
         return cls(
             sampler=sampler,
             rng=rng,
-            oracle=oracle,
+            # Every read goes through the memo, which is what tells the certificate
+            # a string the learner has seen.
+            oracle=table.memo,
             config=config,
-            table=MaskTable(oracle, prefixes, population=UNIFORM),
+            table=table,
         )
 
     def _screening_staircase(self, available: int) -> List[int]:

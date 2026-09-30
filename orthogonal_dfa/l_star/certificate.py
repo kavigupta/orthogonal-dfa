@@ -6,8 +6,11 @@ For a DFA h and the oracle's read O of a string x drawn by the sampler,
 
 Noise that depends only on the label makes A(h) = (p_1 - p_0) A_f(h), with A_f
 the same difference against the noiseless labels, so a promised signal s puts
-A(target) >= 2 s, and every state h merges into the wrong label costs A(h) its
-share of that.
+A(target) >= 2 s, and a state of mass m that h labels wrongly lowers A_f by m / q
+or m / (1 - q), q = P(h(x) = 1).
+
+The strings of each side are drawn as the state-reaching walks draw them, each
+position independently by the sampler's symbol weights.
 """
 
 import math
@@ -19,15 +22,25 @@ import scipy.stats
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 
 
-def advantage_bounds(counts, level) -> Tuple[float, float]:
-    """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for counts =
-    ((k_1, n_1), (k_0, n_0)), k_s of the n_s strings with h = s reading 1:
-    Clopper-Pearson bounds at level / 2 on each side's rate, joined by a union
-    bound."""
-    (ones, drawn), (zeros_ones, zeros_drawn) = counts
-    low_one, high_one = _clopper_pearson(ones, drawn, level / 2)
-    low_zero, high_zero = _clopper_pearson(zeros_ones, zeros_drawn, level / 2)
-    return low_one - high_zero, high_one - low_zero
+def advantage_bounds(sides, level) -> Tuple[float, float]:
+    """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for sides[s] =
+    (n, k, o): of n strings drawn given h = s, k were read before the draw, and o
+    of the other n - k read 1.  With m_s = P(read before | h = s), u_s the rate
+    of O = 1 on the rest, and O unconstrained on what was read before,
+
+        (1 - m_1) u_1 - u_0 - m_0 (1 - u_0) <= A <= u_1 + m_1 (1 - u_1) - (1 - m_0) u_0,
+
+    each side of which is bounded by Clopper-Pearson bounds at level / 4 on the
+    four rates it holds, joined by a union bound."""
+    (drawn_1, read_1, ones_1), (drawn_0, read_0, ones_0) = sides
+    quarter = level / 4
+    _, read_high_1 = _clopper_pearson(read_1, drawn_1, quarter)
+    _, read_high_0 = _clopper_pearson(read_0, drawn_0, quarter)
+    low_1, high_1 = _clopper_pearson(ones_1, drawn_1 - read_1, quarter)
+    low_0, high_0 = _clopper_pearson(ones_0, drawn_0 - read_0, quarter)
+    lo = (1 - read_high_1) * low_1 - high_0 - read_high_0 * (1 - high_0)
+    hi = high_1 + read_high_1 * (1 - high_1) - (1 - read_high_0) * low_0
+    return lo, hi
 
 
 def _clopper_pearson(hits, drawn, level) -> Tuple[float, float]:
@@ -44,41 +57,55 @@ def look_level(alpha, look) -> float:
 
 
 def first_look(target, level) -> int:
-    """The least m with 2 (level / 2)^(1 / m) - 1 >= target: below it not even m
-    strings a side, every one read as h reads it, clear the target at level."""
-    return math.ceil(math.log(level / 2) / math.log((1 + target) / 2))
+    """The least m with 2 (level / 4)^(2 / m) - 1 >= target: below it not even m
+    strings a side, none read before and every one read as h reads it, clear the
+    target at level."""
+    return math.ceil(2 * math.log(level / 4) / math.log((1 + target) / 2))
 
 
 def certifies(pst, dfa, *, alpha) -> bool:
-    """Whether advantage_bounds, on m_k unread strings a side at look k drawn by
-    the sampler given dfa's label, at level look_level(alpha, k), put
+    """Whether advantage_bounds, on m_k strings a side at look k drawn given
+    dfa's label, at level look_level(alpha, k), put
 
         A(dfa) >= 2 s c,   s = min_signal_strength, c = certified_signal_share,
 
-    before they put it below, or narrow to 2 s (1 - c) apart; m_k doubles from
-    first_look at look 0's level."""
+    before they put it below, narrow to 2 s (1 - c) apart, or show more of the
+    two sides read before than that slack; m_k doubles from first_look at look
+    0's level.  P(certifies and A(dfa) < 2 s c) <= alpha."""
     sides = [_given_label(pst, dfa, True), _given_label(pst, dfa, False)]
     if None in sides:
         return False
     signal = pst.config.min_signal_strength
     share = pst.config.certified_signal_share
     target = 2 * signal * share
-    counts = np.zeros((2, 2), dtype=int)
+    slack = 2 * signal * (1 - share)
+    memo = pst.table.memo
+    counts = np.zeros((2, 3), dtype=int)
+    # Whether each string drawn was read before this certificate first drew it.
+    read_before = {}
     size = first_look(target, look_level(alpha, 0))
     look = 0
     while True:
+        level = look_level(alpha, look)
         for side, draw in enumerate(sides):
-            strings = _unread(draw, pst.table.memo, size - counts[side, 1])
-            reads = pst.table.memo.membership_queries(strings)
-            counts[side] += (sum(reads), len(strings))
-        lo, hi = advantage_bounds(counts, look_level(alpha, look))
+            strings = [draw() for _ in range(size - counts[side, 0])]
+            for string in strings:
+                if string not in read_before:
+                    read_before[string] = string in memo
+            earlier = np.array([read_before[string] for string in strings])
+            ones = np.asarray(memo.membership_queries(strings), dtype=bool)
+            counts[side] += (len(strings), earlier.sum(), (ones & ~earlier).sum())
+        lo, hi = advantage_bounds(counts, level)
+        read_low = sum(
+            _clopper_pearson(read, drawn, level / 4)[0] for drawn, read, _ in counts
+        )
         print(
             f"  certificate look {look}: {size} strings a side, advantage in "
             f"[{lo:.4f}, {hi:.4f}] against {target:.4f}"
         )
         if lo >= target:
             return True
-        if hi < target or hi - lo <= 2 * signal * (1 - share):
+        if hi < target or hi - lo <= slack or read_low > slack:
             return False
         size *= 2
         look += 1
@@ -101,13 +128,3 @@ def _given_label(pst, dfa, accepting):
         return sample_string_reaching_state(dfa, paths[state], pst.rng, weights)
 
     return draw
-
-
-def _unread(draw, memo, count):
-    """count distinct strings from draw that memo has not read."""
-    drawn = set()
-    while len(drawn) < count:
-        string = draw()
-        if string not in memo:
-            drawn.add(string)
-    return sorted(drawn)
