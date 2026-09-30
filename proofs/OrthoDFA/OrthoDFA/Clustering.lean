@@ -18,9 +18,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
-stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
-of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
+Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
+share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
+`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
 `k` members when the pool holds that many and at most `k` otherwise, and is a function of the
 pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
 
@@ -211,9 +211,9 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`, the boundary
-written `cn/cd`. -/
+/-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
+`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
+`identify_cluster_around` takes it per population and scores the worst share. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
