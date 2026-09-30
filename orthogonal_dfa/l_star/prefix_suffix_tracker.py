@@ -17,22 +17,28 @@ MIN_SIGNAL_STRENGTH = 0.001
 
 def _low_cluster_rates(counts, sizes, failure_prob) -> List[float]:
     """For each side s, r_s with P(Binomial(n_s m, r_s) <= c_s) = failure_prob,
-    for the m rows and summed counts c_s that the maximum-likelihood fit of
+    for the m rows and summed counts c_s that the classification-EM fit of
 
         w prod_s Binomial(n_s, r_lo_s) + (1 - w) prod_s Binomial(n_s, r_up_s),
         sum_s r_lo_s < sum_s r_up_s,
 
-    to counts[s] (n_s = sizes[s]) assigns to the lower component, reached by EM
-    from the split at the median of sum_s counts[s] / n_s; all the rows if no two
-    components separate."""
+    to counts[s] (n_s = sizes[s]) assigns to the lower component, starting from
+    the split at the median of sum_s counts[s] / n_s; all the rows unless it
+    settles on two components with every rate in (0, 1) and that order.  The
+    rows are assigned partly by their own counts, so r_s can fall below the
+    lower component's rate."""
     counts = [np.asarray(c) for c in counts]
     total = sum(c / n for c, n in zip(counts, sizes))
     low = total <= np.median(total)
-    while low.any() and not low.all():
+    while True:
+        if not low.any() or low.all():
+            low = np.ones(len(total), dtype=bool)
+            break
         rates = [(c[low].mean() / n, c[~low].mean() / n) for c, n in zip(counts, sizes)]
         if not all(0 < lo < 1 and 0 < up < 1 for lo, up in rates) or sum(
             lo for lo, _ in rates
         ) >= sum(up for _, up in rates):
+            low = np.ones(len(total), dtype=bool)
             break
         log_lo = np.log(low.mean()) + sum(
             scipy.stats.binom.logpmf(c, n, lo)
@@ -46,8 +52,6 @@ def _low_cluster_rates(counts, sizes, failure_prob) -> List[float]:
         if (relabelled == low).all():
             break
         low = relabelled
-    if not low.any() or low.all():
-        low = np.ones(len(total), dtype=bool)
     floors = []
     for c, n in zip(counts, sizes):
         hits, trials = int(c[low].sum()), n * int(low.sum())
