@@ -524,6 +524,12 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             strategy = "suffix"
 
 
+#: Screened cohorts drawn for a reserve before settling for a short one.  Few of
+#: a cohort land as near the cluster as the family's farthest member, since the
+#: family is the nearest of the pool.
+RESERVE_DRAWS = 2
+
+
 def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
     """Up to ``amount`` suffixes outside ``vs`` no farther from the cluster of its
     first family's worth than that family's farthest member, drawing screened ones
@@ -543,15 +549,13 @@ def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
 
     farthest = losses(family).max()
     near: List[int] = []
-    before = None
-    while True:
+    for draw in range(RESERVE_DRAWS + 1):
         spare = [s for s in pst.suffix_pool if s not in vs]
         if spare:
             spare_losses = losses(spare)
             order = spare_losses.argsort(kind="stable")
             near = [spare[i] for i in order if spare_losses[i] <= farthest][:amount]
-        # A draw that brought none nearer says the next would not either.
-        if len(near) >= amount or len(near) == before:
-            return near
-        before = len(near)
+        if len(near) >= amount or draw == RESERVE_DRAWS:
+            break
         pst.sample_more_suffixes(amount=amount - len(near), reference=v)
+    return near
