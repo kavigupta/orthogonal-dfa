@@ -366,12 +366,14 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 set_option maxHeartbeats 1000000 in
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP qmin
-    crossLimit slack a v hηle hη₀ huni hflat hpAP hq0 hq1 hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ bnd indecisionLimit εcov α δ pAP qmin
+    crossLimit slack a v hηle hη₀ hbOut hbIn hbLo hbHi huni hflat hpAP hq0 hq1 hind hind1 hα hα1
+    hε₀ hε1₀ hδ hδ1 hstr
     hstr1 hslack hneed hv0
   classical
-  simp only [ret_eq, familyAt_eq, clusterAt_eq]
+  simp only [ret_eq, familyAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
+  replace hbHi : bnd ≤ 1 - sig η₀ := by rw [sig]; linarith
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
@@ -416,12 +418,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     le_trans hρcap (le_trans (min_le_right _ _) (min_le_right _ _))
   have hρ0 : 0 ≤ ρ :=
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
-  set states := stoppable η₀ populations indecisionLimit ε' δ' α pAP crossLimit ρ
+  set states := stoppable η₀ bnd populations indecisionLimit ε' δ' α pAP crossLimit ρ
     with hstates
-  refine ⟨states, fun B hB =>
-    cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit ε' α δ' ρ
-    pAP qmin crossLimit 2048 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hq0 hqL hqN hq
+  refine ⟨states, fun B hB => centre_of_mem_schedule hη₀ hbLo (Finset.mem_of_mem_filter _ hB),
+    fun B hB => cross_of_mem_schedule O hη₀ hbLo hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
+  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ bnd indecisionLimit ε' α δ'
+    ρ pAP qmin crossLimit 2048 a v hηle hη₀ hbOut hbIn hbLo hbHi huni hflat hsupp hsuppSf hρ hpAP
+    hpAPBound hq0 hqL hqN hq
     hind hind1 hα hα1 hε hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit ε' δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))

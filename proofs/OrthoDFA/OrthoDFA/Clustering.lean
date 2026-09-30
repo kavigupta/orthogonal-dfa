@@ -15,8 +15,9 @@ is the conservative model, but it is why the claim caps the collision mass.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
-family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
-the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
+family's vote there, clamped to `[s, 1 − s]` for `s = min_signal_strength`; here the boundary
+`bnd` is fixed before the round, and the claim holds for every `bnd` the two classes' clean reads
+sit at least `½ − η₀` either side of.
 
 Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
 stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
@@ -398,7 +399,7 @@ noncomputable def prefixNeed (populations : Finset J)
     (η₀ indecisionLimit εcov δ α pAP qmin crossLimit : ℝ) (v : ℕ) : ℝ :=
   2048 * (populations.card : ℝ) ^ 2
     * Real.log (((populations.card : ℝ) + 2)
-      * (128 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v
+      * (144 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v
             * crossLimit)) / ((1 / 2 - η₀) ^ 2 * pAP)
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)
       / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov δ qmin v))
@@ -417,6 +418,9 @@ state's band is wide enough that a vote over a family no larger than its own, wh
 above the band, lands at or below `lo`, or one whose mean lies at or below `lo` lands above `hi`,
 at most `crossLimit` of the time.
 
+Every state's band contains `bnd` of the family: the vote is cut at the boundary `bnd`, which
+each class's clean read clears by `½ − η₀`.
+
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, `qmin` the mass of each class in the
 uniform population `uni`, the one the gate admits on, and `cap` bounds the collision mass.  `a`
@@ -429,9 +433,13 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP qmin crossLimit : ℝ) (a v : ℕ),
+    (η₀ bnd indecisionLimit εcov α δ pAP qmin crossLimit : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
+  O.ηOut + (1 / 2 - η₀) ≤ bnd →
+  O.ηIn + (1 / 2 - η₀) ≤ 1 - bnd →
+  1 / 2 - η₀ ≤ bnd →
+  bnd ≤ 1 / 2 + η₀ →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
@@ -480,13 +488,14 @@ def ClusteringGuarantee : Prop :=
           / ((1 / 2 - η₀) ^ 6 * cutScale populations η₀ indecisionLimit εcov δ qmin v ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ 64 * Real.log
+          (B.k : ℝ) ≤ 72 * Real.log
               (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v * crossLimit))
             / (1 / 2 - η₀) ^ 2
-          ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
+          ∧ (B.nsuff : ℝ) ≤ 144 * Real.log
                 (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
+        (∀ B ∈ states, (B.lo : ℝ) < bnd * ((B.k : ℝ) - 1) ∧ bnd * ((B.k : ℝ) - 1) ≤ B.hi) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
           (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
