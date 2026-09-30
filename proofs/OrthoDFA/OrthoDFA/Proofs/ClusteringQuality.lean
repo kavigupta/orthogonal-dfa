@@ -185,9 +185,9 @@ does not hold falls below its mean under fresh noise. -/
 noncomputable def devAt (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J) (B : State) (Dj : Measure S)
     (F : Finset S) (Ev : Finset S → S → Ω → Prop) (x : Run Ω S J) : ℝ :=
   ∑ p ∈ F \ prefixesAt populations B.npref x,
-      Dj.real {p} * μ.real {ω | Ev (familyAt rule O.mq populations x B) p ω}
+      Dj.real {p} * μ.real {ω | Ev (familyBy rule O.mq populations x B) p ω}
     - ∑ p ∈ (F \ prefixesAt populations B.npref x).filter
-        (fun p => Ev (familyAt rule O.mq populations x B) p (oracleNoise x)), Dj.real {p}
+        (fun p => Ev (familyBy rule O.mq populations x B) p (oracleNoise x)), Dj.real {p}
 
 open scoped Classical in
 theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
@@ -245,20 +245,20 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
       obtain ⟨j, hj, hq'⟩ := Finset.mem_biUnion.1 hq
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hq'
       exact hd j hj i
-    have hfsub : ∀ ω, familyAt rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands := by
+    have hfsub : ∀ ω, familyBy rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands := by
       intro ω
-      have hc : clusterAt rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands :=
+      have hc : clusterBy rule O.mq populations ((ω, d) : Run Ω S J) B ⊆ cands :=
         clusterAt_subset O populations B _
       exact Finset.insert_subset (Finset.mem_insert_self _ _) hc
     have hfcongr : ∀ ω ω', (∀ w ∈ readSet P cands, O.noise w ω = O.noise w ω') →
-        familyAt rule O.mq populations ((ω, d) : Run Ω S J) B
-          = familyAt rule O.mq populations ((ω', d) : Run Ω S J) B := by
+        familyBy rule O.mq populations ((ω, d) : Run Ω S J) B
+          = familyBy rule O.mq populations ((ω', d) : Run Ω S J) B := by
       intro ω ω' h
-      unfold familyAt
+      unfold familyBy
       rw [clusterAt_congr O populations B d h]
     have h := selected_dev_le hflat O P cands (F \ P) hP hV
       (fun p hp => hF p (Finset.mem_sdiff.1 hp).1) Finset.disjoint_sdiff
-      (fun ω => familyAt rule O.mq populations ((ω, d) : Run Ω S J) B) hfsub hfcongr Ev hEv
+      (fun ω => familyBy rule O.mq populations ((ω, d) : Run Ω S J) B) hfsub hfcongr Ev hEv
       (fun p => Dj.real {p})
       (fun p => measureReal_nonneg) t ht
     have hle : (∑ p ∈ F \ P, Dj.real {p} ^ 2) / t ^ 2 ≤ ρ / t ^ 2 := by
@@ -366,10 +366,12 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 set_option maxHeartbeats 1000000 in
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O rule populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP qmin
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP qmin
     crossLimit slack a v hηle hη₀ huni hflat hpAP hq0 hq1 hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr
     hstr1 hslack hneed hv0
   classical
+  simp only [ret_eq, familyAt_eq, clusterAt_eq]
+  generalize (lloydClusterer : Clusterer S) = rule
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
@@ -491,13 +493,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ ret rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ ret rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
+          x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
           ∀ j ∈ populations, 1 - ε'
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-                (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
+                (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
               ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
       1 - δ - α ≤ (runMeasure μ D Dsf).real T := by
     intro T hT
@@ -515,7 +517,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have : x ∉ badC B.val j ∪ badU B.val j := fun h =>
       hxb (Set.mem_biUnion B.property (Set.mem_biUnion hj h))
     exact ⟨fun h => this (Or.inl h), fun h => this (Or.inr h)⟩
-  set G := familyAt rule O.mq populations x B.val with hG
+  set G := familyBy rule O.mq populations x B.val with hG
   set P := prefixesAt populations B.val.npref x with hP
   have hPmass : ∀ j ∈ populations, (D j).real ↑P ≤ slack / 4 := by
     intro j hj
