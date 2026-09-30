@@ -165,6 +165,27 @@ def certification_sample(pst, vs, by_population):
     return out
 
 
+def certified_fnr(pst, reads, voters: int, members: int):
+    """``(fnr, label)`` of the family's vote, seed included, on the certification
+    prefixes: the worst population's indecisive rate, or ``(1, None)`` for a
+    family that decides no prefix one of the two ways, as `fnr_from_decision`.
+
+    ``reads`` is `certification_sample`'s, whose split column is the seed's.
+    """
+    rates = []
+    accepts = rejects = False
+    for label, (means, column) in reads.items():
+        decision = (means * voters + column) / members
+        accept = decision >= pst.accept_thresh
+        reject = decision < pst.reject_thresh
+        accepts |= bool(accept.any())
+        rejects |= bool(reject.any())
+        rates.append((float((~(accept | reject)).mean()), label))
+    if not (accepts and rejects):
+        return 1, None
+    return max(rates, key=lambda rate_and_label: rate_and_label[0])
+
+
 def _split_counts(pst, reads):
     """``label -> ((hits, n), (hits, n))``, the accept and reject sides of the
     cut counted on the split's own column, one entry per prefix population.
@@ -351,6 +372,16 @@ class AcceptPreservingGate:
             ),
         }
 
+    def fnr(self, pst, seed_row, vs):
+        """``(fnr, label)`` on prefixes the family was not clustered on: on the
+        table's own, the votes are fitted to those prefixes' noise and read as
+        more decisive than they are."""
+        voters = [u for u in vs if u != seed_row]
+        reads = certification_sample(
+            pst, voters, self._certification_prefixes(pst, voters)
+        )
+        return certified_fnr(pst, reads, len(voters), len(vs))
+
     def verdict(self, pst, seed_row, vs):
         """``(verdict, label)``: what the split says, and which population said
         it, for the search to answer."""
@@ -423,8 +454,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # check and the accept-preserving null are both stated about a family seeded
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
-    decision = pst.compute_decision(vs, pst.table.representative)
-    fnr, worst = pst.fnr_from_decision(decision)
+    fnr, worst = gate.fnr(pst, v, vs)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
