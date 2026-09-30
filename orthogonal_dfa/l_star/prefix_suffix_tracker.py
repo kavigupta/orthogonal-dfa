@@ -15,7 +15,7 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _low_cluster_rates(counts, sizes, failure_prob, least_share) -> List[float]:
+def _low_cluster_rates(counts, sizes, failure_prob) -> List[float]:
     """For each side s, r_s with P(Binomial(n_s m, r_s) <= c_s) = failure_prob,
     for the m rows and summed counts c_s that the classification-EM fit of
 
@@ -23,13 +23,13 @@ def _low_cluster_rates(counts, sizes, failure_prob, least_share) -> List[float]:
         sum_s r_lo_s < sum_s r_up_s,
 
     to counts[s] (n_s = sizes[s]) assigns to the lower component, starting from
-    the rows at or below the least_share quantile of sum_s counts[s] / n_s; all
-    the rows unless it settles on two components with every rate in (0, 1) and
-    that order.  The rows are assigned partly by their own counts, so r_s can
-    fall below the lower component's rate."""
+    the split at the median of sum_s counts[s] / n_s; all the rows unless it
+    settles on two components with every rate in (0, 1) and that order.  The
+    rows are assigned partly by their own counts, so r_s can fall below the
+    lower component's rate."""
     counts = [np.asarray(c) for c in counts]
     total = sum(c / n for c, n in zip(counts, sizes))
-    low = total <= np.quantile(total, least_share)
+    low = total <= np.median(total)
     while True:
         if not low.any() or low.all():
             low = np.ones(len(total), dtype=bool)
@@ -232,9 +232,7 @@ class PrefixSuffixTracker:
             sides = [side for side in sides if side.any()]
             counts = [(observed[:, side] != ref[subset][side]).sum(1) for side in sides]
             sizes = [int(side.sum()) for side in sides]
-            rates = _low_cluster_rates(
-                counts, sizes, alpha, self.config.min_suffix_frequency
-            )
+            rates = _low_cluster_rates(counts, sizes, alpha)
             too_far = np.zeros(len(alive), dtype=bool)
             for count, n, rate in zip(counts, sizes, rates):
                 too_far |= [
