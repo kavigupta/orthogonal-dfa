@@ -22,9 +22,7 @@ boundary the clustering recentres on is not a gap: `Clusterer` covers any.
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
 the band is sized so that a vote whose mean lies outside it lands on its far side at most
-`crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
-by the seed's one read than the gate's cut over the family without it, where the Python cuts both
-at one rate.
+`crossLimit` of the time.
 
 Known modelling gap.  `drift_verdict` also lets any population veto a family, testing each side
 at `α/num_tests` on `veto_size` draws; `ret` has no veto.  That sample is sized by `α` and not by
@@ -268,7 +266,9 @@ noncomputable def binomCdfLe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
 /-- `drift_verdict`'s `rejects_null` over the uniform pool at error rate `α`
 (`ACCEPT_PRESERVING_ERROR_RATE`): some side of the cut holds a prefix, and each side that does
 reads its own class, on the seed's column, significantly past the rate the cut splits at,
-`(hi + 1)/#F` above and `(lo + 1)/#F` below. -/
+`(hi + 1)/#F` above and `(lo + 1)/(#F + 1)` below.  One pair of rates, `accept_thresh` and
+`reject_thresh`, cuts the family both with its seed and without it: these cut it at `hi` and `lo`
+without, and at `hi + 1` and `lo` with. -/
 def certified (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
   ((P.filter (fun p => hi < voteCount mq F p ω)).Nonempty
       ∨ (P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty)
@@ -278,7 +278,7 @@ def certified (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) 
           (P.filter (fun p => hi < voteCount mq F p ω ∧ mq p ω = 1)).card ≤ α)
     ∧ ((P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty →
       binomCdfLe (P.filter (fun p => voteCount mq F p ω ≤ lo)).card
-          (((lo : ℝ) + 1) / F.card)
+          (((lo : ℝ) + 1) / (F.card + 1))
           (P.filter (fun p => voteCount mq F p ω ≤ lo ∧ mq p ω = 1)).card ≤ α)
 
 /-- `certification_budget`: both tests read at most the prefixes one round of table growth, `a`

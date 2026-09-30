@@ -3986,7 +3986,7 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
       (n : ℝ) * ((((hi : ℝ) + 1) / κ + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (C.card : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ C.card →
-      (n : ℝ) * (((1 - ((lo : ℝ) + 1) / κ) + τ) + τ)
+      (n : ℝ) * (((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (C.card : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     μ.real {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
@@ -4029,7 +4029,7 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
           ≤ 2 * lcut * (C.card : ℝ)
       ∧ ((agreeOf ((∅ : Finset S), Rω ω).1 ((∅ : Finset S), Rω ω).2
             (C.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
-          ≤ ((((∅ : Finset S), Rω ω).2.card : ℕ) : ℝ) * ((1 - ((lo : ℝ) + 1) / κ) + τ)}
+          ≤ ((((∅ : Finset S), Rω ω).2.card : ℕ) : ℝ) * ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ)}
     with hB6
   have hmB1 := indecision_frac_le_seed hflat O P cands C hP hV hCPre hPC hone lo (hi + 1) T
     good t₀ ht₀ hTC hT1 fam hfam hcongr E lcut hE hElcut hdec
@@ -4044,7 +4044,7 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (fun ω => Finset.mem_product.2 ⟨Finset.empty_mem_powerset _,
       Finset.mem_powerset.2 (Finset.filter_subset _ _)⟩)
     (fun ω => Finset.empty_subset _) (fun ω ω' h => by rw [hRcongr ω ω' h])
-    ((1 - ((lo : ℝ) + 1) / κ) + τ) τ (2 * lcut * (C.card : ℝ)) n₁ hτ hsig hgr
+    ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ) τ (2 * lcut * (C.card : ℝ)) n₁ hτ hsig hgr
   -- off the six events, a light family passes
   have hsub : {ω | ((C.filter (fun p => fam ω ∉ good p)).card : ℝ) ≤ lcut * (C.card : ℝ)
         ∧ ¬ (certified O.mq lo hi α (fam ω) C ω
@@ -4277,11 +4277,11 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
           Finset.filter_and] <;> rfl
       rw [heq] at h5'
       exact lt_of_not_ge h5'
-    have hagR : ((Rω ω).card : ℝ) * ((1 - ((lo : ℝ) + 1) / κ) + τ)
+    have hagR : ((Rω ω).card : ℝ) * ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ)
         < ((Rω ω).card : ℝ)
           - ((C.filter (fun p => voteCount O.mq (fam ω) p ω ≤ lo ∧ O.mq p ω = 1)).card : ℝ) := by
       have h6' : ¬ (((agreeOf ∅ (Rω ω) (C.filter (fun p => O.mq p ω = 1)) : ℕ) : ℝ)
-          ≤ (((Rω ω).card : ℕ) : ℝ) * ((1 - ((lo : ℝ) + 1) / κ) + τ)) :=
+          ≤ (((Rω ω).card : ℕ) : ℝ) * ((1 - ((lo : ℝ) + 1) / (κ + 1)) + τ)) :=
         fun h => h6 ⟨hRn, hmisR, h⟩
       have hsplitR : ((Rω ω) \ (C.filter (fun p => O.mq p ω = 1))).card
           + (C.filter (fun p => voteCount O.mq (fam ω) p ω ≤ lo ∧ O.mq p ω = 1)).card
@@ -4301,8 +4301,10 @@ theorem gate_at_whp {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     have hκR : (0 : ℝ) < (κ : ℝ) := by exact_mod_cast hκ
     have ha1 : ((hi : ℝ) + 1) / κ ≤ 1 := by
       rw [div_le_one hκR]; exact_mod_cast hhi
-    have hr1 : ((lo : ℝ) + 1) / κ ≤ 1 := by
-      rw [div_le_one hκR]; exact_mod_cast hlohi
+    have hr1 : ((lo : ℝ) + 1) / (κ + 1) ≤ 1 := by
+      rw [div_le_one (by positivity)]
+      have : ((lo : ℝ) + 1) ≤ (κ : ℝ) := by exact_mod_cast hlohi
+      linarith
     have hexpn : ∀ m : ℕ, n₁ ≤ m → Real.exp (-2 * (m : ℝ) * τ ^ 2) ≤ α := fun m hm =>
       le_trans (Real.exp_le_exp.2 (by
         have : (n₁ : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
@@ -6039,7 +6041,7 @@ lemma measurableSet_gateFixed (O : Oracle μ S) (lo hi : ℕ) (α : ℝ) (F A : 
   · exact noiseAlg_le O Set.univ _ (measurableSet_filter_pred₂ O A _
       (fun p ω => voteCount O.mq F p ω ≤ lo ∧ O.mq p ω = 1) (hle F lo)
       (fun p hp => (hle F lo p hp).inter (hone p hp))
-      (fun U V => U.Nonempty → binomCdfLe U.card (((lo : ℝ) + 1) / F.card) V.card ≤ α))
+      (fun U V => U.Nonempty → binomCdfLe U.card (((lo : ℝ) + 1) / (F.card + 1)) V.card ≤ α))
 
 /-- The family is usable at `p`: at most an `f` fraction of it flips there, and the family
 is neither too small for the thresholds nor larger than the round allows. -/
@@ -6220,7 +6222,7 @@ theorem measureReal_gateMiss_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
       (n : ℝ) * ((((B.hi : ℝ) + 1) / kmin + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
-      (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / kmin) + τ) + τ)
+      (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (kmin + 1)) + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     (runMeasure μ D Dsf).real (gateMiss rule O populations j B α q lcut f kmin kmax)
@@ -6827,7 +6829,7 @@ theorem measureReal_notRetAt_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Or
       (n : ℝ) * ((((B.hi : ℝ) + 1) / kmin + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     (hgr : ∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
-      (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / kmin) + τ) + τ)
+      (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (kmin + 1)) + τ) + τ)
         ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     (hα : Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α) :
     (runMeasure μ D Dsf).real
@@ -7603,7 +7605,7 @@ def PassableAt (O : Oracle μ S) (η₀ : ℝ) (populations : Finset J) (D : J �
         (n : ℝ) * ((((B.hi : ℝ) + 1) / ((B.k - 1 : ℕ) : ℝ) + τ) + τ)
           ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     ∧ (∀ n : ℕ, n₁ ≤ n → n ≤ B.npref →
-        (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / ((B.k - 1 : ℕ) : ℝ)) + τ) + τ)
+        (n : ℝ) * (((1 - ((B.lo : ℝ) + 1) / (((B.k - 1 : ℕ) : ℝ) + 1)) + τ) + τ)
           ≤ (n : ℝ) * (1 - O.η) - (1 - O.η) * (2 * lcut * (B.npref : ℝ)))
     ∧ (Real.exp (-2 * (n₁ : ℝ) * τ ^ 2) ≤ α)
     -- the vote misfires at under half the cut budget, so the sample's count of misfires
@@ -8588,9 +8590,11 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       push_cast
       rw [hvs] at hb
       linarith [hxexact, hxdef]
-    have hdiv : 1 - ((B.lo : ℝ) + 1) / (κ : ℝ) ≤ 1 / 2 + 3 * sig η₀ / 10 := by
-      have : 1 / 2 - 3 * sig η₀ / 20 ≤ ((B.lo : ℝ) + 1) / (κ : ℝ) := by
-        rw [le_div_iff₀ hκR]; linarith
+    have hdiv : 1 - ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) ≤ 1 / 2 + 3 * sig η₀ / 10 := by
+      have : 1 / 2 - 3 * sig η₀ / 10 ≤ ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) := by
+        rw [le_div_iff₀ (by positivity)]
+        rw [hvs] at hseed
+        linarith [hs.le]
       linarith
     have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
     have h1 := mul_le_mul_of_nonneg_left hdiv hn0
