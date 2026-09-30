@@ -24,9 +24,6 @@ Known modelling gap.  The Python sizes the family and its band from the boundary
 the band is sized so that a vote whose mean lies outside it lands on its far side at most
 `crossLimit` of the time.
 
-Known modelling gap.  The gate and the FNR read the same draws from the uniform pool here; the
-Python draws them apart.
-
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
@@ -296,6 +293,11 @@ noncomputable def sidesHeld (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset 
   (if (P.filter (fun p => hi < voteCount mq F p ω)).Nonempty then 1 else 0)
     + if (P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty then 1 else 0
 
+/-- The gate's draws from the uniform pool, after the FNR's `n`: the table's count, and `e`
+more when the split reads uncertified. -/
+noncomputable def gateOf (uni : J) (n e : ℕ) (x : Run Ω S J) : Finset S :=
+  (Finset.range (n + e)).image (fun i => certPrefix uni (n + i) x)
+
 /-- `veto_size` draws from population `j`, after the FNR's `n`. -/
 noncomputable def vetoOf (j : J) (n v : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range v).image (fun i => certPrefix j (n + i) x)
@@ -304,7 +306,7 @@ open scoped Classical in
 /-- What `drift_verdict` reads at `j`: the gate's sample at the uniform pool, the veto's
 elsewhere. -/
 noncomputable def splitSample (uni j : J) (n v e : ℕ) (x : Run Ω S J) : Finset S :=
-  if j = uni then certOf uni (n + e) x else vetoOf j n v x
+  if j = uni then gateOf uni n e x else vetoOf j n v x
 
 open scoped Classical in
 /-- No population reads drifted, at `α` shared out over every side any population holds. -/
@@ -321,7 +323,7 @@ def certSize (a : ℕ) (B : State) : ℕ := min B.npref (max 1 (a * B.nsuff / B.
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-test per population on `n` fresh draws, and the accept-preserving gate on as many from the
+test per population on `n` fresh draws, and the accept-preserving gate on as many more from the
 uniform pool `uni`, which may draw that pool further when the split reads uncertified.  Every
 population may veto, on `v` draws of its own, both before the pool is drawn further and after.
 The FNR reads the family with its seed, and reads 1 unless it decides some prefix each way; the
@@ -339,7 +341,7 @@ noncomputable def ret (rule : Clusterer S) (mq : S → Ω → ℝ) (populations 
         voteCount mq (familyAt rule mq populations x B) p (oracleNoise x) ≤ B.lo)
     ∧ noDrift mq populations uni B.lo B.hi α (clusterAt rule mq populations x B) n v 0 x
     ∧ ∃ e : ℕ, certified mq B.lo B.hi α (clusterAt rule mq populations x B)
-        (certOf uni (n + e) x) (oracleNoise x)
+        (gateOf uni n e x) (oracleNoise x)
       ∧ noDrift mq populations uni B.lo B.hi α (clusterAt rule mq populations x B) n v e x}
 
 /-! ## What the input distributions must satisfy -/
