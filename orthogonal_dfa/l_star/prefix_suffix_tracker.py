@@ -15,16 +15,52 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
-    """How high the cohort's clean disagreement rate can be, given its smallest count.
+def _low_cluster_rates(counts, sizes, failure_prob) -> List[float]:
+    """For each side s, r_s with P(Binomial(n_s m, r_s) <= c_s) = failure_prob,
+    for the m rows and summed counts c_s that the classification-EM fit of
 
-    The smallest of many draws sits below the rate it is drawn from, and by more
-    when there are few prefixes, so the floor is the upper end of the interval
-    around it rather than the count itself.
-    """
-    return float(
-        scipy.stats.beta.ppf(1 - failure_prob, fewest + 1, num_prefixes - fewest)
-    )
+        w prod_s Binomial(n_s, r_lo_s) + (1 - w) prod_s Binomial(n_s, r_up_s),
+        sum_s r_lo_s < sum_s r_up_s,
+
+    to counts[s] (n_s = sizes[s]) assigns to the lower component, starting from
+    the split at the median of sum_s counts[s] / n_s; all the rows unless it
+    settles on two components with every rate in (0, 1) and that order.  The
+    rows are assigned partly by their own counts, so r_s can fall below the
+    lower component's rate."""
+    counts = [np.asarray(c) for c in counts]
+    total = sum(c / n for c, n in zip(counts, sizes))
+    low = total <= np.median(total)
+    while True:
+        if not low.any() or low.all():
+            low = np.ones(len(total), dtype=bool)
+            break
+        rates = [(c[low].mean() / n, c[~low].mean() / n) for c, n in zip(counts, sizes)]
+        if not all(0 < lo < 1 and 0 < up < 1 for lo, up in rates) or sum(
+            lo for lo, _ in rates
+        ) >= sum(up for _, up in rates):
+            low = np.ones(len(total), dtype=bool)
+            break
+        log_lo = np.log(low.mean()) + sum(
+            scipy.stats.binom.logpmf(c, n, lo)
+            for c, n, (lo, _) in zip(counts, sizes, rates)
+        )
+        log_up = np.log(1 - low.mean()) + sum(
+            scipy.stats.binom.logpmf(c, n, up)
+            for c, n, (_, up) in zip(counts, sizes, rates)
+        )
+        relabelled = log_lo >= log_up
+        if (relabelled == low).all():
+            break
+        low = relabelled
+    floors = []
+    for c, n in zip(counts, sizes):
+        hits, trials = int(c[low].sum()), n * int(low.sum())
+        floors.append(
+            1.0
+            if hits == trials
+            else float(scipy.stats.beta.ppf(1 - failure_prob, hits + 1, trials - hits))
+        )
+    return floors
 
 
 @dataclass
@@ -53,8 +89,8 @@ class SearchConfig:
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    #: Chance of screening out a suffix that does belong, spent across the
-    #: whole staircase rather than per test.
+    #: Chance of screening out a suffix that does belong, over every test and
+    #: floor of its screening.
     screening_alpha: float = 0.1
     #: Require the suffix family to be accept-preserving.  Only meaningful where
     #: such a family exists, which is the class-preserving precondition; a caller
@@ -171,42 +207,40 @@ class PrefixSuffixTracker:
         return out
 
     def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
-        """The rows still explicable as ``reference`` plus per-cell noise, which
-        flips one of the two observations at rate ``2*eta*(1-eta)``.
+        """The rows not screened out.  At each prefix count n of the staircase,
+        and on each side s in {R = 1, R = 0} of the reference over those prefixes,
+        row x is screened out if its n_s disagreements D_s(x) reject
 
-        That rate is read off the cohort rather than off ``min_signal_strength``:
-        a caller who promises less signal than the oracle carries would otherwise
-        widen the screen to admit suffixes that flip a third of the prefixes.  The
-        smallest disagreement in the cohort is noise alone once the cohort holds an
-        accept-preserving suffix, and the declared rate stays as a ceiling so the
-        screen can only tighten.
-        """
-        eta = 0.5 - self.config.min_signal_strength
-        declared_rate = 2 * eta * (1 - eta)
+            H0: D_s(x) ~ Binomial(n_s, rho_s)
+
+        in the upper tail at alpha, rho_s the _low_cluster_rates of every row's
+        counts."""
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        alpha = self.config.screening_alpha / len(staircase)
+        # A test and a floor on each side at each step.
+        alpha = self.config.screening_alpha / (4 * len(staircase))
         alive = list(rows)
         for p in staircase:
             if not alive:
                 break
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
-            disagreements = (
-                self.table.observed_masks(alive, subset) != ref[subset]
-            ).sum(1)
-            same_family_rate = min(
-                declared_rate, _floor_rate(int(disagreements.min()), p, alpha)
-            )
-            alive = [
-                row
-                for row, count in zip(alive, disagreements)
-                if not binomial_side_of_boundary(
-                    int(count), p, same_family_rate, failure_prob=alpha
-                )
-            ]
+            observed = self.table.observed_masks(alive, subset)
+            sides = [ref[subset] == read for read in (True, False)]
+            sides = [side for side in sides if side.any()]
+            counts = [(observed[:, side] != ref[subset][side]).sum(1) for side in sides]
+            sizes = [int(side.sum()) for side in sides]
+            rates = _low_cluster_rates(counts, sizes, alpha)
+            too_far = np.zeros(len(alive), dtype=bool)
+            for count, n, rate in zip(counts, sizes, rates):
+                too_far |= [
+                    binomial_side_of_boundary(int(c), n, rate, failure_prob=alpha)
+                    is True
+                    for c in count
+                ]
+            alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
 
     def _draw_cohort(self, size: int) -> List[int]:
