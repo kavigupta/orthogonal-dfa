@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Adaptive
+import OrthoDFA.Proofs.Lloyd
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -824,10 +824,12 @@ open MeasureTheory ProbabilityTheory in
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O rule populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP qmin
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP qmin
     crossLimit a hηle hη₀ huni hflat hpAPPositive hq0 hq1 hindLim hind1 hαpos hα hεcov₀ hε1₀ hδ
     hδ1 hζ hζ1 hneed
   classical
+  simp only [ret_eq, familyAt_eq, clusterAt_eq]
+  generalize (lloydClusterer : Clusterer S) = rule
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
