@@ -1,0 +1,41 @@
+\section{Multi-round convergence (heuristic)}
+
+One round learns a hypothesis from one family $V$. Boundary strings (indecisive
+sifts, Lemma~\ref{lem:sound}) are fed back into the representative pool; the next
+call to the FNR gate sees a high indecision rate over them and re-clusters to a
+family that classifies them decisively.
+
+\begin{assumption}[Coverage]\label{ass:cover}
+The prefix sampler $D$ places non-negligible mass on a prefix reaching each
+reachable state of $A^\star$; equivalently, every state has representative
+rows. (Transient states reachable only by short prefixes are handled by a
+prefix-closed ``core''; states reachable by no sampled prefix are provably
+unlearnable in this model and are detected by
+\texttt{uncoverable\_access\_strings}, which halts the round.)
+\end{assumption}
+
+\begin{theorem}[Convergence, informal]\label{thm:main}
+Under Assumption~\ref{ass:cover}, and assuming the FNR gate returns, on each round,
+a family satisfying Lemma~\ref{lem:denoise} at budget $(\mathrm{fpr},\mathrm{fnr})$,
+the round loop resolves at least one previously-boundary state per round until the
+tree's leaves are in bijection with the reachable classes of $A^\star$. At that
+fixpoint every probe sifts consistently with $t$
+(Lemma~\ref{lem:cex} produces no witness), the accuracy estimate certifies
+$\Pr_{x\sim D}[A(x)=A^\star(x)]\ge\theta$, and the algorithm terminates. Hence with
+probability $\ge 1-\delta$ (union bound over the finitely many
+classification, split, and estimation events) the output $A$ is $\theta$-accurate.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+Soundness of the hypothesis is maintained by Lemmas~\ref{lem:sound}
+and~\ref{lem:split-sound}: no leaf is ever coarser or finer than the discovered
+cuts warrant, w.h.p. Progress is maintained by
+Lemmas~\ref{lem:split-complete} and~\ref{lem:cex}: while the tree is strictly
+coarser than the reachable Myhill--Nerode partition, a probe eventually exhibits a
+detectable disagreement (a state reachable with mass $\rho$ under $D$ is hit by a
+probe within $O(1/\rho)$ draws), which splits a leaf; the number of splits is
+bounded by $|Q^\star|$. Termination is the accuracy estimate crossing $\theta$,
+which by a one-sided binomial bound is a $\le\delta'$ event when the true accuracy
+is below $\theta$. The stated probability follows by a union bound over the
+$O(|Q^\star|\cdot k)$ denoising events, the $\le N$ split tests, and the estimate.
+\end{proof}

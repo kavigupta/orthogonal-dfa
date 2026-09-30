@@ -1,0 +1,20 @@
+\section{Transitions and equivalence simulation}
+
+The learner maintains a partial transition function $t$: an edge $(q,\sigma)$
+is resolved by sifting $w\sigma$ for a member $w$ of leaf $q$ and taking the leaf
+it lands in. With no equivalence oracle, the counterexample pass simulates
+one: it draws probes $w\sim D$, walks each through a totalised copy of $t$
+to a state $s_{\mathrm{walk}}$, and independently sifts $w$ to a leaf
+$s_{\mathrm{sift}}$.
+
+\begin{lemma}[Counterexamples are Myhill--Nerode witnesses]\label{lem:cex}
+If $s_{\mathrm{walk}}\ne s_{\mathrm{sift}}$ (both decisive), then along $w$ there
+is a first index where the followed edge and a fresh sift diverge: two prefixes
+that sift to a common leaf but, extended by one symbol, reach different leaves.
+This is exactly a pair witnessing that the common leaf mixes two classes; the
+witness is handed to the split test as the distinguisher $d$.
+\end{lemma}
+
+Thus discovery (finding where the hypothesis is wrong) and refinement (splitting)
+alternate until probes stop producing disagreements --- the membership-query
+stand-in for ``no counterexample.''
