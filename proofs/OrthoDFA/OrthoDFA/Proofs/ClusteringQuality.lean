@@ -385,7 +385,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ' ρ pAP
-    crossLimit 524288 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
+    crossLimit 2048 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
     hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
