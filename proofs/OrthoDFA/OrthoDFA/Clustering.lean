@@ -14,9 +14,15 @@ sampling without replacement.  Deduplicated i.i.d. draws give a pool at most as 
 is the conservative model, but it is why the claim caps the collision mass.
 
 Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its reads
-(`transition_resolver`, `counterexample_synthesis`); here it is a field of `State`
-(`cn/cd`).  So the signal is the worse rate's margin `½ − max(ηIn, ηOut)` rather than the
-half-gap `(1 − ηIn − ηOut)/2`.
+(`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
+family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
+the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
+
+Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
+stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
+of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
+`k` members when the pool holds that many and at most `k` otherwise, and is a function of the
+pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
 
 Known modelling gap.  The Python sizes the band around the boundary from its reads
 (`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
@@ -114,10 +120,6 @@ structure State where
   npref : ℕ
   /-- The cluster's size, seed included. -/
   k : ℕ
-  /-- `identify_cluster_around`'s `decision_boundary`, as the ratio `cn/cd`: `p` is on the
-  accept side when `cn · #F < cd · voteCount F p`. -/
-  cn : ℕ
-  cd : ℕ
   /-- Reject at or below this count. -/
   lo : ℕ
   /-- Accept above this count. -/
@@ -204,7 +206,8 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
   else ∅
 
 /-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`. -/
+cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`, the boundary
+written `cn/cd`. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
@@ -236,10 +239,10 @@ noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands :
     (k : ℕ) : Finset S :=
   (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
 
-/-- The cluster without its seed. -/
+/-- The cluster without its seed, recentred at half the family. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (clusterAround mq B.cn B.cd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+  (clusterAround mq 1 2 (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     (oracleNoise x) B.k).erase 1
 
 /-! ### The cut -/
