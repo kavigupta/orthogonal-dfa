@@ -349,28 +349,25 @@ class AcceptPreservingGate:
         return self._drawn
 
     def _fnr_prefixes(self, pst, voters):
-        """``label -> prefixes`` to read the FNR over: the certification
-        prefixes, topped up to as many as the table holds of each population.
+        """``label -> prefixes`` to read the FNR over, fresh ones topped up to as
+        many as the table holds of each population as the table grows.
 
-        The top-up stays out of the veto sample, which is sized to catch a
-        family read backwards: a larger one would also veto the few prefixes a
-        good family miscuts."""
-        drawn = self._certification_prefixes(pst, voters)
+        Drawn apart from the gate's: the gate sizes its sample off the table the
+        first time it reads a family, and drawing that early leaves it small."""
         if self._fnr_drawn is None:
-            budget = certification_budget(pst, voters)
-            held = {
-                label: int(mask.sum())
-                for label, mask in pst.table.population_masks().items()
-            }
             self._fnr_drawn = {}
-            for label, prefixes in drawn.items():
-                wanted = min(max(1, held.get(label, 0)), budget) - len(prefixes)
-                more = (
-                    prefixes_for_split(pst, self._state, label, wanted)
-                    if wanted > 0
-                    else []
-                )
-                self._fnr_drawn[label] = prefixes + more
+        budget = certification_budget(pst, voters)
+        held = {
+            label: int(mask.sum())
+            for label, mask in pst.table.population_masks().items()
+        }
+        for label in population_labels(self._state):
+            have = self._fnr_drawn.get(label, [])
+            wanted = min(max(1, held.get(label, 0)), budget) - len(have)
+            if wanted > 0:
+                have = have + prefixes_for_split(pst, self._state, label, wanted)
+            if have:
+                self._fnr_drawn[label] = have
         return self._fnr_drawn
 
     def _certify_further(self, pst, counts, voters):
