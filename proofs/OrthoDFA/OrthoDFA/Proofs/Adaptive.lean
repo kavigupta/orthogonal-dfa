@@ -274,6 +274,22 @@ lemma nsuff_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α 
   obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
   rfl
 
+/-- A budget that covers the top rung covers every rung, so every rung reads its whole table. -/
+lemma certSize_of_mem_schedule {η₀ : ℝ} {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
+    {a : ℕ}
+    (ha : prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit
+        * (famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
+      ≤ a * poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit)
+    (hB : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
+    certSize a B = B.npref := by
+  rw [schedule] at hB
+  obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 hB
+  have hle : prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i
+      ≤ a * poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit
+        / (famCount η₀ populations indecisionLimit εcov δ crossLimit + 1) :=
+    le_trans (Nat.div_le_self _ _) ((Nat.le_div_iff_mul_le (by omega)).2 ha)
+  exact min_eq_left (le_trans hle (le_max_right _ _))
+
 lemma prefCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ α pAP : ℝ) :
     0 < prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
   rw [prefCount]; omega
@@ -1964,6 +1980,13 @@ lemma capped_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit) B := by
   classical
   exact (Finset.mem_filter.1 hB).2
+
+lemma mem_schedule_of_mem_stoppable {η₀ : ℝ} {populations : Finset J}
+    {εcov δ α pAP ρ : ℝ} {B : State}
+    (hB : B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ) :
+    B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit := by
+  classical
+  exact (Finset.mem_filter.1 hB).1
 
 open scoped Classical in
 /-- The screen's disagreement with the seed's column at one prefix, as a centre of `{ε}` reads it. -/
@@ -6713,7 +6736,7 @@ noncomputable def retAt (rule : Clusterer S) (O : Oracle μ S) (populations : Fi
 lemma mem_ret_of_retAt (O : Oracle μ S) (populations : Finset J) (huni : uni ∈ populations)
     (indecisionLimit α : ℝ) (B : State) (x : Run Ω S J)
     (h : ∀ j ∈ populations, x ∈ retAt rule O populations uni indecisionLimit α B j) :
-    x ∈ ret rule O.mq populations uni indecisionLimit α B := by
+    x ∈ ret rule O.mq populations uni indecisionLimit α B.npref B := by
   obtain ⟨hsize, -, hgate⟩ := h uni huni
   obtain ⟨hcert, ⟨p, hp, hacc⟩, ⟨q, hq, hrej⟩⟩ := hgate rfl
   exact ⟨hsize, fun j hj => (h j hj).2.1, ⟨uni, huni, p, hp, hacc⟩, ⟨uni, huni, q, hq, hrej⟩,
@@ -7016,19 +7039,19 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
     (hinv : ∑ B ∈ s, (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) ≤ 2)
     (G : Set (Run Ω S J)) (hG : (runMeasure μ D Dsf).real G ≤ δ / 8)
     (hper : ∀ B ∈ s, (runMeasure μ D Dsf).real
-      ((ret rule O.mq populations uni indecisionLimit α B ∩ FailAt rule O populations D indecisionLimit εcov B) \ G)
+      ((ret rule O.mq populations uni indecisionLimit α B.npref B ∩ FailAt rule O populations D indecisionLimit εcov B) \ G)
         ≤ δ * (B.npref : ℝ) / (8 * N)
           + if V ≤ B.npref then δ * (V : ℝ) / (16 * B.npref) else 0) :
     (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ s},
-        ret rule O.mq populations uni indecisionLimit α B.val
+        ret rule O.mq populations uni indecisionLimit α B.val.npref B.val
           ∩ FailAt rule O populations D indecisionLimit εcov B.val) ≤ δ / 2 := by
   classical
   have hNR : (0 : ℝ) < (N : ℕ) := by exact_mod_cast hN
   have hsplit : (⋃ B : {B : State // B ∈ s},
-        ret rule O.mq populations uni indecisionLimit α B.val
+        ret rule O.mq populations uni indecisionLimit α B.val.npref B.val
           ∩ FailAt rule O populations D indecisionLimit εcov B.val)
       ⊆ (⋃ B : {B : State // B ∈ s},
-          (ret rule O.mq populations uni indecisionLimit α B.val
+          (ret rule O.mq populations uni indecisionLimit α B.val.npref B.val
             ∩ FailAt rule O populations D indecisionLimit εcov B.val) \ G) ∪ G := by
     intro x hx
     obtain ⟨B, hB⟩ := Set.mem_iUnion.1 hx
@@ -7041,13 +7064,13 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
       = δ / 16 * (if V ≤ B.npref then (V : ℝ) / (B.npref : ℝ) else 0) := by
     intro B; split_ifs <;> ring
   have hmain : (runMeasure μ D Dsf).real (⋃ B : {B : State // B ∈ s},
-      (ret rule O.mq populations uni indecisionLimit α B.val
+      (ret rule O.mq populations uni indecisionLimit α B.val.npref B.val
         ∩ FailAt rule O populations D indecisionLimit εcov B.val) \ G) ≤ 3 * δ / 8 := by
     rw [Set.iUnion_subtype]
     calc (runMeasure μ D Dsf).real (⋃ B, ⋃ (_ : B ∈ s),
-          (ret rule O.mq populations uni indecisionLimit α B ∩ FailAt rule O populations D indecisionLimit εcov B) \ G)
+          (ret rule O.mq populations uni indecisionLimit α B.npref B ∩ FailAt rule O populations D indecisionLimit εcov B) \ G)
         ≤ ∑ B ∈ s, (runMeasure μ D Dsf).real
-            ((ret rule O.mq populations uni indecisionLimit α B
+            ((ret rule O.mq populations uni indecisionLimit α B.npref B
               ∩ FailAt rule O populations D indecisionLimit εcov B) \ G) :=
           measureReal_biUnion_finset_le _ _
       _ ≤ ∑ B ∈ s, (δ * (B.npref : ℝ) / (8 * (N : ℕ))
@@ -7326,7 +7349,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E) :
-    (runMeasure μ D Dsf).real ((ret rule O.mq populations uni indecisionLimit α B
+    (runMeasure μ D Dsf).real ((ret rule O.mq populations uni indecisionLimit α B.npref B
         ∩ FailAt rule O populations D indecisionLimit εcov B)
           \ (apShort O B.nsuff pAP (pAP / 2)
             ∪ {x | ¬ Function.Injective (fun i : Fin B.nsuff => suffixDraw i.val x)}))
@@ -7355,7 +7378,7 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     with hV
   set Dy : J → Set (Run Ω S J) := fun j =>
     {x : Run Ω S J | ¬ ∀ v ∈ clusterAt rule O.mq populations x B, flipMass O (D j) v ≤ Δp} with hDy
-  have hsub : ((ret rule O.mq populations uni indecisionLimit α B ∩ FailAt rule O populations D indecisionLimit εcov B)
+  have hsub : ((ret rule O.mq populations uni indecisionLimit α B.npref B ∩ FailAt rule O populations D indecisionLimit εcov B)
         \ (apShort O B.nsuff pAP (pAP / 2)
           ∪ {x | ¬ Function.Injective (fun i : Fin B.nsuff => suffixDraw i.val x)}))
       ⊆ ⋃ j ∈ populations, ((V j \ Dy j) ∪ (CR ∩ Dy j)) := by
@@ -7428,7 +7451,7 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (runMeasure μ D Dsf).real
         (⋃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
             crossLimit ρ},
-          ret rule O.mq populations uni indecisionLimit α B.val
+          ret rule O.mq populations uni indecisionLimit α B.val.npref B.val
             ∩ FailAt rule O populations D indecisionLimit εcov B.val) ≤ δ / 2 := by
   classical
   obtain ⟨j₀, hj₀⟩ := hpop
@@ -8633,7 +8656,7 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
         ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
     (runMeasure μ D Dsf).real {x | ∀ B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ},
-      x ∉ ret rule O.mq populations uni indecisionLimit α B.val} ≤ δ / 2 := by
+      x ∉ ret rule O.mq populations uni indecisionLimit α B.val.npref B.val} ≤ δ / 2 := by
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   obtain ⟨B, hB, hpass⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
@@ -8656,7 +8679,7 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
   -- the whole failure at the one state, population by population
   have hsub : {x : Run Ω S J | ∀ B' : {B : State //
           B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ},
-        x ∉ ret rule O.mq populations uni indecisionLimit α B'.val}
+        x ∉ ret rule O.mq populations uni indecisionLimit α B'.val.npref B'.val}
       ⊆ ⋃ j ∈ populations,
         {x : Run Ω S J | x ∉ retAt rule O populations uni indecisionLimit α B j} := by
     intro x hx
@@ -8770,9 +8793,9 @@ end Loop
 `loop_terminates` (it returns), each except w.p. `δ/2`, glued by `sound_and_terminating`. -/
 theorem clustering_correct : ClusteringCorrect := by
   intro Ω _ μ _ S _ J _ O rule populations uni D Dsf _ _ Pre Suf η₀ indecisionLimit εcov α δ ρ
-    pAP qmin crossLimit k
+    pAP qmin crossLimit k a
     hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound _hq0 hqL hqN hq hindLim hind1
-    hαpos hα hεcov hε1 hδ _hbudget hρcap hρsf
+    hαpos hα hεcov hε1 hδ _hbudget hρcap hρsf ha
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hsig : O.η < 1 / 2 := lt_of_le_of_lt hηle hη₀
   rw [O.apSet_eq] at hpAPBound
@@ -8797,10 +8820,10 @@ theorem clustering_correct : ClusteringCorrect := by
   have h := sound_and_terminating (runMeasure μ D Dsf)
     (fun B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ} =>
-      ret rule O.mq populations uni indecisionLimit α B.val ∩ FailAt rule O populations D indecisionLimit εcov B.val)
+      ret rule O.mq populations uni indecisionLimit α B.val.npref B.val ∩ FailAt rule O populations D indecisionLimit εcov B.val)
     (fun B : {B : State //
         B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ} =>
-      ret rule O.mq populations uni indecisionLimit α B.val) δ
+      ret rule O.mq populations uni indecisionLimit α B.val.npref B.val) δ
     (validity_of_returned hflat O populations D Dsf hsupp hsuppSf indecisionLimit εcov α hindLim
       hsig hpop hηle hη₀ ρ (collisionMass Dsf) hρ le_rfl
       hρsf0 hεcov δ hδ pAP hpAPPositive.le hpAPBound hfind hcoll)
@@ -8812,8 +8835,10 @@ theorem clustering_correct : ClusteringCorrect := by
   refine le_trans h (measureReal_mono ?_ (measure_ne_top _ _))
   intro x hx
   simp only [Set.mem_setOf_eq, Set.mem_inter_iff, FailAt, not_and, not_not] at hx ⊢
-  obtain ⟨hex, hall⟩ := hx
-  refine ⟨hex, fun B hB j hj => ?_⟩
+  obtain ⟨⟨B₀, hex⟩, hall⟩ := hx
+  refine ⟨⟨B₀, by rwa [certSize_of_mem_schedule ha (mem_schedule_of_mem_stoppable B₀.property)]⟩,
+    fun B hB j hj => ?_⟩
+  rw [certSize_of_mem_schedule ha (mem_schedule_of_mem_stoppable B.property)] at hB
   obtain ⟨hcov, hund⟩ := hall B hB j hj
   refine ⟨le_trans hcov (measureReal_mono (fun p hp => cutCorrect_insert_one O _ _ _
     (one_not_mem_clusterAt O populations B.val x) p _ hp) (measure_ne_top _ _)), hund⟩

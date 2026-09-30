@@ -314,7 +314,7 @@ def ClusteringCorrect : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ) (a : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -344,13 +344,17 @@ def ClusteringCorrect : Prop :=
     ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k →
   ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
   collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
+  -- the certification budget covers the top rung's prefix count
+  prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit
+      * (famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
+    ≤ a * poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ ret rule O.mq populations uni indecisionLimit α B.val) ∧
+        x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ ret rule O.mq populations uni indecisionLimit α B.val →
+        x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyAt rule O.mq populations x B.val) p (oracleNoise x)}

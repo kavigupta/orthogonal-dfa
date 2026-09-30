@@ -366,7 +366,8 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O rule populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP qmin
-    crossLimit slack hηle hη₀ huni hflat hpAP hq0 hq1 hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hslack
+    crossLimit slack a hηle hη₀ huni hflat hpAP hq0 hq1 hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hstr1
+    hslack hneed
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   -- the proof runs at a cut budget small against the uniform pool's rarer class
@@ -408,11 +409,14 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit ε' α δ' ρ
-    pAP qmin crossLimit 2048 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hq0 hqL hqN hq
+    pAP qmin crossLimit 2048 a hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hq0 hqL hqN hq
     hind hind1 hα hα1 hε hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit ε' δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
     (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
+    (certBudget_covers populations η₀ indecisionLimit εcov ε' δ' α pAP qmin crossLimit a hη0 hη₀
+      hpop hind hε₀ hε1₀ hq0 hq1 (by rw [hεdef, sig]) hδ' (by linarith) hα (by linarith) hpAP
+      (le_trans hpAPBound measureReal_le_one) hstr hstr1 hneed)
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
@@ -477,8 +481,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ ret rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ ret rule O.mq populations uni indecisionLimit α B.val →
+          x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ ret rule O.mq populations uni indecisionLimit α (certSize a B.val) B.val →
           ∀ j ∈ populations, 1 - ε'
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
