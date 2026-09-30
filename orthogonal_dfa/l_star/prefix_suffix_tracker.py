@@ -15,80 +15,48 @@ from .structures import Oracle
 MIN_SIGNAL_STRENGTH = 0.001
 
 
-def _low_cluster_rate(counts, n, failure_prob) -> float:
-    """r_hi with P(Binomial(n m, r_hi) <= c) = failure_prob, for the m rows and
-    summed count c that the maximum-likelihood fit of
+def _low_cluster_rates(counts, sizes, failure_prob) -> List[float]:
+    """For each side s, r_s with P(Binomial(n_s m, r_s) <= c_s) = failure_prob,
+    for the m rows and summed counts c_s that the maximum-likelihood fit of
 
-        w Binomial(n, r_lo) + (1 - w) Binomial(n, r_up),   r_lo < r_up,
+        w prod_s Binomial(n_s, r_lo_s) + (1 - w) prod_s Binomial(n_s, r_up_s),
+        sum_s r_lo_s < sum_s r_up_s,
 
-    to counts assigns to the lower component, reached by EM from the split at the
-    median; all the rows if no two components separate."""
-    counts = np.asarray(counts)
-    low = counts <= np.median(counts)
+    to counts[s] (n_s = sizes[s]) assigns to the lower component, reached by EM
+    from the split at the median of sum_s counts[s] / n_s; all the rows if no two
+    components separate."""
+    counts = [np.asarray(c) for c in counts]
+    total = sum(c / n for c, n in zip(counts, sizes))
+    low = total <= np.median(total)
     while low.any() and not low.all():
-        share = low.mean()
-        rate_lo = counts[low].mean() / n
-        rate_up = counts[~low].mean() / n
-        if not 0 < rate_lo < rate_up < 1:
+        rates = [(c[low].mean() / n, c[~low].mean() / n) for c, n in zip(counts, sizes)]
+        if not all(0 < lo < 1 and 0 < up < 1 for lo, up in rates) or sum(
+            lo for lo, _ in rates
+        ) >= sum(up for _, up in rates):
             break
-        log_lo = np.log(share) + scipy.stats.binom.logpmf(counts, n, rate_lo)
-        log_up = np.log(1 - share) + scipy.stats.binom.logpmf(counts, n, rate_up)
+        log_lo = np.log(low.mean()) + sum(
+            scipy.stats.binom.logpmf(c, n, lo)
+            for c, n, (lo, _) in zip(counts, sizes, rates)
+        )
+        log_up = np.log(1 - low.mean()) + sum(
+            scipy.stats.binom.logpmf(c, n, up)
+            for c, n, (_, up) in zip(counts, sizes, rates)
+        )
         relabelled = log_lo >= log_up
         if (relabelled == low).all():
             break
         low = relabelled
     if not low.any() or low.all():
-        low = np.ones(len(counts), dtype=bool)
-    total = int(counts[low].sum())
-    trials = n * int(low.sum())
-    if total == trials:
-        return 1.0
-    return float(scipy.stats.beta.ppf(1 - failure_prob, total + 1, trials - total))
-
-
-def _same_family_rate(boundary, signal, reference_rate, read: bool):
-    """P(X != R | R = read) for a prefix of class C, with R its read under the
-    reference and X its read under a suffix preserving C, independent given C:
-
-        P(R = 1 | C) = P(X = 1 | C) = boundary + signal   if C accepts
-                                      boundary - signal   if C rejects
-
-    and P(C accepts) set so that P(R = 1) = reference_rate, clipped to [0, 1].
-    """
-    reject_rate, accept_rate = boundary - signal, boundary + signal
-    pi = min(max((reference_rate - reject_rate) / (accept_rate - reject_rate), 0), 1)
-    if not read:
-        reject_rate, accept_rate = 1 - reject_rate, 1 - accept_rate
-    reads = pi * accept_rate + (1 - pi) * reject_rate
-    assert reads > 0, f"P(R = {read:d}) = 0"
-    accept_given_read = pi * accept_rate / reads
-    return accept_given_read * (1 - accept_rate) + (1 - accept_given_read) * (
-        1 - reject_rate
-    )
-
-
-def _loosest_same_family_rates(boundary, signal, ones, reads, failure_prob):
-    """read -> the maximum of _same_family_rate over reference rates in
-    the exact interval [m_lo, m_hi] for ones of reads,
-
-        P(Binomial(reads, m_lo) >= ones) = P(Binomial(reads, m_hi) <= ones) = failure_prob
-
-    for each read the reference gives at least once.  Each rate is monotone in
-    the reference rate, so the interval's ends attain it.
-    """
-    ends = [
-        scipy.stats.beta.ppf(failure_prob, ones, reads - ones + 1) if ones else 0.0,
-        (
-            scipy.stats.beta.ppf(1 - failure_prob, ones + 1, reads - ones)
-            if ones < reads
-            else 1.0
-        ),
-    ]
-    return {
-        read: max(_same_family_rate(boundary, signal, float(end), read) for end in ends)
-        for read, seen in ((True, ones), (False, reads - ones))
-        if seen
-    }
+        low = np.ones(len(total), dtype=bool)
+    floors = []
+    for c, n in zip(counts, sizes):
+        hits, trials = int(c[low].sum()), n * int(low.sum())
+        floors.append(
+            1.0
+            if hits == trials
+            else float(scipy.stats.beta.ppf(1 - failure_prob, hits + 1, trials - hits))
+        )
+    return floors
 
 
 @dataclass
@@ -117,8 +85,8 @@ class SearchConfig:
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
-    #: Chance of screening out a suffix that does belong, over every screening of
-    #: it and every test within one.
+    #: Chance of screening out a suffix that does belong, over every test and
+    #: floor of its screening.
     screening_alpha: float = 0.1
     #: Require the suffix family to be accept-preserving.  Only meaningful where
     #: such a family exists, which is the class-preserving precondition; a caller
@@ -159,36 +127,6 @@ def _distinct_prefixes(sampler, rng, *, alphabet_size, count, held):
     return sorted(drawn)
 
 
-class _Draws:
-    """One sample_more_suffixes call's tally: it draws cohorts of at most amount
-    suffixes until amount are kept or amount / min_suffix_frequency have been
-    drawn."""
-
-    def __init__(self, pst, amount, pbar):
-        self._pst = pst
-        self._pbar = pbar
-        self.amount = amount
-        self.max_draws = int(np.ceil(amount / pst.config.min_suffix_frequency))
-        self.looks = int(np.ceil(self.max_draws / amount))
-        self.kept = 0
-        self.drawn = 0
-
-    def wanting(self) -> bool:
-        return self.kept < self.amount and self.drawn < self.max_draws
-
-    def draw(self) -> List[int]:
-        cohort = self._pst._draw_cohort(  # pylint: disable=protected-access
-            min(self.amount, self.max_draws - self.drawn)
-        )
-        self.drawn += len(cohort)
-        return cohort
-
-    def keep(self, rows) -> None:
-        self._pst.suffix_pool.extend(rows)
-        self.kept += len(rows)
-        self._pbar.update(len(rows))
-
-
 @dataclass
 class PrefixSuffixTracker:
     """Owns the search calibration (decision boundary, evidence margin, family
@@ -206,10 +144,6 @@ class PrefixSuffixTracker:
     table: MaskTable
     decision_boundary: float = 0.5
     evidence_margin: float = 0.0
-    #: Whether decision_boundary has been read off a family.
-    calibrated: bool = False
-    #: Every suffix drawn for the pool, kept or not.
-    suffixes_drawn: int = 0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
 
@@ -268,37 +202,21 @@ class PrefixSuffixTracker:
         out.append(available)
         return out
 
-    def _screen_cohort(
-        self, rows: List[int], reference: int, *, predict: bool
-    ) -> List[int]:
+    def _screen_cohort(self, rows: List[int], reference: int) -> List[int]:
         """The rows not screened out.  At each prefix count n of the staircase,
         and on each side s in {R = 1, R = 0} of the reference over those prefixes,
         row x is screened out if its n_s disagreements D_s(x) reject
 
             H0: D_s(x) ~ Binomial(n_s, rho_s)
 
-        in the upper tail at alpha, where rho_s is the smaller of
-        _loosest_same_family_rates' rate for s, if predict, and
-        _low_cluster_rate of the rows' counts.
-        """
+        in the upper tail at alpha, rho_s the _low_cluster_rates of every row's
+        counts."""
         ref = self.table.column(reference)
         candidates = np.flatnonzero(self.table.representative)
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
-        # Per screening: a test and a floor on each side at each step, and the
-        # reference rate's two tails.  A row is screened at most twice.
-        alpha = self.config.screening_alpha / (2 * (4 * len(staircase) + 2))
-        predicted = (
-            _loosest_same_family_rates(
-                self.decision_boundary,
-                self.config.min_signal_strength,
-                int(ref[candidates].sum()),
-                len(candidates),
-                alpha,
-            )
-            if predict
-            else {True: 1.0, False: 1.0}
-        )
+        # A test and a floor on each side at each step.
+        alpha = self.config.screening_alpha / (4 * len(staircase))
         alive = list(rows)
         for p in staircase:
             if not alive:
@@ -306,80 +224,29 @@ class PrefixSuffixTracker:
             subset = np.zeros(self.num_prefixes, dtype=bool)
             subset[order[:p]] = True
             observed = self.table.observed_masks(alive, subset)
-            sides = [
-                (ref[subset] == read, predicted[read])
-                for read in (True, False)
-                if (ref[subset] == read).any()
-            ]
-            disagreements = [
-                (observed[:, side] != ref[subset][side]).sum(1) for side, _ in sides
-            ]
+            sides = [ref[subset] == read for read in (True, False)]
+            sides = [side for side in sides if side.any()]
+            counts = [(observed[:, side] != ref[subset][side]).sum(1) for side in sides]
+            sizes = [int(side.sum()) for side in sides]
+            rates = _low_cluster_rates(counts, sizes, alpha)
             too_far = np.zeros(len(alive), dtype=bool)
-            for count, (side, rate) in zip(disagreements, sides):
-                n = int(side.sum())
-                same_family_rate = min(rate, _low_cluster_rate(count, n, alpha))
+            for count, n, rate in zip(counts, sizes, rates):
                 too_far |= [
-                    binomial_side_of_boundary(
-                        int(c), n, same_family_rate, failure_prob=alpha
-                    )
+                    binomial_side_of_boundary(int(c), n, rate, failure_prob=alpha)
                     is True
                     for c in count
                 ]
             alive = [row for row, far in zip(alive, too_far) if not far]
         return alive
 
-    def _refutes(self, kept: int, drawn: int, *, screenings: int, looks: int) -> bool:
-        """Whether k = kept survivors of d = drawn distinct draws, each screened
-        s = screenings times, are significantly too few at one of L = looks looks:
-
-            P(Binomial(d, f (1 - s a / 2)) <= k) < a / L,
-
-        a = screening_alpha and f = min_suffix_frequency, the least share of the
-        sampler's draws that preserve every class, each of which a screening
-        right about the noise drops with probability at most a / 2."""
-        rate = self.config.min_suffix_frequency * (
-            1 - screenings * self.config.screening_alpha / 2
-        )
-        return (
-            scipy.stats.binom.cdf(kept, drawn, rate)
-            < self.config.screening_alpha / looks
-        )
-
-    def calibrate(self, reference: int) -> int:
-        """Removes from suffix_pool the rows other than reference that the
-        prediction screens out, and sets calibrated, if
-
-            _refutes(0, suffixes_drawn, screenings=2, looks=1)
-            and not _refutes(kept, suffixes_drawn, screenings=2, looks=1)
-
-        for kept of them surviving the prediction; returns how many were
-        removed."""
-        if self.calibrated:
-            return 0
-        if not self._refutes(0, self.suffixes_drawn, screenings=2, looks=1):
-            # Too few draws to refute even a prediction that keeps nothing.
-            return 0
-        admitted = [row for row in self.suffix_pool if row != reference]
-        if not admitted:
-            return 0
-        kept = set(self._screen_cohort(admitted, reference, predict=True))
-        if self._refutes(len(kept), self.suffixes_drawn, screenings=2, looks=1):
-            return 0
-        self.calibrated = True
-        dropped = set(admitted) - kept
-        self.suffix_pool = [row for row in self.suffix_pool if row not in dropped]
-        return len(dropped)
-
     def _draw_cohort(self, size: int) -> List[int]:
-        """size unseen suffixes, interned but not yet observed, and counted in
-        suffixes_drawn."""
+        """``size`` unseen suffixes, interned but not yet observed."""
         rows = []
         while len(rows) < size:
             v = self.sampler.sample(rng=self.rng, alphabet_size=self.alphabet_size)
             if self.table.contains_suffix(v):
                 continue
             rows.append(self.table.intern_suffix(v))
-        self.suffixes_drawn += len(rows)
         return rows
 
     def compute_fnr(self, vs):
@@ -434,45 +301,28 @@ class PrefixSuffixTracker:
         if new_prefixes:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
-    def sample_more_suffixes(self, *, amount: int, reference: int):
-        """Grow suffix_pool by amount suffixes that survive screening
-        against reference, returning (kept, drawn).
+    def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
+        """Grow the pool of clustering candidates by ``amount`` suffixes that
+        survive screening against ``reference``, returning ``(kept, drawn)``.
 
         A cohort is screened whole, so the last one can carry ``kept`` past
         ``amount``."""
+        kept = 0
+        drawn = 0
+        max_draws = int(np.ceil(amount / self.config.min_suffix_frequency))
         with counter(amount, "Completing suffix family") as pbar:
-            draws = _Draws(self, amount, pbar)
-            withheld = (
-                self._screen_predicted(draws, reference) if self.calibrated else []
-            )
-            if withheld is not None:
-                self._screen_floor(draws, reference, withheld)
-        return draws.kept, draws.drawn
-
-    def _screen_predicted(self, draws, reference) -> Optional[List[int]]:
-        """Screens cohorts with the prediction until draws is done, or until
-        what it has kept _refutes it, at one of the call's cohorts as looks;
-        then, the rows it dropped, else None."""
-        dropped = []
-        while draws.wanting():
-            cohort = draws.draw()
-            survivors = self._screen_cohort(cohort, reference, predict=True)
-            kept = set(survivors)
-            dropped += [row for row in cohort if row not in kept]
-            draws.keep(survivors)
-            if self._refutes(draws.kept, draws.drawn, screenings=1, looks=draws.looks):
-                return dropped
-        return None
-
-    def _screen_floor(self, draws, reference, withheld) -> None:
-        """Screens withheld, in order, and then fresh cohorts, on the floor
-        alone, until draws is done."""
-        while draws.kept < draws.amount and withheld:
-            cohort = withheld[: draws.amount - draws.kept]
-            withheld = withheld[draws.amount - draws.kept :]
-            draws.keep(self._screen_cohort(cohort, reference, predict=False))
-        while draws.wanting():
-            draws.keep(self._screen_cohort(draws.draw(), reference, predict=False))
+            while kept < amount and drawn < max_draws:
+                cohort = self._draw_cohort(min(amount, max_draws - drawn))
+                drawn += len(cohort)
+                survivors = (
+                    cohort
+                    if reference is None
+                    else self._screen_cohort(cohort, reference)
+                )
+                self.suffix_pool.extend(survivors)
+                kept += len(survivors)
+                pbar.update(len(survivors))
+        return kept, drawn
 
     def compute_decision(self, vs, subset_prefixes) -> np.ndarray:
         """Mean over the suffix rows ``vs`` of the membership matrix, restricted
