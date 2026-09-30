@@ -525,8 +525,8 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
 
 
 def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
-    """``amount`` suffixes outside ``vs`` nearest its cluster, drawing screened ones
-    against ``v`` while the pool is short.
+    """``amount`` suffixes outside ``vs`` nearest the cluster of its first family's
+    worth, drawing screened ones against ``v`` while the pool is short.
 
     Only a suffix that reads every prefix as ``vs`` does leaves a vote's mean where
     ``vs`` put it, so these are what a read ``vs`` leaves in the band can go on to.
@@ -538,7 +538,8 @@ def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
     if not spare:
         return []
     representative = pst.table.representative
-    center = pst.compute_decision(vs, representative) > pst.decision_boundary
+    family = vs[:amount]
+    center = pst.compute_decision(family, representative) > pst.decision_boundary
     masks = pst.table.observed_masks(np.array(spare), representative)
     losses = ((masks != center) * _population_weights(pst, masks.shape[1])).sum(1)
     return np.array(spare)[losses.argsort(kind="stable")[:amount]].tolist()

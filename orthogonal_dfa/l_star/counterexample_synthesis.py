@@ -78,13 +78,6 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
-#: Families' worth of reserve a read left in the band is taken over.  A search
-#: needs every one of its dozens of reads decided, so a family that leaves each
-#: state undecided a tenth of the time blocks nearly every search; four families'
-#: votes bring a state whose mean sits just past a threshold down to a few in a
-#: thousand.
-RESERVE_FAMILIES = 3
-
 
 def _default_patience(acc_threshold: float) -> int:
     """Consecutive clean probes that end a counterexample pass: seeing this many
@@ -96,6 +89,19 @@ def _default_patience(acc_threshold: float) -> int:
     if acc_threshold >= 1:
         return COUNTEREXAMPLE_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
+
+
+def _reserve_source(pst, empty, vs):
+    """Hands out a family's worth of suffixes nearest ``vs``'s cluster per call,
+    none handed out twice."""
+    taken = list(vs)
+
+    def more():
+        chunk = family_reserve(pst, empty, taken, len(vs))
+        taken.extend(chunk)
+        return chunk
+
+    return more
 
 
 def _accumulate_indecisive(resolver, state, wanted) -> int:
@@ -275,8 +281,7 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        reserve = family_reserve(pst, empty, vs, RESERVE_FAMILIES * len(vs))
-        resolver = TransitionResolver(pst, vs, reserve)
+        resolver = TransitionResolver(pst, vs, _reserve_source(pst, empty, vs))
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience

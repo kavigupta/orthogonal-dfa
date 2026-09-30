@@ -6,19 +6,27 @@ mean lands decisively past a threshold. This owns that family: the suffix rows
 and the memo of the means computed from them.
 """
 
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
+
+#: Families' worth of further suffixes a read left in the band is taken over.  A
+#: search needs every one of its dozens of reads decided, so a family that leaves
+#: each state undecided a tenth of the time blocks nearly every search; four
+#: families' votes bring a state whose mean sits just past a threshold down to a
+#: few in a thousand.
+REREAD_FAMILIES = 3
 
 
 class SuffixFamily:
     """The round's suffixes ``vs`` (rows into ``pst.table``), and confident
     classification of a string against a midfix node through their mean."""
 
-    def __init__(self, pst, vs: List[int], reserve: List[int]):
+    def __init__(self, pst, vs: List[int], more_suffixes: Callable[[], List[int]]):
         self.pst = pst
         self.vs = list(vs)
-        # Read only where ``vs`` leaves a string in the band, one family's worth at
-        # a time.
-        self.reserve = list(reserve)
+        # Drawn only when a read left in the band needs it, a family's worth at a
+        # time; ``more_suffixes`` returns none once there are no more to draw.
+        self._more_suffixes = more_suffixes
+        self.reserve: List[int] = []
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
@@ -56,8 +64,7 @@ class SuffixFamily:
         base = seq + midfix
         if base not in self._means:
             return False
-        decided = self._side(self._means[base]) is not None
-        return decided or not self.reserve or base in self._rereads
+        return self._side(self._means[base]) is not None or base in self._rereads
 
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
@@ -69,7 +76,7 @@ class SuffixFamily:
         outside it more often, so this settles a string whose mean sits just past
         a threshold and leaves one whose mean is inside the band undecided."""
         side = self._side(self.mean(seq, midfix))
-        if side is not None or not self.reserve:
+        if side is not None:
             return side
         base = seq + midfix
         if base not in self._rereads:
@@ -79,8 +86,13 @@ class SuffixFamily:
     def _reread(self, base) -> Optional[bool]:
         table = self.pst.table
         bits = list(self.bits(base))
-        for start in range(0, len(self.reserve), len(self.vs)):
-            more = self.reserve[start : start + len(self.vs)]
+        size = len(self.vs)
+        for look in range(REREAD_FAMILIES):
+            if len(self.reserve) < (look + 1) * size:
+                self.reserve += self._more_suffixes()
+            more = self.reserve[look * size : (look + 1) * size]
+            if not more:
+                return None
             bits += list(
                 table.memo.membership_queries([base + table.suffix(v) for v in more])
             )

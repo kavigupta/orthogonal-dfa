@@ -23,7 +23,8 @@ def _family(accepting, vs, reserve):
     oracle = _ByLastSymbol(accepting)
     table = SimpleNamespace(memo=MemoizedOracle(oracle), suffix=lambda v: bytes([v]))
     pst = SimpleNamespace(accept_thresh=0.7, reject_thresh=0.3, table=table)
-    return SuffixFamily(pst, vs, reserve), oracle
+    chunks = [reserve[i : i + len(vs)] for i in range(0, len(reserve), len(vs))]
+    return SuffixFamily(pst, vs, lambda: chunks.pop(0) if chunks else []), oracle
 
 
 class TestReread(unittest.TestCase):
