@@ -30,8 +30,7 @@ from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.test_lstar import ARMED_ALPHABET, ARMED_LENGTH, build_armed_target
 
-#: Bands whose first family search the ranking on this branch completes: (0.6, 0.9)
-#: sits past a half on both sides, where the pooled ranking inverts.
+#: (0.6, 0.9) is left out: past a half on both sides the pooled ranking inverts.
 NOISE = [(0.2, 0.8), (0.35, 0.65), (0.35, 0.95), (0.05, 0.65)]
 #: Seed 4 at (0.35, 0.65) builds a pool whose search leaves most of its
 #: class-preserving suffixes out of the family.
@@ -73,7 +72,7 @@ def _true_mass(state):
 
 
 class _Mixture:
-    """Members of the union of the states in ``masses``, each drawn in proportion
+    """Members of the union of the states in masses, each drawn in proportion
     to its mass there, remembering which each one is."""
 
     def __init__(self, masses, rng):
@@ -164,8 +163,6 @@ class TestOppositeLabelsSplit(unittest.TestCase):
 @pytest.mark.slow
 class TestAllFramesClosedDoesNotSplit(unittest.TestCase):
     def test_every_true_state(self):
-        # The target at signal 0.2 is where a check against the boundary's band
-        # flagged a pure state: the band sits on a boundary the family re-estimates.
         vocab = KmerVocabulary(
             kmers=((3, 0, 2), (3, 2, 0), (3, 0, 0)), base_alphabet_size=4
         )

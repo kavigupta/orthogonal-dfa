@@ -26,8 +26,8 @@ _MAX_READ_VARIANCE = 0.25
 
 
 def tail_ladder(members, minority_share) -> List[int]:
-    """[ceil(w n) 2^k for k >= 0, while at most n / 2], w = ``minority_share``,
-    n = ``members``."""
+    """[ceil(w n) 2^k for k >= 0, while at most n / 2], w = minority_share,
+    n = members."""
     sizes = []
     size = max(1, math.ceil(minority_share * members))
     while size <= members // 2:
@@ -41,7 +41,7 @@ def fresh_suffixes(miss_rate, preserving_share) -> int:
 
         P(Binomial(m, preserving_share) <= 1) <= miss_rate,
 
-    ``preserving_share`` being the least class-preserving share of the sampler's
+    preserving_share being the least class-preserving share of the sampler's
     draws."""
     m = 2
     while scipy.stats.binom.cdf(1, m, preserving_share) > miss_rate:
@@ -50,7 +50,7 @@ def fresh_suffixes(miss_rate, preserving_share) -> int:
 
 
 def _label_signal(signal, minority_share) -> float:
-    """w (1 - w) (2 signal)^2 / v_max, w = ``minority_share``: the squared
+    """w (1 - w) (2 signal)^2 / v_max, w = minority_share: the squared
     correlation between a member's label and its own read, the labels reading at
     1/2 -+ signal."""
     spread = minority_share * (1 - minority_share)
@@ -58,9 +58,9 @@ def _label_signal(signal, minority_share) -> float:
 
 
 def first_look(signal, minority_share, level, miss_rate) -> int:
-    """ceil((z_level + z_miss)^2 / ``_label_signal``), the members per half at
-    which a test on each member's true label would reach power 1 - ``miss_rate``
-    at ``level``.  Sizing only, by the normal approximation; the test is exact."""
+    """ceil((z_level + z_miss)^2 / _label_signal), the members per half at
+    which a test on each member's true label would reach power 1 - miss_rate
+    at level.  Sizing only, by the normal approximation; the test is exact."""
     z = scipy.stats.norm.isf(level) + scipy.stats.norm.isf(miss_rate)
     return math.ceil(z**2 / _label_signal(signal, minority_share))
 
@@ -71,15 +71,15 @@ def most_looks(signal, minority_share, separating, candidates) -> int:
         q = m^2 (2 signal)^2 w (1 - w) / (M v_max + m^2 (2 signal)^2 w (1 - w))
 
     the squared correlation with a member's label of its count of ones over all
-    M = ``candidates``, of which m = ``separating`` separate."""
-    # Squared correlation of that count with a member's label.
+    M = candidates suffixes, of which m = separating separate."""
     carried = separating**2 * (2 * signal) ** 2 * minority_share * (1 - minority_share)
     quality = carried / (candidates * _MAX_READ_VARIANCE + carried)
     return math.ceil(math.log2(1 / quality)) + 1
 
 
 def _tail(scores, size, rng, top) -> np.ndarray:
-    """The ``size`` members ranked furthest to one end, ties broken at random."""
+    """A mask of the members ranked furthest to one end, as many as size, ties
+    broken at random."""
     order = np.lexsort((rng.random(len(scores)), -scores if top else scores))
     tail = np.zeros(len(scores), dtype=bool)
     tail[order[:size]] = True
@@ -87,7 +87,7 @@ def _tail(scores, size, rng, top) -> np.ndarray:
 
 
 def _label_pvalue(tail, empty, top) -> float:
-    """P(H >= h) if ``top`` else P(H <= h), H ~ Hypergeometric(n, sum(E), |T|),
+    """P(H >= h) if top else P(H <= h), H ~ Hypergeometric(n, sum(E), |T|),
     h = sum over the tail T of E: exact when T is independent of E."""
     dist = scipy.stats.hypergeom(len(tail), int(empty.sum()), int(tail.sum()))
     ones = int(empty[tail].sum())
@@ -98,11 +98,11 @@ def _label_pvalue(tail, empty, top) -> float:
 class StateSplit:
     """Two groups of a state's members, and what places another member in one."""
 
-    #: ``groups[side]`` for ``side`` in (False, True); True is the minority.
+    #: groups[side] for side in (False, True); True is the minority.
     groups: Tuple[List[bytes], List[bytes]]
     suffixes: List[bytes]
     #: A member's score is its reads weighed by these, and the minority's lie at
-    #: or above ``cut``.
+    #: or above cut.
     weights: np.ndarray
     cut: float
 
@@ -135,16 +135,16 @@ def _going_with(reads, empty) -> np.ndarray:
 
 def _pvalue(reads, inside) -> np.ndarray:
     """2 min(P(H_v <= h_v), P(H_v >= h_v)) per suffix v, H_v ~ Hypergeometric(n,
-    ones of v, |``inside``|) and h_v the ones of v inside."""
+    ones of v, |inside|) and h_v the ones of v inside."""
     dist = scipy.stats.hypergeom(len(inside), reads.sum(0), int(inside.sum()))
     hits = reads[inside].sum(0)
     return 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
 
 
 def _oriented(reads, inside, level, held_out=None):
-    """(indices K, orientations o) of the suffixes v with ``_pvalue`` <= ``level`` /
-    #suffixes against ``inside``; o_v = +1 where inside reads above its share.
-    ``held_out`` = (J, L) tests suffix J[j] against the labels L[:, j] instead."""
+    """(indices K, orientations o) of the suffixes v with _pvalue <= level /
+    #suffixes against inside; o_v = +1 where inside reads above its share.
+    held_out = (J, L) tests suffix J[j] against the labels L[:, j] instead."""
     pvalues = _pvalue(reads, inside)
     labels = np.repeat(inside[:, None], reads.shape[1], axis=1)
     if held_out is not None:
@@ -159,7 +159,7 @@ def _oriented(reads, inside, level, held_out=None):
 
 
 def _cut(share, rate_in, rate_out, size) -> float:
-    """The least k with w B(k; K, r_in) >= (1 - w) B(k; K, r_out), K = ``size``;
+    """The least k with w B(k; K, r_in) >= (1 - w) B(k; K, r_out), K = size;
     inf unless 0 < w < 1 and 0 < r_out < r_in < 1."""
     if not (0 < share < 1 and 0 < rate_out < rate_in < 1):
         return math.inf
@@ -175,8 +175,8 @@ def _mixture(adjusted, inside, size):
 
         w Binomial(K, r_in) + (1 - w) Binomial(K, r_out)
 
-    to the counts ``adjusted``, K = ``size``, reached by EM from the share and
-    rates of the labels ``inside`` and run until the labels ``_cut`` gives stop
+    to the counts adjusted, K = size, reached by EM from the share and
+    rates of the labels inside and run until the labels _cut gives stop
     changing."""
     share = inside.mean()
     rate_in = adjusted[inside].mean() / size
@@ -200,10 +200,10 @@ def _mixture(adjusted, inside, size):
 
 def _sharpened(reads, inside, left_out, level):
     """(K, o, k*) at the fixed point of labelling each member by whether its count
-    of reads agreeing with o over K is at least k* = ``_cut`` of ``_mixture``, K
-    and o by ``_oriented`` on the labels -- each suffix that set them against the
-    labels its own read is left out of, ``left_out`` for the first -- starting
-    from the labels ``inside``; None if a step keeps no suffix or no cut
+    of reads agreeing with o over K is at least k* = _cut of _mixture, K
+    and o by _oriented on the labels -- each suffix that set them against the
+    labels its own read is left out of, left_out for the first -- starting
+    from the labels inside; None if a step keeps no suffix or no cut
     separates."""
     kept, signs = _oriented(reads, inside, level, held_out=left_out)
     seen = set()
@@ -228,8 +228,8 @@ def _sharpened(reads, inside, left_out, level):
 
 
 def _tails_without(reads, picked, weights, tail):
-    """(J, L): L[:, j] the ``tail``'s size of members ranked highest by their
-    weighted reads over the suffixes J = ``picked`` bar J[j]."""
+    """(J, L): L[:, j] marks as many members as the tail holds, ranked highest by
+    their weighted reads over the suffixes J = picked other than J[j]."""
     scores = reads[:, picked] @ weights
     labels = np.zeros((len(tail), len(picked)), dtype=bool)
     for j, v in enumerate(picked):
@@ -241,11 +241,11 @@ def _tails_without(reads, picked, weights, tail):
 def split_members(
     picking, picked_reads, testing, suffixes, oracle, *, minority_share, level, rng
 ):
-    """(split, p*): p* = min over tail sizes t in ``tail_ladder`` and both ends
-    of T * ``_label_pvalue``, T the number of such tails, on the ``testing``
-    members' counts over the ``suffixes`` that ``_going_with`` picks on
-    ``picking``, whose reads of them are ``picked_reads``.  The split is at the
-    least t with T p <= ``level``, or ``None``."""
+    """(split, p*): p* = min over tail sizes t in tail_ladder and both ends
+    of T * _label_pvalue, T the number of such tails, on the testing
+    members' counts over the suffixes that _going_with picks on
+    picking, whose reads of them are picked_reads.  The split is at the
+    least t with T p <= level, or None."""
     members = picking + testing
     empty = np.asarray(oracle.membership_queries(members), dtype=np.int8)
     picks = np.arange(len(members)) < len(picking)
@@ -268,7 +268,7 @@ def split_members(
     scores = np.empty(len(members))
     scores[picks] = picked_reads[:, picked] @ weights
     scores[~picks] = held if top else -held
-    # The minority is the same share of every member.
+    # The tail's share of the testing half, taken of every member.
     inside = _tail(scores, math.ceil(size / len(testing) * len(members)), rng, True)
     cut = scores[inside].min()
     # The tail only has to hold more of the minority than chance to be detected;
@@ -306,9 +306,9 @@ def split_by_looks(
     draw, family, oracle, *, signal, minority_share, preserving_share, alpha, rng
 ):
     """The split from looks k = 0, 1, ..., L - 1, n_0 2^k members per half with
-    n_0 = ``first_look`` and L = ``most_looks``, the testing half fresh and the
+    n_0 = first_look and L = most_looks, the testing half fresh and the
     picking half every earlier look's topped up with fresh draws, each at level
-    ``alpha`` / L: the first look's split, or ``None`` once look k's p* exceeds
+    alpha / L: the first look's split, or None once look k's p* exceeds
     2^-(k+1).  p* is super-uniform under a pure state, so
 
         P(look k) <= 2^-k(k+1)/2,   E[members] <= n_0 sum_k 2^k 2^-k(k+1)/2 < 3 n_0."""
@@ -361,7 +361,7 @@ class _Aimed:
 
 
 class _Outside:
-    """Draws of ``draw`` that ``split`` places on its majority side."""
+    """The members from draw that split places on its majority side."""
 
     def __init__(self, draw, split, oracle):
         self._draw = draw
@@ -383,7 +383,7 @@ class _Outside:
 
 
 def _minority_bound(split, alpha) -> float:
-    """m_hi with P(Binomial(n, m_hi) <= k) = ``alpha``, for k of the split's n
+    """m_hi with P(Binomial(n, m_hi) <= k) = alpha, for k of the split's n
     members on its minority side."""
     minority = len(split.groups[True])
     members = minority + len(split.groups[False])
@@ -393,11 +393,11 @@ def _minority_bound(split, alpha) -> float:
 
 
 def state_split(pst, dfa, state, family, *, alpha):
-    """The splits S_1, S_2, ... that ``split_by_looks`` finds over prefixes aimed at
-    ``state`` and the suffixes ``family``, S_j on the members that S_1, ...,
+    """The splits S_1, S_2, ... that split_by_looks finds over prefixes aimed at
+    state and the suffixes family, S_j on the members that S_1, ...,
     S_(j-1) all place on their majority side, up to the first S_m with
 
-        share * sum_(j <= m) ``_minority_bound``(S_j) >= merged_minority_mass,
+        share * sum_(j <= m) _minority_bound(S_j) >= merged_minority_mass,
 
     share the state's mass; and the aim that drew the prefixes.  None if a split
     goes unfound first."""
@@ -437,8 +437,8 @@ def state_split(pst, dfa, state, family, *, alpha):
 
 
 def _placed(splits, prefixes, oracle) -> np.ndarray:
-    """For each prefix, the least j with S_j = ``splits[j]`` placing it on its
-    minority side, or len(``splits``) if none does."""
+    """For each prefix, the least j with S_j = splits[j] placing it on its
+    minority side, or len(splits) if none does."""
     part = np.full(len(prefixes), len(splits))
     pending = np.arange(len(prefixes))
     for j, split in enumerate(splits):
@@ -452,7 +452,7 @@ def _placed(splits, prefixes, oracle) -> np.ndarray:
 
 class SplitSource(RejectionSource):
     """Fresh members of one part of a chain of splits: aimed at the split state,
-    kept where ``_placed`` puts them in this part.
+    kept where _placed puts them in this part.
 
     Proven on the first split's members, which were drawn by the same aim and
     placed the same way, so their count in this part is the yield test.  Called

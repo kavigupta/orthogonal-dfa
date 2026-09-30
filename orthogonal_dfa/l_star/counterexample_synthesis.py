@@ -79,28 +79,20 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
-#: Rate at which a state holding one class is called mixed.  A false one costs a
-#: round; missing a real one costs the merge.
+#: Rate at which a state holding one class is called mixed.
 SPLIT_SCAN_ALPHA = 1e-3
 
 
 def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
     """The states holding a minority of the other label, each part of their
-    splits handed to the next round as a population of its own.
-
-    The counterexample pass proposes a distinguisher only where the tree and the
-    DFA disagree, so a state holding two classes the family votes the same way is
-    never weighed there.  Split into two populations, neither side can be read as
-    the other without the family failing it.
-    """
+    splits handed to the next round as a population of its own."""
     found = [
         (leaf, state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA))
         for leaf in sorted(dfa.states)
     ]
     found = [(leaf, split) for leaf, split in found if split is not None]
     if found:
-        # A round's split describes its own hypothesis, so it replaces the last
-        # one's rather than joining it, as a state's members do.
+        # Replaces the last round's split, as a state's members do.
         for label in [label for label in state.held if label[0] == "split"]:
             del state.held[label]
             del state.sources[label]
@@ -265,8 +257,7 @@ class BestRound:
     round_index: Optional[int] = None
 
     def consider(self, *, consistency, dfa, tree, boundary, round_index, merged):
-        # A merge is what consistency scores best on, so the score cannot be the whole
-        # ranking: a hypothesis the state check caught is behind every one it did not.
+        # A hypothesis the check caught ranks behind every one it did not.
         if (not merged, consistency) > (not self.merged, self.consistency):
             self.consistency = consistency
             self.merged = merged

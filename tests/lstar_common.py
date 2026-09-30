@@ -22,9 +22,9 @@ assertion_allowed_error = 0.05
 
 
 def endpoint_mass(target, length):
-    """Exact share of uniform length-``length`` strings ending in each state.
+    """Exact share of uniform strings of the given length ending in each state.
 
-    `count_paths_to_state` counts in whole strings under `uniform_weights`, so the
+    count_paths_to_state counts in whole strings under uniform_weights, so the
     shares divide out of exact integers.
     """
     weights = uniform_weights(target)
@@ -303,7 +303,7 @@ def cluster_pst(masks, min_signal_strength):
 
 
 def assert_not_merged(testcase, dfa, target, *, oracle_creator, symbols, sampler):
-    """Grade ``dfa`` and fail naming the state counts and the error split: a merged
+    """Grade dfa and fail naming the state counts and the error split: a merged
     rejecting state shows as false positives alone, which is what tells a merge from
     ordinary shortfall."""
     accuracy, false_positives, false_negatives = compute_dfa_accuracy(

@@ -510,23 +510,15 @@ class TestLStarIndistinguishablePair(unittest.TestCase):
         assertDFA(self, learned, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
-# -- a rejecting state folded into the accepting one --------------------------
-#
-# ``Q`` is non-final but reaches the absorbing accept state ``A`` on every symbol it does
-# not hold on, so all but a thin slice of suffixes carry it to an accepting endpoint and a
-# family built from the rest votes it accept.  The tree inherits that verdict and the
-# hypothesis is built from the tree, so the two AGREE on ``Q``: DFA/DT consistency clears
-# its target and synthesis stops with ``Q`` inside ``A``.
-#
-# The merge is expensive here where a merge of two REJECTING classes is not: ``Q`` rejects
-# and ``A`` accepts, so every string truly ending in ``Q`` is accepted by the hypothesis.
+# The armed target: a rejecting state Q that most suffixes carry to the accepting
+# sink A, so a family can vote Q into A while DFA/DT consistency stays at target.
 
 ARMED_ALPHABET = 12
-#: Symbols that arm the trap.  One: two of them let the round separate ``Q`` and the target
+#: Symbols that arm the trap.  One: two of them let the round separate Q and the target
 #: is learned exactly.
 ARMED_ARMS = 1
-#: Symbols ``Q`` holds on.  The rest reach ``A``, so this sets how many suffixes preserve
-#: ``Q``'s class -- `holds/alphabet` to the sampler's length, which has to clear the 2% the
+#: Symbols Q holds on.  The rest reach A, so this sets how many suffixes preserve
+#: Q's class -- holds/alphabet to the sampler's length, which has to clear the 2% the
 #: preconditions ask for without clearing it by much.
 ARMED_HOLDS = 10
 ARMED_LENGTH = 20
@@ -563,8 +555,8 @@ class TestArmedMergeTarget(unittest.TestCase):
             target, length=ARMED_LENGTH, short_circuit=False, sampler=sampler
         )
         self.assertTrue(report.satisfied, report.reasons)
-        # The merge is only reachable while the suffixes that preserve ``Q`` are scarce,
-        # and only costly while ``Q`` carries mass.  Either drifting leaves the test below
+        # The merge is only reachable while the suffixes that preserve Q are scarce,
+        # and only costly while Q carries mass.  Either drifting leaves the test below
         # passing without exercising anything.
         self.assertLess(report.class_preserving_fraction, 0.05)
         # Nothing about the sampler stops this being learned exactly, so the shortfall
@@ -587,8 +579,8 @@ class TestArmedMergeLearned(unittest.TestCase):
             seed=seed,
             sampler=sampler,
         )
-        # Graded at the length it was learned at: a hypothesis that merges ``Q`` still
-        # reads well on strings long enough that almost all of them reach ``A`` anyway.
+        # Graded at the length it was learned at: a hypothesis that merges Q still
+        # reads well on strings long enough that almost all of them reach A anyway.
         assert_not_merged(
             self,
             dfa,
@@ -599,14 +591,12 @@ class TestArmedMergeLearned(unittest.TestCase):
         )
 
 
-# -- the same merge with an escape route --------------------------------------
-
 TRAP_LENGTH = 40
 TRAP_SIGNAL = 0.2
 
 
 def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
-    """``arms`` symbols reach ``Q``; from ``Q``, ``disarm`` escapes and the symbols above
+    """arms symbols reach Q; from Q, disarm escapes and the symbols above
     it leak into the absorbing accept state."""
     arm = range(alphabet - arms, alphabet)
     transitions = {
@@ -628,7 +618,7 @@ def build_trap(alphabet: int, arms: int, disarm: int) -> DFA:
     )
 
 
-#: ``(alphabet, arms, disarm)``.
+#: (alphabet, arms, disarm).
 TRAPS = [(200, 4, 170), (200, 4, 180)]
 
 
@@ -647,9 +637,9 @@ class TestTrapTargets(unittest.TestCase):
 
 
 class TestTrapLearned(unittest.TestCase):
-    """``Q`` is rejecting and carries 7% of the endpoint mass, so a family that votes it
-    into accepting ``A`` costs that much accuracy at the distribution the DFA is graded
-    on -- unlike ``e1``, which merges into a rejecting state and costs only its own
+    """Q is rejecting and carries 7% of the endpoint mass, so a family that votes it
+    into accepting A costs that much accuracy at the distribution the DFA is graded
+    on -- unlike e1, which merges into a rejecting state and costs only its own
     routing."""
 
     @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
