@@ -13,7 +13,7 @@ from typing import Callable, Dict, List, Optional
 #: each state undecided a tenth of the time blocks nearly every search; four
 #: families' votes bring a state whose mean sits just past a threshold down to a
 #: few in a thousand.
-REREAD_FAMILIES = 1
+REREAD_FAMILIES = 3
 
 
 class SuffixFamily:
