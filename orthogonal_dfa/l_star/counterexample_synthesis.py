@@ -273,6 +273,8 @@ def counterexample_driven_synthesis(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
         )
         dfa, dt = resolver.to_dfa_and_tree()
+        # The next round's rates, read before this round's tree exists to read them.
+        pst.tree_depth = dt.depth
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
             f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
