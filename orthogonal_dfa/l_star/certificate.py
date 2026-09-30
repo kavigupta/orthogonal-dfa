@@ -1,13 +1,16 @@
-"""Whether a hypothesis carries the share of the promised signal it is held to.
+"""Whether a hypothesis's error against the noiseless target is certified.
 
 For a DFA h and the oracle's read O of a string x drawn by the sampler,
 
     A(h) = P(O = 1 | h(x) = 1) - P(O = 1 | h(x) = 0).
 
 Noise that depends only on the label makes A(h) = (p_1 - p_0) A_f(h), with A_f
-the same difference against the noiseless labels, so a promised signal s puts
-A(target) >= 2 s, and a state of mass m that h labels wrongly lowers A_f by m / q
-or m / (1 - q), q = P(h(x) = 1).
+the same difference against the noiseless labels f, and
+
+    P(h(x) != f(x)) <= max(q, 1 - q) (1 - A_f(h)),   q = P(h(x) = 1),
+
+so where p_1 - p_0 = 2 s, A(h) >= 2 s (1 - e / max(q, 1 - q)) holds h's error
+within e.
 
 The strings of each side are drawn as the state-reaching walks draw them, each
 position independently by the sampler's symbol weights.
@@ -71,19 +74,24 @@ def certifies(pst, dfa, *, alpha) -> bool:
     """Whether advantage_bounds, on m_k strings a side at look k drawn given
     dfa's label, at level look_level(alpha, k), put
 
-        A(dfa) >= 2 s c,   s = min_signal_strength, c = certified_signal_share,
+        A(dfa) >= 2 s - d,   d = 2 s e / max(q, 1 - q),
 
-    before they put it below or narrow to 2 s (1 - c) apart; m_k doubles from
-    first_look at look 0's level.  P(certifies and A(dfa) < 2 s c) <= alpha.
-    Raises TooMuchRead once more of the two sides was read before than that
-    slack, which no further draw can undo."""
-    sides = [_given_label(pst, dfa, True), _given_label(pst, dfa, False)]
-    if None in sides:
+    s = min_signal_strength, e = certified_error, q = P(dfa(x) = 1), before they
+    put it below or narrow to d apart; m_k doubles from first_look at look 0's
+    level.  P(certifies and A(dfa) < 2 s - d) <= alpha.  Raises TooMuchRead once
+    more of the two sides was read before than d, which no further draw can
+    undo."""
+    (draw_1, mass_1), (draw_0, mass_0) = (
+        _given_label(pst, dfa, True),
+        _given_label(pst, dfa, False),
+    )
+    if not mass_1 or not mass_0:
         return False
+    sides = [draw_1, draw_0]
     signal = pst.config.min_signal_strength
-    share = pst.config.certified_signal_share
-    target = 2 * signal * share
-    slack = 2 * signal * (1 - share)
+    accepted = mass_1 / (mass_1 + mass_0)
+    slack = 2 * signal * pst.config.certified_error / max(accepted, 1 - accepted)
+    target = 2 * signal - slack
     memo = pst.table.memo
     counts = np.zeros((2, 3), dtype=int)
     # Whether each string drawn was read before this certificate first drew it.
@@ -122,19 +130,21 @@ def certifies(pst, dfa, *, alpha) -> bool:
 
 
 def _given_label(pst, dfa, accepting):
-    """A draw from the sampler's strings given that dfa labels them accepting,
-    or None if the sampler puts no mass there."""
+    """(draw, mass): a draw from the sampler's strings given that dfa labels them
+    accepting, and the sampler's weight on those strings, up to the scale of
+    its symbol weights."""
     weights = pst.sampler.symbol_weights(pst.alphabet_size)
     length = pst.sampler.length
     states = sorted(q for q in dfa.states if (q in dfa.final_states) == accepting)
     paths = [count_paths_to_state(dfa, q, length, weights) for q in states]
     mass = np.array([float(p[length][dfa.initial_state]) for p in paths])
-    if not mass.sum():
-        return None
-    mass /= mass.sum()
+    total = float(mass.sum())
+    if not total:
+        return None, 0.0
+    mass /= total
 
     def draw():
         state = pst.rng.choice(len(states), p=mass)
         return sample_string_reaching_state(dfa, paths[state], pst.rng, weights)
 
-    return draw
+    return draw, total

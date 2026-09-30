@@ -60,15 +60,16 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
-    #: Share of 2 min_signal_strength the returned DFA's advantage over the oracle
-    #: is certified at; the rest is what its merges may cost.
-    certified_signal_share: float = 0.95
+    #: Error against the noiseless labels the returned DFA is certified within,
+    #: where min_signal_strength is the oracle's signal exactly.
+    certified_error: float = 0.05
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
         # one no suffix family could hold, and the search doubles N looking for it.
         assert self.min_signal_strength > MIN_SIGNAL_STRENGTH, self.min_signal_strength
-        assert 0 < self.certified_signal_share < 1, self.certified_signal_share
+        # Past a half, a DFA no better than chance would be certified.
+        assert 0 < self.certified_error < 1 / 2, self.certified_error
 
 
 def _draw_budget(count: int) -> int:
