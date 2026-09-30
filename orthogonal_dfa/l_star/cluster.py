@@ -327,6 +327,7 @@ class AcceptPreservingGate:
         self.refusals = 0
         self._state = state
         self._drawn = None
+        self._fnr_drawn = None
 
     def _certification_prefixes(self, pst, voters):
         """``label -> prefixes`` to certify a family over, drawn once for the
@@ -346,6 +347,31 @@ class AcceptPreservingGate:
             }
             self._drawn = {label: held for label, held in drawn.items() if held}
         return self._drawn
+
+    def _fnr_prefixes(self, pst, voters):
+        """``label -> prefixes`` to read the FNR over: the certification
+        prefixes, topped up to as many as the table holds of each population.
+
+        The top-up stays out of the veto sample, which is sized to catch a
+        family read backwards: a larger one would also veto the few prefixes a
+        good family miscuts."""
+        drawn = self._certification_prefixes(pst, voters)
+        if self._fnr_drawn is None:
+            budget = certification_budget(pst, voters)
+            held = {
+                label: int(mask.sum())
+                for label, mask in pst.table.population_masks().items()
+            }
+            self._fnr_drawn = {}
+            for label, prefixes in drawn.items():
+                wanted = min(max(1, held.get(label, 0)), budget) - len(prefixes)
+                more = (
+                    prefixes_for_split(pst, self._state, label, wanted)
+                    if wanted > 0
+                    else []
+                )
+                self._fnr_drawn[label] = prefixes + more
+        return self._fnr_drawn
 
     def _certify_further(self, pst, counts, voters):
         """``counts`` with a further read of the uniform pool added into it."""
@@ -377,9 +403,7 @@ class AcceptPreservingGate:
         table's own, the votes are fitted to those prefixes' noise and read as
         more decisive than they are."""
         voters = [u for u in vs if u != seed_row]
-        reads = certification_sample(
-            pst, voters, self._certification_prefixes(pst, voters)
-        )
+        reads = certification_sample(pst, voters, self._fnr_prefixes(pst, voters))
         return certified_fnr(pst, reads, len(voters), len(vs))
 
     def verdict(self, pst, seed_row, vs):

@@ -26,9 +26,11 @@ its far side at most `crossLimit` of the time.
 Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
 it and `SuffixFamily.is_accept` and the FNR read it.
 
-Known modelling gap.  The certification sample here is `npref` draws from each population; the
-Python draws `min(representative, certification_budget)` from the uniform pool and `veto_size`
-from the rest, and draws more of the uniform pool when the split reads uncertified.
+Known modelling gap.  The certification sample here is `npref` draws from each population, read
+by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
+from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
+split reads uncertified, and reads the FNR on each population topped up to its table count,
+capped by the same budget.
 -/
 
 namespace OrthoDFA
