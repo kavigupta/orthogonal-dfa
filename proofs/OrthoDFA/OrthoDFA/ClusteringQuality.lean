@@ -35,10 +35,10 @@ def ClusteringQualityGuarantee : Prop :=
     (η₀ bnd indecisionLimit εcov α δ pAP qmin crossLimit slack : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  O.ηOut + (1 / 2 - η₀) ≤ bnd →
-  O.ηIn + (1 / 2 - η₀) ≤ 1 - bnd →
-  1 / 2 - η₀ ≤ bnd →
-  bnd ≤ 1 / 2 + η₀ →
+  O.ηOut + 7 * (1 / 2 - η₀) / 8 ≤ bnd →
+  O.ηIn + 7 * (1 / 2 - η₀) / 8 ≤ 1 - bnd →
+  7 * (1 / 2 - η₀) / 8 ≤ bnd →
+  bnd ≤ 1 - 7 * (1 / 2 - η₀) / 8 →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →

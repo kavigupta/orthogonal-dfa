@@ -373,7 +373,6 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   classical
   simp only [ret_eq, familyAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
-  replace hbHi : bnd ≤ 1 - sig η₀ := by rw [sig]; linarith
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0

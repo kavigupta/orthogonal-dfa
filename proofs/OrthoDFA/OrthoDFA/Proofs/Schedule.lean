@@ -44,21 +44,25 @@ asked for; which divisors the proof chose to hold each of them at is the proof's
 noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
   min εcov (min (sig η) indecisionLimit)
 
+/-- The margin the vote is sized for: seven eighths of the signal, so a boundary estimated to
+within `sig η / 8` of the classes' midpoint still leaves each class this far off it. -/
+noncomputable def voteSig (η : ℝ) : ℝ := 7 * sig η / 8
+
 /-- What fraction of the family the vote absorbs flipping.  A flipping member's read moves toward
 the other class by up to a whole bit, so a flip fraction `f` costs the vote up to `f`, and what is
-left of the margin `s` either class keeps from the boundary is `voteSlack`:
+left of the margin either class keeps from the boundary is `voteSlack`:
 
-    flipFrac η + voteSlack η = sig η -/
-noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / 10
+    flipFrac η + voteSlack η = voteSig η -/
+noncomputable def flipFrac (η : ℝ) : ℝ := 7 * voteSig η / 10
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
-noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
+noncomputable def voteSlack (η : ℝ) : ℝ := 3 * voteSig η / 10
 
 /-- What fraction of the family validity lets flip.  A cut is wrong only where the vote lands
 beyond the band, not where it is undecided, so the flips may spend nearly all of the margin and
 leave the band's half-width, `voteSlack/2` of the family, to the deviation.  The tenth they leave
 pays for rounding the centre up to a count. -/
-noncomputable def validFrac (η : ℝ) : ℝ := 9 * sig η / 10
+noncomputable def validFrac (η : ℝ) : ℝ := 9 * voteSig η / 10
 
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
@@ -295,8 +299,8 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 the noise only costs prefixes.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; each class's clean read sits `sig η₀` on its side of the boundary `bnd`, which
-is itself `sig η₀` inside `[0, 1]`; there is a population to certify; the populations and the
+which has signal; each class's clean read sits `voteSig η₀` on its side of the boundary `bnd`, which
+is itself `voteSig η₀` inside `[0, 1]`; there is a population to certify; the populations and the
 suffix measure are supported on a `Flat` pair of sets; the populations' collision mass is at most
 `ρ` and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ`
 are in range; and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
@@ -312,10 +316,10 @@ def ClusteringCorrect : Prop :=
     (Pre Suf : Set S) (η₀ bnd indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  O.ηOut + sig η₀ ≤ bnd →
-  O.ηIn + sig η₀ ≤ 1 - bnd →
-  sig η₀ ≤ bnd →
-  bnd ≤ 1 - sig η₀ →
+  O.ηOut + voteSig η₀ ≤ bnd →
+  O.ηIn + voteSig η₀ ≤ 1 - bnd →
+  voteSig η₀ ≤ bnd →
+  bnd ≤ 1 - voteSig η₀ →
   uni ∈ populations →
   Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
