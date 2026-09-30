@@ -25,6 +25,10 @@ here the training half is a given subset of the family.
 Known modelling gap.  The hypothesis starts where the tree sifts `ε`, where `to_dfa_and_tree`
 classifies `ε` with `oracle_decider` at `decision_boundary`.
 
+Known modelling gap.  Once the rounds stall, `SuffixFamily` reads a string the family leaves
+undecided again over up to three families' worth of further suffixes from the same cluster, against
+the same thresholds; here every read is over the family alone.
+
 Known modelling gap.  The population holds the round's table prefixes and what the pass adds;
 the resolver's own boundary strings are not a population here, only `BoundarySource`'s.
 -/
