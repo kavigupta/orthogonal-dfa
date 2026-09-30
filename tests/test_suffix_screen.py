@@ -9,7 +9,8 @@ from automata.fa.dfa import DFA
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
-from orthogonal_dfa.l_star.learn import build_pst
+from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
+from orthogonal_dfa.l_star.learn import DEFAULT_SAMPLE_LENGTH, build_pst
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 
@@ -64,19 +65,20 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
             sampler=UniformSampler(LENGTH),
             noise_model=AsymmetricBernoulli(p_0=p_0, p_1=p_1),
         )
-        # The true boundary, so only the screen is under test.
-        pst.decision_boundary = (p_0 + p_1) / 2
-        pst.calibrated = True
         reference = pst.table.intern_suffix(b"")
         rng = np.random.default_rng(0)
-        kept = {}
-        for kind in ("hold", "escape", "arm"):
-            rows = [pst.table.intern_suffix(v) for v in _suffixes(rng, kind)]
-            kept[kind] = len(
-                pst._screen_cohort(  # pylint: disable=protected-access
-                    rows, reference, predict=True
-                )
+        rows = {
+            kind: [pst.table.intern_suffix(v) for v in _suffixes(rng, kind)]
+            for kind in ("hold", "escape", "arm")
+        }
+        kept_rows = set(
+            pst._screen_cohort(  # pylint: disable=protected-access
+                [r for of_kind in rows.values() for r in of_kind], reference
             )
+        )
+        kept = {
+            kind: sum(r in kept_rows for r in of_kind) for kind, of_kind in rows.items()
+        }
         # Dropping a class-preserving suffix is what the screen bounds.
         self.assertGreater(
             scipy.stats.binom.sf(
@@ -96,39 +98,33 @@ class TestScreenKeepsTheClassPreserving(unittest.TestCase):
             self.assertLess(p, LEVEL, f"kept by kind: {kept}")
 
 
-def _overstated():
-    # 0.45 against a band holding 0.3 predicts too little noise, as a boundary
-    # estimated far off does.
-    pst = build_pst(
-        lambda nm, s: NoisyOracle(DFAOracle(_target()), nm, s),
-        min_signal_strength=0.45,
-        seed=0,
-        sampler=UniformSampler(LENGTH),
-        noise_model=AsymmetricBernoulli(p_0=0.2, p_1=0.8),
-    )
-    reference = pst.table.intern_suffix(b"")
-    pst.table.column(reference)
-    return pst, reference
+class TestScreenDropsRotations(unittest.TestCase):
+    """Modulo 9 accepting {3, 6}: a suffix with 3 or 6 ones mod 9 rotates 0 -> 3 -> 6,
+    and a family of them merges the three.  The declared signal is 0.25 where the
+    band holds 0.35."""
 
-
-class TestScreenSurvivesAWrongPrediction(unittest.TestCase):
-    def test_dropped_rows_are_screened_again(self):
-        pst, reference = _overstated()
-        pst.calibrated = True
-        wanted = 20
-        first = len(pst.table._suffixes)  # pylint: disable=protected-access
-        kept, _ = pst.sample_more_suffixes(amount=wanted, reference=reference)
-        self.assertGreaterEqual(kept, wanted)
-        pool = set(pst.suffix_pool)
-        # The prediction keeps none of the first cohort.
-        self.assertTrue(any(row in pool for row in range(first, first + wanted)))
-
-    def test_calibrating_on_it_removes_nothing(self):
-        pst, reference = _overstated()
-        for draws in (0, 150):
-            while pst.suffixes_drawn <= draws:
-                pst.sample_more_suffixes(amount=20, reference=reference)
-            pool = list(pst.suffix_pool)
-            self.assertEqual(pst.calibrate(reference), 0)
-            self.assertFalse(pst.calibrated)
-            self.assertEqual(pst.suffix_pool, pool)
+    def test_rotations_are_dropped_more_often(self):
+        pst = build_pst(
+            lambda nm, s: NoisyOracle(
+                BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), nm, s
+            ),
+            min_signal_strength=0.25,
+            seed=0,
+            sampler=UniformSampler(DEFAULT_SAMPLE_LENGTH),
+            noise_model=AsymmetricBernoulli(p_0=0.25, p_1=0.95),
+        )
+        reference = pst.table.intern_suffix(b"")
+        # One cohort of the sampler's own draws, as the screen sees them.
+        rows = pst._draw_cohort(6 * PER_KIND)  # pylint: disable=protected-access
+        kept_rows = set(
+            pst._screen_cohort(rows, reference)  # pylint: disable=protected-access
+        )
+        table = []
+        for shifts in ((0,), (3, 6)):
+            of_kind = [r for r in rows if sum(pst.table.suffix(r)) % 9 in shifts]
+            kept = sum(r in kept_rows for r in of_kind)
+            table.append([kept, len(of_kind) - kept])
+        _, p = scipy.stats.fisher_exact(table, alternative="greater")
+        self.assertLess(
+            p, LEVEL, f"kept, dropped: preserving {table[0]}, rotating {table[1]}"
+        )
