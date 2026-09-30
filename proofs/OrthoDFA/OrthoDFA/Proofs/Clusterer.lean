@@ -58,7 +58,7 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
         voteCount mq (familyBy rule mq populations x B) p (oracleNoise x) ≤ B.lo)
     ∧ noDrift mq populations uni B.lo B.hi α (clusterBy rule mq populations x B) n v 0 x
     ∧ ∃ e : ℕ, certified mq B.lo B.hi α (clusterBy rule mq populations x B)
-        (gateOf uni n e x) (oracleNoise x)
+        (certOf uni (n + e) x) (oracleNoise x)
       ∧ noDrift mq populations uni B.lo B.hi α (clusterBy rule mq populations x B) n v e x}
 
 end OrthoDFA
