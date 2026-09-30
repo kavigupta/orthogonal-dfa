@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Adaptive
+import OrthoDFA.Proofs.Lloyd
 
 /-!
 # What the budget costs
@@ -733,9 +733,11 @@ open MeasureTheory ProbabilityTheory in
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O rule populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+  intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     hηle hη₀ hpop hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
   classical
+  simp only [ret_eq, clusterAt_eq]
+  generalize (lloydClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit, ?_, ?_⟩

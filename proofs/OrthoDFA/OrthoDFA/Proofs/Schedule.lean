@@ -1,4 +1,4 @@
-import OrthoDFA.Clustering
+import OrthoDFA.Proofs.Clusterer
 
 /-!
 # The schedule, and what it is solved from
@@ -334,15 +334,15 @@ def ClusteringCorrect : Prop :=
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ ret rule O.mq populations indecisionLimit α B.val) ∧
+        x ∈ retBy rule O.mq populations indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ ret rule O.mq populations indecisionLimit α B.val →
+        x ∈ retBy rule O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+              (clusterBy rule O.mq populations x B.val) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+              (clusterBy rule O.mq populations x B.val) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA

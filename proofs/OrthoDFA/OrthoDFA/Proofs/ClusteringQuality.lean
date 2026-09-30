@@ -185,9 +185,9 @@ does not hold falls below its mean under fresh noise. -/
 noncomputable def devAt (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J) (B : State) (Dj : Measure S)
     (F : Finset S) (Ev : Finset S → S → Ω → Prop) (x : Run Ω S J) : ℝ :=
   ∑ p ∈ F \ prefixesAt populations B.npref x,
-      Dj.real {p} * μ.real {ω | Ev (clusterAt rule O.mq populations x B) p ω}
+      Dj.real {p} * μ.real {ω | Ev (clusterBy rule O.mq populations x B) p ω}
     - ∑ p ∈ (F \ prefixesAt populations B.npref x).filter
-        (fun p => Ev (clusterAt rule O.mq populations x B) p (oracleNoise x)), Dj.real {p}
+        (fun p => Ev (clusterBy rule O.mq populations x B) p (oracleNoise x)), Dj.real {p}
 
 open scoped Classical in
 theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
@@ -245,7 +245,7 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
       exact hd j hj i
     have h := selected_dev_le hflat O P cands (F \ P) hP hV
       (fun p hp => hF p (Finset.mem_sdiff.1 hp).1) Finset.disjoint_sdiff
-      (fun ω => clusterAt rule O.mq populations ((ω, d) : Run Ω S J) B)
+      (fun ω => clusterBy rule O.mq populations ((ω, d) : Run Ω S J) B)
       (fun ω => clusterAt_subset O populations B _)
       (fun ω ω' h => clusterAt_congr O populations B d h) Ev hEv (fun p => Dj.real {p})
       (fun p => measureReal_nonneg) t ht
@@ -353,9 +353,11 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 /-! ## The theorem -/
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O rule populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit slack
+  intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit slack
     hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
   classical
+  simp only [ret_eq, clusterAt_eq]
+  generalize (lloydClusterer : Clusterer S) = rule
   set δ' : ℝ := δ / 2 with hδ'def
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -454,13 +456,13 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ ret rule O.mq populations indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ ret rule O.mq populations indecisionLimit α B.val →
+          x ∈ retBy rule O.mq populations indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+                (clusterBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-                (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+                (clusterBy rule O.mq populations x B.val) p (oracleNoise x)}
               ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
       1 - δ ≤ (runMeasure μ D Dsf).real T := by
     intro T hT
@@ -478,7 +480,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     have : x ∉ badC B.val j ∪ badU B.val j := fun h =>
       hxb (Set.mem_biUnion B.property (Set.mem_biUnion hj h))
     exact ⟨fun h => this (Or.inl h), fun h => this (Or.inr h)⟩
-  set G := clusterAt rule O.mq populations x B.val with hG
+  set G := clusterBy rule O.mq populations x B.val with hG
   set P := prefixesAt populations B.val.npref x with hP
   have hPmass : ∀ j ∈ populations, (D j).real ↑P ≤ slack / 4 := by
     intro j hj

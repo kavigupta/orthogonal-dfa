@@ -3,54 +3,13 @@ import OrthoDFA.Proofs.Adaptive
 /-!
 # Lloyd's clustering is a `Clusterer`
 
-Lloyd's iteration from `ε`, recentring at `cn/cd`, meets `Clusterer`'s conditions, so the claim
-is not about an empty class of rules.
+`clusterAround`, the clustering the claim is stated for, meets `Clusterer`'s conditions, so the
+proof, which is carried out for any `Clusterer`, covers it.
 -/
 
 namespace OrthoDFA
 
 variable {Ω : Type*} [MeasurableSpace Ω] {S : Type*} [Stringlike S]
-
-/-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
-noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
-    Finset S :=
-  if h : (cands.powersetCard k).Nonempty then
-    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
-  else ∅
-
-/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`. -/
-noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  ((P.filter (fun p =>
-    ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
-
-/-- `hammingLoss`, zeroed off the candidates: `leastLossSubset` picks by `Classical.choose`,
-so it sees the loss as a function, and two draws agreeing on the reads must give the same one. -/
-noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
-
-/-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them -- `identify_cluster_around` breaks out
-(`if seed_local not in nearest`).  The seed wins ties for the `k`-th place, as it does under the
-stable `argsort`. -/
-noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    (F : Finset S) : Finset S :=
-  if ∀ w ∈ cands, w ∉ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) →
-      ∀ v ∈ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)),
-      clusterLoss mq F cn cd P cands ω v ≤ clusterLoss mq F cn cd P cands ω w
-  then insert (1 : S)
-    (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
-
-/-- `identify_cluster_around` iterated to its fixed point, which `k·#P + 1` steps reach: the
-total loss is a natural number at most `k·#P` and falls at every improving step. -/
-noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
-    (k : ℕ) : Finset S :=
-  (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
-
 
 section leastLoss
 variable {S : Type*} [DecidableEq S] (ℓ : S → ℝ) (cands : Finset S) (k : ℕ)
@@ -383,6 +342,42 @@ noncomputable def lloydClusterer : Clusterer S :=
       rw [tableRead_eq_one, tableRead_eq_one]
       exact h p hp v hv }
 
-theorem clusterer_nonempty : Nonempty (Clusterer S) := ⟨lloydClusterer⟩
+open scoped Classical in
+lemma clusterAround_eq_tableRead (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
+    (k : ℕ) :
+    clusterAround mq cn cd P cands ω k
+      = letI : MeasurableSpace (S → Prop) := ⊤
+        clusterAround tableRead cn cd P cands (fun w => mq w ω = 1) k := by
+  have hloss : ∀ F, clusterLoss mq F cn cd P cands ω
+      = letI : MeasurableSpace (S → Prop) := ⊤
+        clusterLoss tableRead F cn cd P cands (fun w => mq w ω = 1) := by
+    intro F
+    funext v
+    simp only [clusterLoss, hammingLoss, voteCount, tableRead_eq_one]
+    congr
+  have hstep : lloydStep mq cn cd P cands ω k
+      = letI : MeasurableSpace (S → Prop) := ⊤
+        lloydStep tableRead cn cd P cands (fun w => mq w ω = 1) k := by
+    funext F
+    simp only [lloydStep, hloss]
+  unfold clusterAround
+  rw [hstep]
 
+lemma clusterAt_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) :
+    clusterAt mq populations x B = clusterBy lloydClusterer mq populations x B := by
+  rw [clusterAt, clusterBy, clusterAround_eq_tableRead]
+  rfl
+
+lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J)
+    (indecisionLimit α : ℝ) (B : State) :
+    ret (Ω := Ω) mq populations indecisionLimit α B
+      = retBy lloydClusterer mq populations indecisionLimit α B := by
+  have h : clusterAt (Ω := Ω) mq populations
+      = fun x B => clusterBy lloydClusterer mq populations x B := by
+    funext x B
+    exact clusterAt_eq mq populations x B
+  unfold ret
+  rw [h]
+  rfl
 end OrthoDFA
