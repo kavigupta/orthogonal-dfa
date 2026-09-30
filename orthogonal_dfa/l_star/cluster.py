@@ -543,14 +543,15 @@ def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
 
     farthest = losses(family).max()
     near: List[int] = []
+    before = None
     while True:
         spare = [s for s in pst.suffix_pool if s not in vs]
-        before = len(near)
         if spare:
             spare_losses = losses(spare)
             order = spare_losses.argsort(kind="stable")
             near = [spare[i] for i in order if spare_losses[i] <= farthest][:amount]
         # A draw that brought none nearer says the next would not either.
-        if len(near) >= amount or (before and len(near) == before):
+        if len(near) >= amount or len(near) == before:
             return near
+        before = len(near)
         pst.sample_more_suffixes(amount=amount - len(near), reference=v)
