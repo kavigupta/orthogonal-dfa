@@ -115,13 +115,17 @@ noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLi
 /-- What one family member may flip for the cut to hold `εcov`.  Only validity reads this: the
 screen's cutoff is solved at the far finer `flipBudget`, which termination needs, and a candidate
 flipping `validFlip` misses that cutoff by a wide margin, so validity pays for its screen tail at
-this scale rather than at the cutoff's. -/
-noncomputable def validFlip (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
-  εcov * validFrac η / (2 * (populations.card : ℝ))
+this scale rather than at the cutoff's.
 
-/-- A quarter of the separation `validFlip·(1 − 2η)²`. -/
+That tail binds, so the flips take eleven sixteenths of `εcov`; the certification sample's
+slacks, whose tails are cheap, share the rest. -/
+noncomputable def validFlip (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
+  11 * εcov * validFrac η / (16 * (populations.card : ℝ))
+
+/-- Seven sixteenths of the separation `validFlip·(1 − 2η)²`.  The cutoff sits at most an eighth
+of the way up it, so each of the two deviations may take half of the rest. -/
 noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
-  validFlip η populations εcov * sig η ^ 2
+  7 * validFlip η populations εcov * sig η ^ 2 / 4
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
@@ -179,8 +183,8 @@ noncomputable def validCount (η : ℝ) (populations : Finset J)
       / (2 * validMargin η populations εcov ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * (εcov * validFrac η / 16) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 16) ^ 2)⌉₊
+        / (2 * (εcov * validFrac η / 8) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 32) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
     + 1
 
@@ -225,13 +229,13 @@ each is the same event at every rung and is charged once. -/
 noncomputable def stateFail (η₀ : ℝ) (populations : Finset J) (indecisionLimit εcov ρ : ℝ)
     (B : State) : ℝ :=
   (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+    + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
       + (((B.npref : ℝ) ^ 2 * ρ
           + ((B.nsuff : ℝ) + 2) ^ 2
             * Real.exp (-2 * (B.npref : ℝ) * validMargin η₀ populations εcov ^ 2)
-          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * validFrac η₀ / 16) ^ 2))
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
-          + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 16) ^ 2)
+          + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
+        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
+          + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 32) ^ 2)
             + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2))))))
 
 /-- A state can be stopped at when its thresholds are in order and it has drawn enough
