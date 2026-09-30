@@ -322,7 +322,7 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
 of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
 of it undecided; no state draws more prefixes than the first count below, nor asks for a family
-or a suffix pool larger than the sizes below, for one constant `k` across every input.  Some
+or a suffix pool larger than the sizes below.  Some
 state draws no more than the second count, which is what validity alone costs, so a stop is
 covered from there; the first count is what the loop may need before a round passes.  Every
 state's band is wide enough that a vote over a family no larger than its own, whose mean lies
@@ -332,7 +332,6 @@ at most `crossLimit` of the time.
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
 def ClusteringGuarantee : Prop :=
-  ∃ k : ℝ,
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (Pre Suf : Set S)
@@ -365,7 +364,7 @@ def ClusteringGuarantee : Prop :=
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
         (∀ B ∈ states, (B.npref : ℝ) ≤
-          k
+          2048
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
@@ -374,18 +373,18 @@ def ClusteringGuarantee : Prop :=
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
-          k
+          32
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
           / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ k * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+          (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
             / (1 / 2 - η₀) ^ 2
-          ∧ (B.nsuff : ℝ) ≤ k * (Real.log
+          ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
                 (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
-            + Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)) ∧
+            + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
           (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
