@@ -6,8 +6,8 @@ super-string alone, which is what lets these assert equality rather than a rate.
 import unittest
 
 import numpy as np
+import pytest
 from automata.fa.dfa import DFA
-from parameterized import parameterized
 
 from orthogonal_dfa.l_star import preconditions
 from orthogonal_dfa.l_star.cluster import read_rates, smallest_readable_family
@@ -289,8 +289,15 @@ class TestLearnSuperlanguage(unittest.TestCase):
     base-alphabet one.
     """
 
-    @parameterized.expand([(signal,) for signal in (0.3, 0.2)])
-    def test_learns_all_frames_closed(self, signal):
+    def test_learns_all_frames_closed(self):
+        self._learns_all_frames_closed(0.3)
+
+    # A draw that takes a second round triples its time.
+    @pytest.mark.slow
+    def test_learns_all_frames_closed_at_low_signal(self):
+        self._learns_all_frames_closed(0.2)
+
+    def _learns_all_frames_closed(self, signal):
         vocab = KmerVocabulary(kmers=(TAG, TGA, TAA), base_alphabet_size=4)
         base = AllFramesClosedOracle()
         tracker = RecordingTracker()
