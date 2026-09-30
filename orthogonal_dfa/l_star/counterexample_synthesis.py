@@ -92,12 +92,11 @@ def _default_patience(acc_threshold: float) -> int:
 
 
 def _reserve_source(pst, empty, vs):
-    """Hands out a family's worth of suffixes nearest ``vs``'s cluster per call,
-    none handed out twice."""
+    """Each call, the next ``family_reserve`` of ``vs``."""
     taken = list(vs)
 
     def more():
-        chunk = family_reserve(pst, empty, taken, len(vs))
+        chunk = family_reserve(pst, empty, vs, taken)
         taken.extend(chunk)
         return chunk
 
@@ -274,9 +273,8 @@ def counterexample_driven_synthesis(
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     index = 0
-    # Off until the rounds stall, since drawing a reserve costs a family's worth of
-    # screened suffixes: a family leaving every state undecided a tenth of the
-    # time is legal, and blocks the searches of a large enough tree.
+    # Off until the rounds stall: a reserve costs families' worth of screened
+    # suffixes.
     rereading = False
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")

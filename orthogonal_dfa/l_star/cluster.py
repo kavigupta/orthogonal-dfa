@@ -15,7 +15,7 @@ from .statistics import (
 
 
 def _population_weights(pst, width) -> np.ndarray:
-    """Per representative prefix, so each population weighs the same in clustering."""
+    """Per representative prefix, so each population weighs the same."""
     weights = np.zeros(width)
     for population in pst.table.population_masks().values():
         weights[population] += 1 / population.sum()
@@ -524,23 +524,17 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             strategy = "suffix"
 
 
-#: Screened cohorts drawn for a reserve before settling for a short one.  Few of
-#: a cohort land as near the cluster as the family's farthest member, since the
-#: family is the nearest of the pool.
+#: Screened cohorts drawn before settling for a short reserve: few suffixes in a
+#: cohort fit the cluster as well as the family's worst member.
 RESERVE_DRAWS = 2
 
 
-def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
-    """Up to ``amount`` suffixes outside ``vs`` no farther from the cluster of its
-    first family's worth than that family's farthest member, drawing screened ones
-    against ``v`` while the pool is short of them.
-
-    Only a suffix that reads every prefix as the family does leaves a vote's mean
-    where the family put it.  The pool also holds the suffixes clustering passed
-    over, which read some states the other way, so nearness alone is not enough.
-    """
+def family_reserve(pst, v: int, family: List[int], taken: List[int]) -> List[int]:
+    """Up to ``len(family)`` pool suffixes outside ``taken`` whose clustering loss
+    against ``family`` is at most that of its worst member, screening more against
+    ``v`` while short."""
+    amount = len(family)
     representative = pst.table.representative
-    family = vs[:amount]
     center = pst.compute_decision(family, representative) > pst.decision_boundary
 
     def losses(rows):
@@ -550,7 +544,7 @@ def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
     farthest = losses(family).max()
     near: List[int] = []
     for draw in range(RESERVE_DRAWS + 1):
-        spare = [s for s in pst.suffix_pool if s not in vs]
+        spare = [s for s in pst.suffix_pool if s not in taken]
         if spare:
             spare_losses = losses(spare)
             order = spare_losses.argsort(kind="stable")

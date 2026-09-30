@@ -8,11 +8,7 @@ and the memo of the means computed from them.
 
 from typing import Callable, Dict, List, Optional
 
-#: Families' worth of further suffixes a read left in the band is taken over.  A
-#: search needs every one of its dozens of reads decided, so a family that leaves
-#: each state undecided a tenth of the time blocks nearly every search; four
-#: families' votes bring a state whose mean sits just past a threshold down to a
-#: few in a thousand.
+#: Families' worth of reserve a read left in the band is read again over.
 REREAD_FAMILIES = 3
 
 
@@ -23,8 +19,8 @@ class SuffixFamily:
     def __init__(self, pst, vs: List[int], more_suffixes: Callable[[], List[int]]):
         self.pst = pst
         self.vs = list(vs)
-        # Drawn only when a read left in the band needs it, a family's worth at a
-        # time; ``more_suffixes`` returns none once there are no more to draw.
+        # Drawn a family's worth at a time, only when a read needs it;
+        # ``more_suffixes`` returns [] once none are left.
         self._more_suffixes = more_suffixes
         self.reserve: List[int] = []
         # train/test halves for the split test
@@ -71,10 +67,8 @@ class SuffixFamily:
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
         ``None`` in the indecisive band between them.
 
-        A mean in the band is read again over more of the reserve, against the
-        same thresholds.  More votes only make a mean outside the band land
-        outside it more often, so this settles a string whose mean sits just past
-        a threshold and leaves one whose mean is inside the band undecided."""
+        A mean in the band is read again over the reserve, against the same
+        thresholds."""
         side = self._side(self.mean(seq, midfix))
         if side is not None:
             return side
