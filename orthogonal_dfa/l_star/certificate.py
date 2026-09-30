@@ -28,24 +28,23 @@ class TooMuchRead(Exception):
 
 
 def advantage_bounds(sides, level) -> Tuple[float, float]:
-    """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for sides[s] =
-    (n, k, o): of n strings drawn given h = s, k were read before the draw, and o
-    of the other n - k read 1.  With m_s = P(read before | h = s), u_s the rate
-    of O = 1 on the rest, and O unconstrained on what was read before,
+    """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for
 
-        (1 - m_1) u_1 - u_0 - m_0 (1 - u_0) <= A <= u_1 + m_1 (1 - u_1) - (1 - m_0) u_0,
+        A = P(O = 1 | h = 1) - P(O = 1 | h = 0)
 
-    each side of which is bounded by Clopper-Pearson bounds at level / 4 on the
-    four rates it holds, joined by a union bound."""
-    (drawn_1, read_1, ones_1), (drawn_0, read_0, ones_0) = sides
-    quarter = level / 4
-    _, read_high_1 = _clopper_pearson(read_1, drawn_1, quarter)
-    _, read_high_0 = _clopper_pearson(read_0, drawn_0, quarter)
-    low_1, high_1 = _clopper_pearson(ones_1, drawn_1 - read_1, quarter)
-    low_0, high_0 = _clopper_pearson(ones_0, drawn_0 - read_0, quarter)
-    lo = (1 - read_high_1) * low_1 - high_0 - read_high_0 * (1 - high_0)
-    hi = high_1 + read_high_1 * (1 - high_1) - (1 - read_high_0) * low_0
-    return lo, hi
+    and sides[s] the (drawn, read, ones) of _rate_bounds given h = s."""
+    low_1, high_1 = _rate_bounds(*sides[0], level / 4)
+    low_0, high_0 = _rate_bounds(*sides[1], level / 4)
+    return low_1 - high_0, high_1 - low_0
+
+
+def _rate_bounds(drawn, read, ones, level) -> Tuple[float, float]:
+    """(low, high) with P(r < low) <= 2 level and P(r > high) <= 2 level, for r
+    the rate of O = 1 over what the drawn strings are drawn from: read of them
+    were read before, and may read anything, and ones of the rest read 1."""
+    _, read_high = _clopper_pearson(read, drawn, level)
+    unread_low, unread_high = _clopper_pearson(ones, drawn - read, level)
+    return (1 - read_high) * unread_low, unread_high + read_high * (1 - unread_high)
 
 
 def _clopper_pearson(hits, drawn, level) -> Tuple[float, float]:
