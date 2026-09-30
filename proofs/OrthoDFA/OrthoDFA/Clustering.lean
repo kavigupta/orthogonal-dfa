@@ -17,7 +17,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
 family's vote there, clamped to `[s, 1 − s]` for `s = min_signal_strength`; here the boundary
 `bnd` is fixed before the round, and the claim holds for every `bnd` the two classes' clean reads
-sit at least `7(½ − η₀)/8` either side of.
+sit at least `7(½ − η₀)/8` either side of, so any boundary within `(½ − η₀)/8` of their midpoint.
+That the Python's estimate lands there is not modelled: it is read off the table the family was
+clustered on, so bounding it needs a union over every family the pool can form.
 
 Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
 stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
