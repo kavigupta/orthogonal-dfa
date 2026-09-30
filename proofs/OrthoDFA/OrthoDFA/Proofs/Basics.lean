@@ -1,59 +1,9 @@
 import OrthoDFA.Clustering
 
-/-! # Facts about the oracle, the greedy's argmin, and the retry loop -/
+/-! # Facts about the oracle and the retry loop -/
 
 namespace OrthoDFA
 
-section leastLoss
-variable {S : Type*} [DecidableEq S] (ℓ : S → ℝ) (cands : Finset S) (k : ℕ)
-
-lemma leastLossSubset_mem (hk : k ≤ cands.card) :
-    leastLossSubset ℓ cands k ∈ cands.powersetCard k := by
-  have h : (cands.powersetCard k).Nonempty := Finset.powersetCard_nonempty.mpr hk
-  rw [leastLossSubset, dif_pos h]
-  exact (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose_spec.1
-
-lemma leastLossSubset_subset (hk : k ≤ cands.card) : leastLossSubset ℓ cands k ⊆ cands :=
-  (Finset.mem_powersetCard.mp (leastLossSubset_mem ℓ cands k hk)).1
-
-lemma leastLossSubset_card (hk : k ≤ cands.card) : (leastLossSubset ℓ cands k).card = k :=
-  (Finset.mem_powersetCard.mp (leastLossSubset_mem ℓ cands k hk)).2
-
-/-- The defining property: every chosen element has loss ≤ every unchosen candidate.
-Proved from minimality of the argmin by the swap `v ↦ w`. -/
-lemma leastLossSubset_least (hk : k ≤ cands.card) :
-    ∀ v ∈ leastLossSubset ℓ cands k, ∀ w ∈ cands, w ∉ leastLossSubset ℓ cands k →
-      ℓ v ≤ ℓ w := by
-  intro v hv w hw hwnot
-  by_contra hlt
-  push_neg at hlt
-  have h : (cands.powersetCard k).Nonempty := Finset.powersetCard_nonempty.mpr hk
-  have hspec :=
-    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose_spec
-  have hTeq : leastLossSubset ℓ cands k
-      = (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose := by
-    rw [leastLossSubset, dif_pos h]
-  have hwnoterase : w ∉ (leastLossSubset ℓ cands k).erase v :=
-    fun hh => hwnot (Finset.mem_of_mem_erase hh)
-  set T' := insert w ((leastLossSubset ℓ cands k).erase v) with hT'
-  have hT'mem : T' ∈ cands.powersetCard k := by
-    rw [Finset.mem_powersetCard]
-    refine ⟨?_, ?_⟩
-    · rw [hT', Finset.insert_subset_iff]
-      exact ⟨hw, (Finset.erase_subset v _).trans (leastLossSubset_subset ℓ cands k hk)⟩
-    · have hkpos : 0 < k := by
-        have hp := Finset.card_pos.mpr ⟨v, hv⟩
-        rwa [leastLossSubset_card ℓ cands k hk] at hp
-      rw [hT', Finset.card_insert_of_notMem hwnoterase, Finset.card_erase_of_mem hv,
-        leastLossSubset_card ℓ cands k hk]
-      omega
-  have hmin := hspec.2 T' hT'mem
-  rw [← hTeq] at hmin
-  have hsum : ∑ x ∈ T', ℓ x = (∑ x ∈ leastLossSubset ℓ cands k, ℓ x) - ℓ v + ℓ w := by
-    rw [hT', Finset.sum_insert hwnoterase, Finset.sum_erase_eq_sub hv]; ring
-  rw [hsum] at hmin
-  linarith
-end leastLoss
 
 open MeasureTheory ProbabilityTheory
 

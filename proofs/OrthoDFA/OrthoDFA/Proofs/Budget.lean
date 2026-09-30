@@ -1,4 +1,4 @@
-import OrthoDFA.Proofs.Adaptive
+import OrthoDFA.Proofs.Lloyd
 
 /-!
 # What the budget costs
@@ -736,6 +736,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     hηle hη₀ hpop hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
   classical
+  simp only [ret_eq, clusterAt_eq]
+  generalize (lloydClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit, ?_, ?_⟩
@@ -814,7 +816,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     rw [mul_div_assoc, mul_div_assoc 128, mul_div_assoc 16]
     rw [mul_div_assoc 128, mul_div_assoc 16] at hpool
     constructor <;> linarith
-  exact clustering_correct O populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
+  exact clustering_correct O rule populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
     crossLimit 2048 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim
     hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf
 
