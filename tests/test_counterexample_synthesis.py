@@ -159,6 +159,20 @@ class TestWhenARoundGivesUp(unittest.TestCase):
 
         self.assertFalse(stall.stalled(states=3, improved=False, settled=done))
 
+    def test_a_restart_waits_out_its_patience_again(self):
+        stall = _StallDetector(STALL_PATIENCE)
+        done = lambda: True
+        for _ in range(STALL_PATIENCE):
+            stall.stalled(states=2, improved=False, settled=done)
+
+        stall.restart()
+
+        rounds = [
+            stall.stalled(states=2, improved=False, settled=done)
+            for _ in range(STALL_PATIENCE)
+        ]
+        self.assertEqual([False] * (STALL_PATIENCE - 1) + [True], rounds)
+
 
 if __name__ == "__main__":
     unittest.main()

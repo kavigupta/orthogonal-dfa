@@ -216,6 +216,9 @@ class _StallDetector:
         self._states = states
         return self._stalled >= self._patience
 
+    def restart(self) -> None:
+        self._stalled = 0
+
 
 #: Representative strings drawn per DFA state.  Every round draws this many
 #: afresh through the state's source and replaces the last round's, so the
@@ -271,6 +274,10 @@ def counterexample_driven_synthesis(
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     index = 0
+    # Off until the rounds stall, since drawing a reserve costs a family's worth of
+    # screened suffixes: a family leaving every state undecided a tenth of the
+    # time is legal, and blocks the searches of a large enough tree.
+    rereading = False
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
@@ -281,7 +288,9 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs, _reserve_source(pst, empty, vs))
+        resolver = TransitionResolver(
+            pst, vs, _reserve_source(pst, empty, vs) if rereading else lambda: []
+        )
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience
@@ -331,12 +340,20 @@ def counterexample_driven_synthesis(
                 _aimed_at(pst, resolver, dfa)
             ),
         ):
+            if rereading:
+                print(
+                    f"[round {index}] no progress ({dt.num_states} states) in "
+                    f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
+                    "stopping synthesis"
+                )
+                return best
             print(
                 f"[round {index}] no progress ({dt.num_states} states) in "
-                f"{STALL_PATIENCE} rounds -- pool churning without resolving; "
-                "stopping synthesis"
+                f"{STALL_PATIENCE} rounds; re-reading what the family leaves "
+                "undecided from now on"
             )
-            return best
+            rereading = True
+            stall.restart()
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         taken += _accumulate_indecisive(resolver, state, target - taken)
