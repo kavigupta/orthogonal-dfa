@@ -256,6 +256,20 @@ class TestLStarAsymmetric(unittest.TestCase):
         )
         assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
+    @parameterized.expand([(seed,) for seed in range(12)])
+    def test_modulo_skewed_understated(self, seed):
+        """The screen keeps suffixes that add 3 to the count at this band, and a
+        family mostly of them merges residue 0 into {3, 6}; the certificate
+        refuses that DFA and the split repairs it."""
+        oracle_creator = lambda noise_model, seed: NoisyOracle(
+            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
+        )
+        noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
+        dfa = learn_dfa(
+            oracle_creator, min_signal_strength=0.25, seed=seed, noise_model=noise_model
+        )
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
+
     def test_one_sided_noise(self):
         """One class is pure coin-flip (p_0=0.50), only the other carries signal."""
         oracle_creator = lambda noise_model, seed: NoisyOracle(

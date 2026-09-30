@@ -37,6 +37,9 @@ class MemoizedOracle(Oracle):
                 cache[key] = int(bit)
         return [cache[k] for k in keys]
 
+    def __contains__(self, string: bytes) -> bool:
+        return _key(string) in self._cache
+
     def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
 

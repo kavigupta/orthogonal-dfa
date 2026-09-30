@@ -365,45 +365,9 @@ class _Aimed:
         )
 
 
-class _Outside:
-    """The members from draw that split places on its majority side."""
-
-    def __init__(self, draw, split, oracle):
-        self._draw = draw
-        self._split = split
-        self._oracle = oracle
-
-    def __call__(self, count) -> List[bytes]:
-        kept = []
-        while len(kept) < count:
-            drawn = self._draw(count - len(kept))
-            sides = self._split.sides(drawn, self._oracle)
-            kept += [p for p, side in zip(drawn, sides) if not side]
-        return kept
-
-    def suffix(self) -> bytes:
-        return self._draw.suffix()
-
-
-def _minority_bound(split, alpha) -> float:
-    """m_hi with P(Binomial(n, m_hi) <= k) = alpha, for k of the split's n
-    members on its minority side."""
-    minority = len(split.groups[True])
-    members = minority + len(split.groups[False])
-    if minority == members:
-        return 1.0
-    return float(scipy.stats.beta.ppf(1 - alpha, minority + 1, members - minority))
-
-
 def state_split(pst, dfa, state, family, *, alpha):
-    """The splits S_1, S_2, ... that split_by_looks finds over prefixes aimed at
-    state and the suffixes family, S_j on the members that S_1, ...,
-    S_(j-1) all place on their majority side, up to the first S_m with
-
-        share * sum_(j <= m) _minority_bound(S_j) >= merged_minority_mass,
-
-    share the state's mass; and the aim that drew the prefixes.  None if a split
-    goes unfound first."""
+    """The split that split_by_looks finds over prefixes aimed at state and the
+    suffixes family, and the aim that drew the prefixes; None if it finds none."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -414,71 +378,37 @@ def state_split(pst, dfa, state, family, *, alpha):
     if minority_share >= 1:
         # The whole state is lighter than the least minority worth finding.
         return None
-    draw = _Aimed(pst, aim)
-    splits = []
-    mass = 0.0
-    # A minority of several classes is found a class at a time, so a light first
-    # one does not show the rest is light too.
-    while mass < pst.config.merged_minority_mass:
-        found = split_by_looks(
-            draw,
-            [pst.table.suffix(v) for v in family],
-            # Every look reads fresh members, which the memo would only accumulate.
-            pst.oracle,
-            signal=pst.config.min_signal_strength,
-            minority_share=minority_share,
-            preserving_share=pst.config.min_suffix_frequency,
-            alpha=alpha,
-            rng=pst.rng,
-        )
-        if found is None:
-            return None
-        splits.append(found)
-        mass += share * _minority_bound(found, alpha)
-        draw = _Outside(draw, found, pst.oracle)
-    return splits, aim
-
-
-def _placed(splits, prefixes, oracle) -> np.ndarray:
-    """For each prefix, the least j with S_j = splits[j] placing it on its
-    minority side, or len(splits) if none does."""
-    part = np.full(len(prefixes), len(splits))
-    pending = np.arange(len(prefixes))
-    for j, split in enumerate(splits):
-        if not pending.size:
-            break
-        inside = split.sides([prefixes[i] for i in pending], oracle)
-        part[pending[inside]] = j
-        pending = pending[~inside]
-    return part
-
-
-def part_sizes(splits, oracle) -> Tuple[np.ndarray, int]:
-    """(members of the first split in each part, members of the first split)."""
-    first = splits[0]
-    drawn = first.groups[True] + first.groups[False]
-    return np.bincount(_placed(splits, drawn, oracle), minlength=len(splits) + 1), len(
-        drawn
+    found = split_by_looks(
+        _Aimed(pst, aim),
+        [pst.table.suffix(v) for v in family],
+        # Every look reads fresh members, which the memo would only accumulate.
+        pst.oracle,
+        signal=pst.config.min_signal_strength,
+        minority_share=minority_share,
+        preserving_share=pst.config.min_suffix_frequency,
+        alpha=alpha,
+        rng=pst.rng,
     )
+    return None if found is None else (found, aim)
 
 
 class SplitSource(RejectionSource):
-    """Fresh members of one part of a chain of splits: aimed at the split state,
-    kept where _placed puts them in this part.
+    """Fresh members of one side of a split: aimed at the split state, kept where
+    the split places them on that side.
 
-    Proven on the first split's members, which were drawn by the same aim and
-    placed the same way, so on_part of drawn is the yield test.  Called dry below
-    the rate that count puts a floor under.
+    Proven on the split's members, which were drawn by the same aim and placed
+    the same way, so on_side of drawn is the yield test.  Called dry below the
+    rate that count puts a floor under.
     """
 
-    def __init__(self, splits, part, aim, oracle, *, on_part, drawn):
+    def __init__(self, split, side, aim, oracle, *, on_side, drawn):
         super().__init__()
-        assert on_part > 0, "a part nothing lands in has no members to draw"
-        self._splits = splits
-        self._part = part
+        assert on_side > 0, "a side nothing lands on has no members to draw"
+        self._split = split
+        self._side = side
         self._aim = aim
         self._oracle = oracle
-        self._poor = float(scipy.stats.beta.ppf(_MISREAD, on_part, drawn - on_part + 1))
+        self._poor = float(scipy.stats.beta.ppf(_MISREAD, on_side, drawn - on_side + 1))
         # Not seeded with the split's own members: their reads of the empty suffix
         # decided the split.
         self._proven = True
@@ -493,10 +423,10 @@ class SplitSource(RejectionSource):
 
     def attempt_draw(self) -> bool:
         prefix = self._aim()
-        if _placed(self._splits, [prefix], self._oracle)[0] != self._part:
+        if self._split.sides([prefix], self._oracle)[0] != self._side:
             return False
         self._pool.append(prefix)
         return True
 
     def source_repr(self) -> str:
-        return f"SplitSource(part {self._part} of {len(self._splits) + 1})"
+        return f"SplitSource({'minority' if self._side else 'majority'} side)"

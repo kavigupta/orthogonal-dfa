@@ -20,6 +20,7 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
+from .certificate import certifies, look_level
 from .cluster import NoAcceptPreservingFamily, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
@@ -27,7 +28,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
-from .state_split import SplitSource, part_sizes, state_split
+from .state_split import SplitSource, state_split
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -82,6 +83,9 @@ COUNTEREXAMPLE_PROBES = 4000
 #: Rate at which a state holding one class is called mixed.
 SPLIT_SCAN_ALPHA = 1e-3
 
+#: Chance of certifying a DFA whose advantage falls short, over every attempt.
+CERTIFICATE_ALPHA = 1e-3
+
 
 def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
     """The states holding a minority of the other label, each part of their
@@ -97,12 +101,14 @@ def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
             del state.held[label]
             del state.sources[label]
     merged = []
-    for leaf, (splits, aim) in found:
-        sizes, drawn = part_sizes(splits, pst.oracle)
-        for part in np.flatnonzero(sizes):
-            label = ("split", index, leaf, int(part))
+    for leaf, (split, aim) in found:
+        drawn = len(split.groups[False]) + len(split.groups[True])
+        for side, group in ((False, split.groups[False]), (True, split.groups[True])):
+            if not group:
+                continue
+            label = ("split", index, leaf, int(side))
             source = SplitSource(
-                splits, part, aim, pst.oracle, on_part=int(sizes[part]), drawn=drawn
+                split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
             )
             state.held[label] = sorted(source.draw() for _ in range(per_state))
             state.sources[label] = source
@@ -251,20 +257,22 @@ class BestRound:
     boundary comes with it because denoising reads the labels against it."""
 
     consistency: float = -1.0
-    #: Whether this hypothesis reached the target and the check found no state
-    #: holding a minority of the other label.
-    passed: bool = False
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
+    #: The denoised DFA the certificate passed, if one did.
+    certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, passed):
-        if (passed, consistency) > (self.passed, self.consistency):
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
+        if (certified is not None, consistency) > (
+            self.certified is not None,
+            self.consistency,
+        ):
             self.consistency = consistency
-            self.passed = passed
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
+            self.certified = certified
 
 
 def _family_unless_refused(pst, state, index, repairing_since):
@@ -279,20 +287,18 @@ def _family_unless_refused(pst, state, index, repairing_since):
         return None
 
 
-def _done_at_target(index, consistency, acc_threshold, merged):
-    """Whether a round at the target ends synthesis: when the check passes it."""
-    if not merged:
-        print(
-            f"[round {index}] reached the target DFA/DT consistency of "
-            f"{acc_threshold:.4f}; stopping synthesis"
-        )
-        return True
-    print(
-        f"[round {index}] consistency {consistency:.4f} is at target, but "
-        f"state(s) {merged} split; carrying on with each part as a "
-        f"population"
-    )
-    return False
+def _certified_or_split(pst, dfa, vs, state, *, index, per_state):
+    """The DFA synthesis would return if the certificate passes it; otherwise
+    None, with whatever the localiser finds split into the next round's
+    populations."""
+    output = denoise_accept_labels(pst, dfa)
+    # Spread over the rounds, whichever of them reach the certificate.
+    if certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index)):
+        print(f"[round {index}] certified; stopping synthesis")
+        return output
+    merged = split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
+    print(f"[round {index}] at target, not certified; split {merged}")
+    return None
 
 
 def _repair_exhausted(index, repairing_since) -> bool:
@@ -300,7 +306,7 @@ def _repair_exhausted(index, repairing_since) -> bool:
         return False
     print(
         f"[round {index}] no hypothesis the check passes in {STALL_PATIENCE} "
-        "rounds since the split; stopping synthesis"
+        "rounds since the certificate first failed; stopping synthesis"
     )
     return True
 
@@ -330,8 +336,8 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
-    # The round a state was first split, from which a repair has the stall's
-    # patience to return a hypothesis the check does not catch.
+    # The round the certificate first failed, from which a repair has the stall's
+    # patience to return a hypothesis it passes.
     repairing_since = None
     index = 0
     while True:
@@ -371,24 +377,23 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
-        # Only a round that would otherwise return is worth the check's reads.
-        merged = (
-            split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
-            if true_acc >= acc_threshold
-            else []
-        )
+        # Only a round that would otherwise return is worth the certificate's reads.
+        output = None
+        if true_acc >= acc_threshold:
+            output = _certified_or_split(
+                pst, dfa, vs, state, index=index, per_state=per_state
+            )
+            repairing_since = index if repairing_since is None else repairing_since
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
-            passed=true_acc >= acc_threshold and not merged,
+            certified=output,
         )
-        if true_acc >= acc_threshold:
-            if _done_at_target(index, true_acc, acc_threshold, merged):
-                return best
-            repairing_since = index if repairing_since is None else repairing_since
+        if output is not None:
+            return best
         if _repair_exhausted(index, repairing_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
@@ -434,6 +439,8 @@ def do_counterexample_driven_synthesis(
     if best.dfa is None:
         return None
     pst.decision_boundary = best.boundary
-    dfa = denoise_accept_labels(pst, best.dfa)
+    dfa = best.certified
+    if dfa is None:
+        dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa
