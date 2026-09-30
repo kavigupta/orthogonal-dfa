@@ -27,29 +27,25 @@ def _floor_rate(fewest: int, num_prefixes: int, failure_prob: float) -> float:
     )
 
 
+#: How much of a counterexample search may be lost to undecided reads.
+FNR_BUDGET = 0.75
+
+
 @dataclass
 class SearchConfig:
     suffix_size_counterexample_gen: int
     min_signal_strength: float
     num_addtl_prefixes: Optional[int] = None
-    #: A rate every prefix population has to meet on its own, not an average
-    #: across them.
-    fnr_limit: float = 0.10
-    #: The first two bound the split's crispness, and say nothing about whether the
-    #: split is the accept-preserving one.  `acceptable_fnr` is the chance a prefix
-    #: is called indecisive, all indecision counting against it; `cross_limit`
-    #: bounds the chance a prefix whose rate lies outside the band is decisively
-    #: called the other side.  A prefix inside the band has no such bound.
+    #: `cross_limit` bounds the chance a prefix whose rate lies outside the band is
+    #: decisively called the other side, and says nothing about whether the split
+    #: is the accept-preserving one.  A prefix inside the band has no such bound.
     #:
     #: `max_coverage_error` bounds instead how far the split may deviate from the
     #: true accept-preserving distinction: the share of the prefixes it decides that
     #: it decides against the denoised oracle.  The accept-preserving test holds
     #: that at `(1 - eps/signal)/2`, so asking for less asks for a wider band,
-    #: bought with a tighter `cross_limit` and paid for in indecision.  Keep
-    #: `acceptable_fnr` below `fnr_limit`, which holds the same indecision rate over
-    #: the pool, or a clean family fails its round.
+    #: bought with a tighter `cross_limit` and paid for in indecision.
     cross_limit: float = 1.5e-7
-    acceptable_fnr: float = 0.01
     max_coverage_error: float = 1 / 3
     split_pval: float = 0.001
     min_suffix_frequency: float = 0.02
@@ -114,6 +110,24 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
+    #: The deepest leaf of the last round's tree.
+    tree_depth: int = 1
+
+    @property
+    def fnr_limit(self) -> float:
+        """The undecided rate every prefix population has to meet on its own.
+
+        A counterexample search sifts about log2(2 * length) prefixes, each read at
+        every node down to its leaf, and is lost if any read is undecided, so the
+        rate a read may have shrinks with the reads a search makes.
+        """
+        return FNR_BUDGET / math.log2(2 * self.sampler.length) / self.tree_depth
+
+    @property
+    def acceptable_fnr(self) -> float:
+        """The undecided rate a family is sized to hold a class-preserving read to;
+        below `fnr_limit`, or a clean family fails its round."""
+        return self.fnr_limit / 2
 
     @property
     def num_prefixes(self) -> int:
