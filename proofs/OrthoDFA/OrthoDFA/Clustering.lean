@@ -32,10 +32,11 @@ from the uniform pool and `veto_size` from the rest, drawing more of the uniform
 split reads uncertified, and reads the FNR on each population topped up to its table count,
 capped by the same budget.
 
-Known modelling gap.  `drift_verdict` holds each side of the cut to its own threshold, lets any
-population veto and only the uniform pool admit; `admitted` pools the two sides against a coin
-flip, at every population.  The Python's FNR also reads 1 for a family that decides no prefix
-one of the two ways, which `ret` does not.
+Known modelling gap.  `drift_verdict` also lets any population veto a family, testing each side
+at `α/num_tests` on `veto_size` draws; `ret` has no veto.  That sample is sized by `α` and not by
+the failure probability, so a family the veto should pass is refused each round with a
+probability no budget drives down, and a claim that the loop returns except with probability `δ`
+does not hold of it.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
@@ -147,8 +148,6 @@ structure State where
   `fully_observed()`, so `identify_cluster_around` never clusters over it. -/
   sc : ℕ
   scd : ℕ
-  /-- The gate skips a sample smaller than this. -/
-  gmin : ℕ
 
 /-! ## The algorithm
 
@@ -268,44 +267,45 @@ def cutCorrect (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) (ω : Ω) 
 noncomputable def binomSfGe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
   ∑ i ∈ Finset.Icc j N, (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
 
-/-- The prefixes the cut accepts, and all the prefixes it decides. -/
-noncomputable def cutSides (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) :
-    Finset S × Finset S :=
-  (P.filter (fun p => hi < voteCount mq F p ω),
-    P.filter (fun p => hi < voteCount mq F p ω ∨ voteCount mq F p ω ≤ lo))
+/-- `P[Bin(N,p) ≤ j]` — `scipy.stats.binom.cdf(j, N, p)`. -/
+noncomputable def binomCdfLe (N : ℕ) (p : ℝ) (j : ℕ) : ℝ :=
+  ∑ i ∈ Finset.range (j + 1), (N.choose i : ℝ) * p ^ i * (1 - p) ^ (N - i)
 
-/-- The accept side's hits plus the reject side's misses. -/
-noncomputable def agreeOf (A Dset U : Finset S) : ℕ :=
-  (A ∩ U).card + ((Dset \ A) \ U).card
-
-/-- The gate's statistic, `(agreements, decided count)`: `p` agrees when the seed's column
-reads the way the cut calls it. -/
-noncomputable def agreeCount (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset S) (ω : Ω) : ℕ × ℕ :=
-  (agreeOf (cutSides mq lo hi F P ω).1 (cutSides mq lo hi F P ω).2
-      (P.filter (fun p => mq p ω = 1)),
-    (cutSides mq lo hi F P ω).2.card)
-
-/-- `drift_verdict`'s ADMITTED at error rate `α` (`ACCEPT_PRESERVING_ERROR_RATE`): the cut
-agrees with the seed's read significantly more often than a coin flip, skipped below `n₀`
-decided prefixes.  Unlike `drift_verdict`, which holds each side to the family's thresholds,
-the two sides are pooled. -/
-def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
-  n₀ ≤ (agreeCount mq lo hi F P ω).2 →
-    binomSfGe (agreeCount mq lo hi F P ω).2 (1 / 2) (agreeCount mq lo hi F P ω).1 ≤ α
+/-- `drift_verdict`'s `rejects_null` over the uniform pool at error rate `α`
+(`ACCEPT_PRESERVING_ERROR_RATE`): some side of the cut holds a prefix, and each side that does
+reads its own class, on the seed's column, significantly past the rate the cut splits at,
+`(hi + 1)/#F` above and `(lo + 1)/#F` below. -/
+def certified (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (ω : Ω) : Prop :=
+  ((P.filter (fun p => hi < voteCount mq F p ω)).Nonempty
+      ∨ (P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty)
+    ∧ ((P.filter (fun p => hi < voteCount mq F p ω)).Nonempty →
+      binomSfGe (P.filter (fun p => hi < voteCount mq F p ω)).card
+          (((hi : ℝ) + 1) / F.card)
+          (P.filter (fun p => hi < voteCount mq F p ω ∧ mq p ω = 1)).card ≤ α)
+    ∧ ((P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty →
+      binomCdfLe (P.filter (fun p => voteCount mq F p ω ≤ lo)).card
+          (((lo : ℝ) + 1) / F.card)
+          (P.filter (fun p => voteCount mq F p ω ≤ lo ∧ mq p ω = 1)).card ≤ α)
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-gate and the accept-preserving gate, each per population on `certOf`.  The FNR reads the family
-with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
-noncomputable def ret (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
+test per population on `certOf`, and the accept-preserving gate on the uniform pool `uni`,
+which may draw that pool further when the split reads uncertified.  The FNR reads the family
+with its seed, and reads 1 unless it decides some prefix each way; the gate reads the family
+without its seed, since the seed's read is the bit the gate scores. -/
+noncomputable def ret (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
           (familyAt rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
-        (clusterAt rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
+    ∧ (∃ j ∈ populations, ∃ p ∈ certOf j B.npref x,
+        B.hi + 1 < voteCount mq (familyAt rule mq populations x B) p (oracleNoise x))
+    ∧ (∃ j ∈ populations, ∃ p ∈ certOf j B.npref x,
+        voteCount mq (familyAt rule mq populations x B) p (oracleNoise x) ≤ B.lo)
+    ∧ ∃ e : ℕ, certified mq B.lo B.hi α (clusterAt rule mq populations x B)
+        (certOf uni (B.npref + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -337,17 +337,20 @@ above the band, lands at or below `lo`, or one whose mean lies at or below `lo` 
 at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
-of suffixes that preserve membership for every prefix, and `cap` bounds the collision mass. -/
+of suffixes that preserve membership for every prefix, `qmin` the mass of each class in the
+uniform population `uni`, the one the gate admits on, and `cap` bounds the collision mass. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
+    (η₀ indecisionLimit εcov α δ pAP qmin crossLimit : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  populations.Nonempty →
+  uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
+  0 < qmin →
+  qmin ≤ 1 / 2 →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →
@@ -365,6 +368,8 @@ def ClusteringGuarantee : Prop :=
       (∀ j ∈ populations, D j Preᶜ = 0) →
       Dsf Sufᶜ = 0 →
       pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      qmin ≤ (D uni).real O.L →
+      qmin ≤ (D uni).real O.Lᶜ →
       ∀ ρ : ℝ,
       (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
       ρ ≤ cap →
@@ -375,21 +380,22 @@ def ClusteringGuarantee : Prop :=
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
-            / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+            / (δ * α * pAP * min εcov (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit))
           )
-          / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+          / ((1 / 2 - η₀) ^ 6 * min εcov (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
           32
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
-          / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2)
+          / ((1 / 2 - η₀) ^ 6 * min εcov (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+          (B.k : ℝ) ≤ 64 * Real.log
+              (2 / (min εcov (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) * crossLimit))
             / (1 / 2 - η₀) ^ 2
           ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-                (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+                (2 / (min εcov (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -397,9 +403,9 @@ def ClusteringGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret rule O.mq populations indecisionLimit α B.val)
+                x ∈ ret rule O.mq populations uni indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret rule O.mq populations indecisionLimit α B.val →
+              x ∈ ret rule O.mq populations uni indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt rule O.mq populations x B.val) p (oracleNoise x)}

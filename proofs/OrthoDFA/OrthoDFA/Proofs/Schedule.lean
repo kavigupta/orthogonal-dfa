@@ -30,7 +30,7 @@ deriving instance DecidableEq for State
 
 instance : Countable State :=
   Function.Injective.countable
-    (f := fun b => (b.nsuff, b.npref, b.k, b.lo, b.hi, b.sc, b.scd, b.gmin))
+    (f := fun b => (b.nsuff, b.npref, b.k, b.lo, b.hi, b.sc, b.scd))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-- `s = 1/2 − η`. -/
@@ -212,7 +212,6 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations indecisionLimit εcov δ⌉₊
   scd := ⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
-  gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
@@ -313,18 +312,23 @@ may stop wherever on the ladder it likes. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (D : J → Measure S)
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  populations.Nonempty →
+  uni ∈ populations →
   Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
   Dsf Sufᶜ = 0 →
   (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
   0 < pAP →
   pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+  0 < qmin →
+  qmin ≤ (D uni).real O.L →
+  qmin ≤ (D uni).real O.Lᶜ →
+  -- the cut budget, read off `εcov`, is small against the uniform pool's rarer class
+  εcov ≤ sig η₀ * qmin / 2 →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →
@@ -343,10 +347,10 @@ def ClusteringCorrect : Prop :=
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ ret rule O.mq populations indecisionLimit α B.val) ∧
+        x ∈ ret rule O.mq populations uni indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ ret rule O.mq populations indecisionLimit α B.val →
+        x ∈ ret rule O.mq populations uni indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
