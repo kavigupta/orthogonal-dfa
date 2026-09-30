@@ -21,10 +21,9 @@ boundary the clustering recentres on is not a gap: `Clusterer` covers any.
 
 Known modelling gap.  The Python sizes the band around the boundary from its reads
 (`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
-its far side at most `crossLimit` of the time.
-
-Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
-it and `SuffixFamily.is_accept` and the FNR read it.
+its far side at most `crossLimit` of the time.  The returned family, seed included, is cut at `lo` and
+`hi + 1`, wider by the seed's one read than the gate's cut over the family without it, where the
+Python cuts both at one rate.
 
 Known modelling gap.  The certification sample here is `npref` draws from each population, read
 by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
@@ -226,6 +225,11 @@ noncomputable def clusterAt (rule : Clusterer S) (mq : S → Ω → ℝ) (popula
   (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixesAt populations B.npref x)
     (screenedAt mq populations B x) B.k).erase 1
 
+/-- The family the round returns, `vs`: the cluster with its seed. -/
+noncomputable def familyAt (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  insert 1 (clusterAt rule mq populations x B)
+
 /-! ### The cut -/
 
 /-- `p` is decided when the family's vote clears the accept or reject threshold; otherwise
@@ -273,13 +277,14 @@ def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-gate and the accept-preserving gate, each per population on `certOf`. -/
+gate and the accept-preserving gate, each per population on `certOf`.  The FNR reads the family
+with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
 noncomputable def ret (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo B.hi
-          (clusterAt rule mq populations x B) p (oracleNoise x))).card : ℝ)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
+          (familyAt rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
         (clusterAt rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
@@ -378,10 +383,10 @@ def ClusteringGuarantee : Prop :=
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret rule O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
-                ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                    (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
-                ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-                    (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                    (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
+                ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                    (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
 end OrthoDFA

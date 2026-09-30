@@ -68,9 +68,9 @@ def ClusteringQualityGuarantee : Prop :=
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret rule O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations,
-                ∫ p, miscutProb O B.val.lo B.val.hi (clusterAt rule O.mq populations x B.val) p
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt rule O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack
-                ∧ ∫ p, undecidedProb O B.val.lo B.val.hi (clusterAt rule O.mq populations x B.val) p
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt rule O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
 end OrthoDFA

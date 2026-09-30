@@ -82,6 +82,8 @@ the certification sample are independent given the family, so their count concen
 the budget.
 
 The second term makes the band, about `κ·voteSlack` wide, at least `√(κ·log(1/crossLimit)/2)`.
+The third pays for the seed: the family returned is one member larger than the band is centred
+for, which its vote pays for out of the slack, at `decSlack`.
 
 The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
 the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
@@ -89,7 +91,14 @@ the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round t
 noncomputable def famCount (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
   2 * (⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
-    + ⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ + 1)
+    + ⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ + ⌈1 / voteSlack η⌉₊ + 1)
+
+/-- How far the vote of the family returned, seed included, clears its cut at `lo` and `hi + 1`:
+the band's `voteSlack/2`, less the half read the extra member costs spread over all of them. -/
+noncomputable def decSlack (η : ℝ) (populations : Finset J)
+    (indecisionLimit εcov δ crossLimit : ℝ) : ℝ :=
+  voteSlack η / 2
+    - 1 / (2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1))
 
 /-- How many counts the band reaches either side of the centre count. -/
 noncomputable def bandHalf (η : ℝ) (populations : Finset J)
@@ -339,10 +348,10 @@ def ClusteringCorrect : Prop :=
         ρ},
         x ∈ ret rule O.mq populations indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
-          ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
-          ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-              (clusterAt rule O.mq populations x B.val) p (oracleNoise x)}
+          ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+              (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
+          ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+              (familyAt rule O.mq populations x B.val) p (oracleNoise x)}
             ≤ 2 * indecisionLimit}
 
 end OrthoDFA

@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.Adaptive
+import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
 # What the budget costs
@@ -185,11 +186,12 @@ theorem poolCount_ge (populations : Finset J) (η indecisionLimit εcov δ pAP c
   have hfam : 2 * (800 / 9 + 1) ≤ (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) := by
     have hval : (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
         = 2 * ((⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊ : ℝ)
-          + (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ) + 1) := by
+          + (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ) + (⌈1 / voteSlack η⌉₊ : ℝ) + 1) := by
       rw [famCount]; push_cast; ring
     rw [hval]
     linarith only [Nat.le_ceil (Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2),
-      ha, (Nat.cast_nonneg _ : (0 : ℝ) ≤ (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ))]
+      ha, (Nat.cast_nonneg _ : (0 : ℝ) ≤ (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ)),
+      (Nat.cast_nonneg _ : (0 : ℝ) ≤ (⌈1 / voteSlack η⌉₊ : ℝ))]
   have hpool : 2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1) / pAP
       ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
     rw [poolCount]
@@ -594,7 +596,7 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
       ≤ 64 * Real.log (2 / (budgetScale η indecisionLimit εcov * crossLimit)) / sig η ^ 2 := by
   have hfcval : (famCount η populations indecisionLimit εcov δ crossLimit : ℝ)
       = 2 * ((⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊ : ℝ)
-        + (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ) + 1) := by
+        + (⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ : ℝ) + (⌈1 / voteSlack η⌉₊ : ℝ) + 1) := by
     rw [famCount]
     push_cast
     ring
@@ -664,10 +666,24 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
     have e : 100 / 9 * (Z / s ^ 2) * (9 * s ^ 2 / 100) = Z := by
       field_simp
     rw [hvote, div_le_iff₀ (by positivity), e]
+  -- the seed's term: `1/voteSlack = 10/(3s) ≤ (5/3)/s²`, and `G ≥ 2·log 2 ≥ 4/3`
+  have hzS : 1 / voteSlack η ≤ 5 / 4 * (G / s ^ 2) := by
+    have e : 1 / voteSlack η = 10 / (3 * s) := by
+      simp only [voteSlack, ← hsdef]; field_simp
+    have hG43 : 4 / 3 ≤ G := by linarith [Real.log_two_gt_d9, hG4]
+    rw [e, div_le_iff₀ (by positivity : (0 : ℝ) < 3 * s)]
+    have : 5 / 4 * (G / s ^ 2) * (3 * s) = 15 / 4 * G / s := by field_simp; ring
+    rw [this, le_div_iff₀ hsig]
+    nlinarith [hG43, hs2, hsig]
   have hcA := ceil_le_of_le hzA (by positivity)
   have hcC := ceil_le_of_le hzC (by positivity)
+  have hcS := ceil_le_of_le hzS (by positivity)
+  have hGbig : 16 / 3 ≤ G / s ^ 2 := by
+    have hG43 : 4 / 3 ≤ G := by linarith [Real.log_two_gt_d9, hG4]
+    rw [le_div_iff₀ hs2pos]
+    nlinarith [hs2, hsig]
   rw [hfcval, hGZ, mul_div_assoc, ← hQdef]
-  linarith only [hcA, hcC, hsplit, hGs, hZs, hQ4]
+  linarith only [hcA, hcC, hcS, hsplit, hGs, hZs, hQ4, hGbig]
 
 omit [Fintype J] in
 /-- The suffix pool: the family over `pAP`, and the findability tail over `pAP²`. -/
