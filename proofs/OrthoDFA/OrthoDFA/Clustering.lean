@@ -29,7 +29,18 @@ Known modelling gap.  The Python sizes the band around the boundary from its rea
 its far side at most `crossLimit` of the time.
 
 Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
-it and `SuffixFamily.is_accept` reads it.
+it and `SuffixFamily.is_accept` and the FNR read it.
+
+Known modelling gap.  The certification sample here is `npref` draws from each population, read
+by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
+from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
+split reads uncertified, and reads the FNR on each population topped up to its table count,
+capped by the same budget.
+
+Known modelling gap.  `judge_family` first reads the FNR on the table, whose votes the family was
+clustered on, and refuses a family there without reading fresh prefixes; `ret` has no such
+pre-check.  It only refuses, so every family the Python returns is one `ret` accepts, but the
+loop may refuse a family `ret` would pass.
 -/
 
 namespace OrthoDFA
