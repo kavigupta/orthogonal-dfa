@@ -525,21 +525,32 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
 
 
 def family_reserve(pst, v: int, vs: List[int], amount: int) -> List[int]:
-    """``amount`` suffixes outside ``vs`` nearest the cluster of its first family's
-    worth, drawing screened ones against ``v`` while the pool is short.
+    """Up to ``amount`` suffixes outside ``vs`` no farther from the cluster of its
+    first family's worth than that family's farthest member, drawing screened ones
+    against ``v`` while the pool is short of them.
 
-    Only a suffix that reads every prefix as ``vs`` does leaves a vote's mean where
-    ``vs`` put it, so these are what a read ``vs`` leaves in the band can go on to.
+    Only a suffix that reads every prefix as the family does leaves a vote's mean
+    where the family put it.  The pool also holds the suffixes clustering passed
+    over, which read some states the other way, so nearness alone is not enough.
     """
-    spare = [s for s in pst.suffix_pool if s not in vs]
-    if len(spare) < amount:
-        pst.sample_more_suffixes(amount=amount - len(spare), reference=v)
-        spare = [s for s in pst.suffix_pool if s not in vs]
-    if not spare:
-        return []
     representative = pst.table.representative
     family = vs[:amount]
     center = pst.compute_decision(family, representative) > pst.decision_boundary
-    masks = pst.table.observed_masks(np.array(spare), representative)
-    losses = ((masks != center) * _population_weights(pst, masks.shape[1])).sum(1)
-    return np.array(spare)[losses.argsort(kind="stable")[:amount]].tolist()
+
+    def losses(rows):
+        masks = pst.table.observed_masks(np.array(rows), representative)
+        return ((masks != center) * _population_weights(pst, masks.shape[1])).sum(1)
+
+    farthest = losses(family).max()
+    near: List[int] = []
+    while True:
+        spare = [s for s in pst.suffix_pool if s not in vs]
+        before = len(near)
+        if spare:
+            spare_losses = losses(spare)
+            order = spare_losses.argsort(kind="stable")
+            near = [spare[i] for i in order if spare_losses[i] <= farthest][:amount]
+        # A draw that brought none nearer says the next would not either.
+        if len(near) >= amount or (before and len(near) == before):
+            return near
+        pst.sample_more_suffixes(amount=amount - len(near), reference=v)
