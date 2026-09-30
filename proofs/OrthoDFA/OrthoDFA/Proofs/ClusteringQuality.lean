@@ -388,7 +388,7 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     crossLimit 2048 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
     hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
-      hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
+      hind1 hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
     (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=

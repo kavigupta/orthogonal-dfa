@@ -151,21 +151,44 @@ private lemma rate_tail_le {c s B L ε : ℝ}
   have hc2L : (1 : ℝ) ≤ c ^ 2 * L := by nlinarith
   nlinarith [mul_le_mul_of_nonneg_right hc2L hε.le]
 
+/-- The cut budget is at least a tenth of the scale: the gate's term is at least
+`15·sig/128`, the others are the scale's own terms over at most 8. -/
+private lemma scale_le_cut {η indecisionLimit εcov : ℝ} (hsig : 0 < sig η) (hη : 0 ≤ η)
+    (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov)
+    (hεcov1 : εcov ≤ 1) :
+    budgetScale η indecisionLimit εcov ≤ 10 * cutBudget η indecisionLimit εcov := by
+  have hηlt : η < 1 / 2 := by rw [sig] at hsig; linarith only [hsig]
+  have hBε : budgetScale η indecisionLimit εcov ≤ εcov := min_le_left _ _
+  have hBs : budgetScale η indecisionLimit εcov ≤ sig η :=
+    le_trans (min_le_right _ _) (min_le_left _ _)
+  have hBi : budgetScale η indecisionLimit εcov ≤ indecisionLimit :=
+    le_trans (min_le_right _ _) (min_le_right _ _)
+  have hB0 : 0 < budgetScale η indecisionLimit εcov := lt_min hεcov (lt_min hsig hind)
+  have hab : (1 / 2 : ℝ) * (1 / 2) ≤ (1 - εcov / 2) * (1 - indecisionLimit) :=
+    mul_le_mul (by linarith only [hεcov1]) (by linarith only [hind1]) (by norm_num)
+      (by linarith only [hεcov1])
+  have h : budgetScale η indecisionLimit εcov / 10 ≤ cutBudget η indecisionLimit εcov := by
+    rw [cutBudget]
+    refine le_min (by linarith only [hBε, hB0]) (le_min ?_ (by linarith only [hBi, hB0]))
+    rw [le_div_iff₀ (by linarith only [hηlt] : (0 : ℝ) < 32 * (1 - η))]
+    linarith only [mul_le_mul_of_nonneg_left hab hsig.le,
+      mul_nonneg hB0.le hη, hBs, hsig]
+  linarith only [h]
+
 omit [Fintype J] in
 /-- The pool never holds fewer than 256 suffixes, which is what lets its size stand in for the
 constants inside the logs. -/
 theorem poolCount_ge (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
-    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
-    (hεcov1 : εcov ≤ 1) (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
+    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1) (hpAP : 0 < pAP)
+    (hpAP1 : pAP ≤ 1) :
     (256 : ℝ) ≤ (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) := by
   set s : ℝ := sig η with hsdef
   have hs2 : s ≤ 1 / 2 := by rw [hsdef, sig]; linarith only [hη]
   have hcut8 : cutBudget η indecisionLimit εcov ≤ 1 / 8 :=
     le_trans (min_le_left _ _) (by linarith only [hεcov1])
-  have hcutpos : 0 < cutBudget η indecisionLimit εcov := by
-    rw [cutBudget]
-    exact lt_min (by linarith only [hεcov]) (lt_min (by rw [← hsdef]; linarith only [hsig])
-      (by linarith only [hind]))
+  have hcutpos : 0 < cutBudget η indecisionLimit εcov :=
+    cutBudget_pos η (by rw [hsdef, sig] at hsig; linarith only [hsig]) hεcov hεcov1 hind hind1
   have hl2 := half_le_log_two
   have hlog : 2 ≤ Real.log (2 / cutBudget η indecisionLimit εcov) := by
     have h : Real.log 16 ≤ Real.log (2 / cutBudget η indecisionLimit εcov) :=
@@ -226,7 +249,8 @@ their bounds sum to under 2048. -/
 theorem prefCount_le_poly (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit : ℝ)
     (hsig : 0 < sig η) (hη : 0 ≤ η) (hpop : populations.Nonempty)
-    (hind : 0 < indecisionLimit) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
+    (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2)
+    (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (prefCount η populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
@@ -234,7 +258,7 @@ theorem prefCount_le_poly (populations : Finset J)
         * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
         / (sig η ^ 6 * budgetScale η indecisionLimit εcov ^ 3) := by
   have hM256 := poolCount_ge populations η indecisionLimit εcov δ pAP crossLimit hsig hη hind
-    hεcov hεcov1 hpAP hpAP1
+    hind1 hεcov hεcov1 hpAP hpAP1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   set c : ℝ := (populations.card : ℝ) with hcdef
   clear_value c
@@ -269,11 +293,8 @@ theorem prefCount_le_poly (populations : Finset J)
   set cut : ℝ := cutBudget η indecisionLimit εcov with hcutdef
   clear_value cut
   have hcutlb : B ≤ 10 * cut := by
-    have h : B / 10 ≤ cut := by
-      simp only [hcutdef, cutBudget, ← hsdef]
-      exact le_min (by linarith only [hBε, hBpos])
-        (le_min (by linarith only [hBs]) (by linarith only [hBind, hBpos]))
-    linarith only [h]
+    rw [hBdef, hcutdef]
+    exact scale_le_cut (by rw [← hsdef]; exact hsig) hη hind hind1 hεcov hεcov1
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- what the vote absorbs is at least seven tenths of the signal
   have hf : 7 * s ≤ 10 * flipFrac η := by
@@ -449,7 +470,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ)
         / (sig η ^ 6 * min εcov indecisionLimit ^ 2) := by
   have hM256 := poolCount_ge populations η indecisionLimit εcov δ pAP crossLimit hsig hη hind
-    hεcov hεcov1 hpAP hpAP1
+    hind1 hεcov hεcov1 hpAP hpAP1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   have hvm : validMargin η populations εcov
       = 77 * εcov * validFrac η * sig η ^ 2 / (64 * (populations.card : ℝ)) := by
@@ -588,7 +609,8 @@ omit [Fintype J] in
 /-- The family, seed included.  The cut budget is only `≥ B/10`, so its log carries a `log 10`,
 which `log (2/B) ≥ log 4` pays for; the band's term is the rest of `log (2/(B·crossLimit))`. -/
 theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ crossLimit : ℝ)
-    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
+    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1
       ≤ 64 * Real.log (2 / (budgetScale η indecisionLimit εcov * crossLimit)) / sig η ^ 2 := by
@@ -613,11 +635,8 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
   have hB2 : B ≤ 1 / 2 := le_trans hBs hs2
   set cut : ℝ := cutBudget η indecisionLimit εcov with hcutdef
   have hcutlb : B ≤ 10 * cut := by
-    have h : B / 10 ≤ cut := by
-      simp only [hcutdef, cutBudget, ← hsdef]
-      exact le_min (by linarith only [hBε, hBpos])
-        (le_min (by linarith only [hBs]) (by linarith only [hBind, hBpos]))
-    linarith only [h]
+    rw [hBdef, hcutdef]
+    exact scale_le_cut (by rw [← hsdef]; exact hsig) hη hind hind1 hεcov hεcov1
   have hcutpos : 0 < cut := by linarith only [hcutlb, hBpos]
   -- `G = log (2/B)` is at least `log 4`, and `1000 ≤ 4⁵` makes `log 10 ≤ (5/3)·log 4`
   set G : ℝ := Real.log (2 / B) with hGdef
@@ -672,7 +691,8 @@ theorem famCount_succ_le (populations : Finset J) (η indecisionLimit εcov δ c
 omit [Fintype J] in
 /-- The suffix pool: the family over `pAP`, and the findability tail over `pAP²`. -/
 theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP crossLimit : ℝ)
-    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit) (hεcov : 0 < εcov)
+    (hsig : 0 < sig η) (hη : 0 ≤ η) (hind : 0 < indecisionLimit)
+    (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov) (hεcov1 : εcov ≤ 1)
     (hpop : populations.Nonempty) (hδ : 0 < δ) (hδ1 : δ ≤ 1)
     (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1) :
     (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
@@ -682,8 +702,8 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   set c : ℝ := (populations.card : ℝ) with hcdef
   have hcpos : (0 : ℝ) < c := by linarith only [hc1]
-  have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hεcov
-    hζ hζ1
+  have hf := famCount_succ_le populations η indecisionLimit εcov δ crossLimit hsig hη hind hind1
+    hεcov hεcov1 hζ hζ1
   set P : ℝ := 64 * Real.log (2 / (budgetScale η indecisionLimit εcov * crossLimit))
     / sig η ^ 2 with hPdef
   have hPnn : 0 ≤ P := le_trans (by positivity) hf
@@ -746,7 +766,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
   have hpoly := prefCount_le_poly populations η₀ indecisionLimit εcov δ α pAP crossLimit
-    hsig hη0 hpop hindLim hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
+    hsig hη0 hpop hindLim hind1 hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1
   refine ⟨stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit ρ,
     ?_, ?_, ?_, fun B hB => cross_of_mem_schedule O hη0 hη₀ hζ
       (Finset.mem_of_mem_filter _ hB), ?_⟩
@@ -793,9 +813,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   · intro B hB
     obtain ⟨i, _, rfl⟩ := Finset.mem_image.1 (Finset.mem_of_mem_filter _ hB)
     have hk := famCount_succ_le populations η₀ indecisionLimit εcov δ crossLimit hsig hη0
-      hindLim hεcov hζ hζ1
+      hindLim hind1 hεcov hε1 hζ hζ1
     have hpool := poolCount_le populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0
-      hindLim hεcov hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
+      hindLim hind1 hεcov hε1 hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
     simp only [budgetScale, sig] at hk hpool
     rw [mul_div_assoc] at hk
     have hG : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))

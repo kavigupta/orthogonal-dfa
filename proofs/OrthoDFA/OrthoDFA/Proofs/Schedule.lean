@@ -63,16 +63,22 @@ the band's half-width, `voteSlack/2` of the family, to the deviation:
 noncomputable def validFrac (η : ℝ) : ℝ := sig η / (1 - η)
 
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
-right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
-read when the rates are lopsided, so the budget is held under `s` as well as `εcov`.
+right cut earns the gate `s·(1 − εcov/2)` over a coin flip per decided prefix once its
+threshold is paid, and a wrong one can cost it `1 − η` of a read.  At least
+`1 − indecisionLimit` of the sample is decided, less the one prefix the floor drops, so the
+budget is held under
 
-The three are held at their own divisors and not a common one: `εcov/8` keeps the vote's
-misfire rate and the screen's cutoff under what validity charges at, `s/10` is what the gate
-needs to clear a coin flip once the decided count is at least two fifths of the sample, and
-`indecisionLimit/2` is what the FNR gate tolerates.  None answers another's constraint, so the
-tightest divisor is not the safer choice for all three. -/
+    s · (1 − εcov/2) · (1 − indecisionLimit) / (2·(1 − η))
+
+with the `15/16` absorbing that prefix once sixteen are decided.
+
+The other two are held at their own divisors: `εcov/8` keeps the vote's misfire rate and the
+screen's cutoff under what validity charges at, and `indecisionLimit/2` is what the FNR gate
+tolerates.  None of the three answers another's constraint. -/
 noncomputable def cutBudget (η indecisionLimit εcov : ℝ) : ℝ :=
-  min (εcov / 8) (min (sig η / 10) (indecisionLimit / 2))
+  min (εcov / 8)
+    (min (15 * sig η * (1 - εcov / 2) * (1 - indecisionLimit) / (32 * (1 - η)))
+      (indecisionLimit / 2))
 
 /-- A family's vote fails at `exp (-κ·voteSlack²/2)`: a clean vote sits `s` from the centre,
 a flipping `flipFrac` of the family spends all but `voteSlack` of that, and the band's far edge
