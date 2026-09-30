@@ -542,18 +542,20 @@ lemma validFlip_pos (η₀ : ℝ) (populations : Finset J) {εcov : ℝ} (hsig :
   have := validFrac_pos η₀ hsig
   positivity
 
-/-- The screen's cutoff sits well under the flip validity charges it at. -/
+/-- The screen's cutoff sits under an eighth of the flip validity charges it at. -/
 lemma flipBudget_le_validFlip (η₀ : ℝ) (populations : Finset J) {εcov δ : ℝ}
     (hsig : η₀ < 1 / 2) (hε : 0 ≤ εcov) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
-    flipBudget η₀ populations indecisionLimit εcov δ ≤ validFlip η₀ populations εcov / 2 := by
-  rw [flipBudget, validFlip]
-  have hf := flipFrac_pos η₀ hsig
-  have hfv := flipFrac_le_validFrac η₀ hsig
+    flipBudget η₀ populations indecisionLimit εcov δ ≤ validFlip η₀ populations εcov / 8 := by
+  have hff : flipFrac η₀ = 7 * validFrac η₀ / 10 := by
+    have hne : (1 : ℝ) - η₀ ≠ 0 := by intro h; linarith
+    rw [flipFrac, validFrac]
+    field_simp
+  rw [flipBudget, validFlip, hff]
+  have hf := validFrac_pos η₀ hsig
   have hc := (cutBudget_le η₀ indecisionLimit εcov).1
   rw [div_div, div_le_div_iff₀ (by positivity) (by positivity)]
-  have hw : (0 : ℝ) ≤ flipFrac η₀ * (populations.card : ℝ) := by positivity
-  nlinarith [mul_le_mul_of_nonneg_right hc hw, mul_nonneg hε hw,
-    mul_le_mul_of_nonneg_left hfv (mul_nonneg hε hcard.le)]
+  have hw : (0 : ℝ) ≤ validFrac η₀ * (populations.card : ℝ) := by positivity
+  nlinarith [mul_le_mul_of_nonneg_right hc hw, mul_nonneg hε hw]
 
 lemma one_mem_poolAt (M : ℕ) (x : Run Ω S J) : (1 : S) ∈ poolAt M x :=
   Finset.mem_insert_self _ _
@@ -6223,10 +6225,10 @@ theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     (hsupp : ∀ j ∈ populations, D j Preᶜ = 0)
     (hsuppSf : Dsf Sufᶜ = 0) (j : J) (hj : j ∈ populations) (B : State)
     (hkpos : 0 < B.k)
-    (indecisionLimit εcov lcut f E Δp ρ th : ℝ) (hil : 0 ≤ indecisionLimit) (hε0 : 0 ≤ εcov)
+    (indecisionLimit εcov lcut f E Δp ρ th t : ℝ) (hil : 0 ≤ indecisionLimit) (hε0 : 0 ≤ εcov)
     (hE : 0 ≤ E) (hElcut : E ≤ lcut)
-    (hΔp : 0 ≤ Δp) (hth : 0 ≤ th) (hf0 : 0 < f)
-    (hbudget : Δp / f + th + lcut ≤ 3 * εcov / 4)
+    (hΔp : 0 ≤ Δp) (hth : 0 ≤ th) (ht : 0 ≤ t) (hf0 : 0 < f)
+    (hbudget : Δp / f + th + lcut ≤ εcov - t)
     (hρ : ∀ j' ∈ populations, collisionMass (D j') ≤ ρ) (hρ0 : 0 ≤ ρ)
     (hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
@@ -6243,7 +6245,7 @@ theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
                 ≤ 2 * indecisionLimit)}
           \ {x : Run Ω S J | ¬ ∀ v ∈ clusterAt O.mq populations x B, flipMass O (D j) v ≤ Δp})
       ≤ ((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+        + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
           + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
             + (Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
               + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))) := by
@@ -6252,7 +6254,7 @@ theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
     {x | ¬ Function.Injective (fun i : Fin B.npref => certPrefix j i.val x)} with hE1
   set E2 : Set (Run Ω S J) :=
     {x | ¬ Disjoint (prefixesAt populations B.npref x) (certOf j B.npref x)} with hE2
-  set E3 : Set (Run Ω S J) := hitShort O populations (D j) j B εcov (εcov / 4) with hE3
+  set E3 : Set (Run Ω S J) := hitShort O populations (D j) j B εcov t with hE3
   set E7 : Set (Run Ω S J) := heavyHits O populations (D j) j B f (Δp / f) th with hE7
   set E8 : Set (Run Ω S J) := validMiss O populations j B lcut f (B.k - 1) (B.k - 1) with hE8
   set E9 : Set (Run Ω S J) :=
@@ -6313,7 +6315,7 @@ theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
       linarith
     by_cases hshort : (((certOf j B.npref x).filter (fun p =>
           ¬ cutCorrect O B.lo B.hi (clusterAt O.mq populations x B) p (oracleNoise x))).card : ℝ)
-        ≤ (B.npref : ℝ) * (εcov - εcov / 4)
+        ≤ (B.npref : ℝ) * (εcov - t)
     · exact Or.inr (Or.inl ⟨h1, hpop, hshort⟩)
     push_neg at hshort
     -- the mass the family flips, by Markov over its members
@@ -6403,22 +6405,21 @@ theorem measureReal_validFail_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
           (E3 ∪ (E7 ∪ (E8 ∪ E9)))
         linarith
     _ ≤ ((B.npref : ℝ) ^ 2 * ρ + (populations.card : ℝ) * (B.npref : ℝ) ^ 2 * ρ)
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+        + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
           + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
             + (Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
               + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))) := by
         gcongr
         · exact cert_not_injective_le D Dsf j B.npref ρ (hρ j hj) hρ0
         · exact prefix_cert_disjoint_le D Dsf populations j B.npref ρ hρ (hρ j hj) hρ0
-        · exact measureReal_hitShort_le D Dsf O populations j B εcov (εcov / 4) hε0
-            (by positivity)
+        · exact measureReal_hitShort_le D Dsf O populations j B εcov t hε0 ht
         · exact measureReal_heavyHits_le D Dsf O populations j B f (Δp / f) th hth
         · exact measureReal_validMiss_le hflat O populations D Dsf hsupp hsuppSf j hj B lcut f E
             (B.k - 1) (B.k - 1) hE hElcut hcut
         · exact measureReal_undecidedShort_le D Dsf O populations j B (2 * indecisionLimit)
             indecisionLimit (by linarith) hil
     _ = ((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+        + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
           + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
             + (Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
               + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))) := by ring
@@ -6715,6 +6716,12 @@ theorem validity_of_ladder (O : Oracle μ S) (populations : Finset J)
       _ = 3 * δ / 8 := by field_simp; ring
   linarith [hmain, hG]
 
+lemma exp_tail_anti {m a b : ℝ} (hm : 0 ≤ m) (ha : 0 ≤ a) (hab : a ≤ b) :
+    Real.exp (-2 * m * b ^ 2) ≤ Real.exp (-2 * m * a ^ 2) := by
+  refine Real.exp_le_exp.2 ?_
+  have h := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ ha hab 2) hm
+  nlinarith
+
 /-! ### How `per_state_le` gets its bound
 
 Validity is read off how the family was built, not off the gate.  Where the noise rate
@@ -6725,7 +6732,7 @@ candidate that flips more than `validFlip` of the table, Markov over the family 
 into a bound on the mass where many members flip, and the vote is right elsewhere.
 
 `measureReal_validFail_le` carries that through the certification sample, which the family
-never saw: a cut wrong on `εcov` of the population is wrong on `3εcov/4` of the sample
+never saw: a cut wrong on `εcov` of the population is wrong on `15εcov/16` of the sample
 (`hitShort`), few of those can be prefixes the family flips (`heavyHits`), and few of the
 rest can be misread by a family that barely flips there (`validMiss`, Hoeffding). -/
 
@@ -6970,10 +6977,10 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
     (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ) (hρ0 : 0 ≤ ρ)
     (B : State) (hkpos : 0 < B.k) (hcd : B.cn < B.cd) (hmpos : 0 < B.npref)
     (hscd : 0 < B.scd) (hcount : (2 : ℝ) ≤ (B.nsuff : ℝ) * (pAP - pAP / 2))
-    (Δ γ g th f lcut E : ℝ) (hΔ : 0 < Δ) (hγ : 0 ≤ γ) (hg : 0 ≤ g) (hth : 0 ≤ th)
-    (hf0 : 0 < f) (hE : 0 ≤ E) (hE2 : E ≤ lcut / 2)
+    (Δ γ g th f lcut E t r : ℝ) (hΔ : 0 < Δ) (hγ : 0 ≤ γ) (hg : 0 ≤ g) (hth : 0 ≤ th)
+    (hf0 : 0 < f) (hE : 0 ≤ E) (ht : 0 ≤ t) (hr : 0 ≤ r) (hrE : r ≤ lcut - E)
     (hsc : (B.sc : ℝ) ≤ (B.scd : ℝ) * (Δ * (1 - 2 * O.η) ^ 2 - 2 * γ))
-    (hbudget : ((populations.card : ℝ) * Δ + g) / f + th + lcut ≤ 3 * εcov / 4)
+    (hbudget : ((populations.card : ℝ) * Δ + g) / f + th + lcut ≤ εcov - t)
     (hcut : ∀ (F : Finset S) (p : S), flipCount O F p ≤ (F.card : ℝ) * f →
       B.k - 1 ≤ F.card → F.card ≤ B.k - 1 →
       μ.real {ω | ¬ cutCorrect O B.lo B.hi F p ω} ≤ E) :
@@ -6982,12 +6989,12 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
           \ (apShort O B.nsuff pAP (pAP / 2)
             ∪ {x | ¬ Function.Injective (fun i : Fin B.nsuff => suffixDraw i.val x)}))
       ≤ (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+        + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
           + (((B.npref : ℝ) ^ 2 * ρ
               + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)
               + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * g ^ 2))
             + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
-              + (Real.exp (-2 * (B.npref : ℝ) * (lcut / 2) ^ 2)
+              + (Real.exp (-2 * (B.npref : ℝ) * r ^ 2)
                 + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))))) := by
   classical
   set Δp : ℝ := (populations.card : ℝ) * Δ + g with hΔp
@@ -7023,30 +7030,28 @@ theorem per_state_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ S)
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   have h2 : (runMeasure μ D Dsf).real (⋃ j ∈ populations, ((V j \ Dy j) ∪ (CR ∩ Dy j)))
       ≤ ∑ _j ∈ populations, (((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-        + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+        + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
           + (((B.npref : ℝ) ^ 2 * ρ
               + ((B.nsuff : ℝ) + 2) ^ 2 * Real.exp (-2 * (B.npref : ℝ) * γ ^ 2)
               + (B.nsuff : ℝ) * Real.exp (-2 * (B.npref : ℝ) * g ^ 2))
             + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
-              + (Real.exp (-2 * (B.npref : ℝ) * (lcut / 2) ^ 2)
+              + (Real.exp (-2 * (B.npref : ℝ) * r ^ 2)
                 + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))))) := by
     refine le_trans (measureReal_biUnion_finset_le _ _) (Finset.sum_le_sum (fun j hj => ?_))
     refine le_trans (measureReal_union_le _ _) ?_
     have hv := measureReal_validFail_le hflat O populations D Dsf hsupp hsuppSf j hj B hkpos
-      indecisionLimit εcov lcut f E Δp ρ th hil hε0 hE (by linarith) (by rw [hΔp]; positivity) hth hf0 hbudget hρ hρ0 hcut
+      indecisionLimit εcov lcut f E Δp ρ th t hil hε0 hE (by linarith) (by rw [hΔp]; positivity)
+      hth ht hf0 hbudget hρ hρ0 hcut
     have htail : Real.exp (-2 * (B.npref : ℝ) * (lcut - E) ^ 2)
-        ≤ Real.exp (-2 * (B.npref : ℝ) * (lcut / 2) ^ 2) := by
-      refine Real.exp_le_exp.2 ?_
-      have hm : (0 : ℝ) ≤ (B.npref : ℝ) := Nat.cast_nonneg _
-      have h1 : (lcut / 2) ^ 2 ≤ (lcut - E) ^ 2 := by nlinarith
-      nlinarith [mul_le_mul_of_nonneg_left h1 hm]
+        ≤ Real.exp (-2 * (B.npref : ℝ) * r ^ 2) :=
+      exp_tail_anti (Nat.cast_nonneg _) hr hrE
     have hd := measureReal_dirtyMember_le hflat O populations D Dsf hsupp hsuppSf j hj B hcd hsig
       hmpos Δ γ g ρ hΔ hγ hg hρ0 (hρ j hj) hscd hsc
     have hv' : (runMeasure μ D Dsf).real (V j \ Dy j)
         ≤ ((populations.card : ℝ) + 1) * (B.npref : ℝ) ^ 2 * ρ
-          + (Real.exp (-2 * (B.npref : ℝ) * (εcov / 4) ^ 2)
+          + (Real.exp (-2 * (B.npref : ℝ) * t ^ 2)
             + (Real.exp (-2 * (B.npref : ℝ) * th ^ 2)
-              + (Real.exp (-2 * (B.npref : ℝ) * (lcut / 2) ^ 2)
+              + (Real.exp (-2 * (B.npref : ℝ) * r ^ 2)
                 + Real.exp (-2 * (B.npref : ℝ) * indecisionLimit ^ 2)))) :=
       le_trans hv (by linarith [htail])
     have hd' : (runMeasure μ D Dsf).real (CR ∩ Dy j)
@@ -7132,15 +7137,16 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
       have h1 : (0 : ℝ) ≤ 1 - 2 * η₀ := by linarith
       nlinarith [eta_nonneg O]
     have hvm : 2 * validMargin η₀ populations εcov
-        = validFlip η₀ populations εcov * (1 - 2 * η₀) ^ 2 / 2 := by
+        = 7 * validFlip η₀ populations εcov * (1 - 2 * η₀) ^ 2 / 8 := by
       rw [validMargin, hsval]; ring
     have hQ : (0 : ℝ) ≤ (1 - 2 * O.η) ^ 2 := sq_nonneg _
     rw [hvm]
     nlinarith [mul_le_mul_of_nonneg_right hflipv hQ, mul_le_mul_of_nonneg_left hq hv.le]
   have hbudget : ((populations.card : ℝ) * validFlip η₀ populations εcov
-      + εcov * validFrac η₀ / 16) / validFrac η₀ + εcov / 16 + εcov / 8 ≤ 3 * εcov / 4 := by
+      + εcov * validFrac η₀ / 8) / validFrac η₀ + εcov / 32 + 3 * εcov / 32
+        ≤ εcov - εcov / 16 := by
     have hid : ((populations.card : ℝ) * validFlip η₀ populations εcov
-        + εcov * validFrac η₀ / 16) / validFrac η₀ = 9 * εcov / 16 := by
+        + εcov * validFrac η₀ / 8) / validFrac η₀ = 13 * εcov / 16 := by
       rw [validFlip]
       field_simp
       ring
@@ -7159,17 +7165,17 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     · rw [hcardF]; exact hhi
     · rw [hcardF]; exact hlo
     · rw [hcardF]
-  have hE2 : Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (voteSlack η₀ / 2) ^ 2) ≤ εcov / 8 / 2 := by
+  have hmiss : εcov / 32
+      ≤ 3 * εcov / 32 - Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (voteSlack η₀ / 2) ^ 2) := by
     linarith [(cutBudget_le η₀ indecisionLimit εcov).1]
   have h := per_state_le hflat O populations D Dsf hsupp hsuppSf hsig.le indecisionLimit
     εcov α ρ pAP hindLim.le hεcov.le hρ hρ0 B hk hcd hcap.mpos hscd
     (by have := hcap.found; linarith)
-    (validFlip η₀ populations εcov) (validMargin η₀ populations εcov) (εcov * validFrac η₀ / 16)
-    (εcov / 16) (validFrac η₀) (εcov / 8)
-    (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (voteSlack η₀ / 2) ^ 2))
+    (validFlip η₀ populations εcov) (validMargin η₀ populations εcov) (εcov * validFrac η₀ / 8)
+    (εcov / 32) (validFrac η₀) (3 * εcov / 32)
+    (Real.exp (-2 * ((B.k - 1 : ℕ) : ℝ) * (voteSlack η₀ / 2) ^ 2)) (εcov / 16) (εcov / 32)
     hv (by rw [validMargin]; positivity) (by positivity) (by positivity) hf (Real.exp_nonneg _)
-    hE2 hsc' hbudget hcut
-  rw [show εcov / 8 / 2 = εcov / 16 by ring] at h
+    (by positivity) (by positivity) hmiss hsc' hbudget hcut
   rw [← hM]
   exact le_trans h hcap.share
 
@@ -7244,12 +7250,6 @@ lemma mul_self_add_le_cube {x : ℝ} (hx : 0 ≤ x) : x * (x + 3) ≤ (x + 3) ^ 
 lemma le_cube_of_nonneg {x : ℝ} (hx : 0 ≤ x) : x ≤ (x + 3) ^ 3 := by
   have h : (x + 3) ^ 3 - x = x ^ 3 + 9 * x ^ 2 + 26 * x + 27 := by ring
   linarith [h, pow_nonneg hx 3, sq_nonneg x, hx]
-
-lemma exp_tail_anti {m a b : ℝ} (hm : 0 ≤ m) (ha : 0 ≤ a) (hab : a ≤ b) :
-    Real.exp (-2 * m * b ^ 2) ≤ Real.exp (-2 * m * a ^ 2) := by
-  refine Real.exp_le_exp.2 ?_
-  have h := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ ha hab 2) hm
-  nlinarith
 
 /-- A count that clears `log (c/ε) / (2γ²)` kills the tail it was read off. -/
 lemma tail_le_of_count {γ ε c : ℝ} {n : ℕ} (hγ : 0 < γ) (hε : 0 < ε) (hc : 0 < c)
@@ -7657,19 +7657,19 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     nlinarith [mul_le_mul_of_nonneg_right hflipv (sq_nonneg (sig η₀)),
       flipBudget_pos (δ := δ) η₀ populations hsig hε hε1 hind hind1 hcard, sq_nonneg (sig η₀)]
   have hmdirty : 3 * cutBudget η₀ indecisionLimit εcov * flipFrac η₀ / 32
-      ≤ εcov * validFrac η₀ / 16 := by
+      ≤ εcov * validFrac η₀ / 8 := by
     nlinarith [mul_le_mul_of_nonneg_right hcle.1 hf.le,
       mul_le_mul_of_nonneg_left (flipFrac_le_validFrac η₀ hsig) hε.le]
   have tscr' : ((M : ℝ) + 2) ^ 2
       * Real.exp (-2 * (m : ℝ) * validMargin η₀ populations εcov ^ 2) ≤ ε₀ :=
     le_trans (mul_le_mul_of_nonneg_left (exp_tail_anti hmR (by positivity) hmscr)
       (by positivity)) tscr
-  have tdirty'' : (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2) ≤ ε₀ :=
+  have tdirty'' : (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 8) ^ 2) ≤ ε₀ :=
     le_trans (mul_le_mul_of_nonneg_left (exp_tail_anti hmR (by positivity) hmdirty)
       (Nat.cast_nonneg _)) tdirty'
-  have tsix : Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2) ≤ ε₀ :=
+  have t32 : Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
-  have tcov : Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2) ≤ ε₀ :=
+  have tcov : Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
   have tund : Real.exp (-2 * (m : ℝ) * indecisionLimit ^ 2) ≤ ε₀ :=
     le_trans (exp_tail_anti hmR (by linarith) (by linarith)) tth
@@ -7682,16 +7682,16 @@ lemma solved_share (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP ρ ρ
     nlinarith [mul_nonneg (sq_nonneg (m : ℝ)) hρ0]
   rw [stateFail, hBm, hBM]
   have hsum : (((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ
-      + (Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2)
+      + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
         + (((m : ℝ) ^ 2 * ρ
             + ((M : ℝ) + 2) ^ 2
               * Real.exp (-2 * (m : ℝ) * validMargin η₀ populations εcov ^ 2)
-            + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2))
-          + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
-            + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
+            + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
+          + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
+            + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
               + Real.exp (-2 * (m : ℝ) * indecisionLimit ^ 2))))))
       ≤ ((((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ) + (m : ℝ) ^ 2 * ρ) + 6 * ε₀ := by
-    linarith [tcov, tscr', tdirty'', tsix, tund]
+    linarith [tcov, tscr', tdirty'', t32, tund]
   have hscale := mul_le_mul_of_nonneg_left hsum hcard.le
   have hexp : (populations.card : ℝ) * ((((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ
         + (m : ℝ) ^ 2 * ρ) + 6 * ε₀)
@@ -7801,12 +7801,12 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
     ≤ δ * (m : ℝ) / (8 * N) + if V ≤ m then δ * (V : ℝ) / (16 * m) else 0
   rw [if_pos hV, stateFail]
   show (populations.card : ℝ) * (((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ
-    + (Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2)
+    + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
       + (((m : ℝ) ^ 2 * ρ
           + ((M : ℝ) + 2) ^ 2 * Real.exp (-2 * (m : ℝ) * validMargin η₀ populations εcov ^ 2)
-          + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2))
-        + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
-          + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
+          + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
+        + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
+          + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
             + Real.exp (-2 * (m : ℝ) * indecisionLimit ^ 2))))))
     ≤ δ * (m : ℝ) / (8 * N) + δ * (V : ℝ) / (16 * m)
   have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
@@ -7856,8 +7856,8 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
   set T1 : ℝ := Real.log (128 * (populations.card : ℝ) * ((M : ℝ) + 2) ^ 2 / δ)
     / (2 * validMargin η₀ populations εcov ^ 2) with hT1
   set T2 : ℝ := Real.log (128 * (populations.card : ℝ) * ((M : ℝ) + 1) / δ)
-    / (2 * (εcov * validFrac η₀ / 16) ^ 2) with hT2
-  set T3 : ℝ := Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 16) ^ 2) with hT3
+    / (2 * (εcov * validFrac η₀ / 8) ^ 2) with hT2
+  set T3 : ℝ := Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 32) ^ 2) with hT3
   set T4 : ℝ := Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2) with hT4
   have hVsum : (V : ℝ) = (⌈T1⌉₊ : ℝ) + (⌈T2⌉₊ : ℝ) + (⌈T3⌉₊ : ℝ) + (⌈T4⌉₊ : ℝ) + 1 := by
     rw [hVdef, validCount, ← hMdef]
@@ -7880,32 +7880,32 @@ theorem rung_mem_stoppable (η₀ : ℝ) (populations : Finset J) {εcov δ α p
     rw [hε₀def]; field_simp
   have t1 := tail_le_of_count_scaled (c := ((M : ℝ) + 2) ^ 2) hvm hε₀ hε₀3 (by nlinarith) hVR
     (by rw [hq1]; exact hV1) hVm
-  have t2 := tail_le_of_count_scaled (γ := εcov * validFrac η₀ / 16) (c := (M : ℝ) + 1)
+  have t2 := tail_le_of_count_scaled (γ := εcov * validFrac η₀ / 8) (c := (M : ℝ) + 1)
     (by positivity) hε₀ hε₀3
     (by linarith) hVR (by rw [hq2]; exact hV2) hVm
-  have t3 := tail_le_of_count_scaled (γ := εcov / 16) (c := 1) (by positivity) hε₀ hε₀3 le_rfl hVR
+  have t3 := tail_le_of_count_scaled (γ := εcov / 32) (c := 1) (by positivity) hε₀ hε₀3 le_rfl hVR
     (by rw [hq3]; exact hV3) hVm
   have t4 := tail_le_of_count_scaled (γ := indecisionLimit) (c := 1) hind hε₀ hε₀3 le_rfl hVR
     (by rw [hq3]; exact hV4) hVm
-  have t2' : (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2)
+  have t2' : (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 8) ^ 2)
       ≤ ε₀ * V / m :=
     le_trans (mul_le_mul_of_nonneg_right (by linarith) (Real.exp_nonneg _)) t2
-  have tcov : Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2) ≤ ε₀ * V / m :=
-    le_trans (exp_tail_anti (a := εcov / 16) (b := εcov / 4) hmR.le (by positivity)
+  have tcov : Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2) ≤ ε₀ * V / m :=
+    le_trans (exp_tail_anti (a := εcov / 32) (b := εcov / 16) hmR.le (by positivity)
       (by linarith)) (by simpa using t3)
-  have t3' : Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2) ≤ ε₀ * V / m := by simpa using t3
+  have t3' : Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2) ≤ ε₀ * V / m := by simpa using t3
   have t4' : Real.exp (-2 * (m : ℝ) * indecisionLimit ^ 2) ≤ ε₀ * V / m := by simpa using t4
   have htails : (populations.card : ℝ) * (6 * (ε₀ * V / m)) ≤ δ * (V : ℝ) / (16 * m) := by
     rw [hε₀def]
     field_simp
     nlinarith [mul_pos hδ hVR]
   have hsum : ((populations.card : ℝ) + 1) * (m : ℝ) ^ 2 * ρ
-      + (Real.exp (-2 * (m : ℝ) * (εcov / 4) ^ 2)
+      + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
         + (((m : ℝ) ^ 2 * ρ
             + ((M : ℝ) + 2) ^ 2 * Real.exp (-2 * (m : ℝ) * validMargin η₀ populations εcov ^ 2)
-            + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 16) ^ 2))
-          + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
-            + (Real.exp (-2 * (m : ℝ) * (εcov / 16) ^ 2)
+            + (M : ℝ) * Real.exp (-2 * (m : ℝ) * (εcov * validFrac η₀ / 8) ^ 2))
+          + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
+            + (Real.exp (-2 * (m : ℝ) * (εcov / 32) ^ 2)
               + Real.exp (-2 * (m : ℝ) * indecisionLimit ^ 2)))))
       ≤ ((populations.card : ℝ) + 2) * (m : ℝ) ^ 2 * ρ + 6 * (ε₀ * V / m) := by
     linarith [tcov, t1, t2', t3', t4']

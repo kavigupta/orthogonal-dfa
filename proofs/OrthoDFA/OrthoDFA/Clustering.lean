@@ -373,7 +373,7 @@ def ClusteringGuarantee : Prop :=
           / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
-          64
+          32
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
           / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2)

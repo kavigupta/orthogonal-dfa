@@ -465,7 +465,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
     (hind : 0 < indecisionLimit) (hind1 : indecisionLimit ≤ 1 / 2) (hεcov : 0 < εcov)
     (hεcov1 : εcov ≤ 1) (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1) :
     (validCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ)
-      ≤ 32 * (populations.card : ℝ) ^ 2
+      ≤ 16 * (populations.card : ℝ) ^ 2
         * Real.log (((populations.card : ℝ) + 2)
           * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ)
         / (sig η ^ 6 * min εcov indecisionLimit ^ 2) := by
@@ -473,7 +473,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
     hind1 hεcov hεcov1 hpAP hpAP1
   have hc1 : (1 : ℝ) ≤ (populations.card : ℝ) := Nat.one_le_cast.2 (Finset.card_pos.2 hpop)
   have hvm : validMargin η populations εcov
-      = εcov * validFrac η * sig η ^ 2 / (2 * (populations.card : ℝ)) := by
+      = 77 * εcov * validFrac η * sig η ^ 2 / (64 * (populations.card : ℝ)) := by
     rw [validMargin, validFlip]; ring
   rw [validCount]
   push_cast
@@ -510,7 +510,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
   have hL0 : 0 ≤ L := by linarith
   have hD : (0 : ℝ) < s ^ 6 * μ ^ 2 := by positivity
   set Q : ℝ := c ^ 2 * L / (s ^ 6 * μ ^ 2) with hQdef
-  have hQ1 : 1 ≤ Q := by
+  have hQ1 : 256 ≤ Q := by
     rw [hQdef, le_div_iff₀ hD]
     have hμ2 : μ ^ 2 ≤ 1 / 4 := by
       have := pow_le_pow_left₀ hμ.le (le_trans hμi hind1) 2; norm_num at this; linarith
@@ -567,18 +567,19 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
     rw [hLdef]; linarith
   -- the four tails, each against the common quotient
   have t1 : Real.log (128 * c * (M + 2) ^ 2 / δ)
-      / (2 * (εcov * validFrac η * s ^ 2 / (2 * c)) ^ 2) ≤ 5 * Q := by
+      / (2 * (77 * εcov * validFrac η * s ^ 2 / (64 * c)) ^ 2) ≤ 1 * Q := by
     refine tail_le hZ1 hL0 (by positivity) hD ?_
     have hg : μ * s ^ 3 ≤ εcov * validFrac η * s ^ 2 := by
       nlinarith [mul_le_mul_of_nonneg_right hf (mul_nonneg hεcov.le (sq_nonneg s)),
         mul_le_mul_of_nonneg_right hμε (pow_nonneg hsig.le 3)]
     have h := mul_self_le_mul_self (by positivity) hg
-    have e : 5 * c ^ 2 * (2 * (εcov * validFrac η * s ^ 2 / (2 * c)) ^ 2)
-        = 5 / 2 * (εcov * validFrac η * s ^ 2) ^ 2 := by
+    have e : 1 * c ^ 2 * (2 * (77 * εcov * validFrac η * s ^ 2 / (64 * c)) ^ 2)
+        = 5929 / 2048 * (εcov * validFrac η * s ^ 2) ^ 2 := by
       field_simp
+      ring
     rw [e]
     nlinarith [h]
-  have t2 : Real.log (128 * c * (M + 1) / δ) / (2 * (εcov * validFrac η / 16) ^ 2) ≤ 16 * Q := by
+  have t2 : Real.log (128 * c * (M + 1) / δ) / (2 * (εcov * validFrac η / 8) ^ 2) ≤ 4 * Q := by
     refine tail_le hZ2 hL0 (by positivity) hD ?_
     have hg : μ * s ≤ εcov * validFrac η := by
       nlinarith [mul_le_mul_of_nonneg_left hf hεcov.le, mul_le_mul_of_nonneg_right hμε hsig.le]
@@ -586,7 +587,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
     have e1 := mul_le_mul_of_nonneg_right hs62 (sq_nonneg μ)
     have e2 := mul_le_mul_of_nonneg_right hc2 (sq_nonneg (εcov * validFrac η))
     nlinarith [h, e1, e2, sq_nonneg (εcov * validFrac η)]
-  have t3 : Real.log (128 * c / δ) / (2 * (εcov / 16) ^ 2) ≤ 2 * Q := by
+  have t3 : Real.log (128 * c / δ) / (2 * (εcov / 32) ^ 2) ≤ 8 * Q := by
     refine tail_le hZ3 hL0 (by positivity) hD ?_
     have h := mul_self_le_mul_self hμ.le hμε
     nlinarith [mul_le_mul_of_nonneg_right hs6 (sq_nonneg μ),
@@ -601,7 +602,7 @@ theorem validCount_le_poly (populations : Finset J) (η indecisionLimit εcov δ
   have c2 := ceil_le_of_le t2 (by positivity)
   have c3 := ceil_le_of_le t3 (by positivity)
   have c4 := ceil_le_of_le t4 (by positivity)
-  rw [show 32 * c ^ 2 * Real.log X / (s ^ 6 * μ ^ 2) = 32 * Q by rw [hQdef, hLdef]; ring]
+  rw [show 16 * c ^ 2 * Real.log X / (s ^ 6 * μ ^ 2) = 16 * Q by rw [hQdef, hLdef]; ring]
   linarith
 
 omit [Fintype J] in
