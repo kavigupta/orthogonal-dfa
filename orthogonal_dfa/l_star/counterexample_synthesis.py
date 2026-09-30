@@ -184,6 +184,11 @@ def _publish_pool(pst, state) -> int:
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
+#: Rounds a run keeps going after the certificate first refuses a round at the
+#: consistency target.  A refused hypothesis can be missing several states, and
+#: finding them can take more rounds than a stall is given.
+CERTIFICATE_PATIENCE = 5
+
 
 class _StallDetector:
     """Stops a run that has started repeating itself. We consider a round stalled if
@@ -257,10 +262,11 @@ def _certified(pst, dfa, *, index, tracker):
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
-    if uncertified_since is None or index - uncertified_since < STALL_PATIENCE:
+    if uncertified_since is None or index - uncertified_since < CERTIFICATE_PATIENCE:
         return False
     print(
-        f"[round {index}] no hypothesis the certificate passes in {STALL_PATIENCE} "
+        f"[round {index}] no hypothesis the certificate passes in "
+        f"{CERTIFICATE_PATIENCE} "
         "rounds since the certificate first failed; stopping synthesis"
     )
     return True

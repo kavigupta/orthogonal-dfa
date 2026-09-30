@@ -772,3 +772,60 @@ class TestFiveSymbolTrap(unittest.TestCase):
                 f"DFA incorrect (accuracy {accuracy:.4f}). "
                 f"FP: {len(fp)}, FN: {len(fn)}"
             )
+
+
+# A mod-4 counter crossed with a pattern: the consistency gate passes a
+# hypothesis that is the counter alone, at an accuracy near 0.93.
+
+COUNTED_PATTERN = (0, 1, 1, 0, 0)
+COUNTED_MODULUS = 4
+COUNTED_RESIDUE = 2
+
+
+def build_counted_pattern() -> DFA:
+    """Accepts strings whose count of 1s is ``COUNTED_RESIDUE`` mod
+    ``COUNTED_MODULUS`` and that contain ``COUNTED_PATTERN``."""
+
+    def matched(done, symbol):
+        """Longest prefix of the pattern that ends the string read so far."""
+        if done == len(COUNTED_PATTERN):
+            return done
+        text = COUNTED_PATTERN[:done] + (symbol,)
+        for length in range(len(text), -1, -1):
+            if text[len(text) - length :] == COUNTED_PATTERN[:length]:
+                return length
+        return 0
+
+    states = [
+        (count, done)
+        for count in range(COUNTED_MODULUS)
+        for done in range(len(COUNTED_PATTERN) + 1)
+    ]
+    return DFA(
+        states=set(states),
+        input_symbols={0, 1},
+        transitions={
+            (count, done): {
+                c: ((count + c) % COUNTED_MODULUS, matched(done, c)) for c in (0, 1)
+            }
+            for count, done in states
+        },
+        initial_state=(0, 0),
+        final_states={(COUNTED_RESIDUE, len(COUNTED_PATTERN))},
+        allow_partial=False,
+    ).minify()
+
+
+class TestCountedPattern(unittest.TestCase):
+    def test_admitted(self):
+        report = P.satisfies_preconditions(
+            build_counted_pattern(), length=DEFAULT_SAMPLER.length, short_circuit=False
+        )
+        self.assertTrue(report.satisfied, report.reasons)
+
+    @parameterized.expand([(seed,) for seed in range(3)])
+    def test_the_pattern_is_learned(self, seed):
+        target = build_counted_pattern()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        dfa = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=seed)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
