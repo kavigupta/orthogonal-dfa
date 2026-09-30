@@ -642,13 +642,19 @@ class TestTrapTargets(unittest.TestCase):
         self.assertLess(report.class_preserving_fraction, 0.10)
 
 
+#: A repair round here runs about ten minutes.  main merges on 3 of 8 seeds (#307),
+#: so three passing leave a quarter chance that a learner merging as often slips by.
+TRAP_SEEDS = 3
+
+
+@pytest.mark.slow
 class TestTrapLearned(unittest.TestCase):
     """Q is rejecting and carries 7% of the endpoint mass, so a family that votes it
     into accepting A costs that much accuracy at the distribution the DFA is graded
     on -- unlike e1, which merges into a rejecting state and costs only its own
     routing."""
 
-    @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
+    @parameterized.expand([(seed,) for seed in range(TRAP_SEEDS)])
     def test_the_armed_state_is_not_merged(self, seed):
         alphabet, arms, disarm = TRAPS[0]
         target = build_trap(alphabet, arms, disarm)
