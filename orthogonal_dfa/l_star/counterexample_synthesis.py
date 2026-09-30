@@ -20,7 +20,8 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .certificate import certifies, look_level
+from .cluster import NoAcceptPreservingFamily, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -77,6 +78,9 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+#: Chance of certifying a DFA whose advantage falls short, over every attempt.
+CERTIFICATE_ALPHA = 1e-3
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -224,12 +228,51 @@ class BestRound:
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
+    #: The denoised DFA the certificate passed, if one did.
+    certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index):
-        if consistency > self.consistency:
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
+        if (certified is not None, consistency) > (
+            self.certified is not None,
+            self.consistency,
+        ):
             self.consistency = consistency
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
+            self.certified = certified
+
+
+def _family_unless_refused(pst, state, index, uncertified_since):
+    """The round's family, or None where the gate gives up on a round after the
+    certificate has refused one."""
+    try:
+        return sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+    except NoAcceptPreservingFamily:
+        if uncertified_since is None:
+            raise
+        print(f"[round {index}] no family admitted since the refusal; stopping")
+        return None
+
+
+def _certified(pst, dfa, *, index):
+    """The DFA synthesis would return, if the certificate passes it."""
+    output = denoise_accept_labels(pst, dfa)
+    # Spread over the rounds, whichever of them reach the certificate.
+    if certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index)):
+        print(f"[round {index}] certified; stopping synthesis")
+        return output
+    print(f"[round {index}] at target, not certified")
+    return None
+
+
+def _uncertified_too_long(index, uncertified_since) -> bool:
+    if uncertified_since is None or index - uncertified_since < STALL_PATIENCE:
+        return False
+    print(
+        f"[round {index}] no hypothesis the certificate passes in {STALL_PATIENCE} "
+        "rounds since the certificate first failed; stopping synthesis"
+    )
+    return True
 
 
 def counterexample_driven_synthesis(
@@ -257,11 +300,17 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    # The round the certificate first refused, from which the run has the stall's
+    # patience to return a hypothesis it passes.
+    uncertified_since = None
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        found = _family_unless_refused(pst, state, index, uncertified_since)
+        if found is None:
+            return best
+        vs, boundary = found
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
@@ -292,25 +341,32 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
+        # Only a round that would otherwise return is worth the certificate's reads.
+        output = None
+        if true_acc >= acc_threshold:
+            output = _certified(pst, dfa, index=index)
+            uncertified_since = (
+                index if uncertified_since is None else uncertified_since
+            )
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
+            certified=output,
         )
-        if true_acc >= acc_threshold:
-            print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
-            )
+        if output is not None:
+            return best
+        if _uncertified_too_long(index, uncertified_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
-        # leaf nothing aims at is not one the round waits on.
-        if stall.stalled(
+        # leaf nothing aims at is not one the round waits on.  Rounds after a
+        # refusal have their own patience, so they are not weighed for a stall.
+        if uncertified_since is None and stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
             settled=lambda: resolver.splits.nothing_left_to_split(
@@ -347,6 +403,8 @@ def do_counterexample_driven_synthesis(
     if best.dfa is None:
         return None
     pst.decision_boundary = best.boundary
-    dfa = denoise_accept_labels(pst, best.dfa)
+    dfa = best.certified
+    if dfa is None:
+        dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa
