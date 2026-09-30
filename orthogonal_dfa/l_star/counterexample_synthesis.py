@@ -27,7 +27,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
-from .state_split import SplitSource, state_split
+from .state_split import SplitSource, part_sizes, state_split
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -98,9 +98,12 @@ def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
             del state.sources[label]
     merged = []
     for leaf, (splits, aim) in found:
-        for part in range(len(splits) + 1):
-            label = ("split", index, leaf, part)
-            source = SplitSource(splits, part, aim, pst.oracle)
+        sizes, drawn = part_sizes(splits, pst.oracle)
+        for part in np.flatnonzero(sizes):
+            label = ("split", index, leaf, int(part))
+            source = SplitSource(
+                splits, part, aim, pst.oracle, on_part=int(sizes[part]), drawn=drawn
+            )
             state.held[label] = sorted(source.draw() for _ in range(per_state))
             state.sources[label] = source
         merged.append(leaf)
@@ -248,19 +251,18 @@ class BestRound:
     boundary comes with it because denoising reads the labels against it."""
 
     consistency: float = -1.0
-    #: Whether a state of this hypothesis was found holding a minority of the
-    #: other label.
-    merged: bool = True
+    #: Whether this hypothesis reached the target and the check found no state
+    #: holding a minority of the other label.
+    passed: bool = False
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index, merged):
-        # A hypothesis the check caught ranks behind every one it did not.
-        if (not merged, consistency) > (not self.merged, self.consistency):
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, passed):
+        if (passed, consistency) > (self.passed, self.consistency):
             self.consistency = consistency
-            self.merged = merged
+            self.passed = passed
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
 
@@ -287,7 +289,7 @@ def _done_at_target(index, consistency, acc_threshold, merged):
         return True
     print(
         f"[round {index}] consistency {consistency:.4f} is at target, but "
-        f"state(s) {merged} split in two; carrying on with each side as a "
+        f"state(s) {merged} split; carrying on with each part as a "
         f"population"
     )
     return False
@@ -381,7 +383,7 @@ def counterexample_driven_synthesis(
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
-            merged=bool(merged),
+            passed=true_acc >= acc_threshold and not merged,
         )
         if true_acc >= acc_threshold:
             if _done_at_target(index, true_acc, acc_threshold, merged):

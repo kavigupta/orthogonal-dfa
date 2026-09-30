@@ -36,23 +36,27 @@ def tail_ladder(members, minority_share) -> List[int]:
     return sizes
 
 
+#: Separating suffixes the fresh draws are sized to hold, and the looks for.
+_SEPARATING = 2
+
+
 def fresh_suffixes(miss_rate, preserving_share) -> int:
     """The least m with
 
-        P(Binomial(m, preserving_share) <= 1) <= miss_rate,
+        P(Binomial(m, preserving_share) < _SEPARATING) <= miss_rate,
 
     preserving_share being the least class-preserving share of the sampler's
     draws."""
-    m = 2
-    while scipy.stats.binom.cdf(1, m, preserving_share) > miss_rate:
+    m = _SEPARATING
+    while scipy.stats.binom.cdf(_SEPARATING - 1, m, preserving_share) > miss_rate:
         m += 1
     return m
 
 
 def _label_signal(signal, minority_share) -> float:
-    """w (1 - w) (2 signal)^2 / v_max, w = minority_share: the squared
-    correlation between a member's label and its own read, the labels reading at
-    1/2 -+ signal."""
+    """w (1 - w) (2 signal)^2 / v_max, w = minority_share: a lower bound on the
+    squared correlation between a member's label and its own read, the labels
+    reading at rates 2 signal apart."""
     spread = minority_share * (1 - minority_share)
     return spread * (2 * signal) ** 2 / _MAX_READ_VARIANCE
 
@@ -101,8 +105,8 @@ class StateSplit:
     #: groups[side] for side in (False, True); True is the minority.
     groups: Tuple[List[bytes], List[bytes]]
     suffixes: List[bytes]
-    #: A member's score is its reads weighed by these, and the minority's lie at
-    #: or above cut.
+    #: A member's score is its reads weighed by these; sides places it on the
+    #: minority's side at or above cut.
     weights: np.ndarray
     cut: float
 
@@ -141,16 +145,15 @@ def _pvalue(reads, inside) -> np.ndarray:
     return 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
 
 
-def _oriented(reads, inside, level, held_out=None):
+def _oriented(reads, inside, level, held_out):
     """(indices K, orientations o) of the suffixes v with _pvalue <= level /
     #suffixes against inside; o_v = +1 where inside reads above its share.
     held_out = (J, L) tests suffix J[j] against the labels L[:, j] instead."""
     pvalues = _pvalue(reads, inside)
     labels = np.repeat(inside[:, None], reads.shape[1], axis=1)
-    if held_out is not None:
-        for j, v in enumerate(held_out[0]):
-            labels[:, v] = held_out[1][:, j]
-            pvalues[v] = _pvalue(reads[:, [v]], labels[:, v])[0]
+    for j, v in enumerate(held_out[0]):
+        labels[:, v] = held_out[1][:, j]
+        pvalues[v] = _pvalue(reads[:, [v]], labels[:, v])[0]
     kept = np.flatnonzero(pvalues <= level / reads.shape[1])
     hits = np.array([reads[labels[:, v], v].sum() for v in kept])
     shares = np.array([labels[:, v].mean() for v in kept])
@@ -159,8 +162,8 @@ def _oriented(reads, inside, level, held_out=None):
 
 
 def _cut(share, rate_in, rate_out, size) -> float:
-    """The least k with w B(k; K, r_in) >= (1 - w) B(k; K, r_out), K = size;
-    inf unless 0 < w < 1 and 0 < r_out < r_in < 1."""
+    """The k at which w B(k; K, r_in) = (1 - w) B(k; K, r_out), K = size, above
+    which the first is the larger; inf unless 0 < w < 1 and 0 < r_out < r_in < 1."""
     if not (0 < share < 1 and 0 < rate_out < rate_in < 1):
         return math.inf
     slope = math.log(rate_in * (1 - rate_out) / (rate_out * (1 - rate_in)))
@@ -171,13 +174,12 @@ def _cut(share, rate_in, rate_out, size) -> float:
 
 
 def _mixture(adjusted, inside, size):
-    """(w, r_in, r_out) at the maximum-likelihood fit of
+    """(w, r_in, r_out) of the classification-EM fit of
 
         w Binomial(K, r_in) + (1 - w) Binomial(K, r_out)
 
-    to the counts adjusted, K = size, reached by EM from the share and
-    rates of the labels inside and run until the labels _cut gives stop
-    changing."""
+    to the counts adjusted, K = size, from the share and rates of the labels
+    inside, run until the labels _cut gives stop changing."""
     share = inside.mean()
     rate_in = adjusted[inside].mean() / size
     rate_out = adjusted[~inside].mean() / size
@@ -244,8 +246,10 @@ def split_members(
     """(split, p*): p* = min over tail sizes t in tail_ladder and both ends
     of T * _label_pvalue, T the number of such tails, on the testing
     members' counts over the suffixes that _going_with picks on
-    picking, whose reads of them are picked_reads.  The split is at the
-    least t with T p <= level, or None."""
+    picking, whose reads of them are picked_reads.  A split, when the least
+    such T p is at most level, puts the testing members on each side of the
+    sharpened cut, or of the detecting tail's if sharpening fails; the smaller
+    side is the minority."""
     members = picking + testing
     empty = np.asarray(oracle.membership_queries(members), dtype=np.int8)
     picks = np.arange(len(members)) < len(picking)
@@ -286,10 +290,10 @@ def split_members(
         cut = count - (weights < 0).sum()
         scores[picks] = picked_reads[:, kept] @ weights
         scores[~picks] = _reads(oracle, testing, chosen) @ weights
-        if (scores[~picks] >= cut).mean() > 1 / 2:
-            # The minority is what the cut leaves out; scores are integers.
-            weights, scores, cut = -weights, -scores, math.floor(-cut) + 1
-        inside = scores >= cut
+    if (scores[~picks] >= cut).mean() > 1 / 2:
+        # The minority is what the cut leaves out; scores are integers.
+        weights, scores, cut = -weights, -scores, math.floor(-cut) + 1
+    inside = scores >= cut
     split = StateSplit(
         groups=(
             [m for m, h in zip(testing, inside[~picks]) if not h],
@@ -316,8 +320,9 @@ def split_by_looks(
     fresh = {draw.suffix() for _ in range(fresh_count)}
     candidates = sorted(set(family) | fresh)
     suffixes = [v for v in candidates if v]
-    looks = most_looks(signal, minority_share, 2, len(candidates))
+    looks = most_looks(signal, minority_share, _SEPARATING, len(candidates))
     level = alpha / looks
+    # A merge missed is weighed as a pure state split.
     size = first_look(signal, minority_share, level, level)
     picking = []
     picked_reads = np.zeros((0, len(suffixes)), dtype=np.int8)
@@ -352,7 +357,7 @@ class _Aimed:
         self._aim = aim
 
     def __call__(self, count) -> List[bytes]:
-        return [p for p in (self._aim() for _ in range(count)) if p is not None]
+        return [self._aim() for _ in range(count)]
 
     def suffix(self) -> bytes:
         return self._pst.sampler.sample(
@@ -372,8 +377,6 @@ class _Outside:
         kept = []
         while len(kept) < count:
             drawn = self._draw(count - len(kept))
-            if not drawn:
-                break
             sides = self._split.sides(drawn, self._oracle)
             kept += [p for p, side in zip(drawn, sides) if not side]
         return kept
@@ -450,29 +453,34 @@ def _placed(splits, prefixes, oracle) -> np.ndarray:
     return part
 
 
+def part_sizes(splits, oracle) -> Tuple[np.ndarray, int]:
+    """(members of the first split in each part, members of the first split)."""
+    first = splits[0]
+    drawn = first.groups[True] + first.groups[False]
+    return np.bincount(_placed(splits, drawn, oracle), minlength=len(splits) + 1), len(
+        drawn
+    )
+
+
 class SplitSource(RejectionSource):
     """Fresh members of one part of a chain of splits: aimed at the split state,
     kept where _placed puts them in this part.
 
     Proven on the first split's members, which were drawn by the same aim and
-    placed the same way, so their count in this part is the yield test.  Called
-    dry below the rate that count puts a floor under.
+    placed the same way, so on_part of drawn is the yield test.  Called dry below
+    the rate that count puts a floor under.
     """
 
-    def __init__(self, splits, part, aim, oracle):
+    def __init__(self, splits, part, aim, oracle, *, on_part, drawn):
         super().__init__()
+        assert on_part > 0, "a part nothing lands in has no members to draw"
         self._splits = splits
         self._part = part
         self._aim = aim
         self._oracle = oracle
-        first = splits[0]
-        drawn = first.groups[True] + first.groups[False]
-        on_part = int((_placed(splits, drawn, oracle) == part).sum())
-        self._poor = float(
-            scipy.stats.beta.ppf(_MISREAD, on_part, len(drawn) - on_part + 1)
-        )
-        # Not seeded with the split's own members: whichever half they came from,
-        # their reads of the empty suffix decided the split.
+        self._poor = float(scipy.stats.beta.ppf(_MISREAD, on_part, drawn - on_part + 1))
+        # Not seeded with the split's own members: their reads of the empty suffix
+        # decided the split.
         self._proven = True
 
     @property
