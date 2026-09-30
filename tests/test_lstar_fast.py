@@ -119,6 +119,20 @@ class TestLStarFast(unittest.TestCase):
         )
 
 
+def assert_modulo_skewed_learned(testcase, *, seed):
+    """Mod 9 at (0.25, 0.95), whose signal of 0.35 is declared as 0.25: the
+    screen keeps suffixes that add 3 to the count, and a family mostly of them
+    merges residue 0 into {3, 6} unless the certificate refuses the DFA."""
+    oracle_creator = lambda noise_model, seed: NoisyOracle(
+        BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
+    )
+    noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
+    dfa = learn_dfa(
+        oracle_creator, min_signal_strength=0.25, seed=seed, noise_model=noise_model
+    )
+    assertDFA(testcase, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
+
+
 class TestLStarAsymmetricFast(unittest.TestCase):
     def test_modulo_asymmetric(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
@@ -132,15 +146,7 @@ class TestLStarAsymmetricFast(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     def test_modulo_asymmetric_skewed(self):
-        oracle_creator = lambda noise_model, seed: NoisyOracle(
-            BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
-        )
-        noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
-        # signal = (0.95 - 0.25) / 2 = 0.35, but for now we're using 0.25 to be safe.
-        dfa = learn_dfa(
-            oracle_creator, min_signal_strength=0.25, seed=0, noise_model=noise_model
-        )
-        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
+        assert_modulo_skewed_learned(self, seed=0)
 
     def test_rare_accept_class(self):
         """Only 1 of 7 states is accepting, so boundary estimation sees mostly rejects."""

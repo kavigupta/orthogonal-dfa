@@ -20,13 +20,15 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import sample_suffix_family
+from .certificate import certifies, look_level
+from .cluster import NoAcceptPreservingFamily, sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
+from .state_split import SplitSource, state_split
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -77,6 +79,41 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+#: Rate at which a state holding one class is called mixed.
+SPLIT_SCAN_ALPHA = 1e-3
+
+#: Chance of certifying a DFA whose advantage falls short, over every attempt.
+CERTIFICATE_ALPHA = 1e-3
+
+
+def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
+    """The states holding a minority of the other label, each part of their
+    splits handed to the next round as a population of its own."""
+    found = [
+        (leaf, state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA))
+        for leaf in sorted(dfa.states)
+    ]
+    found = [(leaf, split) for leaf, split in found if split is not None]
+    if found:
+        # Replaces the last round's split, as a state's members do.
+        for label in [label for label in state.held if label[0] == "split"]:
+            del state.held[label]
+            del state.sources[label]
+    merged = []
+    for leaf, (split, aim) in found:
+        drawn = len(split.groups[False]) + len(split.groups[True])
+        for side, group in ((False, split.groups[False]), (True, split.groups[True])):
+            if not group:
+                continue
+            label = ("split", index, leaf, int(side))
+            source = SplitSource(
+                split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
+            )
+            state.held[label] = sorted(source.draw() for _ in range(per_state))
+            state.sources[label] = source
+        merged.append(leaf)
+    return merged
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -224,12 +261,54 @@ class BestRound:
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
+    #: The denoised DFA the certificate passed, if one did.
+    certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index):
-        if consistency > self.consistency:
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
+        if (certified is not None, consistency) > (
+            self.certified is not None,
+            self.consistency,
+        ):
             self.consistency = consistency
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
+            self.certified = certified
+
+
+def _family_unless_refused(pst, state, index, repairing_since):
+    """The round's family, or None where a repair's split sides leave the gate no
+    family to admit."""
+    try:
+        return sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+    except NoAcceptPreservingFamily:
+        if repairing_since is None:
+            raise
+        print(f"[round {index}] no family reads the split sides apart; stopping")
+        return None
+
+
+def _certified_or_split(pst, dfa, vs, state, *, index, per_state):
+    """The DFA synthesis would return if the certificate passes it; otherwise
+    None, with whatever the localiser finds split into the next round's
+    populations."""
+    output = denoise_accept_labels(pst, dfa)
+    # Spread over the rounds, whichever of them reach the certificate.
+    if certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index)):
+        print(f"[round {index}] certified; stopping synthesis")
+        return output
+    merged = split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
+    print(f"[round {index}] at target, not certified; split {merged}")
+    return None
+
+
+def _repair_exhausted(index, repairing_since) -> bool:
+    if repairing_since is None or index - repairing_since < STALL_PATIENCE:
+        return False
+    print(
+        f"[round {index}] no hypothesis the check passes in {STALL_PATIENCE} "
+        "rounds since the certificate first failed; stopping synthesis"
+    )
+    return True
 
 
 def counterexample_driven_synthesis(
@@ -257,11 +336,17 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    # The round the certificate first failed, from which a repair has the stall's
+    # patience to return a hypothesis it passes.
+    repairing_since = None
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        found = _family_unless_refused(pst, state, index, repairing_since)
+        if found is None:
+            return best
+        vs, boundary = found
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
@@ -292,25 +377,32 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
+        # Only a round that would otherwise return is worth the certificate's reads.
+        output = None
+        if true_acc >= acc_threshold:
+            output = _certified_or_split(
+                pst, dfa, vs, state, index=index, per_state=per_state
+            )
+            repairing_since = index if repairing_since is None else repairing_since
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
+            certified=output,
         )
-        if true_acc >= acc_threshold:
-            print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
-            )
+        if output is not None:
+            return best
+        if _repair_exhausted(index, repairing_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
-        # leaf nothing aims at is not one the round waits on.
-        if stall.stalled(
+        # leaf nothing aims at is not one the round waits on.  A repair has its
+        # own patience, so its rounds are not weighed for a stall.
+        if repairing_since is None and stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
             settled=lambda: resolver.splits.nothing_left_to_split(
@@ -347,6 +439,8 @@ def do_counterexample_driven_synthesis(
     if best.dfa is None:
         return None
     pst.decision_boundary = best.boundary
-    dfa = denoise_accept_labels(pst, best.dfa)
+    dfa = best.certified
+    if dfa is None:
+        dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa

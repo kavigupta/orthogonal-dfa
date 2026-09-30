@@ -96,6 +96,12 @@ class SearchConfig:
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
     require_accept_preserving: bool = True
+    #: Mass of the least minority of the other label a hypothesis state is searched
+    #: for when the certificate fails.
+    merged_minority_mass: float = 0.05
+    #: Share of 2 min_signal_strength the returned DFA's advantage over the oracle
+    #: is certified at; the rest is what its merges may cost.
+    certified_signal_share: float = 0.95
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

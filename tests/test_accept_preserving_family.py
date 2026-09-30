@@ -8,6 +8,8 @@ and perfectly decisive, so the FNR gate passes it.
 
 import unittest
 
+from parameterized import parameterized
+
 from tests.test_near_miss_accept_preserving import learn_with_near_misses
 
 #: Puts the near-accept state's prefix count just above the floor the round check
@@ -21,10 +23,9 @@ SEEDS = range(12)
 
 
 class TestAcceptPreservingFamily(unittest.TestCase):
-    def test_a_drifted_family_does_not_reach_the_round_check(self):
-        for seed in SEEDS:
-            with self.subTest(seed=seed):
-                learn_with_near_misses(seed, share=SHARE)
+    @parameterized.expand([(seed,) for seed in SEEDS])
+    def test_a_drifted_family_does_not_reach_the_round_check(self, seed):
+        learn_with_near_misses(seed, share=SHARE)
 
 
 if __name__ == "__main__":
