@@ -58,15 +58,17 @@ def first_look(gap, level) -> int:
 
 
 def certifies(pst, dfa, *, alpha) -> bool:
-    """Whether the ones on n_k strings a side at look k, drawn given dfa's label,
-    clear the gap
+    """True only with
 
-        2 s - d,   d = 2 s e / max(q, 1 - q),
+        P(certifies and A(dfa) <= 2 s - d) <= alpha,   d = 2 s e / max(q, 1 - q),
 
-    at level look_level(alpha, k), before the mirrored test puts A(dfa) below
-    2 s at that level; s = min_signal_strength, e = certified_error,
-    q = P(dfa(x) = 1), and n_k doubles from first_look.
-    P(certifies and A(dfa) <= 2 s - d) <= alpha."""
+    s = min_signal_strength, e = certified_error, q = P(dfa(x) = 1): where s is
+    the oracle's signal exactly, a certified dfa's error is within e.
+
+    Look k draws strings on each side of dfa's label up to n_k, doubling from
+    first_look, and passes if their ones clear the gap 2 s - d at level
+    look_level(alpha, k); those levels sum to alpha.  It refuses once clears,
+    on the two sides' zeros, puts A(dfa) below 2 s."""
     (draw_1, mass_1), (draw_0, mass_0) = (
         _given_label(pst, dfa, True),
         _given_label(pst, dfa, False),
