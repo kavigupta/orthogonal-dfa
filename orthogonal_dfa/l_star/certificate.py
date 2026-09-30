@@ -22,6 +22,11 @@ import scipy.stats
 from .dfa_utils import count_paths_to_state, sample_string_reaching_state
 
 
+class TooMuchRead(Exception):
+    """More of the sampler's strings on the two sides of a DFA were read before
+    than the certificate's slack allows it to leave unconstrained."""
+
+
 def advantage_bounds(sides, level) -> Tuple[float, float]:
     """(lo, hi) with P(A < lo) <= level and P(A > hi) <= level, for sides[s] =
     (n, k, o): of n strings drawn given h = s, k were read before the draw, and o
@@ -69,9 +74,10 @@ def certifies(pst, dfa, *, alpha) -> bool:
 
         A(dfa) >= 2 s c,   s = min_signal_strength, c = certified_signal_share,
 
-    before they put it below, narrow to 2 s (1 - c) apart, or show more of the
-    two sides read before than that slack; m_k doubles from first_look at look
-    0's level.  P(certifies and A(dfa) < 2 s c) <= alpha."""
+    before they put it below or narrow to 2 s (1 - c) apart; m_k doubles from
+    first_look at look 0's level.  P(certifies and A(dfa) < 2 s c) <= alpha.
+    Raises TooMuchRead once more of the two sides was read before than that
+    slack, which no further draw can undo."""
     sides = [_given_label(pst, dfa, True), _given_label(pst, dfa, False)]
     if None in sides:
         return False
@@ -105,7 +111,12 @@ def certifies(pst, dfa, *, alpha) -> bool:
         )
         if lo >= target:
             return True
-        if hi < target or hi - lo <= slack or read_low > slack:
+        if read_low > slack:
+            raise TooMuchRead(
+                f"at least {read_low:.3f} of the strings on the two sides of the "
+                f"DFA were read before, over the certificate's slack of {slack:.3f}"
+            )
+        if hi < target or hi - lo <= slack:
             return False
         size *= 2
         look += 1

@@ -8,7 +8,7 @@ import scipy.stats
 from automata.fa.dfa import DFA
 from parameterized import parameterized
 
-from orthogonal_dfa.l_star.certificate import advantage_bounds, certifies
+from orthogonal_dfa.l_star.certificate import TooMuchRead, advantage_bounds, certifies
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
 from orthogonal_dfa.l_star.learn import build_pst
 from orthogonal_dfa.l_star.sampler import UniformSampler
@@ -104,12 +104,13 @@ class TestVerdicts(unittest.TestCase):
     def test_a_dfa_with_one_label_is_not(self):
         self.assertFalse(certifies(_pst(0.3, 20), _ones_mod_3(set()), alpha=LEVEL))
 
-    def test_a_space_read_through_is_refused_not_drawn_forever(self):
+    def test_a_space_read_through_raises_rather_than_drawing_forever(self):
         pst = _pst(0.3, 8)
         pst.table.memo.membership_queries(
             [bytes(bits) for bits in itertools.product((0, 1), repeat=8)]
         )
-        self.assertFalse(certifies(pst, TARGET, alpha=LEVEL))
+        with self.assertRaises(TooMuchRead):
+            certifies(pst, TARGET, alpha=LEVEL)
 
 
 if __name__ == "__main__":
