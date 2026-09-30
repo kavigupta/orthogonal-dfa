@@ -19,17 +19,35 @@ family's vote there; here the cut is centred at half the family (`lo`, `hi`).  S
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.  The
 boundary the clustering recentres on is not a gap: `Clusterer` covers any.
 
-Known modelling gap.  The Python sizes the band around the boundary from its reads
-(`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
-its far side at most `crossLimit` of the time.  The returned family, seed included, is cut at `lo` and
-`hi + 1`, wider by the seed's one read than the gate's cut over the family without it, where the
-Python cuts both at one rate.
+Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
+(`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
+the band is sized so that a vote whose mean lies outside it lands on its far side at most
+`crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
+by the seed's one read than the gate's cut over the family without it, where the Python cuts both
+at one rate.
 
 Known modelling gap.  The certification sample here is `npref` draws from each population, read
 by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
 from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
 split reads uncertified, and reads the FNR on each population topped up to its table count,
 capped by the same budget.
+
+Known modelling gap.  `drift_verdict` holds each side of the cut to its own threshold, lets any
+population veto and only the uniform pool admit; `admitted` pools the two sides against a coin
+flip, at every population.  The Python's FNR also reads 1 for a family that decides no prefix
+one of the two ways, which `ret` does not.
+
+Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
+table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
+`screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
+pool's least count.
+
+Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
+one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The
+Python grows the table as it goes, by `num_addtl_prefixes` prefixes or a cohort of suffixes after
+each refusal, and stops at whatever table a round first passes on, which the claim need not
+cover.  It also gives up after `ACCEPT_PRESERVING_GIVE_UP` refusals by the gate, where the loop
+here never does.
 -/
 
 namespace OrthoDFA
