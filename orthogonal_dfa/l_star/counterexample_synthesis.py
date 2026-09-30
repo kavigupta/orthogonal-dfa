@@ -20,7 +20,7 @@ from typing import List, Optional
 import numpy as np
 from automata.fa.dfa import DFA
 
-from .cluster import family_reserve, sample_suffix_family
+from .cluster import sample_suffix_family, suffixes_voting_like
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
@@ -92,11 +92,11 @@ def _default_patience(acc_threshold: float) -> int:
 
 
 def _reserve_source(pst, empty, vs):
-    """Each call, the next ``family_reserve`` of ``vs``."""
+    """Each call, the next ``suffixes_voting_like`` ``vs``."""
     taken = list(vs)
 
     def more():
-        chunk = family_reserve(pst, empty, vs, taken)
+        chunk = suffixes_voting_like(pst, empty, vs, taken)
         taken.extend(chunk)
         return chunk
 

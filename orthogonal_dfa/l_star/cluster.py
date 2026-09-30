@@ -529,10 +529,15 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
 RESERVE_DRAWS = 2
 
 
-def family_reserve(pst, v: int, family: List[int], taken: List[int]) -> List[int]:
-    """Up to ``len(family)`` pool suffixes outside ``taken`` whose clustering loss
-    against ``family`` is at most that of its worst member, screening more against
-    ``v`` while short."""
+def suffixes_voting_like(pst, v: int, family: List[int], taken: List[int]) -> List[int]:
+    """Up to ``len(family)`` more suffixes, outside ``taken``, to re-read a string
+    ``family`` leaves undecided.
+
+    Their votes only sharpen the family's mean if they cut every prefix the way it
+    does.  The pool also holds suffixes clustering passed over, which cut some
+    states the other way and split states that are one, so a suffix must fit the
+    cluster as well as the family's worst member does.  Screens more against ``v``
+    while short."""
     amount = len(family)
     representative = pst.table.representative
     center = pst.compute_decision(family, representative) > pst.decision_boundary
