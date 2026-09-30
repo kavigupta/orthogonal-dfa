@@ -36,6 +36,11 @@ by both tests.  The Python reads the gate on `min(representative, certification_
 from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
 split reads uncertified, and reads the FNR on each population topped up to its table count,
 capped by the same budget.
+
+Known modelling gap.  `judge_family` first reads the FNR on the table, whose votes the family was
+clustered on, and refuses a family there without reading fresh prefixes; `ret` has no such
+pre-check.  It only refuses, so every family the Python returns is one `ret` accepts, but the
+loop may refuse a family `ret` would pass.
 -/
 
 namespace OrthoDFA

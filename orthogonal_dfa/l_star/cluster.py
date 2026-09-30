@@ -477,7 +477,13 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # check and the accept-preserving null are both stated about a family seeded
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
-    fnr, worst = gate.fnr(pst, v, vs)
+    # The table's votes are fitted to it and read as more decisive than they are,
+    # so a family they already find indecisive is refused without fresh reads.
+    fnr, worst = pst.fnr_from_decision(
+        pst.compute_decision(vs, pst.table.representative)
+    )
+    if fnr <= pst.config.fnr_limit:
+        fnr, worst = gate.fnr(pst, v, vs)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
