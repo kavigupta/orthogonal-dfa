@@ -61,8 +61,11 @@ class MemoizedOracle(Oracle):
             answers[missing] = by_first[inverse.ravel()]
         return answers.tolist()
 
-    def __contains__(self, string: bytes) -> bool:
-        return _key(string) in self._cache
+    def seen(self, strings: List[bytes]) -> np.ndarray:
+        """Whether each string has been read."""
+        if not strings:
+            return np.zeros(0, dtype=bool)
+        return self._table.get(_keys(strings)) != _EMPTY
 
     def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])

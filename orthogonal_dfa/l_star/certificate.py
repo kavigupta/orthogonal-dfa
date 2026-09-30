@@ -102,9 +102,8 @@ def certifies(pst, dfa, *, alpha) -> bool:
         level = look_level(alpha, look)
         for side, draw in enumerate(sides):
             strings = [draw() for _ in range(size - counts[side, 0])]
-            for string in strings:
-                if string not in read_before:
-                    read_before[string] = string in memo
+            new = sorted(set(strings) - read_before.keys())
+            read_before.update(zip(new, memo.seen(new)))
             earlier = np.array([read_before[string] for string in strings])
             ones = np.asarray(memo.membership_queries(strings), dtype=bool)
             counts[side] += (len(strings), earlier.sum(), (ones & ~earlier).sum())
