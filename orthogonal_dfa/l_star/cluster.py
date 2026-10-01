@@ -217,11 +217,6 @@ def drift_verdict(pst, by_population):
     if not num_tests:
         return UNCERTIFIED, UNIFORM
 
-    def rejects_null(kind, hits, n, level):
-        if kind == "accept":
-            return scipy.stats.binom.sf(hits - 1, n, pst.accept_thresh) <= level
-        return scipy.stats.binom.cdf(hits, n, pst.reject_thresh) <= level
-
     def drifted(kind, hits, n, level):
         if kind == "accept":
             return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
@@ -232,9 +227,19 @@ def drift_verdict(pst, by_population):
     for label, held in sides.items():
         if any(drifted(*side, alpha / num_tests) for side in held):
             return DRIFTED, label
-    pool = sides.get(UNIFORM, [])
-    if pool and all(rejects_null(*side, alpha) for side in pool):
-        return ADMITTED, None
+    # Admits when the prefixes' own reads match the family's vote on them (1 where
+    # it accepts, 0 where it rejects) significantly more often than if both sides
+    # read 1 at the decision boundary.
+    boundary = pst.decision_boundary
+    accept_null, reject_null = boundary, boundary
+    (hits_a, n_a), (hits_r, n_r) = by_population.get(UNIFORM, ((0, 0), (0, 0)))
+    if n_a + n_r:
+        null = np.convolve(
+            scipy.stats.binom.pmf(np.arange(n_a + 1), n_a, accept_null),
+            scipy.stats.binom.pmf(np.arange(n_r + 1), n_r, 1 - reject_null),
+        )
+        if null[hits_a + (n_r - hits_r) :].sum() <= alpha:
+            return ADMITTED, None
     return UNCERTIFIED, UNIFORM
 
 
