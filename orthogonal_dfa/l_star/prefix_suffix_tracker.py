@@ -271,7 +271,7 @@ class PrefixSuffixTracker:
         if new_prefixes:
             self.table.add_prefixes(new_prefixes, population=UNIFORM)
 
-    def sample_more_suffixes(self, *, amount: int, reference: Optional[int] = None):
+    def sample_more_suffixes(self, *, amount: int, reference: int):
         """Grow the pool of clustering candidates by ``amount`` suffixes that
         survive screening against ``reference``, returning ``(kept, drawn)``.
 
@@ -284,11 +284,7 @@ class PrefixSuffixTracker:
             while kept < amount and drawn < max_draws:
                 cohort = self._draw_cohort(min(amount, max_draws - drawn))
                 drawn += len(cohort)
-                survivors = (
-                    cohort
-                    if reference is None
-                    else self._screen_cohort(cohort, reference)
-                )
+                survivors = self._screen_cohort(cohort, reference)
                 self.suffix_pool.extend(survivors)
                 kept += len(survivors)
                 pbar.update(len(survivors))
