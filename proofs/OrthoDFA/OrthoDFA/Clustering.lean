@@ -24,12 +24,39 @@ share of `hammingLoss`, stops once the total loss stops falling, and recentres a
 `k` members when the pool holds that many and at most `k` otherwise, and is a function of the
 pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
 
-Known modelling gap.  The Python sizes the band around the boundary from its reads
-(`evidence_margin`); here it is sized so that a vote whose mean lies outside the band lands on
-its far side at most `crossLimit` of the time.
+Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
+(`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
+the band is sized so that a vote whose mean lies outside it lands on its far side at most
+`crossLimit` of the time.  The returned family, seed included, is cut at `lo` and `hi + 1`, wider
+by the seed's one read than the gate's cut over the family without it, where the Python cuts both
+at one rate.
 
-Known modelling gap.  The family here excludes its seed `ε`, where the Python's `vs` includes
-it and `SuffixFamily.is_accept` reads it.
+Known modelling gap.  The certification sample here is `npref` draws from each population, read
+by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
+from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
+split reads uncertified.
+
+Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
+`identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
+The table's votes are fitted to its noise and read as more decisive than they are, so the
+claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
+
+Known modelling gap.  `drift_verdict` holds each side of the cut to its own threshold, lets any
+population veto and only the uniform pool admit; `admitted` pools the two sides against a coin
+flip, at every population.  The Python's FNR also reads 1 for a family that decides no prefix
+one of the two ways, which `ret` does not.
+
+Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
+table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
+`screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
+pool's least count.
+
+Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
+one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The
+Python grows the table as it goes, by `num_addtl_prefixes` prefixes or a cohort of suffixes after
+each refusal, and stops at whatever table a round first passes on, which the claim need not
+cover.  It also gives up after `ACCEPT_PRESERVING_GIVE_UP` refusals by the gate, where the loop
+here never does.
 -/
 
 namespace OrthoDFA
@@ -245,6 +272,11 @@ noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
   (clusterAround mq 1 2 (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     (oracleNoise x) B.k).erase 1
 
+/-- The family the round returns, `vs`: the cluster with its seed. -/
+noncomputable def familyAt (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  insert 1 (clusterAt mq populations x B)
+
 /-! ### The cut -/
 
 /-- `p` is decided when the family's vote clears the accept or reject threshold; otherwise
@@ -292,13 +324,14 @@ def admitted (mq : S → Ω → ℝ) (lo hi n₀ : ℕ) (α : ℝ) (F P : Finset
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-gate and the accept-preserving gate, each per population on `certOf`. -/
+gate and the accept-preserving gate, each per population on `certOf`.  The FNR reads the family
+with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
 noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo B.hi
-          (clusterAt mq populations x B) p (oracleNoise x))).card : ℝ)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
+          (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
         (clusterAt mq populations x B) (certOf j B.npref x) (oracleNoise x)}
@@ -397,10 +430,10 @@ def ClusteringGuarantee : Prop :=
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
-                ≤ (D j).real {p | cutCorrect O B.val.lo B.val.hi
-                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
-                ∧ (D j).real {p | ¬ decided O.mq B.val.lo B.val.hi
-                    (clusterAt O.mq populations x B.val) p (oracleNoise x)}
+                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
 end OrthoDFA
