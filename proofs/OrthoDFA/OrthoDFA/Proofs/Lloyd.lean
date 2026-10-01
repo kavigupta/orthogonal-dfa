@@ -374,10 +374,10 @@ lemma familyAt_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J)
     familyAt mq populations x B = familyBy lloydClusterer mq populations x B := by
   rw [familyAt, familyBy, clusterAt_eq]
 
-lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (indecisionLimit α : ℝ) (n : ℕ) (B : State) :
-    ret (Ω := Ω) mq populations uni indecisionLimit α n B
-      = retBy lloydClusterer mq populations uni indecisionLimit α n B := by
+lemma ret_eq {J : Type*} (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (a : ℕ)
+    (indecisionLimit α : ℝ) (B : State) :
+    ret (Ω := Ω) mq populations uni a indecisionLimit α B
+      = retBy lloydClusterer mq populations uni a indecisionLimit α B := by
   have h : clusterAt (Ω := Ω) mq populations
       = fun x B => clusterBy lloydClusterer mq populations x B := by
     funext x B

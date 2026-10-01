@@ -46,9 +46,7 @@ def ClusteringQualityGuarantee : Prop :=
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
-  crossLimit ≤ 1 →
   0 < slack →
-  prefixNeed populations η₀ indecisionLimit εcov (δ / 2) α pAP crossLimit ≤ 2 * a / pAP →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -66,9 +64,9 @@ def ClusteringQualityGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α (certSize a B.val) B.val)
+                x ∈ ret O.mq populations uni a indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α (certSize a B.val) B.val →
+              x ∈ ret O.mq populations uni a indecisionLimit α B.val →
               ∀ j ∈ populations,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack

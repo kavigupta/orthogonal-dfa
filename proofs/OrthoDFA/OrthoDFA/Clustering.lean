@@ -31,8 +31,8 @@ the band is sized so that a vote whose mean lies outside it lands on its far sid
 by the seed's one read than the gate's cut over the family without it, where the Python cuts both
 at one rate.
 
-Known modelling gap.  The gate here reads the uniform pool's first `n + e` draws, for any `e`;
-the Python reads it on `n`, then once more on as many as `prefixes_to_certify` asks for.
+Known modelling gap.  The gate here reads the uniform pool's first `certSize a B + e` draws, for
+any `e`; the Python draws the further prefixes once, at most `certification_budget` of them.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
@@ -316,26 +316,24 @@ def admitted (mq : S → Ω → ℝ) (lo hi : ℕ) (α : ℝ) (F P : Finset S) (
   0 < (agreeCount mq lo hi F P ω).2
     ∧ binomSfGe (agreeCount mq lo hi F P ω).2 (1 / 2) (agreeCount mq lo hi F P ω).1 ≤ α
 
-/-- `certification_budget`: both tests read at most the prefixes one round of table growth, `a`
-prefixes over the whole pool, would cost in reads of the family, and never more than the table
-holds of a population. -/
+/-- `min(representative, certification_budget)`: the gate's first read is capped at what one round
+of table growth, `a` prefixes over the whole pool, would cost in reads of the family. -/
 def certSize (a : ℕ) (B : State) : ℕ := min B.npref (max 1 (a * B.nsuff / B.k))
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-test per population on `n` fresh draws, and the accept-preserving gate on as many from the
-uniform pool `uni`, which may draw that pool further when the split reads uncertified.  The FNR
-reads the family with its seed; the gate reads it without, since the seed's read is the bit the
-gate scores. -/
-noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (indecisionLimit α : ℝ) (n : ℕ) (B : State) : Set (Run Ω S J) :=
+test per population on `certOf`, and the accept-preserving gate on the uniform pool `uni`,
+which may draw that pool further when the split reads uncertified.  The FNR reads the family
+with its seed; the gate reads it without, since the seed's read is the bit the gate scores. -/
+noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (a : ℕ)
+    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j n x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
           (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
-        ≤ indecisionLimit * (certOf j n x).card)
+        ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterAt mq populations x B) (certOf uni (n + e) x) (oracleNoise x)}
+        (clusterAt mq populations x B) (certOf uni (certSize a B + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -353,17 +351,6 @@ draws carry independent noise only where they are distinct; `S` is countable, so
 zero and the claim asks only that it be small. -/
 noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
 
-/-- The prefix count `ClusteringGuarantee` allows a state, at the largest pool it allows. -/
-noncomputable def prefixNeed (populations : Finset J)
-    (η₀ indecisionLimit εcov δ α pAP crossLimit : ℝ) : ℝ :=
-  2048 * (populations.card : ℝ) ^ 2
-    * Real.log (((populations.card : ℝ) + 2)
-      * (128 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
-          / ((1 / 2 - η₀) ^ 2 * pAP)
-        + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)
-      / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit)))
-    / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
-
 /-! ## The theorem -/
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
@@ -379,7 +366,7 @@ at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
 the one population the gate admits on.  `pAP` lower-bounds the share of suffixes that preserve
-membership for every prefix, and `cap` bounds the collision mass. -/
+membership for every prefix, `cap` bounds the collision mass, and `a` is `num_addtl_prefixes`. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -400,8 +387,6 @@ def ClusteringGuarantee : Prop :=
   δ ≤ 1 →
   0 < crossLimit →
   crossLimit ≤ 1 →
-  -- one round of table growth, `a` prefixes, buys a certification sample as large as any state's
-  prefixNeed populations η₀ indecisionLimit εcov δ α pAP crossLimit ≤ 2 * a / pAP →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -415,19 +400,19 @@ def ClusteringGuarantee : Prop :=
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
         (∀ B ∈ states, (B.npref : ℝ) ≤
-          2048
+          6000
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
             / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
           )
-          / ((1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+          / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
-          32
+          104
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
-          / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2)
+          / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
         ) ∧
         (∀ B ∈ states,
           (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
@@ -441,9 +426,9 @@ def ClusteringGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α (certSize a B.val) B.val)
+                x ∈ ret O.mq populations uni a indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α (certSize a B.val) B.val →
+              x ∈ ret O.mq populations uni a indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
