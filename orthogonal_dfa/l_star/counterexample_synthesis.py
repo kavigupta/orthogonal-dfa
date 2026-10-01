@@ -106,18 +106,14 @@ def _split_blamed(pst, dfa, vs, state, verdict, *, index, per_state):
         return
     split, aim = found
     # Replaces the last round's split, as a state's members do.
-    for label in [label for label in state.held if label[0] == "split"]:
-        del state.held[label]
-        del state.sources[label]
+    state.retire("split")
     drawn = len(split.groups[False]) + len(split.groups[True])
     for side, group in ((False, split.groups[False]), (True, split.groups[True])):
         if group:
-            label = ("split", index, verdict.blamed, int(side))
             source = SplitSource(
                 split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
             )
-            state.held[label] = sorted(source.draw() for _ in range(per_state))
-            state.sources[label] = source
+            state.hold(("split", index, verdict.blamed, int(side)), source, per_state)
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -150,7 +146,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
-    state.retire_states()
+    state.retire("state")
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -161,8 +157,7 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
-        state.sources[("state", leaf)] = source
+        state.hold(("state", leaf), source, per_state)
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
