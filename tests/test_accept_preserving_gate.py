@@ -209,13 +209,14 @@ class TestAVetoRedrawsItsSample(unittest.TestCase):
     def test_the_vetoing_population_is_redrawn_and_the_pool_kept(self):
         draws = itertools.count()
         verdicts = iter([(DRIFTED, "state"), (ADMITTED, None)])
+        read = []
         with mock.patch.multiple(
             cluster,
             population_labels=lambda state: [UNIFORM, "state"],
             prefixes_for_split=lambda pst, state, label, n: [next(draws)],
             certification_budget=lambda pst, vs: 1,
             veto_size=lambda pst, populations: 1,
-            certification_sample=lambda pst, vs, prefixes: prefixes,
+            certification_sample=lambda pst, vs, prefixes: read.append(dict(prefixes)),
             _split_counts=lambda pst, reads: {},
             drift_verdict=lambda pst, counts: next(verdicts),
         ):
@@ -224,8 +225,9 @@ class TestAVetoRedrawsItsSample(unittest.TestCase):
             )
             pst = SimpleNamespace(table=SimpleNamespace(representative=np.ones(3)))
             gate.verdict(pst, 0, [1, 2])
+            gate.verdict(pst, 0, [1, 2])
 
-        self.assertEqual({UNIFORM: [0], "state": [2]}, gate._drawn)
+        self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
 
 
 if __name__ == "__main__":
