@@ -1,33 +1,28 @@
-"""The merged-state check on members drawn from known true states of the armed
-target, read against the pool the learner's own search builds: members of one state
-must not split, and a minority of the other label must."""
+"""Splitting members drawn from known true states of the armed target, read
+against the family the learner's own search builds: a minority of the other label
+must land on the minority's side."""
 
 import unittest
 from collections import Counter
 from functools import lru_cache
 
 import numpy as np
-import pytest
 from parameterized import parameterized
 
 from orthogonal_dfa.l_star.cluster import sample_suffix_family
-from orthogonal_dfa.l_star.counterexample_synthesis import SPLIT_SCAN_ALPHA
+from orthogonal_dfa.l_star.counterexample_synthesis import SPLIT_ALPHA
 from orthogonal_dfa.l_star.dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     uniform_weights,
 )
 from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
-from orthogonal_dfa.l_star.examples.bernoulli_parity import AllFramesClosedOracle
 from orthogonal_dfa.l_star.learn import DEFAULT_MAX_COVERAGE_ERROR, build_pst
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
 from orthogonal_dfa.l_star.sampler import UniformSampler
-from orthogonal_dfa.l_star.state_split import split_by_looks, state_split
+from orthogonal_dfa.l_star.state_split import fresh_suffixes, split_members
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
-from orthogonal_dfa.superlanguage.oracle import LiftedOracle
-from orthogonal_dfa.superlanguage.sampler import SuperSampler
-from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.test_lstar import ARMED_ALPHABET, ARMED_LENGTH, build_armed_target
 
 #: (0.6, 0.9) is left out: past a half on both sides the pooled ranking inverts.
@@ -39,8 +34,6 @@ SEEDS = [0, 4]
 #: as A, and the minority's side comes out under 2/3 Q: the certificate refuses
 #: the next round's merge again, at the cost of a round.
 SIDED_NOISE = [noise for noise in NOISE if noise != (0.35, 0.65)]
-
-MERGED_MINORITY_MASS = SearchConfig.merged_minority_mass
 
 
 def _oracle(p_0, p_1, seed):
@@ -113,37 +106,27 @@ class _Mixture:
 def _check(masses, p_0, p_1, seed):
     rng = np.random.default_rng(seed)
     draw = _Mixture(masses, rng)
-    split = split_by_looks(
+    fresh = {
+        draw.suffix()
+        for _ in range(fresh_suffixes(SPLIT_ALPHA, SearchConfig.min_suffix_frequency))
+    }
+    split = split_members(
         draw,
-        _family(p_0, p_1, seed),
+        [v for v in sorted(set(_family(p_0, p_1, seed)) | fresh) if v],
         _oracle(p_0, p_1, seed),
+        minority_below=True,
+        minority_share=masses["Q"] / sum(masses.values()),
         signal=(p_1 - p_0) / 2,
-        minority_share=MERGED_MINORITY_MASS / sum(masses.values()),
-        preserving_share=SearchConfig.min_suffix_frequency,
-        alpha=SPLIT_SCAN_ALPHA,
+        level=SPLIT_ALPHA,
         rng=rng,
     )
     return split, draw.truth
 
 
-class TestOneStateDoesNotSplit(unittest.TestCase):
-    @parameterized.expand(
-        [
-            (state, p_0, p_1, seed)
-            for state in ("c0", "Q", "A")
-            for p_0, p_1 in NOISE
-            for seed in SEEDS
-        ]
-    )
-    def test_pure(self, state, p_0, p_1, seed):
-        split, _ = _check({state: _true_mass(state)}, p_0, p_1, seed)
-        self.assertIsNone(split)
-
-
 class TestOppositeLabelsSplit(unittest.TestCase):
     def _assert_split_along(self, masses, p_0, p_1, seed):
         split, truth = _check(masses, p_0, p_1, seed)
-        self.assertIsNotNone(split, "a minority of the other label went unseen")
+        self.assertIsNotNone(split, "no cut separated the minority")
         # The next round holds each side as a population, and the gate's veto is
         # sized for one a family reads nearly all backwards.
         minority = Counter(truth[m] for m in split.groups[True])
@@ -157,31 +140,3 @@ class TestOppositeLabelsSplit(unittest.TestCase):
     def test_at_their_own_masses(self, p_0, p_1, seed):
         masses = {q: _true_mass(q) for q in ("A", "Q")}
         self._assert_split_along(masses, p_0, p_1, seed)
-
-
-@pytest.mark.slow
-class TestAllFramesClosedDoesNotSplit(unittest.TestCase):
-    def test_every_true_state(self):
-        vocab = KmerVocabulary(
-            kmers=((3, 0, 2), (3, 2, 0), (3, 0, 0)), base_alphabet_size=4
-        )
-        base = AllFramesClosedOracle()
-        pst = build_pst(
-            lambda nm, s: NoisyOracle(LiftedOracle(base, vocab, seed=s), nm, s),
-            min_signal_strength=0.2,
-            seed=0,
-            sampler=SuperSampler(vocab, 40),
-        )
-        uniform = [
-            p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
-        ]
-        vs, _ = sample_suffix_family(
-            pst, pst.table.intern_suffix(b""), PoolState(uniform)
-        )
-        target = LiftedOracle(base, vocab, seed=0).target_dfa()
-        split = [
-            state
-            for state in sorted(target.states)
-            if state_split(pst, target, state, vs, alpha=SPLIT_SCAN_ALPHA) is not None
-        ]
-        self.assertEqual(split, [])

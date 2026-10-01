@@ -1,13 +1,9 @@
-"""Whether a hypothesis state holds members of the opposite label.
+"""Splitting a hypothesis state the certificate blames into its two labels.
 
-For members p of the state, with E_p the read of p itself and X_pv the read of p v:
-if the state is one class, E_p is independent of every X_pv across members.  A
-minority of the other label makes E depend on the class-preserving v's.  The test
-picks candidate suffixes v on one half of the members and rejects
-
-    H0: E independent of sum over picked v of X_pv
-
-on the other half, exactly, at a level spread over looks of doubling size.
+For members p of the state, with E_p the read of p itself and X_pv the read of
+p v, suffixes v whose reads go with E across the members separate a minority of
+the other label from the rest, since a member's own read and a class-preserving
+suffix's both follow its label.
 """
 
 import math
@@ -17,7 +13,6 @@ from typing import List, Tuple
 import numpy as np
 import scipy.stats
 
-from .dfa_utils import count_paths_to_state, uniform_weights
 from .prefix_sources import aim_at
 from .rejection_source import _MISREAD, RejectionSource
 
@@ -25,18 +20,7 @@ from .rejection_source import _MISREAD, RejectionSource
 _MAX_READ_VARIANCE = 0.25
 
 
-def tail_ladder(members, minority_share) -> List[int]:
-    """[ceil(w n) 2^k for k >= 0, while at most n / 2], w = minority_share,
-    n = members."""
-    sizes = []
-    size = max(1, math.ceil(minority_share * members))
-    while size <= members // 2:
-        sizes.append(size)
-        size *= 2
-    return sizes
-
-
-#: Separating suffixes the fresh draws are sized to hold, and the looks for.
+#: Separating suffixes the fresh draws are sized to hold.
 _SEPARATING = 2
 
 
@@ -69,18 +53,6 @@ def first_look(signal, minority_share, level, miss_rate) -> int:
     return math.ceil(z**2 / _label_signal(signal, minority_share))
 
 
-def most_looks(signal, minority_share, separating, candidates) -> int:
-    """ceil(log2(1 / q)) + 1, with
-
-        q = m^2 (2 signal)^2 w (1 - w) / (M v_max + m^2 (2 signal)^2 w (1 - w))
-
-    the squared correlation with a member's label of its count of ones over all
-    M = candidates suffixes, of which m = separating separate."""
-    carried = separating**2 * (2 * signal) ** 2 * minority_share * (1 - minority_share)
-    quality = carried / (candidates * _MAX_READ_VARIANCE + carried)
-    return math.ceil(math.log2(1 / quality)) + 1
-
-
 def _tail(scores, size, rng, top) -> np.ndarray:
     """A mask of the members ranked furthest to one end, as many as size, ties
     broken at random."""
@@ -88,14 +60,6 @@ def _tail(scores, size, rng, top) -> np.ndarray:
     tail = np.zeros(len(scores), dtype=bool)
     tail[order[:size]] = True
     return tail
-
-
-def _label_pvalue(tail, empty, top) -> float:
-    """P(H >= h) if top else P(H <= h), H ~ Hypergeometric(n, sum(E), |T|),
-    h = sum over the tail T of E: exact when T is independent of E."""
-    dist = scipy.stats.hypergeom(len(tail), int(empty.sum()), int(tail.sum()))
-    ones = int(empty[tail].sum())
-    return float(dist.sf(ones - 1) if top else dist.cdf(ones))
 
 
 @dataclass
@@ -241,155 +205,70 @@ def _tails_without(reads, picked, weights, tail):
 
 
 def split_members(
-    picking, picked_reads, testing, suffixes, oracle, *, minority_share, level, rng
+    draw, suffixes, oracle, *, minority_below, minority_share, signal, level, rng
 ):
-    """(split, p*): p* = min over tail sizes t in tail_ladder and both ends
-    of T * _label_pvalue, T the number of such tails, on the testing
-    members' counts over the suffixes that _going_with picks on
-    picking, whose reads of them are picked_reads.  A split, when the least
-    such T p is at most level, puts the testing members on each side of the
-    sharpened cut, or of the detecting tail's if sharpening fails; the smaller
-    side is the minority."""
-    members = picking + testing
-    empty = np.asarray(oracle.membership_queries(members), dtype=np.int8)
-    picks = np.arange(len(members)) < len(picking)
-    picked = _going_with(picked_reads, empty[picks])
-    chosen = [suffixes[k] for k in picked]
-    held = _reads(oracle, testing, chosen).sum(1)
-    tests = [
-        (_label_pvalue(_tail(held, size, rng, top), empty[~picks], top), size, top)
-        for size in tail_ladder(len(testing), minority_share)
-        for top in (True, False)
-    ]
-    if not tests:
-        return None, 1.0
-    least = min(1.0, min(tests)[0] * len(tests))
-    clearing = [(size, p, top) for p, size, top in tests if p * len(tests) <= level]
-    if not clearing:
-        return None, least
-    size, _, top = min(clearing)
-    weights = np.ones(len(chosen)) if top else -np.ones(len(chosen))
-    scores = np.empty(len(members))
-    scores[picks] = picked_reads[:, picked] @ weights
-    scores[~picks] = held if top else -held
-    # The tail's share of the testing half, taken of every member.
-    inside = _tail(scores, math.ceil(size / len(testing) * len(members)), rng, True)
-    cut = scores[inside].min()
-    # The tail only has to hold more of the minority than chance to be detected;
-    # the sides handed on are placed by every suffix that goes with the label.
-    sharpened = _sharpened(
-        picked_reads,
-        inside[picks],
-        _tails_without(picked_reads, picked, weights, inside[picks]),
-        level,
+    """The StateSplit placing n fresh members of draw, n = first_look at level,
+    on each side of the cut _sharpened fits on n others, starting from the
+    minority_share of those whose counts over the suffixes _going_with picks
+    are lowest (minority_below) or highest; the smaller side is the minority.
+    None if sharpening finds no cut."""
+    size = first_look(signal, minority_share, level, level)
+    picking = draw(size)
+    reads = _reads(oracle, picking, suffixes)
+    empty = np.asarray(oracle.membership_queries(picking), dtype=np.int8)
+    picked = _going_with(reads, empty)
+    weights = -np.ones(len(picked)) if minority_below else np.ones(len(picked))
+    inside = _tail(
+        reads[:, picked] @ weights, math.ceil(minority_share * size), rng, True
     )
-    if sharpened is not None:
-        kept, weights, count = sharpened
-        chosen = [suffixes[k] for k in kept]
-        # A count of agreeing reads is the weighted reads plus the flipped ones.
-        cut = count - (weights < 0).sum()
-        scores[picks] = picked_reads[:, kept] @ weights
-        scores[~picks] = _reads(oracle, testing, chosen) @ weights
-    if (scores[~picks] >= cut).mean() > 1 / 2:
+    sharpened = _sharpened(
+        reads, inside, _tails_without(reads, picked, weights, inside), level
+    )
+    if sharpened is None:
+        return None
+    kept, weights, count = sharpened
+    chosen = [suffixes[k] for k in kept]
+    # A count of agreeing reads is the weighted reads plus the flipped ones.
+    cut = count - (weights < 0).sum()
+    testing = draw(size)
+    scores = _reads(oracle, testing, chosen) @ weights
+    if (scores >= cut).mean() > 1 / 2:
         # The minority is what the cut leaves out; scores are integers.
         weights, scores, cut = -weights, -scores, math.floor(-cut) + 1
     inside = scores >= cut
-    split = StateSplit(
+    return StateSplit(
         groups=(
-            [m for m, h in zip(testing, inside[~picks]) if not h],
-            [m for m, h in zip(testing, inside[~picks]) if h],
+            [m for m, h in zip(testing, inside) if not h],
+            [m for m, h in zip(testing, inside) if h],
         ),
         suffixes=chosen,
         weights=weights,
         cut=cut,
     )
-    return split, least
 
 
-def split_by_looks(
-    draw, family, oracle, *, signal, minority_share, preserving_share, alpha, rng
-):
-    """The split from looks k = 0, 1, ..., L - 1, n_0 2^k members per half with
-    n_0 = first_look and L = most_looks, the testing half fresh and the
-    picking half every earlier look's topped up with fresh draws, each at level
-    alpha / L: the first look's split, or None once look k's p* exceeds
-    2^-(k+1).  p* is super-uniform under a pure state, so
-
-        P(look k) <= 2^-k(k+1)/2,   E[members] <= n_0 sum_k 2^k 2^-k(k+1)/2 < 3 n_0."""
-    fresh_count = fresh_suffixes(alpha, preserving_share)
-    fresh = {draw.suffix() for _ in range(fresh_count)}
-    candidates = sorted(set(family) | fresh)
-    suffixes = [v for v in candidates if v]
-    looks = most_looks(signal, minority_share, _SEPARATING, len(candidates))
-    level = alpha / looks
-    # A merge missed is weighed as a pure state split.
-    size = first_look(signal, minority_share, level, level)
-    picking = []
-    picked_reads = np.zeros((0, len(suffixes)), dtype=np.int8)
-    for look in range(looks):
-        # Independent of any later look's testing half, so reused.
-        drawn = draw(size - len(picking))
-        picking = picking + drawn
-        picked_reads = np.concatenate([picked_reads, _reads(oracle, drawn, suffixes)])
-        split, p = split_members(
-            picking,
-            picked_reads,
-            draw(size),
-            suffixes,
-            oracle,
-            minority_share=minority_share,
-            level=level,
-            rng=rng,
-        )
-        if split is not None:
-            return split
-        if p > 2 ** -(look + 1):
-            return None
-        size *= 2
-    return None
-
-
-class _Aimed:
-    """Draws for a hypothesis state: members aimed at it, and fresh suffixes."""
-
-    def __init__(self, pst, aim):
-        self._pst = pst
-        self._aim = aim
-
-    def __call__(self, count) -> List[bytes]:
-        return [self._aim() for _ in range(count)]
-
-    def suffix(self) -> bytes:
-        return self._pst.sampler.sample(
-            self._pst.rng, alphabet_size=self._pst.alphabet_size
-        )
-
-
-def state_split(pst, dfa, state, family, *, alpha):
-    """The split that split_by_looks finds over prefixes aimed at state and the
-    suffixes family, and the aim that drew the prefixes; None if it finds none."""
+def state_split(pst, dfa, state, family, *, minority_share, level):
+    """(split_members of members aimed at state, read on family and fresh
+    suffixes, the aim); None where nothing aims at state or no cut is found."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
-    length = pst.sampler.length
-    reaching = count_paths_to_state(dfa, state, length, uniform_weights(dfa))
-    share = reaching[length][dfa.initial_state] / pst.alphabet_size**length
-    minority_share = pst.config.merged_minority_mass / share
-    if minority_share >= 1:
-        # The whole state is lighter than the least minority worth finding.
-        return None
-    found = split_by_looks(
-        _Aimed(pst, aim),
-        [pst.table.suffix(v) for v in family],
-        # Every look reads fresh members, which the memo would only accumulate.
+    fresh = {
+        pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
+        for _ in range(fresh_suffixes(level, pst.config.min_suffix_frequency))
+    }
+    suffixes = sorted({pst.table.suffix(v) for v in family} | fresh)
+    split = split_members(
+        lambda count: [aim() for _ in range(count)],
+        [v for v in suffixes if v],
         pst.oracle,
-        signal=pst.config.min_signal_strength,
+        minority_below=state in dfa.final_states,
         minority_share=minority_share,
-        preserving_share=pst.config.min_suffix_frequency,
-        alpha=alpha,
+        signal=pst.config.min_signal_strength,
+        level=level,
         rng=pst.rng,
     )
-    return None if found is None else (found, aim)
+    return None if split is None else (split, aim)
 
 
 class SplitSource(RejectionSource):

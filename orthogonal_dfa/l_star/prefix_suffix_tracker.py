@@ -63,9 +63,6 @@ class SearchConfig:
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
-    #: Mass of the least minority of the other label a hypothesis state is searched
-    #: for when the certificate refuses its round.
-    merged_minority_mass: float = 0.05
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for

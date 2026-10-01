@@ -85,37 +85,39 @@ COUNTEREXAMPLE_PROBES = 4000
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
-#: Rate at which a state holding one class is called mixed.
-SPLIT_SCAN_ALPHA = 1e-3
+#: Level each suffix is kept at, Bonferroni over the candidates, in a split.
+SPLIT_ALPHA = 1e-3
 
 
-def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
-    """The states holding a minority of the other label, each part of their
-    splits handed to the next round as a population of its own."""
-    found = [
-        (leaf, state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA))
-        for leaf in sorted(dfa.states)
-    ]
-    found = [(leaf, split) for leaf, split in found if split is not None]
-    if found:
-        # Replaces the last round's split, as a state's members do.
-        for label in [label for label in state.held if label[0] == "split"]:
-            del state.held[label]
-            del state.sources[label]
-    merged = []
-    for leaf, (split, aim) in found:
-        drawn = len(split.groups[False]) + len(split.groups[True])
-        for side, group in ((False, split.groups[False]), (True, split.groups[True])):
-            if not group:
-                continue
-            label = ("split", index, leaf, int(side))
+def _split_blamed(pst, dfa, vs, state, verdict, *, index, per_state):
+    """Hands the next round each side of the state_split of the state the
+    certificate blames, as a population of its own."""
+    if not verdict.share:
+        return
+    found = state_split(
+        pst,
+        dfa,
+        verdict.blamed,
+        vs,
+        minority_share=min(verdict.share, 1 / 2),
+        level=SPLIT_ALPHA,
+    )
+    if found is None:
+        return
+    split, aim = found
+    # Replaces the last round's split, as a state's members do.
+    for label in [label for label in state.held if label[0] == "split"]:
+        del state.held[label]
+        del state.sources[label]
+    drawn = len(split.groups[False]) + len(split.groups[True])
+    for side, group in ((False, split.groups[False]), (True, split.groups[True])):
+        if group:
+            label = ("split", index, verdict.blamed, int(side))
             source = SplitSource(
                 split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
             )
             state.held[label] = sorted(source.draw() for _ in range(per_state))
             state.sources[label] = source
-        merged.append(leaf)
-    return merged
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -288,17 +290,16 @@ class BestRound:
 
 def _certified(pst, dfa, vs, state, *, index, per_state, tracker):
     """denoise_accept_labels(dfa) if the certificate passes it, else None, with
-    each state split_merged_states finds split into the next round's
-    populations."""
+    the state it blames split into the next round's populations."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
-    passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
-    tracker.on_certificate_decided(passed, index)
-    if passed:
+    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
+    tracker.on_certificate_decided(verdict.certified, index)
+    if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
         return output
-    merged = split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
-    print(f"[round {index}] at target, not certified; split {merged}")
+    print(f"[round {index}] at target, not certified; splitting {verdict.blamed}")
+    _split_blamed(pst, output, vs, state, verdict, index=index, per_state=per_state)
     return None
 
 
