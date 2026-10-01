@@ -34,32 +34,21 @@ def error_bound(masses, accepting, low, high, gap) -> float:
 
         band = max(gap, max_S low_S - min_S high_S),
 
-    the narrowest band at least gap that the rates fit."""
-    return _largest_error(masses, accepting, low, high, gap, worst=True)
+    the narrowest band at least gap that the rates fit.
 
-
-def error_floor(masses, accepting, low, high, gap) -> float:
-    """As error_bound, but with each r_S the one in [low_S, high_S] that makes
-    the error least for the p_0: no rates in the intervals have an error_bound
-    below it."""
-    return _largest_error(masses, accepting, low, high, gap, worst=False)
-
-
-def _largest_error(masses, accepting, low, high, gap, *, worst):
-    """For a fixed p_0 each state's rate is chosen apart from the others', so the
-    error is piecewise linear in p_0, and the largest is at the ends of the p_0
-    that fit or where a state's chosen rate meets a bound."""
+    For a fixed p_0 each state's worst rate is independent of the others', so
+    the error is piecewise linear in p_0, and the largest is at the ends of the
+    p_0 that fit or where a state's worst rate meets a bound."""
     masses, low, high = (np.asarray(v, dtype=float) for v in (masses, low, high))
     accepting = np.asarray(accepting, dtype=bool)
     band = max(gap, float(low.max() - high.min()))
     least = max(0.0, float(low.max()) - band)
     # Equal to least where band was set by the rates, up to rounding.
     most = max(least, min(1.0 - band, float(high.min())))
-    raising = accepting != worst
 
     def error(offset):
         rate = np.where(
-            raising, np.minimum(high, offset + band), np.maximum(low, offset)
+            accepting, np.maximum(low, offset), np.minimum(high, offset + band)
         )
         share = (rate - offset) / band
         return float(masses @ np.where(accepting, 1 - share, share))
@@ -95,8 +84,7 @@ def certifies(pst, dfa, *, alpha) -> bool:
 
     Look k reads n_k strings of the sampler, doubling, and certifies when the
     error_bound at gap 2 s over every state's Clopper-Pearson interval, each
-    at look_level(alpha, k) over the states drawn into, is at most e, and
-    refuses once the error_floor over those intervals is above e."""
+    at look_level(alpha, k) over the states drawn into, is at most e."""
     states, masses = _state_masses(pst, dfa)
     accepting = [state in dfa.final_states for state in states]
     route = _router(dfa, states)
@@ -119,15 +107,24 @@ def certifies(pst, dfa, *, alpha) -> bool:
         level = look_level(alpha, look) / max(1, int((drawn > 0).sum()))
         low, high = _rate_intervals(ones, drawn, level)
         bound = error_bound(masses, accepting, low, high, gap)
-        floor = error_floor(masses, accepting, low, high, gap)
+        rates = ones / np.maximum(drawn, 1)
+        at_rates = error_bound(
+            masses,
+            accepting,
+            np.where(drawn > 0, rates, 0.0),
+            np.where(drawn > 0, rates, 1.0),
+            gap,
+        )
+        slack = float(masses @ (high - low)) / gap
         print(
-            f"  certificate look {look}: {size} strings, error at most {bound:.4f} "
-            f"and, at the most favourable rates, at least {floor:.4f}, against {error}"
+            f"  certificate look {look}: {size} strings, error at most {bound:.4f}, "
+            f"{at_rates:.4f} at the rates read, against {error}"
         )
         if bound <= error:
             return True
-        # Refusing carries no guarantee, only a round.
-        if floor > error:
+        # Refusing carries no guarantee, only a round: the error at the rates read
+        # is above e by more than the intervals' widths could still move it.
+        if at_rates - error > slack:
             return False
         size *= 2
         look += 1
