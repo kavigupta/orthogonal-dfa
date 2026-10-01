@@ -301,3 +301,18 @@ def cluster_pst(masks, min_signal_strength):
         suffix_pool=list(range(masks.shape[0])),
         config=SimpleNamespace(min_signal_strength=min_signal_strength),
     )
+
+
+def assert_not_merged(testcase, dfa, target, *, oracle_creator, symbols, sampler):
+    """Fails unless P(dfa(x) = target(x)) >= 1 - assertion_allowed_error for x
+    drawn by sampler, naming its states and false positives and negatives."""
+    accuracy, false_positives, false_negatives = compute_dfa_accuracy(
+        dfa, oracle_creator, symbols=symbols, sampler=sampler
+    )
+    if accuracy >= 1 - assertion_allowed_error:
+        return
+    testcase.fail(
+        f"merged a state (accuracy {accuracy:.4f}, "
+        f"{len(dfa.states)} of {len(target.states)} states). "
+        f"FP: {len(false_positives)}, FN: {len(false_negatives)}"
+    )

@@ -23,6 +23,7 @@ from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
     DEFAULT_SAMPLER,
+    assert_not_merged,
     assert_terminates,
     assertDFA,
     assertion_allowed_error,
@@ -167,10 +168,6 @@ class TestLStar(unittest.TestCase):
         assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
     @pytest.mark.slow
-    @unittest.skip(
-        "Learns the mod-3 DFA on about a quarter of seeds, main included: a merge "
-        "at the gate's coverage tolerance, which the merge check (#325) repairs"
-    )
     def test_modulo_even_harder(self):
         oracle_creator = lambda noise_model, seed: NoisyOracle(
             BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
@@ -534,6 +531,10 @@ ARMED_HOLDS = 10
 ARMED_LENGTH = 20
 ARMED_SIGNAL = 0.3
 
+#: Seeds each merge rate is measured over, one test apiece: which of them merge is a
+#: property of the suffixes a round draws, so a bar on one seed says nothing.
+MERGE_SEEDS = 10
+
 
 def build_armed_target() -> DFA:
     arm = set(range(ARMED_ALPHABET - ARMED_ARMS, ARMED_ALPHABET))
@@ -570,6 +571,30 @@ class TestArmedMergeTarget(unittest.TestCase):
         self.assertAlmostEqual(
             P.covered_accuracy_ceiling(target, length=ARMED_LENGTH, sampler=sampler),
             1.0,
+        )
+
+
+class TestArmedMergeLearned(unittest.TestCase):
+    @parameterized.expand([(seed,) for seed in range(MERGE_SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        target = build_armed_target()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(ARMED_LENGTH)
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=ARMED_SIGNAL,
+            seed=seed,
+            sampler=sampler,
+        )
+        # Graded at the length it was learned at: a hypothesis that merges Q still
+        # reads well on strings long enough that almost all of them reach A anyway.
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ARMED_ALPHABET,
+            sampler=sampler,
         )
 
 
@@ -616,6 +641,38 @@ class TestTrapTargets(unittest.TestCase):
         # reachable while class-preserving suffixes are scarce.
         self.assertGreater(endpoint_mass(target, TRAP_LENGTH)["Q"], 0.05)
         self.assertLess(report.class_preserving_fraction, 0.10)
+
+
+#: A seed whose first DFA the certificate refuses runs about ten minutes.  main merges
+#: on 3 of 8 seeds (#307), so three passing leave a quarter chance that a learner
+#: merging as often slips by.
+TRAP_SEEDS = 3
+
+
+@pytest.mark.slow
+class TestTrapLearned(unittest.TestCase):
+    """Q is rejecting and carries 7% of the endpoint mass, so a family that votes it
+    into accepting A costs that much accuracy at the distribution the DFA is graded
+    on -- unlike e1, which merges into a rejecting state and costs only its own
+    routing."""
+
+    @parameterized.expand([(seed,) for seed in range(TRAP_SEEDS)])
+    def test_the_armed_state_is_not_merged(self, seed):
+        alphabet, arms, disarm = TRAPS[0]
+        target = build_trap(alphabet, arms, disarm)
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(TRAP_LENGTH)
+        dfa = learn_dfa_unchecked(
+            oracle_creator, min_signal_strength=TRAP_SIGNAL, seed=seed, sampler=sampler
+        )
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=alphabet,
+            sampler=sampler,
+        )
 
 
 # The five-symbol trap of #305: Q holds 1.3% of the prefix mass inside an absorbing
@@ -683,6 +740,7 @@ class TestFiveSymbolTrapTarget(unittest.TestCase):
         self.assertLess(report.class_preserving_fraction, 0.10)
 
 
+@pytest.mark.slow
 class TestFiveSymbolTrap(unittest.TestCase):
     def test_learned_within_the_bar(self):
         # Seed 0 loses Q; seed 1 recovers all six states, so the seed is pinned.
@@ -725,8 +783,8 @@ COUNTED_RESIDUE = 2
 
 
 def build_counted_pattern() -> DFA:
-    """Accepts strings whose count of 1s is ``COUNTED_RESIDUE`` mod
-    ``COUNTED_MODULUS`` and that contain ``COUNTED_PATTERN``."""
+    """Accepts strings whose count of 1s is COUNTED_RESIDUE mod
+    COUNTED_MODULUS and that contain COUNTED_PATTERN."""
 
     def matched(done, symbol):
         """Longest prefix of the pattern that ends the string read so far."""
@@ -764,3 +822,10 @@ class TestCountedPattern(unittest.TestCase):
             build_counted_pattern(), length=DEFAULT_SAMPLER.length, short_circuit=False
         )
         self.assertTrue(report.satisfied, report.reasons)
+
+    @parameterized.expand([(seed,) for seed in range(3)])
+    def test_the_pattern_is_learned(self, seed):
+        target = build_counted_pattern()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        dfa = learn_dfa_unchecked(oracle_creator, min_signal_strength=0.3, seed=seed)
+        assertDFA(self, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
