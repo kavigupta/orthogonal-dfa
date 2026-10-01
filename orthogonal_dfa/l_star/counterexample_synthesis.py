@@ -14,6 +14,7 @@ in the next round.
 
 import math
 import time
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -28,6 +29,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import BoundarySource, aim_at, state_source
 from .progress import track
+from .state_split import SplitSource, state_split
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -82,6 +84,38 @@ COUNTEREXAMPLE_PROBES = 4000
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
+
+#: Rate at which a state holding one class is called mixed.
+SPLIT_SCAN_ALPHA = 1e-3
+
+
+def split_merged_states(pst, dfa, vs, state, *, index, per_state) -> List[int]:
+    """The states holding a minority of the other label, each part of their
+    splits handed to the next round as a population of its own."""
+    found = [
+        (leaf, state_split(pst, dfa, leaf, vs, alpha=SPLIT_SCAN_ALPHA))
+        for leaf in sorted(dfa.states)
+    ]
+    found = [(leaf, split) for leaf, split in found if split is not None]
+    if found:
+        # Replaces the last round's split, as a state's members do.
+        for label in [label for label in state.held if label[0] == "split"]:
+            del state.held[label]
+            del state.sources[label]
+    merged = []
+    for leaf, (split, aim) in found:
+        drawn = len(split.groups[False]) + len(split.groups[True])
+        for side, group in ((False, split.groups[False]), (True, split.groups[True])):
+            if not group:
+                continue
+            label = ("split", index, leaf, int(side))
+            source = SplitSource(
+                split, side, aim, pst.oracle, on_side=len(group), drawn=drawn
+            )
+            state.held[label] = sorted(source.draw() for _ in range(per_state))
+            state.sources[label] = source
+        merged.append(leaf)
+    return merged
 
 
 def _default_patience(acc_threshold: float) -> int:
@@ -221,6 +255,10 @@ class _StallDetector:
 PER_STATE = 50
 
 
+class UncertifiedResult(UserWarning):
+    """Synthesis returned a DFA the certificate did not pass."""
+
+
 @dataclass
 class BestRound:
     """The certified round's hypothesis, or else the most consistent one. Rounds
@@ -248,8 +286,10 @@ class BestRound:
             self.certified = certified
 
 
-def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
+def _certified(pst, dfa, vs, state, *, index, per_state, tracker):
+    """denoise_accept_labels(dfa) if the certificate passes it, else None, with
+    each state split_merged_states finds split into the next round's
+    populations."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
@@ -257,7 +297,8 @@ def _certified(pst, dfa, *, index, tracker):
     if passed:
         print(f"[round {index}] certified; stopping synthesis")
         return output
-    print(f"[round {index}] at target, not certified")
+    merged = split_merged_states(pst, dfa, vs, state, index=index, per_state=per_state)
+    print(f"[round {index}] at target, not certified; split {merged}")
     return None
 
 
@@ -338,7 +379,9 @@ def counterexample_driven_synthesis(
         # Only a round that would otherwise return is worth the certificate's reads.
         output = None
         if true_acc >= acc_threshold:
-            output = _certified(pst, dfa, index=index, tracker=tracker)
+            output = _certified(
+                pst, dfa, vs, state, index=index, per_state=per_state, tracker=tracker
+            )
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
             )
@@ -399,6 +442,10 @@ def do_counterexample_driven_synthesis(
     pst.decision_boundary = best.boundary
     dfa = best.certified
     if dfa is None:
+        warnings.warn(
+            f"no round was certified; returning round {best.round_index}'s DFA",
+            UncertifiedResult,
+        )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa
