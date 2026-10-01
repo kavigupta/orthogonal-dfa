@@ -749,9 +749,10 @@ open MeasureTheory ProbabilityTheory in
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    hηle hη₀ hpop hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
   classical
+  have hpop : populations.Nonempty := ⟨uni, huni⟩
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
@@ -832,8 +833,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     rw [mul_div_assoc, mul_div_assoc 128, mul_div_assoc 16]
     rw [mul_div_assoc 128, mul_div_assoc 16] at hpool
     constructor <;> linarith
-  exact clustering_correct O rule populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
-    crossLimit 2048 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim
+  exact clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
+    crossLimit 2048 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim
     hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf
 
 end OrthoDFA

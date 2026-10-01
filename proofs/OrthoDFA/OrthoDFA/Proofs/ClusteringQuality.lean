@@ -365,8 +365,9 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 /-! ## The theorem -/
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit slack
-    hηle hη₀ hpop hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
@@ -399,8 +400,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct O rule populations D Dsf Pre Suf η₀ indecisionLimit εcov α δ' ρ pAP
-    crossLimit 2048 hηle hη₀ hpop hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
+  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
+    ρ pAP crossLimit 2048 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
     hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
@@ -469,8 +470,8 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ retBy rule O.mq populations indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations indecisionLimit α B.val →
+          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}

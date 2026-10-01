@@ -30,7 +30,7 @@ deriving instance DecidableEq for State
 
 instance : Countable State :=
   Function.Injective.countable
-    (f := fun b => (b.nsuff, b.npref, b.k, b.lo, b.hi, b.sc, b.scd, b.gmin))
+    (f := fun b => (b.nsuff, b.npref, b.k, b.lo, b.hi, b.sc, b.scd))
     (by rintro ⟨⟩ ⟨⟩ h; simp_all)
 
 /-- `s = 1/2 − η`. -/
@@ -212,7 +212,6 @@ noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
   sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations indecisionLimit εcov δ⌉₊
   scd := ⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1
-  gmin := ⌊εcov * (mi : ℝ) / 32⌋₊
 
 /-- How many times the loop runs the gate: the prefix count halves down to one.  There is no
 other state the loop can return at. -/
@@ -302,7 +301,7 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 the noise only costs prefixes.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; there is a population to certify; the populations and the suffix measure are
+which has signal; the uniform pool the gate admits on is a population; the populations and the suffix measure are
 supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
 the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
 and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
@@ -313,12 +312,13 @@ may stop wherever on the ladder it likes. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (D : J → Measure S)
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
+    (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  populations.Nonempty →
+  uni ∈ populations →
   Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
   Dsf Sufᶜ = 0 →
@@ -343,10 +343,10 @@ def ClusteringCorrect : Prop :=
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ retBy rule O.mq populations indecisionLimit α B.val) ∧
+        x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ retBy rule O.mq populations indecisionLimit α B.val →
+        x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
