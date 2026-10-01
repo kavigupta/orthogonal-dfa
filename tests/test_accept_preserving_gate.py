@@ -14,7 +14,6 @@ from unittest import mock
 import numpy as np
 
 from orthogonal_dfa.l_star import cluster
-
 from orthogonal_dfa.l_star.cluster import (
     ACCEPT_PRESERVING_ERROR_RATE,
     ADMITTED,
