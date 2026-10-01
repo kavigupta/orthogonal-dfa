@@ -33,8 +33,12 @@ Python cuts both at one rate.
 Known modelling gap.  The certification sample here is `npref` draws from each population, read
 by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
 from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
-split reads uncertified, and reads the FNR on each population topped up to its table count,
-capped by the same budget.
+split reads uncertified.
+
+Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
+`identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
+The table's votes are fitted to its noise and read as more decisive than they are, so the
+claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 -/
 
 namespace OrthoDFA
