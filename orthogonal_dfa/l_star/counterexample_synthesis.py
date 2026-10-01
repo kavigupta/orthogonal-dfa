@@ -14,6 +14,7 @@ in the next round.
 
 import math
 import time
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -221,6 +222,10 @@ class _StallDetector:
 PER_STATE = 50
 
 
+class UncertifiedResult(UserWarning):
+    """Synthesis returned a DFA the certificate did not pass."""
+
+
 @dataclass
 class BestRound:
     """The certified round's hypothesis, or else the most consistent one. Rounds
@@ -399,6 +404,10 @@ def do_counterexample_driven_synthesis(
     pst.decision_boundary = best.boundary
     dfa = best.certified
     if dfa is None:
+        warnings.warn(
+            f"no round was certified; returning round {best.round_index}'s DFA",
+            UncertifiedResult,
+        )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa
