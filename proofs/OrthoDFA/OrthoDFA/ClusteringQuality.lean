@@ -77,13 +77,14 @@ def ClusteringQualityGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α v (certSize a B.val) B.val)
+                x ∈ ret O.mq populations uni bnd indecisionLimit α v (certSize a B.val) B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
+              x ∈ ret O.mq populations uni bnd indecisionLimit α v (certSize a B.val) B.val →
               ∀ j ∈ populations,
-                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations bnd x B.val) p
                     ∂(D j) ≤ εcov + slack
-                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations bnd x
+                    B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
 end OrthoDFA

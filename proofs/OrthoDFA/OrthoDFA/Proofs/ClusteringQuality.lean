@@ -207,25 +207,28 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
     noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O (fun p ω => Ev A₀ p ω)
       (fun p _ => hEv A₀ p Set.univ (fun _ _ => Set.mem_univ _))
       (fun U => t ≤ ∑ p ∈ F \ P, Dj.real {p} * μ.real {ω' | Ev A₀ p ω'} - ∑ p ∈ U, Dj.real {p}))
-  have hR : ∀ P C : Finset S, MeasurableSet (if (1 : S) ∈ C then
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (_u : Unit), MeasurableSet (if (1
+      : S) ∈
+      C then
       oracleNoise ⁻¹' {ω : Ω | t ≤
         ∑ p ∈ F \ P, Dj.real {p}
-            * μ.real {ω' | Ev (insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) p ω'}
+            * μ.real {ω' | Ev (insert 1 (clusterOf rule O wt ord B.sc B.scd P C B.k ω)) p ω'}
           - ∑ p ∈ (F \ P).filter
-              (fun p => Ev (insert 1 (clusterOf rule O B.sc B.scd P C B.k ω)) p ω),
+              (fun p => Ev (insert 1 (clusterOf rule O wt ord B.sc B.scd P C B.k ω)) p ω),
             Dj.real {p}}
       else (∅ : Set (Run Ω S J))) := by
-    intro P C
+    intro P C wt ord _
     split_ifs with hone
     · exact measurable_nz (measurableSet_of_fam (T := C.powerset)
         (fun ω => Finset.mem_powerset.2
-          (Finset.insert_subset hone (clusterOf_subset O B.sc B.scd P C B.k ω hone)))
-        (fun A₀ => measurableSet_insert_clusterOf O B.sc B.scd P C B.k hone A₀)
+          (Finset.insert_subset hone (clusterOf_subset O wt ord B.sc B.scd P C B.k ω hone)))
+        (fun A₀ => measurableSet_insert_clusterOf O wt ord B.sc B.scd P C B.k hone A₀)
         (fun A₀ => {ω : Ω | t ≤ ∑ p ∈ F \ P, Dj.real {p} * μ.real {ω' | Ev A₀ p ω'}
           - ∑ p ∈ (F \ P).filter (fun p => Ev A₀ p ω), Dj.real {p}}) (hR' P))
     · exact MeasurableSet.empty
   have hmeas : MeasurableSet {x : Run Ω S J | t ≤ devAt rule O populations B Dj F Ev x} := by
-    have h := measurableSet_of_run_data populations B _ hR
+    have h := measurableSet_of_draws populations B (fun _ => ())
+      (fun _ => MeasurableSet.const _) _ hR
     convert h using 1
     ext x
     simp only [Set.mem_ofPred_eq, if_pos (one_mem_poolAt B.nsuff x)]
@@ -371,8 +374,10 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
     hε₀ hε1₀ hδ hδ1 hstr
     hstr1 hslack hneed hv0
   classical
-  simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  have hb0 : 0 ≤ bnd := by linarith
+  have hb1 : bnd < 1 := by linarith
+  simp only [ret_eq bnd hb0 hb1, familyAt_eq bnd hb0 hb1]
+  generalize (identifyClusterer bnd hb0 hb1 : Clusterer S) = rule
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0

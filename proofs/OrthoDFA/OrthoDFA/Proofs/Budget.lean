@@ -1,4 +1,5 @@
-import OrthoDFA.Proofs.Lloyd
+import OrthoDFA.Proofs.Adaptive
+import OrthoDFA.Proofs.Identify
 import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
@@ -849,8 +850,10 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     hαpos hα hεcov₀ hε1₀ hδ
     hδ1 hζ hζ1 hneed hv0
   classical
-  simp only [ret_eq, familyAt_eq]
-  generalize (lloydClusterer : Clusterer S) = rule
+  have hb0 : 0 ≤ bnd := by linarith
+  have hb1 : bnd < 1 := by linarith
+  simp only [ret_eq bnd hb0 hb1, familyAt_eq bnd hb0 hb1]
+  generalize (identifyClusterer bnd hb0 hb1 : Clusterer S) = rule
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle

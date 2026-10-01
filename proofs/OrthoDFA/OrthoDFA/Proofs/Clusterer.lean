@@ -3,8 +3,8 @@ import OrthoDFA.Clustering
 /-!
 # Clustering rules
 
-The proof holds for any rule that picks the family the way `Clusterer` says.  `Lloyd` shows
-`clusterAround` is one.
+The proof holds for any rule that picks the family the way `Clusterer` says.  `Identify` shows
+`identifyCluster` is one.
 -/
 
 namespace OrthoDFA
@@ -12,31 +12,31 @@ namespace OrthoDFA
 variable {Ω : Type*} [MeasurableSpace Ω] {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
 
 /-- A way of picking the family out of the screened candidates from their reads: `reads w` says
-the oracle answered accept at `w`, and `P`, `cands` and `k` are the prefixes, the candidates and
-the size asked for.
+the oracle answered accept at `w`, `W` weighs the prefixes once per population and `ord` orders
+the candidates, and
+`P`, `cands` and `k` are the prefixes, the candidates and the size asked for.
 
-`identify_cluster_around` is one for each boundary it is handed.  It reads only the candidates'
-columns on the representative prefixes, starts from `ε` and stops before `ε` would leave, and
-returns `count` rows once the pool holds that many.  How it weighs populations, when it stops
-recentring, and how it breaks ties are its own business, which is why the proof is carried out
-for every such rule.  A boundary handed in from reads outside the round is independent of the
-round's bits, so the claim holds with it fixed first. -/
+The proof only uses that the pick holds the seed, lies in the candidates, has `k` members when
+the candidates are that many and at most `k` otherwise, and reads only the candidates' columns on
+the prefixes.  `identifyClusterer` is `identify_cluster_around`. -/
 structure Clusterer (S : Type*) [Stringlike S] where
-  pick : (S → Prop) → Finset S → Finset S → ℕ → Finset S
-  seed_mem : ∀ reads P cands k, (1 : S) ∈ cands → (1 : S) ∈ pick reads P cands k
-  subset : ∀ reads P cands k, (1 : S) ∈ cands → pick reads P cands k ⊆ cands
-  card_le : ∀ reads P cands k, 0 < k → (pick reads P cands k).card ≤ k
-  card_eq : ∀ reads P cands k, (1 : S) ∈ cands → k ≤ cands.card → 0 < k →
-    (pick reads P cands k).card = k
-  congr : ∀ reads reads' P cands k, (1 : S) ∈ cands →
+  pick : (S → Prop) → List (S → ℝ) → (S → ℕ) → Finset S → Finset S → ℕ → Finset S
+  seed_mem : ∀ reads w ord P cands k, (1 : S) ∈ cands → (1 : S) ∈ pick reads w ord P cands k
+  subset : ∀ reads w ord P cands k, (1 : S) ∈ cands → pick reads w ord P cands k ⊆ cands
+  card_le : ∀ reads w ord P (cands : Finset S) k, Set.InjOn ord ↑cands → 0 < k →
+    (pick reads w ord P cands k).card ≤ k
+  card_eq : ∀ reads w ord P (cands : Finset S) k, Set.InjOn ord ↑cands → (1 : S) ∈ cands →
+    k ≤ cands.card → 0 < k → (pick reads w ord P cands k).card = k
+  congr : ∀ reads reads' w ord P cands k, (1 : S) ∈ cands →
     (∀ p ∈ P, ∀ v ∈ cands, (reads (p * v) ↔ reads' (p * v))) →
-    pick reads P cands k = pick reads' P cands k
+    pick reads w ord P cands k = pick reads' w ord P cands k
 
 /-- The cluster without its seed. -/
 noncomputable def clusterBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixesAt populations B.npref x)
-    (screenedAt mq populations B x) B.k).erase 1
+  (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixWeights populations B.npref x)
+    (poolOrder B.nsuff x) (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+    B.k).erase 1
 
 /-- `familyAt` with the family picked by `rule`. -/
 noncomputable def familyBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)

@@ -21,12 +21,6 @@ sit at least `7(½ − η₀)/8` either side of, so any boundary within `(½ −
 That the Python's estimate lands there is not modelled: it is read off the table the family was
 clustered on, so bounding it needs a union over every family the pool can form.
 
-Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
-share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
-`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
-`k` members when the pool holds that many and at most `k` otherwise, and is a function of the
-pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
-
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
 the band is sized so that a vote whose mean lies outside it lands on its far side at most
@@ -214,57 +208,81 @@ noncomputable def meanVote (O : Oracle μ S) (F : Finset S) (p : S) : ℝ :=
 
 /-! ### Cluster -/
 
-/-- The greedy's output: a `k`-subset of `cands` minimising `∑ ℓ`. -/
-noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset S) (k : ℕ) :
-    Finset S :=
-  if h : (cands.powersetCard k).Nonempty then
-    (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
-  else ∅
+open scoped Classical in
+/-- One weight per population, `1/#population` on its own prefixes, so a count weighted by it is
+that population's share. -/
+noncomputable def popWeights (populations : Finset J) (Pj : J → Finset S) : List (S → ℝ) :=
+  populations.toList.map (fun j p => if p ∈ Pj j then 1 / ((Pj j).card : ℝ) else 0)
 
-/-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
-`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
-`identify_cluster_around` takes it per population and scores the worst share. -/
-noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  ((P.filter (fun p =>
-    ¬ ((mq (p * v) ω = 1) ↔ cn * F.card < cd * voteCount mq F p ω))).card : ℝ)
+noncomputable def prefixWeights (populations : Finset J) (m : ℕ) (x : Run Ω S J) : List (S → ℝ) :=
+  popWeights populations (fun j => prefixesOf j m x)
 
-/-- `hammingLoss`, zeroed off the candidates: `leastLossSubset` picks by `Classical.choose`,
-so it sees the loss as a function, and two draws agreeing on the reads must give the same one. -/
-noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P cands : Finset S)
-    (ω : Ω) (v : S) : ℝ :=
-  if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
+open scoped Classical in
+/-- A string's position in a sequence of draws: its first draw, or after all of them if it was
+never drawn. -/
+noncomputable def drawOrder {M : ℕ} (sd : Fin M → S) (v : S) : ℕ :=
+  if h : (Finset.univ.filter (fun i => sd i = v)).Nonempty then
+    ((Finset.univ.filter (fun i => sd i = v)).min' h).val
+  else M
 
-/-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them -- `identify_cluster_around` breaks out
-(`if seed_local not in nearest`).  The seed wins ties for the `k`-th place, as it does under the
-stable `argsort`. -/
-noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
-    (F : Finset S) : Finset S :=
-  if ∀ w ∈ cands, w ∉ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) →
-      ∀ v ∈ insert (1 : S)
-        (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)),
-      clusterLoss mq F cn cd P cands ω v ≤ clusterLoss mq F cn cd P cands ω w
-  then insert (1 : S)
-    (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
+/-- A suffix's position in `pst.suffix_pool`: the seed, if never drawn, is appended by
+`sample_suffix_family`. -/
+noncomputable def poolOrder (M : ℕ) (x : Run Ω S J) : S → ℕ :=
+  drawOrder (fun i : Fin M => suffixDraw i.val x)
 
-/-- `identify_cluster_around` iterated to its fixed point, which `k·#P + 1` steps reach: the
-total loss is a natural number at most `k·#P` and falls at every improving step. -/
-noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
-    (k : ℕ) : Finset S :=
-  (lloydStep mq cn cd P cands ω k)^[k * P.card + 1] {(1 : S)}
+open scoped Classical in
+/-- `identify_cluster_around`'s loss: the share of each population's prefixes at which `v`'s
+read disagrees with the cluster's mean read thresholded at `bnd`, at its worst population. -/
+noncomputable def worstLoss (reads : S → Prop) (W : List (S → ℝ)) (bnd : ℝ) (P F : Finset S)
+    (v : S) : ℝ :=
+  (W.map (fun w => ∑ p ∈ P.filter (fun p =>
+    ¬ (reads (p * v) ↔ bnd * F.card < (F.filter (fun u => reads (p * u))).card)), w p)).foldr
+    max 0
 
-/-- The cluster without its seed, recentred at half the family. -/
-noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J)
+open scoped Classical in
+/-- `argsort(kind="stable")[:k]`: the candidates fewer than `k` of which sort before them, by
+loss and then by pool order. -/
+noncomputable def nearest (ℓ : S → ℝ) (ord : S → ℕ) (C : Finset S) (k : ℕ) : Finset S :=
+  C.filter (fun v => (C.filter (fun u => toLex (ℓ u, ord u) < toLex (ℓ v, ord v))).card < k)
+
+open scoped Classical in
+/-- `nearest[-1]`: the member that sorts last. -/
+noncomputable def lastOf (ℓ : S → ℝ) (ord : S → ℕ) (N : Finset S) : S :=
+  if h : N.Nonempty then (N.exists_max_image (fun v => toLex (ℓ v, ord v)) h).choose else 1
+
+open scoped Classical in
+/-- One pass of `identify_cluster_around`'s loop over `(cluster, loss, stopped)`: rank the
+candidates against the current cluster, stop if the seed ranks below the last one kept, put the
+seed back in place of the last if it fell out, and stop unless the total loss fell.  The loss is
+zeroed off the candidates, which it is never read at. -/
+noncomputable def identifyStep (reads : S → Prop) (W : List (S → ℝ)) (ord : S → ℕ) (bnd : ℝ)
+    (P C : Finset S) (k : ℕ) (st : Finset S × WithTop ℝ × Bool) : Finset S × WithTop ℝ × Bool :=
+  let ℓ : S → ℝ := fun v => if v ∈ C then worstLoss reads W bnd P st.1 v else 0
+  let N := nearest ℓ ord C k
+  let N' := if (1 : S) ∈ N then N else insert 1 (N.erase (lastOf ℓ ord N))
+  if st.2.2 then st
+  else if ℓ (lastOf ℓ ord N) < ℓ 1 then (st.1, st.2.1, true)
+  else if st.2.1 ≤ ((∑ v ∈ N', ℓ v : ℝ) : WithTop ℝ) then (st.1, st.2.1, true)
+  else (N', ((∑ v ∈ N', ℓ v : ℝ) : WithTop ℝ), false)
+
+/-- `identify_cluster_around`, from the seed alone at an infinite loss, run past its stopping
+point: the total loss falls at every pass that moves the cluster, and takes one value per pair of
+consecutive clusters, so it cannot fall more often than there are such pairs. -/
+noncomputable def identifyCluster (reads : S → Prop) (W : List (S → ℝ)) (ord : S → ℕ) (bnd : ℝ)
+    (P C : Finset S) (k : ℕ) : Finset S :=
+  ((identifyStep reads W ord bnd P C k)^[(2 ^ C.card + 1) ^ 2] ({1}, ⊤, false)).1
+
+/-- The cluster without its seed, recentred at the boundary `bnd`. -/
+noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J) (bnd : ℝ)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (clusterAround mq 1 2 (prefixesAt populations B.npref x) (screenedAt mq populations B x)
-    (oracleNoise x) B.k).erase 1
+  (identifyCluster (fun w => mq w (oracleNoise x) = 1) (prefixWeights populations B.npref x)
+    (poolOrder B.nsuff x) bnd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
+    B.k).erase 1
 
 /-- The family the round returns, `vs`: the cluster with its seed. -/
-noncomputable def familyAt (mq : S → Ω → ℝ) (populations : Finset J)
+noncomputable def familyAt (mq : S → Ω → ℝ) (populations : Finset J) (bnd : ℝ)
     (x : Run Ω S J) (B : State) : Finset S :=
-  insert 1 (clusterAt mq populations x B)
+  insert 1 (clusterAt mq populations bnd x B)
 
 /-! ### The cut -/
 
@@ -361,21 +379,21 @@ uniform pool `uni`, which may draw that pool further when the split reads uncert
 population may veto, on `v` draws of its own, both before the pool is drawn further and after.
 The FNR reads the family with its seed, and reads 1 unless it decides some prefix each way; the
 gate reads the family without its seed, since the seed's read is the bit the gate scores. -/
-noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
+noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (bnd : ℝ)
     (indecisionLimit α : ℝ) (v n : ℕ) (B : State) : Set (Run Ω S J) :=
-  {x | B.k ≤ (clusterAt mq populations x B).card + 1
+  {x | B.k ≤ (clusterAt mq populations bnd x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf j n x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
-          (familyAt mq populations x B) p (oracleNoise x))).card : ℝ)
+          (familyAt mq populations bnd x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j n x).card)
     ∧ (∃ j ∈ populations, ∃ p ∈ certOf j n x,
-        B.hi + 1 < voteCount mq (familyAt mq populations x B) p (oracleNoise x))
+        B.hi + 1 < voteCount mq (familyAt mq populations bnd x B) p (oracleNoise x))
     ∧ (∃ j ∈ populations, ∃ p ∈ certOf j n x,
-        voteCount mq (familyAt mq populations x B) p (oracleNoise x) ≤ B.lo)
-    ∧ noDrift mq populations uni B.lo B.hi α (clusterAt mq populations x B) n v 0 x
-    ∧ ∃ e : ℕ, certified mq B.lo B.hi α (clusterAt mq populations x B)
+        voteCount mq (familyAt mq populations bnd x B) p (oracleNoise x) ≤ B.lo)
+    ∧ noDrift mq populations uni B.lo B.hi α (clusterAt mq populations bnd x B) n v 0 x
+    ∧ ∃ e : ℕ, certified mq B.lo B.hi α (clusterAt mq populations bnd x B)
         (gateOf uni n e x) (oracleNoise x)
-      ∧ noDrift mq populations uni B.lo B.hi α (clusterAt mq populations x B) n v e x}
+      ∧ noDrift mq populations uni B.lo B.hi α (clusterAt mq populations bnd x B) n v e x}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -509,14 +527,14 @@ def ClusteringGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ - α ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α v (certSize a B.val) B.val)
+                x ∈ ret O.mq populations uni bnd indecisionLimit α v (certSize a B.val) B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
+              x ∈ ret O.mq populations uni bnd indecisionLimit α v (certSize a B.val) B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                    (familyAt O.mq populations bnd x B.val) p (oracleNoise x)}
                 ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
-                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                    (familyAt O.mq populations bnd x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
 end OrthoDFA
