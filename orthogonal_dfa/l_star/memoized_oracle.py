@@ -18,6 +18,10 @@ _BUCKET = 8
 #: Share of slots filled, as tenths, past which the table grows by half again.
 _MAX_LOAD_TENTHS = 8
 
+#: Keys inserted per pass.  Each costs ~25 bytes of temporaries, so a growth that
+#: reinserted tens of millions at once would briefly need gigabytes.
+_INSERT_CHUNK = 1 << 20
+
 
 class MemoizedOracle(Oracle):
     """Membership of arbitrary strings, memoized per string and batched.
@@ -131,6 +135,11 @@ class _DigestTable:
         self._size = needed
 
     def _insert(self, keys: np.ndarray, values: np.ndarray) -> None:
+        for start in range(0, len(keys), _INSERT_CHUNK):
+            end = start + _INSERT_CHUNK
+            self._insert_chunk(keys[start:end], values[start:end])
+
+    def _insert_chunk(self, keys: np.ndarray, values: np.ndarray) -> None:
         buckets = self._home(keys)
         pending = np.arange(len(keys))
         while pending.size:
@@ -143,7 +152,9 @@ class _DigestTable:
                 starts, np.diff(np.r_[starts, len(at)])
             )
             empty = self._values[at] == _EMPTY
-            nth = (np.cumsum(empty, axis=1) == rank[:, None] + 1) & empty
+            nth = (
+                np.cumsum(empty, axis=1, dtype=np.uint8) == rank[:, None] + 1
+            ) & empty
             fits = nth.any(axis=1)
             slot = nth[fits].argmax(axis=1)
             placed, rows = pending[fits], at[fits]
