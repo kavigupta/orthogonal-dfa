@@ -69,9 +69,11 @@ def error_bound(masses, rates, accepting, gap) -> float:
 
 
 def _intervals(hits, trials, level):
-    """(low, high) with P(rate < low), P(rate > high) <= level / 2 for each
-    Binomial(trials, rate) count hits, by Clopper-Pearson; [0, 1] where trials
-    is 0."""
+    """Per entry, for hits ~ Binomial(trials, p), the Clopper-Pearson bounds with
+
+        P(low > p) <= level / 2   and   P(high < p) <= level / 2
+
+    whatever p is; (0, 1) where trials is 0."""
     low, high = np.zeros(len(trials)), np.ones(len(trials))
     seen = trials > 0
     hits, trials = hits[seen], trials[seen]
