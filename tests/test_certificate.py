@@ -83,14 +83,16 @@ class TestVerdicts(unittest.TestCase):
     # The band's signal is 0.3: stated exactly, and understated.
     @parameterized.expand([(0.3,), (0.2,)])
     def test_the_target_is_certified(self, signal):
-        self.assertTrue(certifies(_pst(signal, 20), TARGET, alpha=LEVEL))
+        self.assertTrue(certifies(_pst(signal, 20), TARGET, alpha=LEVEL).certified)
 
     @parameterized.expand([(0.3,), (0.2,)])
     def test_a_merge_past_the_slack_is_not(self, signal):
-        self.assertFalse(certifies(_pst(signal, 20), MERGED, alpha=LEVEL))
+        self.assertFalse(certifies(_pst(signal, 20), MERGED, alpha=LEVEL).certified)
 
     def test_a_dfa_with_one_label_is_not(self):
-        self.assertFalse(certifies(_pst(0.3, 20), _ones_mod_3(set()), alpha=LEVEL))
+        self.assertFalse(
+            certifies(_pst(0.3, 20), _ones_mod_3(set()), alpha=LEVEL).certified
+        )
 
 
 if __name__ == "__main__":
