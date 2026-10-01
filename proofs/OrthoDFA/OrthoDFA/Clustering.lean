@@ -21,9 +21,9 @@ sit at least `7(½ − η₀)/8` either side of, so any boundary within `(½ −
 That the Python's estimate lands there is not modelled: it is read off the table the family was
 clustered on, so bounding it needs a union over every family the pool can form.
 
-Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
-stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
-of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
+Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
+share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
+`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
 `k` members when the pool holds that many and at most `k` otherwise, and is a function of the
 pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
 
@@ -31,6 +31,11 @@ Known modelling gap.  The Python sizes the family and its band from the boundary
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
 the band is sized so that a vote whose mean lies outside it lands on its far side at most
 `crossLimit` of the time.
+
+Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
+`identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
+The table's votes are fitted to its noise and read as more decisive than they are, so the
+claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
@@ -216,9 +221,9 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`, the boundary
-written `cn/cd`. -/
+/-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
+`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
+`identify_cluster_around` takes it per population and scores the worst share. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
