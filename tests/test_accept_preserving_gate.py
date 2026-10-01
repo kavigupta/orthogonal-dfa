@@ -9,6 +9,11 @@ can carry.
 import itertools
 import unittest
 from types import SimpleNamespace
+from unittest import mock
+
+import numpy as np
+
+from orthogonal_dfa.l_star import cluster
 
 from orthogonal_dfa.l_star.cluster import (
     ACCEPT_PRESERVING_ERROR_RATE,
@@ -195,6 +200,32 @@ class TestARefusalNamesAPopulation(unittest.TestCase):
 
     def test_an_admitted_family_blames_nobody(self):
         self.assertEqual((ADMITTED, None), drift_verdict(_PST, {UNIFORM: _CLEAN_POOL}))
+
+
+class TestAVetoRedrawsItsSample(unittest.TestCase):
+    """A veto scores the population's own reads, so a sample kept after it
+    refuses would refuse every later family on the same bits."""
+
+    def test_the_vetoing_population_is_redrawn_and_the_pool_kept(self):
+        draws = itertools.count()
+        verdicts = iter([(DRIFTED, "state"), (ADMITTED, None)])
+        with mock.patch.multiple(
+            cluster,
+            population_labels=lambda state: [UNIFORM, "state"],
+            prefixes_for_split=lambda pst, state, label, n: [next(draws)],
+            certification_budget=lambda pst, vs: 1,
+            veto_size=lambda pst, populations: 1,
+            certification_sample=lambda pst, vs, prefixes: prefixes,
+            _split_counts=lambda pst, reads: {},
+            drift_verdict=lambda pst, counts: next(verdicts),
+        ):
+            gate = cluster.AcceptPreservingGate(
+                SimpleNamespace(require_accept_preserving=True), state=None
+            )
+            pst = SimpleNamespace(table=SimpleNamespace(representative=np.ones(3)))
+            gate.verdict(pst, 0, [1, 2])
+
+        self.assertEqual({UNIFORM: [0], "state": [2]}, gate._drawn)
 
 
 if __name__ == "__main__":
