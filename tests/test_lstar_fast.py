@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.examples.bernoulli_parity import (
 from orthogonal_dfa.l_star.structures import AsymmetricBernoulli, NoisyOracle
 from tests.lstar_common import (
     DEFAULT_SAMPLER,
+    assert_modulo_skewed_learned,
     assert_terminates,
     assertDFA,
     assertDoesNotMeetProperty,
@@ -117,18 +118,6 @@ class TestLStarFast(unittest.TestCase):
             seconds=300,
             message="synthesis did not terminate within the timeout (issue #128)",
         )
-
-
-def assert_modulo_skewed_learned(testcase, *, seed):
-    """Mod 9 at (0.25, 0.95), whose signal of 0.35 is declared as 0.25."""
-    oracle_creator = lambda noise_model, seed: NoisyOracle(
-        BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
-    )
-    noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
-    dfa = learn_dfa(
-        oracle_creator, min_signal_strength=0.25, seed=seed, noise_model=noise_model
-    )
-    assertDFA(testcase, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
 
 
 class TestLStarAsymmetricFast(unittest.TestCase):

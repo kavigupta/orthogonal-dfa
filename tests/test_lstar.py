@@ -23,6 +23,7 @@ from orthogonal_dfa.superlanguage.sampler import SuperSampler
 from orthogonal_dfa.superlanguage.vocabulary import KmerVocabulary
 from tests.lstar_common import (
     DEFAULT_SAMPLER,
+    assert_modulo_skewed_learned,
     assert_not_merged,
     assert_terminates,
     assertDFA,
@@ -31,7 +32,6 @@ from tests.lstar_common import (
     endpoint_mass,
 )
 from tests.lstar_common import learn_dfa_verified as learn_dfa
-from tests.test_lstar_fast import assert_modulo_skewed_learned
 
 
 def _confounded_frame_product():
