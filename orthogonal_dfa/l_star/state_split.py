@@ -109,19 +109,11 @@ def _pvalue(reads, inside) -> np.ndarray:
     return 2 * np.minimum(dist.cdf(hits), dist.sf(hits - 1))
 
 
-def _oriented(reads, inside, level, held_out):
+def _oriented(reads, inside, level):
     """(indices K, orientations o) of the suffixes v with _pvalue <= level /
-    #suffixes against inside; o_v = +1 where inside reads above its share.
-    held_out = (J, L) tests suffix J[j] against the labels L[:, j] instead."""
-    pvalues = _pvalue(reads, inside)
-    labels = np.repeat(inside[:, None], reads.shape[1], axis=1)
-    for j, v in enumerate(held_out[0]):
-        labels[:, v] = held_out[1][:, j]
-        pvalues[v] = _pvalue(reads[:, [v]], labels[:, v])[0]
-    kept = np.flatnonzero(pvalues <= level / reads.shape[1])
-    hits = np.array([reads[labels[:, v], v].sum() for v in kept])
-    shares = np.array([labels[:, v].mean() for v in kept])
-    above = hits >= reads[:, kept].sum(0) * shares
+    #suffixes against inside; o_v = +1 where inside reads above its share."""
+    kept = np.flatnonzero(_pvalue(reads, inside) <= level / reads.shape[1])
+    above = reads[inside][:, kept].sum(0) >= reads[:, kept].sum(0) * inside.mean()
     return kept, np.where(above, 1, -1)
 
 
@@ -164,14 +156,12 @@ def _mixture(adjusted, inside, size):
     return share, rate_in, rate_out
 
 
-def _sharpened(reads, inside, left_out, level):
+def _sharpened(reads, inside, level):
     """(K, o, k*) at the fixed point of labelling each member by whether its count
-    of reads agreeing with o over K is at least k* = _cut of _mixture, K
-    and o by _oriented on the labels -- each suffix that set them against the
-    labels its own read is left out of, left_out for the first -- starting
-    from the labels inside; None if a step keeps no suffix or no cut
-    separates."""
-    kept, signs = _oriented(reads, inside, level, held_out=left_out)
+    of reads agreeing with o over K is at least k* = _cut of _mixture, K and o
+    by _oriented on the labels, starting from the labels inside; None if a step
+    keeps no suffix or no cut separates."""
+    kept, signs = _oriented(reads, inside, level)
     seen = set()
     while True:
         if kept.size == 0:
@@ -187,21 +177,7 @@ def _sharpened(reads, inside, left_out, level):
             return kept, signs, cut
         seen.add(labels.tobytes())
         inside = labels
-        left_out = adjusted[:, None] - agree >= _cut(
-            share, rate_in, rate_out, len(kept) - 1
-        )
-        kept, signs = _oriented(reads, inside, level, held_out=(kept, left_out))
-
-
-def _tails_without(reads, picked, weights, tail):
-    """(J, L): L[:, j] marks as many members as the tail holds, ranked highest by
-    their weighted reads over the suffixes J = picked other than J[j]."""
-    scores = reads[:, picked] @ weights
-    labels = np.zeros((len(tail), len(picked)), dtype=bool)
-    for j, v in enumerate(picked):
-        order = np.argsort(-(scores - weights[j] * reads[:, v]), kind="stable")
-        labels[order[: int(tail.sum())], j] = True
-    return picked, labels
+        kept, signs = _oriented(reads, inside, level)
 
 
 def split_members(
@@ -220,9 +196,7 @@ def split_members(
     weights = -np.ones(len(picked)) if minority_below else np.ones(len(picked))
     scores = reads[:, picked] @ weights
     inside = _tail(scores, math.ceil(minority_share * size), rng, True)
-    sharpened = _sharpened(
-        reads, inside, _tails_without(reads, picked, weights, inside), level
-    )
+    sharpened = _sharpened(reads, inside, level)
     if sharpened is None:
         chosen, cut = [suffixes[k] for k in picked], scores[inside].min()
     else:
