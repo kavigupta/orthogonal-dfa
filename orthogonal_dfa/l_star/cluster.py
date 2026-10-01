@@ -217,11 +217,6 @@ def drift_verdict(pst, by_population):
     if not num_tests:
         return UNCERTIFIED, UNIFORM
 
-    def rejects_null(kind, hits, n, level):
-        if kind == "accept":
-            return scipy.stats.binom.sf(hits - 1, n, pst.accept_thresh) <= level
-        return scipy.stats.binom.cdf(hits, n, pst.reject_thresh) <= level
-
     def drifted(kind, hits, n, level):
         if kind == "accept":
             return scipy.stats.binom.cdf(hits, n, pst.accept_thresh) <= level
@@ -232,8 +227,12 @@ def drift_verdict(pst, by_population):
     for label, held in sides.items():
         if any(drifted(*side, alpha / num_tests) for side in held):
             return DRIFTED, label
-    pool = sides.get(UNIFORM, [])
-    if pool and all(rejects_null(*side, alpha) for side in pool):
+    # The pool admits on the two sides pooled: the split's column agrees with the
+    # cut, a read of 1 accepted or of 0 rejected, more often than a coin flip.
+    (hits_a, n_a), (hits_r, n_r) = by_population.get(UNIFORM, ((0, 0), (0, 0)))
+    decided = n_a + n_r
+    agree = hits_a + (n_r - hits_r)
+    if decided and scipy.stats.binom.sf(agree - 1, decided, 0.5) <= alpha:
         return ADMITTED, None
     return UNCERTIFIED, UNIFORM
 
