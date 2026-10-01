@@ -257,12 +257,12 @@ def _certified(pst, dfa, *, index, tracker):
     """denoise_accept_labels(dfa) if the certificate passes it, else None."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
-    passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
-    tracker.on_certificate_decided(passed, index)
-    if passed:
+    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
+    tracker.on_certificate_decided(verdict.certified, index)
+    if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
         return output
-    print(f"[round {index}] at target, not certified")
+    print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
     return None
 
 
