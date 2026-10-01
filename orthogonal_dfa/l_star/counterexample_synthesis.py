@@ -79,7 +79,8 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
-#: Chance of certifying a DFA whose advantage falls short, over every attempt.
+#: P(some round certifies a DFA whose error is over certified_error), where the
+#: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
 
@@ -185,8 +186,7 @@ def _publish_pool(pst, state) -> int:
 STALL_PATIENCE = 2
 
 #: Rounds a run keeps going after the certificate first refuses a round at the
-#: consistency target.  A refused hypothesis can be missing several states, and
-#: finding them can take more rounds than a stall is given.
+#: consistency target.
 CERTIFICATE_PATIENCE = 5
 
 
@@ -249,7 +249,7 @@ class BestRound:
 
 
 def _certified(pst, dfa, *, index, tracker):
-    """The DFA synthesis would return, if the certificate passes it."""
+    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
     passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
@@ -298,8 +298,7 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
-    # The round the certificate first refused, from which the run has the stall's
-    # patience to return a hypothesis it passes.
+    # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
     uncertified_since = None
     index = 0
     while True:

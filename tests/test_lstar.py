@@ -783,8 +783,8 @@ COUNTED_RESIDUE = 2
 
 
 def build_counted_pattern() -> DFA:
-    """Accepts strings whose count of 1s is ``COUNTED_RESIDUE`` mod
-    ``COUNTED_MODULUS`` and that contain ``COUNTED_PATTERN``."""
+    """Accepts strings whose count of 1s is COUNTED_RESIDUE mod
+    COUNTED_MODULUS and that contain COUNTED_PATTERN."""
 
     def matched(done, symbol):
         """Longest prefix of the pattern that ends the string read so far."""
