@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from orthogonal_dfa.l_star.dfa_utils import count_paths_to_state, uniform_weights
+from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliParityOracle
 from orthogonal_dfa.l_star.learn import (
     DEFAULT_MAX_COVERAGE_ERROR,
     DEFAULT_SAMPLE_LENGTH,
@@ -12,7 +13,11 @@ from orthogonal_dfa.l_star.learn import (
 from orthogonal_dfa.l_star.mask_table import UNIFORM
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
-from orthogonal_dfa.l_star.structures import SymmetricBernoulli
+from orthogonal_dfa.l_star.structures import (
+    AsymmetricBernoulli,
+    NoisyOracle,
+    SymmetricBernoulli,
+)
 from orthogonal_dfa.l_star.tracker import RecordingTracker
 
 DEFAULT_SAMPLER = UniformSampler(DEFAULT_SAMPLE_LENGTH)
@@ -316,3 +321,15 @@ def assert_not_merged(testcase, dfa, target, *, oracle_creator, symbols, sampler
         f"{len(dfa.states)} of {len(target.states)} states). "
         f"FP: {len(false_positives)}, FN: {len(false_negatives)}"
     )
+
+
+def assert_modulo_skewed_learned(testcase, *, seed):
+    """Mod 9 at (0.25, 0.95), whose signal of 0.35 is declared as 0.25."""
+    oracle_creator = lambda noise_model, seed: NoisyOracle(
+        BernoulliParityOracle(modulo=9, allowed_moduluses=(3, 6)), noise_model, seed
+    )
+    noise_model = AsymmetricBernoulli(p_0=0.25, p_1=0.95)
+    dfa = learn_dfa_verified(
+        oracle_creator, min_signal_strength=0.25, seed=seed, noise_model=noise_model
+    )
+    assertDFA(testcase, dfa, oracle_creator, sampler=DEFAULT_SAMPLER)
