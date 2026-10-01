@@ -44,13 +44,14 @@ asked for; which divisors the proof chose to hold each of them at is the proof's
 noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
   min εcov (min (sig η) indecisionLimit)
 
-/-- What fraction of the family the vote absorbs flipping.  A flip moves a read by a whole
-bit rather than by `2s`, so it costs the vote `(1 − η)·f`, and what is left is `voteSlack`:
+/-- What fraction of the family the vote absorbs flipping, at any rates under `η`.  A flip moves
+a member's mean by the gap between the classes, at most `1 − η`, and what is left is
+`voteSlack`:
 
     (1 − η) · flipFrac η + voteSlack η = sig η
 
-exactly, at `η` as well as below it.  Nothing else fixes the split; scaling with `s` is what
-keeps both sides positive up to `η = 1/2`. -/
+An oracle with a narrower gap absorbs proportionally more flips, and its screen sees each one
+proportionally less; `screenMargin` is solved at that pairing, not at this fraction. -/
 noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
@@ -115,12 +116,19 @@ noncomputable def flipBudget (η : ℝ) (populations : Finset J) (indecisionLimi
 
 /-- The screen's margin, at the flip budget.
 
-The separation is `(1 − 2η)² = 4·sig η²`, and the test spends four one-sided deviations on it
-— the seed's and the candidate's, each against the measured floor — so the factor here is
-capped below `2`.  `sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `15/2`
-in `solvedStateAt`; the two constants move together. -/
+A flip costs both the vote and the screen the gap `g` between the classes, the screen at
+`g·(1 − 2η)` per flip.  The vote absorbs a fraction `f` flipping with `g·f ≥ (1 − η)·flipFrac`,
+so a member flipping `flipBudget·f/flipFrac`, what Markov charges at that fraction, shows the
+screen at least
+
+    flipBudget · (1 − η) · (1 − 2η)
+
+whatever `g`.  The test spends four one-sided deviations on it — the seed's and the
+candidate's, each against the measured floor — so the factor here is capped below `2`.
+`sc/scd` then has to resolve finer than `a/(4 − 2a)`, which is the `15/2` in `solvedStateAt`;
+the two constants move together. -/
 noncomputable def screenMargin (η : ℝ) (populations : Finset J) (indecisionLimit εcov δ : ℝ) : ℝ :=
-  flipBudget η populations indecisionLimit εcov δ * sig η ^ 2 * (15 / 8)
+  flipBudget η populations indecisionLimit εcov δ * ((1 - η) * sig η) * (15 / 16)
 
 /-- What one family member may flip for the cut to hold `εcov`.  Only validity reads this: the
 screen's cutoff is solved at the far finer `flipBudget`, which termination needs, and a candidate
@@ -132,10 +140,11 @@ slacks, whose tails are cheap, share the rest. -/
 noncomputable def validFlip (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
   11 * εcov * validFrac η / (16 * (populations.card : ℝ))
 
-/-- Seven sixteenths of the separation `validFlip·(1 − 2η)²`.  The cutoff sits at most an eighth
-of the way up it, so each of the two deviations may take half of the rest. -/
+/-- Seven sixteenths of the separation `validFlip·(1 − η)·(1 − 2η)`, paired as `screenMargin` is.
+The cutoff sits at most an eighth of the way up it, so each of the two deviations may take half
+of the rest. -/
 noncomputable def validMargin (η : ℝ) (populations : Finset J) (εcov : ℝ) : ℝ :=
-  7 * validFlip η populations εcov * sig η ^ 2 / 4
+  7 * validFlip η populations εcov * ((1 - η) * sig η) / 8
 
 /-- Enough suffixes that a family of `k` fits inside the findable fraction. -/
 noncomputable def poolCount (η : ℝ) (populations : Finset J)
@@ -154,8 +163,8 @@ noncomputable def budgetLog (populations : Finset J)
 
 /-- What a budget of `k` buys.
 
-`sig` enters at the sixth power because the screen's tail binds: its margin is a rate times
-`sig³`, and a deviation bound squares the margin it is given.  The population count enters
+`sig` enters at the fourth power because the screen's tail binds: its margin is a rate times
+`sig²`, and a deviation bound squares the margin it is given.  The population count enters
 squared because that margin is divided by it.
 
 The scale enters at the *third* power, not the second: the coverage tails divide by `εcov`
@@ -165,7 +174,7 @@ noncomputable def budgetCap (populations : Finset J)
     (η indecisionLimit εcov δ α pAP crossLimit k : ℝ) : ℝ :=
   k * (populations.card : ℝ) ^ 2
     * budgetLog populations η indecisionLimit εcov δ α pAP crossLimit
-    / (sig η ^ 6 * budgetScale η indecisionLimit εcov ^ 3)
+    / (sig η ^ 4 * budgetScale η indecisionLimit εcov ^ 3)
 
 /-- The counts the round's tails ask for, summed so each is met. -/
 noncomputable def prefCount (η : ℝ) (populations : Finset J)
@@ -340,19 +349,16 @@ def ClusteringCorrect : Prop :=
     ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k →
   ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
   collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
-  -- the certification budget covers the top rung's prefix count
-  prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit
-      * (famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
-    ≤ a * poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit →
+  0 < v →
   -- the cut budget, read off `εcov`, is small against the veto's share of `δ`
-  2 * (populations.card : ℝ) * v * εcov ≤ δ →
-  1 - δ - α ≤ (runMeasure μ D Dsf).real
+  2 * (populations.card : ℝ) * v * vetoRounds δ α * εcov ≤ δ →
+  1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val) ∧
+        x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
+        x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy rule O.mq populations x B.val) p (oracleNoise x)}

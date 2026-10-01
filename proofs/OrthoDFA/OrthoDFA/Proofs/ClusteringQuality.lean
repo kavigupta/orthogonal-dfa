@@ -366,8 +366,7 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit
-    slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hstr1 hslack hneed
-    hv0
+    slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hslack hv0
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
@@ -378,15 +377,17 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   -- the proof runs at a cut budget small against the signal and the veto's share of `δ'`
   obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ (min (1 / 2 - η₀)
-      (δ' / (2 * (populations.card : ℝ) * v))) := ⟨_, rfl⟩
+      (δ' / (2 * (populations.card : ℝ) * v * vetoRounds δ' α))) := ⟨_, rfl⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
+  have hRR : (0 : ℝ) < (vetoRounds δ' α : ℝ) := by
+    exact_mod_cast vetoRounds_pos hδ' (by linarith) hα (by linarith)
   have hε : 0 < εcov := by
     rw [hεdef]; exact lt_min hε₀ (lt_min (by linarith) (by positivity))
   have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
   have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
-  have hveto : 2 * (populations.card : ℝ) * v * εcov ≤ δ' := by
-    have h : εcov ≤ δ' / (2 * (populations.card : ℝ) * v) := by
+  have hveto : 2 * (populations.card : ℝ) * v * vetoRounds δ' α * εcov ≤ δ' := by
+    have h : εcov ≤ δ' / (2 * (populations.card : ℝ) * v * vetoRounds δ' α) := by
       rw [hεdef]; exact min_le_of_right_le (min_le_right _ _)
     rw [le_div_iff₀ (by positivity)] at h
     linarith
@@ -416,15 +417,11 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
-    ρ pAP crossLimit 2048 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
-    hα1 hε hε1 hδ'
+    ρ pAP crossLimit 6000 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
+    hε1 hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
-    (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
-    (certBudget_covers populations η₀ indecisionLimit εcov₀ εcov δ' α pAP crossLimit a v hv0 hη0
-      hη₀ hpop hind hε₀ hε1₀ hεdef hδ' (by linarith) hα (by linarith) hpAP
-      (le_trans hpAPBound measureReal_le_one) hstr hstr1 hneed)
-    hveto
+    (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _)) hv0 hveto
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
@@ -489,16 +486,15 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val) ∧
-        ∀ B : {B : State // B ∈ states},
-          x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
+          x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
               ≤ 2 * indecisionLimit} ⊆ T ∪ Bad →
-      1 - δ - α ≤ (runMeasure μ D Dsf).real T := by
+      1 - δ ≤ (runMeasure μ D Dsf).real T := by
     intro T hT
     have := le_trans hcc (le_trans (measureReal_mono hT (measure_ne_top _ _))
       (measureReal_union_le T Bad))
