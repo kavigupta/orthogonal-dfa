@@ -12,20 +12,20 @@ namespace OrthoDFA
 variable {Ω : Type*} [MeasurableSpace Ω] {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
 
 /-- A way of picking the family out of the screened candidates from their reads: `reads w` says
-the oracle answered accept at `w`, `w` weighs the prefixes and `ord` orders the candidates, and
+the oracle answered accept at `w`, `W` weighs the prefixes once per population and `ord` orders
+the candidates, and
 `P`, `cands` and `k` are the prefixes, the candidates and the size asked for.
 
 The proof only uses that the pick holds the seed, lies in the candidates, has `k` members when
 the candidates are that many and at most `k` otherwise, and reads only the candidates' columns on
 the prefixes.  `identifyClusterer` is `identify_cluster_around`. -/
 structure Clusterer (S : Type*) [Stringlike S] where
-  pick : (S → Prop) → (S → ℝ) → (S → ℕ) → Finset S → Finset S → ℕ → Finset S
+  pick : (S → Prop) → List (S → ℝ) → (S → ℕ) → Finset S → Finset S → ℕ → Finset S
   seed_mem : ∀ reads w ord P cands k, (1 : S) ∈ cands → (1 : S) ∈ pick reads w ord P cands k
   subset : ∀ reads w ord P cands k, (1 : S) ∈ cands → pick reads w ord P cands k ⊆ cands
   card_le : ∀ reads w ord P (cands : Finset S) k, Set.InjOn ord ↑cands → 0 < k →
     (pick reads w ord P cands k).card ≤ k
-  card_eq : ∀ reads w ord P (cands : Finset S) k, (∀ p, 0 ≤ w p) → Set.InjOn ord ↑cands →
-    (1 : S) ∈ cands →
+  card_eq : ∀ reads w ord P (cands : Finset S) k, Set.InjOn ord ↑cands → (1 : S) ∈ cands →
     k ≤ cands.card → 0 < k → (pick reads w ord P cands k).card = k
   congr : ∀ reads reads' w ord P cands k, (1 : S) ∈ cands →
     (∀ p ∈ P, ∀ v ∈ cands, (reads (p * v) ↔ reads' (p * v))) →
@@ -34,7 +34,7 @@ structure Clusterer (S : Type*) [Stringlike S] where
 /-- The cluster without its seed. -/
 noncomputable def clusterBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixWeight populations B.npref x)
+  (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixWeights populations B.npref x)
     (poolOrder B.nsuff x) (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     B.k).erase 1
 

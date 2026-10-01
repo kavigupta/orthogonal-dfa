@@ -208,13 +208,14 @@ noncomputable def meanVote (O : Oracle μ S) (F : Finset S) (p : S) : ℝ :=
 
 /-! ### Cluster -/
 
-/-- The weight `identify_cluster_around` gives a prefix: `1/#population` summed over the
-populations holding it, so each population weighs the same in the loss. -/
-noncomputable def popWeight (populations : Finset J) (Pj : J → Finset S) (p : S) : ℝ :=
-  ∑ j ∈ populations.filter (fun j => p ∈ Pj j), 1 / ((Pj j).card : ℝ)
+open scoped Classical in
+/-- One weight per population, `1/#population` on its own prefixes, so a count weighted by it is
+that population's share. -/
+noncomputable def popWeights (populations : Finset J) (Pj : J → Finset S) : List (S → ℝ) :=
+  populations.toList.map (fun j p => if p ∈ Pj j then 1 / ((Pj j).card : ℝ) else 0)
 
-noncomputable def prefixWeight (populations : Finset J) (m : ℕ) (x : Run Ω S J) : S → ℝ :=
-  popWeight populations (fun j => prefixesOf j m x)
+noncomputable def prefixWeights (populations : Finset J) (m : ℕ) (x : Run Ω S J) : List (S → ℝ) :=
+  popWeights populations (fun j => prefixesOf j m x)
 
 open scoped Classical in
 /-- A string's position in a sequence of draws: its first draw, or after all of them if it was
@@ -230,12 +231,13 @@ noncomputable def poolOrder (M : ℕ) (x : Run Ω S J) : S → ℕ :=
   drawOrder (fun i : Fin M => suffixDraw i.val x)
 
 open scoped Classical in
-/-- `identify_cluster_around`'s loss: the weighted count of prefixes at which `v`'s read
-disagrees with the cluster's mean read thresholded at `bnd`. -/
-noncomputable def weightedLoss (reads : S → Prop) (w : S → ℝ) (bnd : ℝ) (P F : Finset S)
+/-- `identify_cluster_around`'s loss: the share of each population's prefixes at which `v`'s
+read disagrees with the cluster's mean read thresholded at `bnd`, at its worst population. -/
+noncomputable def worstLoss (reads : S → Prop) (W : List (S → ℝ)) (bnd : ℝ) (P F : Finset S)
     (v : S) : ℝ :=
-  ∑ p ∈ P.filter (fun p =>
-    ¬ (reads (p * v) ↔ bnd * F.card < (F.filter (fun u => reads (p * u))).card)), w p
+  (W.map (fun w => ∑ p ∈ P.filter (fun p =>
+    ¬ (reads (p * v) ↔ bnd * F.card < (F.filter (fun u => reads (p * u))).card)), w p)).foldr
+    max 0
 
 open scoped Classical in
 /-- `argsort(kind="stable")[:k]`: the candidates fewer than `k` of which sort before them, by
@@ -253,9 +255,9 @@ open scoped Classical in
 candidates against the current cluster, stop if the seed ranks below the last one kept, put the
 seed back in place of the last if it fell out, and stop unless the total loss fell.  The loss is
 zeroed off the candidates, which it is never read at. -/
-noncomputable def identifyStep (reads : S → Prop) (w : S → ℝ) (ord : S → ℕ) (bnd : ℝ)
+noncomputable def identifyStep (reads : S → Prop) (W : List (S → ℝ)) (ord : S → ℕ) (bnd : ℝ)
     (P C : Finset S) (k : ℕ) (st : Finset S × WithTop ℝ × Bool) : Finset S × WithTop ℝ × Bool :=
-  let ℓ : S → ℝ := fun v => if v ∈ C then weightedLoss reads w bnd P st.1 v else 0
+  let ℓ : S → ℝ := fun v => if v ∈ C then worstLoss reads W bnd P st.1 v else 0
   let N := nearest ℓ ord C k
   let N' := if (1 : S) ∈ N then N else insert 1 (N.erase (lastOf ℓ ord N))
   if st.2.2 then st
@@ -266,14 +268,14 @@ noncomputable def identifyStep (reads : S → Prop) (w : S → ℝ) (ord : S →
 /-- `identify_cluster_around`, from the seed alone at an infinite loss, run past its stopping
 point: the total loss falls at every pass that moves the cluster, and takes one value per pair of
 consecutive clusters, so it cannot fall more often than there are such pairs. -/
-noncomputable def identifyCluster (reads : S → Prop) (w : S → ℝ) (ord : S → ℕ) (bnd : ℝ)
+noncomputable def identifyCluster (reads : S → Prop) (W : List (S → ℝ)) (ord : S → ℕ) (bnd : ℝ)
     (P C : Finset S) (k : ℕ) : Finset S :=
-  ((identifyStep reads w ord bnd P C k)^[(2 ^ C.card + 1) ^ 2] ({1}, ⊤, false)).1
+  ((identifyStep reads W ord bnd P C k)^[(2 ^ C.card + 1) ^ 2] ({1}, ⊤, false)).1
 
 /-- The cluster without its seed, recentred at the boundary `bnd`. -/
 noncomputable def clusterAt (mq : S → Ω → ℝ) (populations : Finset J) (bnd : ℝ)
     (x : Run Ω S J) (B : State) : Finset S :=
-  (identifyCluster (fun w => mq w (oracleNoise x) = 1) (prefixWeight populations B.npref x)
+  (identifyCluster (fun w => mq w (oracleNoise x) = 1) (prefixWeights populations B.npref x)
     (poolOrder B.nsuff x) bnd (prefixesAt populations B.npref x) (screenedAt mq populations B x)
     B.k).erase 1
 

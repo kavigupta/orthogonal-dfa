@@ -868,10 +868,6 @@ lemma clusterAt_subset (O : Oracle μ S) (populations : Finset J) (B : State)
   fun v hv => screenedAt_subset O populations B x
     (rule.subset _ _ _ _ _ B.k (one_mem_screenedAt O populations B x) (Finset.mem_of_mem_erase hv))
 
-lemma prefixWeight_nonneg (populations : Finset J) (m : ℕ) (x : Run Ω S J) (p : S) :
-    0 ≤ prefixWeight populations m x p :=
-  Finset.sum_nonneg (fun _ _ => by positivity)
-
 open scoped Classical in
 lemma drawOrder_of_drawn {M : ℕ} (sd : Fin M → S) {v : S} (h : ∃ i, sd i = v) :
     ∃ i, sd i = v ∧ drawOrder sd v = i.val := by
@@ -923,7 +919,7 @@ lemma poolOrder_injOn_screened (O : Oracle μ S) (populations : Finset J) (B : S
 /-- The family with its seed. -/
 noncomputable def clusterFull (rule : Clusterer S) (O : Oracle μ S) (populations : Finset J)
     (x : Run Ω S J) (B : State) : Finset S :=
-  rule.pick (fun w => O.mq w (oracleNoise x) = 1) (prefixWeight populations B.npref x)
+  rule.pick (fun w => O.mq w (oracleNoise x) = 1) (prefixWeights populations B.npref x)
     (poolOrder B.nsuff x) (prefixesAt populations B.npref x) (screenedAt O.mq populations B x) B.k
 
 lemma clusterAt_card_add_one (O : Oracle μ S) (populations : Finset J) (B : State)
@@ -3282,10 +3278,10 @@ open scoped Classical in
 order the clustering reads: all of them are functions of countably many draws. -/
 lemma measurableSet_of_draws {α : Type*} [Countable α] (populations : Finset J) (B : State)
     (g : Run Ω S J → α) (hg : ∀ a, MeasurableSet {x | g x = a})
-    (R : Finset S → Finset S → (S → ℝ) → (S → ℕ) → α → Set (Run Ω S J))
+    (R : Finset S → Finset S → List (S → ℝ) → (S → ℕ) → α → Set (Run Ω S J))
     (hR : ∀ P C wt ord a, MeasurableSet (R P C wt ord a)) :
     MeasurableSet {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-      (prefixWeight populations B.npref x) (poolOrder B.nsuff x) (g x)} := by
+      (prefixWeights populations B.npref x) (poolOrder B.nsuff x) (g x)} := by
   classical
   have hpre : ∀ x : Run Ω S J, ∀ j, prefixesOf j B.npref x
       = (Finset.univ : Finset (Fin B.npref)).image (fun i => prefixDraw j i.val x) :=
@@ -3294,14 +3290,14 @@ lemma measurableSet_of_draws {α : Type*} [Countable α] (populations : Finset J
       = insert 1 ((Finset.univ : Finset (Fin B.nsuff)).image (fun i => suffixDraw i.val x)) :=
     fun x => congrArg (insert 1) (image_range_eq_image_univ B.nsuff (fun i => suffixDraw i x))
   have hcov : {x : Run Ω S J | x ∈ R (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x) (g x)}
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x) (g x)}
       = ⋃ z : (J → Finset S) × (Fin B.nsuff → S) × α,
           ((((⋂ j : J, {x : Run Ω S J | prefixesOf j B.npref x = z.1 j})
             ∩ ⋂ i : Fin B.nsuff, {x : Run Ω S J | suffixDraw i.val x = z.2.1 i})
             ∩ {x : Run Ω S J | g x = z.2.2})
           ∩ R (populations.biUnion z.1) (insert 1 ((Finset.univ : Finset (Fin B.nsuff)).image
               z.2.1))
-              (popWeight populations z.1) (drawOrder z.2.1) z.2.2) := by
+              (popWeights populations z.1) (drawOrder z.2.1) z.2.2) := by
     ext x
     simp only [Set.mem_setOf_eq, Set.mem_iUnion, Set.mem_inter_iff, Set.mem_iInter]
     constructor
@@ -3318,7 +3314,7 @@ lemma measurableSet_of_draws {α : Type*} [Countable α] (populations : Finset J
         rw [← hPj]; rfl
       have e2 : poolAt B.nsuff x = insert 1 ((Finset.univ : Finset (Fin B.nsuff)).image sd) := by
         rw [hpool x, hsd]
-      have e3 : prefixWeight populations B.npref x = popWeight populations Pj := by
+      have e3 : prefixWeights populations B.npref x = popWeights populations Pj := by
         rw [← hPj]; rfl
       have e4 : poolOrder B.nsuff x = drawOrder sd := by rw [← hsd]; rfl
       rw [e1, e2, e3, e4, ha]
@@ -4637,25 +4633,27 @@ lemma measurableSet_screenRate' (O : Oracle μ S) (P cands : Finset S) (v : S) (
   noiseAlg_le O Set.univ _ (measurableSet_screenRate O P cands v sc scd)
 
 /-- `clusterBy` with the draws fixed: the family is a function of the noise alone. -/
-noncomputable def clusterOf (rule : Clusterer S) (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ)
+noncomputable def clusterOf (rule : Clusterer S) (O : Oracle μ S) (wt : List (S → ℝ)) (ord : S → ℕ)
     (sc scd : ℕ) (P cands : Finset S) (k : ℕ) (ω : Ω) : Finset S :=
   (rule.pick (fun w => O.mq w ω = 1) wt ord P (screened O.mq sc scd P cands ω) k).erase 1
 
 lemma clusterAt_eq_clusterOf (O : Oracle μ S) (populations : Finset J) (B : State)
     (x : Run Ω S J) :
     clusterBy rule O.mq populations x B
-      = clusterOf rule O (prefixWeight populations B.npref x) (poolOrder B.nsuff x) B.sc B.scd
+      = clusterOf rule O (prefixWeights populations B.npref x) (poolOrder B.nsuff x) B.sc B.scd
           (prefixesAt populations B.npref x) (poolAt B.nsuff x) B.k (oracleNoise x) :=
   rfl
 
-lemma clusterOf_subset (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ) (sc scd : ℕ) (P cands : Finset
+lemma clusterOf_subset (O : Oracle μ S) (wt : List (S → ℝ)) (ord : S → ℕ) (sc scd : ℕ) (P cands :
+    Finset
     S) (k : ℕ) (ω : Ω)
     (hone : (1 : S) ∈ cands) : clusterOf rule O wt ord sc scd P cands k ω ⊆ cands :=
   fun v hv => screened_subset O sc scd P cands ω
     (rule.subset _ _ _ _ _ k (one_mem_screened O sc scd P cands ω hone) (Finset.mem_of_mem_erase
         hv))
 
-lemma clusterOf_congr_mq (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ) (sc scd : ℕ) (P cands : Finset
+lemma clusterOf_congr_mq (O : Oracle μ S) (wt : List (S → ℝ)) (ord : S → ℕ) (sc scd : ℕ) (P cands :
+    Finset
     S) (k : ℕ)
     (hone : (1 : S) ∈ cands) {ω ω' : Ω}
     (hbit : ∀ w ∈ readSet P cands, (O.mq w ω = 1 ↔ O.mq w ω' = 1)) :
@@ -4671,7 +4669,8 @@ lemma clusterOf_congr_mq (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ) (s
     (fun p hp v hv => hbit _ (mem_readSet hp (screened_subset O sc scd P cands ω' hv))))
 
 open scoped Classical in
-lemma measurableSet_clusterOf (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ) (sc scd : ℕ) (P cands :
+lemma measurableSet_clusterOf (O : Oracle μ S) (wt : List (S → ℝ)) (ord : S → ℕ) (sc scd : ℕ) (P
+    cands :
     Finset S) (k : ℕ)
     (hone : (1 : S) ∈ cands) (A₀ : Finset S) :
     MeasurableSet {ω | clusterOf rule O wt ord sc scd P cands k ω = A₀} := by
@@ -4693,7 +4692,8 @@ lemma measurableSet_clusterOf (O : Oracle μ S) (wt : S → ℝ) (ord : S → �
     (measurableSet_filter_pred O (T := Set.univ) (by simp) Pred)
 
 open scoped Classical in
-lemma measurableSet_insert_clusterOf (O : Oracle μ S) (wt : S → ℝ) (ord : S → ℕ) (sc scd : ℕ) (P
+lemma measurableSet_insert_clusterOf (O : Oracle μ S) (wt : List (S → ℝ)) (ord : S → ℕ) (sc scd :
+    ℕ) (P
     cands : Finset S) (k : ℕ)
     (hone : (1 : S) ∈ cands) (A₀ : Finset S) :
     MeasurableSet {ω | insert 1 (clusterOf rule O wt ord sc scd P cands k ω) = A₀} := by
@@ -5638,7 +5638,8 @@ lemma measurableSet_certFam (O : Oracle μ S) (populations : Finset J) (j : J) (
     MeasurableSet {x : Run Ω S J | Φ (prefixesAt populations B.npref x) (certOf j B.npref x)
       (clusterBy rule O.mq populations x B) (oracleNoise x)} := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin B.npref → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin B.npref → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       oracleNoise ⁻¹' {ω : Ω | Φ P ((Finset.univ : Finset (Fin B.npref)).image tt)
         (clusterOf rule O wt ord B.sc B.scd P C B.k ω) ω} else (∅ : Set (Run Ω S J))) := by
@@ -5656,7 +5657,7 @@ lemma measurableSet_certFam (O : Oracle μ S) (populations : Finset J) (j : J) (
           oracleNoise ⁻¹' {ω : Ω | Φ P ((Finset.univ : Finset (Fin B.npref)).image tt)
             (clusterOf rule O wt ord B.sc B.scd P C B.k ω) ω} else (∅ : Set (Run Ω S J)))
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage,
@@ -5687,7 +5688,8 @@ lemma measurableSet_hitShort (O : Oracle μ S) (populations : Finset J) (Dj : Me
     (j : J) (B : State) (εcov t : ℝ) :
     MeasurableSet (hitShort rule O populations Dj j B εcov t) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin B.npref → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin B.npref → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       {x : Run Ω S J | Function.Injective tt
         ∧ εcov ≤ Dj.real {p | ¬ cutCorrect O B.lo B.hi
@@ -5751,7 +5753,7 @@ lemma measurableSet_hitShort (O : Oracle μ S) (populations : Finset J) (Dj : Me
                     p (oracleNoise x))).card : ℝ)
               ≤ (B.npref : ℝ) * (εcov - t)} else ∅)
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), hitShort,
@@ -5984,7 +5986,8 @@ lemma measurableSet_heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : M
     (j : J) (B : State) (f q t : ℝ) :
     MeasurableSet (heavyHits rule O populations Dj j B f q t) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin B.npref → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin B.npref → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       {x : Run Ω S J | Dj.real {p | ¬ (flipCount O
             (clusterOf rule O wt ord B.sc B.scd P C B.k (oracleNoise x)) p
@@ -6025,7 +6028,7 @@ lemma measurableSet_heavyHits (O : Oracle μ S) (populations : Finset J) (Dj : M
                     ≤ ((clusterOf rule O wt ord B.sc B.scd P C B.k (oracleNoise x)).card : ℝ)
                       * f))).card : ℝ)} else ∅)
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), heavyHits,
@@ -6117,7 +6120,8 @@ lemma measurableSet_undecidedShort (O : Oracle μ S) (populations : Finset J) (D
     (j : J) (B : State) (l t : ℝ) :
     MeasurableSet (undecidedShort rule O populations Dj j B l t) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin B.npref → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin B.npref → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       {x : Run Ω S J | Function.Injective tt
         ∧ l ≤ Dj.real {p | ¬ decided O.mq B.lo (B.hi + 1)
@@ -6184,7 +6188,7 @@ lemma measurableSet_undecidedShort (O : Oracle μ S) (populations : Finset J) (D
                   (oracleNoise x))).card : ℝ)
               ≤ (B.npref : ℝ) * (l - t)} else ∅)
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), undecidedShort, familyAt,
@@ -6591,7 +6595,8 @@ lemma measurableSet_validMiss (O : Oracle μ S) (populations : Finset J) (j : J)
     (lcut f : ℝ) (kmin kmax : ℕ) :
     MeasurableSet (validMiss rule O populations j B lcut f kmin kmax) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin B.npref → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin B.npref → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin B.npref)).image tt)
         ∧ ((Finset.univ : Finset (Fin B.npref)).image tt).card = B.npref
@@ -6661,7 +6666,7 @@ lemma measurableSet_validMiss (O : Oracle μ S) (populations : Finset J) (j : J)
                     (clusterOf rule O wt ord B.sc B.scd P C B.k (oracleNoise x)) p
                     (oracleNoise x))).card : ℝ)} else ∅)
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin B.npref => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), validMiss,
@@ -7017,8 +7022,8 @@ lemma stalled_subset (O : Oracle μ S) (populations : Finset J) (B : State) (hkp
   by_contra hk
   simp only [Set.mem_setOf_eq, Classical.not_not] at hk
   have hcard : (clusterFull rule O populations x B).card = B.k :=
-    rule.card_eq _ _ _ _ _ B.k (prefixWeight_nonneg populations B.npref x)
-      (poolOrder_injOn_screened O populations B x) (one_mem_screenedAt O populations B x) hk hkpos
+    rule.card_eq _ _ _ _ _ B.k (poolOrder_injOn_screened O populations B x)
+      (one_mem_screenedAt O populations B x) hk hkpos
   have herase : (clusterBy rule O.mq populations x B).card = B.k - 1 := by
     have := clusterAt_card_add_one (rule := rule) O populations B x
     omega
@@ -7099,7 +7104,8 @@ lemma measurableSet_vetoHeavy (O : Oracle μ S) (populations : Finset J) (Dj : M
     (j : J) (B : State) (k : ℕ) (Δp f : ℝ) :
     MeasurableSet (vetoHeavy rule O populations Dj j B k Δp f) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin (k + 1) → S), MeasurableSet (if
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin (k + 1) → S),
+      MeasurableSet (if
       (1 : S) ∈ C then
       oracleNoise ⁻¹' {ω : Ω |
         (∀ v ∈ clusterOf rule O wt ord B.sc B.scd P C B.k ω, flipMass O Dj v ≤ Δp)
@@ -7124,7 +7130,7 @@ lemma measurableSet_vetoHeavy (O : Oracle μ S) (populations : Finset J) (Dj : M
               ≤ ((clusterOf rule O wt ord B.sc B.scd P C B.k ω).card : ℝ) * f)}
           else (∅ : Set (Run Ω S J)))
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin (k + 1) => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage,
@@ -7138,7 +7144,8 @@ lemma measurableSet_vetoLight (O : Oracle μ S) (populations : Finset J) (j : J)
     (m k : ℕ) (hk : k < m) (f : ℝ) (kmin kmax : ℕ) :
     MeasurableSet (vetoLight rule O populations j B m k f kmin kmax) := by
   classical
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (tt : Fin m → S), MeasurableSet (if (1 :
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (tt : Fin m → S), MeasurableSet
+      (if (1 :
       S) ∈ C then
       {x : Run Ω S J | Disjoint P ((Finset.univ : Finset (Fin m)).image tt)}
       ∩ oracleNoise ⁻¹' {ω : Ω |
@@ -7172,7 +7179,7 @@ lemma measurableSet_vetoLight (O : Oracle μ S) (populations : Finset J) (j : J)
                 ω}
           else (∅ : Set (Run Ω S J)))
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x)
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x)
         (fun i : Fin m => certPrefix j i.val x)} := by
     ext x
     simp only [Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_preimage,
@@ -9702,7 +9709,8 @@ theorem measureReal_driftFire_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
   refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
   -- the event is measurable: at fixed draws it is decided by the family and the reads
   have hFireMeas : MeasurableSet Fire := by
-    have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (t : J → Finset S), MeasurableSet (if
+    have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (t : J → Finset S),
+        MeasurableSet (if
         (1 : S) ∈ C then
         {x : Run Ω S J | Disjoint P (populations.biUnion t)}
         ∩ oracleNoise ⁻¹' {ω : Ω | Ψ (clusterOf rule O wt ord B.sc B.scd P C B.k ω) t ω}
@@ -9761,7 +9769,7 @@ theorem measureReal_driftFire_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : O
           ∩ oracleNoise ⁻¹' {ω : Ω | Ψ (clusterOf rule O wt ord B.sc B.scd P C B.k ω) t ω}
           else (∅ : Set (Run Ω S J)))
         (prefixesAt populations B.npref x) (poolAt B.nsuff x)
-        (prefixWeight populations B.npref x) (poolOrder B.nsuff x) (fun j => V j x)} := by
+        (prefixWeights populations B.npref x) (poolOrder B.nsuff x) (fun j => V j x)} := by
       ext x
       simp only [hFire, Set.mem_setOf_eq, if_pos (one_mem_poolAt B.nsuff x), Set.mem_inter_iff,
         Set.mem_preimage, ← clusterAt_eq_clusterOf O populations B x]

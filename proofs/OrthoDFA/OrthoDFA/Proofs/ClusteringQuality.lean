@@ -207,7 +207,8 @@ theorem runMeasure_dev_le {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle �
     noiseAlg_le O Set.univ _ (measurableSet_filter_pred' O (fun p ω => Ev A₀ p ω)
       (fun p _ => hEv A₀ p Set.univ (fun _ _ => Set.mem_univ _))
       (fun U => t ≤ ∑ p ∈ F \ P, Dj.real {p} * μ.real {ω' | Ev A₀ p ω'} - ∑ p ∈ U, Dj.real {p}))
-  have hR : ∀ (P C : Finset S) (wt : S → ℝ) (ord : S → ℕ) (_u : Unit), MeasurableSet (if (1 : S) ∈
+  have hR : ∀ (P C : Finset S) (wt : List (S → ℝ)) (ord : S → ℕ) (_u : Unit), MeasurableSet (if (1
+      : S) ∈
       C then
       oracleNoise ⁻¹' {ω : Ω | t ≤
         ∑ p ∈ F \ P, Dj.real {p}
