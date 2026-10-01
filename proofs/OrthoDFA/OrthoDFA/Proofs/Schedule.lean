@@ -301,7 +301,7 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 the noise only costs prefixes.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; there is a population to certify; the populations and the suffix measure are
+which has signal; the uniform pool the gate admits on is a population; the populations and the suffix measure are
 supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
 the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
 and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
@@ -312,9 +312,10 @@ may stop wherever on the ladder it likes. -/
 def ClusteringCorrect : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
-    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (D : J → Measure S)
+    (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
+    (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ) (a v : ℕ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -324,11 +325,6 @@ def ClusteringCorrect : Prop :=
   (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
   0 < pAP →
   pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
-  0 < qmin →
-  qmin ≤ (D uni).real O.L →
-  qmin ≤ (D uni).real O.Lᶜ →
-  -- the cut budget, read off `εcov`, is small against the uniform pool's rarer class
-  εcov ≤ sig η₀ * qmin / 2 →
   0 < indecisionLimit →
   indecisionLimit ≤ 1 / 2 →
   0 < α →
