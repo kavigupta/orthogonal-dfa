@@ -744,45 +744,27 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
   rw [hpoolval, ← hPe, mul_div_assoc 16]
   linarith only [h1, h2, hRhalf]
 
-/-- The statement's budget hypothesis, read at the proof's cut budget: one round of table growth
-buys a certification sample as large as the top rung's prefix count. -/
+/-- The statement's budget hypothesis, read at the schedule: one round of table growth buys a
+certification sample as large as the top rung's prefix count. -/
 theorem certBudget_covers (populations : Finset J)
-    (η₀ indecisionLimit εcov₀ εcov δ α pAP qmin crossLimit : ℝ) (a : ℕ)
+    (η₀ indecisionLimit εcov δ α pAP crossLimit : ℝ) (a : ℕ)
     (hη0 : 0 ≤ η₀) (hη₀ : η₀ < 1 / 2) (hpop : populations.Nonempty) (hind : 0 < indecisionLimit)
-    (hεcov₀ : 0 < εcov₀) (hε1₀ : εcov₀ ≤ 1) (hq0 : 0 < qmin) (hq1 : qmin ≤ 1 / 2)
-    (hεdef : εcov = min εcov₀ ((1 / 2 - η₀) * qmin / 2))
+    (hε : 0 < εcov) (hε1 : εcov ≤ 1)
     (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) (hpAP : 0 < pAP) (hpAP1 : pAP ≤ 1)
     (hζ : 0 < crossLimit) (hζ1 : crossLimit ≤ 1)
-    (hneed : prefixNeed populations η₀ indecisionLimit εcov₀ δ α pAP qmin crossLimit
-      ≤ 2 * a / pAP) :
+    (hneed : prefixNeed populations η₀ indecisionLimit εcov δ α pAP crossLimit ≤ 2 * a / pAP) :
     prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit
         * (famCount η₀ populations indecisionLimit εcov δ crossLimit + 1)
       ≤ a * poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := by
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
-  have hs : 0 < 1 / 2 - η₀ := by linarith
-  have hsq : 0 < (1 / 2 - η₀) * qmin / 2 := by positivity
-  have hε : 0 < εcov := by rw [hεdef]; exact lt_min hεcov₀ hsq
-  have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
-  have hscale : min εcov (min (1 / 2 - η₀) indecisionLimit)
-      = min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) := by
-    have ha : (1 / 2 - η₀) * qmin / 2 ≤ 1 / 2 - η₀ := by nlinarith
-    rw [hεdef]
-    apply le_antisymm
-    · exact le_min (min_le_of_left_le (min_le_left _ _))
-        (le_min (min_le_of_left_le (min_le_right _ _)) (min_le_of_right_le (min_le_right _ _)))
-    · exact le_min (le_min (min_le_left _ _) (min_le_of_right_le (min_le_left _ _)))
-        (le_min (le_trans (min_le_of_right_le (min_le_left _ _)) ha)
-          (min_le_of_right_le (min_le_right _ _)))
-  have hS : 0 < min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) :=
-    lt_min hεcov₀ (lt_min hsq hind)
+  have hS : 0 < min εcov (min (1 / 2 - η₀) indecisionLimit) :=
+    lt_min hε (lt_min (by linarith) hind)
   have hpoly := prefCount_le_poly populations η₀ indecisionLimit εcov δ α pAP crossLimit
     hsig hη0 hpop hind hε hε1 hδ hδ1 hα hα1 hpAP hpAP1
   simp only [budgetLog, budgetScale, sig] at hpoly
-  rw [hscale] at hpoly
   have hpool := poolCount_le populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0 hind
     hε hpop hδ hδ1 hpAP hpAP1 hζ hζ1
   simp only [budgetScale, sig] at hpool
-  rw [hscale] at hpool
   set κ : ℕ := famCount η₀ populations indecisionLimit εcov δ crossLimit with hκdef
   set M : ℕ := poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit with hMdef
   have hM1 : 2 * ((κ : ℝ) + 1) / pAP ≤ (M : ℝ) := by
@@ -794,18 +776,17 @@ theorem certBudget_covers (populations : Finset J)
   have hMpos : (0 : ℝ) < (M : ℝ) := lt_of_lt_of_le (by positivity) hM1
   have hc0 : (0 : ℝ) ≤ (populations.card : ℝ) := Nat.cast_nonneg _
   have hP : (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
-      ≤ prefixNeed populations η₀ indecisionLimit εcov₀ δ α pAP qmin crossLimit := by
+      ≤ prefixNeed populations η₀ indecisionLimit εcov δ α pAP crossLimit := by
     refine le_trans hpoly ?_
     unfold prefixNeed
     have hc2 : (0 : ℝ) < (populations.card : ℝ) + 2 := by positivity
-    have hX : (0 : ℝ) < δ * α * pAP
-        * min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) := by positivity
+    have hX : (0 : ℝ) < δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit) := by
+      positivity
     have hlog := Real.log_le_log (div_pos (mul_pos hc2 hMpos) hX)
-      (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hpool hc2.le)
-        (by positivity : (0 : ℝ) ≤ δ * α * pAP
-          * min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit)))
-    have hden : (0 : ℝ) < (1 / 2 - η₀) ^ 6
-        * min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) ^ 3 := by positivity
+      (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hpool hc2.le) hX.le)
+    have hden : (0 : ℝ) < (1 / 2 - η₀) ^ 6 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3 := by
+      have : (0 : ℝ) < 1 / 2 - η₀ := by linarith
+      positivity
     exact div_le_div_of_nonneg_right
       (mul_le_mul_of_nonneg_left hlog (by positivity)) hden.le
   have hκ1 : (0 : ℝ) ≤ (κ : ℝ) + 1 := by positivity
@@ -824,41 +805,18 @@ open MeasureTheory ProbabilityTheory in
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP qmin
-    crossLimit a hηle hη₀ huni hflat hpAPPositive hq0 hq1 hindLim hind1 hαpos hα hεcov₀ hε1₀ hδ
-    hδ1 hζ hζ1 hneed
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit a
+    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1 hneed
   classical
+  have hpop : populations.Nonempty := ⟨uni, huni⟩
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
-  have hpop : populations.Nonempty := ⟨uni, huni⟩
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  -- the proof runs at a cut budget small against the uniform pool's rarer class
-  obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ ((1 / 2 - η₀) * qmin / 2) := ⟨_, rfl⟩
-  have hsq : 0 < (1 / 2 - η₀) * qmin / 2 := by
-    have : 0 < 1 / 2 - η₀ := by linarith
-    positivity
-  have hεcov : 0 < εcov := by rw [hεdef]; exact lt_min hεcov₀ hsq
-  have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
-  have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
-  have hq : εcov ≤ sig η₀ * qmin / 2 := by rw [hεdef, sig]; exact min_le_right _ _
-  have hscale : min εcov (min (1 / 2 - η₀) indecisionLimit)
-      = min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) := by
-    have ha : (1 / 2 - η₀) * qmin / 2 ≤ 1 / 2 - η₀ := by nlinarith
-    rw [hεdef]
-    apply le_antisymm
-    · exact le_min (min_le_of_left_le (min_le_left _ _))
-        (le_min (min_le_of_left_le (min_le_right _ _)) (min_le_of_right_le (min_le_right _ _)))
-    · exact le_min (le_min (min_le_left _ _) (min_le_of_right_le (min_le_left _ _)))
-        (le_min (le_trans (min_le_of_right_le (min_le_left _ _)) ha)
-          (min_le_of_right_le (min_le_right _ _)))
-  have hscale2 : min εcov indecisionLimit
-      = min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) := by
-    rw [hεdef, min_assoc]
   refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit, ?_, ?_⟩
   · simp only [collisionCap]
     positivity
-  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound hqL hqN ρ hρ hρcap hρsf
+  intro D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
   have := hD
   have := hDsf
   have hpAP1 : pAP ≤ 1 := le_trans hpAPBound measureReal_le_one
@@ -872,10 +830,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have hsched : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit :=
       Finset.mem_of_mem_filter _ hB
     obtain ⟨i, _, rfl⟩ := Finset.mem_image.1 hsched
-    have hpoly' := hpoly
-    simp only [budgetLog, budgetScale, sig] at hpoly'
-    rw [hscale] at hpoly'
-    refine le_trans ?_ hpoly'
+    refine le_trans ?_ hpoly
     exact_mod_cast Nat.div_le_self _ _
   · -- The ladder reaches down to `validCount`, which `validCount_le_poly` bounds.
     have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
@@ -884,8 +839,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have hpAP' := hpAPBound
     rw [O.apSet_eq] at hpAP'
     obtain ⟨Bp, hBp, -⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
-      (collisionMass Dsf) pAP qmin (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov hε1 hq hδ hδ1
-      hαpos hα
+      (collisionMass Dsf) pAP (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα
       hindLim hind1 hpAPPositive hpAP' hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap
       hρsf
     obtain ⟨B, hB, hBle⟩ := exists_small_stoppable η₀ populations hη0 hη₀ hεcov hindLim hδ hδ1
@@ -895,7 +849,6 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
       hpop hindLim hind1 hεcov hε1 hδ hδ1 hpAPPositive hpAP1
     rw [nsuff_of_mem_schedule (Finset.mem_of_mem_filter _ hB)]
     simp only [sig] at hv
-    rw [hscale2] at hv
     have hlog : 0 ≤ Real.log (((populations.card : ℝ) + 2)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ) := by
       refine Real.log_nonneg ?_
@@ -904,10 +857,9 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
         pAP crossLimit : ℝ)), (Nat.cast_nonneg _ : (0 : ℝ) ≤ (populations.card : ℝ))]
     have hQ : 0 ≤ (populations.card : ℝ) ^ 2 * Real.log (((populations.card : ℝ) + 2)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ)
-        / ((1 / 2 - η₀) ^ 6 * min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) ^ 2) := by
+        / ((1 / 2 - η₀) ^ 6 * min εcov indecisionLimit ^ 2) := by
       refine div_nonneg (mul_nonneg (sq_nonneg _) hlog) ?_
-      have : 0 < min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) :=
-        lt_min hεcov₀ (lt_min hsq hindLim)
+      have : 0 < min εcov indecisionLimit := lt_min hεcov hindLim
       have : 0 < 1 / 2 - η₀ := by linarith
       positivity
     rw [mul_assoc, mul_div_assoc]
@@ -920,13 +872,12 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have hpool := poolCount_le populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0
       hindLim hεcov hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
     simp only [budgetScale, sig] at hk hpool
-    rw [hscale] at hk hpool
     rw [mul_div_assoc] at hk
-    have hG : 0 ≤ Real.log (2 / (min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) * crossLimit))
+    have hG : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
         / (1 / 2 - η₀) ^ 2 := by
       linarith only [hk, (Nat.cast_nonneg _ : (0 : ℝ) ≤ famCount η₀ populations
         indecisionLimit εcov δ crossLimit)]
-    have hGp : 0 ≤ Real.log (2 / (min εcov₀ (min ((1 / 2 - η₀) * qmin / 2) indecisionLimit) * crossLimit))
+    have hGp : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
         / ((1 / 2 - η₀) ^ 2 * pAP) := by
       rw [← div_div]; exact div_nonneg hG hpAPPositive.le
     have hH : 0 ≤ Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2 :=
@@ -938,13 +889,10 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     rw [mul_div_assoc, mul_div_assoc 128, mul_div_assoc 16]
     rw [mul_div_assoc 128, mul_div_assoc 16] at hpool
     constructor <;> linarith
-  refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
-    α δ ρ pAP qmin crossLimit 2048 a hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound
-    hq0 hqL hqN hq hindLim hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf
-    (certBudget_covers populations η₀ indecisionLimit εcov₀ εcov δ α pAP qmin crossLimit a hη0 hη₀
-      hpop hindLim hεcov₀ hε1₀ hq0 hq1 hεdef hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1 hζ
-      hζ1 hneed))
-    (measureReal_mono (fun x hx => ⟨hx.1, fun B hB j hj =>
-      ⟨le_trans (by linarith) (hx.2 B hB j hj).1, (hx.2 B hB j hj).2⟩⟩) (measure_ne_top _ _))
+  exact clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
+    crossLimit 2048 a hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim
+    hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf
+    (certBudget_covers populations η₀ indecisionLimit εcov δ α pAP crossLimit a hη0 hη₀ hpop
+      hindLim hεcov hε1 hδ hδ1 hαpos (by linarith) hpAPPositive hpAP1 hζ hζ1 hneed)
 
 end OrthoDFA

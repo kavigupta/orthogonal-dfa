@@ -26,6 +26,10 @@ class SynthesisTracker:
     def on_consistency_estimated(self, consistency, round_index):
         """How far the round's DFA and tree agreed on fresh samples."""
 
+    def on_certificate_decided(self, certified, round_index):
+        """Whether the certificate passed the round's denoised DFA; asked only
+        of rounds that reached the consistency target."""
+
     def on_corrected_dfa_found(self, dfa, round_index):
         """The hypothesis the run settled on, denoised.  Fired once, by
         ``do_counterexample_driven_synthesis`` -- a caller driving
@@ -46,6 +50,8 @@ class RecordingTracker(SynthesisTracker):
         self.classifiers = []
         self.hypotheses = []
         self.consistency = []
+        #: round -> whether it was certified, for the rounds that were asked.
+        self.certified = {}
         self.corrected = None
 
     def on_family_resolved(self, suffixes, boundary, round_index):
@@ -63,6 +69,9 @@ class RecordingTracker(SynthesisTracker):
     def on_consistency_estimated(self, consistency, round_index):
         assert len(self.consistency) == round_index
         self.consistency.append(consistency)
+
+    def on_certificate_decided(self, certified, round_index):
+        self.certified[round_index] = certified
 
     def on_corrected_dfa_found(self, dfa, round_index):
         self.corrected = (dfa, round_index)
