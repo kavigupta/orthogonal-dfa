@@ -126,7 +126,6 @@ def _check(masses, p_0, p_1, seed):
 class TestOppositeLabelsSplit(unittest.TestCase):
     def _assert_split_along(self, masses, p_0, p_1, seed):
         split, truth = _check(masses, p_0, p_1, seed)
-        self.assertIsNotNone(split, "no cut separated the minority")
         # The next round holds each side as a population, and the gate's veto is
         # sized for one a family reads nearly all backwards.
         minority = Counter(truth[m] for m in split.groups[True])

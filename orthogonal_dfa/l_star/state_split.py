@@ -210,26 +210,26 @@ def split_members(
     """The StateSplit placing n fresh members of draw, n = first_look at level,
     on each side of the cut _sharpened fits on n others, starting from the
     minority_share of those whose counts over the suffixes _going_with picks
-    are lowest (minority_below) or highest; the smaller side is the minority.
-    None if sharpening finds no cut."""
+    are lowest (minority_below) or highest, or of that starting tail where
+    sharpening finds no cut; the smaller side is the minority."""
     size = first_look(signal, minority_share, level, level)
     picking = draw(size)
     reads = _reads(oracle, picking, suffixes)
     empty = np.asarray(oracle.membership_queries(picking), dtype=np.int8)
     picked = _going_with(reads, empty)
     weights = -np.ones(len(picked)) if minority_below else np.ones(len(picked))
-    inside = _tail(
-        reads[:, picked] @ weights, math.ceil(minority_share * size), rng, True
-    )
+    scores = reads[:, picked] @ weights
+    inside = _tail(scores, math.ceil(minority_share * size), rng, True)
     sharpened = _sharpened(
         reads, inside, _tails_without(reads, picked, weights, inside), level
     )
     if sharpened is None:
-        return None
-    kept, weights, count = sharpened
-    chosen = [suffixes[k] for k in kept]
-    # A count of agreeing reads is the weighted reads plus the flipped ones.
-    cut = count - (weights < 0).sum()
+        chosen, cut = [suffixes[k] for k in picked], scores[inside].min()
+    else:
+        kept, weights, count = sharpened
+        chosen = [suffixes[k] for k in kept]
+        # A count of agreeing reads is the weighted reads plus the flipped ones.
+        cut = count - (weights < 0).sum()
     testing = draw(size)
     scores = _reads(oracle, testing, chosen) @ weights
     if (scores >= cut).mean() > 1 / 2:
@@ -249,7 +249,7 @@ def split_members(
 
 def state_split(pst, dfa, state, family, *, minority_share, level):
     """(split_members of members aimed at state, read on family and fresh
-    suffixes, the aim); None where nothing aims at state or no cut is found."""
+    suffixes, the aim); None where nothing aims at state."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -268,7 +268,7 @@ def state_split(pst, dfa, state, family, *, minority_share, level):
         level=level,
         rng=pst.rng,
     )
-    return None if split is None else (split, aim)
+    return split, aim
 
 
 class SplitSource(RejectionSource):
