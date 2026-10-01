@@ -38,14 +38,19 @@ noncomputable def clusterBy (rule : Clusterer S) (mq : S → Ω → ℝ) (popula
   (rule.pick (fun w => mq w (oracleNoise x) = 1) (prefixesAt populations B.npref x)
     (screenedAt mq populations B x) B.k).erase 1
 
+/-- `familyAt` with the family picked by `rule`. -/
+noncomputable def familyBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
+    (x : Run Ω S J) (B : State) : Finset S :=
+  insert 1 (clusterBy rule mq populations x B)
+
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/
 noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo B.hi
-          (clusterBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
+      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
+          (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ ∀ j ∈ populations, admitted mq B.lo B.hi B.gmin α
         (clusterBy rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
