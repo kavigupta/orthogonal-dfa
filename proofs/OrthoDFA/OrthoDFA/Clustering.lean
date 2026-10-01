@@ -18,9 +18,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` weighs each population equally in its loss,
-stops once the total loss stops falling, and recentres at the boundary; `clusterAround` does none
-of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
+Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
+share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
+`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
 `k` members when the pool holds that many and at most `k` otherwise, and is a function of the
 pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
 
@@ -34,8 +34,12 @@ at one rate.
 Known modelling gap.  The certification sample here is `npref` draws from each population, read
 by both tests.  The Python reads the gate on `min(representative, certification_budget)` draws
 from the uniform pool and `veto_size` from the rest, drawing more of the uniform pool when the
-split reads uncertified, and reads the FNR on each population topped up to its table count,
-capped by the same budget.
+split reads uncertified.
+
+Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
+`identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
+The table's votes are fitted to its noise and read as more decisive than they are, so the
+claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
 Known modelling gap.  `drift_verdict` also lets any population veto a family, testing each side
 at `α/num_tests` on `veto_size` draws; `ret` has no veto.  That sample is sized by `α` and not by
@@ -227,9 +231,9 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
     (Finset.exists_min_image (cands.powersetCard k) (fun T => ∑ x ∈ T, ℓ x) h).choose
   else ∅
 
-/-- `identify_cluster_around`'s loss: the Hamming distance from a candidate's mask row to the
-cluster's own thresholded mean, `masks[cluster].mean(0) > decision_boundary`, the boundary
-written `cn/cd`. -/
+/-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
+`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
+`identify_cluster_around` takes it per population and scores the worst share. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
