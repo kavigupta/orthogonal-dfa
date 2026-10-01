@@ -44,24 +44,21 @@ asked for; which divisors the proof chose to hold each of them at is the proof's
 noncomputable def budgetScale (η indecisionLimit εcov : ℝ) : ℝ :=
   min εcov (min (sig η) indecisionLimit)
 
-/-- What fraction of the family the vote absorbs flipping.  A flip moves a read by a whole
-bit rather than by `2s`, so it costs the vote `(1 − η)·f`, and what is left is `voteSlack`:
+/-- What fraction of the family the vote absorbs flipping.  A flipping member's read moves toward
+the other class by up to a whole bit, so a flip fraction `f` costs the vote up to `f`, and what is
+left of the margin `s` either class keeps from the boundary is `voteSlack`:
 
-    (1 − η) · flipFrac η + voteSlack η = sig η
-
-exactly, at `η` as well as below it.  Nothing else fixes the split; scaling with `s` is what
-keeps both sides positive up to `η = 1/2`. -/
-noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / (10 * (1 - η))
+    flipFrac η + voteSlack η = sig η -/
+noncomputable def flipFrac (η : ℝ) : ℝ := 7 * sig η / 10
 
 /-- How far into the margin left by `flipFrac` the vote's count is read. -/
 noncomputable def voteSlack (η : ℝ) : ℝ := 3 * sig η / 10
 
 /-- What fraction of the family validity lets flip.  A cut is wrong only where the vote lands
-beyond the band, not where it is undecided, so the flips may spend all of the signal and leave
-the band's half-width, `voteSlack/2` of the family, to the deviation:
-
-    (1 − η) · validFrac η = sig η -/
-noncomputable def validFrac (η : ℝ) : ℝ := sig η / (1 - η)
+beyond the band, not where it is undecided, so the flips may spend nearly all of the margin and
+leave the band's half-width, `voteSlack/2` of the family, to the deviation.  The tenth they leave
+pays for rounding the centre up to a count. -/
+noncomputable def validFrac (η : ℝ) : ℝ := 9 * sig η / 10
 
 /-- What the gate's margin can absorb, so what a round charges wrongly-cut prefixes at.  A
 right cut earns the gate `s` over a coin flip per prefix, and a wrong one can cost it a whole
@@ -82,23 +79,20 @@ the certification sample are independent given the family, so their count concen
 the budget.
 
 The second term makes the band, about `κ·voteSlack` wide, at least `√(κ·log(1/crossLimit)/2)`.
-The third pays for the seed: the family returned is one member larger than the band is centred
-for, which its vote pays for out of the slack, at `decSlack`.
-
-The size is even, and the `+ 1` is inside the doubling, because `flipFrac` spends its side of
-the margin exactly: the band is centred at `κ/2`, and an odd `κ` would round that up past what
-`voteSlack` has left to pay with. -/
+The third pays, at `decSlack`, for the seed, which makes the family returned one member larger
+than the band is centred for, and for rounding the centre `bnd·κ` up to a count. -/
 noncomputable def famCount (η : ℝ) (_populations : Finset J)
     (indecisionLimit εcov _δ crossLimit : ℝ) : ℕ :=
   2 * (⌈Real.log (2 / cutBudget η indecisionLimit εcov) / voteSlack η ^ 2⌉₊
-    + ⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ + ⌈1 / voteSlack η⌉₊ + 1)
+    + ⌈Real.log (1 / crossLimit) / voteSlack η ^ 2⌉₊ + ⌈4 / voteSlack η⌉₊ + 1)
 
 /-- How far the vote of the family returned, seed included, clears its cut at `lo` and `hi + 1`:
-the band's `voteSlack/2`, less the half read the extra member costs spread over all of them. -/
+the band's `voteSlack/2`, less the extra member's read and the centre's rounding, two reads in
+all, spread over all of them. -/
 noncomputable def decSlack (η : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ crossLimit : ℝ) : ℝ :=
   voteSlack η / 2
-    - 1 / (2 * ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1))
+    - 2 / ((famCount η populations indecisionLimit εcov δ crossLimit : ℝ) + 1)
 
 /-- How many counts the band reaches either side of the centre count. -/
 noncomputable def bandHalf (η : ℝ) (populations : Finset J)
@@ -198,16 +192,16 @@ noncomputable def validCount (η : ℝ) (populations : Finset J)
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
     + 1
 
-/-- The state at a given prefix count: every other field read off the condition it has to
-meet. -/
-noncomputable def solvedStateAt (η : ℝ) (populations : Finset J)
+/-- The state at a given prefix count, cutting at the boundary `bnd`: every other field read off
+the condition it has to meet. -/
+noncomputable def solvedStateAt (η bnd : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ pAP crossLimit : ℝ) (mi : ℕ) : State where
   nsuff := poolCount η populations indecisionLimit εcov δ pAP crossLimit
   npref := mi
   k := famCount η populations indecisionLimit εcov δ crossLimit + 1
-  lo := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
+  lo := ⌈bnd * famCount η populations indecisionLimit εcov δ crossLimit⌉₊
     - bandHalf η populations indecisionLimit εcov δ crossLimit - 1
-  hi := ⌈(famCount η populations indecisionLimit εcov δ crossLimit : ℝ) / 2⌉₊
+  hi := ⌈bnd * famCount η populations indecisionLimit εcov δ crossLimit⌉₊
     + bandHalf η populations indecisionLimit εcov δ crossLimit
   sc := ⌈((⌈15 / (2 * screenMargin η populations indecisionLimit εcov δ)⌉₊ + 1 : ℕ) : ℝ)
     * screenMargin η populations indecisionLimit εcov δ⌉₊
@@ -220,10 +214,10 @@ noncomputable def ladderLen (η : ℝ) (populations : Finset J)
   Nat.log 2 (prefCount η populations indecisionLimit εcov δ α pAP crossLimit) + 1
 
 /-- The states the loop runs the gate at: the ladder `m, m/2, m/4, …`. -/
-noncomputable def schedule (η : ℝ) (populations : Finset J)
+noncomputable def schedule (η bnd : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit : ℝ) : Finset State :=
   (Finset.range (ladderLen η populations indecisionLimit εcov δ α pAP crossLimit)).image
-    (fun i => solvedStateAt η populations indecisionLimit εcov δ pAP crossLimit
+    (fun i => solvedStateAt η bnd populations indecisionLimit εcov δ pAP crossLimit
       (prefCount η populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i))
 
 /-- What one tested state may cost, summed over the populations: the certification draws
@@ -275,9 +269,9 @@ open scoped Classical in
 
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
 a finite sum and no summable weight over all budgets is needed. -/
-noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
+noncomputable def stoppable (η₀ bnd : ℝ) (populations : Finset J)
     (indecisionLimit εcov δ α pAP crossLimit ρ : ℝ) : Finset State :=
-  (schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit).filter
+  (schedule η₀ bnd populations indecisionLimit εcov δ α pAP crossLimit).filter
     (Capped η₀ populations indecisionLimit εcov δ ρ pAP
       (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
       (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
@@ -301,10 +295,11 @@ it, never from `O.η`.  Nothing asks the bound to be tight: the screen reads its
 the noise only costs prefixes.
 
 The hypotheses, in the order they appear: both of the oracle's noise rates are at most `η₀`,
-which has signal; there is a population to certify; the populations and the suffix measure are
-supported on a `Flat` pair of sets; the populations' collision mass is at most `ρ` and `pAP` of
-the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ` are in range;
-and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
+which has signal; each class's clean read sits `sig η₀` on its side of the boundary `bnd`, which
+is itself `sig η₀` inside `[0, 1]`; there is a population to certify; the populations and the
+suffix measure are supported on a `Flat` pair of sets; the populations' collision mass is at most
+`ρ` and `pAP` of the suffix measure is accept-preserving; `indecisionLimit`, `α`, `εcov` and `δ`
+are in range; and `ρ` and `Dsf`'s collision mass fit `collisionCap`.
 
 No hypothesis is a parameter of the algorithm: `State` is computed (`solvedStateAt` along
 `schedule`), and the guarantee is uniform over the rungs that carry their share, so the loop
@@ -314,9 +309,13 @@ def ClusteringCorrect : Prop :=
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J) (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ) (a v : ℕ),
+    (Pre Suf : Set S) (η₀ bnd indecisionLimit εcov α δ ρ pAP qmin crossLimit k : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
+  O.ηOut + sig η₀ ≤ bnd →
+  O.ηIn + sig η₀ ≤ 1 - bnd →
+  sig η₀ ≤ bnd →
+  bnd ≤ 1 - sig η₀ →
   uni ∈ populations →
   Flat Pre Suf →
   (∀ j ∈ populations, D j Preᶜ = 0) →
@@ -351,10 +350,10 @@ def ClusteringCorrect : Prop :=
   -- the cut budget, read off `εcov`, is small against the veto's share of `δ`
   2 * (populations.card : ℝ) * v * εcov ≤ δ →
   1 - δ - α ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ bnd populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
         x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
+      ∀ B : {B : State // B ∈ stoppable η₀ bnd populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
         x ∈ retBy rule O.mq populations uni indecisionLimit α v (certSize a B.val) B.val →
         ∀ j ∈ populations, 1 - εcov

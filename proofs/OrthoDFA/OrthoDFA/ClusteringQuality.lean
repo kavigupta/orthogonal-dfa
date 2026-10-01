@@ -26,14 +26,19 @@ noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (
 /-- With probability `≥ 1 − δ − α` the loop stops at one of `states`, and on every population the
 family it returns there, averaged over the population, decides a prefix the wrong way at most
 `εcov + slack` of the time and leaves it undecided at most `2·indecisionLimit + slack` of the
-time.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
+time.  Every state's band is as wide as `ClusteringGuarantee`'s, and contains `bnd` of the
+family. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP qmin crossLimit slack : ℝ) (a v : ℕ),
+    (η₀ bnd indecisionLimit εcov α δ pAP qmin crossLimit slack : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
+  O.ηOut + (1 / 2 - η₀) ≤ bnd →
+  O.ηIn + (1 / 2 - η₀) ≤ 1 - bnd →
+  1 / 2 - η₀ ≤ bnd →
+  bnd ≤ 1 / 2 + η₀ →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
@@ -66,6 +71,7 @@ def ClusteringQualityGuarantee : Prop :=
       ρ ≤ cap →
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
+        (∀ B ∈ states, (B.lo : ℝ) < bnd * ((B.k : ℝ) - 1) ∧ bnd * ((B.k : ℝ) - 1) ≤ B.hi) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
           (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
