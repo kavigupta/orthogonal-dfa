@@ -227,15 +227,16 @@ def drift_verdict(pst, by_population):
     for label, held in sides.items():
         if any(drifted(*side, alpha / num_tests) for side in held):
             return DRIFTED, label
-    # The pool admits on its two sides pooled: the split's column agrees with the
-    # cut (a read of 1 accepted, or of 0 rejected) more often than it would if each
-    # side read at the rate the cut splits at.  Against a coin flip instead, a
-    # class the oracle reads at one half would agree half the time however cut.
+    # Admits when the prefixes' own reads match the family's vote on them (1 where
+    # it accepts, 0 where it rejects) significantly more often than if both sides
+    # read 1 at the decision boundary.
+    boundary = pst.decision_boundary
+    accept_null, reject_null = boundary, boundary
     (hits_a, n_a), (hits_r, n_r) = by_population.get(UNIFORM, ((0, 0), (0, 0)))
     if n_a + n_r:
         null = np.convolve(
-            scipy.stats.binom.pmf(np.arange(n_a + 1), n_a, pst.accept_thresh),
-            scipy.stats.binom.pmf(np.arange(n_r + 1), n_r, 1 - pst.reject_thresh),
+            scipy.stats.binom.pmf(np.arange(n_a + 1), n_a, accept_null),
+            scipy.stats.binom.pmf(np.arange(n_r + 1), n_r, 1 - reject_null),
         )
         if null[hits_a + (n_r - hits_r) :].sum() <= alpha:
             return ADMITTED, None
