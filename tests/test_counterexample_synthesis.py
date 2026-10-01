@@ -183,7 +183,7 @@ class TestWhatARoundPublishes(unittest.TestCase):
         state = _state()
         state.held[("state", 0)] = [b"x"]
 
-        state.retire_states()
+        state.retire("state")
 
         self.assertEqual([], sorted(state.held))
 

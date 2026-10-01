@@ -114,7 +114,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
-    state.retire_states()
+    state.retire("state")
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -125,8 +125,7 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
-        state.sources[("state", leaf)] = source
+        state.hold(("state", leaf), source, per_state)
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
