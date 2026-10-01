@@ -409,24 +409,29 @@ lemma cutBudget_le (η₀ indecisionLimit εcov : ℝ) :
   ⟨min_le_left _ _, (min_le_right _ _).trans (min_le_left _ _),
     (min_le_right _ _).trans (min_le_right _ _)⟩
 
+lemma voteSig_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSig η₀ := by
+  rw [voteSig]
+  have := sig_pos η₀ hsig
+  positivity
+
 lemma voteSlack_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < voteSlack η₀ := by
   rw [voteSlack]
-  have := sig_pos η₀ hsig
+  have := voteSig_pos η₀ hsig
   positivity
 
 lemma flipFrac_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < flipFrac η₀ := by
   rw [flipFrac]
-  have := sig_pos η₀ hsig
+  have := voteSig_pos η₀ hsig
   positivity
 
 lemma validFrac_pos (η₀ : ℝ) (hsig : η₀ < 1 / 2) : 0 < validFrac η₀ := by
   rw [validFrac]
-  have := sig_pos η₀ hsig
+  have := voteSig_pos η₀ hsig
   positivity
 
 lemma flipFrac_le_validFrac (η₀ : ℝ) (hsig : η₀ < 1 / 2) : flipFrac η₀ ≤ validFrac η₀ := by
   rw [flipFrac, validFrac]
-  have := sig_pos η₀ hsig
+  have := voteSig_pos η₀ hsig
   linarith
 
 lemma famCount_pos (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
@@ -573,13 +578,13 @@ lemma bandHalf_wide (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) :
 
 /-- The band fits below the centre, so `lo` is not truncated. -/
 lemma bandHalf_lt (η₀ : ℝ) (populations : Finset J) (εcov δ : ℝ) (hsig : η₀ < 1 / 2)
-    (hb : sig η₀ ≤ bnd) :
+    (hb : voteSig η₀ ≤ bnd) :
     bandHalf η₀ populations indecisionLimit εcov δ crossLimit + 1
       ≤ ⌈bnd * famCount η₀ populations indecisionLimit εcov δ crossLimit⌉₊ := by
   have hκ0 : (0 : ℝ) ≤ (famCount η₀ populations indecisionLimit εcov δ crossLimit : ℝ) :=
     Nat.cast_nonneg _
-  have hv : voteSlack η₀ = 3 * sig η₀ / 10 := rfl
-  have hs := sig_pos η₀ hsig
+  have hv : voteSlack η₀ = 3 * voteSig η₀ / 10 := rfl
+  have hs := voteSig_pos η₀ hsig
   have hb' := bandHalf_le (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hsig
   have hseed := famCount_seed (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
@@ -7736,27 +7741,27 @@ never saw: a cut wrong on `εcov` of the population is wrong on `15εcov/16` of 
 rest can be misread by a family that barely flips there (`validMiss`, Hoeffding). -/
 
 /-- The vote's two clean means, pushed by a flipping `f` of the family and read the rest of the
-margin, `sig η₀ − f`, in, still straddle the centre `bnd·κ`.  A flip moves a member's read toward
-the other class by up to a whole bit, which is why `f` is charged in full. -/
-lemma vote_shifts (O : Oracle μ S) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hb0 : sig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - sig η₀)
-    {f : ℝ} (hf0 : 0 ≤ f) (hf : f ≤ sig η₀) {κ : ℝ} (hκ0 : 0 ≤ κ) :
-    κ * ((O.ηOut + (1 - O.ηOut) * f) + (sig η₀ - f)) ≤ κ * bnd
-      ∧ κ * bnd ≤ κ * (((1 - O.ηIn) * (1 - f)) - (sig η₀ - f)) := by
+margin, `voteSig η₀ − f`, in, still straddle the centre `bnd·κ`.  A flip moves a member's read
+toward the other class by up to a whole bit, which is why `f` is charged in full. -/
+lemma vote_shifts (O : Oracle μ S) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hb0 : voteSig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - voteSig η₀)
+    {f : ℝ} (hf0 : 0 ≤ f) (hf : f ≤ voteSig η₀) {κ : ℝ} (hκ0 : 0 ≤ κ) :
+    κ * ((O.ηOut + (1 - O.ηOut) * f) + (voteSig η₀ - f)) ≤ κ * bnd
+      ∧ κ * bnd ≤ κ * (((1 - O.ηIn) * (1 - f)) - (voteSig η₀ - f)) := by
   have hf1 : 0 ≤ 1 - f := by linarith
-  have hu : (O.ηOut + (1 - O.ηOut) * f) + (sig η₀ - f) ≤ bnd := by
-    nlinarith [mul_le_mul_of_nonneg_right (show O.ηOut ≤ bnd - sig η₀ by linarith) hf1,
+  have hu : (O.ηOut + (1 - O.ηOut) * f) + (voteSig η₀ - f) ≤ bnd := by
+    nlinarith [mul_le_mul_of_nonneg_right (show O.ηOut ≤ bnd - voteSig η₀ by linarith) hf1,
       mul_nonneg hf0 (sub_nonneg.2 hb0)]
-  have hl : bnd ≤ ((1 - O.ηIn) * (1 - f)) - (sig η₀ - f) := by
-    nlinarith [mul_le_mul_of_nonneg_right (show bnd + sig η₀ ≤ 1 - O.ηIn by linarith) hf1,
-      mul_nonneg hf0 (show 0 ≤ 1 - bnd - sig η₀ by linarith)]
+  have hl : bnd ≤ ((1 - O.ηIn) * (1 - f)) - (voteSig η₀ - f) := by
+    nlinarith [mul_le_mul_of_nonneg_right (show bnd + voteSig η₀ ≤ 1 - O.ηIn by linarith) hf1,
+      mul_nonneg hf0 (show 0 ≤ 1 - bnd - voteSig η₀ by linarith)]
   exact ⟨mul_le_mul_of_nonneg_left hu hκ0, mul_le_mul_of_nonneg_left hl hκ0⟩
 
 /-- What every rung of the ladder satisfies whatever its prefix count: only the prefix count
 and the skip guard change down the ladder, and none of these read either. -/
 lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ} (mi : ℕ)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hbLo : sig η₀ ≤ bnd) (hbHi : bnd ≤ 1 - sig η₀)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hbLo : voteSig η₀ ≤ bnd) (hbHi : bnd ≤ 1 - voteSig η₀)
     (hεcov : 0 < εcov) (hind : 0 < indecisionLimit) (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     0 < (solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit mi).k
     ∧ 0 < (solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit mi).scd
@@ -7783,9 +7788,10 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   have hγ : 0 < screenMargin η₀ populations indecisionLimit εcov δ :=
     screenMargin_pos η₀ populations hη₀ hεcov hind hcard
   have hv := voteSlack_pos η₀ hη₀
-  have hvs : sig η₀ - flipFrac η₀ = voteSlack η₀ := by rw [flipFrac, voteSlack]; ring
+  have hvs : voteSig η₀ - flipFrac η₀ = voteSlack η₀ := by rw [flipFrac, voteSlack]; ring
   have hF0 := (flipFrac_pos η₀ hη₀).le
-  have hFs : flipFrac η₀ ≤ sig η₀ := by rw [flipFrac]; linarith
+  have hFs : flipFrac η₀ ≤ voteSig η₀ := by
+    rw [flipFrac]; linarith [voteSig_pos η₀ hη₀]
   have hb := bandHalf_le (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη₀
   have hb1 := bandHalf_lt (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
@@ -7796,7 +7802,7 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
   set c : ℕ := ⌈bnd * κ⌉₊ with hcdef
   have hcge : bnd * (κ : ℝ) ≤ (c : ℝ) := Nat.le_ceil _
   have hclt : (c : ℝ) < bnd * (κ : ℝ) + 1 :=
-    Nat.ceil_lt_add_one (mul_nonneg (le_trans (sig_pos η₀ hη₀).le hbLo) hκ0)
+    Nat.ceil_lt_add_one (mul_nonneg (le_trans (voteSig_pos η₀ hη₀).le hbLo) hκ0)
   obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hbOut hbIn hbLo hbHi hF0 hFs hκ0
   rw [hvs] at hlowShift hhiShift
   have hb0' : (0 : ℝ) ≤ (b : ℝ) := Nat.cast_nonneg _
@@ -7857,8 +7863,8 @@ lemma rung_facts (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ}
 /-- A vote with a `validFrac` of the family flipping has its mean inside the tenth of the margin
 `validFrac` leaves, and the band's far edge is still `voteSlack/2` of the family beyond that. -/
 lemma rung_valid_band (O : Oracle μ S) (populations : Finset J) {εcov δ pAP : ℝ} (mi : ℕ)
-    (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hb0 : sig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - sig η₀) :
+    (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hb0 : voteSig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - voteSig η₀) :
     (((solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit mi).k - 1 : ℕ) : ℝ)
         * ((O.ηOut + (1 - O.ηOut) * validFrac η₀) + voteSlack η₀ / 2)
       ≤ ((solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit mi).hi : ℝ) + 1
@@ -7866,11 +7872,11 @@ lemma rung_valid_band (O : Oracle μ S) (populations : Finset J) {εcov δ pAP :
       ≤ (((solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit mi).k - 1 : ℕ) :
       ℝ)
         * (((1 - O.ηIn) * (1 - validFrac η₀)) - voteSlack η₀ / 2) := by
-  have hs := sig_pos η₀ hη₀
+  have hs := voteSig_pos η₀ hη₀
   have hV0 := (validFrac_pos η₀ hη₀).le
-  have hVs : validFrac η₀ ≤ sig η₀ := by rw [validFrac]; linarith
-  have hvs : sig η₀ - validFrac η₀ = sig η₀ / 10 := by rw [validFrac]; ring
-  have hv : voteSlack η₀ = 3 * sig η₀ / 10 := rfl
+  have hVs : validFrac η₀ ≤ voteSig η₀ := by rw [validFrac]; linarith
+  have hvs : voteSig η₀ - validFrac η₀ = voteSig η₀ / 10 := by rw [validFrac]; ring
+  have hv : voteSlack η₀ = 3 * voteSig η₀ / 10 := rfl
   have hb1' := bandHalf_lt (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
     η₀ populations εcov δ hη₀ hb0
   have hseed := famCount_seed (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
@@ -7902,7 +7908,7 @@ lemma rung_valid_band (O : Oracle μ S) (populations : Finset J) {εcov δ pAP :
 
 /-- The band is wide enough for `cross_of_mem_schedule` to read the crossing bound off. -/
 lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hη₀ : η₀ < 1 / 2) (hb0 : sig η₀ ≤ bnd)
+    (hη₀ : η₀ < 1 / 2) (hb0 : voteSig η₀ ≤ bnd)
     (hB : B ∈ schedule η₀ bnd populations indecisionLimit εcov δ α pAP crossLimit) :
     B.lo ≤ B.hi ∧ 2 ≤ B.k
       ∧ ((B.k : ℝ) - 1) * Real.log (1 / crossLimit) ≤ 2 * ((B.hi : ℝ) - B.lo) ^ 2 := by
@@ -7937,7 +7943,7 @@ lemma band_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B :
 
 /-- Every rung cuts at `bnd`: its band contains `bnd` of the family. -/
 lemma centre_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B : State}
-    (hη₀ : η₀ < 1 / 2) (hb0 : sig η₀ ≤ bnd)
+    (hη₀ : η₀ < 1 / 2) (hb0 : voteSig η₀ ≤ bnd)
     (hB : B ∈ schedule η₀ bnd populations indecisionLimit εcov δ α pAP crossLimit) :
     (B.lo : ℝ) < bnd * ((B.k : ℝ) - 1) ∧ bnd * ((B.k : ℝ) - 1) ≤ B.hi := by
   rw [schedule] at hB
@@ -7950,7 +7956,7 @@ lemma centre_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B
   set c : ℕ := ⌈bnd * κ⌉₊ with hcdef
   have hcge : bnd * (κ : ℝ) ≤ (c : ℝ) := Nat.le_ceil _
   have hclt : (c : ℝ) < bnd * (κ : ℝ) + 1 :=
-    Nat.ceil_lt_add_one (mul_nonneg (le_trans (sig_pos η₀ hη₀).le hb0) hκ0)
+    Nat.ceil_lt_add_one (mul_nonneg (le_trans (voteSig_pos η₀ hη₀).le hb0) hκ0)
   set B : State := solvedStateAt η₀ bnd populations indecisionLimit εcov δ pAP crossLimit
     (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit / 2 ^ i) with hBdef
   have hBk : B.k = κ + 1 := rfl
@@ -7965,7 +7971,7 @@ lemma centre_of_mem_schedule {populations : Finset J} {εcov δ α pAP : ℝ} {B
 /-- A vote over a family no larger than a rung's own, whose mean lies outside the rung's band,
 reaches the band's far side at most `crossLimit` of the time. -/
 theorem cross_of_mem_schedule (O : Oracle μ S) {populations : Finset J} {εcov δ α pAP : ℝ}
-    {B : State} (hη₀ : η₀ < 1 / 2) (hb0 : sig η₀ ≤ bnd) (hcross : 0 < crossLimit)
+    {B : State} (hη₀ : η₀ < 1 / 2) (hb0 : voteSig η₀ ≤ bnd) (hcross : 0 < crossLimit)
     (hB : B ∈ schedule η₀ bnd populations indecisionLimit εcov δ α pAP crossLimit)
     (F : Finset S) (hF : F.card + 1 ≤ B.k) (p : S) :
     (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
@@ -8094,8 +8100,8 @@ theorem validity_of_returned {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracl
     (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α : ℝ) (hindLim : 0 < indecisionLimit)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hb0 : sig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - sig η₀)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hb0 : voteSig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - voteSig η₀)
     (ρ ρsf : ℝ) (hρ : ∀ j ∈ populations, collisionMass (D j) ≤ ρ)
     (hρsf : collisionMass Dsf ≤ ρsf) (hρsf0 : 0 ≤ ρsf)
     (hεcov : 0 < εcov) (δ : ℝ) (hδ : 0 < δ)
@@ -9045,8 +9051,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
     (indecisionLimit εcov α δ ρ ρsf pAP qmin : ℝ) (nveto : ℕ)
     (hsig : O.η < 1 / 2) (hpop : populations.Nonempty)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hbLo : sig η₀ ≤ bnd) (hbHi : bnd ≤ 1 - sig η₀)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hbLo : voteSig η₀ ≤ bnd) (hbHi : bnd ≤ 1 - voteSig η₀)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hq : εcov ≤ sig η₀ * qmin / 2) (hδ : 0 < δ)
     (hδ1 : δ ≤ 1) (hveto : 2 * (populations.card : ℝ) * nveto * εcov ≤ δ)
     (hαpos : 0 < α) (hα : α < 1 / 2) (hindLim : 0 < indecisionLimit)
@@ -9110,19 +9116,22 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     famCount_seed (indecisionLimit := indecisionLimit) (crossLimit := crossLimit)
       η₀ populations εcov δ hη₀
   have hκ0 : (0 : ℝ) ≤ (κ : ℝ) := Nat.cast_nonneg _
-  have hvs : sig η₀ - flipFrac η₀ = voteSlack η₀ := by rw [flipFrac, voteSlack]; ring
+  have hvs : voteSig η₀ - flipFrac η₀ = voteSlack η₀ := by rw [flipFrac, voteSlack]; ring
   have hF0 := (flipFrac_pos η₀ hη₀).le
-  have hFs : flipFrac η₀ ≤ sig η₀ := by rw [flipFrac]; linarith
+  have hFs : flipFrac η₀ ≤ voteSig η₀ := by
+    rw [flipFrac]; linarith [voteSig_pos η₀ hη₀]
   obtain ⟨hlowShift, hhiShift⟩ := vote_shifts O hbOut hbIn hbLo hbHi hF0 hFs hκ0
   rw [hvs] at hlowShift hhiShift
   set c : ℕ := ⌈bnd * κ⌉₊ with hcdef
   have hcge : bnd * (κ : ℝ) ≤ (c : ℝ) := Nat.le_ceil _
+  have hσ := voteSig_pos η₀ hη₀
+  have hσs : voteSig η₀ = 7 * sig η₀ / 8 := rfl
   have hclt : (c : ℝ) < bnd * (κ : ℝ) + 1 :=
-    Nat.ceil_lt_add_one (mul_nonneg (le_trans hs.le hbLo) hκ0)
+    Nat.ceil_lt_add_one (mul_nonneg (le_trans hσ.le hbLo) hκ0)
   have hbn0 : (0 : ℝ) ≤ (b : ℝ) := Nat.cast_nonneg _
-  have hvs' : voteSlack η₀ = 3 * sig η₀ / 10 := rfl
-  have hsκ : 80 / 3 ≤ sig η₀ * (κ : ℝ) := by rw [hvs'] at hseed; linarith
-  have hb' : (b : ℝ) ≤ 3 * sig η₀ * (κ : ℝ) / 20 := by rw [hvs'] at hb; linarith
+  have hvs' : voteSlack η₀ = 3 * voteSig η₀ / 10 := rfl
+  have hsκ : 80 / 3 ≤ voteSig η₀ * (κ : ℝ) := by rw [hvs'] at hseed; linarith
+  have hb' : (b : ℝ) ≤ 3 * voteSig η₀ * (κ : ℝ) / 20 := by rw [hvs'] at hb; linarith
   have hκv : (0 : ℝ) ≤ (κ : ℝ) * voteSlack η₀ := mul_nonneg hκ0 hv.le
   -- the fields, named before the definitions are made opaque
   have hBM : B.nsuff = poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit := rfl
@@ -9151,9 +9160,9 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   rw [hvs] at hlowShift1 hhiShift1
   have hdSk : ((κ : ℝ) + 1) * (2 / ((κ : ℝ) + 1)) = 2 := by field_simp
   -- the band's top, and its bottom, sit within `3s/10` of the centre, which is `s` inside `[0, 1]`
-  have hhi1 : (B.hi : ℝ) + 1 ≤ (κ : ℝ) * (bnd + 3 * sig η₀ / 10) := by
+  have hhi1 : (B.hi : ℝ) + 1 ≤ (κ : ℝ) * (bnd + 9 * voteSig η₀ / 40) := by
     rw [hBhi]; push_cast; linarith [hclt, hb', hsκ]
-  have hlo1 : (κ : ℝ) * bnd - 3 * sig η₀ * (κ : ℝ) / 20 ≤ (B.lo : ℝ) + 1 := by
+  have hlo1 : (κ : ℝ) * bnd - 3 * voteSig η₀ * (κ : ℝ) / 20 ≤ (B.lo : ℝ) + 1 := by
     rw [hBlo, Nat.sub_sub, Nat.cast_sub hb1]; push_cast; linarith [hcge, hb']
   have hhiκ : B.hi + 1 ≤ κ := by
     have h : (B.hi : ℝ) + 1 ≤ (κ : ℝ) := by
@@ -9247,7 +9256,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         = ((κ : ℝ) + 1) * ((1 - O.ηIn) * (1 - flipFrac η₀) - voteSlack η₀)
           + ((κ : ℝ) + 1) * voteSlack η₀ / 2 + ((κ : ℝ) + 1) * (2 / ((κ : ℝ) + 1)) := by ring
     rw [e, hdSk]
-    linarith [hclt, hhiShift1, hb, hv, hbLo, hs]
+    linarith [hclt, hhiShift1, hb, hv, hbLo, hσ]
   · rw [hBlo, hBk, hdS, Nat.sub_sub, Nat.cast_sub hb1]
     push_cast
     have e : ((κ : ℝ) + 1) * (O.ηOut + (1 - O.ηOut) * flipFrac η₀
@@ -9255,7 +9264,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         = ((κ : ℝ) + 1) * (O.ηOut + (1 - O.ηOut) * flipFrac η₀ + voteSlack η₀)
           - ((κ : ℝ) + 1) * voteSlack η₀ / 2 - ((κ : ℝ) + 1) * (2 / ((κ : ℝ) + 1)) := by ring
     rw [e, hdSk]
-    linarith [hcge, hlowShift1, hb, hv, hbHi, hs]
+    linarith [hcge, hlowShift1, hb, hv, hbHi, hσ]
   · rw [hBhi, hBk, show (κ + 1 - 1 : ℕ) = κ from by omega]
     push_cast
     have e : (κ : ℝ) * (O.ηOut + (1 - O.ηOut) * flipFrac η₀
@@ -9293,7 +9302,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     have hnR : ((⌊2 * qmin * (B.npref : ℝ) / 5⌋₊ : ℕ) : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
     rw [hBm] at hnR
     have hmn : qmin * (m : ℝ) / 3 ≤ (n : ℝ) := le_trans hn₁ge hnR
-    have hdiv : ((B.hi : ℝ) + 1) / (κ : ℝ) ≤ bnd + 3 * sig η₀ / 10 := by
+    have hdiv : ((B.hi : ℝ) + 1) / (κ : ℝ) ≤ bnd + 9 * voteSig η₀ / 40 := by
       rw [div_le_iff₀ hκR]; linarith
     have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
     have h1 := mul_le_mul_of_nonneg_left hdiv hn0
@@ -9302,22 +9311,23 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     have h3 : sig η₀ * (qmin * (m : ℝ)) ≤ sig η₀ * (3 * (n : ℝ)) :=
       mul_le_mul_of_nonneg_left (by linarith) hs.le
     have hsn : sig η₀ * (n : ℝ) ≤ (n : ℝ) / 2 := by
-      nlinarith [mul_le_mul_of_nonneg_right (show sig η₀ ≤ 1 / 2 by linarith) hn0]
+      nlinarith [mul_le_mul_of_nonneg_right (show sig η₀ ≤ 1 / 2 by rw [sig]; linarith) hn0]
     have hgap : 0 ≤ (n : ℝ) - 2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ) := by linarith
-    have h6 := mul_le_mul_of_nonneg_right (show bnd + sig η₀ ≤ 1 - O.ηIn by linarith) hgap
-    have h7 : (bnd + sig η₀) * (2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ))
+    have h6 := mul_le_mul_of_nonneg_right (show bnd + voteSig η₀ ≤ 1 - O.ηIn by linarith) hgap
+    have h7 : (bnd + voteSig η₀) * (2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ))
         ≤ 2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ) :=
       mul_le_of_le_one_left (by positivity) (by linarith)
+    rw [hσs] at h1 h6 h7
     linarith [h1, h2, h3, hsn, h6, h7, mul_nonneg hn0 hs.le]
   · intro n hn hnm
     rw [hBkappa, hBm]
     have hnR : ((⌊2 * qmin * (B.npref : ℝ) / 5⌋₊ : ℕ) : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
     rw [hBm] at hnR
     have hmn : qmin * (m : ℝ) / 3 ≤ (n : ℝ) := le_trans hn₁ge hnR
-    have hdiv : 1 - ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) ≤ (1 - bnd) + 3 * sig η₀ / 10 := by
-      have : bnd - 3 * sig η₀ / 10 ≤ ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) := by
+    have hdiv : 1 - ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) ≤ (1 - bnd) + 3 * voteSig η₀ / 16 := by
+      have : bnd - 3 * voteSig η₀ / 16 ≤ ((B.lo : ℝ) + 1) / ((κ : ℝ) + 1) := by
         rw [le_div_iff₀ (by positivity)]
-        linarith [hlo1, hsκ, hbHi, hs.le]
+        linarith [hlo1, hsκ, hbHi, hσ.le]
       linarith
     have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg _
     have h1 := mul_le_mul_of_nonneg_left hdiv hn0
@@ -9326,12 +9336,14 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
     have h3 : sig η₀ * (qmin * (m : ℝ)) ≤ sig η₀ * (3 * (n : ℝ)) :=
       mul_le_mul_of_nonneg_left (by linarith) hs.le
     have hsn : sig η₀ * (n : ℝ) ≤ (n : ℝ) / 2 := by
-      nlinarith [mul_le_mul_of_nonneg_right (show sig η₀ ≤ 1 / 2 by linarith) hn0]
+      nlinarith [mul_le_mul_of_nonneg_right (show sig η₀ ≤ 1 / 2 by rw [sig]; linarith) hn0]
     have hgap : 0 ≤ (n : ℝ) - 2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ) := by linarith
-    have h6 := mul_le_mul_of_nonneg_right (show (1 - bnd) + sig η₀ ≤ 1 - O.ηOut by linarith) hgap
-    have h7 : ((1 - bnd) + sig η₀) * (2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ))
+    have h6 := mul_le_mul_of_nonneg_right
+      (show (1 - bnd) + voteSig η₀ ≤ 1 - O.ηOut by linarith) hgap
+    have h7 : ((1 - bnd) + voteSig η₀) * (2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ))
         ≤ 2 * cutBudget η₀ indecisionLimit εcov * (m : ℝ) :=
       mul_le_of_le_one_left (by positivity) (by linarith)
+    rw [hσs] at h1 h6 h7
     linarith [h1, h2, h3, hsn, h6, h7, mul_nonneg hn0 hs.le]
   · rw [hBm, show -2 * ((⌊2 * qmin * (m : ℝ) / 5⌋₊ : ℕ) : ℝ) * (sig η₀ / 8) ^ 2
         = -(2 * ((⌊2 * qmin * (m : ℝ) / 5⌋₊ : ℕ) : ℝ) * (sig η₀ / 8) ^ 2) from by ring]
@@ -9339,10 +9351,10 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   -- the veto's tests are valid on sides of one class
   · rw [hBkappa, div_le_iff₀ hκR]
     linarith [hhi1,
-      mul_le_mul_of_nonneg_left (show bnd + 3 * sig η₀ / 10 ≤ 1 - O.ηIn by linarith) hκ0]
+      mul_le_mul_of_nonneg_left (show bnd + 9 * voteSig η₀ / 40 ≤ 1 - O.ηIn by linarith) hκ0]
   · rw [hBkappa, le_div_iff₀ (by positivity)]
-    linarith [hlo1, hsκ, hbHi, hs.le,
-      mul_le_mul_of_nonneg_right (show O.ηOut ≤ bnd - 3 * sig η₀ / 10 by linarith) hκ1]
+    linarith [hlo1, hsκ, hbHi, hσ.le,
+      mul_le_mul_of_nonneg_right (show O.ηOut ≤ bnd - 3 * voteSig η₀ / 16 by linarith) hκ1]
   · rw [hBk, show (κ + 1 - 1 : ℕ) = κ from by omega, hκdef]
     exact famCount_tail_seed η₀ populations hη₀ hεcov hindLim
   · rw [hBdef]
@@ -9967,8 +9979,8 @@ theorem loop_terminates {Pre Suf : Set S} (hflat : Flat Pre Suf) (O : Oracle μ 
     (hsuppSf : Dsf Sufᶜ = 0)
     (indecisionLimit εcov α : ℝ) (ρ pAP δ qmin : ℝ)
     (hsig : O.η < 1 / 2) (huni : uni ∈ populations)
-    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + sig η₀ ≤ bnd)
-    (hbIn : O.ηIn + sig η₀ ≤ 1 - bnd) (hb0 : sig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - sig η₀)
+    (hηle : O.η ≤ η₀) (hη₀ : η₀ < 1 / 2) (hbOut : O.ηOut + voteSig η₀ ≤ bnd)
+    (hbIn : O.ηIn + voteSig η₀ ≤ 1 - bnd) (hb0 : voteSig η₀ ≤ bnd) (hb1 : bnd ≤ 1 - voteSig η₀)
     (hqL : qmin ≤ (D uni).real O.L) (hqN : qmin ≤ (D uni).real O.Lᶜ)
     (hεcov : 0 < εcov) (hε1 : εcov ≤ 1) (hq : εcov ≤ sig η₀ * qmin / 2) (hδ : 0 < δ)
     (hδ1 : δ ≤ 1) (hveto : 2 * (populations.card : ℝ) * nveto * εcov ≤ δ)

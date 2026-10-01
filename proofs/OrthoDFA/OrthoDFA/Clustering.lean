@@ -17,7 +17,9 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 (`transition_resolver`, `counterexample_synthesis`, `identify_cluster_around`) and cuts the
 family's vote there, clamped to `[s, 1 − s]` for `s = min_signal_strength`; here the boundary
 `bnd` is fixed before the round, and the claim holds for every `bnd` the two classes' clean reads
-sit at least `½ − η₀` either side of.
+sit at least `7(½ − η₀)/8` either side of, so any boundary within `(½ − η₀)/8` of their midpoint.
+That the Python's estimate lands there is not modelled: it is read off the table the family was
+clustered on, so bounding it needs a union over every family the pool can form.
 
 Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
 share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
@@ -404,7 +406,7 @@ noncomputable def prefixNeed (populations : Finset J)
     (η₀ indecisionLimit εcov δ α pAP qmin crossLimit : ℝ) (v : ℕ) : ℝ :=
   2048 * (populations.card : ℝ) ^ 2
     * Real.log (((populations.card : ℝ) + 2)
-      * (144 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v
+      * (192 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v
             * crossLimit)) / ((1 / 2 - η₀) ^ 2 * pAP)
         + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2)
       / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov δ qmin v))
@@ -424,7 +426,8 @@ above the band, lands at or below `lo`, or one whose mean lies at or below `lo` 
 at most `crossLimit` of the time.
 
 Every state's band contains `bnd` of the family: the vote is cut at the boundary `bnd`, which
-each class's clean read clears by `½ − η₀`.
+each class's clean read clears by `7(½ − η₀)/8`.  The eighth of the signal left over is what an
+estimate of `bnd` may miss the classes' midpoint by.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `pAP` lower-bounds the share
 of suffixes that preserve membership for every prefix, `qmin` the mass of each class in the
@@ -441,10 +444,10 @@ def ClusteringGuarantee : Prop :=
     (η₀ bnd indecisionLimit εcov α δ pAP qmin crossLimit : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
-  O.ηOut + (1 / 2 - η₀) ≤ bnd →
-  O.ηIn + (1 / 2 - η₀) ≤ 1 - bnd →
-  1 / 2 - η₀ ≤ bnd →
-  bnd ≤ 1 / 2 + η₀ →
+  O.ηOut + 7 * (1 / 2 - η₀) / 8 ≤ bnd →
+  O.ηIn + 7 * (1 / 2 - η₀) / 8 ≤ 1 - bnd →
+  7 * (1 / 2 - η₀) / 8 ≤ bnd →
+  bnd ≤ 1 - 7 * (1 / 2 - η₀) / 8 →
   uni ∈ populations →
   Flat Pre Suf →
   0 < pAP →
@@ -487,16 +490,16 @@ def ClusteringGuarantee : Prop :=
           / ((1 / 2 - η₀) ^ 6 * cutScale populations η₀ indecisionLimit εcov δ qmin v ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
-          32
+          36
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
           / ((1 / 2 - η₀) ^ 6 * cutScale populations η₀ indecisionLimit εcov δ qmin v ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ 72 * Real.log
+          (B.k : ℝ) ≤ 96 * Real.log
               (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v * crossLimit))
             / (1 / 2 - η₀) ^ 2
-          ∧ (B.nsuff : ℝ) ≤ 144 * Real.log
+          ∧ (B.nsuff : ℝ) ≤ 192 * Real.log
                 (2 / (cutScale populations η₀ indecisionLimit εcov δ qmin v * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
