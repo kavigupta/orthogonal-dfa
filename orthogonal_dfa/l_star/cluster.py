@@ -200,22 +200,25 @@ def drift_verdict(pst, by_population):
     Membership of ``p + v`` is membership of ``p`` for the empty suffix, so the
     split's column says what the oracle makes of the prefixes themselves.
 
-    Any population may veto, only the uniform one may admit.  A population read
-    as the class it is not says the family drifted, whatever else reads right --
-    a state's prefixes are one class, so a backwards reading puts every one of
-    them where the oracle contradicts it.  Separating the classes *at all* is a
-    claim about the distribution the learner is scored on, and the pool is the
-    only population drawn from it.
+    The state populations veto, and only the uniform one may admit.  A state
+    read as the class it is not says the family drifted, whatever else reads
+    right -- a state's prefixes are one class, so a backwards reading puts every
+    one of them where the oracle contradicts it.  The pool holds both classes, so
+    a side of it reading short of a threshold is an impure cut, not a backwards
+    one.  Separating the classes *at all* is a claim about the distribution the
+    learner is scored on, and the pool is the only population drawn from it.
 
     Drift is read first: a family can separate the classes on the pool and still
     invert a state.  The label is what the search grows to answer the refusal,
     so an unreadable split names the pool, which is the one that could admit it.
     """
     alpha = ACCEPT_PRESERVING_ERROR_RATE
-    sides = {label: _sides(counts) for label, counts in by_population.items()}
+    sides = {
+        label: _sides(counts)
+        for label, counts in by_population.items()
+        if label != UNIFORM
+    }
     num_tests = sum(len(held) for held in sides.values())
-    if not num_tests:
-        return UNCERTIFIED, UNIFORM
 
     def drifted(kind, hits, n, level):
         if kind == "accept":
@@ -228,15 +231,15 @@ def drift_verdict(pst, by_population):
         if any(drifted(*side, alpha / num_tests) for side in held):
             return DRIFTED, label
     # Admits when the prefixes' own reads match the family's vote on them (1 where
-    # it accepts, 0 where it rejects) significantly more often than if both sides
-    # read 1 at the decision boundary.
+    # it accepts, 0 where it rejects) significantly more often than if every read
+    # came back 1 at the decision boundary.  No margin past the boundary:
+    # ``certifies`` bounds the DFA's error, so this asks only that the vote beat it.
     boundary = pst.decision_boundary
-    accept_null, reject_null = boundary, boundary
     (hits_a, n_a), (hits_r, n_r) = by_population.get(UNIFORM, ((0, 0), (0, 0)))
     if n_a + n_r:
         null = np.convolve(
-            scipy.stats.binom.pmf(np.arange(n_a + 1), n_a, accept_null),
-            scipy.stats.binom.pmf(np.arange(n_r + 1), n_r, 1 - reject_null),
+            scipy.stats.binom.pmf(np.arange(n_a + 1), n_a, boundary),
+            scipy.stats.binom.pmf(np.arange(n_r + 1), n_r, 1 - boundary),
         )
         if null[hits_a + (n_r - hits_r) :].sum() <= alpha:
             return ADMITTED, None
@@ -323,7 +326,8 @@ class AcceptPreservingGate:
                 max(1, int(pst.table.representative.sum())),
                 certification_budget(pst, voters),
             )
-            veto = veto_size(pst, len(labels))
+            # The pool does not veto.
+            veto = veto_size(pst, max(1, len(labels) - 1))
             drawn = {
                 label: prefixes_for_split(
                     pst, self._state, label, pool if label == UNIFORM else veto
