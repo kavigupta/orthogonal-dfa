@@ -26,19 +26,22 @@ class TestErrorBound(unittest.TestCase):
             rates = _rates(low_rate, gap, accepted_share)
             low = np.clip(rates - rng.random(states) * 0.1, 0, 1)
             high = np.clip(rates + rng.random(states) * 0.1, 0, 1)
+            spread = rng.random(states) * 0.05
+            mass_intervals = (
+                np.clip(masses - spread, 0, 1),
+                np.clip(masses + spread, 0, 1),
+            )
             self.assertGreaterEqual(
-                error_bound(masses, accepting, low, high, gap),
+                error_bound(mass_intervals, (low, high), accepting, gap),
                 float(masses @ shares) - 1e-12,
             )
 
     def test_exact_with_a_clean_state_of_each_label(self):
-        # A light rejecting state holding a fifth accepting strings, next to clean
-        # heavy states: the share of signal it costs is large, the error small.
         masses = [0.88, 0.06, 0.06]
         accepting = [True, False, False]
         rates = _rates(0.3, 0.4, [1.0, 0.0, 0.2])
         self.assertAlmostEqual(
-            error_bound(masses, accepting, rates, rates, 0.4), 0.06 * 0.2
+            error_bound((masses, masses), (rates, rates), accepting, 0.4), 0.06 * 0.2
         )
 
 
