@@ -24,10 +24,7 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    # Weigh each population equally in clustering
-    weights = np.zeros(masks.shape[1])
-    for population in pst.table.population_masks().values():
-        weights[population] += 1 / population.sum()
+    populations = list(pst.table.population_masks().values())
     # Only keep clustering while the seed belongs to the cluster.
     # We want to avoid drifting the cluster center away from the seed, which can
     # happen if the seed has a very small cluster relative to `count`.
@@ -35,7 +32,12 @@ def identify_cluster_around(
     loss = float("inf")
     while True:
         cluster_center = masks[cluster].mean(0) > decision_boundary
-        losses = ((masks != cluster_center) * weights).sum(1)
+        # A suffix's worst population, which is where the FNR judges the family.
+        disagreements = masks != cluster_center
+        losses = np.max(
+            [disagreements[:, population].mean(1) for population in populations],
+            axis=0,
+        )
         # Ties here are common, and breaking them differently each pass churns
         # the family; every suffix that joins it costs a column of queries.
         nearest = losses.argsort(kind="stable")[:count]
@@ -163,27 +165,6 @@ def certification_sample(pst, vs, by_population):
         family = np.asarray(read[: len(pairs)]).reshape(len(prefixes), len(suffixes))
         out[label] = (family.mean(1), np.asarray(read[len(pairs) :]))
     return out
-
-
-def certified_fnr(pst, reads, voters: int, members: int):
-    """``(fnr, label)`` of the family's vote, seed included, on the certification
-    prefixes: the worst population's indecisive rate, or ``(1, None)`` for a
-    family that decides no prefix one of the two ways, as `fnr_from_decision`.
-
-    ``reads`` is `certification_sample`'s, whose split column is the seed's.
-    """
-    rates = []
-    accepts = rejects = False
-    for label, (means, column) in reads.items():
-        decision = (means * voters + column) / members
-        accept = decision >= pst.accept_thresh
-        reject = decision < pst.reject_thresh
-        accepts |= bool(accept.any())
-        rejects |= bool(reject.any())
-        rates.append((float((~(accept | reject)).mean()), label))
-    if not (accepts and rejects):
-        return 1, None
-    return max(rates, key=lambda rate_and_label: rate_and_label[0])
 
 
 def _split_counts(pst, reads):
@@ -327,7 +308,6 @@ class AcceptPreservingGate:
         self.refusals = 0
         self._state = state
         self._drawn = None
-        self._fnr_drawn = None
 
     def _certification_prefixes(self, pst, voters):
         """``label -> prefixes`` to certify a family over, drawn once for the
@@ -347,28 +327,6 @@ class AcceptPreservingGate:
             }
             self._drawn = {label: held for label, held in drawn.items() if held}
         return self._drawn
-
-    def _fnr_prefixes(self, pst, voters):
-        """``label -> prefixes`` to read the FNR over, fresh ones topped up to as
-        many as the table holds of each population as the table grows.
-
-        Drawn apart from the gate's: the gate sizes its sample off the table the
-        first time it reads a family, and drawing that early leaves it small."""
-        if self._fnr_drawn is None:
-            self._fnr_drawn = {}
-        budget = certification_budget(pst, voters)
-        held = {
-            label: int(mask.sum())
-            for label, mask in pst.table.population_masks().items()
-        }
-        for label in population_labels(self._state):
-            have = self._fnr_drawn.get(label, [])
-            wanted = min(max(1, held.get(label, 0)), budget) - len(have)
-            if wanted > 0:
-                have = have + prefixes_for_split(pst, self._state, label, wanted)
-            if have:
-                self._fnr_drawn[label] = have
-        return self._fnr_drawn
 
     def _certify_further(self, pst, counts, voters):
         """``counts`` with a further read of the uniform pool added into it."""
@@ -394,14 +352,6 @@ class AcceptPreservingGate:
                 )
             ),
         }
-
-    def fnr(self, pst, seed_row, vs):
-        """``(fnr, label)`` on prefixes the family was not clustered on: on the
-        table's own, the votes are fitted to those prefixes' noise and read as
-        more decisive than they are."""
-        voters = [u for u in vs if u != seed_row]
-        reads = certification_sample(pst, voters, self._fnr_prefixes(pst, voters))
-        return certified_fnr(pst, reads, len(voters), len(vs))
 
     def verdict(self, pst, seed_row, vs):
         """``(verdict, label)``: what the split says, and which population said
@@ -475,7 +425,8 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     # check and the accept-preserving null are both stated about a family seeded
     # at this suffix.
     vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
-    fnr, worst = gate.fnr(pst, v, vs)
+    decision = pst.compute_decision(vs, pst.table.representative)
+    fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
     if fnr > pst.config.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
