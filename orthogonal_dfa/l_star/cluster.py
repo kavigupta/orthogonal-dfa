@@ -56,15 +56,17 @@ def identify_cluster_around(
     accept_prefixes = prefix_means[cluster_center]
     reject_prefixes = prefix_means[~cluster_center]
     signal = pst.config.min_signal_strength
-    # A one-sided cluster has only the one class's mean to go on, which sits a
-    # signal away from the boundary.  Reading the boundary off it directly would
-    # cut that class down the middle, so step off it by the signal we were promised.
-    if len(accept_prefixes) > 0 and len(reject_prefixes) > 0:
-        decision_boundary = (accept_prefixes.mean() + reject_prefixes.mean()) / 2
-    elif len(accept_prefixes) > 0:
-        decision_boundary = accept_prefixes.mean() - signal
-    elif len(reject_prefixes) > 0:
-        decision_boundary = reject_prefixes.mean() + signal
+    midpoint = np.mean([c.mean() for c in (accept_prefixes, reject_prefixes) if len(c)])
+    # The class means are at least twice the signal apart, so the boundary is at
+    # least a signal off the larger class.  The midpoint comes nearer when the
+    # smaller class is a few percent of the prefixes: the larger class's noisy
+    # tail, read into the smaller, drags its mean down, the midpoint with it, and
+    # more of the tail crosses, until the clamp holds a centre that is half noise.
+    # A one-sided cluster's midpoint is its one mean, so this steps off it too.
+    if len(reject_prefixes) >= len(accept_prefixes):
+        decision_boundary = max(midpoint, reject_prefixes.mean() + signal)
+    else:
+        decision_boundary = min(midpoint, accept_prefixes.mean() - signal)
 
     # Keep the implied rates, boundary +/- the signal, probabilities.
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
