@@ -54,11 +54,10 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
         ≤ indecisionLimit * (certOf j n x).card)
     ∧ noDrift mq populations uni B.lo B.hi α (clusterBy rule mq populations x B) n v x
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterBy rule mq populations x B) (certOf uni (n + e) x) (oracleNoise x)}
+        (clusterBy rule mq populations x B) (gateOf uni n e x) (oracleNoise x)}
 
 open scoped Classical in
-/-- `retBy` with the gate read at every population, on its first `npref` draws: what the loop is
-shown to reach. -/
+/-- `retBy` with the gate on its first `npref` draws: what the loop is shown to reach. -/
 noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
     (indecisionLimit α : ℝ) (v : ℕ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
@@ -67,13 +66,13 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
           (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ noDrift mq populations uni B.lo B.hi α (clusterBy rule mq populations x B) B.npref v x
-    ∧ ∀ j ∈ populations, admitted mq B.lo B.hi α
-        (clusterBy rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
+    ∧ admitted mq B.lo B.hi α
+        (clusterBy rule mq populations x B) (gateOf uni B.npref 0 x) (oracleNoise x)}
 
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
     {uni : J} (huni : uni ∈ populations) (indecisionLimit α : ℝ) (v : ℕ) (B : State) :
     retAll rule mq populations uni indecisionLimit α v B
       ⊆ retBy rule mq populations uni indecisionLimit α v B.npref B :=
-  fun _ ⟨h1, h2, hd, h3⟩ => ⟨h1, h2, hd, 0, by simpa using h3 uni huni⟩
+  fun _ ⟨h1, h2, hd, h3⟩ => ⟨h1, h2, hd, 0, h3⟩
 
 end OrthoDFA

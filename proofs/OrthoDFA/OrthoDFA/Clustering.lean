@@ -31,8 +31,9 @@ the band is sized so that a vote whose mean lies outside it lands on its far sid
 by the seed's one read than the gate's cut over the family without it, where the Python cuts both
 at one rate.
 
-Known modelling gap.  The gate here reads the uniform pool's first `n + e` draws, for any `e`;
-the Python reads it on `n`, then once more on as many as `prefixes_to_certify` asks for.
+Known modelling gap.  The gate here reads `n + e` draws from the uniform pool after the FNR's,
+for any `e`; the Python reads it on `n`, then once more on as many as `prefixes_to_certify` asks
+for.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
@@ -337,6 +338,11 @@ noncomputable def sidesHeld (mq : S → Ω → ℝ) (lo hi : ℕ) (F P : Finset 
   (if (P.filter (fun p => hi < voteCount mq F p ω)).Nonempty then 1 else 0)
     + if (P.filter (fun p => voteCount mq F p ω ≤ lo)).Nonempty then 1 else 0
 
+/-- The gate's draws from the uniform pool, after the FNR's `n`: the table's count, and `e`
+more when the split reads uncertified. -/
+noncomputable def gateOf (uni : J) (n e : ℕ) (x : Run Ω S J) : Finset S :=
+  (Finset.range (n + e)).image (fun i => certPrefix uni (n + i) x)
+
 /-- `veto_size` draws from population `j`, after the FNR's `n`. -/
 noncomputable def vetoOf (j : J) (n v : ℕ) (x : Run Ω S J) : Finset S :=
   (Finset.range v).image (fun i => certPrefix j (n + i) x)
@@ -357,7 +363,7 @@ def certSize (a : ℕ) (B : State) : ℕ := min B.npref (max 1 (a * B.nsuff / B.
 
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
-test per population on `n` fresh draws, and the accept-preserving gate on as many from the
+test per population on `n` fresh draws, and the accept-preserving gate on as many more from the
 uniform pool `uni`, which may draw that pool further when the split reads uncertified.  Every
 other population may veto, on `v` draws of its own.  The FNR reads the family with its seed; the
 gate and the veto read it without, since the seed's read is the bit they score. -/
@@ -370,7 +376,7 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
         ≤ indecisionLimit * (certOf j n x).card)
     ∧ noDrift mq populations uni B.lo B.hi α (clusterAt mq populations x B) n v x
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterAt mq populations x B) (certOf uni (n + e) x) (oracleNoise x)}
+        (clusterAt mq populations x B) (gateOf uni n e x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
