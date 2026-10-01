@@ -117,50 +117,12 @@ def _oriented(reads, inside, level):
     return kept, np.where(above, 1, -1)
 
 
-def _cut(share, rate_in, rate_out, size) -> float:
-    """The k at which w B(k; K, r_in) = (1 - w) B(k; K, r_out), K = size, above
-    which the first is the larger; inf unless 0 < w < 1 and 0 < r_out < r_in < 1."""
-    if not (0 < share < 1 and 0 < rate_out < rate_in < 1):
-        return math.inf
-    slope = math.log(rate_in * (1 - rate_out) / (rate_out * (1 - rate_in)))
-    offset = math.log((1 - share) / share) + size * math.log(
-        (1 - rate_out) / (1 - rate_in)
-    )
-    return offset / slope
-
-
-def _mixture(adjusted, inside, size):
-    """(w, r_in, r_out) of the classification-EM fit of
-
-        w Binomial(K, r_in) + (1 - w) Binomial(K, r_out)
-
-    to the counts adjusted, K = size, from the share and rates of the labels
-    inside, run until the labels _cut gives stop changing."""
-    share = inside.mean()
-    rate_in = adjusted[inside].mean() / size
-    rate_out = adjusted[~inside].mean() / size
-    labels = inside
-    while not math.isinf(_cut(share, rate_in, rate_out, size)):
-        log_in = math.log(share) + scipy.stats.binom.logpmf(adjusted, size, rate_in)
-        log_out = math.log(1 - share) + scipy.stats.binom.logpmf(
-            adjusted, size, rate_out
-        )
-        posterior = 1 / (1 + np.exp(log_out - log_in))
-        share = posterior.mean()
-        rate_in = (posterior * adjusted).sum() / (size * posterior.sum())
-        rate_out = ((1 - posterior) * adjusted).sum() / (size * (1 - posterior).sum())
-        relabelled = adjusted >= _cut(share, rate_in, rate_out, size)
-        if (relabelled == labels).all():
-            break
-        labels = relabelled
-    return share, rate_in, rate_out
-
-
 def _sharpened(reads, inside, level):
     """(K, o, k*) at the fixed point of labelling each member by whether its count
-    of reads agreeing with o over K is at least k* = _cut of _mixture, K and o
-    by _oriented on the labels, starting from the labels inside; None if a step
-    keeps no suffix or no cut separates."""
+    of reads agreeing with o over K is at least k*, midway between the mean
+    counts of the members labelled in and out, K and o by _oriented on the
+    labels, starting from the labels inside; None if a step keeps no suffix or
+    no cut separates."""
     kept, signs = _oriented(reads, inside, level)
     seen = set()
     while True:
@@ -168,8 +130,7 @@ def _sharpened(reads, inside, level):
             return None
         agree = np.where(signs > 0, reads[:, kept], 1 - reads[:, kept])
         adjusted = agree.sum(1)
-        share, rate_in, rate_out = _mixture(adjusted, inside, len(kept))
-        cut = _cut(share, rate_in, rate_out, len(kept))
+        cut = (adjusted[inside].mean() + adjusted[~inside].mean()) / 2
         labels = adjusted >= cut
         if labels.all() or not labels.any():
             return None
