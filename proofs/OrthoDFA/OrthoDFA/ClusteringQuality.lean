@@ -31,7 +31,7 @@ def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ) (a v : ℕ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -65,9 +65,9 @@ def ClusteringQualityGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni v indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni v indecisionLimit α B.val →
               ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                   ∂(D uni) ≤ εcov + slack
               ∧ ∀ j ∈ populations,

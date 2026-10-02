@@ -773,7 +773,7 @@ def ClusteringGuaranteeAll : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (a v : ℕ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -829,9 +829,9 @@ def ClusteringGuaranteeAll : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni v indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni v indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
@@ -844,7 +844,7 @@ open MeasureTheory ProbabilityTheory in
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit a v
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit v
     hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov₀ hε1₀ hδ hδ1 hζ hζ1 hv0
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
@@ -954,7 +954,7 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
     rw [mul_div_assoc 128, mul_div_assoc 16] at hpool
     constructor <;> linarith
   refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
-    α δ ρ pAP crossLimit 6000 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound
+    α δ ρ pAP crossLimit 6000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound
     hindLim hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf hv0 hveto)
     (measureReal_mono (fun x hx => ⟨hx.1, fun B hB j hj =>
       ⟨le_trans (by linarith) (hx.2 B hB j hj).1, (hx.2 B hB j hj).2⟩⟩) (measure_ne_top _ _))
@@ -963,7 +963,7 @@ open MeasureTheory ProbabilityTheory in
 /-- From `clustering_guarantee_all` at `min εcov (1/2)`, which leaves every stated bound as it is:
 each already takes the minimum with `1/2 − η₀` or with `indecisionLimit ≤ 1/2`. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit a v
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit v
     hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1 hv0
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have e1 : ∀ x : ℝ, min (min εcov (1 / 2)) (min (1 / 2 - η₀) x) = min εcov (min (1 / 2 - η₀) x) := by
@@ -971,7 +971,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have e2 : min (min εcov (1 / 2)) indecisionLimit = min εcov indecisionLimit := by
     rw [min_assoc]; congr 1; exact min_eq_right hind1
   obtain ⟨cap, hcap, h⟩ := clustering_guarantee_all O populations uni Pre Suf η₀ indecisionLimit
-    (min εcov (1 / 2)) α δ pAP crossLimit a v hηle hη₀ huni hflat hpAPPositive hindLim hind1
+    (min εcov (1 / 2)) α δ pAP crossLimit v hηle hη₀ huni hflat hpAPPositive hindLim hind1
     hαpos hα (lt_min hεcov (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hζ hζ1
     hv0
   refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
