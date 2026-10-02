@@ -464,7 +464,7 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov εcov₀
-    α δ' ρ pAP crossLimit 6000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
+    α δ' ρ pAP crossLimit 12000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
     hα1 hε hε1 hεle hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
