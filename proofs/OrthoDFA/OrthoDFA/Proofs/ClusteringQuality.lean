@@ -459,13 +459,13 @@ theorem clustering_quality_all : ClusteringQualityAll := by
     le_trans hρcap (le_trans (min_le_right _ _) (min_le_right _ _))
   have hρ0 : 0 ≤ ρ :=
     le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
-  set states := stoppable η₀ populations indecisionLimit εcov δ' α pAP crossLimit ρ
+  set states := stoppable η₀ populations indecisionLimit εcov εcov₀ δ' α pAP crossLimit ρ
     with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
-    ρ pAP crossLimit 6000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
-    hε1 hδ'
+  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov εcov₀
+    α δ' ρ pAP crossLimit 6000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
+    hα1 hε hε1 hεle hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
     (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _)) hv0 hveto
@@ -535,7 +535,7 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
           x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val) ∧
         ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val →
-          ∀ j ∈ populations, 1 - εcov
+          ∀ j ∈ populations, 1 - εcov₀
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
             ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
@@ -602,7 +602,8 @@ theorem clustering_quality_all : ClusteringQualityAll := by
     not_le.1 (hnb j hj).1
   have hdevU : devAt rule O populations B.val (D j) (F j) (EvU B.val) x < slack / 2 :=
     not_le.1 (hnb j hj).2
-  have hrealC : (D j).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1) G p (oracleNoise x)} ≤ εcov := by
+  have hrealC : (D j).real {p | ¬ cutCorrect O B.val.lo (B.val.hi + 1) G p (oracleNoise x)}
+      ≤ εcov₀ := by
     rw [← Set.compl_ofPred, measureReal_compl (measurableSet_of_countable _), probReal_univ]
     linarith [(hgood j hj).1]
   have hrealU := (hgood j hj).2
