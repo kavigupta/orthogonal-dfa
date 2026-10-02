@@ -523,10 +523,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         family_size,
         read_rates(pst.config, pst.decision_boundary),
     )
-    # By loss rank, and the seed's rank is arbitrary, so put it back: the round
-    # check and the accept-preserving null are both stated about a family seeded
-    # at this suffix.
-    vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
+    vs = vs[:size]
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
