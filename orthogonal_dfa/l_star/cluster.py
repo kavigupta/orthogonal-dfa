@@ -51,27 +51,54 @@ def identify_cluster_around(
             break
         cluster, loss = nearest, new_loss
 
-    # Estimate decision boundary from the prefix separation
+    # Estimate decision boundary from the prefix separation, at the cut that best
+    # separates the reads rather than between the two sides of the centre: those
+    # are split at the boundary handed in, which can sit below both classes (one
+    # side, so the next centre carries no signal) or in the larger class's noisy
+    # tail, which the midpoint then stays in.
     prefix_means = masks[cluster].mean(0)
-    accept_prefixes = prefix_means[cluster_center]
-    reject_prefixes = prefix_means[~cluster_center]
     signal = pst.config.min_signal_strength
-    midpoint = np.mean([c.mean() for c in (accept_prefixes, reject_prefixes) if len(c)])
-    # The class means are at least twice the signal apart, so the boundary is at
-    # least a signal off the larger class.  The midpoint comes nearer when the
-    # smaller class is a few percent of the prefixes: the larger class's noisy
-    # tail, read into the smaller, drags its mean down, the midpoint with it, and
-    # more of the tail crosses, until the clamp holds a centre that is half noise.
-    # A one-sided cluster's midpoint is its one mean, so this steps off it too.
-    if len(reject_prefixes) >= len(accept_prefixes):
-        decision_boundary = max(midpoint, reject_prefixes.mean() + signal)
+    cut = _best_cut(prefix_means, len(cluster))
+    if cut is not None:
+        low, n_low, high, n_high = cut
+        midpoint = (low + high) / 2
+        # An accept-preserving family's class means are twice the signal apart.
+        # With the smaller class a few percent of the prefixes, the best cut still
+        # takes in enough of the larger class's tail to make it half the centre.
+        if n_low >= n_high:
+            decision_boundary = max(midpoint, low + signal)
+        else:
+            decision_boundary = min(midpoint, high - signal)
+    elif prefix_means[0] > decision_boundary:
+        # Every prefix reads alike: one class, a signal off the boundary.
+        decision_boundary = prefix_means[0] - signal
     else:
-        decision_boundary = min(midpoint, accept_prefixes.mean() - signal)
+        decision_boundary = prefix_means[0] + signal
 
     # Keep the implied rates, boundary +/- the signal, probabilities.
     decision_boundary = min(max(decision_boundary, signal), 1 - signal)
 
     return candidate[cluster].tolist(), decision_boundary
+
+
+def _best_cut(reads, family_size):
+    """``(low_mean, low_count, high_mean, high_count)`` of the threshold on the
+    reads that maximises the between-class variance; None if they all agree."""
+    counts = np.bincount(
+        np.rint(reads * family_size).astype(int), minlength=family_size + 1
+    )
+    rates = np.arange(family_size + 1) / family_size
+    n_low = np.cumsum(counts)[:-1]
+    n_high = counts.sum() - n_low
+    two_sided = (n_low > 0) & (n_high > 0)
+    if not two_sided.any():
+        return None
+    mass_low = np.cumsum(counts * rates)[:-1]
+    low = mass_low / np.maximum(n_low, 1)
+    high = ((counts * rates).sum() - mass_low) / np.maximum(n_high, 1)
+    between = np.where(two_sided, n_low * n_high * (high - low) ** 2, -1.0)
+    i = int(between.argmax())
+    return low[i], n_low[i], high[i], n_high[i]
 
 
 def read_rates(config, decision_boundary):
