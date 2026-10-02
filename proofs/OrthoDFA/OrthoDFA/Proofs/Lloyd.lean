@@ -69,9 +69,9 @@ lemma voteCount_congr' (mq : S → Ω → ℝ) (F : Finset S) (p : S) {ω ω' : 
   unfold voteCount
   exact congrArg Finset.card (Finset.filter_congr (fun v hv => h v hv))
 
-/-- The cluster never drifts off the seed.  `identify_cluster_around` stops the moment
-`ε` would leave, so every cluster the loop proposes contains it — which is what lets the
-gate read the split off `ε`'s own column. -/
+/-- The cluster never drifts off the seed.  `clusterAround` stops the moment `ε` would
+leave, so every cluster the loop proposes contains it — which is what lets the gate read the
+split off `ε`'s own column. -/
 lemma one_mem_clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ) :
     (1 : S) ∈ clusterAround mq cn cd P cands ω k := by
   classical

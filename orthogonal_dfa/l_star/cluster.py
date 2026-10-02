@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -12,11 +13,18 @@ from .statistics import (
     low_tail_detection_size,
     population_size_and_evidence_margin,
 )
+from .suffix_groups import coherent_groups
 
 
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
+    """Seed, then the suffixes of the coherent_group of the rest of the pool
+    whose reads covary most with seed's on average, then every other suffix,
+    each part nearest that group's mean first; count of them in all.  The
+    groups are found without the seed, and the mean is the group's alone, so
+    suffixes that share a misreading cannot pull the family toward
+    themselves."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -24,32 +32,28 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    populations = list(pst.table.population_masks().values())
-    # Only keep clustering while the seed belongs to the cluster.
-    # We want to avoid drifting the cluster center away from the seed, which can
-    # happen if the seed has a very small cluster relative to `count`.
+    reads = masks.astype(float)
+    others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = [seed_local]
-    loss = float("inf")
-    while True:
-        cluster_center = masks[cluster].mean(0) > decision_boundary
-        # A suffix's worst population, which is where the FNR judges the family.
-        disagreements = masks != cluster_center
-        losses = np.max(
-            [disagreements[:, population].mean(1) for population in populations],
-            axis=0,
+    if len(others):
+        rows = reads[others]
+        groups = coherent_groups(
+            rows,
+            # As many clusters as a group the preconditions guarantee, a
+            # min_suffix_frequency share of the pool, needs to get one of its own.
+            math.ceil(1 / pst.config.min_suffix_frequency),
+            pst.config.screening_alpha,
+            pst.rng,
         )
-        # Ties here are common, and breaking them differently each pass churns
-        # the family; every suffix that joins it costs a column of queries.
-        nearest = losses.argsort(kind="stable")[:count]
-        if losses[seed_local] > losses[nearest[-1]]:
-            break
-        if seed_local not in nearest:
-            # The check above did not fire, so the seed is out on a tie.
-            nearest[-1] = seed_local
-        new_loss = losses[nearest].sum()
-        if new_loss >= loss:
-            break
-        cluster, loss = nearest, new_loss
+        anchor = reads[seed_local] - reads[seed_local].mean()
+        covariance = (rows - rows.mean(1, keepdims=True)) @ anchor
+        best = max(groups, key=lambda g: covariance[g].mean())
+        outside = np.ones(len(rows), dtype=bool)
+        outside[best] = False
+        distance = ((rows - rows[best].mean(0)) ** 2).sum(1)
+        nearest = np.lexsort((distance, outside))
+        cluster += others[nearest[: count - 1]].tolist()
+    cluster_center = reads[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)
@@ -440,10 +444,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         family_size,
         read_rates(pst.config, pst.decision_boundary),
     )
-    # By loss rank, and the seed's rank is arbitrary, so put it back: the round
-    # check and the accept-preserving null are both stated about a family seeded
-    # at this suffix.
-    vs = vs[:size] if v in vs[:size] else [v] + vs[: size - 1]
+    vs = vs[:size]
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"

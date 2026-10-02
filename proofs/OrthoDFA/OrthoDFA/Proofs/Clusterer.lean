@@ -15,12 +15,12 @@ variable {Ω : Type*} [MeasurableSpace Ω] {S : Type*} [Stringlike S] {J : Type*
 the oracle answered accept at `w`, and `P`, `cands` and `k` are the prefixes, the candidates and
 the size asked for.
 
-`identify_cluster_around` is one for each boundary it is handed.  It reads only the candidates'
-columns on the representative prefixes, starts from `ε` and stops before `ε` would leave, and
-returns `count` rows once the pool holds that many.  How it weighs populations, when it stops
-recentring, and how it breaks ties are its own business, which is why the proof is carried out
-for every such rule.  A boundary handed in from reads outside the round is independent of the
-round's bits, so the claim holds with it fixed first. -/
+`identify_cluster_around` is one for each boundary it is handed and each state of `pst.rng`.
+It reads only the candidates' columns on the representative prefixes, puts `ε` first, and
+returns `count` rows once the pool holds that many.  How it groups the pool, which group it
+anchors on, and how it fills the family are its own business, which is why the proof is carried
+out for every such rule.  A boundary or generator state handed in from outside the round is
+independent of the round's bits, so the claim holds with it fixed first. -/
 structure Clusterer (S : Type*) [Stringlike S] where
   pick : (S → Prop) → Finset S → Finset S → ℕ → Finset S
   seed_mem : ∀ reads P cands k, (1 : S) ∈ cands → (1 : S) ∈ pick reads P cands k
