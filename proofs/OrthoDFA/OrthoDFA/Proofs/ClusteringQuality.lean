@@ -370,7 +370,7 @@ def ClusteringQualityAll : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ) (a v : ℕ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -404,9 +404,9 @@ def ClusteringQualityAll : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni v indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni v indecisionLimit α B.val →
               ∀ j ∈ populations,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack
@@ -415,7 +415,7 @@ def ClusteringQualityAll : Prop :=
 
 theorem clustering_quality_all : ClusteringQualityAll := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit
-    slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hslack hv0
+    slack v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hslack hv0
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
@@ -462,7 +462,7 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
   have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov εcov₀
-    α δ' ρ pAP crossLimit 12000 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
+    α δ' ρ pAP crossLimit 12000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα
     hα1 hε hε1 hεle hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
@@ -531,8 +531,8 @@ theorem clustering_quality_all : ClusteringQualityAll := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val →
+          x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val →
           ∀ j ∈ populations, 1 - εcov₀
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
@@ -612,9 +612,9 @@ theorem clustering_quality_all : ClusteringQualityAll := by
 /-- From `clustering_quality_all` at `min εcov (1/2)`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack hv0
+    slack v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack hv0
   obtain ⟨cap, hcap, h⟩ := clustering_quality_all O populations uni Pre Suf η₀ indecisionLimit
-    (min εcov (1 / 2)) α δ pAP crossLimit slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1
+    (min εcov (1 / 2)) α δ pAP crossLimit slack v hηle hη₀ huni hflat hpAP hind hind1 hα hα1
     (lt_min hε (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hcr hslack hv0
   refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
   obtain ⟨states, h1, h2⟩ := h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
