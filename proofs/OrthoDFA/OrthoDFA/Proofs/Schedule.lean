@@ -193,16 +193,16 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
     + 1
 
 /-- The fewest prefixes at which a stop is covered: each of `stateFail`'s tails at
-`δ/(128·|populations|)`. -/
+`δ/(128·|populations|)`, for a family `εval`-good, on the pool the schedule's `εcov` sizes. -/
 noncomputable def validCount (η : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ pAP crossLimit : ℝ) : ℕ :=
+    (indecisionLimit εcov εval δ pAP crossLimit : ℝ) : ℕ :=
   ⌈Real.log (128 * (populations.card : ℝ)
       * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) ^ 2 / δ)
-      / (2 * validMargin η populations εcov ^ 2)⌉₊
+      / (2 * validMargin η populations εval ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
-        / (2 * (εcov * validFrac η / 8) ^ 2)⌉₊
-    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εcov / 32) ^ 2)⌉₊
+        / (2 * (εval * validFrac η / 8) ^ 2)⌉₊
+    + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * (εval / 32) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ) / (2 * indecisionLimit ^ 2)⌉₊
     + 1
 
@@ -284,11 +284,11 @@ open scoped Classical in
 /-- The rungs of the ladder that carry their share.  A `Finset`, so the union bound over it is
 a finite sum and no summable weight over all budgets is needed. -/
 noncomputable def stoppable (η₀ : ℝ) (populations : Finset J)
-    (indecisionLimit εcov δ α pAP crossLimit ρ : ℝ) : Finset State :=
+    (indecisionLimit εcov εval δ α pAP crossLimit ρ : ℝ) : Finset State :=
   (schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit).filter
-    (Capped η₀ populations indecisionLimit εcov δ ρ pAP
+    (Capped η₀ populations indecisionLimit εval δ ρ pAP
       (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit)
-      (validCount η₀ populations indecisionLimit εcov δ pAP crossLimit))
+      (validCount η₀ populations indecisionLimit εcov εval δ pAP crossLimit))
 
 /-- How much collision mass the populations may carry: the round pays `m²ρ` for prefix
 collisions, so the mass is capped against the prefix count and the state's own share. -/
@@ -299,8 +299,9 @@ noncomputable def collisionCap (η : ℝ) (populations : Finset J)
       + (poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) ^ 2 + 1))
 
 /-- The E-L\* clustering algorithm is PAC-correct: with probability `≥ 1 − δ` the loop
-terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εcov` of
-each prefix population the way the noiseless oracle does.
+terminates, and the family it returns — at whatever state it stops — cuts `≥ 1 − εval` of
+each prefix population the way the noiseless oracle does.  The schedule is built at the finer
+`εcov`, which termination needs.
 
 The algorithm is not told the noise rate, only an upper bound `η₀` on it — `η₀` is what
 `min_signal_strength` gives `build_pst`, and every computed field of `State` is solved from
@@ -323,7 +324,7 @@ def ClusteringCorrect : Prop :=
     (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
     (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ) (a v : ℕ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov εval α δ ρ pAP crossLimit k : ℝ) (a v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -339,6 +340,7 @@ def ClusteringCorrect : Prop :=
   α < 1 / 2 →
   0 < εcov →
   εcov ≤ 1 →
+  εcov ≤ εval →
   0 < δ →
   -- The budget the schedule is built from costs no more than `k` buys: a count that is
   -- logarithmic in the failure probability and polynomial in the rates it resolves.
@@ -352,13 +354,13 @@ def ClusteringCorrect : Prop :=
   -- the cut budget, read off `εcov`, is small against the veto's share of `δ`
   (populations.card : ℝ) * v * εcov ≤ 1 →
   1 - δ ≤ (runMeasure μ D Dsf).real
-    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
+    {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εval δ α pAP
       crossLimit ρ},
         x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val) ∧
-      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
-        ρ},
+      ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov εval δ α pAP
+        crossLimit ρ},
         x ∈ retBy rule O.mq populations uni a v indecisionLimit α B.val →
-        ∀ j ∈ populations, 1 - εcov
+        ∀ j ∈ populations, 1 - εval
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
           ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
