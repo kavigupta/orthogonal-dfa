@@ -345,10 +345,11 @@ class AcceptPreservingGate:
         self.refusals = 0
         self._state = state
         self._drawn = None
+        self._veto = None
 
     def _certification_prefixes(self, pst, voters):
-        """``label -> prefixes`` to certify a family over, drawn once for the
-        round and read by every family it tries."""
+        """``label -> prefixes`` to certify a family over, drawn for the round
+        and read by every family it tries."""
         if self._drawn is None:
             labels = population_labels(self._state)
             pool = min(
@@ -356,10 +357,10 @@ class AcceptPreservingGate:
                 certification_budget(pst, voters),
             )
             # The pool does not veto.
-            veto = veto_size(pst, max(1, len(labels) - 1))
+            self._veto = veto_size(pst, max(1, len(labels) - 1))
             drawn = {
                 label: prefixes_for_split(
-                    pst, self._state, label, pool if label == UNIFORM else veto
+                    pst, self._state, label, pool if label == UNIFORM else self._veto
                 )
                 for label in labels
             }
@@ -408,6 +409,15 @@ class AcceptPreservingGate:
             verdict, blamed = drift_verdict(pst, counts)
         if verdict is ADMITTED:
             return ADMITTED, None
+        if verdict is DRIFTED:
+            # A veto scores the population's own reads, which every later family
+            # would read again: kept, one unlucky sample refuses each sound family
+            # in turn until the search gives up.
+            redrawn = prefixes_for_split(pst, self._state, blamed, self._veto)
+            if redrawn:
+                self._drawn[blamed] = redrawn
+            else:
+                self._drawn.pop(blamed, None)
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
             hits_a, n_a = counts[blamed][0]

@@ -15,7 +15,7 @@ reads exactly at its label's rate, which pins it.
 """
 
 import math
-from typing import List
+from typing import List, NamedTuple
 
 import numpy as np
 import scipy.stats
@@ -27,7 +27,16 @@ def look_level(alpha, look) -> float:
 
 
 def error_bound(masses, rates, accepting, gap) -> float:
-    """The largest sum_S m_S e_S over every m with sum_S m_S = 1 and m_S in
+    """The largest sum_S m_S e_S, which worst_contributions spells out by state."""
+    return float(worst_contributions(masses, rates, accepting, gap).sum())
+
+
+def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
+    """The m_S e_S of each state S at the masses, rates and offset that make
+
+        sum_S m_S e_S
+
+    largest over every m with sum_S m_S = 1 and m_S in
     [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 with
     each c_S = (r_S - p_0) / band in [0, 1], for masses = (mass_low, mass_high)
     and rates = (low, high),
@@ -62,10 +71,10 @@ def error_bound(masses, rates, accepting, gap) -> float:
             added = min(spare, mass_high[state] - mass_low[state])
             weight[state] += added
             spare -= added
-        return float(weight @ worst)
+        return weight * worst
 
     corners = np.concatenate([[least, most], high - band, low])
-    return max(error(p) for p in corners if least <= p <= most)
+    return max((error(p) for p in corners if least <= p <= most), key=lambda e: e.sum())
 
 
 def _intervals(hits, trials, level):
@@ -91,8 +100,15 @@ def _intervals(hits, trials, level):
     return low, high
 
 
-def certifies(pst, dfa, *, alpha) -> bool:
-    """True only with
+class Verdict(NamedTuple):
+    certified: bool
+    #: The state with the largest m_S e_S at the rates read, and that e_S.
+    blamed: object
+    share: float
+
+
+def certifies(pst, dfa, *, alpha) -> Verdict:
+    """Certified only with
 
         P(certifies and sum_S m_S e_S > e) <= alpha,   e = certified_error,
 
@@ -125,9 +141,13 @@ def certifies(pst, dfa, *, alpha) -> bool:
         rates = _intervals(ones, drawn, level)
         bound = error_bound(masses, rates, accepting, gap)
         shares, read = drawn / size, ones / np.maximum(drawn, 1)
-        at_rates = error_bound(
+        blame = worst_contributions(
             (shares, shares), (read, np.where(drawn > 0, read, 1.0)), accepting, gap
         )
+        at_rates = float(blame.sum())
+        worst = int(np.argmax(blame))
+        share = float(blame[worst] / shares[worst]) if shares[worst] else 0.0
+        verdict = Verdict(False, states[worst], share)
         slack = (masses[1] @ (rates[1] - rates[0])) / gap + np.sum(
             masses[1] - masses[0]
         )
@@ -136,13 +156,13 @@ def certifies(pst, dfa, *, alpha) -> bool:
             f"{at_rates:.4f} at the rates read, against {error}"
         )
         if bound <= error:
-            return True
+            return verdict._replace(certified=True)
         # Refusing carries no guarantee, only a round.  The slack is a rough
         # reach of the intervals, not a bound: refuse once the rates read are
         # further above e than it, or once it is so small that only a DFA within
         # e / 2 of the bar could still be undecided.
         if at_rates - error > slack or slack <= error / 2:
-            return False
+            return verdict
         size *= 2
         look += 1
 
