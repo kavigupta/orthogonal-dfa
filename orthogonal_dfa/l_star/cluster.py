@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import scipy.stats
+from sklearn.cluster import KMeans
 
 from .mask_table import UNIFORM
 from .prefix_populations import grow_population, population_labels, prefixes_for_split
@@ -13,36 +14,6 @@ from .statistics import (
     low_tail_detection_size,
     population_size_and_evidence_margin,
 )
-
-
-def _lloyd(rows, centers) -> np.ndarray:
-    """Each row's nearest center, after Lloyd's iterations from centers run until
-    no row changes."""
-    norms = (rows**2).sum(1)
-    centers = np.array(centers, dtype=float)
-    label = None
-    while True:
-        distance = norms[:, None] - 2 * rows @ centers.T + (centers**2).sum(1)
-        new = distance.argmin(1)
-        if label is not None and (new == label).all():
-            return label
-        label = new
-        for g, _ in enumerate(centers):
-            if (label == g).any():
-                centers[g] = rows[label == g].mean(0)
-
-
-def _kmeans(rows, k, rng) -> np.ndarray:
-    """_lloyd from a k-means++ start of k centers."""
-    centers = [rows[rng.integers(len(rows))]]
-    nearest = np.full(len(rows), np.inf)
-    for _ in range(1, k):
-        nearest = np.minimum(nearest, ((rows - centers[-1]) ** 2).sum(1))
-        if not nearest.any():
-            # Every row sits on a center already.
-            break
-        centers.append(rows[rng.choice(len(rows), p=nearest / nearest.sum())])
-    return _lloyd(rows, centers)
 
 
 def _merged(held, groups, alpha) -> List[List[int]]:
@@ -81,17 +52,20 @@ def _merged(held, groups, alpha) -> List[List[int]]:
 
 
 def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
-    """The rows' _kmeans clusters over the even columns, _merged over the odd
+    """The rows' k-means clusters over the even columns, _merged over the odd
     ones, each row then moved to its nearest union over the even columns: a
     cluster that straddles two profiles joins neither, and its rows rejoin the
     one they are nearest."""
     fit, held = rows[:, ::2], rows[:, 1::2]
-    label = _kmeans(fit, min(k, len(rows)), rng)
+    seed = int(rng.integers(2**31))
+    distinct = len(np.unique(fit, axis=0))
+    label = KMeans(min(k, distinct), n_init=1, random_state=seed).fit_predict(fit)
     groups = [np.flatnonzero(label == g) for g in np.unique(label)]
     unions = [
         np.concatenate([groups[g] for g in u]) for u in _merged(held, groups, alpha)
     ]
-    label = _lloyd(fit, [fit[u].mean(0) for u in unions])
+    centers = np.array([fit[u].mean(0) for u in unions])
+    label = KMeans(len(unions), init=centers, n_init=1).fit_predict(fit)
     return [np.flatnonzero(label == g) for g in np.unique(label)]
 
 
