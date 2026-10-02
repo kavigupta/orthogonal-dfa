@@ -31,8 +31,10 @@ the band is sized so that a vote whose mean lies outside it lands on its far sid
 by the seed's one read than the gate's cut over the family without it, where the Python cuts both
 at one rate.
 
-Known modelling gap.  The gate here reads the uniform pool's first `certSize a B + e` draws, for
-any `e`; the Python draws the further prefixes once, at most `certification_budget` of them.
+Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
+reads the uniform pool's first `npref + e`, for any `e`.  The Python reads the gate on
+`min(representative, certification_budget)` draws, then once more on as many as
+`prefixes_to_certify` asks for.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
@@ -351,10 +353,6 @@ def noDrift (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (lo hi : 
     (α / ∑ j' ∈ populations.erase uni, sidesHeld mq lo hi F (vetoOf j' n v r x) (oracleNoise x))
     F (vetoOf j n v r x) (oracleNoise x)
 
-/-- `min(representative, certification_budget)`: the gate's first read is capped at what one round
-of table growth, `a` prefixes over the whole pool, would cost in reads of the family. -/
-def certSize (a : ℕ) (B : State) : ℕ := min B.npref (max 1 (a * B.nsuff / B.k))
-
 open scoped Classical in
 /-- `judge_family`: a family smaller than the round asked for is not used; otherwise the FNR
 test per population on `certOf`, and the accept-preserving gate on the uniform pool `uni`,
@@ -362,7 +360,7 @@ which may draw that pool further when the split reads uncertified.  Every other 
 veto, on `v` draws of its own, redrawn after each veto; the loop retries until some draw passes.
 The FNR reads the family with its seed; the gate and the veto read it without, since the seed's
 read is the bit they score. -/
-noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (a v : ℕ)
+noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J) (v : ℕ)
     (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterAt mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
@@ -371,7 +369,7 @@ noncomputable def ret (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
         ≤ indecisionLimit * (certOf j B.npref x).card)
     ∧ (∃ r : ℕ, noDrift mq populations uni B.lo B.hi α (clusterAt mq populations x B) B.npref v r x)
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterAt mq populations x B) (certOf uni (certSize a B + e) x) (oracleNoise x)}
+        (clusterAt mq populations x B) (certOf uni (B.npref + e) x) (oracleNoise x)}
 
 /-! ## What the input distributions must satisfy -/
 
@@ -409,7 +407,7 @@ at most `crossLimit` of the time.
 
 The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is the uniform pool,
 the one population the gate admits on.  `pAP` lower-bounds the share of suffixes that preserve
-membership for every prefix, `cap` bounds the collision mass, `a` is `num_addtl_prefixes` and
+membership for every prefix, `cap` bounds the collision mass, and
 `v` is `veto_size`.  The veto's sample does not grow with the table, so the round passes only
 once a draw of `v` prefixes from every population holds none the family flips heavily at, which
 is why `1/(|populations|·v)` is in `cutScale`. -/
@@ -417,7 +415,7 @@ def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (a v : ℕ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -473,9 +471,9 @@ def ClusteringGuarantee : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni v indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni v indecisionLimit α B.val →
               1 - εcov
                 ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
