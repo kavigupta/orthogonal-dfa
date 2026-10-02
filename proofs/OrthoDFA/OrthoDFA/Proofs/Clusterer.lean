@@ -46,7 +46,7 @@ noncomputable def familyBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populat
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/
 noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (a v : ℕ) (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
+    (v : ℕ) (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
@@ -55,7 +55,7 @@ noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (population
     ∧ (∃ r : ℕ, noDrift mq populations uni B.lo B.hi α (clusterBy rule mq populations x B)
         B.npref v r x)
     ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterBy rule mq populations x B) (certOf uni (certSize a B + e) x) (oracleNoise x)}
+        (clusterBy rule mq populations x B) (certOf uni (B.npref + e) x) (oracleNoise x)}
 
 open scoped Classical in
 /-- `retBy` with the gate read at every population, on its first `npref` draws: what the loop is
@@ -73,11 +73,9 @@ noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populatio
         (clusterBy rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
 
 lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
-    {uni : J} (huni : uni ∈ populations) (a v : ℕ) (indecisionLimit α : ℝ) (B : State) :
+    {uni : J} (huni : uni ∈ populations) (v : ℕ) (indecisionLimit α : ℝ) (B : State) :
     retAll rule mq populations uni v indecisionLimit α B
-      ⊆ retBy rule mq populations uni a v indecisionLimit α B :=
-  fun _ ⟨h1, h2, hd, h3⟩ => ⟨h1, h2, hd, B.npref - certSize a B, by
-    rw [Nat.add_sub_cancel' (show certSize a B ≤ B.npref from min_le_left _ _)]
-    exact h3 uni huni⟩
+      ⊆ retBy rule mq populations uni v indecisionLimit α B :=
+  fun _ ⟨h1, h2, hd, h3⟩ => ⟨h1, h2, hd, 0, by simpa using h3 uni huni⟩
 
 end OrthoDFA
