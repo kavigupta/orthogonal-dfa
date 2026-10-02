@@ -20,11 +20,12 @@ def _merged(held, groups, alpha) -> np.ndarray:
     means taken as normal, so long as the groups were formed without held.
     Each T is taken once, on the groups as given; a union's own mean is never
     tested, since which groups it holds was chosen on held."""
-    if len(groups) == 1:
-        return np.zeros(1, dtype=int)
     within = sum(((held[g] - held[g].mean(0)) ** 2).sum(0) for g in groups)
     variance = within / max(1, len(held) - len(groups))
     readable = variance > 0
+    if len(groups) == 1 or not readable.any():
+        # No column tells the groups apart.
+        return np.zeros(len(groups), dtype=int)
     means = np.array([held[g].mean(0) for g in groups])[:, readable]
     sizes = np.array([len(g) for g in groups])
     gaps = ((means[:, None] - means[None]) ** 2 / variance[readable]).sum(2)
