@@ -98,10 +98,12 @@ def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
-    """The suffixes of the coherent_groups of the pool, other than seed, whose
-    reads covary most with seed's on average, nearest their group's mean
-    first, after seed; at most count of them.  The groups are found without
-    the seed, so a group sharing a misreading cannot pull them toward itself."""
+    """Seed, then the suffixes of the coherent_group of the rest of the pool
+    whose reads covary most with seed's on average, then every other suffix,
+    each part nearest that group's mean first; count of them in all.  The
+    groups are found without the seed, and the mean is the group's alone, so
+    suffixes that share a misreading cannot pull the family toward
+    themselves."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -125,8 +127,10 @@ def identify_cluster_around(
         anchor = reads[seed_local] - reads[seed_local].mean()
         covariance = (rows - rows.mean(1, keepdims=True)) @ anchor
         best = max(groups, key=lambda g: covariance[g].mean())
-        spread = ((rows[best] - rows[best].mean(0)) ** 2).sum(1)
-        nearest = best[np.argsort(spread, kind="stable")]
+        outside = np.ones(len(rows), dtype=bool)
+        outside[best] = False
+        distance = ((rows - rows[best].mean(0)) ** 2).sum(1)
+        nearest = np.lexsort((distance, outside))
         cluster += others[nearest[: count - 1]].tolist()
     cluster_center = reads[cluster].mean(0) > decision_boundary
 
