@@ -184,9 +184,8 @@ noncomputable def prefCount (η : ℝ) (populations : Finset J)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2)⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ) / δ)
         / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2)⌉₊
-    + ⌈64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
-    + ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
-        / (εcov * (sig η * εcov / 4) ^ 2)⌉₊
+    + ⌈32 * Real.log (1 / α) / sig η ^ 2⌉₊
+    + ⌈32 * Real.log (256 * (populations.card : ℝ) / δ) / sig η ^ 2⌉₊
     + ⌈Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
         / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2)⌉₊
