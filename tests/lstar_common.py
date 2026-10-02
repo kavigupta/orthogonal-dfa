@@ -11,6 +11,7 @@ from orthogonal_dfa.l_star.learn import (
     learn_dfa,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
+from orthogonal_dfa.l_star.prefix_suffix_tracker import SearchConfig
 from orthogonal_dfa.l_star.sampler import UniformSampler
 from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
 from orthogonal_dfa.l_star.structures import (
@@ -300,11 +301,16 @@ class _ClusterTable:
         return {UNIFORM: self.representative}
 
 
-def cluster_pst(masks, min_signal_strength):
+def cluster_pst(masks, min_signal_strength, *, seed):
     return SimpleNamespace(
         table=_ClusterTable(masks),
         suffix_pool=list(range(masks.shape[0])),
-        config=SimpleNamespace(min_signal_strength=min_signal_strength),
+        config=SimpleNamespace(
+            min_signal_strength=min_signal_strength,
+            min_suffix_frequency=SearchConfig.min_suffix_frequency,
+            screening_alpha=SearchConfig.screening_alpha,
+        ),
+        rng=np.random.default_rng(seed),
     )
 
 

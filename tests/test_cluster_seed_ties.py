@@ -1,8 +1,7 @@
 """Suffixes tied with the seed must not push it out of its own cluster.
 
-The loss ranking suffixes is a count of disagreements with the cluster center,
-so the less noise an oracle carries the more suffixes tie at the seed's own
-loss.  Ranking within that tie by anything but the seed drops it from a cluster
+The less noise an oracle carries the more suffixes read identically to the
+seed.  Ranking within that tie by anything but the seed drops it from a cluster
 it heads, leaving a family of one that no amount of further sampling grows.
 """
 
@@ -21,7 +20,9 @@ NUM_SUFFIXES, COUNT = 200, 150
 
 
 def _cluster(masks, seed):
-    vs, _ = identify_cluster_around(cluster_pst(masks, SIGNAL), seed, COUNT, 0.5)
+    vs, _ = identify_cluster_around(
+        cluster_pst(masks, SIGNAL, seed=0), seed, COUNT, 0.5
+    )
     return vs
 
 

@@ -16,7 +16,7 @@ NUM_SUFFIXES, NUM_PREFIXES = 8, 16
 
 
 def _boundary(masks, signal=SIGNAL):
-    _, boundary = identify_cluster_around(cluster_pst(masks, signal), 0, 4, 0.5)
+    _, boundary = identify_cluster_around(cluster_pst(masks, signal, seed=0), 0, 4, 0.5)
     return boundary
 
 
@@ -39,10 +39,11 @@ class TestDecisionBoundaryClamp(unittest.TestCase):
         self.assertAlmostEqual(_boundary(masks), 0.5)
 
     def test_a_one_sided_cluster_clears_the_class_it_found(self):
-        # Three of the four clustered rows accept, so the single group's mean is
-        # 0.75 and the boundary has to sit a signal below it rather than on it.
+        # The seed rejects and the three rows clustered with it accept, so the
+        # single group's mean is 0.75 and the boundary has to sit a signal below
+        # it rather than on it.
         masks = np.ones((NUM_SUFFIXES, NUM_PREFIXES), dtype=np.int8)
-        masks[3:] = 0
+        masks[0] = 0
         self.assertAlmostEqual(_boundary(masks, 0.2), 0.55)
 
     def test_a_weak_signal_clamps_further_out(self):
