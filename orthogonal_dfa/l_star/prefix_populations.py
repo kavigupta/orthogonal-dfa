@@ -28,13 +28,19 @@ class PoolState:
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
 
-    def retire_states(self) -> None:
-        """Forget last round's state populations: this round's states are the
-        ones there are, and a leaf it does not have is not one to go on
+    def retire(self, kind) -> None:
+        """Forget last round's populations labelled (kind, ...): this round's are
+        the ones there are, and one it does not have is not one to go on
         publishing."""
-        for stale in [label for label in self.held if label[0] == "state"]:
+        for stale in [label for label in self.held if label[0] == kind]:
             self.held.pop(stale)
             self.sources.pop(stale, None)
+
+    def hold(self, label, source, count) -> None:
+        """Hold count draws of source as the population label, which source
+        grows."""
+        self.held[label] = sorted(source.draw() for _ in range(count))
+        self.sources[label] = source
 
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach

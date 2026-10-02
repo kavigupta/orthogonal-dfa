@@ -23,10 +23,10 @@ noncomputable def miscutProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p :
 noncomputable def undecidedProb (O : Oracle μ S) (lo hi : ℕ) (F : Finset S) (p : S) : ℝ :=
   μ.real {ω | ¬ decided O.mq lo hi F p ω}
 
-/-- With probability `≥ 1 − δ` the loop stops at one of `states`, and on every population the
-family it returns there, averaged over the population, decides a prefix the wrong way at most
-`εcov + slack` of the time and leaves it undecided at most `2·indecisionLimit + slack` of the
-time.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
+/-- With probability `≥ 1 − δ` the loop stops at one of `states`, and the family it returns
+there, averaged over a population, decides a prefix the wrong way at most `εcov + slack` of the
+time on the uniform pool and at most `1/2 + slack` on any other, and leaves it undecided at most
+`2·indecisionLimit + slack` of the time on each.  Every state's band is as wide as `ClusteringGuarantee`'s. -/
 def ClusteringQualityGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -67,9 +67,11 @@ def ClusteringQualityGuarantee : Prop :=
                 x ∈ ret O.mq populations uni a indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations uni a indecisionLimit α B.val →
-              ∀ j ∈ populations,
+              ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                  ∂(D uni) ≤ εcov + slack
+              ∧ ∀ j ∈ populations,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
-                    ∂(D j) ≤ εcov + slack
+                    ∂(D j) ≤ 1 / 2 + slack
                 ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ 2 * indecisionLimit + slack}
 
