@@ -7550,6 +7550,27 @@ Each of these says that a field, read off its condition, meets it.  They are the
 content of the construction; everything else about `PassableAt` is arithmetic on the
 definitions. -/
 
+/-- At least `15/32` of the prefix count is decided: the FNR test keeps all but
+`indecisionLimit ≤ 1/2` of it, and the count is at least `64`. -/
+lemma solved_decided_ge (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
+    (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hind1 : indecisionLimit ≤ 1 / 2) :
+    15 / 32 * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)
+      ≤ ((⌊(1 - indecisionLimit)
+        * (prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit : ℝ)⌋₊ : ℕ) : ℝ) := by
+  set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
+  have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
+  have hsizeR : 64 / εcov ≤ (m : ℝ) := by
+    refine le_trans (Nat.le_ceil _) ?_
+    have hle : ⌈64 / εcov⌉₊ ≤ m := by rw [hmdef, prefCount]; omega
+    exact_mod_cast hle
+  have h64 : (64 : ℝ) ≤ (m : ℝ) := by
+    rw [div_le_iff₀ hε] at hsizeR
+    nlinarith [mul_le_mul_of_nonneg_right hε1 hmR]
+  have hlt := Nat.lt_floor_add_one ((1 - indecisionLimit) * (m : ℝ))
+  have hhalf : (m : ℝ) / 2 ≤ (1 - indecisionLimit) * (m : ℝ) := by
+    nlinarith [mul_le_mul_of_nonneg_right (by linarith : (1 : ℝ) / 2 ≤ 1 - indecisionLimit) hmR]
+  linarith
+
 /-- The gate's floor clears its own tail at the error rate `α`. -/
 lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ}
     (hsig : η₀ < 1 / 2) (hε : 0 < εcov) (hε1 : εcov ≤ 1) (hδ : 0 < δ) (hα : 0 < α)
@@ -7558,40 +7579,29 @@ lemma solved_alpha (η₀ : ℝ) (populations : Finset J) {εcov δ α pAP : ℝ
     (hcard : (0 : ℝ) < (populations.card : ℝ)) :
     Real.exp (-2
         * ((⌊(1 - indecisionLimit) * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref : ℝ)⌋₊ : ℕ) : ℝ)
-      * (sig η₀ * εcov / 4) ^ 2) ≤ α := by
+      * (sig η₀ / 4) ^ 2) ≤ α := by
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
-  have hτ : (0 : ℝ) < sig η₀ * εcov / 4 := by positivity
-  have hτ2 : (0 : ℝ) < (sig η₀ * εcov / 4) ^ 2 := pow_pos hτ 2
   set m : ℕ := prefCount η₀ populations indecisionLimit εcov δ α pAP crossLimit with hmdef
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
-  -- the prefix count clears the gate's tail
-  have hmlog : 64 * Real.log (1 / α) / (εcov * (sig η₀ * εcov / 4) ^ 2) ≤ (m : ℝ) := by
+  have hmlog : 32 * Real.log (1 / α) / sig η₀ ^ 2 ≤ (m : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈64 * Real.log (1 / α) / (εcov * (sig η₀ * εcov / 4) ^ 2)⌉₊ ≤ m := by
+    have hle : ⌈32 * Real.log (1 / α) / sig η₀ ^ 2⌉₊ ≤ m := by
       rw [hmdef, prefCount]; omega
     exact_mod_cast hle
-  -- and the floor keeps a fraction of it
-  have hsizeR : 64 / εcov ≤ (m : ℝ) := by
-    refine le_trans (Nat.le_ceil _) ?_
-    have hle : ⌈64 / εcov⌉₊ ≤ m := by rw [hmdef, prefCount]; omega
-    exact_mod_cast hle
-  have hsize : 2 ≤ εcov * (m : ℝ) / 32 := by
-    rw [div_le_iff₀ hε] at hsizeR
-    linarith
-  have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((⌊(1 - indecisionLimit) * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref : ℝ)⌋₊ : ℕ) : ℝ) := by
-    show εcov * (m : ℝ) / 64 ≤ ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
-    have hlt := Nat.lt_floor_add_one ((1 - indecisionLimit) * (m : ℝ))
-    rw [div_le_iff₀ hε] at hsizeR
-    nlinarith [mul_le_mul_of_nonneg_right hε1 hmR]
-  rw [show (-2 * ((⌊(1 - indecisionLimit) * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref : ℝ)⌋₊ : ℕ) : ℝ)
-        * (sig η₀ * εcov / 4) ^ 2)
-      = -(2 * ((⌊(1 - indecisionLimit) * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref : ℝ)⌋₊ : ℕ) : ℝ)
-        * (sig η₀ * εcov / 4) ^ 2) from by ring]
+  have hn := solved_decided_ge (crossLimit := crossLimit) η₀ populations (δ := δ) (α := α)
+    (pAP := pAP) hε hε1 hind1
+  set n : ℝ := ((⌊(1 - indecisionLimit)
+    * ((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).npref : ℝ)⌋₊ : ℕ) : ℝ)
+    with hndef
+  have hn' : 15 / 32 * (m : ℝ) ≤ n := hn
+  rw [show -2 * n * (sig η₀ / 4) ^ 2 = -(n * sig η₀ ^ 2 / 8) from by ring]
   refine exp_neg_le_of_log_le hα ?_
   have hlog0 : 0 ≤ Real.log (1 / α) := Real.log_nonneg (by rw [le_div_iff₀ hα]; linarith)
-  rw [div_le_iff₀ (by positivity)] at hmlog
-  nlinarith [mul_le_mul_of_nonneg_right hgmin hτ2.le, hmR, hlog0]
+  have hs2 : (0 : ℝ) < sig η₀ ^ 2 := by positivity
+  rw [div_le_iff₀ hs2] at hmlog
+  have h1 := mul_le_mul_of_nonneg_right hn' hs2.le
+  have e : 15 / 32 * (m : ℝ) * sig η₀ ^ 2 = 15 / 32 * ((m : ℝ) * sig η₀ ^ 2) := by ring
+  linarith
 
 /-- The pool is deep enough to hold accept-preserving suffixes.  This is the one event the
 ladder shares, so it is charged once against `δ/4` rather than per rung. -/
@@ -7772,7 +7782,7 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     (hρsfsmall : ρsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit) :
     (populations.card : ℝ)
         * roundFail populations (indecisionLimit / 2) (cutBudget η₀ indecisionLimit εcov)
-            (sig η₀ * εcov / 4)
+            (sig η₀ / 4)
             (cutBudget η₀ indecisionLimit εcov / 32)
             (Real.exp (-2
               * (((solvedState η₀ populations indecisionLimit εcov δ α pAP crossLimit).k
@@ -7790,7 +7800,6 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
   have hs : 0 < sig η₀ := sig_pos η₀ hsig
   have hcut : 0 < cutBudget η₀ indecisionLimit εcov := cutBudget_pos η₀ hsig hε hind
   have hcutlim := (cutBudget_le η₀ indecisionLimit εcov).2.2
-  have hτ : (0 : ℝ) < sig η₀ * εcov / 4 := by positivity
   obtain ⟨ttap, tscr, tdirty', tth, hcoll1, hcoll2⟩ :=
     solved_tails η₀ populations hsig hε hind hδ hpAP hcard hρ0 hρsf0 hρsmall hρsfsmall
   set ε₀ : ℝ := δ / (128 * (populations.card : ℝ)) with hε₀def
@@ -7807,28 +7816,25 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
     show κ + 1 - 1 = κ
     omega
   have hmR : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg _
-  -- the gate's floor, and the tail it kills
   have hsizeR : 64 / εcov ≤ (m : ℝ) := by
     refine le_trans (Nat.le_ceil _) ?_
     have hle : ⌈64 / εcov⌉₊ ≤ m := by rw [hmdef, prefCount]; omega
     exact_mod_cast hle
-  have hgmin : εcov * (m : ℝ) / 64
-      ≤ ((⌊εcov * (m : ℝ) / 32⌋₊ : ℕ) : ℝ) := by
-    have hlt := Nat.lt_floor_add_one (εcov * (m : ℝ) / 32)
-    rw [div_le_iff₀ hε] at hsizeR
-    linarith
-  have cgate : Real.log (2 / ε₀) / (2 * (sig η₀ * εcov / 4) ^ 2)
-      ≤ ((⌊εcov * (m : ℝ) / 32⌋₊ : ℕ) : ℝ) := by
+  -- the gate's tail, at the decided count
+  have tgate' : 2 * Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
+      * (sig η₀ / 4) ^ 2) ≤ ε₀ := by
+    have hτ' : (0 : ℝ) < sig η₀ / 4 := by positivity
+    refine tail_le_of_count hτ' hε₀ (by norm_num) ?_
     have heq : (2 : ℝ) / ε₀ = 256 * (populations.card : ℝ) / δ := by
       rw [hε₀def]; field_simp; try ring
     rw [heq]
-    have hmlog : 64 * Real.log (256 * (populations.card : ℝ) / δ)
-        / (εcov * (sig η₀ * εcov / 4) ^ 2) ≤ (m : ℝ) := by
+    have hmlog : 32 * Real.log (256 * (populations.card : ℝ) / δ) / sig η₀ ^ 2 ≤ (m : ℝ) := by
       refine le_trans (Nat.le_ceil _) ?_
-      have hle : ⌈64 * Real.log (256 * (populations.card : ℝ) / δ)
-          / (εcov * (sig η₀ * εcov / 4) ^ 2)⌉₊ ≤ m := by
+      have hle : ⌈32 * Real.log (256 * (populations.card : ℝ) / δ) / sig η₀ ^ 2⌉₊ ≤ m := by
         rw [hmdef, prefCount]; omega
       exact_mod_cast hle
+    have hn := solved_decided_ge (crossLimit := crossLimit) η₀ populations (δ := δ) (α := α)
+      (pAP := pAP) hε hε1 hind1
     have hlog0 : 0 ≤ Real.log (256 * (populations.card : ℝ) / δ) := by
       refine Real.log_nonneg ?_
       have hcard1 : (1 : ℝ) ≤ (populations.card : ℝ) := by
@@ -7836,31 +7842,10 @@ lemma solved_roundFail (η₀ : ℝ) (populations : Finset J)
         exact_mod_cast h1
       rw [le_div_iff₀ hδ]
       linarith
-    rw [div_le_iff₀ (by positivity)] at hmlog ⊢
-    linarith [mul_le_mul_of_nonneg_right hgmin
-      (by positivity : (0 : ℝ) ≤ 2 * (sig η₀ * εcov / 4) ^ 2)]
-  have tgate : 2 * Real.exp (-2
-      * ((⌊εcov * (m : ℝ) / 32⌋₊ : ℕ) : ℝ)
-      * (sig η₀ * εcov / 4) ^ 2) ≤ ε₀ :=
-    tail_le_of_count hτ hε₀ (by norm_num) cgate
-  -- the gate's tail, at the decided count
-  have hfloorge : ((⌊εcov * (m : ℝ) / 32⌋₊ : ℕ) : ℝ)
-      ≤ ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ) := by
-    have hgap : (0 : ℝ) ≤ 1 - indecisionLimit - εcov / 32 := by linarith
-    have hmono : ⌊εcov * (m : ℝ) / 32⌋₊ ≤ ⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ :=
-      Nat.floor_mono (by nlinarith [mul_nonneg hgap hmR])
-    exact_mod_cast hmono
-  have tgate' : 2 * Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
-      * (sig η₀ * εcov / 4) ^ 2) ≤ ε₀ := by
-    refine le_trans ?_ tgate
-    have hexp : Real.exp (-2 * ((⌊(1 - indecisionLimit) * (m : ℝ)⌋₊ : ℕ) : ℝ)
-          * (sig η₀ * εcov / 4) ^ 2)
-        ≤ Real.exp (-2
-            * ((⌊εcov * (m : ℝ) / 32⌋₊ : ℕ) : ℝ)
-          * (sig η₀ * εcov / 4) ^ 2) := by
-      refine Real.exp_le_exp.2 ?_
-      nlinarith [hfloorge, sq_nonneg (sig η₀ * εcov / 4)]
-    linarith
+    have hs2 : (0 : ℝ) < sig η₀ ^ 2 := by positivity
+    rw [div_le_iff₀ hs2] at hmlog
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [mul_le_mul_of_nonneg_right hn hs2.le]
   -- the vote's misfire rate sits under half the cut budget, so both count tails are no worse
   -- than the threshold's
   have hEc : Real.exp (-2 * (κ : ℝ) * decSlack η₀ populations indecisionLimit εcov δ crossLimit ^ 2)
@@ -8414,7 +8399,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
       η₀ populations εcov δ hη₀
   clear_value B b κ m x
   refine ⟨B, Finset.mem_filter.2 ⟨?_, ⟨?_, ?_, ?_, ?_⟩⟩,
-    sig η₀ * εcov / 4, cutBudget η₀ indecisionLimit εcov / 32, pAP / 2,
+    sig η₀ / 4, cutBudget η₀ indecisionLimit εcov / 32, pAP / 2,
     decSlack η₀ populations indecisionLimit εcov δ crossLimit,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
     screenMargin η₀ populations indecisionLimit εcov δ / 2,
@@ -8448,7 +8433,7 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
   · exact hindLim
   · exact hind1
   · exact hε1
-  · exact div_nonneg (mul_nonneg hs.le hεcov.le) (by norm_num)
+  · exact div_nonneg hs.le (by norm_num)
   · linarith
   · linarith
   · exact hdS0
@@ -8562,9 +8547,8 @@ theorem exists_passable (O : Oracle μ S) (populations : Finset J) (D : J → Me
         ≤ sig η₀ * (n : ℝ) / 2 := by
       have hb : (0 : ℝ) ≤ 2 * cutBudget η₀ indecisionLimit εcov * (c : ℝ) := by positivity
       nlinarith [mul_le_mul_of_nonneg_right (by linarith : 1 - O.η ≤ 1) hb]
-    have h2 : (n : ℝ) * (sig η₀ * εcov / 4 + sig η₀ * εcov / 4) ≤ (n : ℝ) * (sig η₀ / 2) := by
-      refine mul_le_mul_of_nonneg_left ?_ hn0
-      nlinarith [hs]
+    have h2 : (n : ℝ) * (sig η₀ / 4 + sig η₀ / 4) ≤ (n : ℝ) * (sig η₀ / 2) :=
+      le_of_eq (by ring)
     have h3 : (n : ℝ) * (1 / 2 + sig η₀) ≤ (n : ℝ) * (1 - O.η) :=
       mul_le_mul_of_nonneg_left (by linarith) hn0
     nlinarith [h1, h2, h3]

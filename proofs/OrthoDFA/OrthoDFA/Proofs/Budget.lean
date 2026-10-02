@@ -52,8 +52,8 @@ noncomputable def prefTerms (η : ℝ) (populations : Finset J)
       / (2 * (screenMargin η populations indecisionLimit εcov δ / 2) ^ 2),
     Real.log (128 * (populations.card : ℝ) / δ)
       / (2 * (cutBudget η indecisionLimit εcov / 32) ^ 2),
-    64 * Real.log (1 / α) / (εcov * (sig η * εcov / 4) ^ 2),
-    64 * Real.log (256 * (populations.card : ℝ) / δ) / (εcov * (sig η * εcov / 4) ^ 2),
+    32 * Real.log (1 / α) / sig η ^ 2,
+    32 * Real.log (256 * (populations.card : ℝ) / δ) / sig η ^ 2,
     Real.log (128 * (populations.card : ℝ)
         * ((poolCount η populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 1) / δ)
       / (2 * (3 * cutBudget η indecisionLimit εcov * flipFrac η / 32) ^ 2),
@@ -399,17 +399,16 @@ theorem prefCount_le_poly (populations : Finset J)
     have hB2nn : 0 ≤ B ^ 2 := sq_nonneg B
     nlinarith only [h, hs4B, hc2, mul_le_mul_of_nonneg_right hs4B hB2nn,
       mul_le_mul_of_nonneg_right hc2 (sq_nonneg cut), sq_nonneg cut]
-  have hε3 : B ^ 3 ≤ εcov ^ 3 := pow_le_pow_left₀ hBpos.le hBε 3
-  have hcov : 64 * (s ^ 4 * B ^ 3) ≤ 256 * c ^ 2 * (εcov * (s * εcov / 4) ^ 2) := by
-    have e : εcov * (s * εcov / 4) ^ 2 = s ^ 2 * εcov ^ 3 / 16 := by ring
-    rw [e]
-    nlinarith only [mul_le_mul hs42 hε3 (pow_nonneg hBpos.le 3) (by positivity),
-      mul_le_mul_of_nonneg_right hc2 (mul_nonneg (sq_nonneg s) (pow_nonneg hεcov.le 3)),
-      mul_nonneg (sq_nonneg s) (pow_nonneg hεcov.le 3)]
-  have t3 : 64 * Real.log (1 / α) / (εcov * (s * εcov / 4) ^ 2) ≤ 256 * Q :=
-    tail_le (w := 64) (by linarith only [hAα]) hL0 (by positivity) hD hcov
-  have t4 : 64 * Real.log (256 * c / δ) / (εcov * (s * εcov / 4) ^ 2) ≤ 256 * Q :=
-    tail_le (w := 64) (by linarith only [hR256]) hL0 (by positivity) hD hcov
+  have hcov : 32 * (s ^ 4 * B ^ 3) ≤ 256 * c ^ 2 * s ^ 2 := by
+    have hB3' : B ^ 3 ≤ 1 / 8 := by
+      have h := pow_le_pow_left₀ hBpos.le hB2 3; norm_num at h; linarith only [h]
+    have h1 : s ^ 4 * B ^ 3 ≤ s ^ 2 / 4 * (1 / 8) :=
+      le_mul2 (pow_nonneg hsig.le 4) (pow_nonneg hBpos.le 3) hs42 hB3'
+    nlinarith only [h1, mul_le_mul_of_nonneg_right hc2 (sq_nonneg s), sq_nonneg s]
+  have t3 : 32 * Real.log (1 / α) / s ^ 2 ≤ 256 * Q :=
+    tail_le (w := 32) (by linarith only [hAα]) hL0 (by positivity) hD hcov
+  have t4 : 32 * Real.log (256 * c / δ) / s ^ 2 ≤ 256 * Q :=
+    tail_le (w := 32) (by linarith only [hR256]) hL0 (by positivity) hD hcov
   have t5 : Real.log (128 * c * (M + 1) / δ) / (2 * (3 * cut * flipFrac η / 32) ^ 2)
       ≤ 2904 * Q := by
     have hfpos : 0 < flipFrac η := by linarith only [hf, hsig]
