@@ -324,7 +324,7 @@ def ClusteringCorrect : Prop :=
     (O : Oracle μ S) (rule : Clusterer S) (populations : Finset J) (uni : J)
     (D : J → Measure S)
     (Dsf : Measure S) [∀ j, IsProbabilityMeasure (D j)] [IsProbabilityMeasure Dsf]
-    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ),
+    (Pre Suf : Set S) (η₀ indecisionLimit εcov α δ ρ pAP crossLimit k : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -349,13 +349,16 @@ def ClusteringCorrect : Prop :=
     ≤ budgetCap populations η₀ indecisionLimit εcov δ α pAP crossLimit k →
   ρ ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
   collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
+  0 < v →
+  -- the cut budget, read off `εcov`, is small against the veto's share of `δ`
+  (populations.card : ℝ) * v * εcov ≤ 1 →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},
-        x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
+        x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val) ∧
       ∀ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP crossLimit
         ρ},
-        x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+        x ∈ retBy rule O.mq populations uni v indecisionLimit α B.val →
         ∀ j ∈ populations, 1 - εcov
           ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
               (familyBy rule O.mq populations x B.val) p (oracleNoise x)}

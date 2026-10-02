@@ -751,6 +751,21 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
   rw [hpoolval, ← hPe, mul_div_assoc 16]
   linarith only [h1, h2, hRhalf]
 
+/-- The cut budget the proof runs at, `εcov` held under the signal and the veto's share of `δ`,
+resolves to the statement's `cutScale`. -/
+lemma cutScale_eq (populations : Finset J) (η₀ indecisionLimit εcov₀ : ℝ) (v : ℕ) :
+    min (min εcov₀ (min (1 / 2 - η₀) (1 / ((populations.card : ℝ) * v))))
+        (min (1 / 2 - η₀) indecisionLimit)
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
+  unfold cutScale
+  apply le_antisymm <;> simp only [le_min_iff, min_le_iff, le_refl, true_or, or_true, and_self]
+
+lemma cutScale_eq' (populations : Finset J) (η₀ indecisionLimit εcov₀ : ℝ) (v : ℕ) :
+    min (min εcov₀ (min (1 / 2 - η₀) (1 / ((populations.card : ℝ) * v)))) indecisionLimit
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
+  unfold cutScale
+  apply le_antisymm <;> simp only [le_min_iff, min_le_iff, le_refl, true_or, or_true, and_self]
+
 open MeasureTheory ProbabilityTheory in
 /-- `ClusteringGuarantee` with every population covered to `1 − εcov`, which is what the proof
 shows. -/
@@ -758,7 +773,7 @@ def ClusteringGuaranteeAll : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ),
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (v : ℕ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -774,6 +789,7 @@ def ClusteringGuaranteeAll : Prop :=
   δ ≤ 1 →
   0 < crossLimit →
   crossLimit ≤ 1 →
+  0 < v →
   ∃ cap : ℝ,
     0 < cap ∧
     ∀ (D : J → Measure S) (Dsf : Measure S),
@@ -791,21 +807,21 @@ def ClusteringGuaranteeAll : Prop :=
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
-            / (δ * α * pAP * min εcov (min (1 / 2 - η₀) indecisionLimit))
+            / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov v)
           )
-          / ((1 / 2 - η₀) ^ 4 * min εcov (min (1 / 2 - η₀) indecisionLimit) ^ 3)
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 3)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
           104
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
-          / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ 64 * Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+          (B.k : ℝ) ≤ 64 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
             / (1 / 2 - η₀) ^ 2
           ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-                (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+                (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
@@ -813,9 +829,9 @@ def ClusteringGuaranteeAll : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni v indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni v indecisionLimit α B.val →
               ∀ j ∈ populations, 1 - εcov
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
@@ -823,20 +839,41 @@ def ClusteringGuaranteeAll : Prop :=
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
                   ≤ 2 * indecisionLimit}
 
-
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and collision cap it names as the witnesses,
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
 theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit v
+    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov₀ hε1₀ hδ hδ1 hζ hζ1 hv0
   classical
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
   generalize (lloydClusterer : Clusterer S) = rule
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
+  have hs : 0 < 1 / 2 - η₀ := by linarith
+  -- the proof runs at a cut budget small against the signal and one prefix in the veto's draws
+  obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ (min (1 / 2 - η₀)
+      (1 / ((populations.card : ℝ) * v))) := ⟨_, rfl⟩
+  have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
+  have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
+  have hδv : 0 < 1 / ((populations.card : ℝ) * v) := by positivity
+  have hεcov : 0 < εcov := by rw [hεdef]; exact lt_min hεcov₀ (lt_min hs hδv)
+  have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
+  have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
+  have hveto : (populations.card : ℝ) * v * εcov ≤ 1 := by
+    have h : εcov ≤ 1 / ((populations.card : ℝ) * v) := by
+      rw [hεdef]; exact min_le_of_right_le (min_le_right _ _)
+    rw [le_div_iff₀ (by positivity)] at h
+    linarith
+  have hscale : min εcov (min (1 / 2 - η₀) indecisionLimit)
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
+    rw [hεdef]; exact cutScale_eq populations η₀ indecisionLimit εcov₀ v
+  have hscale2 : min εcov indecisionLimit = cutScale populations η₀ indecisionLimit εcov₀ v := by
+    rw [hεdef]; exact cutScale_eq' populations η₀ indecisionLimit εcov₀ v
+  have hS : 0 < cutScale populations η₀ indecisionLimit εcov₀ v :=
+    lt_min hεcov₀ (lt_min hs (lt_min hδv hindLim))
   refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit, ?_, ?_⟩
   · simp only [collisionCap]
     positivity
@@ -854,25 +891,29 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
     have hsched : B ∈ schedule η₀ populations indecisionLimit εcov δ α pAP crossLimit :=
       Finset.mem_of_mem_filter _ hB
     obtain ⟨i, _, rfl⟩ := Finset.mem_image.1 hsched
-    refine le_trans ?_ hpoly
+    have hp := hpoly
+    simp only [budgetCap, budgetLog, budgetScale, sig] at hp
+    rw [hscale] at hp
+    refine le_trans ?_ hp
     exact_mod_cast Nat.div_le_self _ _
   · -- The ladder reaches down to `validCount`, which `validCount_le_poly` bounds.
-    have hcard : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
     have hρ0 : 0 ≤ ρ :=
       le_trans (tsum_nonneg (fun a => sq_nonneg _)) (hρ hpop.choose hpop.choose_spec)
     have hpAP' := hpAPBound
     rw [O.apSet_eq] at hpAP'
     obtain ⟨Bp, hBp, -⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
-      (collisionMass Dsf) pAP (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov hε1 hδ hδ1 hαpos hα
+      (collisionMass Dsf) pAP v (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov
+      hε1 hδ hδ1 hveto hαpos hα
       hindLim hind1 hpAPPositive hpAP' hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap
       hρsf
     obtain ⟨B, hB, hBle⟩ := exists_small_stoppable η₀ populations hη0 hη₀ hεcov hindLim hδ hδ1
-      hpAPPositive hcard hρ0 hρcap ⟨Bp, hBp⟩
+      hpAPPositive hcardR hρ0 hρcap ⟨Bp, hBp⟩
     refine ⟨B, hB, ?_⟩
     have hv := validCount_le_poly populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0
       hpop hindLim hind1 hεcov hε1 hδ hδ1 hpAPPositive hpAP1
     rw [nsuff_of_mem_schedule (Finset.mem_of_mem_filter _ hB)]
     simp only [sig] at hv
+    rw [hscale2] at hv
     have hlog : 0 ≤ Real.log (((populations.card : ℝ) + 2)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ) := by
       refine Real.log_nonneg ?_
@@ -881,10 +922,8 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
         pAP crossLimit : ℝ)), (Nat.cast_nonneg _ : (0 : ℝ) ≤ (populations.card : ℝ))]
     have hQ : 0 ≤ (populations.card : ℝ) ^ 2 * Real.log (((populations.card : ℝ) + 2)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ)
-        / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2) := by
+        / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov₀ v ^ 2) := by
       refine div_nonneg (mul_nonneg (sq_nonneg _) hlog) ?_
-      have : 0 < min εcov indecisionLimit := lt_min hεcov hindLim
-      have : 0 < 1 / 2 - η₀ := by linarith
       positivity
     rw [mul_assoc, mul_div_assoc]
     rw [mul_assoc, mul_div_assoc] at hv
@@ -896,12 +935,13 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
     have hpool := poolCount_le populations η₀ indecisionLimit εcov δ pAP crossLimit hsig hη0
       hindLim hεcov hpop hδ hδ1 hpAPPositive hpAP1 hζ hζ1
     simp only [budgetScale, sig] at hk hpool
+    rw [hscale] at hk hpool
     rw [mul_div_assoc] at hk
-    have hG : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+    have hG : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ v * crossLimit))
         / (1 / 2 - η₀) ^ 2 := by
       linarith only [hk, (Nat.cast_nonneg _ : (0 : ℝ) ≤ famCount η₀ populations
         indecisionLimit εcov δ crossLimit)]
-    have hGp : 0 ≤ Real.log (2 / (min εcov (min (1 / 2 - η₀) indecisionLimit) * crossLimit))
+    have hGp : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ v * crossLimit))
         / ((1 / 2 - η₀) ^ 2 * pAP) := by
       rw [← div_div]; exact div_nonneg hG hpAPPositive.le
     have hH : 0 ≤ Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2 :=
@@ -913,30 +953,31 @@ theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
     rw [mul_div_assoc, mul_div_assoc 128, mul_div_assoc 16]
     rw [mul_div_assoc 128, mul_div_assoc 16] at hpool
     constructor <;> linarith
-  exact clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ ρ pAP
-    crossLimit 6000 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound hindLim
-    hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf
+  refine le_trans (clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
+    α δ ρ pAP crossLimit 6000 v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound
+    hindLim hind1 hαpos hα hεcov hε1 hδ hpoly hρcap hρsf hv0 hveto)
+    (measureReal_mono (fun x hx => ⟨hx.1, fun B hB j hj =>
+      ⟨le_trans (by linarith) (hx.2 B hB j hj).1, (hx.2 B hB j hj).2⟩⟩) (measure_ne_top _ _))
 
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_guarantee_all` at `min εcov (1/2)`, which leaves every stated bound as it is:
 each already takes the minimum with `1/2 − η₀` or with `indecisionLimit ≤ 1/2`. -/
 theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit v
+    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1 hv0
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  have e1 : min (min εcov (1 / 2)) (min (1 / 2 - η₀) indecisionLimit)
-      = min εcov (min (1 / 2 - η₀) indecisionLimit) := by
-    rw [min_assoc]; congr 1; exact min_eq_right (le_trans (min_le_left _ _) (by linarith))
+  have e1 : ∀ x : ℝ, min (min εcov (1 / 2)) (min (1 / 2 - η₀) x) = min εcov (min (1 / 2 - η₀) x) := by
+    intro x; rw [min_assoc]; congr 1; exact min_eq_right (le_trans (min_le_left _ _) (by linarith))
   have e2 : min (min εcov (1 / 2)) indecisionLimit = min εcov indecisionLimit := by
     rw [min_assoc]; congr 1; exact min_eq_right hind1
   obtain ⟨cap, hcap, h⟩ := clustering_guarantee_all O populations uni Pre Suf η₀ indecisionLimit
-    (min εcov (1 / 2)) α δ pAP crossLimit hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα
-    (lt_min hεcov (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hζ hζ1
+    (min εcov (1 / 2)) α δ pAP crossLimit v hηle hη₀ huni hflat hpAPPositive hindLim hind1
+    hαpos hα (lt_min hεcov (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hζ hζ1
+    hv0
   refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
   obtain ⟨states, h1, h2, h3, h4, h5⟩ :=
     h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
-  rw [e1] at h1 h3
-  rw [e2] at h2
+  simp only [cutScale, e1, e2] at h1 h2 h3 ⊢
   refine ⟨states, h1, h2, h3, h4, le_trans h5 (measureReal_mono ?_ (measure_ne_top _ _))⟩
   rintro x ⟨hex, hall⟩
   refine ⟨hex, fun B hB => ⟨?_, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
