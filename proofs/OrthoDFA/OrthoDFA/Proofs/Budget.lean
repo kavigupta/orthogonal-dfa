@@ -799,13 +799,13 @@ def ClusteringGuaranteeAll : Prop :=
       collisionMass Dsf ≤ cap →
       ∃ states : Finset State,
         (∀ B ∈ states, (B.npref : ℝ) ≤
-          6000
+          12000
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
             / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov v)
           )
-          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 3)
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 2)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
           104
