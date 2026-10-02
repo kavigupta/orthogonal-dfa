@@ -351,7 +351,7 @@ def ClusteringCorrect : Prop :=
   collisionMass Dsf ≤ collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit →
   0 < v →
   -- the cut budget, read off `εcov`, is small against the veto's share of `δ`
-  2 * (populations.card : ℝ) * v * vetoRounds δ α * εcov ≤ δ →
+  (populations.card : ℝ) * v * εcov ≤ 1 →
   1 - δ ≤ (runMeasure μ D Dsf).real
     {x | (∃ B : {B : State // B ∈ stoppable η₀ populations indecisionLimit εcov δ α pAP
       crossLimit ρ},

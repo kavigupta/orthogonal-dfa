@@ -375,19 +375,17 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have hδ' : 0 < δ' := by positivity
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
-  -- the proof runs at a cut budget small against the signal and the veto's share of `δ'`
+  -- the proof runs at a cut budget small against the signal and one prefix in the veto's draws
   obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ (min (1 / 2 - η₀)
-      (δ' / (2 * (populations.card : ℝ) * v * vetoRounds δ' α))) := ⟨_, rfl⟩
+      (1 / ((populations.card : ℝ) * v))) := ⟨_, rfl⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
-  have hRR : (0 : ℝ) < (vetoRounds δ' α : ℝ) := by
-    exact_mod_cast vetoRounds_pos hδ' (by linarith) hα (by linarith)
   have hε : 0 < εcov := by
     rw [hεdef]; exact lt_min hε₀ (lt_min (by linarith) (by positivity))
   have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
   have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
-  have hveto : 2 * (populations.card : ℝ) * v * vetoRounds δ' α * εcov ≤ δ' := by
-    have h : εcov ≤ δ' / (2 * (populations.card : ℝ) * v * vetoRounds δ' α) := by
+  have hveto : (populations.card : ℝ) * v * εcov ≤ 1 := by
+    have h : εcov ≤ 1 / ((populations.card : ℝ) * v) := by
       rw [hεdef]; exact min_le_of_right_le (min_le_right _ _)
     rw [le_div_iff₀ (by positivity)] at h
     linarith

@@ -753,27 +753,18 @@ theorem poolCount_le (populations : Finset J) (η indecisionLimit εcov δ pAP c
 
 /-- The cut budget the proof runs at, `εcov` held under the signal and the veto's share of `δ`,
 resolves to the statement's `cutScale`. -/
-lemma cutScale_eq (populations : Finset J) (η₀ indecisionLimit εcov₀ δ α : ℝ) (v : ℕ) :
-    min (min εcov₀ (min (1 / 2 - η₀)
-        (δ / (2 * (populations.card : ℝ) * v * vetoRounds δ α))))
+lemma cutScale_eq (populations : Finset J) (η₀ indecisionLimit εcov₀ : ℝ) (v : ℕ) :
+    min (min εcov₀ (min (1 / 2 - η₀) (1 / ((populations.card : ℝ) * v))))
         (min (1 / 2 - η₀) indecisionLimit)
-      = cutScale populations η₀ indecisionLimit εcov₀ δ α v := by
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
   unfold cutScale
   apply le_antisymm <;> simp only [le_min_iff, min_le_iff, le_refl, true_or, or_true, and_self]
 
-lemma cutScale_eq' (populations : Finset J) (η₀ indecisionLimit εcov₀ δ α : ℝ) (v : ℕ) :
-    min (min εcov₀ (min (1 / 2 - η₀)
-        (δ / (2 * (populations.card : ℝ) * v * vetoRounds δ α)))) indecisionLimit
-      = cutScale populations η₀ indecisionLimit εcov₀ δ α v := by
+lemma cutScale_eq' (populations : Finset J) (η₀ indecisionLimit εcov₀ : ℝ) (v : ℕ) :
+    min (min εcov₀ (min (1 / 2 - η₀) (1 / ((populations.card : ℝ) * v)))) indecisionLimit
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
   unfold cutScale
   apply le_antisymm <;> simp only [le_min_iff, min_le_iff, le_refl, true_or, or_true, and_self]
-
-lemma vetoRounds_pos {δ α : ℝ} (hδ : 0 < δ) (hδ1 : δ ≤ 1) (hα : 0 < α) (hα1 : α < 1) :
-    0 < vetoRounds δ α := by
-  unfold vetoRounds
-  refine Nat.ceil_pos.2 (div_pos (Real.log_pos ?_) (Real.log_pos ?_))
-  · rw [lt_div_iff₀ hδ]; linarith
-  · rw [lt_div_iff₀ hα]; linarith
 
 open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and collision cap it names as the witnesses,
@@ -789,28 +780,26 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   have hsig : 0 < sig η₀ := by simp only [sig]; linarith
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   have hs : 0 < 1 / 2 - η₀ := by linarith
-  -- the proof runs at a cut budget small against the signal and the veto's share of `δ`
+  -- the proof runs at a cut budget small against the signal and one prefix in the veto's draws
   obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ (min (1 / 2 - η₀)
-      (δ / (2 * (populations.card : ℝ) * v * vetoRounds δ α))) := ⟨_, rfl⟩
+      (1 / ((populations.card : ℝ) * v))) := ⟨_, rfl⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
-  have hRR : (0 : ℝ) < (vetoRounds δ α : ℝ) := by
-    exact_mod_cast vetoRounds_pos hδ hδ1 hαpos (by linarith)
-  have hδv : 0 < δ / (2 * (populations.card : ℝ) * v * vetoRounds δ α) := by positivity
+  have hδv : 0 < 1 / ((populations.card : ℝ) * v) := by positivity
   have hεcov : 0 < εcov := by rw [hεdef]; exact lt_min hεcov₀ (lt_min hs hδv)
   have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
   have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
-  have hveto : 2 * (populations.card : ℝ) * v * vetoRounds δ α * εcov ≤ δ := by
-    have h : εcov ≤ δ / (2 * (populations.card : ℝ) * v * vetoRounds δ α) := by
+  have hveto : (populations.card : ℝ) * v * εcov ≤ 1 := by
+    have h : εcov ≤ 1 / ((populations.card : ℝ) * v) := by
       rw [hεdef]; exact min_le_of_right_le (min_le_right _ _)
     rw [le_div_iff₀ (by positivity)] at h
     linarith
   have hscale : min εcov (min (1 / 2 - η₀) indecisionLimit)
-      = cutScale populations η₀ indecisionLimit εcov₀ δ α v := by
-    rw [hεdef]; exact cutScale_eq populations η₀ indecisionLimit εcov₀ δ α v
-  have hscale2 : min εcov indecisionLimit = cutScale populations η₀ indecisionLimit εcov₀ δ α v := by
-    rw [hεdef]; exact cutScale_eq' populations η₀ indecisionLimit εcov₀ δ α v
-  have hS : 0 < cutScale populations η₀ indecisionLimit εcov₀ δ α v :=
+      = cutScale populations η₀ indecisionLimit εcov₀ v := by
+    rw [hεdef]; exact cutScale_eq populations η₀ indecisionLimit εcov₀ v
+  have hscale2 : min εcov indecisionLimit = cutScale populations η₀ indecisionLimit εcov₀ v := by
+    rw [hεdef]; exact cutScale_eq' populations η₀ indecisionLimit εcov₀ v
+  have hS : 0 < cutScale populations η₀ indecisionLimit εcov₀ v :=
     lt_min hεcov₀ (lt_min hs (lt_min hδv hindLim))
   refine ⟨collisionCap η₀ populations indecisionLimit εcov δ α pAP crossLimit, ?_, ?_⟩
   · simp only [collisionCap]
@@ -840,8 +829,8 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     have hpAP' := hpAPBound
     rw [O.apSet_eq] at hpAP'
     obtain ⟨Bp, hBp, -⟩ := exists_passable O populations D Dsf indecisionLimit εcov α δ ρ
-      (collisionMass Dsf) pAP v (vetoRounds δ α) (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov
-      hε1 hδ hδ1 hveto (pow_vetoRounds_le hδ hαpos (by linarith)) hαpos hα
+      (collisionMass Dsf) pAP v (lt_of_le_of_lt hηle hη₀) hpop hηle hη₀ hεcov
+      hε1 hδ hδ1 hveto hαpos hα
       hindLim hind1 hpAPPositive hpAP' hρ hρ0 le_rfl (tsum_nonneg (fun a => sq_nonneg _)) hρcap
       hρsf
     obtain ⟨B, hB, hBle⟩ := exists_small_stoppable η₀ populations hη0 hη₀ hεcov hindLim hδ hδ1
@@ -860,7 +849,7 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
         pAP crossLimit : ℝ)), (Nat.cast_nonneg _ : (0 : ℝ) ≤ (populations.card : ℝ))]
     have hQ : 0 ≤ (populations.card : ℝ) ^ 2 * Real.log (((populations.card : ℝ) + 2)
         * ((poolCount η₀ populations indecisionLimit εcov δ pAP crossLimit : ℝ) + 2) / δ)
-        / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov₀ δ α v ^ 2) := by
+        / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov₀ v ^ 2) := by
       refine div_nonneg (mul_nonneg (sq_nonneg _) hlog) ?_
       positivity
     rw [mul_assoc, mul_div_assoc]
@@ -875,11 +864,11 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
     simp only [budgetScale, sig] at hk hpool
     rw [hscale] at hk hpool
     rw [mul_div_assoc] at hk
-    have hG : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ δ α v * crossLimit))
+    have hG : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ v * crossLimit))
         / (1 / 2 - η₀) ^ 2 := by
       linarith only [hk, (Nat.cast_nonneg _ : (0 : ℝ) ≤ famCount η₀ populations
         indecisionLimit εcov δ crossLimit)]
-    have hGp : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ δ α v * crossLimit))
+    have hGp : 0 ≤ Real.log (2 / (cutScale populations η₀ indecisionLimit εcov₀ v * crossLimit))
         / ((1 / 2 - η₀) ^ 2 * pAP) := by
       rw [← div_div]; exact div_nonneg hG hpAPPositive.le
     have hH : 0 ≤ Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2 :=
