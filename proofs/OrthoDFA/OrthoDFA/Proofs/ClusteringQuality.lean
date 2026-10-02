@@ -364,7 +364,56 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 
 /-! ## The theorem -/
 
-theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
+/-- `ClusteringQualityGuarantee` with every population held to `εcov + slack`, which is what
+the proof shows. -/
+def ClusteringQualityAll : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
+    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ) (a v : ℕ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  uni ∈ populations →
+  Flat Pre Suf →
+  0 < pAP →
+  0 < indecisionLimit →
+  indecisionLimit ≤ 1 / 2 →
+  0 < α →
+  α < 1 / 2 →
+  0 < εcov →
+  εcov ≤ 1 →
+  0 < δ →
+  δ ≤ 1 →
+  0 < crossLimit →
+  0 < slack →
+  0 < v →
+  ∃ cap : ℝ,
+    0 < cap ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      ∀ ρ : ℝ,
+      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+      ρ ≤ cap →
+      collisionMass Dsf ≤ cap →
+      ∃ states : Finset State,
+        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+        1 - δ ≤ (runMeasure μ D Dsf).real
+          {x | (∃ B : {B : State // B ∈ states},
+                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+            ∧ ∀ B : {B : State // B ∈ states},
+              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              ∀ j ∈ populations,
+                ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ εcov + slack
+                ∧ ∫ p, undecidedProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
+                    ∂(D j) ≤ 2 * indecisionLimit + slack}
+
+theorem clustering_quality_all : ClusteringQualityAll := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit
     slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε₀ hε1₀ hδ hδ1 hstr hslack hv0
   have hpop : populations.Nonempty := ⟨uni, huni⟩
@@ -561,5 +610,20 @@ theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   have := hFtail j
   have := hPmass j hj
   exact ⟨by linarith, by linarith⟩
+
+/-- From `clustering_quality_all` at `min εcov (1/2)`. -/
+theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
+    slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack hv0
+  obtain ⟨cap, hcap, h⟩ := clustering_quality_all O populations uni Pre Suf η₀ indecisionLimit
+    (min εcov (1 / 2)) α δ pAP crossLimit slack a v hηle hη₀ huni hflat hpAP hind hind1 hα hα1
+    (lt_min hε (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hcr hslack hv0
+  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  obtain ⟨states, h1, h2⟩ := h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
+  refine ⟨states, h1, le_trans h2 (measureReal_mono ?_ (measure_ne_top _ _))⟩
+  rintro x ⟨hex, hall⟩
+  refine ⟨hex, fun B hB => ⟨?_, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
+  · linarith [(hall B hB uni huni).1, min_le_left εcov (1 / 2)]
+  · linarith [(hall B hB j hj).1, min_le_right εcov (1 / 2)]
 
 end OrthoDFA

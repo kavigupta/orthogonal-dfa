@@ -14,6 +14,7 @@ in the next round.
 
 import math
 import time
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -114,7 +115,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
-    state.retire_states()
+    state.retire("state")
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -125,8 +126,7 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
-        state.sources[("state", leaf)] = source
+        state.hold(("state", leaf), source, per_state)
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
@@ -221,6 +221,10 @@ class _StallDetector:
 PER_STATE = 50
 
 
+class UncertifiedResult(UserWarning):
+    """Synthesis returned a DFA the certificate did not pass."""
+
+
 @dataclass
 class BestRound:
     """The certified round's hypothesis, or else the most consistent one. Rounds
@@ -252,12 +256,12 @@ def _certified(pst, dfa, *, index, tracker):
     """denoise_accept_labels(dfa) if the certificate passes it, else None."""
     output = denoise_accept_labels(pst, dfa)
     # Spread over the rounds, whichever of them reach the certificate.
-    passed = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
-    tracker.on_certificate_decided(passed, index)
-    if passed:
+    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
+    tracker.on_certificate_decided(verdict.certified, index)
+    if verdict.certified:
         print(f"[round {index}] certified; stopping synthesis")
         return output
-    print(f"[round {index}] at target, not certified")
+    print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
     return None
 
 
@@ -399,6 +403,10 @@ def do_counterexample_driven_synthesis(
     pst.decision_boundary = best.boundary
     dfa = best.certified
     if dfa is None:
+        warnings.warn(
+            f"no round was certified; returning round {best.round_index}'s DFA",
+            UncertifiedResult,
+        )
         dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa

@@ -768,10 +768,83 @@ lemma cutScale_eq' (populations : Finset J) (η₀ indecisionLimit εcov₀ : �
   apply le_antisymm <;> simp only [le_min_iff, min_le_iff, le_refl, true_or, or_true, and_self]
 
 open MeasureTheory ProbabilityTheory in
+/-- `ClusteringGuarantee` with every population covered to `1 − εcov`, which is what the proof
+shows. -/
+def ClusteringGuaranteeAll : Prop :=
+  ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
+    (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
+    (η₀ indecisionLimit εcov α δ pAP crossLimit : ℝ) (a v : ℕ),
+  O.η ≤ η₀ →
+  η₀ < 1 / 2 →
+  uni ∈ populations →
+  Flat Pre Suf →
+  0 < pAP →
+  0 < indecisionLimit →
+  indecisionLimit ≤ 1 / 2 →
+  0 < α →
+  α < 1 / 2 →
+  0 < εcov →
+  εcov ≤ 1 →
+  0 < δ →
+  δ ≤ 1 →
+  0 < crossLimit →
+  crossLimit ≤ 1 →
+  0 < v →
+  ∃ cap : ℝ,
+    0 < cap ∧
+    ∀ (D : J → Measure S) (Dsf : Measure S),
+      (∀ j, IsProbabilityMeasure (D j)) → IsProbabilityMeasure Dsf →
+      (∀ j ∈ populations, D j Preᶜ = 0) →
+      Dsf Sufᶜ = 0 →
+      pAP ≤ Dsf.real {v | ∀ p, p * v ∈ O.L ↔ p ∈ O.L} →
+      ∀ ρ : ℝ,
+      (∀ j ∈ populations, collisionMass (D j) ≤ ρ) →
+      ρ ≤ cap →
+      collisionMass Dsf ≤ cap →
+      ∃ states : Finset State,
+        (∀ B ∈ states, (B.npref : ℝ) ≤
+          6000
+          * (populations.card : ℝ) ^ 2
+          * Real.log (
+            ((populations.card : ℝ) + 2) * B.nsuff
+            / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov v)
+          )
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 3)
+        ) ∧
+        (∃ B ∈ states, (B.npref : ℝ) ≤
+          104
+          * (populations.card : ℝ) ^ 2
+          * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 2)
+        ) ∧
+        (∀ B ∈ states,
+          (B.k : ℝ) ≤ 64 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
+            / (1 / 2 - η₀) ^ 2
+          ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
+                (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
+              / ((1 / 2 - η₀) ^ 2 * pAP)
+            + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
+        (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
+          (B.hi < meanVote O F p → μ.real {ω | voteCount O.mq F p ω ≤ B.lo} ≤ crossLimit)
+          ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
+        1 - δ ≤ (runMeasure μ D Dsf).real
+          {x | (∃ B : {B : State // B ∈ states},
+                x ∈ ret O.mq populations uni a v indecisionLimit α B.val)
+            ∧ ∀ B : {B : State // B ∈ states},
+              x ∈ ret O.mq populations uni a v indecisionLimit α B.val →
+              ∀ j ∈ populations, 1 - εcov
+                ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+                  ≤ 2 * indecisionLimit}
+
+open MeasureTheory ProbabilityTheory in
 /-- From `clustering_correct`, with the schedule and collision cap it names as the witnesses,
 `prefCount_le_poly` for the prefix count, and `famCount_succ_le` and `poolCount_le` for the
 family and the pool. -/
-theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
+theorem clustering_guarantee_all : ClusteringGuaranteeAll := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov₀ α δ pAP crossLimit a v
     hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov₀ hε1₀ hδ hδ1 hζ hζ1 hv0
   classical
@@ -884,5 +957,30 @@ theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
   exact clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov εcov₀
     α δ ρ pAP crossLimit 6000 a v hηle hη₀ huni hflat hsupp hsuppSf hρ hpAPPositive hpAPBound
     hindLim hind1 hαpos hα hεcov hε1 hεle hδ hpoly hρcap hρsf hv0 hveto
+
+open MeasureTheory ProbabilityTheory in
+/-- From `clustering_guarantee_all` at `min εcov (1/2)`, which leaves every stated bound as it is:
+each already takes the minimum with `1/2 − η₀` or with `indecisionLimit ≤ 1/2`. -/
+theorem clustering_guarantee_of_correct : ClusteringGuarantee := by
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit a v
+    hηle hη₀ huni hflat hpAPPositive hindLim hind1 hαpos hα hεcov hε1 hδ hδ1 hζ hζ1 hv0
+  have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
+  have e1 : ∀ x : ℝ, min (min εcov (1 / 2)) (min (1 / 2 - η₀) x) = min εcov (min (1 / 2 - η₀) x) := by
+    intro x; rw [min_assoc]; congr 1; exact min_eq_right (le_trans (min_le_left _ _) (by linarith))
+  have e2 : min (min εcov (1 / 2)) indecisionLimit = min εcov indecisionLimit := by
+    rw [min_assoc]; congr 1; exact min_eq_right hind1
+  obtain ⟨cap, hcap, h⟩ := clustering_guarantee_all O populations uni Pre Suf η₀ indecisionLimit
+    (min εcov (1 / 2)) α δ pAP crossLimit a v hηle hη₀ huni hflat hpAPPositive hindLim hind1
+    hαpos hα (lt_min hεcov (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hζ hζ1
+    hv0
+  refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
+  obtain ⟨states, h1, h2, h3, h4, h5⟩ :=
+    h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
+  simp only [cutScale, e1, e2] at h1 h2 h3 ⊢
+  refine ⟨states, h1, h2, h3, h4, le_trans h5 (measureReal_mono ?_ (measure_ne_top _ _))⟩
+  rintro x ⟨hex, hall⟩
+  refine ⟨hex, fun B hB => ⟨?_, fun j hj => ⟨?_, (hall B hB j hj).2⟩⟩⟩
+  · linarith [(hall B hB uni huni).1, min_le_left εcov (1 / 2)]
+  · linarith [(hall B hB j hj).1, min_le_right εcov (1 / 2)]
 
 end OrthoDFA
