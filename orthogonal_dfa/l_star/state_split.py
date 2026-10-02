@@ -117,54 +117,79 @@ def _oriented(reads, inside, level):
     return kept, np.where(above, 1, -1)
 
 
+def _agreeing(reads, kept, signs) -> np.ndarray:
+    """Per member, its count of reads over K = kept agreeing with o = signs."""
+    return np.where(signs > 0, reads[:, kept], 1 - reads[:, kept]).sum(1)
+
+
+def _fitted(reads, labels, level):
+    """(K, o, k*): K and o by _oriented on labels, and k* midway between the
+    mean _agreeing counts of the members labelled in and out; None if K is
+    empty."""
+    kept, signs = _oriented(reads, labels, level)
+    if kept.size == 0:
+        return None
+    agree = _agreeing(reads, kept, signs)
+    return kept, signs, (agree[labels].mean() + agree[~labels].mean()) / 2
+
+
 def _sharpened(reads, inside, level):
-    """(K, o, k*) at the fixed point of labelling each member by whether its count
-    of reads agreeing with o over K is at least k*, midway between the mean
-    counts of the members labelled in and out, K and o by _oriented on the
-    labels, starting from the labels inside; None if a step keeps no suffix or
-    no cut separates."""
-    kept, signs = _oriented(reads, inside, level)
+    """The _fitted (K, o, k*) at the fixed point of labelling each member by
+    whether its _agreeing count is at least k*, starting from the labels
+    inside; None if a step keeps no suffix or no cut separates."""
     seen = set()
     while True:
-        if kept.size == 0:
+        fit = _fitted(reads, inside, level)
+        if fit is None:
             return None
-        agree = np.where(signs > 0, reads[:, kept], 1 - reads[:, kept])
-        adjusted = agree.sum(1)
-        cut = (adjusted[inside].mean() + adjusted[~inside].mean()) / 2
-        labels = adjusted >= cut
+        labels = _agreeing(reads, *fit[:2]) >= fit[2]
         if labels.all() or not labels.any():
             return None
         if labels.tobytes() in seen:
-            return kept, signs, cut
+            return fit
         seen.add(labels.tobytes())
         inside = labels
-        kept, signs = _oriented(reads, inside, level)
 
 
 def split_members(
-    draw, suffixes, oracle, *, minority_below, minority_share, signal, level, rng
+    draw,
+    suffixes,
+    placing,
+    oracle,
+    *,
+    minority_below,
+    minority_share,
+    signal,
+    level,
+    rng,
 ):
-    """The StateSplit placing n fresh members of draw, n = first_look at level,
-    on each side of the cut _sharpened fits on n others, starting from the
-    minority_share of those whose counts over the suffixes _going_with picks
-    are lowest (minority_below) or highest, or of that starting tail where
-    sharpening finds no cut; the smaller side is the minority."""
-    size = first_look(signal, minority_share, level, level)
+    """The StateSplit placing n fresh members of draw, n = first_look at the
+    level each suffix is tested at, by the _fitted cut over the suffixes marked
+    placing for the labels of n others: those _sharpened gives over every
+    suffix, starting from the minority_share of the n whose counts over the
+    suffixes _going_with picks are lowest (minority_below) or highest, or that
+    starting tail where sharpening finds no cut; the smaller side is the
+    minority.  None if no suffix marked placing goes with the labels."""
+    size = first_look(signal, minority_share, level / len(suffixes), level)
     picking = draw(size)
     reads = _reads(oracle, picking, suffixes)
     empty = np.asarray(oracle.membership_queries(picking), dtype=np.int8)
     picked = _going_with(reads, empty)
     weights = -np.ones(len(picked)) if minority_below else np.ones(len(picked))
-    scores = reads[:, picked] @ weights
-    inside = _tail(scores, math.ceil(minority_share * size), rng, True)
-    sharpened = _sharpened(reads, inside, level)
-    if sharpened is None:
-        chosen, cut = [suffixes[k] for k in picked], scores[inside].min()
-    else:
-        kept, weights, count = sharpened
-        chosen = [suffixes[k] for k in kept]
-        # A count of agreeing reads is the weighted reads plus the flipped ones.
-        cut = count - (weights < 0).sum()
+    labels = _tail(
+        reads[:, picked] @ weights, math.ceil(minority_share * size), rng, True
+    )
+    sharpened = _sharpened(reads, labels, level)
+    if sharpened is not None:
+        labels = _agreeing(reads, *sharpened[:2]) >= sharpened[2]
+    placeable = np.flatnonzero(placing)
+    fit = _fitted(reads[:, placeable], labels, level)
+    if fit is None:
+        return None
+    kept, weights, count = fit
+    chosen = [suffixes[placeable[k]] for k in kept]
+    # A count of agreeing reads is the weighted reads plus the flipped ones.
+    cut = count - (weights < 0).sum()
     testing = draw(size)
     scores = _reads(oracle, testing, chosen) @ weights
     if (scores >= cut).mean() > 1 / 2:
@@ -184,7 +209,8 @@ def split_members(
 
 def state_split(pst, dfa, state, family, *, minority_share, level):
     """(split_members of members aimed at state, read on family and fresh
-    suffixes, the aim); None where nothing aims at state."""
+    suffixes and placed by the fresh ones the table does not hold, the aim);
+    None where nothing aims at state or split_members finds no split."""
     aim = aim_at(pst, dfa, state)
     if aim is None:
         return None
@@ -192,10 +218,13 @@ def state_split(pst, dfa, state, family, *, minority_share, level):
         pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
         for _ in range(fresh_suffixes(level, pst.config.min_suffix_frequency))
     }
-    suffixes = sorted({pst.table.suffix(v) for v in family} | fresh)
+    suffixes = [v for v in sorted({pst.table.suffix(v) for v in family} | fresh) if v]
     split = split_members(
         lambda count: [aim() for _ in range(count)],
-        [v for v in suffixes if v],
+        suffixes,
+        # Members are kept by their noise on the suffixes that place them, so a
+        # suffix a later round reads would read them biased.
+        [not pst.table.contains_suffix(v) for v in suffixes],
         pst.oracle,
         minority_below=state in dfa.final_states,
         minority_share=minority_share,
@@ -203,7 +232,7 @@ def state_split(pst, dfa, state, family, *, minority_share, level):
         level=level,
         rng=pst.rng,
     )
-    return split, aim
+    return None if split is None else (split, aim)
 
 
 class SplitSource(RejectionSource):

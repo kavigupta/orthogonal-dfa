@@ -110,9 +110,12 @@ def _check(masses, p_0, p_1, seed):
         draw.suffix()
         for _ in range(fresh_suffixes(SPLIT_ALPHA, SearchConfig.min_suffix_frequency))
     }
+    family = set(_family(p_0, p_1, seed))
+    suffixes = [v for v in sorted(family | fresh) if v]
     split = split_members(
         draw,
-        [v for v in sorted(set(_family(p_0, p_1, seed)) | fresh) if v],
+        suffixes,
+        [v not in family for v in suffixes],
         _oracle(p_0, p_1, seed),
         minority_below=True,
         minority_share=masses["Q"] / sum(masses.values()),
@@ -126,6 +129,7 @@ def _check(masses, p_0, p_1, seed):
 class TestOppositeLabelsSplit(unittest.TestCase):
     def _assert_split_along(self, masses, p_0, p_1, seed):
         split, truth = _check(masses, p_0, p_1, seed)
+        self.assertIsNotNone(split, "no suffix the family lacks places the minority")
         # The next round holds each side as a population, and the gate's veto is
         # sized for one a family reads nearly all backwards.
         minority = Counter(truth[m] for m in split.groups[True])
