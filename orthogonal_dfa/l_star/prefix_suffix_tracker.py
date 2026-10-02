@@ -59,7 +59,7 @@ class SearchConfig:
     #: Require the suffix family to be accept-preserving.  Only meaningful where
     #: such a family exists, which is the class-preserving precondition; a caller
     #: learning a target that fails it turns this off.
-    require_accept_preserving: bool = True
+    require_accept_preserving: bool = False
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
