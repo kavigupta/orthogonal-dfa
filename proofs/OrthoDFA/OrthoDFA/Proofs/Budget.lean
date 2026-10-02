@@ -816,7 +816,7 @@ def ClusteringGuaranteeAll : Prop :=
           104
           * (populations.card : ℝ) ^ 2
           * Real.log (((populations.card : ℝ) + 2) * ((B.nsuff : ℝ) + 2) / δ)
-          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 2)
+          / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
         ) ∧
         (∀ B ∈ states,
           (B.k : ℝ) ≤ 64 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
