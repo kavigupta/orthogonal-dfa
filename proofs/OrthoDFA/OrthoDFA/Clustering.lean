@@ -389,10 +389,22 @@ draws carry independent noise only where they are distinct; `S` is countable, so
 zero and the claim asks only that it be small. -/
 noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {a}) ^ 2
 
-/-- The finest rate the round resolves: the coverage asked for, the signal, one prefix in the
-veto's draws over every population, and the indecision limit. -/
-noncomputable def cutScale (populations : Finset J) (η₀ indecisionLimit εcov : ℝ) (v : ℕ) : ℝ :=
-  min εcov (min (1 / 2 - η₀) (min (1 / ((populations.card : ℝ) * v)) indecisionLimit))
+/-- How many prefixes the family flips heavily at a population's veto draw may hold, the round
+still passing with constant chance: each lets a side's test fire at most three times as often. -/
+noncomputable def vetoSlack (α : ℝ) : ℕ := min 8 ⌊Real.log (1 / (2 * α)) / Real.log 3⌋₊
+
+/-- The miscut rate a population's veto draws of `v` prefixes tolerate: few enough that a draw
+holds at most `vetoSlack α` the family flips heavily at, and rarely one it misreads otherwise. -/
+noncomputable def vetoScale (populations : Finset J) (α crossLimit : ℝ) (v : ℕ) : ℝ :=
+  min (8 * ((((vetoSlack α + 1).factorial : ℕ) : ℝ) / (8 * (populations.card : ℝ)))
+      ^ (((vetoSlack α + 1 : ℕ) : ℝ)⁻¹) / v)
+    (2 / ((populations.card : ℝ) * v * crossLimit))
+
+/-- The finest rate the round resolves: the coverage asked for, the signal, what the veto's
+draws tolerate, and the indecision limit. -/
+noncomputable def cutScale (populations : Finset J) (η₀ indecisionLimit εcov α crossLimit : ℝ)
+    (v : ℕ) : ℝ :=
+  min εcov (min (1 / 2 - η₀) (min (vetoScale populations α crossLimit v) indecisionLimit))
 
 /-! ## The theorem -/
 
@@ -411,8 +423,8 @@ The algorithm is told only an upper bound `η₀` on the noise rate.  `uni` is t
 the one population the gate admits on.  `pAP` lower-bounds the share of suffixes that preserve
 membership for every prefix, `cap` bounds the collision mass, `a` is `num_addtl_prefixes` and
 `v` is `veto_size`.  The veto's sample does not grow with the table, so the round passes only
-once a draw of `v` prefixes from every population holds none the family flips heavily at, which
-is why `1/(|populations|·v)` is in `cutScale`. -/
+once a draw of `v` prefixes from a population rarely holds more than `vetoSlack α` the family
+flips heavily at, which is why `vetoScale` is in `cutScale`. -/
 def ClusteringGuarantee : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
@@ -451,9 +463,9 @@ def ClusteringGuarantee : Prop :=
           * (populations.card : ℝ) ^ 2
           * Real.log (
             ((populations.card : ℝ) + 2) * B.nsuff
-            / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov v)
+            / (δ * α * pAP * cutScale populations η₀ indecisionLimit εcov α crossLimit v)
           )
-          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov v ^ 2)
+          / ((1 / 2 - η₀) ^ 4 * cutScale populations η₀ indecisionLimit εcov α crossLimit v ^ 2)
         ) ∧
         (∃ B ∈ states, (B.npref : ℝ) ≤
           104
@@ -462,10 +474,10 @@ def ClusteringGuarantee : Prop :=
           / ((1 / 2 - η₀) ^ 4 * min εcov indecisionLimit ^ 2)
         ) ∧
         (∀ B ∈ states,
-          (B.k : ℝ) ≤ 64 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
+          (B.k : ℝ) ≤ 64 * Real.log (2 / (cutScale populations η₀ indecisionLimit εcov α crossLimit v * crossLimit))
             / (1 / 2 - η₀) ^ 2
           ∧ (B.nsuff : ℝ) ≤ 128 * Real.log
-                (2 / (cutScale populations η₀ indecisionLimit εcov v * crossLimit))
+                (2 / (cutScale populations η₀ indecisionLimit εcov α crossLimit v * crossLimit))
               / ((1 / 2 - η₀) ^ 2 * pAP)
             + 16 * Real.log (((populations.card : ℝ) + 2) / δ) / pAP ^ 2) ∧
         (∀ B ∈ states, ∀ F : Finset S, F.card + 1 ≤ B.k → ∀ p,
