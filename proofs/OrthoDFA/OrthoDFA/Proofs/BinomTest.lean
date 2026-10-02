@@ -364,4 +364,105 @@ theorem upperTest_valid (O : Oracle μ S) (R : Finset S) {p₀ L : ℝ} (hL : 0 
     refine le_trans (le_of_eq ?_) (hc.trans (Finset.mem_filter.1 (K.max'_mem hKne)).2)
     congr!
 
+/-- `k` more trials that all fail keep a count at or below `j`. -/
+lemma binomCdfLe_add_ge (n k j : ℕ) {p : ℝ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) :
+    (1 - p) ^ k * binomCdfLe n p j ≤ binomCdfLe (n + k) p j := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    have step : (1 - p) * binomCdfLe (n + k) p j ≤ binomCdfLe (n + k + 1) p j := by
+      rcases j with _ | j
+      · rw [binomCdfLe_succ_zero]
+      · rw [binomCdfLe_succ_succ]
+        have := binomCdfLe_nonneg (n + k) j hp0 hp1
+        nlinarith
+    calc (1 - p) ^ (k + 1) * binomCdfLe n p j = (1 - p) * ((1 - p) ^ k * binomCdfLe n p j) := by
+          ring
+      _ ≤ (1 - p) * binomCdfLe (n + k) p j := mul_le_mul_of_nonneg_left ih (by linarith)
+      _ ≤ binomCdfLe (n + (k + 1)) p j := by rw [← add_assoc]; exact step
+
+open scoped Classical in
+/-- A count's lower-tail test over `A` when only the bits of `G ⊆ A` are each set at least as
+often as the null's rate: the other `#A − #G` can make it fire, but at most `(1 − p₀)⁻¹` times as
+often apiece. -/
+theorem count_impure_le (O : Oracle μ S) (T : S → Set ℝ) (hT : ∀ p, MeasurableSet (T p))
+    {p₀ L : ℝ} (hL : 0 ≤ L) (hp0 : 0 ≤ p₀) (hp1 : p₀ < 1) (A G : Finset S) (hGA : G ⊆ A)
+    (hG : ∀ p ∈ G, p₀ ≤ μ.real {ω | O.noise p ω ∈ T p}) :
+    μ.real {ω | binomCdfLe A.card p₀ (A.filter (fun p => O.noise p ω ∈ T p)).card ≤ L}
+      ≤ L / (1 - p₀) ^ (A.card - G.card) := by
+  classical
+  have hq : 0 < (1 - p₀) ^ (A.card - G.card) := pow_pos (by linarith) _
+  set K := (Finset.range (A.card + 1)).filter (fun j => binomCdfLe A.card p₀ j ≤ L) with hK
+  have hin : ∀ ω, binomCdfLe A.card p₀ (A.filter (fun p => O.noise p ω ∈ T p)).card ≤ L →
+      (A.filter (fun p => O.noise p ω ∈ T p)).card ∈ K := fun ω h =>
+    Finset.mem_filter.2 ⟨Finset.mem_range.2 (Nat.lt_succ_of_le (Finset.card_filter_le _ _)), h⟩
+  rcases K.eq_empty_or_nonempty with hKe | hKne
+  · have hz : {ω | binomCdfLe A.card p₀ (A.filter (fun p => O.noise p ω ∈ T p)).card ≤ L}
+        = (∅ : Set Ω) := by
+      ext ω
+      simp only [Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      intro h
+      have := hin ω h
+      rw [hKe] at this
+      simp at this
+    rw [hz, measureReal_empty]
+    exact div_nonneg hL hq.le
+  · set kstar := K.max' hKne with hkstar
+    have hsub : {ω | binomCdfLe A.card p₀ (A.filter (fun p => O.noise p ω ∈ T p)).card ≤ L}
+        ⊆ {ω | (G.filter (fun p => O.noise p ω ∈ T p)).card ≤ kstar} := by
+      intro ω h
+      exact le_trans (Finset.card_le_card (Finset.filter_subset_filter _ hGA)) (K.le_max' _ (hin ω h))
+    refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+    refine le_trans (count_le_binomCdfLe O T hT hp0 hp1.le G hG kstar) ?_
+    rw [le_div_iff₀ hq]
+    have hadd := binomCdfLe_add_ge G.card (A.card - G.card) kstar hp0 hp1.le
+    rw [Nat.add_sub_cancel' (Finset.card_le_card hGA)] at hadd
+    have hkL := (Finset.mem_filter.1 (K.max'_mem hKne)).2
+    linarith [mul_comm ((1 - p₀) ^ (A.card - G.card)) (binomCdfLe G.card p₀ kstar)]
+
+open scoped Classical in
+/-- `lowerTest_valid` with only `G ⊆ A` read at the null's rate or more. -/
+theorem lowerTest_impure (O : Oracle μ S) (A G : Finset S) (hGA : G ⊆ A) {p₀ L : ℝ}
+    (hL : 0 ≤ L) (hp0 : 0 ≤ p₀) (hp1 : p₀ < 1) (hG : ∀ p ∈ G, p₀ ≤ μ.real {ω | O.mq p ω = 1}) :
+    μ.real {ω | binomCdfLe A.card p₀ (A.filter (fun p => O.mq p ω = 1)).card ≤ L}
+      ≤ L / (1 - p₀) ^ (A.card - G.card) :=
+  count_impure_le O _ (measurableSet_mqSet O) hL hp0 hp1 A G hGA hG
+
+open scoped Classical in
+/-- `upperTest_valid` with only `G ⊆ R` read at the null's rate or less. -/
+theorem upperTest_impure (O : Oracle μ S) (R G : Finset S) (hGR : G ⊆ R) {p₀ L : ℝ}
+    (hL : 0 ≤ L) (hp0 : 0 < p₀) (hp1 : p₀ ≤ 1) (hG : ∀ p ∈ G, μ.real {ω | O.mq p ω = 1} ≤ p₀) :
+    μ.real {ω | binomSfGe R.card p₀ (R.filter (fun p => O.mq p ω = 1)).card ≤ L}
+      ≤ L / p₀ ^ (R.card - G.card) := by
+  classical
+  set T' : S → Set ℝ := fun p => ((fun r => O.label p + (1 - 2 * O.label p) * r) ⁻¹' {1})ᶜ
+    with hT'
+  have hT'm : ∀ p, MeasurableSet (T' p) := fun p => (measurableSet_mqSet O p).compl
+  have hmiss : ∀ p ∈ G, 1 - p₀ ≤ μ.real {ω | O.noise p ω ∈ T' p} := by
+    intro p hp
+    have hc : {ω | O.noise p ω ∈ T' p} = {ω | O.mq p ω = 1}ᶜ := rfl
+    have hmeas : MeasurableSet {ω | O.mq p ω = 1} := (O.noise_meas p) (measurableSet_mqSet O p)
+    rw [hc, measureReal_compl hmeas, probReal_univ]
+    linarith [hG p hp]
+  have hcnt : ∀ ω, (R.filter (fun p => O.noise p ω ∈ T' p)).card
+      = R.card - (R.filter (fun p => O.mq p ω = 1)).card := by
+    intro ω
+    have h := Finset.card_filter_add_card_filter_not (s := R) (fun p => O.mq p ω = 1)
+    have : R.filter (fun p => O.noise p ω ∈ T' p) = R.filter (fun p => ¬ O.mq p ω = 1) := rfl
+    rw [this]
+    omega
+  have hsub : {ω | binomSfGe R.card p₀ (R.filter (fun p => O.mq p ω = 1)).card ≤ L}
+      ⊆ {ω | binomCdfLe R.card (1 - p₀) (R.filter (fun p => O.noise p ω ∈ T' p)).card ≤ L} := by
+    intro ω h
+    simp only [Set.mem_setOf_eq] at h ⊢
+    have hle : (R.filter (fun p => O.mq p ω = 1)).card ≤ R.card := Finset.card_filter_le _ _
+    rw [hcnt ω, binomCdfLe_eq _ _ _ (Nat.sub_le _ _), sub_sub_cancel,
+      Nat.sub_sub_self hle]
+    exact h
+  refine le_trans (measureReal_mono hsub (measure_ne_top _ _)) ?_
+  have h := count_impure_le O T' hT'm hL (by linarith) (by linarith) R G hGR hmiss
+  rw [sub_sub_cancel] at h
+  refine le_trans (le_of_eq ?_) h
+  congr!
+
 end OrthoDFA

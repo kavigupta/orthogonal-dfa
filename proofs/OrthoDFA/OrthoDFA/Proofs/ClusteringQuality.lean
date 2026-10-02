@@ -426,18 +426,16 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   have hη0 : 0 ≤ η₀ := le_trans (eta_nonneg O) hηle
   -- the proof runs at a cut budget small against the signal and one prefix in the veto's draws
   obtain ⟨εcov, hεdef⟩ : ∃ e : ℝ, e = min εcov₀ (min (1 / 2 - η₀)
-      (1 / ((populations.card : ℝ) * v))) := ⟨_, rfl⟩
+      (vetoScale populations α crossLimit v)) := ⟨_, rfl⟩
   have hcardR : (0 : ℝ) < (populations.card : ℝ) := by exact_mod_cast Finset.card_pos.2 hpop
   have hvR : (0 : ℝ) < (v : ℝ) := by exact_mod_cast hv0
   have hε : 0 < εcov := by
-    rw [hεdef]; exact lt_min hε₀ (lt_min (by linarith) (by positivity))
+    rw [hεdef]
+    exact lt_min hε₀ (lt_min (by linarith) (vetoScale_pos populations hcardR hvR hstr))
   have hε1 : εcov ≤ 1 := by rw [hεdef]; exact le_trans (min_le_left _ _) hε1₀
   have hεle : εcov ≤ εcov₀ := by rw [hεdef]; exact min_le_left _ _
-  have hveto : (populations.card : ℝ) * v * εcov ≤ 1 := by
-    have h : εcov ≤ 1 / ((populations.card : ℝ) * v) := by
-      rw [hεdef]; exact min_le_of_right_le (min_le_right _ _)
-    rw [le_div_iff₀ (by positivity)] at h
-    linarith
+  obtain ⟨hveto1, hveto2⟩ := veto_of_scale populations hcardR hvR hstr hε.le
+    (by rw [hεdef]; exact min_le_of_right_le (min_le_right _ _))
   set N : ℝ := (populations.card : ℝ)
     * (prefCount η₀ populations indecisionLimit εcov δ' α pAP crossLimit : ℝ) with hNdef
   have hN0 : 0 ≤ N := by positivity
@@ -468,7 +466,7 @@ theorem clustering_quality_all : ClusteringQualityAll := by
     hα1 hε hε1 hεle hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
-    (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _)) hv0 hveto
+    (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _)) hv0 hveto1 hveto2 hstr
   -- A finite part of each population's support, off which it has little mass.
   have hF : ∀ j, ∃ F : Finset S, (∀ p ∈ F, p ∈ Pre) ∧ (D j).real (Pre \ ↑F) ≤ slack / 4 :=
     fun j => exists_finset_tail (D j) Pre (by positivity)
