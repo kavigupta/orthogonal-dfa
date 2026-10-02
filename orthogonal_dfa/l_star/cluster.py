@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
@@ -14,9 +15,93 @@ from .statistics import (
 )
 
 
+def _lloyd(rows, centers) -> np.ndarray:
+    """Each row's nearest center, after Lloyd's iterations from centers run until
+    no row changes."""
+    norms = (rows**2).sum(1)
+    centers = np.array(centers, dtype=float)
+    label = None
+    while True:
+        distance = norms[:, None] - 2 * rows @ centers.T + (centers**2).sum(1)
+        new = distance.argmin(1)
+        if label is not None and (new == label).all():
+            return label
+        label = new
+        for g, _ in enumerate(centers):
+            if (label == g).any():
+                centers[g] = rows[label == g].mean(0)
+
+
+def _kmeans(rows, k, rng) -> np.ndarray:
+    """_lloyd from a k-means++ start of k centers."""
+    centers = [rows[rng.integers(len(rows))]]
+    nearest = np.full(len(rows), np.inf)
+    for _ in range(1, k):
+        nearest = np.minimum(nearest, ((rows - centers[-1]) ** 2).sum(1))
+        if not nearest.any():
+            # Every row sits on a center already.
+            break
+        centers.append(rows[rng.choice(len(rows), p=nearest / nearest.sum())])
+    return _lloyd(rows, centers)
+
+
+def _merged(held, groups, alpha) -> List[List[int]]:
+    """Indices into groups, unioned by complete linkage while every pair (a, b)
+    across two unions has
+
+        T = sum_p (mean_a,p - mean_b,p)^2 / (v_p (1 / n_a + 1 / n_b))
+
+    at most the chi-squared quantile at 1 - alpha / pairs, over the columns p
+    of held, one degree of freedom each, v_p the within-group variance of
+    column p and pairs every pair of groups: under one profile T is
+    chi-squared, the means taken as normal, so long as the groups were formed
+    without held.  Each T is taken once, on the groups as given; a union's own
+    mean is never tested, since which groups it holds was chosen on held."""
+    within = sum(((held[g] - held[g].mean(0)) ** 2).sum(0) for g in groups)
+    variance = within / max(1, len(held) - len(groups))
+    readable = variance > 0
+    means = np.array([held[g].mean(0) for g in groups])[:, readable]
+    sizes = np.array([len(g) for g in groups])
+    gaps = ((means[:, None] - means[None]) ** 2 / variance[readable]).sum(2)
+    statistic = gaps / (1 / sizes[:, None] + 1 / sizes[None])
+    pairs = max(1, len(groups) * (len(groups) - 1) // 2)
+    quantile = scipy.stats.chi2.isf(alpha / pairs, readable.sum())
+    unions = [[g] for g in range(len(groups))]
+    while len(unions) > 1:
+        linkage = np.array(
+            [[statistic[np.ix_(a, b)].max() for b in unions] for a in unions]
+        )
+        np.fill_diagonal(linkage, np.inf)
+        a, b = divmod(int(linkage.argmin()), len(unions))
+        if linkage[a, b] > quantile:
+            break
+        unions[a] += unions[b]
+        del unions[b]
+    return unions
+
+
+def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
+    """The rows' _kmeans clusters over the even columns, _merged over the odd
+    ones, each row then moved to its nearest union over the even columns: a
+    cluster that straddles two profiles joins neither, and its rows rejoin the
+    one they are nearest."""
+    fit, held = rows[:, ::2], rows[:, 1::2]
+    label = _kmeans(fit, min(k, len(rows)), rng)
+    groups = [np.flatnonzero(label == g) for g in np.unique(label)]
+    unions = [
+        np.concatenate([groups[g] for g in u]) for u in _merged(held, groups, alpha)
+    ]
+    label = _lloyd(fit, [fit[u].mean(0) for u in unions])
+    return [np.flatnonzero(label == g) for g in np.unique(label)]
+
+
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
+    """The suffixes of the coherent_groups of the pool, other than seed, whose
+    reads covary most with seed's on average, nearest their group's mean
+    first, after seed; at most count of them.  The groups are found without
+    the seed, so a group sharing a misreading cannot pull them toward itself."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -24,32 +109,26 @@ def identify_cluster_around(
     masks = pst.table.observed_masks(candidate, pst.table.representative)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    populations = list(pst.table.population_masks().values())
-    # Only keep clustering while the seed belongs to the cluster.
-    # We want to avoid drifting the cluster center away from the seed, which can
-    # happen if the seed has a very small cluster relative to `count`.
+    reads = masks.astype(float)
+    others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = [seed_local]
-    loss = float("inf")
-    while True:
-        cluster_center = masks[cluster].mean(0) > decision_boundary
-        # A suffix's worst population, which is where the FNR judges the family.
-        disagreements = masks != cluster_center
-        losses = np.max(
-            [disagreements[:, population].mean(1) for population in populations],
-            axis=0,
+    if len(others):
+        rows = reads[others]
+        groups = coherent_groups(
+            rows,
+            # As many clusters as a group the preconditions guarantee, a
+            # min_suffix_frequency share of the pool, needs to get one of its own.
+            math.ceil(1 / pst.config.min_suffix_frequency),
+            pst.config.screening_alpha,
+            pst.rng,
         )
-        # Ties here are common, and breaking them differently each pass churns
-        # the family; every suffix that joins it costs a column of queries.
-        nearest = losses.argsort(kind="stable")[:count]
-        if losses[seed_local] > losses[nearest[-1]]:
-            break
-        if seed_local not in nearest:
-            # The check above did not fire, so the seed is out on a tie.
-            nearest[-1] = seed_local
-        new_loss = losses[nearest].sum()
-        if new_loss >= loss:
-            break
-        cluster, loss = nearest, new_loss
+        anchor = reads[seed_local] - reads[seed_local].mean()
+        covariance = (rows - rows.mean(1, keepdims=True)) @ anchor
+        best = max(groups, key=lambda g: covariance[g].mean())
+        spread = ((rows[best] - rows[best].mean(0)) ** 2).sum(1)
+        nearest = best[np.argsort(spread, kind="stable")]
+        cluster += others[nearest[: count - 1]].tolist()
+    cluster_center = reads[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = masks[cluster].mean(0)

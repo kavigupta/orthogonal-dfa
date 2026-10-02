@@ -74,7 +74,13 @@ class RejectionSource(ABC):
 
     def has_sufficient_yield(self) -> bool:
         attempts, accepted = self.proving
-        return sum(self.attempt_draw() for _ in range(attempts)) > accepted
+        landed = 0
+        for tried in range(1, attempts + 1):
+            landed += self.attempt_draw()
+            # The rest cannot change the verdict, and each costs a descent.
+            if landed > accepted or landed + attempts - tried <= accepted:
+                break
+        return landed > accepted
 
     def draw(self) -> bytes:
         """One string from the pool, drawing for more when it runs dry."""
