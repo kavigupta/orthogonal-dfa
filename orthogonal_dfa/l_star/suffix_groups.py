@@ -74,3 +74,36 @@ def nearest_to_anchor_group(rows, anchor, populations, *, k, alpha, rng):
     weight = sum(population / population.sum() for population in populations)
     distance = (rows - rows[best].mean(0)) ** 2 @ weight
     return np.argsort(distance, kind="stable")
+
+
+def aligned_suffixes(rows, anchor, populations, rates, *, epsilon, alpha):
+    """The rows whose share of each population read in another class than
+    anchor's is at most epsilon / 2 by the bound below, smallest largest bound
+    first.  For population j and rates = (p_0, p_1),
+
+        U_j(v) = sum_p [ (x_vp - y_p)^2 - 2 p_0 p_1 - (1 - p_0 - p_1)(x_vp + y_p) ]
+
+    over j's columns p, y the anchor's reads, has expectation (p_1 - p_0)^2
+    times the columns of j where v and anchor read in different classes: a
+    column read at r by both adds -2 (r - p_0)(r - p_1) = 0.  Its terms are
+    independent and in an interval of width w, so with probability at least
+    1 - alpha over every row and population at once that share is at most
+
+        (U_j + w sqrt(n_j log(rows populations / alpha) / 2)) / ((p_1 - p_0)^2 n_j).
+    """
+    if rows.shape[0] == 0:
+        return np.zeros(0, dtype=int)
+    p_0, p_1 = rates
+    # A column's term where both read 0, where one does, and where both read 1.
+    terms = -2 * p_0 * p_1 + np.array([0, p_0 + p_1, 2 * (p_0 + p_1 - 1)])
+    width = terms.max() - terms.min()
+    log_tests = np.log(len(rows) * len(populations) / alpha)
+    worst = np.zeros(len(rows))
+    for population in populations:
+        x, y, n = rows[:, population], anchor[population], population.sum()
+        ones = x.sum(1) + y.sum()
+        u = (p_0 + p_1) * ones - 2 * x @ y - 2 * n * p_0 * p_1
+        share = (u + width * np.sqrt(n * log_tests / 2)) / ((p_1 - p_0) ** 2 * n)
+        worst = np.maximum(worst, share)
+    kept = np.flatnonzero(worst <= epsilon / 2)
+    return kept[np.argsort(worst[kept], kind="stable")]
