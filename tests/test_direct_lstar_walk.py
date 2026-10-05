@@ -11,7 +11,11 @@ up as a state count that also moves for unrelated reasons.
 import unittest
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.transition_resolver import _RESOLVED, TransitionResolver
+from orthogonal_dfa.l_star.transition_resolver import (
+    _RESOLVED,
+    _UNCHECKED,
+    TransitionResolver,
+)
 
 
 class _StubSifter:
@@ -95,7 +99,7 @@ class TestProcessAnchor(unittest.TestCase):
         sifter = _StubSifter(places_at=99)
         learner = _Learner(sifter)
 
-        self.assertEqual(learner._process([0, 1, 0], DELTA), _RESOLVED)
+        self.assertEqual(learner._process([0, 1, 0], DELTA), _UNCHECKED)
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])

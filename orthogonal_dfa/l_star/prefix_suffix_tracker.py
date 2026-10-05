@@ -119,6 +119,9 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
+    #: The configured limit, halved after each round whose probes since its last
+    #: split were mostly unchecked.
+    fnr_limit: float = field(init=False)
 
     @property
     def num_prefixes(self) -> int:
@@ -127,6 +130,14 @@ class PrefixSuffixTracker:
     @property
     def alphabet_size(self) -> int:
         return self.oracle.alphabet_size
+
+    def __post_init__(self):
+        self.fnr_limit = self.config.fnr_limit
+
+    @property
+    def acceptable_fnr(self) -> float:
+        # At the configured ratio to the limit, which a clean family must stay below.
+        return self.fnr_limit * self.config.acceptable_fnr / self.config.fnr_limit
 
     @property
     def accept_thresh(self) -> float:

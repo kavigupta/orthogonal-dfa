@@ -41,12 +41,16 @@ from .suffix_family import SuffixFamily
 _RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
+_UNCHECKED = 3  # counted clean, but indecision kept the probe from being checked
 
 
 class TransitionResolver:
     def __init__(self, pst, vs):
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
+        #: Probes since the pass's last split, and how many of them were unchecked.
+        self.quiet_probes = 0
+        self.unchecked_quiet_probes = 0
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
@@ -121,23 +125,27 @@ class TransitionResolver:
         behave differently under one more symbol, so the leaf is split -- the same
         counterexample the outer loop used to defer by adding a prefix and
         rebuilding. Stops after ``patience`` consecutive clean probes."""
-        since_split = 0
+        self.quiet_probes = self.unchecked_quiet_probes = 0
         delta = self._total_delta()
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
-                since_split = 0 if status in (_SPLIT, _UNDECIDED) else since_split + 1
+                if status in (_SPLIT, _UNDECIDED):
+                    self.quiet_probes = self.unchecked_quiet_probes = 0
+                else:
+                    self.quiet_probes += 1
+                    self.unchecked_quiet_probes += status == _UNCHECKED
                 # A split drops edges and rewrites the state set, and any probe may
                 # have read successors a re-vote counts.
                 self.edges.close()
                 delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
-                    clean=f"{since_split}/{patience}",
+                    clean=f"{self.quiet_probes}/{patience}",
                     refresh=False,
                 )
                 pbar.update(1)
-                if since_split >= patience:
+                if self.quiet_probes >= patience:
                     break
 
     def _total_delta(self):
@@ -167,7 +175,7 @@ class TransitionResolver:
         then act on where the walk and a fresh sift disagree."""
         start, states = anchored_walk(w, self._sift, delta)
         if start is None:
-            return _RESOLVED
+            return _UNCHECKED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
         # only reaches deep leaves; short anchor prefixes are what give the shallow
         # leaves enough members for the one-state test to settle them.
@@ -177,11 +185,13 @@ class TransitionResolver:
     def _act_on_disagreement(self, w, states, agree_point):
         state = states[-1]
         actual = self._sift(w)
-        if actual is None or state is None or actual == state:
+        if actual is None:
+            return _UNCHECKED
+        if state is None or actual == state:
             return _RESOLVED
         fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
         if fd is None:
-            return _RESOLVED
+            return _UNCHECKED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
         if s1 is None or s2 is None:
             return _RESOLVED
