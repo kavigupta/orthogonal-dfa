@@ -353,8 +353,8 @@ noncomputable def collisionMass (Dj : Measure S) : ℝ := ∑' a : S, (Dj.real {
 
 /-- The E-L\* clustering algorithm is correct at a polynomial cost.  With probability
 `≥ 1 − δ` the loop stops at one of `states`, and the family it returns there cuts `≥ 1 − εcov`
-of each population the way the noiseless oracle does and leaves at most `2·indecisionLimit`
-of it undecided; no state draws more prefixes than the first count below, nor asks for a family
+of the uniform pool the way the noiseless oracle does, reads no other population backwards (cuts
+at least half of it that way), and leaves at most `2·indecisionLimit` of each undecided; no state draws more prefixes than the first count below, nor asks for a family
 or a suffix pool larger than the sizes below.  Some
 state draws no more than the second count, which is what validity alone costs, so a stop is
 covered from there; the first count is what the loop may need before a round passes.  Every
@@ -427,7 +427,10 @@ def ClusteringGuarantee : Prop :=
                 x ∈ ret O.mq populations uni indecisionLimit α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
               x ∈ ret O.mq populations uni indecisionLimit α B.val →
-              ∀ j ∈ populations, 1 - εcov
+              1 - εcov
+                ≤ (D uni).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
+                    (familyAt O.mq populations x B.val) p (oracleNoise x)}
+              ∧ ∀ j ∈ populations, 1 / 2
                 ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                     (familyAt O.mq populations x B.val) p (oracleNoise x)}
                 ∧ (D j).real {p | ¬ decided O.mq B.val.lo (B.val.hi + 1)
