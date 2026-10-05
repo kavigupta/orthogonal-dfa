@@ -77,7 +77,7 @@ def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
     return max((error(p) for p in corners if least <= p <= most), key=lambda e: e.sum())
 
 
-def _intervals(hits, trials, level):
+def clopper_pearson(hits, trials, level):
     """Per entry, the success probabilities (p_low, p_high) solving
 
         P(Binomial(trials, p_low) >= hits) = level / 2,
@@ -137,8 +137,8 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         np.add.at(drawn, reached, 1)
         np.add.at(ones, reached, pst.oracle.membership_queries(strings))
         level = look_level(alpha, look) / (2 * len(states))
-        masses = _intervals(drawn, np.full(len(states), size), level)
-        rates = _intervals(ones, drawn, level)
+        masses = clopper_pearson(drawn, np.full(len(states), size), level)
+        rates = clopper_pearson(ones, drawn, level)
         bound = error_bound(masses, rates, accepting, gap)
         shares, read = drawn / size, ones / np.maximum(drawn, 1)
         blame = worst_contributions(

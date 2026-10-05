@@ -35,17 +35,27 @@ at one rate.
 
 Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
 reads the uniform pool's first `npref + e`, for any `e`.  The Python reads the gate on
-`min(representative, certification_budget)` draws, then once more on as many as
-`prefixes_to_certify` asks for.
+`min(alignment_size, certification_budget)` draws from every population, then once more on as
+many as `prefixes_to_certify` asks for from the one left undecided.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
 The table's votes are fitted to its noise and read as more decisive than they are, so the
 claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
-Known modelling gap.  `drift_verdict` also lets the state populations veto a family, testing
-each side at `α/num_tests` on `veto_size` draws; `ret` has no veto.  The Python's FNR also reads
-1 for a family that decides no prefix one of the two ways, which `ret` does not.
+Known modelling gap.  `drift_verdict` admits a family when, for every population drawn,
+`misclassified_bounds` bounds the share of that population's distribution its cut at the boundary
+misclassifies by `max_coverage_error`: Clopper-Pearson intervals on each side's share and on the
+seed's rate there, maximised over the offset as `certificate.error_bound` does.  `admitted` is the
+earlier test, the cut's agreement with the seed beating `1/2` on the uniform pool alone, so the
+claim here does not yet cover what the Python admits.  The Python's FNR also reads 1 for a family
+that decides no prefix one of the two ways, which `ret` does not.
+
+Known modelling gap.  `sample_suffix_family` also offers the gate `aligned_family` when the
+clustered family fails: the pool's suffixes whose Hoeffding bound on the share of each population
+they read in another class than the seed is within half of `max_coverage_error`, at the rates
+`decision_boundary ∓ min_signal_strength`.  That family is what makes some family pass once the
+pool and the prefixes are large enough; the loop here offers only the clustered one.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
@@ -57,7 +67,8 @@ one pool size, and the claim covers a stop only at a rung of at least `validCoun
 Python grows the table as it goes, by `num_addtl_prefixes` prefixes or a cohort of suffixes after
 each refusal, and stops at whatever table a round first passes on, which the claim need not
 cover.  It also gives up after `ACCEPT_PRESERVING_GIVE_UP` refusals by the gate, where the loop
-here never does.
+here never does: the give-up bounds a search on a target with no accept-preserving family, so a
+run cannot hang, and the claim that a large enough table admits a family sets it aside.
 -/
 
 namespace OrthoDFA
