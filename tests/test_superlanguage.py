@@ -250,7 +250,7 @@ class TestSuffixFamily(unittest.TestCase):
         wanted = smallest_readable_family(
             pst.config.min_signal_strength,
             pst.decision_boundary,
-            read_rates(pst.config, pst.decision_boundary),
+            read_rates(pst, pst.decision_boundary),
         )
         family, seen = [], set()
         # Bounded: if the wildcard-only suffixes ever stop being plentiful this

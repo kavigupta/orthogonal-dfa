@@ -119,7 +119,8 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
-    #: Halved each round whose counterexample searches mostly block.
+    #: Halved each round whose counterexample searches mostly block.  Scales
+    #: `acceptable_fnr` with `fnr_limit`, which a clean family must stay below.
     fnr_scale: float = 1.0
 
     @property
@@ -133,6 +134,10 @@ class PrefixSuffixTracker:
     @property
     def fnr_limit(self) -> float:
         return self.config.fnr_limit * self.fnr_scale
+
+    @property
+    def acceptable_fnr(self) -> float:
+        return self.config.acceptable_fnr * self.fnr_scale
 
     @property
     def accept_thresh(self) -> float:
