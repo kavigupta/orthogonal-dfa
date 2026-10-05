@@ -35,11 +35,12 @@ def identify_cluster_around(
         order = nearest_to_anchor_group(
             reads[others],
             reads[seed_local],
+            list(pst.table.population_masks().values()),
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
-            math.ceil(1 / pst.config.min_suffix_frequency),
-            pst.config.screening_alpha,
-            pst.rng,
+            k=math.ceil(1 / pst.config.min_suffix_frequency),
+            alpha=pst.config.screening_alpha,
+            rng=pst.rng,
         )
         cluster += others[order[: count - 1]].tolist()
     cluster_center = reads[cluster].mean(0) > decision_boundary
