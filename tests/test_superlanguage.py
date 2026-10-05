@@ -265,7 +265,7 @@ class TestSuffixFamily(unittest.TestCase):
         self.assertEqual(len(family), wanted)
         pst.table.observed_masks(family, np.ones(pst.num_prefixes, dtype=bool))
         # An uninformative family scores 1, so this is the whole question.
-        self.assertLessEqual(pst.compute_fnr(family), pst.config.fnr_limit)
+        self.assertLessEqual(pst.compute_fnr(family), pst.fnr_limit)
 
     def test_one_wildcard_leaves_nothing_to_build_a_family_from(self):
         vocab = KmerVocabulary(

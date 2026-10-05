@@ -119,6 +119,8 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
+    #: Halved each round whose counterexample searches mostly block.
+    fnr_scale: float = 1.0
 
     @property
     def num_prefixes(self) -> int:
@@ -127,6 +129,10 @@ class PrefixSuffixTracker:
     @property
     def alphabet_size(self) -> int:
         return self.oracle.alphabet_size
+
+    @property
+    def fnr_limit(self) -> float:
+        return self.config.fnr_limit * self.fnr_scale
 
     @property
     def accept_thresh(self) -> float:

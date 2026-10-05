@@ -47,6 +47,8 @@ class TransitionResolver:
     def __init__(self, pst, vs):
         self.pst = pst
         self.indecisive = set()  # boundary strings the family could not place
+        #: Disagreement searches the pass could and could not place an edge for.
+        self.searches = {"localized": 0, "blocked": 0}
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
@@ -181,7 +183,9 @@ class TransitionResolver:
             return _RESOLVED
         fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
         if fd is None:
+            self.searches["blocked"] += 1
             return _RESOLVED
+        self.searches["localized"] += 1
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
         if s1 is None or s2 is None:
             return _RESOLVED

@@ -447,7 +447,7 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
-    if fnr > pst.config.fnr_limit:
+    if fnr > pst.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
     # Certify only right before returning, as certifying is expensive.
     verdict, blamed = gate.verdict(pst, v, vs)
@@ -501,7 +501,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
 
         judged = judge_family(pst, gate, v, vs, family_size)
 
-        if judged.fnr <= pst.config.fnr_limit:
+        if judged.fnr <= pst.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"
