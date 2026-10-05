@@ -71,10 +71,10 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def rates_at(pst, decision_boundary):
-    """(p_0, p_1): the boundary -/+ the signal, the rates a round reads at."""
+def round_rates(pst):
+    """(p_0, p_1): the round's boundary -/+ the signal, the rates it reads at."""
     signal = pst.config.min_signal_strength
-    return decision_boundary - signal, decision_boundary + signal
+    return pst.decision_boundary - signal, pst.decision_boundary + signal
 
 
 def read_rates(pst, decision_boundary):
@@ -192,7 +192,7 @@ def _split_counts(pst, reads):
 
 def misclassified_bounds(pst, by_population, level):
     """label -> (bound, at the rates read) on the share of the population's
-    distribution the family's cut misclassifies, at the round's rates_at (p_0, p_1):
+    distribution the family's cut misclassifies, at the round_rates (p_0, p_1):
     a side of the cut reading r holds a share (p_1 - r) / (p_1 - p_0) of
     rejecting prefixes where it accepts and (r - p_0) / (p_1 - p_0) of accepting
     ones where it rejects, clipped to [0, 1].  The bound is the largest such
@@ -206,7 +206,7 @@ def misclassified_bounds(pst, by_population, level):
         if counts[0][1] + counts[1][1]
     }
     each = level / (4 * max(1, len(drawn)))
-    p_0, p_1 = rates_at(pst, pst.decision_boundary)
+    p_0, p_1 = round_rates(pst)
 
     def wrong(accept, reject):
         """Each side's misclassified share at its rate."""
@@ -263,10 +263,10 @@ def drift_verdict(pst, by_population, level):
 
 def alignment_size(pst, populations, limit) -> int:
     """Fewest prefixes at which a cut that misclassifies nothing and halves a
-    population, read at the round's rates_at, gets a misclassified_bounds bound
-    of at most limit at a look's level: the size a population is first drawn
-    at.  Sizing only."""
-    p_0, p_1 = rates_at(pst, pst.decision_boundary)
+    population, read at the round_rates, gets a misclassified_bounds bound of at
+    most limit at a look's level: the size a population is first drawn at.
+    Sizing only."""
+    p_0, p_1 = round_rates(pst)
     size = 2
     while True:
         half = size // 2
@@ -296,8 +296,9 @@ def prefixes_to_certify(pst, counts, label, drawn, vs) -> int:
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would label's
     misclassified_bounds come out decided -- its bound within its
-    misclassification_limit, or its share at the rates read past it?  The first multiple that would is
-    the answer.  Only label is drawn from, so only its counts grow.
+    misclassification_limit, or its share at the rates read past it?  The first
+    multiple that would is the answer.  Only label is drawn from, so only its
+    counts grow.
     """
     budget = certification_budget(pst, vs)
     empty = ((0, 0), (0, 0))
