@@ -18,9 +18,8 @@ harvesting enough of a state the family leaves undecided.
 
 Known modelling gap.  The gate is `estimate_agreement_rate` against `acc_threshold`, which
 checks that each draw's walk ends in the leaf the tree sifts it to.  Here only the root's
-decision is checked, which is the family's cut, and it is read with the cut's band rather than
-`oracle_decider` at `decision_boundary`.  A draw the tree cannot place is left out there and
-counts as a disagreement here.
+decision is checked: the family's vote, read at the middle of the cut's band as `oracle_decider`
+reads it at `decision_boundary`, so every draw is decided.
 
 Known modelling gap.  Each round draws its suffixes afresh, where `suffix_pool` persists
 across rounds.  A population is only ever judged by suffixes it was not selected with.
@@ -44,7 +43,7 @@ open MeasureTheory ProbabilityTheory
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
 variable {S : Type*} [Stringlike S] {Q R : Type*} [Fintype Q] [Fintype R]
 
-instance : Nonempty State := ⟨⟨0, 0, 0, 0, 0, 0, 0, 0, 0, 0⟩⟩
+instance : Nonempty State := ⟨⟨0, 0, 0, 0, 0, 0, 0⟩⟩
 
 /-- The draws of `a`, then `ε`. -/
 def padded {M : ℕ} (a : Fin M → S) : ℕ → S := fun i => if h : i < M then a ⟨i, h⟩ else 1
@@ -106,13 +105,12 @@ abbrev RoundDraws (S : Type*) (K : ℕ) (R Xs : Type*) (M G Y N m : ℕ) :=
   (Fin M → S) × ((Pop K R → Fin M → S) × (Pop K R → Fin M → S))
     × Xs × (Fin G → S) × (Fin Y → S) × ((Fin N → S) × (Fin m → S))
 
-/-- The family's cut at `B` decides `p`, and the way `H` labels it. -/
+/-- The family's vote on `p`, read at the middle of the cut's band, is the way `H` labels it. -/
 def cutAgrees (O : Oracle μ S) (B : State) (F : Finset S) (H : DFA S R) (p : S) (ω : Ω) :
     Prop :=
-  (B.hi < voteCount O.mq F p ω ∧ H.state p ∈ H.accept)
-    ∨ (voteCount O.mq F p ω ≤ B.lo ∧ H.state p ∉ H.accept)
+  (B.lo + B.hi < 2 * voteCount O.mq F p ω ↔ H.state p ∈ H.accept)
 
-/-- The share of the sampler where `H` and the family's cut do not agree. -/
+/-- The share of the sampler where `H` and the family's vote do not agree. -/
 noncomputable def cutDisagreement (O : Oracle μ S) (B : State) (F : Finset S) (H : DFA S R)
     (Dsamp : Measure S) (ω : Ω) : ℝ :=
   Dsamp.real {p | ¬ cutAgrees O B F H p ω}
