@@ -174,13 +174,15 @@ def certification_sample(pst, vs, by_population):
 
 
 def _split_counts(pst, reads):
-    """label -> ((a_1, n_1), (a_0, n_0)) over the population's prefixes p, with
-    f(p) the family's mean read of p and y(p) the empty suffix's read,
+    """
+    The family's classification of the prefixes when run in "decisive mode" where
+        there is no indecision band; jointly distributed with the oracle's labels.
 
-        n_1 = #{p : f(p) >= b},   a_1 = #{p : f(p) >= b, y(p) = 1},
-        n_0 = #{p : f(p) < b},    a_0 = #{p : f(p) < b, y(p) = 1},
+    Returns label -> ((a_1, n_1), (a_0, n_0)).
 
-    b the decision boundary."""
+        n_i = # of prefixes the class places in class i, decisively
+        a_i = # of prefixes the class places in class i that the oracle assigns a 1 to
+    """
     return {
         label: tuple(
             (int(column[side].sum()), int(side.sum()))
