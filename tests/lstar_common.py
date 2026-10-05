@@ -300,6 +300,9 @@ class _ClusterTable:
     def population_masks(self):
         return {UNIFORM: self.representative}
 
+    def seed_scoring(self):
+        return self.representative
+
 
 def cluster_pst(masks, min_signal_strength, *, seed):
     return SimpleNamespace(
