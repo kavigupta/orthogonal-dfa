@@ -84,11 +84,6 @@ COUNTEREXAMPLE_PROBES = 4000
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
-#: Searches for the edge where the DFA and the tree diverge that a round must see
-#: abandoned, at an undecided sift on the way, before it halves the FNR limit: a
-#: round of a handful of states makes too few for their share to say anything.
-MIN_BLOCKED_SEARCHES = 10
-
 
 def _default_patience(acc_threshold: float) -> int:
     """Consecutive clean probes that end a counterexample pass: seeing this many
@@ -363,16 +358,13 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        # A search needs every read on its way decided, so a family indecisive at a
-        # rate the limit allows can still block most of them.
-        if (
-            resolver.searches["blocked"] >= MIN_BLOCKED_SEARCHES
-            and resolver.searches["blocked"] > resolver.searches["localized"]
-        ):
+        # A probe is checked only if every read on its way is decided, and a family
+        # indecisive at a rate the limit allows can still leave most unchecked.
+        if 2 * resolver.unchecked_quiet_probes > resolver.quiet_probes:
             pst.fnr_scale /= 2
             print(
-                f"[round {index}] {resolver.searches['blocked']} of "
-                f"{sum(resolver.searches.values())} disagreement searches blocked; "
+                f"[round {index}] {resolver.unchecked_quiet_probes} of the "
+                f"{resolver.quiet_probes} probes since the last split unchecked; "
                 f"FNR limit now {pst.fnr_limit:.4f}"
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
