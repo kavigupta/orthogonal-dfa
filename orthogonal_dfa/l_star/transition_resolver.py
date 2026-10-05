@@ -125,28 +125,27 @@ class TransitionResolver:
         behave differently under one more symbol, so the leaf is split -- the same
         counterexample the outer loop used to defer by adding a prefix and
         rebuilding. Stops after ``patience`` consecutive clean probes."""
-        since_split = 0
+        self.quiet_probes = self.unchecked_quiet_probes = 0
         delta = self._total_delta()
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probe_blocks(max_probes):
                 status = self._process(w, delta)
                 if status in (_SPLIT, _UNDECIDED):
-                    since_split = self.unchecked_quiet_probes = 0
+                    self.quiet_probes = self.unchecked_quiet_probes = 0
                 else:
-                    since_split += 1
+                    self.quiet_probes += 1
                     self.unchecked_quiet_probes += status == _UNCHECKED
-                self.quiet_probes = since_split
                 # A split drops edges and rewrites the state set, and any probe may
                 # have read successors a re-vote counts.
                 self.edges.close()
                 delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
-                    clean=f"{since_split}/{patience}",
+                    clean=f"{self.quiet_probes}/{patience}",
                     refresh=False,
                 )
                 pbar.update(1)
-                if since_split >= patience:
+                if self.quiet_probes >= patience:
                     break
 
     def _total_delta(self):
