@@ -13,18 +13,14 @@ from .statistics import (
     low_tail_detection_size,
     population_size_and_evidence_margin,
 )
-from .suffix_groups import coherent_groups
+from .suffix_groups import nearest_to_anchor_group
 
 
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
-    """Seed, then the suffixes of the coherent_group of the rest of the pool
-    whose reads covary most with seed's on average, then every other suffix,
-    each part nearest that group's mean first; count of them in all.  The
-    groups are found without the seed, and the mean is the group's alone, so
-    suffixes that share a misreading cannot pull the family toward
-    themselves."""
+    """Seed, then the first count - 1 of the rest of the pool in
+    nearest_to_anchor_group's order, anchored on seed's reads."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -36,23 +32,16 @@ def identify_cluster_around(
     others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = [seed_local]
     if len(others):
-        rows = reads[others]
-        groups = coherent_groups(
-            rows,
+        order = nearest_to_anchor_group(
+            reads[others],
+            reads[seed_local],
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             math.ceil(1 / pst.config.min_suffix_frequency),
             pst.config.screening_alpha,
             pst.rng,
         )
-        anchor = reads[seed_local] - reads[seed_local].mean()
-        covariance = (rows - rows.mean(1, keepdims=True)) @ anchor
-        best = max(groups, key=lambda g: covariance[g].mean())
-        outside = np.ones(len(rows), dtype=bool)
-        outside[best] = False
-        distance = ((rows - rows[best].mean(0)) ** 2).sum(1)
-        nearest = np.lexsort((distance, outside))
-        cluster += others[nearest[: count - 1]].tolist()
+        cluster += others[order[: count - 1]].tolist()
     cluster_center = reads[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation

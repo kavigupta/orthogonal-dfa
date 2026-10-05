@@ -42,3 +42,14 @@ def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
     centers = np.array([fit[label == u].mean(0) for u in np.unique(label)])
     label = KMeans(len(centers), init=centers, n_init=1).fit_predict(fit)
     return [np.flatnonzero(label == g) for g in np.unique(label)]
+
+
+def nearest_to_anchor_group(rows, anchor, k, alpha, rng) -> np.ndarray:
+    """Every row, nearest first to the mean of the coherent_group whose rows
+    covary most with anchor on average.  The groups are found without anchor and
+    the mean is that group's alone, so rows that share a misreading cannot pull
+    the order toward themselves."""
+    groups = coherent_groups(rows, k, alpha, rng)
+    centred = anchor - anchor.mean()
+    best = max(groups, key=lambda g: (rows[g] @ centred).mean())
+    return np.argsort(((rows - rows[best].mean(0)) ** 2).sum(1), kind="stable")
