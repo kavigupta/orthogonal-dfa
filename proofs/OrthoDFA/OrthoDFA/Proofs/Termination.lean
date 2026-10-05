@@ -6,19 +6,28 @@ open MeasureTheory ProbabilityTheory
 
 theorem termination_holds : Termination := by
   intro Ω _ μ _ S _ Q _ J Θ mΘ P _ ℱ A O populations D family gate fails harvest side kept
-    sideKept θs cap cM ρ δc δs δa W hρ hc hIm hI ha
+    sideKept halves halvings kstar θs cap cM ρ δc δs δa W hρ hstep hhalf hcap hc hIm hI ha
   classical
-  set K := (θs.card + 1) * 2 ^ Fintype.card Q + W with hK
+  set K := (θs.card + 1) * 2 ^ Fintype.card Q + kstar + W with hK
   set U : ℝ → ℕ → Θ → Set Q := fun t r θ => undecidedStates A O t (family r θ).1 (family r θ).2
   set M : ℕ → Θ → Set Q := fun r θ => misreadStates A O (family r θ).1 (family r θ).2
   set pools := poolsAt populations D harvest side kept sideKept
-  set I := idleRefusal A O family gate kept harvest θs cap
+  set I := idleRefusal A O family gate kept halves halvings kstar harvest θs cap
   set Bc : ℕ → Set Θ := fun r => {θ | ∃ D' ∈ pools r θ,
-      (∃ t ∈ θs, cap t < D'.real {p | A.state p ∈ U t r θ})
+      (∃ t ∈ θs, cap (halvings r θ) t < D'.real {p | A.state p ∈ U t r θ})
       ∨ cM < D'.real {p | A.state p ∈ M r θ}}
   set Ba : ℕ → Set Θ := fun r => {θ | gate r θ ∧ fails r θ ∧ ¬ (sideKept r θ ∧ ρ < (side r θ).real
       {p | A.state p ∈ M r θ})}
   set Bw : Set Θ := {θ | W ≤ ((Finset.range K).filter (fun r => θ ∈ I r)).card}
+  -- Halvings only accumulate, and each halving round raises the count past it.
+  have hmono : ∀ θ {r s : ℕ}, r ≤ s → halvings r θ ≤ halvings s θ := fun θ _ _ h =>
+    monotone_nat_of_le_succ (fun r => hstep r θ) h
+  have hraise : ∀ θ {r s : ℕ}, r < s → halves r θ → halvings r θ < halvings s θ := by
+    intro θ r s hrs hr
+    have h1 : halvings r θ < halvings (r + 1) θ := by rw [hhalf r θ hr]; omega
+    exact h1.trans_le (hmono θ hrs)
+  have hcapm : ∀ t {k k' : ℕ}, k ≤ k' → cap k' t ≤ cap k t := fun t _ _ h =>
+    antitone_nat_of_succ_le (f := fun k => cap k t) (fun k => hcap k t) h
   have hδs : 0 ≤ δs := by
     have := hI 0 Set.univ MeasurableSet.univ
     simp only [Set.univ_inter, probReal_univ, mul_one] at this
@@ -64,23 +73,29 @@ theorem termination_holds : Termination := by
         fun h => hG (Or.inl (Set.mem_iUnion₂.mpr ⟨r, Finset.mem_range.mpr hr, Or.inr h⟩))⟩
     have hG2 : θ ∉ Bw := fun h => hG (Or.inr h)
     have hc' : ∀ r < K, ∀ D' ∈ pools r θ,
-        (∀ t ∈ θs, D'.real {p | A.state p ∈ U t r θ} ≤ cap t)
+        (∀ t ∈ θs, D'.real {p | A.state p ∈ U t r θ} ≤ cap (halvings r θ) t)
         ∧ D'.real {p | A.state p ∈ M r θ} ≤ cM := by
       intro r hr D' hD'
       have := (hG1 r hr).1
       exact ⟨fun t ht => not_lt.mp fun h => this ⟨D', hD', Or.inl ⟨t, ht, h⟩⟩,
         not_lt.mp fun h => this ⟨D', hD', Or.inr h⟩⟩
     have hs' : ∀ r, ¬ gate r θ → θ ∉ I r →
-        kept r θ ∧ ∃ t ∈ θs, cap t < (harvest r θ).real {p | A.state p ∈ U t r θ} :=
-      fun r hg hi => not_not.mp fun h => hi ⟨hg, h⟩
+        (kept r θ ∧ ∃ t ∈ θs, cap (halvings r θ) t < (harvest r θ).real
+            {p | A.state p ∈ U t r θ})
+        ∨ (halves r θ ∧ halvings r θ < kstar) := by
+      intro r hg hi
+      by_contra h
+      exact hi ⟨hg, fun hk => h (Or.inl hk), fun hh => h (Or.inr hh)⟩
     have ha' : ∀ r < K, gate r θ → fails r θ →
         sideKept r θ ∧ ρ < (side r θ).real {p | A.state p ∈ M r θ} := by
       intro r hr hg hf
       have := (hG1 r hr).2
       exact not_not.mp fun h => this ⟨hg, hf, h⟩
     set R : ℝ → Finset ℕ := fun t => (Finset.range K).filter (fun r =>
-      ¬ gate r θ ∧ kept r θ ∧ cap t < (harvest r θ).real {p | A.state p ∈ U t r θ})
+      ¬ gate r θ ∧ kept r θ ∧ cap (halvings r θ) t < (harvest r θ).real
+        {p | A.state p ∈ U t r θ})
     set F := (Finset.range K).filter (fun r => gate r θ ∧ fails r θ)
+    set H := (Finset.range K).filter (fun r => halves r θ ∧ halvings r θ < kstar)
     set Z := (Finset.range K).filter (fun r => θ ∈ I r)
     have hZ : Z.card < W := not_le.mp hG2
     have hRne : ∀ t ∈ θs, ∀ r ∈ R t, ∀ s ∈ R t, r < s → U t r θ ≠ U t s θ := by
@@ -89,6 +104,7 @@ theorem termination_holds : Termination := by
       have hmem : harvest r θ ∈ pools s θ := Or.inr (Or.inl ⟨r, hrs, hr.2.2.1, rfl⟩)
       have := (hc' s hs.1 _ hmem).1 t ht
       rw [← hU] at this
+      have hle := hcapm t (hmono θ hrs.le)
       linarith [hr.2.2.2]
     have hFne : ∀ r ∈ F, ∀ s ∈ F, r < s → M r θ ≠ M s θ := by
       intro r hr s hs hrs hM
@@ -107,26 +123,39 @@ theorem termination_holds : Termination := by
       · exact absurd hf (h r hr s hs hrs)
       · exact hrs
       · exact absurd hf.symm (h s hs r hr hrs)
-    have hcover : Finset.range K ⊆ θs.biUnion R ∪ F ∪ Z := by
+    have hHcard : H.card ≤ kstar := by
+      rw [← Finset.card_range kstar]
+      refine Finset.card_le_card_of_injOn (fun r => halvings r θ) (fun r hr => ?_) ?_
+      · exact Finset.mem_range.mpr (Finset.mem_filter.mp hr).2.2
+      · intro r hr s hs hf
+        have hr' := (Finset.mem_filter.mp hr).2.1
+        have hs' := (Finset.mem_filter.mp hs).2.1
+        rcases lt_trichotomy r s with hrs | hrs | hrs
+        · exact absurd hf (hraise θ hrs hr').ne
+        · exact hrs
+        · exact absurd hf.symm (hraise θ hrs hs').ne
+    have hcover : Finset.range K ⊆ θs.biUnion R ∪ F ∪ H ∪ Z := by
       intro r hr
       have hr' := Finset.mem_range.mp hr
-      simp only [R, F, Z, Finset.mem_union, Finset.mem_filter, Finset.mem_biUnion]
+      simp only [R, F, H, Z, Finset.mem_union, Finset.mem_filter, Finset.mem_biUnion]
       by_cases hg : gate r θ
-      · exact Or.inl (Or.inr ⟨hr, hg, (hθ r hr').resolve_left (not_not.mpr hg)⟩)
+      · exact Or.inl (Or.inl (Or.inr ⟨hr, hg, (hθ r hr').resolve_left (not_not.mpr hg)⟩))
       · by_cases hi : θ ∈ I r
         · exact Or.inr ⟨hr, hi⟩
-        · obtain ⟨hk, t, ht, hlt⟩ := hs' r hg hi
-          exact Or.inl (Or.inl ⟨t, ht, hr, hg, hk, hlt⟩)
+        · rcases hs' r hg hi with ⟨hk, t, ht, hlt⟩ | hh
+          · exact Or.inl (Or.inl (Or.inl ⟨t, ht, hr, hg, hk, hlt⟩))
+          · exact Or.inl (Or.inr ⟨hr, hh⟩)
     have hRcard : (θs.biUnion R).card ≤ θs.card * 2 ^ Fintype.card Q :=
       (Finset.card_biUnion_le).trans (by
         rw [← smul_eq_mul, ← Finset.sum_const]
         exact Finset.sum_le_sum fun t ht => inj (hRne t ht))
-    have := (Finset.card_le_card hcover).trans
-      ((Finset.card_union_le _ _).trans
-        (Nat.add_le_add_right (Finset.card_union_le (θs.biUnion R) F) _))
-    rw [Finset.card_range] at this
+    have hcard := (Finset.card_le_card hcover).trans
+      ((Finset.card_union_le _ _).trans (Nat.add_le_add_right
+        ((Finset.card_union_le _ _).trans (Nat.add_le_add_right
+          (Finset.card_union_le (θs.biUnion R) F) _)) _))
+    rw [Finset.card_range] at hcard
     have := inj hFne
-    have : K = θs.card * 2 ^ Fintype.card Q + 2 ^ Fintype.card Q + W := by rw [hK]; ring
+    have : K = θs.card * 2 ^ Fintype.card Q + 2 ^ Fintype.card Q + kstar + W := by rw [hK]; ring
     omega
   calc P.real {θ | ∀ r < K, ¬ gate r θ ∨ fails r θ}
       ≤ P.real ((⋃ r ∈ Finset.range K, (Bc r ∪ Ba r)) ∪ Bw) :=
@@ -138,7 +167,8 @@ theorem termination_holds : Termination := by
             ≤ ∑ r ∈ Finset.range K, P.real (Bc r ∪ Ba r) := measureReal_biUnion_finset_le _ _
           _ ≤ ∑ _r ∈ Finset.range K, (δc + δa) := Finset.sum_le_sum fun r _ =>
               (measureReal_union_le _ _).trans (add_le_add (hc r) (ha r))
-    _ = ((θs.card + 1) * 2 ^ Fintype.card Q + W) * (δc + δa) + (K.choose W : ℝ) * δs ^ W := by
+    _ = ((θs.card + 1) * 2 ^ Fintype.card Q + kstar + W) * (δc + δa)
+          + (K.choose W : ℝ) * δs ^ W := by
         rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, hK]
         push_cast
         ring
