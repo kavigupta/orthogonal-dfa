@@ -84,6 +84,10 @@ COUNTEREXAMPLE_PROBES = 4000
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
+#: Blocked disagreement searches a round needs before it halves the FNR limit: a
+#: round of a handful of states makes too few for their share to say anything.
+MIN_BLOCKED_SEARCHES = 10
+
 
 def _default_patience(acc_threshold: float) -> int:
     """Consecutive clean probes that end a counterexample pass: seeing this many
@@ -360,7 +364,10 @@ def counterexample_driven_synthesis(
             return best
         # A search needs every read on its way decided, so a family indecisive at a
         # rate the limit allows can still block most of them.
-        if resolver.searches["blocked"] > resolver.searches["localized"]:
+        if (
+            resolver.searches["blocked"] >= MIN_BLOCKED_SEARCHES
+            and resolver.searches["blocked"] > resolver.searches["localized"]
+        ):
             pst.fnr_scale /= 2
             print(
                 f"[round {index}] {resolver.searches['blocked']} of "
