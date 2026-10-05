@@ -14,6 +14,10 @@ _MISREAD = 1e-5
 _FALSE_DRY = 1e-9
 
 
+class SourceDry(RuntimeError):
+    """A source drew nothing new for as long as its poor rate allows."""
+
+
 def proving_attempts(good, poor):
     """Sizes the test so that P(reject | rate >= ``good``) and
     P(keep | rate <= ``poor``) are both bounded by ``_MISREAD``."""
@@ -98,6 +102,6 @@ class RejectionSource(ABC):
             self.attempt_draw()
         # A draw landing on a string already served is accepted all the same, so
         # the rate alone never says a source is spent.
-        raise RuntimeError(
+        raise SourceDry(
             f"Source {self.source_repr()} found no new samples in {dry} attempts"
         )

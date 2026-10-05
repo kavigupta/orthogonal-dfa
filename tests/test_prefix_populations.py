@@ -11,8 +11,13 @@ from types import SimpleNamespace
 import numpy as np
 
 from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
-from orthogonal_dfa.l_star.prefix_populations import PoolState, grow_population
+from orthogonal_dfa.l_star.prefix_populations import (
+    PoolState,
+    grow_population,
+    prefixes_for_split,
+)
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
+from orthogonal_dfa.l_star.rejection_source import SourceDry
 
 #: Anything: the table below is never asked a membership question.
 _NO_ORACLE = None
@@ -170,6 +175,29 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
         self.assertEqual([("state", 9)], pst.table.dropped)
+
+
+class _RunsDry:
+    """A proven source with members left, which then runs dry."""
+
+    proven = True
+
+    def __init__(self, members):
+        self.members = list(members)
+
+    def draw(self):
+        if not self.members:
+            raise SourceDry("nothing new")
+        return self.members.pop()
+
+
+class TestASplitDrawsWhatThereIs(unittest.TestCase):
+    def test_a_source_that_runs_dry_gives_what_it_drew(self):
+        state = _holding(("state", 0), _RunsDry(_words(3)))
+
+        drawn = prefixes_for_split(None, state, ("state", 0), 10)
+
+        self.assertEqual(sorted(_words(3)), drawn)
 
 
 if __name__ == "__main__":

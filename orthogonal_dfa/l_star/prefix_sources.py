@@ -178,8 +178,3 @@ class StateSource(RejectionSource):
 
     def source_repr(self) -> str:
         return f"leaf {self._path}"
-
-
-def draw_many(source, wanted: int) -> list:
-    """``wanted`` prefixes from ``source``, sorted rather than in draw order."""
-    return sorted(source.draw() for _ in range(wanted))
