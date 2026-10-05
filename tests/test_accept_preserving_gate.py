@@ -9,7 +9,11 @@ can carry.
 import itertools
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
+import numpy as np
+
+from orthogonal_dfa.l_star import cluster
 from orthogonal_dfa.l_star.cluster import (
     ACCEPT_PRESERVING_ERROR_RATE,
     ADMITTED,
@@ -25,7 +29,9 @@ from orthogonal_dfa.l_star.statistics import binom_cdf
 #: The thresholds a family is read with, and so the ones the split is held to.
 ACCEPT, REJECT = 0.671, 0.333
 
-_PST = SimpleNamespace(accept_thresh=ACCEPT, reject_thresh=REJECT)
+_PST = SimpleNamespace(
+    accept_thresh=ACCEPT, reject_thresh=REJECT, decision_boundary=(ACCEPT + REJECT) / 2
+)
 
 #: A pool the family reads right: 900 of 1000 it calls accepting are, and 100 of
 #: 1000 it calls rejecting are.  Large enough for both sides to clear their nulls.
@@ -42,9 +48,21 @@ class TestOnlyThePoolAdmits(unittest.TestCase):
         self.assertEqual(_verdict(), ADMITTED)
 
     def test_a_pool_too_small_to_clear_its_null_says_nothing_yet(self):
-        # The same rates over ten prefixes a side: right, and unprovable.
+        # The same rates over four prefixes a side: right, and unprovable.
         self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((9, 10), (1, 10))})[0], UNCERTIFIED
+            drift_verdict(_PST, {UNIFORM: ((3, 4), (1, 4))})[0], UNCERTIFIED
+        )
+
+    def test_a_pool_read_past_the_boundary_but_short_of_the_thresholds_admits(self):
+        # 60% and 40% read accepting, both inside the band the vote is read with.
+        self.assertEqual(
+            drift_verdict(_PST, {UNIFORM: ((600, 1000), (400, 1000))})[0], ADMITTED
+        )
+
+    def test_a_pool_read_at_the_boundary_never_admits(self):
+        self.assertEqual(
+            drift_verdict(_PST, {UNIFORM: ((5020, 10000), (5020, 10000))})[0],
+            UNCERTIFIED,
         )
 
     def test_a_pool_with_nothing_on_one_side_can_still_admit(self):
@@ -82,9 +100,9 @@ class TestAnyPopulationVetoes(unittest.TestCase):
         self.assertEqual(_verdict(**{"one_sided": ((0, 0), (190, 200))}), DRIFTED)
 
     def test_a_population_too_small_to_veto_leaves_the_pool_to_it(self):
-        # Three prefixes read backwards cannot reject anything at this level, so
+        # Two prefixes read backwards cannot reject anything at this level, so
         # the pool's own reading stands.
-        self.assertEqual(_verdict(**{"tiny": ((0, 0), (3, 3))}), ADMITTED)
+        self.assertEqual(_verdict(**{"tiny": ((0, 0), (2, 2))}), ADMITTED)
 
     def test_a_veto_outranks_a_pool_that_would_admit(self):
         # The pool separates the classes and one state is still inverted, which
@@ -125,17 +143,17 @@ class TestWhatAVetoCosts(unittest.TestCase):
 
     def test_an_inverted_population_is_caught_all_but_alpha_of_the_time(self):
         self.assertGreaterEqual(
-            _caught(veto_size(_PST, 2)), 1 - ACCEPT_PRESERVING_ERROR_RATE
+            _caught(veto_size(_PST, 1)), 1 - ACCEPT_PRESERVING_ERROR_RATE
         )
 
     def test_a_size_that_can_only_fire_misses_more_than_that(self):
         firing = _smallest_that_can_fire()
 
         self.assertLess(_caught(firing), 1 - ACCEPT_PRESERVING_ERROR_RATE)
-        self.assertGreater(veto_size(_PST, 2), firing)
+        self.assertGreater(veto_size(_PST, 1), firing)
 
     def test_a_population_reading_as_its_own_class_is_left_alone(self):
-        n = veto_size(_PST, 2)
+        n = veto_size(_PST, 1)
 
         self.assertFalse(_vetoes(round(n * ACCEPT), n))
 
@@ -149,6 +167,7 @@ class TestWhatTheTopUpAssumes(unittest.TestCase):
         pst = SimpleNamespace(
             accept_thresh=ACCEPT,
             reject_thresh=REJECT,
+            decision_boundary=(ACCEPT + REJECT) / 2,
             suffix_pool=list(range(8)),
             config=SimpleNamespace(num_addtl_prefixes=2000),
         )
@@ -174,12 +193,40 @@ class TestARefusalNamesAPopulation(unittest.TestCase):
 
     def test_a_split_that_cannot_be_read_names_the_pool(self):
         # Only the pool can admit, so it is the one worth growing.
-        verdict, blamed = drift_verdict(_PST, {UNIFORM: ((9, 10), (1, 10))})
+        verdict, blamed = drift_verdict(_PST, {UNIFORM: ((3, 4), (1, 4))})
 
         self.assertEqual((UNCERTIFIED, UNIFORM), (verdict, blamed))
 
     def test_an_admitted_family_blames_nobody(self):
         self.assertEqual((ADMITTED, None), drift_verdict(_PST, {UNIFORM: _CLEAN_POOL}))
+
+
+class TestAVetoRedrawsItsSample(unittest.TestCase):
+    """A veto scores the population's own reads, so a sample kept after it
+    refuses would refuse every later family on the same bits."""
+
+    def test_the_vetoing_population_is_redrawn_and_the_pool_kept(self):
+        draws = itertools.count()
+        verdicts = iter([(DRIFTED, "state"), (ADMITTED, None)])
+        read = []
+        with mock.patch.multiple(
+            cluster,
+            population_labels=lambda state: [UNIFORM, "state"],
+            prefixes_for_split=lambda pst, state, label, n: [next(draws)],
+            certification_budget=lambda pst, vs: 1,
+            veto_size=lambda pst, populations: 1,
+            certification_sample=lambda pst, vs, prefixes: read.append(dict(prefixes)),
+            _split_counts=lambda pst, reads: {},
+            drift_verdict=lambda pst, counts: next(verdicts),
+        ):
+            gate = cluster.AcceptPreservingGate(
+                SimpleNamespace(require_accept_preserving=True), state=None
+            )
+            pst = SimpleNamespace(table=SimpleNamespace(representative=np.ones(3)))
+            gate.verdict(pst, 0, [1, 2])
+            gate.verdict(pst, 0, [1, 2])
+
+        self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
 
 
 if __name__ == "__main__":

@@ -4,9 +4,10 @@
 
 - `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim.
   It imports only Mathlib.
-- `OrthoDFA/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over each
-  population, the returned family decides a prefix wrongly at most `εcov + slack` of the time
-  and leaves it undecided at most `2·indecisionLimit + slack` of the time.
+- `OrthoDFA/ClusteringQuality.lean` — `ClusteringQualityGuarantee`: averaged over a population,
+  the returned family decides a prefix wrongly at most `εcov + slack` of the time on the uniform
+  pool and at most `1/2 + slack` on any other, and leaves it undecided at most
+  `2·indecisionLimit + slack` of the time on each.
 - `OrthoDFA/ReturnAccuracy.lean` — `ReturnAccuracy`: whatever the L\* stage does, the learner
   rarely returns a hypothesis the merge check passed that is inaccurate once denoised.
 - `OrthoDFA/Check.lean` — the merge check, and `CheckGuarantee`: it rarely fails a state whose

@@ -14,12 +14,14 @@ in the next round.
 
 import math
 import time
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional
 
 import numpy as np
 from automata.fa.dfa import DFA
 
+from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
@@ -78,6 +80,10 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
+#: P(some round certifies a DFA whose error is over certified_error), where the
+#: signal is stated exactly.
+CERTIFICATE_ALPHA = 1e-3
+
 
 def _default_patience(acc_threshold: float) -> int:
     """Consecutive clean probes that end a counterexample pass: seeing this many
@@ -109,7 +115,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
-    state.retire_states()
+    state.retire("state")
     for leaf in track(range(resolver.num_states), "Drawing each state's prefixes"):
         aim = aim_at(pst, dfa, leaf)
         if aim is None:
@@ -120,8 +126,7 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         source = state_source(resolver, leaf, aim, wanted=per_state)
         if source is None:
             continue
-        state.held[("state", leaf)] = sorted(source.draw() for _ in range(per_state))
-        state.sources[("state", leaf)] = source
+        state.hold(("state", leaf), source, per_state)
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
@@ -180,6 +185,10 @@ def _publish_pool(pst, state) -> int:
 #: Consecutive rounds with no progress. See `_StallDetector` for more details.
 STALL_PATIENCE = 2
 
+#: Rounds a run keeps going after the certificate first refuses a round at the
+#: consistency target.
+CERTIFICATE_PATIENCE = 5
+
 
 class _StallDetector:
     """Stops a run that has started repeating itself. We consider a round stalled if
@@ -212,24 +221,59 @@ class _StallDetector:
 PER_STATE = 50
 
 
+class UncertifiedResult(UserWarning):
+    """Synthesis returned a DFA the certificate did not pass."""
+
+
 @dataclass
 class BestRound:
-    """The most consistent round's hypothesis. Rounds are not monotone --
-    rebuilding the representative pool re-clusters, so a later family can
-    classify worse -- so the run keeps this rather than the last round's. The
-    boundary comes with it because denoising reads the labels against it."""
+    """The certified round's hypothesis, or else the most consistent one. Rounds
+    are not monotone -- rebuilding the representative pool re-clusters, so a
+    later family can classify worse -- so the run keeps this rather than the last
+    round's. The boundary comes with it because denoising reads the labels
+    against it."""
 
     consistency: float = -1.0
     dfa: Optional[DFA] = None
     tree: Optional[MidfixTree] = None
     boundary: Optional[float] = None
     round_index: Optional[int] = None
+    #: The denoised DFA the certificate passed, if one did.
+    certified: Optional[DFA] = None
 
-    def consider(self, *, consistency, dfa, tree, boundary, round_index):
-        if consistency > self.consistency:
+    def consider(self, *, consistency, dfa, tree, boundary, round_index, certified):
+        if (certified is not None, consistency) > (
+            self.certified is not None,
+            self.consistency,
+        ):
             self.consistency = consistency
             self.dfa, self.tree = dfa, tree
             self.boundary, self.round_index = boundary, round_index
+            self.certified = certified
+
+
+def _certified(pst, dfa, *, index, tracker):
+    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
+    output = denoise_accept_labels(pst, dfa)
+    # Spread over the rounds, whichever of them reach the certificate.
+    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
+    tracker.on_certificate_decided(verdict.certified, index)
+    if verdict.certified:
+        print(f"[round {index}] certified; stopping synthesis")
+        return output
+    print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
+    return None
+
+
+def _uncertified_too_long(index, uncertified_since) -> bool:
+    if uncertified_since is None or index - uncertified_since < CERTIFICATE_PATIENCE:
+        return False
+    print(
+        f"[round {index}] no hypothesis the certificate passes in "
+        f"{CERTIFICATE_PATIENCE} "
+        "rounds since the certificate first failed; stopping synthesis"
+    )
+    return True
 
 
 def counterexample_driven_synthesis(
@@ -242,9 +286,10 @@ def counterexample_driven_synthesis(
     indecisive_fraction: float = 0.1,
     min_indecisive: int = 200,
 ) -> BestRound:
-    """Rounds until the hypothesis is consistent enough, the pool stalls, or
-    ``max_rounds`` of them have run.  Only a caller driving the loop itself can
-    set that cap; `learn_dfa` does not forward one."""
+    """Rounds until a hypothesis is certified, the pool stalls, the rounds since
+    the first refusal run out of patience, or max_rounds of them have run.
+    Only a caller driving the loop itself can set that cap; `learn_dfa` does not
+    forward one."""
     # The cap is read at the foot of the body, so a round always runs.
     assert max_rounds is None or max_rounds >= 1, max_rounds
     patience = _default_patience(acc_threshold)
@@ -257,6 +302,8 @@ def counterexample_driven_synthesis(
     state = PoolState(uniform)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
+    # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
+    uncertified_since = None
     index = 0
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
@@ -292,25 +339,32 @@ def counterexample_driven_synthesis(
         )
         print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
         tracker.on_consistency_estimated(true_acc, index)
+        # Only a round that would otherwise return is worth the certificate's reads.
+        output = None
+        if true_acc >= acc_threshold:
+            output = _certified(pst, dfa, index=index, tracker=tracker)
+            uncertified_since = (
+                index if uncertified_since is None else uncertified_since
+            )
         best.consider(
             consistency=true_acc,
             dfa=dfa,
             tree=dt,
             boundary=pst.decision_boundary,
             round_index=index,
+            certified=output,
         )
-        if true_acc >= acc_threshold:
-            print(
-                f"[round {index}] reached the target DFA/DT consistency of "
-                f"{acc_threshold:.4f}; stopping synthesis"
-            )
+        if output is not None:
+            return best
+        if _uncertified_too_long(index, uncertified_since):
             return best
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
-        # leaf nothing aims at is not one the round waits on.
-        if stall.stalled(
+        # leaf nothing aims at is not one the round waits on.  Rounds after a
+        # refusal have their own patience, so they are not weighed for a stall.
+        if uncertified_since is None and stall.stalled(
             states=dt.num_states,
             improved=best.round_index == index,
             settled=lambda: resolver.splits.nothing_left_to_split(
@@ -347,6 +401,12 @@ def do_counterexample_driven_synthesis(
     if best.dfa is None:
         return None
     pst.decision_boundary = best.boundary
-    dfa = denoise_accept_labels(pst, best.dfa)
+    dfa = best.certified
+    if dfa is None:
+        warnings.warn(
+            f"no round was certified; returning round {best.round_index}'s DFA",
+            UncertifiedResult,
+        )
+        dfa = denoise_accept_labels(pst, best.dfa)
     tracker.on_corrected_dfa_found(dfa, best.round_index)
     return dfa
