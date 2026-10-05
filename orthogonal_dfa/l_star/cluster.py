@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from .certificate import clopper_pearson, error_bound
+from .certificate import clopper_pearson
 from .mask_table import UNIFORM
 from .prefix_populations import grow_population, population_labels, prefixes_for_split
 from .statistics import (
@@ -35,6 +35,11 @@ def identify_cluster_around(
             reads[others],
             reads[seed_local],
             list(pst.table.population_masks().values()),
+            pst.table.seed_scoring(),
+            (
+                decision_boundary - pst.config.min_signal_strength,
+                decision_boundary + pst.config.min_signal_strength,
+            ),
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             k=math.ceil(1 / pst.config.min_suffix_frequency),
@@ -65,10 +70,16 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
+def round_rates(pst):
+    """(p_0, p_1) the round reads at: the boundary -/+ the signal."""
+    signal = pst.config.min_signal_strength
+    return pst.decision_boundary - signal, pst.decision_boundary + signal
+
+
 def aligned_family(pst, seed: int, count: int) -> List[int]:
     """Seed, then the pool's aligned_suffixes against seed's reads at the
-    round's rates, boundary -/+ the signal, and within max_coverage_error;
-    count of them at most.  Every member reads each population like seed but
+    round's rates, boundary -/+ the signal, and within max_coverage_error, read on
+    the prefixes the screen never saw; count of them at most.  Every member reads each population like seed but
     for a bounded share, which is what makes some family pass the gate once the
     pool and the prefixes are large enough."""
     candidate = np.array(pst.suffix_pool)
@@ -76,12 +87,16 @@ def aligned_family(pst, seed: int, count: int) -> List[int]:
     reads = reads.astype(float)
     seed_local = pst.suffix_pool.index(seed)
     others = np.flatnonzero(np.arange(len(reads)) != seed_local)
-    signal = pst.config.min_signal_strength
+    scoring = pst.table.seed_scoring()
     kept = aligned_suffixes(
         reads[others],
         reads[seed_local],
-        list(pst.table.population_masks().values()),
-        (pst.decision_boundary - signal, pst.decision_boundary + signal),
+        [
+            m & scoring
+            for m in pst.table.population_masks().values()
+            if (m & scoring).any()
+        ],
+        round_rates(pst),
         epsilon=pst.config.max_coverage_error,
         alpha=ACCEPT_PRESERVING_ERROR_RATE,
     )
@@ -203,49 +218,42 @@ def _split_counts(pst, reads):
 
 def misclassified_bounds(pst, by_population, level):
     """label -> (bound, at the rates read) on the share of the population's
-    distribution the family's cut misclassifies.  The two sides of every
-    population's cut are states of certificate.error_bound's, at gap
-    2 min_signal_strength: one oracle reads them all, so they share the offset
-    p_0, which every side's rate constrains.  The population's bound is
-    error_bound with its own sides' masses and every other side at mass 0,
-
-        masses, rates: Clopper-Pearson intervals at level / 4 |populations|
-
-    on each side's share of its population and on the empty suffix's rate of
-    1s there, so every bound holds at once with probability at least
-    1 - level, the signal stated exactly."""
-    drawn = [
-        (label, counts)
+    distribution the family's cut misclassifies, at the round_rates (p_0, p_1):
+    a side of the cut reading r holds a share (p_1 - r) / (p_1 - p_0) of
+    rejecting prefixes where it accepts and (r - p_0) / (p_1 - p_0) of accepting
+    ones where it rejects, clipped to [0, 1].  The bound is the largest such
+    total over Clopper-Pearson intervals at level / 4 |populations| on each
+    side's share of the population and on the empty suffix's rate of 1s there,
+    so every bound holds at once with probability at least 1 - level, the
+    round's rates being the oracle's."""
+    drawn = {
+        label: counts
         for label, counts in by_population.items()
         if counts[0][1] + counts[1][1]
-    ]
+    }
     each = level / (4 * max(1, len(drawn)))
-    sides = np.array([n for _, counts in drawn for _, n in counts])
-    ones = np.array([hits for _, counts in drawn for hits, _ in counts])
-    accepting = np.tile([True, False], len(drawn))
-    read = sides > 0
-    low, high = clopper_pearson(ones[read], sides[read], each)
-    point = ones[read] / sides[read]
-    gap = 2 * pst.config.min_signal_strength
-    out = {}
-    for index, (label, _) in enumerate(drawn):
-        own = np.zeros(len(sides), dtype=bool)
-        own[2 * index : 2 * index + 2] = True
-        mass_low, mass_high = np.zeros(len(sides)), np.zeros(len(sides))
-        mass_low[own], mass_high[own] = clopper_pearson(
-            sides[own], np.full(2, sides[own].sum()), each
+    p_0, p_1 = round_rates(pst)
+
+    def wrong(accept, reject):
+        """Each side's misclassified share at its rate."""
+        return np.clip(
+            [(p_1 - accept) / (p_1 - p_0), (reject - p_0) / (p_1 - p_0)], 0, 1
         )
-        share = np.where(own, sides / sides[own].sum(), 0.0)
+
+    out = {}
+    for label, ((hits_a, n_a), (hits_r, n_r)) in drawn.items():
+        sides = np.array([n_a, n_r])
+        ones = np.array([hits_a, hits_r])
+        mass_low, mass_high = clopper_pearson(sides, np.full(2, sides.sum()), each)
+        low, high = clopper_pearson(ones, sides, each)
+        worst = wrong(low[0], high[1])
+        # The total is linear in the accepting side's share, so it is largest at
+        # an end of what both sides' intervals allow that share.
+        ends = (max(mass_low[0], 1 - mass_high[1]), min(mass_high[0], 1 - mass_low[1]))
+        read = ones / np.maximum(sides, 1)
         out[label] = (
-            error_bound(
-                (mass_low[read], mass_high[read]),
-                (low, high),
-                accepting[read],
-                gap,
-            ),
-            error_bound(
-                (share[read], share[read]), (point, point), accepting[read], gap
-            ),
+            float(max(a * worst[0] + (1 - a) * worst[1] for a in ends)),
+            float(sides / sides.sum() @ wrong(read[0], read[1])),
         )
     return out
 

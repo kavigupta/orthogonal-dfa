@@ -14,6 +14,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
+import hashlib
 from typing import Dict, List
 
 import numpy as np
@@ -29,6 +30,15 @@ STATE = "state"
 # Sentinel for a not-yet-queried cell.  Private to this module: callers read
 # through ``observed_masks`` / ``column`` and never see it.
 UNOBSERVED = np.int8(-1)
+
+
+def scores_seed(prefix: bytes) -> bool:
+    """Whether prefix is kept from the suffix screen, to score suffixes against
+    the seed on: a fixed half of all strings by a hash of the string alone, so
+    which half a prefix is in owes nothing to any read.  The screen admits a
+    suffix partly for agreeing with the seed's noise on the prefixes it reads,
+    which would bias a score read on those same prefixes."""
+    return hashlib.blake2b(bytes(prefix), digest_size=1).digest()[0] & 1 == 1
 
 
 class MaskTable:
@@ -69,6 +79,18 @@ class MaskTable:
         for columns in self._populations.values():
             mask[list(columns)] = True
         return mask
+
+    def seed_scoring(self) -> np.ndarray:
+        """Over the representative prefixes, the ones scores_seed keeps from the
+        screen."""
+        return np.array(
+            [
+                scores_seed(p)
+                for p, kept in zip(self.prefixes, self.representative)
+                if kept
+            ],
+            dtype=bool,
+        )
 
     def drop_population(self, label) -> None:
         """Retire a population.  Its prefixes stay in the table -- they are
