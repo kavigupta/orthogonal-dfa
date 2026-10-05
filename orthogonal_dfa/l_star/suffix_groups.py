@@ -1,4 +1,11 @@
-"""Groups of suffixes' rows of reads that differ by no more than read noise."""
+"""Groups of suffixes' rows of reads that differ by no more than read noise, and
+the rows ranked from the group that reads like an anchor.
+
+Columns are prefixes and populations are masks over them.  Deciding which rows
+share a profile uses every column once, since how much a test can see is a
+matter of counts; the ranking weighs each population the same, since it
+estimates a property of the populations' distributions.
+"""
 
 from typing import List
 
@@ -7,16 +14,18 @@ import scipy.stats
 from sklearn.cluster import AgglomerativeClustering, KMeans
 
 
-def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
+def coherent_groups(rows, populations, *, k, alpha, rng) -> List[np.ndarray]:
     """The rows' k-means clusters over the even columns, unioned by complete
-    linkage while every pair (a, b) across two unions has
+    linkage while no pair (a, b) across two unions has, for some population j,
 
-        T = sum_p (mean_a,p - mean_b,p)^2 / (v_p (1 / n_a + 1 / n_b))
+        T_j = sum_p (mean_a,p - mean_b,p)^2 / (v_p (1 / n_a + 1 / n_b))
 
-    over the odd columns p within the chi-squared quantile at 1 - alpha / pairs,
-    v_p the within-cluster variance; then each row moved to its nearest union
-    over the even columns.  The clusters never see the odd columns, so under one
-    profile T is chi-squared, the means taken as normal."""
+    over j's odd columns p beyond the chi-squared quantile at
+    1 - alpha / (pairs |populations|), v_p the within-cluster variance; then
+    each row moved to its nearest union over the even columns.  The clusters
+    never see the odd columns, so under one profile T_j is chi-squared, the
+    means taken as normal, and a difference within j is tested on j's columns
+    alone, however many other populations hold."""
     fit, held = rows[:, ::2], rows[:, 1::2]
     k = min(k, len(np.unique(fit, axis=0)))
     seed = int(rng.integers(2**31))
@@ -24,32 +33,44 @@ def coherent_groups(rows, k, alpha, rng) -> List[np.ndarray]:
         KMeans(k, n_init=1, random_state=seed).fit_predict(fit), return_inverse=True
     )
     k = label.max() + 1
-    means = np.array([held[label == g].mean(0) for g in range(k)])
-    variance = ((held - means[label]) ** 2).sum(0) / max(1, len(rows) - k)
-    readable = variance > 0
-    if k > 1 and readable.any():
-        gaps = ((means[:, None] - means[None]) ** 2)[..., readable] / variance[readable]
+    if k > 1:
+        means = np.array([held[label == g].mean(0) for g in range(k)])
+        variance = ((held - means[label]) ** 2).sum(0) / max(1, len(rows) - k)
         sizes = np.bincount(label)
-        statistic = gaps.sum(2) / (1 / sizes[:, None] + 1 / sizes[None])
+        level = alpha / (len(populations) * k * (k - 1) / 2)
+        rejected = np.zeros((k, k), dtype=bool)
+        for population in populations:
+            columns = population[1::2] & (variance > 0)
+            if columns.any():
+                gaps = (means[:, None, columns] - means[None, :, columns]) ** 2
+                statistic = (gaps / variance[columns]).sum(2) / (
+                    1 / sizes[:, None] + 1 / sizes[None]
+                )
+                rejected |= statistic > scipy.stats.chi2.isf(level, columns.sum())
         label = AgglomerativeClustering(
             n_clusters=None,
             metric="precomputed",
             linkage="complete",
-            distance_threshold=scipy.stats.chi2.isf(
-                alpha / (k * (k - 1) / 2), readable.sum()
-            ),
-        ).fit_predict(statistic)[label]
+            distance_threshold=1 / 2,
+        ).fit_predict(rejected.astype(float))[label]
     centers = np.array([fit[label == u].mean(0) for u in np.unique(label)])
     label = KMeans(len(centers), init=centers, n_init=1).fit_predict(fit)
     return [np.flatnonzero(label == g) for g in np.unique(label)]
 
 
-def nearest_to_anchor_group(rows, anchor, k, alpha, rng) -> np.ndarray:
+def nearest_to_anchor_group(rows, anchor, populations, *, k, alpha, rng):
     """Every row, nearest first to the mean of the coherent_group whose rows
-    covary most with anchor on average.  The groups are found without anchor and
-    the mean is that group's alone, so rows that share a misreading cannot pull
-    the order toward themselves."""
-    groups = coherent_groups(rows, k, alpha, rng)
+    covary most with anchor on average, distance weighing each population's
+    columns the same:
+
+        d(v) = sum_p w_p (x_v,p - mean_p)^2,   w_p proportional to
+               sum over populations j holding p of 1 / |j|.
+
+    The groups are found without anchor and the mean is that group's alone, so
+    rows that share a misreading cannot pull the order toward themselves."""
+    groups = coherent_groups(rows, populations, k=k, alpha=alpha, rng=rng)
     centred = anchor - anchor.mean()
     best = max(groups, key=lambda g: (rows[g] @ centred).mean())
-    return np.argsort(((rows - rows[best].mean(0)) ** 2).sum(1), kind="stable")
+    weight = sum(population / population.sum() for population in populations)
+    distance = (rows - rows[best].mean(0)) ** 2 @ weight
+    return np.argsort(distance, kind="stable")
