@@ -300,9 +300,9 @@ edges are closed once. -/
 noncomputable def initialState (seed : List (FreeMonoid α)) : PassState α :=
   settle K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 0
 
-/-- Most of the probes since the pass's last split went unchecked: the round halves the limits
-every later family is held to. -/
-def PassState.halves (s : PassState α) : Prop := s.streak < 2 * s.unchecked
+/-- The pass ran out of patience, and most of the probes since its last split went unchecked:
+the round halves the limits every later family is held to. -/
+def PassState.halves (s : PassState α) : Prop := K.patience ≤ s.streak ∧ s.streak < 2 * s.unchecked
 
 /-- The state a path names: its place among the leaves, `0` past the last of `N + 1`. -/
 def stateOfPath (t : DTree α) (N : ℕ) (path : List Bool) : Fin (N + 1) :=
