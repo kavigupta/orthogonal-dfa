@@ -103,7 +103,7 @@ def aligned_family(pst, seed: int, count: int) -> List[int]:
     return candidate[[seed_local] + others[kept[: count - 1]].tolist()].tolist()
 
 
-def read_rates(config, decision_boundary):
+def read_rates(pst, decision_boundary):
     """The rates a family is read at.
 
     A caller may ask for any crispness it likes; how far the split then sits from
@@ -112,15 +112,15 @@ def read_rates(config, decision_boundary):
     """
     return (
         min(
-            config.cross_limit,
+            pst.config.cross_limit,
             cross_limit_for_coverage_error(
-                config.min_signal_strength,
-                config.acceptable_fnr,
-                config.max_coverage_error,
+                pst.config.min_signal_strength,
+                pst.acceptable_fnr,
+                pst.config.max_coverage_error,
                 center=decision_boundary,
             ),
         ),
-        config.acceptable_fnr,
+        pst.acceptable_fnr,
     )
 
 
@@ -478,13 +478,13 @@ def judge_family(pst, gate, v, vs, family_size) -> Judged:
         pst.decision_boundary,
         len(vs),
         family_size,
-        read_rates(pst.config, pst.decision_boundary),
+        read_rates(pst, pst.decision_boundary),
     )
     vs = vs[:size]
     decision = pst.compute_decision(vs, pst.table.representative)
     fnr, worst = pst.fnr_from_decision(decision)
     too_high = f"FNR {fnr:.4f} too high"
-    if fnr > pst.config.fnr_limit:
+    if fnr > pst.fnr_limit:
         return Judged(vs, fnr, too_high, ADMITTED, worst)
     # Certify only right before returning, as certifying is expensive.
     verdict, blamed = gate.verdict(pst, v, vs)
@@ -511,7 +511,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
     family_size = smallest_readable_family(
         pst.config.min_signal_strength,
         decision_boundary,
-        read_rates(pst.config, decision_boundary),
+        read_rates(pst, decision_boundary),
     )
     gate = AcceptPreservingGate(pst.config, state)
 
@@ -531,7 +531,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
             family_size = smallest_readable_family(
                 pst.config.min_signal_strength,
                 decision_boundary,
-                read_rates(pst.config, decision_boundary),
+                read_rates(pst, decision_boundary),
             )
             if len(vs) >= family_size:
                 break
@@ -544,7 +544,7 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 if offered.fnr <= pst.config.fnr_limit:
                     judged = offered
 
-        if judged.fnr <= pst.config.fnr_limit:
+        if judged.fnr <= pst.fnr_limit:
             print(
                 f"FNR limit reached, decision boundary: {decision_boundary:.4f}, "
                 f"margin: {pst.evidence_margin:.4f}"

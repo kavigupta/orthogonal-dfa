@@ -393,6 +393,15 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
+        # A probe is checked only if every read on its way is decided, and a family
+        # indecisive at a rate the limit allows can still leave most unchecked.
+        if 2 * resolver.unchecked_quiet_probes > resolver.quiet_probes:
+            pst.fnr_limit /= 2
+            print(
+                f"[round {index}] {resolver.unchecked_quiet_probes} of the "
+                f"{resolver.quiet_probes} probes since the last split unchecked; "
+                f"FNR limit now {pst.fnr_limit:.4f}"
+            )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
