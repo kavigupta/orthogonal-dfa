@@ -360,7 +360,10 @@ def counterexample_driven_synthesis(
             return best
         # A probe is checked only if every read on its way is decided, and a family
         # indecisive at a rate the limit allows can still leave most unchecked.
-        if 2 * resolver.unchecked_quiet_probes > resolver.quiet_probes:
+        if (
+            resolver.quiet_probes >= patience
+            and 2 * resolver.unchecked_quiet_probes > resolver.quiet_probes
+        ):
             pst.fnr_limit /= 2
             print(
                 f"[round {index}] {resolver.unchecked_quiet_probes} of the "
