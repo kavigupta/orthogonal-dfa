@@ -5,8 +5,7 @@ reads and grows them, so they live apart from the round loop that fills them.
 """
 
 from .mask_table import UNIFORM
-from .prefix_sources import UniformSource
-from .rejection_source import SourceDry
+from .prefix_sources import UniformSource, draw_many
 
 
 class PoolState:
@@ -81,18 +80,13 @@ def population_labels(state) -> list:
 
 
 def prefixes_for_split(pst, state, label, wanted: int) -> list:
-    """Prefixes for one population, to read the split on and not to keep: at
-    most wanted, fewer where the source runs dry first, and none where nothing
-    draws for it, so the split goes ahead on what there is."""
+    """Prefixes for one population, to read the split on and not to keep.
+
+    Empty where nothing draws for it, so the split goes ahead without it.
+    """
     source = UniformSource(pst) if label == UNIFORM else state.sources.get(label)
     # Not proved here: proving costs a round's worth of probes, which the
     # split is not worth.
     if source is None or not source.proven:
         return []
-    drawn = []
-    try:
-        while len(drawn) < wanted:
-            drawn.append(source.draw())
-    except SourceDry:
-        pass
-    return sorted(drawn)
+    return draw_many(source, wanted)
