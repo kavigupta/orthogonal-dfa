@@ -89,15 +89,17 @@ class RejectionSource(ABC):
         dry = ceil(log(_FALSE_DRY) / log(1 - self.poor))
         # One pass more than that: what an attempt pooled is read by the drain
         # of the pass after it.
+        landed = 0
         for _ in range(dry + 1):
             while self._pool:
                 member = self._pool.pop()
                 if member not in self._served:
                     self._served.add(member)
                     return member
-            self.attempt_draw()
+            landed += bool(self.attempt_draw())
         # A draw landing on a string already served is accepted all the same, so
         # the rate alone never says a source is spent.
         raise RuntimeError(
-            f"Source {self.source_repr()} found no new samples in {dry} attempts"
+            f"Source {self.source_repr()} found no new samples in {dry} attempts; "
+            f"DIAGNOSIS {landed} of {dry + 1} landed, {len(self._served)} served"
         )
