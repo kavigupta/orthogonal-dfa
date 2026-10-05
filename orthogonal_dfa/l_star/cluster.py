@@ -174,10 +174,13 @@ def certification_sample(pst, vs, by_population):
 
 
 def _split_counts(pst, reads):
-    """label -> ((hits, n), (hits, n)): on the accepting and rejecting sides of the
-    family's cut at the boundary, how many prefixes and how many of them the
-    empty suffix reads as 1.  A population holds one class or both, so a side of
-    n = 0 is ordinary."""
+    """label -> ((a_1, n_1), (a_0, n_0)) over the population's prefixes p, with
+    f(p) the family's mean read of p and y(p) the empty suffix's read,
+
+        n_1 = #{p : f(p) >= b},   a_1 = #{p : f(p) >= b, y(p) = 1},
+        n_0 = #{p : f(p) < b},    a_0 = #{p : f(p) < b, y(p) = 1},
+
+    b the decision boundary."""
     return {
         label: tuple(
             (int(column[side].sum()), int(side.sum()))
