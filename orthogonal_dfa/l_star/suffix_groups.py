@@ -31,10 +31,7 @@ def coherent_groups(rows, populations, *, k, alpha, rng) -> List[np.ndarray]:
     fit, held = rows[:, ::2], rows[:, 1::2]
     k = min(k, len(np.unique(fit, axis=0)))
     seed = int(rng.integers(2**31))
-    _, label = np.unique(
-        KMeans(k, n_init=1, random_state=seed).fit_predict(fit), return_inverse=True
-    )
-    k = label.max() + 1
+    label = KMeans(k, n_init=1, random_state=seed).fit_predict(fit)
     if k > 1:
         means = np.array([held[label == g].mean(0) for g in range(k)])
         variance = ((held - means[label]) ** 2).sum(0) / max(1, len(rows) - k)
