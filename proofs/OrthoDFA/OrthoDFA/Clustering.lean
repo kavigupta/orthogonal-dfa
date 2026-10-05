@@ -43,10 +43,11 @@ Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, 
 The table's votes are fitted to its noise and read as more decisive than they are, so the
 claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
-Known modelling gap.  `drift_verdict` admits a family when, for every population drawn,
-`misclassified_bounds` bounds the share of that population's distribution its cut at the boundary
-misclassifies by `max_coverage_error`: Clopper-Pearson intervals on each side's share and on the
-seed's rate there, maximised over the offset as `certificate.error_bound` does.  `admitted` is the
+Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds` bounds the
+share of the uniform pool's distribution its cut at the boundary misclassifies by
+`max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
+side's share and on the seed's rate there, maximised over the offset all populations share as
+`certificate.error_bound` does.  `admitted` is the
 earlier test, the cut's agreement with the seed beating `1/2` on the uniform pool alone, so the
 claim here does not yet cover what the Python admits.  The Python's FNR also reads 1 for a family
 that decides no prefix one of the two ways, which `ret` does not.

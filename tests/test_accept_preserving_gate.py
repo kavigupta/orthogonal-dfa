@@ -1,6 +1,7 @@
-"""The gate holds a family to every population: it admits only when, for each,
-the share of the population's distribution the family's cut misclassifies is
-bounded by max_coverage_error, and it names the population that stops it."""
+"""The gate holds a family to every population: it admits only when the share
+of each population's distribution the family's cut misclassifies is bounded,
+by max_coverage_error on the uniform pool and by a half elsewhere, and it names
+the population that stops it."""
 
 import itertools
 import unittest
@@ -72,12 +73,26 @@ class TestEveryPopulationIsHeld(unittest.TestCase):
 
         self.assertEqual((DRIFTED, ("state", 3)), drift_verdict(_PST, counts, LEVEL))
 
-    def test_a_population_misclassified_past_the_bar_is_refused(self):
-        # Half of what the family rejects is accepting: half of the population.
-        half = round((P_0 + P_1) / 2 * 500)
-        counts = {UNIFORM: _read_right(500), "mixed": ((0, 0), (half, 500))}
+    def test_a_population_misread_past_a_half_is_refused(self):
+        # Seven in ten of what the family rejects is accepting.
+        mostly = round((0.3 * P_0 + 0.7 * P_1) * 500)
+        counts = {UNIFORM: _read_right(500), "mixed": ((0, 0), (mostly, 500))}
 
         self.assertEqual((DRIFTED, "mixed"), drift_verdict(_PST, counts, LEVEL))
+
+    def test_a_population_need_only_be_read_the_right_way_round(self):
+        # Two in five misread: past max_coverage_error, short of a half.
+        some = round((0.6 * P_0 + 0.4 * P_1) * 2000)
+        counts = {UNIFORM: _read_right(2000), "mixed": ((0, 0), (some, 2000))}
+
+        self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
+
+    def test_the_pool_is_held_to_max_coverage_error(self):
+        # The same two in five, now the whole pool; a state read right pins p_0.
+        some = round((0.6 * P_0 + 0.4 * P_1) * 2000)
+        counts = {UNIFORM: ((0, 0), (some, 2000)), ("state", 0): _read_right(2000)}
+
+        self.assertEqual((DRIFTED, UNIFORM), drift_verdict(_PST, counts, LEVEL))
 
     def test_too_few_prefixes_leaves_the_family_uncertified(self):
         counts = {UNIFORM: _read_right(500), "small": _read_right(3)}
@@ -112,7 +127,7 @@ class TestTheBoundHolds(unittest.TestCase):
 
 class TestHowMuchIsDrawn(unittest.TestCase):
     def test_a_cut_reading_right_certifies_at_the_size_and_not_half_of_it(self):
-        size = alignment_size(_PST, 1)
+        size = alignment_size(_PST, 1, 1 / 3)
         level = cluster.ACCEPT_PRESERVING_ERROR_RATE / 2
 
         self.assertEqual(
@@ -131,7 +146,7 @@ class TestHowMuchIsDrawn(unittest.TestCase):
         def settled(n):
             counts = {"small": _read_right(n), "other": other}
             bound, at_rates = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
-            return bound <= 1 / 3 or at_rates > 1 / 3
+            return bound <= 1 / 2 or at_rates > 1 / 2
 
         wanted = prefixes_to_certify(
             pst,
@@ -158,7 +173,7 @@ class TestARefusalRedrawsItsSample(unittest.TestCase):
             population_labels=lambda state: [UNIFORM, "state"],
             prefixes_for_split=lambda pst, state, label, n: [next(draws)],
             certification_budget=lambda pst, vs: 1,
-            alignment_size=lambda pst, populations: 1,
+            alignment_size=lambda pst, populations, limit: 1,
             certification_sample=lambda pst, vs, prefixes: read.append(dict(prefixes)),
             _split_counts=lambda pst, reads: {},
             drift_verdict=lambda pst, counts, level: next(verdicts),
@@ -166,8 +181,8 @@ class TestARefusalRedrawsItsSample(unittest.TestCase):
             gate = cluster.AcceptPreservingGate(
                 SimpleNamespace(require_accept_preserving=True), state=None
             )
-            gate.verdict(None, 0, [1, 2])
-            gate.verdict(None, 0, [1, 2])
+            gate.verdict(_PST, 0, [1, 2])
+            gate.verdict(_PST, 0, [1, 2])
 
         self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
 

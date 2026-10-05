@@ -250,30 +250,40 @@ def misclassified_bounds(pst, by_population, level):
     return out
 
 
+def misclassification_limit(pst, label) -> float:
+    """max_coverage_error for the uniform pool, drawn as the learner is scored;
+    a half for every other population, which the family has only to read the
+    right way round."""
+    return pst.config.max_coverage_error if label == UNIFORM else 1 / 2
+
+
 def drift_verdict(pst, by_population, level):
     """(verdict, label): ADMITTED when every population's misclassified_bounds
-    bound is at most max_coverage_error; otherwise, naming the population with
-    the largest bound, DRIFTED where its share at the rates read is already past
-    max_coverage_error and UNCERTIFIED where only the bound is.  Admitting
-    holds the family to every population drawn, with probability at least
-    1 - level, whatever chose it."""
+    bound is at most its misclassification_limit; otherwise, naming the
+    population whose bound passes its limit furthest, DRIFTED where its share at
+    the rates read is past the limit too and UNCERTIFIED where only the bound
+    is.  Admitting holds the family to every population drawn, with probability
+    at least 1 - level, whatever chose it."""
     bounds = misclassified_bounds(pst, by_population, level)
     if not bounds:
         return UNCERTIFIED, UNIFORM
-    worst = max(bounds, key=lambda label: bounds[label][0])
+    worst = max(
+        bounds, key=lambda label: bounds[label][0] - misclassification_limit(pst, label)
+    )
     bound, at_rates = bounds[worst]
-    if bound <= pst.config.max_coverage_error:
+    limit = misclassification_limit(pst, worst)
+    if bound <= limit:
         return ADMITTED, None
-    if at_rates > pst.config.max_coverage_error:
+    if at_rates > limit:
         return DRIFTED, worst
     return UNCERTIFIED, worst
 
 
-def alignment_size(pst, populations) -> int:
+def alignment_size(pst, populations, limit) -> int:
     """Fewest prefixes at which a cut that misclassifies nothing and halves a
     population, read at the round's rates boundary -/+ signal, gets a
-    misclassified_bounds bound of at most max_coverage_error at a look's level:
-    the size each population is first drawn at.  Sizing only."""
+    misclassified_bounds bound of at most limit at a look's level: the size a
+    population is first drawn at.  Sizing only."""
     signal = pst.config.min_signal_strength
     rates = (pst.decision_boundary + signal, pst.decision_boundary - signal)
     size = 2
@@ -283,7 +293,7 @@ def alignment_size(pst, populations) -> int:
         bound, _ = misclassified_bounds(
             pst, {UNIFORM: counts}, ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
         )[UNIFORM]
-        if bound <= pst.config.max_coverage_error:
+        if bound <= limit:
             return size
         size *= 2
 
@@ -304,14 +314,14 @@ def prefixes_to_certify(pst, counts, label, drawn, vs) -> int:
 
     How many it takes depends on the rates, so the rates in hand are the guess:
     if the same ones held over twice the counts, or three times, would label's
-    misclassified_bounds come out decided -- its bound within max_coverage_error,
-    or its share at the rates read past it?  The first multiple that would is
+    misclassified_bounds come out decided -- its bound within its
+    misclassification_limit, or its share at the rates read past it?  The first multiple that would is
     the answer.  Only label is drawn from, so only its counts grow.
     """
     budget = certification_budget(pst, vs)
     empty = ((0, 0), (0, 0))
     level = ACCEPT_PRESERVING_ERROR_RATE / 2
-    limit = pst.config.max_coverage_error
+    limit = misclassification_limit(pst, label)
     for multiple in range(2, 2 + budget // drawn):
         supposed = {
             **counts,
@@ -338,18 +348,25 @@ class AcceptPreservingGate:
         self.refusals = 0
         self._state = state
         self._drawn = None
-        self._size = None
+        self._sizes = None
 
     def _certification_prefixes(self, pst, voters):
         """``label -> prefixes`` to certify a family over, drawn for the round
         and read by every family it tries."""
         if self._drawn is None:
             labels = population_labels(self._state)
-            self._size = min(
-                alignment_size(pst, len(labels)), certification_budget(pst, voters)
-            )
+            budget = certification_budget(pst, voters)
+            self._sizes = {
+                label: min(
+                    alignment_size(
+                        pst, len(labels), misclassification_limit(pst, label)
+                    ),
+                    budget,
+                )
+                for label in labels
+            }
             drawn = {
-                label: prefixes_for_split(pst, self._state, label, self._size)
+                label: prefixes_for_split(pst, self._state, label, self._sizes[label])
                 for label in labels
             }
             self._drawn = {label: held for label, held in drawn.items() if held}
@@ -403,7 +420,7 @@ class AcceptPreservingGate:
             # A veto scores the population's own reads, which every later family
             # would read again: kept, one unlucky sample refuses each sound family
             # in turn until the search gives up.
-            redrawn = prefixes_for_split(pst, self._state, blamed, self._size)
+            redrawn = prefixes_for_split(pst, self._state, blamed, self._sizes[blamed])
             if redrawn:
                 self._drawn[blamed] = redrawn
             else:
@@ -414,7 +431,7 @@ class AcceptPreservingGate:
             raise NoAcceptPreservingFamily(
                 f"{self.refusals} families refused: the last misclassifies "
                 f"{at_rates:.0%} of {blamed} at the rates read, at most {bound:.0%}, "
-                f"against {pst.config.max_coverage_error:.0%}; no suffix family "
+                f"against {misclassification_limit(pst, blamed):.0%}; no suffix family "
                 f"realises the accept-preserving split on this target"
             )
         return verdict, blamed
