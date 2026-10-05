@@ -34,7 +34,7 @@ noncomputable def cpHigh (hits n : ℕ) (level : ℝ) : ℝ :=
   else sSup {p | p ∈ Set.Icc (0 : ℝ) 1 ∧ level / 2 < 1 - binomSfGe n p (hits + 1)}
 
 /-- `error_bound`: the largest `∑ m_h e_h` over masses in `[ml, mh]` summing to `1`, rates in
-`[rl, rh]`, and offsets `p` with every rate in `[p, p + band]`, where
+`[rl, rh]`, and offsets `p` in `[max_h rl_h - band, min_h rh_h]`, where
 
     e_h = 1 - (r_h - p) / band  where h accepts,   (r_h - p) / band  where it rejects,
     band = max(gap, max_h rl_h - min_h rh_h). -/
@@ -46,7 +46,7 @@ noncomputable def errorBound (ml mh rl rh : R → ℝ) (acc : R → Prop) (gap :
   if (∑ h, ml h) ≤ 1 ∧ 1 ≤ ∑ h, mh h then
     sSup {x | ∃ (m r : R → ℝ) (p : ℝ), p ∈ Set.Icc least most
       ∧ (∀ h, m h ∈ Set.Icc (ml h) (mh h)) ∧ ∑ h, m h = 1
-      ∧ (∀ h, r h ∈ Set.Icc (rl h) (rh h) ∧ r h ∈ Set.Icc p (p + band))
+      ∧ (∀ h, r h ∈ Set.Icc (rl h) (rh h))
       ∧ x = ∑ h, m h * (if acc h then 1 - (r h - p) / band else (r h - p) / band)}
   else 1
 
@@ -94,5 +94,21 @@ noncomputable def lookRefuses (O : Oracle μ S) (H : DFA S R) (s α e : ℝ) (u 
 /-- `certifies`: some look's bound is at most `e`, and no look before it refuses. -/
 def certifies (O : Oracle μ S) (H : DFA S R) (s α e : ℝ) (u : ℕ → S) (ω : Ω) : Prop :=
   ∃ k, lookBound O H s α u ω k ≤ e ∧ ∀ j < k, ¬ lookRefuses O H s α e u ω j
+
+open scoped Classical in
+/-- The chance `O` reads `x` as `1`. -/
+noncomputable def oneRate (O : Oracle μ S) (x : S) : ℝ := if x ∈ O.L then 1 - O.ηIn else O.ηOut
+
+/-- `H`'s reads come apart by as much as those of a DFA wrong on `e` of the sampler would at
+signal `s` exactly: where `H` accepts `m_A` of the sampler and rejects `m_R = 1 - m_A`,
+
+    m_R ∫_{H accepts} r - m_A ∫_{H rejects} r ≥ 2s (m_A m_R - e),
+
+that is, `E[O | H accepts] - E[O | H rejects] ≥ 2s (1 - e / (m_A m_R))`. -/
+def readsApart (O : Oracle μ S) (H : DFA S R) (Dsamp : Measure S) (s e : ℝ) : Prop :=
+  let mA := Dsamp.real {x | H.state x ∈ H.accept}
+  2 * s * (mA * (1 - mA) - e)
+    ≤ (1 - mA) * ∫ x in {x | H.state x ∈ H.accept}, oneRate O x ∂Dsamp
+      - mA * ∫ x in {x | H.state x ∉ H.accept}, oneRate O x ∂Dsamp
 
 end OrthoDFA
