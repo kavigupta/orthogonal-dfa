@@ -1,10 +1,7 @@
-"""Which population may admit a suffix family, and which may veto it.
-
-Admitting is the claim that the family separates the classes at all, and only a
-sample drawn the way the oracle's own base rate is can carry it.  Vetoing is the
-claim that some population is read as the class it is not, which any population
-can carry.
-"""
+"""The gate holds a family to every population: it admits only when the share
+of each population's distribution the family's cut misclassifies is bounded,
+by max_coverage_error on the uniform pool and by a half elsewhere, and it names
+the population that stops it."""
 
 import itertools
 import unittest
@@ -15,197 +12,158 @@ import numpy as np
 
 from orthogonal_dfa.l_star import cluster
 from orthogonal_dfa.l_star.cluster import (
-    ACCEPT_PRESERVING_ERROR_RATE,
     ADMITTED,
     DRIFTED,
     UNCERTIFIED,
+    alignment_size,
     drift_verdict,
+    misclassified_bounds,
     prefixes_to_certify,
-    veto_size,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
-from orthogonal_dfa.l_star.statistics import binom_cdf
 
-#: The thresholds a family is read with, and so the ones the split is held to.
-ACCEPT, REJECT = 0.671, 0.333
+#: The rates the round reads at, boundary -/+ the signal.
+P_0, P_1 = 0.35, 0.95
+LEVEL = 0.05
 
 _PST = SimpleNamespace(
-    accept_thresh=ACCEPT, reject_thresh=REJECT, decision_boundary=(ACCEPT + REJECT) / 2
+    decision_boundary=(P_0 + P_1) / 2,
+    config=SimpleNamespace(
+        min_signal_strength=(P_1 - P_0) / 2, max_coverage_error=1 / 3
+    ),
 )
 
-#: A pool the family reads right: 900 of 1000 it calls accepting are, and 100 of
-#: 1000 it calls rejecting are.  Large enough for both sides to clear their nulls.
-_CLEAN_POOL = ((900, 1000), (100, 1000))
+
+def _read_right(n):
+    """n prefixes a side, each side read at its own class's rate."""
+    return ((round(P_1 * n), n), (round(P_0 * n), n))
 
 
-def _verdict(**by_population):
-    """The verdict alone, for the cases that do not turn on who said it."""
-    return drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **by_population})[0]
+class TestEveryPopulationIsHeld(unittest.TestCase):
+    def test_a_family_reading_every_population_right_is_admitted(self):
+        counts = {UNIFORM: _read_right(500), ("state", 0): _read_right(500)}
 
+        self.assertEqual((ADMITTED, None), drift_verdict(_PST, counts, LEVEL))
 
-class TestOnlyThePoolAdmits(unittest.TestCase):
-    def test_a_pool_that_separates_the_classes_is_admitted(self):
-        self.assertEqual(_verdict(), ADMITTED)
+    def test_a_one_class_population_read_as_its_class_is_admitted(self):
+        counts = {
+            UNIFORM: _read_right(500),
+            ("state", 0): ((round(P_1 * 500), 500), (0, 0)),
+        }
 
-    def test_a_pool_too_small_to_clear_its_null_says_nothing_yet(self):
-        # The same rates over four prefixes a side: right, and unprovable.
+        self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
+
+    def test_a_one_class_population_is_read_at_the_offset_the_others_pin(self):
+        # Alone, a side reading 0.35 could be all rejecting at p_0 = 0.35 or
+        # mostly accepting at a lower p_0; the pool's two sides say which.
+        counts = {
+            UNIFORM: _read_right(500),
+            ("state", 1): ((0, 0), (round(P_0 * 500), 500)),
+        }
+
+        self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
+
+    def test_a_population_read_backwards_is_refused_by_name(self):
+        # Every prefix the family rejects reads at the accepting rate.
+        counts = {
+            UNIFORM: _read_right(500),
+            ("state", 3): ((0, 0), (round(P_1 * 500), 500)),
+        }
+
+        self.assertEqual((DRIFTED, ("state", 3)), drift_verdict(_PST, counts, LEVEL))
+
+    def test_a_population_misread_past_a_half_is_refused(self):
+        # Seven in ten of what the family rejects is accepting.
+        mostly = round((0.3 * P_0 + 0.7 * P_1) * 500)
+        counts = {UNIFORM: _read_right(500), "mixed": ((0, 0), (mostly, 500))}
+
+        self.assertEqual((DRIFTED, "mixed"), drift_verdict(_PST, counts, LEVEL))
+
+    def test_a_population_need_only_be_read_the_right_way_round(self):
+        # Two in five misread: past max_coverage_error, short of a half.
+        some = round((0.6 * P_0 + 0.4 * P_1) * 2000)
+        counts = {UNIFORM: _read_right(2000), "mixed": ((0, 0), (some, 2000))}
+
+        self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
+
+    def test_the_pool_is_held_to_max_coverage_error(self):
+        # The same two in five, now the whole pool; a state read right pins p_0.
+        some = round((0.6 * P_0 + 0.4 * P_1) * 2000)
+        counts = {UNIFORM: ((0, 0), (some, 2000)), ("state", 0): _read_right(2000)}
+
+        self.assertEqual((DRIFTED, UNIFORM), drift_verdict(_PST, counts, LEVEL))
+
+    def test_too_few_prefixes_leaves_the_family_uncertified(self):
+        counts = {UNIFORM: _read_right(500), "small": _read_right(3)}
+
+        self.assertEqual((UNCERTIFIED, "small"), drift_verdict(_PST, counts, LEVEL))
+
+    def test_nothing_drawn_is_uncertified(self):
         self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((3, 4), (1, 4))})[0], UNCERTIFIED
+            (UNCERTIFIED, UNIFORM),
+            drift_verdict(_PST, {UNIFORM: ((0, 0), (0, 0))}, LEVEL),
         )
 
-    def test_a_pool_read_past_the_boundary_but_short_of_the_thresholds_admits(self):
-        # 60% and 40% read accepting, both inside the band the vote is read with.
+
+class TestTheBoundHolds(unittest.TestCase):
+    def test_the_bound_covers_the_misclassified_share(self):
+        # The family accepts 60% of the population; a fifth of that is in fact
+        # rejecting, and a tenth of what it rejects is accepting.
+        rng = np.random.default_rng(0)
+        accepted, wrong_in, wrong_out, n = 0.6, 0.2, 0.1, 400
+        truth = accepted * wrong_in + (1 - accepted) * wrong_out
+        missed = 0
+        for _ in range(500):
+            n_a = rng.binomial(n, accepted)
+            hits_a = rng.binomial(n_a, P_1 - (P_1 - P_0) * wrong_in)
+            hits_r = rng.binomial(n - n_a, P_0 + (P_1 - P_0) * wrong_out)
+            counts = {UNIFORM: ((hits_a, n_a), (hits_r, n - n_a))}
+            bound, _ = misclassified_bounds(_PST, counts, LEVEL)[UNIFORM]
+            missed += bound < truth
+
+        self.assertLessEqual(missed, 500 * LEVEL)
+
+
+class TestHowMuchIsDrawn(unittest.TestCase):
+    def test_a_cut_reading_right_certifies_at_the_size_and_not_half_of_it(self):
+        size = alignment_size(_PST, 1, 1 / 3)
+        level = cluster.ACCEPT_PRESERVING_ERROR_RATE / 2
+
         self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((600, 1000), (400, 1000))})[0], ADMITTED
+            ADMITTED, drift_verdict(_PST, {UNIFORM: _read_right(size // 2)}, level)[0]
+        )
+        self.assertNotEqual(
+            ADMITTED, drift_verdict(_PST, {UNIFORM: _read_right(size // 4)}, level)[0]
         )
 
-    def test_a_pool_read_at_the_boundary_never_admits(self):
-        self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((5020, 10000), (5020, 10000))})[0],
-            UNCERTIFIED,
-        )
+    def test_the_top_up_is_the_first_that_settles_the_named_population(self):
+        pst = SimpleNamespace(**vars(_PST), suffix_pool=list(range(8)))
+        pst.config = SimpleNamespace(**vars(_PST.config), num_addtl_prefixes=2000)
+        other = ((1, 6), (0, 0))
+        drawn = 20
 
-    def test_a_pool_with_nothing_on_one_side_can_still_admit(self):
-        # The cut put every prefix it read on the accepting side, and the oracle
-        # agrees about them.  There is no reject side to fail.
-        self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((900, 1000), (0, 0))})[0], ADMITTED
-        )
-
-    def test_a_split_with_no_decisive_prefix_at_all_is_uncertified(self):
-        # Every prefix read in the undecided band, so neither side holds one.
-        self.assertEqual(
-            drift_verdict(_PST, {UNIFORM: ((0, 0), (0, 0))}), (UNCERTIFIED, UNIFORM)
-        )
-
-    def test_without_a_pool_nothing_can_admit(self):
-        # A state's prefixes are one class, so they cannot say whether the
-        # family separates two.
-        self.assertEqual(
-            drift_verdict(_PST, {("state", 0): ((190, 200), (0, 0))})[0], UNCERTIFIED
-        )
-
-
-class TestAnyPopulationVetoes(unittest.TestCase):
-    """A state's prefixes all reach one state, so they are all one class and land
-    all on one side."""
-
-    def test_a_one_sided_population_read_right_does_not_block(self):
-        # 200 accepting prefixes the family also calls accepting.
-        self.assertEqual(_verdict(**{"one_sided": ((190, 200), (0, 0))}), ADMITTED)
-
-    def test_a_one_sided_population_read_backwards_vetoes(self):
-        # The same 200 accepting prefixes, called rejecting: the oracle accepts
-        # 95% of a side the family says is under 33%.
-        self.assertEqual(_verdict(**{"one_sided": ((0, 0), (190, 200))}), DRIFTED)
-
-    def test_a_population_too_small_to_veto_leaves_the_pool_to_it(self):
-        # Two prefixes read backwards cannot reject anything at this level, so
-        # the pool's own reading stands.
-        self.assertEqual(_verdict(**{"tiny": ((0, 0), (2, 2))}), ADMITTED)
-
-    def test_a_veto_outranks_a_pool_that_would_admit(self):
-        # The pool separates the classes and one state is still inverted, which
-        # is the case the per-population rate exists to catch.
-        self.assertEqual(
-            _verdict(**{"a": ((190, 200), (0, 0)), "b": ((0, 0), (190, 200))}),
-            DRIFTED,
-        )
-
-
-def _vetoes(hits, n):
-    """Whether the gate calls a state population of ``n`` reading ``hits`` drifted,
-    against a pool it is happy with."""
-    backwards = {("state", 0): ((hits, n), (0, 0))}
-    return drift_verdict(_PST, {UNIFORM: _CLEAN_POOL, **backwards})[0] == DRIFTED
-
-
-def _caught(n):
-    """Chance the gate vetoes a population of ``n`` the family has inverted, which
-    the oracle reads at ``REJECT`` rather than at nothing."""
-    return sum(
-        binom_cdf(hits, n, REJECT) - binom_cdf(hits - 1, n, REJECT)
-        for hits in range(n + 1)
-        if _vetoes(hits, n)
-    )
-
-
-def _smallest_that_can_fire():
-    """Fewest prefixes at which a population reading as nothing but the other
-    class vetoes: what sizing on the level alone buys."""
-    return next(n for n in itertools.count(1) if _vetoes(0, n))
-
-
-class TestWhatAVetoCosts(unittest.TestCase):
-    """`veto_size` is what a population has to hold for a backwards reading to be
-    caught, which is more than it has to hold to fire at all: an inverted
-    population is read at ``reject_thresh``, not at nothing."""
-
-    def test_an_inverted_population_is_caught_all_but_alpha_of_the_time(self):
-        self.assertGreaterEqual(
-            _caught(veto_size(_PST, 1)), 1 - ACCEPT_PRESERVING_ERROR_RATE
-        )
-
-    def test_a_size_that_can_only_fire_misses_more_than_that(self):
-        firing = _smallest_that_can_fire()
-
-        self.assertLess(_caught(firing), 1 - ACCEPT_PRESERVING_ERROR_RATE)
-        self.assertGreater(veto_size(_PST, 1), firing)
-
-    def test_a_population_reading_as_its_own_class_is_left_alone(self):
-        n = veto_size(_PST, 1)
-
-        self.assertFalse(_vetoes(round(n * ACCEPT), n))
-
-
-class TestWhatTheTopUpAssumes(unittest.TestCase):
-    def test_only_the_pool_is_scaled(self):
-        # Scaling a population nobody draws from asks what a draw that is
-        # never made would say, and cuts the pool's top-up to a fraction of what
-        # it needs.
-        pool = ((75, 100), (30, 100))
-        pst = SimpleNamespace(
-            accept_thresh=ACCEPT,
-            reject_thresh=REJECT,
-            decision_boundary=(ACCEPT + REJECT) / 2,
-            suffix_pool=list(range(8)),
-            config=SimpleNamespace(num_addtl_prefixes=2000),
-        )
+        def settled(n):
+            counts = {"small": _read_right(n), "other": other}
+            bound, at_rates = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
+            return bound <= 1 / 2 or at_rates > 1 / 2
 
         wanted = prefixes_to_certify(
-            pst, {UNIFORM: pool, ("state", 0): ((1, 6), (0, 0))}, 200, range(8)
+            pst,
+            {"small": _read_right(drawn), "other": other},
+            "small",
+            2 * drawn,
+            range(8),
         )
 
-        self.assertEqual(
-            wanted, prefixes_to_certify(pst, {UNIFORM: pool}, 200, range(8))
-        )
+        self.assertTrue(settled(drawn + wanted // 2))
+        self.assertFalse(settled(drawn + wanted // 2 - drawn))
 
 
-class TestARefusalNamesAPopulation(unittest.TestCase):
-    """What the search grows to answer the refusal."""
-
-    def test_a_veto_names_the_population_read_backwards(self):
-        verdict, blamed = drift_verdict(
-            _PST, {UNIFORM: _CLEAN_POOL, ("state", 3): ((0, 0), (190, 200))}
-        )
-
-        self.assertEqual((DRIFTED, ("state", 3)), (verdict, blamed))
-
-    def test_a_split_that_cannot_be_read_names_the_pool(self):
-        # Only the pool can admit, so it is the one worth growing.
-        verdict, blamed = drift_verdict(_PST, {UNIFORM: ((3, 4), (1, 4))})
-
-        self.assertEqual((UNCERTIFIED, UNIFORM), (verdict, blamed))
-
-    def test_an_admitted_family_blames_nobody(self):
-        self.assertEqual((ADMITTED, None), drift_verdict(_PST, {UNIFORM: _CLEAN_POOL}))
-
-
-class TestAVetoRedrawsItsSample(unittest.TestCase):
-    """A veto scores the population's own reads, so a sample kept after it
+class TestARefusalRedrawsItsSample(unittest.TestCase):
+    """A refusal scores the population's own reads, so a sample kept after it
     refuses would refuse every later family on the same bits."""
 
-    def test_the_vetoing_population_is_redrawn_and_the_pool_kept(self):
+    def test_the_refusing_population_is_redrawn_and_the_rest_kept(self):
         draws = itertools.count()
         verdicts = iter([(DRIFTED, "state"), (ADMITTED, None)])
         read = []
@@ -214,17 +172,16 @@ class TestAVetoRedrawsItsSample(unittest.TestCase):
             population_labels=lambda state: [UNIFORM, "state"],
             prefixes_for_split=lambda pst, state, label, n: [next(draws)],
             certification_budget=lambda pst, vs: 1,
-            veto_size=lambda pst, populations: 1,
+            alignment_size=lambda pst, populations, limit: 1,
             certification_sample=lambda pst, vs, prefixes: read.append(dict(prefixes)),
             _split_counts=lambda pst, reads: {},
-            drift_verdict=lambda pst, counts: next(verdicts),
+            drift_verdict=lambda pst, counts, level: next(verdicts),
         ):
             gate = cluster.AcceptPreservingGate(
                 SimpleNamespace(require_accept_preserving=True), state=None
             )
-            pst = SimpleNamespace(table=SimpleNamespace(representative=np.ones(3)))
-            gate.verdict(pst, 0, [1, 2])
-            gate.verdict(pst, 0, [1, 2])
+            gate.verdict(_PST, 0, [1, 2])
+            gate.verdict(_PST, 0, [1, 2])
 
         self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
 
