@@ -34,7 +34,7 @@ def _pool(seed):
 
 
 class TestClusterAnchor(unittest.TestCase):
-    def test_the_family_is_the_keepers(self):
+    def test_the_family_leads_with_the_keepers(self):
         reads, shifts = _pool(0)
         vs, _ = identify_cluster_around(
             cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY

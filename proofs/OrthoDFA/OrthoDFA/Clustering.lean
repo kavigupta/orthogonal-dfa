@@ -19,8 +19,9 @@ family's vote there; here the cut is centred at half the family (`lo`, `hi`).  S
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
 Known modelling gap.  `identify_cluster_around` groups the pool by k-means and a merge test,
-takes the group whose reads covary most with the seed's, and fills the family from the rest by
-distance to that group's mean; `clusterAround` does none of these.  The proof only uses that the
+takes the group whose rows read in another class than the seed least often on the prefixes the
+screen never saw, and fills the family from the rest by distance to that group's mean;
+`clusterAround` does none of these.  The proof only uses that the
 cluster holds the seed, lies in the screened pool, has `k` members when the pool holds that many
 and at most `k` otherwise, and is a function of the pool's reads on the prefixes, all of which
 `identify_cluster_around` also satisfies -- the last given `pst.rng`, which k-means draws its
@@ -46,22 +47,23 @@ claim's bound on the undecided mass holds of the test `ret` runs, not of the Pyt
 Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds` bounds the
 share of the uniform pool's distribution its cut at the boundary misclassifies by
 `max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
-side's share and on the seed's rate there, maximised over the offset all populations share as
-`certificate.error_bound` does.  `admitted` is the
-earlier test, the cut's agreement with the seed beating `1/2` on the uniform pool alone, so the
+side's share and on the seed's rate there, read at the rates `decision_boundary ∓
+min_signal_strength`.  `admitted` is the earlier test, the cut's agreement with the seed beating `1/2` on the uniform pool alone, so the
 claim here does not yet cover what the Python admits.  The Python's FNR also reads 1 for a family
 that decides no prefix one of the two ways, which `ret` does not.
 
 Known modelling gap.  `sample_suffix_family` also offers the gate `aligned_family` when the
 clustered family fails: the pool's suffixes whose Hoeffding bound on the share of each population
 they read in another class than the seed is within half of `max_coverage_error`, at the rates
-`decision_boundary ∓ min_signal_strength`.  That family is what makes some family pass once the
+`decision_boundary ∓ min_signal_strength`, read on the prefixes the screen never saw.  That family is what makes some family pass once the
 pool and the prefixes are large enough; the loop here offers only the clustered one.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
-pool's least count.
+pool's least count.  `_screen_cohort` also reads only the prefixes `scores_seed` leaves it, half
+of them by a hash of the string, so that what the screen admitted on is not what the anchor and
+`aligned_family` score on.
 
 Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
 one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The

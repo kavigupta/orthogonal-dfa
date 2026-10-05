@@ -36,10 +36,7 @@ def identify_cluster_around(
             reads[seed_local],
             list(pst.table.population_masks().values()),
             pst.table.seed_scoring(),
-            (
-                decision_boundary - pst.config.min_signal_strength,
-                decision_boundary + pst.config.min_signal_strength,
-            ),
+            rates_at(pst, decision_boundary),
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             k=math.ceil(1 / pst.config.min_suffix_frequency),
@@ -70,18 +67,18 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def round_rates(pst):
-    """(p_0, p_1) the round reads at: the boundary -/+ the signal."""
+def rates_at(pst, decision_boundary):
+    """(p_0, p_1): the boundary -/+ the signal, the rates a round reads at."""
     signal = pst.config.min_signal_strength
-    return pst.decision_boundary - signal, pst.decision_boundary + signal
+    return decision_boundary - signal, decision_boundary + signal
 
 
 def aligned_family(pst, seed: int, count: int) -> List[int]:
     """Seed, then the pool's aligned_suffixes against seed's reads at the
-    round's rates, boundary -/+ the signal, and within max_coverage_error, read on
-    the prefixes the screen never saw; count of them at most.  Every member reads each population like seed but
-    for a bounded share, which is what makes some family pass the gate once the
-    pool and the prefixes are large enough."""
+    round's rates_at and within max_coverage_error, read on the prefixes the
+    screen never saw; count of them at most.  Every member reads each population
+    like seed but for a bounded share, which is what makes some family pass the
+    gate once the pool and the prefixes are large enough."""
     candidate = np.array(pst.suffix_pool)
     reads = pst.table.observed_masks(candidate, pst.table.representative)
     reads = reads.astype(float)
@@ -96,7 +93,7 @@ def aligned_family(pst, seed: int, count: int) -> List[int]:
             for m in pst.table.population_masks().values()
             if (m & scoring).any()
         ],
-        round_rates(pst),
+        rates_at(pst, pst.decision_boundary),
         epsilon=pst.config.max_coverage_error,
         alpha=ACCEPT_PRESERVING_ERROR_RATE,
     )
@@ -218,7 +215,7 @@ def _split_counts(pst, reads):
 
 def misclassified_bounds(pst, by_population, level):
     """label -> (bound, at the rates read) on the share of the population's
-    distribution the family's cut misclassifies, at the round_rates (p_0, p_1):
+    distribution the family's cut misclassifies, at the round's rates_at (p_0, p_1):
     a side of the cut reading r holds a share (p_1 - r) / (p_1 - p_0) of
     rejecting prefixes where it accepts and (r - p_0) / (p_1 - p_0) of accepting
     ones where it rejects, clipped to [0, 1].  The bound is the largest such
@@ -232,7 +229,7 @@ def misclassified_bounds(pst, by_population, level):
         if counts[0][1] + counts[1][1]
     }
     each = level / (4 * max(1, len(drawn)))
-    p_0, p_1 = round_rates(pst)
+    p_0, p_1 = rates_at(pst, pst.decision_boundary)
 
     def wrong(accept, reject):
         """Each side's misclassified share at its rate."""
@@ -289,15 +286,14 @@ def drift_verdict(pst, by_population, level):
 
 def alignment_size(pst, populations, limit) -> int:
     """Fewest prefixes at which a cut that misclassifies nothing and halves a
-    population, read at the round's rates boundary -/+ signal, gets a
-    misclassified_bounds bound of at most limit at a look's level: the size a
-    population is first drawn at.  Sizing only."""
-    signal = pst.config.min_signal_strength
-    rates = (pst.decision_boundary + signal, pst.decision_boundary - signal)
+    population, read at the round's rates_at, gets a misclassified_bounds bound
+    of at most limit at a look's level: the size a population is first drawn
+    at.  Sizing only."""
+    p_0, p_1 = rates_at(pst, pst.decision_boundary)
     size = 2
     while True:
         half = size // 2
-        counts = ((round(rates[0] * half), half), (round(rates[1] * half), half))
+        counts = ((round(p_1 * half), half), (round(p_0 * half), half))
         bound, _ = misclassified_bounds(
             pst, {UNIFORM: counts}, ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
         )[UNIFORM]
@@ -537,11 +533,11 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 break
 
         judged = judge_family(pst, gate, v, vs, family_size)
-        if judged.fnr > pst.config.fnr_limit:
+        if judged.fnr > pst.fnr_limit:
             aligned = aligned_family(pst, v, family_size)
             if len(aligned) >= family_size:
                 offered = judge_family(pst, gate, v, aligned, family_size)
-                if offered.fnr <= pst.config.fnr_limit:
+                if offered.fnr <= pst.fnr_limit:
                     judged = offered
 
         if judged.fnr <= pst.fnr_limit:
