@@ -408,12 +408,19 @@ class AcceptPreservingGate:
                 self._drawn.pop(blamed, None)
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            bound, at_rates = misclassified_bounds(pst, counts, level)[blamed]
+            bounds = misclassified_bounds(pst, counts, level)
+            if blamed in bounds:
+                bound, at_rates = bounds[blamed]
+                read = (
+                    f"misclassifies {at_rates:.0%} of {blamed} at the rates read, "
+                    f"at most {bound:.0%}, against "
+                    f"{misclassification_limit(pst, blamed):.0%}"
+                )
+            else:
+                read = f"drew no prefix to read {blamed} on"
             raise NoAcceptPreservingFamily(
-                f"{self.refusals} families refused: the last misclassifies "
-                f"{at_rates:.0%} of {blamed} at the rates read, at most {bound:.0%}, "
-                f"against {misclassification_limit(pst, blamed):.0%}; no suffix family "
-                f"realises the accept-preserving split on this target"
+                f"{self.refusals} families refused: the last {read}; no suffix "
+                f"family realises the accept-preserving split on this target"
             )
         return verdict, blamed
 
