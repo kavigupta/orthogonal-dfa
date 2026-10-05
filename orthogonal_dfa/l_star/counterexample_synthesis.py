@@ -84,7 +84,8 @@ COUNTEREXAMPLE_PROBES = 4000
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
 
-#: Blocked disagreement searches a round needs before it halves the FNR limit: a
+#: Searches for the edge where the DFA and the tree diverge that a round must see
+#: abandoned, at an undecided sift on the way, before it halves the FNR limit: a
 #: round of a handful of states makes too few for their share to say anything.
 MIN_BLOCKED_SEARCHES = 10
 
