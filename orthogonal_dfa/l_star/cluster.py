@@ -196,15 +196,20 @@ def _split_counts(pst, reads):
 
 
 def misclassified_bounds(pst, by_population, level):
-    """label -> (bound, at the rates read) on the share of the population's
-    distribution the family's cut misclassifies, at the round_rates (p_0, p_1):
-    a side of the cut reading r holds a share (p_1 - r) / (p_1 - p_0) of
-    rejecting prefixes where it accepts and (r - p_0) / (p_1 - p_0) of accepting
-    ones where it rejects, clipped to [0, 1].  The bound is the largest such
-    total over Clopper-Pearson intervals at level / 4 |populations| on each
-    side's share of the population and on the empty suffix's rate of 1s there,
-    so every bound holds at once with probability at least 1 - level, the
-    round's rates being the oracle's."""
+    """
+    Returns label j -> (bound_j, point_j) where for
+
+        E_j = P_{p ~ D_j}[ decisiveClassifyFamily(p) != noiselessOracle(p) ],
+
+    point_j is E_j assuming that the fractions a_i/n_i and n_i / (n_0 + n_1)
+    arising from _split_counts  are exact expectations rather than samples, and
+    bound_j satisfies
+
+        P(E_j <= bound_j for every j) >= 1 - level
+
+    under only the condition that the oracle has exactly round_rates(pst) rates.
+    (in particular, it does not assume the aformentioned fractions are exact expectations).
+    """
     drawn = {
         label: counts
         for label, counts in by_population.items()
