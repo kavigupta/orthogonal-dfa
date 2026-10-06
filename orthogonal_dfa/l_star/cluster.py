@@ -24,10 +24,11 @@ def identify_cluster_around(
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
     candidate = np.array(pst.suffix_pool)
-    masks = pst.table.observed_masks(candidate, pst.table.representative)
+    reads = pst.table.observed_masks(candidate, pst.table.representative)
+    reads = reads.astype(float)
     assert seed in pst.suffix_pool, "cluster seed must be in the pool"
     seed_local = pst.suffix_pool.index(seed)
-    reads = masks.astype(float)
+    signal = pst.config.min_signal_strength
     others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = [seed_local]
     if len(others):
@@ -36,10 +37,7 @@ def identify_cluster_around(
             reads[seed_local],
             list(pst.table.population_masks().values()),
             pst.table.seed_scoring(),
-            (
-                decision_boundary - pst.config.min_signal_strength,
-                decision_boundary + pst.config.min_signal_strength,
-            ),
+            (decision_boundary - signal, decision_boundary + signal),
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             k=math.ceil(1 / pst.config.min_suffix_frequency),
@@ -47,13 +45,12 @@ def identify_cluster_around(
             rng=pst.rng,
         )
         cluster += others[order[: count - 1]].tolist()
-    cluster_center = reads[cluster].mean(0) > decision_boundary
 
     # Estimate decision boundary from the prefix separation
-    prefix_means = masks[cluster].mean(0)
+    prefix_means = reads[cluster].mean(0)
+    cluster_center = prefix_means > decision_boundary
     accept_prefixes = prefix_means[cluster_center]
     reject_prefixes = prefix_means[~cluster_center]
-    signal = pst.config.min_signal_strength
     # A one-sided cluster has only the one class's mean to go on, which sits a
     # signal away from the boundary.  Reading the boundary off it directly would
     # cut that class down the middle, so step off it by the signal we were promised.

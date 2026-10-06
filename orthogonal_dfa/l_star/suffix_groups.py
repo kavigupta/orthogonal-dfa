@@ -16,18 +16,16 @@ from sklearn.cluster import AgglomerativeClustering, KMeans
 
 def coherent_groups(rows, populations, *, k, alpha, rng) -> List[np.ndarray]:
     """The rows' k-means clusters over the even columns, unioned by complete
-    linkage while no pair (a, b) across two unions has, for j every column or
-    one population's,
+    linkage over the pairs of clusters (a, b) for which no j, all the columns
+    or one population's, has
 
         T_j = sum_p (mean_a,p - mean_b,p)^2 / (v_p (1 / n_a + 1 / n_b))
+            > chi2.isf(alpha / (pairs (|populations| + 1)), |p|),
 
-    over j's odd columns p beyond the chi-squared quantile at
-    1 - alpha / (pairs (|populations| + 1)), v_p the within-cluster variance;
-    then each row moved to its nearest union over the even columns.  The
-    clusters never see the odd columns, so under one profile T_j is
-    chi-squared, the means taken as normal.  Every column at once catches a
-    difference spread thinly across populations; one population's columns
-    catch a difference within it however many other populations hold."""
+    p over j's odd columns and v_p the within-cluster variance; then each row
+    moved to its nearest union over the even columns.  The clusters never see
+    the odd columns, so under one profile T_j is chi-squared, the means taken as
+    normal."""
     fit, held = rows[:, ::2], rows[:, 1::2]
     k = min(k, len(np.unique(fit, axis=0)))
     seed = int(rng.integers(2**31))

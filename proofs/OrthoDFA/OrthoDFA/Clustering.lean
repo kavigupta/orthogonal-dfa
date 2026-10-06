@@ -56,7 +56,7 @@ does not.
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
-pool's least count.  `_screen_cohort` also reads only the prefixes `scores_seed` leaves it, half
+pool's least count.  `_screen_cohort` also reads only the prefixes `seed_scoring` leaves it, half
 of them by a hash of the string, so that what the screen admitted on is not what the anchor
 scores on.
 

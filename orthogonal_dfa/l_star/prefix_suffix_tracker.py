@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 import numpy as np
 import scipy.stats
 
-from .mask_table import UNIFORM, MaskTable, scores_seed
+from .mask_table import UNIFORM, MaskTable
 from .progress import counter
 from .sampler import Sampler
 from .statistics import binomial_side_of_boundary
@@ -200,14 +200,9 @@ class PrefixSuffixTracker:
         eta = 0.5 - self.config.min_signal_strength
         declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
-        candidates = np.array(
-            [
-                c
-                for c in np.flatnonzero(self.table.representative)
-                if not scores_seed(self.table.prefixes[c])
-            ],
-            dtype=int,
-        )
+        candidates = np.flatnonzero(self.table.representative)[
+            ~self.table.seed_scoring()
+        ]
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
         alpha = self.config.screening_alpha / len(staircase)
