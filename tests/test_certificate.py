@@ -60,6 +60,59 @@ class TestErrorBound(unittest.TestCase):
                 float(masses @ shares) - 1e-12,
             )
 
+    def test_reads_apart_while_the_intervals_hold(self):
+        rng = np.random.default_rng(0)
+        for _ in range(500):
+            states = int(rng.integers(1, 6))
+            masses = rng.dirichlet(np.ones(states))
+            accepting = rng.random(states) < 0.5
+            gap = float(rng.uniform(0.02, 0.5))
+            rates = rng.random(states)
+            low = np.clip(rates - rng.random(states) * 0.1, 0, 1)
+            high = np.clip(rates + rng.random(states) * 0.1, 0, 1)
+            spread = rng.random(states) * 0.05
+            mass_intervals = (
+                np.clip(masses - spread, 0, 1),
+                np.clip(masses + spread, 0, 1),
+            )
+            self.assertReadsApart(
+                masses,
+                rates,
+                accepting,
+                gap,
+                bound=error_bound(mass_intervals, (low, high), accepting, gap),
+            )
+
+    def test_a_state_read_past_the_band_counts_past_its_mass(self):
+        masses = np.array([0.058, 0.068, 0.122, 0.744, 0.008])
+        accepting = np.array([False, False, False, True, True])
+        rates = np.array([0.5696, 0.5723, 0.5095, 0.5483, 0.4916])
+        low = np.array([0.5411, 0.5257, 0.4804, 0.5469, 0.4406])
+        high = np.array([0.5859, 0.5911, 0.5095, 0.5796, 0.5208])
+        mass_intervals = (
+            np.array([0.0267, 0.0212, 0.065, 0.7072, 0.0]),
+            np.array([0.0688, 0.0679, 0.1217, 0.7578, 0.011]),
+        )
+        gap = 0.0352
+        self.assertReadsApart(
+            masses,
+            rates,
+            accepting,
+            gap,
+            bound=error_bound(mass_intervals, (low, high), accepting, gap),
+        )
+
+    def assertReadsApart(self, masses, rates, accepting, gap, *, bound):
+        """m_R m_A Delta >= gap (m_A m_R - bound) wherever m_A m_R >= bound."""
+        accepted = float(masses[accepting].sum())
+        rejected = 1 - accepted
+        if accepted * rejected < bound:
+            return
+        apart = rejected * float(
+            masses[accepting] @ rates[accepting]
+        ) - accepted * float(masses[~accepting] @ rates[~accepting])
+        self.assertGreaterEqual(apart, gap * (accepted * rejected - bound) - 1e-12)
+
     def test_exact_with_a_clean_state_of_each_label(self):
         masses = [0.88, 0.06, 0.06]
         accepting = [True, False, False]
