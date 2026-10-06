@@ -597,6 +597,29 @@ class TestArmedMergeLearned(unittest.TestCase):
             sampler=sampler,
         )
 
+    # Every round's family reads Q as A here, so only a split of the merged state
+    # gives a later round a population where it cannot.
+    @parameterized.expand([(seed,) for seed in range(4)])
+    def test_the_armed_state_is_not_merged_at_a_skewed_band(self, seed):
+        target = build_armed_target()
+        oracle_creator = lambda nm, s, _d=target: NoisyOracle(DFAOracle(_d), nm, s)
+        sampler = UniformSampler(ARMED_LENGTH)
+        dfa = learn_dfa_unchecked(
+            oracle_creator,
+            min_signal_strength=ARMED_SIGNAL,
+            seed=seed,
+            sampler=sampler,
+            noise_model=AsymmetricBernoulli(p_0=0.35, p_1=0.95),
+        )
+        assert_not_merged(
+            self,
+            dfa,
+            target,
+            oracle_creator=oracle_creator,
+            symbols=ARMED_ALPHABET,
+            sampler=sampler,
+        )
+
 
 TRAP_LENGTH = 40
 TRAP_SIGNAL = 0.2
