@@ -145,31 +145,24 @@ class TestGrowingThePopulationTheRateBelongsTo(unittest.TestCase):
         self.assertEqual(_words(_A_DRAW), state.held[("state", 0)])
         self.assertEqual(_words(_A_DRAW), pst.table.added[("state", 0)])
 
-    def test_a_population_nothing_draws_for_is_retired(self):
+    def test_a_population_nothing_draws_for_is_kept_as_it_is(self):
         pst = _Pst()
         state = _holding(("boundary", 1), _Source([], worth=False), _words(3))
 
         self.assertFalse(grow_population(pst, state, ("boundary", 1)))
 
-        self.assertEqual([("boundary", 1)], pst.table.dropped)
-        self.assertEqual({}, state.held)
+        self.assertEqual([], pst.table.dropped)
+        self.assertEqual({}, pst.table.added)
+        self.assertEqual(_words(3), state.held[("boundary", 1)])
+        self.assertEqual(set(_words(3)), state.seen)
 
-    def test_and_its_strings_are_forgotten_rather_than_held_aside(self):
-        # A later round that strands one of these again can pool it behind a
-        # source that does draw.
-        pst = _Pst()
-        state = _holding(("boundary", 1), _Source([], worth=False), _words(3))
-
-        grow_population(pst, state, ("boundary", 1))
-
-        self.assertEqual(set(), state.seen)
-
-    def test_a_population_this_round_has_no_source_for_is_retired_too(self):
+    def test_so_is_one_this_round_has_no_source_for(self):
         pst, state = _Pst(), PoolState([])
         state.held[("state", 9)] = _words(3)
 
         self.assertFalse(grow_population(pst, state, ("state", 9)))
-        self.assertEqual([("state", 9)], pst.table.dropped)
+        self.assertEqual([], pst.table.dropped)
+        self.assertEqual(_words(3), state.held[("state", 9)])
 
 
 if __name__ == "__main__":

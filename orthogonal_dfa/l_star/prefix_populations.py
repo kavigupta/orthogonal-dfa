@@ -53,18 +53,15 @@ class PoolState:
 
 
 def grow_population(pst, state, label) -> bool:
-    """Draw more prefixes for one population, or retire it, table and all, when
-    nothing draws for it any more."""
+    """Draw more prefixes for one population, or say nothing draws for it any
+    more.  One nothing draws for is kept as it is: what it holds is still what
+    it was harvested for, and a family that leaves it undecided has not decided
+    those states."""
     if label == UNIFORM:
         pst.sample_more_prefixes()
         return True
     source = state.sources.get(label)
     if source is None or not source.worth_drawing():
-        # Forgotten rather than held aside, so a later round that strands one
-        # of these again can pool it behind a source that does draw.
-        state.seen.difference_update(state.held.pop(label, ()))
-        state.sources.pop(label, None)
-        pst.table.drop_population(label)
         return False
     # As many as the uniform draw this stands in for adds.
     drawn = [source.draw() for _ in range(pst.config.num_addtl_prefixes)]
