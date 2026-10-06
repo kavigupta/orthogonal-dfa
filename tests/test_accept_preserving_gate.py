@@ -21,7 +21,6 @@ from orthogonal_dfa.l_star.cluster import (
     prefixes_to_certify,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
-from orthogonal_dfa.l_star.suffix_groups import aligned_suffixes
 
 #: The rates the round reads at, boundary -/+ the signal.
 P_0, P_1 = 0.35, 0.95
@@ -171,28 +170,6 @@ class TestARefusalRedrawsItsSample(unittest.TestCase):
             gate.verdict(_PST, 0, [1, 2])
 
         self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
-
-
-class TestAlignedSuffixes(unittest.TestCase):
-    def test_a_row_reading_like_the_anchor_is_kept_and_one_that_does_not_is_not(self):
-        rng = np.random.default_rng(0)
-        n = 20000
-        accepting = rng.random(n) < 0.3
-        # The second row reads a tenth of the prefixes in the other class.
-        moved = accepting ^ (rng.random(n) < 0.1)
-        read = lambda classes: (rng.random(n) < np.where(classes, P_1, P_0)) * 1.0
-        rows = np.array([read(accepting), read(moved)])
-
-        kept = aligned_suffixes(
-            rows,
-            read(accepting),
-            [np.ones(n, dtype=bool)],
-            (P_0, P_1),
-            epsilon=0.1,
-            alpha=LEVEL,
-        )
-
-        self.assertEqual([0], kept.tolist())
 
 
 if __name__ == "__main__":

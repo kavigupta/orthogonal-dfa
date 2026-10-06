@@ -12,7 +12,7 @@ from .statistics import (
     evidence_margin_for_population_size,
     population_size_and_evidence_margin,
 )
-from .suffix_groups import aligned_suffixes, nearest_to_anchor_group
+from .suffix_groups import nearest_to_anchor_group
 
 
 def identify_cluster_around(
@@ -78,33 +78,6 @@ def round_rates(pst):
     """
     signal = pst.config.min_signal_strength
     return pst.decision_boundary - signal, pst.decision_boundary + signal
-
-
-def aligned_family(pst, seed: int, count: int) -> List[int]:
-    """Seed, then the pool's aligned_suffixes against seed's reads at the
-    round_rates and within max_coverage_error, read on the prefixes the
-    screen never saw; count of them at most.  Every member reads each population
-    like seed but for a bounded share, which is what makes some family pass the
-    gate once the pool and the prefixes are large enough."""
-    candidate = np.array(pst.suffix_pool)
-    reads = pst.table.observed_masks(candidate, pst.table.representative)
-    reads = reads.astype(float)
-    seed_local = pst.suffix_pool.index(seed)
-    others = np.flatnonzero(np.arange(len(reads)) != seed_local)
-    scoring = pst.table.seed_scoring()
-    kept = aligned_suffixes(
-        reads[others],
-        reads[seed_local],
-        [
-            m & scoring
-            for m in pst.table.population_masks().values()
-            if (m & scoring).any()
-        ],
-        round_rates(pst),
-        epsilon=pst.config.max_coverage_error,
-        alpha=ACCEPT_PRESERVING_ERROR_RATE,
-    )
-    return candidate[[seed_local] + others[kept[: count - 1]].tolist()].tolist()
 
 
 def read_rates(pst, decision_boundary):
@@ -566,12 +539,6 @@ def sample_suffix_family(pst, v: int, state) -> Tuple[List[int], float]:
                 break
 
         judged = judge_family(pst, gate, v, vs, family_size)
-        if judged.fnr > pst.fnr_limit:
-            aligned = aligned_family(pst, v, family_size)
-            if len(aligned) >= family_size:
-                offered = judge_family(pst, gate, v, aligned, family_size)
-                if offered.fnr <= pst.fnr_limit:
-                    judged = offered
 
         if judged.fnr <= pst.fnr_limit:
             print(

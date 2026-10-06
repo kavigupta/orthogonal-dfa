@@ -92,29 +92,3 @@ def nearest_to_anchor_group(
     weight = sum(population / population.sum() for population in populations)
     distance = (rows - rows[best].mean(0)) ** 2 @ weight
     return np.argsort(distance, kind="stable")
-
-
-def aligned_suffixes(rows, anchor, populations, rates, *, epsilon, alpha):
-    """The rows whose share of each population read in another class than
-    anchor's is at most epsilon / 2 by the bound below, smallest largest bound
-    first.  misread_statistic over population j's n_j columns has independent
-    terms in an interval of width w, so with probability at least 1 - alpha over
-    every row and population at once that share is at most
-
-        (U_j + w sqrt(n_j log(rows populations / alpha) / 2)) / ((p_1 - p_0)^2 n_j).
-    """
-    if rows.shape[0] == 0 or not populations:
-        return np.zeros(0, dtype=int)
-    p_0, p_1 = rates
-    # A column's term where both read 0, where one does, and where both read 1.
-    terms = -2 * p_0 * p_1 + np.array([0, p_0 + p_1, 2 * (p_0 + p_1 - 1)])
-    width = terms.max() - terms.min()
-    log_tests = np.log(len(rows) * len(populations) / alpha)
-    worst = np.zeros(len(rows))
-    for population in populations:
-        n = population.sum()
-        u = misread_statistic(rows, anchor, population, rates)
-        share = (u + width * np.sqrt(n * log_tests / 2)) / ((p_1 - p_0) ** 2 * n)
-        worst = np.maximum(worst, share)
-    kept = np.flatnonzero(worst <= epsilon / 2)
-    return kept[np.argsort(worst[kept], kind="stable")]
