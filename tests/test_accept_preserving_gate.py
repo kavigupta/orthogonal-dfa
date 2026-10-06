@@ -118,7 +118,7 @@ class TestTheBoundHolds(unittest.TestCase):
 class TestHowMuchIsDrawn(unittest.TestCase):
     def test_a_cut_reading_right_certifies_at_the_size_and_not_half_of_it(self):
         size = alignment_size(_PST, 1, 1 / 3)
-        level = cluster.ACCEPT_PRESERVING_ERROR_RATE / 2
+        level = cluster.ACCEPT_PRESERVING_VERDICT_ERROR_RATE
 
         self.assertEqual(
             ADMITTED, drift_verdict(_PST, {UNIFORM: _read_right(size // 2)}, level)[0]
@@ -138,7 +138,7 @@ class TestHowMuchIsDrawn(unittest.TestCase):
             return bound <= 1 / 2 or at_rates > 1 / 2
 
         wanted = prefixes_to_certify(
-            pst, {"small": _read_right(drawn)}, "small", 2 * drawn, range(8)
+            pst, {"small": _read_right(drawn)}, "small", LEVEL / 2, range(8)
         )
 
         self.assertTrue(settled(drawn + wanted // 2))
