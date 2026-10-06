@@ -21,7 +21,6 @@ from orthogonal_dfa.l_star.cluster import (
     prefixes_to_certify,
 )
 from orthogonal_dfa.l_star.mask_table import UNIFORM
-from orthogonal_dfa.l_star.suffix_groups import aligned_suffixes
 
 #: The rates the round reads at, boundary -/+ the signal.
 P_0, P_1 = 0.35, 0.95
@@ -46,19 +45,10 @@ class TestEveryPopulationIsHeld(unittest.TestCase):
 
         self.assertEqual((ADMITTED, None), drift_verdict(_PST, counts, LEVEL))
 
-    def test_a_one_class_population_read_as_its_class_is_admitted(self):
+    def test_one_class_populations_read_as_their_class_are_admitted(self):
         counts = {
             UNIFORM: _read_right(500),
             ("state", 0): ((round(P_1 * 500), 500), (0, 0)),
-        }
-
-        self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
-
-    def test_a_one_class_population_is_read_at_the_offset_the_others_pin(self):
-        # Alone, a side reading 0.35 could be all rejecting at p_0 = 0.35 or
-        # mostly accepting at a lower p_0; the pool's two sides say which.
-        counts = {
-            UNIFORM: _read_right(500),
             ("state", 1): ((0, 0), (round(P_0 * 500), 500)),
         }
 
@@ -88,9 +78,9 @@ class TestEveryPopulationIsHeld(unittest.TestCase):
         self.assertEqual(ADMITTED, drift_verdict(_PST, counts, LEVEL)[0])
 
     def test_the_pool_is_held_to_max_coverage_error(self):
-        # The same two in five, now the whole pool; a state read right pins p_0.
+        # The same two in five, now the whole pool.
         some = round((0.6 * P_0 + 0.4 * P_1) * 2000)
-        counts = {UNIFORM: ((0, 0), (some, 2000)), ("state", 0): _read_right(2000)}
+        counts = {UNIFORM: ((0, 0), (some, 2000))}
 
         self.assertEqual((DRIFTED, UNIFORM), drift_verdict(_PST, counts, LEVEL))
 
@@ -128,7 +118,7 @@ class TestTheBoundHolds(unittest.TestCase):
 class TestHowMuchIsDrawn(unittest.TestCase):
     def test_a_cut_reading_right_certifies_at_the_size_and_not_half_of_it(self):
         size = alignment_size(_PST, 1, 1 / 3)
-        level = cluster.ACCEPT_PRESERVING_ERROR_RATE / 2
+        level = cluster.ACCEPT_PRESERVING_VERDICT_ERROR_RATE
 
         self.assertEqual(
             ADMITTED, drift_verdict(_PST, {UNIFORM: _read_right(size // 2)}, level)[0]
@@ -140,20 +130,15 @@ class TestHowMuchIsDrawn(unittest.TestCase):
     def test_the_top_up_is_the_first_that_settles_the_named_population(self):
         pst = SimpleNamespace(**vars(_PST), suffix_pool=list(range(8)))
         pst.config = SimpleNamespace(**vars(_PST.config), num_addtl_prefixes=2000)
-        other = ((1, 6), (0, 0))
         drawn = 20
 
         def settled(n):
-            counts = {"small": _read_right(n), "other": other}
-            bound, at_rates = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
-            return bound <= 1 / 2 or at_rates > 1 / 2
+            counts = {"small": _read_right(n)}
+            bound, point = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
+            return bound <= 1 / 2 or point > 1 / 2
 
         wanted = prefixes_to_certify(
-            pst,
-            {"small": _read_right(drawn), "other": other},
-            "small",
-            2 * drawn,
-            range(8),
+            pst, {"small": _read_right(drawn)}, "small", LEVEL / 2, range(8)
         )
 
         self.assertTrue(settled(drawn + wanted // 2))
@@ -185,28 +170,6 @@ class TestARefusalRedrawsItsSample(unittest.TestCase):
             gate.verdict(_PST, 0, [1, 2])
 
         self.assertEqual({UNIFORM: [0], "state": [2]}, read[1])
-
-
-class TestAlignedSuffixes(unittest.TestCase):
-    def test_a_row_reading_like_the_anchor_is_kept_and_one_that_does_not_is_not(self):
-        rng = np.random.default_rng(0)
-        n = 20000
-        accepting = rng.random(n) < 0.3
-        # The second row reads a tenth of the prefixes in the other class.
-        moved = accepting ^ (rng.random(n) < 0.1)
-        read = lambda classes: (rng.random(n) < np.where(classes, P_1, P_0)) * 1.0
-        rows = np.array([read(accepting), read(moved)])
-
-        kept = aligned_suffixes(
-            rows,
-            read(accepting),
-            [np.ones(n, dtype=bool)],
-            (P_0, P_1),
-            epsilon=0.1,
-            alpha=LEVEL,
-        )
-
-        self.assertEqual([0], kept.tolist())
 
 
 if __name__ == "__main__":

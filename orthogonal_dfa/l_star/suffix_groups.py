@@ -16,18 +16,16 @@ from sklearn.cluster import AgglomerativeClustering, KMeans
 
 def coherent_groups(rows, populations, *, k, alpha, rng) -> List[np.ndarray]:
     """The rows' k-means clusters over the even columns, unioned by complete
-    linkage while no pair (a, b) across two unions has, for j every column or
-    one population's,
+    linkage over the pairs of clusters (a, b) for which no j, all the columns
+    or one population's, has
 
         T_j = sum_p (mean_a,p - mean_b,p)^2 / (v_p (1 / n_a + 1 / n_b))
+            > chi2.isf(alpha / (pairs (|populations| + 1)), |p|),
 
-    over j's odd columns p beyond the chi-squared quantile at
-    1 - alpha / (pairs (|populations| + 1)), v_p the within-cluster variance;
-    then each row moved to its nearest union over the even columns.  The
-    clusters never see the odd columns, so under one profile T_j is
-    chi-squared, the means taken as normal.  Every column at once catches a
-    difference spread thinly across populations; one population's columns
-    catch a difference within it however many other populations hold."""
+    p over j's odd columns and v_p the within-cluster variance; then each row
+    moved to its nearest union over the even columns.  The clusters never see
+    the odd columns, so under one profile T_j is chi-squared, the means taken as
+    normal."""
     fit, held = rows[:, ::2], rows[:, 1::2]
     k = min(k, len(np.unique(fit, axis=0)))
     seed = int(rng.integers(2**31))
@@ -92,29 +90,3 @@ def nearest_to_anchor_group(
     weight = sum(population / population.sum() for population in populations)
     distance = (rows - rows[best].mean(0)) ** 2 @ weight
     return np.argsort(distance, kind="stable")
-
-
-def aligned_suffixes(rows, anchor, populations, rates, *, epsilon, alpha):
-    """The rows whose share of each population read in another class than
-    anchor's is at most epsilon / 2 by the bound below, smallest largest bound
-    first.  misread_statistic over population j's n_j columns has independent
-    terms in an interval of width w, so with probability at least 1 - alpha over
-    every row and population at once that share is at most
-
-        (U_j + w sqrt(n_j log(rows populations / alpha) / 2)) / ((p_1 - p_0)^2 n_j).
-    """
-    if rows.shape[0] == 0 or not populations:
-        return np.zeros(0, dtype=int)
-    p_0, p_1 = rates
-    # A column's term where both read 0, where one does, and where both read 1.
-    terms = -2 * p_0 * p_1 + np.array([0, p_0 + p_1, 2 * (p_0 + p_1 - 1)])
-    width = terms.max() - terms.min()
-    log_tests = np.log(len(rows) * len(populations) / alpha)
-    worst = np.zeros(len(rows))
-    for population in populations:
-        n = population.sum()
-        u = misread_statistic(rows, anchor, population, rates)
-        share = (u + width * np.sqrt(n * log_tests / 2)) / ((p_1 - p_0) ** 2 * n)
-        worst = np.maximum(worst, share)
-    kept = np.flatnonzero(worst <= epsilon / 2)
-    return kept[np.argsort(worst[kept], kind="stable")]

@@ -32,15 +32,6 @@ STATE = "state"
 UNOBSERVED = np.int8(-1)
 
 
-def scores_seed(prefix: bytes) -> bool:
-    """Whether prefix is kept from the suffix screen, to score suffixes against
-    the seed on: a fixed half of all strings by a hash of the string alone, so
-    which half a prefix is in owes nothing to any read.  The screen admits a
-    suffix partly for agreeing with the seed's noise on the prefixes it reads,
-    which would bias a score read on those same prefixes."""
-    return hashlib.blake2b(bytes(prefix), digest_size=1).digest()[0] & 1 == 1
-
-
 class MaskTable:
     def __init__(self, oracle, prefixes: List[bytes], *, population):
         # A repeat would be a column the index cannot name.
@@ -81,11 +72,14 @@ class MaskTable:
         return mask
 
     def seed_scoring(self) -> np.ndarray:
-        """Over the representative prefixes, the ones scores_seed keeps from the
-        screen."""
+        """Over the representative prefixes, the ones held out of the suffix
+        screen to score suffixes against the seed on.  The screen admits a suffix
+        partly for agreeing with the seed's noise on the prefixes it reads, so a
+        score read on those would be biased; a hash of the string keeps the split
+        independent of every read."""
         return np.array(
             [
-                scores_seed(p)
+                hashlib.blake2b(bytes(p), digest_size=1).digest()[0] & 1 == 1
                 for p, kept in zip(self.prefixes, self.representative)
                 if kept
             ],
