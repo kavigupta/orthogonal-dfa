@@ -46,31 +46,13 @@ noncomputable def familyBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populat
 open scoped Classical in
 /-- `ret` with the family picked by `rule`. -/
 noncomputable def retBy (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J) (uni : J)
-    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
+    (η₀ indecisionLimit εcov α : ℝ) (B : State) : Set (Run Ω S J) :=
   {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
     ∧ (∀ j ∈ populations,
       (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
           (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
         ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∃ e : ℕ, admitted mq B.lo B.hi α
-        (clusterBy rule mq populations x B) (certOf uni (B.npref + e) x) (oracleNoise x)}
-
-open scoped Classical in
-/-- `retBy` with the gate read at every population, on its first `npref` draws: what the loop is
-shown to reach. -/
-noncomputable def retAll (rule : Clusterer S) (mq : S → Ω → ℝ) (populations : Finset J)
-    (indecisionLimit α : ℝ) (B : State) : Set (Run Ω S J) :=
-  {x | B.k ≤ (clusterBy rule mq populations x B).card + 1
-    ∧ (∀ j ∈ populations,
-      (((certOf j B.npref x).filter (fun p => ¬ decided mq B.lo (B.hi + 1)
-          (familyBy rule mq populations x B) p (oracleNoise x))).card : ℝ)
-        ≤ indecisionLimit * (certOf j B.npref x).card)
-    ∧ ∀ j ∈ populations, admitted mq B.lo B.hi α
-        (clusterBy rule mq populations x B) (certOf j B.npref x) (oracleNoise x)}
-
-lemma retAll_subset_retBy (rule : Clusterer S) (mq : S → Ω → ℝ) {populations : Finset J}
-    {uni : J} (huni : uni ∈ populations) (indecisionLimit α : ℝ) (B : State) :
-    retAll rule mq populations indecisionLimit α B ⊆ retBy rule mq populations uni indecisionLimit α B :=
-  fun _ ⟨h1, h2, h3⟩ => ⟨h1, h2, 0, by simpa using h3 uni huni⟩
+    ∧ ∀ j ∈ populations, misAdmits η₀ (lookLevel α B.look / (4 * populations.card))
+        (missLimit uni j εcov) (splitCounts mq (clusterBy rule mq populations x B) j B.npref x)}
 
 end OrthoDFA

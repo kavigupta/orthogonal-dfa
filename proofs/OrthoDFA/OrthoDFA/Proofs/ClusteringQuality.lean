@@ -365,12 +365,12 @@ lemma integral_le_realized (Dj : Measure S) [IsProbabilityMeasure Dj] {Pre : Set
 /-! ## The theorem -/
 
 /-- `ClusteringQualityGuarantee` with every population held to `εcov + slack`, which is what
-the proof shows. -/
+the proof shows, and the gate held to `εgate`. -/
 def ClusteringQualityAll : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {S : Type*} [Stringlike S] {J : Type*} [Fintype J]
     (O : Oracle μ S) (populations : Finset J) (uni : J) (Pre Suf : Set S)
-    (η₀ indecisionLimit εcov α δ pAP crossLimit slack : ℝ),
+    (η₀ indecisionLimit εcov εgate α δ pAP crossLimit slack : ℝ),
   O.η ≤ η₀ →
   η₀ < 1 / 2 →
   uni ∈ populations →
@@ -382,6 +382,7 @@ def ClusteringQualityAll : Prop :=
   α < 1 / 2 →
   0 < εcov →
   εcov ≤ 1 →
+  εcov ≤ εgate →
   0 < δ →
   δ ≤ 1 →
   0 < crossLimit →
@@ -403,9 +404,9 @@ def ClusteringQualityAll : Prop :=
           ∧ (meanVote O F p ≤ B.lo → μ.real {ω | B.hi < voteCount O.mq F p ω} ≤ crossLimit)) ∧
         1 - δ ≤ (runMeasure μ D Dsf).real
           {x | (∃ B : {B : State // B ∈ states},
-                x ∈ ret O.mq populations uni indecisionLimit α B.val)
+                x ∈ ret O.mq populations uni η₀ indecisionLimit εgate α B.val)
             ∧ ∀ B : {B : State // B ∈ states},
-              x ∈ ret O.mq populations uni indecisionLimit α B.val →
+              x ∈ ret O.mq populations uni η₀ indecisionLimit εgate α B.val →
               ∀ j ∈ populations,
                 ∫ p, miscutProb O B.val.lo (B.val.hi + 1) (familyAt O.mq populations x B.val) p
                     ∂(D j) ≤ εcov + slack
@@ -414,8 +415,8 @@ def ClusteringQualityAll : Prop :=
 
 
 theorem clustering_quality_all : ClusteringQualityAll := by
-  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
-    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hstr hslack
+  intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov εgate α δ pAP crossLimit
+    slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hεg hδ hδ1 hstr hslack
   have hpop : populations.Nonempty := ⟨uni, huni⟩
   classical
   simp only [ret_eq, familyAt_eq, clusterAt_eq]
@@ -449,9 +450,9 @@ theorem clustering_quality_all : ClusteringQualityAll := by
     with hstates
   refine ⟨states, fun B hB =>
     cross_of_mem_schedule O hη0 hη₀ hstr (Finset.mem_of_mem_filter _ hB), ?_⟩
-  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov α δ'
-    ρ pAP crossLimit 6000 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind hind1 hα hα1 hε
-    hε1 hδ'
+  have hcc := clustering_correct O rule populations uni D Dsf Pre Suf η₀ indecisionLimit εcov
+    εgate α δ' ρ pAP crossLimit 4000 hηle hη₀ huni hflat hsupp hsuppSf hρ hpAP hpAPBound hind
+    hind1 hα hα1 hε hε1 hεg hδ'
     (prefCount_le_poly populations η₀ indecisionLimit εcov δ' α pAP crossLimit hsig hη0 hpop hind
       hε hε1 hδ' (by linarith) hα (by linarith) hpAP (le_trans hpAPBound measureReal_le_one))
     (le_trans hρcap (min_le_left _ _)) (le_trans hρsf (min_le_left _ _))
@@ -519,8 +520,8 @@ theorem clustering_quality_all : ClusteringQualityAll := by
           nlinarith [mul_nonneg (by positivity : (0 : ℝ) ≤ L + Jc + 1) hρ0,
             mul_nonneg (mul_nonneg hL0 hJc0) hρ0]
   have key : ∀ T : Set (Run Ω S J), {x | (∃ B : {B : State // B ∈ states},
-          x ∈ retBy rule O.mq populations uni indecisionLimit α B.val) ∧
-        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni indecisionLimit α B.val →
+          x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εgate α B.val) ∧
+        ∀ B : {B : State // B ∈ states}, x ∈ retBy rule O.mq populations uni η₀ indecisionLimit εgate α B.val →
           ∀ j ∈ populations, 1 - εcov
             ≤ (D j).real {p | cutCorrect O B.val.lo (B.val.hi + 1)
                 (familyBy rule O.mq populations x B.val) p (oracleNoise x)}
@@ -596,13 +597,15 @@ theorem clustering_quality_all : ClusteringQualityAll := by
   have := hPmass j hj
   exact ⟨by linarith, by linarith⟩
 
-/-- From `clustering_quality_all` at `min εcov (1/2)`. -/
+/-- From `clustering_quality_all` with the ladder built for `min εcov (1/2)` and the gate held
+to `εcov`. -/
 theorem clustering_quality_guarantee_holds : ClusteringQualityGuarantee := by
   intro Ω _ μ _ S _ J _ O populations uni Pre Suf η₀ indecisionLimit εcov α δ pAP crossLimit
     slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1 hε hε1 hδ hδ1 hcr hslack
   obtain ⟨cap, hcap, h⟩ := clustering_quality_all O populations uni Pre Suf η₀ indecisionLimit
-    (min εcov (1 / 2)) α δ pAP crossLimit slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1
-    (lt_min hε (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) hδ hδ1 hcr hslack
+    (min εcov (1 / 2)) εcov α δ pAP crossLimit slack hηle hη₀ huni hflat hpAP hind hind1 hα hα1
+    (lt_min hε (by norm_num)) (le_trans (min_le_right _ _) (by norm_num)) (min_le_left _ _) hδ
+    hδ1 hcr hslack
   refine ⟨cap, hcap, fun D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf => ?_⟩
   obtain ⟨states, h1, h2⟩ := h D Dsf hD hDsf hsupp hsuppSf hpAPBound ρ hρ hρcap hρsf
   refine ⟨states, h1, le_trans h2 (measureReal_mono ?_ (measure_ne_top _ _))⟩
