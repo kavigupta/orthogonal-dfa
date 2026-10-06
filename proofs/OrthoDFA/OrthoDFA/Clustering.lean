@@ -18,11 +18,14 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
-share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
-`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
-`k` members when the pool holds that many and at most `k` otherwise, and is a function of the
-pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
+Known modelling gap.  `identify_cluster_around` groups the pool by k-means and a merge test,
+takes the group whose rows read in another class than the seed least often on the prefixes the
+screen never saw, and fills the family from the rest by distance to that group's mean;
+`clusterAround` does none of these.  The proof only uses that the
+cluster holds the seed, lies in the screened pool, has `k` members when the pool holds that many
+and at most `k` otherwise, and is a function of the pool's reads on the prefixes, all of which
+`identify_cluster_around` also satisfies -- the last given `pst.rng`, which k-means draws its
+start from and which is independent of the certification sample.
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
@@ -53,7 +56,9 @@ does not.
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
-pool's least count.
+pool's least count.  `_screen_cohort` also reads only the prefixes `seed_scoring` leaves it, half
+of them by a hash of the string, so that what the screen admitted on is not what the anchor
+scores on.
 
 Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
 one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The
@@ -236,8 +241,7 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
   else ∅
 
 /-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
-`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
-`identify_cluster_around` takes it per population and scores the worst share. -/
+`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
@@ -250,9 +254,8 @@ noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : �
   if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
 
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them -- `identify_cluster_around` breaks out
-(`if seed_local not in nearest`).  The seed wins ties for the `k`-th place, as it does under the
-stable `argsort`. -/
+candidates, but only while the seed is among them.  The seed wins ties for the `k`-th
+place. -/
 noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
   if ∀ w ∈ cands, w ∉ insert (1 : S)
@@ -263,7 +266,7 @@ noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Fin
   then insert (1 : S)
     (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
 
-/-- `identify_cluster_around` iterated to its fixed point, which `k·#P + 1` steps reach: the
+/-- `lloydStep` iterated to its fixed point, which `k·#P + 1` steps reach: the
 total loss is a natural number at most `k·#P` and falls at every improving step. -/
 noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
     (k : ℕ) : Finset S :=
