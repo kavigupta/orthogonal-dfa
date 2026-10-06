@@ -23,9 +23,13 @@ GOOD_YIELD = 0.5
 POOR_YIELD = 0.25
 
 #: A probe turning up a boundary string at least this often is worth drawing on.
-GOOD_BOUNDARY_YIELD = 0.2
+#: Only a probe that disagrees or cannot be placed turns one up, and a round the
+#: gate refuses can disagree on as little as ``1 - DEFAULT_ACC_THRESHOLD`` of
+#: them, so a bar above that retires the harvest of a state few probes pass
+#: through however rarely the family decides it.
+GOOD_BOUNDARY_YIELD = 0.02
 #: One turning up at most this often is not.
-POOR_BOUNDARY_YIELD = 0.1
+POOR_BOUNDARY_YIELD = 0.01
 
 
 class UniformSource:
