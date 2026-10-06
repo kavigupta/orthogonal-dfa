@@ -202,13 +202,14 @@ def misclassified_bounds(pst, by_population, level):
         E_j = P_{p ~ D_j}[ decisiveClassifyFamily(p) != noiselessOracle(p) ],
 
     point_j is E_j assuming that the fractions a_i/n_i and n_i / (n_0 + n_1)
-    arising from _split_counts  are exact expectations rather than samples, and
+    arising from _split_counts are exact expectations rather than samples, and
     bound_j satisfies
 
         P(E_j <= bound_j for every j) >= 1 - level
 
-    under only the condition that the oracle has exactly round_rates(pst) rates.
-    (in particular, it does not assume the aformentioned fractions are exact expectations).
+    under only the condition that the oracle has exactly round_rates(pst) rates
+    (in particular, it does not assume the aforementioned fractions are exact
+    expectations).
     """
     drawn = {
         label: counts
