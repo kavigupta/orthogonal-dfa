@@ -37,19 +37,19 @@ def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
         sum_S m_S e_S
 
     largest over every m with sum_S m_S = 1 and m_S in
-    [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 with
-    each c_S = (r_S - p_0) / band in [0, 1], for masses = (mass_low, mass_high)
-    and rates = (low, high),
+    [mass_low_S, mass_high_S], every r_S in [low_S, high_S], and every p_0 in
+    [max_S low_S - band, min_S high_S], for masses = (mass_low, mass_high),
+    rates = (low, high), c_S = (r_S - p_0) / band and
 
         band = max(gap, max_S low_S - min_S high_S),
 
-    the narrowest band at least gap that the rates fit.
+    the narrowest band at least gap that the rates fit.  c_S is not held to
+    [0, 1]: a state read past the band counts for more than its mass, as it does
+    against E[O | h accepts] - E[O | h rejects].
 
     For a fixed p_0 each state's worst e_S is apart from the others', and the
-    mass free of the lower bounds goes to the worst states first.  For fixed m
-    that is piecewise linear in p_0, kinked where a state's worst rate meets a
-    bound, so the largest over p_0 is at those kinks or at the ends of the p_0
-    that fit."""
+    mass free of the lower bounds goes to the worst states first.  That is the
+    largest of functions linear in p_0, so the largest over p_0 is at an end."""
     mass_low, mass_high, low, high = (
         np.asarray(v, dtype=float) for v in (*masses, *rates)
     )
@@ -60,10 +60,7 @@ def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
     most = max(least, min(1.0 - band, float(high.min())))
 
     def error(offset):
-        rate = np.where(
-            accepting, np.maximum(low, offset), np.minimum(high, offset + band)
-        )
-        share = (rate - offset) / band
+        share = (np.where(accepting, low, high) - offset) / band
         worst = np.where(accepting, 1 - share, share)
         weight = mass_low.copy()
         spare = 1 - weight.sum()
@@ -73,8 +70,7 @@ def worst_contributions(masses, rates, accepting, gap) -> np.ndarray:
             spare -= added
         return weight * worst
 
-    corners = np.concatenate([[least, most], high - band, low])
-    return max((error(p) for p in corners if least <= p <= most), key=lambda e: e.sum())
+    return max((error(least), error(most)), key=lambda e: e.sum())
 
 
 def _intervals(hits, trials, level):
@@ -113,7 +109,14 @@ def certifies(pst, dfa, *, alpha) -> Verdict:
         P(certifies and sum_S m_S e_S > e) <= alpha,   e = certified_error,
 
     m_S the share of the sampler's strings reaching S, where the oracle's signal
-    is min_signal_strength s exactly; nothing is guaranteed where p_1 - p_0 > 2 s.
+    is min_signal_strength s exactly.  Whatever the signal, with m_A the share h
+    accepts and m_R = 1 - m_A,
+
+        P(certifies, m_A m_R >= e and Delta < 2 s (1 - e / (m_A m_R))) <= alpha,
+        Delta = E[O | h accepts] - E[O | h rejects]:
+
+    h reads apart by as much as a DFA that errs on e of the strings would at
+    signal s exactly.
 
     Look k reads n_k strings of the sampler, doubling, and certifies when the
     error_bound at gap 2 s, over Clopper-Pearson intervals on each state's share
