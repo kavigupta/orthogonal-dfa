@@ -36,7 +36,10 @@ def identify_cluster_around(
             reads[seed_local],
             list(pst.table.population_masks().values()),
             pst.table.seed_scoring(),
-            rates_at(pst, decision_boundary),
+            (
+                decision_boundary - pst.config.min_signal_strength,
+                decision_boundary + pst.config.min_signal_strength,
+            ),
             # As many clusters as a group the preconditions guarantee, a
             # min_suffix_frequency share of the pool, needs to get one of its own.
             k=math.ceil(1 / pst.config.min_suffix_frequency),
@@ -67,15 +70,19 @@ def identify_cluster_around(
     return candidate[cluster].tolist(), decision_boundary
 
 
-def rates_at(pst, decision_boundary):
-    """(p_0, p_1): the boundary -/+ the signal, the rates a round reads at."""
+def round_rates(pst):
+    """
+    (p_0, p_1), the current round's assumption for
+        P[Oracle = 1 | Noiseless oracle = i]
+    for i in (0, 1)
+    """
     signal = pst.config.min_signal_strength
-    return decision_boundary - signal, decision_boundary + signal
+    return pst.decision_boundary - signal, pst.decision_boundary + signal
 
 
 def aligned_family(pst, seed: int, count: int) -> List[int]:
     """Seed, then the pool's aligned_suffixes against seed's reads at the
-    round's rates_at and within max_coverage_error, read on the prefixes the
+    round_rates and within max_coverage_error, read on the prefixes the
     screen never saw; count of them at most.  Every member reads each population
     like seed but for a bounded share, which is what makes some family pass the
     gate once the pool and the prefixes are large enough."""
@@ -93,7 +100,7 @@ def aligned_family(pst, seed: int, count: int) -> List[int]:
             for m in pst.table.population_masks().values()
             if (m & scoring).any()
         ],
-        rates_at(pst, pst.decision_boundary),
+        round_rates(pst),
         epsilon=pst.config.max_coverage_error,
         alpha=ACCEPT_PRESERVING_ERROR_RATE,
     )
@@ -164,9 +171,11 @@ def readable_size_and_margin(
 #: no suffix preserves the accept/reject classes.
 ACCEPT_PRESERVING_GIVE_UP = 20
 
-#: Chance of admitting a family that misclassifies more than max_coverage_error
-#: of some population, over both of a round's looks at it.
+#: P(admitting a family with E_j > misclassification_limit for some population j)
+#: over both of the gate's drift_verdict calls on it, E_j as in misclassified_bounds.
 ACCEPT_PRESERVING_ERROR_RATE = 0.05
+#: Each drift_verdict call's share of it.
+ACCEPT_PRESERVING_VERDICT_ERROR_RATE = ACCEPT_PRESERVING_ERROR_RATE / 2
 
 #: What the gate was able to conclude about a family.
 ADMITTED, DRIFTED, UNCERTIFIED = "admitted", "drifted", "uncertified"
@@ -197,10 +206,15 @@ def certification_sample(pst, vs, by_population):
 
 
 def _split_counts(pst, reads):
-    """label -> ((hits, n), (hits, n)): on the accepting and rejecting sides of the
-    family's cut at the boundary, how many prefixes and how many of them the
-    empty suffix reads as 1.  A population holds one class or both, so a side of
-    n = 0 is ordinary."""
+    """
+    The family's classification of the prefixes when run in "decisive mode" where
+        there is no indecision band; jointly distributed with the oracle's labels.
+
+    Returns label -> ((a_1, n_1), (a_0, n_0)).
+
+        n_i = # of prefixes the family places in class i, decisively
+        a_i = # of prefixes the family places in class i that the oracle assigns a 1 to
+    """
     return {
         label: tuple(
             (int(column[side].sum()), int(side.sum()))
@@ -214,25 +228,34 @@ def _split_counts(pst, reads):
 
 
 def misclassified_bounds(pst, by_population, level):
-    """label -> (bound, at the rates read) on the share of the population's
-    distribution the family's cut misclassifies, at the round's rates_at (p_0, p_1):
-    a side of the cut reading r holds a share (p_1 - r) / (p_1 - p_0) of
-    rejecting prefixes where it accepts and (r - p_0) / (p_1 - p_0) of accepting
-    ones where it rejects, clipped to [0, 1].  The bound is the largest such
-    total over Clopper-Pearson intervals at level / 4 |populations| on each
-    side's share of the population and on the empty suffix's rate of 1s there,
-    so every bound holds at once with probability at least 1 - level, the
-    round's rates being the oracle's."""
+    """
+    Returns label j -> (bound_j, point_j) where for
+
+        E_j = P_{p ~ D_j}[ decisiveClassifyFamily(p) != noiselessOracle(p) ],
+
+    point_j is E_j assuming that the fractions a_i/n_i and n_i / (n_0 + n_1)
+    arising from _split_counts are exact expectations rather than samples, and
+    bound_j satisfies
+
+        P(E_j <= bound_j for every j) >= 1 - level
+
+    under only the condition that the oracle has exactly round_rates(pst) rates
+    (in particular, it does not assume the aforementioned fractions are exact
+    expectations).
+    """
     drawn = {
         label: counts
         for label, counts in by_population.items()
         if counts[0][1] + counts[1][1]
     }
     each = level / (4 * max(1, len(drawn)))
-    p_0, p_1 = rates_at(pst, pst.decision_boundary)
+    p_0, p_1 = round_rates(pst)
 
     def wrong(accept, reject):
-        """Each side's misclassified share at its rate."""
+        """For the accepting and rejecting sides reading 1 at rates accept and
+        reject, the share e of each in the other class, clipped to [0, 1], from
+
+            accept = p_1 - e (p_1 - p_0),   reject = p_0 + e (p_1 - p_0)."""
         return np.clip(
             [(p_1 - accept) / (p_1 - p_0), (reject - p_0) / (p_1 - p_0)], 0, 1
         )
@@ -256,47 +279,54 @@ def misclassified_bounds(pst, by_population, level):
 
 
 def misclassification_limit(pst, label) -> float:
-    """max_coverage_error for the uniform pool, drawn as the learner is scored;
-    a half for every other population, which the family has only to read the
-    right way round."""
     return pst.config.max_coverage_error if label == UNIFORM else 1 / 2
 
 
+def _population_verdict(pst, label, bound, point):
+    """ADMITTED if bound <= limit, else DRIFTED if point > limit, else
+    UNCERTIFIED, for limit = misclassification_limit."""
+    limit = misclassification_limit(pst, label)
+    if bound <= limit:
+        return ADMITTED
+    if point > limit:
+        return DRIFTED
+    return UNCERTIFIED
+
+
 def drift_verdict(pst, by_population, level):
-    """(verdict, label): ADMITTED when every population's misclassified_bounds
-    bound is at most its misclassification_limit; otherwise, naming the
-    population whose bound passes its limit furthest, DRIFTED where its share at
-    the rates read is past the limit too and UNCERTIFIED where only the bound
-    is.  Admitting holds the family to every population drawn, with probability
-    at least 1 - level, whatever chose it."""
+    """(_population_verdict of j, j) for j = argmax_j (bound_j - limit_j), with
+    (bound_j, point_j) from misclassified_bounds; None for j when ADMITTED."""
     bounds = misclassified_bounds(pst, by_population, level)
     if not bounds:
         return UNCERTIFIED, UNIFORM
     worst = max(
         bounds, key=lambda label: bounds[label][0] - misclassification_limit(pst, label)
     )
-    bound, at_rates = bounds[worst]
-    limit = misclassification_limit(pst, worst)
-    if bound <= limit:
-        return ADMITTED, None
-    if at_rates > limit:
-        return DRIFTED, worst
-    return UNCERTIFIED, worst
+    verdict = _population_verdict(pst, worst, *bounds[worst])
+    return verdict, None if verdict is ADMITTED else worst
 
 
 def alignment_size(pst, populations, limit) -> int:
-    """Fewest prefixes at which a cut that misclassifies nothing and halves a
-    population, read at the round's rates_at, gets a misclassified_bounds bound
-    of at most limit at a look's level: the size a population is first drawn
-    at.  Sizing only."""
-    p_0, p_1 = rates_at(pst, pst.decision_boundary)
+    """
+    Fewest prefixes, a power of 2, on which a population with limit `limit`
+    would get _population_verdict = ADMITTED, for a family that satisfies the
+    below conditions
+        - perfectly classifies all populations, with half the prefixes on each
+          side of its cut
+        - every observed fraction equal to its expectation
+    `populations` is how many populations share the error rate
+    """
+
+    p_0, p_1 = round_rates(pst)
     size = 2
     while True:
         half = size // 2
         counts = ((round(p_1 * half), half), (round(p_0 * half), half))
         bound, _ = misclassified_bounds(
-            pst, {UNIFORM: counts}, ACCEPT_PRESERVING_ERROR_RATE / (2 * populations)
-        )[UNIFORM]
+            pst,
+            dict.fromkeys(range(populations), counts),
+            ACCEPT_PRESERVING_VERDICT_ERROR_RATE,
+        )[0]
         if bound <= limit:
             return size
         size *= 2
@@ -312,30 +342,20 @@ def certification_budget(pst, vs) -> int:
     return max(1, pst.config.num_addtl_prefixes * columns // (len(vs) + 1))
 
 
-def prefixes_to_certify(pst, counts, label, drawn, vs) -> int:
-    """How many more prefixes to draw for label alone, to settle a bound the
-    drawn prefixes in hand left undecided.
-
-    How many it takes depends on the rates, so the rates in hand are the guess:
-    if the same ones held over twice the counts, or three times, would label's
-    misclassified_bounds come out decided -- its bound within its
-    misclassification_limit, or its share at the rates read past it?  The first multiple that would is
-    the answer.  Only label is drawn from, so only its counts grow.
-    """
+def prefixes_to_certify(pst, counts, label, level, vs) -> int:
+    """n (m - 1), n label's prefixes drawn, for the smallest m >= 2 at which
+    label's counts times m are not UNCERTIFIED by _population_verdict; at most
+    certification_budget."""
     budget = certification_budget(pst, vs)
-    empty = ((0, 0), (0, 0))
-    level = ACCEPT_PRESERVING_ERROR_RATE / 2
-    limit = misclassification_limit(pst, label)
-    for multiple in range(2, 2 + budget // drawn):
-        supposed = {
-            **counts,
-            label: tuple(
-                (hits * multiple, n * multiple) for hits, n in counts.get(label, empty)
-            ),
-        }
-        bound, at_rates = misclassified_bounds(pst, supposed, level)[label]
-        if bound <= limit or at_rates > limit:
-            return drawn * (multiple - 1)
+    (a_1, n_1), (a_0, n_0) = counts.get(label, ((0, 0), (0, 0)))
+    drawn = n_1 + n_0
+    if not drawn:
+        return budget
+    for m in range(2, 2 + budget // drawn):
+        scaled = {**counts, label: ((m * a_1, m * n_1), (m * a_0, m * n_0))}
+        bound, point = misclassified_bounds(pst, scaled, level)[label]
+        if _population_verdict(pst, label, bound, point) is not UNCERTIFIED:
+            return drawn * (m - 1)
     return budget
 
 
@@ -383,7 +403,9 @@ class AcceptPreservingGate:
             pst,
             self._state,
             label,
-            prefixes_to_certify(pst, counts, label, max(1, len(held)), voters),
+            prefixes_to_certify(
+                pst, counts, label, ACCEPT_PRESERVING_VERDICT_ERROR_RATE, voters
+            ),
         )
         if not more:
             return counts
@@ -412,16 +434,18 @@ class AcceptPreservingGate:
         voters = [u for u in vs if u != seed_row]
         prefixes = self._certification_prefixes(pst, voters)
         counts = _split_counts(pst, certification_sample(pst, voters, prefixes))
-        # Two looks, each at half the rate.
-        level = ACCEPT_PRESERVING_ERROR_RATE / 2
-        verdict, blamed = drift_verdict(pst, counts, level)
+        verdict, blamed = drift_verdict(
+            pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
+        )
         if verdict is UNCERTIFIED:
             counts = self._certify_further(pst, counts, blamed, voters)
-            verdict, blamed = drift_verdict(pst, counts, level)
+            verdict, blamed = drift_verdict(
+                pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
+            )
         if verdict is ADMITTED:
             return ADMITTED, None
         if verdict is DRIFTED:
-            # A veto scores the population's own reads, which every later family
+            # A refusal scores the population's own reads, which every later family
             # would read again: kept, one unlucky sample refuses each sound family
             # in turn until the search gives up.
             redrawn = prefixes_for_split(pst, self._state, blamed, self._sizes[blamed])
@@ -431,11 +455,13 @@ class AcceptPreservingGate:
                 self._drawn.pop(blamed, None)
         self.refusals += 1
         if self.refusals >= ACCEPT_PRESERVING_GIVE_UP:
-            bounds = misclassified_bounds(pst, counts, level)
+            bounds = misclassified_bounds(
+                pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
+            )
             if blamed in bounds:
-                bound, at_rates = bounds[blamed]
+                bound, point = bounds[blamed]
                 read = (
-                    f"misclassifies {at_rates:.0%} of {blamed} at the rates read, "
+                    f"misclassifies {point:.0%} of {blamed} at the rates read, "
                     f"at most {bound:.0%}, against "
                     f"{misclassification_limit(pst, blamed):.0%}"
                 )
