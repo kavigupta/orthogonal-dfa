@@ -134,8 +134,8 @@ class TestHowMuchIsDrawn(unittest.TestCase):
 
         def settled(n):
             counts = {"small": _read_right(n)}
-            bound, at_rates = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
-            return bound <= 1 / 2 or at_rates > 1 / 2
+            bound, point = misclassified_bounds(pst, counts, LEVEL / 2)["small"]
+            return bound <= 1 / 2 or point > 1 / 2
 
         wanted = prefixes_to_certify(
             pst, {"small": _read_right(drawn)}, "small", LEVEL / 2, range(8)

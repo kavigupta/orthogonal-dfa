@@ -419,7 +419,7 @@ class AcceptPreservingGate:
         if verdict is ADMITTED:
             return ADMITTED, None
         if verdict is DRIFTED:
-            # A veto scores the population's own reads, which every later family
+            # A refusal scores the population's own reads, which every later family
             # would read again: kept, one unlucky sample refuses each sound family
             # in turn until the search gives up.
             redrawn = prefixes_for_split(pst, self._state, blamed, self._sizes[blamed])
@@ -433,9 +433,9 @@ class AcceptPreservingGate:
                 pst, counts, ACCEPT_PRESERVING_VERDICT_ERROR_RATE
             )
             if blamed in bounds:
-                bound, at_rates = bounds[blamed]
+                bound, point = bounds[blamed]
                 read = (
-                    f"misclassifies {at_rates:.0%} of {blamed} at the rates read, "
+                    f"misclassifies {point:.0%} of {blamed} at the rates read, "
                     f"at most {bound:.0%}, against "
                     f"{misclassification_limit(pst, blamed):.0%}"
                 )
