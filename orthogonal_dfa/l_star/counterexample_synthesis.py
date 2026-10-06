@@ -129,15 +129,24 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
+def _top_up_boundary(pst, resolver, dfa, state, wanted, *, acc_threshold) -> None:
     """Probe for up to ``wanted`` more boundary strings, keeping what the yield
     test turned up even when the source fails it.
 
     A round with its fill already still leaves the population a source, unproved:
     otherwise the only population the counterexample pass fills for free is the
-    one a later round has nothing to draw with.
+    one a later round has nothing to draw with.  A perfect-accuracy bar names no
+    yield to hold a source to, so the population keeps only what the pass left.
     """
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
+    if acc_threshold >= 1:
+        return
+    source = BoundarySource(
+        pst,
+        resolver.sifter,
+        dfa.transitions,
+        known=state.seen,
+        acc_threshold=acc_threshold,
+    )
     if wanted > 0:
         # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
         drawing = source.worth_drawing()
@@ -389,7 +398,9 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         taken += _accumulate_indecisive(resolver, state, target - taken)
-        _top_up_boundary(pst, resolver, dfa, state, target - taken)
+        _top_up_boundary(
+            pst, resolver, dfa, state, target - taken, acc_threshold=acc_threshold
+        )
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

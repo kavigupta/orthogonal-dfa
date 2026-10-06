@@ -22,15 +22,6 @@ GOOD_YIELD = 0.5
 #: apart affordable.
 POOR_YIELD = 0.25
 
-#: A probe turning up a boundary string at least this often is worth drawing on.
-#: Only a probe that disagrees or cannot be placed turns one up, and a round the
-#: gate refuses can disagree on as little as ``1 - DEFAULT_ACC_THRESHOLD`` of
-#: them, so a bar above that retires the harvest of a state few probes pass
-#: through however rarely the family decides it.
-GOOD_BOUNDARY_YIELD = 0.02
-#: One turning up at most this often is not.
-POOR_BOUNDARY_YIELD = 0.01
-
 
 class UniformSource:
     """The learner's own sampler.  Every draw is a prefix, so this never fails."""
@@ -60,11 +51,14 @@ class BoundarySource(RejectionSource):
     out at once.
     """
 
-    proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
-    poor = POOR_BOUNDARY_YIELD
-
-    def __init__(self, pst, sifter, transitions, *, known):
+    def __init__(self, pst, sifter, transitions, *, known, acc_threshold):
+        """Worth drawing on where a probe turns up a boundary string at least
+        ``1 - acc_threshold`` of the time, and not at half that.  Only a probe
+        that disagrees or cannot be placed turns one up, and a round the gate
+        refuses can disagree on no more than that share of them."""
         super().__init__()
+        assert acc_threshold < 1, acc_threshold
+        self._good = 1 - acc_threshold
         self._served.update(known)
         self._pst = pst
         self._sifter = sifter
@@ -103,6 +97,14 @@ class BoundarySource(RejectionSource):
                 # is the round's, not this source's.
                 first_disagreeing_edge(probe, states, self._sift, start, len(probe))
         return len(self._seen) > before
+
+    @property
+    def proving(self) -> tuple:
+        return proving_attempts(self._good, self._good / 2)
+
+    @property
+    def poor(self) -> float:
+        return self._good / 2
 
     def source_repr(self) -> str:
         return "boundary"

@@ -263,7 +263,11 @@ _PROBE = bytes([0, 1, 0, 1])
 class TestABoundarySourceProbes(unittest.TestCase):
     def _source(self, places, *, known):
         return BoundarySource(
-            _Probes(_PROBE), _Walk(places), _STEPS_TO_ONE, known=known
+            _Probes(_PROBE),
+            _Walk(places),
+            _STEPS_TO_ONE,
+            known=known,
+            acc_threshold=0.98,
         )
 
     def test_a_prefix_the_tree_cannot_place_is_kept(self):
