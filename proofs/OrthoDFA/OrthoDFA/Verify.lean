@@ -1,14 +1,12 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
-import OrthoDFA.Proofs.Stage
 import OrthoDFA.Proofs.Replay
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, and `PassDichotomy`, `ReplaySpread`, `ReplaySpreadUniform` and
-`ReplayYield`, stated in `OrthoDFA.Stage`, hold.
+`OrthoDFA.ClusteringQuality`, and `RoundOutcome`, stated in `OrthoDFA.Stage`, hold.
 -/
 
 namespace OrthoDFA
@@ -22,20 +20,8 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 
 #print axioms clustering_quality_guarantee
 
-theorem pass_dichotomy : PassDichotomy := pass_dichotomy_holds
+theorem round_outcome : RoundOutcome := round_outcome_holds
 
-#print axioms pass_dichotomy
-
-theorem replay_spread : ReplaySpread := replay_spread_holds
-
-#print axioms replay_spread
-
-theorem replay_spread_uniform : ReplaySpreadUniform := replay_spread_uniform_holds
-
-#print axioms replay_spread_uniform
-
-theorem replay_yield : ReplayYield := replay_yield_holds
-
-#print axioms replay_yield
+#print axioms round_outcome
 
 end OrthoDFA

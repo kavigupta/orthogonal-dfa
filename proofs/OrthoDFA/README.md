@@ -8,13 +8,10 @@
   the returned family decides a prefix wrongly at most `εcov + slack` of the time on the uniform
   pool and at most `1/2 + slack` on any other, and leaves it undecided at most
   `2·indecisionLimit + slack` of the time on each.
-- `OrthoDFA/Stage.lean` — the L\* stage as `TransitionResolver` runs it, and `PassDichotomy`: when
-  the counterexample pass stops for patience, each of its last `patience` probes was correct, met
-  a string the cut cannot place (which the pass harvested), or found a disagreement the split
-  evidence would not split on (whose shorter string it harvested); `ReplaySpread`: a harvest replay
-  reads any one string with chance at most `(1/L)·∑ (i+1)/|α|^i`; and `ReplayYield`: a round's
-  harvest replay yields at least `1/L` of the rate at which the DFA/DT agreement gate counts its
-  hypothesis wrong.
+- `OrthoDFA/Stage.lean` — `RoundOutcome`: whatever hypothesis a round of the L\* stage ends
+  with, its harvest's replay yields at least `1/L` of the rate at which the DFA/DT agreement gate
+  counts the hypothesis wrong, and reads any one string with chance at most
+  `∑_{i ≤ |t|} min(i+1, L)/L · D(the draw starts as t does)`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
@@ -22,9 +19,9 @@ Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to t
 
 ## Scope
 
-This proves the clustering step (`sample_suffix_family` and its gate) correct, and says what the
-counterexample pass has done when it stops. It does not prove that the E-L\* learner outputs the
-target DFA.
+This proves the clustering step (`sample_suffix_family` and its gate) correct, and that a round
+either passes the DFA/DT agreement gate or leaves a harvest that yields and is spread. It does not
+prove that the E-L\* learner outputs the target DFA.
 
 ## Building
 
