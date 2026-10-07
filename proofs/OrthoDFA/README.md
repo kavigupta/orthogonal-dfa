@@ -11,7 +11,8 @@
 - `OrthoDFA/Stage.lean` — the L\* stage as `TransitionResolver` runs it, and `PassDichotomy`: when
   the counterexample pass stops for patience, each of its last `patience` probes was correct, met
   a string the cut cannot place (which the pass harvested), or found a disagreement the split
-  evidence would not split on (whose shorter string it harvested).
+  evidence would not split on (whose shorter string it harvested); and `ReplaySpread`: a harvest
+  replay anchored at a uniform point reads any one string with chance at most `(1/L)·∑ (i+1)/|α|^i`.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

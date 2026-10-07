@@ -40,6 +40,7 @@ when it re-sifts them; here they only drop out of the members.
 namespace OrthoDFA
 
 open MeasureTheory ProbabilityTheory
+open scoped ENNReal
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
@@ -440,5 +441,109 @@ def PassDichotomy : Prop :=
     K.patience ≤ (runPass K R (initialState K R seed) probes).streak →
     ∃ s ws, ws <:+: probes ∧ ws.length = K.patience
       ∧ QuietRun K R s ws (runPass K R (initialState K R seed) probes)
+
+/-! ## The harvest's replay
+
+`Walked` replays, as #398 has them, anchor every probe no earlier than a point drawn uniformly
+below its length.
+
+Known modelling gap.  Until #398 merges, `Walked` on main anchors every replay at the start.
+-/
+
+namespace DTree
+
+/-- The strings a sift of `x` asks the cut about, root first: `x` followed by the midfix of each
+node on its way.  The cut reads each extended by every suffix of the family. -/
+def siftQueries (cut : FreeMonoid α → Option Bool) : DTree α → FreeMonoid α → List (FreeMonoid α)
+  | .leaf, _ => []
+  | .node m r a, x =>
+    x * m :: match cut (x * m) with
+      | none => []
+      | some true => a.siftQueries cut x
+      | some false => r.siftQueries cut x
+
+end DTree
+
+/-- `anchored_walk` with an earliest anchor `e`: the first prefix of `w` at least `e` long the
+tree places, and the paths the walk from it visits. -/
+noncomputable def anchoredWalkFrom (t : DTree α)
+    (edges : List Bool → α → Option (List Bool × FreeMonoid α)) (w : FreeMonoid α) (e : ℕ) :
+    Option (ℕ × List (List Bool)) :=
+  match ((List.range (w.toList.length + 1)).filter (e ≤ ·)).findSome? fun i =>
+      match t.sift R.cut (prefixOf w i) with
+      | .inl p => some (i, p)
+      | .inr _ => none with
+  | none => none
+  | some (i, p) => some (i, (w.toList.drop i).scanl (stepPath t edges) p)
+
+/-- The prefix lengths `first_disagreeing_edge` sifts, in order. -/
+noncomputable def bisectionSifts (t : DTree α) (w : FreeMonoid α) (walk : ℕ → List Bool) :
+    ℕ → ℕ → ℕ → List ℕ
+  | 0, _, _ => []
+  | fuel + 1, lo, hi =>
+    if lo + 1 < hi then
+      (lo + hi) / 2 :: match t.sift R.cut (prefixOf w ((lo + hi) / 2)) with
+        | .inr _ => []
+        | .inl p =>
+          if p = walk ((lo + hi) / 2) then bisectionSifts t w walk fuel ((lo + hi) / 2) hi
+          else bisectionSifts t w walk fuel lo ((lo + hi) / 2)
+    else []
+
+/-- The prefix lengths a replay of `w` anchored no earlier than `e` sifts: the anchor's search, the
+probe's own sift, and the search for the disagreeing edge. -/
+noncomputable def replaySifts (s : PassState α) (w : FreeMonoid α) (e : ℕ) : List ℕ :=
+  let t := s.tree
+  let n := w.toList.length
+  let cands := (List.range (n + 1)).filter (e ≤ ·)
+  let unplaced := cands.takeWhile fun i => (t.sift R.cut (prefixOf w i)).isRight
+  unplaced ++ (cands.drop unplaced.length).take 1 ++
+    match anchoredWalkFrom R t s.edges w e with
+    | none => []
+    | some (start, walk) =>
+      let walkAt := fun j => walk.getD (j - start) []
+      n :: match t.sift R.cut w with
+        | .inr _ => []
+        | .inl actual => if actual = walkAt n then [] else bisectionSifts R t w walkAt n start n
+
+/-- The strings whose noise a replay of `w` anchored no earlier than `e` reads. -/
+def replayReads (s : PassState α) (w : FreeMonoid α) (e : ℕ) : Set (FreeMonoid α) :=
+  {x | ∃ i ∈ replaySifts R s w e, ∃ q ∈ s.tree.siftQueries R.cut (prefixOf w i), ∃ v ∈ R.F,
+    x = q * v}
+
+/-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/
+noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=
+  (L : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.range L, Measure.dirac k
+
+/-- The uniform sampler of length-`L` strings. -/
+noncomputable def uniformStrings (α : Type*) [Fintype α] (L : ℕ) : Measure (FreeMonoid α) :=
+  ((Fintype.card α : ℝ≥0∞) ^ L)⁻¹ • ∑ f : Fin L → α, Measure.dirac (FreeMonoid.ofList (List.ofFn f))
+
+/-- `ReplaySpread`: a replay of a probe drawn from `D`, anchored no earlier than a point uniform
+below `L`, reads any one string `t` with chance at most
+
+    ∑_{i ≤ |t|} P(e ≤ i) · D(the probe's first i letters are t's),
+
+since every read extends a prefix of the probe at least `e` long. -/
+def ReplaySpread : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (s : PassState α)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ) (t : FreeMonoid α),
+    0 < L →
+    (D.prod (anchorLaw L)).real {q | t ∈ replayReads R s q.1 q.2}
+      ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
+          ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i}
+
+/-- `ReplaySpreadUniform`: under the uniform sampler of length-`L` strings over `α`, the chance a
+replay reads any one string `t` is at most
+
+    (1 / L) · ∑_{i ≤ |t|} (i + 1) / |α|^i,
+
+the `κh` the round model asks of the harvest's reads. -/
+def ReplaySpreadUniform : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (R : CutReads α) (s : PassState α)
+    (L : ℕ) (t : FreeMonoid α),
+    0 < L →
+    ((uniformStrings α L).prod (anchorLaw L)).real {q | t ∈ replayReads R s q.1 q.2}
+      ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
+          ((i + 1 : ℕ) : ℝ) / L * ((Fintype.card α : ℝ)⁻¹) ^ i
 
 end OrthoDFA
