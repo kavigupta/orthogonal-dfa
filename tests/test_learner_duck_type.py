@@ -17,7 +17,6 @@ from orthogonal_dfa.l_star.visualize import (
 )
 from tests.direct_lstar_stubs import make_pst
 
-
 #: Where these tests' members came from, which they never read.
 _DRAW = Read(None, b"")
 

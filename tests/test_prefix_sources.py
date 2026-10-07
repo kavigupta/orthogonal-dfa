@@ -22,7 +22,6 @@ from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
-
 #: Where these tests' strings came from, which they never read.
 _DRAW = Read(None, b"")
 
