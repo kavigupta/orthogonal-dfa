@@ -25,6 +25,12 @@ class Read:
     distribution: Any
     extension: Optional[bytes]
 
+    def extended(self, extension: bytes) -> "Read":
+        """The read of a draw ``extension`` further on; a walk stays a walk."""
+        if self.extension is None:
+            return self
+        return Read(self.distribution, self.extension + extension)
+
 
 class Aimed:
     """A state source's aim, as a distribution."""

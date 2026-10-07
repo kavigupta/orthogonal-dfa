@@ -23,8 +23,8 @@ class EdgeResolver:
     """Closes the hypothesis: see the module docstring."""
 
     def __init__(self, partial, sifter, harvest, *, population):
-        """``harvest(boundary, member, extension)`` takes each successor
-        ``member + extension`` the family cannot place."""
+        """``harvest(boundary, read)`` takes each member's successor the family
+        cannot place, with the read that met it."""
         self.dfa = partial
         self.sifter = sifter
         self._harvest = harvest
@@ -41,7 +41,9 @@ class EdgeResolver:
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
                 break
-            self._harvest(boundary, member, bytes([c]))
+            self._harvest(
+                boundary, self._population.draw_of(member).extended(bytes([c]))
+            )
         else:
             return None, None
         votes: Dict[int, List[bytes]] = {target: [member]}

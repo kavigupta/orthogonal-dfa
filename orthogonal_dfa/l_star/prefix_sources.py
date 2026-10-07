@@ -135,7 +135,6 @@ class StateSource(RejectionSource):
     def __init__(self, resolver, leaf, aim, *, wanted):
         super().__init__()
         self._population = resolver.population
-        self._origins = resolver.origins
         self._aimed = Read(Aimed(aim), b"")
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
@@ -154,9 +153,8 @@ class StateSource(RejectionSource):
         did rest at, which is the answer that counts.
         """
         aimed = self._aim()
-        self._origins.setdefault(aimed, self._aimed)
         # Where it rests, not where it was aimed.
-        if self._population.settle(aimed, self._path):
+        if self._population.settle(aimed, self._path, draw=self._aimed):
             self._pool.append(aimed)
             return True
         return False

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
+from orthogonal_dfa.l_star.provenance import Read
 from orthogonal_dfa.l_star.split_evidence import (
     MEMBERS_TO_RULE_OUT_A_SPLIT,
     NO_SPLIT,
@@ -76,11 +77,11 @@ def _evidence(family=None, members=(), state=0, tree_splits=(), by_state=None):
     population = LeafPopulation(
         tree,
         lambda strings, midfix: [None] * len(strings),
-        harvest=lambda _boundary, _member: None,
+        harvest=lambda _boundary, _read: None,
     )
     for leaf, held in (by_state or {state: members}).items():
         for member in held:
-            population.add(member, at=tree.path_of(leaf))
+            population.add(member, at=tree.path_of(leaf), draw=Read(None, b""))
     return SplitEvidence(
         _pst(),
         family or _StubFamily(),
