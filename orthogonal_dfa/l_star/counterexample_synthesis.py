@@ -15,6 +15,7 @@ in the next round.
 import math
 import time
 import warnings
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -26,9 +27,10 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_populations import PoolState
-from .prefix_sources import BoundarySource, aim_at, state_source
+from .prefix_populations import PoolState, population_labels
+from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
+from .provenance import provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -104,7 +106,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
     sample every run.
     """
-    taken = sorted(resolver.indecisive - state.seen)
+    taken = sorted(set(resolver.indecisive) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
         state.seen.add(string)
@@ -129,19 +131,43 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
+def _member_origins(pst, state) -> dict:
+    """Per prefix a population holds, the source that drew it."""
+    origins = {}
+    for label in population_labels(state):
+        if label == UNIFORM:
+            source, held = UniformSource(pst), state.uniform
+        else:
+            source, held = state.sources.get(label), state.held.get(label, ())
+        if source is not None:
+            for prefix in held:
+                origins.setdefault(prefix, source)
+    return origins
+
+
 def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Hands the round's boundary population a source, proved only when a family
-    search first asks it for more: otherwise the only population the
-    counterexample pass fills for free is the one a later round has nothing to
-    draw with."""
-    if state.harvesting is not None:
-        state.sources[state.harvesting] = BoundarySource(
-            pst,
-            resolver.sifter,
-            dfa.transitions,
-            known=state.seen,
-            acc_threshold=acc_threshold,
-        )
+    """Hands the round's boundary population a source that draws more the way
+    its strings were found, proved only when a family search first asks it for
+    more: otherwise the only population the counterexample pass fills for free is
+    the one a later round has nothing to draw with."""
+    if state.harvesting is None:
+        return
+    reads = Counter(
+        resolver.indecisive[s]
+        for s in state.held[state.harvesting]
+        if s in resolver.indecisive
+    )
+    state.sources[state.harvesting] = HarvestSource(
+        Counter(
+            {
+                provenance(read, resolver.sifter, dfa.transitions): count
+                for read, count in reads.items()
+            }
+        ),
+        pst.rng,
+        known=state.seen,
+        acc_threshold=acc_threshold,
+    )
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -307,7 +333,7 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs)
+        resolver = TransitionResolver(pst, vs, _member_origins(pst, state))
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience

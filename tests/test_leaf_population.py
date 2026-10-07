@@ -22,7 +22,7 @@ def _population(classify, **kwargs):
     Most of these tests are about where strings come to rest, not about what
     fails to; the ones that care pass their own ``harvest``.
     """
-    kwargs.setdefault("harvest", lambda _string: None)
+    kwargs.setdefault("harvest", lambda _boundary, _member: None)
     return LeafPopulation(_StubTree(), classify, **kwargs)
 
 
@@ -156,7 +156,7 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _member: harvested.append(boundary),
         )
         pop.add(bytes([1, 0]))
 
@@ -171,7 +171,7 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _member: harvested.append(boundary),
         )
         pop.add(bytes([1, 0]))
 
@@ -184,7 +184,11 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
     def test_a_placed_string_is_not_harvested(self):
         harvested = []
         classify, _ = _classifier()
-        pop = _population(classify, chunk=16, harvest=harvested.append)
+        pop = _population(
+            classify,
+            chunk=16,
+            harvest=lambda boundary, _member: harvested.append(boundary),
+        )
         pop.add(bytes([1, 0]))
 
         self.assertEqual(pop.members((True,), 10), [bytes([1, 0])])
@@ -247,7 +251,7 @@ class TestSettle(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _member: harvested.append(boundary),
         )
         pop.add(bytes([1, 0]))
 
