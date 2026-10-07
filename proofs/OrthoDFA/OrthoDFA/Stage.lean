@@ -159,7 +159,7 @@ noncomputable def midPath (H : Hypothesis α) (x : FreeMonoid α) : List Bool :=
 
 /-- `estimate_agreement_rate` counts `x` against the hypothesis: walked from where the tree read
 at the middle of the band sends `ε`, it ends somewhere other than where that reading sends `x`. -/
-def GateDisagrees (H : Hypothesis α) (x : FreeMonoid α) : Prop :=
+def DFAandDTDisagree (H : Hypothesis α) (x : FreeMonoid α) : Prop :=
   x.toList.foldl H.step (midPath R H 1) ≠ midPath R H x
 
 /-- `RoundOutcome`: whatever hypothesis a round ends with, a replay of a draw from `D` anchored no
@@ -177,7 +177,7 @@ def RoundOutcome : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (H : Hypothesis α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     R.B.lo ≤ R.B.hi →
-    D.real {x | GateDisagrees R H x} / L
+    D.real {x | DFAandDTDisagree R H x} / L
         ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
       ∧ ∀ t : FreeMonoid α, (D.prod (anchorLaw L)).real {q | t ∈ replayReads R H q.1 q.2}
           ≤ ∑ i ∈ Finset.range (t.toList.length + 1),

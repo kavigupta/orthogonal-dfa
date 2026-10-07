@@ -277,7 +277,7 @@ place the two part. -/
 theorem replay_harvests (H : Hypothesis α) (hb : R.B.lo ≤ R.B.hi) {x : FreeMonoid α} {e : ℕ}
     (he : e ≤ x.toList.length)
     (hag : midPath R H (prefixOf x e) = (x.toList.take e).foldl H.step (midPath R H 1))
-    (hd : GateDisagrees R H x) : (replay R H x e).2 ≠ [] := by
+    (hd : DFAandDTDisagree R H x) : (replay R H x e).2 ≠ [] := by
   obtain ⟨rest, hrest⟩ := filter_range_ge he
   rcases hε : H.tree.sift R.cut (prefixOf x e) with p | b
   · have hp : midPath R H (prefixOf x e) = p := midPath_of_sift R H hb hε
@@ -304,7 +304,7 @@ instance : MeasurableSingletonClass (FreeMonoid α) := ⟨fun _ => trivial⟩
 
 theorem replay_yield (H : Hypothesis α) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (L : ℕ) (hb : R.B.lo ≤ R.B.hi) :
-    D.real {x | GateDisagrees R H x} / L
+    D.real {x | DFAandDTDisagree R H x} / L
       ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []} := by
   rcases Nat.eq_zero_or_pos L with rfl | hL
   · simp only [Nat.cast_zero, div_zero]
@@ -314,9 +314,9 @@ theorem replay_yield (H : Hypothesis α) (D : Measure (FreeMonoid α)) [IsProbab
   have hS : MeasurableSet S := S.to_countable.measurableSet
   have hpair : Measurable fun x : FreeMonoid α => (x, (0 : ℕ)) :=
     measurable_id.prodMk measurable_const
-  have hle : ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R H x}
+  have hle : ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | DFAandDTDisagree R H x}
       ≤ (D.prod (anchorLaw (m + 1))) S :=
-    calc ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R H x}
+    calc ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | DFAandDTDisagree R H x}
         ≤ ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D ((fun x : FreeMonoid α => (x, (0 : ℕ))) ⁻¹' S) := by
           gcongr
           intro x hx
@@ -331,8 +331,8 @@ theorem replay_yield (H : Hypothesis α) (D : Measure (FreeMonoid α)) [IsProbab
       _ = (D.prod (anchorLaw (m + 1))) S := by
           rw [anchorLaw, Finset.sum_range_succ', smul_add, Measure.prod_add, Measure.add_apply]
   have hfin : (D.prod (anchorLaw (m + 1))) S ≠ ⊤ := measure_ne_top _ _
-  calc D.real {x | GateDisagrees R H x} / ((m + 1 : ℕ) : ℝ)
-      = (((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R H x}).toReal := by
+  calc D.real {x | DFAandDTDisagree R H x} / ((m + 1 : ℕ) : ℝ)
+      = (((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | DFAandDTDisagree R H x}).toReal := by
         rw [ENNReal.toReal_mul, measureReal_def, ENNReal.toReal_inv, ENNReal.toReal_natCast]
         ring
     _ ≤ (D.prod (anchorLaw (m + 1))).real S := ENNReal.toReal_mono hfin hle
