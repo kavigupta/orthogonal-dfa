@@ -53,7 +53,7 @@ class _Learner(TransitionResolver):
         self.population = _StubPopulation()
         self.tree = SimpleNamespace(path_of=lambda s: s)
         self.dfa = SimpleNamespace(access={})
-        self.indecisive = {}
+        self.harvested = {}
         self._walked = Read(None, None)
         self.acted = None
 
@@ -89,7 +89,7 @@ class TestProcessAnchor(unittest.TestCase):
         learner = _Learner(_StubSifter(places_at=2))
         learner._process([0, 1, 0, 1], DELTA)
 
-        self.assertEqual(set(learner.indecisive), {("bail",), (0, "bail")})
+        self.assertEqual(set(learner.harvested), {("bail",), (0, "bail")})
 
     def test_walks_from_the_empty_string_when_it_places(self):
         learner = _Learner(_StubSifter(places_at=0))
@@ -125,8 +125,7 @@ class _Disagreeing(TransitionResolver):
             target=lambda s, c: 7, witness=lambda s, c: bytes([1])
         )
         self.splits = SimpleNamespace(verdict=lambda s, d: verdict)
-        self.indecisive = {}
-        self.disagreeing = {}
+        self.harvested = {}
         self._walked = Read(None, None)
 
 
@@ -139,7 +138,7 @@ class TestANonSplitIsHarvested(unittest.TestCase):
         status = learner._act_on_disagreement(self._PROBE, [7] * 5, 0)
 
         self.assertEqual(_RESOLVED, status)
-        self.assertEqual({self._PROBE[:2]: learner._walked}, learner.disagreeing)
+        self.assertEqual({self._PROBE[:2]: learner._walked}, learner.harvested)
 
     def test_an_undecided_one_is_left_to_the_next_probe(self):
         learner = _Disagreeing(UNDECIDED)
@@ -147,4 +146,4 @@ class TestANonSplitIsHarvested(unittest.TestCase):
         self.assertEqual(
             _UNDECIDED, learner._act_on_disagreement(self._PROBE, [7] * 5, 0)
         )
-        self.assertEqual({}, learner.disagreeing)
+        self.assertEqual({}, learner.harvested)

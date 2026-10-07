@@ -5,8 +5,8 @@ Each round builds a DFA from the current prefix pool and splits it in place on
 DFA-vs-tree disagreements (the counterexample pass).
 
 When the estimate still falls short, the representative pool is rebuilt to add
-    - boundary strings the family could not place
-    - the prefixes of disagreements the split test would not split on
+    - boundary strings the family could not place, and the prefixes of
+      disagreements the split test would not split on
     - per-state balanced sample
 
 These drive the suffix-family FNR gate to re-cluster and resolve them
@@ -26,12 +26,12 @@ from automata.fa.dfa import DFA
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
-from .mask_table import BOUNDARY, DISAGREEMENT, UNIFORM
+from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
-from .provenance import Disagreed, provenance
+from .provenance import provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -100,18 +100,17 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _accumulate(found, state, kind, wanted) -> int:
-    """Take up to ``wanted`` of the strings ``found`` (string -> the read that met
-    it) that ``state`` does not already hold into its harvest of ``kind``,
-    returning how many.
+def _accumulate_harvest(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's harvested strings ``state`` does not
+    already hold, returning how many.
 
     Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
     sample every run.
     """
-    taken = sorted(set(found) - state.seen)
+    taken = sorted(set(resolver.harvested) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(kind, string, found[string])
+        state.take(string, resolver.harvested[string])
     return min(wanted, len(taken))
 
 
@@ -132,29 +131,24 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Hands each of the round's harvests a source that draws more the way its
-    strings were found, proved only when a family search first asks it for
-    more: otherwise the only populations the counterexample pass fills for free
-    are ones a later round has nothing to draw with."""
-    for kind, label in state.harvesting.items():
-        if kind == BOUNDARY:
-            provenances = {
+def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    """Hands the round's boundary population a source that draws more the way
+    its strings were found, proved only when a family search first asks it for
+    more: otherwise the only population the counterexample pass fills for free is
+    the one a later round has nothing to draw with."""
+    if state.harvesting is None:
+        return
+    state.sources[state.harvesting] = HarvestSource(
+        Counter(
+            {
                 provenance(read, resolver.sifter, dfa.transitions): count
-                for read, count in state.harvest_reads[kind].items()
+                for read, count in state.harvest_reads.items()
             }
-        else:
-            provenances = {
-                Disagreed(read.distribution, resolver.sifter, dfa.transitions): count
-                for read, count in state.harvest_reads[kind].items()
-            }
-        state.sources[label] = HarvestSource(
-            Counter(provenances),
-            pst.rng,
-            known=state.seen,
-            acc_threshold=acc_threshold,
-            kind=kind,
-        )
+        ),
+        pst.rng,
+        known=state.seen,
+        acc_threshold=acc_threshold,
+    )
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -374,7 +368,7 @@ def counterexample_driven_synthesis(
                 f"FNR limit now {pst.fnr_limit:.4f}"
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        taken = _accumulate(resolver.indecisive, state, BOUNDARY, target)
+        taken = _accumulate_harvest(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.  Rounds after a
@@ -394,9 +388,8 @@ def counterexample_driven_synthesis(
             return best
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
-        _accumulate(resolver.indecisive, state, BOUNDARY, target - taken)
-        _accumulate(resolver.disagreeing, state, DISAGREEMENT, target)
-        _harvest_sources(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+        _accumulate_harvest(resolver, state, target - taken)
+        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

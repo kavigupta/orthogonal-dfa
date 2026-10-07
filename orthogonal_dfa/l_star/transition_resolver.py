@@ -51,12 +51,10 @@ class TransitionResolver:
         """``draws[p]`` is the draw the table prefix ``p`` was; one it does not
         name was the sampler's."""
         self.pst = pst
-        #: Boundary strings the family could not place, each with the read that
-        #: met it.
-        self.indecisive = {}
-        #: The sprime of each disagreement the split test would not split on,
-        #: with the read that met it.
-        self.disagreeing = {}
+        #: Boundary strings the family could not place, and the sprime of each
+        #: disagreement the split test would not split on, each with the read
+        #: that met it.
+        self.harvested = {}
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
@@ -87,7 +85,7 @@ class TransitionResolver:
     # -- membership / population -------------------------------------------
 
     def _harvest(self, boundary, read):
-        self.indecisive.setdefault(boundary, read)
+        self.harvested.setdefault(boundary, read)
 
     def _classify(self, strings, midfix):
         """Which side of ``midfix`` each string sits on; the indecisive band
@@ -113,7 +111,7 @@ class TransitionResolver:
     def _sift(self, seq):
         """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
 
-        Every string the tree cannot place is harvested into ``indecisive``: it is
+        Every string the tree cannot place is harvested into ``harvested``: it is
         a boundary string the current family straddles, and the driver feeds these
         back so the next family is forced to resolve them."""
         leaf, boundary = self.sifter.sift_and_boundary(seq)
@@ -239,7 +237,7 @@ class TransitionResolver:
         if verdict == NO_SPLIT:
             # Few of the leaf's members share sprime's state, which no later
             # round sees unless it is harvested.
-            self.disagreeing.setdefault(sprime, self._walked)
+            self._harvest(sprime, self._walked)
             return _RESOLVED
         return _UNDECIDED
 

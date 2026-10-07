@@ -18,7 +18,7 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import Disagreed, Read, Sifted, Walked
+from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
@@ -271,12 +271,22 @@ def _walked(places):
     return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE)
 
 
+#: Walks never leave 0, so a tree that moves a long prefix to 1 disagrees there.
+_STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
+_MOVES_AT_THREE = lambda seq: 0 if len(seq) < 3 else 1
+
+
 class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
     def test_a_walk_keeps_what_the_tree_cannot_place_on_the_way(self):
         self.assertEqual([_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS).sample())
 
-    def test_a_walk_the_tree_places_throughout_keeps_nothing(self):
-        self.assertEqual([], _walked(lambda seq: 0).sample())
+    def test_a_walk_the_sift_agrees_with_keeps_nothing(self):
+        walked = Walked(_Fixed(_PROBE), _Walk(lambda seq: 0), _STAYS)
+        self.assertEqual([], walked.sample())
+
+    def test_a_walk_placed_throughout_keeps_the_prefix_before_where_it_parts(self):
+        walked = Walked(_Fixed(_PROBE), _Walk(_MOVES_AT_THREE), _STAYS)
+        self.assertEqual([_PROBE[:2]], walked.sample())
 
     def test_a_sift_reads_the_draw_with_its_extension(self):
         sifted = Sifted(_Fixed(bytes([0])), _Walk(_LONG_ONE_FAILS), bytes([1]))
@@ -290,28 +300,6 @@ class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
         self.assertEqual([], Sifted(_Dry(), _Walk(lambda seq: None), b"").sample())
 
 
-#: Walks never leave 0, so a tree that moves a long prefix to 1 disagrees there.
-_STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
-_MOVES_AT_THREE = lambda seq: 0 if len(seq) < 3 else 1
-
-
-class TestADisagreementReadsUpToItsFirstEdge(unittest.TestCase):
-    def _sample(self, places):
-        return Disagreed(_Fixed(_PROBE), _Walk(places), _STAYS).sample()
-
-    def test_it_keeps_the_prefix_before_the_edge_where_walk_and_sift_part(self):
-        self.assertEqual([_PROBE[:2]], self._sample(_MOVES_AT_THREE))
-
-    def test_a_walk_the_sift_agrees_with_keeps_nothing(self):
-        self.assertEqual([], self._sample(lambda seq: 0))
-
-    def test_a_read_it_cannot_place_on_the_way_keeps_nothing(self):
-        self.assertEqual(
-            [],
-            self._sample(lambda seq: None if len(seq) == 2 else _MOVES_AT_THREE(seq)),
-        )
-
-
 class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
     def _source(self, places, *, known):
         return HarvestSource(
@@ -319,7 +307,6 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=known,
             acc_threshold=0.98,
-            kind="boundary",
         )
 
     def test_a_find_is_served(self):
@@ -358,7 +345,6 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
             np.random.default_rng(0),
             known=(),
             acc_threshold=0.98,
-            kind="boundary",
         )
         ends = [source.draw()[-2:-1] for _ in range(400)]
 
