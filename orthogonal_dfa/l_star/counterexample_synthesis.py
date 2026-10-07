@@ -99,6 +99,83 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
+_HELD_OUT = {}
+
+
+def _held_out_oracle_score(pst, dfa) -> float:
+    """How well the DFA's state partition predicts the oracle on held-out strings.
+
+    Fit each state's oracle-accept-rate on one half of a fixed held-out sample,
+    then score the correlation of those fitted rates with the oracle labels on the
+    other half.  A partition that only fits the construction's own probes earns ~0
+    here; one that captures real oracle structure scores high.  It is measured
+    against the ORACLE (not the DFA/DT self-consistency the round loop tracks,
+    which stays high even for a poor DFA)."""
+    strings, labels = _HELD_OUT.setdefault(id(pst), _draw_held_out(pst, 4000))
+    half = len(strings) // 2
+
+    def endpoint(w):
+        s = dfa.initial_state
+        for c in w:
+            s = dfa.transitions[s][c]
+        return s
+
+    reached = [endpoint(w) for w in strings]
+    total, count = {}, {}
+    for s, y in zip(reached[:half], labels[:half]):
+        total[s] = total.get(s, 0.0) + y
+        count[s] = count.get(s, 0) + 1
+    grand = float(np.mean(labels[:half]))
+    rate = {s: total[s] / count[s] for s in total}
+    pred = np.array([rate.get(s, grand) for s in reached[half:]])
+    held = labels[half:]
+    if pred.std() == 0 or held.std() == 0:
+        return 0.0
+    return abs(float(np.corrcoef(pred, held)[0, 1]))
+
+
+def _draw_held_out(pst, n):
+    rng = np.random.default_rng(0x5C0E2)
+    strings = [pst.sampler.sample(rng, pst.alphabet_size) for _ in range(n)]
+    labels = np.asarray(pst.oracle.membership_queries(strings), dtype=float)
+    return strings, labels
+
+
+def _resolve_round(pst, vs, state, patience):
+    """Build one DFA from the family ``vs`` via the counterexample pass.  Returns
+    ``(resolver, dfa, dt)`` -- the resolver is kept because the round's pool-growth
+    reads its populations."""
+    resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
+    resolver.close_edges()
+    resolver.counterexample_pass(max_probes=COUNTEREXAMPLE_PROBES, patience=patience)
+    dfa, dt = resolver.to_dfa_and_tree()
+    return resolver, dfa, dt
+
+
+def _resolve_with_restarts(pst, vs, state, patience, index):
+    """``_resolve_round`` with ``counterexample_restarts`` applied: run it that
+    many times under independent probe RNG and keep the DFA that best predicts the
+    oracle on held-out strings.  ``restarts == 1`` reproduces the single pass."""
+    k = max(1, pst.config.counterexample_restarts)
+    if k == 1:
+        return _resolve_round(pst, vs, state, patience)
+    best_score, best = -1.0, None
+    for i in range(k):
+        pst.rng = np.random.default_rng((index + 1) * 1_000_003 + i)
+        resolver, dfa, dt = _resolve_round(pst, vs, state, patience)
+        score = _held_out_oracle_score(pst, dfa)
+        print(
+            f"[round {index}] restart {i}: {dt.num_states} states, "
+            f"held-out oracle score {score:.3f}"
+        )
+        if score > best_score:
+            best_score, best = score, (resolver, dfa, dt)
+    print(
+        f"[round {index}] kept held-out oracle score {best_score:.3f} of {k} restarts"
+    )
+    return best
+
+
 def _accumulate_indecisive(resolver, state, wanted) -> int:
     """Take up to ``wanted`` of the round's boundary strings ``state`` does not
     already hold, returning how many.
@@ -327,12 +404,7 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
-        resolver.close_edges()
-        resolver.counterexample_pass(
-            max_probes=COUNTEREXAMPLE_PROBES, patience=patience
-        )
-        dfa, dt = resolver.to_dfa_and_tree()
+        resolver, dfa, dt = _resolve_with_restarts(pst, vs, state, patience, index)
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
             f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "
