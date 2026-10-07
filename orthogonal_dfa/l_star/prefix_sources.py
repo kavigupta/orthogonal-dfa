@@ -24,11 +24,6 @@ GOOD_YIELD = 0.5
 #: apart affordable.
 POOR_YIELD = 0.25
 
-#: A probe turning up a boundary string at least this often is worth drawing on.
-GOOD_BOUNDARY_YIELD = 0.2
-#: One turning up at most this often is not.
-POOR_BOUNDARY_YIELD = 0.1
-
 
 class UniformSource:
     """The learner's own sampler.  Every draw is a prefix, so this never fails."""
@@ -51,12 +46,15 @@ class HarvestSource(RejectionSource):
     each attempt reads a fresh draw by one of their provenances, chosen in
     proportion to how many of them it found."""
 
-    proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
-    poor = POOR_BOUNDARY_YIELD
-
-    def __init__(self, provenances, rng, *, known):
-        """``provenances`` maps each provenance to how many strings it found."""
+    def __init__(self, provenances, rng, *, known, acc_threshold):
+        """``provenances`` maps each provenance to how many strings it found.
+        Worth drawing on where an attempt turns up a boundary string at least
+        ``1 - acc_threshold`` of the time, and not at half that: only a read that
+        disagrees or cannot be placed turns one up, and a round the gate refuses
+        can disagree on no more than that share of them."""
         super().__init__()
+        assert acc_threshold < 1, acc_threshold
+        self._good = 1 - acc_threshold
         self._served.update(known)
         self._seen = set(known)
         self._provenances = list(provenances)
@@ -75,6 +73,14 @@ class HarvestSource(RejectionSource):
                 self._pool.append(string)
                 found = True
         return found
+
+    @property
+    def proving(self) -> tuple:
+        return proving_attempts(self._good, self._good / 2)
+
+    @property
+    def poor(self) -> float:
+        return self._good / 2
 
     def source_repr(self) -> str:
         return "boundary"

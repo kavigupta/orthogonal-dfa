@@ -30,7 +30,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
-from .provenance import Read, provenance
+from .provenance import provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -130,38 +130,24 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
-    """Draw up to ``wanted`` more boundary strings the way the round's were
-    found, keeping what the yield test turned up even when the source fails it.
-
-    A round with its fill already still leaves the population a source, unproved:
-    otherwise the only population the counterexample pass fills for free is the
-    one a later round has nothing to draw with.
-    """
-    # A pass that left nothing undecided has no reads to replay, so the top-up
-    # walks fresh probes as the pass does, and can still start a population.
-    reads = state.harvest_reads or Counter({Read(UniformSource(pst), None): 1})
-    source = HarvestSource(
+def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    """Hands the round's boundary population a source that draws more the way
+    its strings were found, proved only when a family search first asks it for
+    more: otherwise the only population the counterexample pass fills for free is
+    the one a later round has nothing to draw with."""
+    if state.harvesting is None:
+        return
+    state.sources[state.harvesting] = HarvestSource(
         Counter(
             {
                 provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
-                for read, count in reads.items()
+                for read, count in state.harvest_reads.items()
             }
         ),
         pst.rng,
         known=state.seen,
+        acc_threshold=acc_threshold,
     )
-    if wanted > 0:
-        # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
-        drawing = source.worth_drawing()
-        found = source.found()
-        if drawing:
-            found += [source.draw() for _ in range(wanted - len(found))]
-        for string in found[:wanted]:
-            state.seen.add(string)
-            state.harvest().append(string)
-    if state.harvesting is not None:
-        state.sources[state.harvesting] = source
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -401,8 +387,8 @@ def counterexample_driven_synthesis(
             return best
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
-        taken += _accumulate_indecisive(resolver, state, target - taken)
-        _top_up_boundary(pst, resolver, dfa, state, target - taken)
+        _accumulate_indecisive(resolver, state, target - taken)
+        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

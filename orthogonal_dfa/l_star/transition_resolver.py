@@ -57,8 +57,7 @@ class TransitionResolver:
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
-        #: From-start probes since the pass's last split, and how many of them
-        #: were unchecked.
+        #: Probes since the pass's last split, and how many of them were unchecked.
         self.quiet_probes = 0
         self.unchecked_quiet_probes = 0
         self.family = SuffixFamily(pst, vs)
@@ -137,23 +136,15 @@ class TransitionResolver:
         disagree, the probe has exhibited two prefixes reaching one leaf that
         behave differently under one more symbol, so the leaf is split -- the same
         counterexample the outer loop used to defer by adding a prefix and
-        rebuilding. Stops after ``patience`` consecutive clean probes walked
-        from the start.
-
-        Every other probe is walked from a uniformly drawn point instead, so that
-        an early state the family cannot place does not stop every probe there.
-        Those check only what follows their anchor, so they do not count as
-        clean."""
+        rebuilding. Stops after ``patience`` consecutive clean probes."""
         self.quiet_probes = self.unchecked_quiet_probes = 0
         delta = self._total_delta()
         with counter(max_probes, "Probing for counterexamples") as pbar:
-            for i, w in enumerate(self._probe_blocks(max_probes)):
-                from_start = i % 2 == 0
-                earliest = 0 if from_start else int(self.pst.rng.integers(len(w)))
-                status = self._process(w, delta, earliest)
+            for w in self._probe_blocks(max_probes):
+                status = self._process(w, delta)
                 if status in (_SPLIT, _UNDECIDED):
                     self.quiet_probes = self.unchecked_quiet_probes = 0
-                elif from_start:
+                else:
                     self.quiet_probes += 1
                     self.unchecked_quiet_probes += status == _UNCHECKED
                 # A split drops edges and rewrites the state set, and any probe may
@@ -191,11 +182,10 @@ class TransitionResolver:
             self.sifter.prefill(block)
             yield from block
 
-    def _process(self, w, delta, earliest):
-        """Anchor at the shortest prefix of at least ``earliest`` symbols the tree
-        places, follow the total delta, then act on where the walk and a fresh
-        sift disagree."""
-        start, states = anchored_walk(w, self._sift, delta, earliest)
+    def _process(self, w, delta):
+        """Anchor at the shortest prefix the tree places, follow the total delta,
+        then act on where the walk and a fresh sift disagree."""
+        start, states = anchored_walk(w, self._sift, delta, 0)
         if start is None:
             return _UNCHECKED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it

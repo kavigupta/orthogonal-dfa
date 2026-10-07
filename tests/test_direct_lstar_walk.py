@@ -69,7 +69,7 @@ class TestProcessAnchor(unittest.TestCase):
         """The empty string is the one the family places worst, so a probe that
         cannot start there must still be walked, from deeper in."""
         learner = _Learner(_StubSifter(places_at=2))
-        learner._process([0, 1, 0, 1], DELTA, 0)
+        learner._process([0, 1, 0, 1], DELTA)
 
         w, states, agree_point = learner.acted
         self.assertEqual(agree_point, 2)
@@ -79,28 +79,19 @@ class TestProcessAnchor(unittest.TestCase):
 
     def test_records_the_anchor_not_the_empty_string(self):
         learner = _Learner(_StubSifter(places_at=2))
-        learner._process([0, 1, 0, 1], DELTA, 0)
+        learner._process([0, 1, 0, 1], DELTA)
 
         self.assertEqual(learner.population.recorded, [(7, (0, 1))])
 
     def test_harvests_every_prefix_it_could_not_place(self):
         learner = _Learner(_StubSifter(places_at=2))
-        learner._process([0, 1, 0, 1], DELTA, 0)
+        learner._process([0, 1, 0, 1], DELTA)
 
         self.assertEqual(set(learner.indecisive), {("bail",), (0, "bail")})
 
-    def test_a_later_anchor_skips_what_it_could_not_place_earlier(self):
-        learner = _Learner(_StubSifter(places_at=2))
-        learner._process([0, 1, 0, 1], DELTA, 3)
-
-        _, states, agree_point = learner.acted
-        self.assertEqual(agree_point, 3)
-        self.assertEqual(states, [None, None, None, 7, 7])
-        self.assertEqual(learner.indecisive, {})
-
     def test_walks_from_the_empty_string_when_it_places(self):
         learner = _Learner(_StubSifter(places_at=0))
-        learner._process([0, 1], DELTA, 0)
+        learner._process([0, 1], DELTA)
 
         _, states, agree_point = learner.acted
         self.assertEqual(agree_point, 0)
@@ -110,7 +101,7 @@ class TestProcessAnchor(unittest.TestCase):
         sifter = _StubSifter(places_at=99)
         learner = _Learner(sifter)
 
-        self.assertEqual(learner._process([0, 1, 0], DELTA, 0), _UNCHECKED)
+        self.assertEqual(learner._process([0, 1, 0], DELTA), _UNCHECKED)
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])
