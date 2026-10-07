@@ -1,6 +1,5 @@
 import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
-import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # The round's trichotomy
@@ -122,14 +121,27 @@ def RoundTrichotomy : Prop :=
           ∧ ¬ s.halves S.K}
       ≤ (1 - ε) ^ S.K.patience
 
-/-- `HalvingRare`: once `τ` is below `c / (|Q| · (log₂ L + 2))`, a round halves with chance at
-most `exp(-patience / 8)`. -/
-def HalvingRare (c : ℝ) : Prop :=
+/-- How many strings an attempt asks the cut about. -/
+noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
+  ((replay R H x e).1.map fun i => (H.tree.route R.cut (prefixOf x i)).1.length).sum
+
+/-- `R̄`: the queries of an attempt on the round's harvest, averaged over the round and the
+attempt. -/
+noncomputable def meanQueries (S : RoundSetting α μ Q) : ℝ :=
+  ∫ θ, (∫ q, (queryCount (readsAt S.O S.B S.F θ.1) (roundEnd S.K S.O S.B S.F S.seed θ).hyp
+      q.1 q.2 : ℝ) ∂(S.D.prod (anchorLaw S.L))) ∂(μ.prod (Measure.pi fun _ : Fin S.N => S.D))
+
+/-- `RoundOrHarvest`: a round ends in (1) or (2) but for chance `16 τ L R̄ / ε`, so with
+`τ ≤ δ ε / (16 L R̄)` but for `δ`. -/
+def RoundOrHarvest : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
-    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q),
-    S.Valid → S.τ < c / (Fintype.card Q * (Real.logb 2 S.L + 2)) →
-    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real
-        {θ | (roundEnd S.K S.O S.B S.F S.seed θ).halves S.K}
-      ≤ Real.exp (-(S.K.patience : ℝ) / 8)
+    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ),
+    S.Valid → 0 < ε →
+    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
+        let R := readsAt S.O S.B S.F θ.1
+        let s := roundEnd S.K S.O S.B S.F S.seed θ
+        ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
+          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ ∧ HarvestBad S.A S.O R s.hyp S.D S.L S.τ)}
+      ≤ 16 * S.τ * S.L * meanQueries S / ε
 
 end OrthoDFA
