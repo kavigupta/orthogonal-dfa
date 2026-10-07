@@ -16,6 +16,9 @@ class SuffixFamily:
     def __init__(self, pst, vs: List[int]):
         self.pst = pst
         self.vs = list(vs)
+        # A later round moves pst's boundary; this round's tree was cut at these.
+        self.accept_thresh = pst.accept_thresh
+        self.reject_thresh = pst.reject_thresh
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
@@ -55,9 +58,9 @@ class SuffixFamily:
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
         ``None`` in the indecisive band between them."""
         mean = self.mean(seq, midfix)
-        if mean >= self.pst.accept_thresh:
+        if mean >= self.accept_thresh:
             return True
-        if mean < self.pst.reject_thresh:
+        if mean < self.reject_thresh:
             return False
         return None
 
@@ -72,8 +75,8 @@ class SuffixFamily:
         Which side of the distinguisher the votes fall on (on the training half only).
         """
         mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
-        if mean >= self.pst.accept_thresh:
+        if mean >= self.accept_thresh:
             return True
-        if mean < self.pst.reject_thresh:
+        if mean < self.reject_thresh:
             return False
         return None
