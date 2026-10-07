@@ -74,19 +74,23 @@ def misread_statistic(rows, anchor, columns, rates) -> np.ndarray:
 def nearest_to_anchor_group(
     rows, anchor, populations, scoring, rates, *, k, alpha, rng
 ):
-    """Every row, nearest first to the mean of the coherent_group whose rows
-    have the least misread_statistic against anchor on average over the
-    columns marked scoring, distance weighing each population's columns the
-    same:
+    """The rows of the coherent_group with the least misread_statistic against
+    anchor on average over the columns marked scoring, then every other row,
+    each part nearest first to that group's mean, distance weighing each
+    population's columns the same:
 
         d(v) = sum_p w_p (x_v,p - mean_p)^2,   w_p proportional to
                sum over populations j holding p of 1 / |j|.
 
     The groups are found without anchor and the mean is that group's alone, so
-    rows that share a misreading cannot pull the order toward themselves."""
+    rows that share a misreading cannot pull the order toward themselves.  Rows
+    outside the group can still sit nearer its mean than its own members, when
+    they differ from it only on a few columns and read noise sets the distance."""
     groups = coherent_groups(rows, populations, k=k, alpha=alpha, rng=rng)
     misread = misread_statistic(rows, anchor, scoring, rates)
     best = min(groups, key=lambda g: misread[g].mean())
     weight = sum(population / population.sum() for population in populations)
     distance = (rows - rows[best].mean(0)) ** 2 @ weight
-    return np.argsort(distance, kind="stable")
+    outside = np.ones(len(rows), dtype=bool)
+    outside[best] = False
+    return np.lexsort((distance, outside))
