@@ -25,6 +25,7 @@ from .memoized_oracle import MemoizedOracle
 #: drops them share these rather than agreeing by spelling.
 UNIFORM = "uniform"
 BOUNDARY = "boundary"
+DISAGREEMENT = "disagreement"
 STATE = "state"
 
 # Sentinel for a not-yet-queried cell.  Private to this module: callers read

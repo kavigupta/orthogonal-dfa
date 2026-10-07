@@ -54,6 +54,9 @@ class TransitionResolver:
         #: Boundary strings the family could not place, each with the read that
         #: met it.
         self.indecisive = {}
+        #: The sprime of each disagreement the split test would not split on,
+        #: with the read that met it.
+        self.disagreeing = {}
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
@@ -233,7 +236,12 @@ class TransitionResolver:
         # sprime, ahead of the member limit, lets the next probe through that state
         # weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1), draw=self._walked)
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        if verdict == NO_SPLIT:
+            # Few of the leaf's members share sprime's state, which no later
+            # round sees unless it is harvested.
+            self.disagreeing.setdefault(sprime, self._walked)
+            return _RESOLVED
+        return _UNDECIDED
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)

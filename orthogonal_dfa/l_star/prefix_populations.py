@@ -24,12 +24,12 @@ class PoolState:
         #: What draws more of each population, for the round that asks.
         self.sources = {}
         self.seen = set()
-        #: Boundary populations named so far, which is what numbers them.
-        self.named = 0
-        #: The one this round is filling, or None before it strands anything.
-        self.harvesting = None
-        #: The reads that met the strings this round took into it, counted.
-        self.harvest_reads = Counter()
+        #: Per kind, the harvests named so far, which is what numbers them.
+        self.named = Counter()
+        #: Per kind, the harvest this round is filling, once it takes a string.
+        self.harvesting = {}
+        #: Per kind, the reads that met the strings this round took, counted.
+        self.harvest_reads = {}
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
 
@@ -47,26 +47,27 @@ class PoolState:
         self.held[label] = sorted(source.draw() for _ in range(count))
         self.sources[label] = source
 
-    def harvest(self) -> list:
-        """This round's boundary population, named on the first string to reach
+    def harvest(self, kind) -> list:
+        """This round's harvest of ``kind``, named on the first string to reach
         it."""
-        if self.harvesting is None:
-            self.named += 1
-            self.harvesting = ("boundary", self.named)
-            self.held[self.harvesting] = []
-        return self.held[self.harvesting]
+        if kind not in self.harvesting:
+            self.named[kind] += 1
+            self.harvesting[kind] = (kind, self.named[kind])
+            self.held[self.harvesting[kind]] = []
+            self.harvest_reads[kind] = Counter()
+        return self.held[self.harvesting[kind]]
 
     def close_harvest(self) -> None:
-        """End the round's boundary population: the next round names its own."""
-        self.harvesting = None
-        self.harvest_reads = Counter()
+        """End the round's harvests: the next round names its own."""
+        self.harvesting = {}
+        self.harvest_reads = {}
 
-    def take(self, string, read) -> None:
-        """Take a string this round could not place into its boundary population,
-        with the read that met it."""
+    def take(self, kind, string, read) -> None:
+        """Take a string into this round's harvest of ``kind``, with the read
+        that met it."""
         self.seen.add(string)
-        self.harvest().append(string)
-        self.harvest_reads[read] += 1
+        self.harvest(kind).append(string)
+        self.harvest_reads[kind][read] += 1
 
     def draws(self, sampler) -> dict:
         """Per prefix a population holds, the draw it was: one of that

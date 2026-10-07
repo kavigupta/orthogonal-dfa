@@ -5,7 +5,9 @@ of a string drawn from some distribution -- a population's prefixes, a state
 source's aims, the sampler's probes -- and made in one of two ways: sifted from
 the root, extended or not by a letter, or met along a probe's walk.  A
 provenance holds the distribution and the way, and ``sample`` draws afresh and
-makes the same read through the same tree.
+makes the same read through the same tree.  A disagreement harvest's strings are
+instead where a walk and its sift first part with every read decided, which
+``Disagreed`` replays.
 """
 
 from abc import ABC, abstractmethod
@@ -94,6 +96,28 @@ class Walked(Provenance):
             if landed is not None and landed != states[-1]:
                 first_disagreeing_edge(drawn, states, sift, start, len(drawn))
         return met
+
+
+@dataclass(frozen=True, eq=False)
+class Disagreed(Provenance):
+    """A probe walked as the counterexample pass walks one, cut just before the
+    first edge where walk and sift part, when every sift on the way places: a
+    string of a state the hypothesis's edge out of its leaf is wrong for."""
+
+    transitions: dict = field(repr=False)
+
+    def _read(self, drawn) -> List[bytes]:
+        def sift(seq):
+            return self.sifter.sift_and_boundary(seq)[0]
+
+        start, states = anchored_walk(drawn, sift, self.transitions)
+        if start is None:
+            return []
+        landed = sift(drawn)
+        if landed is None or landed == states[-1]:
+            return []
+        fd = first_disagreeing_edge(drawn, states, sift, start, len(drawn))
+        return [] if fd is None else [drawn[: fd - 1]]
 
 
 def provenance(read: Read, sifter, transitions) -> Provenance:

@@ -9,23 +9,24 @@ import numpy as np
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
-    _accumulate_indecisive,
+    _accumulate,
     _publish_pool,
     _StallDetector,
 )
+from orthogonal_dfa.l_star.mask_table import BOUNDARY
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.provenance import Read
 
 
-def _resolver(*strings):
-    return SimpleNamespace(indecisive={string: Read(None, b"") for string in strings})
+def _found(*strings):
+    return {string: Read(None, b"") for string in strings}
 
 
 def _state(held=()):
     state = PoolState([])
     for string in held:
         state.seen.add(string)
-        state.harvest().append(string)
+        state.harvest(BOUNDARY).append(string)
     return state
 
 
@@ -58,27 +59,25 @@ class TestWhatARoundTakes(unittest.TestCase):
     def test_it_takes_what_it_is_asked_for(self):
         state = _state()
 
-        self.assertEqual(
-            2, _accumulate_indecisive(_resolver(b"a", b"b", b"c"), state, 2)
-        )
+        self.assertEqual(2, _accumulate(_found(b"a", b"b", b"c"), state, BOUNDARY, 2))
         self.assertEqual(2, len(_taken(state)))
 
     def test_and_no_more_than_there_is(self):
         state = _state()
 
-        self.assertEqual(1, _accumulate_indecisive(_resolver(b"a"), state, 5))
+        self.assertEqual(1, _accumulate(_found(b"a"), state, BOUNDARY, 5))
         self.assertEqual([b"a"], _taken(state))
 
     def test_what_the_round_already_holds_is_not_taken_again(self):
         state = _state([b"a"])
 
-        self.assertEqual(1, _accumulate_indecisive(_resolver(b"a", b"b"), state, 5))
+        self.assertEqual(1, _accumulate(_found(b"a", b"b"), state, BOUNDARY, 5))
         self.assertEqual([b"a", b"b"], sorted(_taken(state)))
 
     def test_asking_for_none_takes_none(self):
         state = _state()
 
-        self.assertEqual(0, _accumulate_indecisive(_resolver(b"a"), state, 0))
+        self.assertEqual(0, _accumulate(_found(b"a"), state, BOUNDARY, 0))
         self.assertEqual([], _taken(state))
 
     def test_two_runs_take_the_same_strings(self):
@@ -87,32 +86,32 @@ class TestWhatARoundTakes(unittest.TestCase):
         strings = [bytes([i]) for i in range(20)]
         first, second = _state(), _state()
 
-        _accumulate_indecisive(_resolver(*strings), first, 5)
-        _accumulate_indecisive(_resolver(*strings), second, 5)
+        _accumulate(_found(*strings), first, BOUNDARY, 5)
+        _accumulate(_found(*strings), second, BOUNDARY, 5)
 
         self.assertEqual(_taken(first), _taken(second))
 
     def test_a_round_that_takes_twice_fills_one_population(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a"), state, 1)
-        _accumulate_indecisive(_resolver(b"a", b"b"), state, 1)
+        _accumulate(_found(b"a"), state, BOUNDARY, 1)
+        _accumulate(_found(b"a", b"b"), state, BOUNDARY, 1)
 
         self.assertEqual(1, len(state.held), "one population for the round")
 
     def test_each_round_names_a_population_of_its_own(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a"), state, 5)
+        _accumulate(_found(b"a"), state, BOUNDARY, 5)
         _published(state)
-        _accumulate_indecisive(_resolver(b"b"), state, 5)
+        _accumulate(_found(b"b"), state, BOUNDARY, 5)
 
         self.assertEqual([("boundary", 1), ("boundary", 2)], sorted(state.held))
 
     def test_what_it_takes_it_also_remembers(self):
         state = _state()
 
-        _accumulate_indecisive(_resolver(b"a", b"b"), state, 2)
+        _accumulate(_found(b"a", b"b"), state, BOUNDARY, 2)
 
         self.assertEqual(state.seen, set(_taken(state)))
 

@@ -42,13 +42,13 @@ class UniformSource:
 
 
 class HarvestSource(RejectionSource):
-    """More of a round's boundary population, found the way its strings were:
+    """More of a round's harvest, found the way its strings were:
     each attempt reads a fresh draw by one of their provenances, chosen in
     proportion to how many of them it found."""
 
-    def __init__(self, provenances, rng, *, known, acc_threshold):
+    def __init__(self, provenances, rng, *, known, acc_threshold, kind):
         """``provenances`` maps each provenance to how many strings it found.
-        Worth drawing on where an attempt turns up a boundary string at least
+        Worth drawing on where an attempt turns up a string at least
         ``1 - acc_threshold`` of the time, and not at half that: only a read that
         disagrees or cannot be placed turns one up, and a round the gate refuses
         can disagree on no more than that share of them."""
@@ -61,6 +61,7 @@ class HarvestSource(RejectionSource):
         counts = np.array([provenances[p] for p in self._provenances], dtype=float)
         self._weights = counts / counts.sum()
         self._rng = rng
+        self._kind = kind
 
     def attempt_draw(self) -> bool:
         provenance = self._provenances[
@@ -83,7 +84,7 @@ class HarvestSource(RejectionSource):
         return self._good / 2
 
     def source_repr(self) -> str:
-        return "boundary"
+        return self._kind
 
 
 def aim_at(pst, dfa, leaf):
