@@ -11,6 +11,7 @@ up as a state count that also moves for unrelated reasons.
 import unittest
 from types import SimpleNamespace
 
+from orthogonal_dfa.l_star.provenance import Read
 from orthogonal_dfa.l_star.transition_resolver import (
     _RESOLVED,
     _UNCHECKED,
@@ -37,7 +38,7 @@ class _StubPopulation:
     def __init__(self):
         self.recorded = []
 
-    def add(self, string, at):
+    def add(self, string, at, **_draw):
         self.recorded.append((at, tuple(string)))
 
 
@@ -50,7 +51,8 @@ class _Learner(TransitionResolver):
         self.population = _StubPopulation()
         self.tree = SimpleNamespace(path_of=lambda s: s)
         self.dfa = SimpleNamespace(access={})
-        self.indecisive = set()
+        self.indecisive = {}
+        self._walked = Read(None, None)
         self.acted = None
 
     def _act_on_disagreement(self, w, states, agree_point):
@@ -85,7 +87,7 @@ class TestProcessAnchor(unittest.TestCase):
         learner = _Learner(_StubSifter(places_at=2))
         learner._process([0, 1, 0, 1], DELTA)
 
-        self.assertEqual(learner.indecisive, {("bail",), (0, "bail")})
+        self.assertEqual(set(learner.indecisive), {("bail",), (0, "bail")})
 
     def test_walks_from_the_empty_string_when_it_places(self):
         learner = _Learner(_StubSifter(places_at=0))

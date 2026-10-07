@@ -1,6 +1,10 @@
 import unittest
 
 from orthogonal_dfa.l_star.leaf_population import LeafPopulation
+from orthogonal_dfa.l_star.provenance import Read
+
+#: Where these tests' strings came from, which they never read.
+_DRAW = Read(None, b"")
 
 
 class _StubTree:
@@ -22,7 +26,7 @@ def _population(classify, **kwargs):
     Most of these tests are about where strings come to rest, not about what
     fails to; the ones that care pass their own ``harvest``.
     """
-    kwargs.setdefault("harvest", lambda _string: None)
+    kwargs.setdefault("harvest", lambda _boundary, _read: None)
     return LeafPopulation(_StubTree(), classify, **kwargs)
 
 
@@ -44,7 +48,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for s in (bytes([1, 0]), bytes([1, 1]), bytes([0, 1]), bytes([0, 0])):
-            pop.add(s)
+            pop.add(s, draw=_DRAW)
         self.assertEqual(
             sorted(pop.members((True,), 10)), [bytes([1, 0]), bytes([1, 1])]
         )
@@ -56,7 +60,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
         for i in range(100):
-            pop.add(bytes([1, i]))
+            pop.add(bytes([1, i]), draw=_DRAW)
         got = pop.members((True,), 3)
         self.assertEqual(len(got), 3)
         self.assertLessEqual(calls["strings"], 16)
@@ -67,7 +71,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, calls = _classifier()
         pop = _population(classify, chunk=64)
         for s in (bytes([1, 0]), bytes([0, 1]), bytes([1, 1]), bytes([0, 0])):
-            pop.add(s)
+            pop.add(s, draw=_DRAW)
         pop.members((True,), 10)
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
         self.assertEqual(calls["batches"], 2)  # root once, then (False,) once
@@ -76,10 +80,10 @@ class TestLeafPopulation(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for i in range(5):
-            pop.add(bytes([1, i]), at=(True,))
-        pop.add_first(bytes([1, 9]), (True,))
+            pop.add(bytes([1, i]), at=(True,), draw=_DRAW)
+        pop.add_first(bytes([1, 9]), (True,), draw=_DRAW)
         self.assertEqual(pop.members((True,), 3)[0], bytes([1, 9]))
-        pop.add_first(bytes([1, 3]), (True,))
+        pop.add_first(bytes([1, 3]), (True,), draw=_DRAW)
         self.assertEqual(
             pop.members((True,), 10),
             [bytes([1, 3]), bytes([1, 9])] + [bytes([1, i]) for i in (0, 1, 2, 4)],
@@ -88,7 +92,7 @@ class TestLeafPopulation(unittest.TestCase):
     def test_add_at_a_known_leaf_skips_classification(self):
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([7, 7]), at=(True,))
+        pop.add(bytes([7, 7]), at=(True,), draw=_DRAW)
         self.assertEqual(pop.members((True,), 10), [bytes([7, 7])])
         self.assertEqual(calls["batches"], 0)
 
@@ -98,29 +102,29 @@ class TestLeafPopulation(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for s in (bytes([1, 0]), bytes([0, 1]), bytes([1, 1]), bytes([0, 0])):
-            pop.add(s)
+            pop.add(s, draw=_DRAW)
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
 
     def test_a_string_added_twice_is_one_member(self):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for _ in range(5):
-            pop.add(bytes([0, 1]))
-        pop.add(bytes([0, 1]), at=(False, True))
+            pop.add(bytes([0, 1]), draw=_DRAW)
+        pop.add(bytes([0, 1]), at=(False, True), draw=_DRAW)
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
 
     def test_an_indecisive_string_can_be_added_again(self):
         pop = _population(lambda ss, m: [None] * len(ss), chunk=16)
-        pop.add(bytes([1, 1]))
+        pop.add(bytes([1, 1]), draw=_DRAW)
         self.assertEqual(pop.members((True,), 10), [])
-        pop.add(bytes([1, 1]), at=(True,))
+        pop.add(bytes([1, 1]), at=(True,), draw=_DRAW)
         self.assertEqual(pop.members((True,), 10), [bytes([1, 1])])
 
     def test_seeding_a_held_string_at_a_leaf_moves_it_there(self):
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([0, 1]))
-        pop.add(bytes([0, 1]), at=(False, True))
+        pop.add(bytes([0, 1]), draw=_DRAW)
+        pop.add(bytes([0, 1]), at=(False, True), draw=_DRAW)
         self.assertEqual(pop.members((False, True), 10), [bytes([0, 1])])
         self.assertEqual(calls["batches"], 0)
         self.assertEqual(pop.members((), 10), [])
@@ -129,7 +133,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for s in (bytes([1, 0]), bytes([1, 1])):
-            pop.add(s)
+            pop.add(s, draw=_DRAW)
         # Only two strings reach (True,); asking for more just returns those two.
         self.assertEqual(
             sorted(pop.members((True,), 50)), [bytes([1, 0]), bytes([1, 1])]
@@ -139,7 +143,7 @@ class TestLeafPopulation(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
         for s in (bytes([3, 3, 3]), bytes([7]), bytes([1, 2])):
-            pop.add(s, at=(True,))
+            pop.add(s, at=(True,), draw=_DRAW)
         self.assertEqual(pop.representative((True,), 10), bytes([7]))
 
     def test_representative_is_none_when_no_members_reach_the_leaf(self):
@@ -156,9 +160,9 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _read: harvested.append(boundary),
         )
-        pop.add(bytes([1, 0]))
+        pop.add(bytes([1, 0]), draw=_DRAW)
 
         self.assertEqual(pop.members((True,), 10), [])
         # ``string + midfix``; the root's midfix is empty.
@@ -171,9 +175,9 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _read: harvested.append(boundary),
         )
-        pop.add(bytes([1, 0]))
+        pop.add(bytes([1, 0]), draw=_DRAW)
 
         self.assertIsNone(pop.representative((True,), 10))
         self.assertEqual(harvested, [])
@@ -184,8 +188,12 @@ class TestWhatANodeCannotPlace(unittest.TestCase):
     def test_a_placed_string_is_not_harvested(self):
         harvested = []
         classify, _ = _classifier()
-        pop = _population(classify, chunk=16, harvest=harvested.append)
-        pop.add(bytes([1, 0]))
+        pop = _population(
+            classify,
+            chunk=16,
+            harvest=lambda boundary, _read: harvested.append(boundary),
+        )
+        pop.add(bytes([1, 0]), draw=_DRAW)
 
         self.assertEqual(pop.members((True,), 10), [bytes([1, 0])])
         self.assertEqual(harvested, [])
@@ -197,25 +205,25 @@ class TestSettle(unittest.TestCase):
     def test_a_string_already_there_settles_without_classifying(self):
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([1, 0]), at=(True,))
+        pop.add(bytes([1, 0]), at=(True,), draw=_DRAW)
 
-        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,), draw=_DRAW))
         self.assertEqual(calls["batches"], 0)
 
     def test_a_string_at_the_root_is_pushed_down_to_it(self):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([1, 0]))
+        pop.add(bytes([1, 0]), draw=_DRAW)
 
-        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,), draw=_DRAW))
         self.assertEqual(pop.resting_at(bytes([1, 0])), (True,))
 
     def test_a_string_that_lands_elsewhere_says_so(self):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([0, 1]))
+        pop.add(bytes([0, 1]), draw=_DRAW)
 
-        self.assertFalse(pop.settle(bytes([0, 1]), (True,)))
+        self.assertFalse(pop.settle(bytes([0, 1]), (True,), draw=_DRAW))
         # Left at (False,) rather than pushed on to its own leaf: one step was
         # enough to know it will never reach (True,), and settling is asked
         # about the target, not about where the string finally belongs.
@@ -226,11 +234,11 @@ class TestSettle(unittest.TestCase):
         # not reach it, so the answer is where it already is.
         classify, calls = _classifier()
         pop = _population(classify, chunk=16)
-        pop.add(bytes([0, 1]))
+        pop.add(bytes([0, 1]), draw=_DRAW)
         pop.members((False, True), 10)
         before = calls["batches"]
 
-        self.assertFalse(pop.settle(bytes([0, 1]), (True,)))
+        self.assertFalse(pop.settle(bytes([0, 1]), (True,), draw=_DRAW))
         self.assertEqual(calls["batches"], before, "no further classification")
 
     def test_a_string_the_population_does_not_hold_is_taken_in(self):
@@ -239,7 +247,7 @@ class TestSettle(unittest.TestCase):
         classify, _ = _classifier()
         pop = _population(classify, chunk=16)
 
-        self.assertTrue(pop.settle(bytes([1, 0]), (True,)))
+        self.assertTrue(pop.settle(bytes([1, 0]), (True,), draw=_DRAW))
         self.assertEqual(pop.resting_at(bytes([1, 0])), (True,))
 
     def test_a_string_the_node_cannot_place_leaves_and_does_not_settle(self):
@@ -247,11 +255,11 @@ class TestSettle(unittest.TestCase):
         pop = _population(
             lambda strings, midfix: [None] * len(strings),
             chunk=16,
-            harvest=harvested.append,
+            harvest=lambda boundary, _read: harvested.append(boundary),
         )
-        pop.add(bytes([1, 0]))
+        pop.add(bytes([1, 0]), draw=_DRAW)
 
-        self.assertFalse(pop.settle(bytes([1, 0]), (True,)))
+        self.assertFalse(pop.settle(bytes([1, 0]), (True,), draw=_DRAW))
         self.assertIsNone(pop.resting_at(bytes([1, 0])))
         self.assertEqual(harvested, [bytes([1, 0])])
 
