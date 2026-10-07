@@ -144,7 +144,7 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     source = HarvestSource(
         Counter(
             {
-                provenance(read, resolver.sifter, dfa.transitions): count
+                provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
                 for read, count in reads.items()
             }
         ),

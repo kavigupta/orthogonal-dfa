@@ -61,14 +61,14 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
 
-def anchored_walk(probe, sift, transitions):
-    """Where ``sift`` first places a prefix of ``probe``, and what following
-    ``transitions`` from there reaches.
+def anchored_walk(probe, sift, transitions, earliest):
+    """Where ``sift`` first places a prefix of ``probe`` at least ``earliest``
+    long, and what following ``transitions`` from there reaches.
 
     ``states[i]`` is the state after ``probe[:i]``, ``None`` below the anchor;
-    ``(None, None)`` where no prefix places at all.
+    ``(None, None)`` where no such prefix places.
     """
-    start = 0
+    start = earliest
     while start < len(probe):
         state = sift(probe[:start])
         if state is not None:
