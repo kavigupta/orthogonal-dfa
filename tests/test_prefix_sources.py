@@ -293,7 +293,10 @@ class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
 class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
     def _source(self, places, *, known):
         return HarvestSource(
-            {_walked(places): 1}, np.random.default_rng(0), known=known
+            {_walked(places): 1},
+            np.random.default_rng(0),
+            known=known,
+            acc_threshold=0.98,
         )
 
     def test_a_find_is_served(self):
@@ -328,7 +331,10 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
         often = Sifted(fresh, _Walk(never), b"a")
         rarely = Sifted(fresh, _Walk(never), b"b")
         source = HarvestSource(
-            {often: 3, rarely: 1}, np.random.default_rng(0), known=()
+            {often: 3, rarely: 1},
+            np.random.default_rng(0),
+            known=(),
+            acc_threshold=0.98,
         )
         ends = [source.draw()[-2:-1] for _ in range(400)]
 
