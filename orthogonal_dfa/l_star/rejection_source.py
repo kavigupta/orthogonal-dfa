@@ -25,6 +25,10 @@ def proving_attempts(good, poor):
             return attempts, accepted
 
 
+class SourceDry(RuntimeError):
+    """A source found nothing new in as many attempts as a live one would not."""
+
+
 class RejectionSource(ABC):
     """See the module docstring."""
 
@@ -98,6 +102,6 @@ class RejectionSource(ABC):
             self.attempt_draw()
         # A draw landing on a string already served is accepted all the same, so
         # the rate alone never says a source is spent.
-        raise RuntimeError(
+        raise SourceDry(
             f"Source {self.source_repr()} found no new samples in {dry} attempts"
         )

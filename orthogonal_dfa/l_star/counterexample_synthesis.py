@@ -15,6 +15,7 @@ in the next round.
 import math
 import time
 import warnings
+from collections import Counter
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -27,8 +28,9 @@ from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import BoundarySource, aim_at, state_source
+from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
+from .provenance import Read, provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -104,11 +106,10 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
     sample every run.
     """
-    taken = sorted(resolver.indecisive - state.seen)
+    taken = sorted(set(resolver.indecisive) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.seen.add(string)
-        state.harvest().append(string)
+        state.take(string, resolver.indecisive[string])
     return min(wanted, len(taken))
 
 
@@ -130,14 +131,26 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
-    """Probe for up to ``wanted`` more boundary strings, keeping what the yield
-    test turned up even when the source fails it.
+    """Draw up to ``wanted`` more boundary strings the way the round's were
+    found, keeping what the yield test turned up even when the source fails it.
 
     A round with its fill already still leaves the population a source, unproved:
     otherwise the only population the counterexample pass fills for free is the
     one a later round has nothing to draw with.
     """
-    source = BoundarySource(pst, resolver.sifter, dfa.transitions, known=state.seen)
+    # A pass that left nothing undecided has no reads to replay, so the top-up
+    # walks fresh probes as the pass does, and can still start a population.
+    reads = state.harvest_reads or Counter({Read(UniformSource(pst), None): 1})
+    source = HarvestSource(
+        Counter(
+            {
+                provenance(read, resolver.sifter, dfa.transitions): count
+                for read, count in reads.items()
+            }
+        ),
+        pst.rng,
+        known=state.seen,
+    )
     if wanted > 0:
         # Not `has_sufficient_yield`: same probes, but the verdict is not kept.
         drawing = source.worth_drawing()
@@ -178,7 +191,7 @@ def _publish_pool(pst, state) -> int:
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=label)
     state.published = set(state.held)
-    state.harvesting = None
+    state.close_harvest()
     return int(pst.table.representative.sum())
 
 
@@ -314,7 +327,7 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs)
+        resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience

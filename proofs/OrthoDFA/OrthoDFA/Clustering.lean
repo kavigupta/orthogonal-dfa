@@ -18,11 +18,14 @@ Known modelling gap.  The Python re-estimates `pst.decision_boundary` from its r
 family's vote there; here the cut is centred at half the family (`lo`, `hi`).  So the signal is
 the worse rate's margin `½ − max(ηIn, ηOut)` rather than the half-gap `(1 − ηIn − ηOut)/2`.
 
-Known modelling gap.  `identify_cluster_around` scores a candidate by its worst population's
-share of `hammingLoss`, stops once the total loss stops falling, and recentres at the boundary;
-`clusterAround` does none of these.  The proof only uses that the cluster holds the seed, lies in the screened pool, has
-`k` members when the pool holds that many and at most `k` otherwise, and is a function of the
-pool's reads on the prefixes, all of which `identify_cluster_around` also satisfies.
+Known modelling gap.  `identify_cluster_around` groups the pool by k-means and a merge test,
+takes the group whose rows read in another class than the seed least often on the prefixes the
+screen never saw, and fills the family from the rest by distance to that group's mean;
+`clusterAround` does none of these.  The proof only uses that the
+cluster holds the seed, lies in the screened pool, has `k` members when the pool holds that many
+and at most `k` otherwise, and is a function of the pool's reads on the prefixes, all of which
+`identify_cluster_around` also satisfies -- the last given `pst.rng`, which k-means draws its
+start from and which is independent of the certification sample.
 
 Known modelling gap.  The Python sizes the family and its band from the boundary it estimates
 (`smallest_readable_family`, `readable_size_and_margin`); here the family is `famCount + 1` and
@@ -33,29 +36,37 @@ at one rate.
 
 Known modelling gap.  The FNR test here reads `npref` draws from each population, and the gate
 reads the uniform pool's first `npref + e`, for any `e`.  The Python reads the gate on
-`min(representative, certification_budget)` draws, then once more on as many as
-`prefixes_to_certify` asks for.
+`min(alignment_size, certification_budget)` draws from every population, then once more on as
+many as `prefixes_to_certify` asks for from the one left undecided.
 
 Known modelling gap.  `judge_family` reads the FNR on the table's own prefixes, the ones
 `identify_cluster_around` clustered the family on; `ret` reads it on the certification sample.
 The table's votes are fitted to its noise and read as more decisive than they are, so the
 claim's bound on the undecided mass holds of the test `ret` runs, not of the Python's.
 
-Known modelling gap.  `drift_verdict` also lets the state populations veto a family, testing
-each side at `α/num_tests` on `veto_size` draws; `ret` has no veto.  The Python's FNR also reads
-1 for a family that decides no prefix one of the two ways, which `ret` does not.
+Known modelling gap.  `drift_verdict` admits a family when `misclassified_bounds` bounds the
+share of the uniform pool's distribution its cut at the boundary misclassifies by
+`max_coverage_error`, and every other population's by a half: Clopper-Pearson intervals on each
+side's share and on the seed's rate there, read at the rates `decision_boundary ∓
+min_signal_strength`.  `admitted` is the earlier test, the cut's agreement with the seed beating
+`1/2` on the uniform pool alone, so the claim here does not yet cover what the Python admits.  The
+Python's FNR also reads 1 for a family that decides no prefix one of the two ways, which `ret`
+does not.
 
 Known modelling gap.  `_screen_cohort` screens each cohort once, when it is drawn, against the
 table as it then stands, by a staircase of binomial tests against a floor fitted to the cohort;
 `screened` screens the whole pool at the state's prefix count, against a fixed cutoff above the
-pool's least count.
+pool's least count.  `_screen_cohort` also reads only the prefixes `seed_scoring` leaves it, half
+of them by a hash of the string, so that what the screen admitted on is not what the anchor
+scores on.
 
 Known modelling gap.  The states here are a ladder of prefix counts halving from `prefCount` at
 one pool size, and the claim covers a stop only at a rung of at least `validCount` prefixes.  The
 Python grows the table as it goes, by `num_addtl_prefixes` prefixes or a cohort of suffixes after
 each refusal, and stops at whatever table a round first passes on, which the claim need not
 cover.  It also gives up after `ACCEPT_PRESERVING_GIVE_UP` refusals by the gate, where the loop
-here never does.
+here never does: the give-up bounds a search on a target with no accept-preserving family, so a
+run cannot hang.
 -/
 
 namespace OrthoDFA
@@ -230,8 +241,7 @@ noncomputable def leastLossSubset {S : Type*} (ℓ : S → ℝ) (cands : Finset 
   else ∅
 
 /-- The Hamming distance from a candidate's mask row to the cluster's own thresholded mean,
-`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`.
-`identify_cluster_around` takes it per population and scores the worst share. -/
+`masks[cluster].mean(0) > decision_boundary`, the boundary written `cn/cd`. -/
 noncomputable def hammingLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : ℕ) (P : Finset S)
     (ω : Ω) (v : S) : ℝ :=
   ((P.filter (fun p =>
@@ -244,9 +254,8 @@ noncomputable def clusterLoss (mq : S → Ω → ℝ) (F : Finset S) (cn cd : �
   if v ∈ cands then hammingLoss mq F cn cd P ω v else 0
 
 /-- One Lloyd step: recentre on the current cluster, then retake the `k` least-loss
-candidates, but only while the seed is among them -- `identify_cluster_around` breaks out
-(`if seed_local not in nearest`).  The seed wins ties for the `k`-th place, as it does under the
-stable `argsort`. -/
+candidates, but only while the seed is among them.  The seed wins ties for the `k`-th
+place. -/
 noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω) (k : ℕ)
     (F : Finset S) : Finset S :=
   if ∀ w ∈ cands, w ∉ insert (1 : S)
@@ -257,7 +266,7 @@ noncomputable def lloydStep (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Fin
   then insert (1 : S)
     (leastLossSubset (clusterLoss mq F cn cd P cands ω) (cands.erase 1) (k - 1)) else F
 
-/-- `identify_cluster_around` iterated to its fixed point, which `k·#P + 1` steps reach: the
+/-- `lloydStep` iterated to its fixed point, which `k·#P + 1` steps reach: the
 total loss is a natural number at most `k·#P` and falls at every improving step. -/
 noncomputable def clusterAround (mq : S → Ω → ℝ) (cn cd : ℕ) (P cands : Finset S) (ω : Ω)
     (k : ℕ) : Finset S :=

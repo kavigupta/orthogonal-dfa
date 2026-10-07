@@ -32,7 +32,9 @@ from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
 from .partial_dfa import PartialDFA
+from .prefix_sources import UniformSource
 from .progress import counter, write
+from .provenance import Read
 from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
@@ -45,9 +47,16 @@ _UNCHECKED = 3  # counted clean, but indecision kept the probe from being checke
 
 
 class TransitionResolver:
-    def __init__(self, pst, vs):
+    def __init__(self, pst, vs, draws):
+        """``draws[p]`` is the draw the table prefix ``p`` was; one it does not
+        name was the sampler's."""
         self.pst = pst
-        self.indecisive = set()  # boundary strings the family could not place
+        #: Boundary strings the family could not place, each with the read that
+        #: met it.
+        self.indecisive = {}
+        sampler = UniformSource(pst)
+        #: A probe, or a string taken from one, is read the way the pass walks it.
+        self._walked = Read(sampler, None)
         #: Probes since the pass's last split, and how many of them were unchecked.
         self.quiet_probes = 0
         self.unchecked_quiet_probes = 0
@@ -57,10 +66,10 @@ class TransitionResolver:
         self.population = LeafPopulation(
             self.tree,
             self._classify,
-            harvest=self.indecisive.add,
+            harvest=self._harvest,
         )
         for p in pst.table.prefixes:
-            self.population.add(p)
+            self.population.add(p, draw=draws.get(p, Read(sampler, b"")))
         self.splits = SplitEvidence(
             pst,
             self.family,
@@ -69,10 +78,13 @@ class TransitionResolver:
         )
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
         self.edges = EdgeResolver(
-            self.dfa, self.sifter, self.indecisive, population=self.population
+            self.dfa, self.sifter, self._harvest, population=self.population
         )
 
     # -- membership / population -------------------------------------------
+
+    def _harvest(self, boundary, read):
+        self.indecisive.setdefault(boundary, read)
 
     def _classify(self, strings, midfix):
         """Which side of ``midfix`` each string sits on; the indecisive band
@@ -103,7 +115,7 @@ class TransitionResolver:
         back so the next family is forced to resolve them."""
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
-            self.indecisive.add(boundary)
+            self._harvest(boundary, self._walked)
         return leaf
 
     def _split(self, state_id, midfix):
@@ -179,7 +191,9 @@ class TransitionResolver:
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
         # only reaches deep leaves; short anchor prefixes are what give the shallow
         # leaves enough members for the one-state test to settle them.
-        self.population.add(w[:start], at=self.tree.path_of(states[start]))
+        self.population.add(
+            w[:start], at=self.tree.path_of(states[start]), draw=self._walked
+        )
         return self._act_on_disagreement(w, states, start)
 
     def _act_on_disagreement(self, w, states, agree_point):
@@ -218,7 +232,7 @@ class TransitionResolver:
         # The leaf may hold too few members of sprime's state to split on; keeping
         # sprime, ahead of the member limit, lets the next probe through that state
         # weigh one more.
-        self.population.add_first(sprime, self.tree.path_of(s1))
+        self.population.add_first(sprime, self.tree.path_of(s1), draw=self._walked)
         return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
@@ -226,7 +240,7 @@ class TransitionResolver:
         for p in (witness, sprime):
             st = self._sift(p)
             if st is not None:
-                self.population.add(p, at=self.tree.path_of(st))
+                self.population.add(p, at=self.tree.path_of(st), draw=self._walked)
 
     # -- edge closing -------------------------------------------------------
 

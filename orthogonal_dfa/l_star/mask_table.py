@@ -14,6 +14,7 @@ oracle is deterministic per string, lazy filling returns exactly the values eage
 filling would, so callers cannot tell the difference except in query count.
 """
 
+import hashlib
 from typing import Dict, List
 
 import numpy as np
@@ -69,6 +70,21 @@ class MaskTable:
         for columns in self._populations.values():
             mask[list(columns)] = True
         return mask
+
+    def seed_scoring(self) -> np.ndarray:
+        """Over the representative prefixes, the ones held out of the suffix
+        screen to score suffixes against the seed on.  The screen admits a suffix
+        partly for agreeing with the seed's noise on the prefixes it reads, so a
+        score read on those would be biased; a hash of the string keeps the split
+        independent of every read."""
+        return np.array(
+            [
+                hashlib.blake2b(bytes(p), digest_size=1).digest()[0] & 1 == 1
+                for p, kept in zip(self.prefixes, self.representative)
+                if kept
+            ],
+            dtype=bool,
+        )
 
     def drop_population(self, label) -> None:
         """Retire a population.  Its prefixes stay in the table -- they are

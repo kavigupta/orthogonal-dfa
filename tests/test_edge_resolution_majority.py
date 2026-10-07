@@ -2,6 +2,7 @@ import unittest
 
 from orthogonal_dfa.l_star.edge_resolver import EdgeResolver
 from orthogonal_dfa.l_star.partial_dfa import PartialDFA
+from orthogonal_dfa.l_star.provenance import Read
 
 
 class _StubTree:
@@ -30,6 +31,9 @@ class _Population:
     def members(self, _path, _limit):
         return list(self.held)
 
+    def draw_of(self, _member):
+        return Read(None, b"")
+
 
 def _resolver(members):
     partial = PartialDFA(alphabet_size=1, num_states=2)
@@ -37,7 +41,12 @@ def _resolver(members):
     return (
         partial,
         population,
-        EdgeResolver(partial, _FirstByteSifter(), set(), population=population),
+        EdgeResolver(
+            partial,
+            _FirstByteSifter(),
+            lambda _boundary, _read: None,
+            population=population,
+        ),
     )
 
 

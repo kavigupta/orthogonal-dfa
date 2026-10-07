@@ -200,7 +200,9 @@ class PrefixSuffixTracker:
         eta = 0.5 - self.config.min_signal_strength
         declared_rate = 2 * eta * (1 - eta)
         ref = self.table.column(reference)
-        candidates = np.flatnonzero(self.table.representative)
+        candidates = np.flatnonzero(self.table.representative)[
+            ~self.table.seed_scoring()
+        ]
         order = candidates[self.rng.permutation(len(candidates))]
         staircase = self._screening_staircase(len(order))
         alpha = self.config.screening_alpha / len(staircase)

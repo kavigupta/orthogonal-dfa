@@ -13,6 +13,8 @@ internal node whose resting strings flush through it on the next pull.
 from itertools import islice
 from typing import Callable, Dict, List, Optional, Tuple
 
+from .provenance import Read
+
 Path = Tuple[bool, ...]
 #: An insertion-ordered set of strings; Python has no such builtin, and the order
 #: matters because members() hands out a prefix of one.
@@ -27,6 +29,8 @@ class LeafPopulation:
 
     ``classify(strings, midfix)`` reads a node: it should batch the family queries
     for ``strings`` at ``midfix`` and return one decision per string.
+    ``harvest(boundary, read)`` takes each string a node cannot place, with the
+    read that met it: the draw of the member whose push it was.
     """
 
     def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
@@ -36,8 +40,13 @@ class LeafPopulation:
         self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
+        # string -> the draw it was, which a push of it reads again.
+        self._draws: Dict[bytes, Read] = {}
 
-    def add(self, string, at: Path = ()) -> None:
+    def draw_of(self, string) -> Read:
+        return self._draws[string]
+
+    def add(self, string, at: Path = (), *, draw: Read) -> None:
         """Add ``string`` to the population resting at node ``at`` -- the root by
         default (pooled, leaf unknown), or a leaf the caller has already sifted.
 
@@ -46,7 +55,8 @@ class LeafPopulation:
         second member however it arrived: seeded twice at one leaf, or added twice
         at the root and pushed down together.  A leaf-targeted add of a held
         string moves it there instead, the caller having sifted it further than
-        the pull has."""
+        the pull has.  A string keeps the draw it was first added with."""
+        self._draws.setdefault(string, draw)
         resting = self.resting_at(string)
         if resting == at:
             return
@@ -56,10 +66,10 @@ class LeafPopulation:
             del self._at[resting][string]
         self._at.setdefault(at, {})[string] = None
 
-    def add_first(self, string, at: Path) -> None:
+    def add_first(self, string, at: Path, *, draw: Read) -> None:
         """A leaf-targeted add that puts ``string`` ahead of the leaf's other
         strings, so it is among the members however many the leaf holds."""
-        self.add(string, at)
+        self.add(string, at, draw=draw)
         held = self._at[at]
         del held[string]
         self._at[at] = {string: None, **held}
@@ -89,7 +99,7 @@ class LeafPopulation:
         -- never added, or dropped as indecisive."""
         return next((p for p, held in self._at.items() if string in held), None)
 
-    def settle(self, string, at: Path) -> bool:
+    def settle(self, string, at: Path, *, draw: Read) -> bool:
         """Take ``string`` into the population, push it toward ``at``, and say
         whether it came to rest there.
 
@@ -97,7 +107,7 @@ class LeafPopulation:
         state wants to know about the string it aimed, not to fill the leaf.
         Taking it in is part of that: what the caller has is a string it made,
         and where the population would put it is the whole question."""
-        self.add(string)
+        self.add(string, draw=draw)
         while True:
             resting = self.resting_at(string)
             if resting is None or resting == at:
@@ -136,4 +146,4 @@ class LeafPopulation:
             else:
                 # The indecision is over string + midfix + v, so string + midfix
                 # is what failed, not string.
-                self._harvest(string + midfix)
+                self._harvest(string + midfix, self._draws[string])

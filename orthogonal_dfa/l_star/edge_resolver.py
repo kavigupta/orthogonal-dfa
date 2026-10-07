@@ -22,10 +22,12 @@ from .split_evidence import _MEMBER_LIMIT
 class EdgeResolver:
     """Closes the hypothesis: see the module docstring."""
 
-    def __init__(self, partial, sifter, indecisive, *, population):
+    def __init__(self, partial, sifter, harvest, *, population):
+        """``harvest(boundary, read)`` takes each member's successor the family
+        cannot place, with the read that met it."""
         self.dfa = partial
         self.sifter = sifter
-        self.indecisive = indecisive
+        self._harvest = harvest
         self._population = population
 
     def leaf_members(self, state: int) -> List[bytes]:
@@ -39,7 +41,9 @@ class EdgeResolver:
             target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
                 break
-            self.indecisive.add(boundary)
+            self._harvest(
+                boundary, self._population.draw_of(member).extended(bytes([c]))
+            )
         else:
             return None, None
         votes: Dict[int, List[bytes]] = {target: [member]}
