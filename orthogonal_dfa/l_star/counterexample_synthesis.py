@@ -136,9 +136,10 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
 
     A round with its fill already still leaves the population a source, unproved:
     otherwise the only population the counterexample pass fills for free is the
-    one a later round has nothing to draw with.  A round that found none draws
-    them as its probes found them.
+    one a later round has nothing to draw with.
     """
+    # A pass that left nothing undecided has no reads to replay, so the top-up
+    # walks fresh probes as the pass does, and can still start a population.
     reads = state.harvest_reads or Counter({Read(UniformSource(pst), None): 1})
     source = HarvestSource(
         Counter(
