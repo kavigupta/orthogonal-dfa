@@ -444,19 +444,22 @@ def PassDichotomy : Prop :=
 
 /-! ## The harvest's replay
 
-`Walked` replays, as #406 has them, anchor a probe no earlier than `0` half the time, and no
-earlier than a point drawn uniformly below its length otherwise.  `Disagreed` replays (#403) walk
-from the start and keep the probe up to the first edge where walk and sift part, when every
-read on the way is decided.
+`Walked` replays, as #398 has them, anchor a probe no earlier than a point drawn uniformly below
+its length.  `Disagreed` replays (#403) keep the probe up to the first edge where walk and sift
+part, when every read on the way is decided.
 
-Known modelling gap.  Until #398, #403 and #406 merge, `Walked` on main anchors every replay at
-the start, and there is no `Disagreed`.
+Known modelling gap.  Until #398 and #403 merge, `Walked` on main anchors every replay at the
+start, and there is no `Disagreed`.
 
-Known modelling gap.  `HarvestSource` counts an attempt only when it turns up a string it has
-not served; here a replay harvests whatever it meets.
+Known modelling gap.  `Disagreed` walks from the start; here it shares the replay's anchor.
 
 Known modelling gap.  The two harvests are drawn by separate sources; here one replay of a probe
 does both, and harvests what either would.
+
+Known modelling gap.  `HarvestSource` counts an attempt only when it turns up a string it has
+not served, and retires a source whose yield falls below `(1 - acc_threshold) / 2`.
+`ReplayYield` guarantees a refused round's replay only `(1 - acc_threshold) / L`, so a source
+between the two can be retired that the argument relies on.
 -/
 
 namespace DTree
@@ -544,12 +547,13 @@ noncomputable def walkedHarvest (s : PassState α) (w : FreeMonoid α) (e : ℕ)
         | .inl b => [b]
         | .inr _ => []
 
-/-- What a `Disagreed` replay of `w` harvests: walked from the start with every read decided, the
-probe up to the first edge where walk and sift part. -/
-noncomputable def disagreedHarvest (s : PassState α) (w : FreeMonoid α) : List (FreeMonoid α) :=
+/-- What a `Disagreed` replay of `w` anchored no earlier than `e` harvests: with every read
+decided, the probe up to the first edge where walk and sift part. -/
+noncomputable def disagreedHarvest (s : PassState α) (w : FreeMonoid α) (e : ℕ) :
+    List (FreeMonoid α) :=
   let t := s.tree
   let n := w.toList.length
-  match anchoredWalkFrom R t s.edges w 0 with
+  match anchoredWalkFrom R t s.edges w e with
   | none => []
   | some (start, walk) =>
     let walkAt := fun j => walk.getD (j - start) []
@@ -564,15 +568,11 @@ noncomputable def disagreedHarvest (s : PassState α) (w : FreeMonoid α) : List
 /-- What a replay of `w` with earliest anchor `e` harvests, into either harvest. -/
 noncomputable def replayHarvest (s : PassState α) (w : FreeMonoid α) (e : ℕ) :
     List (FreeMonoid α) :=
-  walkedHarvest R s w e ++ disagreedHarvest R s w
+  walkedHarvest R s w e ++ disagreedHarvest R s w e
 
-/-- The uniform law on `{0, …, L - 1}`. -/
-noncomputable def uniformAnchor (L : ℕ) : Measure ℕ :=
-  (L : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.range L, Measure.dirac k
-
-/-- The earliest anchor's law: `0` half the time, uniform on `{0, …, L - 1}` otherwise. -/
+/-- The earliest anchor's law: uniform on `{0, …, L - 1}`. -/
 noncomputable def anchorLaw (L : ℕ) : Measure ℕ :=
-  (2 : ℝ≥0∞)⁻¹ • Measure.dirac 0 + (2 : ℝ≥0∞)⁻¹ • uniformAnchor L
+  (L : ℝ≥0∞)⁻¹ • ∑ k ∈ Finset.range L, Measure.dirac k
 
 /-- The uniform sampler of length-`L` strings. -/
 noncomputable def uniformStrings (α : Type*) [Fintype α] (L : ℕ) : Measure (FreeMonoid α) :=
@@ -581,41 +581,26 @@ noncomputable def uniformStrings (α : Type*) [Fintype α] (L : ℕ) : Measure (
 /-- `ReplaySpread`: a `Walked` replay of a probe drawn from `D` reads any one string `t` with
 chance at most
 
-    ∑_{i ≤ |t|} P(e ≤ i) · D(the probe's first i letters are t's),
-    P(e ≤ i) = 1/2 + min(i + 1, L) / (2L),
+    ∑_{i ≤ |t|} P(e ≤ i) · D(the probe's first i letters are t's),   P(e ≤ i) = min(i + 1, L) / L,
 
-since every read extends a prefix of the probe at least `e` long.  The `1/2` is the half of the
-replays anchored no earlier than `0`, which read the same short prefixes every time. -/
+since every read extends a prefix of the probe at least `e` long. -/
 def ReplaySpread : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (s : PassState α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ) (t : FreeMonoid α),
     (D.prod (anchorLaw L)).real {q | t ∈ replayReads R s q.1 q.2}
       ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
-          (1 / 2 + ((min (i + 1) L : ℕ) : ℝ) / (2 * L))
-            * D.real {p | p.toList.take i = t.toList.take i}
+          ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i}
 
 /-- `ReplaySpreadUniform`: under the uniform sampler of length-`L` strings over `α`, a `Walked`
 replay reads any one string `t` with chance at most
 
-    ∑_{i ≤ |t|} (1/2 + (i + 1) / (2L)) / |α|^i. -/
+    (1 / L) · ∑_{i ≤ |t|} (i + 1) / |α|^i,
+
+the `κh` the round model asks of the harvest's reads. -/
 def ReplaySpreadUniform : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (R : CutReads α) (s : PassState α)
     (L : ℕ) (t : FreeMonoid α),
     ((uniformStrings α L).prod (anchorLaw L)).real {q | t ∈ replayReads R s q.1 q.2}
-      ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
-          (1 / 2 + ((i + 1 : ℕ) : ℝ) / (2 * L)) * ((Fintype.card α : ℝ)⁻¹) ^ i
-
-/-- `ReplaySpreadAnchored`: the half of the replays anchored at a uniform point reads any one
-string `t` with chance at most
-
-    ∑_{i ≤ |t|} ((i + 1) / L) / |α|^i,
-
-about `1/L`, under the uniform sampler of length-`L` strings over `α`.  This is the `κh` the
-round model asks of the harvest's reads, for the replays anchored past the start. -/
-def ReplaySpreadAnchored : Prop :=
-  ∀ {α : Type*} [Fintype α] [DecidableEq α] [Nonempty α] (R : CutReads α) (s : PassState α)
-    (L : ℕ) (t : FreeMonoid α),
-    ((uniformStrings α L).prod (uniformAnchor L)).real {q | t ∈ replayReads R s q.1 q.2}
       ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
           ((i + 1 : ℕ) : ℝ) / L * ((Fintype.card α : ℝ)⁻¹) ^ i
 
@@ -637,14 +622,14 @@ def GateDisagrees (s : PassState α) (x : FreeMonoid α) : Prop :=
   gateEnd R s x ≠ s.tree.classify (midCut R) x
 
 /-- `ReplayYield`: whatever the pass left, a replay of a draw from `D` harvests something with
-chance at least half the share of `D` on which the DFA/DT agreement gate counts the hypothesis
-wrong.  So a round either passes the gate or leaves a harvest whose sampler yields at least half
-the rate it fails by. -/
+chance at least `1/L` of the share of `D` on which the DFA/DT agreement gate counts the hypothesis
+wrong.  So a round either passes the gate or leaves a harvest whose sampler yields at least `d/L`,
+`d` the rate it fails by. -/
 def ReplayYield : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (s : PassState α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     R.B.lo ≤ R.B.hi →
-    D.real {x | GateDisagrees R s x} / 2
+    D.real {x | GateDisagrees R s x} / L
       ≤ (D.prod (anchorLaw L)).real {q | replayHarvest R s q.1 q.2 ≠ []}
 
 end OrthoDFA

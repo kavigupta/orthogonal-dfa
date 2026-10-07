@@ -12,9 +12,9 @@
   the counterexample pass stops for patience, each of its last `patience` probes was correct, met
   a string the cut cannot place (which the pass harvested), or found a disagreement the split
   evidence would not split on (whose shorter string it harvested); `ReplaySpread`: a harvest replay
-  reads any one string with chance at most `∑ (1/2 + (i+1)/(2L))/|α|^i`, about `1/L` for the half
-  anchored past the start; and `ReplayYield`: a round's harvest replay yields at least half the
-  rate at which the DFA/DT agreement gate counts its hypothesis wrong.
+  reads any one string with chance at most `(1/L)·∑ (i+1)/|α|^i`; and `ReplayYield`: a round's
+  harvest replay yields at least `1/L` of the rate at which the DFA/DT agreement gate counts its
+  hypothesis wrong.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

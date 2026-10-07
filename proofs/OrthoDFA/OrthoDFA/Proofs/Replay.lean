@@ -7,10 +7,10 @@ Every string a `Walked` replay reads extends a prefix of the probe at least as l
 (`take_of_mem_replayReads`), so reading a fixed `t` needs the probe to start as `t` does, up to
 some point at or past the anchor.
 
-A draw the gate counts against the hypothesis is one whose replay from the start harvests
-(`replayHarvest_of_gateDisagrees`): a read the band decides is on the side of the middle of the
-band, so a replay that decides every read follows the gate's own reading, and parts from the walk
-where the gate does.
+A draw the gate counts against the hypothesis is one whose replay harvests, anchored no earlier
+than any point before the gate's reading and the walk first part (`replayHarvest_of_gateDisagrees`):
+a read the band decides is on the side of the middle of the band, so a replay that decides every
+read follows the gate's own reading, and parts from the walk where the gate does.
 -/
 
 namespace OrthoDFA
@@ -117,23 +117,17 @@ theorem take_of_mem_replayReads (R : CutReads α) (s : PassState α) (w : FreeMo
     rw [List.take_left' hlen]
     simp [prefixOf]
 
-instance (L : ℕ) : IsFiniteMeasure (uniformAnchor L) := by
+instance (L : ℕ) : IsFiniteMeasure (anchorLaw L) := by
   constructor
   rcases Nat.eq_zero_or_pos L with rfl | hL
-  · simp [uniformAnchor]
-  · simp only [uniformAnchor, Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply,
+  · simp [anchorLaw]
+  · simp only [anchorLaw, Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply,
       measure_univ, Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one, smul_eq_mul]
     rw [ENNReal.inv_mul_cancel (by exact_mod_cast hL.ne') (by simp)]
     exact ENNReal.one_lt_top
 
-instance (L : ℕ) : IsFiniteMeasure (anchorLaw L) := by
-  constructor
-  simp only [anchorLaw, Measure.add_apply, Measure.smul_apply, smul_eq_mul, measure_univ]
-  exact ENNReal.add_lt_top.2 ⟨ENNReal.mul_lt_top (by simp) (by simp),
-    ENNReal.mul_lt_top (by simp) (measure_lt_top _ _)⟩
-
-theorem uniformAnchor_real_le (L i : ℕ) :
-    (uniformAnchor L).real {e | e ≤ i} = ((min (i + 1) L : ℕ) : ℝ) / L := by
+theorem anchorLaw_real_le (L i : ℕ) :
+    (anchorLaw L).real {e | e ≤ i} = ((min (i + 1) L : ℕ) : ℝ) / L := by
   have hcount : ∑ k ∈ Finset.range L, (Measure.dirac k : Measure ℕ) {e | e ≤ i}
       = ((min (i + 1) L : ℕ) : ℝ≥0∞) := by
     simp only [Measure.dirac_apply, Set.indicator_apply, Set.mem_setOf_eq, Pi.one_apply]
@@ -143,22 +137,9 @@ theorem uniformAnchor_real_le (L i : ℕ) :
       simp only [Finset.mem_filter, Finset.mem_range]
       omega
     rw [hf, Finset.card_range]
-  simp only [measureReal_def, uniformAnchor, Measure.smul_apply, Measure.coe_finsetSum,
+  simp only [measureReal_def, anchorLaw, Measure.smul_apply, Measure.coe_finsetSum,
     Finset.sum_apply, smul_eq_mul, hcount, ENNReal.toReal_mul, ENNReal.toReal_inv,
     ENNReal.toReal_natCast]
-  ring
-
-theorem anchorLaw_real_le (L i : ℕ) :
-    (anchorLaw L).real {e | e ≤ i} = 1 / 2 + ((min (i + 1) L : ℕ) : ℝ) / (2 * L) := by
-  have hu := uniformAnchor_real_le L i
-  rw [measureReal_def] at hu
-  have hd : (Measure.dirac 0 : Measure ℕ) {e | e ≤ i} = 1 :=
-    Measure.dirac_apply_of_mem (by simp)
-  rw [measureReal_def, anchorLaw, Measure.add_apply, Measure.smul_apply, Measure.smul_apply,
-    smul_eq_mul, smul_eq_mul, hd, ENNReal.toReal_add (by simp)
-      (ENNReal.mul_ne_top (by simp) (measure_ne_top _ _)), ENNReal.toReal_mul,
-    ENNReal.toReal_mul, hu]
-  simp only [ENNReal.toReal_inv, ENNReal.toReal_ofNat, ENNReal.toReal_one]
   ring
 
 /-- A replay anchored no earlier than a point drawn from `A` reads `t` with chance at most
@@ -189,8 +170,8 @@ theorem replay_spread_of (R : CutReads α) (s : PassState α) (D : Measure (Free
 
 theorem replay_spread_holds : ReplaySpread := by
   intro α _ _ R s D _ L t
-  refine (replay_spread_of R s D (anchorLaw L) t).trans_eq (Finset.sum_congr rfl fun i _ => ?_)
-  rw [anchorLaw_real_le]
+  exact (replay_spread_of R s D (anchorLaw L) t).trans_eq
+    (Finset.sum_congr rfl fun i _ => by rw [anchorLaw_real_le])
 
 instance [Nonempty α] (L : ℕ) : IsProbabilityMeasure (uniformStrings α L) := by
   constructor
@@ -291,22 +272,6 @@ theorem replay_spread_uniform_holds : ReplaySpreadUniform := by
   · exact measureReal_nonneg
   · positivity
 
-theorem replay_spread_anchored_holds : ReplaySpreadAnchored := by
-  intro α _ _ _ R s L t
-  refine (replay_spread_of R s (uniformStrings α L) (uniformAnchor L) t).trans
-    (Finset.sum_le_sum fun i hi => ?_)
-  have hti : (t.toList.take i).length = i := by
-    simp only [Finset.mem_range] at hi
-    simp [List.length_take]
-    omega
-  rw [uniformAnchor_real_le]
-  apply mul_le_mul
-  · gcongr
-    exact_mod_cast min_le_left _ _
-  · exact uniformStrings_take_le L i _ hti
-  · exact measureReal_nonneg
-  · positivity
-
 /-! ## The round's outcome -/
 
 /-- A read the band decides is on the side of the middle of the band. -/
@@ -351,25 +316,39 @@ theorem scanl_getD_length {β γ : Type*} (f : β → γ → β) :
 theorem prefixOf_zero (w : FreeMonoid α) : prefixOf w 0 = 1 := by
   simp [prefixOf]
 
-theorem anchoredWalkFrom_zero (R : CutReads α) (t : DTree α)
-    (edges : List Bool → α → Option (List Bool × FreeMonoid α)) (w : FreeMonoid α)
-    {p : List Bool} (h : t.sift R.cut 1 = .inl p) :
-    anchoredWalkFrom R t edges w 0 = some (0, w.toList.scanl (stepPath t edges) p) := by
-  unfold anchoredWalkFrom
-  rw [List.filter_eq_self.mpr (by simp), List.range_succ_eq_map, List.findSome?_cons,
-    prefixOf_zero, h]
-  simp
+theorem filter_range_ge {e n : ℕ} (h : e ≤ n) :
+    ∃ rest, (List.range (n + 1)).filter (e ≤ ·) = e :: rest := by
+  obtain ⟨k, hk⟩ : ∃ k, n + 1 = e + (k + 1) := ⟨n - e, by omega⟩
+  rw [hk, List.range_add, List.filter_append,
+    List.filter_eq_nil_iff.mpr (by simp only [List.mem_range, decide_eq_true_eq]; omega),
+    List.nil_append, List.filter_eq_self.mpr (by simp), List.range_succ_eq_map]
+  exact ⟨_, by rw [List.map_cons, Nat.add_zero]⟩
 
-/-- A draw the gate counts against the hypothesis is one whose replay from the start harvests. -/
+theorem anchoredWalkFrom_of_sift (R : CutReads α) (t : DTree α)
+    (edges : List Bool → α → Option (List Bool × FreeMonoid α)) {w : FreeMonoid α} {e : ℕ}
+    (he : e ≤ w.toList.length) {p : List Bool} (h : t.sift R.cut (prefixOf w e) = .inl p) :
+    anchoredWalkFrom R t edges w e = some (e, (w.toList.drop e).scanl (stepPath t edges) p) := by
+  obtain ⟨rest, hrest⟩ := filter_range_ge he
+  unfold anchoredWalkFrom
+  rw [hrest, List.findSome?_cons, h]
+
+/-- A replay anchored no earlier than `e`, of a draw the gate counts against the hypothesis,
+harvests, if the middle-of-band sift of the draw's first `e` letters is where the walk from the
+hypothesis's start is after them.  That holds at `e = 0`, and at every `e` before the first place
+the two part. -/
 theorem replayHarvest_of_gateDisagrees (R : CutReads α) (s : PassState α) (hb : R.B.lo ≤ R.B.hi)
-    {x : FreeMonoid α} (hd : GateDisagrees R s x) : replayHarvest R s x 0 ≠ [] := by
+    {x : FreeMonoid α} {e : ℕ} (he : e ≤ x.toList.length)
+    (hag : s.tree.classify (midCut R) (prefixOf x e)
+      = (x.toList.take e).foldl (stepPath s.tree s.edges) (s.tree.classify (midCut R) 1))
+    (hd : GateDisagrees R s x) : replayHarvest R s x e ≠ [] := by
   have hg : ∀ y b, R.cut y = some b → midCut R y = b := fun y b h => midCut_of_cut R hb h
-  rcases hε : s.tree.sift R.cut 1 with p | b
-  · have hp : s.tree.classify (midCut R) 1 = p := DTree.classify_of_sift hg _ hε
-    have hw := anchoredWalkFrom_zero R s.tree s.edges x hε
-    have hend : (x.toList.scanl (stepPath s.tree s.edges) p).getD (x.toList.length - 0) []
-        = gateEnd R s x := by
-      rw [Nat.sub_zero, scanl_getD_length, gateEnd, hp]
+  rcases hε : s.tree.sift R.cut (prefixOf x e) with p | b
+  · have hp : s.tree.classify (midCut R) (prefixOf x e) = p := DTree.classify_of_sift hg _ hε
+    have hw := anchoredWalkFrom_of_sift R s.tree s.edges he hε
+    have hend : ((x.toList.drop e).scanl (stepPath s.tree s.edges) p).getD
+        (x.toList.length - e) [] = gateEnd R s x := by
+      rw [← List.length_drop, scanl_getD_length, ← hp, hag, ← List.foldl_append,
+        List.take_append_drop, gateEnd]
     rcases hx : s.tree.sift R.cut x with actual | b
     · have ha : actual ≠ gateEnd R s x := by
         unfold GateDisagrees at hd
@@ -378,8 +357,8 @@ theorem replayHarvest_of_gateDisagrees (R : CutReads α) (s : PassState α) (hb 
       simp only [replayHarvest, walkedHarvest, disagreedHarvest, hw, hx, hend, ha, if_false]
       split <;> simp
     · simp [replayHarvest, walkedHarvest, hw, hx]
-  · simp [replayHarvest, walkedHarvest, List.range_succ_eq_map, prefixOf_zero, hε,
-      List.takeWhile_cons]
+  · obtain ⟨rest, hrest⟩ := filter_range_ge he
+    simp [replayHarvest, walkedHarvest, hrest, hε, List.takeWhile_cons]
 
 instance : Countable (FreeMonoid α) := inferInstanceAs (Countable (List α))
 
@@ -387,28 +366,35 @@ instance : MeasurableSingletonClass (FreeMonoid α) := ⟨fun _ => trivial⟩
 
 theorem replay_yield_holds : ReplayYield := by
   intro α _ _ R s D _ L hb
+  rcases Nat.eq_zero_or_pos L with rfl | hL
+  · simp only [Nat.cast_zero, div_zero]
+    exact measureReal_nonneg
+  obtain ⟨m, rfl⟩ : ∃ m, L = m + 1 := ⟨L - 1, by omega⟩
   set S := {q : FreeMonoid α × ℕ | replayHarvest R s q.1 q.2 ≠ []}
   have hS : MeasurableSet S := S.to_countable.measurableSet
   have hpair : Measurable fun x : FreeMonoid α => (x, (0 : ℕ)) :=
     measurable_id.prodMk measurable_const
-  have hle : (2 : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x} ≤ (D.prod (anchorLaw L)) S :=
-    calc (2 : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x}
-        ≤ (2 : ℝ≥0∞)⁻¹ * D ((fun x : FreeMonoid α => (x, (0 : ℕ))) ⁻¹' S) := by
+  have hle : ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x}
+      ≤ (D.prod (anchorLaw (m + 1))) S :=
+    calc ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x}
+        ≤ ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D ((fun x : FreeMonoid α => (x, (0 : ℕ))) ⁻¹' S) := by
           gcongr
           intro x hx
-          exact replayHarvest_of_gateDisagrees R s hb hx
-      _ = (D.prod ((2 : ℝ≥0∞)⁻¹ • Measure.dirac 0)) S := by
+          refine replayHarvest_of_gateDisagrees R s hb (Nat.zero_le _) ?_ hx
+          simp [prefixOf_zero]
+      _ = (D.prod (((m + 1 : ℕ) : ℝ≥0∞)⁻¹ • Measure.dirac 0)) S := by
           rw [Measure.prod_smul_right, Measure.prod_dirac, Measure.smul_apply,
             Measure.map_apply hpair hS, smul_eq_mul]
-      _ ≤ (D.prod ((2 : ℝ≥0∞)⁻¹ • Measure.dirac 0)) S
-            + (D.prod ((2 : ℝ≥0∞)⁻¹ • uniformAnchor L)) S := le_self_add
-      _ = (D.prod (anchorLaw L)) S := by
-          rw [anchorLaw, Measure.prod_add, Measure.add_apply]
-  have hfin : (D.prod (anchorLaw L)) S ≠ ⊤ := measure_ne_top _ _
-  calc D.real {x | GateDisagrees R s x} / 2
-      = ((2 : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x}).toReal := by
-        rw [ENNReal.toReal_mul, measureReal_def, ENNReal.toReal_inv, ENNReal.toReal_ofNat]
+      _ ≤ (D.prod (((m + 1 : ℕ) : ℝ≥0∞)⁻¹
+              • ∑ k ∈ Finset.range m, Measure.dirac (k + 1))) S
+            + (D.prod (((m + 1 : ℕ) : ℝ≥0∞)⁻¹ • Measure.dirac 0)) S := le_add_self
+      _ = (D.prod (anchorLaw (m + 1))) S := by
+          rw [anchorLaw, Finset.sum_range_succ', smul_add, Measure.prod_add, Measure.add_apply]
+  have hfin : (D.prod (anchorLaw (m + 1))) S ≠ ⊤ := measure_ne_top _ _
+  calc D.real {x | GateDisagrees R s x} / ((m + 1 : ℕ) : ℝ)
+      = (((m + 1 : ℕ) : ℝ≥0∞)⁻¹ * D {x | GateDisagrees R s x}).toReal := by
+        rw [ENNReal.toReal_mul, measureReal_def, ENNReal.toReal_inv, ENNReal.toReal_natCast]
         ring
-    _ ≤ (D.prod (anchorLaw L)).real S := ENNReal.toReal_mono hfin hle
+    _ ≤ (D.prod (anchorLaw (m + 1))).real S := ENNReal.toReal_mono hfin hle
 
 end OrthoDFA
