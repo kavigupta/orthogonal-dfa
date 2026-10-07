@@ -9,10 +9,9 @@ single process, running *this same script* as an in-worktree measurer
 the imported ``orthogonal_dfa`` library differs. No ``git checkout`` happens in
 the main repo.
 
-Because synthesis is deterministic (``membership_query`` is a pure stable-hash of
-the string — no RNG), one run per task is exact; there is no rep-sampling like
-bench_pr needs for its stochastic search. Each task reports total oracle queries,
-distinct queries, learned-state count, and noiseless accuracy. The comparison
+A run is deterministic given its seed, but one seed is one draw of a noisy
+distribution, so each task runs ``NUM_SEEDS`` seeds and reports the geomean of its
+queries over them, the worst accuracy, and the learned-state counts. The comparison
 table flags any task whose PR query count went **up** or whose **accuracy
 regressed** (the guard tasks ``modulo_hard`` / ``modulo_asym`` exist to catch a
 change that speeds up easy cells but breaks the high-noise / asymmetric ones),
@@ -27,10 +26,12 @@ Usage:
 """
 
 import argparse
+import concurrent.futures
 import contextlib
 import io
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -49,7 +50,8 @@ BENCHMARKS = {
                    "signal": 0.3, "symbols": 2, "noise": None},
     "two_subseq": {"oracle": {"kind": "regex", "regex": r".*1111.*1111.*"},
                    "signal": 0.3, "symbols": 2, "noise": None},
-    "poor_case":  {"oracle": {"kind": "poor_case"},
+    # Overlaps itself, so its back edges don't all return to the start; most strings accept.
+    "overlap":    {"oracle": {"kind": "regex", "regex": r".*11011.*"},
                    "signal": 0.3, "symbols": 2, "noise": None},
     # --- guard tasks: the cells only ortho-L* solves; a query win must not break these ---
     "modulo_hard": {"oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
@@ -57,18 +59,6 @@ BENCHMARKS = {
     "modulo_asym": {"oracle": {"kind": "modulo", "modulo": 9, "allowed": [3, 6]},
                     "signal": 0.15, "symbols": 2,
                     "noise": {"p_0": 0.10, "p_1": 0.40}, "slow": True},  # non-straddling
-}
-
-# The 10-state adversarial DFA used by the `poor_case` task (kept in-script so the
-# measurer can rebuild it against whichever branch's DFAOracle it imports).
-POOR_CASE_DFA = {
-    "transitions": {
-        0: {1: 8, 0: 0}, 1: {1: 1, 0: 1}, 2: {1: 1, 0: 6}, 3: {1: 9, 0: 2},
-        4: {1: 3, 0: 8}, 5: {1: 8, 0: 4}, 6: {1: 3, 0: 9}, 7: {1: 8, 0: 6},
-        8: {1: 8, 0: 5}, 9: {1: 3, 0: 7},
-    },
-    "initial": 0,
-    "final": [1],
 }
 
 # Regression bands: a query ratio inside +/- QUERY_BAND is "no change"; an accuracy
@@ -79,6 +69,8 @@ ACC_EPS = 0.005
 # A call of N strings is costed at ceil(N / cap) forward passes
 BATCH_CAPS = (32, 128, 1024)
 
+NUM_SEEDS = 5
+
 
 # ---------------------------------------------------------------------------
 # Measurer: runs INSIDE a worktree (imports that branch's orthogonal_dfa).
@@ -86,10 +78,9 @@ BATCH_CAPS = (32, 128, 1024)
 # ---------------------------------------------------------------------------
 
 
-def _measure(root: str, names: list[str]) -> dict:
+def _measure(root: str, names: list[str], seeds: list[int]) -> dict:
+    """``{task: {seed: result}}``, seeds as strings so it survives JSON."""
     sys.path.insert(0, root)
-    from automata.fa.dfa import DFA
-    from orthogonal_dfa.l_star.examples.benchmark_generator import DFAOracle
     from orthogonal_dfa.l_star.examples.bernoulli_parity import (
         BernoulliParityOracle, BernoulliRegex,
     )
@@ -127,18 +118,9 @@ def _measure(root: str, names: list[str]) -> dict:
             return lambda nm, s: NoisyOracle(BernoulliParityOracle(modulo=spec["modulo"], allowed_moduluses=tuple(spec["allowed"])), nm, s)
         if kind == "regex":
             return lambda nm, s: NoisyOracle(BernoulliRegex(regex=spec["regex"]), nm, s)
-        if kind == "poor_case":
-            dfa = DFA(
-                states=set(range(10)), input_symbols={0, 1},
-                transitions=POOR_CASE_DFA["transitions"],
-                initial_state=POOR_CASE_DFA["initial"],
-                final_states=set(POOR_CASE_DFA["final"]), allow_partial=False)
-            return lambda nm, s: NoisyOracle(DFAOracle(dfa), nm, s)
         raise ValueError(f"unknown oracle kind {kind!r}")
 
-    results = {}
-    for name in names:
-        bench = BENCHMARKS[name]
+    def run(bench, seed):
         creator = build_creator(bench["oracle"])
         counters = []
 
@@ -155,12 +137,12 @@ def _measure(root: str, names: list[str]) -> dict:
         # Silence the synthesis chatter; we only want the JSON on stdout.
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             dfa = learn_dfa(
-                counting_creator, min_signal_strength=bench["signal"], seed=0,
+                counting_creator, min_signal_strength=bench["signal"], seed=seed,
                 noise_model=noise_model)
             acc = evaluate_accuracy(
                 dfa, creator, symbols=bench["symbols"], sampler=DEFAULT_SAMPLER)
         all_batches = [n for c in counters for n in c.batches]
-        results[name] = {
+        return {
             "queries": sum(c.count for c in counters),
             "distinct": len(set().union(*[c.distinct for c in counters])),
             "batches": len(all_batches),
@@ -171,7 +153,9 @@ def _measure(root: str, names: list[str]) -> dict:
             "accuracy": acc,
             "seconds": time.time() - t0,
         }
-    return results
+
+    return {name: {str(seed): run(BENCHMARKS[name], seed) for seed in seeds}
+            for name in names}
 
 
 # ---------------------------------------------------------------------------
@@ -235,15 +219,52 @@ def teardown_worktree(wt_dir: Path):
                    cwd=ROOT, check=False)
 
 
-def measure_worktree(root: Path, names: list[str]) -> dict:
-    """Run this script as an in-worktree measurer; parse the JSON it prints."""
-    out = subprocess.run(
-        [sys.executable, str(Path(__file__).resolve()), "--emit-json",
-         "--root", str(root), "--tasks", *names],
-        cwd=root, text=True, capture_output=True)
-    if out.returncode != 0:
-        raise SystemExit(f"count_queries: measurer failed in {root}:\n{out.stderr}")
-    return json.loads(out.stdout)
+def measure_worktrees(roots: list[Path], names: list[str]) -> list[dict]:
+    """Per root, ``{task: {seed: result}}``, each (root, task, seed) run as its own
+    in-worktree measurer, all in parallel."""
+
+    def run(root, name, seed):
+        out = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve()), "--emit-json",
+             "--root", str(root), "--tasks", name, "--seeds", str(seed)],
+            cwd=root, text=True, capture_output=True)
+        if out.returncode != 0:
+            raise SystemExit(f"count_queries: measurer failed in {root}:\n{out.stderr}")
+        return root, name, json.loads(out.stdout)[name]
+
+    results = {root: {name: {} for name in names} for root in roots}
+    jobs = [(root, name, seed) for root in roots for name in names
+            for seed in range(NUM_SEEDS)]
+    with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:
+        for root, name, by_seed in pool.map(lambda job: run(*job), jobs):
+            results[root][name].update(by_seed)
+    return [results[root] for root in roots]
+
+
+def _geomean(xs) -> float:
+    xs = list(xs)
+    return math.exp(sum(math.log(x) for x in xs) / len(xs))
+
+
+def summarize(by_seed: dict) -> dict:
+    """One task's runs as one row: geomeans over seeds of the counts, the worst
+    accuracy, and the state count of each seed in seed order."""
+    runs = [by_seed[s] for s in sorted(by_seed, key=int)]
+    return {
+        "queries": _geomean(r["queries"] for r in runs),
+        "distinct": _geomean(r["distinct"] for r in runs),
+        "batches": _geomean(r["batches"] for r in runs),
+        "forward_passes": {
+            str(cap): _geomean(r["forward_passes"][str(cap)] for r in runs)
+            for cap in BATCH_CAPS},
+        "states": [r["states"] for r in runs],
+        "accuracy": min(r["accuracy"] for r in runs),
+        "seconds": sum(r["seconds"] for r in runs),
+    }
+
+
+def _states_str(states: list[int]) -> str:
+    return str(states[0]) if len(set(states)) == 1 else "/".join(map(str, states))
 
 
 def _emoji(ratio: float, acc_ok: bool, states_ok: bool) -> str:
@@ -261,12 +282,17 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
     lines = [
         f"## Query count — `{pr_ref}` vs `{base_ref}`",
         "",
+        f"*Queries and forward passes are geomeans over seeds 0–{NUM_SEEDS - 1}; "
+        "accuracy is the worst seed's; states are per seed where they differ.*",
+        "",
         f"|   | task | queries `{base_ref}` | queries `{pr_ref}` | ratio | "
         f"acc `{base_ref}` | acc `{pr_ref}` | states |",
         "|---|---|---:|---:|---:|---:|---:|---:|",
     ]
     ratios = []
     any_regression = False
+    base = {name: summarize(base[name]) for name in names}
+    pr = {name: summarize(pr[name]) for name in names}
     for name in names:
         b, p = base[name], pr[name]
         ratio = p["queries"] / b["queries"] if b["queries"] else float("inf")
@@ -276,9 +302,10 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
         emoji = _emoji(ratio, acc_ok, states_ok)
         if emoji == "🔴":
             any_regression = True
-        st = f"{b['states']}" if states_ok else f"{b['states']}→{p['states']} ‼️"
+        st = (_states_str(b["states"]) if states_ok else
+              f"{_states_str(b['states'])}→{_states_str(p['states'])} ‼️")
         lines.append(
-            f"| {emoji} | {name} | {b['queries']:,} | {p['queries']:,} | "
+            f"| {emoji} | {name} | {b['queries']:,.0f} | {p['queries']:,.0f} | "
             f"{_ratio_str(ratio)} | "
             f"{b['accuracy']:.3f} | {p['accuracy']:.3f} | {st} |")
     geo = math.prod(ratios) ** (1 / len(ratios)) if ratios else float("nan")
@@ -308,7 +335,7 @@ def comparison_report(base_ref: str, pr_ref: str, base: dict, pr: dict,
             bf, pf = b["forward_passes"][str(cap)], p["forward_passes"][str(cap)]
             packed = math.ceil(p["queries"] / cap) / pf if pf else float("nan")
             ratio = pf / bf if bf else float("inf")
-            cells.append(f"{bf:,} → {pf:,} ({_ratio_str(ratio)}, "
+            cells.append(f"{bf:,.0f} → {pf:,.0f} ({_ratio_str(ratio)}, "
                          f"{100 * packed:.0f}% packed)")
         lines.append(f"| {name} | " + " | ".join(cells) + " |")
     return "\n".join(lines)
@@ -345,7 +372,8 @@ def update_pr_report(pr_ref: str, report: str):
 
 
 def print_local_table(results: dict, names: list[str]):
-    print("\n===== QUERY COUNT SUMMARY =====")
+    results = {name: summarize(results[name]) for name in names}
+    print(f"\n===== QUERY COUNT SUMMARY (geomean over {NUM_SEEDS} seeds) =====")
     caps = "".join(f"{f'fp@{cap}':>11}" for cap in BATCH_CAPS)
     header = (f"{'task':<14}{'queries':>12}{'distinct':>11}{'batches':>10}{caps}"
               f"{'states':>8}{'acc':>8}{'sec':>8}")
@@ -353,15 +381,15 @@ def print_local_table(results: dict, names: list[str]):
     print("-" * len(header))
     for name in names:
         r = results[name]
-        fps = "".join(f"{r['forward_passes'][str(cap)]:>11,}" for cap in BATCH_CAPS)
-        print(f"{name:<14}{r['queries']:>12,}{r['distinct']:>11,}{r['batches']:>10,}"
-              f"{fps}{r['states']:>8}{r['accuracy']:>8.3f}{r['seconds']:>8.1f}")
+        fps = "".join(f"{r['forward_passes'][str(cap)]:>11,.0f}" for cap in BATCH_CAPS)
+        print(f"{name:<14}{r['queries']:>12,.0f}{r['distinct']:>11,.0f}{r['batches']:>10,.0f}"
+              f"{fps}{_states_str(r['states']):>8}{r['accuracy']:>8.3f}{r['seconds']:>8.1f}")
     queries = sum(results[n]["queries"] for n in names)
-    print(f"\nTOTAL queries: {queries:,}")
+    print(f"\nTOTAL queries: {queries:,.0f}")
     for cap in BATCH_CAPS:
         total = sum(results[n]["forward_passes"][str(cap)] for n in names)
         ideal = math.ceil(queries / cap)
-        print(f"TOTAL forward passes @ batch {cap}: {total:,} "
+        print(f"TOTAL forward passes @ batch {cap}: {total:,.0f} "
               f"(ideal {ideal:,}, {100 * ideal / total:.0f}% packed)")
 
 
@@ -377,6 +405,8 @@ def main():
                    help="skip the 'base up to date with origin' check (e.g. offline)")
     p.add_argument("--emit-json", action="store_true", help=argparse.SUPPRESS)
     p.add_argument("--root", default=str(ROOT), help=argparse.SUPPRESS)
+    p.add_argument("--seeds", nargs="*", type=int, default=list(range(NUM_SEEDS)),
+                   help=argparse.SUPPRESS)
     p.add_argument("--tasks", nargs="*", default=None,
                    help="task names to run (default: all, or all-but-slow with --fast)")
     a = p.parse_args()
@@ -390,12 +420,12 @@ def main():
 
     # In-worktree measurer: emit JSON and exit.
     if a.emit_json:
-        print(json.dumps(_measure(a.root, names)))
+        print(json.dumps(_measure(a.root, names, a.seeds)))
         return
 
     # Local mode: measure the working tree, print a table.
     if a.local:
-        print_local_table(_measure(str(ROOT), names), names)
+        print_local_table(measure_worktrees([ROOT], names)[0], names)
         return
 
     # Comparison mode: base vs PR over worktrees.
@@ -410,8 +440,7 @@ def main():
     try:
         setup_worktree(base, wt_base)
         setup_worktree(pr, wt_pr)
-        base_res = measure_worktree(wt_base, names)
-        pr_res = measure_worktree(wt_pr, names)
+        base_res, pr_res = measure_worktrees([wt_base, wt_pr], names)
     finally:
         teardown_worktree(wt_base)
         teardown_worktree(wt_pr)
