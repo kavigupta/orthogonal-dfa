@@ -3,6 +3,7 @@ import unittest
 
 from orthogonal_dfa.l_star.edge_resolver import EdgeResolver
 from orthogonal_dfa.l_star.partial_dfa import PartialDFA
+from orthogonal_dfa.l_star.provenance import Read
 
 
 class _StubTree:
@@ -34,6 +35,9 @@ class _StubPopulation:
     def members(self, _path, _limit):
         return [bytes([0])]
 
+    def draw_of(self, _member):
+        return Read(None, b"")
+
 
 class TestEdgeResolverCloseTerminates(unittest.TestCase):
     def test_close_is_single_pass_when_every_edge_is_left_open(self):
@@ -46,7 +50,7 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
         resolver = EdgeResolver(
             partial,
             _AlwaysIndecisiveSifter(),
-            lambda boundary, _member, _extension: harvested.append(boundary),
+            lambda boundary, _read: harvested.append(boundary),
             population=_StubPopulation(),
         )
 

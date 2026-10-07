@@ -18,9 +18,13 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import Sifted, Walked
+from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
+
+
+#: Where these tests' strings came from, which they never read.
+_DRAW = Read(None, b"")
 
 
 class _Tree:
@@ -38,7 +42,6 @@ class _Resolver:
     def __init__(self, population):
         self.population = population
         self.tree = _Tree()
-        self.origins = {}
 
 
 class _Pst:
@@ -75,10 +78,10 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _member: None,
+            harvest=lambda _boundary, _read: None,
         )
         for prefix in resting:
-            population.add(prefix, at=(True,))
+            population.add(prefix, at=(True,), draw=_DRAW)
         return StateSource(_Resolver(population), 1, _lands(), wanted=20)
 
     def test_what_already_rests_there_is_served_first(self):
@@ -119,11 +122,11 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _member: None,
+            harvest=lambda _boundary, _read: None,
         )
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
-            population.add(prefix, at=(True,))
+            population.add(prefix, at=(True,), draw=_DRAW)
         source = state_source(
             _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
         )
@@ -157,7 +160,7 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _member: None,
+            harvest=lambda _boundary, _read: None,
         )
         aims = itertools.cycle(support)
         source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
@@ -198,7 +201,7 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
             # ``lands`` decides whether the tree rests an aimed string where it
             # was aimed, which is the only thing that makes the leaf a source.
             lambda strings, midfix: [lands] * len(strings),
-            harvest=lambda _boundary, _member: None,
+            harvest=lambda _boundary, _read: None,
         )
         aim = aim_at(pst, dfa, leaf)
         if aim is None:

@@ -7,6 +7,7 @@ exactly that.  These assert the real class, not a duck.
 
 import unittest
 
+from orthogonal_dfa.l_star.provenance import Read
 from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
 from orthogonal_dfa.l_star.visualize import (
     _prefill_fn,
@@ -15,6 +16,10 @@ from orthogonal_dfa.l_star.visualize import (
     _tree_root,
 )
 from tests.direct_lstar_stubs import make_pst
+
+
+#: Where these tests' members came from, which they never read.
+_DRAW = Read(None, b"")
 
 
 def _learner():
@@ -33,8 +38,8 @@ class TestVisualizeDuckType(unittest.TestCase):
 
     def test_access_maps_states_to_strings(self):
         learner = _learner()
-        learner.population.add(b"", at=learner.tree.path_of(0))
-        learner.population.add(bytes([1]), at=learner.tree.path_of(1))
+        learner.population.add(b"", at=learner.tree.path_of(0), draw=_DRAW)
+        learner.population.add(bytes([1]), at=learner.tree.path_of(1), draw=_DRAW)
 
         self.assertEqual(learner.access, {0: b"", 1: bytes([1])})
 
@@ -42,7 +47,7 @@ class TestVisualizeDuckType(unittest.TestCase):
         """A leaf with no member and no pool prefix has no access string, and the
         renderer skips it rather than inventing one."""
         learner = _learner()
-        learner.population.add(b"", at=learner.tree.path_of(0))
+        learner.population.add(b"", at=learner.tree.path_of(0), draw=_DRAW)
 
         self.assertEqual(learner.access, {0: b""})
 
@@ -51,7 +56,7 @@ class TestVisualizeDuckType(unittest.TestCase):
         # not shadow the shortest recorded member here.
         learner = _learner()
         for member in (bytes([1, 0, 1]), bytes([1]), bytes([0, 0])):
-            learner.population.add(member, at=learner.tree.path_of(1))
+            learner.population.add(member, at=learner.tree.path_of(1), draw=_DRAW)
 
         self.assertEqual(learner.access[1], bytes([1]))
 

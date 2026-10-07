@@ -27,7 +27,7 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .prefix_populations import PoolState, population_labels
+from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
 from .provenance import Read, provenance
@@ -109,8 +109,7 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     taken = sorted(set(resolver.indecisive) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.seen.add(string)
-        state.harvest().append(string)
+        state.take(string, resolver.indecisive[string])
     return min(wanted, len(taken))
 
 
@@ -131,20 +130,6 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _member_origins(pst, state) -> dict:
-    """Per prefix a population holds, the source that drew it."""
-    origins = {}
-    for label in population_labels(state):
-        if label == UNIFORM:
-            source, held = UniformSource(pst), state.uniform
-        else:
-            source, held = state.sources.get(label), state.held.get(label, ())
-        if source is not None:
-            for prefix in held:
-                origins.setdefault(prefix, source)
-    return origins
-
-
 def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     """Draw up to ``wanted`` more boundary strings the way the round's were
     found, keeping what the yield test turned up even when the source fails it.
@@ -154,12 +139,7 @@ def _top_up_boundary(pst, resolver, dfa, state, wanted) -> None:
     one a later round has nothing to draw with.  A round that found none draws
     them as its probes found them.
     """
-    harvested = state.held.get(state.harvesting, ()) if state.harvesting else ()
-    reads = Counter(
-        resolver.indecisive[s] for s in harvested if s in resolver.indecisive
-    )
-    if not reads:
-        reads = Counter({Read(UniformSource(pst), None): 1})
+    reads = state.harvest_reads or Counter({Read(UniformSource(pst), None): 1})
     source = HarvestSource(
         Counter(
             {
@@ -210,7 +190,7 @@ def _publish_pool(pst, state) -> int:
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=label)
     state.published = set(state.held)
-    state.harvesting = None
+    state.close_harvest()
     return int(pst.table.representative.sum())
 
 
@@ -346,7 +326,7 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs, _member_origins(pst, state))
+        resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
         resolver.close_edges()
         resolver.counterexample_pass(
             max_probes=COUNTEREXAMPLE_PROBES, patience=patience

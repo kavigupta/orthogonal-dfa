@@ -14,10 +14,11 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
+from orthogonal_dfa.l_star.provenance import Read
 
 
 def _resolver(*strings):
-    return SimpleNamespace(indecisive=set(strings))
+    return SimpleNamespace(indecisive={string: Read(None, b"") for string in strings})
 
 
 def _state(held=()):
