@@ -77,9 +77,10 @@ class Walked(Provenance):
     """A probe walked as the counterexample pass walks one: anchored, sifted at
     its end, and searched for the disagreeing edge where walk and sift part.
 
-    Anchored no earlier than a uniformly drawn point, even for a read the pass
-    made from the start: walks from the start all meet the same few early
-    strings, so replaying them finds nothing new."""
+    Half the time walked from the start, so that a draw the round's walk and
+    tree disagree on is always one a replay can harvest from; otherwise anchored
+    no earlier than a uniformly drawn point, since walks from the start all meet
+    the same few early strings."""
 
     transitions: dict = field(repr=False)
     rng: Any = field(repr=False)
@@ -93,7 +94,7 @@ class Walked(Provenance):
                 met.append(boundary)
             return leaf
 
-        earliest = int(self.rng.integers(len(drawn)))
+        earliest = 0 if self.rng.random() < 0.5 else int(self.rng.integers(len(drawn)))
         start, states = anchored_walk(drawn, sift, self.transitions, earliest)
         if start is not None:
             landed = sift(drawn)

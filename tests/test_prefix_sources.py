@@ -268,17 +268,21 @@ _PROBE = bytes([0, 1, 0, 1])
 
 
 class _Always:
-    """An rng whose every integer draw is ``value``."""
+    """An rng whose every coin is ``coin`` and every integer draw ``value``."""
 
-    def __init__(self, value):
+    def __init__(self, coin, value):
+        self._coin = coin
         self._value = value
+
+    def random(self):
+        return self._coin
 
     def integers(self, _high):
         return self._value
 
 
-def _walked(places, earliest=0):
-    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, _Always(earliest))
+def _walked(places, earliest=0, coin=0.9):
+    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, _Always(coin, earliest))
 
 
 class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
@@ -287,6 +291,11 @@ class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
 
     def test_a_walk_anchored_past_what_the_tree_cannot_place_keeps_nothing(self):
         self.assertEqual([], _walked(_LONG_ONE_FAILS, earliest=3).sample())
+
+    def test_half_the_walks_start_at_the_start_wherever_the_point_was_drawn(self):
+        self.assertEqual(
+            [_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS, earliest=3, coin=0.1).sample()
+        )
 
     def test_a_walk_the_tree_places_throughout_keeps_nothing(self):
         self.assertEqual([], _walked(lambda seq: 0).sample())
