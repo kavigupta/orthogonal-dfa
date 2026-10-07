@@ -7,13 +7,15 @@ one.  Only the tree's answer counts.
 
 from math import isqrt
 
+import numpy as np
+
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     uniform_weights,
 )
+from .provenance import Aimed, Read
 from .rejection_source import RejectionSource, proving_attempts
-from .sifting import PROBE_BLOCK, anchored_walk, first_disagreeing_edge
 
 #: A leaf landing at least this share of its aims is one worth asking again.
 GOOD_YIELD = 0.5
@@ -44,61 +46,35 @@ class UniformSource:
         return True
 
 
-class BoundarySource(RejectionSource):
-    """Strings the round's tree cannot place, asked about along a probe's walk.
-
-    Only prefixes at least half the sampler's length are kept.  There are at least
-
-        sqrt(alphabet_size ** length)
-
-    of those, so a family straddling any share worth drawing on has more than a
-    round can exhaust; the short prefixes are asked about by every probe and run
-    out at once.
-    """
+class HarvestSource(RejectionSource):
+    """More of a round's boundary population, found the way its strings were:
+    each attempt reads a fresh draw by one of their provenances, chosen in
+    proportion to how many of them it found."""
 
     proving = proving_attempts(GOOD_BOUNDARY_YIELD, POOR_BOUNDARY_YIELD)
     poor = POOR_BOUNDARY_YIELD
 
-    def __init__(self, pst, sifter, transitions, *, known):
+    def __init__(self, provenances, rng, *, known):
+        """``provenances`` maps each provenance to how many strings it found."""
         super().__init__()
         self._served.update(known)
-        self._pst = pst
-        self._sifter = sifter
-        self._transitions = transitions
-        self._long_enough = -(-pst.sampler.length // 2)
         self._seen = set(known)
-        self._probes = []
-
-    def _sift(self, seq):
-        leaf, boundary = self._sifter.sift_and_boundary(seq)
-        if (
-            leaf is None
-            and len(seq) >= self._long_enough
-            and boundary not in self._seen
-        ):
-            self._seen.add(boundary)
-            self._pool.append(boundary)
-        return leaf
+        self._provenances = list(provenances)
+        counts = np.array([provenances[p] for p in self._provenances], dtype=float)
+        self._weights = counts / counts.sum()
+        self._rng = rng
 
     def attempt_draw(self) -> bool:
-        before = len(self._seen)
-        if not self._probes:
-            self._probes = [
-                self._pst.sampler.sample(
-                    self._pst.rng, alphabet_size=self._pst.alphabet_size
-                )
-                for _ in range(PROBE_BLOCK)
-            ]
-            self._sifter.prefill(self._probes)
-        probe = self._probes.pop()
-        start, states = anchored_walk(probe, self._sift, self._transitions)
-        if start is not None:
-            landed = self._sift(probe)
-            if landed is not None and landed != states[-1]:
-                # Called for the sifts it makes on the way; the edge it returns
-                # is the round's, not this source's.
-                first_disagreeing_edge(probe, states, self._sift, start, len(probe))
-        return len(self._seen) > before
+        provenance = self._provenances[
+            self._rng.choice(len(self._provenances), p=self._weights)
+        ]
+        found = False
+        for string in provenance.sample():
+            if string not in self._seen:
+                self._seen.add(string)
+                self._pool.append(string)
+                found = True
+        return found
 
     def source_repr(self) -> str:
         return "boundary"
@@ -153,6 +129,8 @@ class StateSource(RejectionSource):
     def __init__(self, resolver, leaf, aim, *, wanted):
         super().__init__()
         self._population = resolver.population
+        self._origins = resolver.origins
+        self._aimed = Read(Aimed(aim), b"")
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
@@ -170,6 +148,7 @@ class StateSource(RejectionSource):
         did rest at, which is the answer that counts.
         """
         aimed = self._aim()
+        self._origins.setdefault(aimed, self._aimed)
         # Where it rests, not where it was aimed.
         if self._population.settle(aimed, self._path):
             self._pool.append(aimed)

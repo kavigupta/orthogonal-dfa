@@ -37,7 +37,12 @@ def _resolver(members):
     return (
         partial,
         population,
-        EdgeResolver(partial, _FirstByteSifter(), set(), population=population),
+        EdgeResolver(
+            partial,
+            _FirstByteSifter(),
+            lambda _boundary, _member, _extension: None,
+            population=population,
+        ),
     )
 
 

@@ -27,6 +27,8 @@ class LeafPopulation:
 
     ``classify(strings, midfix)`` reads a node: it should batch the family queries
     for ``strings`` at ``midfix`` and return one decision per string.
+    ``harvest(boundary, member)`` takes each string a node cannot place, with the
+    member whose push read it.
     """
 
     def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
@@ -136,4 +138,4 @@ class LeafPopulation:
             else:
                 # The indecision is over string + midfix + v, so string + midfix
                 # is what failed, not string.
-                self._harvest(string + midfix)
+                self._harvest(string + midfix, string)
