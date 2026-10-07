@@ -63,6 +63,17 @@ class SearchConfig:
     #: Error against the noiseless labels the returned DFA is certified within,
     #: where min_signal_strength is the oracle's signal exactly.
     certified_error: float = 0.05
+    #: Extension (default 1 = off, core behaviour unchanged).  A round's
+    #: counterexample pass is randomised by the probe strings it draws; on a weak
+    #: or structured oracle its fine state-splits sit near the oracle's noise
+    #: floor, so which splits the random probes surface -- and thus the resolved
+    #: DFA's quality -- varies widely for one and the same suffix family.  When
+    #: set above 1, run the pass this many times with independent probe RNG and
+    #: keep the DFA that best predicts the oracle on a held-out sample.  Selection
+    #: is at the whole-DFA level, where held-out predictiveness is large and
+    #: cheap to measure (unlike per-split separation, which is not), and it is
+    #: scored against the oracle itself rather than internal self-consistency.
+    counterexample_restarts: int = 1
 
     def __post_init__(self):
         # Population size goes as 1/signal^2, so a signal much below this asks for
