@@ -185,7 +185,7 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Anchor at the shortest prefix the tree places, follow the total delta,
         then act on where the walk and a fresh sift disagree."""
-        start, states = anchored_walk(w, self._sift, delta)
+        start, states = anchored_walk(w, self._sift, delta, 0)
         if start is None:
             return _UNCHECKED
         # Seed the anchor leaf's population. The prefix pool is length-L, so it

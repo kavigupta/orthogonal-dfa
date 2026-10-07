@@ -140,7 +140,7 @@ def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
     state.sources[state.harvesting] = HarvestSource(
         Counter(
             {
-                provenance(read, resolver.sifter, dfa.transitions): count
+                provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
                 for read, count in state.harvest_reads.items()
             }
         ),
