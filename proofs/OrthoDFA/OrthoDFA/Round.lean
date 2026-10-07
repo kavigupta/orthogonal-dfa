@@ -121,6 +121,21 @@ def RoundTrichotomy : Prop :=
           ∧ ¬ s.halves S.K}
       ≤ (1 - ε) ^ S.K.patience
 
+/-- Walked from where the middle-of-band reading puts `x`'s first `e` letters, the hypothesis
+ends somewhere other than where that reading puts `x`.  At `e = 0` this is `DFAandDTDisagree`. -/
+def SuffixDisagree (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : Prop :=
+  (x.toList.drop e).foldl H.step (midPath R H (prefixOf x e)) ≠ midPath R H x
+
+/-- `AnchoredYield`: the harvest finds a string on at least the share of attempts whose draw, walked
+from its anchor, disagrees with the tree.  Every anchor before the first place a draw's walk from
+`ε` and its reading part qualifies, so this is at least `E[1{x disagrees} · min(j*(x), L)] / L`. -/
+def AnchoredYield : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (H : Hypothesis α)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
+    R.B.lo ≤ R.B.hi →
+    (∑ e ∈ Finset.range L, D.real {x | SuffixDisagree R H x e}) / L
+      ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
+
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
   ((replay R H x e).1.map fun i => (H.tree.route R.cut (prefixOf x i)).1.length).sum
