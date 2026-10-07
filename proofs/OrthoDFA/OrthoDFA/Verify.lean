@@ -7,8 +7,8 @@ import OrthoDFA.Proofs.Replay
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, and `PassDichotomy`, `ReplaySpread` and `ReplaySpreadUniform`, stated
-in `OrthoDFA.Stage`, hold.
+`OrthoDFA.ClusteringQuality`, and `PassDichotomy`, `ReplaySpread`, `ReplaySpreadUniform`,
+`ReplaySpreadAnchored` and `ReplayYield`, stated in `OrthoDFA.Stage`, hold.
 -/
 
 namespace OrthoDFA
@@ -33,5 +33,13 @@ theorem replay_spread : ReplaySpread := replay_spread_holds
 theorem replay_spread_uniform : ReplaySpreadUniform := replay_spread_uniform_holds
 
 #print axioms replay_spread_uniform
+
+theorem replay_spread_anchored : ReplaySpreadAnchored := replay_spread_anchored_holds
+
+#print axioms replay_spread_anchored
+
+theorem replay_yield : ReplayYield := replay_yield_holds
+
+#print axioms replay_yield
 
 end OrthoDFA
