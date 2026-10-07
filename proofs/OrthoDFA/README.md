@@ -12,7 +12,10 @@
   rarely returns a hypothesis the merge check passed that is inaccurate once denoised.
 - `OrthoDFA/Check.lean` — the merge check, and `CheckGuarantee`: it rarely fails a state whose
   label is pure, and rarely passes one with a large minority.
-- `OrthoDFA/Stage.lean` — the L\* stage as `TransitionResolver` runs it.
+- `OrthoDFA/Stage.lean` — the L\* stage as `TransitionResolver` runs it, and `PassDichotomy`:
+  when a pass runs out of patience, each of its last `patience` probes was correct, harvested, or
+  a disagreement the evidence said was no split, now in the disagreement harvest. Proved in
+  `OrthoDFA/Proofs/Stage.lean`.
 - `OrthoDFA/Termination.lean` — `Termination`: if each round's clustering, stage and check meet
   their specs, few rounds fail to return.
 - `OrthoDFA/Learner.lean` — the learner, and `LearnerCorrect`.
