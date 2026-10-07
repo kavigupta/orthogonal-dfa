@@ -72,6 +72,26 @@ theorem sift_of_sift {cut : FreeMonoid α → Option Bool} {g : FreeMonoid α �
         rw [sift_of_sift hg a ha]
         rfl
 
+/-- What a node cannot place is the string extended by its midfix. -/
+theorem sift_inr {cut : FreeMonoid α → Option Bool} :
+    ∀ (t : DTree α) {x b : FreeMonoid α}, t.sift cut x = .inr b → ∃ m, b = x * m
+  | .leaf, x, b, h => by simp [sift, route] at h
+  | .node m r a, x, b, h => by
+    rcases hc : cut (x * m) with _ | c
+    · rw [sift_node_none hc] at h
+      simp only [Sum.inr.injEq] at h
+      exact ⟨m, h.symm⟩
+    · rw [sift_node_some hc] at h
+      cases c
+      · simp only [Bool.false_eq_true, ↓reduceIte] at h
+        rcases hr : r.sift cut x with q | q <;> rw [hr] at h <;> simp at h
+        subst h
+        exact sift_inr r hr
+      · simp only [↓reduceIte] at h
+        rcases ha : a.sift cut x with q | q <;> rw [ha] at h <;> simp at h
+        subst h
+        exact sift_inr a ha
+
 end DTree
 
 variable (R : CutReads α)
@@ -95,6 +115,57 @@ theorem anchorSearch_cons_of_sift (t : DTree α) {w : FreeMonoid α} {i : ℕ} {
     {p : List Bool} (h : t.sift R.cut (prefixOf w i) = .inl p) :
     anchorSearch R t w (i :: is) = ([], some (i, p)) := by
   simp only [anchorSearch, h]
+
+theorem anchorSearch_some (t : DTree α) (w : FreeMonoid α) :
+    ∀ (is : List ℕ) {s : ℕ} {p : List Bool}, (anchorSearch R t w is).2 = some (s, p) →
+      t.sift R.cut (prefixOf w s) = .inl p
+  | [], s, p, h => by simp [anchorSearch] at h
+  | i :: is, s, p, h => by
+    simp only [anchorSearch] at h
+    split at h
+    · rename_i q hq
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact hq
+    · exact anchorSearch_some t w is h
+
+/-- Between an index where the sift agrees with the walk and a later one, the bisection either
+meets a prefix strictly between them it cannot place, or settles on an index past the first. -/
+theorem bisect_result (t : DTree α) (w : FreeMonoid α) (walk : ℕ → List Bool) :
+    ∀ (fuel lo hi : ℕ), lo < hi →
+      (∀ b, (bisect R t w walk fuel lo hi).2 = .inl b →
+          ∃ j, lo < j ∧ j < hi ∧ ∃ m, b = prefixOf w j * m)
+        ∧ ∀ fd, (bisect R t w walk fuel lo hi).2 = .inr fd → lo < fd ∧ fd ≤ hi
+  | 0, lo, hi, hlh => by
+    refine ⟨fun b h => by simp [bisect] at h, fun fd h => ?_⟩
+    simp only [bisect, Sum.inr.injEq] at h
+    omega
+  | fuel + 1, lo, hi, hlh => by
+    simp only [bisect]
+    split_ifs with h1
+    · split
+      · rename_i b hb
+        refine ⟨fun b' h => ?_, fun fd h => by simp at h⟩
+        simp only [Sum.inl.injEq] at h
+        subst h
+        obtain ⟨m, hm⟩ := DTree.sift_inr t hb
+        exact ⟨_, by omega, by omega, m, hm⟩
+      · split_ifs
+        · have ih := bisect_result t w walk fuel ((lo + hi) / 2) hi (by omega)
+          refine ⟨fun b h => ?_, fun fd h => ?_⟩
+          · obtain ⟨j, hj1, hj2, hj3⟩ := ih.1 b h
+            exact ⟨j, by omega, hj2, hj3⟩
+          · have := ih.2 fd h
+            omega
+        · have ih := bisect_result t w walk fuel lo ((lo + hi) / 2) (by omega)
+          refine ⟨fun b h => ?_, fun fd h => ?_⟩
+          · obtain ⟨j, hj1, hj2, hj3⟩ := ih.1 b h
+            exact ⟨j, hj1, by omega, hj3⟩
+          · have := ih.2 fd h
+            omega
+    · refine ⟨fun b h => by simp at h, fun fd h => ?_⟩
+      simp only [Sum.inr.injEq] at h
+      omega
 
 theorem bisect_bounds (t : DTree α) (w : FreeMonoid α) (walk : ℕ → List Bool) :
     ∀ (fuel lo hi j : ℕ), j ∈ (bisect R t w walk fuel lo hi).1 → lo < j ∧ j < hi
@@ -168,6 +239,87 @@ theorem take_of_mem_replayReads (H : Hypothesis α) (w : FreeMonoid α) (e : ℕ
     rw [List.take_left' hlen]
     simp [prefixOf]
 
+theorem take_of_prefix_mul {w : FreeMonoid α} {i : ℕ} (hin : i ≤ w.toList.length)
+    (m : FreeMonoid α) :
+    i ≤ (prefixOf w i * m).toList.length ∧ w.toList.take i = (prefixOf w i * m).toList.take i := by
+  have hlen : (prefixOf w i).toList.length = i := by
+    simp [prefixOf, List.length_take, hin]
+  refine ⟨?_, ?_⟩
+  · simp only [FreeMonoid.toList_mul, List.length_append, hlen]
+    omega
+  · simp only [FreeMonoid.toList_mul]
+    rw [List.take_left' hlen]
+    simp [prefixOf]
+
+/-- A string a replay harvests starts as the draw does, up to some point at or past the earliest
+anchor: a prefix it cannot place, extended by a midfix, or the prefix before the disagreeing
+edge. -/
+theorem take_of_mem_harvest (H : Hypothesis α) (w : FreeMonoid α) (e : ℕ)
+    {x : FreeMonoid α} (h : x ∈ (replay R H w e).2) :
+    ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i := by
+  have hc : ∀ j ∈ (List.range (w.toList.length + 1)).filter (e ≤ ·),
+      e ≤ j ∧ j ≤ w.toList.length := by
+    intro j hj
+    simp only [List.mem_filter, List.mem_range, decide_eq_true_eq] at hj
+    omega
+  have hm := anchorSearch_mem R H.tree w ((List.range (w.toList.length + 1)).filter (e ≤ ·))
+  have hpre : ∀ i, e ≤ i → i ≤ w.toList.length → ∀ m, x = prefixOf w i * m →
+      ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i := by
+    rintro i hei hin m rfl
+    exact ⟨i, hei, take_of_prefix_mul hin m⟩
+  have hmissed : x ∈ (anchorSearch R H.tree w
+      ((List.range (w.toList.length + 1)).filter (e ≤ ·))).1.filterMap
+        (fun i => (H.tree.sift R.cut (prefixOf w i)).getRight?) →
+      ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i := by
+    intro hx
+    obtain ⟨i, hi, hgr⟩ := List.mem_filterMap.mp hx
+    obtain ⟨hei, hin⟩ := hc _ (hm.1 _ hi)
+    have hs : H.tree.sift R.cut (prefixOf w i) = .inr x := by
+      rcases hq : H.tree.sift R.cut (prefixOf w i) with q | q <;> rw [hq] at hgr <;>
+        simp at hgr
+      rw [hgr]
+    obtain ⟨m, hm'⟩ := DTree.sift_inr _ hs
+    exact hpre i hei hin m hm'
+  have hwn : prefixOf w w.toList.length = w := by simp [prefixOf]
+  simp only [replay] at h
+  split at h
+  · exact hmissed h
+  · rename_i start p hs
+    obtain ⟨hes, hsn⟩ := hc _ (hm.2 _ _ hs)
+    split at h
+    · rename_i b hb
+      simp only [List.mem_append, List.mem_singleton] at h
+      rcases h with h | rfl
+      · exact hmissed h
+      · obtain ⟨m, hm'⟩ := DTree.sift_inr _ hb
+        exact hpre _ (hes.trans hsn) le_rfl m (by rw [hwn]; exact hm')
+    · rename_i actual hact
+      split_ifs at h with hagree
+      · exact hmissed h
+      · have hlt : start < w.toList.length := by
+          by_contra hge
+          have heq : start = w.toList.length := by omega
+          apply hagree
+          have h1 := anchorSearch_some R H.tree w _ hs
+          subst heq
+          rw [hwn, hact, Sum.inl.injEq] at h1
+          subst h1
+          simp
+        simp only [List.mem_append] at h
+        rcases h with h | h
+        · exact hmissed h
+        · split at h
+          · rename_i b hb'
+            simp only [List.mem_singleton] at h
+            subst h
+            obtain ⟨j, hj1, hj2, m, hm'⟩ := (bisect_result R H.tree w _ _ _ _ hlt).1 _ hb'
+            exact hpre j (by omega) (by omega) m hm'
+          · rename_i fd hfd
+            simp only [List.mem_singleton] at h
+            subst h
+            obtain ⟨h1, h2⟩ := (bisect_result R H.tree w _ _ _ _ hlt).2 fd hfd
+            exact hpre (fd - 1) (by omega) (by omega) 1 (by simp)
+
 instance (L : ℕ) : IsFiniteMeasure (anchorLaw L) := by
   constructor
   rcases Nat.eq_zero_or_pos L with rfl | hL
@@ -193,21 +345,24 @@ theorem anchorLaw_real_le (L i : ℕ) :
     ENNReal.toReal_natCast]
   ring
 
-/-- A replay anchored no earlier than a point drawn from `A` reads `t` with chance at most
+/-- If whatever a replay from `e` reads or harvests starts as the draw does up to some point at or
+past `e`, a replay from an anchor drawn from `A` takes `t` with chance at most
 `∑_{i ≤ |t|} A(e ≤ i) · D(the draw's first i letters are t's)`. -/
-theorem replay_spread_of (H : Hypothesis α) (D : Measure (FreeMonoid α)) [IsFiniteMeasure D]
-    (A : Measure ℕ) [IsFiniteMeasure A] (t : FreeMonoid α) :
-    (D.prod A).real {q | t ∈ replayReads R H q.1 q.2}
+theorem spread_of (P : FreeMonoid α → ℕ → FreeMonoid α → Prop)
+    (hP : ∀ w e x, P w e x → ∃ i, e ≤ i ∧ i ≤ x.toList.length ∧ w.toList.take i = x.toList.take i)
+    (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (A : Measure ℕ) [IsFiniteMeasure A]
+    (t : FreeMonoid α) :
+    (D.prod A).real {q | P q.1 q.2 t}
       ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
           A.real {e | e ≤ i} * D.real {p | p.toList.take i = t.toList.take i} := by
-  have hsub : {q : FreeMonoid α × ℕ | t ∈ replayReads R H q.1 q.2} ⊆
+  have hsub : {q : FreeMonoid α × ℕ | P q.1 q.2 t} ⊆
       ⋃ i ∈ Finset.range (t.toList.length + 1),
         {p : FreeMonoid α | p.toList.take i = t.toList.take i} ×ˢ {e : ℕ | e ≤ i} := by
     rintro ⟨p, e⟩ hq
-    obtain ⟨i, hei, hit, htake⟩ := take_of_mem_replayReads R H p e hq
+    obtain ⟨i, hei, hit, htake⟩ := hP p e t hq
     simp only [Set.mem_iUnion, Finset.mem_range, Set.mem_prod, Set.mem_setOf_eq]
     exact ⟨i, by omega, htake, hei⟩
-  calc (D.prod A).real {q | t ∈ replayReads R H q.1 q.2}
+  calc (D.prod A).real {q | P q.1 q.2 t}
       ≤ (D.prod A).real (⋃ i ∈ Finset.range (t.toList.length + 1),
           {p : FreeMonoid α | p.toList.take i = t.toList.take i} ×ˢ {e : ℕ | e ≤ i}) :=
         measureReal_mono hsub (measure_ne_top _ _)
@@ -339,7 +494,12 @@ theorem replay_yield (H : Hypothesis α) (D : Measure (FreeMonoid α)) [IsProbab
 
 theorem round_outcome_holds : RoundOutcome := by
   intro α _ _ R H D _ L hb
-  exact ⟨replay_yield R H D L hb, fun t => (replay_spread_of R H D (anchorLaw L) t).trans_eq
-    (Finset.sum_congr rfl fun i _ => by rw [anchorLaw_real_le])⟩
+  refine ⟨replay_yield R H D L hb, fun t => ?_, fun t => ?_⟩
+  · exact (spread_of (fun w e x => x ∈ (replay R H w e).2)
+      (fun w e x h => take_of_mem_harvest R H w e h) D (anchorLaw L) t).trans_eq
+      (Finset.sum_congr rfl fun i _ => by rw [anchorLaw_real_le])
+  · exact (spread_of (fun w e x => x ∈ replayReads R H w e)
+      (fun w e x h => take_of_mem_replayReads R H w e h) D (anchorLaw L) t).trans_eq
+      (Finset.sum_congr rfl fun i _ => by rw [anchorLaw_real_le])
 
 end OrthoDFA

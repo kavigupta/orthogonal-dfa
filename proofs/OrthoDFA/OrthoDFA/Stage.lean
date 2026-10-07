@@ -12,6 +12,13 @@ tree places, walk the hypothesis, sift the draw, and bisect to the first edge wh
 part, keeping every string the cut cannot place and, with every read decided, the draw up to that
 edge.
 
+`RoundOutcome`: for any tree and DFA a round ends with, if the DFA/DT agreement check fails on a
+share `d` of sampler strings, the harvest sampler finds at least one string on at least a `d/L`
+share of attempts, harvests no single string `t` on more than a `B(t)` share of them, and reads no
+single string `t` on more than a `B(t)` share of them, where
+
+    B(t) = ∑_{i ≤ |t|} min(i + 1, L) / L · D(the draw's first i letters are t's).
+
 Known modelling gap.  This is `Walked` as #398 (the uniform anchor) and #403 (one harvest, which
 keeps the disagreement's prefix) have it; on main it walks from the start and keeps no prefix.
 
@@ -162,23 +169,23 @@ at the middle of the band sends `ε`, it ends somewhere other than where that re
 def DFAandDTDisagree (H : Hypothesis α) (x : FreeMonoid α) : Prop :=
   x.toList.foldl H.step (midPath R H 1) ≠ midPath R H x
 
-/-- `RoundOutcome`: whatever hypothesis a round ends with, a replay of a draw from `D` anchored no
-earlier than a point drawn uniformly below `L`
+/-- `RoundOutcome`: for any tree and DFA a round ends with, if the DFA/DT agreement check fails
+on a share `d` of `D`, the harvest's replay, from an earliest anchor drawn uniformly below `L`,
 
-* harvests with chance at least `1/L` of the share `d` of `D` the DFA/DT agreement gate counts
-  against the hypothesis, so a round either passes the gate or leaves a harvest whose sampler
-  yields at least `d/L`; and
-* reads any one string `t` with chance at most
+* finds at least one string on at least a `d/L` share of attempts;
+* harvests no single string `t` on more than a `B(t)` share of them; and
+* reads no single string `t` on more than a `B(t)` share of them,
 
-      ∑_{i ≤ |t|} min(i + 1, L) / L · D(the draw's first i letters are t's),
-
-  so what it harvests is spread over the strings the draws start with. -/
+where `B(t) = ∑_{i ≤ |t|} min(i + 1, L) / L · D(the draw's first i letters are t's)`. -/
 def RoundOutcome : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (H : Hypothesis α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
     R.B.lo ≤ R.B.hi →
     D.real {x | DFAandDTDisagree R H x} / L
         ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
+      ∧ (∀ t : FreeMonoid α, (D.prod (anchorLaw L)).real {q | t ∈ (replay R H q.1 q.2).2}
+          ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
+              ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i})
       ∧ ∀ t : FreeMonoid α, (D.prod (anchorLaw L)).real {q | t ∈ replayReads R H q.1 q.2}
           ≤ ∑ i ∈ Finset.range (t.toList.length + 1),
               ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i}

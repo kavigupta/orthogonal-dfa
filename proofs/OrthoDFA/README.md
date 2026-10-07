@@ -8,10 +8,11 @@
   the returned family decides a prefix wrongly at most `εcov + slack` of the time on the uniform
   pool and at most `1/2 + slack` on any other, and leaves it undecided at most
   `2·indecisionLimit + slack` of the time on each.
-- `OrthoDFA/Stage.lean` — `RoundOutcome`: whatever hypothesis a round of the L\* stage ends
-  with, its harvest's replay yields at least `1/L` of the rate at which the DFA/DT agreement gate
-  counts the hypothesis wrong, and reads any one string with chance at most
-  `∑_{i ≤ |t|} min(i+1, L)/L · D(the draw starts as t does)`.
+- `OrthoDFA/Stage.lean` — `RoundOutcome`: for any tree and DFA a round ends with, if the DFA/DT
+  agreement check fails on a share `d` of sampler strings, the harvest sampler finds at least one
+  string on at least a `d/L` share of attempts, harvests no single string `t` on more than
+  `∑_{i ≤ |t|} min(i+1, L)/L · D(the draw starts as t does)` of them, and reads no single string
+  on more than that.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
