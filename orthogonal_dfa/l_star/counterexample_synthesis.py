@@ -35,6 +35,7 @@ from .edge_chains import (
     UNDECIDED_EDGE,
     EdgeChain,
     EdgeTest,
+    detecting_reads,
     fresh_sifter,
     judge_edges,
     midpoint_disagreement,
@@ -194,9 +195,9 @@ def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
             promote_above=_MIN_DETECTABLE_SPLIT,
             keep_above=EDGE_RISE * keep_rate,
             failure_prob=failure_prob,
-            cap=separating_reads(
-                EDGE_RISE * keep_rate, _MIN_DETECTABLE_SPLIT, failure_prob
-            ),
+            # Hitless by then, the edge is below the split test's share but for
+            # failure_prob.
+            cap=detecting_reads(_MIN_DETECTABLE_SPLIT, failure_prob),
         )
 
     def undecided_test(sifter, letter, keep_rate):

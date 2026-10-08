@@ -173,6 +173,22 @@ class TestOneDrawServesEveryEdgeOutOfASource(unittest.TestCase):
         self.assertTrue(all(test.verdict == DROP for test in tests))
 
 
+class TestAHitlessDisagreementEdgeStopsOnceItCouldHaveShownOne(unittest.TestCase):
+    def test_it_drops_at_the_detecting_count(self):
+        cap = ec.detecting_reads(0.1, 1e-4)
+        test = ec.EdgeTest(
+            lambda drawn: (False, 1, []),
+            promote_above=0.1,
+            keep_above=1.5e-6,
+            failure_prob=1e-4,
+            cap=cap,
+        )
+        ec.judge_edges(_Counting(), [test])
+
+        self.assertEqual((DROP, cap), (test.verdict, test.weight))
+        self.assertLess(cap, 100)
+
+
 class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
     def _verdict(self, undecided, reads):
         return edge_verdict(

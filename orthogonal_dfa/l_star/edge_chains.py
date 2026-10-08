@@ -62,6 +62,12 @@ def edge_verdict(
     return ROLL_OVER if undecided > keep_above * reads else DROP
 
 
+def detecting_reads(rate, failure_prob) -> int:
+    """Reads after which an edge at ``rate`` or above has shown a hit but for
+    chance ``failure_prob``: (1 - rate)^n <= exp(-n rate)."""
+    return ceil(log(1 / failure_prob) / rate)
+
+
 def separating_reads(low, high, failure_prob) -> int:
     """Reads after which a rate at ``low`` or below and one at ``high`` or above
     are each misjudged with chance at most ``failure_prob`` (Chernoff, both read
