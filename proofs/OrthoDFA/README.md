@@ -48,7 +48,11 @@
   assumed here.
 - `OrthoDFA/Ends.lean` — `StartRootCovered`: the FNR gate reads a population of the sampler's
   draws cut to length `k`, and what it certifies there bounds how often the walk's start is left
-  undecided at the root.
+  undecided at the root. Below the root, the round adds the populations `X·m`, `X` either end's
+  draws and `m` a midfix below the root. `EndsCovered`: a sift left undecided below the root
+  leaves some `x·m` undecided, so these populations are left undecided at least as often as the
+  ends are. `BadShare`: a population left undecided `ā` of the time has at least
+  `(ā − f)/(umax − f)` of its mass at states read undecided more than `f` of the time.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

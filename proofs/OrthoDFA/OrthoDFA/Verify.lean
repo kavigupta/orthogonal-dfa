@@ -12,8 +12,8 @@ import OrthoDFA.Proofs.Ends
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
 in `OrthoDFA.Round`, `RoundAtK`, `CheckYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`,
-`StartExists`, stated in `OrthoDFA.StartState`, and `StartRootCovered`, stated in
-`OrthoDFA.Ends`, hold.
+`StartExists`, stated in `OrthoDFA.StartState`, and `StartRootCovered`, `EndsCovered` and
+`BadShare`, stated in `OrthoDFA.Ends`, hold.
 -/
 
 namespace OrthoDFA
@@ -54,5 +54,13 @@ theorem start_exists : StartExists := start_exists_holds
 theorem start_root_covered' : StartRootCovered := start_root_covered
 
 #print axioms start_root_covered'
+
+theorem ends_covered' : EndsCovered := ends_covered
+
+#print axioms ends_covered'
+
+theorem bad_share' : BadShare := bad_share
+
+#print axioms bad_share'
 
 end OrthoDFA
