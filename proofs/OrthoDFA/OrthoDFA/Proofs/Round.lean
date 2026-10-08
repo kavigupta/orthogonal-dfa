@@ -162,14 +162,16 @@ theorem rolled_odds {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFinite
       simpa [Finset.prod_const, Finset.card_range] using this
     simpa [setIntegral_const, smul_eq_mul, mul_comm] using this
 
-/-- Believed true, from `rolled_odds`: after `k ≥ rolloverRounds − 1` links the bad-to-clean odds
-are at least `(uHi/(r·a))^k · π/(1−π) ≥ f·r·a/(uHi − f·r·a)`, so the bad share is at least `f·r·a/uHi`
-so the chain's rate reaches #408's promotion rate. -/
+/-- Believed true, from `rolled_odds`: after `k ≥ rolloverRounds − 1` links the bad-to-clean
+odds are at least `(uHi/(r·a))^k · π/(1−π) ≥ f·r·a/(uHi − f·r·a)`, so the bad share is at least
+`f·r·a/uHi` and the chain's rate reaches #408's promotion rate. -/
 theorem rollover_promotes (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
     (X : Measure (FreeMonoid α)) [IsFiniteMeasure X] (c : α)
     (links : List (State × Finset (FreeMonoid α))) (bad : Set (FreeMonoid α))
-    {f a uHi π : ℝ} {r : ℕ} (hf : 1 ≤ f) (hra : 0 < r * a) (hT : f * r * a < uHi) (hπ0 : 0 < π) (hπ1 : π < 1)
-    (hHi : ∀ l ∈ links, ∀ x ∈ bad, uHi ≤ stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)))
+    {f a uHi π : ℝ} {r : ℕ} (hf : 1 ≤ f) (hra : 0 < r * a) (hT : f * r * a < uHi)
+    (hπ0 : 0 < π) (hπ1 : π < 1)
+    (hHi : ∀ l ∈ links, ∀ x ∈ bad,
+      uHi ≤ stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)))
     (hc : ∀ l ∈ links, ∀ x ∉ bad,
       stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)) ≤ r * a)
     (hπ : π * X.real Set.univ ≤ X.real bad)
@@ -177,5 +179,47 @@ theorem rollover_promotes (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid
     f * r * a / uHi * (rolledLaw A O X c links).real Set.univ
       ≤ (rolledLaw A O X c links).real bad := by
   sorry
+
+theorem withDensity_real_eq {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFiniteMeasure X]
+    (g : β → ℝ) (hm : Measurable g) (h0 : ∀ x, 0 ≤ g x) {S : Set β} (hS : MeasurableSet S) :
+    (X.withDensity fun x => ENNReal.ofReal (g x)).real S = ∫ x in S, g x ∂X := by
+  rw [measureReal_def, withDensity_apply _ hS,
+    integral_eq_lintegral_of_nonneg_ae (Filter.Eventually.of_forall h0) hm.aestronglyMeasurable]
+
+theorem stateIndecision_nonneg (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
+    (B : State) (F : Finset (FreeMonoid α)) (q : Q) : 0 ≤ stateIndecision A O B F q :=
+  Real.sSup_nonneg fun _ ⟨_, _, h⟩ => h ▸ measureReal_nonneg
+
+theorem stateIndecision_le_one [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (q : Q) :
+    stateIndecision A O B F q ≤ 1 :=
+  Real.sSup_le (fun _ ⟨_, _, h⟩ => h ▸ measureReal_le_one) zero_le_one
+
+/-- A chain whose source holds predecessors of a badly read state advances whenever the round's
+family reads every other draw's extension cleanly, as the gap premise has it. -/
+theorem chainAdvances_of_mass [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (sources : List (Measure (FreeMonoid α)))
+    (hfin : ∀ X ∈ sources, IsFiniteMeasure X) {a uHi : ℝ} (hHi0 : 0 ≤ uHi)
+    (hgap : GapPremise A O R.B R.F a uHi)
+    (hmass : ∃ X ∈ sources, ∃ c : α, 0 < X.real (badAlong A O R c uHi)) :
+    ChainAdvances A O R sources uHi a := by
+  obtain ⟨X, hX, c, hpos⟩ := hmass
+  have := hfin X hX
+  refine ⟨X, hX, c, hpos, ?_⟩
+  set g := fun x : FreeMonoid α => stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))
+  have hm : Measurable g := measurable_from_top
+  have hlaw : rolledLaw A O X c [(R.B, R.F)] = X.withDensity fun x => ENNReal.ofReal (g x) := by
+    simp [rolledLaw, g]
+  have hbad : MeasurableSet (badAlong A O R c uHi) := MeasurableSpace.measurableSet_top
+  have hodds := rolled_odds X (fun _ => g) 1 (fun _ => hm)
+    (fun _ x => stateIndecision_nonneg A O R.B R.F _) (fun _ x => stateIndecision_le_one A O R.B R.F _)
+    _ hbad hHi0 (fun _ x hx => hx) (fun _ x hx => by
+      rcases hgap (A.state (x * FreeMonoid.of c)) with h | h
+      · exact h
+      · exact absurd h hx)
+  simp only [Finset.prod_range_one, pow_one] at hodds
+  rw [hlaw, withDensity_real_eq X g hm (fun x => stateIndecision_nonneg A O R.B R.F _) hbad,
+    withDensity_real_eq X g hm (fun x => stateIndecision_nonneg A O R.B R.F _) hbad.compl]
+  exact hodds
 
 end OrthoDFA

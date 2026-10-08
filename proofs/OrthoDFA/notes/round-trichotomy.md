@@ -454,3 +454,61 @@ The cost is that chains with tiny π live about log(1/π) rounds. Live chains st
 **What else changes across rounds.** The family changes each round, so `u_j` and the clean
 rates `c_j` are per link. That is why `rolled_odds` takes them per link, with only the bounds `uHi`
 and `r·a` uniform. A family that reads q below uHi at some link is outcome 3 above.
+
+## One round, four outcomes (`RoundTetrachotomy f a uHi δ r`)
+
+**The statement.** But for δ, a round ends with
+1. agreement within ε; or
+2. a population the next gate must act on: (2a), (2b), or a promoted edge population; or
+3. halving; or
+4. `ChainAdvances`: some chain source X has positive mass on `badAlong c`, the draws whose `·c` is
+   read at least `uHi` undecided. X is a live chain carried into the round, or one of this round's
+   per-state populations. The chain carried past this round's link (`rolledLaw X c [link]`) has
+   that mass multiplied by at least `uHi` and the rest's by at most `a`, so the odds grow by at
+   least `β = uHi/a`, per node read.
+
+Premises: `Valid`, the gap premise with `uLo = a`, `f > uHi/(uHi − 2τ)` and `f·r·a < uHi`.
+
+**What is proved.** `chainAdvances_of_mass` (only `propext`, `Classical.choice` and `Quot.sound`):
+under the gap premise, (4) holds whenever some source has positive `badAlong` mass. The proof is
+`rolled_odds` with one link plus `withDensity_real_eq`. Fresh reads for this round's link are what
+make `rolledLaw` the chain's actual law. That is a modelling bridge, not a hypothesis of the Lean
+statement, since the Lean law is defined as the fresh-read one.
+
+**Why `RoundTetrachotomy` is still a definition.** A round outside (1)–(3) that has no such source
+is the residual: every predecessor p (along any letter c) of every badly read state has zero mass in
+every live chain and every per-state population. Since per-state aims are length-`L` strings the
+hypothesis walks to a leaf and the tree settles there, that means:
+- (a) **periodic targets** whose predecessors never occur at length `L`; or
+- (b) **predecessors the hypothesis always misplaces at length `L`.** It walks them to one leaf and
+  the tree settles them at another, so neither leaf's source keeps them. That is a disagreement at
+  the predecessor itself.
+
+Closing (a) needs per-state sources at lengths `L` and `L+1` (or `L..L+period`). Closing (b) needs
+the per-state source to keep aims by where they settle, not where they were walked. #408 already
+identifies chains by source objects, so a "settled at s" source is the natural parent.
+
+**(4) is weak on its own; the content is in the count.** (4) holds whenever any source carries
+predecessor mass, regardless of whether anything accumulates. What turns it into the bounded-rounds
+bound:
+- **Rule.** Drop a chain only when its rate fails to rise over its parent's. Under a fresh link,
+  the rate of a chain with bad mass rises strictly: the size-biased rate exceeds the mean by
+  `Var(u)/E[u] > 0`. So with a power-one sequential test, which never concludes "no rise" against a
+  rising rate, a chain with bad mass is never dropped. One without bad mass is kept with chance at
+  most `δ_e/K` per test.
+- **Potential.** For each edge into a badly read state (a predecessor source and letter), let
+  `Φ_e = log_β(odds of its highest live chain)`, capped at the promotion odds
+  `log_β(T/(uHi − T))`. Each round outside (1)–(3) every live chain with bad mass advances, so
+  `Φ_e` rises by at least 1. A chain reaching the cap is promoted: (2).
+- **Bound.** A stretch of rounds outside (1)–(3) therefore lasts at most
+
+      R = rolloverRounds f a uHi π_min r
+
+  rounds after the first chain on a bad edge starts, where `π_min` is that chain's starting
+  predecessor share. Termination's counting of undecided-state sets covers the stretch ending
+  because q stops being badly read.
+- **Number of chains.** At most the edges into badly read states, plus false keeps, which are
+  δ-charged at `δ_e` per round.
+- **With a capped test** (n replays), a rising chain whose rise `Var(u)/E[u]` is below the
+  resolution `≈ √(p·ln(K/δ_e)/n)` can be dropped. That adds a residual `π ≲ p·ln(K/δ_e)/(n·u_q²)`
+  at the start of a chain.
