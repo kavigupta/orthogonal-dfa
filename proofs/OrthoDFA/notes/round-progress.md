@@ -1,3 +1,7 @@
+> Superseded by `start-at-k.md`.  Its claim that every harvest source besides the bisection is
+> read whether or not a probe disagrees was wrong anyway: population re-sifts and edge resolution
+> run after splits, and splits come from disagreements.
+
 # Does a refused round force progress on main (no chains)?
 
 Verdict: **(b)** — a zero-read fix closes it — with a **(c)**-shaped residual on main as it stands:
