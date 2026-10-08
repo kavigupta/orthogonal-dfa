@@ -13,6 +13,7 @@ up as a state count that also moves for unrelated reasons.
 import unittest
 from types import SimpleNamespace
 
+from orthogonal_dfa.l_star.sifting import PAIR, TRIPLE
 from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
 
 _PROBE = bytes([0, 1, 0, 1])
@@ -160,18 +161,20 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
-        self.assertEqual(([], 0), (reading.triples, reading.pairs))
+        self.assertEqual({}, {k: v for k, v in reading.harvests.items() if v})
+        self.assertFalse(reading.pairs)
 
     def test_a_triple_leaves_its_middles_boundary_string(self):
         reading = _gate(_disagreeing({3}), _TO_REJECT).read_fresh(acc_threshold=0.9)
 
-        self.assertEqual([_PROBE[:3] + b"?"], reading.triples)
+        self.assertEqual([_PROBE[:3] + b"?"], reading.harvests[TRIPLE])
 
     def test_a_pair_leaves_nothing_but_is_counted(self):
         learner = _gate(_disagreeing({2, 3}), _TO_REJECT, k=1)
         reading = learner.read_fresh(acc_threshold=0.9)
 
-        self.assertEqual([], reading.triples)
+        self.assertEqual([], reading.harvests[TRIPLE])
+        self.assertEqual([_PROBE[:2] + b"?", _PROBE[:3] + b"?"], reading.harvests[PAIR])
         self.assertTrue(reading.pairs)
         # The gate's 30 draws, then the refusal sample's: the pairs settle above
         # their rate at its first look and the clean ends below theirs at its
@@ -211,7 +214,7 @@ class TestReadingFreshDraws(unittest.TestCase):
         reading = learner.read_fresh(acc_threshold=0.9)
         learner.draws = iter([_PROBE])
 
-        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading))
+        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading, TRIPLE))
 
 
 if __name__ == "__main__":

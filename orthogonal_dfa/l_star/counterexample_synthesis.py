@@ -31,7 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import TransitionResolver, start_length
+from .transition_resolver import HARVESTED, TransitionResolver, start_length
 
 
 @dataclass
@@ -160,17 +160,18 @@ def _hold_ends(pst, state, ends, count) -> None:
 
 
 def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
-    """Hold the middles of the triples the gate's disagreements came down to, as
-    a population grown by replaying the gate's reading, and the start and end
-    populations at the midfixes the gate's ends stopped at."""
+    """Hold what the gate's refusal sample's outcomes left, a population per
+    kind grown by replaying that reading, and the start and end populations at
+    the midfixes the sample's ends stopped at."""
     _hold_ends(pst, state, gate.ends, per_state)
-    if gate.triples:
-        source = HarvestSource(
-            partial(resolver.replay, gate),
-            known=state.seen,
-            acc_threshold=acc_threshold,
-        )
-        state.hold_found("triple", gate.triples, source)
+    for kind, found in gate.harvests.items():
+        if found:
+            source = HarvestSource(
+                partial(resolver.replay, gate, kind),
+                known=state.seen,
+                acc_threshold=acc_threshold,
+            )
+            state.hold_found(HARVESTED[kind], found, source)
 
 
 def _halve(pst, gate, *, acc_threshold) -> bool:

@@ -48,20 +48,31 @@ from .suffix_family import SuffixFamily
 READING_DRAWS = 2000
 #: Most fresh draws a refused gate reads against its start.
 REFUSAL_DRAWS = 480
-#: The share of the gate's tolerance two adjacent undecided reads may take.
-PAIR_SHARE = 0.1
+#: The share of a refusal sample's searches that may end in a pair.
+PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the start
-#: that agrees on most of them and the share it agrees on, the boundary strings
-#: of the triples a refusal sample's disagreements were searched down to,
+#: that agrees on most of them and the share it agrees on, per harvested outcome
+#: the strings a refusal sample's disagreements left (see ``_harvested``),
 #: whether too many came down to a pair, the ends and midfixes the cut stopped
 #: below the root at where it did so too often, the disagreements searched, and
 #: the learned and exported edges they were read against.
 Reading = namedtuple(
-    "Reading", "start agreement triples pairs ends disagreements learned transitions"
+    "Reading", "start agreement harvests pairs ends disagreements learned transitions"
 )
+
+#: The outcomes whose strings a refusal sample holds, and the populations they
+#: are held as.
+HARVESTED = {TRIPLE: "triple", PAIR: "pair", UNLEARNED_EDGE: "member"}
+
+
+def _harvested(outcome):
+    """The strings an outcome leaves: a triple's middle, a pair's two reads, or
+    an unlearned edge's member."""
+    return outcome.string if outcome.kind == PAIR else (outcome.string,)
+
 
 #: The outcomes of a search for where a decided disagreement parts.
 _SEARCHED = (PAIR, EDGE, TRIPLE)
@@ -219,11 +230,11 @@ class TransitionResolver:
                 break
         start = _best(agree)
         reading = Reading(
-            start, agree[start] / drawn, [], False, [], [], None, transitions
+            start, agree[start] / drawn, {}, False, [], [], None, transitions
         )
         if reading.agreement >= acc_threshold:
             return reading
-        return self._refused(reading, transitions, acc_threshold)
+        return self._refused(reading, transitions)
 
     def _ends_at(self, w, transitions):
         """Where the exported DFA ends on ``w`` from each state."""
@@ -237,19 +248,19 @@ class TransitionResolver:
         ``w``."""
         return (end in self.tree.accepting_leaves()) == self.family.middle_side(w, b"")
 
-    def _refused(self, gate, transitions, acc_threshold) -> Reading:
+    def _refused(self, gate, transitions) -> Reading:
         """``gate`` with what a refusal sample, read against its start, holds.
 
         Each draw's start and whole are sifted, and where the start disagrees on
         it, it is read from ``k`` (see ``read``).  Starts and wholes the cut
         stops below the root at are each tested against ``fnr_limit`` a node
         below the root on the deepest path, and the pairs among the searches
-        against ``PAIR_SHARE`` of the gate's tolerance: the sample is read at
+        against ``PAIR_SHARE`` of them: the sample is read at
         each of ``_REFUSAL_LOOKS`` until all three settle."""
         learned = self.learned()
         rates = (
             (self.tree.depth - 1) * self.pst.fnr_limit,
-            PAIR_SHARE * (1 - acc_threshold),
+            PAIR_SHARE,
         )
         sample = []
         while len(sample) < REFUSAL_DRAWS:
@@ -276,9 +287,17 @@ class TransitionResolver:
         ]
         searched = [(w, o) for w, _, _, o in sample if o and o.kind in _SEARCHED]
         return gate._replace(
-            triples=list(
-                dict.fromkeys(o.string for _, o in searched if o.kind == TRIPLE)
-            ),
+            harvests={
+                kind: list(
+                    dict.fromkeys(
+                        string
+                        for *_, o in sample
+                        if o is not None and o.kind == kind
+                        for string in _harvested(o)
+                    )
+                )
+                for kind in HARVESTED
+            },
             pairs=pairs,
             ends=[(end, m) for end, m in held if m is not None],
             disagreements=[w for w, _ in searched],
@@ -288,14 +307,14 @@ class TransitionResolver:
     def _read(self, w, learned):
         return read(w, self.sifter.sift_and_boundary, learned, self.k)
 
-    def replay(self, gate):
-        """Read a fresh draw as the ``gate`` reading did, for the middle of a
-        triple."""
+    def replay(self, gate, kind):
+        """Read a fresh draw as the ``gate``'s refusal sample did, for what an
+        outcome of ``kind`` leaves."""
         w = self._draw()
         if self._accepts(self._ends_at(w, gate.transitions)[gate.start], w):
             return []
         outcome = self._read(w, gate.learned)
-        return [outcome.string] if outcome.kind == TRIPLE else []
+        return list(_harvested(outcome)) if outcome.kind == kind else []
 
     # -- counterexamples ----------------------------------------------------
 

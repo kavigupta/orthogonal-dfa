@@ -71,7 +71,7 @@ UNLEARNED_EDGE = "unlearned edge"
 #: ``kind``; ``at``, the length of the prefix the outcome is at (the read cut
 #: short, the edge's head, a triple's middle, the first of a pair, or the prefix
 #: before an unlearned edge); ``string``, the boundary string of an undecided
-#: read, or the member an unlearned edge leaves; and ``state``, the walk's state
+#: read, both a pair's, or the member an unlearned edge leaves; and ``state``, the walk's state
 #: before an edge, or the one an unlearned edge leaves its member to.
 Outcome = namedtuple("Outcome", "kind at string state")
 
@@ -134,11 +134,15 @@ def _search(probe, sift, states, lo):
             continue
         left = agrees(mid - 1)
         if left is None:
-            return Outcome(PAIR, mid - 1, None, None)
+            return _pair(probe, sift, mid - 1)
         right = agrees(mid + 1)
         if right is None:
-            return Outcome(PAIR, mid, None, None)
+            return _pair(probe, sift, mid)
         if left and not right:
             return Outcome(TRIPLE, mid, sift(probe[:mid])[1], None)
         lo, hi = (lo, mid - 1) if not left else (mid + 1, hi)
     return Outcome(EDGE, hi, None, states[hi - 1])
+
+
+def _pair(probe, sift, at):
+    return Outcome(PAIR, at, (sift(probe[:at])[1], sift(probe[: at + 1])[1]), None)
