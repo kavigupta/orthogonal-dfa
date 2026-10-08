@@ -580,3 +580,42 @@ letter `c` is unlearned, and `u·c` is placed. So the next round's vote has a vo
 
 Pending: R3 (leftover edges), R4 (the start region, likely the coverage precondition), and R5
 (nothing-to-rerun halving).
+
+**R3 approved, as a stopping rule.** Reruns continue while the latest refusal sample has edges.
+The round stops when the gate passes, when a refusal sample has no edges, or when the budget runs
+out.
+
+**A stop on "no edges".** Every draw in the refusal sample is read to an outcome, and none was an
+edge. So by Hoeffding at the sample's size, `D(edge ∧ Dis_q̂) ≤ δ_e`, except with chance
+`exp(−2·n·δ_e²)`. The other classes then carry at least `1 − acc − δ − δ_e`.
+
+**Budget exhaustion needs its own outcome.** Making it unlikely needs two facts:
+- **(A) Real wrong edges get split.**
+  - Each rerun of a real wrong edge splits, adds `sprime` ahead of the member limit, or stops at
+    a string the cut cannot place.
+  - The split test fires after about `m* ≈ log(2T/splitFpr)/gain` members on the minority side.
+    This needs:
+    - `m* ≤ memberLimit`, because `members` keeps only the first `memberLimit`;
+    - the training half to classify the members correctly;
+    - the parting reads to be decided. A parting read the cut cannot place gives "stopped", which
+      adds nothing.
+  - Those reads are interior reads at the leaf `s1`. Only the fresh-read bound covers them, and it
+    covers well-read states only.
+- **(B) False edges do not keep the loop going.**
+  - At a leaf that is truly one state, a decided disagreement comes only from reads decided the
+    wrong way. These are not bounded where the search reads: the clustering guarantee bounds wrong
+    decisions only on the gated populations, the root at lengths `k` and `L`. This is the F6
+    occupancy issue again.
+  - "No edges" also means a zero count. A false-edge rate of about `1/(n·(1 − acc))` per draw keeps
+    every refusal sample non-empty, so reruns go on until the budget runs out.
+
+**Proposal.**
+- Make budget exhaustion with edges remaining outcome 4. Prove that outcome 4 is unlikely when
+  three conditions hold:
+  - the budget is at least `m*·|leaves|·|Σ|` reruns' worth of probes;
+  - `m* ≤ memberLimit`;
+  - the false-edge rate is below the stopping threshold.
+- Change "no edges" to "the edge rate settles below `θe′`" on the refusal sample. Then false edges
+  below `θe′` cannot force exhaustion. (B) becomes the explicit condition "decided-wrong edges
+  are below `θe′`". That is a family property at interior reads, so it is either a premise or a
+  fourth way for the round to end, not something to derive.
