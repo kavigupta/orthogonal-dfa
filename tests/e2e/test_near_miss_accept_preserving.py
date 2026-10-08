@@ -8,6 +8,7 @@ suffixes calls such prefixes accept where the noiseless oracle calls them reject
 import unittest
 
 import numpy as np
+from parameterized import parameterized
 
 from orthogonal_dfa.l_star.examples.bernoulli_parity import BernoulliRegex
 from orthogonal_dfa.l_star.sampler import Sampler
@@ -68,10 +69,9 @@ def learn_with_near_misses(seed: int, share: float = NEAR_MISS_SHARE):
 
 
 class TestNearMissAcceptPreserving(unittest.TestCase):
-    def test_near_miss_prefixes_do_not_break_the_round_check(self):
-        for seed in SEEDS:
-            with self.subTest(seed=seed):
-                learn_with_near_misses(seed)
+    @parameterized.expand([(seed,) for seed in SEEDS])
+    def test_near_miss_prefixes_do_not_break_the_round_check(self, seed):
+        learn_with_near_misses(seed)
 
 
 if __name__ == "__main__":
