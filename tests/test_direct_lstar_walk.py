@@ -1,6 +1,6 @@
 """How :class:`TransitionResolver` walks a probe from its start, what it does
-where the walk is blocked or a split attempt cannot go on, how it reads fresh
-draws, and the start it exports.
+where the walk is blocked or a split attempt cannot go on, and how it reads fresh
+draws.
 
 Driven by stubs rather than synthesis: these are properties of the walk, and the
 end-to-end targets that depend on them are noisy enough that a regression shows
@@ -11,7 +11,6 @@ up as a state count that also moves for unrelated reasons.
 # pylint: disable=protected-access
 
 import unittest
-from collections import deque
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
@@ -61,7 +60,6 @@ class _Learner(TransitionResolver):
         self.dfa = SimpleNamespace(transitions=transitions, witness=lambda s, c: b"")
         self.k = k
         self.dropped = {}
-        self.recent = deque()
         self.pst = SimpleNamespace(fnr_limit=fnr_limit)
         self.draws = iter(())
 
@@ -199,26 +197,6 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner.draws = iter([_PROBE])
 
         self.assertEqual([_PROBE[:2]], learner.replay(_EVERYWHERE))
-
-
-class TestTheExportedStart(unittest.TestCase):
-    def test_it_is_the_state_whose_runs_accept_where_the_root_does(self):
-        # From 0 a 1 accepts; from 1 everything accepts.  The root reads probes
-        # ending in 1 as accepting and the rest as not, which only 0 matches.
-        learner = _Learner(_StubSifter(lambda seq: 0), {}, 1)
-        learner.family = SimpleNamespace(middle_side=lambda seq, midfix: seq[-1] == 1)
-        learner.recent = deque([bytes([0, 1]), bytes([1, 0]), bytes([0, 0])])
-        transitions = {0: {0: 0, 1: 1}, 1: {0: 0, 1: 1}}
-
-        self.assertEqual(0, learner._best_start(transitions, accepting={1}))
-
-    def test_a_tie_goes_to_the_lowest_state(self):
-        # Each state's runs accept one of the two probes the root accepts.
-        learner = _Learner(_StubSifter(lambda seq: 0), {}, 1)
-        learner.family = SimpleNamespace(middle_side=lambda seq, midfix: True)
-        learner.recent = deque([bytes([0]), bytes([0, 0])])
-
-        self.assertEqual(0, learner._best_start({0: {0: 1}, 1: {0: 0}}, {1}))
 
 
 if __name__ == "__main__":

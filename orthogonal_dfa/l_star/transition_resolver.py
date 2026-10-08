@@ -32,7 +32,7 @@ remapping on export.
 """
 
 import math
-from collections import deque, namedtuple
+from collections import namedtuple
 
 from automata.fa.dfa import DFA
 
@@ -73,8 +73,6 @@ class TransitionResolver:
         #: Probes since the pass's last split or undecided split test.
         self.quiet_probes = 0
         self.k = start_length(pst.sampler.length)
-        #: The pass's last fresh probes, for the export to pick its start on.
-        self.recent = deque()
         #: What the pass's split attempts could not place.
         self.dropped = {}
         self.family = SuffixFamily(pst, vs)
@@ -207,7 +205,6 @@ class TransitionResolver:
         """Split in place on the disagreements probes find until ``patience``
         probes in a row go without one, starting with the probes ``first``;
         returns how many it probed."""
-        self.recent = deque(self.recent, maxlen=patience)
         self.quiet_probes = probed = 0
         with counter(max_probes, "Probing for counterexamples") as pbar:
             for w in self._probes(first, max_probes):
@@ -229,9 +226,7 @@ class TransitionResolver:
     def _probes(self, first, count):
         yield from first[:count]
         for _ in range(count - len(first[:count])):
-            w = self._draw()
-            self.recent.append(w)
-            yield w
+            yield self._draw()
 
     def _check(self, w) -> bool:
         """Whether the probe split a leaf or asks for more of its members."""
@@ -300,7 +295,8 @@ class TransitionResolver:
             )
 
         accepting = self.tree.accepting_leaves()
-        initial = self._best_start(transitions, accepting)
+        # Any start serves the round; the certificate tries them all.
+        initial = self.sifter.halfway(b"")
 
         dfa = DFA(
             states=set(range(n)),
@@ -311,18 +307,3 @@ class TransitionResolver:
             allow_partial=False,
         )
         return dfa, self.tree
-
-    def _best_start(self, transitions, accepting) -> int:
-        """The state from which the hypothesis accepts the pass's last probes
-        most often where the middle of the band at the root does; the lowest
-        such id."""
-        n = self.tree.num_states
-        agree = [0] * n
-        for w in self.recent:
-            label = self.family.middle_side(w, b"")
-            ends = list(range(n))
-            for symbol in w:
-                ends = [transitions[q][symbol] for q in ends]
-            for q, end in enumerate(ends):
-                agree[q] += (end in accepting) == label
-        return max(range(n), key=lambda q: (agree[q], -q))

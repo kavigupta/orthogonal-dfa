@@ -98,76 +98,110 @@ def clopper_pearson(hits, trials, level):
 
 class Verdict(NamedTuple):
     certified: bool
+    #: The hypothesis the verdict is on.
+    dfa: object
     #: The state with the largest m_S e_S at the rates read, and that e_S.
     blamed: object
     share: float
 
 
-def certifies(pst, dfa, *, alpha) -> Verdict:
-    """Certified only with
+def certifies(pst, dfas, *, alpha) -> Verdict:
+    """Whether any of ``dfas`` is certified, each tested on the same draws at
+    ``alpha / len(dfas)``, so that
 
-        P(certifies and sum_S m_S e_S > e) <= alpha,   e = certified_error,
+        P(some h certifies and sum_S m_S e_S > e) <= alpha,   e = certified_error,
 
     m_S the share of the sampler's strings reaching S, where the oracle's signal
     is min_signal_strength s exactly.  Whatever the signal, with m_A the share h
     accepts and m_R = 1 - m_A,
 
-        P(certifies, m_A m_R >= e and Delta < 2 s (1 - e / (m_A m_R))) <= alpha,
+        P(h certifies, m_A m_R >= e and Delta < 2 s (1 - e / (m_A m_R))) <= alpha,
         Delta = E[O | h accepts] - E[O | h rejects]:
 
     h reads apart by as much as a DFA that errs on e of the strings would at
     signal s exactly.
 
-    Look k reads n_k strings of the sampler, doubling, and certifies when the
+    Look k reads n_k strings of the sampler, doubling, and certifies h when the
     error_bound at gap 2 s, over Clopper-Pearson intervals on each state's share
     of the draws and on its rate of O = 1, each at look_level(alpha, k) / 2K for
-    K states, is at most e."""
-    states = sorted(dfa.states, key=str)
-    accepting = np.array([state in dfa.final_states for state in states])
-    route = _router(dfa, states, pst.sampler.length)
+    K states, is at most e.  The verdict is on the first h certified, or, where
+    every one is refused, on the one read with the least error."""
+    tests = [_Test(dfa, pst.sampler.length) for dfa in dfas]
     gap = 2 * pst.config.min_signal_strength
     error = pst.config.certified_error
-    ones = np.zeros(len(states), dtype=int)
-    drawn = np.zeros(len(states), dtype=int)
-    size = len(states)
+    size = max(len(test.states) for test in tests)
+    drawn = 0
+    refused = []
     look = 0
     while True:
         strings = [
             pst.sampler.sample(pst.rng, alphabet_size=pst.alphabet_size)
-            for _ in range(size - drawn.sum())
+            for _ in range(size - drawn)
         ]
-        reached = route(strings)
-        np.add.at(drawn, reached, 1)
-        np.add.at(ones, reached, pst.oracle.membership_queries(strings))
-        level = look_level(alpha, look) / (2 * len(states))
-        masses = clopper_pearson(drawn, np.full(len(states), size), level)
-        rates = clopper_pearson(ones, drawn, level)
-        bound = error_bound(masses, rates, accepting, gap)
-        shares, read = drawn / size, ones / np.maximum(drawn, 1)
-        blame = worst_contributions(
-            (shares, shares), (read, np.where(drawn > 0, read, 1.0)), accepting, gap
-        )
-        at_rates = float(blame.sum())
-        worst = int(np.argmax(blame))
-        share = float(blame[worst] / shares[worst]) if shares[worst] else 0.0
-        verdict = Verdict(False, states[worst], share)
-        slack = (masses[1] @ (rates[1] - rates[0])) / gap + np.sum(
-            masses[1] - masses[0]
-        )
+        drawn = size
+        reads = pst.oracle.membership_queries(strings)
+        level = look_level(alpha, look) / len(dfas)
+        read = [
+            test.read(strings, reads, size=size, level=level, gap=gap) for test in tests
+        ]
+        bound, at_rates, _, _ = min(read, key=lambda r: r[0])
         print(
             f"  certificate look {look}: {size} strings, error at most {bound:.4f}, "
             f"{at_rates:.4f} at the rates read, against {error}"
         )
-        if bound <= error:
-            return verdict._replace(certified=True)
-        # Refusing carries no guarantee, only a round.  The slack is a rough
-        # reach of the intervals, not a bound: refuse once the rates read are
-        # further above e than it, or once it is so small that only a DFA within
-        # e / 2 of the bar could still be undecided.
-        if at_rates - error > slack or slack <= error / 2:
-            return verdict
+        for test, (bound, at_rates, slack, verdict) in zip(tests, read):
+            if bound <= error:
+                return verdict._replace(certified=True)
+            # Refusing carries no guarantee, only a round.  The slack is a rough
+            # reach of the intervals, not a bound: refuse once the rates read are
+            # further above e than it, or once it is so small that only a DFA
+            # within e / 2 of the bar could still be undecided.
+            if at_rates - error > slack or slack <= error / 2:
+                refused.append((at_rates, verdict))
+        refusing = {id(verdict.dfa) for _, verdict in refused}
+        tests = [test for test in tests if id(test.dfa) not in refusing]
+        if not tests:
+            return min(refused, key=lambda r: r[0])[1]
         size *= 2
         look += 1
+
+
+class _Test:
+    """One hypothesis's counts over the certificate's draws."""
+
+    def __init__(self, dfa, length):
+        self.dfa = dfa
+        self.states = sorted(dfa.states, key=str)
+        self.accepting = np.array([state in dfa.final_states for state in self.states])
+        self._route = _router(dfa, self.states, length)
+        self._ones = np.zeros(len(self.states), dtype=int)
+        self._drawn = np.zeros(len(self.states), dtype=int)
+
+    def read(self, strings, reads, *, size, level, gap):
+        """``(bound, at_rates, slack, verdict)`` once ``strings``, read as
+        ``reads``, are counted too."""
+        reached = self._route(strings)
+        np.add.at(self._drawn, reached, 1)
+        np.add.at(self._ones, reached, reads)
+        drawn, ones = self._drawn, self._ones
+        level /= 2 * len(self.states)
+        masses = clopper_pearson(drawn, np.full(len(self.states), size), level)
+        rates = clopper_pearson(ones, drawn, level)
+        bound = error_bound(masses, rates, self.accepting, gap)
+        shares, read = drawn / size, ones / np.maximum(drawn, 1)
+        blame = worst_contributions(
+            (shares, shares),
+            (read, np.where(drawn > 0, read, 1.0)),
+            self.accepting,
+            gap,
+        )
+        worst = int(np.argmax(blame))
+        share = float(blame[worst] / shares[worst]) if shares[worst] else 0.0
+        slack = (masses[1] @ (rates[1] - rates[0])) / gap + np.sum(
+            masses[1] - masses[0]
+        )
+        verdict = Verdict(False, self.dfa, self.states[worst], share)
+        return bound, float(blame.sum()), slack, verdict
 
 
 def _router(dfa, states, length):
