@@ -25,22 +25,24 @@
   7. the pass running out of probes before a patience streak.
 
   `Pass.lean` states the pass, with its bisection population, and `Automaton.lean` the target.
-- `OrthoDFA/StartAtK.lean` — the round walked from position `k` along learned edges only. The
-  counterexample pass runs, and the gate reads fresh draws against the hypothesis it ends with.
-  `RoundAtK`: with the round's reads fixed, whatever probes the pass draws, the gate's readings
-  are right but for `2(ng·a + exp(−2·ng·δ²)) + exp(−min(n₀, ng)·δ)`. Each reading is the exact
-  binomial test at failure chance `a`, read one draw at a time and stopping early.
-  - A tripped blocked check means the check is blocked on at least `θc − δ` of draws. It adds the
-    check source and halves the limit.
-  - A passing gate means the gate's reading disagrees on at most `1 − acc + δ` of draws.
-  - A refusing gate means it disagrees on at least `1 − acc − δ`. Every decided disagreement in its
-    batch, run again, splits a leaf, adds a member, or stops at a string the cut cannot place.
-    Where none of its first `n₀` draws can be carried, it adds the check source and halves the
-    limit, and that source outputs a string on at least the disagreement less `δ`.
+- `OrthoDFA/StartAtK.lean` — the round walked from position `k` along learned edges only.
+  `probeOutcome` says what one probe comes to: agree, start or end undecided, a pair, an edge, a
+  triple, or a member at an unlearned edge. The gate reads fresh draws until its agreement test
+  and its ends test have both settled. `RoundAtK` makes one claim per outcome:
+  - Agreement: a passing gate's reading disagrees on at most `1 − acc + δ` of draws, and a
+    refusing one's on at least `1 − acc − δ`.
+  - Ends: the ends test reading above or below its threshold is right to within `δ`.
+  - Pairs: the pair test tripping means more than `θp` of searched draws end at a pair, and a
+    refusal with nothing searched means at most `δ` of draws are searched.
+  - Edge: the probe splits a leaf, adds a member, or stops at a string the cut cannot place.
+  - Member: it sits at a leaf whose edge by some letter is unlearned, and is placed followed by
+    that letter.
 
-  These are not exclusive: a round can add a source and pass. `CheckYield`: the check source
-  yields its blocked share less the draws that reached an unlearned edge through a wrong earlier
-  one. `SourceSpread`: no string takes more of it than the draws sharing its first `k` letters.
+  These hold for any reads, but for `(3·ng + 1)·a + 2·exp(−2·ng·δ²) + exp(−min(n₀, ng)·δ)`.
+  - Triples: over the oracle's noise, those harvested at states read undecided less than `uGood`
+    are at most `uGood·depth·E[Φ]`, plus the draws whose middles the pass may have read, plus a
+    fluctuation `ε`, but for `prefixMax D k / ε²`. `Φ` counts the flanked middles a search
+    visits. Not yet proved.
 - `OrthoDFA/StartState.lean` — `StartExists`: a DFA `H` that agrees with the target on a set `S`
   of target states, each read as `H`'s state `h q`. Started at `h q`, it misjudges at most `η` of
   the draws whenever the target re-rooted at `q` both stays in `S` and agrees with the target on at

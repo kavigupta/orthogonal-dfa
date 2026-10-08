@@ -85,6 +85,11 @@ def paths : DTree α → List (List Bool)
   | .leaf => [[]]
   | .node _ r a => r.paths.map (false :: ·) ++ a.paths.map (true :: ·)
 
+/-- Nodes on the longest root-to-leaf path. -/
+def depth : DTree α → ℕ
+  | .leaf => 0
+  | .node _ r a => max r.depth a.depth + 1
+
 end DTree
 
 /-- The hypothesis: the tree, and each leaf's edges by letter, open where `none`. -/

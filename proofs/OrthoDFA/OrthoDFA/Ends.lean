@@ -1,4 +1,4 @@
-import OrthoDFA.Round
+import OrthoDFA.StartAtK
 
 /-!
 # The walk's ends
@@ -28,25 +28,6 @@ def StartRootCovered : Prop :=
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k : ℕ) (b : ℝ),
     ∫ p, undecidedProb O B.lo (B.hi + 1) F p ∂(startPopulation D k) ≤ b →
     ∫ x, μ.real {ω | (readsAt O B F ω).cut (prefixOf x k * 1) = none} ∂D ≤ b
-
-namespace DTree
-
-open scoped Classical in
-noncomputable def midfixes : DTree α → Finset (FreeMonoid α)
-  | .leaf => ∅
-  | .node m r a => insert m (r.midfixes ∪ a.midfixes)
-
-open scoped Classical in
-/-- The midfixes of the nodes below the root. -/
-noncomputable def belowRoot : DTree α → Finset (FreeMonoid α)
-  | .leaf => ∅
-  | .node _ r a => r.midfixes ∪ a.midfixes
-
-end DTree
-
-/-- `x`'s sift is left undecided at a node below the root. -/
-def DeepUndecided (R : CutReads α) (t : DTree α) (x : FreeMonoid α) : Prop :=
-  (t.sift R.cut x).isRight ∧ 2 ≤ (t.route R.cut x).1.length
 
 /-- The population of draws from `X` followed by `m`. -/
 noncomputable def endPopulation (X : Measure (FreeMonoid α)) (m : FreeMonoid α) :

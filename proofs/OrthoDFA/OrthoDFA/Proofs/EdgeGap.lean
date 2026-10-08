@@ -20,11 +20,6 @@ variable {μ : Measure Ω} {Q : Type*}
 
 namespace DTree
 
-/-- Nodes on the longest root-to-leaf path. -/
-def depth : DTree α → ℕ
-  | .leaf => 0
-  | .node _ r a => max r.depth a.depth + 1
-
 omit [Fintype α] [DecidableEq α] in
 theorem route_length_le_depth (cut : FreeMonoid α → Option Bool) :
     ∀ (t : DTree α) (x : FreeMonoid α), (t.route cut x).1.length ≤ t.depth

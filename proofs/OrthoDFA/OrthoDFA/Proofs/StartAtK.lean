@@ -1,14 +1,15 @@
 import OrthoDFA.StartAtK
 import OrthoDFA.Proofs.Hoeffding
 import OrthoDFA.Proofs.GateFlip
-import OrthoDFA.Proofs.BinomLaw
+import OrthoDFA.Proofs.GateTests
 
 /-!
-# `RoundAtK`, `WalkYield` and `SourceSpread`
+# `RoundAtK`
 
-A decision on a batch against a fixed hypothesis is a Hoeffding tail over the batch.  A refusal's
-probes reach the split test or stop at a string the cut cannot place, because the pass keeps its
-edges learned: every edge's witness sits at its leaf and its extension at its target.
+A decision on a batch against a fixed hypothesis is an exact binomial test at the look where the
+gate stops, or a Hoeffding tail at the batch's end.  An edge reaches the split test or stops at a
+string the cut cannot place, because the pass keeps its edges learned: every edge's witness sits
+at its leaf and its extension at its target.
 -/
 
 namespace OrthoDFA
@@ -100,57 +101,6 @@ theorem share_le_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
 
 omit [DecidableEq α] in
 open scoped Classical in
-/-- At one look of an exact binomial test against `θ`, a rate of at most `θ` reads above it with
-chance at most the test's failure chance. -/
-theorem look_above_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (P : FreeMonoid α → Prop) {N : ℕ} (S : Finset (Fin N)) {θ a : ℝ} (hθ1 : θ ≤ 1)
-    (hp : D.real {x | P x} ≤ θ) (ha : 0 ≤ a) :
-    (Measure.pi fun _ : Fin N => D).real
-      {b | binomSfGe S.card θ (S.filter fun i => P (b i)).card < a} ≤ a := by
-  by_cases hex : ∃ j, binomSfGe S.card θ j < a
-  · refine le_trans (measureReal_mono (s₂ := {b | Nat.find hex ≤ (S.filter fun i => P (b i)).card})
-      fun b hb => Nat.find_min' hex (show binomSfGe S.card θ (S.filter fun i => P (b i)).card < a
-        from hb)) ?_
-    rw [pi_count_ge]
-    exact ((binomSfGe_mono measureReal_nonneg hθ1 hp _ _).trans_lt (Nat.find_spec hex)).le
-  · push Not at hex
-    rw [show {b : Fin N → FreeMonoid α | binomSfGe S.card θ (S.filter fun i => P (b i)).card < a}
-      = ∅ from Set.eq_empty_of_forall_notMem fun b hb => (not_lt.2 (hex _)) hb]
-    simpa using ha
-
-omit [DecidableEq α] in
-open scoped Classical in
-/-- At one look, a rate of at least `θ` reads below it with chance at most the failure chance. -/
-theorem look_below_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (P : FreeMonoid α → Prop) {N : ℕ} (S : Finset (Fin N)) {θ a : ℝ} (hθ0 : 0 ≤ θ)
-    (hp : θ ≤ D.real {x | P x}) (ha : 0 ≤ a) :
-    (Measure.pi fun _ : Fin N => D).real
-      {b | 1 - binomSfGe S.card θ ((S.filter fun i => P (b i)).card + 1) < a} ≤ a := by
-  set ν := Measure.pi fun _ : Fin N => D
-  set c : (Fin N → FreeMonoid α) → ℕ := fun b => (S.filter fun i => P (b i)).card
-  set T := (Finset.range (S.card + 1)).filter fun h => 1 - binomSfGe S.card θ (h + 1) < a
-  have hcle : ∀ b, c b ≤ S.card := fun b => Finset.card_filter_le _ _
-  by_cases hT : T.Nonempty
-  · have hmax := Finset.mem_filter.1 (T.max'_mem hT)
-    have hsub : {b | 1 - binomSfGe S.card θ (c b + 1) < a} ⊆ {b | T.max' hT + 1 ≤ c b}ᶜ := by
-      intro b hb
-      have : c b ∈ T := Finset.mem_filter.2 ⟨Finset.mem_range.2 (by have := hcle b; omega), hb⟩
-      have := T.le_max' _ this
-      simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, not_le]
-      omega
-    refine le_trans (measureReal_mono hsub) ?_
-    rw [measureReal_compl (Set.to_countable _).measurableSet, probReal_univ, pi_count_ge]
-    have := binomSfGe_mono hθ0 measureReal_le_one hp S.card (T.max' hT + 1)
-    linarith [hmax.2]
-  · rw [Finset.not_nonempty_iff_eq_empty] at hT
-    rw [show {b | 1 - binomSfGe S.card θ (c b + 1) < a} = ∅ from
-      Set.eq_empty_of_forall_notMem fun b hb => by
-        have : c b ∈ T := Finset.mem_filter.2 ⟨Finset.mem_range.2 (by have := hcle b; omega), hb⟩
-        simp [hT] at this]
-    simpa using ha
-
-omit [DecidableEq α] in
-open scoped Classical in
 theorem hitsIn_eq {N : ℕ} (b : Fin N → FreeMonoid α) (P : FreeMonoid α → Prop) (n : ℕ) :
     hitsIn b P n
       = ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card := by
@@ -161,85 +111,191 @@ theorem card_lt_filter {N n : ℕ} (hn : n ≤ N) :
     (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card = n := by
   rw [Fin.card_filter_val_lt, min_eq_right hn]
 
-omit [DecidableEq α] in
-theorem seqAbove_cases {θ a : ℝ} {n₀ N : ℕ} {b : Fin N → FreeMonoid α}
-    {P : FreeMonoid α → Prop} (h : seqAbove θ a n₀ b P) :
-    (∃ n ∈ Finset.Ico 1 (N + 1), n₀ ≤ n ∧ binomSfGe n θ (hitsIn b P n) < a)
-      ∨ θ * N < hitsIn b P N := by
-  unfold seqAbove at h
-  split at h
-  · rename_i s hs
-    obtain ⟨n, hn, hns⟩ := List.exists_of_findSome?_eq_some hs
-    subst h
-    refine .inl ⟨n, ?_, ?_⟩
-    · simp only [List.mem_range'_1] at hn
-      simp only [Finset.mem_Ico]
-      omega
-    · unfold rateSide at hns
-      split_ifs at hns with h1 h2 <;> simp_all
-  · exact .inr h
+/-- One holding on at most `θ − δ` of draws holds on at least `θ` of a batch with chance at most
+`exp(−2nδ²)`. -/
+theorem share_ge_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) (n : ℕ) {θ δ : ℝ} (hδ : 0 ≤ δ)
+    (h : D.real {x | P x} ≤ θ - δ) :
+    (Measure.pi fun _ : Fin n => D).real {b | θ * n ≤ hitsIn b P n}
+      ≤ Real.exp (-2 * n * δ ^ 2) := by
+  classical
+  obtain ⟨hm, hi, hI, hmean⟩ := batch_indicator_facts D P n
+  have key := sumUpper_le _ Finset.univ (θ - δ) δ hm hi hI (by
+    simp only [hmean, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+    exact le_of_eq rfl |>.trans (by gcongr)) hδ
+  simp only [Finset.card_univ, Fintype.card_fin, sub_add_cancel] at key
+  refine le_trans (measureReal_mono fun b hb => ?_) key
+  simp only [Set.mem_ofPred_eq] at hb ⊢
+  rw [sum_indicator_eq]
+  have : hitsIn b P n = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
+  rw [← this, mul_comm]
+  exact hb
 
 omit [DecidableEq α] in
-theorem not_seqAbove_cases {θ a : ℝ} {n₀ N : ℕ} {b : Fin N → FreeMonoid α}
-    {P : FreeMonoid α → Prop} (h : ¬ seqAbove θ a n₀ b P) :
-    (∃ n ∈ Finset.Ico 1 (N + 1), n₀ ≤ n ∧ 1 - binomSfGe n θ (hitsIn b P n + 1) < a)
-      ∨ (hitsIn b P N : ℝ) ≤ θ * N := by
-  unfold seqAbove at h
-  split at h
-  · rename_i s hs
-    obtain ⟨n, hn, hns⟩ := List.exists_of_findSome?_eq_some hs
-    have hs' : s = false := by simpa using h
-    subst hs'
-    refine .inl ⟨n, ?_, ?_⟩
-    · simp only [List.mem_range'_1] at hn
-      simp only [Finset.mem_Ico]
-      omega
-    · unfold rateSide at hns
-      split_ifs at hns with h1 h2 h3 <;> simp_all
-  · exact .inr (not_lt.1 h)
+theorem stopLook_spec {θ θ' a : ℝ} {n₀ N : ℕ} (b : Fin N → FreeMonoid α)
+    (P P' : FreeMonoid α → Prop) :
+    stopLook θ θ' a n₀ b P P' ≤ N ∧ min n₀ N ≤ stopLook θ θ' a n₀ b P P'
+      ∧ (stopLook θ θ' a n₀ b P P' = N
+        ∨ (1 ≤ stopLook θ θ' a n₀ b P P'
+          ∧ (rateSide θ a n₀ (stopLook θ θ' a n₀ b P P')
+              (hitsIn b P (stopLook θ θ' a n₀ b P P'))).isSome
+          ∧ (rateSide θ' a n₀ (stopLook θ θ' a n₀ b P P')
+              (hitsIn b P' (stopLook θ θ' a n₀ b P P'))).isSome)) := by
+  unfold stopLook
+  rcases hf : (List.range' 1 N).find? (fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
+      && (rateSide θ' a n₀ n (hitsIn b P' n)).isSome) with _ | n
+  · simp
+  · have hmem := List.mem_of_find?_eq_some hf
+    have hp := List.find?_some hf
+    simp only [List.mem_range'_1] at hmem
+    simp only [Bool.and_eq_true] at hp
+    have hn₀ : n₀ ≤ n := by
+      by_contra hlt
+      simp [rateSide, hlt] at hp
+    simp only [Option.getD_some]
+    exact ⟨by omega, by omega, .inr ⟨by omega, hp.1, hp.2⟩⟩
+
+omit [DecidableEq α] in
+theorem rateSide_isSome {θ a : ℝ} {n₀ n h : ℕ} (hs : (rateSide θ a n₀ n h).isSome) :
+    binomSfGe n θ h < a ∨ 1 - binomSfGe n θ (h + 1) < a := by
+  unfold rateSide at hs
+  split_ifs at hs with h1 h2 h3 <;> simp_all
 
 omit [DecidableEq α] in
 open scoped Classical in
-/-- `SequentialRate` reads a rate of at most `θ − δ` as above `θ` with chance at most
-`N·a + exp(−2Nδ²)`: the test's failure chance at each of its looks, and Hoeffding's tail if it
-never settles. -/
-theorem seqAbove_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (P : FreeMonoid α → Prop) (N n₀ : ℕ) {θ a δ : ℝ} (hθ1 : θ ≤ 1) (ha : 0 ≤ a) (hδ : 0 ≤ δ)
-    (h : D.real {x | P x} ≤ θ - δ) :
-    (Measure.pi fun _ : Fin N => D).real {b | seqAbove θ a n₀ b P}
+theorem look_set {N n : ℕ} (hn : n ≤ N) (b : Fin N → FreeMonoid α) (P : FreeMonoid α → Prop) :
+    hitsIn b P n = ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card
+      ∧ (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card = n :=
+  ⟨hitsIn_eq b P n, card_lt_filter hn⟩
+
+omit [DecidableEq α] in
+open scoped Classical in
+/-- Passing at the look where the gate stops, its share at least `θ`, on a rate of at most
+`θ − δ`: at most twice the failure chance per look and Hoeffding's tail at the end. -/
+theorem gate_pass_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P P' : FreeMonoid α → Prop) (N n₀ : ℕ) {θ θ' a δ : ℝ} (hθ1 : θ ≤ 1) (ha : 0 ≤ a)
+    (hδ : 0 ≤ δ) (h : D.real {x | P x} ≤ θ - δ) :
+    (Measure.pi fun _ : Fin N => D).real {b | θ * stopLook θ θ' a n₀ b P P'
+        ≤ hitsIn b P (stopLook θ θ' a n₀ b P P')}
+      ≤ 2 * N * a + Real.exp (-2 * N * δ ^ 2) := by
+  set ν := Measure.pi fun _ : Fin N => D
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · exact measureReal_le_one.trans (by simp)
+  set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
+    {b | θ * (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card
+        ≤ ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card
+      ∧ (binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card < a
+        ∨ 1 - binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
+          < a)}
+  have hsub : {b | θ * stopLook θ θ' a n₀ b P P' ≤ hitsIn b P (stopLook θ θ' a n₀ b P P')}
+      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | θ * N ≤ hitsIn b P N} := by
+    intro b hb
+    obtain ⟨hle, -, hT | ⟨h1, hs, -⟩⟩ := stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
+    · exact .inr (by simpa [hT] using hb)
+    · refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      obtain ⟨he, hc⟩ := look_set hle b P
+      simp only [L, Set.mem_ofPred_eq, hc, ← he]
+      exact ⟨by simpa using hb, rateSide_isSome hs⟩
+  refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
+  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
+  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ 2 * a := fun n _ =>
+    look_pass_le D P _ hθ1 (by linarith) ha
+  have hsum := Finset.sum_le_sum hlook
+  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
+  have hfin := share_ge_le D P N hδ h
+  nlinarith
+
+omit [DecidableEq α] in
+open scoped Classical in
+/-- Refusing at the stop, its share short of `θ`, on a rate of at least `θ + δ`. -/
+theorem gate_refuse_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P P' : FreeMonoid α → Prop) (N n₀ : ℕ) {θ θ' a δ : ℝ} (hθ0 : 0 ≤ θ) (ha : 0 ≤ a)
+    (hδ : 0 ≤ δ) (h : θ + δ ≤ D.real {x | P x}) :
+    (Measure.pi fun _ : Fin N => D).real {b | (hitsIn b P (stopLook θ θ' a n₀ b P P') : ℝ)
+        < θ * stopLook θ θ' a n₀ b P P'}
+      ≤ 2 * N * a + Real.exp (-2 * N * δ ^ 2) := by
+  set ν := Measure.pi fun _ : Fin N => D
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · exact measureReal_le_one.trans (by simp)
+  set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
+    {b | (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card : ℝ)
+        < θ * (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card
+      ∧ (binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card < a
+        ∨ 1 - binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
+          < a)}
+  have hsub : {b | (hitsIn b P (stopLook θ θ' a n₀ b P P') : ℝ) < θ * stopLook θ θ' a n₀ b P P'}
+      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | share b P ≤ θ} := by
+    intro b hb
+    simp only [Set.mem_ofPred_eq] at hb
+    obtain ⟨hle, -, hT | ⟨h1, hs, -⟩⟩ := stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
+    · refine .inr ?_
+      rw [hT] at hb
+      have hN' : (0 : ℝ) < N := by exact_mod_cast hN
+      simp only [Set.mem_ofPred_eq, share]
+      rw [div_le_iff₀ hN']
+      have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
+      rw [← this]
+      linarith
+    · refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      obtain ⟨he, hc⟩ := look_set hle b P
+      simp only [L, Set.mem_ofPred_eq, hc, ← he]
+      exact ⟨hb, rateSide_isSome hs⟩
+  refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
+  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
+  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ 2 * a := fun n _ =>
+    look_refuse_le D P _ hθ0 (by linarith) ha
+  have hsum := Finset.sum_le_sum hlook
+  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
+  have hfin := share_le_le D P N hδ h
+  nlinarith
+
+omit [DecidableEq α] in
+open scoped Classical in
+/-- The ends test, read where the gate stops, reading above `θ` on a rate of at most `θ − δ`. -/
+theorem side_above_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P P' : FreeMonoid α → Prop) (N n₀ : ℕ) {θ θ' a δ : ℝ} (hθ1 : θ ≤ 1) (ha : 0 ≤ a)
+    (hδ : 0 ≤ δ) (h : D.real {x | P x} ≤ θ - δ) :
+    (Measure.pi fun _ : Fin N => D).real
+        {b | sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
       ≤ N * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  have hsub : {b | seqAbove θ a n₀ b P}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), {b : Fin N → FreeMonoid α |
-          binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-            (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card)
-            < a})
-        ∪ {b | θ < share b P} := by
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · exact measureReal_le_one.trans (by simp)
+  set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
+    {b | binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card < a}
+  have hsub : {b | sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
+      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | θ < share b P} := by
     intro b hb
-    rcases seqAbove_cases hb with ⟨n, hn, -, hlt⟩ | hfin
-    · refine .inl (Set.mem_biUnion hn ?_)
-      have hnN : n ≤ N := by simp only [Finset.mem_Ico] at hn; omega
-      simp only [Set.mem_ofPred_eq, card_lt_filter hnN, ← hitsIn_eq]
-      exact hlt
-    · refine .inr ?_
-      rcases Nat.eq_zero_or_pos N with rfl | hN
-      · simp [hitsIn] at hfin
-      · have hN' : (0 : ℝ) < N := by exact_mod_cast hN
+    obtain ⟨hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
+    simp only [Set.mem_ofPred_eq, sideAt] at hb
+    rcases hr : rateSide θ a n₀ (stopLook θ' θ a n₀ b P' P)
+      (hitsIn b P (stopLook θ' θ a n₀ b P' P)) with _ | s <;> rw [hr] at hb
+    · rcases hT with hT | ⟨-, -, hs⟩
+      · refine .inr ?_
+        rw [hT] at hb
+        have hN' : (0 : ℝ) < N := by exact_mod_cast hN
         simp only [Set.mem_ofPred_eq, share]
         rw [lt_div_iff₀ hN']
-        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by
-          simp [hitsIn]
+        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
         rw [← this]
         linarith
+      · simp [hr] at hs
+    · subst hb
+      have h1 : 1 ≤ stopLook θ' θ a n₀ b P' P := by rcases hT with hT | ⟨h1, -⟩ <;> omega
+      refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      obtain ⟨he, hc⟩ := look_set hle b P
+      simp only [L, Set.mem_ofPred_eq, hc, ← he]
+      unfold rateSide at hr
+      split_ifs at hr with h1 h2 h3 <;> simp_all
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) fun n =>
-    {b : Fin N → FreeMonoid α |
-      binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-        (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card) < a}
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real {b : Fin N → FreeMonoid α |
-      binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-        (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card) < a}
-      ≤ a := fun n _ => look_above_le D P _ hθ1 (by linarith) ha
+  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
+  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ a := fun n _ =>
+    look_above_le D P _ hθ1 (by linarith) ha
   have hsum := Finset.sum_le_sum hlook
   simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
   have hfin := share_gt_le D P N hδ h
@@ -247,184 +303,55 @@ theorem seqAbove_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
 
 omit [DecidableEq α] in
 open scoped Classical in
-/-- And a rate of at least `θ + δ` as not above `θ` with chance at most the same. -/
-theorem not_seqAbove_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (P : FreeMonoid α → Prop) (N n₀ : ℕ) {θ a δ : ℝ} (hθ0 : 0 ≤ θ) (ha : 0 ≤ a) (hδ : 0 ≤ δ)
-    (h : θ + δ ≤ D.real {x | P x}) :
-    (Measure.pi fun _ : Fin N => D).real {b | ¬ seqAbove θ a n₀ b P}
+/-- And reading not above `θ` on a rate of at least `θ + δ`. -/
+theorem side_below_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P P' : FreeMonoid α → Prop) (N n₀ : ℕ) {θ θ' a δ : ℝ} (hθ0 : 0 ≤ θ) (ha : 0 ≤ a)
+    (hδ : 0 ≤ δ) (h : θ + δ ≤ D.real {x | P x}) :
+    (Measure.pi fun _ : Fin N => D).real
+        {b | ¬ sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
       ≤ N * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  have hsub : {b | ¬ seqAbove θ a n₀ b P}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), {b : Fin N → FreeMonoid α |
-          1 - binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-            (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card
-              + 1) < a})
-        ∪ {b | share b P ≤ θ} := by
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · exact measureReal_le_one.trans (by simp)
+  set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
+    {b | 1 - binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
+          (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
+          < a}
+  have hsub : {b | ¬ sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
+      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | share b P ≤ θ} := by
     intro b hb
-    rcases not_seqAbove_cases hb with ⟨n, hn, -, hlt⟩ | hfin
-    · refine .inl (Set.mem_biUnion hn ?_)
-      have hnN : n ≤ N := by simp only [Finset.mem_Ico] at hn; omega
-      simp only [Set.mem_ofPred_eq, card_lt_filter hnN, ← hitsIn_eq]
-      exact hlt
-    · refine .inr ?_
-      rcases Nat.eq_zero_or_pos N with rfl | hN
-      · simp [share, hθ0]
-      · have hN' : (0 : ℝ) < N := by exact_mod_cast hN
+    obtain ⟨hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
+    simp only [Set.mem_ofPred_eq, sideAt] at hb
+    rcases hr : rateSide θ a n₀ (stopLook θ' θ a n₀ b P' P)
+      (hitsIn b P (stopLook θ' θ a n₀ b P' P)) with _ | s <;> rw [hr] at hb
+    · rcases hT with hT | ⟨-, -, hs⟩
+      · refine .inr ?_
+        rw [hT] at hb
+        have hN' : (0 : ℝ) < N := by exact_mod_cast hN
         simp only [Set.mem_ofPred_eq, share]
         rw [div_le_iff₀ hN']
-        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by
-          simp [hitsIn]
+        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
         rw [← this]
-        linarith
+        linarith [not_lt.1 hb]
+      · simp [hr] at hs
+    · have hs : s = false := by simpa using hb
+      subst hs
+      have h1 : 1 ≤ stopLook θ' θ a n₀ b P' P := by rcases hT with hT | ⟨h1, -⟩ <;> omega
+      refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      obtain ⟨he, hc⟩ := look_set hle b P
+      simp only [L, Set.mem_ofPred_eq, hc, ← he]
+      unfold rateSide at hr
+      split_ifs at hr with h1 h2 h3 <;> simp_all
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) fun n =>
-    {b : Fin N → FreeMonoid α |
-      1 - binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-        (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
-        < a}
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real {b : Fin N → FreeMonoid α |
-      1 - binomSfGe ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card) θ
-        (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
-        < a} ≤ a := fun n _ => look_below_le D P _ hθ0 (by linarith) ha
+  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
+  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ a := fun n _ =>
+    look_below_le D P _ hθ0 (by linarith) ha
   have hsum := Finset.sum_le_sum hlook
   simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
   have hfin := share_le_le D P N hδ h
   linarith
 
 end Batch
-
-section Sources
-
-variable (R : CutReads α)
-
-/-- The walk is blocked: it does not reach the end. -/
-def KWalk.isBlocked : KWalk α → Prop
-  | .reached _ => False
-  | _ => True
-
-theorem walkOutput_isSome_iff (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (walkOutput R t edges k x).isSome
-      ↔ (kWalk R t edges k x).isBlocked ∧ ¬ wrongEarlier R t edges k x := by
-  unfold walkOutput wrongEarlier
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps
-  · simp [KWalk.isBlocked]
-  · have key : (∃ s' c' j' p, KWalk.edge s c j = KWalk.edge s' c' j'
-        ∧ (t.sift R.cut (prefixOf x (j' + 1))).isLeft
-        ∧ t.sift R.cut (prefixOf x j') = .inl p ∧ p ≠ s')
-        ↔ (t.sift R.cut (prefixOf x (j + 1))).isLeft
-          ∧ ∃ p, t.sift R.cut (prefixOf x j) = .inl p ∧ p ≠ s :=
-      ⟨fun ⟨_, _, _, p, he, h1, h2, h3⟩ => by cases he; exact ⟨h1, p, h2, h3⟩,
-        fun ⟨h1, p, h2, h3⟩ => ⟨s, c, j, p, rfl, h1, h2, h3⟩⟩
-    rw [key]
-    simp only [KWalk.isBlocked, true_and]
-    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1
-    · rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2
-      · by_cases hp : p2 = s
-        · simp [hp]
-        · simp [hp]
-      · simp
-    · simp
-  · simp [KWalk.isBlocked]
-
-theorem checkOutput_isSome_iff (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (checkOutput R t edges k x).isSome
-      ↔ (kCheck R t edges k x).isBlocked ∧ ¬ wrongEarlier R t edges k x := by
-  have hwalk := walkOutput_isSome_iff R t edges k x
-  unfold checkOutput kCheck at *
-  unfold wrongEarlier at *
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at hwalk
-  · simpa [KCheck.isBlocked, KWalk.isBlocked] using hwalk
-  · simpa [KCheck.isBlocked, KWalk.isBlocked] using hwalk
-  · simp only []
-    rcases hs : t.sift R.cut x with a | b
-    · simp only []
-      split_ifs <;> simp [KCheck.isBlocked]
-    · simp [KCheck.isBlocked]
-
-theorem check_yield_holds : CheckYield := by
-  intro α _ _ R D _ t edges k
-  have hsub : {x | wrongEarlier R t edges k x} ⊆ {x | (kCheck R t edges k x).isBlocked} := by
-    rintro x ⟨s, c, j, p, hw, -⟩
-    simp [kCheck, hw, KCheck.isBlocked]
-  have heq : {x | (checkOutput R t edges k x).isSome}
-      = {x | (kCheck R t edges k x).isBlocked} \ {x | wrongEarlier R t edges k x} := by
-    ext x
-    simp only [Set.mem_ofPred_eq, Set.mem_sdiff]
-    exact checkOutput_isSome_iff R t edges k x
-  rw [heq, measureReal_sdiff hsub MeasurableSpace.measurableSet_top]
-
-theorem route_inr {cut : FreeMonoid α → Option Bool} :
-    ∀ (t : DTree α) (x b : FreeMonoid α), (t.route cut x).2 = .inr b → ∃ m, b = x * m
-  | .leaf, _, _, h => by simp [DTree.route] at h
-  | .node m r a, x, b, h => by
-    simp only [DTree.route] at h
-    split at h
-    · exact ⟨m, (Sum.inr.inj h).symm⟩
-    · rcases ha : (a.route cut x).2 with p | b' <;> rw [ha] at h
-      · simp at h
-      · exact route_inr a x b' ha |>.imp fun m hm => by simp at h; rw [← h, hm]
-    · rcases hr : (r.route cut x).2 with p | b' <;> rw [hr] at h
-      · simp at h
-      · exact route_inr r x b' hr |>.imp fun m hm => by simp at h; rw [← h, hm]
-
-theorem take_prefixOf {x : FreeMonoid α} {i k : ℕ} (hk : k ≤ i) :
-    (prefixOf x i).toList.take k = x.toList.take k := by
-  simp [prefixOf, List.take_take, min_eq_left hk]
-
-theorem walkOutput_prefix {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoid α}
-    (h : walkOutput R t edges k x = some u) : u.toList.take k = x.toList.take k := by
-  unfold walkOutput at h
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at h
-  · simp only [Option.some.injEq] at h
-    rw [← h, take_prefixOf le_rfl]
-  · have hj : k ≤ j := by
-      unfold kWalk at hw
-      split at hw
-      · simp at hw
-      · split at hw
-        · simp at hw
-        · simp only [KWalk.edge.injEq] at hw
-          omega
-    simp only [] at h
-    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1 <;> rw [h1] at h
-    · simp only [] at h
-      rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2 <;> rw [h2] at h
-      · simp only [] at h
-        split_ifs at h
-        simp only [Option.some.injEq] at h
-        rw [← h, take_prefixOf hj]
-      · simp only [Option.some.injEq] at h
-        rw [← h, take_prefixOf hj]
-    · simp only [Option.some.injEq] at h
-      rw [← h, take_prefixOf (by omega)]
-  · simp at h
-
-theorem source_spread_holds : SourceSpread := by
-  intro α _ _ R D _ t edges k L u hkL hlen
-  rw [measureReal_def, measureReal_def]
-  refine ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae ?_)
-  filter_upwards [hlen] with x hx hu
-  change checkOutput R t edges k x = some u at hu
-  change u.toList.take k <+: x.toList
-  have hpre : ∀ v : FreeMonoid α, walkOutput R t edges k x = some v →
-      v.toList.take k <+: x.toList := fun v hv => by
-    rw [walkOutput_prefix R hv]; exact List.take_prefix _ _
-  unfold checkOutput kCheck at hu
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at hu
-  · exact hpre u (by simpa using hu)
-  · exact hpre u (by simpa using hu)
-  · simp only [] at hu
-    rcases hs : t.sift R.cut x with a | b <;> rw [hs] at hu
-    · simp only [] at hu
-      split_ifs at hu <;> simp at hu
-    · simp only [Option.some.injEq] at hu
-      subst hu
-      obtain ⟨m, rfl⟩ := route_inr _ _ _ hs
-      simp only [FreeMonoid.toList_mul]
-      rw [List.take_append_of_le_length (by omega)]
-      exact List.take_prefix _ _
-
-end Sources
 
 section Learned
 
@@ -518,9 +445,6 @@ theorem probeStepK_learned {k : ℕ} {s : KState α} {x : FreeMonoid α}
   simp only [probeStepK]
   split
   · split
-    swap
-    · exact closeEdges_learned K R h
-    split
     · rename_i d s1 y sprime _
       refine closeEdges_learned K R fun p c q w he => ?_
       rcases hE : s.edges p c with _ | ⟨q', w'⟩ <;> simp only [hE] at he
@@ -535,6 +459,7 @@ theorem probeStepK_learned {k : ℕ} {s : KState α} {x : FreeMonoid α}
              exact ⟨sift_splitAt h1 hcl'.1, sift_splitAt h2 hcl'.2⟩)
     · exact closeEdges_learned K R h
     · exact closeEdges_learned K R h
+  · exact closeEdges_learned K R h
   · exact closeEdges_learned K R h
 
 theorem runPassK_learned (k : ℕ) (seed probes : List (FreeMonoid α)) :
@@ -598,12 +523,37 @@ theorem follow_inl {edges : Edges α} :
       · simp at h
 
 omit [Fintype α] [DecidableEq α] in
-theorem bracketAt_edge (agrees : ℕ → Option Bool) :
-    ∀ fuel lo hi j, lo < hi → hi - lo ≤ fuel → agrees lo = some true → agrees hi = some false →
-      bracketAt agrees fuel lo hi = .edge j →
-      lo < j ∧ j ≤ hi ∧ agrees (j - 1) = some true ∧ agrees j = some false
-  | 0, lo, hi, j, hlt, hf, _, _, _ => by omega
-  | fuel + 1, lo, hi, j, hlt, hf, hlo, hhi, h => by
+theorem follow_inr {edges : Edges α} :
+    ∀ (cs : List α) (p s : List Bool) (c : α) (i : ℕ), follow edges p cs = .inr (s, c, i) →
+      ∃ (hi : i < cs.length), cs[i] = c ∧ edges s c = none
+        ∧ ∃ ps, follow edges p (cs.take i) = .inl ps ∧ ps.getLast? = some s
+  | [], p, s, c, i, h => by simp [follow] at h
+  | c' :: cs, p, s, c, i, h => by
+    simp only [follow] at h
+    rcases he : edges p c' with _ | ⟨q, y⟩ <;> rw [he] at h
+    · simp only [Sum.inr.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl⟩ := h
+      exact ⟨by simp, rfl, he, [p], by simp [follow], rfl⟩
+    · simp only [] at h
+      rcases hf : follow edges q cs with ps' | ⟨s', c'', i'⟩ <;> rw [hf] at h
+      · simp at h
+      · simp only [Sum.inr.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl, rfl⟩ := h
+        obtain ⟨hi, hc, hn, ps, hps, hlast⟩ := follow_inr cs q s' c'' i' hf
+        refine ⟨by simpa using hi, by simpa using hc, hn, p :: ps, ?_, ?_⟩
+        · simp [follow, he, hps]
+        · have hne : ps ≠ [] := by
+            intro h0; subst h0; obtain ⟨hl, -⟩ := follow_inl _ _ _ hps; simp at hl
+          rw [List.getLast?_cons, hlast]
+          simp [hne]
+
+omit [Fintype α] [DecidableEq α] in
+theorem bracketAt_edge (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
+    ∀ fuel lo hi ps' j, lo < hi → hi - lo ≤ fuel → agrees lo = some true →
+      agrees hi = some false → bracketAt (α := α) agrees ps fuel lo hi = .edge ps' j →
+      ps' = ps ∧ lo < j ∧ j ≤ hi ∧ agrees (j - 1) = some true ∧ agrees j = some false
+  | 0, lo, hi, ps', j, hlt, hf, _, _, _ => by omega
+  | fuel + 1, lo, hi, ps', j, hlt, hf, hlo, hhi, h => by
     have hag : ∀ p, (if p = lo then some true else if p = hi then some false else agrees p)
         = agrees p := fun p => by split_ifs <;> simp_all
     simp only [bracketAt, hag] at h
@@ -616,95 +566,191 @@ theorem bracketAt_edge (agrees : ℕ → Option Bool) :
             rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
             · exact h'
             · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
-          have := bracketAt_edge agrees fuel lo _ j this (by omega) hlo hl h
-          exact ⟨this.1, by omega, this.2.2⟩
+          have := bracketAt_edge agrees ps fuel lo _ ps' j this (by omega) hlo hl h
+          exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
         · have : lo < (lo + hi) / 2 - 1 := by
             rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
             · exact h'
             · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
-          have := bracketAt_edge agrees fuel lo _ j this (by omega) hlo hl h
-          exact ⟨this.1, by omega, this.2.2⟩
+          have := bracketAt_edge agrees ps fuel lo _ ps' j this (by omega) hlo hl h
+          exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
         · have : (lo + hi) / 2 + 1 < hi := by
             rcases Nat.lt_or_ge ((lo + hi) / 2 + 1) hi with h' | h'
             · exact h'
             · rw [show (lo + hi) / 2 + 1 = hi by omega, hhi] at hr; simp at hr
-          have := bracketAt_edge agrees fuel _ hi j this (by omega) hr hhi h
-          exact ⟨by omega, this.2⟩
-      · have := bracketAt_edge agrees fuel lo _ j (by omega) (by omega) hlo hm h
+          have := bracketAt_edge agrees ps fuel _ hi ps' j this (by omega) hr hhi h
+          exact ⟨this.1, by omega, this.2.2⟩
+      · have := bracketAt_edge agrees ps fuel lo _ ps' j (by omega) (by omega) hlo hm h
+        exact ⟨this.1, this.2.1, by omega, this.2.2.2⟩
+      · have := bracketAt_edge agrees ps fuel _ hi ps' j (by omega) (by omega) hm hhi h
         exact ⟨this.1, by omega, this.2.2⟩
-      · have := bracketAt_edge agrees fuel _ hi j (by omega) (by omega) hm hhi h
-        exact ⟨by omega, this.2⟩
-    · obtain rfl := Bracket.edge.inj h
+    · obtain ⟨rfl, rfl⟩ := Outcome.edge.inj h
       obtain rfl : hi = lo + 1 := by omega
-      exact ⟨by omega, le_rfl, by simpa using hlo, hhi⟩
+      exact ⟨rfl, by omega, le_rfl, by simpa using hlo, hhi⟩
 
-theorem kCheck_disagree {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    {ps : List (List Bool)} (h : kCheck R t edges k x = .disagree ps) :
-    ∃ p₀ a, t.sift R.cut (prefixOf x k) = .inl p₀ ∧ follow edges p₀ (x.toList.drop k) = .inl ps
-      ∧ t.sift R.cut x = .inl a ∧ some a ≠ ps.getLast? := by
-  unfold kCheck at h
+/-- The outcomes a search ends at. -/
+def Outcome.IsSearch : Outcome α → Prop
+  | .pair _ | .edge _ _ | .triple _ => True
+  | _ => False
+
+omit [Fintype α] [DecidableEq α] in
+theorem bracketAt_isSearch (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
+    ∀ fuel lo hi, (bracketAt (α := α) agrees ps fuel lo hi).IsSearch
+  | 0, _, _ => trivial
+  | fuel + 1, lo, hi => by
+    simp only [bracketAt]
+    split
+    · split
+      · exact bracketAt_isSearch agrees ps fuel _ _
+      · exact bracketAt_isSearch agrees ps fuel _ _
+      · split
+        all_goals first | trivial | exact bracketAt_isSearch agrees ps fuel _ _
+    · trivial
+
+theorem walkCheck_inl {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α} {o : Outcome α}
+    (h : walkCheck R t edges k x = .inl o) : ¬ o.IsSearch := by
+  unfold walkCheck at h
+  split at h
+  · obtain rfl := Sum.inl.inj h; exact id
+  · split at h
+    · obtain rfl := Sum.inl.inj h; exact id
+    · split at h
+      · obtain rfl := Sum.inl.inj h; exact id
+      · split_ifs at h
+        · obtain rfl := Sum.inl.inj h; exact id
+  · split at h
+    · obtain rfl := Sum.inl.inj h; exact id
+    · split_ifs at h
+      · obtain rfl := Sum.inl.inj h; exact id
+
+/-- A search outcome comes from a decided disagreement. -/
+theorem probeOutcome_search {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    {o : Outcome α} (h : probeOutcome R t edges k x = o) (ho : o.IsSearch) :
+    ∃ ps hi, walkCheck R t edges k x = .inr (ps, hi)
+      ∧ bracketAt (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi = o := by
+  unfold probeOutcome at h
+  rcases hw : walkCheck R t edges k x with o' | ⟨ps, hi⟩ <;> rw [hw] at h
+  · simp only [Sum.elim_inl, id] at h
+    subst h
+    exact absurd ho (walkCheck_inl R hw)
+  · exact ⟨ps, hi, rfl, h⟩
+
+theorem walkCheck_inr {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    {ps : List (List Bool)} {hi : ℕ} (h : walkCheck R t edges k x = .inr (ps, hi)) :
+    ∃ p₀, t.sift R.cut (prefixOf x k) = .inl p₀
+      ∧ follow edges p₀ ((x.toList.drop k).take (hi - k)) = .inl ps ∧ k < hi
+      ∧ hi ≤ x.toList.length
+      ∧ agreesAt R t x (fun j => ps.getD (j - k) []) hi = some false := by
+  unfold walkCheck at h
   rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hw] at h
   · simp at h
-  · simp at h
+  · unfold kWalk at hw
+    rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
+    swap
+    · simp at hw
+    simp only [] at hw
+    rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | ⟨s', c', i⟩ <;> rw [hf] at hw
+    · simp at hw
+    simp only [KWalk.edge.injEq] at hw
+    obtain ⟨rfl, rfl, rfl⟩ := hw
+    obtain ⟨hi', hc, hn, qs, hqs, hlast⟩ := follow_inr _ _ _ _ _ hf
+    simp only [] at h
+    rcases h1 : t.sift R.cut (prefixOf x (k + i + 1)) with _ | _ <;> rw [h1] at h
+    swap
+    · simp at h
+    simp only [] at h
+    rcases h2 : t.sift R.cut (prefixOf x (k + i)) with p | _ <;> rw [h2] at h
+    swap
+    · simp at h
+    simp only [] at h
+    split_ifs at h with hps
+    simp only [Sum.inr.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have hwt : walkTo R t edges k x (k + i) = qs := by
+      simp [walkTo, hk, show k + i - k = i by omega, hqs]
+    rw [hwt]
+    obtain ⟨hl, -, -⟩ := follow_inl _ _ _ hqs
+    simp only [List.length_take, List.length_drop] at hi' hl
+    refine ⟨p₀, rfl, by rw [show k + i - k = i by omega]; exact hqs, ?_, by omega, ?_⟩
+    · rcases Nat.eq_zero_or_pos i with rfl | hi0
+      · exfalso
+        simp only [add_zero, List.take_zero] at hqs h2
+        simp [follow] at hqs
+        subst hqs
+        rw [hk] at h2
+        obtain rfl := Sum.inl.inj h2
+        simp at hlast
+        first | exact hps hlast | exact hps hlast.symm
+      · omega
+    · have hget : qs.getD (k + i - k) [] = s' := by
+        rw [show k + i - k = i by omega]
+        rw [List.getLast?_eq_getElem?] at hlast
+        rw [List.getD_eq_getElem?_getD, show i = qs.length - 1 by omega, hlast]
+        rfl
+      simp only [agreesAt, h2, Sum.elim_inl, hget, Option.some.injEq, decide_eq_false_iff_not]
+      exact hps
   · simp only [] at h
     rcases hs : t.sift R.cut x with a | b <;> rw [hs] at h
-    · simp only [] at h
-      split_ifs at h with ha
-      simp only [KCheck.disagree.injEq] at h
-      subst h
-      unfold kWalk at hw
-      rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
-      · simp only [] at hw
-        rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | r <;> rw [hf] at hw
-        · simp only [KWalk.reached.injEq] at hw
-          subst hw
-          exact ⟨p₀, a, rfl, hf, rfl, ha⟩
-        · simp at hw
-      · simp at hw
+    swap
     · simp at h
+    simp only [] at h
+    split_ifs at h with ha
+    simp only [Sum.inr.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    unfold kWalk at hw
+    rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
+    swap
+    · simp at hw
+    simp only [] at hw
+    rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | r <;> rw [hf] at hw
+    swap
+    · simp at hw
+    simp only [KWalk.reached.injEq] at hw
+    subst hw
+    obtain ⟨hlen, hhead, -⟩ := follow_inl _ _ _ hf
+    set n := x.toList.length
+    simp only [List.length_drop] at hlen
+    have hlast : ps''.getLast? = some (ps''.getD (n - k) []) := by
+      have hidx : n - k < ps''.length := by omega
+      rw [List.getLast?_eq_getElem?, show ps''.length - 1 = n - k by omega,
+        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hidx]
+      rfl
+    have hkn : k < n := by
+      by_contra hkn
+      have hxk : prefixOf x k = x := by
+        apply FreeMonoid.toList.injective
+        simp [prefixOf, List.take_of_length_le (not_lt.1 hkn)]
+      rw [hxk, hs] at hk
+      obtain rfl := Sum.inl.inj hk
+      have : ps''.getD (n - k) [] = a := by rw [show n - k = 0 by omega, hhead]
+      exact ha (by rw [hlast, this])
+    refine ⟨p₀, rfl, by rw [List.take_of_length_le (by simp; omega)]; exact hf, hkn, le_rfl, ?_⟩
+    have : prefixOf x n = x := prefixOf_length x
+    simp only [agreesAt, this, hs, Sum.elim_inl, Option.some.injEq, decide_eq_false_iff_not]
+    intro he
+    exact ha (by rw [hlast, he])
 
 theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    (hl : Learned R t edges) {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)}
-    (h : kCheck R t edges k x = .disagree ps) {fd : ℕ} (hb : bracketOf R t k x ps = .edge fd) :
+    (hl : Learned R t edges) {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
+    (h : probeOutcome R t edges k x = .edge ps fd) :
     seedStep K R t pool edges k x ps fd ≠ .dropped := by
-  obtain ⟨p₀, a, hk, hf, hx, hne⟩ := kCheck_disagree R h
+  obtain ⟨ps₀, hi, hw, hb⟩ := probeOutcome_search R h trivial
+  obtain ⟨p₀, hk, hf, hkh, hhn, hpn⟩ := walkCheck_inr R hw
+  set walkAt : ℕ → List Bool := fun j => ps₀.getD (j - k) [] with hwalk
   obtain ⟨hlen, hhead, hstep⟩ := follow_inl _ _ _ hf
-  set n := x.toList.length with hn
-  set walkAt : ℕ → List Bool := fun j => ps.getD (j - k) [] with hwalk
-  have hlast : ps.getLast? = some (ps.getD (n - k) []) := by
-    simp only [List.length_drop] at hlen
-    have hidx : n - k < ps.length := by omega
-    rw [List.getLast?_eq_getElem?, show ps.length - 1 = n - k by omega,
-      List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hidx]
-    rfl
-  have hkn : k < n := by
-    by_contra hkn
-    have hxk : prefixOf x k = x := by
-      apply FreeMonoid.toList.injective
-      simp [prefixOf, List.take_of_length_le (not_lt.1 hkn)]
-    rw [hxk, hx] at hk
-    obtain rfl := Sum.inl.inj hk
-    simp only [List.length_drop] at hlen
-    have : ps.getD (n - k) [] = a := by
-      rw [show n - k = 0 by omega, hhead]
-    exact hne (by rw [hlast, this])
   have hpk : agreesAt R t x walkAt k = some true := by
     simp only [agreesAt, hk, Sum.elim_inl, hwalk, Nat.sub_self, hhead, decide_true]
-  have hpn : agreesAt R t x walkAt n = some false := by
-    have : prefixOf x n = x := prefixOf_length x
-    simp only [agreesAt, this, hx, Sum.elim_inl, hwalk, Option.some.injEq, decide_eq_false_iff_not]
-    intro he
-    exact hne (by rw [hlast, he])
-  obtain ⟨hfd1, hfd2, hfd3, hfd4⟩ :=
-    bracketAt_edge (agreesAt R t x walkAt) (n - k) k n fd hkn le_rfl hpk hpn hb
+  obtain ⟨rfl, hfd1, hfd2, hfd3, hfd4⟩ :=
+    bracketAt_edge (agreesAt R t x walkAt) ps₀ (hi - k) k hi ps fd hkh le_rfl hpk hpn hb
   unfold seedStep
   simp only []
-  have hfdn : fd - 1 < n := by omega
+  have hfdn : fd - 1 < x.toList.length := by omega
   rw [List.getElem?_eq_getElem hfdn]
   simp only []
   obtain ⟨y, hy⟩ := hstep (fd - 1 - k) (by simp; omega)
-  have hidx : (x.toList.drop k)[fd - 1 - k]'(by simp; omega) = x.toList[fd - 1] := by
-    simp only [List.getElem_drop]
+  have hidx : ((x.toList.drop k).take (hi - k))[fd - 1 - k]'(by simp; omega)
+      = x.toList[fd - 1] := by
+    simp only [List.getElem_take, List.getElem_drop]
     congr 1
     omega
   rw [hidx, show fd - 1 - k + 1 = fd - k by omega] at hy
@@ -732,45 +778,123 @@ theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
     · simp
   · simp
 
+/-- A member is placed at a leaf whose edge by some letter is unlearned, and placed followed by
+that letter. -/
+theorem member_spec {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoid α}
+    (h : probeOutcome R t edges k x = .member u) :
+    ∃ p c, edges p c = none ∧ t.sift R.cut u = .inl p
+      ∧ (t.sift R.cut (u * FreeMonoid.of c)).isLeft := by
+  unfold probeOutcome at h
+  rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
+  swap
+  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+    simp only [Sum.elim_inr] at h
+    rw [h] at this
+    exact this.elim
+  simp only [Sum.elim_inl, id] at h
+  subst h
+  unfold walkCheck at hw
+  rcases hkw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hkw] at hw
+  · simp at hw
+  · unfold kWalk at hkw
+    rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hkw
+    swap
+    · simp at hkw
+    simp only [] at hkw
+    rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | ⟨s', c', i⟩ <;> rw [hf] at hkw
+    · simp at hkw
+    simp only [KWalk.edge.injEq] at hkw
+    obtain ⟨rfl, rfl, rfl⟩ := hkw
+    obtain ⟨hi', hc, hn, -⟩ := follow_inr _ _ _ _ _ hf
+    simp only [] at hw
+    rcases h1 : t.sift R.cut (prefixOf x (k + i + 1)) with q | _ <;> rw [h1] at hw
+    swap
+    · simp at hw
+    simp only [] at hw
+    rcases h2 : t.sift R.cut (prefixOf x (k + i)) with p | _ <;> rw [h2] at hw
+    swap
+    · simp at hw
+    simp only [] at hw
+    split_ifs at hw with hps
+    · obtain rfl := Outcome.member.inj (Sum.inl.inj hw)
+      simp only [List.length_drop] at hi'
+      have hlt : k + i < x.toList.length := by omega
+      refine ⟨p, c', hps ▸ hn, h2, ?_⟩
+      have hxc : x.toList[k + i] = c' := by rw [← hc]; simp
+      rw [← hxc, ← prefixOf_succ hlt, h1]
+      rfl
+  · simp only [] at hw
+    split at hw
+    · simp at hw
+    · split_ifs at hw <;> simp at hw
+
 end Learned
 
-/-- A draw the gate counts against the hypothesis is one the check source outputs a string for,
-or one a refusal can carry. -/
-theorem gateDisagrees_cover {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
-    (h : gateDisagrees R t edges k x) :
-    (checkOutput R t edges k x).isSome ∨ Carried R t edges k x := by
-  unfold checkOutput Carried
-  unfold kCheck
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps
-  · left
-    have : walkOutput R t edges k x = some (prefixOf x k) := by simp [walkOutput, hw]
-    simp [this]
-  · by_cases hwe : wrongEarlier R t edges k x
-    · exact .inr (.inr hwe)
-    · left
-      have := (walkOutput_isSome_iff R t edges k x).2 ⟨by simp [hw, KWalk.isBlocked], hwe⟩
-      simpa using this
-  · simp only []
-    rcases hs : t.sift R.cut x with a | b
-    · simp only []
-      split_ifs with ha
-      · exfalso
-        unfold kWalk at hw
-        rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
-        · simp only [] at hw
-          rcases hf : follow edges p₀ (x.toList.drop k) with ps' | r <;> rw [hf] at hw
-          · simp only [KWalk.reached.injEq] at hw
-            subst hw
-            unfold gateDisagrees at h
-            have hp0 : place R t x k = p₀ := by simp [place, hk]
-            have hpn : place R t x x.toList.length = a := by
-              simp [place, prefixOf_length, hs]
-            rw [hp0, hf, hpn] at h
-            exact h ha.symm
-          · simp at hw
-        · simp at hw
-      · exact .inr (.inl ⟨ps, rfl⟩)
-    · left; simp
+section Gate
+
+variable (K : StageKnobs α) (R : CutReads α)
+
+/-- A searched draw is one the gate's reading disagrees on. -/
+theorem bisected_gateDisagrees {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : Bisected R t edges k x) : gateDisagrees R t edges k x := by
+  unfold Bisected at h
+  rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
+  · simp at h
+  clear h
+  unfold walkCheck at hw
+  unfold gateDisagrees
+  rcases hkw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps' <;> rw [hkw] at hw
+  · simp at hw
+  · unfold kWalk at hkw
+    rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hkw
+    swap
+    · simp at hkw
+    simp only [] at hkw
+    have hp0 : place R t x k = p₀ := by simp [place, hk]
+    rw [hp0]
+    rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | r <;> rw [hf] at hkw
+    · simp at hkw
+    · simp
+  · simp only [] at hw
+    rcases hs : t.sift R.cut x with a | b <;> rw [hs] at hw
+    swap
+    · simp at hw
+    simp only [] at hw
+    split_ifs at hw with ha
+    unfold kWalk at hkw
+    rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hkw
+    swap
+    · simp at hkw
+    simp only [] at hkw
+    rcases hf : follow edges p₀ (x.toList.drop k) with ps'' | r <;> rw [hf] at hkw
+    swap
+    · simp at hkw
+    simp only [KWalk.reached.injEq] at hkw
+    subst hkw
+    have hp0 : place R t x k = p₀ := by simp [place, hk]
+    have hpn : place R t x x.toList.length = a := by simp [place, prefixOf_length, hs]
+    rw [hp0, hf, hpn]
+    exact fun he => ha he.symm
+
+theorem not_bisected_of_ends {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : EndsDeep R t edges k x) : ¬ Bisected R t edges k x := by
+  obtain ⟨w, hw, -⟩ := h
+  unfold Bisected
+  rcases hc : walkCheck R t edges k x with o | ⟨ps, hi⟩
+  · simp
+  · exfalso
+    have hs := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+    have : probeOutcome R t edges k x
+        = bracketAt (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi := by
+      simp [probeOutcome, hc]
+    rw [← this] at hs
+    rcases hw with hw | hw <;> rw [hw] at hs <;> exact hs
+
+theorem bisected_of_pair {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : ∃ j, probeOutcome R t edges k x = .pair j) : Bisected R t edges k x := by
+  obtain ⟨j, hj⟩ := h
+  obtain ⟨ps, hi, hw, -⟩ := probeOutcome_search R hj trivial
+  simp [Bisected, hw]
 
 omit [DecidableEq α] in
 open scoped Classical in
@@ -798,7 +922,7 @@ theorem miss_first_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
         = if (i : ℕ) < n₀ then ENNReal.ofReal (1 - D.real {x | C x}) else 1 := by
       intro i; split_ifs <;> simp [hc]
     simp only [hterm]
-    rw [      Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const,
+    rw [Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const,
       ENNReal.toReal_pow, ENNReal.toReal_ofReal (by linarith)]
     have hcard : (Finset.univ.filter fun i : Fin n => (i : ℕ) < n₀).card = min n₀ n := by
       rw [Fin.card_filter_val_lt, min_comm]
@@ -815,71 +939,179 @@ theorem miss_first_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     simp only [measureReal_empty]
     positivity
 
-theorem gate_bad_le (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (k ng n₀ : ℕ) (sg : KState α) (hl : Learned R sg.tree sg.edges)
-    {θc acc a δ : ℝ} (hθc1 : θc ≤ 1) (hacc0 : 0 ≤ acc) (hacc1 : acc ≤ 1) (ha : 0 ≤ a)
-    (hδ : 0 ≤ δ) :
-    (Measure.pi fun _ : Fin ng => D).real {bg | ¬ RoundAtKHolds K R sg D k θc acc a δ n₀ bg}
-      ≤ 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ) := by
+omit [Fintype α] [DecidableEq α] in
+open scoped Classical in
+theorem hitsIn_congr {N : ℕ} {b b' : Fin N → FreeMonoid α} {P : FreeMonoid α → Prop}
+    (h : ∀ i, P (b i) ↔ P (b' i)) (n : ℕ) : hitsIn b P n = hitsIn b' P n := by
+  unfold hitsIn
+  congr 1
+  ext i
+  simp [h i]
+
+theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng n₀ : ℕ)
+    (sg : KState α) (hl : Learned R sg.tree sg.edges) {acc θp f a δ : ℝ} (hacc0 : 0 ≤ acc)
+    (hacc1 : acc ≤ 1) (hθp0 : 0 ≤ θp) (hθp1 : θp ≤ 1) (hf : 0 ≤ f) (ha : 0 ≤ a) (hδ : 0 ≤ δ) :
+    (Measure.pi fun _ : Fin ng => D).real {bg | ¬ RoundAtKHolds K R sg D k acc θp f a δ n₀ bg}
+      ≤ (3 * ng + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
+        + Real.exp (-(min n₀ ng : ℕ) * δ) := by
   classical
   set ν := Measure.pi fun _ : Fin ng => D
-  set Pc := fun x => (kCheck R sg.tree sg.edges k x).isBlocked
-  set Pd := fun x => gateDisagrees R sg.tree sg.edges k x
-  set B1 := {bg : Fin ng → FreeMonoid α | seqAbove θc a n₀ bg Pc ∧ D.real {x | Pc x} < θc - δ}
-  set B2 := {bg : Fin ng → FreeMonoid α |
-    seqAbove acc a n₀ bg (fun x => ¬ Pd x) ∧ 1 - acc + δ < D.real {x | Pd x}}
-  set B3 := {bg : Fin ng → FreeMonoid α |
-    ¬ seqAbove acc a n₀ bg (fun x => ¬ Pd x) ∧ D.real {x | Pd x} < 1 - acc - δ}
-  set C := fun x => Carried R sg.tree sg.edges k x
-  set B4 := {bg : Fin ng → FreeMonoid α |
-    (∀ i : Fin ng, (i : ℕ) < n₀ → ¬ C (bg i)) ∧ δ < D.real {x | C x}}
-  have hcov : D.real {x | Pd x}
-      ≤ D.real {x | (checkOutput R sg.tree sg.edges k x).isSome} + D.real {x | C x} :=
-    (measureReal_mono fun x hx => gateDisagrees_cover hx).trans (measureReal_union_le _ _)
-  have hsub : {bg | ¬ RoundAtKHolds K R sg D k θc acc a δ n₀ bg} ⊆ (B1 ∪ (B2 ∪ B3)) ∪ B4 := by
+  set t := sg.tree
+  set e := sg.edges
+  set Pd := fun x => gateDisagrees R t e k x
+  set Ag := fun x => ¬ gateDisagrees R t e k x
+  set En := EndsDeep R t e k
+  set Bi := Bisected R t e k
+  set Pr := fun x => ∃ j, probeOutcome R t e k x = .pair j
+  set θe := min (((t.depth - 1 : ℕ) : ℝ) * f) 1
+  have hθe0 : 0 ≤ θe := le_min (mul_nonneg (Nat.cast_nonneg _) hf) zero_le_one
+  have hθe1 : θe ≤ 1 := min_le_right _ _
+  set T := fun bg : Fin ng → FreeMonoid α => stopLook acc θe a n₀ bg Ag En
+  set B12 := {bg : Fin ng → FreeMonoid α |
+    (acc * T bg ≤ hitsIn bg Ag (T bg) ∧ 1 - acc + δ < D.real {x | Pd x})
+      ∨ ((hitsIn bg Ag (T bg) : ℝ) < acc * T bg ∧ D.real {x | Pd x} < 1 - acc - δ)}
+  set B34 := {bg : Fin ng → FreeMonoid α |
+    (sideAt θe a n₀ bg En (T bg) ∧ D.real {x | En x} < θe - δ)
+      ∨ (¬ sideAt θe a n₀ bg En (T bg) ∧ θe + δ < D.real {x | En x})}
+  set B5 := {bg : Fin ng → FreeMonoid α |
+    binomSfGe (hitsIn bg Bi (T bg)) θp (hitsIn bg Pr (T bg)) < a
+      ∧ D.real {x | Pr x} ≤ θp * D.real {x | Bi x}}
+  set B6 := {bg : Fin ng → FreeMonoid α |
+    (∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Bi (bg i)) ∧ δ < D.real {x | Bi x}}
+  have hsub : {bg | ¬ RoundAtKHolds K R sg D k acc θp f a δ n₀ bg} ⊆ (B12 ∪ B34) ∪ (B5 ∪ B6) := by
     intro bg hb
-    simp only [Set.mem_ofPred_eq, RoundAtKHolds, not_and_or, Classical.not_imp] at hb
-    rcases hb with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
-    · exact .inl (.inl ⟨h1, not_le.1 h2⟩)
-    · exact .inl (.inr (.inl ⟨h1, not_le.1 h2⟩))
-    · rcases h2 with h2 | h2 | ⟨h3, h4⟩
-      · exact .inl (.inr (.inr ⟨h1, not_le.1 h2⟩))
-      · exfalso
-        simp only [not_forall, not_not] at h2
-        obtain ⟨i, ps, fd, hc, hb, hd⟩ := h2
-        exact seedStep_ne_dropped K R hl hc hb hd
-      · exact .inr ⟨h3, by linarith [not_le.1 h4]⟩
-  have hcomp : D.real {x | ¬ Pd x} = 1 - D.real {x | Pd x} := by
-    rw [show {x | ¬ Pd x} = {x | Pd x}ᶜ from rfl,
+    simp only [Set.mem_ofPred_eq, RoundAtKHolds, not_and_or, Classical.not_imp, not_le,
+      not_lt] at hb
+    rcases hb with (⟨h1, h2⟩ | ⟨h1, h2⟩) | (⟨h1, h2⟩ | ⟨h1, h2⟩) | (⟨h1, h2⟩ | ⟨h1, h2, h3⟩) |
+      h4 | h5
+    · exact .inl (.inl (.inl ⟨h1, h2⟩))
+    · exact .inl (.inl (.inr ⟨h1, h2⟩))
+    · exact .inl (.inr (.inl ⟨h1, by linarith⟩))
+    · exact .inl (.inr (.inr ⟨h1, h2⟩))
+    · exact .inr (.inl ⟨h1, h2⟩)
+    · refine .inr (.inr ⟨fun i hi => h2 i ?_, h3⟩)
+      have := (stopLook_spec (θ := acc) (θ' := θe) (a := a) (n₀ := n₀) bg Ag En).2.1
+      have hi' : (i : ℕ) < ng := i.2
+      exact lt_of_lt_of_le (lt_min hi hi') this
+    · exfalso
+      simp only [not_forall] at h4
+      obtain ⟨i, ps, fd, ho, hd⟩ := h4
+      exact hd (seedStep_ne_dropped K R hl ho)
+    · exfalso
+      simp only [not_forall, not_exists, not_and] at h5
+      obtain ⟨i, u, ho, hm⟩ := h5
+      obtain ⟨p, c, h1, h2, h3⟩ := member_spec R ho
+      exact hm p c h1 h2 h3
+  have hcomp : D.real {x | Ag x} = 1 - D.real {x | Pd x} := by
+    rw [show {x | Ag x} = {x | Pd x}ᶜ from rfl,
       measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
-  have hB1 : ν.real B1 ≤ ng * a + Real.exp (-2 * ng * δ ^ 2) := by
-    by_cases h : D.real {x | Pc x} < θc - δ
-    · exact (measureReal_mono fun b hb => hb.1).trans (seqAbove_le D Pc ng n₀ hθc1 ha hδ h.le)
-    · rw [show B1 = ∅ from Set.eq_empty_of_forall_notMem fun b hb => h hb.2]
-      simp only [measureReal_empty]
-      positivity
-  have hB23 : ν.real (B2 ∪ B3) ≤ ng * a + Real.exp (-2 * ng * δ ^ 2) := by
+  have hB12 : ν.real B12 ≤ 2 * ng * a + Real.exp (-2 * ng * δ ^ 2) := by
     by_cases h2 : 1 - acc + δ < D.real {x | Pd x}
-    · have hB3 : B3 = ∅ := Set.eq_empty_of_forall_notMem fun b hb => by
-        have := hb.2; linarith
-      rw [hB3, Set.union_empty]
-      refine (measureReal_mono fun b hb => hb.1).trans
-        (seqAbove_le D (fun x => ¬ Pd x) ng n₀ hacc1 ha hδ (by rw [hcomp]; linarith))
-    · have hB2 : B2 = ∅ := Set.eq_empty_of_forall_notMem fun b hb => h2 hb.2
-      rw [hB2, Set.empty_union]
-      by_cases h3 : D.real {x | Pd x} < 1 - acc - δ
-      · refine (measureReal_mono fun b hb => hb.1).trans
-          (not_seqAbove_le D (fun x => ¬ Pd x) ng n₀ hacc0 ha hδ (by rw [hcomp]; linarith))
-      · rw [show B3 = ∅ from Set.eq_empty_of_forall_notMem fun b hb => h3 hb.2]
+    · refine le_trans (measureReal_mono fun bg hb => ?_)
+        (gate_pass_le D Ag En ng n₀ (θ' := θe) hacc1 ha hδ (by rw [hcomp]; linarith))
+      rcases hb with hb | hb
+      · exact hb.1
+      · exfalso; linarith [hb.2]
+    · by_cases h3 : D.real {x | Pd x} < 1 - acc - δ
+      · refine le_trans (measureReal_mono fun bg hb => ?_)
+          (gate_refuse_le D Ag En ng n₀ (θ' := θe) hacc0 ha hδ (by rw [hcomp]; linarith))
+        rcases hb with hb | hb
+        · exact absurd hb.2 h2
+        · exact hb.1
+      · rw [show B12 = ∅ from Set.eq_empty_of_forall_notMem fun bg hb => by
+          rcases hb with hb | hb
+          · exact h2 hb.2
+          · exact h3 hb.2]
         simp only [measureReal_empty]
         positivity
-  have hB4 := miss_first_le D C ng n₀ hδ
-  refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have := measureReal_union_le (μ := ν) B1 (B2 ∪ B3)
-  linarith
+  have hB34 : ν.real B34 ≤ ng * a + Real.exp (-2 * ng * δ ^ 2) := by
+    by_cases h2 : D.real {x | En x} < θe - δ
+    · refine le_trans (measureReal_mono fun bg hb => ?_)
+        (side_above_le D En Ag ng n₀ (θ' := acc) hθe1 ha hδ h2.le)
+      rcases hb with hb | hb
+      · exact hb.1
+      · exfalso; linarith [hb.2]
+    · by_cases h3 : θe + δ < D.real {x | En x}
+      · refine le_trans (measureReal_mono fun bg hb => ?_)
+          (side_below_le D En Ag ng n₀ (θ' := acc) hθe0 ha hδ h3.le)
+        rcases hb with hb | hb
+        · exact absurd hb.2 h2
+        · exact hb.1
+      · rw [show B34 = ∅ from Set.eq_empty_of_forall_notMem fun bg hb => by
+          rcases hb with hb | hb
+          · exact h2 hb.2
+          · exact h3 hb.2]
+        simp only [measureReal_empty]
+        positivity
+  have hB5 : ν.real B5 ≤ a := by
+    by_cases h : D.real {x | Pr x} ≤ θp * D.real {x | Bi x}
+    · refine le_trans (measureReal_mono fun bg hb => ?_)
+        (pair_test_le D Bi Pr (fun x hx => bisected_of_pair R hx) T (fun b b' h1 h2 => ?_) hθp0
+          hθp1 ha h)
+      · have hP : ∀ (P : FreeMonoid α → Prop), (∀ x, Bi x → ¬ P x) →
+            ∀ i, P (bg i) ↔ P (bg i) := fun _ _ _ => Iff.rfl
+        have e1 : hitsIn bg Bi (T bg)
+            = (Finset.univ.filter fun i : Fin ng => (i : ℕ) < T bg ∧ Bi (bg i)).card := rfl
+        have e2 : hitsIn bg Pr (T bg)
+            = ((Finset.univ.filter fun i : Fin ng => (i : ℕ) < T bg ∧ Bi (bg i)).filter
+                fun i => Pr (bg i)).card := by
+          unfold hitsIn
+          rw [Finset.filter_filter]
+          congr 1
+          ext i
+          simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+          exact ⟨fun h => ⟨⟨h.1, bisected_of_pair R h.2⟩, h.2⟩, fun h => ⟨h.1.1, h.2⟩⟩
+        simp only [Set.mem_ofPred_eq]
+        rw [← e1, ← e2]
+        exact hb.1
+      · have hc : ∀ (P : FreeMonoid α → Prop), (∀ x, Bi x → ¬ P x) →
+            ∀ i, P (b i) ↔ P (b' i) := by
+          intro P hP i
+          by_cases hi : Bi (b i)
+          · exact ⟨fun h => absurd h (hP _ hi), fun h => absurd h (hP _ ((h1 i).1 hi))⟩
+          · rw [h2 i hi]
+        have hag := hc Ag fun x hx hx' => hx' (bisected_gateDisagrees R hx)
+        have hen := hc En fun x hx hx' => not_bisected_of_ends R hx' hx
+        simp only [T, stopLook, hitsIn_congr hag, hitsIn_congr hen]
+    · rw [show B5 = ∅ from Set.eq_empty_of_forall_notMem fun bg hb => h hb.2]
+      simp only [measureReal_empty]
+      exact ha
+  have hB6 := miss_first_le D Bi ng n₀ hδ
+  have h1 := measureReal_union_le (μ := ν) B12 B34
+  have h2 := measureReal_union_le (μ := ν) B5 B6
+  have h3 := measureReal_union_le (μ := ν) (B12 ∪ B34) (B5 ∪ B6)
+  refine (measureReal_mono hsub).trans ?_
+  nlinarith
+
+end Gate
+
+theorem round_at_k_batch (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (k ng n₀ : ℕ) (seed probes : List (FreeMonoid α))
+    {acc θp f a δ : ℝ} (hacc0 : 0 ≤ acc) (hacc1 : acc ≤ 1) (hθp0 : 0 ≤ θp) (hθp1 : θp ≤ 1)
+    (hf : 0 ≤ f) (ha : 0 ≤ a) (hδ : 0 ≤ δ) :
+    (Measure.pi fun _ : Fin ng => D).real
+        {bg | ¬ RoundAtKHolds K R (runPassK K R k (initialK K R seed) probes) D k acc θp f a δ
+          n₀ bg}
+      ≤ (3 * ng + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2) + Real.exp (-(min n₀ ng : ℕ) * δ) :=
+  gate_bad_le K R D k ng n₀ _ (runPassK_learned K R k seed probes) hacc0 hacc1 hθp0 hθp1 hf ha hδ
+
+/-- The triples' claim over the oracle's noise. -/
+theorem triple_holds_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {Q : Type*} (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (k L : ℕ) (seed probes : List (FreeMonoid α)) {uGood ε : ℝ}
+    (hu : 0 ≤ uGood) (hε : 0 < ε) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
+    (hV : SuffixFree (F ∪ K.train F)) :
+    μ.real {ω | ¬ TripleHolds (readsAt O B F ω) A O B F
+        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes) D k L seed
+        probes uGood ε}
+      ≤ prefixMax D k / ε ^ 2 := by
+  sorry
 
 theorem round_at_k_holds : RoundAtK := by
-  intro α _ _ K R D _ k ng n₀ seed probes θc acc a δ hθc1 hacc0 hacc1 ha hδ
-  exact gate_bad_le K R D k ng n₀ _ (runPassK_learned K R k seed probes) hθc1 hacc0 hacc1 ha hδ
+  intro α _ _ Ω _ μ _ Q A O B F K D _ k L ng n₀ seed probes acc θp f a δ uGood ε hacc0 hacc1 hθp0
+    hθp1 hf ha hδ hu hε hlen hV
+  exact ⟨fun R => round_at_k_batch K R D k ng n₀ seed probes hacc0 hacc1 hθp0 hθp1 hf ha hδ,
+    triple_holds_le A O B F K D k L seed probes hu hε hlen hV⟩
 
 end OrthoDFA

@@ -11,7 +11,7 @@ import OrthoDFA.Proofs.Ends
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
-in `OrthoDFA.Round`, `RoundAtK`, `CheckYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`,
+in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `StartExists`, stated in `OrthoDFA.StartState`, and `StartRootCovered`, `EndsCovered` and
 `BadShare`, stated in `OrthoDFA.Ends`, hold.
 -/
@@ -38,14 +38,6 @@ theorem round_progress : RoundProgress := round_progress_holds
 theorem round_at_k : RoundAtK := round_at_k_holds
 
 #print axioms round_at_k
-
-theorem check_yield : CheckYield := check_yield_holds
-
-#print axioms check_yield
-
-theorem source_spread : SourceSpread := source_spread_holds
-
-#print axioms source_spread
 
 theorem start_exists : StartExists := start_exists_holds
 
