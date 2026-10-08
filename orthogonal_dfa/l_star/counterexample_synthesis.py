@@ -198,9 +198,10 @@ def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
             # Hitless by then, the edge is below the split test's share but for
             # failure_prob.
             cap=detecting_reads(_MIN_DETECTABLE_SPLIT, failure_prob),
+            screen=None,
         )
 
-    def undecided_test(sifter, letter, keep_rate):
+    def undecided_test(sifter, letter, keep_rate, screen):
         return EdgeTest(
             undecided_measure(sifter, letter),
             promote_above=undecided_promote,
@@ -209,14 +210,19 @@ def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
             cap=separating_reads(
                 EDGE_RISE * keep_rate, undecided_promote, failure_prob
             ),
+            screen=screen,
         )
+
+    # A new edge with no undecided read by then is below the promotion rate but
+    # for failure_prob; one at rate r is dropped with chance failure_prob^(r / it).
+    screen = detecting_reads(undecided_promote, failure_prob)
 
     # (source, letter, kind, sifter, used, test) for every edge judged
     judged = []
     for root in roots:
         tests = []
         for letter in letters:
-            test = undecided_test(resolver.sifter, letter, clean)
+            test = undecided_test(resolver.sifter, letter, clean, screen)
             used = frozenset(resolver.family.vs)
             judged.append((root, letter, UNDECIDED_EDGE, resolver.sifter, used, test))
             tests.append(test)
@@ -234,7 +240,7 @@ def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
                 state.chains.append(chain)
                 continue
             sifter, used = fresh[0], fresh[1] | chain.used
-            test = undecided_test(sifter, chain.letter, chain.rate)
+            test = undecided_test(sifter, chain.letter, chain.rate, None)
         judge_edges(chain, [test])
         judged.append((chain, chain.letter, chain.kind, sifter, used, test))
 

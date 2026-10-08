@@ -114,14 +114,18 @@ def midpoint_disagreement(family, tree, transitions, boundary, letter):
 
 class EdgeTest:
     """One edge's running tally against its two rates, settled by `edge_verdict`
-    or at ``cap`` units of what ``measure`` weighs a replay at."""
+    or at ``cap`` units of what ``measure`` weighs a replay at; dropped at
+    ``screen`` units with no hit, where that is not None."""
 
-    def __init__(self, measure, *, promote_above, keep_above, failure_prob, cap):
+    def __init__(
+        self, measure, *, promote_above, keep_above, failure_prob, cap, screen
+    ):
         self.measure = measure
         self.promote_above = promote_above
         self.keep_above = keep_above
         self.failure_prob = failure_prob
         self.cap = cap
+        self.screen = screen
         self.hits = 0
         self.weight = 0
         self.found = []
@@ -136,6 +140,9 @@ class EdgeTest:
         self.hits += hit
         self.weight += cost
         self.found += got
+        if self.screen is not None and self.hits == 0 and self.weight >= self.screen:
+            self.verdict = DROP
+            return
         self.settle(final=self.weight >= self.cap)
 
     def settle(self, *, final) -> None:

@@ -164,6 +164,7 @@ class TestOneDrawServesEveryEdgeOutOfASource(unittest.TestCase):
                 keep_above=0.1,
                 failure_prob=0.01,
                 cap=20,
+                screen=None,
             )
             for letter in (b"a", b"b")
         ]
@@ -182,11 +183,35 @@ class TestAHitlessDisagreementEdgeStopsOnceItCouldHaveShownOne(unittest.TestCase
             keep_above=1.5e-6,
             failure_prob=1e-4,
             cap=cap,
+            screen=None,
         )
         ec.judge_edges(_Counting(), [test])
 
         self.assertEqual((DROP, cap), (test.verdict, test.weight))
         self.assertLess(cap, 100)
+
+
+class TestANewUndecidedEdgeWithoutAHitIsScreenedOut(unittest.TestCase):
+    def _test(self, hit_every):
+        drawn = itertools.count(1)
+        return ec.EdgeTest(
+            lambda x: (next(drawn) % hit_every == 0, 1, []),
+            promote_above=0.03,
+            keep_above=0.015,
+            failure_prob=1e-4,
+            cap=10_000,
+            screen=50,
+        )
+
+    def test_it_drops_at_the_screen_with_no_hit(self):
+        test = self._test(hit_every=10**9)
+        ec.judge_edges(_Counting(), [test])
+        self.assertEqual((DROP, 50), (test.verdict, test.weight))
+
+    def test_one_hit_sends_it_on_to_the_full_test(self):
+        test = self._test(hit_every=40)
+        ec.judge_edges(_Counting(), [test])
+        self.assertGreater(test.weight, 50)
 
 
 class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
