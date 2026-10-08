@@ -267,8 +267,18 @@ _LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
 _PROBE = bytes([0, 1, 0, 1])
 
 
-def _walked(places):
-    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE)
+class _Always:
+    """An rng whose every integer draw is ``value``."""
+
+    def __init__(self, value):
+        self._value = value
+
+    def integers(self, _high):
+        return self._value
+
+
+def _walked(places, earliest=0):
+    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, _Always(earliest))
 
 
 #: Walks never leave 0, so a tree that moves a long prefix to 1 disagrees there.
@@ -280,12 +290,17 @@ class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
     def test_a_walk_keeps_what_the_tree_cannot_place_on_the_way(self):
         self.assertEqual([_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS).sample())
 
+    def test_a_walk_anchored_past_what_the_tree_cannot_place_keeps_only_the_prefix(
+        self,
+    ):
+        self.assertEqual([_PROBE[:3]], _walked(_LONG_ONE_FAILS, earliest=3).sample())
+
     def test_a_walk_the_sift_agrees_with_keeps_nothing(self):
-        walked = Walked(_Fixed(_PROBE), _Walk(lambda seq: 0), _STAYS)
+        walked = Walked(_Fixed(_PROBE), _Walk(lambda seq: 0), _STAYS, _Always(0))
         self.assertEqual([], walked.sample())
 
     def test_a_walk_placed_throughout_keeps_the_prefix_before_where_it_parts(self):
-        walked = Walked(_Fixed(_PROBE), _Walk(_MOVES_AT_THREE), _STAYS)
+        walked = Walked(_Fixed(_PROBE), _Walk(_MOVES_AT_THREE), _STAYS, _Always(0))
         self.assertEqual([_PROBE[:2]], walked.sample())
 
     def test_a_sift_reads_the_draw_with_its_extension(self):

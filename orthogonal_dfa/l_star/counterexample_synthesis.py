@@ -114,6 +114,14 @@ def _accumulate_harvest(resolver, state, wanted) -> int:
     return min(wanted, len(taken))
 
 
+def _blocked_at_limit(resolver, fnr_limit) -> bool:
+    """Whether the pass's quiet probes went unchecked as often as a family
+    indecisive at the limit could leave them: a probe goes unchecked when any of
+    its reads is undecided, so that is up to ``fnr_limit`` times their reads, and
+    at half of it only a lower limit gets a later round past them."""
+    return 2 * resolver.unchecked_quiet_probes > fnr_limit * resolver.quiet_reads
+
+
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
@@ -141,7 +149,7 @@ def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
     state.sources[state.harvesting] = HarvestSource(
         Counter(
             {
-                provenance(read, resolver.sifter, dfa.transitions): count
+                provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
                 for read, count in state.harvest_reads.items()
             }
         ),
@@ -358,14 +366,12 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        # A probe is checked only if every read on its way is decided, and a family
-        # indecisive at a rate the limit allows can still leave most unchecked.
-        if 2 * resolver.unchecked_quiet_probes > resolver.quiet_probes:
+        if _blocked_at_limit(resolver, pst.fnr_limit):
             pst.fnr_limit /= 2
             print(
                 f"[round {index}] {resolver.unchecked_quiet_probes} of the "
-                f"{resolver.quiet_probes} probes since the last split unchecked; "
-                f"FNR limit now {pst.fnr_limit:.4f}"
+                f"{resolver.quiet_probes} probes since the last split unchecked, "
+                f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_harvest(resolver, state, target)

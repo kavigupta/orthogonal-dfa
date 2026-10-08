@@ -17,11 +17,18 @@ class Sifter:
     def __init__(self, tree, family):
         self.tree = tree
         self.family = family
+        #: Node reads every sift so far has made.
+        self.reads = 0
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
         """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
         when some node cannot place it."""
-        return self.tree.sift(seq, self.family.is_accept)
+
+        def decide(s, midfix):
+            self.reads += 1
+            return self.family.is_accept(s, midfix)
+
+        return self.tree.sift(seq, decide)
 
     def known_sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to without a new query, or ``None`` when some
@@ -61,14 +68,14 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
 
-def anchored_walk(probe, sift, transitions):
-    """Where ``sift`` first places a prefix of ``probe``, and what following
-    ``transitions`` from there reaches.
+def anchored_walk(probe, sift, transitions, earliest):
+    """Where ``sift`` first places a prefix of ``probe`` at least ``earliest``
+    long, and what following ``transitions`` from there reaches.
 
     ``states[i]`` is the state after ``probe[:i]``, ``None`` below the anchor;
-    ``(None, None)`` where no prefix places at all.
+    ``(None, None)`` where no such prefix places.
     """
-    start = 0
+    start = earliest
     while start < len(probe):
         state = sift(probe[:start])
         if state is not None:
