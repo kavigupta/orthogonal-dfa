@@ -707,3 +707,16 @@ harvest. This removes the `Blk` residue.
 Splits are not capped, so budget exhaustion stays a fallback outcome unless the number of leaves
 is bounded. Every non-split result (undecided, no split, stopped) has to count toward the cap,
 otherwise "stopped" reruns are not bounded.
+
+## Lean status: `RoundTrichotomy` stated
+
+`OrthoDFA/Trichotomy.lean` states the trichotomy for one reading, in the nested shape: a noise
+set `E` with `μ E ≤ 5·prefixMax(k)/ε²`; off it, `QualityHolds` bounds the five noise-driven
+classes (triples, pairs, start-deep, end-deep, blocked) by `c·f·(their multiplier)` plus slack;
+and over the gate sample (`ng` draws) and refusal sample (`nr` draws) the trichotomy fails with
+chance at most `2(log₂(ng/30)+2)a + |paths|e^{−2ngδ²} + 6(log₂(nr/30)+2)a + 6e^{−nrδ²/2}
++ 2e^{−min(30,nr)δ}`.
+
+Open in the proof: a `visited ≤ clog₂(L−k)+1` lemma for the triple and pair multipliers (only
+`visited ≤ fuel` is proved); members carry no quality claim, so `θM` is a parameter; the
+round-level claim unions over at most `1 + splits + capped reruns` readings.

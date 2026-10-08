@@ -57,6 +57,11 @@
   leaves some `x·m` undecided, so these populations are left undecided at least as often as the
   ends are. `BadShare`: a population left undecided `ā` of the time has at least
   `(ā − f)/(umax − f)` of its mass at states read undecided more than `f` of the time.
+- `OrthoDFA/Trichotomy.lean` — `RoundTrichotomy` (stated, not yet proved): one reading of the
+  round. Off a noise set of measure at most `5·prefixMax/ε²`, every harvest class is at most its
+  incidental rate plus slack; there, the gate and refusal samples fail with small chance to end
+  in one of: the best start passes and disagrees on at most `1 − acc + δ`; live edges remain to
+  rerun; some class fires; or no class fires, it halves, and `f ≥ τ*` for any covering start.
 - `OrthoDFA/Proofs/Query.lean`, `Triple.lean`, `PassReadsK.lean`, `TripleBound.lean`,
   `RoundAtK.lean` — the triples' claim. A probe's processing is a computation asking the cut one
   string at a time; a triple's harvest is a middle's first undecided read; the pass is decided by
