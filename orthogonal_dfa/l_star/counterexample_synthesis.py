@@ -24,13 +24,21 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
+from .edge_chains import (
+    EDGE_FACTOR,
+    EDGE_MISJUDGE,
+    PROMOTE,
+    ROLL_OVER,
+    EdgeChain,
+    judge_edge,
+)
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
-from .provenance import provenance
+from .provenance import Read, provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -138,39 +146,46 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-#: Replays of an edge drawn to judge whether its harvest stands apart, and the
-#: fewest strings an edge must have harvested to be worth judging.
-EDGE_PROBES = 32
-EDGE_MIN_HARVEST = 3
-
-
 def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Hold apart each edge (a population's draws extended by a letter) whose
-    replays come out undecided at more than twice the pass's own per-read rate.
-    Most of what such an edge finds is then a badly read state, which mixed into
-    the boundary population would be diluted below what the FNR gate can see."""
-    if state.harvesting is None:
-        return
-    baseline = resolver.unchecked_quiet_probes / max(resolver.quiet_reads, 1)
-    for read, count in list(state.harvest_reads.items()):
-        if not read.extension or count < EDGE_MIN_HARVEST:
-            continue
-        found = provenance(read, resolver.sifter, dfa.transitions, pst.rng)
-        reads, met = resolver.sifter.reads, 0
-        for _ in range(EDGE_PROBES):
-            met += bool(found.sample())
-        if met <= 2 * baseline * (resolver.sifter.reads - reads):
-            continue
-        state.split_harvest(
-            read,
-            [s for s in state.harvest() if resolver.indecisive.get(s) == read],
-            HarvestSource(
-                Counter({found: count}),
-                pst.rng,
-                known=state.seen,
-                acc_threshold=acc_threshold,
-            ),
+    """Judge every per-state source and every chain rolled over to this round,
+    each extended by every letter (`judge_edge`): promote it to a population of
+    its own, roll it over into a chain, or drop it."""
+    clean = pst.acceptable_fnr
+    candidates = [
+        (state.sources[label], bytes([c]))
+        for label in state.held
+        if label[0] == "state"
+        for c in range(pst.alphabet_size)
+    ] + [(chain, chain.letter) for chain in state.chains]
+    failure_prob = EDGE_MISJUDGE / max(len(candidates), 1)
+    state.chains = []
+    for source, letter in candidates:
+        verdict, met = judge_edge(
+            source, letter, resolver.sifter, clean=clean, failure_prob=failure_prob
         )
+        if verdict == ROLL_OVER:
+            state.chains.append(
+                EdgeChain(
+                    source,
+                    letter,
+                    resolver.sifter,
+                    good=EDGE_FACTOR * clean,
+                    poor=clean,
+                )
+            )
+        elif verdict == PROMOTE:
+            found = provenance(
+                Read(source, letter), resolver.sifter, dfa.transitions, pst.rng
+            )
+            state.add_edge(
+                met,
+                HarvestSource(
+                    Counter({found: 1}),
+                    pst.rng,
+                    known=state.seen,
+                    acc_threshold=acc_threshold,
+                ),
+            )
 
 
 def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:

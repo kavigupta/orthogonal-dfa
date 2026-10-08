@@ -32,8 +32,10 @@ class PoolState:
         self.harvest_reads = Counter()
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
-        #: Edge populations split off so far, which is what numbers them.
+        #: Edge populations made so far, which is what numbers them.
         self.edges_named = 0
+        #: Edges a round rolled over, for the next round to test afresh.
+        self.chains = []
 
     def retire(self, kind) -> None:
         """Forget last round's populations labelled (kind, ...): this round's are
@@ -70,18 +72,13 @@ class PoolState:
         self.harvest().append(string)
         self.harvest_reads[read] += 1
 
-    def split_harvest(self, read, strings, source) -> None:
-        """Move ``strings``, this round's boundary strings met by ``read``, into a
-        population of their own, which ``source`` grows."""
-        moved = set(strings)
-        self.held[self.harvesting] = [
-            s for s in self.held[self.harvesting] if s not in moved
-        ]
+    def add_edge(self, strings, source) -> None:
+        """Hold ``strings`` as an edge population, which ``source`` grows."""
+        self.seen.update(strings)
         self.edges_named += 1
         label = ("edge", self.edges_named)
-        self.held[label] = sorted(moved)
+        self.held[label] = sorted(set(strings))
         self.sources[label] = source
-        del self.harvest_reads[read]
 
     def draws(self, sampler) -> dict:
         """Per prefix a population holds, the draw it was: one of that

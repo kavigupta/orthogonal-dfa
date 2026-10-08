@@ -13,7 +13,6 @@ import numpy as np
 from orthogonal_dfa.l_star.mask_table import UNIFORM, MaskTable
 from orthogonal_dfa.l_star.prefix_populations import PoolState, grow_population
 from orthogonal_dfa.l_star.prefix_suffix_tracker import PrefixSuffixTracker
-from orthogonal_dfa.l_star.provenance import Read
 
 #: Anything: the table below is never asked a membership question.
 _NO_ORACLE = None
@@ -177,17 +176,13 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestAnEdgeSplitsOffTheBoundaryPopulation(unittest.TestCase):
-    def test_its_strings_move_to_a_population_of_their_own(self):
+class TestAnEdgeIsAPopulationOfItsOwn(unittest.TestCase):
+    def test_its_strings_are_held_and_seen(self):
         state = PoolState([])
-        edge, other = Read("aimed", b"\x01"), Read("sampler", None)
-        for string, read in ((b"a", edge), (b"b", other), (b"c", edge)):
-            state.take(string, read)
         source = object()
 
-        state.split_harvest(edge, [b"a", b"c"], source)
+        state.add_edge([b"c", b"a", b"c"], source)
 
-        self.assertEqual([b"b"], state.held[("boundary", 1)])
         self.assertEqual([b"a", b"c"], state.held[("edge", 1)])
         self.assertIs(source, state.sources[("edge", 1)])
-        self.assertEqual({other: 1}, dict(state.harvest_reads))
+        self.assertEqual({b"a", b"c"}, state.seen)
