@@ -3,14 +3,15 @@ import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.Replay
 import OrthoDFA.Proofs.GateFlip
 import OrthoDFA.Proofs.StartAtK
+import OrthoDFA.Proofs.StartState
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
-in `OrthoDFA.Round`, and `RoundAtK`, `CheckYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`,
-hold.
+in `OrthoDFA.Round`, `RoundAtK`, `CheckYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`, and
+`StartExists`, stated in `OrthoDFA.StartState`, hold.
 -/
 
 namespace OrthoDFA
@@ -43,5 +44,9 @@ theorem check_yield : CheckYield := check_yield_holds
 theorem source_spread : SourceSpread := source_spread_holds
 
 #print axioms source_spread
+
+theorem start_exists : StartExists := start_exists_holds
+
+#print axioms start_exists
 
 end OrthoDFA

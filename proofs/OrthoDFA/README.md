@@ -41,6 +41,11 @@
   These are not exclusive: a round can add a source and pass. `CheckYield`: the check source
   yields its blocked share less the draws that reached an unlearned edge through a wrong earlier
   one. `SourceSpread`: no string takes more of it than the draws sharing its first `k` letters.
+- `OrthoDFA/StartState.lean` — `StartExists`: a DFA `H` that agrees with the target on a set `S`
+  of target states, each read as `H`'s state `h q`. Started at `h q`, it misjudges at most `η` of
+  the draws whenever the target re-rooted at `q` both stays in `S` and agrees with the target on at
+  least `1 − η` of them. This is separate from the round: how `H` comes to agree on `S` is not
+  assumed here.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

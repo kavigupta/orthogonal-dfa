@@ -284,4 +284,19 @@ rebuilds the tree from the root, so a false split dies with its round. In the fi
 duplicate leaf makes the DFA non-minimal, not wrong. The gate and the certificate judge the end
 state, and the pass is bounded by its probe budget, not by its leaf count.
 
-**Not yet stated:** the export lemma (F4–F6).
+**Start state (`StartExists`, `StartState.lean`).** This is separate from the round. Suppose `H`
+agrees with the target on a set `S` of target states, read through `h`. Then from `h q`, `H`
+misjudges at most `1 − cov(q)` of the draws, where `cov(q)` is the share on which the target
+re-rooted at `q` stays in `S` and agrees with the target. No occupancy premise and no leftover term
+is needed.
+
+The assumption `cov(q) ≥ 1 − η` is the weakest of its kind. Off `S`, `H` can do anything, and on
+the agreeing runs it tracks the re-rooted target exactly.
+
+How it relates to `covered_accuracy_ceiling`, which drops the stay-in-`S` part:
+- The ceiling implies the assumption when `S` contains every state the best covered start's runs
+  visit, for example when `S` is closed under the target's steps.
+- It does not imply it otherwise. With length parity in the state and `L` even, the covered states
+  are all even, and runs from them leave on every odd step.
+- The matching check for `satisfies_preconditions` is the share of strings whose run from a
+  covered start stays within the covered states and agrees.
