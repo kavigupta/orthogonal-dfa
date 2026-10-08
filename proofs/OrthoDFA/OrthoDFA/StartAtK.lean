@@ -393,9 +393,9 @@ def TripleHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B :
       + ε * (1 + uGood * s.tree.depth * L)
 
 /-- `RoundAtK`: for any reads, the gate's batch makes the round's claims but for the tests'
-failure chances at each of the `log₂(ng/n₀) + 2` looks, Hoeffding's tails and a refusal's chance of missing every searched draw; and over
-the oracle's noise the triples' claim holds but for Chebyshev's bound, the draws spread at most
-`prefixMax D k` over any first `k` letters. -/
+failure chances at each of the `log₂(ng/n₀) + 2` looks, Hoeffding's tails and a refusal's chance
+of missing every searched draw; and over the oracle's noise the triples' claim holds but for
+Chebyshev's bound, the draws spread at most `prefixMax D k` over any first `k` letters. -/
 def RoundAtK : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))

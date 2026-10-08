@@ -112,7 +112,8 @@ theorem qSift_trace (cut : FreeMonoid α → Option Bool) (w : FreeMonoid α) (g
 /-- Whether the cut places `x`'s first `i` letters where the walk does, its reads tagged `g`. -/
 def qAgrees (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool) (i : ℕ) (g : Bool) :
     Qry α (Option Bool) :=
-  (qSift (prefixOf x i) g t).map fun s => s.elim (fun p => some (decide (p = walkAt i))) fun _ => none
+  (qSift (prefixOf x i) g t).map fun s =>
+    s.elim (fun p => some (decide (p = walkAt i))) fun _ => none
 
 theorem qAgrees_run (R : CutReads α) (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool)
     (i : ℕ) (g : Bool) : (qAgrees t x walkAt i g).run R.cut = agreesAt R t x walkAt i := by

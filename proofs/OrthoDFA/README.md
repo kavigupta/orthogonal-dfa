@@ -44,7 +44,7 @@
   - Triples: over the oracle's noise, those harvested at states read undecided less than `uGood`
     are at most `uGood·depth·E[visits]`, plus the draws whose middles the pass may have read, plus a
     fluctuation `ε`, but for `prefixMax D k / ε²`. `visits` counts the middles a search
-    visits. Not yet proved.
+    visits.
 - `OrthoDFA/StartState.lean` — `StartExists`: a DFA `H` that agrees with the target on a set `S`
   of target states, each read as `H`'s state `h q`. Started at `h q`, it misjudges at most `η` of
   the draws whenever the target re-rooted at `q` both stays in `S` and agrees with the target on at
@@ -57,6 +57,11 @@
   leaves some `x·m` undecided, so these populations are left undecided at least as often as the
   ends are. `BadShare`: a population left undecided `ā` of the time has at least
   `(ā − f)/(umax − f)` of its mass at states read undecided more than `f` of the time.
+- `OrthoDFA/Proofs/Query.lean`, `Triple.lean`, `PassReadsK.lean`, `TripleBound.lean`,
+  `RoundAtK.lean` — the triples' claim. A probe's processing is a computation asking the cut one
+  string at a time; a triple's harvest is a middle's first undecided read; the pass is decided by
+  the bits its reads ask; given those, draws with different first `k` letters are independent,
+  and Chebyshev in each cell of the pass bounds the fluctuation.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

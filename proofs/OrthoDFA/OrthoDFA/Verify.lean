@@ -2,7 +2,7 @@ import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.Replay
 import OrthoDFA.Proofs.GateFlip
-import OrthoDFA.Proofs.StartAtK
+import OrthoDFA.Proofs.RoundAtK
 import OrthoDFA.Proofs.StartState
 import OrthoDFA.Proofs.Ends
 

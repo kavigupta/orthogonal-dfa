@@ -98,7 +98,8 @@ theorem qWalk_asksIn (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid
   have hs : ∀ i g, (qSift (prefixOf x i) g t).AsksIn (PrefixRead t x) := fun i g =>
     Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨i, m, hm, he⟩) _ (qSift_asksIn _ g t)
   have hx : (qSift x false t).AsksIn (PrefixRead t x) :=
-    Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨x.toList.length, m, hm, by rw [prefixOf_length]; exact he⟩)
+    Qry.asksIn_mono (fun y ⟨m, hm, he⟩ =>
+      ⟨x.toList.length, m, hm, by rw [prefixOf_length]; exact he⟩)
       _ (qSift_asksIn _ false t)
   unfold qWalk
   refine Qry.asksIn_bind (fun s0 => ?_) _ (hs k false)
@@ -166,7 +167,8 @@ theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
     (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b)
     (hwit : ∀ p c q y, edges p c = some (q, y) → AgreeOne K F f₁ f₂ t y)
     (hw : ∀ i, AgreeOne K F f₁ f₂ t (prefixOf x i)) :
-    seedStep K (rd B F f₁) t pool edges k x ps fd = seedStep K (rd B F f₂) t pool edges k x ps fd := by
+    seedStep K (rd B F f₁) t pool edges k x ps fd
+      = seedStep K (rd B F f₂) t pool edges k x ps fd := by
   unfold seedStep
   simp only []
   split
@@ -251,7 +253,8 @@ theorem probeOutcome_member {t : DTree α} {edges : Edges α} {k : ℕ} {x u : F
   unfold probeOutcome at h
   rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
   swap
-  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k)
+      k hi
     simp only [Sum.elim_inr] at h
     rw [h] at this
     exact this.elim
@@ -421,7 +424,8 @@ theorem stepK_mids_mono (s : KState α) (x : FreeMonoid α) :
     · rw [h]; exact DTree.mem_mids_splitAt hm
 
 theorem phaseK_mids_mono (seed probes : List (FreeMonoid α)) (n : ℕ) :
-    ∀ m ∈ (phaseK K R k seed probes n).tree.mids, m ∈ (phaseK K R k seed probes (n + 1)).tree.mids := by
+    ∀ m ∈ (phaseK K R k seed probes n).tree.mids,
+      m ∈ (phaseK K R k seed probes (n + 1)).tree.mids := by
   by_cases hn : n < probes.length
   · rw [phaseK_succ K R k seed probes hn]; exact stepK_mids_mono K R k _ _
   · rw [phaseK_of_le K R k seed probes (n := n + 1) (by omega),
@@ -437,7 +441,8 @@ theorem phaseK_mids_le (seed probes : List (FreeMonoid α)) {n n' : ℕ} (h : n 
 theorem phaseK_final_mids (seed probes : List (FreeMonoid α)) (n : ℕ) :
     ∀ m ∈ (phaseK K R k seed probes n).tree.mids,
       m ∈ (runPassK K R k (initialK K R seed) probes).tree.mids := by
-  have hfin : runPassK K R k (initialK K R seed) probes = phaseK K R k seed probes probes.length := by
+  have hfin : runPassK K R k (initialK K R seed) probes
+      = phaseK K R k seed probes probes.length := by
     simp [phaseK]
   rw [hfin]
   rcases le_total n probes.length with h | h
@@ -499,7 +504,8 @@ theorem phaseK_congr (k : ℕ) {Bs : Set (FreeMonoid α)} {seed probes : List (F
 
 theorem prefixOf_mem_bases {seed probes : List (FreeMonoid α)} {p : FreeMonoid α}
     (hp : p ∈ probes) (i : ℕ) :
-    prefixOf p i ∈ seed ++ probes.flatMap fun p => (List.range (p.toList.length + 1)).map (prefixOf p) := by
+    prefixOf p i ∈ seed ++ probes.flatMap fun p =>
+      (List.range (p.toList.length + 1)).map (prefixOf p) := by
   refine List.mem_append_right _ (List.mem_flatMap.2 ⟨p, hp, List.mem_map.2
     ⟨min i p.toList.length, List.mem_range.2 (by omega), ?_⟩⟩)
   unfold prefixOf

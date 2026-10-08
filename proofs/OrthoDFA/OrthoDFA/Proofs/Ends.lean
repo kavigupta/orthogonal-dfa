@@ -26,7 +26,7 @@ theorem start_root_covered : StartRootCovered := by
 
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
-theorem route_undecided (cut : FreeMonoid α → Option Bool) (x : FreeMonoid α) :
+theorem route_undecided_mid (cut : FreeMonoid α → Option Bool) (x : FreeMonoid α) :
     ∀ t : DTree α, (t.route cut x).2.isRight →
       ∃ m ∈ DTree.midfixes t, cut (x * m) = none
   | .leaf, h => by simp [DTree.route] at h
@@ -34,9 +34,9 @@ theorem route_undecided (cut : FreeMonoid α → Option Bool) (x : FreeMonoid α
     simp only [DTree.route] at h
     split at h
     · exact ⟨m, by simp [DTree.midfixes], by assumption⟩
-    · obtain ⟨m', hm', hc⟩ := route_undecided cut x a (by simpa using h)
+    · obtain ⟨m', hm', hc⟩ := route_undecided_mid cut x a (by simpa using h)
       exact ⟨m', by simp [DTree.midfixes, hm'], hc⟩
-    · obtain ⟨m', hm', hc⟩ := route_undecided cut x r (by simpa using h)
+    · obtain ⟨m', hm', hc⟩ := route_undecided_mid cut x r (by simpa using h)
       exact ⟨m', by simp [DTree.midfixes, hm'], hc⟩
 
 theorem deep_undecided (R : CutReads α) (t : DTree α) (x : FreeMonoid α)
@@ -48,9 +48,9 @@ theorem deep_undecided (R : CutReads α) (t : DTree α) (x : FreeMonoid α)
     simp only [DTree.sift, DTree.route] at hr hl
     split at hr
     · simp_all
-    · obtain ⟨m', hm', hc⟩ := route_undecided R.cut x a (by simpa using hr)
+    · obtain ⟨m', hm', hc⟩ := route_undecided_mid R.cut x a (by simpa using hr)
       exact ⟨m', by simp [DTree.belowRoot, hm'], hc⟩
-    · obtain ⟨m', hm', hc⟩ := route_undecided R.cut x r (by simpa using hr)
+    · obtain ⟨m', hm', hc⟩ := route_undecided_mid R.cut x r (by simpa using hr)
       exact ⟨m', by simp [DTree.belowRoot, hm'], hc⟩
 
 theorem ends_covered : EndsCovered := by
@@ -64,7 +64,8 @@ theorem ends_covered : EndsCovered := by
         measureReal_biUnion_finset_le _ _
     _ = ∑ m ∈ t.belowRoot, (endPopulation X m).real {p | R.cut p = none} := by
         refine Finset.sum_congr rfl fun m _ => ?_
-        rw [endPopulation, map_measureReal_apply measurable_from_top (MeasurableSpace.measurableSet_top)]
+        rw [endPopulation,
+          map_measureReal_apply measurable_from_top (MeasurableSpace.measurableSet_top)]
 
 theorem bad_share : BadShare := by
   intro α _ _ Ω _ μ _ Q A O B F P _ f umax hf hmax

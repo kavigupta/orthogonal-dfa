@@ -50,7 +50,8 @@ theorem qProbe_asksIn_ge (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMo
   have hs : ∀ i g, k ≤ i → (qSift (prefixOf x i) g t).AsksIn S := fun i g hi =>
     Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨i, hi, m, hm, he⟩) _ (qSift_asksIn _ g t)
   have hx : (qSift x false t).AsksIn S := by
-    refine Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => ⟨max k x.toList.length, le_max_left _ _, m, hm, ?_⟩)
+    refine Qry.asksIn_mono (fun y ⟨m, hm, he⟩ =>
+      ⟨max k x.toList.length, le_max_left _ _, m, hm, ?_⟩)
       _ (qSift_asksIn _ false t)
     rw [he]
     congr 1
@@ -327,7 +328,8 @@ theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
   classical
   set cut : Ω → FreeMonoid α → Option Bool := fun ω => (cellReads O B F V c ω).cut
   have hS : ∀ w, (∃ i, k ≤ i ∧ ∃ m ∈ t.mids, w = prefixOf x i * m) →
-      ∀ o, MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | cut ω w = o} := fun w ⟨i, hi, m', _, he⟩ o =>
+      ∀ o, MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | cut ω w = o} :=
+    fun w ⟨i, hi, m', _, he⟩ o =>
     cellCut_drawBits O B F V c k x ⟨i, hi, m', he⟩ o
   have hrt : ∀ A' : Set (Outcome α × List (FreeMonoid α × Bool)),
       MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | ((qProbe t edges k x).run (cut ω),
@@ -338,7 +340,8 @@ theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
         (qSift (prefixOf x j) true t).trace (cut ω)) ∈ A'} := fun j hj =>
     Qry.measurableSet_run_trace cut (S := fun w => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, w = prefixOf x i * m)
       hS _ (Qry.asksIn_mono (fun y ⟨m', hm, he⟩ => ⟨j, hj, m', hm, he⟩) _ (qSift_asksIn _ _ t))
-  have hFT : MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x} := by
+  have hFT : MeasurableSet[noiseAlg O (drawBits V c k x)]
+      {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x} := by
     have hset : {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x}
         = ⋃ j : ℕ, if k ≤ j then
             {ω | ((qProbe t edges k x).run (cut ω), (qProbe t edges k x).trace (cut ω))
@@ -464,7 +467,8 @@ theorem passK_determined (ω ω' : Ω)
     passK O B F K k seed probes ω' = passK O B F K k seed probes ω :=
   runPassK_determined O B F K k seed probes ω ω' h
 
-theorem passCell_const [IsProbabilityMeasure μ] {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
+theorem passCell_const [IsProbabilityMeasure μ]
+    {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
     (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (hω : ω ∈ pcell O (F ∪ K.train F) c)
     (hcl : ω ∈ cleanAll O) :
     passK O B F K k seed probes ω = passK O B F K k seed probes ω₀
@@ -530,7 +534,8 @@ theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGoo
   set s₀ := passK O B F K k seed probes ω₀
   set P := pcell O V c
   set C := passCell O B F K k seed probes c
-  set FTc : Ω → Prop := fun ω => FreshTriple A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
+  set FTc : Ω → Prop := fun ω =>
+    FreshTriple A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
   set tc : Ω → ℕ := fun ω => tagCount (cellReads O B F V c ω) s₀.tree s₀.edges k x
   set h : Ω → ℝ := fun ω => contrib A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
   obtain ⟨hFTm, htcm, hhm⟩ := measurable_contrib A O B F V uGood c s₀.tree s₀.edges c.1 k x
@@ -642,7 +647,8 @@ theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGoo
       · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
     rw [this]; exact hPm'.inter (measurableSet_cleanAll O)
   have hint_ctc : Integrable (C.indicator fun ω => (tc ω : ℝ)) μ := hint_tc.indicator hCm
-  have hFTbound : μ.real (C ∩ {ω | FTc ω}) ≤ uGood * ∫ ω, C.indicator (fun ω => (tc ω : ℝ)) ω ∂μ := by
+  have hFTbound : μ.real (C ∩ {ω | FTc ω})
+      ≤ uGood * ∫ ω, C.indicator (fun ω => (tc ω : ℝ)) ω ∂μ := by
     have h1 := (measure_mono hsub).trans hfresh
     rw [hlin, ← ofReal_integral_eq_lintegral_ofReal hint_ctc
       (ae_of_all _ fun ω => Set.indicator_nonneg (fun ω _ => Nat.cast_nonneg _) ω),

@@ -186,7 +186,8 @@ theorem stopLook_spec {θ θ' a : ℝ} {n₀ N : ℕ} (b : Fin N → FreeMonoid 
               (hitsIn b P' (stopLook θ θ' a n₀ b P P'))).isSome)) := by
   have hN : N ∈ lookSet n₀ N := Finset.mem_insert_self _ _
   unfold stopLook
-  rcases hf : ((lookSet n₀ N).sort (· ≤ ·)).find? (fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
+  rcases hf : ((lookSet n₀ N).sort (· ≤ ·)).find?
+      (fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
       && (rateSide θ' a n₀ n (hitsIn b P' n)).isSome) with _ | n
   · simp only [Option.getD_none]
     exact ⟨hN, le_rfl, min_le_right _ _, by simp⟩
@@ -210,7 +211,8 @@ theorem look_set {N n : ℕ} (hn : n ≤ N) (b : Fin N → FreeMonoid α) (P : F
   ⟨hitsIn_eq b P n, card_lt_filter hn⟩
 
 omit [DecidableEq α] in
-theorem sum_looks_le {N n₀ : ℕ} {c : ℝ} (hc : 0 ≤ c) (g : ℕ → ℝ) (hg : ∀ n ∈ lookSet n₀ N, g n ≤ c) :
+theorem sum_looks_le {N n₀ : ℕ} {c : ℝ} (hc : 0 ≤ c) (g : ℕ → ℝ)
+    (hg : ∀ n ∈ lookSet n₀ N, g n ≤ c) :
     ∑ n ∈ lookSet n₀ N, g n ≤ (Nat.log 2 (N / n₀) + 2) * c := by
   refine (Finset.sum_le_sum hg).trans ?_
   rw [Finset.sum_const, nsmul_eq_mul]
@@ -804,7 +806,8 @@ theorem member_spec {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoi
   unfold probeOutcome at h
   rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
   swap
-  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k)
+      k hi
     simp only [Sum.elim_inr] at h
     rw [h] at this
     exact this.elim
@@ -900,7 +903,8 @@ theorem not_bisected_of_ends {t : DTree α} {edges : Edges α} {k : ℕ} {x : Fr
   rcases hc : walkCheck R t edges k x with o | ⟨ps, hi⟩
   · simp
   · exfalso
-    have hs := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+    have hs := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps
+      (hi - k) k hi
     have : probeOutcome R t edges k x
         = bracketAt (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi := by
       simp [probeOutcome, hc]
@@ -1112,24 +1116,5 @@ theorem round_at_k_batch (K : StageKnobs α) (R : CutReads α) (D : Measure (Fre
       ≤ (3 * (Nat.log 2 (ng / n₀) + 2) + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
         + Real.exp (-(min n₀ ng : ℕ) * δ) :=
   gate_bad_le K R D k ng n₀ _ (runPassK_learned K R k seed probes) hacc0 hacc1 hθp0 hθp1 hf ha hδ
-
-/-- The triples' claim over the oracle's noise. -/
-theorem triple_holds_le {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
-    {Q : Type*} (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
-    [IsProbabilityMeasure D] (k L : ℕ) (seed probes : List (FreeMonoid α)) {uGood ε : ℝ}
-    (hu : 0 ≤ uGood) (hε : 0 < ε) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
-    (hV : SuffixFree (F ∪ K.train F)) :
-    μ.real {ω | ¬ TripleHolds (readsAt O B F ω) A O B F
-        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes) D k L seed
-        probes uGood ε}
-      ≤ prefixMax D k / ε ^ 2 := by
-  sorry
-
-theorem round_at_k_holds : RoundAtK := by
-  intro α _ _ Ω _ μ _ Q A O B F K D _ k L ng n₀ seed probes acc θp f a δ uGood ε hacc0 hacc1 hθp0
-    hθp1 hf ha hδ hu hε hlen hV
-  exact ⟨fun R => round_at_k_batch K R D k ng n₀ seed probes hacc0 hacc1 hθp0 hθp1 hf ha hδ,
-    triple_holds_le A O B F K D k L seed probes hu hε hlen hV⟩
 
 end OrthoDFA
