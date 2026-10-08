@@ -556,3 +556,27 @@ What changes in the statement:
 Still pending: R2 (pair and unlearned-member harvests), R3 (leftover edges), R5 (drop
 nothing-to-rerun halving), and R4. The proposed R4 route is the path-based coverage
 precondition, which excludes the transient-state example.
+
+**R2 approved, with `θp = 1/2`.** Pairs (both reads) and unlearned-edge members are held as
+harvests, replayed like triples.
+
+**A pair's quality is judged by its middle read.**
+- The middle read is a tagged first undecided read. Every read before it in the probe is decided:
+  the walk, and the earlier middles' neighbours. So the fresh-read lemma applies as for triples:
+  `D(pair, middle well-read, Dis_q̂) ≤ c·f·depth·E[visits·1(searched ∧ Dis_q̂)]`.
+- That is at most `c·f·depth·(log₂(L − k) + 1)·D(searched ∧ Dis_q̂)`.
+
+**Pair test.**
+- **Trips:** `D(pair ∧ Dis) > (θp − δ)·D(searched ∧ Dis)`. The held pairs' bad share is then
+  more than `1 − c·f·depth·(log₂(L − k) + 1)/(θp − δ)`.
+  - So a trip with bad share under `q₀` forces `f > τ* = (θp − δ)(1 − q₀)/(c·depth·(log₂(L − k) + 1))`.
+  - That is the requested `τ*`, up to `δ`.
+- **Does not trip:** pairs are at most `θp + δ` of the searched draws. So edges and triples are at
+  least `1/2 − δ` of them, and those carry the progress: the reruns, and the triple harvest with
+  its own bad-share bound.
+
+**Unlearned-edge members** are now a harvest. Each held `u` sits at a leaf `p` whose edge by some
+letter `c` is unlearned, and `u·c` is placed. So the next round's vote has a voter for `(p, c)`.
+
+Pending: R3 (leftover edges), R4 (the start region, likely the coverage precondition), and R5
+(nothing-to-rerun halving).
