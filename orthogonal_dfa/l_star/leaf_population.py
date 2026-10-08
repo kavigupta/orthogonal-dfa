@@ -27,14 +27,12 @@ class LeafPopulation:
 
     ``classify(strings, midfix)`` reads a node: it should batch the family queries
     for ``strings`` at ``midfix`` and return one decision per string.
-    ``harvest(boundary)`` takes each string a node cannot place.
     """
 
-    def __init__(self, tree, classify: Classify, *, harvest, chunk: int = 128):
+    def __init__(self, tree, classify: Classify, *, chunk: int = 128):
         self._tree = tree
         self._classify = classify
         self._chunk = chunk
-        self._harvest = harvest
         # path -> strings currently resting at that node.
         self._at: Dict[Path, OrderedSet] = {}
 
@@ -124,7 +122,7 @@ class LeafPopulation:
 
     def _push_chunk(self, parent: Path) -> None:
         """Classify one chunk of ``parent``'s strings and drop each into its
-        child; indecisive strings leave the population, harvested."""
+        child; indecisive strings leave the population."""
         bucket = self._at[parent]
         chunk = list(islice(bucket, self._chunk))
         for string in chunk:
@@ -134,7 +132,3 @@ class LeafPopulation:
         for string, decision in zip(chunk, decisions):
             if decision is not None:
                 self._at.setdefault(parent + (decision,), {})[string] = None
-            else:
-                # The indecision is over string + midfix + v, so string + midfix
-                # is what failed, not string.
-                self._harvest(string + midfix)

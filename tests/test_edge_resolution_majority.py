@@ -40,7 +40,6 @@ def _resolver(members):
         EdgeResolver(
             partial,
             _FirstByteSifter(),
-            lambda _boundary, _read: None,
             population=population,
         ),
     )

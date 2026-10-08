@@ -42,12 +42,8 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
         # is still "missing", so the drain retried it forever (a hang that surfaced
         # only under a different numpy float path). close() must be a single pass.
         partial = PartialDFA(alphabet_size=2, num_states=2)
-        harvested = []
         resolver = EdgeResolver(
-            partial,
-            _AlwaysIndecisiveSifter(),
-            harvested.append,
-            population=_StubPopulation(),
+            partial, _AlwaysIndecisiveSifter(), population=_StubPopulation()
         )
 
         previous = signal.signal(signal.SIGALRM, self._timeout)
@@ -62,7 +58,6 @@ class TestEdgeResolverCloseTerminates(unittest.TestCase):
         # fallback -- and, crucially, close() returned instead of spinning.
         self.assertEqual(resolved, 0)
         self.assertEqual(partial.unresolved_edges(), [(0, 0), (0, 1), (1, 0), (1, 1)])
-        self.assertTrue(harvested)
 
     @staticmethod
     def _timeout(signum, frame):

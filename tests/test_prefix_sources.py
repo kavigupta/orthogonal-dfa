@@ -73,7 +73,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
         )
         for prefix in resting:
             population.add(prefix, at=(True,))
@@ -117,7 +116,6 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
         )
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
@@ -155,7 +153,6 @@ class TestALeafThatRunsDryStops(unittest.TestCase):
         population = LeafPopulation(
             _Tree(),
             lambda strings, midfix: [True] * len(strings),
-            harvest=lambda _boundary, _read: None,
         )
         aims = itertools.cycle(support)
         source = state_source(_Resolver(population), 1, lambda: next(aims), wanted=20)
@@ -196,7 +193,6 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
             # ``lands`` decides whether the tree rests an aimed string where it
             # was aimed, which is the only thing that makes the leaf a source.
             lambda strings, midfix: [lands] * len(strings),
-            harvest=lambda _boundary, _read: None,
         )
         aim = aim_at(pst, dfa, leaf)
         if aim is None:

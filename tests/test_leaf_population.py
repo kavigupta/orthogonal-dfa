@@ -17,12 +17,6 @@ class _StubTree:
 
 
 def _population(classify, **kwargs):
-    """A population over the stub tree, dropping harvested strings by default.
-
-    Most of these tests are about where strings come to rest, not about what
-    fails to; the ones that care pass their own ``harvest``.
-    """
-    kwargs.setdefault("harvest", lambda _boundary: None)
     return LeafPopulation(_StubTree(), classify, **kwargs)
 
 
@@ -149,50 +143,21 @@ class TestLeafPopulation(unittest.TestCase):
 
 
 class TestWhatANodeCannotPlace(unittest.TestCase):
-    """A string a node cannot place is reported, not dropped."""
-
-    def test_an_indecisive_string_is_harvested(self):
-        harvested = []
-        pop = _population(
-            lambda strings, midfix: [None] * len(strings),
-            chunk=16,
-            harvest=harvested.append,
-        )
+    def test_an_indecisive_string_leaves_the_population(self):
+        pop = _population(lambda strings, midfix: [None] * len(strings), chunk=16)
         pop.add(bytes([1, 0]))
 
         self.assertEqual(pop.members((True,), 10), [])
-        # ``string + midfix``; the root's midfix is empty.
-        self.assertEqual(harvested, [bytes([1, 0])])
+        self.assertIsNone(pop.resting_at(bytes([1, 0])))
 
-    def test_representative_does_not_descend_and_so_does_not_harvest(self):
-        # The string is still at the root, and reading a representative must not
-        # push it down: that would classify it, find it indecisive, and harvest.
-        harvested = []
-        pop = _population(
-            lambda strings, midfix: [None] * len(strings),
-            chunk=16,
-            harvest=harvested.append,
-        )
+    def test_representative_does_not_descend(self):
+        # Reading a representative must not push the string down: that would
+        # classify it, find it indecisive, and drop it.
+        pop = _population(lambda strings, midfix: [None] * len(strings), chunk=16)
         pop.add(bytes([1, 0]))
 
         self.assertIsNone(pop.representative((True,), 10))
-        self.assertEqual(harvested, [])
-        # members() does descend, so the same read through it harvests.
-        self.assertEqual(pop.members((True,), 10), [])
-        self.assertEqual(harvested, [bytes([1, 0])])
-
-    def test_a_placed_string_is_not_harvested(self):
-        harvested = []
-        classify, _ = _classifier()
-        pop = _population(
-            classify,
-            chunk=16,
-            harvest=harvested.append,
-        )
-        pop.add(bytes([1, 0]))
-
-        self.assertEqual(pop.members((True,), 10), [bytes([1, 0])])
-        self.assertEqual(harvested, [])
+        self.assertEqual((), pop.resting_at(bytes([1, 0])))
 
 
 class TestSettle(unittest.TestCase):
@@ -247,17 +212,11 @@ class TestSettle(unittest.TestCase):
         self.assertEqual(pop.resting_at(bytes([1, 0])), (True,))
 
     def test_a_string_the_node_cannot_place_leaves_and_does_not_settle(self):
-        harvested = []
-        pop = _population(
-            lambda strings, midfix: [None] * len(strings),
-            chunk=16,
-            harvest=harvested.append,
-        )
+        pop = _population(lambda strings, midfix: [None] * len(strings), chunk=16)
         pop.add(bytes([1, 0]))
 
         self.assertFalse(pop.settle(bytes([1, 0]), (True,)))
         self.assertIsNone(pop.resting_at(bytes([1, 0])))
-        self.assertEqual(harvested, [bytes([1, 0])])
 
 
 if __name__ == "__main__":
