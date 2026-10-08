@@ -138,6 +138,36 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
+def _hold_bisection(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    """The strings the round's disagreement searches could not place, as a
+    population of their own. Every other harvest is read whether or not a probe
+    disagrees, so mixed in with it they dilute a badly read state below what the
+    FNR gate sees."""
+    fresh = sorted(set(resolver.bisected) - state.seen)
+    if not fresh:
+        return
+    reads = Counter(resolver.bisected[s] for s in fresh)
+    state.hold_bisection(
+        fresh,
+        HarvestSource(
+            Counter(
+                {
+                    provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
+                    for read, count in reads.items()
+                }
+            ),
+            pst.rng,
+            known=state.seen,
+            acc_threshold=acc_threshold,
+        ),
+    )
+
+
+def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    _hold_bisection(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+    _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+
+
 def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
     """Hands the round's boundary population a source that draws more the way
     its strings were found, proved only when a family search first asks it for
@@ -394,7 +424,7 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+        _harvest_sources(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

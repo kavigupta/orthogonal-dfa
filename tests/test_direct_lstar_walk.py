@@ -105,3 +105,31 @@ class TestProcessAnchor(unittest.TestCase):
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])
+
+
+class _Bisecting(TransitionResolver):
+    """Walks stay at 7 while the tree moves four-symbol strings to 8 and cannot
+    place the two-symbol prefix the disagreement search reads first."""
+
+    # pylint: disable=super-init-not-called
+    def __init__(self):
+        def sift(seq):
+            if len(seq) == 2:
+                return None, bytes(seq) + b"?"
+            return (8, None) if len(seq) == 4 else (7, None)
+
+        self.sifter = SimpleNamespace(sift_and_boundary=sift)
+        self.indecisive = {}
+        self.bisected = {}
+        self._walked = Read(None, None)
+
+
+class TestTheDisagreementSearchHarvestsApart(unittest.TestCase):
+    def test_what_the_search_cannot_place_is_kept_out_of_indecisive(self):
+        learner = _Bisecting()
+
+        status = learner._act_on_disagreement(bytes([0, 1, 0, 1]), [7] * 5, 0)
+
+        self.assertEqual(_UNCHECKED, status)
+        self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.bisected)
+        self.assertEqual({}, learner.indecisive)

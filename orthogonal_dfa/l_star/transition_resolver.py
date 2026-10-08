@@ -54,6 +54,8 @@ class TransitionResolver:
         #: Boundary strings the family could not place, each with the read that
         #: met it.
         self.indecisive = {}
+        #: The strings the disagreement search could not place, likewise.
+        self.bisected = {}
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
@@ -118,6 +120,13 @@ class TransitionResolver:
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self._harvest(boundary, self._walked)
+        return leaf
+
+    def _bisect_sift(self, seq):
+        """`_sift` for the disagreement search, harvesting into ``bisected``."""
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
+        if leaf is None:
+            self.bisected.setdefault(boundary, self._walked)
         return leaf
 
     def _split(self, state_id, midfix):
@@ -208,7 +217,7 @@ class TransitionResolver:
             return _UNCHECKED
         if state is None or actual == state:
             return _RESOLVED
-        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._bisect_sift, agree_point, len(w))
         if fd is None:
             return _UNCHECKED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]

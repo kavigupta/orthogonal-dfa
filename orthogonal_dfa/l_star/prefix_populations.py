@@ -26,6 +26,8 @@ class PoolState:
         self.seen = set()
         #: Boundary populations named so far, which is what numbers them.
         self.named = 0
+        #: Likewise for bisection populations.
+        self.bisections = 0
         #: The one this round is filling, or None before it strands anything.
         self.harvesting = None
         #: The reads that met the strings this round took into it, counted.
@@ -67,6 +69,14 @@ class PoolState:
         self.seen.add(string)
         self.harvest().append(string)
         self.harvest_reads[read] += 1
+
+    def hold_bisection(self, strings, source) -> None:
+        """Hold this round's bisection strings as a population of their own,
+        which ``source`` grows."""
+        self.bisections += 1
+        self.seen.update(strings)
+        self.held[("bisection", self.bisections)] = sorted(strings)
+        self.sources[("bisection", self.bisections)] = source
 
     def draws(self, sampler) -> dict:
         """Per prefix a population holds, the draw it was: one of that
