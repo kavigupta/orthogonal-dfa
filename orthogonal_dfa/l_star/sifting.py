@@ -5,7 +5,7 @@ Putting them together is what "sift" means, and both the probe loop and the edge
 resolver need it, so it lives here rather than in either of them.
 """
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 #: Probes sifted per batched pass.
 PROBE_BLOCK = 16
@@ -43,14 +43,14 @@ class Sifter:
 
         return self.tree.classify(seq, decide)
 
-    def middle_departs(self, seq, leaf) -> bool:
-        """Whether the middle of the band, read at the first node that cannot
-        place ``seq``, already sends it away from ``leaf``: a disagreement the gate
-        would count, seen from reads the sift made."""
-        toward = self.tree.leaves_toward(
+    def halfway(self, seq) -> Tuple[Optional[int], List[bytes]]:
+        """Where the gate's reading sends ``seq``: past each node the cut cannot
+        place it at, the side of the middle of the band; with the strings read
+        at those nodes.  Its reads are not the pass's, so ``reads`` leaves them
+        out."""
+        return self.tree.route_halfway(
             seq, self.family.is_accept, self.family.middle_side
         )
-        return bool(toward) and leaf not in toward
 
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree

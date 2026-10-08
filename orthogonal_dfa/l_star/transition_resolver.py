@@ -55,9 +55,10 @@ class TransitionResolver:
         #: met it.
         self.indecisive = {}
         #: The strings disagreeing probes could not place, likewise: the first a
-        #: search for the disagreeing edge meets, an undecided final read the
-        #: middle of the band sends away from the walk, or the empty string's
-        #: read where the walk's start parts from the cut.
+        #: search for the disagreeing edge meets, every read in the band on the
+        #: gate's reading of a probe the cut cannot place where that reading
+        #: leaves the walk, and every read in the band on the gate's reading of
+        #: the empty string.
         self.bisected = {}
         #: The tree size `_initial` last read at, and what it read.
         self._initial_at = (None, None)
@@ -219,15 +220,20 @@ class TransitionResolver:
             w[:start], at=self.tree.path_of(anchored[start]), draw=self._walked
         )
         if anchored[start] != states[start]:
-            self._bisect_sift(b"")
             return self._act_on_disagreement(w, anchored, start)
         return self._act_on_disagreement(w, states, start)
+
+    def _hold(self, strings):
+        for string in strings:
+            self.bisected.setdefault(string, self._walked)
 
     def _initial(self):
         """The leaf the middle of the band places the empty string at, as the
         gate and the export read it; read again only once a split changes the
-        tree."""
+        tree.  Every read the gate's reading of the empty string makes in the
+        band is held, since a misread start is counted against every draw."""
         if self._initial_at[0] != self.tree.num_states:
+            self._hold(self.sifter.halfway(b"")[1])
             boundary = self.pst.decision_boundary
             decide, _ = oracle_decider(
                 self.pst.oracle, self.tree.base_family, boundary, boundary
@@ -240,8 +246,9 @@ class TransitionResolver:
         state = states[-1]
         actual, boundary = self.sifter.sift_and_boundary(w)
         if actual is None:
-            if self.sifter.middle_departs(w, state):
-                self.bisected.setdefault(boundary, self._walked)
+            leaf, in_band = self.sifter.halfway(w)
+            if leaf is not None and leaf != state:
+                self._hold(in_band)
             else:
                 self._harvest(boundary, self._walked)
             return _UNCHECKED

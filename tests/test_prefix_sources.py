@@ -233,15 +233,15 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
 
 
 class _Walk:
-    """A tree that places strings by a rule the test chooses, and whose middle
-    of the band, where it cannot place one, departs from a walk or not."""
+    """A tree that places strings by a rule the test chooses, and whose gate
+    reading of one sends it to ``halfway_leaf`` past a read in the band."""
 
-    def __init__(self, places, departs=False):
+    def __init__(self, places, halfway_leaf=None):
         self._places = places
-        self._departs = departs
+        self._halfway_leaf = halfway_leaf
 
-    def middle_departs(self, _seq, _leaf):
-        return self._departs
+    def halfway(self, seq):
+        return self._halfway_leaf, [seq + b"?"]
 
     def sift_and_boundary(self, seq):
         leaf = self._places(seq)
@@ -367,18 +367,18 @@ if __name__ == "__main__":
 _STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
 
 
-def _bisected(places, departs=False, initial=0):
-    return Bisected(_Fixed(_PROBE), _Walk(places, departs), _STEPS_TO_ONE, initial)
+def _bisected(places, halfway_leaf=None, initial=0):
+    return Bisected(_Fixed(_PROBE), _Walk(places, halfway_leaf), _STEPS_TO_ONE, initial)
 
 
 class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase):
-    def test_an_undecided_final_read_the_middle_sends_away_is_kept(self):
+    def test_an_undecided_final_read_the_gate_reads_away_is_kept(self):
         undecided = lambda seq: None if len(seq) == 4 else 1
-        self.assertEqual([_PROBE + b"?"], _bisected(undecided, departs=True).sample())
+        self.assertEqual([_PROBE + b"?"], _bisected(undecided, 0).sample())
 
-    def test_an_undecided_final_read_the_middle_sends_along_is_not(self):
+    def test_an_undecided_final_read_the_gate_reads_along_is_not(self):
         undecided = lambda seq: None if len(seq) == 4 else 1
-        self.assertEqual([], _bisected(undecided).sample())
+        self.assertEqual([], _bisected(undecided, 1).sample())
 
     def test_the_first_read_the_search_cannot_place_is_kept(self):
         self.assertEqual([_PROBE[:2] + b"?"], _bisected(_LONG_ONE_FAILS).sample())
@@ -392,7 +392,7 @@ class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase
     def test_a_walk_from_where_the_middle_places_the_empty_string(self):
         self.assertEqual([], _bisected(lambda seq: 1, initial=1).sample())
 
-    def test_a_start_the_cut_parts_from_keeps_the_empty_strings_read(self):
+    def test_a_start_the_cut_parts_from_walks_from_the_anchor(self):
         unplaced_start = lambda seq: None if len(seq) == 0 else 1
         bisected = Bisected(_Fixed(_PROBE), _Walk(unplaced_start), _STAYS, 0)
-        self.assertEqual([b"?"], bisected.sample())
+        self.assertEqual([], bisected.sample())

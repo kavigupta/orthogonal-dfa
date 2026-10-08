@@ -85,32 +85,36 @@ if __name__ == "__main__":
 
 
 class _Middle:
-    """Cannot place anything; the middle of the band reads ``side``."""
+    """Places nothing below the root's accept side, and reads the middle of the
+    band as ``side``; the root itself places everything on its accept side."""
 
     def __init__(self, side):
         self.side = side
 
-    def is_accept(self, _seq, _midfix):
-        return None
+    def is_accept(self, _seq, midfix):
+        return True if midfix == b"" else None
 
     def middle_side(self, _seq, _midfix):
         return self.side
 
 
-class TestTheMiddleOfTheBand(unittest.TestCase):
+class TestTheGatesReading(unittest.TestCase):
     def _sifter(self, side):
         tree = MidfixTree([b""])
         tree.split(0, b"x")
         return Sifter(tree, _Middle(side))
 
-    def test_it_departs_from_a_walk_on_the_other_side(self):
-        self.assertTrue(self._sifter(True).middle_departs(b"s", 1))
+    def test_it_takes_the_middles_side_past_a_node_the_cut_cannot_place(self):
+        self.assertEqual((0, [b"sx"]), self._sifter(True).halfway(b"s"))
+        self.assertEqual((2, [b"sx"]), self._sifter(False).halfway(b"s"))
 
-    def test_it_does_not_depart_from_a_walk_below_its_side(self):
-        self.assertFalse(self._sifter(True).middle_departs(b"s", 2))
+    def test_a_tie_reaches_no_leaf(self):
+        self.assertEqual((None, [b"sx"]), self._sifter(None).halfway(b"s"))
 
-    def test_a_tie_departs_from_nothing(self):
-        self.assertFalse(self._sifter(None).middle_departs(b"s", 1))
+    def test_its_reads_are_not_the_passs(self):
+        sifter = self._sifter(True)
+        sifter.halfway(b"s")
+        self.assertEqual(0, sifter.reads)
 
 
 class TestWalking(unittest.TestCase):

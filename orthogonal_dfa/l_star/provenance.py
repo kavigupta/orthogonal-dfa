@@ -106,9 +106,9 @@ class Walked(Provenance):
 class Bisected(Provenance):
     """A probe walked as the counterexample pass walks one, from where the middle
     of the band places the empty string, keeping only what the pass puts in its
-    bisection population: the empty string's read where that start parts from
-    the cut, an undecided final read the middle of the band sends away from the
-    walk, or the first read the search for the disagreeing edge cannot place."""
+    bisection population for it: the reads in the band on the gate's reading of
+    a probe the cut cannot place, where that reading leaves the walk, or the
+    first read the search for the disagreeing edge cannot place."""
 
     transitions: dict = field(repr=False)
     initial: int
@@ -133,12 +133,12 @@ class Bisected(Provenance):
         if start is not None:
             lo = start
             if anchored[start] != states[start]:
-                sift(b"")
                 states = anchored
         landed, boundary = self.sifter.sift_and_boundary(drawn)
         if landed is None:
-            if self.sifter.middle_departs(drawn, states[-1]):
-                met.append(boundary)
+            leaf, in_band = self.sifter.halfway(drawn)
+            if leaf is not None and leaf != states[-1]:
+                met.extend(in_band)
         elif landed != states[-1]:
             first_disagreeing_edge(drawn, states, sift, lo, len(drawn))
         return met

@@ -70,6 +70,20 @@ class _Learner(TransitionResolver):
 DELTA = {7: {0: 8, 1: 7}, 8: {0: 7, 1: 8}}
 
 
+class TestTheGatesStart(unittest.TestCase):
+    def test_every_read_in_the_band_on_it_is_held_once_per_tree(self):
+        learner = _Bisecting()
+        learner.tree = SimpleNamespace(
+            num_states=2, base_family=[], classify=lambda seq, d: 7
+        )
+        learner.pst = SimpleNamespace(decision_boundary=0.5, oracle=None)
+        learner.sifter.halfway = lambda seq: (7, [b"a", b"b"])
+        learner._initial_at = (None, None)
+
+        self.assertEqual(7, learner._initial())
+        self.assertEqual({b"a", b"b"}, set(learner.bisected))
+
+
 class TestProcessAnchor(unittest.TestCase):
     def test_walks_from_where_the_middle_of_the_band_places_the_empty_string(self):
         """As the gate does, so a probe disagrees with the walk where the gate
@@ -91,17 +105,16 @@ class TestProcessAnchor(unittest.TestCase):
         self.assertEqual(states, [8, 7, 7, 8, 8])
         self.assertEqual(learner.bisected, {})
 
-    def test_a_start_the_cut_parts_from_is_held_and_the_walk_restarts(self):
-        """The gate counts every such probe on the empty string's read alone, so
-        that read is what the next family must settle; the walk then starts
-        from the anchor, so the pass still finds what lies past it."""
+    def test_a_start_the_cut_parts_from_restarts_the_walk_at_the_anchor(self):
+        """So the pass still finds what lies past a misread start; the start's
+        reads in the band are held once per tree, not per probe."""
         learner = _Learner(_StubSifter(places_at=2), initial=7)
         learner._process([0, 1, 0, 1], DELTA)
 
         _, states, agree_point = learner.acted
         self.assertEqual(agree_point, 2)
         self.assertEqual(states, [None, None, 7, 8, 8])
-        self.assertEqual(set(learner.bisected), {("bail",)})
+        self.assertEqual(learner.bisected, {})
 
     def test_records_the_anchor_not_the_empty_string(self):
         learner = _Learner(_StubSifter(places_at=2))
@@ -153,14 +166,14 @@ class TestTheDisagreementSearchHarvestsApart(unittest.TestCase):
 
 
 class _UndecidedAtTheEnd(TransitionResolver):
-    """Cannot place the whole probe; the middle of the band sends it away from
-    the walk or not, as the test chooses."""
+    """Cannot place the whole probe; the gate's reading of it, which meets two
+    strings in the band, lands at ``leaf``."""
 
     # pylint: disable=super-init-not-called
-    def __init__(self, departs):
+    def __init__(self, leaf):
         self.sifter = SimpleNamespace(
             sift_and_boundary=lambda seq: (None, bytes(seq) + b"?"),
-            middle_departs=lambda seq, leaf: departs,
+            halfway=lambda seq: (leaf, [bytes(seq) + b"?", bytes(seq) + b"!"]),
         )
         self.indecisive = {}
         self.bisected = {}
@@ -168,17 +181,19 @@ class _UndecidedAtTheEnd(TransitionResolver):
 
 
 class TestAnUndecidedFinalRead(unittest.TestCase):
-    def test_one_the_middle_sends_away_from_the_walk_joins_the_bisection(self):
-        learner = _UndecidedAtTheEnd(departs=True)
+    def test_one_the_gate_reads_away_from_the_walk_holds_every_read_in_band(self):
+        learner = _UndecidedAtTheEnd(leaf=8)
 
         status = learner._act_on_disagreement(bytes([0, 1]), [7] * 3, 0)
 
         self.assertEqual(_UNCHECKED, status)
-        self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.bisected)
+        self.assertEqual(
+            {bytes([0, 1]) + b"?", bytes([0, 1]) + b"!"}, set(learner.bisected)
+        )
         self.assertEqual({}, learner.indecisive)
 
-    def test_one_the_middle_sends_along_the_walk_stays_a_boundary_string(self):
-        learner = _UndecidedAtTheEnd(departs=False)
+    def test_one_the_gate_reads_along_the_walk_stays_a_boundary_string(self):
+        learner = _UndecidedAtTheEnd(leaf=7)
 
         learner._act_on_disagreement(bytes([0, 1]), [7] * 3, 0)
 
