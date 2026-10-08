@@ -55,7 +55,8 @@ class TransitionResolver:
         #: met it.
         self.indecisive = {}
         #: The strings disagreeing probes could not place, likewise: the first a
-        #: search for the disagreeing edge meets, every read in the band on the
+        #: search for the disagreeing edge meets, the prefix before an edge the
+        #: totaliser filled in that it lands on, every read in the band on the
         #: gate's reading of a probe the cut cannot place where that reading
         #: leaves the walk, and every read in the band on the gate's reading of
         #: the empty string.
@@ -264,8 +265,10 @@ class TransitionResolver:
         # be a gap the totaliser self-looped rather than a resolved DFA edge -- then
         # the DFA holds no such edge, there is no witness to separate on, and the
         # re-sifts need not reach s1.  Any of those means the disagreement is not
-        # one we can act on.
+        # one we can act on.  The prefix before a placeholder edge is held:
+        # nothing else this round keeps the strings that walk it wrongly.
         if self.dfa.target(s1, c) != s2:
+            self._hold([w[: fd - 1]])
             return _RESOLVED
         witness = self.dfa.witness(s1, c)
         if witness is None:

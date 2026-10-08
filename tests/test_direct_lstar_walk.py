@@ -199,3 +199,28 @@ class TestAnUndecidedFinalRead(unittest.TestCase):
 
         self.assertEqual({}, learner.bisected)
         self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.indecisive)
+
+
+class _OnAPlaceholder(TransitionResolver):
+    """Walks stay at 7 while the tree moves only the whole four-symbol probe to
+    8, over an edge the DFA does not hold."""
+
+    # pylint: disable=super-init-not-called
+    def __init__(self):
+        self.sifter = SimpleNamespace(
+            sift_and_boundary=lambda seq: (8, None) if len(seq) == 4 else (7, None)
+        )
+        self.dfa = SimpleNamespace(target=lambda s, c: None)
+        self.indecisive = {}
+        self.bisected = {}
+        self._walked = Read(None, None)
+
+
+class TestADisagreementOnAPlaceholderEdge(unittest.TestCase):
+    def test_holds_the_prefix_before_it(self):
+        learner = _OnAPlaceholder()
+
+        status = learner._act_on_disagreement(bytes([0, 1, 0, 1]), [7] * 5, 0)
+
+        self.assertEqual(_RESOLVED, status)
+        self.assertEqual({bytes([0, 1, 0]): learner._walked}, learner.bisected)

@@ -138,6 +138,17 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
+def _placeholders(resolver, dfa) -> frozenset:
+    """The edges of ``dfa`` the round's own transitions do not hold: the ones
+    the totaliser filled in."""
+    return frozenset(
+        (s, c)
+        for s, row in dfa.transitions.items()
+        for c, target in row.items()
+        if resolver.dfa.target(s, c) != target
+    )
+
+
 def _hold_bisection(pst, resolver, dfa, state, *, acc_threshold) -> None:
     """The strings the round's disagreeing probes could not place, as a
     population of their own, grown only by more of the same. Every other harvest
@@ -156,6 +167,7 @@ def _hold_bisection(pst, resolver, dfa, state, *, acc_threshold) -> None:
                         resolver.sifter,
                         dfa.transitions,
                         dfa.initial_state,
+                        _placeholders(resolver, dfa),
                     ): len(fresh)
                 }
             ),

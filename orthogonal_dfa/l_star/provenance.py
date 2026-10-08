@@ -107,11 +107,13 @@ class Bisected(Provenance):
     """A probe walked as the counterexample pass walks one, from where the middle
     of the band places the empty string, keeping only what the pass puts in its
     bisection population for it: the reads in the band on the gate's reading of
-    a probe the cut cannot place, where that reading leaves the walk, or the
-    first read the search for the disagreeing edge cannot place."""
+    a probe the cut cannot place, where that reading leaves the walk, the first
+    read the search for the disagreeing edge cannot place, or the prefix before
+    an edge in ``placeholders`` (filled in by the totaliser) it lands on."""
 
     transitions: dict = field(repr=False)
     initial: int
+    placeholders: frozenset = field(repr=False)
 
     def _read(self, drawn) -> List[bytes]:
         met = []
@@ -140,7 +142,9 @@ class Bisected(Provenance):
             if leaf is not None and leaf != states[-1]:
                 met.extend(in_band)
         elif landed != states[-1]:
-            first_disagreeing_edge(drawn, states, sift, lo, len(drawn))
+            fd = first_disagreeing_edge(drawn, states, sift, lo, len(drawn))
+            if fd is not None and (states[fd - 1], drawn[fd - 1]) in self.placeholders:
+                met.append(drawn[: fd - 1])
         return met
 
 

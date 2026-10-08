@@ -368,7 +368,9 @@ _STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
 
 
 def _bisected(places, halfway_leaf=None, initial=0):
-    return Bisected(_Fixed(_PROBE), _Walk(places, halfway_leaf), _STEPS_TO_ONE, initial)
+    return Bisected(
+        _Fixed(_PROBE), _Walk(places, halfway_leaf), _STEPS_TO_ONE, initial, frozenset()
+    )
 
 
 class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase):
@@ -394,5 +396,24 @@ class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase
 
     def test_a_start_the_cut_parts_from_walks_from_the_anchor(self):
         unplaced_start = lambda seq: None if len(seq) == 0 else 1
-        bisected = Bisected(_Fixed(_PROBE), _Walk(unplaced_start), _STAYS, 0)
+        bisected = Bisected(
+            _Fixed(_PROBE), _Walk(unplaced_start), _STAYS, 0, frozenset()
+        )
         self.assertEqual([], bisected.sample())
+
+    def test_the_prefix_before_a_placeholder_edge_it_lands_on_is_kept(self):
+        # Every walk steps to 1; the tree moves the whole probe elsewhere, so the
+        # search lands on the probe's last edge, 1 -(1)-> 1.
+        moves_at_four = lambda seq: 2 if len(seq) == 4 else 1
+        placeholder = Bisected(
+            _Fixed(_PROBE),
+            _Walk(moves_at_four),
+            _STEPS_TO_ONE,
+            1,
+            frozenset({(1, _PROBE[3])}),
+        )
+        self.assertEqual([_PROBE[:3]], placeholder.sample())
+
+    def test_the_prefix_before_a_resolved_edge_is_not(self):
+        moves_at_four = lambda seq: 2 if len(seq) == 4 else 1
+        self.assertEqual([], _bisected(moves_at_four, initial=1).sample())
