@@ -1,5 +1,6 @@
 import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
+import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 /-!
 # The round's trichotomy
@@ -242,6 +243,30 @@ def RoundTrichotomyEdges (f a : ℝ) (r : ℕ) : Prop :=
                   ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
           ∧ ¬ s.halves S.τ}
       ≤ (1 - ε) ^ S.K.patience
+
+/-- A rollover chain on source `X` and letter `c` after the links `links`, each a round's family
+cut at its band: a link keeps `x` when `x·c` is undecided under that round's family.  When every
+link reads `x·c` afresh, `x` survives the links with chance `∏_j u_j(state(x·c))`, so the chain draws
+from `X` weighted by that product. -/
+noncomputable def rolledLaw (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
+    (X : Measure (FreeMonoid α)) (c : α) (links : List (State × Finset (FreeMonoid α))) :
+    Measure (FreeMonoid α) :=
+  X.withDensity fun x => ENNReal.ofReal
+    (links.map fun l => stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c))).prod
+
+/-- The rounds a rollover chain needs to reach #408's promotion rate `T = f·r·a` from a badly read
+share `π`: each link multiplies the bad-to-clean odds by at least `uHi / (r·a)`, and it is promoted
+once the bad share exceeds `T / uHi`. -/
+noncomputable def rolloverRounds (f a uHi π : ℝ) (r : ℕ) : ℕ :=
+  ⌈Real.logb (uHi / (r * a)) (f * r * a * (1 - π) / ((uHi - f * r * a) * π))⌉₊ + 1
+
+/-- Every link reads `x·c` afresh: no string a link's family reads on `x·c` was read by an
+earlier link's.  Under string-keyed noise this is what makes the links independent tests. -/
+def FreshLinks (H : Hypothesis α) (c : α) (links : List (CutReads α)) : Prop :=
+  ∀ x : FreeMonoid α, links.Pairwise fun R R' => ∀ t,
+    t ∈ (H.tree.route R.cut (x * FreeMonoid.of c)).1.flatMap (fun q => R.F.toList.map (q * ·))
+      → t ∉ (H.tree.route R'.cut (x * FreeMonoid.of c)).1.flatMap
+          (fun q => R'.F.toList.map (q * ·))
 
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=

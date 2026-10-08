@@ -129,4 +129,53 @@ theorem share_bad_indecisive {β : Type*} [MeasurableSpace β] (X : Measure β) 
     setIntegral_le_integral hint2 (Filter.Eventually.of_forall fun x => sq_nonneg _)
   nlinarith
 
+/-- A rollover chain's enrichment: over `k` fresh links each reading badly read strings at least
+`uHi` and clean ones at most `c`, the bad part keeps at least `uHi^k` of its mass and the clean part
+at most `c^k`, so the bad-to-clean odds grow by `(uHi / c)^k`. -/
+theorem rolled_odds {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFiniteMeasure X]
+    (g : ℕ → β → ℝ) (k : ℕ) (hm : ∀ j, Measurable (g j)) (hg0 : ∀ j x, 0 ≤ g j x)
+    (hg1 : ∀ j x, g j x ≤ 1) (bad : Set β) (hb : MeasurableSet bad) {uHi c : ℝ}
+    (hHi0 : 0 ≤ uHi) (hHi : ∀ j, ∀ x ∈ bad, uHi ≤ g j x) (hc : ∀ j, ∀ x ∈ badᶜ, g j x ≤ c) :
+    uHi ^ k * X.real bad ≤ ∫ x in bad, ∏ j ∈ Finset.range k, g j x ∂X
+      ∧ ∫ x in badᶜ, ∏ j ∈ Finset.range k, g j x ∂X ≤ c ^ k * X.real badᶜ := by
+  have hpm : Measurable fun x => ∏ j ∈ Finset.range k, g j x :=
+    Finset.measurable_prod _ fun j _ => hm j
+  have hp0 : ∀ x, 0 ≤ ∏ j ∈ Finset.range k, g j x := fun x =>
+    Finset.prod_nonneg fun j _ => hg0 j x
+  have hp1 : ∀ x, ∏ j ∈ Finset.range k, g j x ≤ 1 := fun x =>
+    Finset.prod_le_one (fun j _ => hg0 j x) fun j _ => hg1 j x
+  have hint : Integrable (fun x => ∏ j ∈ Finset.range k, g j x) X :=
+    Integrable.of_bound hpm.aestronglyMeasurable 1 (Filter.Eventually.of_forall fun x => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hp0 x)]; exact hp1 x)
+  constructor
+  · have : ∫ x in bad, uHi ^ k ∂X ≤ ∫ x in bad, ∏ j ∈ Finset.range k, g j x ∂X := by
+      refine setIntegral_mono_on (integrableOn_const (measure_ne_top _ _)) hint.integrableOn hb ?_
+      intro x hx
+      have := Finset.prod_le_prod (s := Finset.range k) (fun j _ => hHi0) fun j _ => hHi j x hx
+      simpa [Finset.prod_const, Finset.card_range] using this
+    simpa [setIntegral_const, smul_eq_mul, mul_comm] using this
+  · have hbc : MeasurableSet badᶜ := hb.compl
+    have : ∫ x in badᶜ, ∏ j ∈ Finset.range k, g j x ∂X ≤ ∫ x in badᶜ, c ^ k ∂X := by
+      refine setIntegral_mono_on hint.integrableOn (integrableOn_const (measure_ne_top _ _)) hbc ?_
+      intro x hx
+      have := Finset.prod_le_prod (s := Finset.range k) (fun j _ => hg0 j x) fun j _ => hc j x hx
+      simpa [Finset.prod_const, Finset.card_range] using this
+    simpa [setIntegral_const, smul_eq_mul, mul_comm] using this
+
+/-- Believed true, from `rolled_odds`: after `k ≥ rolloverRounds − 1` links the bad-to-clean odds
+are at least `(uHi/(r·a))^k · π/(1−π) ≥ f·r·a/(uHi − f·r·a)`, so the bad share is at least `f·r·a/uHi`
+so the chain's rate reaches #408's promotion rate. -/
+theorem rollover_promotes (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
+    (X : Measure (FreeMonoid α)) [IsFiniteMeasure X] (c : α)
+    (links : List (State × Finset (FreeMonoid α))) (bad : Set (FreeMonoid α))
+    {f a uHi π : ℝ} {r : ℕ} (hf : 1 ≤ f) (hra : 0 < r * a) (hT : f * r * a < uHi) (hπ0 : 0 < π) (hπ1 : π < 1)
+    (hHi : ∀ l ∈ links, ∀ x ∈ bad, uHi ≤ stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)))
+    (hc : ∀ l ∈ links, ∀ x ∉ bad,
+      stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)) ≤ r * a)
+    (hπ : π * X.real Set.univ ≤ X.real bad)
+    (hk : rolloverRounds f a uHi π r ≤ links.length + 1) :
+    f * r * a / uHi * (rolledLaw A O X c links).real Set.univ
+      ≤ (rolledLaw A O X c links).real bad := by
+  sorry
+
 end OrthoDFA

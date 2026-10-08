@@ -368,3 +368,89 @@ hypothesis-dependent leaf, at length L.
 - `EDGE_PROBES ≈ 2p*·ln(K/δ_e)/(p* − T)²`, about 70 for the clear q-edge, where p* is the smallest
   edge rate to be detected;
 - `EDGE_MIN_HARVEST = 0`: test every per-state source and letter.
+
+## Rollover chains: a bounded-rounds trichotomy
+
+**The rule as implemented on #408.** Each round, every (per-state source, letter) edge and every
+live chain is replayed. Its undecided rate per node read is tested sequentially, at level δ_e/K,
+against the clean bound `a` = `acceptable_fnr` per read:
+- **above `f·a`:** promote to an `("edge", n)` population;
+- **between `a` and `f·a`:** roll over. The chain becomes a `RejectionSource` over its parent that
+  keeps x iff x·c is undecided under this round's frozen sifter, and it persists as a candidate;
+- **at most `a`:** drop.
+
+**One link's effect** (`rolledLaw`, `rolled_odds`, proved). Suppose every link reads x·c afresh.
+Then x survives k links with chance `∏_j u_j(state(x·c))`, so the chain draws from its source
+weighted by that product. If badly read strings have `u_j ≥ uHi` and clean ones `u_j ≤ r·a` at every
+link, the bad part keeps at least `uHi^k` of its mass and the clean part at most `(r·a)^k`, so
+
+    odds_k  ≥  odds_0 · (uHi / (r·a))^k,        odds_0 = π / (1 − π).
+
+**Rounds to promotion.** Promotion needs a bad share of at least `T/uHi`, with `T = f·r·a`. So
+(`rolloverRounds`; `rollover_promotes` holds the arithmetic, sorried)
+
+    R = ⌈ log_{uHi/(r·a)} ( T·(1 − π) / ((uHi − T)·π) ) ⌉ + 1,
+
+with conditions `1 ≤ f` and `T < uHi`. At f = 3, r = 5, a = 0.01 (T = 0.15, base 8) and uHi = 0.4:
+- π = 0.05 gives R = 3;
+- π = 0.01 gives R = 3;
+- π = 0.001 gives R = 5.
+
+**The independence premise** (`FreshLinks`). For each x, no string that link j's family reads on
+x·c (the strings x·c·m·v, for midfixes m on its path and suffixes v ∈ F_j) was read by an earlier
+link. Under string-keyed noise this, and only this, makes the links' outcomes independent given x's
+state.
+
+Overlap breaks it. A clean x whose x·c was undecided at link j through its shared reads stays more
+likely undecided at link j+1. In the extreme, an identical family and tree, its survival is 1 from
+then on, and the odds stop growing after one link.
+
+In the Python, `suffix_pool` persists and families re-select many of the same suffixes. The root's
+midfix is ε, so x·c·v repeats for every shared v. The premise is likely false as implemented. The
+fix is cheap: each link reads x·c only with suffixes no earlier link of that chain used, for example
+the family minus the chain's used suffixes, or a fresh family-size draw from the cluster's group.
+
+**Bounded-rounds trichotomy (notes only).** Take R consecutive rounds, none of which passes the
+DFA/DT check within ε. Assume:
+- (P1)–(P4), with `uLo = a`;
+- `f > uHi/(uHi − 2τ)` and `f·r·a < uHi`;
+- `FreshLinks` for every chain;
+- a badly read state q (u ≥ uHi under every family of the stretch);
+- a predecessor p of q that some per-state source holds at share π > 0 and whose chain survives
+  level 0 (see residual).
+
+Then, except with probability at most R·δ_e from the sequential tests plus R·(1−ε)^patience from the
+pass, within `R = rolloverRounds f a uHi π r` rounds one of these happens:
+1. some round halves;
+2. some round leaves (2a) or (2b), including a promoted edge population, which is (2a) by
+   `share_bad_indecisive`;
+3. some round's family reads q with u < uHi, which is progress in `Termination`'s count of
+   undecided-state sets.
+
+It is not a Lean theorem on this branch. The multi-round learner, with families changing round to
+round, lives in #400's `Learner.lean`. This branch models one round.
+
+The Lean pieces:
+- **Definitions:** `rolledLaw`, `rolloverRounds`, `FreshLinks`.
+- **Proved:** `rolled_odds`.
+- **Sorried:** `rollover_promotes`, the arithmetic from `rolled_odds`, believed true.
+
+**Residual regime: the drop rule.** A chain is dropped when its rate is at most the clean bound
+`r·a`. The rate is `π_k·u_q + (1 − π_k)·c_k`, where `c_k` is its clean strings' actual rate. When
+clean strings are much cleaner than the bound (`c ≪ r·a`, typical at signal 0.3), a chain with
+
+    π(p|s) · u_q  +  (1 − π)·c_s  ≤  r·a      (≈ π ≤ r·a/u_q = 0.125 at defaults)
+
+is dropped at level 0, though it would have been enriched by `u_q/c ≫ uHi/(r·a)` per link. So the
+residual is: every predecessor p of the badly read q has `π(p|s)·u_q + (1 − π)·c_s ≤ r·a` in every
+per-state source.
+
+**Closing it.** Drop a chain only when its rate fails to rise over its parent's: a sequential test
+of `rate_k > rate_{k−1}`, not of `rate_k > r·a`. Under fresh links a chain with any bad mass has a
+strictly rising rate, since its bad share grows; one with none stays flat. So this keeps exactly the
+chains that carry bad mass, and R is then as above with the base `u_q/c` in place of `uHi/(r·a)`.
+The cost is that chains with tiny π live about log(1/π) rounds. Live chains stay at most K·R.
+
+**What else changes across rounds.** The family changes each round, so `u_j` and the clean
+rates `c_j` are per link. That is why `rolled_odds` takes them per link, with only the bounds `uHi`
+and `r·a` uniform. A family that reads q below uHi at some link is outcome 3 above.
