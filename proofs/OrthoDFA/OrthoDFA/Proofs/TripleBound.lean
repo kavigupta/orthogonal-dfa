@@ -154,6 +154,31 @@ theorem bracketAt_triple_gt (agrees : ℕ → Option Bool) (ps : List (List Bool
     · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
     · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
 
+omit [Fintype α] [DecidableEq α] in
+theorem bracketAt_triple_lt (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
+    ∀ fuel lo hi j, bracketAt (α := α) agrees ps fuel lo hi = .triple j → j < hi
+  | 0, _, _, _, h => by simp [bracketAt] at h
+  | fuel + 1, lo, hi, j, h => by
+    simp only [bracketAt] at h
+    by_cases hlh : lo + 1 < hi
+    swap
+    · rw [if_neg hlh] at h; simp at h
+    rw [if_pos hlh] at h
+    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
+      else agrees ((lo + hi) / 2)) = v at h
+    generalize (if (lo + hi) / 2 - 1 = lo then some true
+      else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = l at h
+    generalize (if (lo + hi) / 2 + 1 = lo then some true
+      else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = r at h
+    rcases v with _ | _ | _
+    · rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;> simp only [reduceCtorEq] at h
+      · have := bracketAt_triple_lt agrees ps fuel _ _ j h; omega
+      · have := bracketAt_triple_lt agrees ps fuel _ _ j h; omega
+      · obtain rfl := Outcome.triple.inj h; omega
+      · have := bracketAt_triple_lt agrees ps fuel _ _ j h; omega
+    · have := bracketAt_triple_lt agrees ps fuel _ _ j h; omega
+    · have := bracketAt_triple_lt agrees ps fuel _ _ j h; omega
+
 theorem probeOutcome_triple_gt {R : CutReads α} {t : DTree α} {edges : Edges α} {k : ℕ}
     {x : FreeMonoid α} {j : ℕ} (h : probeOutcome R t edges k x = .triple j) : k < j := by
   obtain ⟨ps, hi, -, hb⟩ := probeOutcome_search R h trivial
@@ -960,5 +985,105 @@ theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
         rw [hCP]; field_simp
 
 end Tail
+
+section Draws
+
+variable {Q : Type*}
+
+open scoped Classical in
+theorem real_eq_sum_words (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (S : Set (FreeMonoid α)) :
+    D.real S = ∑ x ∈ wordsOf (α := α) L, if x ∈ S then D.real {x} else 0 := by
+  classical
+  have hW : D (↑(wordsOf (α := α) L))ᶜ = 0 := by
+    refine measure_mono_null (fun x hx => ?_) (ae_iff.1 hlen)
+    simp only [Set.mem_compl_iff, Finset.mem_coe, mem_wordsOf] at hx
+    exact hx
+  rw [← Finset.sum_filter, sum_measureReal_singleton]
+  rw [measureReal_def, measureReal_def, ← measure_inter_conull (s := S) hW]
+  congr 2
+  ext x
+  simp [and_comm]
+
+theorem integral_eq_sum_words (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
+    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (f : FreeMonoid α → ℝ) :
+    ∫ x, f x ∂D = ∑ x ∈ wordsOf (α := α) L, D.real {x} * f x := by
+  classical
+  have h0 : ∀ x ∉ wordsOf (α := α) L, D.real {x} = 0 := by
+    intro x hx
+    rw [measureReal_def, measure_mono_null (Set.singleton_subset_iff.2 (show x ∈
+      {x : FreeMonoid α | ¬ x.toList.length = L} from fun h => hx (mem_wordsOf.2 h)))
+      (ae_iff.1 hlen), ENNReal.toReal_zero]
+  have hint : Integrable f D := by
+    have hfin : ∀ᵐ x ∂D, x ∈ (wordsOf (α := α) L : Set (FreeMonoid α)) :=
+      hlen.mono fun x hx => mem_wordsOf.2 hx
+    refine Integrable.of_bound measurable_from_top.aestronglyMeasurable
+      (∑ x ∈ wordsOf (α := α) L, |f x|) (hfin.mono fun x hx => ?_)
+    rw [Real.norm_eq_abs]
+    exact Finset.single_le_sum (f := fun x => |f x|) (fun _ _ => abs_nonneg _) hx
+  rw [integral_countable hint, tsum_eq_sum (s := wordsOf (α := α) L) fun x hx => by
+    simp [h0 x hx]]
+  simp [smul_eq_mul]
+
+theorem route_inr_form {cut : FreeMonoid α → Option Bool} :
+    ∀ (t : DTree α) (y b : FreeMonoid α), (t.route cut y).2 = .inr b → ∃ m, b = y * m
+  | .leaf, _, _, h => by simp [DTree.route] at h
+  | .node m r a, y, b, h => by
+    simp only [DTree.route] at h
+    rcases hc : cut (y * m) with _ | _ | _ <;> simp only [hc] at h
+    · exact ⟨m, (Sum.inr.inj h).symm⟩
+    · rcases hr : (r.route cut y).2 with _ | b' <;> rw [hr] at h
+      · simp at h
+      · obtain rfl := Sum.inr.inj h; exact route_inr_form r y b' hr
+    · rcases ha : (a.route cut y).2 with _ | b' <;> rw [ha] at h
+      · simp at h
+      · obtain rfl := Sum.inr.inj h; exact route_inr_form a y b' ha
+
+/-- Draws whose triple harvests a string the pass may have read share their first `k + 1`
+letters with one of those strings. -/
+theorem touched_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (R : CutReads α)
+    (t : DTree α) (edges : Edges α) (Tp : Finset (FreeMonoid α)) (k : ℕ) :
+    D.real {x | ∃ j b, probeOutcome R t edges k x = .triple j ∧ tripleRead R t x j = some b
+        ∧ b ∈ Tp} ≤ Tp.card * prefixMax D (k + 1) := by
+  classical
+  have hsub : {x | ∃ j b, probeOutcome R t edges k x = .triple j ∧ tripleRead R t x j = some b
+      ∧ b ∈ Tp} ⊆ ⋃ w ∈ Tp.filter (fun w => k + 1 ≤ w.toList.length),
+        {x | (prefixOf w (k + 1)).toList <+: x.toList} := by
+    rintro x ⟨j, b, hj, hb, hT⟩
+    have hkj := probeOutcome_triple_gt hj
+    have hjx : j ≤ x.toList.length := by
+      obtain ⟨ps, hi, hw, hbr⟩ := probeOutcome_search R hj trivial
+      obtain ⟨-, -, -, -, hhi, -⟩ := walkCheck_inr R hw
+      have := bracketAt_triple_lt (α := α) _ ps _ _ _ _ hbr
+      omega
+    simp only [tripleRead] at hb
+    rcases hs : t.sift R.cut (prefixOf x j) with _ | b' <;> rw [hs] at hb
+    · simp at hb
+    obtain rfl : b' = b := by simpa using hb
+    obtain ⟨m, rfl⟩ := route_inr_form t _ b' hs
+    refine Set.mem_biUnion (Finset.mem_filter.2 ⟨hT, by simp [prefixOf]; omega⟩) ?_
+    simp only [Set.mem_ofPred_eq, prefixOf, FreeMonoid.toList_ofList, FreeMonoid.toList_mul]
+    rw [List.take_append_of_le_length (by simp; omega), List.take_take, min_eq_left (by omega)]
+    exact List.take_prefix _ _
+  refine (measureReal_mono hsub (measure_ne_top _ _)).trans
+    ((measureReal_biUnion_finset_le _ _).trans ?_)
+  have hpm : 0 ≤ prefixMax D (k + 1) :=
+    Real.iSup_nonneg fun p => by split_ifs <;> simp [measureReal_nonneg]
+  calc ∑ w ∈ Tp.filter (fun w => k + 1 ≤ w.toList.length),
+        D.real {x | (prefixOf w (k + 1)).toList <+: x.toList}
+      ≤ ∑ _w ∈ Tp.filter (fun w => k + 1 ≤ w.toList.length), prefixMax D (k + 1) :=
+        Finset.sum_le_sum fun w hw => by
+          refine le_trans (le_of_eq ?_) (le_ciSup (f := fun p : FreeMonoid α =>
+            if p.toList.length = k + 1 then D.real {x | p.toList <+: x.toList} else 0)
+            ⟨1, by rintro _ ⟨p, rfl⟩; simp only []; split_ifs <;> simp [measureReal_le_one]⟩
+            (prefixOf w (k + 1)))
+          rw [if_pos (length_prefixOf (Finset.mem_filter.1 hw).2)]
+    _ = (Tp.filter (fun w => k + 1 ≤ w.toList.length)).card * prefixMax D (k + 1) := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+    _ ≤ Tp.card * prefixMax D (k + 1) := by
+        have := Finset.card_filter_le Tp (fun w => k + 1 ≤ w.toList.length)
+        exact mul_le_mul_of_nonneg_right (by exact_mod_cast this) hpm
+
+end Draws
 
 end OrthoDFA
