@@ -6,8 +6,6 @@ import OrthoDFA.Clustering
 
 namespace OrthoDFA
 
-open MeasureTheory
-
 variable {S : Type*} [Stringlike S]
 
 /-- A deterministic automaton over the string monoid, acting on the right. -/
@@ -22,9 +20,5 @@ variable {Q : Type*}
 
 /-- The state a prefix reaches. -/
 def DFA.state (A : DFA S Q) (p : S) : Q := A.step A.start p
-
-/-- The mass a population puts on a state. -/
-noncomputable def stateMass (A : DFA S Q) (D : Measure S) (q : Q) : ℝ :=
-  D.real {p | A.state p = q}
 
 end OrthoDFA

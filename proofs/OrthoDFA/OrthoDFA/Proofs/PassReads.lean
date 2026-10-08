@@ -63,20 +63,6 @@ theorem mids_splitAt_cases {d m : FreeMonoid α} {t : DTree α} {p : List Bool}
     (h : m ∈ (t.splitAt d p).mids) : m ∈ t.mids ∨ m = d :=
   ((mids_splitAt d t p m).1 h).imp id And.left
 
-theorem splitAt_mids_length (d : FreeMonoid α) :
-    ∀ (t : DTree α) (p : List Bool), (t.splitAt d p).mids.length ≤ t.mids.length + 1
-  | .leaf, [] => by simp [splitAt, mids]
-  | .leaf, _ :: _ => by simp [splitAt]
-  | .node _ _ _, [] => by simp [splitAt]
-  | .node n r a, false :: p => by
-    have := splitAt_mids_length d r p
-    simp only [splitAt, mids, List.length_cons, List.length_append]
-    omega
-  | .node n r a, true :: p => by
-    have := splitAt_mids_length d a p
-    simp only [splitAt, mids, List.length_cons, List.length_append]
-    omega
-
 theorem firstDisagreement_mids {cut : FreeMonoid α → Option Bool} {x y pre d : FreeMonoid α} :
     ∀ t : DTree α, t.firstDisagreement cut x y pre = some d → ∃ m ∈ t.mids, d = pre * m
   | .leaf, h => by simp [firstDisagreement] at h
@@ -581,12 +567,6 @@ theorem runStep_mids_new (s : PassState α) (w : FreeMonoid α) :
   · exact ⟨1, fun m hm => .inl (h ▸ hm)⟩
   · exact ⟨d, fun m hm => DTree.mids_splitAt_cases (h ▸ hm)⟩
 
-theorem runStep_mids_length (s : PassState α) (w : FreeMonoid α) :
-    (runStep K R s w).tree.mids.length ≤ s.tree.mids.length + 1 := by
-  rcases runStep_tree_cases K R s w with h | ⟨d, p, h⟩
-  · rw [h]; omega
-  · rw [h]; exact DTree.splitAt_mids_length d _ p
-
 theorem runPass_eq_foldl (s : PassState α) (ws : List (FreeMonoid α)) :
     runPass K R s ws = ws.foldl (runStep K R) s := rfl
 
@@ -637,15 +617,6 @@ theorem phase_mids_new (seed ws : List (FreeMonoid α)) (k : ℕ) :
   rcases phase_succ_cases K R seed ws k with h | ⟨hk, h⟩
   · exact ⟨1, fun m hm => .inl (h ▸ hm)⟩
   · rw [h]; exact runStep_mids_new K R _ _
-
-theorem phase_mids_length (seed ws : List (FreeMonoid α)) :
-    ∀ k, (phase K R seed ws k).tree.mids.length ≤ k + 1
-  | 0 => by rw [phase_zero_tree]; simp [DTree.mids]
-  | k + 1 => by
-    have ih := phase_mids_length seed ws k
-    rcases phase_succ_cases K R seed ws k with h | ⟨hk, h⟩
-    · rw [h]; omega
-    · rw [h]; have := runStep_mids_length K R (phase K R seed ws k) ws[k]; omega
 
 theorem phase_poolIn {Bs : Set (FreeMonoid α)} {seed ws : List (FreeMonoid α)}
     (hseed : ∀ b ∈ seed, b ∈ Bs) (hws : ∀ w ∈ ws, ∀ i, prefixOf w i ∈ Bs) :
@@ -719,14 +690,6 @@ theorem mem_nodeReads {Bs : Finset (FreeMonoid α)} {t : DTree α} {b m : FreeMo
   simp only [nodeReads, Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image,
     List.mem_toFinset]
   exact ⟨b, hb, e₁, e₂, m, hm, rfl⟩
-
-theorem nodeReads_mono {Bs : Finset (FreeMonoid α)} {t t' : DTree α}
-    (ht : ∀ m ∈ t.mids, m ∈ t'.mids) : nodeReads Bs t ⊆ nodeReads Bs t' := by
-  intro y hy
-  simp only [nodeReads, Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image,
-    List.mem_toFinset] at hy
-  obtain ⟨b, hb, e₁, e₂, m, hm, rfl⟩ := hy
-  exact mem_nodeReads e₁ e₂ hb (ht m hm)
 
 theorem card_nodeReads (Bs : Finset (FreeMonoid α)) (t : DTree α) :
     (nodeReads Bs t).card
@@ -821,33 +784,6 @@ theorem roundEnd_determined (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) 
     roundEnd K O B F seed (ω', p) = roundEnd K O B F seed (ω, p) := by
   rw [roundEnd_eq_phase, roundEnd_eq_phase] at *
   exact (phase_determined K O B F seed p hp ω ω' N h).1
-
-theorem phase_mids_length_ofFn (K : StageKnobs α) (R : CutReads α) (seed : List (FreeMonoid α))
-    {N : ℕ} (p : Fin N → FreeMonoid α) (k : ℕ) :
-    (phase K R seed (List.ofFn p) k).tree.mids.length ≤ min k N + 1 := by
-  rcases le_total k N with h | h
-  · rw [min_eq_left h]; exact phase_mids_length K R seed _ k
-  · rw [min_eq_right h, phase_of_le K R seed _ (by simpa using h)]
-    simpa using phase_mids_length K R seed (List.ofFn p) N
-
-/-- What the round's pass reads, against its final tree, is within `passReadBound`. -/
-theorem card_roundReads (S : RoundSetting α μ Q) (ω : Ω) (p : Fin S.N → FreeMonoid α) :
-    (nodeReads (passBases S.seed (List.ofFn p) S.L)
-      (roundEnd S.K S.O S.B S.F S.seed (ω, p)).tree).card ≤ passReadBound S := by
-  refine (card_nodeReads _ _).trans ?_
-  have hB := card_passBases S.seed (List.ofFn p) S.L
-  have hm : (roundEnd S.K S.O S.B S.F S.seed (ω, p)).tree.mids.length ≤ S.N + 1 := by
-    rw [roundEnd_eq_phase]
-    simpa using phase_mids_length_ofFn S.K _ S.seed p S.N
-  simp only [List.length_ofFn] at hB
-  unfold passReadBound
-  have h1 : (Fintype.card α + 1) * ((Fintype.card α + 1) * (roundEnd S.K S.O S.B S.F S.seed
-      (ω, p)).tree.mids.length) ≤ (1 + Fintype.card α) * ((S.N + 2) * (1 + Fintype.card α)) := by
-    have := Nat.mul_le_mul_left (Fintype.card α + 1) hm
-    nlinarith
-  calc _ ≤ (S.seed.length + S.N * (S.L + 1)) * ((Fintype.card α + 1) * ((Fintype.card α + 1) *
-        (roundEnd S.K S.O S.B S.F S.seed (ω, p)).tree.mids.length)) := Nat.mul_le_mul_right _ hB
-    _ ≤ _ := by rw [mul_assoc]; exact Nat.mul_le_mul_left _ h1
 
 end Reads
 

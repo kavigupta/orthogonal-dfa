@@ -1,5 +1,10 @@
 # The round trichotomy: proof status
 
+The Lean now states one theorem, `RoundTetrachotomy` (see the last section). The statements
+discussed before it (`RoundTrichotomy`, `RoundTrichotomyAll`, `RoundTrichotomyEdges`, the gap-premise
+`RoundTetrachotomy`, `RoundTetrachotomyBoth`, `RoundOrHarvest`) and their helpers are removed from
+the Lean; their analysis stays here.
+
 Claim under study (`RoundTrichotomy`, `Round.lean`): but for a small probability, a round ends with
 
 1. the DFA/DT check disagreeing on at most `ε` of `D`, or
@@ -870,3 +875,43 @@ tetrachotomy theorems that used it (`round_tetrachotomy_both`, `round_tetrachoto
 
 The bound is unchanged: `(L+1)·2(N+2)·φ/ε + passReadBound·φ`, with room to spare
 (`(L+1)(N+1)φ/ε` suffices).
+
+## Consolidated: one theorem (`RoundTetrachotomy`, `round_tetrachotomy`)
+
+Only the ladder version is kept, with the ladder fixed: a factor `β > 1` is passed in and the
+rungs are `uHi / β^i`, `i = 0..|Q|+1`, so `θ₀ = uHi·β^{−(|Q|+1)}` and the ladder fits below `uHi`
+by construction. The pigeonhole (`exists_rung_gap`, now over an antitone ladder) gives a rung pair
+of ratio exactly `β`.
+
+**Outcome (4)** (`ChainAdvances`): some chain's odds multiply by at least `β`.
+`ChainAdvancesBy X g β hi` says `X` has mass on `g ≥ hi`, the link multiplies that mass by at least
+`hi` and the rest's by at most `hi/β`. An indecision chain does so at a rung `hi = uHi/β^i`,
+`i ≤ |Q|`; a disagreement chain at `hi = wHi`.
+
+**Constants fixed inside the statement.** `wHi = 1 − 2(N+1)φ`, the edge-gap lemma's upper side
+when every state is read cleanly. Internally `η = wHi/β`, so both chains advance by `β`.
+
+**Premises:**
+- `S.Valid`, `0 < ε`, `1 < β`;
+- `0 ≤ φ` and `2(β+1)(N+1)·φ ≤ 1`. The second is `β·η_edge ≤ wHi` with `η_edge = 2(N+1)φ`, the
+  edge gap's lower side. It is not implied by the rest, and it implies the gate's own condition
+  `η < 1 − 2(N+1)φ`, since `β > 1`.
+- the length, `SuffixFree`, `MidFlipPremise` and `BadVisited` premises as before.
+
+There's no premise on `uHi`. If `uHi ≤ 0`, rung `i = 0` gives `hi = uHi ≤ 0`, and every chain with
+mass advances trivially. `chainAdvancesBy_of_mass` no longer needs `0 ≤ hi`: it's the one-link case
+done directly, without `rolled_odds`. So `0 ≤ wHi` was dropped as well.
+
+`1 < β` only rules out a vacuous reading. For `0 < β ≤ 1`, (4) holds at the top rung whenever a
+state is read badly, so the theorem would still hold there.
+
+**Bound:** `(L+1)(N+1)·φ/ε + passReadBound·φ`. That is what `gate_flip_bound` proves; the earlier
+`(L+1)·2(N+2)·φ/ε` was looser.
+
+**The gap-premise version is a corollary, not kept.** It reads with the faster per-round factor
+`uHi/a` under `GapPremise` (every state ≤ a or ≥ uHi). If the multi-round count needs that rate,
+add it back as a corollary alongside the count: with the gap, the rung `(a, uHi)` replaces the
+ladder.
+
+Outcomes (2) and (3) are still in the statement, pending the decision whether the one-round
+statement should be the dichotomy (1) ∨ (4).

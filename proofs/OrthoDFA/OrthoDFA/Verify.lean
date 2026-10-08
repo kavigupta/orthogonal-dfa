@@ -1,12 +1,14 @@
 import OrthoDFA.Proofs.Budget
 import OrthoDFA.Proofs.ClusteringQuality
 import OrthoDFA.Proofs.Replay
+import OrthoDFA.Proofs.GateFlip
 
 /-!
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, and `RoundOutcome`, stated in `OrthoDFA.Stage`, hold.
+`OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, and `RoundTetrachotomy`,
+stated in `OrthoDFA.Round`, hold.
 -/
 
 namespace OrthoDFA
@@ -23,5 +25,9 @@ theorem clustering_quality_guarantee : ClusteringQualityGuarantee :=
 theorem round_outcome : RoundOutcome := round_outcome_holds
 
 #print axioms round_outcome
+
+theorem round_tetrachotomy : RoundTetrachotomy := round_tetrachotomy_holds
+
+#print axioms round_tetrachotomy
 
 end OrthoDFA
