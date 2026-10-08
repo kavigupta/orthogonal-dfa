@@ -158,6 +158,56 @@ def GapPremise (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : 
     (F : Finset (FreeMonoid α)) (uLo uHi : ℝ) : Prop :=
   ∀ q, stateIndecision A O B F q ≤ uLo ∨ uHi ≤ stateIndecision A O B F q
 
+/-- What a per-state population of leaf `s` draws: a draw from `D` that the hypothesis walks to
+`s` and the tree places at `s`, as `StateSource` keeps an aim only where it rests. -/
+def settlesAt (R : CutReads α) (H : Hypothesis α) (s : List Bool) : Set (FreeMonoid α) :=
+  {x | x.toList.foldl H.step (midPath R H 1) = s ∧ H.tree.sift R.cut x = .inl s}
+
+/-- (2a) Some population the round makes reads, on average over its strings, more than `2τ`
+undecided under the current family, so a family held to `τ` on it reads its states differently:
+the harvest (`Walked` and `Sifted` provenances alike, mixed as they found strings), or a per-state
+population. -/
+def PopulationIndecisive (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
+    (R : CutReads α) (H : Hypothesis α) (D : Measure (FreeMonoid α)) (L : ℕ) (τ : ℝ) : Prop :=
+  2 * τ * harvestMass R H D L (fun _ => 1)
+      < harvestMass R H D L (fun t => stateIndecision A O R.B R.F (A.state t))
+    ∨ ∃ s ∈ H.tree.paths, 2 * τ
+      < ∫ x, stateIndecision A O R.B R.F (A.state x) ∂(D[|settlesAt R H s])
+
+open scoped Classical in
+/-- (2b) At some leaf, the harvest's disagreement prefixes whose every successor state is read
+cleanly make up at least `σ` of what the round's populations place there, `nH` harvest strings
+and `nS` per-state ones: enough that the split evidence cannot call that leaf one state.  A
+harvested string the tree places is a disagreement prefix; one whose successor is read badly is
+left out, since splitting its leaf does not mend its successor. -/
+def WrongEdgeHarvest (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α)
+    (H : Hypothesis α) (D : Measure (FreeMonoid α)) (L nH nS : ℕ) (σ uLo : ℝ) : Prop :=
+  ∃ s ∈ H.tree.paths,
+    let atS := harvestMass R H D L (fun t => if H.tree.sift R.cut t = .inl s then 1 else 0)
+    let wrongAtS := harvestMass R H D L (fun t =>
+      if H.tree.sift R.cut t = .inl s
+          ∧ ∀ c : α, stateIndecision A O R.B R.F (A.state (t * FreeMonoid.of c)) ≤ uLo
+      then 1 else 0)
+    σ * (nS * harvestMass R H D L (fun _ => 1) + nH * atS) ≤ nH * wrongAtS
+
+/-- `RoundTrichotomyAll`: case (2) read over every population the round makes.  But for
+`(1 - ε)^patience`, a round ends with (1) agreement within `ε`, (2) a spread harvest with (2a) a
+population read undecided more than `2τ` or (2b) a wrong edge it splits on, or (3) halving. -/
+def RoundTrichotomyAll : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
+    (nH nS : ℕ) (σ uLo : ℝ),
+    S.Valid →
+    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
+        let R := readsAt S.O S.B S.F θ.1
+        let s := roundEnd S.K S.O S.B S.F S.seed θ
+        ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
+          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ
+            ∧ (PopulationIndecisive S.A S.O R s.hyp S.D S.L S.τ
+              ∨ WrongEdgeHarvest S.A S.O R s.hyp S.D S.L nH nS σ uLo))
+          ∧ ¬ s.halves S.τ}
+      ≤ (1 - ε) ^ S.K.patience
+
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
   ((replay R H x e).1.map fun i => (H.tree.route R.cut (prefixOf x i)).1.length).sum

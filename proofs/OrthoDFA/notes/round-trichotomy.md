@@ -158,3 +158,103 @@ is in its docstring.
   - a premise `R̄·u_clean ≪ s_b·u_bad`, which holds at signal 0.3, where `u_clean ≈ 5e-5`;
   - a halving trigger that also fires on refusal with a light harvest;
   - a harvest-quality measure that reflects the replay's growth, which made the trap progress.
+
+## Case (2) over every population the round makes (`RoundTrichotomyAll`)
+
+The FNR gate holds the next family to `τ` on every population the round leaves, not just the
+harvest. So case (2) is restated over all of them.
+
+**The populations.**
+- **The harvest.** `Walked` replays plus `Sifted` replays (a member of leaf `s`'s population
+  extended by `c`, harvested when undecided), mixed in proportion to what each found.
+- **The per-state populations.** Length-`L` draws that the hypothesis walks to `s` and that the tree
+  settles at `s` (`settlesAt`). `StateSource` keeps an aim only where it rests.
+
+**(2a) `PopulationIndecisive`.** Some population P has
+
+    E_{t∼P}[ u(state t) ] > 2τ,
+
+with `u` the current family's state-level indecision. A family held to `τ` on P must then read P's
+states differently. `u` has to be state-level, over fresh noise: a population's realised indecision
+under the same suffixes is selection-biased. Per-state strings were kept because they were decided,
+and harvested ones because they were not. The next family's suffixes give fresh reads.
+
+**(2b) `WrongEdgeHarvest`.** At some leaf `s`, the harvest's disagreement prefixes are at least
+σ of what the round's populations place there:
+
+    nH · h_wrong(s)  ≥  σ · (nS · h + nH · h(s)),
+
+where
+- `h`, `h(s)` and `h_wrong(s)` are the harvest masses: all items, items at `s`, and disagreement
+  prefixes at `s` whose successor states are all read cleanly;
+- `nH` and `nS` are the population sizes.
+
+A harvested string the tree places is exactly a disagreement prefix.
+
+For the next round's split test to refuse to call the leaf one state, `σ` must be at least about
+`_MIN_DETECTABLE_SPLIT` = 0.1. `NO_SPLIT` fires only when the minority side is too small to hide a
+10% split. The test also needs enough members, up to `_MEMBER_LIMIT` = 1500.
+
+Prefixes whose successor is read badly are excluded. Their disagreement comes from the successor's
+coin-flip reading, and splitting their own clean leaf does not mend it. So `edgeError`, which
+credits them about ½, over-credits them as progress.
+
+**Does it cover step 4's regime?** There, q is rare and badly read (u_q ≈ 0.4), the clean states
+are at u_c ≈ τ/10, and q is visited on a share s_b of reads.
+
+- **Harvest (2a).** Undecided items arrive at `q` and at clean states in the ratio
+  `s_b·u_q : u_c` (Sifted at edge `(s,c)`: `π(p|s)·u_q : u_c` per provenance; mixing provenances in
+  proportion to their finds keeps the overall ratio). Disagreement prefixes have clean states. So
+  the harvest's E[u] exceeds 2τ iff about
+
+      s_b · u_q · (u_q − 2τ)  >  u_c · (2τ − u_c),
+
+  which needs s_b > 0.024 at τ = 0.1, u_c = 0.01, u_q = 0.4. Not covered for s_b = 0.003.
+- **Per-state (2a).** The hypothesis's edges send q's length-`L` strings to some leaf t. Among the
+  aims that settle at t, q's share is
+
+      π̃(q|t) ≈ P_L(q) · (1 − u_q) · P(settles at t | q decided) / P(walk = t, settles at t).
+
+  E[u] > 2τ needs π̃(q|t) > (2τ − u_c)/(u_q − u_c) ≈ 0.49. So q must be about half of its leaf at
+  length `L`.
+
+  This is a premise on q's length-`L` mass relative to its leaf, which depends on the hypothesis.
+  Its target-only sufficient form is "every badly read state has length-`L` mass comparable to the
+  largest leaf", the rejected "common at length `L`" premise.
+
+  ν/V premises do not imply it:
+  - V averages over positions, while the population is length-`L` only.
+  - For periodic targets (counters of letters mod k), P_L(q) can be 0 with V(q) > 0.
+  - For aperiodic irreducible targets, P_L(q) → V(q) once L exceeds the mixing time. Even then
+    it bounds the absolute mass, not the share within a leaf.
+- **(2b).** The coin-read q produces disagreements only at edges into q, whose prefixes are
+  excluded. A decided wrong edge (a decided state merged into the wrong leaf) produces prefixes at
+  its own state. Those cover (2b) once that state is about 10% of its leaf's population strings.
+  That again needs relative mass, or enough harvest: `nH·h_wrong ≥ 0.1·nS·h`.
+
+**Verdict.** `RoundTrichotomyAll` is still false, in a narrower residual regime. All of these hold
+at once:
+- some badly read state q (u_q ≥ uHi) with 2ε/L ≲ V(q) ≲ u_c(2τ − u_c)/(u_q(u_q − 2τ)): the gate
+  fails through q's coin readings, yet the harvest is clean-dominated;
+- q's share of the leaf its strings walk to, at length `L`, is below (2τ − u_c)/(u_q − u_c);
+- no decided wrong edge carries 10% of its leaf;
+- no halving: Σ_q visit-share · u_q ≤ τ/2.
+
+At defaults this is 0.001 ≲ V(q) ≲ 0.024, with q's within-leaf length-`L` share below about ½.
+It is stated as a definition, not a theorem.
+
+**Empirics.**
+- In the coordinator's 180-target sweep, every refused round halved or was bad-heavy.
+- The three rounds closest to this regime (generated target 20) had u_max 0.08–0.13. That is not
+  a coin-read state at u ≈ 0.4, but the middle-band case the gap premise (P4) excludes. They were
+  bad-heavy only through disagreement prefixes.
+- So no measured round sits in the residual regime. The trap's first refused round is borderline,
+  and progressed through the replay-grown harvest.
+
+**Closing the residual.**
+- (i) A premise: every badly read state is at least a constant share of the leaf its strings walk
+  to, at length `L`. This is hypothesis-dependent, so better phrased as a clustering/stage fact.
+- (ii) Algorithmic: aim a per-state population at each (leaf, letter) edge whose members·c are
+  undecided at above-baseline rate. That is a `Sifted` source kept as its own population, so it is
+  judged at `π(p|s)u_q : u_c` rather than diluted by the global mix. This turns the per-provenance
+  concentration, which exists, into a per-population one, which the gate sees.
