@@ -76,8 +76,8 @@ def nearest_to_anchor_group(
 ):
     """The rows of the coherent_group with the least misread_statistic against
     anchor on average over the columns marked scoring, then every other row,
-    each part nearest first to that group's mean, distance weighing each
-    population's columns the same:
+    each part nearest first to that group's mean, and how many rows that group
+    holds; distance weighs each population's columns the same:
 
         d(v) = sum_p w_p (x_v,p - mean_p)^2,   w_p proportional to
                sum over populations j holding p of 1 / |j|.
@@ -93,4 +93,4 @@ def nearest_to_anchor_group(
     distance = (rows - rows[best].mean(0)) ** 2 @ weight
     outside = np.ones(len(rows), dtype=bool)
     outside[best] = False
-    return np.lexsort((distance, outside))
+    return np.lexsort((distance, outside)), len(best)

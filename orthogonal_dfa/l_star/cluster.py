@@ -19,7 +19,9 @@ def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
     """Seed, then the first count - 1 of the rest of the pool in
-    nearest_to_anchor_group's order, anchored on seed's reads."""
+    nearest_to_anchor_group's order, anchored on seed's reads.  Sets
+    ``pst.suffix_group``: seed and the anchor group's rows in that order, which
+    may run past the family."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -31,8 +33,9 @@ def identify_cluster_around(
     signal = pst.config.min_signal_strength
     others = np.flatnonzero(np.arange(len(reads)) != seed_local)
     cluster = [seed_local]
+    pst.suffix_group = [seed]
     if len(others):
-        order = nearest_to_anchor_group(
+        order, members = nearest_to_anchor_group(
             reads[others],
             reads[seed_local],
             list(pst.table.population_masks().values()),
@@ -45,6 +48,7 @@ def identify_cluster_around(
             rng=pst.rng,
         )
         cluster += others[order[: count - 1]].tolist()
+        pst.suffix_group = candidate[[seed_local, *others[order[:members]]]].tolist()
 
     # Estimate decision boundary from the prefix separation
     prefix_means = reads[cluster].mean(0)

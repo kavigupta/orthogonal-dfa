@@ -11,6 +11,7 @@ from unittest import mock
 import numpy as np
 
 from orthogonal_dfa.l_star import counterexample_synthesis as cs
+from orthogonal_dfa.l_star import edge_chains as ec
 from orthogonal_dfa.l_star.edge_chains import (
     DROP,
     PROMOTE,
@@ -100,6 +101,38 @@ class TestAnEdgeTestStopsWhereItsRatesSeparate(unittest.TestCase):
         self.assertEqual(
             separating_reads(0.03, 0.03, 1e-4), separating_reads(0.02, 0.03, 1e-4)
         )
+
+
+class TestALinkReadsRowsNoEarlierLinkRead(unittest.TestCase):
+    def _pst(self, group):
+        suffixes = {0: b"", 1: b"a", 2: b"b", 3: b"c", 4: b"d", 5: b"e"}
+        return SimpleNamespace(
+            decision_boundary=0.5,
+            config=SimpleNamespace(min_signal_strength=0.3),
+            suffix_group=group,
+            table=SimpleNamespace(suffix=suffixes.__getitem__),
+        )
+
+    def _rows(self, group, vs, used, smallest=3):
+        with mock.patch.object(
+            ec, "read_rates", return_value=(0.01, 0.01)
+        ), mock.patch.object(
+            ec, "smallest_readable_family", return_value=smallest
+        ), mock.patch.object(
+            ec,
+            "readable_size_and_margin",
+            side_effect=lambda s, b, have, sm, r: (have, 0.1),
+        ), mock.patch.object(
+            ec, "SuffixFamily", side_effect=lambda pst, rows: SimpleNamespace(rows=rows)
+        ):
+            found = ec.fresh_sifter(self._pst(group), None, vs, used)
+        return None if found is None else found[0].family.rows
+
+    def test_it_tops_up_from_the_group_past_the_family_without_the_empty_suffix(self):
+        self.assertEqual([2, 3, 4], self._rows([0, 1, 2, 3, 4], vs=[0, 1, 2], used={1}))
+
+    def test_it_waits_when_the_group_runs_out(self):
+        self.assertIsNone(self._rows([0, 1, 2, 3], vs=[0, 1, 2], used={1, 2}))
 
 
 class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):

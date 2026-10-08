@@ -110,23 +110,31 @@ def judge_edge(
 
 
 def fresh_sifter(pst, tree, vs, used) -> Optional[Tuple[Sifter, frozenset]]:
-    """A sifter over ``tree`` reading only the suffix rows of ``vs`` not in
-    ``used``, at the band their number reads, and the rows it reads; None where
-    too few are left to read a decision."""
+    """A sifter over ``tree`` reading the round family ``vs``'s rows not in
+    ``used``, topped up from the rows its coherent group ranks next, at the band their
+    number reads, and the rows it reads; None where the group runs out first.
+
+    Rows of one group vote alike, so a link reads the round's cut on rows no
+    earlier link read.  The empty suffix is left out: a link's reads must be
+    fresh strings, and every chain's draws were read with it."""
     boundary = pst.decision_boundary
     signal = pst.config.min_signal_strength
     rates = read_rates(pst, boundary)
-    fresh = [v for v in vs if v not in used]
     smallest = smallest_readable_family(signal, boundary, rates)
-    if len(fresh) < smallest:
+    rows = [
+        v
+        for v in [*vs, *(v for v in pst.suffix_group if v not in vs)]
+        if v not in used and pst.table.suffix(v) != b""
+    ]
+    if len(rows) < smallest:
         return None
     size, margin = readable_size_and_margin(
-        signal, boundary, len(fresh), smallest, rates
+        signal, boundary, len(rows), smallest, rates
     )
-    family = SuffixFamily(pst, fresh[:size])
+    family = SuffixFamily(pst, rows[:size])
     family.accept_thresh = boundary + margin
     family.reject_thresh = boundary - margin
-    return Sifter(tree, family), frozenset(fresh[:size])
+    return Sifter(tree, family), frozenset(rows[:size])
 
 
 class EdgeChain(RejectionSource):

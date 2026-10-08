@@ -119,6 +119,8 @@ class PrefixSuffixTracker:
     evidence_margin: float = 0.0
     #: The suffix rows clustering picks families from.
     suffix_pool: List[int] = field(default_factory=list)
+    #: The last family's seed and coherent group, ranked; see identify_cluster_around.
+    suffix_group: List[int] = field(default_factory=list)
     #: The configured limit, halved after each round whose probes since its last
     #: split were mostly unchecked.
     fnr_limit: float = field(init=False)
