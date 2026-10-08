@@ -168,31 +168,27 @@ class MidfixTree:
         """
         return self.sift(seq, decide)[0]
 
-    def first_disagreement(
-        self, s, sprime, decide: Decide, prefix
-    ) -> Tuple[Optional[bytes], Optional[bytes]]:
+    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[bytes]:
         """
-        ``(midfix, undecided)``: the midfix separating s and sprime, or the string
-        a needed classification could not place; both None where they agree all
-        the way to a leaf.
+        The midfix separating s and sprime, or None.
 
         s and sprime currently sift to the same leaf, but s + prefix and
         sprime + prefix are known to reach different leaves. Walk down the branch
         where they still agree; the first node where they disagree yields the
-        separating midfix prefix + node midfix.
+        separating midfix prefix + node midfix. None when a needed classification
+        is indecisive, or when they agree all the way to a leaf.
         """
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
             full = prefix + midfix
-            for seq in (s, sprime):
-                if decide(seq, full) is None:
-                    return None, seq + full
-            d = decide(s, full)
-            if d != decide(sprime, full):
-                return full, None
+            d, dprime = decide(s, full), decide(sprime, full)
+            if d is None or dprime is None:
+                return None
+            if d != dprime:
+                return full
             node = lookup[d]
-        return None, None
+        return None
 
     def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
         """

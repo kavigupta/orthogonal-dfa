@@ -1,5 +1,5 @@
 """How :class:`TransitionResolver` walks a probe from its start, what it does
-where the walk is blocked or a split attempt cannot go on, and how it reads fresh
+where the walk is blocked or the walk and the sift part, and how it reads fresh
 draws.
 
 Driven by stubs rather than synthesis: these are properties of the walk, and the
@@ -25,11 +25,9 @@ class _StubSifter:
     def __init__(self, places, middle=None):
         self.places = places
         self.middle = middle
-        self.reads = 0
-        self.undecided_search = None
+        self.searched = []
 
     def sift_and_boundary(self, seq):
-        self.reads += 1
         leaf = self.places(bytes(seq))
         return (leaf, None) if leaf is not None else (None, bytes(seq) + b"?")
 
@@ -37,8 +35,8 @@ class _StubSifter:
         leaf = self.places(bytes(seq))
         return self.middle if leaf is None else leaf
 
-    def disagreement(self, _s, _sprime, _prefix):
-        return None, self.undecided_search
+    def disagreement(self, s, sprime, prefix):
+        self.searched.append((s, sprime, prefix))
 
 
 class _StubPopulation:
@@ -48,19 +46,15 @@ class _StubPopulation:
     def add(self, string, at):
         self.recorded.append((at, bytes(string)))
 
-    add_first = add
-
 
 class _Learner(TransitionResolver):
     # pylint: disable=super-init-not-called
-    def __init__(self, sifter, transitions, k, *, fnr_limit=0.1):
+    def __init__(self, sifter, transitions, k):
         self.sifter = sifter
         self.population = _StubPopulation()
         self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2)
         self.dfa = SimpleNamespace(transitions=transitions, witness=lambda s, c: b"")
         self.k = k
-        self.dropped = {}
-        self.pst = SimpleNamespace(fnr_limit=fnr_limit)
         self.draws = iter(())
 
     def _draw(self):
@@ -70,6 +64,18 @@ class _Learner(TransitionResolver):
 #: State 7 steps to 8 on a 0 and stays on a 1; nothing is learned out of 8.
 _OPEN_AT_8 = {7: {0: 8, 1: 7}, 8: {}}
 _EVERYWHERE = {7: {0: 7, 1: 7}}
+
+
+def _parting(undecided):
+    """Places the whole probe at 8, the prefixes whose lengths are in
+    ``undecided`` nowhere, and the rest at 7, where the walk stays."""
+
+    def places(seq):
+        if len(seq) == len(_PROBE):
+            return 8
+        return None if len(seq) in undecided else 7
+
+    return places
 
 
 class TestAProbeWalkedFromItsStart(unittest.TestCase):
@@ -87,75 +93,51 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([(8, _PROBE[:3])], learner.population.recorded)
 
-    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_searched(self):
-        # The walk reaches 8 after 0, 1, 0, which the cut places at 7, and finds
-        # no edge out of 8; the search lands on the edge into 8.
-        sifter = _StubSifter(lambda seq: 7)
-        sifter.undecided_search = b"searched"
-        learner = _Learner(sifter, _OPEN_AT_8, 1)
-
-        self.assertFalse(learner._check(_PROBE))
-        self.assertEqual({b"searched": None}, learner.dropped)
-
-    def test_a_disagreement_whose_prefix_the_cut_cannot_place_is_dropped(self):
-        # The walk stays at 7 while the whole probe sifts to 8, and the prefix the
-        # search lands on can only be placed by the middle.
-        def places(seq):
-            if len(seq) == 4:
-                return 8
-            return None if len(seq) == 3 else 7
-
-        learner = _Learner(_StubSifter(places, middle=7), _EVERYWHERE, 1)
-
-        self.assertFalse(learner._check(_PROBE))
-        self.assertEqual({_PROBE[:3] + b"?": None}, learner.dropped)
-
-    def test_a_distinguisher_search_the_cut_cannot_finish_is_dropped(self):
-        sifter = _StubSifter(lambda seq: 8 if len(seq) == 4 else 7)
-        sifter.undecided_search = b"stuck"
+    def test_a_disagreement_down_to_an_edge_is_weighed_for_a_split(self):
+        sifter = _StubSifter(_parting(set()))
         learner = _Learner(sifter, _EVERYWHERE, 1)
 
         self.assertFalse(learner._check(_PROBE))
-        self.assertEqual({b"stuck": None}, learner.dropped)
+        self.assertEqual([(b"", _PROBE[:3], _PROBE[3:])], sifter.searched)
+
+    def test_a_disagreement_down_to_a_triple_is_quiet(self):
+        sifter = _StubSifter(_parting({3}))
+        learner = _Learner(sifter, _EVERYWHERE, 1)
+
+        self.assertFalse(learner._check(_PROBE))
+        self.assertEqual([], sifter.searched)
 
 
-def _read(places, draws, *, middle=7, acc_threshold=0.9):
-    learner = _Learner(_StubSifter(places, middle=middle), _EVERYWHERE, 2)
-    learner.draws = iter(draws * 2000)
+def _read(places, *, k=2, middle=7, acc_threshold=0.9):
+    learner = _Learner(_StubSifter(places, middle=middle), _EVERYWHERE, k)
+    learner.draws = iter([_PROBE] * 2000)
     return learner.read_fresh(acc_threshold=acc_threshold)
 
 
-#: Places every string but the whole probe at 7.
-_ALL_BUT_PROBE = lambda seq: None if seq == _PROBE else 7
-
-
 class TestReadingFreshDraws(unittest.TestCase):
-    def test_draws_blocking_at_more_than_the_limits_share_of_reads_block(self):
-        # Every other draw blocks over two reads each: a quarter of the reads.
-        reading = _read(_ALL_BUT_PROBE, [_PROBE, _PROBE[:3]])
+    def test_a_decided_disagreement_is_kept_for_the_pass(self):
+        reading = _read(_parting(set()))
 
-        self.assertTrue(reading.blocks)
-        self.assertEqual([_PROBE + b"?"], reading.found)
+        self.assertEqual(0.0, reading.agreement)
+        self.assertEqual(_PROBE, reading.disagreements[0])
+        self.assertEqual(([], 0), (reading.triples, reading.pairs))
 
-    def test_a_blocked_draw_is_read_at_the_middle_for_the_agreement(self):
+    def test_a_triple_leaves_its_middles_boundary_string(self):
+        reading = _read(_parting({3}))
+
+        self.assertEqual([_PROBE[:3] + b"?"], reading.triples)
+
+    def test_a_pair_leaves_nothing_but_is_counted(self):
+        reading = _read(_parting({2, 3}), k=1)
+
+        self.assertEqual([], reading.triples)
+        self.assertEqual(len(reading.draws), reading.pairs)
+
+    def test_a_draw_the_cut_cannot_place_is_read_at_the_middle(self):
         for middle, agreement in ((7, 1.0), (8, 0.0)):
-            reading = _read(_ALL_BUT_PROBE, [_PROBE], middle=middle)
+            reading = _read(lambda seq: None if seq == _PROBE else 7, middle=middle)
             self.assertEqual(agreement, reading.agreement)
             self.assertEqual([], reading.disagreements)
-
-    def test_a_refusal_with_nothing_decided_to_rerun_blocks(self):
-        # Half the draws block, over a quarter of the reads: under a 0.3 limit.
-        draws = [_PROBE, _PROBE[:3]]
-        for middle, blocks in ((7, False), (8, True)):
-            learner = _Learner(
-                _StubSifter(_ALL_BUT_PROBE, middle=middle),
-                _EVERYWHERE,
-                2,
-                fnr_limit=0.3,
-            )
-            learner.draws = iter(draws * 1000)
-            reading = learner.read_fresh(acc_threshold=0.9)
-            self.assertEqual(blocks, reading.blocks)
 
     def test_an_open_edge_disagrees(self):
         places = lambda seq: 8 if seq == _PROBE[:3] else 7
@@ -165,38 +147,19 @@ class TestReadingFreshDraws(unittest.TestCase):
         reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual(0.0, reading.agreement)
-        self.assertEqual([], reading.disagreements)
 
-    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_kept_for_the_pass(self):
-        learner = _Learner(_StubSifter(lambda seq: 7), _OPEN_AT_8, 1)
-        learner.draws = iter([_PROBE] * 2000)
+    def test_reading_stops_once_the_agreement_settles(self):
+        reading = _read(lambda seq: 7, acc_threshold=0.5)
 
-        reading = learner.read_fresh(acc_threshold=0.9)
-
-        self.assertEqual(_PROBE, reading.disagreements[0])
-        self.assertFalse(reading.blocks)
-
-    def test_a_decided_disagreement_is_kept_for_the_pass(self):
-        reading = _read(lambda seq: 8 if len(seq) == 4 else 7, [_PROBE])
-
-        self.assertEqual(0.0, reading.agreement)
-        self.assertEqual(_PROBE, reading.disagreements[0])
-
-    def test_a_clean_gate_reads_until_both_its_tests_settle(self):
-        reading = _read(lambda seq: 7, [_PROBE], acc_threshold=0.5)
-
-        # Two clean reads a draw settle the block test below 0.1 at the 66th
-        # read, since 0.9 ** 66 < 1e-3 < 0.9 ** 65, after the agreement's 30
-        # draws.
-        self.assertEqual(33, len(reading.draws))
-        self.assertFalse(reading.blocks)
+        # 0.5 ** 10 < 1e-3, but the agreement is not tested before 30 draws.
+        self.assertEqual(30, len(reading.draws))
         self.assertEqual(1.0, reading.agreement)
 
-    def test_a_replay_reads_a_fresh_draw_for_what_it_leaves(self):
-        learner = _Learner(_StubSifter(lambda seq: None), _EVERYWHERE, 2)
+    def test_a_replay_reads_a_fresh_draw_for_its_triples_middle(self):
+        learner = _Learner(_StubSifter(_parting({3})), _EVERYWHERE, 2)
         learner.draws = iter([_PROBE])
 
-        self.assertEqual([_PROBE[:2]], learner.replay(_EVERYWHERE))
+        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(_EVERYWHERE))
 
 
 if __name__ == "__main__":

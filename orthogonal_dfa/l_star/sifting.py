@@ -15,18 +15,11 @@ class Sifter:
     def __init__(self, tree, family):
         self.tree = tree
         self.family = family
-        #: Node reads every sift so far has made.
-        self.reads = 0
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
         """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
         when some node cannot place it."""
-
-        def decide(s, midfix):
-            self.reads += 1
-            return self.family.is_accept(s, midfix)
-
-        return self.tree.sift(seq, decide)
+        return self.tree.sift(seq, self.family.is_accept)
 
     def known_sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to without a new query, or ``None`` when some
@@ -43,8 +36,7 @@ class Sifter:
 
     def halfway(self, seq) -> int:
         """Where the gate's reading sends ``seq``: past each node the cut cannot
-        place it at, the side of the middle of the band.  Its reads are not the
-        cut's, so ``reads`` leaves them out."""
+        place it at, the side of the middle of the band."""
         return self.tree.route_halfway(
             seq, self.family.is_accept, self.family.middle_side
         )
@@ -64,11 +56,9 @@ class Sifter:
 
         self.tree.classify_many(seqs, warm)
 
-    def disagreement(
-        self, s, sprime, prefix
-    ) -> Tuple[Optional[bytes], Optional[bytes]]:
-        """A midfix separating ``s`` and ``sprime``, or the string the search
-        could not place (see :meth:`MidfixTree.first_disagreement`).
+    def disagreement(self, s, sprime, prefix) -> Optional[bytes]:
+        """A midfix separating ``s`` and ``sprime`` (see
+        :meth:`MidfixTree.first_disagreement`), or ``None``.
 
         This only *proposes* a distinguisher; whether the split fires is decided
         by the population evidence, so the pair need only clear the ordinary
@@ -76,15 +66,40 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
 
-def first_disagreeing_edge(probe, states, sift, lo, hi):
-    """The first index where the walk and a fresh sift diverge.
+#: How a search between an agreeing and a disagreeing prefix ends: at an edge
+#: (agree, disagree), at an undecided read between them (agree, undecided,
+#: disagree), or at two adjacent undecided reads.
+EDGE, TRIPLE, PAIR = "edge", "triple", "pair"
 
-    Invariant: the sift agrees at ``lo`` and disagrees at ``hi``.
-    """
-    while lo + 1 < hi:
+
+def bracket(probe, states, sift, lo, hi):
+    """``(kind, at)``: where the walk ``states`` and ``sift`` part between ``lo``,
+    where they agree, and ``hi``, where they disagree, reading only decided
+    prefixes to narrow.  ``at`` is the edge's head, the undecided middle of a
+    triple, or the first of a pair."""
+
+    def agrees(p):
+        if p in (lo, hi):
+            return p == lo
+        leaf = sift(probe[:p])
+        return None if leaf is None else leaf == states[p]
+
+    while hi - lo > 1:
         mid = (lo + hi) // 2
-        lo, hi = (mid, hi) if sift(probe[:mid]) == states[mid] else (lo, mid)
-    return hi
+        side = agrees(mid)
+        if side is not None:
+            lo, hi = (mid, hi) if side else (lo, mid)
+            continue
+        left = agrees(mid - 1)
+        if left is None:
+            return PAIR, mid - 1
+        right = agrees(mid + 1)
+        if right is None:
+            return PAIR, mid
+        if left and not right:
+            return TRIPLE, mid
+        lo, hi = (lo, mid - 1) if not left else (mid + 1, hi)
+    return EDGE, hi
 
 
 #: Where a walk stopped, at ``probe[:at]``, what it leaves there, and whether

@@ -41,7 +41,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import Sifter, first_disagreeing_edge, walk
+from .sifting import EDGE, PAIR, TRIPLE, Sifter, bracket, walk
 from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .statistics import binomial_side_of_boundary
 from .suffix_family import SuffixFamily
@@ -51,11 +51,12 @@ READING_DRAWS = 2000
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
-#: A reading of fresh draws (see ``TransitionResolver.read_fresh``): whether
-#: they blocked the round, the share of them the hypothesis agrees on, what the
-#: blocked ones left, the ones whose walk and sift disagree decidedly, every
-#: draw, and the learned edges they were read against.
-Reading = namedtuple("Reading", "blocks agreement found disagreements draws learned")
+#: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the share
+#: of them the hypothesis agrees on, the boundary strings of the triples their
+#: disagreements were searched down to, how many came down to a pair, the ones
+#: whose walk and sift disagree decidedly, every draw, and the learned edges
+#: they were read against.
+Reading = namedtuple("Reading", "agreement triples pairs disagreements draws learned")
 
 
 def start_length(length: int) -> int:
@@ -73,8 +74,6 @@ class TransitionResolver:
         #: Probes since the pass's last split or undecided split test.
         self.quiet_probes = 0
         self.k = start_length(pst.sampler.length)
-        #: What the pass's split attempts could not place.
-        self.dropped = {}
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
@@ -142,48 +141,49 @@ class TransitionResolver:
         """Read fresh draws against the hypothesis as it stands, walking each
         from ``k`` and sifting it whole.
 
-        A blocked draw counts once against the node reads it made, and the
-        draws block the round where they come to more than ``fnr_limit`` of the
-        reads: as many as a family undecided at the limit could leave, or where
-        the agreement falls short with no decided disagreement among them.  A
-        draw agrees where the learned edges, from where the middle of the band
+        A draw agrees where the learned edges, from where the middle of the band
         places its start, take it where the middle places it whole; an open edge
-        on the way disagrees.  Reading stops once both tests settle."""
+        on the way disagrees.  Reading stops once the agreement's test settles.
+        Each decided disagreement is searched for where it parts (see
+        ``bracket``)."""
         learned = self.learned()
-        fnr_limit = self.pst.fnr_limit
-        blocked = reads = agreed = 0
-        found, disagreements, draws = {}, [], []
-        blocks = agrees = None
+        agreed = pairs = 0
+        triples, disagreements, draws = {}, [], []
         while len(draws) < READING_DRAWS:
             w = self._draw()
             draws.append(w)
-            before = self.sifter.reads
-            states, block, end = walk(w, self.sifter.sift_and_boundary, learned, self.k)
-            reads += self.sifter.reads - before
-            if block is not None:
-                blocked += 1
-                found[block.found] = None
-            elif end != states[-1]:
+            kind, string = self._part(w, learned)
+            if kind is not None:
                 disagreements.append(w)
+            if kind == TRIPLE:
+                triples[string] = None
+            pairs += kind == PAIR
             agreed += self._ends_at_middle(w, learned)
-            blocks = binomial_side_of_boundary(
-                blocked, reads, fnr_limit, failure_prob=READING_FAILURE_PROB
-            )
             # As the gate always has, before an early run of agreements can stop it.
-            if len(draws) >= 30:
-                agrees = binomial_side_of_boundary(
+            if (
+                len(draws) >= 30
+                and binomial_side_of_boundary(
                     agreed, len(draws), acc_threshold, failure_prob=READING_FAILURE_PROB
                 )
-            if blocks is not None and agrees is not None:
+                is not None
+            ):
                 break
-        if blocks is None:
-            blocks = blocked > fnr_limit * reads
-        # A refusal with no decided disagreement for the pass to rerun.
-        if agreed < acc_threshold * len(draws) and not disagreements:
-            blocks = True
         return Reading(
-            blocks, agreed / len(draws), list(found), disagreements, draws, learned
+            agreed / len(draws), list(triples), pairs, disagreements, draws, learned
         )
+
+    def _part(self, w, learned):
+        """``(kind, string)``: how the search for where the walk of ``w`` along
+        ``learned`` parts from its sift ends, and, for a triple, the boundary
+        string of its undecided middle; ``(None, None)`` where they do not part
+        decidedly."""
+        states, block, end = walk(w, self.sifter.sift_and_boundary, learned, self.k)
+        if block is not None or end == states[-1]:
+            return None, None
+        kind, at = bracket(w, states, self._sift, self.k, len(states) - 1)
+        if kind != TRIPLE:
+            return kind, None
+        return kind, self.sifter.sift_and_boundary(w[:at])[1]
 
     def _ends_at_middle(self, w, learned) -> bool:
         state = self.sifter.halfway(w[: self.k])
@@ -195,9 +195,9 @@ class TransitionResolver:
 
     def replay(self, learned):
         """Read a fresh draw against the ``learned`` edges as ``read_fresh``
-        does, for what it leaves where it blocks."""
-        _, block, _ = walk(self._draw(), self.sifter.sift_and_boundary, learned, self.k)
-        return [] if block is None else [block.found]
+        does, for the middle of a triple."""
+        kind, string = self._part(self._draw(), learned)
+        return [string] if kind == TRIPLE else []
 
     # -- counterexamples ----------------------------------------------------
 
@@ -239,10 +239,8 @@ class TransitionResolver:
             return False
         if end == states[-1]:
             return False
-        fd = first_disagreeing_edge(
-            w, states, self.sifter.halfway, self.k, len(states) - 1
-        )
-        return self._act_on_disagreement(w, states, fd)
+        kind, at = bracket(w, states, self._sift, self.k, len(states) - 1)
+        return kind == EDGE and self._act_on_disagreement(w, states, at)
 
     def _act_on_disagreement(self, w, states, fd) -> bool:
         s1, c = states[fd - 1], w[fd - 1]
@@ -250,13 +248,10 @@ class TransitionResolver:
         sprime = w[: fd - 1]
         if self._sift(witness) != s1:
             return False
-        landed, boundary = self.sifter.sift_and_boundary(sprime)
-        if landed != s1:
-            self._drop(boundary)
+        if self._sift(sprime) != s1:
             return False
-        distinguisher, undecided = self.sifter.disagreement(witness, sprime, bytes([c]))
+        distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
-            self._drop(undecided)
             return False
         if self.splits.verdict(s1, distinguisher) == SPLIT:
             self._split(s1, distinguisher)
@@ -270,10 +265,6 @@ class TransitionResolver:
         # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1))
         return True
-
-    def _drop(self, undecided) -> None:
-        if undecided is not None:
-            self.dropped[undecided] = None
 
     # -- edge closing -------------------------------------------------------
 

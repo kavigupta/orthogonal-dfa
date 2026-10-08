@@ -148,18 +148,37 @@ def _read_round(resolver, *, patience, acc_threshold):
         first = gate.disagreements
 
 
-def _hold_blocked(resolver, gate, state, *, acc_threshold) -> None:
-    """Hold what the gate's blocked draws left where they block the round, and
-    what the pass's split attempts could not place, as a population grown by
-    replaying the gate's reading."""
-    found = {**dict.fromkeys(gate.found if gate.blocks else ()), **resolver.dropped}
-    if found:
+def _hold_triples(resolver, gate, state, *, acc_threshold) -> None:
+    """Hold the middles of the triples the gate's disagreements came down to, as
+    a population grown by replaying the gate's reading."""
+    if gate.triples:
         source = HarvestSource(
             partial(resolver.replay, gate.learned),
             known=state.seen,
             acc_threshold=acc_threshold,
         )
-        state.hold_found("check", found, source)
+        state.hold_found("triple", gate.triples, source)
+
+
+#: The share of the gate's tolerance two adjacent undecided reads may take.
+PAIR_SHARE = 0.1
+
+
+def _halve(pst, resolver, gate, *, acc_threshold) -> bool:
+    """Halve the FNR limit where the gate's searches came down to pairs more
+    often than ``PAIR_SHARE`` of its tolerance, or it refused with nothing
+    decided to rerun; then while a sift through the tree's depth, each read
+    undecided at the limit, could come out undecided twice running that often.
+    Says whether it halved."""
+    pair_rate = PAIR_SHARE * (1 - acc_threshold)
+    refused = gate.agreement < acc_threshold and not gate.disagreements
+    halved = refused or gate.pairs > pair_rate * len(gate.draws)
+    if halved:
+        pst.fnr_limit /= 2
+    while (resolver.tree.depth * pst.fnr_limit) ** 2 > pair_rate:
+        pst.fnr_limit /= 2
+        halved = True
+    return halved
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -379,10 +398,9 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if gate.blocks:
-            pst.fnr_limit /= 2
-            print(f"[round {index}] blocked; FNR limit now {pst.fnr_limit:.4f}")
-        _hold_blocked(resolver, gate, state, acc_threshold=acc_threshold)
+        if _halve(pst, resolver, gate, acc_threshold=acc_threshold):
+            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
+        _hold_triples(resolver, gate, state, acc_threshold=acc_threshold)
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)

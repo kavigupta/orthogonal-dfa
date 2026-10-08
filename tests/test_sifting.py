@@ -4,7 +4,15 @@ disagree."""
 import unittest
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.sifting import Block, Sifter, first_disagreeing_edge, walk
+from orthogonal_dfa.l_star.sifting import (
+    EDGE,
+    PAIR,
+    TRIPLE,
+    Block,
+    Sifter,
+    bracket,
+    walk,
+)
 
 #: Every state steps to 1, so a walk of any non-empty probe ends there.
 _STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
@@ -69,17 +77,35 @@ class TestWalkingFromTheStart(unittest.TestCase):
         )
 
 
-class TestNarrowingToTheEdge(unittest.TestCase):
-    def test_it_finds_where_the_walk_and_the_tree_part(self):
-        # The tree says 0 throughout; the walk says 1 from index 1 on, so the
-        # edge they part over is the first.
-        self.assertEqual(
-            1, first_disagreeing_edge(_PROBE, [0, 1, 1, 1, 1], lambda seq: 0, 0, 4)
-        )
+#: A walk that agrees with the tree up to index 3 and disagrees from 4 on.
+_STATES = [0, 0, 0, 0, 1, 1, 1, 1, 1]
+_LONG = bytes(8)
 
-    def test_an_edge_already_narrowed_to_is_returned_as_is(self):
+
+def _bracket(undecided):
+    """The search over ``_LONG`` against a tree placing everything at 0 but the
+    prefixes whose lengths are in ``undecided``."""
+    places = lambda seq: None if len(seq) in undecided else 0
+    return bracket(_LONG, _STATES, places, 0, 8)
+
+
+class TestNarrowingToWhereTheyPart(unittest.TestCase):
+    def test_decided_reads_narrow_to_an_edge(self):
+        self.assertEqual((EDGE, 4), _bracket(set()))
+
+    def test_an_undecided_read_between_agree_and_disagree_is_a_triple(self):
+        self.assertEqual((TRIPLE, 4), _bracket({4}))
+
+    def test_two_adjacent_undecided_reads_are_a_pair(self):
+        self.assertEqual((PAIR, 3), _bracket({3, 4}))
+
+    def test_an_undecided_read_away_from_the_edge_is_stepped_past(self):
+        # Prefix 4 is the first mid; its decided neighbours say the edge is above.
         self.assertEqual(
-            3, first_disagreeing_edge(_PROBE, [0, 0, 0, 0, 1], lambda seq: 0, 2, 3)
+            (EDGE, 6),
+            bracket(
+                _LONG, [0] * 6 + [1] * 3, lambda seq: None if len(seq) == 4 else 0, 0, 8
+            ),
         )
 
 
@@ -106,11 +132,6 @@ class TestTheMiddleReading(unittest.TestCase):
     def test_it_takes_the_middles_side_past_a_node_the_cut_cannot_place(self):
         self.assertEqual(0, self._sifter(True).halfway(b"s"))
         self.assertEqual(2, self._sifter(False).halfway(b"s"))
-
-    def test_its_reads_are_not_the_cuts(self):
-        sifter = self._sifter(True)
-        sifter.halfway(b"s")
-        self.assertEqual(0, sifter.reads)
 
 
 if __name__ == "__main__":
