@@ -72,6 +72,12 @@ _CUT_SHORT = {START_UNDECIDED: "start", END_UNDECIDED: "end"}
 _SEARCHED = (PAIR, EDGE, TRIPLE)
 
 
+def _side(hits, trials, rate):
+    return binomial_side_of_boundary(
+        hits, trials, rate, failure_prob=READING_FAILURE_PROB
+    )
+
+
 def start_length(length: int) -> int:
     """k, where the pass anchors a probe of ``length``: a uniform draw's first k
     symbols are as many strings as `aim_at` asks a leaf to hold at full length,
@@ -155,48 +161,41 @@ class TransitionResolver:
 
         A draw agrees where it reads as agreeing, or, where a read is cut short,
         where the learned edges from where the middle of the band places its
-        start take it where the middle places it whole.  Reading stops once the
-        agreement's test settles.  A read cut short below the root counts against
-        twice ``fnr_limit`` a node below the root on the deepest path: where those
-        come significantly more often, the ends and midfixes they were cut short
-        at are kept."""
+        start take it where the middle places it whole.  A read cut short below
+        the root counts against ``fnr_limit`` a node below the root on the
+        deepest path: where those come significantly more often, the ends and
+        midfixes they were cut short at are kept.  Reading stops once both tests
+        settle."""
         learned = self.learned()
-        agreed = 0
-        outcomes, draws = [], []
-        while len(draws) < READING_DRAWS:
+        incidental = (self.tree.depth - 1) * self.pst.fnr_limit
+        agreed = deep = 0
+        agrees = cut = None
+        ends, outcomes = {}, []
+        while len(outcomes) < READING_DRAWS:
             w = self._draw()
-            draws.append(w)
             outcome = self._read(w, learned)
-            outcomes.append(outcome)
+            outcomes.append((w, outcome))
             agreed += outcome.kind == AGREE or (
                 outcome.kind in _CUT_SHORT and self._ends_at_middle(w, learned)
             )
+            if outcome.kind in _CUT_SHORT and len(outcome.string) > outcome.at:
+                deep += 1
+                ends[_CUT_SHORT[outcome.kind], outcome.string[outcome.at :]] = None
             # As the gate always has, before an early run of agreements can stop it.
-            if (
-                len(draws) >= 30
-                and binomial_side_of_boundary(
-                    agreed, len(draws), acc_threshold, failure_prob=READING_FAILURE_PROB
-                )
-                is not None
-            ):
+            if len(outcomes) >= 30:
+                agrees = _side(agreed, len(outcomes), acc_threshold)
+            if 0 < incidental < 1:
+                cut = _side(deep, len(outcomes), incidental)
+            if agrees is not None and (cut is not None or not 0 < incidental < 1):
                 break
-        ends = {
-            (_CUT_SHORT[o.kind], o.string[o.at :]): None
-            for o in outcomes
-            if o.kind in _CUT_SHORT and len(o.string) > o.at
-        }
-        incidental = 2 * (self.tree.depth - 1) * self.pst.fnr_limit
-        deep = sum(o.kind in _CUT_SHORT and len(o.string) > o.at for o in outcomes)
-        if incidental >= 1 or not binomial_side_of_boundary(
-            deep, len(draws), incidental, failure_prob=READING_FAILURE_PROB
-        ):
-            ends = {}
+        if cut is None:
+            cut = 0 < incidental < 1 and deep > incidental * len(outcomes)
         return Reading(
-            agreed / len(draws),
-            list(dict.fromkeys(o.string for o in outcomes if o.kind == TRIPLE)),
-            sum(o.kind == PAIR for o in outcomes),
-            list(ends),
-            [w for w, o in zip(draws, outcomes) if o.kind in _SEARCHED],
+            agreed / len(outcomes),
+            list(dict.fromkeys(o.string for _, o in outcomes if o.kind == TRIPLE)),
+            sum(o.kind == PAIR for _, o in outcomes),
+            list(ends) if cut else [],
+            [w for w, o in outcomes if o.kind in _SEARCHED],
             learned,
         )
 
