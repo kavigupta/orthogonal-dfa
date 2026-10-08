@@ -176,24 +176,26 @@ class TestReadingFreshDraws(unittest.TestCase):
         self.assertEqual([], reading.triples)
         self.assertEqual(len(reading.disagreements), reading.pairs)
 
-    def test_reading_stops_once_both_its_tests_settle(self):
-        learner = _gate(lambda seq: 0, _STAYS)
-        learner.read_fresh(acc_threshold=0.5)
+    def test_a_passing_gate_stops_once_the_agreement_settles_and_reads_no_ends(
+        self,
+    ):
+        learner = _gate(lambda seq: None if seq == _PROBE else 0, _STAYS)
+        learner.window = deque([b"?"] * 149)
 
-        # The tests are read at 30, 60, 120, ... draws.  The agreement settles at
-        # the first; no whole sift cut short below the root settles under the
-        # stub's (2 - 1) * 0.1 only by the third, since 0.9 ** 60 > 1e-3 >
-        # 0.9 ** 120.
-        self.assertEqual(120, learner.drawn)
+        reading = learner.read_fresh(acc_threshold=0.5)
 
-    def test_wholes_cut_short_below_the_root_too_often_are_kept_by_midfix(self):
+        # Read at 30 draws, its first look, and no more drawn for the ends.
+        self.assertEqual(30, learner.drawn)
+        self.assertEqual([], reading.ends)
+
+    def test_a_refusing_gate_keeps_wholes_cut_short_too_often_by_midfix(self):
         places = lambda seq: None if seq == _PROBE else 0
-        reading = _gate(places, _STAYS).read_fresh(acc_threshold=0.9)
+        reading = _gate(places, _TO_REJECT).read_fresh(acc_threshold=0.9)
 
-        self.assertEqual([("end", b"?")], reading.ends)
+        self.assertIn(("end", b"?"), reading.ends)
 
-    def test_the_passs_starts_cut_short_too_often_are_kept_by_midfix(self):
-        learner = _gate(lambda seq: 0, _STAYS)
+    def test_a_refusing_gate_keeps_the_passs_starts_cut_short_too_often(self):
+        learner = _gate(lambda seq: 0, _TO_REJECT)
         learner.window = deque([b"?"] * 20 + [None] * 129)
 
         self.assertEqual([("start", b"?")], learner.read_fresh(acc_threshold=0.9).ends)

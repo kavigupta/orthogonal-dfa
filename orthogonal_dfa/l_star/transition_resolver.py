@@ -46,6 +46,8 @@ from .suffix_family import SuffixFamily
 
 #: Most fresh draws one reading takes.
 READING_DRAWS = 2000
+#: Fresh draws whose wholes a refused gate tests for being cut short.
+ENDS_DRAWS = 480
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
@@ -179,31 +181,21 @@ class TransitionResolver:
     def read_fresh(self, *, acc_threshold) -> Reading:
         """Read fresh draws against the hypothesis as it stands.
 
-        Each draw is sifted whole once, and the exported DFA run on it from every
-        state: a start agrees on it where it accepts it as the middle of the band
-        at the root does.  The best start's agreement is tested against
-        ``acc_threshold``, over every start.  A draw the best start so far
-        disagrees on is read from ``k`` (see ``read``).  A whole sift cut short
-        below the root counts against ``fnr_limit`` a node below the root on the
-        deepest path; so does the start of each of the pass's last quiet probes.
-        Where either comes significantly more often, the midfixes they were cut
-        short at are kept.  Reading stops at the first of ``_LOOKS`` where both
-        the agreement's test and the whole sifts' settle."""
+        The exported DFA is run on each draw from every state: a start agrees on
+        it where it accepts it as the middle of the band at the root does.  The
+        best start's agreement is tested against ``acc_threshold``, over every
+        start, at each of ``_LOOKS`` until it settles.  A draw the best start so
+        far disagrees on is read from ``k`` (see ``read``).  Where the agreement
+        falls short, the ends are read too (see ``_cut_short``)."""
         learned, transitions = self.learned(), self._totalised()[0]
         accepting = self.tree.accepting_leaves()
         n = self.tree.num_states
-        incidental = (self.tree.depth - 1) * self.pst.fnr_limit
         agree = [0] * n
-        deep = drawn = 0
-        agrees = cut = None
-        ends, outcomes = {}, []
+        drawn = 0
+        outcomes = []
         while drawn < READING_DRAWS:
             w = self._draw()
             drawn += 1
-            boundary = self.sifter.sift_and_boundary(w)[1]
-            if boundary is not None and boundary != w:
-                deep += 1
-                ends["end", boundary[len(w) :]] = None
             label = self.family.middle_side(w, b"")
             ends_at = list(range(n))
             for symbol in w:
@@ -212,31 +204,37 @@ class TransitionResolver:
                 outcomes.append((w, self._read(w, learned)))
             for q, end in enumerate(ends_at):
                 agree[q] += (end in accepting) == label
-            if drawn not in _LOOKS:
-                continue
-            agrees = _side(agree[_best(agree)], drawn, acc_threshold, n)
-            if 0 < incidental < 1:
-                cut = _side(deep, drawn, incidental, 1)
-            if agrees is not None and (cut is not None or not 0 < incidental < 1):
+            if (
+                drawn in _LOOKS
+                and _side(agree[_best(agree)], drawn, acc_threshold, n) is not None
+            ):
                 break
-        if cut is None:
-            cut = 0 < incidental < 1 and deep > incidental * drawn
-        start = self.window
-        if not _fires(sum(m is not None for m in start), len(start), incidental):
-            start = []
+        agreement = agree[_best(agree)] / drawn
         return Reading(
             _best(agree),
-            agree[_best(agree)] / drawn,
+            agreement,
             list(dict.fromkeys(o.string for _, o in outcomes if o.kind == TRIPLE)),
             sum(o.kind == PAIR for _, o in outcomes),
-            [
-                *(ends if cut else ()),
-                *{("start", m): None for m in start if m is not None},
-            ],
+            self._cut_short() if agreement < acc_threshold else [],
             [w for w, o in outcomes if o.kind in _SEARCHED],
             learned,
             transitions,
         )
+
+    def _cut_short(self):
+        """``(end, midfix)`` where the cut stops below the root significantly
+        more often than ``fnr_limit`` a node below the root on the deepest path:
+        ``"end"`` over ``ENDS_DRAWS`` fresh draws sifted whole, ``"start"`` over
+        the starts of the pass's last quiet probes."""
+        incidental = (self.tree.depth - 1) * self.pst.fnr_limit
+        held = []
+        for end, cut in (
+            ("end", [self._below_root(self._draw()) for _ in range(ENDS_DRAWS)]),
+            ("start", list(self.window)),
+        ):
+            if _fires(sum(m is not None for m in cut), len(cut), incidental):
+                held.extend(dict.fromkeys((end, m) for m in cut if m is not None))
+        return held
 
     def _read(self, w, learned):
         return read(w, self.sifter.sift_and_boundary, learned, self.k)
