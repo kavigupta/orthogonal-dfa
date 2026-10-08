@@ -619,3 +619,36 @@ edge. So by Hoeffding at the sample's size, `D(edge ∧ Dis_q̂) ≤ δ_e`, exce
   below `θe′` cannot force exhaustion. (B) becomes the explicit condition "decided-wrong edges
   are below `θe′`". That is a family property at interior reads, so it is either a premise or a
   fourth way for the round to end, not something to derive.
+
+**R4 approved, via the coverage precondition.** The precondition is about the target `A` and the
+sampler `D`:
+- `S` is the set of target states visited, at some position in `[k, L]`, by at least
+  `min_coverage` of the draws.
+- Some `q₀ ∈ S` has a good set
+  `G = {x | A's run from q₀ along x stays in S, and A from q₀ accepts x iff A accepts x}` with
+  `D(G) ≥ 1 − η`.
+
+**The bound.** Take any `h : S → leaves` that preserves acceptance. Let `Mask(h)` be the mass of
+draws in `G` on which `H`, started at `h q₀`, leaves `h ∘ (A's run)` while the walk from `k` still
+agrees. This is the masking residue: an error made inside the first `k` letters, or one that
+cancels later. Then
+
+    err(h q₀) ≤ η + labelErr + Mask(h) + N,
+
+where `N` is the mass of draws whose walk from `k` ends in some outcome other than agree. That mass
+does not depend on the start. So a refusal, which puts `err(h q₀) ≥ 1 − acc − δ`, forces
+
+    N ≥ 1 − acc − δ − η − labelErr − Mask(h).
+
+Where `min_coverage` enters: a wrong edge of `H` out of `h q′`, for `q′ ∈ S`, is crossed after
+position `k` by at least `min_coverage · D(c after q′)` of the draws. There it shows up as an
+edge, pair or triple, unless it is masked. So `Mask` is the only start-region term left.
+
+**Gap introduced by R1: the refusal sample reads only the draws `q̂` disagrees on.**
+- The forcing bound is about `N`, the non-agree mass over all draws. A draw whose walk from `k`
+  disagrees while `q̂` happens to match its label is never read.
+- Bounding the start-region class for `q̂` itself goes in a circle, because `q̂ ≠ h q₀` in
+  general.
+- **Proposed R1′:** read the walk from `k` on every draw of the refusal sample (at most 480
+  reads), whatever `q̂` says. The class masses become unconditional, and the start-region class
+  drops out.
