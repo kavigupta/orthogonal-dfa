@@ -103,4 +103,30 @@ theorem inSync_yield_holds : InSyncYield := by
   exact Finset.sum_le_sum fun e _ =>
     measureReal_mono (fun x hx => suffixDisagree_of_inSync R H hx.1 hx.2)
 
+/-- If at least `θ` of a population's undecided mass sits on strings undecided at least `uHi` of
+the time, its size-biased indecision `∫ u² / ∫ u` is at least `θ · uHi`.  This is what makes an
+edge population that #408 selects at factor `f` indecisive: then `θ ≥ 1 - 1/f`. -/
+theorem share_bad_indecisive {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFiniteMeasure X]
+    (u : β → ℝ) (hum : Measurable u) (hu0 : ∀ x, 0 ≤ u x) (hu1 : ∀ x, u x ≤ 1)
+    (bad : Set β) (hb : MeasurableSet bad) {uHi θ : ℝ} (hHi0 : 0 ≤ uHi)
+    (hHi : ∀ x ∈ bad, uHi ≤ u x) (hθ : θ * ∫ x, u x ∂X ≤ ∫ x in bad, u x ∂X) :
+    θ * uHi * ∫ x, u x ∂X ≤ ∫ x, u x ^ 2 ∂X := by
+  have hint : Integrable u X :=
+    Integrable.of_bound hum.aestronglyMeasurable 1 (Filter.Eventually.of_forall fun x => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hu0 x)]; exact hu1 x)
+  have hint2 : Integrable (fun x => u x ^ 2) X :=
+    Integrable.of_bound (hum.pow_const 2).aestronglyMeasurable 1
+      (Filter.Eventually.of_forall fun x => by
+        rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+        nlinarith [hu0 x, hu1 x])
+  have hbad : uHi * ∫ x in bad, u x ∂X ≤ ∫ x in bad, u x ^ 2 ∂X := by
+    rw [← integral_const_mul]
+    refine setIntegral_mono_on (hint.const_mul uHi).integrableOn hint2.integrableOn hb ?_
+    intro x hx
+    have := hHi x hx
+    nlinarith [hu0 x]
+  have hsq : ∫ x in bad, u x ^ 2 ∂X ≤ ∫ x, u x ^ 2 ∂X :=
+    setIntegral_le_integral hint2 (Filter.Eventually.of_forall fun x => sq_nonneg _)
+  nlinarith
+
 end OrthoDFA

@@ -208,6 +208,41 @@ def RoundTrichotomyAll : Prop :=
           ∧ ¬ s.halves S.τ}
       ≤ (1 - ε) ^ S.K.patience
 
+/-- An edge population of #408: draws of `X` extended by `c` that the cut leaves undecided.  Over
+fresh noise a string joins it with chance `u` of its state, so its average indecision is
+`∫ u² / ∫ u`; it is indecisive past `2τ` when that exceeds `2τ`. -/
+def EdgePopulationIndecisive (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
+    (R : CutReads α) (X : Measure (FreeMonoid α)) (c : α) (τ : ℝ) : Prop :=
+  2 * τ * ∫ x, stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c)) ∂X
+    < ∫ x, stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c)) ^ 2 ∂X
+
+/-- #408's rule, with the pass's baseline replaced by the clean states' bound `a`: the edge of
+per-state population `s` by `c` is held apart when its draws extended by `c` come out undecided
+more than `f` times as often as a string read cleanly at every node, `r` nodes deep, would. -/
+def EdgeSelected (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α)
+    (H : Hypothesis α) (D : Measure (FreeMonoid α)) (s : List Bool) (c : α) (f a : ℝ) (r : ℕ) :
+    Prop :=
+  f * a * r < ∫ x, stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c)) ∂(D[|settlesAt R H s])
+
+/-- `RoundTrichotomyEdges f a r`: `RoundTrichotomyAll` with #408's edge populations among case
+(2)'s, selected by `EdgeSelected` at factor `f`. -/
+def RoundTrichotomyEdges (f a : ℝ) (r : ℕ) : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
+    (nH nS : ℕ) (σ : ℝ),
+    S.Valid →
+    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
+        let R := readsAt S.O S.B S.F θ.1
+        let s := roundEnd S.K S.O S.B S.F S.seed θ
+        ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
+          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ
+            ∧ (PopulationIndecisive S.A S.O R s.hyp S.D S.L S.τ
+              ∨ WrongEdgeHarvest S.A S.O R s.hyp S.D S.L nH nS σ a
+              ∨ ∃ l ∈ s.hyp.tree.paths, ∃ c : α, EdgeSelected S.A S.O R s.hyp S.D l c f a r
+                  ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
+          ∧ ¬ s.halves S.τ}
+      ≤ (1 - ε) ^ S.K.patience
+
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
   ((replay R H x e).1.map fun i => (H.tree.route R.cut (prefixOf x i)).1.length).sum

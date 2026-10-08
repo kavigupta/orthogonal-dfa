@@ -258,3 +258,113 @@ It is stated as a definition, not a theorem.
   undecided at above-baseline rate. That is a `Sifted` source kept as its own population, so it is
   judged at `π(p|s)u_q : u_c` rather than diluted by the global mix. This turns the per-provenance
   concentration, which exists, into a per-population one, which the gate sees.
+
+## With #408's edge populations (`RoundTrichotomyEdges f a r`)
+
+**What #408 does.**
+- **Which edges.** An edge read is `Read(X, c)`: draws of a population source `X`, extended by `c`,
+  sifted. The pass makes these only in edge resolution (`decisive_target`), which harvests the
+  leading run of a leaf's members whose `·c` is undecided, stopping at the first that places. Reads
+  are keyed by source and letter, not by leaf.
+- **The test.** A read that harvested at least 3 strings is replayed 32 times. It is held apart as
+  `("edge", n)` when the share of replays that harvest exceeds 2 × (the pass's unchecked share per
+  read) × (the replays' reads).
+- **What a replay draws.** It draws from the whole source `X`, not from one leaf. So the
+  concentration on a badly read q is `π_X(p) = X(state ∈ pred_c(q))`. Only per-state sources
+  concentrate: the source of leaf `s` gives `π(p|s)`, which is about 1 when `p` has its own leaf.
+  The uniform source gives P_L(p), no better than the pass's own baseline.
+
+**Why the factor 2 holds, and what it should be.**
+- **Edge composition.** Per replay, a string is harvested with chance `π·u_q + (1−π)·c_e`, where
+  `c_e ≤ r·uLo` is a clean string's chance of being undecided (`r` nodes deep, each undecided at
+  most `uLo`).
+- **The share lemma** (`share_bad_indecisive`, proved): if at least θ of the population's
+  undecided mass sits on states with `u ≥ uHi`, then
+
+      E_P[u] = ∫u²/∫u ≥ θ·uHi.
+
+  So (2a), `E_P[u] > 2τ`, holds once `θ > 2τ/uHi`.
+- **Selecting at f × the clean bound.** If the edge is held apart when its undecided rate exceeds
+  `f·r·uLo` (`EdgeSelected`), then `θ ≥ 1 − 1/f`. So the condition on f is
+
+      f  >  uHi / (uHi − 2τ),
+
+  which is `f > 2` at the gap `uHi = 4τ`. #408's 2 is exactly the boundary there, and any f > 2
+  works.
+- **The baseline must be the clean bound, not the pass's average.** #408 compares against
+  `unchecked/reads`, which can sit below `uLo` when the pass happened to read only very clean states.
+  An edge reading clean states at up to `uLo` then passes the test at θ < ½. That is a false split,
+  harmless to the trichotomy but not to the population mix. The principled baseline is the known
+  bound `uLo` = `acceptable_fnr` per read.
+
+**The number of replays (`EDGE_PROBES`).** Each replay is a Bernoulli trial with
+`p = π·u_q + (1−π)·c_e`, and the test asks whether `p > T = f·r·uLo`. With K edges tested per round
+(at most |leaves|·|α|) and the split decision's share of the round's error budget `δ_e`,
+multiplicative Chernoff on both tails gives:
+
+    detect an edge with p ≥ (1+γ)T :  n ≥ 2(1+γ)·ln(2K/δ_e) / (γ²·T)
+    never select one with p ≤ (1−γ)T :  n ≥ 3·ln(2K/δ_e) / (γ²·T)
+
+The q-edge sits far above T. At π ≈ 1 and u_q = 0.4, against T = 2·5·0.01 = 0.1, that is γ ≈ 3.
+Its miss chance at n replays is exp(−n·(p − T)²/(2p)), so n ≥ 2p·ln(K/δ_e)/(p − T)².
+
+At K = 20 and δ_e = 0.01 that is n ≈ 8·ln(2000)·0.4/0.09 ≈ 270 for a marginal edge (γ = ½ around
+T). For the clear q-edge it is n ≈ 2·0.4·7.6/0.09 ≈ 68. #408's 32 replays give a miss chance of
+about exp(−32·0.09/0.8) = 0.027 per clear edge, but no control on marginal ones.
+
+**The minimum harvest (`EDGE_MIN_HARVEST`).** It plays no part in correctness; it only saves
+replays, and it costs detections.
+- The pass's count for a read is a sum of leading undecided runs, one per member configuration of
+  each leaf. A configuration changes only on `add_first` or a split.
+- With one configuration, `count ≥ m` has chance about `(π·u_q)^m`: 0.064 for m = 3 at π·u_q = 0.4.
+  So a q-edge with `u_q` well below 1 is mostly never tested. The trap's e1, at u ≈ 1, is tested
+  every time.
+- Principled value: m = 0. Test every (per-state source, letter) pair, at a cost of K·n replays per
+  round, with K ≤ |leaves|·|α|. If cost forces a gate, m = 1 misses with chance `(1 − π·u_q)^{K_conf}`.
+
+**Parametric statement.** `RoundTrichotomyEdges f a r` takes as parameters
+- `f`, the selection factor;
+- `a`, the clean per-node bound (`uLo`);
+- `r`, the read depth.
+
+Its edge disjunct is `EdgeSelected ∧ EdgePopulationIndecisive`. The conditions they must meet are
+irreducible: `f > uHi/(uHi − 2τ)` and the gap premise with `uLo = a`. With them, `EdgeSelected`
+implies `EdgePopulationIndecisive` by `share_bad_indecisive`. The replay count n enters only the
+error term above, `K·exp(−n·(p−T)²/(2p))`. It stays a definition, not a theorem, because of the
+residual below.
+
+**Residual regime with #408 (why it's not a theorem).** The edge test reaches a coin-read q only
+through a per-state source concentrated on a predecessor p of q. The regime left open has every
+predecessor p of every rare, badly read q with
+
+    π(p|s)  ≤  f·r·uLo / u_q     (≈ 2·5·0.01/0.4 = 0.25 at defaults)
+
+in every leaf s it settles in, at length L. The other conditions are the same as before: the gate
+fails, there is no halving, and the harvest is clean-dominated. That is, p is merged into leaves
+dominated by other, common states, distinguished from them only by suffixes that pass through q.
+That is natural: such a suffix is coin-read, so the tree cannot separate p from them. ν/V-type
+premises do not bound π(p|s), for the same reason as before. It is a share within a
+hypothesis-dependent leaf, at length L.
+
+**What would close it: iterate the concentration.**
+- The strings an edge population holds are `x·c` with x a p-string, in the ratio `π·u_q : c_e`
+  against clean ones. So the prefixes `x` of its undecided finds are concentrated on p at
+
+      π' = π·u_q / (π·u_q + c_e).
+
+- Using that prefix population as the next round's source for edge `c` multiplies p's odds by
+  `u_q/c_e` (8 at defaults) per round. So the edge test reaches the threshold within
+  `log_{u_q/c_e}(1/π)` rounds, whatever π starts at. Concretely, #408 would also keep, for each
+  selected-or-tested edge, the population of prefixes whose `·c` came out undecided, as a source for
+  later edge tests.
+- With that, the residual reduces to `π(p|s) > 0`, and the trichotomy would hold over a bounded
+  number of rounds rather than per round. That is still a multi-round statement, not the
+  single-round one stated here.
+
+**Recommended #408 constants, from the above.**
+- factor `f = 2(1 + γ)`, with γ = ½ (so f = 3) at the gap `uHi = 4τ`; any `f > uHi/(uHi − 2τ)` is
+  correct;
+- the baseline is `acceptable_fnr` per node read, not the pass's unchecked share;
+- `EDGE_PROBES ≈ 2p*·ln(K/δ_e)/(p* − T)²`, about 70 for the clear q-edge, where p* is the smallest
+  edge rate to be detected;
+- `EDGE_MIN_HARVEST = 0`: test every per-state source and letter.
