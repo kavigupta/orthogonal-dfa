@@ -311,9 +311,9 @@ class TestABlockedReadingLeavesWhatBlockedIt(unittest.TestCase):
     def _blocked(self, kind, places, transitions, k):
         return kind(_Fixed(_PROBE), _Walk(places), transitions, k).sample()
 
-    def test_a_start_the_cut_cannot_place_leaves_its_boundary(self):
+    def test_a_start_the_cut_cannot_place_is_left(self):
         self.assertEqual(
-            [_PROBE[:2] + b"?"],
+            [_PROBE[:2]],
             self._blocked(WalkBlocked, lambda seq: None, _STEPS_TO_ONE, 2),
         )
 
@@ -346,7 +346,7 @@ class TestABlockedReadingLeavesWhatBlockedIt(unittest.TestCase):
             acc_threshold=0.98,
         )
 
-        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+        self.assertEqual(_PROBE[:2], source.draw())
         with self.assertRaises(SourceDry):
             source.draw()
 

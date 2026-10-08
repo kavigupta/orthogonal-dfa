@@ -66,15 +66,10 @@ class SuffixFamily:
             return False
         return None
 
-    def middle_side(self, seq, midfix) -> Optional[bool]:
-        """The side of the middle of the band the family mean lands on, ``None``
-        exactly on it."""
-        mean = self.mean(seq, midfix)
-        if mean > self.middle:
-            return True
-        if mean < self.middle:
-            return False
-        return None
+    def middle_side(self, seq, midfix) -> bool:
+        """Whether the family mean lands above the middle of the band; exactly on
+        it reads as reject."""
+        return self.mean(seq, midfix) > self.middle
 
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""

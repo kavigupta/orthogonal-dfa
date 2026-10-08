@@ -67,11 +67,10 @@ class MidfixTree:
         return _leaves(self._root)
 
     def route_halfway(
-        self, seq, decide: Decide, halfway: Decide
-    ) -> Tuple[Optional[int], List[bytes]]:
+        self, seq, decide: Decide, halfway: Callable[[bytes, bytes], bool]
+    ) -> Tuple[int, List[bytes]]:
         """Route ``seq`` to a leaf, taking ``halfway``'s side at each node
-        ``decide`` cannot place it, and the strings read at those nodes; the leaf
-        is ``None`` where ``halfway`` abstains too."""
+        ``decide`` cannot place it, and the strings read at those nodes."""
         node = self._root
         in_band = []
         while not isinstance(node, int):
@@ -80,8 +79,6 @@ class MidfixTree:
             if decision is None:
                 in_band.append(seq + midfix)
                 decision = halfway(seq, midfix)
-                if decision is None:
-                    return None, in_band
             node = lookup[decision]
         return node, in_band
 

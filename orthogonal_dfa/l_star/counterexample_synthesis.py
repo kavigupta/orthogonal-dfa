@@ -15,7 +15,7 @@ in the next round.
 import math
 import time
 import warnings
-from collections import Counter
+from collections import Counter, deque
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -24,7 +24,7 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
-from .lstar import denoise_accept_labels, estimate_agreement_rate
+from .lstar import denoise_accept_labels, read_fresh_draws
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
@@ -81,6 +81,9 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
+
+#: Most fresh draws the walk check, or a gate, reads.
+GATE_DRAWS = 2000
 
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
@@ -173,18 +176,24 @@ def _blocked_populations(pst, check, state, *, acc_threshold) -> None:
 
 
 def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
-    """The pass, then the gate on the hypothesis it leaves.  A refusal that is
-    not blocked goes back to the pass with the gate's disagreeing draws as its
-    first probes and is gated again, until a gate passes, a pass so continued
-    splits nothing, or the round's probes run out."""
+    """The walk check on the round's first hypothesis; unless it blocks, the pass,
+    then the gate on the hypothesis it leaves.  A refusal that is not blocked
+    goes back to the pass with the gate's disagreeing draws as its first probes
+    and is gated again, until a gate passes, a pass so continued splits nothing,
+    or the round's probes run out."""
+    walk = FrozenCheck(resolver, acc_threshold=acc_threshold, whole=False)
+    read_fresh_draws(pst, walk, num_samples=GATE_DRAWS)
+    if walk.blocks:
+        resolver.recent = deque(walk.draws, maxlen=patience)
+        return walk
     first, probes = [], COUNTEREXAMPLE_PROBES
     while True:
         states = resolver.num_states
         probes -= resolver.counterexample_pass(
             max_probes=probes, patience=patience, first=first
         )
-        check = FrozenCheck(resolver, acc_threshold=acc_threshold)
-        estimate_agreement_rate(pst, check, num_samples=2000)
+        check = FrozenCheck(resolver, acc_threshold=acc_threshold, whole=True)
+        read_fresh_draws(pst, check, num_samples=GATE_DRAWS)
         stalled = first and resolver.num_states == states
         if check.blocks or check.agreement.rate >= acc_threshold or stalled:
             return check
@@ -196,8 +205,8 @@ def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
 def _report_gate(check, index, tracker) -> None:
     print(
         f"[round {index}] DFA/DT consistency on fresh samples: "
-        f"{check.agreement.rate:.4f}; blocked: {check.walk_blocked.rate:.4f} by "
-        f"the walk, {check.blocked.rate:.4f} in all"
+        f"{check.agreement.rate:.4f}; {check.blocked.rate:.4f} of "
+        f"{check.blocked.draws} draws blocked"
     )
     tracker.on_consistency_estimated(check.agreement.rate, index)
 

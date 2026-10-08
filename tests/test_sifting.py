@@ -8,7 +8,6 @@ from orthogonal_dfa.l_star.sifting import (
     ANCHOR,
     EDGE,
     END,
-    SEARCH,
     Block,
     Sifter,
     check_from,
@@ -44,54 +43,48 @@ class TestWalkingFromTheStart(unittest.TestCase):
         self.assertEqual([None, None, 0, 1, 1], states)
         self.assertIsNone(block)
 
-    def test_a_start_the_cut_cannot_place_blocks_with_its_boundary(self):
+    def test_a_start_the_cut_cannot_place_blocks_and_is_left(self):
         states, block = walk_from(_PROBE, _sift(lambda seq: None), _STEPS_TO_ONE, 2)
 
         self.assertIsNone(states)
-        self.assertEqual(Block(ANCHOR, 2, _PROBE[:2] + b"?"), block)
+        self.assertEqual(Block(ANCHOR, 2, _PROBE[:2], True), block)
 
-    def test_an_open_edge_into_a_prefix_the_cut_cannot_place_leaves_its_boundary(
+    def test_an_open_edge_into_a_prefix_the_cut_cannot_place_leaves_that_prefix(
         self,
     ):
-        places = lambda seq: None if len(seq) == 4 else 0
+        places = lambda seq: None if len(seq) == 3 else 0
         states, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
 
         # 0 -1-> 1 -0-> open: blocked at the edge out of index 2.
         self.assertEqual([None, 0, 1], states)
-        self.assertEqual(Block(EDGE, 3, None), block)
-        states, block = walk_from(_PROBE + b"\x00", _sift(places), {0: {}}, 3)
-        self.assertEqual(Block(EDGE, 4, _PROBE + b"?"), block)
+        self.assertEqual(Block(EDGE, 3, _PROBE[:3], True), block)
 
-    def test_an_open_edge_from_a_prefix_sifting_to_its_state_leaves_that_prefix(
-        self,
-    ):
+    def test_an_open_edge_from_a_prefix_sifting_to_its_state_leaves_a_member(self):
         places = lambda seq: 1 if len(seq) == 2 else 0
         _, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
 
-        self.assertEqual(Block(EDGE, 3, None, _PROBE[:2]), block)
-        self.assertEqual(_PROBE[:2], block.found)
+        self.assertEqual(Block(EDGE, 3, _PROBE[:2], False), block)
 
-    def test_an_open_edge_from_a_prefix_the_cut_cannot_place_leaves_its_boundary(
+    def test_an_open_edge_from_a_prefix_the_cut_cannot_place_leaves_that_prefix(
         self,
     ):
         places = lambda seq: None if len(seq) == 2 else 0
         _, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
 
-        self.assertEqual(Block(EDGE, 3, _PROBE[:2] + b"?"), block)
+        self.assertEqual(Block(EDGE, 3, _PROBE[:2], True), block)
 
     def test_an_open_edge_from_a_prefix_sifting_elsewhere_leaves_nothing(self):
         _, block = walk_from(_PROBE, _sift(lambda seq: 0), _OPEN_AT_ONE, 1)
 
-        self.assertEqual(EDGE, block.kind)
-        self.assertIsNone(block.found)
+        self.assertEqual(Block(EDGE, 3, None, False), block)
 
 
 class TestReadingFromTheStart(unittest.TestCase):
-    def test_a_whole_probe_the_cut_cannot_place_blocks_at_its_end(self):
+    def test_a_whole_probe_the_cut_cannot_place_leaves_its_boundary(self):
         places = lambda seq: None if len(seq) == 4 else 0
         _, block, disagrees = read_from(_PROBE, _sift(places), _STEPS_TO_ONE, 2)
 
-        self.assertEqual(Block(END, 4, _PROBE + b"?"), block)
+        self.assertEqual(Block(END, 4, _PROBE + b"?", True), block)
         self.assertFalse(disagrees)
 
     def test_it_says_where_the_walk_and_the_sift_disagree(self):
@@ -115,15 +108,6 @@ class TestReadingFromTheStart(unittest.TestCase):
             )
             self.assertIsNone(block)
             self.assertEqual(edge, fd)
-
-    def test_a_tie_at_the_middle_blocks_the_search(self):
-        places = lambda seq: None if len(seq) == 2 else 0
-        _, block, fd = check_from(
-            _PROBE, _sift(places), lambda seq: None, _STEPS_TO_ONE, 0
-        )
-
-        self.assertEqual(Block(SEARCH, 2, _PROBE[:2] + b"?"), block)
-        self.assertIsNone(fd)
 
 
 class TestNarrowingToTheEdge(unittest.TestCase):
@@ -149,7 +133,7 @@ class TestNarrowingToTheEdge(unittest.TestCase):
 
 class _Middle:
     """Places everything on the root's accept side and nothing below it, and
-    reads the middle of the band as ``side``."""
+    reads the middle of the band as on ``side``."""
 
     def __init__(self, side):
         self.side = side
@@ -170,9 +154,6 @@ class TestTheGatesReading(unittest.TestCase):
     def test_it_takes_the_middles_side_past_a_node_the_cut_cannot_place(self):
         self.assertEqual((0, [b"sx"]), self._sifter(True).halfway(b"s"))
         self.assertEqual((2, [b"sx"]), self._sifter(False).halfway(b"s"))
-
-    def test_a_tie_reaches_no_leaf(self):
-        self.assertEqual((None, [b"sx"]), self._sifter(None).halfway(b"s"))
 
     def test_its_reads_are_not_the_passs(self):
         sifter = self._sifter(True)

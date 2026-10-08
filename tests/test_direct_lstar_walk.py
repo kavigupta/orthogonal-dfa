@@ -16,7 +16,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from orthogonal_dfa.l_star.lstar import estimate_agreement_rate
+from orthogonal_dfa.l_star.lstar import read_fresh_draws
 from orthogonal_dfa.l_star.provenance import Read
 from orthogonal_dfa.l_star.transition_resolver import (
     _RESOLVED,
@@ -91,18 +91,17 @@ _EVERYWHERE = {7: {0: 7, 1: 7}}
 
 
 class TestAProbeWalkedFromItsStart(unittest.TestCase):
-    def test_it_seeds_the_start_at_the_leaf_it_sifts_to(self):
+    def test_its_start_is_not_seeded_into_the_population(self):
         learner = _Learner(_StubSifter(lambda seq: 7), _EVERYWHERE, 2)
 
         self.assertEqual(_RESOLVED, learner._check(_PROBE))
-        self.assertEqual([(7, _PROBE[:2])], learner.population.recorded)
+        self.assertEqual([], learner.population.recorded)
 
     def test_a_start_the_cut_cannot_place_is_unchecked_and_harvested(self):
         learner = _Learner(_StubSifter(lambda seq: None), _EVERYWHERE, 2)
 
         self.assertEqual(_UNCHECKED, learner._check(_PROBE))
         self.assertEqual({_PROBE[:2] + b"?"}, set(learner.indecisive))
-        self.assertEqual([], learner.population.recorded)
 
     def test_an_open_edge_seeds_the_prefix_before_it_where_it_sifts_there(self):
         # The walk reaches 8 after 0, 1, 0 and finds no edge out of it on a 1.
@@ -110,7 +109,7 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         learner = _Learner(_StubSifter(places), _OPEN_AT_8, 1)
 
         self.assertEqual(_RESOLVED, learner._check(_PROBE))
-        self.assertIn((8, _PROBE[:3]), learner.population.recorded)
+        self.assertEqual([(8, _PROBE[:3])], learner.population.recorded)
 
     def test_a_disagreement_whose_prefix_the_cut_cannot_place_is_dropped(self):
         # The walk stays at 7 while the whole probe sifts to 8, and the prefix the
@@ -147,9 +146,10 @@ class TestTheExportedStart(unittest.TestCase):
         self.assertEqual(0, learner._best_start(transitions, accepting={1}))
 
     def test_a_tie_goes_to_the_lowest_state(self):
+        # Each state's runs accept one of the two probes the root accepts.
         learner = _Learner(_StubSifter(lambda seq: 0), {}, 1)
-        learner.family = SimpleNamespace(middle_side=lambda seq, midfix: None)
-        learner.recent = deque([bytes([0])])
+        learner.family = SimpleNamespace(middle_side=lambda seq, midfix: True)
+        learner.recent = deque([bytes([0]), bytes([0, 0])])
 
         self.assertEqual(0, learner._best_start({0: {0: 1}, 1: {0: 0}}, {1}))
 
@@ -167,81 +167,102 @@ class _Draws:
         return draw
 
 
-def _frozen(places, transitions, k, *, acc_threshold=0.9):
+def _frozen(places, transitions, k, *, whole, acc_threshold=0.9):
     learner = _Learner(_StubSifter(places), transitions, k)
-    learner.dfa.transitions = transitions
     learner.pst = SimpleNamespace(rng=None, alphabet_size=2)
-    return FrozenCheck(learner, acc_threshold=acc_threshold)
+    return FrozenCheck(learner, acc_threshold=acc_threshold, whole=whole)
 
 
-class TestTheFrozenHypothesisReadingTheGatesDraws(unittest.TestCase):
-    def test_blocked_draws_count_against_their_rates_and_not_the_agreement(self):
+def _read(check, draws):
+    sampler = _Draws(draws)
+    read_fresh_draws(
+        SimpleNamespace(sampler=sampler, rng=None, alphabet_size=2),
+        check,
+        num_samples=2000,
+    )
+    return sampler.drawn
+
+
+class TestTheFrozenHypothesisReadingFreshDraws(unittest.TestCase):
+    def test_blocked_draws_count_against_the_block_rate_and_not_the_agreement(self):
         places = lambda seq: None if seq == _PROBE else 7
-        check = _frozen(places, _EVERYWHERE, 2)
+        check = _frozen(places, _EVERYWHERE, 2, whole=True)
 
         check.observe(_PROBE)
         check.observe(_PROBE[:3])
 
-        self.assertEqual((0, 2), (check.walk_blocked.hits, check.walk_blocked.draws))
         self.assertEqual((1, 2), (check.blocked.hits, check.blocked.draws))
         self.assertEqual((1, 1), (check.agreement.hits, check.agreement.draws))
 
+    def test_the_walk_check_does_not_sift_the_whole_draw(self):
+        places = lambda seq: None if seq == _PROBE else 7
+        check = _frozen(places, _EVERYWHERE, 2, whole=False)
+
+        check.observe(_PROBE)
+
+        self.assertEqual((0, 1), (check.blocked.hits, check.blocked.draws))
+        self.assertEqual((check.blocked,), check.rates)
+
     def test_a_decided_disagreement_is_kept_for_the_pass(self):
-        check = _frozen(lambda seq: 8 if len(seq) == 4 else 7, _EVERYWHERE, 2)
+        check = _frozen(
+            lambda seq: 8 if len(seq) == 4 else 7, _EVERYWHERE, 2, whole=True
+        )
 
         check.observe(_PROBE)
 
         self.assertEqual([_PROBE], check.disagreements)
         self.assertEqual((0, 1), (check.agreement.hits, check.agreement.draws))
 
-    def test_a_walk_blocked_round_leaves_the_walks_finds(self):
-        check = _frozen(lambda seq: None, _EVERYWHERE, 2)
-        sampler = _Draws([_PROBE, _PROBE[::-1]])
-        pst = SimpleNamespace(sampler=sampler, rng=None, alphabet_size=2)
+    def test_a_blocked_walk_check_leaves_what_blocked_it(self):
+        check = _frozen(lambda seq: None, _EVERYWHERE, 2, whole=False)
 
-        estimate_agreement_rate(pst, check, num_samples=2000)
+        _read(check, [_PROBE, _PROBE[::-1]])
 
         self.assertTrue(check.blocks)
         blocked = check.outcome()[0]
         self.assertEqual(WALK, blocked.kind)
-        self.assertEqual(
-            {_PROBE[:2] + b"?", _PROBE[::-1][:2] + b"?"}, set(blocked.found)
+        self.assertEqual({_PROBE[:2], _PROBE[::-1][:2]}, set(blocked.found))
+
+    def test_a_blocked_gate_leaves_its_finds_with_the_passs_drops(self):
+        check = _frozen(
+            lambda seq: None if len(seq) == 4 else 7, _EVERYWHERE, 2, whole=True
         )
-
-    def test_a_sift_blocked_round_leaves_its_finds_with_the_passs_drops(self):
-        check = _frozen(lambda seq: None if len(seq) == 4 else 7, _EVERYWHERE, 2)
         check._resolver.dropped = {b"dropped": None}
-        pst = SimpleNamespace(sampler=_Draws([_PROBE]), rng=None, alphabet_size=2)
 
-        estimate_agreement_rate(pst, check, num_samples=2000)
+        _read(check, [_PROBE])
 
         blocked = check.outcome()[0]
         self.assertEqual(CHECK, blocked.kind)
         self.assertEqual({_PROBE + b"?", b"dropped"}, set(blocked.found))
 
     def test_the_passs_drops_are_held_though_nothing_blocks(self):
-        check = _frozen(lambda seq: 7, _EVERYWHERE, 2)
+        check = _frozen(lambda seq: 7, _EVERYWHERE, 2, whole=True)
         check._resolver.dropped = {b"dropped": None}
-        pst = SimpleNamespace(sampler=_Draws([_PROBE]), rng=None, alphabet_size=2)
 
-        self.assertEqual(1.0, estimate_agreement_rate(pst, check, num_samples=2000))
+        _read(check, [_PROBE])
 
         self.assertFalse(check.blocks)
+        self.assertEqual(1.0, check.agreement.rate)
         blocked = check.outcome()[0]
         self.assertEqual((CHECK, [b"dropped"]), (blocked.kind, blocked.found))
 
-    def test_the_draws_stop_once_every_rate_is_settled(self):
-        check = _frozen(lambda seq: 7, _EVERYWHERE, 2, acc_threshold=0.5)
-        sampler = _Draws([_PROBE])
-        pst = SimpleNamespace(sampler=sampler, rng=None, alphabet_size=2)
+    def test_nothing_is_held_where_nothing_blocks_or_drops(self):
+        check = _frozen(lambda seq: 7, _EVERYWHERE, 2, whole=False)
 
-        estimate_agreement_rate(pst, check, num_samples=2000)
+        _read(check, [_PROBE])
+
+        self.assertEqual([], check.outcome())
+
+    def test_the_draws_stop_once_every_rate_is_settled(self):
+        check = _frozen(lambda seq: 7, _EVERYWHERE, 2, whole=True, acc_threshold=0.5)
+
+        drawn = _read(check, [_PROBE])
 
         self.assertTrue(all(rate.side is not None for rate in check.rates))
-        # Clean draws settle the blocked rates below 0.5 at the 17th, since
+        # Clean draws settle the block rate below 0.5 at the 17th, since
         # 0.5 ** 17 < 1e-5, and the agreement at its least, the 30th.
         self.assertEqual(17, int(np.ceil(np.log(1e-5) / np.log(0.5))))
-        self.assertEqual(30, sampler.drawn)
+        self.assertEqual(30, drawn)
 
 
 if __name__ == "__main__":

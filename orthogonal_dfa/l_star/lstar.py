@@ -1,7 +1,7 @@
 """
 Shared classification and accuracy machinery.
 
-``estimate_agreement_rate`` is the termination test -- how well a round's
+``read_fresh_draws`` reads the termination test -- how well a round's
 hypothesis agrees with its tree on fresh draws -- and ``denoise_accept_labels`` corrects
 noise-flipped accept labels at the end of a run.  The synthesis loop that drives
 them lives in ``counterexample_synthesis``.
@@ -184,23 +184,22 @@ class SequentialRate:
         return self.rate > self.threshold if self.side is None else self.side
 
 
-def estimate_agreement_rate(pst, check, *, num_samples):
+def read_fresh_draws(pst, check, *, num_samples) -> None:
     """
     Read fresh draws with ``check`` until each of its rates is settled or
-    ``num_samples`` are drawn, returning its agreement rate.
+    ``num_samples`` are drawn.
 
-    The agreement is consumed only to decide ``true_acc >= acc_threshold`` (the
-    termination test), so settling that decision is all the precision required.
-    When a rate is far from its threshold a few dozen samples settle it, but near
-    it the reading can run to the full *num_samples* budget, which is why that
-    budget caps the cost.
+    The rates are consumed only to decide which side of their thresholds they
+    lie, so settling that is all the precision required.  When a rate is far from
+    its threshold a few dozen samples settle it, but near it the reading can run
+    to the full *num_samples* budget, which is why that budget caps the cost.
 
     Each chunk is exactly the span in which no rate still open can settle
     (``_batch_before_possible_stop``), so batching draws no sample past the
     stopping point and needs no chunk-size constant.
     """
     drawn = 0
-    with counter(num_samples, "Estimating DFA/DT consistency") as pbar:
+    with counter(num_samples, "Reading fresh draws") as pbar:
         while drawn < num_samples:
             still = [rate for rate in check.rates if rate.side is None]
             if not still:
@@ -212,5 +211,3 @@ def estimate_agreement_rate(pst, check, *, num_samples):
             for y in ys:
                 check.observe(y)
             pbar.update(size)
-            pbar.set_postfix(consistent=f"{check.agreement.rate:.3f}", refresh=False)
-    return check.agreement.rate

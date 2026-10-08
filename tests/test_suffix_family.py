@@ -13,7 +13,7 @@ class TestSuffixFamily(unittest.TestCase):
         pst.accept_thresh, pst.reject_thresh = 0.5, 0.3
         self.assertIsNone(family.train_side(votes))
 
-    def test_the_middle_of_the_band_sides_by_the_mean(self):
+    def test_the_middle_of_the_band_sides_by_the_mean_and_a_tie_rejects(self):
         family = SuffixFamily(
             SimpleNamespace(accept_thresh=0.6, reject_thresh=0.4), [0, 1, 2, 3]
         )
@@ -21,7 +21,7 @@ class TestSuffixFamily(unittest.TestCase):
         family._means.update({b"a": 0.55, b"b": 0.45, b"c": 0.5})
         self.assertTrue(family.middle_side(b"a", b""))
         self.assertFalse(family.middle_side(b"b", b""))
-        self.assertIsNone(family.middle_side(b"c", b""))
+        self.assertFalse(family.middle_side(b"c", b""))
 
 
 if __name__ == "__main__":

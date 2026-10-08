@@ -44,7 +44,7 @@ class Sifter:
 
         return self.tree.classify(seq, decide)
 
-    def halfway(self, seq) -> Tuple[Optional[int], List[bytes]]:
+    def halfway(self, seq) -> Tuple[int, List[bytes]]:
         """Where the gate's reading sends ``seq``: past each node the cut cannot
         place it at, the side of the middle of the band; with the strings read
         at those nodes.  Its reads are not the pass's, so ``reads`` leaves them
@@ -96,26 +96,24 @@ def first_disagreeing_edge(probe, states, sift, lo, hi):
 
 
 #: Where a walk from the start length can stop: the sift of the probe's start,
-#: an edge the hypothesis has not learned, the sift of the whole probe, or the
-#: search for the disagreeing edge.
-ANCHOR, EDGE, END, SEARCH = "anchor", "edge", "end", "search"
+#: an edge the hypothesis has not learned, or the sift of the whole probe.
+ANCHOR, EDGE, END = "anchor", "edge", "end"
 
 
 @dataclass(frozen=True)
 class Block:
-    """Where a probe was blocked, at ``probe[:at]``, and what it leaves.  At an
-    open edge whose next prefix the cut places, that is the prefix before it:
-    as a member where it sifts to the edge's state, as a boundary string where
-    the cut cannot place it, and nothing where it sifts elsewhere."""
+    """Where a probe was blocked, at ``probe[:at]``, what it leaves there, and
+    whether that is a string the cut could not place.
+
+    A blocked walk leaves the prefix it could not place.  At an open edge whose
+    next prefix the cut places, that is the prefix before it: a member where it
+    sifts to the edge's state, and nothing where it sifts elsewhere.  A blocked
+    sift of the whole probe leaves its boundary string."""
 
     kind: str
     at: int
-    boundary: Optional[bytes]
-    member: Optional[bytes] = None
-
-    @property
-    def found(self) -> Optional[bytes]:
-        return self.member if self.boundary is None else self.boundary
+    found: Optional[bytes]
+    undecided: bool
 
 
 def walk_from(probe, sift, transitions, k):
@@ -123,9 +121,9 @@ def walk_from(probe, sift, transitions, k):
     learned ``transitions`` reach it from where ``sift`` places ``probe[:k]``,
     ``None`` below ``k``, and as far as the walk got; ``block`` is what stopped it,
     or ``None``.  ``sift`` answers as :meth:`Sifter.sift_and_boundary` does."""
-    anchor, boundary = sift(probe[:k])
+    anchor, _ = sift(probe[:k])
     if anchor is None:
-        return None, Block(ANCHOR, k, boundary)
+        return None, Block(ANCHOR, k, probe[:k], True)
     states = [None] * k + [anchor]
     for j in range(k, len(probe)):
         target = transitions[states[-1]].get(probe[j])
@@ -136,13 +134,12 @@ def walk_from(probe, sift, transitions, k):
 
 
 def _edge_block(probe, sift, state, j):
-    landed, boundary = sift(probe[: j + 1])
-    if landed is None:
-        return Block(EDGE, j + 1, boundary)
-    before, boundary = sift(probe[:j])
-    if before == state:
-        return Block(EDGE, j + 1, None, probe[:j])
-    return Block(EDGE, j + 1, boundary)
+    if sift(probe[: j + 1])[0] is None:
+        return Block(EDGE, j + 1, probe[: j + 1], True)
+    before, _ = sift(probe[:j])
+    if before is None:
+        return Block(EDGE, j + 1, probe[:j], True)
+    return Block(EDGE, j + 1, probe[:j] if before == state else None, False)
 
 
 def read_from(probe, sift, transitions, k):
@@ -155,7 +152,7 @@ def read_from(probe, sift, transitions, k):
         return states, block, False
     end, boundary = sift(probe)
     if end is None:
-        return states, Block(END, len(probe), boundary), False
+        return states, Block(END, len(probe), boundary, True), False
     return states, None, end != states[-1]
 
 
@@ -163,21 +160,13 @@ def check_from(probe, sift, middle, transitions, k):
     """``(states, block, fd)``: :func:`read_from`, and, where the walk's end and
     the sift disagree, ``fd``, the first index where they part (see
     :func:`first_disagreeing_edge`).  The search places a prefix the cut cannot
-    by ``middle``, and only a tie there blocks it."""
+    by ``middle``."""
     states, block, disagrees = read_from(probe, sift, transitions, k)
     if not disagrees:
         return states, block, None
-    tie = []
 
     def settle(seq):
-        leaf, boundary = sift(seq)
-        if leaf is None:
-            leaf = middle(seq)
-            if leaf is None:
-                tie.append(Block(SEARCH, len(seq), boundary))
-        return leaf
+        leaf, _ = sift(seq)
+        return middle(seq) if leaf is None else leaf
 
-    fd = first_disagreeing_edge(probe, states, settle, k, len(probe))
-    if fd is None:
-        return states, tie[0], None
-    return states, None, fd
+    return states, None, first_disagreeing_edge(probe, states, settle, k, len(probe))

@@ -45,7 +45,7 @@ from .partial_dfa import PartialDFA
 from .prefix_sources import UniformSource
 from .progress import counter, write
 from .provenance import Provenance, Read, ReadBlocked, WalkBlocked
-from .sifting import END, PROBE_BLOCK, Sifter, check_from, read_from, walk_from
+from .sifting import EDGE, PROBE_BLOCK, Sifter, check_from, read_from, walk_from
 from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -90,75 +90,75 @@ def prefill_walks(sifter, probes, transitions, k) -> None:
 
 
 class FrozenCheck:
-    """A round's hypothesis, frozen after its pass, reading the gate's draws.
+    """A round's hypothesis, frozen, reading fresh draws.
 
-    Each draw is walked from ``k`` and sifted whole.  Three rates are read, each
-    tested as the gate tests its agreement: the share of draws the walk blocks
-    and the share it or the sift blocks, both against ``1 - acc_threshold``, and
-    the share of the rest whose walk ends where the sift lands, against
-    ``acc_threshold``.  The draws whose walk and sift disagree are kept."""
+    Each draw is walked from ``k`` and, where ``whole``, sifted whole too.  The
+    share of draws that blocks is tested against ``1 - acc_threshold`` as the
+    gate tests its agreement; where ``whole``, so is the share of the rest whose
+    walk ends where the sift lands, against ``acc_threshold``, and the draws whose
+    walk and sift disagree are kept."""
 
-    def __init__(self, resolver, *, acc_threshold):
+    def __init__(self, resolver, *, acc_threshold, whole):
         self._resolver = resolver
         self._transitions = resolver.learned()
-        self.agreement = SequentialRate(acc_threshold, min_draws=30)
-        self.walk_blocked = SequentialRate(1 - acc_threshold, min_draws=1)
+        self._whole = whole
         self.blocked = SequentialRate(1 - acc_threshold, min_draws=1)
-        self.rates = (self.agreement, self.walk_blocked, self.blocked)
-        self._found = {WALK: {}, CHECK: {}}
+        self.agreement = SequentialRate(acc_threshold, min_draws=30)
+        self.rates = (self.agreement, self.blocked) if whole else (self.blocked,)
+        self._found = {}
+        self.draws = []
         self.disagreements = []
 
     def prefill(self, draws) -> None:
-        prefill_walks(self._resolver.sifter, draws, self._transitions, self._resolver.k)
+        sifter, k = self._resolver.sifter, self._resolver.k
+        if self._whole:
+            prefill_walks(sifter, draws, self._transitions, k)
+        else:
+            sifter.prefill([w[:k] for w in draws])
 
     def observe(self, draw) -> None:
-        _, block, disagrees = read_from(
-            draw, self._resolver.sift_and_harvest, self._transitions, self._resolver.k
-        )
+        self.draws.append(draw)
+        sift, k = self._resolver.sift_and_harvest, self._resolver.k
+        if self._whole:
+            _, block, disagrees = read_from(draw, sift, self._transitions, k)
+        else:
+            (_, block), disagrees = walk_from(draw, sift, self._transitions, k), False
         if disagrees:
             self.disagreements.append(draw)
-        walked = block is not None and block.kind != END
-        for rate, hit in (
-            (self.walk_blocked, walked),
-            (self.blocked, block is not None),
-        ):
-            if rate.side is None:
-                rate.add(hit)
-        if block is None and self.agreement.side is None:
+        if self.blocked.side is None:
+            self.blocked.add(block is not None)
+        if self._whole and block is None and self.agreement.side is None:
             self.agreement.add(not disagrees)
         if block is not None and block.found is not None:
-            self._found[WALK if walked else CHECK][block.found] = None
-
-    def outcome(self) -> List[Blocked]:
-        """The populations the round leaves: the walk's finds where the walk
-        blocked the draws; and the walk's and the sift's where they did, with
-        what the pass's split attempts could not place either way."""
-        held = []
-        if self.walk_blocked.above:
-            held.append(self._blocked(WALK, self._found[WALK], WalkBlocked))
-        check = dict(self._resolver.dropped)
-        if self.blocked.above and not self.walk_blocked.above:
-            check.update({**self._found[WALK], **self._found[CHECK]})
-        if check:
-            held.append(self._blocked(CHECK, check, ReadBlocked))
-        return held
+            self._found[block.found] = None
 
     @property
     def blocks(self) -> bool:
-        return self.walk_blocked.above or self.blocked.above
+        return self.blocked.above
 
-    def _blocked(self, kind, found, replay) -> Blocked:
+    def outcome(self) -> List[Blocked]:
+        """The population the round leaves, if any: what the blocked draws left
+        where they block the round, and, where the draws were sifted whole, what
+        the pass's split attempts could not place either way."""
+        found = dict(self._found) if self.blocks else {}
+        if self._whole:
+            found.update(self._resolver.dropped)
+        if not found:
+            return []
         resolver = self._resolver
-        return Blocked(
-            kind,
-            list(found),
-            replay(
-                UniformSource(resolver.pst),
-                resolver.sifter,
-                self._transitions,
-                resolver.k,
-            ),
-        )
+        replay = ReadBlocked if self._whole else WalkBlocked
+        return [
+            Blocked(
+                CHECK if self._whole else WALK,
+                list(found),
+                replay(
+                    UniformSource(resolver.pst),
+                    resolver.sifter,
+                    self._transitions,
+                    resolver.k,
+                ),
+            )
+        ]
 
 
 class TransitionResolver:
@@ -312,20 +312,14 @@ class TransitionResolver:
         states, block, fd = check_from(
             w, self.sift_and_harvest, self._middle, self.dfa.transitions, self.k
         )
-        if states is not None:
-            # The prefix pool is length-L, so it only reaches deep leaves; anchor
-            # prefixes give the leaves they reach members of length k.
-            self.population.add(
-                w[: self.k], at=self.tree.path_of(states[self.k]), draw=self._walked
-            )
         if block is not None:
-            if block.member is not None:
+            if block.kind == EDGE and not block.undecided and block.found is not None:
                 self.population.add(
-                    block.member,
+                    block.found,
                     at=self.tree.path_of(states[block.at - 1]),
                     draw=self._walked,
                 )
-            return _UNCHECKED if block.boundary is not None else _RESOLVED
+            return _UNCHECKED if block.undecided else _RESOLVED
         if fd is None:
             return _RESOLVED
         return self._act_on_disagreement(w, states, fd)
@@ -404,8 +398,6 @@ class TransitionResolver:
         agree = [0] * n
         for w in self.recent:
             label = self.family.middle_side(w, b"")
-            if label is None:
-                continue
             ends = list(range(n))
             for symbol in w:
                 ends = [transitions[q][symbol] for q in ends]
