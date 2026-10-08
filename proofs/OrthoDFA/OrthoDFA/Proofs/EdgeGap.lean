@@ -286,43 +286,6 @@ theorem edgeGap_or_advances [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q
       (fun _ => stateIndecision_nonneg A O _ _ _) (fun _ => stateIndecision_le_one A O _ _ _)
       hHi0 (fun _ => hgap _) (nuRoot_pos D hy hy' (S := {y | uHi ≤ _}) hq))⟩
 
-/-- `round_tetrachotomy_both` over every round, the edge gap no longer assumed of its hypothesis:
-but for the gate's flips, a round ends in (1) agreement within `ε`, (2) a population the next
-gate must act on, (3) halving, or (4') a chain advanced. -/
-theorem round_tetrachotomy [IsProbabilityMeasure μ] (S : RoundSetting α μ Q)
-    (ε : ℝ) (nH nS : ℕ) (σ : ℝ) (live : List (Measure (FreeMonoid α)))
-    {f a uHi η wHi φ : ℝ} {r : ℕ}
-    (hv : S.Valid) (hgap : GapPremise S.A S.O S.B S.F a uHi) (hHi0 : 0 ≤ uHi) (hw0 : 0 ≤ wHi)
-    (hε : 0 < ε) (hlen : ∀ᵐ x ∂S.D, x.toList.length = S.L)
-    (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
-    (hbad : BadVisited S.A S.O S.B S.F S.D S.L uHi) (hη : η + 2 * (S.N + 2) * φ < 1)
-    (hηφ : 2 * (S.N + 1) * φ ≤ η) (hwφ : wHi ≤ 1 - 2 * (S.N + 1) * φ) :
-    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
-        let R := readsAt S.O S.B S.F θ.1
-        let s := roundEnd S.K S.O S.B S.F S.seed θ
-        ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
-          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ
-            ∧ (PopulationIndecisive S.A S.O R s.hyp S.D S.L S.τ
-              ∨ WrongEdgeHarvest S.A S.O R s.hyp S.D S.L nH nS σ a
-              ∨ ∃ l ∈ s.hyp.tree.paths, ∃ c : α, EdgeSelected S.A S.O R s.hyp S.D l c f a r
-                  ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
-          ∧ ¬ s.halves S.τ
-          ∧ ¬ ChainAdvancesEither S.A S.O R s.hyp
-              (nuRoot S.D S.L :: live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l])
-              a uHi η wHi}
-      ≤ (S.L + 1) * (2 * (S.N + 2)) * φ / ε + passReadBound S * φ := by
-  have hD : IsProbabilityMeasure S.D := hv.2.1
-  refine le_trans (measureReal_mono ?_)
-    (round_tetrachotomy_both S ε nH nS σ live (f := f) (r := r) hv hgap hHi0 hw0 hε hlen hflip
-      hbad hη)
-  rintro θ ⟨hfail, hharv, hhalf, hnot⟩
-  refine ⟨?_, hfail, hharv, hhalf, hnot⟩
-  have hdepth : (roundEnd S.K S.O S.B S.F S.seed θ).hyp.tree.depth ≤ S.N + 1 :=
-    roundEnd_depth_le S.K S.O S.B S.F S.seed θ
-  exact (edgeGap_or_advances S.A S.O (readsAt S.O S.B S.F θ.1)
-    (roundEnd S.K S.O S.B S.F S.seed θ).hyp S.D S.L _ hHi0 hgap hflip hbad hdepth
-    (by push_cast; exact hηφ) (by push_cast; exact hwφ)).resolve_right hnot
-
 end OrthoDFA
 
 namespace OrthoDFA
@@ -419,58 +382,5 @@ theorem edgeGap_or_advancesLadder [IsProbabilityMeasure μ] [Fintype Q]
     obtain ⟨q, hq⟩ := hall
     obtain ⟨y, c, hy, hy', rfl⟩ := hbad q hq
     exact .inr (chainAdvancesLadder_of_visited A O R H D L others hθ hθ0 hK hθK hy hy' hq)
-
-/-- `round_tetrachotomy` with no gap premise on the states' indecision: (4'') advances an
-indecision chain at some rung of a ladder of more rungs than target states.  With `θ i = a·β^i`,
-`β = (uHi / a)^{1/K}`, a link multiplies its chain's odds by at least `β`. -/
-theorem round_tetrachotomy_ladder [IsProbabilityMeasure μ] [Fintype Q] (S : RoundSetting α μ Q)
-    (ε : ℝ) (nH nS : ℕ) (σ : ℝ) (live : List (Measure (FreeMonoid α)))
-    {f a uHi η wHi φ : ℝ} {r : ℕ} {θ : ℕ → ℝ} {K : ℕ}
-    (hv : S.Valid) (hθ : Monotone θ) (hθ0 : 0 ≤ θ 0) (hK : Fintype.card Q < K)
-    (hθK : θ K ≤ uHi) (hw0 : 0 ≤ wHi)
-    (hε : 0 < ε) (hlen : ∀ᵐ x ∂S.D, x.toList.length = S.L)
-    (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
-    (hbad : BadVisited S.A S.O S.B S.F S.D S.L uHi) (hη : η + 2 * (S.N + 2) * φ < 1)
-    (hηφ : 2 * (S.N + 1) * φ ≤ η) (hwφ : wHi ≤ 1 - 2 * (S.N + 1) * φ) :
-    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ' |
-        let R := readsAt S.O S.B S.F θ'.1
-        let s := roundEnd S.K S.O S.B S.F S.seed θ'
-        ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
-          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ
-            ∧ (PopulationIndecisive S.A S.O R s.hyp S.D S.L S.τ
-              ∨ WrongEdgeHarvest S.A S.O R s.hyp S.D S.L nH nS σ a
-              ∨ ∃ l ∈ s.hyp.tree.paths, ∃ c : α, EdgeSelected S.A S.O R s.hyp S.D l c f a r
-                  ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
-          ∧ ¬ s.halves S.τ
-          ∧ ¬ ChainAdvancesLadder S.A S.O R s.hyp
-              (nuRoot S.D S.L :: live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l])
-              θ K η wHi}
-      ≤ (S.L + 1) * (2 * (S.N + 2)) * φ / ε + passReadBound S * φ := by
-  have hD : IsProbabilityMeasure S.D := hv.2.1
-  refine le_trans (measureReal_mono ?_) (gate_flip_bound S hε hlen hflip hη)
-  rintro θ' ⟨hfail, -, -, hnot⟩
-  set R := readsAt S.O S.B S.F θ'.1
-  set H := (roundEnd S.K S.O S.B S.F S.seed θ').hyp
-  set others := live ++ H.tree.paths.map fun l => S.D[|settlesAt R H l]
-  have hdepth : H.tree.depth ≤ S.N + 1 := roundEnd_depth_le S.K S.O S.B S.F S.seed θ'
-  have hegap : EdgeGapPremise S.O S.B S.F H η wHi :=
-    (edgeGap_or_advancesLadder S.A S.O R H S.D S.L others hθ hθ0 hK hθK hflip hbad hdepth
-      (by push_cast; exact hηφ) (by push_cast; exact hwφ)).resolve_right hnot
-  have hclean : ∀ (y : FreeMonoid α) (c : α), y.toList.length < S.L →
-      0 < S.D.real {p | y.toList <+: p.toList} →
-      stateIndecision S.A S.O S.B S.F (S.A.state (y * FreeMonoid.of c)) < uHi
-        ∧ edgeDisagreeProb S.O S.B S.F H y c ≤ η := fun y c hy hy' => by
-    have : IsFiniteMeasure (nuRoot S.D S.L) := by unfold nuRoot; infer_instance
-    refine ⟨not_le.1 fun h => hnot
-      (chainAdvancesLadder_of_visited S.A S.O R H S.D S.L others hθ hθ0 hK hθK hy hy' h),
-      (hegap y c).resolve_right fun h => hnot ?_⟩
-    exact ⟨nuRoot S.D S.L, List.mem_cons_self .., c, .inr (chainAdvancesBy_of_mass _ _
-      (fun _ => edgeDisagreeProb_nonneg S.O _ _ H _ c)
-      (fun _ => edgeDisagreeProb_le_one S.O _ _ H _ c) hw0 (fun z => hegap z c)
-      (nuRoot_pos S.D hy hy' (S := {z | wHi ≤ _}) h))⟩
-  refine ⟨fun y c hy hy' => (hclean y c hy hy').2, fun q => ?_, hfail⟩
-  by_contra hq
-  obtain ⟨y, c, hy, hy', rfl⟩ := hbad q (not_lt.1 hq)
-  exact absurd (hclean y c hy hy').1 hq
 
 end OrthoDFA

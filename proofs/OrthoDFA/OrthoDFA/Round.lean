@@ -394,6 +394,11 @@ def MidFlipPremise (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (
   ∀ z, stateIndecision A O B F (A.state z) < uHi →
     μ.real {ω | midRead O B F ω z} ≤ φ ∨ 1 - φ ≤ μ.real {ω | midRead O B F ω z}
 
+/-- No suffix in `V` ends another: reads of different strings through `V` ask the oracle about
+different strings. -/
+def SuffixFree (V : Finset (FreeMonoid α)) : Prop :=
+  ∀ v ∈ V, ∀ v' ∈ V, ∀ u : FreeMonoid α, v = u * v' → u = 1
+
 /-- Every badly read state is reached by a letter from a string read before position `L`. -/
 def BadVisited (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (D : Measure (FreeMonoid α)) (L : ℕ) (uHi : ℝ) : Prop :=

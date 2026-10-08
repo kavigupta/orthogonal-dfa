@@ -828,3 +828,45 @@ chain's link enrich its bad states' odds by a fixed ratio. It isn't needed.
   - Under `GapPremise` it was about 3 at uHi/(r·a) = 8.
   - That's a real slowdown in the bound, not in the algorithm: the algorithm is unchanged; the
     bound just can't assume the states' indecision is bimodal.
+
+## `gate_flip_bound`: proved under a suffix-free vote family
+
+With the vote family suffix-free (option 3, `SuffixFree (F ∪ train F)`: no suffix in it ends
+another), distinct read strings use disjoint bits, and `gate_flip_bound` is proved. The
+tetrachotomy theorems that used it (`round_tetrachotomy_both`, `round_tetrachotomy`,
+`round_tetrachotomy_ladder`, now in `Proofs/GateFlip.lean`) have no sorry left.
+
+**New premises,** on all four theorems:
+- `SuffixFree (S.F ∪ S.K.train S.F)`: the property disjointness needs. The pass reads through
+  the training half too, which isn't required to lie in `F`.
+- `0 ≤ φ`: without it the old statement was false. With φ < 0, `MidFlipPremise` makes every
+  state badly read, the event is empty, and the bound is negative.
+- `[IsProbabilityMeasure S.D]` on `gate_flip_bound` itself. The others get it from `S.Valid`.
+
+**Structural part** (`Proofs/PassReads.lean`):
+- **What the pass reads.** Every read is `b·e₁·e₂·m`: `b` a seed string, probe prefix or witness,
+  each `e` empty or a letter, `m` a midfix of the tree before the probe. The congruence lemmas
+  (`probeStep_congr`, `settle_congr`, …) show two oracles agreeing there take the pass through the
+  same probe.
+- **Phase by phase** (`phase_congr`, `phase_determined`): the state after `k` and `k + 1` probes is
+  decided by the bits at `nodeReads` against the tree after `k`.
+- **The whole pass** (`roundEnd_determined`): decided by the bits at what it reads against its
+  final tree, a `Finset` of at most `passReadBound` strings (`card_roundReads`).
+
+**Probabilistic part** (`Proofs/GateFlip.lean`):
+- **`cell_bound`.** Partition by the cell (value of `T`, pattern of its bits). A cell decides `Z`
+  and is independent of any string's bits off `T` (`indep_noiseAlg` with `disjoint_vBits`), so
+  the chance a string of `Z` off `T` flips is at most `M·φ`.
+- **`passFlip_le`.** The pass's own reads, one probe at a time. The strings first read against
+  the tree after `k` probes are decided by the bits read before and are fresh, at most
+  `|bases|·(|α| + 1)²` per probe. That's `(N + 1)·|bases|·(|α| + 1)²·φ ≤ passReadBound·φ`.
+- **`freshFlip_le`.** A draw's prefixes' likelier paths, off the pass's reads. At most
+  `(L + 1)(N + 1)` strings, given the pass, so `(L + 1)(N + 1)φ`.
+- **`flip_of_disagree`, deterministic.** With every visited edge read on its edge
+  (`majPath_step`), a disagreeing draw has a flip on some prefix's likelier path.
+- **`gate_flip_section`.** Markov over the draws.
+- **`gate_flip_bound`.** The sum over probe draws (`prod_le_tsum`); a positive-mass probe has
+  length `L`.
+
+The bound is unchanged: `(L+1)·2(N+2)·φ/ε + passReadBound·φ`, with room to spare
+(`(L+1)(N+1)φ/ε` suffices).
