@@ -80,14 +80,14 @@ class _FromStart(Provenance):
     transitions: dict = field(repr=False)
     k: int
 
-    def _middle(self, seq):
-        return self.sifter.halfway(seq)[0]
-
 
 @dataclass(frozen=True, eq=False)
 class Walked(_FromStart):
     """Every read the counterexample check makes of a probe that the cut cannot
     place."""
+
+    def _middle(self, seq):
+        return self.sifter.halfway(seq)[0]
 
     def _read(self, drawn) -> List[bytes]:
         met = []
