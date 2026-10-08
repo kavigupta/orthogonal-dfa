@@ -64,20 +64,6 @@ class MidfixTree:
     def leaves(self) -> Iterator[int]:
         return _leaves(self._root)
 
-    def route_halfway(
-        self, seq, decide: Decide, halfway: Callable[[bytes, bytes], bool]
-    ) -> int:
-        """The leaf ``seq`` reaches taking ``halfway``'s side at each node
-        ``decide`` cannot place it."""
-        node = self._root
-        while not isinstance(node, int):
-            midfix, lookup = node
-            decision = decide(seq, midfix)
-            if decision is None:
-                decision = halfway(seq, midfix)
-            node = lookup[decision]
-        return node
-
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
         """The branches from the root to leaf ``state`` (True = accept child); a
         stable node key, unlike the node objects a split rebuilds."""

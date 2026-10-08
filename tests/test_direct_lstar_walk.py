@@ -11,6 +11,7 @@ up as a state count that also moves for unrelated reasons.
 # pylint: disable=protected-access
 
 import unittest
+from collections import deque
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
@@ -50,6 +51,7 @@ class _StubPopulation:
 class _Learner(TransitionResolver):
     # pylint: disable=super-init-not-called
     def __init__(self, sifter, transitions, k):
+        self.transitions = transitions
         self.sifter = sifter
         self.population = _StubPopulation()
         self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2, depth=2)
@@ -62,6 +64,9 @@ class _Learner(TransitionResolver):
     def _draw(self):
         self.drawn += 1
         return next(self.draws)
+
+    def _totalised(self):
+        return self.transitions, []
 
 
 #: State 7 steps to 8 on a 0 and stays on a 1; nothing is learned out of 8.
@@ -111,81 +116,94 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         self.assertEqual([], sifter.searched)
 
 
-def _read(places, *, k=2, middle=7, acc_threshold=0.9):
-    return _reader(places, k=k, middle=middle).read_fresh(acc_threshold=acc_threshold)
+#: Each state stays where it is; 1 accepts.
+_STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
+#: Every state steps to 0, which rejects, so every start disagrees with a root
+#: that accepts.
+_TO_REJECT = {0: {0: 0, 1: 0}, 1: {0: 0, 1: 0}}
 
 
-def _reader(places, *, k=2, middle=7):
-    learner = _Learner(_StubSifter(places, middle=middle), _EVERYWHERE, k)
-    learner.draws = iter([_PROBE] * 2000)
+def _gate(places, transitions, *, k=2, label=True):
+    """A learner reading ``_PROBE`` again and again at its gate, the root reading
+    every draw as ``label``."""
+    learner = _Learner(_StubSifter(places), transitions, k)
+    learner.tree.accepting_leaves = lambda: {1}
+    learner.family = SimpleNamespace(middle_side=lambda seq, midfix: label)
+    learner.window = deque()
+    learner.draws = iter([_PROBE] * 4000)
     return learner
 
 
+def _disagreeing(undecided):
+    """Places the whole probe at 1, the prefixes whose lengths are in
+    ``undecided`` nowhere, and the rest at 0, where a walk along ``_TO_REJECT``
+    stays."""
+
+    def places(seq):
+        if len(seq) == len(_PROBE):
+            return 1
+        return None if len(seq) in undecided else 0
+
+    return places
+
+
 class TestReadingFreshDraws(unittest.TestCase):
-    def test_a_decided_disagreement_is_kept_for_the_pass(self):
-        reading = _read(_parting(set()))
+    def test_the_start_agreeing_on_most_draws_is_the_readings(self):
+        learner = _gate(lambda seq: 0, _STAYS)
+
+        reading = learner.read_fresh(acc_threshold=0.9)
+
+        self.assertEqual((1, 1.0), (reading.start, reading.agreement))
+        # Only the first draw, before start 1 led, was read from k.
+        self.assertEqual([], reading.disagreements)
+
+    def test_a_draw_the_best_start_disagrees_on_is_read_from_k(self):
+        reading = _gate(_disagreeing(set()), _TO_REJECT).read_fresh(acc_threshold=0.9)
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
         self.assertEqual(([], 0), (reading.triples, reading.pairs))
 
     def test_a_triple_leaves_its_middles_boundary_string(self):
-        reading = _read(_parting({3}))
+        reading = _gate(_disagreeing({3}), _TO_REJECT).read_fresh(acc_threshold=0.9)
 
         self.assertEqual([_PROBE[:3] + b"?"], reading.triples)
 
     def test_a_pair_leaves_nothing_but_is_counted(self):
-        reading = _read(_parting({2, 3}), k=1)
+        learner = _gate(_disagreeing({2, 3}), _TO_REJECT, k=1)
+        reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual([], reading.triples)
         self.assertEqual(len(reading.disagreements), reading.pairs)
 
-    def test_a_draw_the_cut_cannot_place_is_read_at_the_middle(self):
-        for middle, agreement in ((7, 1.0), (8, 0.0)):
-            reading = _read(lambda seq: None if seq == _PROBE else 7, middle=middle)
-            self.assertEqual(agreement, reading.agreement)
-            self.assertEqual([], reading.disagreements)
-
-    def test_an_open_edge_disagrees(self):
-        places = lambda seq: 8 if seq == _PROBE[:3] else 7
-        learner = _Learner(_StubSifter(places), _OPEN_AT_8, 2)
-        learner.draws = iter([_PROBE] * 2000)
-
-        reading = learner.read_fresh(acc_threshold=0.9)
-
-        self.assertEqual(0.0, reading.agreement)
-
     def test_reading_stops_once_both_its_tests_settle(self):
-        learner = _reader(lambda seq: 7)
-        reading = learner.read_fresh(acc_threshold=0.5)
+        learner = _gate(lambda seq: 0, _STAYS)
+        learner.read_fresh(acc_threshold=0.5)
 
         # The tests are read at 30, 60, 120, ... draws.  The agreement settles at
-        # the first; no end cut short below the root settles under the stub's
-        # 2 * (2 - 1) * 0.1 only by the second, since 0.8 ** 30 > 1e-3 > 0.8 ** 60.
-        self.assertEqual(60, learner.drawn)
-        self.assertEqual(1.0, reading.agreement)
+        # the first; no whole sift cut short below the root settles under the
+        # stub's (2 - 1) * 0.1 only by the third, since 0.9 ** 60 > 1e-3 >
+        # 0.9 ** 120.
+        self.assertEqual(120, learner.drawn)
 
-    def test_ends_cut_short_below_the_root_too_often_are_kept_by_midfix(self):
-        # Every draw's whole is cut short at the stub's node below the root.
-        reading = _read(lambda seq: None if seq == _PROBE else 7)
+    def test_wholes_cut_short_below_the_root_too_often_are_kept_by_midfix(self):
+        places = lambda seq: None if seq == _PROBE else 0
+        reading = _gate(places, _STAYS).read_fresh(acc_threshold=0.9)
 
         self.assertEqual([("end", b"?")], reading.ends)
 
-    def test_ends_cut_short_at_the_root_are_not(self):
-        sifter = _StubSifter(lambda seq: None if seq == _PROBE else 7)
-        sifter.sift_and_boundary = lambda seq: (
-            (None, bytes(seq)) if seq == _PROBE else (7, None)
-        )
-        learner = _Learner(sifter, _EVERYWHERE, 2)
-        learner.draws = iter([_PROBE] * 2000)
+    def test_the_passs_starts_cut_short_too_often_are_kept_by_midfix(self):
+        learner = _gate(lambda seq: 0, _STAYS)
+        learner.window = deque([b"?"] * 20 + [None] * 129)
 
-        self.assertEqual([], learner.read_fresh(acc_threshold=0.9).ends)
+        self.assertEqual([("start", b"?")], learner.read_fresh(acc_threshold=0.9).ends)
 
-    def test_a_replay_reads_a_fresh_draw_for_its_triples_middle(self):
-        learner = _Learner(_StubSifter(_parting({3})), _EVERYWHERE, 2)
+    def test_a_replay_reads_a_fresh_draw_as_the_gate_did(self):
+        learner = _gate(_disagreeing({3}), _TO_REJECT)
+        reading = learner.read_fresh(acc_threshold=0.9)
         learner.draws = iter([_PROBE])
 
-        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(_EVERYWHERE))
+        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading))
 
 
 if __name__ == "__main__":

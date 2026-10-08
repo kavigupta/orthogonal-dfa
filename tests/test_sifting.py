@@ -2,7 +2,6 @@
 
 import unittest
 
-from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.sifting import (
     AGREE,
     EDGE,
@@ -12,7 +11,6 @@ from orthogonal_dfa.l_star.sifting import (
     TRIPLE,
     UNLEARNED_EDGE,
     Outcome,
-    Sifter,
     read,
 )
 
@@ -110,31 +108,6 @@ class TestSearchingWhereTheyPart(unittest.TestCase):
     def test_an_undecided_read_away_from_the_edge_is_stepped_past(self):
         # Prefix 4 is the first mid; its decided neighbours say the edge is above.
         self.assertEqual((EDGE, 6), _search({4}, flip=6)[:2])
-
-
-class _Middle:
-    """Places everything on the root's accept side and nothing below it, and
-    reads the middle of the band as on ``side``."""
-
-    def __init__(self, side):
-        self.side = side
-
-    def is_accept(self, _seq, midfix):
-        return True if midfix == b"" else None
-
-    def middle_side(self, _seq, _midfix):
-        return self.side
-
-
-class TestTheMiddleReading(unittest.TestCase):
-    def _sifter(self, side):
-        tree = MidfixTree([b""])
-        tree.split(0, b"x")
-        return Sifter(tree, _Middle(side))
-
-    def test_it_takes_the_middles_side_past_a_node_the_cut_cannot_place(self):
-        self.assertEqual(0, self._sifter(True).halfway(b"s"))
-        self.assertEqual(2, self._sifter(False).halfway(b"s"))
 
 
 if __name__ == "__main__":

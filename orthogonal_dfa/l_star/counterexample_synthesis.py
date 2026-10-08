@@ -167,7 +167,7 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
     _hold_ends(pst, state, gate.ends, per_state)
     if gate.triples:
         source = HarvestSource(
-            partial(resolver.replay, gate.learned),
+            partial(resolver.replay, gate),
             known=state.seen,
             acc_threshold=acc_threshold,
         )
@@ -298,36 +298,16 @@ class BestRound:
 
 
 def _certified(pst, dfa, *, index, tracker):
-    """denoise_accept_labels(dfa), from whichever start the certificate passes,
-    or None where it passes none."""
+    """denoise_accept_labels(dfa) if the certificate passes it, else None."""
     output = denoise_accept_labels(pst, dfa)
-    starts = [output] + [
-        _starting_at(output, state)
-        for state in sorted(output.states)
-        if state != output.initial_state
-    ]
     # Spread over the rounds, whichever of them reach the certificate.
-    verdict = certifies(pst, starts, alpha=look_level(CERTIFICATE_ALPHA, index))
+    verdict = certifies(pst, output, alpha=look_level(CERTIFICATE_ALPHA, index))
     tracker.on_certificate_decided(verdict.certified, index)
     if verdict.certified:
-        print(
-            f"[round {index}] certified from state {verdict.dfa.initial_state}; "
-            "stopping synthesis"
-        )
-        return verdict.dfa
+        print(f"[round {index}] certified; stopping synthesis")
+        return output
     print(f"[round {index}] at target, not certified; blames {verdict.blamed}")
     return None
-
-
-def _starting_at(dfa, state) -> DFA:
-    return DFA(
-        states=dfa.states,
-        input_symbols=dfa.input_symbols,
-        transitions=dfa.transitions,
-        initial_state=state,
-        final_states=dfa.final_states,
-        allow_partial=False,
-    )
 
 
 def _uncertified_too_long(index, uncertified_since) -> bool:
@@ -383,7 +363,7 @@ def counterexample_driven_synthesis(
         resolver.close_edges()
         gate = _read_round(resolver, patience=patience, acc_threshold=acc_threshold)
         true_acc = gate.agreement
-        dfa, dt = resolver.to_dfa_and_tree()
+        dfa, dt = resolver.to_dfa_and_tree(gate.start)
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
             f"{len(vs)} suffixes ({sampled - started:.1f}s sampling, "

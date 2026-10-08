@@ -34,13 +34,6 @@ class Sifter:
 
         return self.tree.classify(seq, decide)
 
-    def halfway(self, seq) -> int:
-        """Where the gate's reading sends ``seq``: past each node the cut cannot
-        place it at, the side of the middle of the band."""
-        return self.tree.route_halfway(
-            seq, self.family.is_accept, self.family.middle_side
-        )
-
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
         level rather than one per node visited.
