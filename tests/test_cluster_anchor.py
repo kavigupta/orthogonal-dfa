@@ -40,7 +40,7 @@ class TestClusterAnchor(unittest.TestCase):
             cluster_pst(reads, SIGNAL, seed=0), 0, 260, BOUNDARY
         )
         # The family asks for more than the keepers, so the rest pad it after them.
-        self.assertGreater(np.mean(shifts[vs[: KEEPERS + 1]] == 0), 0.9)
+        self.assertGreater(np.mean(shifts[vs[:KEEPERS]] == 0), 0.9)
 
 
 if __name__ == "__main__":
