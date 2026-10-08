@@ -28,10 +28,10 @@ from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, aim_at, state_source
+from .prefix_sources import HarvestSource, StartSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import TransitionResolver
+from .transition_resolver import TransitionResolver, start_length
 
 
 @dataclass
@@ -350,6 +350,11 @@ def counterexample_driven_synthesis(
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
     state = PoolState(uniform)
+    # Read by the family's FNR gate as the uniform pool is, at the length the
+    # pass's walks start from.
+    state.hold(
+        ("start", 0), StartSource(pst, start_length(pst.sampler.length)), len(uniform)
+    )
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.

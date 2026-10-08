@@ -38,6 +38,21 @@ class UniformSource:
         return True
 
 
+class StartSource(UniformSource):
+    """The sampler's draws cut to their first ``k`` symbols, where the pass
+    starts its walks."""
+
+    def __init__(self, pst, k):
+        super().__init__(pst)
+        self._k = k
+
+    def draw(self) -> bytes:
+        return super().draw()[: self._k]
+
+    def worth_drawing(self) -> bool:
+        return True
+
+
 class HarvestSource(RejectionSource):
     """More of a blocked round's population: each attempt reads a fresh draw the
     way the round read the draws that blocked it."""
