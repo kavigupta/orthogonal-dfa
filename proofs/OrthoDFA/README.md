@@ -25,6 +25,18 @@
   7. the pass running out of probes before a patience streak.
 
   `Pass.lean` states the pass, with its bisection population, and `Automaton.lean` the target.
+- `OrthoDFA/StartAtK.lean` — the round walked from position `k` along learned edges only.
+  `RoundAtK`: with the round's reads fixed, whatever probes the pass draws, the round's decision
+  is right but for `exp(−2·nw·δ²) + 2·exp(−2·ng·δ²)` over its two batches. That decision is one of:
+  - a walk source, where the walk is blocked on at least `θw − δ` of draws;
+  - a boundary source, where the check is blocked on at least `θc − δ`;
+  - a pass, where the check disagrees on at most `ε + δ`;
+  - a refusal, where every disagreeing probe, rerun, splits a leaf, adds a member, or stops at a
+    string the cut cannot place.
+
+  `WalkYield`: the walk source yields its blocked share less the draws that reached an unlearned
+  edge through a wrong earlier one. `SourceSpread`: no string takes more of a source than the
+  draws sharing its first `k` letters.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 

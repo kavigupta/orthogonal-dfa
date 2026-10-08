@@ -229,3 +229,15 @@ Ways to close it:
 - **F4:** acceptance scoring for the start.
 - **F5:** how the export lemma's masking is closed, or which check replaces end disagreement.
 - **The occupancy premise:** window-averaged, over the states reachable from covered starts.
+
+## Lean status
+
+`OrthoDFA/StartAtK.lean` states `RoundAtK`, `WalkYield` and `SourceSpread`, and
+`Proofs/StartAtK.lean` proves all three with no sorry.
+- The pass is modelled with #411 and #412: `probeStepK`, `runPassK`.
+- `k`, `θw`, `θc`, `ε`, `δ` and both batch sizes are parameters.
+- The gate is a fixed batch of `ng` draws. Its sequential early stop is not modelled yet.
+- `RoundAtK` is conditional on the round's reads, which covers every noise draw at once.
+- Its refusal claim rests on the pass keeping its edges learned (`runPassK_learned`). That
+  invariant is proved, not assumed.
+- The export lemma (F4–F6) is not stated yet.
