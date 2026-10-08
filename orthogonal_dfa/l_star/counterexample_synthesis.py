@@ -5,7 +5,7 @@ Each round builds a DFA from the current prefix pool and splits it in place on
 DFA-vs-tree disagreements (the counterexample pass).
 
 When the estimate still falls short, the representative pool is rebuilt to add
-    - what the gate's blocked draws, and the pass's failed split attempts, left
+    - boundary strings the family could not place
     - per-state balanced sample
 
 These drive the suffix-family FNR gate to re-cluster and resolve them
@@ -98,6 +98,20 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
+def _accumulate_indecisive(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+    already hold, returning how many.
+
+    Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
+    sample every run.
+    """
+    taken = sorted(set(resolver.indecisive) - state.seen)
+    np.random.default_rng(0).shuffle(taken)
+    for string in taken[:wanted]:
+        state.take(string)
+    return min(wanted, len(taken))
+
+
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
@@ -164,6 +178,7 @@ def _publish_pool(pst, state) -> int:
     """Put the round's populations in the table, returning how many of its
     prefixes are representative.
 
+    Ends the round: the next one names a boundary population of its own.
     """
     # Retired before it is redefined, so a mid-round top-up's prefixes do not
     # outlive the round that bought them.
@@ -174,6 +189,7 @@ def _publish_pool(pst, state) -> int:
         if prefixes:
             pst.table.add_prefixes(sorted(set(prefixes)), population=label)
     state.published = set(state.held)
+    state.close_harvest()
     return int(pst.table.representative.sum())
 
 
@@ -298,6 +314,8 @@ def counterexample_driven_synthesis(
     tracker: SynthesisTracker,
     max_rounds: Optional[int] = None,
     per_state: int = PER_STATE,
+    indecisive_fraction: float = 0.1,
+    min_indecisive: int = 200,
 ) -> BestRound:
     """Rounds until a hypothesis is certified, the pool stalls, the rounds since
     the first refusal run out of patience, or max_rounds of them have run.
@@ -307,7 +325,7 @@ def counterexample_driven_synthesis(
     assert max_rounds is None or max_rounds >= 1, max_rounds
     patience = _default_patience(acc_threshold)
     # Kept across rounds: the FNR gate resolves the chain one state per round, so
-    # earlier rounds' blocked strings keep the family honest about the whole
+    # earlier rounds' boundary strings keep the family honest about the whole
     # chain (they turn decisive once their state is resolved).
     uniform = [
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
@@ -365,6 +383,8 @@ def counterexample_driven_synthesis(
             pst.fnr_limit /= 2
             print(f"[round {index}] blocked; FNR limit now {pst.fnr_limit:.4f}")
         _hold_blocked(resolver, gate, state, acc_threshold=acc_threshold)
+        target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
+        taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.  Rounds after a
@@ -382,10 +402,13 @@ def counterexample_driven_synthesis(
                 "stopping synthesis"
             )
             return best
+        # Last, so what the draws and the check strand lands in the pool the
+        # round they were found rather than the round after.
+        _accumulate_indecisive(resolver, state, target - taken)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
-            f"{len(state.seen)} blocked strings held so far"
+            f"{len(state.seen)} boundary strings harvested so far"
         )
         index += 1
         if max_rounds is not None and index >= max_rounds:

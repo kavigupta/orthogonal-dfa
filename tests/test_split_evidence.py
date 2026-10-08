@@ -76,6 +76,7 @@ def _evidence(family=None, members=(), state=0, tree_splits=(), by_state=None):
     population = LeafPopulation(
         tree,
         lambda strings, midfix: [None] * len(strings),
+        harvest=lambda _boundary: None,
     )
     for leaf, held in (by_state or {state: members}).items():
         for member in held:

@@ -12,7 +12,7 @@ class PoolState:
     """The pool state carried across rounds: the initial uniform sample (kept in
     the representative set every round so global calibration stays anchored to the
     sampling distribution even if the per-state sample is skewed), and the
-    populations the rounds have made, with a ``seen`` set to dedup the blocked
+    populations the rounds have made, with a ``seen`` set to dedup the boundary
     strings across them."""
 
     def __init__(self, uniform):
@@ -21,8 +21,10 @@ class PoolState:
         #: What draws more of each population, for the round that asks.
         self.sources = {}
         self.seen = set()
-        #: Blocked populations named so far, which is what numbers them.
+        #: Boundary populations named so far, which is what numbers them.
         self.named = 0
+        #: The one this round is filling, or None before it strands anything.
+        self.harvesting = None
         #: Labels the table holds, so a round retires what it does not renew.
         self.published = set()
 
@@ -51,6 +53,25 @@ class PoolState:
         self.seen.update(fresh)
         self.held[label] = fresh
         self.sources[label] = source
+
+    def harvest(self) -> list:
+        """This round's boundary population, named on the first string to reach
+        it."""
+        if self.harvesting is None:
+            self.named += 1
+            self.harvesting = ("boundary", self.named)
+            self.held[self.harvesting] = []
+        return self.held[self.harvesting]
+
+    def close_harvest(self) -> None:
+        """End the round's boundary population: the next round names its own."""
+        self.harvesting = None
+
+    def take(self, string) -> None:
+        """Take a string this round could not place into its boundary
+        population."""
+        self.seen.add(string)
+        self.harvest().append(string)
 
 
 def grow_population(pst, state, label) -> bool:

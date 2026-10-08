@@ -68,6 +68,8 @@ def start_length(length: int) -> int:
 class TransitionResolver:
     def __init__(self, pst, vs):
         self.pst = pst
+        #: Boundary strings the family could not place.
+        self.indecisive = set()
         #: Probes since the pass's last split or undecided split test.
         self.quiet_probes = 0
         self.k = start_length(pst.sampler.length)
@@ -76,7 +78,9 @@ class TransitionResolver:
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
-        self.population = LeafPopulation(self.tree, self._classify)
+        self.population = LeafPopulation(
+            self.tree, self._classify, harvest=self.indecisive.add
+        )
         for p in pst.table.prefixes:
             self.population.add(p)
         self.splits = SplitEvidence(
@@ -86,7 +90,9 @@ class TransitionResolver:
             tree=self.tree,
         )
         self.dfa = PartialDFA(pst.alphabet_size, num_states=self.tree.num_states)
-        self.edges = EdgeResolver(self.dfa, self.sifter, population=self.population)
+        self.edges = EdgeResolver(
+            self.dfa, self.sifter, self.indecisive.add, population=self.population
+        )
 
     # -- membership / population -------------------------------------------
 

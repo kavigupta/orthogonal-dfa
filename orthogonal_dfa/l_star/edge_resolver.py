@@ -5,7 +5,8 @@ PartialDFA owns the edges and the witnesses, but cannot decide where an
 edge *goes*, because that needs the oracle.
 
 We ask the oracle where members' successors under the edge's character go, in
-order, until the family places one; if it places none the edge stays open.  Every later member
+order, until the family places one; the ones it cannot place are harvested as
+boundary strings, and if it places none the edge stays open.  Every later member
 whose successor is already placeable without a new query (split evidence reads
 these) also votes, and the edge points at the majority, with a member that voted
 for it as the witness.  Closing re-votes every edge, so the edge follows that
@@ -21,9 +22,12 @@ from .split_evidence import _MEMBER_LIMIT
 class EdgeResolver:
     """Closes the hypothesis: see the module docstring."""
 
-    def __init__(self, partial, sifter, *, population):
+    def __init__(self, partial, sifter, harvest, *, population):
+        """``harvest(boundary)`` takes each member's successor the family cannot
+        place."""
         self.dfa = partial
         self.sifter = sifter
+        self._harvest = harvest
         self._population = population
 
     def leaf_members(self, state: int) -> List[bytes]:
@@ -34,9 +38,10 @@ class EdgeResolver:
     ) -> Tuple[Optional[int], Optional[bytes]]:
         members = self.leaf_members(state)
         for i, member in enumerate(members):
-            target = self.sifter.sift_and_boundary(member + bytes([c]))[0]
+            target, boundary = self.sifter.sift_and_boundary(member + bytes([c]))
             if target is not None:
                 break
+            self._harvest(boundary)
         else:
             return None, None
         votes: Dict[int, List[bytes]] = {target: [member]}
