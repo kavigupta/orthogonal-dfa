@@ -39,7 +39,7 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import EDGE, PAIR, TRIPLE, UNLEARNED_EDGE, Sifter, read
+from .sifting import EDGE, END_UNDECIDED, PAIR, TRIPLE, UNLEARNED_EDGE, Sifter, read
 from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .statistics import binomial_side_of_boundary
 from .suffix_family import SuffixFamily
@@ -55,25 +55,34 @@ READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the start
 #: that agrees on most of them and the share it agrees on, and on a refusal
-#: sample, per harvested outcome
-#: the strings a refusal sample's disagreements left (see ``_harvested``),
-#: whether too many came down to a pair, the ends and midfixes the cut stopped
+#: sample, per harvest whose test fired the strings it left, the classes whose
+#: tests fired, the ends and midfixes the cut stopped
 #: below the root at where it did so too often, the draws searched down to an
 #: edge, and the learned and exported edges they were read against.
 Reading = namedtuple(
     "Reading",
-    "start agreement sample_agreement harvests pairs ends disagreements learned"
+    "start agreement sample_agreement harvests fired ends disagreements learned"
     " transitions",
 )
 
-#: The outcomes whose strings a refusal sample holds, and the populations they
-#: are held as.
-HARVESTED = {TRIPLE: "triple", PAIR: "pair", UNLEARNED_EDGE: "member"}
+#: The populations a refusal sample's outcomes may be held as.
+TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
+#: Each harvest's multiple of what a sift could leave undecided at the limit:
+#: a search sifts about log2(L - k) + 1 prefixes, and an unlearned edge two.
+TRIPLE_SLACK = 2
+
+
+def _harvest(w, outcome):
+    """The population an outcome of reading ``w`` is held in, if any: a
+    triple's, a pair's, an unlearned edge's member, or a read an unlearned edge
+    left undecided."""
+    if outcome.kind == END_UNDECIDED:
+        return OPEN_EDGES if outcome.at < len(w) else None
+    return {TRIPLE: TRIPLES, PAIR: PAIRS, UNLEARNED_EDGE: MEMBERS}.get(outcome.kind)
 
 
 def _harvested(outcome):
-    """The strings an outcome leaves: a triple's middle, a pair's two reads, or
-    an unlearned edge's member."""
+    """The strings an outcome leaves: a pair's two reads, or its one."""
     return outcome.string if outcome.kind == PAIR else (outcome.string,)
 
 
@@ -103,7 +112,12 @@ def _side(hits, trials, rate, tests):
 
 
 def _fires(hits, trials, rate) -> bool:
-    if not 0 < rate < 1 or not trials:
+    """Whether ``hits`` of ``trials`` are significantly over ``rate``, or, where
+    the test has not settled, over it at all.  Any hit is over a rate of 0, and
+    none is over a rate of 1."""
+    if rate <= 0:
+        return hits > 0
+    if rate >= 1 or not trials:
         return False
     side = _side(hits, trials, rate, 1)
     return hits > rate * trials if side is None else side
@@ -115,15 +129,25 @@ def _settled(hits, trials, rate) -> bool:
     return bool(trials) and _side(hits, trials, rate, 1) is not None
 
 
-def _refusal_tests(sample, incidental, pair_rate):
-    """``(hits, trials, rate)`` for the starts and the wholes of ``sample`` the
-    cut stops below the root at, and for the pairs among its searches."""
-    searched = [o for *_, o in sample if o is not None and o.kind in _SEARCHED]
-    return (
-        (sum(s[1] is not None for s in sample), len(sample), incidental),
-        (sum(s[2] is not None for s in sample), len(sample), incidental),
-        (sum(o.kind == PAIR for o in searched), len(searched), pair_rate),
-    )
+def _refusal_tests(sample, rates):
+    """Per class, ``(hits, trials, rate)`` on ``sample``: its starts and its
+    wholes the cut stops below the root at, over its draws; its triples and
+    pairs, over its searches; and its other harvests, over its draws."""
+    harvests = [_harvest(w, o) for w, *_, o in sample]
+    searched = sum(o.kind in _SEARCHED for *_, o in sample)
+    return {
+        "start": (sum(s[1] is not None for s in sample), len(sample), rates["start"]),
+        "end": (sum(s[2] is not None for s in sample), len(sample), rates["end"]),
+        **{
+            name: (
+                harvests.count(name),
+                searched if name in (TRIPLES, PAIRS) else len(sample),
+                rate,
+            )
+            for name, rate in rates.items()
+            if name not in ("start", "end")
+        },
+    }
 
 
 def give_up_after(pst, *, edges, test_suffixes) -> int:
@@ -250,7 +274,7 @@ class TransitionResolver:
                 break
         start = _best(agree)
         reading = Reading(
-            start, agree[start] / drawn, None, {}, False, [], [], None, transitions
+            start, agree[start] / drawn, None, {}, None, [], [], None, transitions
         )
         if reading.agreement >= acc_threshold:
             return reading
@@ -272,13 +296,13 @@ class TransitionResolver:
         """``gate`` with what a refusal sample holds.
 
         Each draw is read from ``k`` (see ``read``), and its start and whole
-        sifted.  Starts and wholes the cut stops below the root at are each
-        tested against ``fnr_limit`` a node below the root on the deepest path,
-        and the pairs among the searches against ``PAIR_SHARE`` of them: the
-        sample is read at each of ``_REFUSAL_LOOKS`` until all three settle.
-        Edges given up on (see ``given_up``) are not rerun."""
+        sifted.  Each class of what the sample leaves is tested against what a
+        family undecided at ``fnr_limit`` could leave by chance (see
+        ``_incidental``), at each of ``_REFUSAL_LOOKS`` until all settle, and
+        held where it fires.  Edges given up on (see ``given_up``) are not
+        rerun."""
         learned = self.learned()
-        rates = ((self.tree.depth - 1) * self.pst.fnr_limit, PAIR_SHARE)
+        rates = self._incidental()
         sample = []
         agreed = 0
         while len(sample) < REFUSAL_DRAWS:
@@ -289,31 +313,36 @@ class TransitionResolver:
                 (w, self._below_root(w[: self.k]), self._below_root(w), outcome)
             )
             if len(sample) in _REFUSAL_LOOKS and all(
-                _settled(*test) for test in _refusal_tests(sample, *rates)
+                _settled(*test) for test in _refusal_tests(sample, rates).values()
             ):
                 break
-        start_cut, end_cut, pairs = (
-            _fires(*test) for test in _refusal_tests(sample, *rates)
-        )
-        held = [
-            *(("start", m) for m in dict.fromkeys(s[1] for s in sample) if start_cut),
-            *(("end", m) for m in dict.fromkeys(s[2] for s in sample) if end_cut),
+        fired = {
+            name
+            for name, test in _refusal_tests(sample, rates).items()
+            if _fires(*test)
+        }
+        ends = [
+            (end, m)
+            for i, end in ((1, "start"), (2, "end"))
+            if end in fired
+            for m in dict.fromkeys(s[i] for s in sample)
+            if m is not None
         ]
         return gate._replace(
             sample_agreement=agreed / len(sample),
             harvests={
-                kind: list(
+                name: list(
                     dict.fromkeys(
                         string
-                        for *_, o in sample
-                        if o.kind == kind
+                        for w, *_, o in sample
+                        if _harvest(w, o) == name
                         for string in _harvested(o)
                     )
                 )
-                for kind in HARVESTED
+                for name in fired - {"start", "end"}
             },
-            pairs=pairs,
-            ends=[(end, m) for end, m in held if m is not None],
+            fired=fired,
+            ends=ends,
             disagreements=[
                 w
                 for w, *_, o in sample
@@ -321,6 +350,22 @@ class TransitionResolver:
             ],
             learned=learned,
         )
+
+    def _incidental(self):
+        """Per class, the share a family undecided at ``fnr_limit`` at each node
+        could leave by chance: a sift reads at most ``depth`` nodes, one below
+        the root fewer, a search sifts about log2(L - k) + 1 prefixes, and an
+        unlearned edge two.  An unlearned edge's member is never chance."""
+        depth, limit = self.tree.depth, self.pst.fnr_limit
+        search = math.log2(self.pst.sampler.length - self.k) + 1
+        return {
+            "start": (depth - 1) * limit,
+            "end": (depth - 1) * limit,
+            TRIPLES: TRIPLE_SLACK * limit * depth * search,
+            PAIRS: PAIR_SHARE,
+            MEMBERS: 0,
+            OPEN_EDGES: 2 * depth * limit,
+        }
 
     def given_up(self, state, c) -> bool:
         """Whether the edge ``(state, c)`` has had ``give_up_after`` attempts to
@@ -334,11 +379,12 @@ class TransitionResolver:
     def _read(self, w, learned):
         return read(w, self.sifter.sift_and_boundary, learned, self.k)
 
-    def replay(self, gate, kind):
-        """Read a fresh draw as the ``gate``'s refusal sample did, for what an
-        outcome of ``kind`` leaves."""
-        outcome = self._read(self._draw(), gate.learned)
-        return list(_harvested(outcome)) if outcome.kind == kind else []
+    def replay(self, gate, name):
+        """Read a fresh draw as the ``gate``'s refusal sample did, for what it
+        leaves the harvest ``name``."""
+        w = self._draw()
+        outcome = self._read(w, gate.learned)
+        return list(_harvested(outcome)) if _harvest(w, outcome) == name else []
 
     # -- counterexamples ----------------------------------------------------
 

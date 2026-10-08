@@ -31,7 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import HARVESTED, TransitionResolver, start_length
+from .transition_resolver import PAIRS, TransitionResolver, start_length
 
 
 @dataclass
@@ -168,15 +168,16 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
                 known=state.seen,
                 acc_threshold=acc_threshold,
             )
-            state.hold_found(HARVESTED[kind], found, source)
+            state.hold_found(kind, found, source)
 
 
 def _halve(pst, gate) -> bool:
-    """Halve the FNR limit where the gate's refusal sample came down to a pair
-    too often.  Says whether it halved."""
-    if gate.pairs:
+    """Halve the FNR limit on a refusal whose sample came down to pairs too
+    often, or held nothing.  Says whether it halved."""
+    halve = gate.fired is not None and (PAIRS in gate.fired or not gate.fired)
+    if halve:
         pst.fnr_limit /= 2
-    return gate.pairs
+    return halve
 
 
 def _aimed_at(pst, resolver, dfa) -> set:

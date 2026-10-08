@@ -116,6 +116,25 @@ class TestWhatARoundTakes(unittest.TestCase):
         self.assertEqual(state.seen, set(_taken(state)))
 
 
+class TestWhenTheLimitHalves(unittest.TestCase):
+    def _halves(self, fired):
+        pst = SimpleNamespace(fnr_limit=0.1)
+        cs._halve(pst, SimpleNamespace(fired=fired))  # pylint: disable=protected-access
+        return pst.fnr_limit < 0.1
+
+    def test_a_passing_gate_does_not_halve(self):
+        self.assertFalse(self._halves(None))
+
+    def test_a_refusal_that_holds_nothing_halves(self):
+        self.assertTrue(self._halves(set()))
+
+    def test_a_refusal_with_too_many_pairs_halves(self):
+        self.assertTrue(self._halves({"pair", "triple"}))
+
+    def test_a_refusal_that_holds_something_else_does_not(self):
+        self.assertFalse(self._halves({"triple"}))
+
+
 class TestWhenARoundGivesUp(unittest.TestCase):
     def _rounds_of(self, *, states, improved, settled):
         """One verdict per round, for a run of identical rounds."""

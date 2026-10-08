@@ -14,8 +14,13 @@ import unittest
 from collections import Counter
 from types import SimpleNamespace
 
-from orthogonal_dfa.l_star.sifting import PAIR, TRIPLE
-from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
+from orthogonal_dfa.l_star.transition_resolver import (
+    MEMBERS,
+    OPEN_EDGES,
+    PAIRS,
+    TRIPLES,
+    TransitionResolver,
+)
 
 _PROBE = bytes([0, 1, 0, 1])
 
@@ -61,6 +66,7 @@ class _Learner(TransitionResolver):
         self.pst = SimpleNamespace(
             fnr_limit=0.1,
             alphabet_size=2,
+            sampler=SimpleNamespace(length=len(_PROBE)),
             config=SimpleNamespace(min_signal_strength=0.3, split_pval=0.001),
         )
         self.unsplit = Counter()
@@ -72,7 +78,10 @@ class _Learner(TransitionResolver):
         return next(self.draws)
 
     def _totalised(self):
-        return self.transitions, []
+        """The learned edges, with each open one self-looped."""
+        return {
+            q: {c: out.get(c, q) for c in (0, 1)} for q, out in self.transitions.items()
+        }, []
 
 
 #: State 7 steps to 8 on a 0 and stays on a 1; nothing is learned out of 8.
@@ -172,8 +181,8 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
-        self.assertEqual({}, {k: v for k, v in reading.harvests.items() if v})
-        self.assertFalse(reading.pairs)
+        self.assertEqual({}, reading.harvests)
+        self.assertNotIn(PAIRS, reading.fired)
 
         # The search lands on the edge out of 0 on the probe's last symbol; six
         # split tests on it without a split give it up at the signal stubbed.
@@ -184,15 +193,17 @@ class TestReadingFreshDraws(unittest.TestCase):
     def test_a_triple_leaves_its_middles_boundary_string(self):
         reading = _gate(_disagreeing({3}), _TO_REJECT).read_fresh(acc_threshold=0.9)
 
-        self.assertEqual([_PROBE[:3] + b"?"], reading.harvests[TRIPLE])
+        self.assertEqual([_PROBE[:3] + b"?"], reading.harvests[TRIPLES])
 
     def test_a_pair_leaves_nothing_but_is_counted(self):
         learner = _gate(_disagreeing({2, 3}), _TO_REJECT, k=1)
         reading = learner.read_fresh(acc_threshold=0.9)
 
-        self.assertEqual([], reading.harvests[TRIPLE])
-        self.assertEqual([_PROBE[:2] + b"?", _PROBE[:3] + b"?"], reading.harvests[PAIR])
-        self.assertTrue(reading.pairs)
+        self.assertNotIn(TRIPLES, reading.harvests)
+        self.assertEqual(
+            [_PROBE[:2] + b"?", _PROBE[:3] + b"?"], reading.harvests[PAIRS]
+        )
+        self.assertIn(PAIRS, reading.fired)
         # The gate's 30 draws, then the refusal sample's: the pairs settle above
         # their rate at its first look and the clean ends below theirs at its
         # third, since 0.9 ** 60 > 1e-3 > 0.9 ** 120.
@@ -226,12 +237,32 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual([("start", b"?")], learner.read_fresh(acc_threshold=0.9).ends)
 
+    def test_a_read_an_unlearned_edge_left_undecided_is_held(self):
+        # Start 1 has no edge on the probe's second symbol, and the cut cannot
+        # place the prefix past it; no start accepts what the root does.
+        places = lambda seq: {1: 1, 2: None}.get(len(seq), 0)
+        learner = _gate(places, {0: {0: 0, 1: 0}, 1: {0: 1}}, k=1)
+        learner.tree.accepting_leaves = set
+
+        reading = learner.read_fresh(acc_threshold=0.9)
+
+        self.assertEqual([_PROBE[:2] + b"?"], reading.harvests[OPEN_EDGES])
+
+    def test_any_unlearned_edges_member_is_held(self):
+        places = lambda seq: 1 if len(seq) <= 1 else 0
+        learner = _gate(places, {0: {0: 0, 1: 0}, 1: {0: 1}}, k=1)
+        learner.tree.accepting_leaves = set
+
+        reading = learner.read_fresh(acc_threshold=0.9)
+
+        self.assertEqual([_PROBE[:1]], reading.harvests[MEMBERS])
+
     def test_a_replay_reads_a_fresh_draw_as_the_gate_did(self):
         learner = _gate(_disagreeing({3}), _TO_REJECT)
         reading = learner.read_fresh(acc_threshold=0.9)
         learner.draws = iter([_PROBE])
 
-        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading, TRIPLE))
+        self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading, TRIPLES))
 
 
 if __name__ == "__main__":
