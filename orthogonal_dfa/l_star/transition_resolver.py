@@ -323,8 +323,8 @@ class TransitionResolver:
         )
 
     def given_up(self, state, c) -> bool:
-        """Whether the edge ``(state, c)`` has had ``give_up_after`` split
-        tests in the round come out other than a split."""
+        """Whether the edge ``(state, c)`` has had ``give_up_after`` attempts to
+        split on it in the round end other than in a split."""
         return self.unsplit[state, c] >= give_up_after(
             self.pst,
             edges=self.num_states * self.pst.alphabet_size,
@@ -384,15 +384,19 @@ class TransitionResolver:
         )
 
     def _act_on_disagreement(self, w, s1, fd) -> bool:
+        """Weigh splitting ``s1`` on the edge into ``w[:fd]``: whether it split
+        or asks for more members.  Any other end counts against the edge (see
+        ``given_up``)."""
         c = w[fd - 1]
         witness = self.dfa.witness(s1, c)
         sprime = w[: fd - 1]
-        if self._sift(witness) != s1 or self._sift(sprime) != s1:
-            return False
-        distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
-        if distinguisher is None:
-            return False
-        if self.splits.verdict(s1, distinguisher) == SPLIT:
+        distinguisher = None
+        if self._sift(witness) == s1 and self._sift(sprime) == s1:
+            distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
+        if (
+            distinguisher is not None
+            and self.splits.verdict(s1, distinguisher) == SPLIT
+        ):
             for edge in [e for e in self.unsplit if e[0] == s1]:
                 del self.unsplit[edge]
             self._split(s1, distinguisher)
@@ -401,11 +405,13 @@ class TransitionResolver:
                 if st is not None:
                     self.population.add(p, at=self.tree.path_of(st))
             return True
+        self.unsplit[s1, c] += 1
+        if distinguisher is None:
+            return False
         # The leaf may hold too few members of sprime's state to split on, even
         # where they rule a split out; keeping sprime, ahead of the member limit,
         # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1))
-        self.unsplit[s1, c] += 1
         return True
 
     # -- edge closing -------------------------------------------------------

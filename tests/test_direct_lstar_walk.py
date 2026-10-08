@@ -113,6 +113,8 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
 
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([(b"", _PROBE[:3], _PROBE[3:])], sifter.searched)
+        # It found no distinguisher, which counts against the edge.
+        self.assertEqual(Counter({(7, _PROBE[3]): 1}), learner.unsplit)
 
     def test_a_disagreement_down_to_a_triple_is_quiet(self):
         sifter = _StubSifter(_parting({3}))
