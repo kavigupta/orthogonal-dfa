@@ -629,3 +629,60 @@ what remains is that one lemma and the reads model it needs.
   about `wHi/η` per link, so in practice it promotes in one round. Its promoted population is (2b)
   once its size is at least σ/(1 − σ) of the leaf's other members.
 - R = `rolloverRounds` with base `uHi/a` for indecision chains and `wHi/η` for disagreement chains.
+
+## `round_tetrachotomy_both`: a theorem, modulo one sorried step
+
+**The statement** (`Proofs/Round.lean`). For a round with
+- `Valid`;
+- the gap premise (a, uHi), with 0 ≤ uHi and 0 ≤ wHi;
+- ε > 0;
+- D supported on length-L strings;
+- `MidFlipPremise φ`: a node read of a string whose state is not badly read lands on one side of
+  the middle but for chance φ;
+- `BadVisited`: every badly read state is reached by a letter from a string read before
+  position L;
+- η + 2(N+2)φ < 1,
+
+we have
+
+    P( edge gap ∧ ¬(1) ∧ ¬(2) ∧ ¬(3) ∧ ¬(4') )  ≤  (L+1)·2(N+2)·φ / ε  +  passReadBound·φ,
+
+where `passReadBound = (|seed| + N(L+1))·(1+|α|) · (N+2)·(1+|α|)` bounds the pass's node reads.
+
+**The proof.**
+- **Proved:** the event is inside the event of `gate_flip_bound`. `visited_clean_of_not_advances`
+  makes every visited edge read clean. `BadVisited` turns "every visited successor is not badly
+  read" into "no state is badly read".
+- **Sorried (`gate_flip_bound`):**
+
+      P( every visited edge read off at most η ∧ no badly read state ∧ the gate fails by more than ε )
+        ≤ (L+1)·2(N+2)·φ/ε + passReadBound·φ.
+
+**Why `gate_flip_bound` is believed true.**
+- A draw the gate counts against the hypothesis first leaves its walk at some j ≤ L, through the
+  middle readings of x[:j−1] and x[:j].
+- Every state is read cleanly, so each node read lands on its state's side but for chance φ. The
+  sides' readings agree with the edge, since otherwise `ed` ≥ 1 − 2(N+2)φ > η.
+- So some node read on those two paths flipped. Each path is at most N + 2 deep, because each probe
+  splits at most once.
+- **Fresh reads.** Node reads the pass did not make are fresh given the pass, so the expected
+  disagreement mass is at most (L+1)·2(N+2)·φ. Markov gives the first term.
+- **Pass reads.** The pass's node reads are at most `passReadBound`. Every string it sifts is a
+  seed string or a probe prefix, extended by at most a letter. Every midfix it reads at is the final
+  tree's, at most N + 2 of them, since trees only grow, preceded by at most a letter (the split
+  test's distinguishers). Read adaptively, each is fresh when read, so the chance any flipped is at
+  most `passReadBound`·φ.
+
+**What the sorry contains.**
+1. **Structural:** the pass is determined by its node reads at that set. This is an induction over
+   `probeStep`/`settle`, with trees only growing. It is not done, and it is not analytic.
+2. **Probabilistic:** the adaptive-read independence, the analogue of `probe_couple` on #400.
+3. **The Markov and union-bound arithmetic.**
+
+So the step is not a pure analytic sorry: (1) is structural work still owed.
+
+**Not done.**
+- The pass's read set as a Lean `Finset` with its card bound. The bound above is argued in the
+  sorry's reason, not built.
+- `RoundOrHarvest` in the same form. Its overlap term needs the same read set and the same
+  adaptive independence.

@@ -370,6 +370,31 @@ def RoundTetrachotomy (f a uHi δ : ℝ) (r : ℕ) : Prop :=
               uHi a}
       ≤ δ
 
+/-- A node read of `z` at the middle of the band: the family's vote on `z` past the middle. -/
+def midRead (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (ω : Ω)
+    (z : FreeMonoid α) : Prop :=
+  B.lo + B.hi < 2 * acceptsOn F (fun w => O.mq w ω) z
+
+/-- A node read of a string whose state is not badly read falls on one side of the middle but
+for chance `φ`: the vote's law is the state's, a full margin from the middle. -/
+def MidFlipPremise (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (uHi φ : ℝ) : Prop :=
+  ∀ z, stateIndecision A O B F (A.state z) < uHi →
+    μ.real {ω | midRead O B F ω z} ≤ φ ∨ 1 - φ ≤ μ.real {ω | midRead O B F ω z}
+
+/-- Every badly read state is reached by a letter from a string read before position `L`. -/
+def BadVisited (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (D : Measure (FreeMonoid α)) (L : ℕ) (uHi : ℝ) : Prop :=
+  ∀ q, uHi ≤ stateIndecision A O B F q →
+    ∃ y c, y.toList.length < L ∧ 0 < D.real {p | y.toList <+: p.toList}
+      ∧ A.state (y * FreeMonoid.of c) = q
+
+/-- A bound on the node reads a pass makes: every string it sifts is the seed or a probe's prefix,
+extended by at most a letter, and every midfix it reads at is the final tree's, of which there are
+at most `N + 2`, preceded by at most a letter. -/
+def passReadBound (S : RoundSetting α μ Q) : ℕ :=
+  (S.seed.length + S.N * (S.L + 1)) * (1 + Fintype.card α) * ((S.N + 2) * (1 + Fintype.card α))
+
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
   ((replay R H x e).1.map fun i => (H.tree.route R.cut (prefixOf x i)).1.length).sum
