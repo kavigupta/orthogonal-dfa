@@ -120,6 +120,16 @@ class TransitionResolver:
             self._harvest(boundary, self._walked)
         return leaf
 
+    def _bisect_sift(self, seq):
+        """`_sift` for the search for the disagreeing edge: a prefix the cut
+        cannot place is still harvested, then placed where the middle of the band
+        sends it, so the search lands on an edge for the guards and the split
+        test to weigh rather than leaving the probe unchecked."""
+        leaf = self._sift(seq)
+        if leaf is None:
+            leaf, _ = self.sifter.halfway(seq)
+        return leaf
+
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
         new_id = self.tree.split(state_id, midfix)
@@ -208,7 +218,7 @@ class TransitionResolver:
             return _UNCHECKED
         if state is None or actual == state:
             return _RESOLVED
-        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._bisect_sift, agree_point, len(w))
         if fd is None:
             return _UNCHECKED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
