@@ -577,3 +577,55 @@ V restricted to positions below L. So the stretch bound is
 
 with the largest V over letters c. The ν root's level-0 rate is about the pass's baseline, so it
 relies on the rise test, not the f·a bar, to be kept.
+
+## The disagreement chain, and (4') (`RoundTetrachotomyBoth`)
+
+**The new pieces.**
+- `edgeDisagreeProb x c`: the chance, over fresh noise, that the middle reading of x·c lands off the
+  hypothesis's edge out of where the middle reading puts x.
+- `EdgeGapPremise η wHi`: every edge read lands off its edge at most η or at least wHi of the time.
+  For two clean states the readings are decided, so `ed` is about 0 or about 1, except for
+  middle-reading flips of chance about η. A coin-read successor gives about ½, which counts as
+  wrong once wHi ≤ ½.
+- `ChainAdvancesBy X g lo hi`: a chain whose link keeps x with chance g(x) advances. X holds
+  strings with g ≥ hi, and the link multiplies their mass by at least hi and the rest's by at most
+  lo.
+- **(4') `ChainAdvancesEither`:** some source advances an indecision chain (g = u(state(x·c))) or a
+  disagreement chain (g = `ed`(x, c)).
+
+**Proved** (only `propext`, `Classical.choice` and `Quot.sound`):
+- `chainAdvancesBy_of_mass`: the generic advance, from `rolled_odds` with one link.
+- `chainAdvancesEither_of_visited`: with the ν root among the sources, (4') holds whenever some
+  string read before position L has u(x·c) ≥ uHi or `ed`(x, c) ≥ wHi.
+- `visited_clean_of_not_advances`: a round that advances no chain reads every edge out of every
+  visited string cleanly. Its successor has u < uHi, and the edge read lands off at most η.
+
+**What is left: one probabilistic lemma.**
+
+    P( edge gap ∧ the gate fails by more than ε ∧ every visited edge read is clean ) ≤ δ
+
+Given it, `RoundTetrachotomyBoth` follows from `visited_clean_of_not_advances`. In fact (1) ∨ (4')
+alone does; (2) and (3) are not needed for the one-round statement.
+
+**Why the lemma is believed true, with δ = L·η/ε + η·N_pass.**
+- A draw the gate counts against the hypothesis has a first position j ≥ 1 where the middle reading
+  leaves the walk. That is the realised event behind `ed`(x[:j−1], x_j).
+- If the gate's reads are fresh relative to the hypothesis, the expected disagreement mass is at
+  most `Σ_j E[ed] ≤ L·η`, and Markov gives `L·η/ε`.
+- The hypothesis is built from the same noise, at the strings the pass read. At each pass-read pair
+  the realised reading deviates from its fresh chance at most η, and the union over the N_pass pairs
+  the pass read adds `η·N_pass`. Off those pairs the gate's reads are fresh.
+
+**Why it isn't stated in Lean yet.** Its δ needs N_pass, the number of strings the pass reads.
+`Pass.lean` counts node reads only over the quiet window (`PassState.reads`), not the whole pass's
+read set. That is the same missing reads model that keeps `RoundOrHarvest`'s overlap term unstated.
+
+So `RoundTetrachotomyBoth` is not yet a theorem. There is no residual regime of targets any more:
+what remains is that one lemma and the reads model it needs.
+
+**The counting note, updated.** With both chains rooted at the ν prefixes:
+- An indecision chain on edge c starts at `π₀ = V_{<L}(pred_c(badly read))`.
+- A disagreement chain starts at `π₀ = V_{<L}(strings whose c-edge is wrong)`. It enriches by
+  about `wHi/η` per link, so in practice it promotes in one round. Its promoted population is (2b)
+  once its size is at least σ/(1 − σ) of the leaf's other members.
+- R = `rolloverRounds` with base `uHi/a` for indecision chains and `wHi/η` for disagreement chains.

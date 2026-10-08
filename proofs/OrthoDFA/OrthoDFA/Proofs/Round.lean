@@ -271,4 +271,69 @@ theorem chainAdvances_of_visited [IsProbabilityMeasure μ] (A : DFA (FreeMonoid 
   · unfold nuRoot; infer_instance
   · exact hfin X h
 
+/-- A chain filtered by any chance `g` advances once its source holds strings with `g ≥ hi` and
+every other string has `g ≤ lo`. -/
+theorem chainAdvancesBy_of_mass (X : Measure (FreeMonoid α)) [IsFiniteMeasure X]
+    (g : FreeMonoid α → ℝ) (h0 : ∀ x, 0 ≤ g x) (h1 : ∀ x, g x ≤ 1) {lo hi : ℝ} (hhi : 0 ≤ hi)
+    (hgap : ∀ x, g x ≤ lo ∨ hi ≤ g x) (hpos : 0 < X.real {x | hi ≤ g x}) :
+    ChainAdvancesBy X g lo hi := by
+  have hm : Measurable g := measurable_from_top
+  have hbad : MeasurableSet {x | hi ≤ g x} := MeasurableSpace.measurableSet_top
+  have hodds := rolled_odds X (fun _ => g) 1 (fun _ => hm) (fun _ => h0) (fun _ => h1) _ hbad hhi
+    (fun _ x hx => hx) (fun _ x hx => (hgap x).resolve_right hx)
+  simp only [Finset.prod_range_one, pow_one] at hodds
+  refine ⟨hpos, ?_⟩
+  rw [withDensity_real_eq X g hm h0 hbad, withDensity_real_eq X g hm h0 hbad.compl]
+  exact hodds
+
+theorem edgeDisagreeProb_nonneg (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (H : Hypothesis α) (x : FreeMonoid α) (c : α) :
+    0 ≤ edgeDisagreeProb O B F H x c := measureReal_nonneg
+
+theorem edgeDisagreeProb_le_one [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α))
+    (B : State) (F : Finset (FreeMonoid α)) (H : Hypothesis α) (x : FreeMonoid α) (c : α) :
+    edgeDisagreeProb O B F H x c ≤ 1 := measureReal_le_one
+
+/-- With the `ν` root among the sources, a round advances a disagreement chain whenever some
+string read before position `L` is read off its edge by `c` at least `wHi` of the time. -/
+theorem chainAdvancesEither_of_visited [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (H : Hypothesis α)
+    (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (L : ℕ)
+    (others : List (Measure (FreeMonoid α))) {a uHi η wHi : ℝ} (hHi0 : 0 ≤ uHi) (hw0 : 0 ≤ wHi)
+    (hgap : GapPremise A O R.B R.F a uHi) (hegap : EdgeGapPremise O R.B R.F H η wHi)
+    {x : FreeMonoid α} {c : α} (hx : x.toList.length < L)
+    (hD : 0 < D.real {p | x.toList <+: p.toList})
+    (hbad : uHi ≤ stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))
+      ∨ wHi ≤ edgeDisagreeProb O R.B R.F H x c) :
+    ChainAdvancesEither A O R H (nuRoot D L :: others) a uHi η wHi := by
+  have : IsFiniteMeasure (nuRoot D L) := by unfold nuRoot; infer_instance
+  refine ⟨nuRoot D L, List.mem_cons_self .., c, ?_⟩
+  rcases hbad with h | h
+  · exact .inl (chainAdvancesBy_of_mass _ _ (fun _ => stateIndecision_nonneg A O _ _ _)
+      (fun _ => stateIndecision_le_one A O _ _ _) hHi0 (fun y => hgap _)
+      (nuRoot_pos D hx hD (S := {y | uHi ≤ _}) h))
+  · exact .inr (chainAdvancesBy_of_mass _ _ (fun _ => edgeDisagreeProb_nonneg O _ _ H _ c)
+      (fun _ => edgeDisagreeProb_le_one O _ _ H _ c) hw0 (fun y => hegap y c)
+      (nuRoot_pos D hx hD (S := {y | wHi ≤ _}) h))
+
+/-- A round that advances no chain, with the `ν` root among its sources, reads every edge out of a
+visited string cleanly: its successor is not badly read, and it lands on the hypothesis's edge but
+for chance `η`. -/
+theorem visited_clean_of_not_advances [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (H : Hypothesis α)
+    (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (L : ℕ)
+    (others : List (Measure (FreeMonoid α))) {a uHi η wHi : ℝ} (hHi0 : 0 ≤ uHi) (hw0 : 0 ≤ wHi)
+    (hgap : GapPremise A O R.B R.F a uHi) (hegap : EdgeGapPremise O R.B R.F H η wHi)
+    (hnot : ¬ ChainAdvancesEither A O R H (nuRoot D L :: others) a uHi η wHi)
+    {x : FreeMonoid α} (c : α) (hx : x.toList.length < L)
+    (hD : 0 < D.real {p | x.toList <+: p.toList}) :
+    stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c)) < uHi
+      ∧ edgeDisagreeProb O R.B R.F H x c ≤ η := by
+  by_contra h
+  apply hnot
+  refine chainAdvancesEither_of_visited A O R H D L others hHi0 hw0 hgap hegap (c := c) hx hD ?_
+  rcases not_and_or.1 h with h | h
+  · exact .inl (not_lt.1 h)
+  · exact .inr ((hegap x c).resolve_left h)
+
 end OrthoDFA

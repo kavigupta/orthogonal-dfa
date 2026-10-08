@@ -293,6 +293,59 @@ def ChainAdvances (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R
       ∧ (rolledLaw A O X c [(R.B, R.F)]).real (badAlong A O R c uHi)ᶜ
           ≤ a * X.real (badAlong A O R c uHi)ᶜ
 
+/-- The chance, over fresh noise, that the middle reading of `x·c` lands off the hypothesis's edge
+out of where the middle reading puts `x`. -/
+noncomputable def edgeDisagreeProb (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (H : Hypothesis α) (x : FreeMonoid α) (c : α) : ℝ :=
+  μ.real {ω | midPath (readsAt O B F ω) H (x * FreeMonoid.of c)
+    ≠ H.step (midPath (readsAt O B F ω) H x) c}
+
+/-- Every edge read lands off its edge rarely, at most `η`, or often, at least `wHi`. -/
+def EdgeGapPremise (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
+    (H : Hypothesis α) (η wHi : ℝ) : Prop :=
+  ∀ x c, edgeDisagreeProb O B F H x c ≤ η ∨ wHi ≤ edgeDisagreeProb O B F H x c
+
+/-- A chain on source `X`, filtered by a link that keeps `x` with chance `g x`, advances: `X`
+holds strings with `g ≥ hi`, and the link multiplies their mass by at least `hi` and the rest's by
+at most `lo`. -/
+def ChainAdvancesBy (X : Measure (FreeMonoid α)) (g : FreeMonoid α → ℝ) (lo hi : ℝ) : Prop :=
+  0 < X.real {x | hi ≤ g x}
+    ∧ hi * X.real {x | hi ≤ g x}
+        ≤ (X.withDensity fun x => ENNReal.ofReal (g x)).real {x | hi ≤ g x}
+    ∧ (X.withDensity fun x => ENNReal.ofReal (g x)).real {x | hi ≤ g x}ᶜ
+        ≤ lo * X.real {x | hi ≤ g x}ᶜ
+
+/-- (4') Some chain advances, filtered by indecision (`x·c` undecided) or by disagreement (`x·c`
+read off the hypothesis's edge). -/
+def ChainAdvancesEither (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α)
+    (H : Hypothesis α) (sources : List (Measure (FreeMonoid α))) (a uHi η wHi : ℝ) : Prop :=
+  ∃ X ∈ sources, ∃ c : α,
+    ChainAdvancesBy X (fun x => stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) a uHi
+      ∨ ChainAdvancesBy X (fun x => edgeDisagreeProb O R.B R.F H x c) η wHi
+
+/-- `RoundTetrachotomyBoth`: `RoundTetrachotomy` with (4') in place of (4), over rounds whose
+hypothesis meets the edge gap. -/
+def RoundTetrachotomyBoth (f a uHi η wHi δ : ℝ) (r : ℕ) : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
+    (nH nS : ℕ) (σ : ℝ) (live : List (Measure (FreeMonoid α))),
+    S.Valid → GapPremise S.A S.O S.B S.F a uHi → uHi / (uHi - 2 * S.τ) < f → f * r * a < uHi →
+    (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
+        let R := readsAt S.O S.B S.F θ.1
+        let s := roundEnd S.K S.O S.B S.F S.seed θ
+        EdgeGapPremise S.O S.B S.F s.hyp η wHi
+          ∧ ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
+          ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ
+            ∧ (PopulationIndecisive S.A S.O R s.hyp S.D S.L S.τ
+              ∨ WrongEdgeHarvest S.A S.O R s.hyp S.D S.L nH nS σ a
+              ∨ ∃ l ∈ s.hyp.tree.paths, ∃ c : α, EdgeSelected S.A S.O R s.hyp S.D l c f a r
+                  ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
+          ∧ ¬ s.halves S.τ
+          ∧ ¬ ChainAdvancesEither S.A S.O R s.hyp
+              (nuRoot S.D S.L :: live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l])
+              a uHi η wHi}
+      ≤ δ
+
 /-- `RoundTetrachotomy`: but for `δ`, a round ends with (1) agreement within `ε`, (2) a population
 the next gate must act on, including a promoted edge population, (3) halving, or (4) a chain
 advanced.  `live` are the chains carried into the round; the round also starts one from the `ν`
