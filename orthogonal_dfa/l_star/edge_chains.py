@@ -21,6 +21,7 @@ from .statistics import binomial_side_of_boundary
 from .suffix_family import SuffixFamily
 
 PROMOTE, ROLL_OVER, DROP = "promote", "roll over", "drop"
+UNDECIDED_EDGE, DISAGREEMENT_EDGE = "undecided", "disagreement"
 
 #: An edge undecided more than this many times the clean per-read bound is mostly
 #: a badly read state: f > uHi / (uHi - 2 tau), which is 2 at the gap uHi = 4 tau.
@@ -30,6 +31,9 @@ EDGE_FACTOR = 3
 EDGE_RISE = 1.5
 #: Chance a round misjudges any of the edges it tests, split evenly over them.
 EDGE_MISJUDGE = 0.01
+#: A decided read's chance of landing on the wrong side (about 1e-14), raised to a
+#: rate a capped test can tell from a disagreement it is worth rolling over.
+CLEAN_FLIP = 1e-6
 
 
 def edge_verdict(
@@ -68,45 +72,76 @@ def separating_reads(low, high, failure_prob) -> int:
     return ceil(2 * high * log(1 / failure_prob) / gap**2)
 
 
+def undecided_measure(sifter, letter):
+    """For an undecided edge: whether ``sifter`` cannot place a draw extended by
+    ``letter``, the node reads that took, and the string it could not place."""
+
+    def measure(drawn):
+        before = sifter.reads
+        leaf, boundary = sifter.sift_and_boundary(drawn + letter)
+        return leaf is None, sifter.reads - before, [boundary] if leaf is None else []
+
+    return measure
+
+
+def midpoint_disagreement(family, tree, transitions, boundary, letter):
+    """For a disagreement edge: whether a draw extended by ``letter``, read at the
+    middle of the band as `estimate_agreement_rate` reads it, lands somewhere other
+    than the hypothesis's edge out of the draw's own leaf; one replay each, and
+    the draw itself, which is the member of the leaf the split test needs."""
+
+    def decide(seq, midfix):
+        return family.mean(seq, midfix) >= boundary
+
+    def measure(drawn):
+        leaf = tree.classify(drawn, decide)
+        landed = tree.classify(drawn + letter, decide)
+        hit = (
+            leaf is not None
+            and landed is not None
+            and landed != transitions[leaf][letter[0]]
+        )
+        return hit, 1, [drawn] if hit else []
+
+    return measure
+
+
 def judge_edge(
-    source, letter, sifter, *, promote_above, keep_above, failure_prob
+    source, measure, *, promote_above, keep_above, failure_prob
 ) -> Tuple[str, List[bytes], float]:
-    """Replay draws of ``source`` extended by ``letter`` through ``sifter`` until
-    `edge_verdict` settles, or until `separating_reads` have been made: the
-    verdict, the boundary strings the replays met, and the undecided rate per
-    read."""
+    """Replay draws of ``source`` through ``measure`` until `edge_verdict` settles,
+    or until `separating_reads` have been made: the verdict, what the replays
+    found, and the hit rate per unit ``measure`` weighs a replay at."""
     cap = separating_reads(keep_above, promote_above, failure_prob)
-    met, undecided, reads = [], 0, 0
-    while reads < cap:
+    found, hits, weight = [], 0, 0
+    while weight < cap:
         try:
             drawn = source.draw()
         except SourceDry:
             break
-        before = sifter.reads
-        leaf, boundary = sifter.sift_and_boundary(drawn + letter)
-        reads += sifter.reads - before
-        if leaf is None:
-            undecided += 1
-            met.append(boundary)
+        hit, cost, got = measure(drawn)
+        hits += hit
+        weight += cost
+        found += got
         verdict = edge_verdict(
-            undecided,
-            reads,
+            hits,
+            weight,
             promote_above=promote_above,
             keep_above=keep_above,
             failure_prob=failure_prob,
-            final=reads >= cap,
+            final=weight >= cap,
         )
         if verdict is not None:
-            return verdict, met, undecided / reads
+            return verdict, found, hits / weight
     verdict = edge_verdict(
-        undecided,
-        reads,
+        hits,
+        weight,
         promote_above=promote_above,
         keep_above=keep_above,
         failure_prob=failure_prob,
         final=True,
     )
-    return verdict, met, undecided / max(reads, 1)
+    return verdict, found, hits / max(weight, 1)
 
 
 def fresh_sifter(pst, tree, vs, used) -> Optional[Tuple[Sifter, frozenset]]:
@@ -138,17 +173,18 @@ def fresh_sifter(pst, tree, vs, used) -> Optional[Tuple[Sifter, frozenset]]:
 
 
 class EdgeChain(RejectionSource):
-    """The draws of ``parent`` whose extension by ``letter`` ``sifter`` could not
-    place; ``used`` is every suffix row this link and those before it read, and
-    ``rate`` the undecided rate per read that rolled it over."""
+    """The draws of ``parent`` that ``measure`` (read on the extension by
+    ``letter``) hits; ``used`` is every suffix row this link and those before it
+    read, and ``rate`` the hit rate that rolled it over."""
 
-    def __init__(self, parent, letter, sifter, *, used, rate):
+    def __init__(self, parent, letter, measure, *, kind, used, rate):
         super().__init__()
         self.parent = parent
         self.letter = letter
+        self.kind = kind
         self.used = used
         self.rate = rate
-        self._sifter = sifter
+        self._measure = measure
 
     @property
     def proving(self) -> tuple:
@@ -156,15 +192,15 @@ class EdgeChain(RejectionSource):
 
     @property
     def poor(self) -> float:
-        # Per read, so at most what an attempt yields.
+        # Per unit the measure weighs, so at most what an attempt yields.
         return self.rate
 
     def attempt_draw(self) -> bool:
         drawn = self.parent.draw()
-        if self._sifter.sift_and_boundary(drawn + self.letter)[0] is None:
+        if self._measure(drawn)[0]:
             self._pool.append(drawn)
             return True
         return False
 
     def source_repr(self) -> str:
-        return f"edge chain on {list(self.letter)}"
+        return f"{self.kind} chain on {list(self.letter)}"

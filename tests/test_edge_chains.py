@@ -16,9 +16,11 @@ from orthogonal_dfa.l_star.edge_chains import (
     DROP,
     PROMOTE,
     ROLL_OVER,
+    UNDECIDED_EDGE,
     EdgeChain,
     edge_verdict,
     separating_reads,
+    undecided_measure,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.prefix_sources import PrefixSource
@@ -68,9 +70,17 @@ class TestAChainKeepsWhatItsRoundCouldNotPlace(unittest.TestCase):
     def test_it_keeps_a_draw_only_when_its_extension_is_undecided(self):
         parent = SimpleNamespace(draw=iter([b"x", b"y"]).__next__)
         sifter = SimpleNamespace(
-            sift_and_boundary=lambda seq: (None, b"") if seq == b"y\x01" else (0, None)
+            reads=0,
+            sift_and_boundary=lambda seq: (None, b"") if seq == b"y\x01" else (0, None),
         )
-        chain = EdgeChain(parent, b"\x01", sifter, used=frozenset(), rate=0.01)
+        chain = EdgeChain(
+            parent,
+            b"\x01",
+            undecided_measure(sifter, b"\x01"),
+            kind=UNDECIDED_EDGE,
+            used=frozenset(),
+            rate=0.01,
+        )
 
         self.assertFalse(chain.attempt_draw())
         self.assertTrue(chain.attempt_draw())
@@ -160,23 +170,28 @@ class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
 
 
 class TestARoundSortsItsEdges(unittest.TestCase):
-    def _round(self, state, sifter):
+    def _round(self, state, sifter, landing=lambda seq: 0):
         pst = SimpleNamespace(
             acceptable_fnr=0.01,
             alphabet_size=2,
             rng=np.random.default_rng(0),
+            decision_boundary=0.5,
             sampler=SimpleNamespace(sample=lambda rng, alphabet_size: bytes(8)),
         )
         # A clean rate of about 0.011 per read, so edges are kept above ~0.017.
         resolver = SimpleNamespace(
             sifter=sifter,
-            family=SimpleNamespace(vs=[1, 2]),
-            tree=None,
+            family=SimpleNamespace(vs=[1, 2], mean=lambda seq, midfix: 0.0),
+            tree=SimpleNamespace(classify=lambda seq, decide: landing(seq)),
             unchecked_quiet_probes=10,
             quiet_reads=999,
         )
         cs._split_edges(
-            pst, resolver, SimpleNamespace(transitions={}), state, acc_threshold=0.98
+            pst,
+            resolver,
+            SimpleNamespace(transitions={0: {0: 0, 1: 0}}),
+            state,
+            acc_threshold=0.98,
         )
 
     def _state(self, chains=()):
@@ -188,7 +203,12 @@ class TestARoundSortsItsEdges(unittest.TestCase):
 
     def _chain(self):
         return EdgeChain(
-            _Counting(), b"\x01", _Sifter({1}), used=frozenset({1}), rate=0.02
+            _Counting(),
+            b"\x01",
+            undecided_measure(_Sifter({1}), b"\x01"),
+            kind=UNDECIDED_EDGE,
+            used=frozenset({1}),
+            rate=0.02,
         )
 
     def test_an_edge_into_a_badly_read_state_becomes_a_population(self):
@@ -206,7 +226,24 @@ class TestARoundSortsItsEdges(unittest.TestCase):
 
         self.assertNotIn(("edge", 1), state.held)
         rolled = [c for c in state.chains if c.parent is state.sources[("state", 0)]]
-        self.assertEqual([b"\x01"], [c.letter for c in rolled])
+        self.assertEqual(
+            [(b"\x01", UNDECIDED_EDGE)], [(c.letter, c.kind) for c in rolled]
+        )
+
+    def test_a_draw_whose_extension_lands_off_its_edge_makes_a_population_of_draws(
+        self,
+    ):
+        state = self._state()
+
+        # Strings ending in 1 land at leaf 1, while the hypothesis keeps them at 0.
+        self._round(
+            state, _Sifter(set()), landing=lambda seq: 1 if seq.endswith(b"\x01") else 0
+        )
+
+        promoted = [label for label in state.held if label[0] == "edge"]
+        self.assertTrue(promoted)
+        for label in promoted:
+            self.assertTrue(all(s.endswith(b"\x00") for s in state.held[label]))
 
     def test_a_chain_that_does_not_rise_on_fresh_suffixes_is_forgotten(self):
         chain = self._chain()

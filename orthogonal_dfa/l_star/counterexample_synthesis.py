@@ -25,14 +25,19 @@ from automata.fa.dfa import DFA
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
 from .edge_chains import (
+    CLEAN_FLIP,
+    DISAGREEMENT_EDGE,
     EDGE_FACTOR,
     EDGE_MISJUDGE,
     EDGE_RISE,
     PROMOTE,
     ROLL_OVER,
+    UNDECIDED_EDGE,
     EdgeChain,
     fresh_sifter,
     judge_edge,
+    midpoint_disagreement,
+    undecided_measure,
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
@@ -47,6 +52,7 @@ from .prefix_sources import (
 )
 from .progress import track
 from .provenance import Read, provenance
+from .split_evidence import _MIN_DETECTABLE_SPLIT
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -155,50 +161,78 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Judge every per-state source, the prefixes reads pass through, and every
-    chain rolled over to this round, each extended by its letters (`judge_edge`):
-    promote it to a population of its own above EDGE_FACTOR times the clean
-    bound, roll it over into a chain where its rate rises over what it is compared
+    """Judge every per-state source and the prefixes reads pass through, each
+    extended by every letter, twice -- for reads the round's band cannot place,
+    and for landings off the hypothesis's edge read at the middle of the band --
+    and every chain rolled over to this round: promote it to a population of its
+    own, roll it over into a chain where its rate rises over what it is compared
     with, or drop it.
 
-    An edge new this round is compared with the pass's own clean rate, a chain
-    with the rate that rolled it over, read on suffixes none of its links read."""
+    An undecided edge is promoted above EDGE_FACTOR times the clean bound, and
+    compared, when new, with the pass's own clean rate; a disagreement edge is
+    promoted where enough of its draws disagree for the split test to see them
+    in their leaf, and compared, when new, with CLEAN_FLIP.  A chain is compared
+    with the rate that rolled it over, an undecided one read on suffixes none of
+    its links read."""
     # Laplace-smoothed: a pass that met no undecided read has not shown a rate of 0.
     clean = (resolver.unchecked_quiet_probes + 1) / (resolver.quiet_reads + 2)
     roots = [state.sources[label] for label in state.held if label[0] == "state"]
     roots.append(PrefixSource(pst))
+    letters = [bytes([c]) for c in range(pst.alphabet_size)]
     candidates = [
-        (root, bytes([c]), None) for root in roots for c in range(pst.alphabet_size)
-    ] + [(chain, chain.letter, chain) for chain in state.chains]
+        (root, letter, kind, None)
+        for root in roots
+        for letter in letters
+        for kind in (UNDECIDED_EDGE, DISAGREEMENT_EDGE)
+    ] + [(chain, chain.letter, chain.kind, chain) for chain in state.chains]
     failure_prob = EDGE_MISJUDGE / max(len(candidates), 1)
+    boundary = pst.decision_boundary
     state.chains = []
-    for source, letter, chain in candidates:
-        if chain is None:
-            sifter, used = resolver.sifter, frozenset(resolver.family.vs)
-            keep_above = EDGE_RISE * clean
+    for source, letter, kind, chain in candidates:
+        used = frozenset()
+        if kind == DISAGREEMENT_EDGE:
+            measure = midpoint_disagreement(
+                resolver.family, resolver.tree, dfa.transitions, boundary, letter
+            )
+            promote_above = _MIN_DETECTABLE_SPLIT
+            keep_above = EDGE_RISE * (CLEAN_FLIP if chain is None else chain.rate)
         else:
-            fresh = fresh_sifter(pst, resolver.tree, resolver.family.vs, chain.used)
-            if fresh is None:
-                state.chains.append(chain)
-                continue
-            sifter, used = fresh[0], fresh[1] | chain.used
-            keep_above = EDGE_RISE * chain.rate
-        verdict, met, rate = judge_edge(
+            promote_above = EDGE_FACTOR * pst.acceptable_fnr
+            if chain is None:
+                sifter, used = resolver.sifter, frozenset(resolver.family.vs)
+                keep_above = EDGE_RISE * clean
+            else:
+                fresh = fresh_sifter(pst, resolver.tree, resolver.family.vs, chain.used)
+                if fresh is None:
+                    state.chains.append(chain)
+                    continue
+                sifter, used = fresh[0], fresh[1] | chain.used
+                keep_above = EDGE_RISE * chain.rate
+            measure = undecided_measure(sifter, letter)
+        verdict, found, rate = judge_edge(
             source,
-            letter,
-            sifter,
-            promote_above=EDGE_FACTOR * pst.acceptable_fnr,
+            measure,
+            promote_above=promote_above,
             keep_above=keep_above,
             failure_prob=failure_prob,
         )
         if verdict == ROLL_OVER:
-            state.chains.append(EdgeChain(source, letter, sifter, used=used, rate=rate))
-        elif verdict == PROMOTE:
-            found = provenance(Read(source, letter), sifter, dfa.transitions, pst.rng)
+            state.chains.append(
+                EdgeChain(source, letter, measure, kind=kind, used=used, rate=rate)
+            )
+        elif verdict == PROMOTE and kind == DISAGREEMENT_EDGE:
+            # The draws, not their extensions: the split test reads members of
+            # the leaf that exhibit the disagreement.
             state.add_edge(
-                met,
+                found,
+                EdgeChain(source, letter, measure, kind=kind, used=used, rate=rate),
+            )
+        elif verdict == PROMOTE:
+            replay = provenance(Read(source, letter), sifter, dfa.transitions, pst.rng)
+            state.add_edge(
+                found,
                 HarvestSource(
-                    Counter({found: 1}),
+                    Counter({replay: 1}),
                     pst.rng,
                     known=state.seen,
                     acc_threshold=acc_threshold,
