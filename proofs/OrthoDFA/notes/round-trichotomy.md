@@ -735,3 +735,38 @@ settled. The covering argument in `gate_flip_bound`'s docstring checks every rea
 `firstDisagreement`, `tally`, `decisiveTarget`, `edgeMisses`, `anchorMisses`). Every one is
 `b·e·m`: b a seed string or probe prefix, e ∈ {1} ∪ α, m a midfix of the final tree. Trees only
 grow, and every midfix is a letter followed by an earlier midfix.
+
+## Option 4 (shared bits bounded adversarially): does not work on its own
+
+The idea was a bound k on how many of a read's |F| bits other reads also read, independent of
+the run, so that a read's flip chance is at most φ_k: Hoeffding with the margin cut by k/|F|.
+No such k exists as a function of F and the midfixes, because of ε ∈ F.
+
+- **What sharing is.** A read of g and a read of h ≠ g share a bit iff g·v = h·v′ for some
+  v, v′ ∈ F. In the Python, F = {ε} ∪ F′ with F′ the sampler's draws, all of length L
+  (`_draw_cohort` → `UniformSampler.sample`), so F′ is suffix-free. Then the only solutions are
+  through ε:
+  - h = g·v for some v ∈ F′ (h's own bit is g's bit through v), or
+  - g = h·v for some v ∈ F′ (g's own bit is h's bit through v).
+- **So k(g) = [g ∈ h·F′ for a read h] + #{v ∈ F′ : g·v is a read string}.** The second count is
+  not bounded by F and the midfixes. Whether g·v is read depends on which probe prefixes and
+  seed strings the run happened to read, and in the worst case it reaches |F′|. Any bound on it is
+  a bound on the chance that one read string is another extended by a whole family suffix,
+  over the probes and the gate's draws. That is option 2's overlap term.
+- **Once those events are excluded, k = 0.** With F′ suffix-free, ε-sharing is the only sharing,
+  so excluding the overlap events leaves no shared bits at all. With the Python's families,
+  option 4 reduces to option 2 and adds nothing.
+
+**What the statement becomes under option 3** (ε left out of the vote; a Python change, not
+made). Reads vote over F′ only. F′ suffix-free makes distinct read strings use disjoint bits:
+g·v = h·v′ with v, v′ ∈ F′ forces g = h, since otherwise one of v, v′ is a proper suffix of the
+other. That is the premise the original argument needed, so `gate_flip_bound` keeps its
+statement with φ unchanged, plus one premise on the family:
+
+    VoteSuffixFree F′ : ∀ v v′ ∈ F′, v ≠ v′ → ¬ (v′ is a suffix of v)
+
+which is irreducible (a property of the input family) and true of the Python's F′. The bound
+stays `(L+1)·2(N+2)·φ/ε + passReadBound·φ`. What it still owes is unchanged: the pass's
+read set as a `Finset`, that it determines the pass, and adaptive independence (each new read
+string's bits unread, so its vote is independent of the past). `ε` would still anchor the
+clustering; only the reads would leave it out.
