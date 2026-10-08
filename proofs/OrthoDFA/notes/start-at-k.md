@@ -415,3 +415,31 @@ as the tree's label does.
 - This needs the pass's probes to be random draws from `D`. Today the model takes any probes.
 
 **Certificate** tests only `q̂`; no change to the Lean, since the certificate is not modelled.
+
+## Lean status: `RoundAtK` proved
+
+`RoundAtK` is proved with no `sorry` (axioms: `propext`, `Classical.choice`, `Quot.sound`).
+
+**Per-outcome batch claims, for any reads.** These are:
+- agreement;
+- ends, under joint stopping at the doubling looks;
+- the pair test, which costs a single `a` and needs no union over looks;
+- refusal with nothing searched;
+- edge ⇒ split test;
+- member ⇒ unlearned edge.
+
+**The triples' claim, over the noise.** The bound is
+`D(triple, well-read) ≤ uGood·depth·E[visits] + |passReadSet|·prefixMax(k+1) + ε·(1 + uGood·depth·L)`.
+It fails with chance at most `prefixMax(k)/ε²`. The proof chain:
+- `qProbe` writes a probe's processing as a computation that asks the cut one string at a time.
+- A triple's harvest is a middle's first undecided read (`triple_first_read`).
+- One draw's fresh first reads are bounded by `uGood` times its tagged reads (`fresh_first_le`,
+  via a relative `cell_bound`).
+- The pass is decided by the bits its reads ask (`runPassK_determined`).
+- Inside each cell of the pass, draws with different first `k` letters read disjoint bits, so
+  Chebyshev applies (`cell_tail_le`). The cells partition the noise (`triple_holds_le`).
+
+**Still to model, once Python lands:**
+- the best-start gate, with agreement read from the root read only;
+- the ends test run only on refusal, on 480 fresh draws plus the quiet window;
+- certification of the chosen start alone.
