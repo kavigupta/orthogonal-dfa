@@ -346,11 +346,23 @@ is the first-order `depth · u*` above.
 gate measures:
 - **End, root read:** the uniform population is full-length draws, so the clustering guarantee
   bounds the family's indecision there, averaged by state weight at length `L`. Derivable.
-- **Start, root read:** no population holds length-`k` strings. Cheap fix: add a population of
-  sampler draws cut to length `k`.
-- **Deeper nodes of either:** the reads `x·m` and `x[:k]·m` are strings no population holds, and
-  each round's midfixes are new. Not derivable. Either keep a source for the undecided reads of
-  end- and start-blocked draws (the removed blocked-draw source; the FNR gate then forces the next
-  family to decide them), or assume it: every state reachable from the start and end states, by
-  the strings the tree can append, is read undecided less than `u*`. That is a premise about the
-  family, not about the target.
+- **Start, root read:** covered by a population of sampler draws cut to length `k` (approved).
+  `StartRootCovered` (`Ends.lean`) turns the clustering's per-population bound into a bound on the
+  start's root indecision. Using the guarantee there needs its existing premises for that
+  population, in particular `collisionMass ≤ cap`, which constrains how small `k` can be.
+- **Deeper nodes of either:** not derivable, so the round gets an ends source (decided). The gate
+  counts end sifts undecided below the root. When that rate per below-root read exceeds
+  `fnr_limit`, the round holds the deeper undecided strings. Quality: incidental indecision at
+  good states (`u ≤ f`) contributes at most `f` per read, so the bad share is at least `1 − f/rate`.
+
+**The ends test as #413 runs it is not a valid sequential test.** `binomial_side_of_boundary(deep,
+below, fnr_limit)` treats each below-root read as an independent trial. Given the persistent
+noise, though, draws are the independent unit, and their read counts vary. Counterexample: 48% of
+draws have one end undecided at the first node below the root (one read, one hit). The rest read
+decided through 9 levels at both ends (18 reads, no hit). Then `ρ = 0.0488`, yet the first 7 draws
+are all light with chance `0.48^7 ≈ 0.006`. At `f = 0.1` those 7 draws trip the test at any
+`a ≥ 1e-7`, so `P(trip ∧ ρ < f − 0.05)` exceeds `ng·a + exp(−2·ng·0.05²)` once `a = 1e-6` and
+`ng = 2000`. A valid version with no extra queries thins to one read per end: draw a level `j`
+uniformly among the `depth − 1` below the root. The end is a trial when its sift read level `j`,
+and a hit when that read was the undecided one. Trials are then i.i.d. `Bernoulli(ρ)`, so the
+exact binomial test and `pi_count_ge` apply.

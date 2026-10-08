@@ -46,6 +46,9 @@
   the draws whenever the target re-rooted at `q` both stays in `S` and agrees with the target on at
   least `1 − η` of them. This is separate from the round: how `H` comes to agree on `S` is not
   assumed here.
+- `OrthoDFA/Ends.lean` — `StartRootCovered`: the FNR gate reads a population of the sampler's
+  draws cut to length `k`, and what it certifies there bounds how often the walk's start is left
+  undecided at the root.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
