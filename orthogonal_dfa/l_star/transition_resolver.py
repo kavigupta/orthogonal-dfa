@@ -72,6 +72,19 @@ _CUT_SHORT = {START_UNDECIDED: "start", END_UNDECIDED: "end"}
 _SEARCHED = (PAIR, EDGE, TRIPLE)
 
 
+#: The draw counts the gate's tests are read at, so their failure chances add
+#: over a handful of looks rather than every draw.  The first, as the gate always
+#: has, waits out an early run of agreements.
+_LOOKS = {
+    *(
+        30 * 2**i
+        for i in range(READING_DRAWS.bit_length())
+        if 30 * 2**i < READING_DRAWS
+    ),
+    READING_DRAWS,
+}
+
+
 def _side(hits, trials, rate):
     return binomial_side_of_boundary(
         hits, trials, rate, failure_prob=READING_FAILURE_PROB
@@ -164,8 +177,8 @@ class TransitionResolver:
         start take it where the middle places it whole.  A read cut short below
         the root counts against ``fnr_limit`` a node below the root on the
         deepest path: where those come significantly more often, the ends and
-        midfixes they were cut short at are kept.  Reading stops once both tests
-        settle."""
+        midfixes they were cut short at are kept.  Reading stops at the first of
+        ``_LOOKS`` where both tests settle."""
         learned = self.learned()
         incidental = (self.tree.depth - 1) * self.pst.fnr_limit
         agreed = deep = 0
@@ -181,9 +194,9 @@ class TransitionResolver:
             if outcome.kind in _CUT_SHORT and len(outcome.string) > outcome.at:
                 deep += 1
                 ends[_CUT_SHORT[outcome.kind], outcome.string[outcome.at :]] = None
-            # As the gate always has, before an early run of agreements can stop it.
-            if len(outcomes) >= 30:
-                agrees = _side(agreed, len(outcomes), acc_threshold)
+            if len(outcomes) not in _LOOKS:
+                continue
+            agrees = _side(agreed, len(outcomes), acc_threshold)
             if 0 < incidental < 1:
                 cut = _side(deep, len(outcomes), incidental)
             if agrees is not None and (cut is not None or not 0 < incidental < 1):

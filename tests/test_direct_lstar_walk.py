@@ -159,10 +159,10 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner = _reader(lambda seq: 7)
         reading = learner.read_fresh(acc_threshold=0.5)
 
-        # The agreement settles at 30 draws, its least; no end cut short below
-        # the root settles under 0.1 at the 66th, since 0.9 ** 66 < 1e-3 <
-        # 0.9 ** 65.
-        self.assertEqual(66, learner.drawn)
+        # The tests are read at 30, 60, 120, ... draws.  The agreement settles at
+        # the first; no end cut short below the root settles under 0.1 only by
+        # the third, since 0.9 ** 60 > 1e-3 > 0.9 ** 120.
+        self.assertEqual(120, learner.drawn)
         self.assertEqual(1.0, reading.agreement)
 
     def test_ends_cut_short_below_the_root_too_often_are_kept_by_midfix(self):
