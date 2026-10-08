@@ -476,6 +476,180 @@ theorem good_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGood : �
   exact ENNReal.ofReal_le_ofReal ((show μ.real {ω | ¬ decided O.mq B.lo B.hi F z ω}
     = undecidedProb O B.lo B.hi F z from rfl) ▸ hle.trans hz.le)
 
+theorem freshTriple_firstBad (A : DFA (FreeMonoid α) Q) {uGood : ℝ} {R : CutReads α}
+    {t : DTree α} {edges : Edges α} {Tp : Finset (FreeMonoid α)} {x : FreeMonoid α}
+    (h : FreshTriple A O B F uGood R t edges Tp k x) :
+    FirstBad ((qProbe t edges k x).trace R.cut) Tp R.cut
+      fun z => stateIndecision A O B F (A.state z) < uGood := by
+  obtain ⟨j, b, hj, hb, hg, hT⟩ := h
+  obtain ⟨hcut, r, hr, hrb, hfirst⟩ := triple_first_read R hj hb
+  refine ⟨r, hr, by rw [hrb], by rw [hrb]; exact hT, fun i hi => by rw [hrb]; exact hfirst i hi,
+    by rw [hrb]; exact hcut, by rw [hrb]; exact hg⟩
+
+theorem tagCount_le (R : CutReads α) (t : DTree α) (edges : Edges α) (x : FreeMonoid α) :
+    tagCount R t edges k x ≤ t.depth * x.toList.length :=
+  (qProbe_countP R t edges k x).trans (Nat.mul_le_mul_left _ (visits_le R t edges k x))
+
+/-- Inside a cell of the pass, a draw's share is pulled down on average: its fresh triples are
+outnumbered by `uGood` times its tagged reads. -/
+theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGood : ℝ}
+    (hu : 0 ≤ uGood) (hV : SuffixFree (F ∪ K.train F))
+    {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
+    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (x : FreeMonoid α) :
+    μ.real (pcell O (F ∪ K.train F) c)
+      * ∫ ω, contrib A O B F uGood (cellReads O B F (F ∪ K.train F) c ω)
+          (passK O B F K k seed probes ω₀).tree (passK O B F K k seed probes ω₀).edges c.1 k x ∂μ
+      ≤ 0 := by
+  classical
+  set V := F ∪ K.train F
+  set s₀ := passK O B F K k seed probes ω₀
+  set P := pcell O V c
+  set C := passCell O B F K k seed probes c
+  set FTc : Ω → Prop := fun ω => FreshTriple A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
+  set tc : Ω → ℕ := fun ω => tagCount (cellReads O B F V c ω) s₀.tree s₀.edges k x
+  set h : Ω → ℝ := fun ω => contrib A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
+  obtain ⟨hFTm, htcm, hhm⟩ := measurable_contrib A O B F V uGood c s₀.tree s₀.edges c.1 k x
+  have hle := noiseAlg_le O
+  have hFTm' : MeasurableSet {ω | FTc ω} := hle _ _ hFTm
+  have htcm' : Measurable fun ω => (tc ω : ℝ) := by
+    refine Measurable.comp (g := fun n : ℕ => (n : ℝ)) measurable_from_top ?_
+    exact measurable_to_countable' fun n => hle _ _ (htcm n)
+  have hhm' : Measurable h := hhm.mono (hle _) le_rfl
+  have hPm : MeasurableSet[noiseAlg O ↑(vBits V c.1)] P :=
+    (measurableSet_noisePattern O _ c.2).inter (measurableSet_noiseClean O _)
+  have hPm' : MeasurableSet P := hle _ _ hPm
+  have hbound : ∀ ω, (tc ω : ℝ) ≤ s₀.tree.depth * x.toList.length := fun ω => by
+    exact_mod_cast tagCount_le k _ _ _ x
+  have hint_tc : Integrable (fun ω => (tc ω : ℝ)) μ :=
+    Integrable.of_bound htcm'.aestronglyMeasurable _ (ae_of_all _ fun ω => by
+      rw [Real.norm_of_nonneg (Nat.cast_nonneg _)]; exact hbound ω)
+  have hint_h : Integrable h μ :=
+    Integrable.of_bound hhm'.aestronglyMeasurable (1 + uGood * (s₀.tree.depth * x.toList.length))
+      (ae_of_all _ fun ω => by
+        have h0 : (0 : ℝ) ≤ tc ω := Nat.cast_nonneg _
+        have h1 := hbound ω
+        simp only [h, contrib, Real.norm_eq_abs]
+        split_ifs <;> rw [abs_le] <;> constructor <;> nlinarith)
+  -- `P` is independent of the draw's share
+  have hdisj : Disjoint (↑(vBits V c.1) : Set (FreeMonoid α)) (drawBits V c k x) :=
+    Set.disjoint_left.2 fun z hz hz' => hz'.2 hz
+  have hPi : Measurable[noiseAlg O ↑(vBits V c.1)] (P.indicator (1 : Ω → ℝ)) :=
+    Measurable.indicator measurable_const hPm
+  have hind : (P.indicator (1 : Ω → ℝ)) ⟂ᵢ[μ] h := indepFun_of_noiseAlg O hdisj hPi hhm
+  have e1 : ∫ ω, P.indicator 1 ω * h ω ∂μ = μ.real P * ∫ ω, h ω ∂μ := by
+    have := hind.integral_mul_eq_mul_integral (hPi.mono (hle _) le_rfl).aestronglyMeasurable
+      hhm'.aestronglyMeasurable
+    simp only [Pi.mul_apply] at this
+    rw [this, integral_indicator_one hPm']
+  -- `P` and the cell agree off a null set
+  have hCP : C ⊆ P := fun ω hω => hω.1.1
+  have hcl := measure_cleanAll_compl O (μ := μ)
+  have hae : ∀ᵐ ω ∂μ, P.indicator (1 : Ω → ℝ) ω = C.indicator 1 ω := by
+    have : ∀ᵐ ω ∂μ, ω ∈ cleanAll O := ae_iff.2 hcl
+    filter_upwards [this] with ω hω
+    by_cases hP : ω ∈ P
+    · rw [Set.indicator_of_mem hP,
+        Set.indicator_of_mem (passCell_const O B F K k seed probes h₀ hP hω).2]
+    · rw [Set.indicator_of_notMem hP, Set.indicator_of_notMem fun h => hP (hCP h)]
+  have e2 : ∫ ω, P.indicator 1 ω * h ω ∂μ = ∫ ω, C.indicator 1 ω * h ω ∂μ :=
+    integral_congr_ae (hae.mono fun ω hω => by
+      change P.indicator 1 ω * h ω = C.indicator 1 ω * h ω
+      rw [hω])
+  -- on the cell, the cell's reads are the oracle's
+  have hon : ∀ ω ∈ C, cellReads O B F V c ω = readsAt O B F ω
+      ∧ passK O B F K k seed probes ω = s₀ ∧ passReads O B F K k seed probes ω = c.1 := by
+    intro ω hω
+    exact ⟨cellReads_eq O B F V c hω.1.1.1 hω.1.2,
+      (passCell_const O B F K k seed probes h₀ hω.1.1 hω.1.2).1, hω.2⟩
+  -- the fresh triples, by `fresh_first_le`
+  set st : Ω → DTree α × Edges α := fun ω =>
+    ((passK O B F K k seed probes ω).tree, (passK O B F K k seed probes ω).edges)
+  set C₀ := P ∩ {ω | passReads O B F K k seed probes ω = c.1}
+  have hst : ∀ ω ω', (∀ y ∈ vBits V (passReads O B F K k seed probes ω),
+      O.noise y ω = O.noise y ω') → st ω' = st ω
+        ∧ passReads O B F K k seed probes ω' = passReads O B F K k seed probes ω := by
+    intro ω ω' hag
+    have hs := passK_determined O B F K k seed probes ω ω' hag
+    exact ⟨by simp only [st, hs], by simp only [passReads, hs]⟩
+  have hC₀ : ∀ ω ω', (∀ y ∈ vBits V (passReads O B F K k seed probes ω),
+      O.noise y ω = O.noise y ω') → (ω' ∈ C₀ ↔ ω ∈ C₀) := by
+    intro ω ω' hag
+    have hT := (hst ω ω' hag).2
+    by_cases hω : passReads O B F K k seed probes ω = c.1
+    · rw [hω] at hag
+      have hpat : noisePattern O (vBits V c.1) ω' = noisePattern O (vBits V c.1) ω :=
+        Finset.filter_congr fun y hy => by rw [hag y hy]
+      have hcln : ω' ∈ noiseClean O (vBits V c.1) ↔ ω ∈ noiseClean O (vBits V c.1) := by
+        simp only [noiseClean, Set.mem_ofPred_eq]
+        exact forall₂_congr fun y hy => by rw [hag y hy]
+      simp only [C₀, P, pcell, Set.mem_inter_iff, Set.mem_ofPred_eq, hpat, hcln, hT]
+    · simp only [C₀, Set.mem_inter_iff, Set.mem_ofPred_eq, hT, hω, and_false]
+  have hfresh := fresh_first_le O B F V hV Finset.subset_union_left st
+    (passReads O B F K k seed probes) hst C₀ hC₀ k x
+    (fun z => stateIndecision A O B F (A.state z) < uGood) (u := ENNReal.ofReal uGood)
+    fun z hz => good_le O B F A z hz
+  have hsub : C ∩ {ω | FTc ω} ⊆ {ω | ω ∈ C₀ ∧ FirstBad (probeTrace O B F st k x ω)
+      (passReads O B F K k seed probes ω) (readsAt O B F ω).cut
+      fun z => stateIndecision A O B F (A.state z) < uGood} := by
+    rintro ω ⟨hω, hft⟩
+    obtain ⟨hr, hs, hT⟩ := hon ω hω
+    refine ⟨⟨hω.1.1, hT⟩, ?_⟩
+    have hft' : FreshTriple A O B F uGood (readsAt O B F ω) (st ω).1 (st ω).2
+        (passReads O B F K k seed probes ω) k x := by
+      simp only [st, hs, hT]; simpa [FTc, hr] using hft
+    exact freshTriple_firstBad O B F k A hft'
+  have hlin : ∫⁻ ω, C₀.indicator (fun ω => (((probeTrace O B F st k x ω).countP (·.2) : ℕ)
+      : ℝ≥0∞)) ω ∂μ = ∫⁻ ω, ENNReal.ofReal (C.indicator (fun ω => (tc ω : ℝ)) ω) ∂μ := by
+    have : ∀ᵐ ω ∂μ, ω ∈ cleanAll O := ae_iff.2 hcl
+    refine lintegral_congr_ae (this.mono fun ω hcl' => ?_)
+    beta_reduce
+    by_cases hω : ω ∈ C₀
+    · have hC : ω ∈ C := (passCell_const O B F K k seed probes h₀ hω.1 hcl').2
+      obtain ⟨hr, hs, -⟩ := hon ω hC
+      rw [Set.indicator_of_mem hω, Set.indicator_of_mem hC, ENNReal.ofReal_natCast]
+      simp only [probeTrace, st, hs, tc, tagCount, hr]
+    · have hC : ω ∉ C := fun h => hω ⟨h.1.1, h.2⟩
+      rw [Set.indicator_of_notMem hω, Set.indicator_of_notMem hC, ENNReal.ofReal_zero]
+  have hCm : MeasurableSet C := by
+    have : C = P ∩ cleanAll O := by
+      ext ω; constructor
+      · intro hω; exact ⟨hω.1.1, hω.1.2⟩
+      · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
+    rw [this]; exact hPm'.inter (measurableSet_cleanAll O)
+  have hint_ctc : Integrable (C.indicator fun ω => (tc ω : ℝ)) μ := hint_tc.indicator hCm
+  have hFTbound : μ.real (C ∩ {ω | FTc ω}) ≤ uGood * ∫ ω, C.indicator (fun ω => (tc ω : ℝ)) ω ∂μ := by
+    have h1 := (measure_mono hsub).trans hfresh
+    rw [hlin, ← ofReal_integral_eq_lintegral_ofReal hint_ctc
+      (ae_of_all _ fun ω => Set.indicator_nonneg (fun ω _ => Nat.cast_nonneg _) ω),
+      ← ENNReal.ofReal_mul hu] at h1
+    rw [measureReal_def]
+    exact ENNReal.toReal_le_of_le_ofReal (mul_nonneg hu (integral_nonneg fun ω =>
+      Set.indicator_nonneg (fun _ _ => Nat.cast_nonneg _) ω)) h1
+  -- assemble
+  have e3 : ∫ ω, C.indicator 1 ω * h ω ∂μ
+      = μ.real (C ∩ {ω | FTc ω}) - uGood * ∫ ω, C.indicator (fun ω => (tc ω : ℝ)) ω ∂μ := by
+    have hpt : (fun ω => C.indicator 1 ω * h ω) = fun ω =>
+        (C ∩ {ω | FTc ω}).indicator (fun _ => (1 : ℝ)) ω
+          - uGood * C.indicator (fun ω => (tc ω : ℝ)) ω := by
+      funext ω
+      by_cases hC : ω ∈ C
+      · rw [Set.indicator_of_mem hC, Set.indicator_of_mem hC, Pi.one_apply, one_mul]
+        by_cases hf : FTc ω
+        · rw [Set.indicator_of_mem (show ω ∈ C ∩ {ω | FTc ω} from ⟨hC, hf⟩)]
+          simp only [h, contrib]
+          rw [if_pos hf]
+        · rw [Set.indicator_of_notMem (show ω ∉ C ∩ {ω | FTc ω} from fun h' => hf h'.2)]
+          simp only [h, contrib]
+          rw [if_neg hf]
+      · rw [Set.indicator_of_notMem hC, Set.indicator_of_notMem hC,
+          Set.indicator_of_notMem (show ω ∉ C ∩ {ω | FTc ω} from fun h' => hC h'.1)]
+        simp
+    rw [hpt, integral_sub ((integrable_const (1 : ℝ)).indicator (hCm.inter hFTm'))
+      (hint_ctc.const_mul _), integral_indicator_const _ (hCm.inter hFTm'), integral_const_mul,
+      smul_eq_mul, mul_one]
+  rw [← e1, e2, e3]
+  linarith
+
 end PassCells
 
 end OrthoDFA
