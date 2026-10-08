@@ -322,7 +322,8 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
       have hx := hwit _ _ _ _ he
       have hsp := hw (fd - 1)
       rw [sift_congr (B := B) hx.one.tree, sift_congr (B := B) hsp.one.tree]
-      split_ifs with hcond
+      split_ifs with hplace hcond
+      · exact settle_congr hone
       · exact settle_congr hone
       · rw [DTree.firstDisagreement_congr (c₁ := (rd B F f₁).cut) (c₂ := (rd B F f₂).cut) s.tree
           fun m hm => ⟨cut_congr (hx.one.letter' c m hm), cut_congr (hsp.one.letter' c m hm)⟩]

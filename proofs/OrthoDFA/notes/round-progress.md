@@ -150,11 +150,11 @@ D·τ²/(4(u* − τ)).
 
 ## `RoundProgress`: the provable statement, and paring it down
 
-`RoundProgress` (`Round.lean`, proved as `round_progress`) models #410 at 954011e in `Pass.lean`:
+`RoundProgress` (`Round.lean`, proved as `round_progress`) models #410 at 2dd6e04 in `Pass.lean`:
 - the walk from the gate's start, restarting from the anchor where they part;
-- the bisection population: the search's first undecided read, the in-band reads of the gate's
-  reading of an unplaceable probe that leaves the walk, and the in-band reads of the gate's
-  reading of `ε`.
+- the bisection population: the search's first undecided read, the prefix before a placeholder
+  edge the search lands on, the in-band reads of the gate's reading of an unplaceable probe that
+  leaves the walk, and the in-band reads of the gate's reading of `ε`.
 
 The gate's reads are not counted in `probeReads`. The population is stated over its distinct
 strings.

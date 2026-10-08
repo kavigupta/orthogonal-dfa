@@ -93,8 +93,9 @@ structure PassState (α : Type*) where
   boundary : List (FreeMonoid α)
   disagreements : List (FreeMonoid α)
   /-- What disagreeing probes could not place: the first read the search for the disagreeing
-  edge meets undecided, or every read in the band on the gate's reading of a probe the cut cannot
-  place that it sends off the walk; and every read in the band on the gate's reading of `ε`. -/
+  edge meets undecided, the prefix before an edge the hypothesis does not hold that it lands on,
+  or every read in the band on the gate's reading of a probe the cut cannot place that it sends
+  off the walk; and every read in the band on the gate's reading of `ε`. -/
   bisected : List (FreeMonoid α)
 
 variable (K : StageKnobs α) (R : CutReads α)
@@ -218,10 +219,12 @@ noncomputable def settle (t : DTree α) (pool : List (FreeMonoid α))
       (Finset.univ : Finset α).toList.flatMap fun c => edgeMisses R t c (members K R t pool p),
     disagreements := disagreements, bisected := bisected }
 
-/-- After a probe's walk and sift part at `fd`: the disagreement on the edge into `fd`.  The edge
-the walk took splits its leaf when the evidence confirms it, and the two strings that exhibited it
-join the population; otherwise the probe's own string at the leaf joins it ahead of the rest, so
-it is a member however many the leaf holds, and is harvested when the evidence says no split. -/
+/-- After a probe's walk and sift part at `fd`: the disagreement on the edge into `fd`.  One the
+walk took on an edge the hypothesis does not hold holds its prefix in the bisection population.
+The edge the walk took splits its leaf when the evidence confirms it, and the two strings that
+exhibited it join the population; otherwise the probe's own string at the leaf joins it ahead of
+the rest, so it is a member however many the leaf holds, and is harvested when the evidence says
+no split. -/
 noncomputable def onEdge (s : PassState α) (w : FreeMonoid α) (walkAt : ℕ → List Bool)
     (pool boundary held : List (FreeMonoid α)) (fd : ℕ) : PassState α :=
   let t := s.tree
@@ -231,10 +234,13 @@ noncomputable def onEdge (s : PassState α) (w : FreeMonoid α) (walkAt : ℕ �
   | some c =>
     let s1 := walkAt (fd - 1)
     let sprime := prefixOf w (fd - 1)
+    let placeholder := settle K R t pool s.edges (s.streak + 1) s.unchecked boundary
+      s.disagreements (held ++ [sprime])
     match s.edges s1 c with
-    | none => clean
+    | none => placeholder
     | some (s2, x) =>
-      if s2 ≠ walkAt fd ∨ t.sift R.cut x ≠ .inl s1 ∨ t.sift R.cut sprime ≠ .inl s1 then clean
+      if s2 ≠ walkAt fd then placeholder
+      else if t.sift R.cut x ≠ .inl s1 ∨ t.sift R.cut sprime ≠ .inl s1 then clean
       else
       match t.firstDisagreement R.cut x sprime (FreeMonoid.of c) with
       | none => clean
