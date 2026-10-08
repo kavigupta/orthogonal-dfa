@@ -30,7 +30,7 @@ remapping on export.
 """
 
 import math
-from collections import namedtuple
+from collections import Counter, namedtuple
 
 from automata.fa.dfa import DFA
 
@@ -54,13 +54,16 @@ PAIR_SHARE = 0.5
 READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the start
-#: that agrees on most of them and the share it agrees on, per harvested outcome
+#: that agrees on most of them and the share it agrees on, and on a refusal
+#: sample, per harvested outcome
 #: the strings a refusal sample's disagreements left (see ``_harvested``),
 #: whether too many came down to a pair, the ends and midfixes the cut stopped
 #: below the root at where it did so too often, the draws searched down to an
 #: edge, and the learned and exported edges they were read against.
 Reading = namedtuple(
-    "Reading", "start agreement harvests pairs ends disagreements learned transitions"
+    "Reading",
+    "start agreement sample_agreement harvests pairs ends disagreements learned"
+    " transitions",
 )
 
 #: The outcomes whose strings a refusal sample holds, and the populations they
@@ -123,6 +126,21 @@ def _refusal_tests(sample, incidental, pair_rate):
     )
 
 
+def give_up_after(pst, *, edges, test_suffixes) -> int:
+    """Three times the members a split test needs on a real wrong edge: each
+    decided member moves the log Bayes factor by about ``test_suffixes`` times
+    KL(1/2 + s || 1/2) at the promised signal s, against the threshold
+    log(2T / split_pval) over the T ``edges``."""
+    gain = test_suffixes * _kl_from_half(pst.config.min_signal_strength)
+    threshold = math.log(2 * edges / pst.config.split_pval)
+    return 3 * math.ceil(threshold / gain)
+
+
+def _kl_from_half(signal) -> float:
+    p = 0.5 + signal
+    return p * math.log(2 * p) + (1 - p) * math.log(2 * (1 - p))
+
+
 def _best(agree) -> int:
     return max(range(len(agree)), key=lambda q: (agree[q], -q))
 
@@ -141,6 +159,8 @@ class TransitionResolver:
         self.indecisive = set()
         #: Probes since the pass's last split or undecided split test.
         self.quiet_probes = 0
+        #: Per edge, the split tests on it this round that did not split.
+        self.unsplit = Counter()
         self.k = start_length(pst.sampler.length)
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
@@ -230,7 +250,7 @@ class TransitionResolver:
                 break
         start = _best(agree)
         reading = Reading(
-            start, agree[start] / drawn, {}, False, [], [], None, transitions
+            start, agree[start] / drawn, None, {}, False, [], [], None, transitions
         )
         if reading.agreement >= acc_threshold:
             return reading
@@ -249,30 +269,24 @@ class TransitionResolver:
         return (end in self.tree.accepting_leaves()) == self.family.middle_side(w, b"")
 
     def _refused(self, gate, transitions) -> Reading:
-        """``gate`` with what a refusal sample, read against its start, holds.
+        """``gate`` with what a refusal sample holds.
 
-        Each draw's start and whole are sifted, and where the start disagrees on
-        it, it is read from ``k`` (see ``read``).  Starts and wholes the cut
-        stops below the root at are each tested against ``fnr_limit`` a node
-        below the root on the deepest path, and the pairs among the searches
-        against ``PAIR_SHARE`` of them: the sample is read at
-        each of ``_REFUSAL_LOOKS`` until all three settle."""
+        Each draw is read from ``k`` (see ``read``), and its start and whole
+        sifted.  Starts and wholes the cut stops below the root at are each
+        tested against ``fnr_limit`` a node below the root on the deepest path,
+        and the pairs among the searches against ``PAIR_SHARE`` of them: the
+        sample is read at each of ``_REFUSAL_LOOKS`` until all three settle.
+        Edges given up on (see ``given_up``) are not rerun."""
         learned = self.learned()
-        rates = (
-            (self.tree.depth - 1) * self.pst.fnr_limit,
-            PAIR_SHARE,
-        )
+        rates = ((self.tree.depth - 1) * self.pst.fnr_limit, PAIR_SHARE)
         sample = []
+        agreed = 0
         while len(sample) < REFUSAL_DRAWS:
             w = self._draw()
-            agrees = self._accepts(self._ends_at(w, transitions)[gate.start], w)
+            agreed += self._accepts(self._ends_at(w, transitions)[gate.start], w)
+            outcome = self._read(w, learned)
             sample.append(
-                (
-                    w,
-                    self._below_root(w[: self.k]),
-                    self._below_root(w),
-                    None if agrees else self._read(w, learned),
-                )
+                (w, self._below_root(w[: self.k]), self._below_root(w), outcome)
             )
             if len(sample) in _REFUSAL_LOOKS and all(
                 _settled(*test) for test in _refusal_tests(sample, *rates)
@@ -285,14 +299,14 @@ class TransitionResolver:
             *(("start", m) for m in dict.fromkeys(s[1] for s in sample) if start_cut),
             *(("end", m) for m in dict.fromkeys(s[2] for s in sample) if end_cut),
         ]
-        searched = [(w, o) for w, _, _, o in sample if o and o.kind in _SEARCHED]
         return gate._replace(
+            sample_agreement=agreed / len(sample),
             harvests={
                 kind: list(
                     dict.fromkeys(
                         string
                         for *_, o in sample
-                        if o is not None and o.kind == kind
+                        if o.kind == kind
                         for string in _harvested(o)
                     )
                 )
@@ -300,8 +314,21 @@ class TransitionResolver:
             },
             pairs=pairs,
             ends=[(end, m) for end, m in held if m is not None],
-            disagreements=[w for w, o in searched if o.kind == EDGE],
+            disagreements=[
+                w
+                for w, *_, o in sample
+                if o.kind == EDGE and not self.given_up(o.state, w[o.at - 1])
+            ],
             learned=learned,
+        )
+
+    def given_up(self, state, c) -> bool:
+        """Whether the edge ``(state, c)`` has had ``give_up_after`` split
+        tests in the round come out other than a split."""
+        return self.unsplit[state, c] >= give_up_after(
+            self.pst,
+            edges=self.num_states * self.pst.alphabet_size,
+            test_suffixes=len(self.family.test_idx),
         )
 
     def _read(self, w, learned):
@@ -310,10 +337,7 @@ class TransitionResolver:
     def replay(self, gate, kind):
         """Read a fresh draw as the ``gate``'s refusal sample did, for what an
         outcome of ``kind`` leaves."""
-        w = self._draw()
-        if self._accepts(self._ends_at(w, gate.transitions)[gate.start], w):
-            return []
-        outcome = self._read(w, gate.learned)
+        outcome = self._read(self._draw(), gate.learned)
         return list(_harvested(outcome)) if outcome.kind == kind else []
 
     # -- counterexamples ----------------------------------------------------
@@ -369,6 +393,8 @@ class TransitionResolver:
         if distinguisher is None:
             return False
         if self.splits.verdict(s1, distinguisher) == SPLIT:
+            for edge in [e for e in self.unsplit if e[0] == s1]:
+                del self.unsplit[edge]
             self._split(s1, distinguisher)
             for p in (witness, sprime):
                 st = self._sift(p)
@@ -379,6 +405,7 @@ class TransitionResolver:
         # where they rule a split out; keeping sprime, ahead of the member limit,
         # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1))
+        self.unsplit[s1, c] += 1
         return True
 
     # -- edge closing -------------------------------------------------------

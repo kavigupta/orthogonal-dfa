@@ -11,6 +11,7 @@ up as a state count that also moves for unrelated reasons.
 # pylint: disable=protected-access
 
 import unittest
+from collections import Counter
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.sifting import PAIR, TRIPLE
@@ -57,7 +58,12 @@ class _Learner(TransitionResolver):
         self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2, depth=2)
         self.dfa = SimpleNamespace(transitions=transitions, witness=lambda s, c: b"")
         self.k = k
-        self.pst = SimpleNamespace(fnr_limit=0.1)
+        self.pst = SimpleNamespace(
+            fnr_limit=0.1,
+            alphabet_size=2,
+            config=SimpleNamespace(min_signal_strength=0.3, split_pval=0.001),
+        )
+        self.unsplit = Counter()
         self.draws = iter(())
         self.drawn = 0
 
@@ -128,7 +134,9 @@ def _gate(places, transitions, *, k=2, label=True):
     every draw as ``label``."""
     learner = _Learner(_StubSifter(places), transitions, k)
     learner.tree.accepting_leaves = lambda: {1}
-    learner.family = SimpleNamespace(middle_side=lambda seq, midfix: label)
+    learner.family = SimpleNamespace(
+        middle_side=lambda seq, midfix: label, test_idx=range(31)
+    )
     learner.draws = iter([_PROBE] * 4000)
     return learner
 
@@ -156,13 +164,20 @@ class TestReadingFreshDraws(unittest.TestCase):
         # Only the first draw, before start 1 led, was read from k.
         self.assertEqual([], reading.disagreements)
 
-    def test_a_draw_the_best_start_disagrees_on_is_read_from_k(self):
-        reading = _gate(_disagreeing(set()), _TO_REJECT).read_fresh(acc_threshold=0.9)
+    def test_a_refusal_samples_edges_are_rerun_until_given_up(self):
+        learner = _gate(_disagreeing(set()), _TO_REJECT)
+        reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
         self.assertEqual({}, {k: v for k, v in reading.harvests.items() if v})
         self.assertFalse(reading.pairs)
+
+        # The search lands on the edge out of 0 on the probe's last symbol; six
+        # split tests on it without a split give it up at the signal stubbed.
+        learner.unsplit[0, _PROBE[-1]] = 6
+        learner.draws = iter([_PROBE] * 4000)
+        self.assertEqual([], learner.read_fresh(acc_threshold=0.9).disagreements)
 
     def test_a_triple_leaves_its_middles_boundary_string(self):
         reading = _gate(_disagreeing({3}), _TO_REJECT).read_fresh(acc_threshold=0.9)

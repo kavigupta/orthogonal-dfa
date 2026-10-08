@@ -131,9 +131,9 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 def _read_round(resolver, *, patience, acc_threshold):
     """The pass, then the gate on the hypothesis it leaves.  A refusal goes back
-    to the pass with the edges its refusal sample's searches ended at as its
-    first probes, and is gated again, until a gate passes, a refusal sample ends
-    at no edge, or the round's probes run out."""
+    to the pass with the edges its refusal sample's searches ended at, but those
+    given up on, as its first probes, and is gated again, until a gate passes,
+    a refusal sample ends at no such edge, or the round's probes run out."""
     first, probes = [], COUNTEREXAMPLE_PROBES
     while True:
         probes -= resolver.counterexample_pass(
@@ -171,15 +171,12 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
             state.hold_found(HARVESTED[kind], found, source)
 
 
-def _halve(pst, gate, *, acc_threshold) -> bool:
+def _halve(pst, gate) -> bool:
     """Halve the FNR limit where the gate's refusal sample came down to a pair
-    too often, or the gate refused with no edge to rerun.  Says whether
-    it halved."""
-    refused = gate.agreement < acc_threshold and not gate.disagreements
-    if refused or gate.pairs:
+    too often.  Says whether it halved."""
+    if gate.pairs:
         pst.fnr_limit /= 2
-        return True
-    return False
+    return gate.pairs
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -379,7 +376,7 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if _halve(pst, gate, acc_threshold=acc_threshold):
+        if _halve(pst, gate):
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _hold_harvests(
             pst, resolver, gate, state, per_state=per_state, acc_threshold=acc_threshold
