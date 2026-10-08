@@ -336,6 +336,20 @@ read, which is `gate_flip_bound`'s machinery (`cell_bound`). Concentration over 
 strings uses the spread: a middle has length `≥ k + 1`, so one string carries at most
 `p_max^(k+1)` of the draws.
 
+**The relative bound does not survive the exact search.** The search reads its middle's neighbours
+only when the middle is undecided. Had the middle been decided, the search would narrow to
+`(j, hi)` or `(lo, j)` and go on, so it lands on the edge at `j` or `j + 1` only when that bound
+was already `j + 1` or `j − 1`. Otherwise it can end at another edge, a pair, or another triple:
+the walk can re-agree further right. So "triple vs edge-landing on the same pair" is not a
+counterfactual pair. What does hold, over the fresh noise of the middle's reads:
+- `V_j` is the event that the search visits `j` with `j − 1` agreeing and `j + 1` disagreeing,
+  both decided. It depends only on reads of other prefixes, and every read it conditions on is
+  decided.
+- A middle string that coincides with one of those reads is decided, so collisions only help.
+- Hence `P(triple at j, harvested u < u*) ≤ S · P(V_j)`, with `S = depth · u*`.
+- Summed, `D(triple, u < u*) ≤ S · E[Φ]`. `Φ` counts the flanked middles the search visits. It is
+  zero off decided disagreements and at most `⌈log₂(L − k)⌉ + 1`.
+
 **`u_sift²` is not what quality needs.** Two adjacent undecided reads make a run, which is never
 harvested, so they cannot contaminate the harvest. Its mass, about `(L − k)·u_sift²`, is what keeps
 runs rare. That is a liveness condition, and it is what halving controls. The contamination term
