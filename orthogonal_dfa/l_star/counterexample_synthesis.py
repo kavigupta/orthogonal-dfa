@@ -181,7 +181,9 @@ def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
     goes back to the pass with the gate's disagreeing draws as its first probes
     and is gated again, until a gate passes, a pass so continued splits nothing,
     or the round's probes run out."""
-    walk = FrozenCheck(resolver, acc_threshold=acc_threshold, whole=False)
+    walk = FrozenCheck(
+        resolver, acc_threshold=acc_threshold, fnr_limit=pst.fnr_limit, whole=False
+    )
     read_fresh_draws(pst, walk, num_samples=GATE_DRAWS)
     if walk.blocks:
         resolver.recent = deque(walk.draws, maxlen=patience)
@@ -192,7 +194,9 @@ def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
         probes -= resolver.counterexample_pass(
             max_probes=probes, patience=patience, first=first
         )
-        check = FrozenCheck(resolver, acc_threshold=acc_threshold, whole=True)
+        check = FrozenCheck(
+            resolver, acc_threshold=acc_threshold, fnr_limit=pst.fnr_limit, whole=True
+        )
         read_fresh_draws(pst, check, num_samples=GATE_DRAWS)
         stalled = first and resolver.num_states == states
         if check.blocks or check.agreement.rate >= acc_threshold or stalled:
@@ -205,8 +209,9 @@ def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
 def _report_gate(check, index, tracker) -> None:
     print(
         f"[round {index}] DFA/DT consistency on fresh samples: "
-        f"{check.agreement.rate:.4f}; {check.blocked.rate:.4f} of "
-        f"{check.blocked.draws} draws blocked"
+        f"{check.agreement.rate:.4f} over {check.agreement.trials} draws; "
+        f"{check.blocked.hits} of {len(check.draws)} blocked over "
+        f"{check.blocked.trials} reads"
     )
     tracker.on_consistency_estimated(check.agreement.rate, index)
 
@@ -409,7 +414,7 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if _blocked_at_limit(resolver, pst.fnr_limit):
+        if check.blocks or _blocked_at_limit(resolver, pst.fnr_limit):
             pst.fnr_limit /= 2
             print(
                 f"[round {index}] {resolver.unchecked_quiet_probes} of the "

@@ -41,14 +41,17 @@ class _StubSifter:
         self.undecided_search = None
 
     def sift_and_boundary(self, seq):
+        """A one-node tree: every sift is one read."""
+        self.reads += 1
         leaf = self.places(bytes(seq))
         return (leaf, None) if leaf is not None else (None, bytes(seq) + b"?")
 
     def known_sift(self, seq):
         return self.places(bytes(seq))
 
-    def halfway(self, _seq):
-        return self.middle, []
+    def halfway(self, seq):
+        leaf = self.places(bytes(seq))
+        return (self.middle if leaf is None else leaf), []
 
     def prefill(self, seqs):
         pass
@@ -73,7 +76,7 @@ class _Learner(TransitionResolver):
     def __init__(self, sifter, transitions, k, *, witness=b""):
         self.sifter = sifter
         self.population = _StubPopulation()
-        self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2)
+        self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2, depth=1)
         self.dfa = SimpleNamespace(
             transitions=transitions, witness=lambda s, c: witness
         )
@@ -83,6 +86,9 @@ class _Learner(TransitionResolver):
         self.recent = deque()
         self._walked = Read(None, None)
         self.pst = None
+
+    def totalised(self):
+        return self.dfa.transitions, []
 
 
 #: State 7 steps to 8 on a 0 and stays on a 1; nothing is learned out of 8.
@@ -167,10 +173,10 @@ class _Draws:
         return draw
 
 
-def _frozen(places, transitions, k, *, whole, acc_threshold=0.9):
-    learner = _Learner(_StubSifter(places), transitions, k)
+def _frozen(places, transitions, k, *, whole, middle=7, acc_threshold=0.9):
+    learner = _Learner(_StubSifter(places, middle=middle), transitions, k)
     learner.pst = SimpleNamespace(rng=None, alphabet_size=2)
-    return FrozenCheck(learner, acc_threshold=acc_threshold, whole=whole)
+    return FrozenCheck(learner, acc_threshold=acc_threshold, fnr_limit=0.1, whole=whole)
 
 
 def _read(check, draws):
@@ -183,25 +189,38 @@ def _read(check, draws):
     return sampler.drawn
 
 
+#: Places every string but the whole probe at 7.
+_ALL_BUT_PROBE = lambda seq: None if seq == _PROBE else 7
+
+
 class TestTheFrozenHypothesisReadingFreshDraws(unittest.TestCase):
-    def test_blocked_draws_count_against_the_block_rate_and_not_the_agreement(self):
-        places = lambda seq: None if seq == _PROBE else 7
-        check = _frozen(places, _EVERYWHERE, 2, whole=True)
+    def test_a_blocked_draw_counts_once_against_the_reads_it_made(self):
+        check = _frozen(_ALL_BUT_PROBE, _EVERYWHERE, 2, whole=True)
 
         check.observe(_PROBE)
         check.observe(_PROBE[:3])
 
-        self.assertEqual((1, 2), (check.blocked.hits, check.blocked.draws))
-        self.assertEqual((1, 1), (check.agreement.hits, check.agreement.draws))
+        # Each draw read its start and itself; only the first blocked.
+        self.assertEqual((1, 4), (check.blocked.hits, check.blocked.trials))
+
+    def test_a_blocked_draw_is_read_at_the_middle_for_the_agreement(self):
+        for middle, agrees in ((7, 1), (8, 0)):
+            check = _frozen(_ALL_BUT_PROBE, _EVERYWHERE, 2, whole=True, middle=middle)
+
+            check.observe(_PROBE)
+
+            self.assertEqual(
+                (agrees, 1), (check.agreement.hits, check.agreement.trials)
+            )
+            self.assertEqual([], check.disagreements)
 
     def test_the_walk_check_does_not_sift_the_whole_draw(self):
-        places = lambda seq: None if seq == _PROBE else 7
-        check = _frozen(places, _EVERYWHERE, 2, whole=False)
+        check = _frozen(_ALL_BUT_PROBE, _EVERYWHERE, 2, whole=False)
 
         check.observe(_PROBE)
 
-        self.assertEqual((0, 1), (check.blocked.hits, check.blocked.draws))
-        self.assertEqual((check.blocked,), check.rates)
+        self.assertEqual((0, 1), (check.blocked.hits, check.blocked.trials))
+        self.assertEqual([check.blocked], check.open_rates())
 
     def test_a_decided_disagreement_is_kept_for_the_pass(self):
         check = _frozen(
@@ -211,7 +230,7 @@ class TestTheFrozenHypothesisReadingFreshDraws(unittest.TestCase):
         check.observe(_PROBE)
 
         self.assertEqual([_PROBE], check.disagreements)
-        self.assertEqual((0, 1), (check.agreement.hits, check.agreement.draws))
+        self.assertEqual((0, 1), (check.agreement.hits, check.agreement.trials))
 
     def test_a_blocked_walk_check_leaves_what_blocked_it(self):
         check = _frozen(lambda seq: None, _EVERYWHERE, 2, whole=False)
@@ -253,16 +272,27 @@ class TestTheFrozenHypothesisReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual([], check.outcome())
 
-    def test_the_draws_stop_once_every_rate_is_settled(self):
+    def test_a_clean_gate_reads_until_both_its_tests_settle(self):
         check = _frozen(lambda seq: 7, _EVERYWHERE, 2, whole=True, acc_threshold=0.5)
 
         drawn = _read(check, [_PROBE])
 
-        self.assertTrue(all(rate.side is not None for rate in check.rates))
-        # Clean draws settle the block rate below 0.5 at the 17th, since
-        # 0.5 ** 17 < 1e-5, and the agreement at its least, the 30th.
-        self.assertEqual(17, int(np.ceil(np.log(1e-5) / np.log(0.5))))
-        self.assertEqual(30, drawn)
+        # Two clean reads a draw settle the block rate below 0.1 at the 66th read,
+        # since 0.9 ** 66 < 1e-3, after the agreement's least 30 draws.
+        self.assertLess(0.9**66, 1e-3)
+        self.assertLess(1e-3, 0.9**65)
+        self.assertEqual(33, drawn)
+        self.assertEqual([], check.open_rates())
+
+    def test_a_blocked_gate_stops_once_the_block_settles(self):
+        check = _frozen(lambda seq: None, _EVERYWHERE, 2, whole=True)
+
+        drawn = _read(check, [_PROBE])
+
+        # One blocked read a draw settles above 0.1 at the fourth.
+        self.assertEqual(4, drawn)
+        self.assertIsNone(check.agreement.side)
+        self.assertTrue(check.blocks)
 
 
 if __name__ == "__main__":

@@ -157,7 +157,13 @@ class TestBatchBeforePossibleStop(unittest.TestCase):
         # No k strictly inside the chunk (at or above the min_valid floor) can fire.
         for a, n in self.states:
             k = _batch_before_possible_stop(
-                a, n, self.boundary, self.min_valid, self.remaining
+                a,
+                n,
+                self.boundary,
+                self.min_valid,
+                self.remaining,
+                failure_prob=1e-5,
+                most_per_draw=1,
             )
             self.assertGreaterEqual(n + k, self.min_valid)  # respects the floor
             floor = max(self.min_valid - n, 1)
@@ -169,14 +175,47 @@ class TestBatchBeforePossibleStop(unittest.TestCase):
         # ran out of budget), so stopping one sooner would have left batching on table.
         for a, n in self.states:
             k = _batch_before_possible_stop(
-                a, n, self.boundary, self.min_valid, self.remaining
+                a,
+                n,
+                self.boundary,
+                self.min_valid,
+                self.remaining,
+                failure_prob=1e-5,
+                most_per_draw=1,
             )
             if k < self.remaining:
                 self.assertTrue(self._fires(a, n, k), (a, n, k))
 
+    def test_never_spans_the_stop_when_a_draw_adds_several_trials(self):
+        # A draw of up to three trials can push the 'below' tail three at a time.
+        for a, n in self.states:
+            k = _batch_before_possible_stop(
+                a,
+                n,
+                self.boundary,
+                1,
+                self.remaining,
+                failure_prob=1e-5,
+                most_per_draw=3,
+            )
+            for kp in range(1, k):
+                self.assertFalse(self._fires(a, n, kp), (a, n, kp))
+                self.assertIsNot(
+                    False, binomial_side_of_boundary(a, n + 3 * kp, self.boundary)
+                )
+
     def test_capped_by_remaining(self):
         self.assertEqual(
-            5, _batch_before_possible_stop(0, 0, self.boundary, self.min_valid, 5)
+            5,
+            _batch_before_possible_stop(
+                0,
+                0,
+                self.boundary,
+                self.min_valid,
+                5,
+                failure_prob=1e-5,
+                most_per_draw=1,
+            ),
         )
 
 

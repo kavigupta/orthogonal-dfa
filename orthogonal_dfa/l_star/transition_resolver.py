@@ -89,25 +89,54 @@ def prefill_walks(sifter, probes, transitions, k) -> None:
     )
 
 
+#: Chance each of a check's tests settles on the wrong side.
+CHECK_FAILURE_PROB = 1e-3
+
+#: Sifts a check makes of one draw at most: the start's, and two at an open edge
+#: or one of the whole draw.
+_SIFTS_PER_DRAW = 3
+
+
 class FrozenCheck:
     """A round's hypothesis, frozen, reading fresh draws.
 
-    Each draw is walked from ``k`` and, where ``whole``, sifted whole too.  The
-    share of draws that blocks is tested against ``1 - acc_threshold`` as the
-    gate tests its agreement; where ``whole``, so is the share of the rest whose
-    walk ends where the sift lands, against ``acc_threshold``, and the draws whose
-    walk and sift disagree are kept."""
+    Each draw is walked from ``k`` and, where ``whole``, sifted whole too.  A draw
+    either blocks counts once against the reads it made: the round is blocked
+    where blocked draws come to more than ``fnr_limit`` of the reads, which is as
+    many as a family indecisive at the limit could leave.  Where ``whole``, the
+    share of all draws on which the walk's end agrees with the sift is tested
+    against ``acc_threshold``, a blocked draw read at the middle of the band past
+    each read the cut cannot place, and the draws whose walk and sift disagree
+    are kept."""
 
-    def __init__(self, resolver, *, acc_threshold, whole):
+    def __init__(self, resolver, *, acc_threshold, fnr_limit, whole):
         self._resolver = resolver
         self._transitions = resolver.learned()
         self._whole = whole
-        self.blocked = SequentialRate(1 - acc_threshold, min_draws=1)
-        self.agreement = SequentialRate(acc_threshold, min_draws=30)
-        self.rates = (self.agreement, self.blocked) if whole else (self.blocked,)
+        self._totalised = None
+        self.blocked = SequentialRate(
+            fnr_limit,
+            min_trials=1,
+            failure_prob=CHECK_FAILURE_PROB,
+            most_per_draw=_SIFTS_PER_DRAW * max(resolver.tree.depth, 1),
+        )
+        self.agreement = SequentialRate(
+            acc_threshold,
+            min_trials=30,
+            failure_prob=CHECK_FAILURE_PROB,
+            most_per_draw=1,
+        )
         self._found = {}
         self.draws = []
         self.disagreements = []
+
+    def open_rates(self) -> List[SequentialRate]:
+        """The rates whose tests still decide something: a blocked round is
+        decided whatever its agreement."""
+        if self.blocked.side:
+            return []
+        rates = (self.agreement, self.blocked) if self._whole else (self.blocked,)
+        return [rate for rate in rates if rate.side is None]
 
     def prefill(self, draws) -> None:
         sifter, k = self._resolver.sifter, self._resolver.k
@@ -118,7 +147,9 @@ class FrozenCheck:
 
     def observe(self, draw) -> None:
         self.draws.append(draw)
-        sift, k = self._resolver.sift_and_harvest, self._resolver.k
+        resolver = self._resolver
+        sift, k = resolver.sift_and_harvest, resolver.k
+        reads = resolver.sifter.reads
         if self._whole:
             _, block, disagrees = read_from(draw, sift, self._transitions, k)
         else:
@@ -126,11 +157,24 @@ class FrozenCheck:
         if disagrees:
             self.disagreements.append(draw)
         if self.blocked.side is None:
-            self.blocked.add(block is not None)
-        if self._whole and block is None and self.agreement.side is None:
-            self.agreement.add(not disagrees)
+            self.blocked.add(block is not None, resolver.sifter.reads - reads)
+        if self._whole and self.agreement.side is None:
+            agrees = not disagrees if block is None else self._agrees_at_middle(draw)
+            self.agreement.add(agrees, 1)
         if block is not None and block.found is not None:
             self._found[block.found] = None
+
+    def _agrees_at_middle(self, draw) -> bool:
+        """Whether the hypothesis, placing what the cut cannot at the middle of
+        the band and walking on as it exports, ends where the middle places the
+        draw."""
+        resolver = self._resolver
+        if self._totalised is None:
+            self._totalised = resolver.totalised()[0]
+        state = resolver.sifter.halfway(draw[: resolver.k])[0]
+        for symbol in draw[resolver.k :]:
+            state = self._totalised[state][symbol]
+        return state == resolver.sifter.halfway(draw)[0]
 
     @property
     def blocks(self) -> bool:
@@ -365,12 +409,18 @@ class TransitionResolver:
 
     # -- output -------------------------------------------------------------
 
+    def totalised(self):
+        """The learned edges with every open one filled as the export fills it,
+        and the open edges self-looped for want of a target."""
+        return self.dfa.totalise(
+            range(self.tree.num_states),
+            lambda s, c: self.edges.decisive_target(s, c)[0],
+        )
+
     def to_dfa_and_tree(self):
         n = self.tree.num_states
 
-        transitions, unresolved = self.dfa.totalise(
-            range(n), lambda s, c: self.edges.decisive_target(s, c)[0]
-        )
+        transitions, unresolved = self.totalised()
         for state, c in unresolved:
             print(
                 f"  no decisive edge for (state {state}, symbol {c}); "
