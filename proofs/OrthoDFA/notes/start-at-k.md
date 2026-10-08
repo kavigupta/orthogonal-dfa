@@ -525,3 +525,34 @@ classes. Each large class has to force outcome 2 or 3, and several cannot:
   that no target state is transient (each state seen before `k` recurs after `k` with mass at
   least `κ` times its early mass). The premise is (a3) and F6 again.
 - **R5.** Drop "nothing to rerun ⇒ halve". With R1–R4 every class has its own test or harvest.
+
+**R1 approved: the refusal sample.** On refusal, `q̂` is fixed and up to 480 fresh draws are read
+at the looks `30, 60, …, 480`. Reading stops once every refusal test has settled. On those draws:
+- each draw is classified against `q̂`, and the ones `q̂` disagrees on get the seven-outcome
+  read;
+- the ends test (both halves), the pair test, the triple harvest and the reruns all use this
+  sample.
+
+What changes in the statement:
+- **Processing:** a draw is processed when `Dis_q̂` holds, a fixed predicate, so the processed
+  draws are i.i.d. This resolves (a4).
+- **Class masses:** each class is the mass of that outcome *and* `Dis_q̂` under `D`.
+- **The quiet window is gone,** and with it the random-probe requirement and its `1/D(quiet)`
+  selection bias. The start half's claims read like the end half's.
+- **Each refusal test, read at the joint stop:**
+  - settled above means the class rate exceeds its threshold, at a cost of `a` per look;
+  - settled below means the rate is under its threshold, at the same cost;
+  - unsettled at 480 compares the counts, with a Hoeffding tail at `n = 480`.
+
+  This gives power: a class rate of at least `θ + δ` makes its test fire, except with chance
+  `looks·a + exp(−2·480·δ²)`. That resolves (a5).
+- **The pair test** may use `pair_test_le` only if the stop is blind to which processed draws
+  were searched. The ends test's draws are never searched, but the pair test's own settling is
+  not blind. So the pair test also costs `looks·a`, summed over the looks.
+- **Failure budget:** the gate's and the refusal sample's look terms, the Hoeffding tails at the
+  gate's stop and at 480, `prefixMax(k)/ε²` for the triples, and a union over the round's gate
+  readings (at most 1 plus the number of splits).
+
+Still pending: R2 (pair and unlearned-member harvests), R3 (leftover edges), R5 (drop
+nothing-to-rerun halving), and R4. The proposed R4 route is the path-based coverage
+precondition, which excludes the transient-state example.
