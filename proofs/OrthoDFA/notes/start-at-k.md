@@ -652,3 +652,58 @@ edge, pair or triple, unless it is masked. So `Mask` is the only start-region te
 - **Proposed R1′:** read the walk from `k` on every draw of the refusal sample (at most 480
   reads), whatever `q̂` says. The class masses become unconditional, and the start-region class
   drops out.
+
+**Approved: R5, R1′, R3 by a per-edge cap, and `k = ⌈L/2⌉`.**
+
+**Classes of the refusal sample.** Every draw is read to an outcome, so each class is an
+unconditional `D`-mass:
+- `SR`, `ER`: the start or end sift undecided at the root.
+- `SD`, `ED`: the start or end sift undecided below the root. These are what the ends test
+  measures.
+- `BL`: undecided at an unlearned edge, on `x[:j+1]` or `x[:j]`.
+- `MB`: members at unlearned edges.
+- `PR`, `TR`: pairs and triples.
+- `EG`: edges, split into live edges and edges that have been given up (`Gup`).
+
+**Refusal.** Every start has `err ≥ 1 − acc − δ`. With the coverage bound this gives
+
+    SD + ED + MB + PR + TR ≥ Need := 1 − acc − δ − η − labelErr − Mask − Root − Blk − Gup − δ_e
+
+- `Root = SR + ER`. It is bounded by the clustering guarantee's root populations.
+- `Blk = BL`. It is a residue unless it is held as a harvest (R6, below).
+- `δ_e` bounds the live edges at a stop on "no live edges": with a zero count over at least 30
+  draws, this fails with chance at most `exp(−30·δ_e)`.
+
+**Pair test does not fire.** Then `PR ≤ ρ·(TR + δ_e + Gup)`, with `ρ = (1/2 + δ)/(1/2 − δ)`. So
+one of `SD`, `ED`, `MB`, `TR` is at least
+
+    M₀ := (Need − ρ·(δ_e + Gup))/(4 + ρ).
+
+**The gap: large `f` with no halving.** The approved rules give no guarantee here.
+- An ends class at least `M₀` fires its test only if `M₀ > (depth − 1)·f + δ`.
+- A triple class at least `M₀` is a good harvest only if
+  `c·f·depth·(log₂(L − k) + 1) ≤ (1 − q₀)·M₀`.
+- Above `τ* = min(τ_e, τ_T, τ_P)`, a refusal can end with a large class that is only incidental
+  indecision. The thresholds are:
+  - `τ_e = (M₀ − δ)/(depth − 1)`;
+  - `τ_T = (1 − q₀)·M₀/(c·depth·(log₂(L − k) + 1))`;
+  - `τ_P = (1/2 − δ)(1 − q₀)/(c·depth·(log₂(L − k) + 1))`.
+- In that case there is no fired test, no good harvest, and no halving, because R5 removed
+  halving on nothing-to-rerun. So the requested trichotomy holds only for `f ≤ τ*`. There,
+  halving forces a good pair harvest.
+
+**Proposed R5′.** Give each harvest class a test against its incidental rate:
+- ends: `(depth − 1)·f`, as now;
+- triples and pairs: `c·f·depth·(log₂(L − k) + 1)` times the searched share.
+
+Halve on a refusal where no class's test fires. Every refused round then either holds a class
+that fired its test, whose bad share is at least `1 − incidental/rate`, or halves. Halving forces
+a class of at least `M₀` under its incidental rate, so `f > τ*`. That is the requested shape.
+
+**Proposed R6.** Hold the `BL` strings, interior undecided reads at an unlearned edge, as a
+harvest. This removes the `Blk` residue.
+
+**The per-edge cap.** Reruns are at most `m_max·Σ_round(leaves·|Σ|)` plus the number of splits.
+Splits are not capped, so budget exhaustion stays a fallback outcome unless the number of leaves
+is bounded. Every non-split result (undecided, no split, stopped) has to count toward the cap,
+otherwise "stopped" reruns are not bounded.
