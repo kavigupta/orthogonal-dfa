@@ -686,3 +686,52 @@ So the step is not a pure analytic sorry: (1) is structural work still owed.
   sorry's reason, not built.
 - `RoundOrHarvest` in the same form. Its overlap term needs the same read set and the same
   adaptive independence.
+
+## Discharging the sorries
+
+**`rollover_promotes`: proved** (8f8eae9). From the list-product bounds `list_prod_ge` and
+`list_prod_le`, and `withDensity_real_eq`. It needs `[IsProbabilityMeasure μ]`, the setting's
+standing assumption, so that `stateIndecision` lies in [0, 1].
+
+**`harvestSpread_of`: proved** (f7f4612). From `round_outcome_holds`'s yield and harvest-spread
+parts, plus `D(first i letters are t's) = L·ν(t[:i])` for i ≤ |t| (`take_eq_iff_prefix`) and the κ
+premise.
+
+**`gate_flip_bound`: not provable as stated. Stopped here.** Its argument needs a premise that does
+not hold for the Python's families: that distinct node reads use disjoint noise bits.
+
+- **Where bits are shared.** A node read of a string z is the vote over the bits at z·v, for
+  v ∈ F. Reads of z and z′ share a bit iff z·v = z′·v′ for some v, v′ ∈ F. With |z| < |z′| that
+  means z′ = z·w and v = w·v′: some v′ ∈ F is a proper suffix of some v ∈ F.
+  - That is impossible when F is suffix-free, for example equal-length suffixes.
+  - It is possible as soon as ε ∈ F. The Python's family is clustered around the empty suffix,
+    which is always in it. Then the read of z = z′·v′ shares its ε-bit, which is z itself, with the
+    read of z′ through v′.
+- **Both halves of the bound use disjointness.**
+  - **The pass half.** "Each pass read is fresh when it is read, so P(any pass read flips) ≤
+    passReadBound·φ" needs the newly read string's bits to be unseen. With shared bits, the pass
+    chooses its next read, for example the new midfix after a split, from outcomes that share bits
+    with it. Conditional on what it has seen, a new read can flip with chance well above φ.
+    Splits are triggered by readings that differ, so there is selection toward flips.
+  - **The gate half.** "Gate reads off the pass's are fresh given the pass" needs disjointness
+    too. With ε ∈ F, a gate read's own bit x[:j]·m can be a pass read's bit z′·v′.
+- **What is still true.** A fixed (non-adaptive) union bound holds regardless. The problem is only
+  adaptivity combined with shared bits. So the bound is not believed to hold for every F. With
+  ε ∈ F it can fail by selection on shared bits, whatever its exact size.
+
+**Options (a decision for the user).**
+1. **A premise:** distinct node reads use disjoint bits, or F \ {ε} suffix-free with the ε-overlap
+   handled separately. With F suffix-free, `gate_flip_bound` is believed true as stated. The Python
+   violates it through ε ∈ F.
+2. **An overlap term in δ.** With ε ∈ F and the other suffixes of length ℓ, an overlap needs a read
+   string to end in a whole family suffix. For random probes that has chance about
+   `passReadBound · (N+2) · |F| · |α|^{−ℓ}`. Adding it changes the statement.
+3. **An algorithm change:** read the gate, or the pass, with ε left out of the vote, so that F is
+   suffix-free.
+
+**The structural part was not built**: the pass's node-read set as a `Finset`, the determination
+lemma, and the `passReadBound` size bound. It is only worth building once the premise question is
+settled. The covering argument in `gate_flip_bound`'s docstring checks every read site (sift,
+`firstDisagreement`, `tally`, `decisiveTarget`, `edgeMisses`, `anchorMisses`). Every one is
+`b·e·m`: b a seed string or probe prefix, e ∈ {1} ∪ α, m a midfix of the final tree. Trees only
+grow, and every midfix is a letter followed by an earlier midfix.
