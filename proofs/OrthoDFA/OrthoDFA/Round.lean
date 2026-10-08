@@ -323,6 +323,18 @@ def ChainAdvancesEither (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid �
     ChainAdvancesBy X (fun x => stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) a uHi
       ∨ ChainAdvancesBy X (fun x => edgeDisagreeProb O R.B R.F H x c) η wHi
 
+/-- (4'') Some chain advances, filtered by indecision at some rung `i < K` of the ladder `θ`
+(its draws reading at least `θ (i+1)` multiplied by at least that, the rest by at most `θ i`), or
+filtered by disagreement.  A ladder of more rungs than target states always has a rung no
+state's indecision falls strictly inside, so no gap need be assumed. -/
+def ChainAdvancesLadder (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α)
+    (H : Hypothesis α) (sources : List (Measure (FreeMonoid α))) (θ : ℕ → ℝ) (K : ℕ)
+    (η wHi : ℝ) : Prop :=
+  ∃ X ∈ sources, ∃ c : α,
+    (∃ i < K, ChainAdvancesBy X
+        (fun x => stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) (θ i) (θ (i + 1)))
+      ∨ ChainAdvancesBy X (fun x => edgeDisagreeProb O R.B R.F H x c) η wHi
+
 /-- `RoundTetrachotomyBoth`: `RoundTetrachotomy` with (4') in place of (4), over rounds whose
 hypothesis meets the edge gap. -/
 def RoundTetrachotomyBoth (f a uHi η wHi δ : ℝ) (r : ℕ) : Prop :=

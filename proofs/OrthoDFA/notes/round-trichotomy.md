@@ -793,3 +793,38 @@ It rests on `edgeGap_or_advances`, proved with only `propext`, `Classical.choice
   `nuRoot_pos`).
 
 `round_tetrachotomy` still rests on the sorried `gate_flip_bound`.
+
+## No gap premise: the ladder (`round_tetrachotomy_ladder`)
+
+`GapPremise` (every state's indecision ≤ a or ≥ uHi) served one purpose: making an indecision
+chain's link enrich its bad states' odds by a fixed ratio. It isn't needed.
+- **A gap is guaranteed.** g(x) = u(state(x·c)) takes at most |Q| values. So any monotone ladder
+  θ 0 ≤ … ≤ θ K with K > |Q| rungs has a rung i that no value falls strictly inside
+  (`exists_rung_gap`, a pigeonhole). That gives g ≤ θ i or g ≥ θ (i+1) for every draw, with no
+  premise.
+- **Outcome (4'')** (`ChainAdvancesLadder`): an indecision chain advances at some rung, its draws
+  reading at least θ (i+1) multiplied by at least that, the rest by at most θ i. Or a
+  disagreement chain advances, as in (4').
+- **`round_tetrachotomy_ladder`** is `round_tetrachotomy` with `GapPremise` replaced by the ladder
+  conditions:
+  - θ monotone, with 0 ≤ θ 0;
+  - |Q| < K;
+  - θ K ≤ uHi.
+
+  The error bound is the same, there's no extra δ term, and it rests only on the sorried
+  `gate_flip_bound`. `edgeGap_or_advancesLadder` and `exists_rung_gap` use only `propext`,
+  `Classical.choice` and `Quot.sound`.
+
+**What the user's continuous argument needs, and what it doesn't.**
+- **Not needed:** a φ(u) term. States read below uHi are already covered by `MidFlipPremise`
+  (one φ for every state under uHi), which `GapPremise` also needed. Dropping the gap adds no
+  premise and no δ term.
+- **The cost is the per-link ratio.** With θ i = θ 0 · β^i, β = (uHi/θ 0)^{1/K}, a link
+  multiplies a chain's odds by at least β, not uHi/a.
+- **For counting, θ 0 should be the promotion rate T = f·r·a.** Then a promoted chain's population
+  reads at least T, which is outcome (2). States below T stay covered by `MidFlipPremise`.
+  - At uHi = 0.4, T = 0.15 and |Q| = 10, that's β = (0.4/0.15)^{1/11} ≈ 1.09.
+  - So promotion from a share π takes about ln(1/π)/ln β rounds, about 80 at π = 0.001.
+  - Under `GapPremise` it was about 3 at uHi/(r·a) = 8.
+  - That's a real slowdown in the bound, not in the algorithm: the algorithm is unchanged; the
+    bound just can't assume the states' indecision is bimodal.
