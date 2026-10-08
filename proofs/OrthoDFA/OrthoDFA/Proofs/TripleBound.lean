@@ -293,8 +293,12 @@ theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F V : Finset (FreeMonoid α)) (uGood : ℝ)
     (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) (t : DTree α) (edges : Edges α)
     (Tp : Finset (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) :
-    Measurable[noiseAlg O (drawBits V c k x)]
-      fun ω => contrib A O B F uGood (cellReads O B F V c ω) t edges Tp k x := by
+    MeasurableSet[noiseAlg O (drawBits V c k x)]
+        {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x}
+      ∧ (∀ n, MeasurableSet[noiseAlg O (drawBits V c k x)]
+        {ω | tagCount (cellReads O B F V c ω) t edges k x = n})
+      ∧ Measurable[noiseAlg O (drawBits V c k x)]
+        fun ω => contrib A O B F uGood (cellReads O B F V c ω) t edges Tp k x := by
   classical
   set cut : Ω → FreeMonoid α → Option Bool := fun ω => (cellReads O B F V c ω).cut
   have hS : ∀ w, (∃ i, k ≤ i ∧ ∃ m ∈ t.mids, w = prefixOf x i * m) →
@@ -368,6 +372,7 @@ theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
       rw [h']; exact hFT
   have hg : Measurable fun p : Bool × ℕ => (if p.1 then (1 : ℝ) else 0) - uGood * p.2 :=
     measurable_of_countable _
+  refine ⟨hFT, hcount, ?_⟩
   have := hg.comp hpair
   convert this using 1
   ext ω
