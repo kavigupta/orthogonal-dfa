@@ -56,6 +56,15 @@ theorem replay_harvests_of_suffix (H : Hypothesis α) (hb : R.B.lo ≤ R.B.hi) {
     rw [hl, hrest]
     simp [anchorSearch, hε]
 
+/-- An anchor at which a disagreeing draw is still in sync walks on as the draw's walk from `ε`
+does, so it ends in the same disagreement. -/
+theorem suffixDisagree_of_inSync (H : Hypothesis α) {x : FreeMonoid α} {e : ℕ}
+    (hs : InSync R H x e) (hd : DFAandDTDisagree R H x) : SuffixDisagree R H x e := by
+  intro h
+  apply hd
+  rw [← List.take_append_drop e x.toList, List.foldl_append, hs]
+  exact h
+
 theorem prod_sum_dirac (D : Measure (FreeMonoid α)) [SFinite D] {S : Set (FreeMonoid α × ℕ)}
     (hS : MeasurableSet S) (n : ℕ) :
     (D.prod (∑ k ∈ Finset.range n, Measure.dirac k)) S
@@ -86,5 +95,12 @@ theorem anchored_yield_holds : AnchoredYield := by
   rw [← ENNReal.toReal_sum fun k _ => htop k]
   gcongr
   · exact ENNReal.sum_ne_top.2 fun _ _ => measure_ne_top _ _
+
+theorem inSync_yield_holds : InSyncYield := by
+  intro α _ _ R H D _ L hb
+  refine le_trans ?_ (anchored_yield_holds R H D L hb)
+  apply div_le_div_of_nonneg_right _ (Nat.cast_nonneg L)
+  exact Finset.sum_le_sum fun e _ =>
+    measureReal_mono (fun x hx => suffixDisagree_of_inSync R H hx.1 hx.2)
 
 end OrthoDFA

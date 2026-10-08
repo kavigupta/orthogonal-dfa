@@ -43,16 +43,19 @@ noncomputable def stateIndecision (A : DFA (FreeMonoid α) Q) (O : Oracle μ (Fr
     (B : State) (F : Finset (FreeMonoid α)) (q : Q) : ℝ :=
   sSup ((fun s => undecidedProb O B.lo B.hi F s) '' {s | A.state s = q})
 
-/-- Read at the middle of the band, some string reaching `q` is taken by `c` somewhere other than
-the hypothesis's edge out of where it sits. -/
-def edgeWrong (R : CutReads α) (H : Hypothesis α) (A : DFA (FreeMonoid α) Q) (q : Q) : Prop :=
-  ∃ y, A.state y = q ∧ ∃ c : α, midPath R H (y * FreeMonoid.of c) ≠ H.step (midPath R H y) c
+/-- The chance, over fresh noise, that read at the middle of the band a string reaching `q` and
+its extension by some letter disagree with the hypothesis's edge between them, at worst over the
+strings and letters.  A probability, not an `∃` over strings: under string-keyed noise some string
+of nearly every state is misread. -/
+noncomputable def edgeError (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (H : Hypothesis α) (q : Q) : ℝ :=
+  sSup (⋃ c : α, (fun y => μ.real {ω | midPath (readsAt O B F ω) H (y * FreeMonoid.of c)
+      ≠ H.step (midPath (readsAt O B F ω) H y) c}) '' {y | A.state y = q})
 
-open scoped Classical in
-/-- How badly the round reads the state of `t`: `1` if an edge out of it is wrong, else `u`. -/
+/-- How badly the round reads the state of `t`: its indecision, or its edge error if larger. -/
 noncomputable def badness (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
     (R : CutReads α) (H : Hypothesis α) (t : FreeMonoid α) : ℝ :=
-  if edgeWrong R H A (A.state t) then 1 else stateIndecision A O R.B R.F (A.state t)
+  max (stateIndecision A O R.B R.F (A.state t)) (edgeError A O R.B R.F H (A.state t))
 
 /-- `∑` of `g` over what an attempt harvests, averaged over attempts. -/
 noncomputable def harvestMass (R : CutReads α) (H : Hypothesis α) (D : Measure (FreeMonoid α))
@@ -135,6 +138,25 @@ def AnchoredYield : Prop :=
     R.B.lo ≤ R.B.hi →
     (∑ e ∈ Finset.range L, D.real {x | SuffixDisagree R H x e}) / L
       ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
+
+/-- The hypothesis's walk from where the middle-of-band reading puts `ε` is, after `x`'s first `e`
+letters, where that reading puts them. -/
+def InSync (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : Prop :=
+  (x.toList.take e).foldl H.step (midPath R H 1) = midPath R H (prefixOf x e)
+
+/-- `InSyncYield`: the harvest finds a string on at least `1/L` of the expected number of anchors
+below `L` at which a draw the DFA/DT check counts against the hypothesis is still in sync. -/
+def InSyncYield : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (H : Hypothesis α)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (L : ℕ),
+    R.B.lo ≤ R.B.hi →
+    (∑ e ∈ Finset.range L, D.real {x | InSync R H x e ∧ DFAandDTDisagree R H x}) / L
+      ≤ (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
+
+/-- Every target state is read cleanly, undecided at most `uLo`, or badly, at least `uHi`. -/
+def GapPremise (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (uLo uHi : ℝ) : Prop :=
+  ∀ q, stateIndecision A O B F q ≤ uLo ∨ uHi ≤ stateIndecision A O B F q
 
 /-- How many strings an attempt asks the cut about. -/
 noncomputable def queryCount (R : CutReads α) (H : Hypothesis α) (x : FreeMonoid α) (e : ℕ) : ℕ :=
