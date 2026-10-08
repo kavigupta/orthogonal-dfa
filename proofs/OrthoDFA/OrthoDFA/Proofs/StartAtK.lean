@@ -131,29 +131,70 @@ theorem share_ge_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
   rw [← this, mul_comm]
   exact hb
 
+theorem hits_gt_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) (n : ℕ) {θ δ : ℝ} (hδ : 0 ≤ δ)
+    (h : D.real {x | P x} ≤ θ - δ) :
+    (Measure.pi fun _ : Fin n => D).real {b | θ * n < hitsIn b P n}
+      ≤ Real.exp (-2 * n * δ ^ 2) :=
+  le_trans (measureReal_mono (s₁ := {b : Fin n → FreeMonoid α | θ * n < hitsIn b P n})
+    (s₂ := {b | θ * n ≤ hitsIn b P n}) (fun b (hb : θ * n < hitsIn b P n) => le_of_lt hb)
+    (measure_ne_top _ _)) (share_ge_le D P n hδ h)
+
+open scoped Classical in
+theorem hits_le_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) (n : ℕ) {θ δ : ℝ} (hθ0 : 0 ≤ θ) (hδ : 0 ≤ δ)
+    (h : θ + δ ≤ D.real {x | P x}) :
+    (Measure.pi fun _ : Fin n => D).real {b | (hitsIn b P n : ℝ) ≤ θ * n}
+      ≤ Real.exp (-2 * n * δ ^ 2) := by
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · exact measureReal_le_one.trans (by simp)
+  refine (measureReal_mono (fun b hb => ?_) (measure_ne_top _ _)).trans (share_le_le D P n hδ h)
+  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
+  simp only [Set.mem_ofPred_eq, share] at hb ⊢
+  rw [div_le_iff₀ hn']
+  have : hitsIn b P n = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
+  rw [← this]
+  linarith
+
+omit [Fintype α] [DecidableEq α] in
+theorem lookSet_card (n₀ N : ℕ) : (lookSet n₀ N).card ≤ Nat.log 2 (N / n₀) + 2 := by
+  unfold lookSet
+  refine (Finset.card_insert_le _ _).trans ?_
+  have := (Finset.card_filter_le
+    ((Finset.range (Nat.log 2 (N / n₀) + 1)).image (n₀ * 2 ^ ·)) (· ≤ N)).trans
+    (Finset.card_image_le.trans (Finset.card_range _).le)
+  omega
+
+omit [Fintype α] [DecidableEq α] in
+theorem mem_lookSet {n₀ N n : ℕ} (h : n ∈ lookSet n₀ N) : n ≤ N ∧ min n₀ N ≤ n := by
+  unfold lookSet at h
+  rcases Finset.mem_insert.1 h with rfl | h
+  · exact ⟨le_rfl, min_le_right _ _⟩
+  · obtain ⟨h1, h2⟩ := Finset.mem_filter.1 h
+    obtain ⟨i, -, rfl⟩ := Finset.mem_image.1 h1
+    exact ⟨h2, (min_le_left _ _).trans (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos i))⟩
+
 omit [DecidableEq α] in
 theorem stopLook_spec {θ θ' a : ℝ} {n₀ N : ℕ} (b : Fin N → FreeMonoid α)
     (P P' : FreeMonoid α → Prop) :
-    stopLook θ θ' a n₀ b P P' ≤ N ∧ min n₀ N ≤ stopLook θ θ' a n₀ b P P'
+    stopLook θ θ' a n₀ b P P' ∈ lookSet n₀ N ∧ stopLook θ θ' a n₀ b P P' ≤ N
+      ∧ min n₀ N ≤ stopLook θ θ' a n₀ b P P'
       ∧ (stopLook θ θ' a n₀ b P P' = N
-        ∨ (1 ≤ stopLook θ θ' a n₀ b P P'
-          ∧ (rateSide θ a n₀ (stopLook θ θ' a n₀ b P P')
+        ∨ ((rateSide θ a n₀ (stopLook θ θ' a n₀ b P P')
               (hitsIn b P (stopLook θ θ' a n₀ b P P'))).isSome
           ∧ (rateSide θ' a n₀ (stopLook θ θ' a n₀ b P P')
               (hitsIn b P' (stopLook θ θ' a n₀ b P P'))).isSome)) := by
+  have hN : N ∈ lookSet n₀ N := Finset.mem_insert_self _ _
   unfold stopLook
-  rcases hf : (List.range' 1 N).find? (fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
+  rcases hf : ((lookSet n₀ N).sort (· ≤ ·)).find? (fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
       && (rateSide θ' a n₀ n (hitsIn b P' n)).isSome) with _ | n
-  · simp
-  · have hmem := List.mem_of_find?_eq_some hf
+  · simp only [Option.getD_none]
+    exact ⟨hN, le_rfl, min_le_right _ _, by simp⟩
+  · have hmem : n ∈ lookSet n₀ N := (Finset.mem_sort _).1 (List.mem_of_find?_eq_some hf)
     have hp := List.find?_some hf
-    simp only [List.mem_range'_1] at hmem
     simp only [Bool.and_eq_true] at hp
-    have hn₀ : n₀ ≤ n := by
-      by_contra hlt
-      simp [rateSide, hlt] at hp
     simp only [Option.getD_some]
-    exact ⟨by omega, by omega, .inr ⟨by omega, hp.1, hp.2⟩⟩
+    exact ⟨hmem, (mem_lookSet hmem).1, (mem_lookSet hmem).2, .inr hp⟩
 
 omit [DecidableEq α] in
 theorem rateSide_isSome {θ a : ℝ} {n₀ n h : ℕ} (hs : (rateSide θ a n₀ n h).isSome) :
@@ -169,6 +210,14 @@ theorem look_set {N n : ℕ} (hn : n ≤ N) (b : Fin N → FreeMonoid α) (P : F
   ⟨hitsIn_eq b P n, card_lt_filter hn⟩
 
 omit [DecidableEq α] in
+theorem sum_looks_le {N n₀ : ℕ} {c : ℝ} (hc : 0 ≤ c) (g : ℕ → ℝ) (hg : ∀ n ∈ lookSet n₀ N, g n ≤ c) :
+    ∑ n ∈ lookSet n₀ N, g n ≤ (Nat.log 2 (N / n₀) + 2) * c := by
+  refine (Finset.sum_le_sum hg).trans ?_
+  rw [Finset.sum_const, nsmul_eq_mul]
+  have : ((lookSet n₀ N).card : ℝ) ≤ Nat.log 2 (N / n₀) + 2 := by exact_mod_cast lookSet_card n₀ N
+  nlinarith
+
+omit [DecidableEq α] in
 open scoped Classical in
 /-- Passing at the look where the gate stops, its share at least `θ`, on a rate of at most
 `θ − δ`: at most twice the failure chance per look and Hoeffding's tail at the end. -/
@@ -177,10 +226,8 @@ theorem gate_pass_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hδ : 0 ≤ δ) (h : D.real {x | P x} ≤ θ - δ) :
     (Measure.pi fun _ : Fin N => D).real {b | θ * stopLook θ θ' a n₀ b P P'
         ≤ hitsIn b P (stopLook θ θ' a n₀ b P P')}
-      ≤ 2 * N * a + Real.exp (-2 * N * δ ^ 2) := by
+      ≤ 2 * (Nat.log 2 (N / n₀) + 2) * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  rcases Nat.eq_zero_or_pos N with rfl | hN
-  · exact measureReal_le_one.trans (by simp)
   set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
     {b | θ * (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card
         ≤ ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card
@@ -190,20 +237,20 @@ theorem gate_pass_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
           (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
           < a)}
   have hsub : {b | θ * stopLook θ θ' a n₀ b P P' ≤ hitsIn b P (stopLook θ θ' a n₀ b P P')}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | θ * N ≤ hitsIn b P N} := by
+      ⊆ (⋃ n ∈ lookSet n₀ N, L n) ∪ {b | θ * N ≤ hitsIn b P N} := by
     intro b hb
-    obtain ⟨hle, -, hT | ⟨h1, hs, -⟩⟩ := stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
+    simp only [Set.mem_ofPred_eq] at hb
+    obtain ⟨hmem, hle, -, hT | ⟨hs, -⟩⟩ :=
+      stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
     · exact .inr (by simpa [hT] using hb)
-    · refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+    · refine .inl (Set.mem_biUnion hmem ?_)
       obtain ⟨he, hc⟩ := look_set hle b P
       simp only [L, Set.mem_ofPred_eq, hc, ← he]
-      exact ⟨by simpa using hb, rateSide_isSome hs⟩
+      exact ⟨hb, rateSide_isSome hs⟩
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ 2 * a := fun n _ =>
-    look_pass_le D P _ hθ1 (by linarith) ha
-  have hsum := Finset.sum_le_sum hlook
-  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
+  have hu := measureReal_biUnion_finset_le (μ := ν) (lookSet n₀ N) L
+  have hsum := sum_looks_le (n₀ := n₀) (N := N) (by linarith : (0 : ℝ) ≤ 2 * a)
+    (fun n => ν.real (L n)) fun n _ => look_pass_le D P _ hθ1 (by linarith) ha
   have hfin := share_ge_le D P N hδ h
   nlinarith
 
@@ -215,10 +262,8 @@ theorem gate_refuse_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hδ : 0 ≤ δ) (h : θ + δ ≤ D.real {x | P x}) :
     (Measure.pi fun _ : Fin N => D).real {b | (hitsIn b P (stopLook θ θ' a n₀ b P P') : ℝ)
         < θ * stopLook θ θ' a n₀ b P P'}
-      ≤ 2 * N * a + Real.exp (-2 * N * δ ^ 2) := by
+      ≤ 2 * (Nat.log 2 (N / n₀) + 2) * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  rcases Nat.eq_zero_or_pos N with rfl | hN
-  · exact measureReal_le_one.trans (by simp)
   set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
     {b | (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card : ℝ)
         < θ * (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card
@@ -228,29 +273,23 @@ theorem gate_refuse_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
           (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
           < a)}
   have hsub : {b | (hitsIn b P (stopLook θ θ' a n₀ b P P') : ℝ) < θ * stopLook θ θ' a n₀ b P P'}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | share b P ≤ θ} := by
+      ⊆ (⋃ n ∈ lookSet n₀ N, L n) ∪ {b | (hitsIn b P N : ℝ) ≤ θ * N} := by
     intro b hb
     simp only [Set.mem_ofPred_eq] at hb
-    obtain ⟨hle, -, hT | ⟨h1, hs, -⟩⟩ := stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
+    obtain ⟨hmem, hle, -, hT | ⟨hs, -⟩⟩ :=
+      stopLook_spec (θ := θ) (θ' := θ') (a := a) (n₀ := n₀) b P P'
     · refine .inr ?_
       rw [hT] at hb
-      have hN' : (0 : ℝ) < N := by exact_mod_cast hN
-      simp only [Set.mem_ofPred_eq, share]
-      rw [div_le_iff₀ hN']
-      have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
-      rw [← this]
-      linarith
-    · refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      exact hb.le
+    · refine .inl (Set.mem_biUnion hmem ?_)
       obtain ⟨he, hc⟩ := look_set hle b P
       simp only [L, Set.mem_ofPred_eq, hc, ← he]
       exact ⟨hb, rateSide_isSome hs⟩
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ 2 * a := fun n _ =>
-    look_refuse_le D P _ hθ0 (by linarith) ha
-  have hsum := Finset.sum_le_sum hlook
-  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
-  have hfin := share_le_le D P N hδ h
+  have hu := measureReal_biUnion_finset_le (μ := ν) (lookSet n₀ N) L
+  have hsum := sum_looks_le (n₀ := n₀) (N := N) (by linarith : (0 : ℝ) ≤ 2 * a)
+    (fun n => ν.real (L n)) fun n _ => look_refuse_le D P _ hθ0 (by linarith) ha
+  have hfin := hits_le_le D P N hθ0 hδ h
   nlinarith
 
 omit [DecidableEq α] in
@@ -261,44 +300,32 @@ theorem side_above_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hδ : 0 ≤ δ) (h : D.real {x | P x} ≤ θ - δ) :
     (Measure.pi fun _ : Fin N => D).real
         {b | sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
-      ≤ N * a + Real.exp (-2 * N * δ ^ 2) := by
+      ≤ (Nat.log 2 (N / n₀) + 2) * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  rcases Nat.eq_zero_or_pos N with rfl | hN
-  · exact measureReal_le_one.trans (by simp)
   set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
     {b | binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
           ((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card < a}
   have hsub : {b | sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | θ < share b P} := by
+      ⊆ (⋃ n ∈ lookSet n₀ N, L n) ∪ {b | θ * N < hitsIn b P N} := by
     intro b hb
-    obtain ⟨hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
+    obtain ⟨hmem, hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
     simp only [Set.mem_ofPred_eq, sideAt] at hb
     rcases hr : rateSide θ a n₀ (stopLook θ' θ a n₀ b P' P)
       (hitsIn b P (stopLook θ' θ a n₀ b P' P)) with _ | s <;> rw [hr] at hb
-    · rcases hT with hT | ⟨-, -, hs⟩
-      · refine .inr ?_
-        rw [hT] at hb
-        have hN' : (0 : ℝ) < N := by exact_mod_cast hN
-        simp only [Set.mem_ofPred_eq, share]
-        rw [lt_div_iff₀ hN']
-        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
-        rw [← this]
-        linarith
+    · rcases hT with hT | ⟨-, hs⟩
+      · exact .inr (by simpa [hT] using hb)
       · simp [hr] at hs
     · subst hb
-      have h1 : 1 ≤ stopLook θ' θ a n₀ b P' P := by rcases hT with hT | ⟨h1, -⟩ <;> omega
-      refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      refine .inl (Set.mem_biUnion hmem ?_)
       obtain ⟨he, hc⟩ := look_set hle b P
       simp only [L, Set.mem_ofPred_eq, hc, ← he]
       unfold rateSide at hr
       split_ifs at hr with h1 h2 h3 <;> simp_all
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ a := fun n _ =>
-    look_above_le D P _ hθ1 (by linarith) ha
-  have hsum := Finset.sum_le_sum hlook
-  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
-  have hfin := share_gt_le D P N hδ h
+  have hu := measureReal_biUnion_finset_le (μ := ν) (lookSet n₀ N) L
+  have hsum := sum_looks_le (n₀ := n₀) (N := N) ha
+    (fun n => ν.real (L n)) fun n _ => look_above_le D P _ hθ1 (by linarith) ha
+  have hfin := hits_gt_le D P N hδ h
   linarith
 
 omit [DecidableEq α] in
@@ -309,46 +336,36 @@ theorem side_below_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
     (hδ : 0 ≤ δ) (h : θ + δ ≤ D.real {x | P x}) :
     (Measure.pi fun _ : Fin N => D).real
         {b | ¬ sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
-      ≤ N * a + Real.exp (-2 * N * δ ^ 2) := by
+      ≤ (Nat.log 2 (N / n₀) + 2) * a + Real.exp (-2 * N * δ ^ 2) := by
   set ν := Measure.pi fun _ : Fin N => D
-  rcases Nat.eq_zero_or_pos N with rfl | hN
-  · exact measureReal_le_one.trans (by simp)
   set L : ℕ → Set (Fin N → FreeMonoid α) := fun n =>
     {b | 1 - binomSfGe (Finset.univ.filter fun i : Fin N => (i : ℕ) < n).card θ
           (((Finset.univ.filter fun i : Fin N => (i : ℕ) < n).filter fun i => P (b i)).card + 1)
           < a}
   have hsub : {b | ¬ sideAt θ a n₀ b P (stopLook θ' θ a n₀ b P' P)}
-      ⊆ (⋃ n ∈ Finset.Ico 1 (N + 1), L n) ∪ {b | share b P ≤ θ} := by
+      ⊆ (⋃ n ∈ lookSet n₀ N, L n) ∪ {b | (hitsIn b P N : ℝ) ≤ θ * N} := by
     intro b hb
-    obtain ⟨hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
+    obtain ⟨hmem, hle, -, hT⟩ := stopLook_spec (θ := θ') (θ' := θ) (a := a) (n₀ := n₀) b P' P
     simp only [Set.mem_ofPred_eq, sideAt] at hb
     rcases hr : rateSide θ a n₀ (stopLook θ' θ a n₀ b P' P)
       (hitsIn b P (stopLook θ' θ a n₀ b P' P)) with _ | s <;> rw [hr] at hb
-    · rcases hT with hT | ⟨-, -, hs⟩
+    · rcases hT with hT | ⟨-, hs⟩
       · refine .inr ?_
         rw [hT] at hb
-        have hN' : (0 : ℝ) < N := by exact_mod_cast hN
-        simp only [Set.mem_ofPred_eq, share]
-        rw [div_le_iff₀ hN']
-        have : hitsIn b P N = (Finset.univ.filter fun i => P (b i)).card := by simp [hitsIn]
-        rw [← this]
-        linarith [not_lt.1 hb]
+        exact not_lt.1 hb
       · simp [hr] at hs
     · have hs : s = false := by simpa using hb
       subst hs
-      have h1 : 1 ≤ stopLook θ' θ a n₀ b P' P := by rcases hT with hT | ⟨h1, -⟩ <;> omega
-      refine .inl (Set.mem_biUnion (Finset.mem_Ico.2 ⟨h1, by omega⟩) ?_)
+      refine .inl (Set.mem_biUnion hmem ?_)
       obtain ⟨he, hc⟩ := look_set hle b P
       simp only [L, Set.mem_ofPred_eq, hc, ← he]
       unfold rateSide at hr
       split_ifs at hr with h1 h2 h3 <;> simp_all
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
-  have hu := measureReal_biUnion_finset_le (μ := ν) (Finset.Ico 1 (N + 1)) L
-  have hlook : ∀ n ∈ Finset.Ico 1 (N + 1), ν.real (L n) ≤ a := fun n _ =>
-    look_below_le D P _ hθ0 (by linarith) ha
-  have hsum := Finset.sum_le_sum hlook
-  simp only [Finset.sum_const, Nat.card_Ico, add_tsub_cancel_right, nsmul_eq_mul] at hsum
-  have hfin := share_le_le D P N hδ h
+  have hu := measureReal_biUnion_finset_le (μ := ν) (lookSet n₀ N) L
+  have hsum := sum_looks_le (n₀ := n₀) (N := N) ha
+    (fun n => ν.real (L n)) fun n _ => look_below_le D P _ hθ0 (by linarith) ha
+  have hfin := hits_le_le D P N hθ0 hδ h
   linarith
 
 end Batch
@@ -952,7 +969,7 @@ theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng
     (sg : KState α) (hl : Learned R sg.tree sg.edges) {acc θp f a δ : ℝ} (hacc0 : 0 ≤ acc)
     (hacc1 : acc ≤ 1) (hθp0 : 0 ≤ θp) (hθp1 : θp ≤ 1) (hf : 0 ≤ f) (ha : 0 ≤ a) (hδ : 0 ≤ δ) :
     (Measure.pi fun _ : Fin ng => D).real {bg | ¬ RoundAtKHolds K R sg D k acc θp f a δ n₀ bg}
-      ≤ (3 * ng + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
+      ≤ (3 * (Nat.log 2 (ng / n₀) + 2) + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
         + Real.exp (-(min n₀ ng : ℕ) * δ) := by
   classical
   set ν := Measure.pi fun _ : Fin ng => D
@@ -963,8 +980,8 @@ theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng
   set En := EndsDeep R t e k
   set Bi := Bisected R t e k
   set Pr := fun x => ∃ j, probeOutcome R t e k x = .pair j
-  set θe := min (((t.depth - 1 : ℕ) : ℝ) * f) 1
-  have hθe0 : 0 ≤ θe := le_min (mul_nonneg (Nat.cast_nonneg _) hf) zero_le_one
+  set θe := min (2 * ((t.depth - 1 : ℕ) : ℝ) * f) 1
+  have hθe0 : 0 ≤ θe := le_min (by positivity) zero_le_one
   have hθe1 : θe ≤ 1 := min_le_right _ _
   set T := fun bg : Fin ng → FreeMonoid α => stopLook acc θe a n₀ bg Ag En
   set B12 := {bg : Fin ng → FreeMonoid α |
@@ -990,7 +1007,7 @@ theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng
     · exact .inl (.inr (.inr ⟨h1, h2⟩))
     · exact .inr (.inl ⟨h1, h2⟩)
     · refine .inr (.inr ⟨fun i hi => h2 i ?_, h3⟩)
-      have := (stopLook_spec (θ := acc) (θ' := θe) (a := a) (n₀ := n₀) bg Ag En).2.1
+      have := (stopLook_spec (θ := acc) (θ' := θe) (a := a) (n₀ := n₀) bg Ag En).2.2.1
       have hi' : (i : ℕ) < ng := i.2
       exact lt_of_lt_of_le (lt_min hi hi') this
     · exfalso
@@ -1005,7 +1022,7 @@ theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng
   have hcomp : D.real {x | Ag x} = 1 - D.real {x | Pd x} := by
     rw [show {x | Ag x} = {x | Pd x}ᶜ from rfl,
       measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
-  have hB12 : ν.real B12 ≤ 2 * ng * a + Real.exp (-2 * ng * δ ^ 2) := by
+  have hB12 : ν.real B12 ≤ 2 * (Nat.log 2 (ng / n₀) + 2) * a + Real.exp (-2 * ng * δ ^ 2) := by
     by_cases h2 : 1 - acc + δ < D.real {x | Pd x}
     · refine le_trans (measureReal_mono fun bg hb => ?_)
         (gate_pass_le D Ag En ng n₀ (θ' := θe) hacc1 ha hδ (by rw [hcomp]; linarith))
@@ -1024,7 +1041,7 @@ theorem gate_bad_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng
           · exact h3 hb.2]
         simp only [measureReal_empty]
         positivity
-  have hB34 : ν.real B34 ≤ ng * a + Real.exp (-2 * ng * δ ^ 2) := by
+  have hB34 : ν.real B34 ≤ (Nat.log 2 (ng / n₀) + 2) * a + Real.exp (-2 * ng * δ ^ 2) := by
     by_cases h2 : D.real {x | En x} < θe - δ
     · refine le_trans (measureReal_mono fun bg hb => ?_)
         (side_above_le D En Ag ng n₀ (θ' := acc) hθe1 ha hδ h2.le)
@@ -1092,7 +1109,8 @@ theorem round_at_k_batch (K : StageKnobs α) (R : CutReads α) (D : Measure (Fre
     (Measure.pi fun _ : Fin ng => D).real
         {bg | ¬ RoundAtKHolds K R (runPassK K R k (initialK K R seed) probes) D k acc θp f a δ
           n₀ bg}
-      ≤ (3 * ng + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2) + Real.exp (-(min n₀ ng : ℕ) * δ) :=
+      ≤ (3 * (Nat.log 2 (ng / n₀) + 2) + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
+        + Real.exp (-(min n₀ ng : ℕ) * δ) :=
   gate_bad_le K R D k ng n₀ _ (runPassK_learned K R k seed probes) hacc0 hacc1 hθp0 hθp1 hf ha hδ
 
 /-- The triples' claim over the oracle's noise. -/

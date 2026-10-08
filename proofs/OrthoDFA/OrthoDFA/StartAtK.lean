@@ -124,23 +124,21 @@ def bracketAt (agrees : ℕ → Option Bool) (ps : List (List Bool)) : ℕ → �
         | some false, some _ => bracketAt agrees ps fuel lo (mid - 1)
     else .edge ps hi
 
-/-- How many middles `bracketAt` visits with an agreeing read before and a disagreeing one
-after. -/
-def flanked (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → ℕ
+/-- How many middles `bracketAt` visits. -/
+def visited (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → ℕ
   | 0, _, _ => 0
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
       let ag := fun p => if p = lo then some true else if p = hi then some false else agrees p
       let mid := (lo + hi) / 2
-      let here := if ag (mid - 1) = some true ∧ ag (mid + 1) = some false then 1 else 0
       match ag mid with
-      | some true => here + flanked agrees fuel mid hi
-      | some false => here + flanked agrees fuel lo mid
+      | some true => 1 + visited agrees fuel mid hi
+      | some false => 1 + visited agrees fuel lo mid
       | none =>
         match ag (mid - 1), ag (mid + 1) with
-        | some true, some true => here + flanked agrees fuel (mid + 1) hi
-        | some false, some _ => here + flanked agrees fuel lo (mid - 1)
-        | _, _ => here
+        | some true, some true => 1 + visited agrees fuel (mid + 1) hi
+        | some false, some _ => 1 + visited agrees fuel lo (mid - 1)
+        | _, _ => 1
     else 0
 
 variable (K : StageKnobs α) (R : CutReads α)
@@ -198,10 +196,10 @@ noncomputable def probeOutcome (t : DTree α) (edges : Edges α) (k : ℕ) (x : 
   (walkCheck R t edges k x).elim id fun d =>
     bracketAt (agreesAt R t x fun j => d.1.getD (j - k) []) d.1 (d.2 - k) k d.2
 
-/-- How many flanked middles the search of a decided disagreement visits. -/
-noncomputable def flanks (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : ℕ :=
+/-- How many middles the search of a decided disagreement visits. -/
+noncomputable def visits (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : ℕ :=
   (walkCheck R t edges k x).elim (fun _ => 0) fun d =>
-    flanked (agreesAt R t x fun j => d.1.getD (j - k) []) (d.2 - k) k d.2
+    visited (agreesAt R t x fun j => d.1.getD (j - k) []) (d.2 - k) k d.2
 
 /-- `_act_on_disagreement` at the edge into `fd` of a probe whose walk from `k` visits `ps`: the
 guards, then the split test, a no-split answered as undecided is (#412). -/
@@ -286,11 +284,15 @@ noncomputable def rateSide (θ a : ℝ) (n₀ n h : ℕ) : Option Bool :=
     else none
   else none
 
-/-- The look at which `read_fresh` stops: the first, from `n₀` draws on, at which the tests of
-`P` against `θ` and of `P'` against `θ'` have both settled, else the batch's end. -/
+/-- The looks at which `read_fresh` tests: `n₀` doubling while within the batch of `N`, and `N`. -/
+def lookSet (n₀ N : ℕ) : Finset ℕ :=
+  insert N (((Finset.range (Nat.log 2 (N / n₀) + 1)).image (n₀ * 2 ^ ·)).filter (· ≤ N))
+
+/-- The look at which `read_fresh` stops: the first at which the tests of `P` against `θ` and of
+`P'` against `θ'` have both settled, else the batch's end. -/
 noncomputable def stopLook (θ θ' a : ℝ) (n₀ : ℕ) {N : ℕ} (b : Fin N → FreeMonoid α)
     (P P' : FreeMonoid α → Prop) : ℕ :=
-  ((List.range' 1 N).find? fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
+  (((lookSet n₀ N).sort (· ≤ ·)).find? fun n => (rateSide θ a n₀ n (hitsIn b P n)).isSome
     && (rateSide θ' a n₀ n (hitsIn b P' n)).isSome).getD N
 
 /-- `SequentialRate.above` read at look `n`: the side its test has settled on, or, where it has
@@ -328,8 +330,8 @@ def EndsDeep (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : P
 
 open scoped Classical in
 /-- What the gate's reading of batch `bg` against the frozen hypothesis `s` claims, read up to
-`T`, where the agreement's test against `acc` and the ends test against `min((depth − 1)·f, 1)`
-have both settled:
+`T`, the first look at which the agreement's test against `acc` and the ends test against
+`min(2·(depth − 1)·f, 1)`, two sifts per draw, have both settled:
 * the agreement: passing, its share agreeing at least `acc`, the gate's reading disagrees on at
   most `1 − acc + δ` of draws; refusing, on at least `1 − acc − δ`;
 * the ends: the test reading above, the draws whose start or end is undecided below the root are
@@ -346,7 +348,7 @@ def RoundAtKHolds (s : KState α) (D : Measure (FreeMonoid α)) (k : ℕ) (acc �
   let t := s.tree
   let e := s.edges
   let agree := fun x => ¬ gateDisagrees R t e k x
-  let θe := min (((t.depth - 1 : ℕ) : ℝ) * f) 1
+  let θe := min (2 * ((t.depth - 1 : ℕ) : ℝ) * f) 1
   let T := stopLook acc θe a n₀ bg agree (EndsDeep R t e k)
   ((acc * T ≤ hitsIn bg agree T → D.real {x | gateDisagrees R t e k x} ≤ 1 - acc + δ)
     ∧ ((hitsIn bg agree T : ℝ) < acc * T → 1 - acc - δ ≤ D.real {x | gateDisagrees R t e k x}))
@@ -379,19 +381,19 @@ noncomputable def prefixMax (D : Measure (FreeMonoid α)) (k : ℕ) : ℝ :=
 
 /-- What the triples' harvest claims of the hypothesis `s` that reads `R`: the draws whose triple
 harvests a read at a state read undecided less than `uGood` of the time are at most `uGood` times
-the depth times the flanked middles the searches visit, but for the draws whose middles the pass
+the depth times the middles the searches visit, but for the draws whose middles the pass
 may have read and a fluctuation `ε` in units of the largest a draw can add. -/
 def TripleHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (s : KState α) (D : Measure (FreeMonoid α)) (k L : ℕ)
     (seed probes : List (FreeMonoid α)) (uGood ε : ℝ) : Prop :=
   D.real {x | ∃ j b, probeOutcome R s.tree s.edges k x = .triple j
       ∧ tripleRead R s.tree x j = some b ∧ stateIndecision A O B F (A.state b) < uGood}
-    ≤ uGood * s.tree.depth * ∫ x, (flanks R s.tree s.edges k x : ℝ) ∂D
+    ≤ uGood * s.tree.depth * ∫ x, (visits R s.tree s.edges k x : ℝ) ∂D
       + (passReadSet seed probes s.tree).card * prefixMax D (k + 1)
       + ε * (1 + uGood * s.tree.depth * L)
 
 /-- `RoundAtK`: for any reads, the gate's batch makes the round's claims but for the tests'
-failure chances, Hoeffding's tails and a refusal's chance of missing every searched draw; and over
+failure chances at each of the `log₂(ng/n₀) + 2` looks, Hoeffding's tails and a refusal's chance of missing every searched draw; and over
 the oracle's noise the triples' claim holds but for Chebyshev's bound, the draws spread at most
 `prefixMax D k` over any first `k` letters. -/
 def RoundAtK : Prop :=
@@ -406,7 +408,8 @@ def RoundAtK : Prop :=
       (Measure.pi fun _ : Fin ng => D).real
           {bg | ¬ RoundAtKHolds K R (runPassK K R k (initialK K R seed) probes) D k acc θp f a δ
             n₀ bg}
-        ≤ (3 * ng + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2) + Real.exp (-(min n₀ ng : ℕ) * δ))
+        ≤ (3 * (Nat.log 2 (ng / n₀) + 2) + 1) * a + 2 * Real.exp (-2 * ng * δ ^ 2)
+          + Real.exp (-(min n₀ ng : ℕ) * δ))
     ∧ μ.real {ω | ¬ TripleHolds (readsAt O B F ω) A O B F
         (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes) D k L seed
         probes uGood ε}

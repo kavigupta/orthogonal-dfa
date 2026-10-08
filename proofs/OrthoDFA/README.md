@@ -31,17 +31,19 @@
   and its ends test have both settled. `RoundAtK` makes one claim per outcome:
   - Agreement: a passing gate's reading disagrees on at most `1 − acc + δ` of draws, and a
     refusing one's on at least `1 − acc − δ`.
-  - Ends: the ends test reading above or below its threshold is right to within `δ`.
+  - Ends: the ends test reading above or below its threshold, `min(2·(depth − 1)·f, 1)`, is
+    right to within `δ`.
   - Pairs: the pair test tripping means more than `θp` of searched draws end at a pair, and a
     refusal with nothing searched means at most `δ` of draws are searched.
   - Edge: the probe splits a leaf, adds a member, or stops at a string the cut cannot place.
   - Member: it sits at a leaf whose edge by some letter is unlearned, and is placed followed by
     that letter.
 
-  These hold for any reads, but for `(3·ng + 1)·a + 2·exp(−2·ng·δ²) + exp(−min(n₀, ng)·δ)`.
+  The tests run at the looks `n₀, 2n₀, 4n₀, …` and the cap. These claims hold for any reads, but
+  for `(3·(log₂(ng/n₀) + 2) + 1)·a + 2·exp(−2·ng·δ²) + exp(−min(n₀, ng)·δ)`.
   - Triples: over the oracle's noise, those harvested at states read undecided less than `uGood`
-    are at most `uGood·depth·E[Φ]`, plus the draws whose middles the pass may have read, plus a
-    fluctuation `ε`, but for `prefixMax D k / ε²`. `Φ` counts the flanked middles a search
+    are at most `uGood·depth·E[visits]`, plus the draws whose middles the pass may have read, plus a
+    fluctuation `ε`, but for `prefixMax D k / ε²`. `visits` counts the middles a search
     visits. Not yet proved.
 - `OrthoDFA/StartState.lean` — `StartExists`: a DFA `H` that agrees with the target on a set `S`
   of target states, each read as `H`'s state `h q`. Started at `h q`, it misjudges at most `η` of
