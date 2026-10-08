@@ -770,3 +770,26 @@ stays `(L+1)·2(N+2)·φ/ε + passReadBound·φ`. What it still owes is unchange
 read set as a `Finset`, that it determines the pass, and adaptive independence (each new read
 string's bits unread, so its vote is independent of the past). `ε` would still anchor the
 clustering; only the reads would leave it out.
+
+## The edge gap need not be assumed (`Proofs/EdgeGap.lean`)
+
+`round_tetrachotomy` is `round_tetrachotomy_both` with the `EdgeGapPremise … s.hyp` conjunct gone
+from the bounded event. It takes two premises on the edge gap's constants instead:
+
+    2(N+1)·φ ≤ η    and    wHi ≤ 1 − 2(N+1)·φ.
+
+It rests on `edgeGap_or_advances`, proved with only `propext`, `Classical.choice` and
+`Quot.sound`:
+- **Every state read cleanly gives the gap.** Read every node on its likelier side
+  (`majRead`, `majPath`). With every state read cleanly, a node read leaves its likelier side
+  with chance at most φ (`flip_le`). So the middle reading of x leaves `majPath x` with chance at
+  most φ times the path's reads (`midPath_ne_majPath_le`). An edge's chance of landing off its
+  edge is then at most ℓφ or at least 1 − ℓφ, with ℓ the two paths' reads
+  (`edgeDisagreeProb_bimodal`). Paths have at most `depth` reads (`route_length_le_depth`), and a
+  round's tree is at most N + 1 deep (`roundEnd_depth_le`, from `splitAt_depth_le` and
+  `probeStep_tree`). So the gap holds at η, wHi.
+- **Otherwise an indecision chain advances.** Some state is read badly, `BadVisited` reaches it
+  from a visited string, and the ν root advances its chain (`chainAdvancesBy_of_mass`,
+  `nuRoot_pos`).
+
+`round_tetrachotomy` still rests on the sorried `gate_flip_bound`.
