@@ -43,6 +43,15 @@ class Sifter:
 
         return self.tree.classify(seq, decide)
 
+    def middle_departs(self, seq, leaf) -> bool:
+        """Whether the middle of the band, read at the first node that cannot
+        place ``seq``, already sends it away from ``leaf``: a disagreement the gate
+        would count, seen from reads the sift made."""
+        toward = self.tree.leaves_toward(
+            seq, self.family.is_accept, self.family.middle_side
+        )
+        return bool(toward) and leaf not in toward
+
     def prefill(self, seqs) -> None:
         """Warm the cache for sifting all of ``seqs``, one batched call per tree
         level rather than one per node visited.
@@ -88,6 +97,15 @@ def anchored_walk(probe, sift, transitions, earliest):
         state = transitions[state][symbol]
         states.append(state)
     return start, states
+
+
+def walk(probe, initial, transitions):
+    """The states following ``transitions`` from ``initial`` reaches along
+    ``probe``, one per prefix."""
+    states = [initial]
+    for symbol in probe:
+        states.append(transitions[states[-1]][symbol])
+    return states
 
 
 def first_disagreeing_edge(probe, states, sift, lo, hi):

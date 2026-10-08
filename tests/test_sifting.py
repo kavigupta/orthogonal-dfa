@@ -2,7 +2,13 @@
 
 import unittest
 
-from orthogonal_dfa.l_star.sifting import anchored_walk, first_disagreeing_edge
+from orthogonal_dfa.l_star.midfix_tree import MidfixTree
+from orthogonal_dfa.l_star.sifting import (
+    Sifter,
+    anchored_walk,
+    first_disagreeing_edge,
+    walk,
+)
 
 #: Every state steps to 1, so a walk of any non-empty probe ends there.
 _STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
@@ -76,3 +82,37 @@ class TestNarrowingToTheEdge(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class _Middle:
+    """Cannot place anything; the middle of the band reads ``side``."""
+
+    def __init__(self, side):
+        self.side = side
+
+    def is_accept(self, _seq, _midfix):
+        return None
+
+    def middle_side(self, _seq, _midfix):
+        return self.side
+
+
+class TestTheMiddleOfTheBand(unittest.TestCase):
+    def _sifter(self, side):
+        tree = MidfixTree([b""])
+        tree.split(0, b"x")
+        return Sifter(tree, _Middle(side))
+
+    def test_it_departs_from_a_walk_on_the_other_side(self):
+        self.assertTrue(self._sifter(True).middle_departs(b"s", 1))
+
+    def test_it_does_not_depart_from_a_walk_below_its_side(self):
+        self.assertFalse(self._sifter(True).middle_departs(b"s", 2))
+
+    def test_a_tie_departs_from_nothing(self):
+        self.assertFalse(self._sifter(None).middle_departs(b"s", 1))
+
+
+class TestWalking(unittest.TestCase):
+    def test_a_walk_follows_the_transitions_from_its_start(self):
+        self.assertEqual([0, 1, 1], walk(bytes([0, 1]), 0, _STEPS_TO_ONE))

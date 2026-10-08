@@ -66,6 +66,20 @@ class MidfixTree:
     def leaves(self) -> Iterator[int]:
         return _leaves(self._root)
 
+    def leaves_toward(self, seq, decide: Decide, tiebreak: Decide) -> set:
+        """The leaves below where ``tiebreak`` sends ``seq`` at the first node
+        ``decide`` cannot place it; none where ``seq`` places or ``tiebreak``
+        abstains too."""
+        node = self._root
+        while not isinstance(node, int):
+            midfix, lookup = node
+            decision = decide(seq, midfix)
+            if decision is None:
+                side = tiebreak(seq, midfix)
+                return set() if side is None else set(_leaves(lookup[side]))
+            node = lookup[decision]
+        return set()
+
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
         """The branches from the root to leaf ``state`` (True = accept child); a
         stable node key, unlike the node objects a split rebuilds."""

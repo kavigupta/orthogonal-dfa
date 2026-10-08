@@ -19,6 +19,7 @@ class SuffixFamily:
         # A later round moves pst's boundary; this round's tree was cut at these.
         self.accept_thresh = pst.accept_thresh
         self.reject_thresh = pst.reject_thresh
+        self.boundary = pst.decision_boundary
         # train/test halves for the split test
         self.train_idx = list(range(0, len(self.vs), 2))
         self.test_idx = list(range(1, len(self.vs), 2))
@@ -61,6 +62,16 @@ class SuffixFamily:
         if mean >= self.accept_thresh:
             return True
         if mean < self.reject_thresh:
+            return False
+        return None
+
+    def middle_side(self, seq, midfix) -> Optional[bool]:
+        """The side of the middle of the band the family mean lands on, ``None``
+        exactly on it."""
+        mean = self.mean(seq, midfix)
+        if mean > self.boundary:
+            return True
+        if mean < self.boundary:
             return False
         return None
 

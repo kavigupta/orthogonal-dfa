@@ -18,7 +18,7 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
+from orthogonal_dfa.l_star.provenance import Bisected, Read, Sifted, Walked
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
@@ -233,10 +233,15 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
 
 
 class _Walk:
-    """A tree that places strings by a rule the test chooses."""
+    """A tree that places strings by a rule the test chooses, and whose middle
+    of the band, where it cannot place one, departs from a walk or not."""
 
-    def __init__(self, places):
+    def __init__(self, places, departs=False):
         self._places = places
+        self._departs = departs
+
+    def middle_departs(self, _seq, _leaf):
+        return self._departs
 
     def sift_and_boundary(self, seq):
         leaf = self._places(seq)
@@ -356,3 +361,29 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _bisected(places, departs=False, initial=0):
+    return Bisected(_Fixed(_PROBE), _Walk(places, departs), _STEPS_TO_ONE, initial)
+
+
+class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase):
+    def test_an_undecided_final_read_the_middle_sends_away_is_kept(self):
+        undecided = lambda seq: None if len(seq) == 4 else 1
+        self.assertEqual([_PROBE + b"?"], _bisected(undecided, departs=True).sample())
+
+    def test_an_undecided_final_read_the_middle_sends_along_is_not(self):
+        undecided = lambda seq: None if len(seq) == 4 else 1
+        self.assertEqual([], _bisected(undecided).sample())
+
+    def test_the_first_read_the_search_cannot_place_is_kept(self):
+        self.assertEqual([_PROBE[:2] + b"?"], _bisected(_LONG_ONE_FAILS).sample())
+
+    def test_what_comes_before_the_walk_is_not(self):
+        """Unlike a walked replay, which also keeps the anchor search's and
+        the final sift's misses whether or not the probe disagrees."""
+        short_fail = lambda seq: None if len(seq) < 2 else 1
+        self.assertEqual([], _bisected(short_fail).sample())
+
+    def test_a_walk_from_where_the_middle_places_the_empty_string(self):
+        self.assertEqual([], _bisected(lambda seq: 1, initial=1).sample())

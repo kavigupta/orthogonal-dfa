@@ -30,7 +30,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
-from .provenance import provenance
+from .provenance import Bisected, provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -139,21 +139,24 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _hold_bisection(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """The strings the round's disagreement searches could not place, as a
-    population of their own. Every other harvest is read whether or not a probe
-    disagrees, so mixed in with it they dilute a badly read state below what the
-    FNR gate sees."""
+    """The strings the round's disagreeing probes could not place, as a
+    population of their own, grown only by more of the same. Every other harvest
+    is read whether or not a probe disagrees, so mixed in with it they dilute a
+    badly read state below what the FNR gate sees."""
     fresh = sorted(set(resolver.bisected) - state.seen)
     if not fresh:
         return
-    reads = Counter(resolver.bisected[s] for s in fresh)
     state.hold_bisection(
         fresh,
         HarvestSource(
             Counter(
                 {
-                    provenance(read, resolver.sifter, dfa.transitions, pst.rng): count
-                    for read, count in reads.items()
+                    Bisected(
+                        UniformSource(pst),
+                        resolver.sifter,
+                        dfa.transitions,
+                        dfa.initial_state,
+                    ): len(fresh)
                 }
             ),
             pst.rng,

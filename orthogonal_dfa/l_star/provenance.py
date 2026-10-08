@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from .rejection_source import SourceDry
-from .sifting import Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import Sifter, anchored_walk, first_disagreeing_edge, walk
 
 
 @dataclass(frozen=True)
@@ -99,6 +99,37 @@ class Walked(Provenance):
             landed = sift(drawn)
             if landed is not None and landed != states[-1]:
                 first_disagreeing_edge(drawn, states, sift, start, len(drawn))
+        return met
+
+
+@dataclass(frozen=True, eq=False)
+class Bisected(Provenance):
+    """A probe walked as the counterexample pass walks one, from where the middle
+    of the band places the empty string, keeping only what the pass puts in its
+    bisection population: an undecided final read the middle of the band sends
+    away from the walk, or the first read the search for the disagreeing edge
+    cannot place."""
+
+    transitions: dict = field(repr=False)
+    initial: int
+
+    def _read(self, drawn) -> List[bytes]:
+        states = walk(drawn, self.initial, self.transitions)
+        landed, boundary = self.sifter.sift_and_boundary(drawn)
+        if landed is None:
+            departs = self.sifter.middle_departs(drawn, states[-1])
+            return [boundary] if departs else []
+        if landed == states[-1]:
+            return []
+        met = []
+
+        def sift(seq):
+            leaf, boundary = self.sifter.sift_and_boundary(seq)
+            if leaf is None:
+                met.append(boundary)
+            return leaf
+
+        first_disagreeing_edge(drawn, states, sift, 0, len(drawn))
         return met
 
 

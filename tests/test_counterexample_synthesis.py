@@ -16,7 +16,7 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.provenance import Read
+from orthogonal_dfa.l_star.provenance import Bisected, Read
 
 
 def _resolver(*strings):
@@ -223,7 +223,7 @@ class TestTheBisectionIsHeldApart(unittest.TestCase):
         _hold_bisection(
             SimpleNamespace(rng=np.random.default_rng(0)),
             resolver,
-            SimpleNamespace(transitions={}),
+            SimpleNamespace(transitions={}, initial_state=0),
             state,
             acc_threshold=0.98,
         )
@@ -243,3 +243,12 @@ class TestTheBisectionIsHeldApart(unittest.TestCase):
         self._hold(state, b"a")
 
         self.assertNotIn(("bisection", 1), state.held)
+
+    def test_it_grows_only_by_more_of_the_same(self):
+        state = _state(held=[])
+
+        self._hold(state, b"a")
+
+        # pylint: disable=protected-access
+        provenances = state.sources[("bisection", 1)]._provenances
+        self.assertEqual([Bisected], [type(p) for p in provenances])

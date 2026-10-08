@@ -1,4 +1,5 @@
-"""Where :meth:`TransitionResolver._process` anchors its walk.
+"""Where :meth:`TransitionResolver._process` starts its walk, and what a
+disagreeing probe it cannot place leaves in the bisection population.
 
 Driven by stubs rather than synthesis: the anchor is a property of the walk, and
 the end-to-end targets that depend on it are noisy enough that a regression shows
@@ -55,6 +56,9 @@ class _Learner(TransitionResolver):
         self._walked = Read(None, None)
         self.acted = None
 
+    def _initial(self):
+        return 7
+
     def _act_on_disagreement(self, w, states, agree_point):
         self.acted = (list(w), list(states), agree_point)
         return _RESOLVED
@@ -65,17 +69,17 @@ DELTA = {7: {0: 8, 1: 7}, 8: {0: 7, 1: 8}}
 
 
 class TestProcessAnchor(unittest.TestCase):
-    def test_anchors_at_the_shortest_placeable_prefix(self):
-        """The empty string is the one the family places worst, so a probe that
-        cannot start there must still be walked, from deeper in."""
+    def test_walks_from_where_the_middle_of_the_band_places_the_empty_string(self):
+        """As the gate does, so a probe disagrees with the walk exactly when
+        the gate would count it, even where the cut cannot place the empty
+        string."""
         learner = _Learner(_StubSifter(places_at=2))
         learner._process([0, 1, 0, 1], DELTA)
 
         w, states, agree_point = learner.acted
-        self.assertEqual(agree_point, 2)
+        self.assertEqual(agree_point, 0)
         self.assertEqual(w, [0, 1, 0, 1])
-        # Unplaced positions stay None; the walk follows delta from the anchor.
-        self.assertEqual(states, [None, None, 7, 8, 8])
+        self.assertEqual(states, [7, 8, 8, 7, 7])
 
     def test_records_the_anchor_not_the_empty_string(self):
         learner = _Learner(_StubSifter(places_at=2))
@@ -89,22 +93,13 @@ class TestProcessAnchor(unittest.TestCase):
 
         self.assertEqual(set(learner.indecisive), {("bail",), (0, "bail")})
 
-    def test_walks_from_the_empty_string_when_it_places(self):
-        learner = _Learner(_StubSifter(places_at=0))
-        learner._process([0, 1], DELTA)
+    def test_walks_even_where_no_prefix_places(self):
+        learner = _Learner(_StubSifter(places_at=99))
+        learner._process([0, 1, 0], DELTA)
 
-        _, states, agree_point = learner.acted
-        self.assertEqual(agree_point, 0)
-        self.assertEqual(states, [7, 8, 8])
-
-    def test_gives_up_only_when_no_prefix_places(self):
-        sifter = _StubSifter(places_at=99)
-        learner = _Learner(sifter)
-
-        self.assertEqual(learner._process([0, 1, 0], DELTA), _UNCHECKED)
-        self.assertIsNone(learner.acted)
-        # It tried every prefix before giving up, rather than only the empty one.
-        self.assertEqual(sifter.asked, [(), (0,), (0, 1)])
+        _, states, _ = learner.acted
+        self.assertEqual(states, [7, 8, 8, 7])
+        self.assertEqual(learner.population.recorded, [])
 
 
 class _Bisecting(TransitionResolver):
@@ -133,3 +128,37 @@ class TestTheDisagreementSearchHarvestsApart(unittest.TestCase):
         self.assertEqual(_UNCHECKED, status)
         self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.bisected)
         self.assertEqual({}, learner.indecisive)
+
+
+class _UndecidedAtTheEnd(TransitionResolver):
+    """Cannot place the whole probe; the middle of the band sends it away from
+    the walk or not, as the test chooses."""
+
+    # pylint: disable=super-init-not-called
+    def __init__(self, departs):
+        self.sifter = SimpleNamespace(
+            sift_and_boundary=lambda seq: (None, bytes(seq) + b"?"),
+            middle_departs=lambda seq, leaf: departs,
+        )
+        self.indecisive = {}
+        self.bisected = {}
+        self._walked = Read(None, None)
+
+
+class TestAnUndecidedFinalRead(unittest.TestCase):
+    def test_one_the_middle_sends_away_from_the_walk_joins_the_bisection(self):
+        learner = _UndecidedAtTheEnd(departs=True)
+
+        status = learner._act_on_disagreement(bytes([0, 1]), [7] * 3, 0)
+
+        self.assertEqual(_UNCHECKED, status)
+        self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.bisected)
+        self.assertEqual({}, learner.indecisive)
+
+    def test_one_the_middle_sends_along_the_walk_stays_a_boundary_string(self):
+        learner = _UndecidedAtTheEnd(departs=False)
+
+        learner._act_on_disagreement(bytes([0, 1]), [7] * 3, 0)
+
+        self.assertEqual({}, learner.bisected)
+        self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.indecisive)

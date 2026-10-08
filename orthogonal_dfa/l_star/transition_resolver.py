@@ -35,7 +35,7 @@ from .partial_dfa import PartialDFA
 from .prefix_sources import UniformSource
 from .progress import counter, write
 from .provenance import Read
-from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge, walk
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -54,8 +54,12 @@ class TransitionResolver:
         #: Boundary strings the family could not place, each with the read that
         #: met it.
         self.indecisive = {}
-        #: The strings the disagreement search could not place, likewise.
+        #: The strings disagreeing probes could not place, likewise: the first a
+        #: search for the disagreeing edge meets, or an undecided final read the
+        #: middle of the band sends away from the walk.
         self.bisected = {}
+        #: The tree size `_initial` last read at, and what it read.
+        self._initial_at = (None, None)
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
@@ -197,25 +201,42 @@ class TransitionResolver:
             yield from block
 
     def _process(self, w, delta):
-        """Anchor at the shortest prefix the tree places, follow the total delta,
-        then act on where the walk and a fresh sift disagree."""
-        start, states = anchored_walk(w, self._sift, delta, 0)
-        if start is None:
-            return _UNCHECKED
-        # Seed the anchor leaf's population. The prefix pool is length-L, so it
-        # only reaches deep leaves; short anchor prefixes are what give the shallow
-        # leaves enough members for the one-state test to settle them.
-        self.population.add(
-            w[:start], at=self.tree.path_of(states[start]), draw=self._walked
-        )
-        return self._act_on_disagreement(w, states, start)
+        """Walk the total delta from where the middle of the band places the
+        empty string, as the gate does, then act on where the walk and a fresh
+        sift disagree."""
+        start, anchored = anchored_walk(w, self._sift, delta, 0)
+        if start is not None:
+            # Seed the anchor leaf's population. The prefix pool is length-L, so
+            # it only reaches deep leaves; short anchor prefixes are what give the
+            # shallow leaves enough members for the one-state test to settle them.
+            self.population.add(
+                w[:start], at=self.tree.path_of(anchored[start]), draw=self._walked
+            )
+        return self._act_on_disagreement(w, walk(w, self._initial(), delta), 0)
+
+    def _initial(self):
+        """The leaf the middle of the band places the empty string at, as the
+        gate and the export read it; read again only once a split changes the
+        tree."""
+        if self._initial_at[0] != self.tree.num_states:
+            boundary = self.pst.decision_boundary
+            decide, _ = oracle_decider(
+                self.pst.oracle, self.tree.base_family, boundary, boundary
+            )
+            initial = self.tree.classify(b"", decide)
+            self._initial_at = (self.tree.num_states, 0 if initial is None else initial)
+        return self._initial_at[1]
 
     def _act_on_disagreement(self, w, states, agree_point):
         state = states[-1]
-        actual = self._sift(w)
+        actual, boundary = self.sifter.sift_and_boundary(w)
         if actual is None:
+            if self.sifter.middle_departs(w, state):
+                self.bisected.setdefault(boundary, self._walked)
+            else:
+                self._harvest(boundary, self._walked)
             return _UNCHECKED
-        if state is None or actual == state:
+        if actual == state:
             return _RESOLVED
         fd = first_disagreeing_edge(w, states, self._bisect_sift, agree_point, len(w))
         if fd is None:
