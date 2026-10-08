@@ -162,24 +162,6 @@ theorem rolled_odds {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFinite
       simpa [Finset.prod_const, Finset.card_range] using this
     simpa [setIntegral_const, smul_eq_mul, mul_comm] using this
 
-/-- Believed true, from `rolled_odds`: after `k ≥ rolloverRounds − 1` links the bad-to-clean
-odds are at least `(uHi/(r·a))^k · π/(1−π) ≥ f·r·a/(uHi − f·r·a)`, so the bad share is at least
-`f·r·a/uHi` and the chain's rate reaches #408's promotion rate. -/
-theorem rollover_promotes (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
-    (X : Measure (FreeMonoid α)) [IsFiniteMeasure X] (c : α)
-    (links : List (State × Finset (FreeMonoid α))) (bad : Set (FreeMonoid α))
-    {f a uHi π : ℝ} {r : ℕ} (hf : 1 ≤ f) (hra : 0 < r * a) (hT : f * r * a < uHi)
-    (hπ0 : 0 < π) (hπ1 : π < 1)
-    (hHi : ∀ l ∈ links, ∀ x ∈ bad,
-      uHi ≤ stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)))
-    (hc : ∀ l ∈ links, ∀ x ∉ bad,
-      stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)) ≤ r * a)
-    (hπ : π * X.real Set.univ ≤ X.real bad)
-    (hk : rolloverRounds f a uHi π r ≤ links.length + 1) :
-    f * r * a / uHi * (rolledLaw A O X c links).real Set.univ
-      ≤ (rolledLaw A O X c links).real bad := by
-  sorry
-
 theorem withDensity_real_eq {β : Type*} [MeasurableSpace β] (X : Measure β) [IsFiniteMeasure X]
     (g : β → ℝ) (hm : Measurable g) (h0 : ∀ x, 0 ≤ g x) {S : Set β} (hS : MeasurableSet S) :
     (X.withDensity fun x => ENNReal.ofReal (g x)).real S = ∫ x in S, g x ∂X := by
@@ -194,6 +176,125 @@ theorem stateIndecision_le_one [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (q : Q) :
     stateIndecision A O B F q ≤ 1 :=
   Real.sSup_le (fun _ ⟨_, _, h⟩ => h ▸ measureReal_le_one) zero_le_one
+
+theorem list_prod_ge {l : List ℝ} {b : ℝ} (hb : 0 ≤ b) (h : ∀ y ∈ l, b ≤ y) :
+    b ^ l.length ≤ l.prod := by
+  induction l with
+  | nil => simp
+  | cons y l ih =>
+    rw [List.prod_cons, List.length_cons, pow_succ]
+    have hy := h y (List.mem_cons_self ..)
+    have ih' := ih fun z hz => h z (List.mem_cons_of_mem _ hz)
+    calc b ^ l.length * b ≤ l.prod * y :=
+          mul_le_mul ih' hy hb (le_trans (pow_nonneg hb _) ih')
+      _ = y * l.prod := mul_comm _ _
+
+theorem list_prod_le {l : List ℝ} {b : ℝ} (h : ∀ y ∈ l, 0 ≤ y ∧ y ≤ b) :
+    l.prod ≤ b ^ l.length := by
+  induction l with
+  | nil => simp
+  | cons y l ih =>
+    rw [List.prod_cons, List.length_cons, pow_succ]
+    have hy := h y (List.mem_cons_self ..)
+    have ih' := ih fun z hz => h z (List.mem_cons_of_mem _ hz)
+    have h0 : 0 ≤ l.prod := List.prod_nonneg fun z hz => (h z (List.mem_cons_of_mem _ hz)).1
+    calc y * l.prod ≤ b * b ^ l.length := mul_le_mul hy.2 ih' h0 (le_trans hy.1 hy.2)
+      _ = b ^ l.length * b := mul_comm _ _
+
+/-- After `k ≥ rolloverRounds − 1` links the bad-to-clean odds are at least
+`(uHi/(r·a))^k · π/(1−π) ≥ f·r·a/(uHi − f·r·a)`, so the bad share is at least `f·r·a/uHi` and the
+chain's rate reaches #408's promotion rate. -/
+theorem rollover_promotes [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (X : Measure (FreeMonoid α)) [IsFiniteMeasure X] (c : α)
+    (links : List (State × Finset (FreeMonoid α))) (bad : Set (FreeMonoid α))
+    {f a uHi π : ℝ} {r : ℕ} (hf : 1 ≤ f) (hra : 0 < r * a) (hT : f * r * a < uHi)
+    (hπ0 : 0 < π) (hπ1 : π < 1)
+    (hHi : ∀ l ∈ links, ∀ x ∈ bad,
+      uHi ≤ stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)))
+    (hc : ∀ l ∈ links, ∀ x ∉ bad,
+      stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c)) ≤ r * a)
+    (hπ : π * X.real Set.univ ≤ X.real bad)
+    (hk : rolloverRounds f a uHi π r ≤ links.length + 1) :
+    f * r * a / uHi * (rolledLaw A O X c links).real Set.univ
+      ≤ (rolledLaw A O X c links).real bad := by
+  set k := links.length
+  set T := f * r * a with hTdef
+  have hT0 : 0 < T := by rw [hTdef, mul_assoc]; exact mul_pos (by linarith) hra
+  have hHi0 : 0 < uHi := lt_trans hT0 hT
+  have hraT : r * a ≤ T := by rw [hTdef, mul_assoc]; nlinarith
+  set u := fun (l : State × Finset (FreeMonoid α)) (x : FreeMonoid α) =>
+    stateIndecision A O l.1 l.2 (A.state (x * FreeMonoid.of c))
+  set G : FreeMonoid α → ℝ := fun x => (links.map fun l => u l x).prod with hG
+  have hmem : ∀ x, ∀ y ∈ links.map (fun l => u l x), 0 ≤ y ∧ y ≤ 1 := by
+    intro x y hy
+    obtain ⟨l, -, rfl⟩ := List.mem_map.1 hy
+    exact ⟨stateIndecision_nonneg A O _ _ _, stateIndecision_le_one A O _ _ _⟩
+  have hG0 : ∀ x, 0 ≤ G x := fun x => List.prod_nonneg fun y hy => (hmem x y hy).1
+  have hG1 : ∀ x, G x ≤ 1 := fun x => by simpa using list_prod_le (hmem x)
+  have hGm : Measurable G := measurable_from_top
+  have hint : Integrable G X :=
+    Integrable.of_bound hGm.aestronglyMeasurable 1 (Filter.Eventually.of_forall fun x => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hG0 x)]; exact hG1 x)
+  have hbadm : MeasurableSet bad := MeasurableSpace.measurableSet_top
+  have hlaw : rolledLaw A O X c links = X.withDensity fun x => ENNReal.ofReal (G x) := rfl
+  rw [hlaw, withDensity_real_eq X G hGm hG0 MeasurableSet.univ,
+    withDensity_real_eq X G hGm hG0 hbadm, setIntegral_univ, ← integral_add_compl hbadm hint]
+  set B := ∫ x in bad, G x ∂X
+  set C := ∫ x in badᶜ, G x ∂X
+  have hBpt : ∀ x ∈ bad, uHi ^ k ≤ G x := fun x hx => by
+    have := list_prod_ge hHi0.le (l := links.map fun l => u l x)
+      (fun y hy => by obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hy; exact hHi l hl x hx)
+    rwa [List.length_map] at this
+  have hCpt : ∀ x ∈ badᶜ, G x ≤ (r * a) ^ k := fun x hx => by
+    have := list_prod_le (l := links.map fun l => u l x) (b := r * a)
+      (fun y hy => by
+        obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hy
+        exact ⟨stateIndecision_nonneg A O _ _ _, hc l hl x hx⟩)
+    rwa [List.length_map] at this
+  have hB : uHi ^ k * X.real bad ≤ B := by
+    have h := setIntegral_mono_on (f := fun _ : FreeMonoid α => uHi ^ k) (g := G)
+      (integrableOn_const (measure_ne_top _ _)) hint.integrableOn hbadm hBpt
+    rw [setIntegral_const, smul_eq_mul, mul_comm] at h
+    exact h
+  have hC : C ≤ (r * a) ^ k * X.real badᶜ := by
+    have h := setIntegral_mono_on (f := G) (g := fun _ : FreeMonoid α => (r * a) ^ k)
+      hint.integrableOn (integrableOn_const (measure_ne_top _ _)) hbadm.compl hCpt
+    rw [setIntegral_const, smul_eq_mul, mul_comm] at h
+    exact h
+  have hβ : 1 < uHi / (r * a) := by rw [one_lt_div hra]; linarith
+  have hZ0 : 0 < T * (1 - π) / ((uHi - T) * π) :=
+    div_pos (mul_pos hT0 (by linarith)) (mul_pos (by linarith) hπ0)
+  have hlog : Real.logb (uHi / (r * a)) (T * (1 - π) / ((uHi - T) * π)) ≤ k := by
+    have h1 := Nat.le_ceil (Real.logb (uHi / (r * a)) (T * (1 - π) / ((uHi - T) * π)))
+    have h2 : ⌈Real.logb (uHi / (r * a)) (T * (1 - π) / ((uHi - T) * π))⌉₊ ≤ k := by
+      have := hk; unfold rolloverRounds at this; rw [← hTdef] at this; omega
+    exact le_trans h1 (by exact_mod_cast h2)
+  have hZ : T * (1 - π) / ((uHi - T) * π) ≤ (uHi / (r * a)) ^ k := by
+    calc T * (1 - π) / ((uHi - T) * π)
+        = (uHi / (r * a)) ^ Real.logb (uHi / (r * a)) (T * (1 - π) / ((uHi - T) * π)) :=
+          (Real.rpow_logb (by linarith) hβ.ne' hZ0).symm
+      _ ≤ (uHi / (r * a)) ^ (k : ℝ) := Real.rpow_le_rpow_of_exponent_le hβ.le hlog
+      _ = (uHi / (r * a)) ^ k := Real.rpow_natCast _ _
+  rw [div_pow, le_div_iff₀ (pow_pos hra k), div_mul_eq_mul_div,
+    div_le_iff₀ (mul_pos (by linarith) hπ0)] at hZ
+  have hU : 0 ≤ X.real Set.univ := measureReal_nonneg
+  have hcompl : X.real badᶜ = X.real Set.univ - X.real bad := measureReal_compl hbadm
+  have hCx : X.real badᶜ ≤ (1 - π) * X.real Set.univ := by rw [hcompl]; linarith
+  have hrak : 0 ≤ (r * a) ^ k := pow_nonneg hra.le k
+  have hHik : 0 ≤ uHi ^ k := pow_nonneg hHi0.le k
+  have e1 : T * C ≤ T * ((r * a) ^ k * ((1 - π) * X.real Set.univ)) :=
+    mul_le_mul_of_nonneg_left (le_trans hC (mul_le_mul_of_nonneg_left hCx hrak)) hT0.le
+  have e2 : T * ((r * a) ^ k * ((1 - π) * X.real Set.univ))
+      ≤ uHi ^ k * ((uHi - T) * π) * X.real Set.univ := by
+    have := mul_le_mul_of_nonneg_right hZ hU
+    nlinarith
+  have e3 : uHi ^ k * ((uHi - T) * π) * X.real Set.univ ≤ (uHi - T) * B := by
+    have hd : 0 ≤ uHi - T := by linarith
+    have := mul_le_mul_of_nonneg_left hπ (mul_nonneg hHik hd)
+    have := mul_le_mul_of_nonneg_left hB hd
+    nlinarith
+  rw [div_mul_eq_mul_div, div_le_iff₀ hHi0]
+  nlinarith
 
 /-- A chain whose source holds predecessors of a badly read state advances whenever the round's
 family reads every other draw's extension cleanly, as the gap premise has it. -/
