@@ -518,6 +518,9 @@ theorem probeStepK_learned {k : ℕ} {s : KState α} {x : FreeMonoid α}
   simp only [probeStepK]
   split
   · split
+    swap
+    · exact closeEdges_learned K R h
+    split
     · rename_i d s1 y sprime _
       refine closeEdges_learned K R fun p c q w he => ?_
       rcases hE : s.edges p c with _ | ⟨q', w'⟩ <;> simp only [hE] at he
@@ -595,21 +598,44 @@ theorem follow_inl {edges : Edges α} :
       · simp at h
 
 omit [Fintype α] [DecidableEq α] in
-theorem bisectAt_spec (place walk : ℕ → List Bool) :
-    ∀ fuel lo hi, lo < hi → hi - lo ≤ fuel → place lo = walk lo → place hi ≠ walk hi →
-      lo < bisectAt place walk fuel lo hi ∧ bisectAt place walk fuel lo hi ≤ hi
-        ∧ place (bisectAt place walk fuel lo hi - 1) = walk (bisectAt place walk fuel lo hi - 1)
-        ∧ place (bisectAt place walk fuel lo hi) ≠ walk (bisectAt place walk fuel lo hi)
-  | 0, lo, hi, hlt, hf, _, _ => by omega
-  | fuel + 1, lo, hi, hlt, hf, hlo, hhi => by
-    simp only [bisectAt]
-    split_ifs with h1 h2
-    · have := bisectAt_spec place walk fuel ((lo + hi) / 2) hi (by omega) (by omega) h2 hhi
-      exact ⟨by omega, this.2.1, this.2.2⟩
-    · have := bisectAt_spec place walk fuel lo ((lo + hi) / 2) (by omega) (by omega) hlo h2
-      exact ⟨this.1, by omega, this.2.2⟩
-    · have : hi = lo + 1 := by omega
-      subst this
+theorem bracketAt_edge (agrees : ℕ → Option Bool) :
+    ∀ fuel lo hi j, lo < hi → hi - lo ≤ fuel → agrees lo = some true → agrees hi = some false →
+      bracketAt agrees fuel lo hi = .edge j →
+      lo < j ∧ j ≤ hi ∧ agrees (j - 1) = some true ∧ agrees j = some false
+  | 0, lo, hi, j, hlt, hf, _, _, _ => by omega
+  | fuel + 1, lo, hi, j, hlt, hf, hlo, hhi, h => by
+    have hag : ∀ p, (if p = lo then some true else if p = hi then some false else agrees p)
+        = agrees p := fun p => by split_ifs <;> simp_all
+    simp only [bracketAt, hag] at h
+    split_ifs at h with h1
+    · rcases hm : agrees ((lo + hi) / 2) with _ | _ | _ <;> simp only [hm] at h
+      · rcases hl : agrees ((lo + hi) / 2 - 1) with _ | _ | _ <;>
+          rcases hr : agrees ((lo + hi) / 2 + 1) with _ | _ | _ <;>
+          simp only [hl, hr, reduceCtorEq] at h
+        · have : lo < (lo + hi) / 2 - 1 := by
+            rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
+            · exact h'
+            · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
+          have := bracketAt_edge agrees fuel lo _ j this (by omega) hlo hl h
+          exact ⟨this.1, by omega, this.2.2⟩
+        · have : lo < (lo + hi) / 2 - 1 := by
+            rcases Nat.lt_or_ge lo ((lo + hi) / 2 - 1) with h' | h'
+            · exact h'
+            · rw [show (lo + hi) / 2 - 1 = lo by omega, hlo] at hl; simp at hl
+          have := bracketAt_edge agrees fuel lo _ j this (by omega) hlo hl h
+          exact ⟨this.1, by omega, this.2.2⟩
+        · have : (lo + hi) / 2 + 1 < hi := by
+            rcases Nat.lt_or_ge ((lo + hi) / 2 + 1) hi with h' | h'
+            · exact h'
+            · rw [show (lo + hi) / 2 + 1 = hi by omega, hhi] at hr; simp at hr
+          have := bracketAt_edge agrees fuel _ hi j this (by omega) hr hhi h
+          exact ⟨by omega, this.2⟩
+      · have := bracketAt_edge agrees fuel lo _ j (by omega) (by omega) hlo hm h
+        exact ⟨this.1, by omega, this.2.2⟩
+      · have := bracketAt_edge agrees fuel _ hi j (by omega) (by omega) hm hhi h
+        exact ⟨by omega, this.2⟩
+    · obtain rfl := Bracket.edge.inj h
+      obtain rfl : hi = lo + 1 := by omega
       exact ⟨by omega, le_rfl, by simpa using hlo, hhi⟩
 
 theorem kCheck_disagree {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
@@ -639,8 +665,8 @@ theorem kCheck_disagree {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMon
 
 theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
     (hl : Learned R t edges) {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)}
-    (h : kCheck R t edges k x = .disagree ps) :
-    seedStep K R t pool edges k x ps ≠ .dropped := by
+    (h : kCheck R t edges k x = .disagree ps) {fd : ℕ} (hb : bracketOf R t k x ps = .edge fd) :
+    seedStep K R t pool edges k x ps fd ≠ .dropped := by
   obtain ⟨p₀, a, hk, hf, hx, hne⟩ := kCheck_disagree R h
   obtain ⟨hlen, hhead, hstep⟩ := follow_inl _ _ _ hf
   set n := x.toList.length with hn
@@ -662,19 +688,17 @@ theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
     have : ps.getD (n - k) [] = a := by
       rw [show n - k = 0 by omega, hhead]
     exact hne (by rw [hlast, this])
-  have hpk : place R t x k = walkAt k := by
-    simp only [place, hk, Sum.elim_inl, id, hwalk, Nat.sub_self]
-    exact hhead.symm
-  have hpn : place R t x n ≠ walkAt n := by
+  have hpk : agreesAt R t x walkAt k = some true := by
+    simp only [agreesAt, hk, Sum.elim_inl, hwalk, Nat.sub_self, hhead, decide_true]
+  have hpn : agreesAt R t x walkAt n = some false := by
     have : prefixOf x n = x := prefixOf_length x
-    simp only [place, this, hx, Sum.elim_inl, id, hwalk]
+    simp only [agreesAt, this, hx, Sum.elim_inl, hwalk, Option.some.injEq, decide_eq_false_iff_not]
     intro he
     exact hne (by rw [hlast, he])
   obtain ⟨hfd1, hfd2, hfd3, hfd4⟩ :=
-    bisectAt_spec (place R t x) walkAt (n - k) k n hkn le_rfl hpk hpn
+    bracketAt_edge (agreesAt R t x walkAt) (n - k) k n fd hkn le_rfl hpk hpn hb
   unfold seedStep
   simp only []
-  generalize hfd : bisectAt (place R t x) (fun j => ps.getD (j - k) []) (n - k) k n = fd at *
   have hfdn : fd - 1 < n := by omega
   rw [List.getElem?_eq_getElem hfdn]
   simp only []
@@ -691,7 +715,7 @@ theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
   · simp only []
     have hp : p = ps.getD (fd - 1 - k) [] := by
       have := hfd3
-      simp only [place, hsp, Sum.elim_inl, id, hwalk] at this
+      simp only [agreesAt, hsp, Sum.elim_inl, hwalk, Option.some.injEq, decide_eq_true_eq] at this
       exact this
     subst hp
     simp only [ne_eq, not_true_eq_false, false_or, hy1, not_true_eq_false, if_false]
@@ -701,8 +725,8 @@ theorem seedStep_ne_dropped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
       obtain ⟨q, h1, h2⟩ := parting_none t hpt
       rw [hy2] at h1
       rw [← prefixOf_succ hfdn, show fd - 1 + 1 = fd by omega] at h2
-      apply hfd4
-      simp only [place, ← h1, h2, Sum.elim_inl, id, hwalk]
+      simp only [agreesAt, ← h1, h2, Sum.elim_inl, hwalk, Option.some.injEq,
+        decide_eq_false_iff_not, not_true_eq_false] at hfd4
     · simp only []
       split <;> simp
     · simp
@@ -822,8 +846,8 @@ theorem gate_bad_le (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMono
       · exact .inl (.inr (.inr ⟨h1, not_le.1 h2⟩))
       · exfalso
         simp only [not_forall, not_not] at h2
-        obtain ⟨i, ps, hc, hd⟩ := h2
-        exact seedStep_ne_dropped K R hl hc hd
+        obtain ⟨i, ps, fd, hc, hb, hd⟩ := h2
+        exact seedStep_ne_dropped K R hl hc hb hd
       · exact .inr ⟨h3, by linarith [not_le.1 h4]⟩
   have hcomp : D.real {x | ¬ Pd x} = 1 - D.real {x | Pd x} := by
     rw [show {x | ¬ Pd x} = {x | Pd x}ᶜ from rfl,

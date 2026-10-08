@@ -15,8 +15,10 @@ A round can both add a source and pass. Each rate is `SequentialRate`'s exact bi
 settling early or read out at the batch's end.
 
 `RoundAtK`: given the round's reads, each of these readings is right about the hypothesis, but
-for the test's failure chance at each look and Hoeffding's tail at the last. Every probe a refusal
-seeds splits a leaf, adds a member, or stops at a string the cut cannot place.
+for the test's failure chance at each look and Hoeffding's tail at the last. A disagreement is
+searched, narrowing on decided reads only, down to two adjacent undecided reads, a triple, or an
+edge; every probe a refusal seeds whose search ends at an edge splits a leaf, adds a member, or
+stops at a string the cut cannot place.
 -/
 
 namespace OrthoDFA
@@ -80,16 +82,34 @@ def parting (cut : FreeMonoid α → Option Bool) (x y pre : FreeMonoid α) :
 
 end DTree
 
-/-- `first_disagreeing_edge` between an index where `place` agrees with `walk` and one where it
-does not. -/
-def bisectAt (place walk : ℕ → List Bool) : ℕ → ℕ → ℕ → ℕ
-  | 0, _, hi => hi
+/-- How the search between an agreeing and a disagreeing prefix length ends: undecided reads at
+`j` and `j + 1`, an undecided read at `j` between an agreeing and a disagreeing one, or an edge
+into `j`. -/
+inductive Bracket
+  | pair (j : ℕ)
+  | triple (j : ℕ)
+  | edge (j : ℕ)
+
+/-- `bracket`, `agrees i` being `none` where the read of the first `i` letters is undecided: a
+decided middle narrows, an undecided one reads its neighbours, `lo` agreeing and `hi`
+disagreeing. -/
+def bracketAt (agrees : ℕ → Option Bool) : ℕ → ℕ → ℕ → Bracket
+  | 0, _, hi => .edge hi
   | fuel + 1, lo, hi =>
     if lo + 1 < hi then
-      if place ((lo + hi) / 2) = walk ((lo + hi) / 2) then
-        bisectAt place walk fuel ((lo + hi) / 2) hi
-      else bisectAt place walk fuel lo ((lo + hi) / 2)
-    else hi
+      let ag := fun p => if p = lo then some true else if p = hi then some false else agrees p
+      let mid := (lo + hi) / 2
+      match ag mid with
+      | some true => bracketAt agrees fuel mid hi
+      | some false => bracketAt agrees fuel lo mid
+      | none =>
+        match ag (mid - 1), ag (mid + 1) with
+        | none, _ => .pair (mid - 1)
+        | some _, none => .pair mid
+        | some true, some false => .triple mid
+        | some true, some true => bracketAt agrees fuel (mid + 1) hi
+        | some false, some _ => bracketAt agrees fuel lo (mid - 1)
+    else .edge hi
 
 variable (K : StageKnobs α) (R : CutReads α)
 
@@ -134,14 +154,22 @@ reading does. -/
 noncomputable def place (t : DTree α) (x : FreeMonoid α) (i : ℕ) : List Bool :=
   (t.sift R.cut (prefixOf x i)).elim id fun _ => (t.halfway R.cut R.mid (prefixOf x i)).1
 
-/-- `_act_on_disagreement` on a probe whose walk from `k` visits `ps` and whose sift disagrees:
-bisect to the edge where they part, placing what the cut cannot at the middle of the band (#411),
-then the guards and the split test, a no-split answered as undecided is (#412). -/
+/-- Whether the cut places `x`'s first `i` letters where the walk does, or `none` where it cannot
+place them. -/
+noncomputable def agreesAt (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List Bool) (i : ℕ) :
+    Option Bool :=
+  (t.sift R.cut (prefixOf x i)).elim (fun p => some (decide (p = walkAt i))) fun _ => none
+
+/-- The bracket of a probe whose walk from `k` visits `ps` and whose sift disagrees. -/
+noncomputable def bracketOf (t : DTree α) (k : ℕ) (x : FreeMonoid α) (ps : List (List Bool)) :
+    Bracket :=
+  bracketAt (agreesAt R t x fun j => ps.getD (j - k) []) (x.toList.length - k) k x.toList.length
+
+/-- `_act_on_disagreement` at the edge into `fd` of a probe whose walk from `k` visits `ps`: the
+guards, then the split test, a no-split answered as undecided is (#412). -/
 noncomputable def seedStep (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α) (k : ℕ)
-    (x : FreeMonoid α) (ps : List (List Bool)) : SeedResult α :=
+    (x : FreeMonoid α) (ps : List (List Bool)) (fd : ℕ) : SeedResult α :=
   let walkAt := fun j => ps.getD (j - k) []
-  let n := x.toList.length
-  let fd := bisectAt (place R t x) walkAt (n - k) k n
   match x.toList[fd - 1]? with
   | none => .dropped
   | some c =>
@@ -183,14 +211,17 @@ noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KSt
   let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1)
   match kCheck R s.tree s.edges k x with
   | .disagree ps =>
-    match seedStep K R s.tree s.pool s.edges k x ps with
-    | .split d s1 y sprime =>
-      let cleared : Edges α := fun p c' =>
-        match s.edges p c' with
-        | some (q, w) => if p = s1 ∨ q = s1 then none else some (q, w)
-        | none => none
-      closeK K R (s.tree.splitAt d s1) (s.pool ++ ([y, sprime].filter (· ∉ s.pool))) cleared 0
-    | .member _ sprime => closeK K R s.tree (sprime :: s.pool.filter (· ≠ sprime)) s.edges 0
+    match bracketOf R s.tree k x ps with
+    | .edge fd =>
+      match seedStep K R s.tree s.pool s.edges k x ps fd with
+      | .split d s1 y sprime =>
+        let cleared : Edges α := fun p c' =>
+          match s.edges p c' with
+          | some (q, w) => if p = s1 ∨ q = s1 then none else some (q, w)
+          | none => none
+        closeK K R (s.tree.splitAt d s1) (s.pool ++ ([y, sprime].filter (· ∉ s.pool))) cleared 0
+      | .member _ sprime => closeK K R s.tree (sprime :: s.pool.filter (· ≠ sprime)) s.edges 0
+      | _ => quiet
     | _ => quiet
   | _ => quiet
 
@@ -262,7 +293,8 @@ open scoped Classical in
 * a tripped blocked check: the check is blocked on at least `θc − δ` of draws;
 * a passing gate: the gate's reading disagrees on at most `1 − acc + δ` of draws;
 * a refusing gate: on at least `1 − acc − δ` of draws; every probe of the batch whose check
-  disagrees, run again, splits a leaf, adds a member, or stops at a string the cut cannot place;
+  disagrees and whose bracket is an edge, run again, splits a leaf, adds a member, or stops at a
+  string the cut cannot place;
   and where none of the batch's first `n₀` draws can be carried, the check source, which the
   round then adds as it halves the limit, outputs a string on at least the gate's disagreement
   less `δ`. -/
@@ -274,8 +306,9 @@ def RoundAtKHolds (s : KState α) (D : Measure (FreeMonoid α)) (k : ℕ) (θc a
       D.real {x | gateDisagrees R s.tree s.edges k x} ≤ 1 - acc + δ)
     ∧ (¬ seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R s.tree s.edges k x) →
       1 - acc - δ ≤ D.real {x | gateDisagrees R s.tree s.edges k x}
-        ∧ (∀ i ps, kCheck R s.tree s.edges k (bg i) = .disagree ps →
-          seedStep K R s.tree s.pool s.edges k (bg i) ps ≠ .dropped)
+        ∧ (∀ i ps fd, kCheck R s.tree s.edges k (bg i) = .disagree ps →
+          bracketOf R s.tree k (bg i) ps = .edge fd →
+          seedStep K R s.tree s.pool s.edges k (bg i) ps fd ≠ .dropped)
         ∧ ((∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Carried R s.tree s.edges k (bg i)) →
           D.real {x | gateDisagrees R s.tree s.edges k x} - δ
             ≤ D.real {x | (checkOutput R s.tree s.edges k x).isSome}))
