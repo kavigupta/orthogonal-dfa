@@ -176,11 +176,13 @@ class TransitionResolver:
         where the learned edges from where the middle of the band places its
         start take it where the middle places it whole.  A read cut short below
         the root counts against ``fnr_limit`` a node below the root on the
-        deepest path: where those come significantly more often, the ends and
-        midfixes they were cut short at are kept.  Reading stops at the first of
+        deepest path, for each of the draw's two sifts: where those come
+        significantly more often, the ends and midfixes they were cut short at
+        are kept.  Reading stops at the first of
         ``_LOOKS`` where both tests settle."""
         learned = self.learned()
-        incidental = (self.tree.depth - 1) * self.pst.fnr_limit
+        # Two sifts a draw, each through at most depth - 1 nodes below the root.
+        incidental = 2 * (self.tree.depth - 1) * self.pst.fnr_limit
         agreed = deep = 0
         agrees = cut = None
         ends, outcomes = {}, []
