@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
   "experiment": "our_benchmarks",
-  "description": "CAPAL and E-L* on this repo's oracle benchmarks (modulo-9 and the regex family from tests/test_lstar.py) under persistent noise.",
+  "description": "CAPAL and E-L* on this repo's oracle benchmarks (modulo-9 and the regex family from tests/e2e/test_basic.py) under persistent noise.",
   "complete": true,
   "generated_by": "orthogonal_dfa.experiments.capal_comparison.run_our_bench",
   "config": {
