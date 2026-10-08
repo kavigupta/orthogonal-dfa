@@ -35,7 +35,7 @@ from .partial_dfa import PartialDFA
 from .prefix_sources import UniformSource
 from .progress import counter, write
 from .provenance import Read
-from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge, walk
 from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
@@ -54,6 +54,15 @@ class TransitionResolver:
         #: Boundary strings the family could not place, each with the read that
         #: met it.
         self.indecisive = {}
+        #: The strings disagreeing probes could not place, likewise: the first a
+        #: search for the disagreeing edge meets, the prefix before an edge the
+        #: totaliser filled in that it lands on, every read in the band on the
+        #: gate's reading of a probe the cut cannot place where that reading
+        #: leaves the walk, and every read in the band on the gate's reading of
+        #: the empty string.
+        self.bisected = {}
+        #: The tree size `_initial` last read at, and what it read.
+        self._initial_at = (None, None)
         sampler = UniformSource(pst)
         #: A probe, or a string taken from one, is read the way the pass walks it.
         self._walked = Read(sampler, None)
@@ -118,6 +127,13 @@ class TransitionResolver:
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self._harvest(boundary, self._walked)
+        return leaf
+
+    def _bisect_sift(self, seq):
+        """`_sift` for the disagreement search, harvesting into ``bisected``."""
+        leaf, boundary = self.sifter.sift_and_boundary(seq)
+        if leaf is None:
+            self.bisected.setdefault(boundary, self._walked)
         return leaf
 
     def _split(self, state_id, midfix):
@@ -188,27 +204,58 @@ class TransitionResolver:
             yield from block
 
     def _process(self, w, delta):
-        """Anchor at the shortest prefix the tree places, follow the total delta,
-        then act on where the walk and a fresh sift disagree."""
-        start, states = anchored_walk(w, self._sift, delta, 0)
+        """Walk the total delta from where the middle of the band places the
+        empty string, as the gate does, then act on where the walk and a fresh
+        sift disagree.  Where that start already parts from the leaf the cut
+        places the shortest prefix it can, the gate counts the probe against the
+        hypothesis on the empty string's read alone; that read is held, and the
+        walk starts again from the prefix."""
+        start, anchored = anchored_walk(w, self._sift, delta, 0)
+        states = walk(w, self._initial(), delta)
         if start is None:
-            return _UNCHECKED
+            return self._act_on_disagreement(w, states, 0)
         # Seed the anchor leaf's population. The prefix pool is length-L, so it
-        # only reaches deep leaves; short anchor prefixes are what give the shallow
-        # leaves enough members for the one-state test to settle them.
+        # only reaches deep leaves; short anchor prefixes are what give the
+        # shallow leaves enough members for the one-state test to settle them.
         self.population.add(
-            w[:start], at=self.tree.path_of(states[start]), draw=self._walked
+            w[:start], at=self.tree.path_of(anchored[start]), draw=self._walked
         )
+        if anchored[start] != states[start]:
+            return self._act_on_disagreement(w, anchored, start)
         return self._act_on_disagreement(w, states, start)
+
+    def _hold(self, strings):
+        for string in strings:
+            self.bisected.setdefault(string, self._walked)
+
+    def _initial(self):
+        """The leaf the middle of the band places the empty string at, as the
+        gate and the export read it; read again only once a split changes the
+        tree.  Every read the gate's reading of the empty string makes in the
+        band is held, since a misread start is counted against every draw."""
+        if self._initial_at[0] != self.tree.num_states:
+            self._hold(self.sifter.halfway(b"")[1])
+            boundary = self.pst.decision_boundary
+            decide, _ = oracle_decider(
+                self.pst.oracle, self.tree.base_family, boundary, boundary
+            )
+            initial = self.tree.classify(b"", decide)
+            self._initial_at = (self.tree.num_states, 0 if initial is None else initial)
+        return self._initial_at[1]
 
     def _act_on_disagreement(self, w, states, agree_point):
         state = states[-1]
-        actual = self._sift(w)
+        actual, boundary = self.sifter.sift_and_boundary(w)
         if actual is None:
+            leaf, in_band = self.sifter.halfway(w)
+            if leaf is not None and leaf != state:
+                self._hold(in_band)
+            else:
+                self._harvest(boundary, self._walked)
             return _UNCHECKED
-        if state is None or actual == state:
+        if actual == state:
             return _RESOLVED
-        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
+        fd = first_disagreeing_edge(w, states, self._bisect_sift, agree_point, len(w))
         if fd is None:
             return _UNCHECKED
         s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
@@ -218,8 +265,10 @@ class TransitionResolver:
         # be a gap the totaliser self-looped rather than a resolved DFA edge -- then
         # the DFA holds no such edge, there is no witness to separate on, and the
         # re-sifts need not reach s1.  Any of those means the disagreement is not
-        # one we can act on.
+        # one we can act on.  The prefix before a placeholder edge is held:
+        # nothing else this round keeps the strings that walk it wrongly.
         if self.dfa.target(s1, c) != s2:
+            self._hold([w[: fd - 1]])
             return _RESOLVED
         witness = self.dfa.witness(s1, c)
         if witness is None:

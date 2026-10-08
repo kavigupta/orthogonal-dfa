@@ -11,11 +11,12 @@ from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
     _blocked_at_limit,
+    _hold_bisection,
     _publish_pool,
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.provenance import Read
+from orthogonal_dfa.l_star.provenance import Bisected, Read
 
 
 def _resolver(*strings):
@@ -212,3 +213,42 @@ class TestTheLimitHalvesWhenProbesAreBlockedAtIt(unittest.TestCase):
 
     def test_fewer_than_half_the_limits_rate_does_not_halve(self):
         self.assertFalse(_blocked_at_limit(self._pass(50, 149 * 8), 0.1))
+
+
+class TestTheBisectionIsHeldApart(unittest.TestCase):
+    def _hold(self, state, *strings):
+        resolver = SimpleNamespace(
+            bisected={s: Read(None, None) for s in strings}, sifter=None
+        )
+        _hold_bisection(
+            SimpleNamespace(rng=np.random.default_rng(0)),
+            resolver,
+            SimpleNamespace(transitions={}, initial_state=0),
+            state,
+            acc_threshold=0.98,
+        )
+
+    def test_its_strings_become_a_population_of_their_own(self):
+        state = _state(held=[b"a"])
+
+        self._hold(state, b"c", b"a", b"b")
+
+        self.assertEqual([b"b", b"c"], state.held[("bisection", 1)])
+        self.assertIn(("bisection", 1), state.sources)
+        self.assertEqual({b"a", b"b", b"c"}, state.seen)
+
+    def test_a_round_whose_search_found_nothing_new_holds_nothing(self):
+        state = _state(held=[b"a"])
+
+        self._hold(state, b"a")
+
+        self.assertNotIn(("bisection", 1), state.held)
+
+    def test_it_grows_only_by_more_of_the_same(self):
+        state = _state(held=[])
+
+        self._hold(state, b"a")
+
+        # pylint: disable=protected-access
+        provenances = state.sources[("bisection", 1)]._provenances
+        self.assertEqual([Bisected], [type(p) for p in provenances])

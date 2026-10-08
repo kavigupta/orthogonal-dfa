@@ -30,7 +30,7 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
 from .progress import track
-from .provenance import provenance
+from .provenance import Bisected, provenance
 from .tracker import SynthesisTracker
 from .transition_resolver import TransitionResolver
 
@@ -136,6 +136,51 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         if source is None:
             continue
         state.hold(("state", leaf), source, per_state)
+
+
+def _placeholders(resolver, dfa) -> frozenset:
+    """The edges of ``dfa`` the round's own transitions do not hold: the ones
+    the totaliser filled in."""
+    return frozenset(
+        (s, c)
+        for s, row in dfa.transitions.items()
+        for c, target in row.items()
+        if resolver.dfa.target(s, c) != target
+    )
+
+
+def _hold_bisection(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    """The strings the round's disagreeing probes could not place, as a
+    population of their own, grown only by more of the same. Every other harvest
+    is read whether or not a probe disagrees, so mixed in with it they dilute a
+    badly read state below what the FNR gate sees."""
+    fresh = sorted(set(resolver.bisected) - state.seen)
+    if not fresh:
+        return
+    state.hold_bisection(
+        fresh,
+        HarvestSource(
+            Counter(
+                {
+                    Bisected(
+                        UniformSource(pst),
+                        resolver.sifter,
+                        dfa.transitions,
+                        dfa.initial_state,
+                        _placeholders(resolver, dfa),
+                    ): len(fresh)
+                }
+            ),
+            pst.rng,
+            known=state.seen,
+            acc_threshold=acc_threshold,
+        ),
+    )
+
+
+def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    _hold_bisection(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+    _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
 
 
 def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
@@ -394,7 +439,7 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+        _harvest_sources(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

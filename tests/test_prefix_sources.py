@@ -18,7 +18,7 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
+from orthogonal_dfa.l_star.provenance import Bisected, Read, Sifted, Walked
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
@@ -233,10 +233,15 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
 
 
 class _Walk:
-    """A tree that places strings by a rule the test chooses."""
+    """A tree that places strings by a rule the test chooses, and whose gate
+    reading of one sends it to ``halfway_leaf`` past a read in the band."""
 
-    def __init__(self, places):
+    def __init__(self, places, halfway_leaf=None):
         self._places = places
+        self._halfway_leaf = halfway_leaf
+
+    def halfway(self, seq):
+        return self._halfway_leaf, [seq + b"?"]
 
     def sift_and_boundary(self, seq):
         leaf = self._places(seq)
@@ -356,3 +361,59 @@ class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+#: Walks never leave where they start.
+_STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
+
+
+def _bisected(places, halfway_leaf=None, initial=0):
+    return Bisected(
+        _Fixed(_PROBE), _Walk(places, halfway_leaf), _STEPS_TO_ONE, initial, frozenset()
+    )
+
+
+class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase):
+    def test_an_undecided_final_read_the_gate_reads_away_is_kept(self):
+        undecided = lambda seq: None if len(seq) == 4 else 1
+        self.assertEqual([_PROBE + b"?"], _bisected(undecided, 0).sample())
+
+    def test_an_undecided_final_read_the_gate_reads_along_is_not(self):
+        undecided = lambda seq: None if len(seq) == 4 else 1
+        self.assertEqual([], _bisected(undecided, 1).sample())
+
+    def test_the_first_read_the_search_cannot_place_is_kept(self):
+        self.assertEqual([_PROBE[:2] + b"?"], _bisected(_LONG_ONE_FAILS).sample())
+
+    def test_what_comes_before_the_walk_is_not(self):
+        """Unlike a walked replay, which also keeps the anchor search's and
+        the final sift's misses whether or not the probe disagrees."""
+        short_fail = lambda seq: None if len(seq) < 2 else 1
+        self.assertEqual([], _bisected(short_fail).sample())
+
+    def test_a_walk_from_where_the_middle_places_the_empty_string(self):
+        self.assertEqual([], _bisected(lambda seq: 1, initial=1).sample())
+
+    def test_a_start_the_cut_parts_from_walks_from_the_anchor(self):
+        unplaced_start = lambda seq: None if len(seq) == 0 else 1
+        bisected = Bisected(
+            _Fixed(_PROBE), _Walk(unplaced_start), _STAYS, 0, frozenset()
+        )
+        self.assertEqual([], bisected.sample())
+
+    def test_the_prefix_before_a_placeholder_edge_it_lands_on_is_kept(self):
+        # Every walk steps to 1; the tree moves the whole probe elsewhere, so the
+        # search lands on the probe's last edge, 1 -(1)-> 1.
+        moves_at_four = lambda seq: 2 if len(seq) == 4 else 1
+        placeholder = Bisected(
+            _Fixed(_PROBE),
+            _Walk(moves_at_four),
+            _STEPS_TO_ONE,
+            1,
+            frozenset({(1, _PROBE[3])}),
+        )
+        self.assertEqual([_PROBE[:3]], placeholder.sample())
+
+    def test_the_prefix_before_a_resolved_edge_is_not(self):
+        moves_at_four = lambda seq: 2 if len(seq) == 4 else 1
+        self.assertEqual([], _bisected(moves_at_four, initial=1).sample())
