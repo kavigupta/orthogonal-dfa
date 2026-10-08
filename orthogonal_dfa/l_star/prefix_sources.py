@@ -38,16 +38,17 @@ class UniformSource:
         return True
 
 
-class StartSource(UniformSource):
-    """The sampler's draws cut to their first ``k`` symbols, where the pass
-    starts its walks."""
+class MidfixSource(UniformSource):
+    """The sampler's draws cut to their first ``length`` symbols and followed by
+    ``midfix``."""
 
-    def __init__(self, pst, k):
+    def __init__(self, pst, length, midfix):
         super().__init__(pst)
-        self._k = k
+        self._length = length
+        self._midfix = midfix
 
     def draw(self) -> bytes:
-        return super().draw()[: self._k]
+        return super().draw()[: self._length] + self._midfix
 
     def worth_drawing(self) -> bool:
         return True

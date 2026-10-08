@@ -28,10 +28,11 @@ from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, StartSource, aim_at, state_source
+from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
+from .statistics import binomial_side_of_boundary
 from .tracker import SynthesisTracker
-from .transition_resolver import TransitionResolver, start_length
+from .transition_resolver import READING_FAILURE_PROB, TransitionResolver, start_length
 
 
 @dataclass
@@ -148,9 +149,23 @@ def _read_round(resolver, *, patience, acc_threshold):
         first = gate.disagreements
 
 
-def _hold_triples(resolver, gate, state, *, acc_threshold) -> None:
+def _hold_ends(pst, state, midfixes, count) -> None:
+    """``("start", m)`` and ``("end", m)`` -> ``count`` of the sampler's draws, cut
+    to the start length or whole, followed by each midfix m: what the next
+    family reads at node m when it sifts a walk's start or a probe whole."""
+    k = start_length(pst.sampler.length)
+    for kind in ("start", "end"):
+        state.retire(kind)
+    for midfix in midfixes:
+        for kind, length in (("start", k), ("end", pst.sampler.length)):
+            state.hold((kind, midfix), MidfixSource(pst, length, midfix), count)
+
+
+def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
     """Hold the middles of the triples the gate's disagreements came down to, as
-    a population grown by replaying the gate's reading."""
+    a population grown by replaying the gate's reading, and the start and end
+    populations at the round's tree's midfixes."""
+    _hold_ends(pst, state, resolver.tree.midfixes(), per_state)
     if gate.triples:
         source = HarvestSource(
             partial(resolver.replay, gate.learned),
@@ -165,14 +180,21 @@ PAIR_SHARE = 0.1
 
 
 def _halve(pst, resolver, gate, *, acc_threshold) -> bool:
-    """Halve the FNR limit where the gate's searches came down to pairs more
-    often than ``PAIR_SHARE`` of its tolerance, or it refused with nothing
-    decided to rerun; then while a sift through the tree's depth, each read
-    undecided at the limit, could come out undecided twice running that often.
-    Says whether it halved."""
+    """Halve the FNR limit where the gate's searches came down to a pair
+    significantly more often than ``PAIR_SHARE`` of its tolerance, or it refused
+    with nothing decided to rerun; then while a sift through the tree's depth,
+    each read undecided at the limit, could come out undecided twice running
+    that often.  Says whether it halved."""
     pair_rate = PAIR_SHARE * (1 - acc_threshold)
     refused = gate.agreement < acc_threshold and not gate.disagreements
-    halved = refused or gate.pairs > pair_rate * len(gate.draws)
+    halved = refused or bool(
+        binomial_side_of_boundary(
+            gate.pairs,
+            len(gate.disagreements),
+            pair_rate,
+            failure_prob=READING_FAILURE_PROB,
+        )
+    )
     if halved:
         pst.fnr_limit /= 2
     while (resolver.tree.depth * pst.fnr_limit) ** 2 > pair_rate:
@@ -350,11 +372,7 @@ def counterexample_driven_synthesis(
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
     state = PoolState(uniform)
-    # Read by the family's FNR gate as the uniform pool is, at the length the
-    # pass's walks start from.
-    state.hold(
-        ("start", 0), StartSource(pst, start_length(pst.sampler.length)), len(uniform)
-    )
+    _hold_ends(pst, state, [b""], per_state)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
@@ -405,7 +423,9 @@ def counterexample_driven_synthesis(
             return best
         if _halve(pst, resolver, gate, acc_threshold=acc_threshold):
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
-        _hold_triples(resolver, gate, state, acc_threshold=acc_threshold)
+        _hold_harvests(
+            pst, resolver, gate, state, per_state=per_state, acc_threshold=acc_threshold
+        )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
