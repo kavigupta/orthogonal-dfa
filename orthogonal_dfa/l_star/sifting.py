@@ -66,22 +66,71 @@ class Sifter:
         return self.tree.first_disagreement(s, sprime, self.family.is_accept, prefix)
 
 
-#: How a search between an agreeing and a disagreeing prefix ends: at an edge
-#: (agree, disagree), at an undecided read between them (agree, undecided,
-#: disagree), or at two adjacent undecided reads.
-EDGE, TRIPLE, PAIR = "edge", "triple", "pair"
+#: How reading a probe against a hypothesis ends (see ``read``).
+AGREE = "agree"
+START_UNDECIDED = "start undecided"
+END_UNDECIDED = "end undecided"
+PAIR = "pair"
+EDGE = "edge"
+TRIPLE = "triple"
+UNLEARNED_EDGE = "unlearned edge"
+
+#: ``kind``; ``at``, the length of the prefix the outcome is at (the read cut
+#: short, the edge's head, a triple's middle, the first of a pair, or the prefix
+#: before an unlearned edge); ``string``, the boundary string of an undecided
+#: read, or the member an unlearned edge leaves; and ``state``, the walk's state
+#: before an edge, or the one an unlearned edge leaves its member to.
+Outcome = namedtuple("Outcome", "kind at string state")
 
 
-def bracket(probe, states, sift, lo, hi):
-    """``(kind, at)``: where the walk ``states`` and ``sift`` part between ``lo``,
-    where they agree, and ``hi``, where they disagree, reading only decided
-    prefixes to narrow.  ``at`` is the edge's head, the undecided middle of a
-    triple, or the first of a pair."""
+def read(probe, sift, transitions, k):
+    """The outcome of walking ``probe`` along the learned ``transitions`` from
+    where ``sift`` places its first ``k`` symbols, and sifting it whole.
+
+    Where the walk meets an unlearned edge, the prefixes either side of it are
+    sifted: one the cut cannot place ends the walk there, and the prefix before
+    the edge sifting to the edge's state is a member of it.  Where the walk and
+    the sift disagree, decidedly, the search between them reads only decided
+    prefixes to narrow, and ends at an edge (agree, disagree), a triple (agree,
+    undecided, disagree) or a pair of adjacent undecided reads.  ``sift``
+    answers as :meth:`Sifter.sift_and_boundary` does."""
+    anchor, boundary = sift(probe[:k])
+    if anchor is None:
+        return Outcome(START_UNDECIDED, k, boundary, None)
+    states = [None] * k + [anchor]
+    for j in range(k, len(probe)):
+        target = transitions[states[-1]].get(probe[j])
+        if target is None:
+            return _unlearned(probe, sift, states, k)
+        states.append(target)
+    end, boundary = sift(probe)
+    if end is None:
+        return Outcome(END_UNDECIDED, len(probe), boundary, None)
+    if end == states[-1]:
+        return Outcome(AGREE, len(probe), None, None)
+    return _search(probe, sift, states, k)
+
+
+def _unlearned(probe, sift, states, k):
+    j = len(states) - 1
+    for at in (j + 1, j):
+        leaf, boundary = sift(probe[:at])
+        if leaf is None:
+            return Outcome(END_UNDECIDED, at, boundary, None)
+    if leaf == states[j]:
+        return Outcome(UNLEARNED_EDGE, j, probe[:j], leaf)
+    return _search(probe, sift, states, k)
+
+
+def _search(probe, sift, states, lo):
+    """Where the walk ``states`` and ``sift`` part between ``lo``, where they
+    agree, and the walk's end, where they disagree."""
+    hi = len(states) - 1
 
     def agrees(p):
         if p in (lo, hi):
             return p == lo
-        leaf = sift(probe[:p])
+        leaf = sift(probe[:p])[0]
         return None if leaf is None else leaf == states[p]
 
     while hi - lo > 1:
@@ -92,54 +141,11 @@ def bracket(probe, states, sift, lo, hi):
             continue
         left = agrees(mid - 1)
         if left is None:
-            return PAIR, mid - 1
+            return Outcome(PAIR, mid - 1, None, None)
         right = agrees(mid + 1)
         if right is None:
-            return PAIR, mid
+            return Outcome(PAIR, mid, None, None)
         if left and not right:
-            return TRIPLE, mid
+            return Outcome(TRIPLE, mid, sift(probe[:mid])[1], None)
         lo, hi = (lo, mid - 1) if not left else (mid + 1, hi)
-    return EDGE, hi
-
-
-#: Where a walk stopped, at ``probe[:at]``, what it leaves there, and whether
-#: that is a string the cut could not place.  A blocked start or edge leaves the
-#: prefix the cut could not place; at an open edge whose next prefix the cut
-#: places, the prefix before it, a member of the edge's state.  A blocked sift of
-#: the whole probe leaves its boundary string.
-Block = namedtuple("Block", "at found undecided")
-
-
-def walk(probe, sift, transitions, k):
-    """``(states, block, end)``.  ``states[i]`` is the state the learned
-    ``transitions`` reach after ``probe[:i]`` from where ``sift`` places
-    ``probe[:k]``, ``None`` below ``k``, as far as the walk got; ``block`` is what
-    stopped it, or ``None``; ``end`` is where ``sift`` places the prefix the walk
-    ended on: the whole probe where nothing blocked, or the prefix before an open
-    edge that sifts to another state than the walk's.
-    ``sift`` answers as :meth:`Sifter.sift_and_boundary` does."""
-    states = [None] * k
-    anchor = sift(probe[:k])[0]
-    if anchor is None:
-        return states, Block(k, probe[:k], True), None
-    states.append(anchor)
-    for j in range(k, len(probe)):
-        target = transitions[states[-1]].get(probe[j])
-        if target is None:
-            return (states, *_edge_block(probe, sift, states[-1], j))
-        states.append(target)
-    end, boundary = sift(probe)
-    if end is None:
-        return states, Block(len(probe), boundary, True), None
-    return states, None, end
-
-
-def _edge_block(probe, sift, state, j):
-    if sift(probe[: j + 1])[0] is None:
-        return Block(j + 1, probe[: j + 1], True), None
-    before = sift(probe[:j])[0]
-    if before is None:
-        return Block(j + 1, probe[:j], True), None
-    if before == state:
-        return Block(j + 1, probe[:j], False), None
-    return None, before
+    return Outcome(EDGE, hi, None, states[hi - 1])

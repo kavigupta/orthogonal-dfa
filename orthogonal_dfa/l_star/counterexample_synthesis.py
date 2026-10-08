@@ -149,23 +149,22 @@ def _read_round(resolver, *, patience, acc_threshold):
         first = gate.disagreements
 
 
-def _hold_ends(pst, state, midfixes, count) -> None:
-    """``("start", m)`` and ``("end", m)`` -> ``count`` of the sampler's draws, cut
-    to the start length or whole, followed by each midfix m: what the next
-    family reads at node m when it sifts a walk's start or a probe whole."""
-    k = start_length(pst.sampler.length)
-    for kind in ("start", "end"):
-        state.retire(kind)
-    for midfix in midfixes:
-        for kind, length in (("start", k), ("end", pst.sampler.length)):
-            state.hold((kind, midfix), MidfixSource(pst, length, midfix), count)
+def _hold_ends(pst, state, ends, count) -> None:
+    """``(end, m)`` -> ``count`` of the sampler's draws, cut to the start length
+    for ``"start"`` or whole for ``"end"``, followed by the midfix m: what the
+    next family reads at node m when it sifts a walk's start or a probe whole."""
+    lengths = {"start": start_length(pst.sampler.length), "end": pst.sampler.length}
+    for end in lengths:
+        state.retire(end)
+    for end, midfix in ends:
+        state.hold((end, midfix), MidfixSource(pst, lengths[end], midfix), count)
 
 
 def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
     """Hold the middles of the triples the gate's disagreements came down to, as
     a population grown by replaying the gate's reading, and the start and end
-    populations at the round's tree's midfixes."""
-    _hold_ends(pst, state, resolver.tree.midfixes(), per_state)
+    populations at the midfixes the gate's ends stopped at."""
+    _hold_ends(pst, state, gate.ends, per_state)
     if gate.triples:
         source = HarvestSource(
             partial(resolver.replay, gate.learned),
@@ -179,27 +178,21 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
 PAIR_SHARE = 0.1
 
 
-def _halve(pst, resolver, gate, *, acc_threshold) -> bool:
+def _halve(pst, gate, *, acc_threshold) -> bool:
     """Halve the FNR limit where the gate's searches came down to a pair
     significantly more often than ``PAIR_SHARE`` of its tolerance, or it refused
-    with nothing decided to rerun; then while a sift through the tree's depth,
-    each read undecided at the limit, could come out undecided twice running
-    that often.  Says whether it halved."""
-    pair_rate = PAIR_SHARE * (1 - acc_threshold)
+    with nothing decided to rerun.  Says whether it halved."""
     refused = gate.agreement < acc_threshold and not gate.disagreements
     halved = refused or bool(
         binomial_side_of_boundary(
             gate.pairs,
             len(gate.disagreements),
-            pair_rate,
+            PAIR_SHARE * (1 - acc_threshold),
             failure_prob=READING_FAILURE_PROB,
         )
     )
     if halved:
         pst.fnr_limit /= 2
-    while (resolver.tree.depth * pst.fnr_limit) ** 2 > pair_rate:
-        pst.fnr_limit /= 2
-        halved = True
     return halved
 
 
@@ -372,7 +365,6 @@ def counterexample_driven_synthesis(
         p for p, keep in zip(pst.table.prefixes, pst.table.representative) if keep
     ]
     state = PoolState(uniform)
-    _hold_ends(pst, state, [b""], per_state)
     stall = _StallDetector(STALL_PATIENCE)
     best = BestRound()
     # Round of the first refusal; CERTIFICATE_PATIENCE counts from it.
@@ -421,7 +413,7 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if _halve(pst, resolver, gate, acc_threshold=acc_threshold):
+        if _halve(pst, gate, acc_threshold=acc_threshold):
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         _hold_harvests(
             pst, resolver, gate, state, per_state=per_state, acc_threshold=acc_threshold

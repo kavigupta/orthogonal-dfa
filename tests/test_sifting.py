@@ -1,17 +1,19 @@
-"""Walking a probe from its start against the tree, and narrowing to where they
-disagree."""
+"""Reading a probe from its start against the tree."""
 
 import unittest
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.sifting import (
+    AGREE,
     EDGE,
+    END_UNDECIDED,
     PAIR,
+    START_UNDECIDED,
     TRIPLE,
-    Block,
+    UNLEARNED_EDGE,
+    Outcome,
     Sifter,
-    bracket,
-    walk,
+    read,
 )
 
 #: Every state steps to 1, so a walk of any non-empty probe ends there.
@@ -32,81 +34,82 @@ def _sift(places):
     return sift
 
 
-def _walk(places, transitions, k):
-    return walk(_PROBE, _sift(places), transitions, k)
+def _read(places, transitions, k, probe=_PROBE):
+    return read(probe, _sift(places), transitions, k)
 
 
-class TestWalkingFromTheStart(unittest.TestCase):
-    def test_it_follows_the_learned_edges_and_sifts_the_whole_probe(self):
+class TestReadingAProbe(unittest.TestCase):
+    def test_a_walk_ending_where_the_whole_probe_sifts_agrees(self):
+        self.assertEqual(AGREE, _read(lambda seq: 1, _STEPS_TO_ONE, 2).kind)
+
+    def test_a_start_the_cut_cannot_place_cuts_the_read_short(self):
         self.assertEqual(
-            ([None, None, 0, 1, 1], None, 0), _walk(lambda seq: 0, _STEPS_TO_ONE, 2)
+            Outcome(START_UNDECIDED, 2, _PROBE[:2] + b"?", None),
+            _read(lambda seq: None, _STEPS_TO_ONE, 2),
         )
 
-    def test_a_start_the_cut_cannot_place_is_left(self):
-        self.assertEqual(
-            ([None, None], Block(2, _PROBE[:2], True), None),
-            _walk(lambda seq: None, _STEPS_TO_ONE, 2),
-        )
-
-    def test_an_open_edge_into_a_prefix_the_cut_cannot_place_leaves_it(self):
-        # 0 -1-> 1 -0-> open: blocked at the edge out of index 2.
-        states, block, _ = _walk(
-            lambda seq: None if len(seq) == 3 else 0, _OPEN_AT_ONE, 1
-        )
-
-        self.assertEqual([None, 0, 1], states)
-        self.assertEqual(Block(3, _PROBE[:3], True), block)
-
-    def test_an_open_edge_leaves_the_prefix_before_it_where_it_sifts_there(self):
-        for places, undecided in (
-            (lambda seq: 1 if len(seq) == 2 else 0, False),
-            (lambda seq: None if len(seq) == 2 else 0, True),
-        ):
-            _, block, _ = _walk(places, _OPEN_AT_ONE, 1)
-            self.assertEqual(Block(3, _PROBE[:2], undecided), block)
-
-    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_a_disagreement(self):
-        # The walk reaches 1 after two symbols, where the cut places them at 0.
-        self.assertEqual(([None, 0, 1], None, 0), _walk(lambda seq: 0, _OPEN_AT_ONE, 1))
-
-    def test_a_whole_probe_the_cut_cannot_place_leaves_its_boundary(self):
+    def test_a_whole_probe_the_cut_cannot_place_cuts_the_read_short(self):
         places = lambda seq: None if len(seq) == 4 else 0
-
         self.assertEqual(
-            Block(4, _PROBE + b"?", True), _walk(places, _STEPS_TO_ONE, 2)[1]
+            Outcome(END_UNDECIDED, 4, _PROBE + b"?", None),
+            _read(places, _STEPS_TO_ONE, 2),
+        )
+
+    def test_an_unlearned_edge_cut_short_either_side_ends_the_walk_there(self):
+        # 0 -1-> 1 -0-> unlearned: the prefixes either side are 3 and 2 long.
+        for undecided in (3, 2):
+            places = lambda seq, u=undecided: None if len(seq) == u else 0
+            self.assertEqual(
+                Outcome(END_UNDECIDED, undecided, _PROBE[:undecided] + b"?", None),
+                _read(places, _OPEN_AT_ONE, 1),
+            )
+
+    def test_an_unlearned_edge_leaves_the_prefix_before_it_where_it_sifts_there(
+        self,
+    ):
+        places = lambda seq: 1 if len(seq) == 2 else 0
+        self.assertEqual(
+            Outcome(UNLEARNED_EDGE, 2, _PROBE[:2], 1), _read(places, _OPEN_AT_ONE, 1)
+        )
+
+    def test_an_unlearned_edge_after_a_wrong_one_is_searched_back_to_it(self):
+        # The walk reaches 1 after two symbols, where the cut places them at 0.
+        self.assertEqual(
+            Outcome(EDGE, 2, None, 0), _read(lambda seq: 0, _OPEN_AT_ONE, 1)
         )
 
 
-#: A walk that agrees with the tree up to index 3 and disagrees from 4 on.
-_STATES = [0, 0, 0, 0, 1, 1, 1, 1, 1]
+#: The walk steps from state i to i + 1, so it is at state i after i symbols.
+_COUNTING = {i: {0: i + 1} for i in range(8)}
 _LONG = bytes(8)
 
 
-def _bracket(undecided):
-    """The search over ``_LONG`` against a tree placing everything at 0 but the
-    prefixes whose lengths are in ``undecided``."""
-    places = lambda seq: None if len(seq) in undecided else 0
-    return bracket(_LONG, _STATES, places, 0, 8)
+def _search(undecided, flip=4):
+    """Reads ``_LONG`` against a tree that agrees with the walk below ``flip``
+    symbols and disagrees from it on, and places nowhere the prefixes whose
+    lengths are in ``undecided``."""
+
+    def places(seq):
+        if len(seq) in undecided:
+            return None
+        return len(seq) if len(seq) < flip else -1
+
+    return read(_LONG, _sift(places), _COUNTING, 0)
 
 
-class TestNarrowingToWhereTheyPart(unittest.TestCase):
+class TestSearchingWhereTheyPart(unittest.TestCase):
     def test_decided_reads_narrow_to_an_edge(self):
-        self.assertEqual((EDGE, 4), _bracket(set()))
+        self.assertEqual((EDGE, 4), _search(set())[:2])
 
     def test_an_undecided_read_between_agree_and_disagree_is_a_triple(self):
-        self.assertEqual((TRIPLE, 4), _bracket({4}))
+        self.assertEqual(Outcome(TRIPLE, 4, bytes(4) + b"?", None), _search({4}))
 
     def test_two_adjacent_undecided_reads_are_a_pair(self):
-        self.assertEqual((PAIR, 3), _bracket({3, 4}))
+        self.assertEqual((PAIR, 3), _search({3, 4})[:2])
 
     def test_an_undecided_read_away_from_the_edge_is_stepped_past(self):
         # Prefix 4 is the first mid; its decided neighbours say the edge is above.
-        self.assertEqual(
-            (EDGE, 6),
-            bracket(
-                _LONG, [0] * 6 + [1] * 3, lambda seq: None if len(seq) == 4 else 0, 0, 8
-            ),
-        )
+        self.assertEqual((EDGE, 6), _search({4}, flip=6)[:2])
 
 
 class _Middle:

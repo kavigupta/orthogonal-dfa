@@ -11,18 +11,16 @@ landed there as its witness.  A leaf every one of whose members is indecisive, o
 that no prefix reaches, leaves its edge open.
 
 States beyond the initial two are found by the counterexample pass.  A probe is
-anchored where the cut sifts its first ``k`` symbols and walked along the learned
-edges only; where the walk's end and a fresh sift of the probe disagree, the
-probe has exhibited two prefixes that reach one leaf yet behave differently under
-one more symbol -- a Myhill-Nerode counterexample -- so that leaf is split (see
-SplitEvidence).  A split drops the edges it made ambiguous; both they and the new
-leaf's edges then read as unresolved and are refilled on the next resolve pass.
+read (see ``sifting.read``): anchored where the cut sifts its first ``k``
+symbols, walked along the learned edges only, and sifted whole; where the walk
+and the sift part over an edge, the probe has exhibited two prefixes that reach
+one leaf yet behave differently under one more symbol -- a Myhill-Nerode
+counterexample -- so that leaf is split (see SplitEvidence).  A split drops the
+edges it made ambiguous; both they and the new leaf's edges then read as
+unresolved and are refilled on the next resolve pass.
 
-A probe the cut cannot anchor, whose walk meets an open edge, or whose sift the
-cut cannot place, is blocked.  The round's hypothesis is read on fresh draws
-before the pass and after it (see ``read_fresh``); one whose draws block more
-often than the FNR limit allows leaves what they met to a population that
-replays the reading.
+After the pass the hypothesis is read on fresh draws (see ``read_fresh``), the
+round's gate.
 
 Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
 :class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`.  The split keeps
@@ -41,7 +39,17 @@ from .leaf_population import LeafPopulation
 from .midfix_tree import MidfixTree, fmt_seq
 from .partial_dfa import PartialDFA
 from .progress import counter, write
-from .sifting import EDGE, PAIR, TRIPLE, Sifter, bracket, walk
+from .sifting import (
+    AGREE,
+    EDGE,
+    END_UNDECIDED,
+    PAIR,
+    START_UNDECIDED,
+    TRIPLE,
+    UNLEARNED_EDGE,
+    Sifter,
+    read,
+)
 from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .statistics import binomial_side_of_boundary
 from .suffix_family import SuffixFamily
@@ -53,10 +61,15 @@ READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the share
 #: of them the hypothesis agrees on, the boundary strings of the triples their
-#: disagreements were searched down to, how many came down to a pair, the ones
-#: whose walk and sift disagree decidedly, every draw, and the learned edges
-#: they were read against.
-Reading = namedtuple("Reading", "agreement triples pairs disagreements draws learned")
+#: disagreements were searched down to, how many came down to a pair, the ends
+#: and midfixes the cut stopped below the root at where it did so too often, the
+#: ones that disagree decidedly, and the learned edges they were read against.
+Reading = namedtuple("Reading", "agreement triples pairs ends disagreements learned")
+
+#: The outcomes a read cut short ends with, and the end each was cut short at.
+_CUT_SHORT = {START_UNDECIDED: "start", END_UNDECIDED: "end"}
+#: The outcomes of a search for where a decided disagreement parts.
+_SEARCHED = (PAIR, EDGE, TRIPLE)
 
 
 def start_length(length: int) -> int:
@@ -138,27 +151,26 @@ class TransitionResolver:
     # -- reading fresh draws -------------------------------------------------
 
     def read_fresh(self, *, acc_threshold) -> Reading:
-        """Read fresh draws against the hypothesis as it stands, walking each
-        from ``k`` and sifting it whole.
+        """Read fresh draws against the hypothesis as it stands (see ``read``).
 
-        A draw agrees where the learned edges, from where the middle of the band
-        places its start, take it where the middle places it whole; an open edge
-        on the way disagrees.  Reading stops once the agreement's test settles.
-        Each decided disagreement is searched for where it parts (see
-        ``bracket``)."""
+        A draw agrees where it reads as agreeing, or, where a read is cut short,
+        where the learned edges from where the middle of the band places its
+        start take it where the middle places it whole.  Reading stops once the
+        agreement's test settles.  A read cut short below the root counts against
+        twice ``fnr_limit`` a node below the root on the deepest path: where those
+        come significantly more often, the ends and midfixes they were cut short
+        at are kept."""
         learned = self.learned()
-        agreed = pairs = 0
-        triples, disagreements, draws = {}, [], []
+        agreed = 0
+        outcomes, draws = [], []
         while len(draws) < READING_DRAWS:
             w = self._draw()
             draws.append(w)
-            kind, string = self._part(w, learned)
-            if kind is not None:
-                disagreements.append(w)
-            if kind == TRIPLE:
-                triples[string] = None
-            pairs += kind == PAIR
-            agreed += self._ends_at_middle(w, learned)
+            outcome = self._read(w, learned)
+            outcomes.append(outcome)
+            agreed += outcome.kind == AGREE or (
+                outcome.kind in _CUT_SHORT and self._ends_at_middle(w, learned)
+            )
             # As the gate always has, before an early run of agreements can stop it.
             if (
                 len(draws) >= 30
@@ -168,22 +180,28 @@ class TransitionResolver:
                 is not None
             ):
                 break
+        ends = {
+            (_CUT_SHORT[o.kind], o.string[o.at :]): None
+            for o in outcomes
+            if o.kind in _CUT_SHORT and len(o.string) > o.at
+        }
+        incidental = 2 * (self.tree.depth - 1) * self.pst.fnr_limit
+        deep = sum(o.kind in _CUT_SHORT and len(o.string) > o.at for o in outcomes)
+        if incidental >= 1 or not binomial_side_of_boundary(
+            deep, len(draws), incidental, failure_prob=READING_FAILURE_PROB
+        ):
+            ends = {}
         return Reading(
-            agreed / len(draws), list(triples), pairs, disagreements, draws, learned
+            agreed / len(draws),
+            list(dict.fromkeys(o.string for o in outcomes if o.kind == TRIPLE)),
+            sum(o.kind == PAIR for o in outcomes),
+            list(ends),
+            [w for w, o in zip(draws, outcomes) if o.kind in _SEARCHED],
+            learned,
         )
 
-    def _part(self, w, learned):
-        """``(kind, string)``: how the search for where the walk of ``w`` along
-        ``learned`` parts from its sift ends, and, for a triple, the boundary
-        string of its undecided middle; ``(None, None)`` where they do not part
-        decidedly."""
-        states, block, end = walk(w, self.sifter.sift_and_boundary, learned, self.k)
-        if block is not None or end == states[-1]:
-            return None, None
-        kind, at = bracket(w, states, self._sift, self.k, len(states) - 1)
-        if kind != TRIPLE:
-            return kind, None
-        return kind, self.sifter.sift_and_boundary(w[:at])[1]
+    def _read(self, w, learned):
+        return read(w, self.sifter.sift_and_boundary, learned, self.k)
 
     def _ends_at_middle(self, w, learned) -> bool:
         state = self.sifter.halfway(w[: self.k])
@@ -196,8 +214,8 @@ class TransitionResolver:
     def replay(self, learned):
         """Read a fresh draw against the ``learned`` edges as ``read_fresh``
         does, for the middle of a triple."""
-        kind, string = self._part(self._draw(), learned)
-        return [string] if kind == TRIPLE else []
+        outcome = self._read(self._draw(), learned)
+        return [outcome.string] if outcome.kind == TRIPLE else []
 
     # -- counterexamples ----------------------------------------------------
 
@@ -230,25 +248,18 @@ class TransitionResolver:
 
     def _check(self, w) -> bool:
         """Whether the probe split a leaf or asks for more of its members."""
-        states, block, end = walk(
-            w, self.sifter.sift_and_boundary, self.dfa.transitions, self.k
+        outcome = self._read(w, self.dfa.transitions)
+        if outcome.kind == UNLEARNED_EDGE:
+            self.population.add(outcome.string, at=self.tree.path_of(outcome.state))
+        return outcome.kind == EDGE and self._act_on_disagreement(
+            w, outcome.state, outcome.at
         )
-        if block is not None:
-            if not block.undecided:
-                self.population.add(block.found, at=self.tree.path_of(states[-1]))
-            return False
-        if end == states[-1]:
-            return False
-        kind, at = bracket(w, states, self._sift, self.k, len(states) - 1)
-        return kind == EDGE and self._act_on_disagreement(w, states, at)
 
-    def _act_on_disagreement(self, w, states, fd) -> bool:
-        s1, c = states[fd - 1], w[fd - 1]
+    def _act_on_disagreement(self, w, s1, fd) -> bool:
+        c = w[fd - 1]
         witness = self.dfa.witness(s1, c)
         sprime = w[: fd - 1]
-        if self._sift(witness) != s1:
-            return False
-        if self._sift(sprime) != s1:
+        if self._sift(witness) != s1 or self._sift(sprime) != s1:
             return False
         distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
