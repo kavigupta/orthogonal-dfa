@@ -9,7 +9,7 @@ import OrthoDFA.Proofs.StartAtK
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
 `OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, `RoundProgress`, stated
-in `OrthoDFA.Round`, and `RoundAtK`, `WalkYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`,
+in `OrthoDFA.Round`, and `RoundAtK`, `CheckYield` and `SourceSpread`, stated in `OrthoDFA.StartAtK`,
 hold.
 -/
 
@@ -36,9 +36,9 @@ theorem round_at_k : RoundAtK := round_at_k_holds
 
 #print axioms round_at_k
 
-theorem walk_yield : WalkYield := walk_yield_holds
+theorem check_yield : CheckYield := check_yield_holds
 
-#print axioms walk_yield
+#print axioms check_yield
 
 theorem source_spread : SourceSpread := source_spread_holds
 

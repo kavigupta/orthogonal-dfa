@@ -232,14 +232,16 @@ Ways to close it:
 
 ## Lean status
 
-`OrthoDFA/StartAtK.lean` states `RoundAtK`, `WalkYield` and `SourceSpread`, and
+`OrthoDFA/StartAtK.lean` states `RoundAtK`, `CheckYield` and `SourceSpread`, and
 `Proofs/StartAtK.lean` proves all three with no sorry.
 
 **The model.**
 - The pass is #411 and #412: `probeStepK`, `runPassK`.
 - Each check is `SequentialRate`: `binomial_side_of_boundary` at failure chance `a` from `n₀`
   draws on, read one draw at a time, falling back to the batch's rate if it never settles.
-- A tripped walk check skips the pass, and the gate reads the first hypothesis.
+- There is no separate walk check. Every round rebuilds the tree from the root, so the first
+  hypothesis has two leaves. The pass always runs and the gate reads its result. A walk block is a
+  blocked check, and the check source outputs `walkOutput`'s string for it.
 - The gate's agreement is over all draws, with the start and the whole draw placed by the cut
   where it can and at the middle where it cannot. A walk that meets an unlearned edge counts as
   disagreeing. That is the reading the Python is moving to; the edge-block case is my choice and is
@@ -270,7 +272,7 @@ through a wrong earlier one.
   while the source outputs nothing for them.
 
 **Refusal.** The refusal claim rests on the pass keeping its edges learned. That invariant is
-proved for both hypotheses the gate can read (`initialK_learned`, `runPassK_learned`).
+proved for the hypothesis the gate reads (`runPassK_learned`).
 
 **Continuation.** The theorem is per reading. The round's continuation loop re-gates after each
 continuation, so the round's error is the sum over the gates it runs.

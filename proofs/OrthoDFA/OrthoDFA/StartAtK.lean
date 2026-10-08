@@ -6,19 +6,17 @@ import OrthoDFA.Pass
 A probe is walked from where the cut places its first `k` letters, along learned edges only, and
 checked against where the cut places the whole probe.
 
-A walk check reads fresh draws against the round's first hypothesis. If it trips, the round adds a
-walk source, halves the limit, and skips the pass. Otherwise the counterexample pass runs. The
-gate then reads fresh draws against the frozen hypothesis:
-- its blocked rate tripping adds a boundary source and halves the limit;
+The counterexample pass runs, and the gate then reads fresh draws against the frozen hypothesis:
+- its blocked rate tripping adds the check source and halves the limit;
 - its agreement rate decides between passing and refusing, a refusal's decided disagreements
   becoming the next pass's first probes.
 
 A round can both add a source and pass. Each rate is `SequentialRate`'s exact binomial test,
 settling early or read out at the batch's end.
 
-`RoundAtK`: given the round's reads, each of these readings is right about the hypothesis it was
-taken on, but for the test's failure chance at each look and Hoeffding's tail at the last. Every
-probe a refusal seeds splits a leaf, adds a member, or stops at a string the cut cannot place.
+`RoundAtK`: given the round's reads, each of these readings is right about the hypothesis, but
+for the test's failure chance at each look and Hoeffding's tail at the last. Every probe a refusal
+seeds splits a leaf, adds a member, or stops at a string the cut cannot place.
 -/
 
 namespace OrthoDFA
@@ -121,7 +119,8 @@ noncomputable def walkOutput (t : DTree α) (edges : Edges α) (k : ℕ) (x : Fr
   | .reached _ => none
 
 /-- One probe of the counterexample check: a walk that does not reach the end is blocked, with
-the walk source's output; so is one whose whole probe the cut cannot place, with that string. -/
+`walkOutput`'s string; so is one whose whole probe the cut cannot place, with the string the cut
+cannot place. -/
 noncomputable def kCheck (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : KCheck α :=
   match kWalk R t edges k x with
   | .reached ps =>
@@ -204,11 +203,6 @@ edges are voted once. -/
 noncomputable def initialK (seed : List (FreeMonoid α)) : KState α :=
   closeK K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0
 
-/-- The walk is blocked: it does not reach the end. -/
-def KWalk.isBlocked : KWalk α → Prop
-  | .reached _ => False
-  | _ => True
-
 /-- The probe is blocked. -/
 def KCheck.isBlocked : KCheck α → Prop
   | .blocked _ => True
@@ -219,11 +213,6 @@ is placed, and the prefix before it is placed at some other leaf. -/
 def wrongEarlier (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Prop :=
   ∃ s c j p, kWalk R t edges k x = .edge s c j ∧ (t.sift R.cut (prefixOf x (j + 1))).isLeft
     ∧ t.sift R.cut (prefixOf x j) = .inl p ∧ p ≠ s
-
-open scoped Classical in
-/-- The share of a batch satisfying `P`. -/
-noncomputable def share {n : ℕ} (b : Fin n → FreeMonoid α) (P : FreeMonoid α → Prop) : ℝ :=
-  ((Finset.univ.filter fun i => P (b i)).card : ℝ) / n
 
 open scoped Classical in
 /-- How many of a batch's first `n` draws satisfy `P`. -/
@@ -269,66 +258,54 @@ def Carried (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Pr
   (∃ ps, kCheck R t edges k x = .disagree ps) ∨ wrongEarlier R t edges k x
 
 open scoped Classical in
-/-- What a round's readings claim. The walk check reads batch `bw` against the first hypothesis
-`s₀`. The gate reads batch `bg` against `s₁`, the pass's frozen hypothesis, or `s₀` where the walk
-check tripped and the pass was skipped. Then:
-* a tripped walk check: the walk is blocked on at least `θw − δ` of draws;
+/-- What the gate's readings of batch `bg` against the frozen hypothesis `s` claim:
 * a tripped blocked check: the check is blocked on at least `θc − δ` of draws;
 * a passing gate: the gate's reading disagrees on at most `1 − acc + δ` of draws;
-* a refusing gate: on at least `1 − acc − δ` of draws, and every probe of the batch whose check
-  disagrees, run again, splits a leaf, adds a member, or stops at a string the cut cannot
-  place; and where none of the batch's first `n₀` draws can be carried, the check source, which
-  the round then adds as it halves the limit, outputs a string on at least the gate's
-  disagreement less `δ`. -/
-def RoundAtKHolds (s₀ s₁ : KState α) (D : Measure (FreeMonoid α)) (k : ℕ)
-    (θw θc acc a δ : ℝ) (n₀ : ℕ) {nw ng : ℕ} (bw : Fin nw → FreeMonoid α)
-    (bg : Fin ng → FreeMonoid α) : Prop :=
-  let sg := if seqAbove θw a n₀ bw (fun x => (kWalk R s₀.tree s₀.edges k x).isBlocked) then s₀
-    else s₁
-  (seqAbove θw a n₀ bw (fun x => (kWalk R s₀.tree s₀.edges k x).isBlocked) →
-      θw - δ ≤ D.real {x | (kWalk R s₀.tree s₀.edges k x).isBlocked})
-    ∧ (seqAbove θc a n₀ bg (fun x => (kCheck R sg.tree sg.edges k x).isBlocked) →
-      θc - δ ≤ D.real {x | (kCheck R sg.tree sg.edges k x).isBlocked})
-    ∧ (seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R sg.tree sg.edges k x) →
-      D.real {x | gateDisagrees R sg.tree sg.edges k x} ≤ 1 - acc + δ)
-    ∧ (¬ seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R sg.tree sg.edges k x) →
-      1 - acc - δ ≤ D.real {x | gateDisagrees R sg.tree sg.edges k x}
-        ∧ (∀ i ps, kCheck R sg.tree sg.edges k (bg i) = .disagree ps →
-          seedStep K R sg.tree sg.pool sg.edges k (bg i) ps ≠ .dropped)
-        ∧ ((∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Carried R sg.tree sg.edges k (bg i)) →
-          D.real {x | gateDisagrees R sg.tree sg.edges k x} - δ
-            ≤ D.real {x | (checkOutput R sg.tree sg.edges k x).isSome}))
+* a refusing gate: on at least `1 − acc − δ` of draws; every probe of the batch whose check
+  disagrees, run again, splits a leaf, adds a member, or stops at a string the cut cannot place;
+  and where none of the batch's first `n₀` draws can be carried, the check source, which the
+  round then adds as it halves the limit, outputs a string on at least the gate's disagreement
+  less `δ`. -/
+def RoundAtKHolds (s : KState α) (D : Measure (FreeMonoid α)) (k : ℕ) (θc acc a δ : ℝ) (n₀ : ℕ)
+    {ng : ℕ} (bg : Fin ng → FreeMonoid α) : Prop :=
+  (seqAbove θc a n₀ bg (fun x => (kCheck R s.tree s.edges k x).isBlocked) →
+      θc - δ ≤ D.real {x | (kCheck R s.tree s.edges k x).isBlocked})
+    ∧ (seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R s.tree s.edges k x) →
+      D.real {x | gateDisagrees R s.tree s.edges k x} ≤ 1 - acc + δ)
+    ∧ (¬ seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R s.tree s.edges k x) →
+      1 - acc - δ ≤ D.real {x | gateDisagrees R s.tree s.edges k x}
+        ∧ (∀ i ps, kCheck R s.tree s.edges k (bg i) = .disagree ps →
+          seedStep K R s.tree s.pool s.edges k (bg i) ps ≠ .dropped)
+        ∧ ((∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Carried R s.tree s.edges k (bg i)) →
+          D.real {x | gateDisagrees R s.tree s.edges k x} - δ
+            ≤ D.real {x | (checkOutput R s.tree s.edges k x).isSome}))
 
-/-- `RoundAtK`: for any reads of the round's family and whatever probes the pass draws, a round's
-readings are right but for `nw·a + exp(−2·nw·δ²)` on the walk check's batch, and twice
-`ng·a + exp(−2·ng·δ²)` plus `exp(−min(n₀, ng)·δ)` on the gate's. -/
+/-- `RoundAtK`: for any reads of the round's family and whatever probes the pass draws, the gate's
+readings of the hypothesis the pass ends with are right but for twice `ng·a + exp(−2·ng·δ²)` and
+`exp(−min(n₀, ng)·δ)`. -/
 def RoundAtK : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (K : StageKnobs α) (R : CutReads α)
-    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k nw ng n₀ : ℕ)
-    (seed probes : List (FreeMonoid α)) (θw θc acc a δ : ℝ),
-    0 ≤ θw → θw ≤ 1 → 0 ≤ θc → θc ≤ 1 → 0 ≤ acc → acc ≤ 1 → 0 ≤ a → 0 ≤ δ →
-    let s₀ := initialK K R seed
-    let s₁ := runPassK K R k s₀ probes
-    ((Measure.pi fun _ : Fin nw => D).prod (Measure.pi fun _ : Fin ng => D)).real
-      {b | ¬ RoundAtKHolds K R s₀ s₁ D k θw θc acc a δ n₀ b.1 b.2}
-      ≤ nw * a + Real.exp (-2 * nw * δ ^ 2)
-        + (2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ))
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k ng n₀ : ℕ)
+    (seed probes : List (FreeMonoid α)) (θc acc a δ : ℝ),
+    θc ≤ 1 → 0 ≤ acc → acc ≤ 1 → 0 ≤ a → 0 ≤ δ →
+    let s := runPassK K R k (initialK K R seed) probes
+    (Measure.pi fun _ : Fin ng => D).real {bg | ¬ RoundAtKHolds K R s D k θc acc a δ n₀ bg}
+      ≤ 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ)
 
-/-- `WalkYield`: the walk source outputs a string on exactly the blocked draws that did not reach
-their unlearned edge through a wrong earlier one. -/
-def WalkYield : Prop :=
+/-- `CheckYield`: the check source outputs a string on exactly the blocked draws that did not
+reach an unlearned edge through a wrong earlier one. -/
+def CheckYield : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (D : Measure (FreeMonoid α))
     [IsFiniteMeasure D] (t : DTree α) (edges : Edges α) (k : ℕ),
-    D.real {x | (walkOutput R t edges k x).isSome}
-      = D.real {x | (kWalk R t edges k x).isBlocked} - D.real {x | wrongEarlier R t edges k x}
+    D.real {x | (checkOutput R t edges k x).isSome}
+      = D.real {x | (kCheck R t edges k x).isBlocked} - D.real {x | wrongEarlier R t edges k x}
 
-/-- `SourceSpread`: every draw a source outputs `t` on begins with `t`'s first `k` letters, so no
-string takes more of a source than the draws with one prefix of length `k`. -/
+/-- `SourceSpread`: every draw the check source outputs `u` on begins with `u`'s first `k`
+letters, so no string takes more of the source than the draws with one prefix of length `k`. -/
 def SourceSpread : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (D : Measure (FreeMonoid α))
     [IsFiniteMeasure D] (t : DTree α) (edges : Edges α) (k L : ℕ) (u : FreeMonoid α),
     k ≤ L → (∀ᵐ x ∂D, x.toList.length = L) →
-    D.real {x | walkOutput R t edges k x = some u ∨ kCheck R t edges k x = .blocked (some u)}
-      ≤ D.real {x | u.toList.take k <+: x.toList}
+    D.real {x | checkOutput R t edges k x = some u} ≤ D.real {x | u.toList.take k <+: x.toList}
 
 end OrthoDFA
