@@ -11,6 +11,7 @@ reads with suffixes no earlier link of the chain read, since a string's noise is
 keyed by the string and a clean survivor would otherwise survive every link.
 """
 
+from math import ceil, log
 from typing import List, Optional, Tuple
 
 from .cluster import read_rates, readable_size_and_margin, smallest_readable_family
@@ -29,8 +30,6 @@ EDGE_FACTOR = 3
 EDGE_RISE = 1.5
 #: Chance a round misjudges any of the edges it tests, split evenly over them.
 EDGE_MISJUDGE = 0.01
-#: Replays an edge gets before it is judged on its point estimate.
-EDGE_MAX_PROBES = 300
 
 
 def edge_verdict(
@@ -59,14 +58,26 @@ def edge_verdict(
     return ROLL_OVER if undecided > keep_above * reads else DROP
 
 
+def separating_reads(low, high, failure_prob) -> int:
+    """Reads after which a rate at ``low`` or below and one at ``high`` or above
+    are each misjudged with chance at most ``failure_prob`` (Chernoff, both read
+    at the higher rate's variance); where the two are close, as close as a chain
+    and its rise."""
+    low, high = sorted((low, high))
+    gap = max(high - low, high * (1 - 1 / EDGE_RISE))
+    return ceil(2 * high * log(1 / failure_prob) / gap**2)
+
+
 def judge_edge(
     source, letter, sifter, *, promote_above, keep_above, failure_prob
 ) -> Tuple[str, List[bytes], float]:
     """Replay draws of ``source`` extended by ``letter`` through ``sifter`` until
-    `edge_verdict` settles: the verdict, the boundary strings the replays met, and
-    the undecided rate per read."""
+    `edge_verdict` settles, or until `separating_reads` have been made: the
+    verdict, the boundary strings the replays met, and the undecided rate per
+    read."""
+    cap = separating_reads(keep_above, promote_above, failure_prob)
     met, undecided, reads = [], 0, 0
-    for probe in range(1, EDGE_MAX_PROBES + 1):
+    while reads < cap:
         try:
             drawn = source.draw()
         except SourceDry:
@@ -83,7 +94,7 @@ def judge_edge(
             promote_above=promote_above,
             keep_above=keep_above,
             failure_prob=failure_prob,
-            final=probe == EDGE_MAX_PROBES,
+            final=reads >= cap,
         )
         if verdict is not None:
             return verdict, met, undecided / reads

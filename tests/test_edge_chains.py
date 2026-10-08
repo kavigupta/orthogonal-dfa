@@ -17,6 +17,7 @@ from orthogonal_dfa.l_star.edge_chains import (
     ROLL_OVER,
     EdgeChain,
     edge_verdict,
+    separating_reads,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
 from orthogonal_dfa.l_star.prefix_sources import PrefixSource
@@ -87,6 +88,18 @@ class TestThePrefixRootDrawsWhatReadsPassThrough(unittest.TestCase):
 
         self.assertTrue(all(b"abcdefgh".startswith(d) and len(d) < 8 for d in drawn))
         self.assertGreater(len(drawn), 4)
+
+
+class TestAnEdgeTestStopsWhereItsRatesSeparate(unittest.TestCase):
+    def test_far_apart_rates_need_fewer_reads_than_close_ones(self):
+        far = separating_reads(0.001, 0.03, 1e-4)
+        close = separating_reads(0.02, 0.03, 1e-4)
+        self.assertLess(far, close)
+
+    def test_a_rate_and_one_above_it_are_kept_a_rise_apart(self):
+        self.assertEqual(
+            separating_reads(0.03, 0.03, 1e-4), separating_reads(0.02, 0.03, 1e-4)
+        )
 
 
 class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
