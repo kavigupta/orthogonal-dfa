@@ -177,9 +177,10 @@ def BisectionForces (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) 
 
 /-- `RoundProgress`: but for the chance the gate's node reads flip, a round ends with (1) agreement
 within `ε`, (2) a population the next gate must act on, (3) halving, (4) a bisection population
-that forces the next gate, (5) a state its family reads badly, or (6) a string the round's draws
+that forces the next gate, (5) a state its family reads badly, (6) a string the round's draws
 reach before position `L` whose extension by some letter is read off the hypothesis's edge more
-often than not. -/
+often than not, or (7) a pass that runs out of probes before `patience` of them in a row are
+quiet. -/
 def RoundProgress : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
@@ -201,7 +202,8 @@ def RoundProgress : Prop :=
           ∧ ¬ (∃ q, uHi ≤ stateIndecision S.A S.O S.B S.F q)
           ∧ ¬ (∃ (y : FreeMonoid α) (c : α), y.toList.length < S.L
               ∧ 0 < S.D.real {p | y.toList <+: p.toList}
-              ∧ 1 / 2 < edgeDisagreeProb S.O S.B S.F s.hyp y c)}
+              ∧ 1 / 2 < edgeDisagreeProb S.O S.B S.F s.hyp y c)
+          ∧ S.K.patience ≤ s.streak}
       ≤ (S.L + 1) * (S.N + 1) * φ / ε + passReadBound S * φ
 
 end OrthoDFA

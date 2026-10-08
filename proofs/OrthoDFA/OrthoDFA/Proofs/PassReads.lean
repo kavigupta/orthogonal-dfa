@@ -234,9 +234,9 @@ theorem closeEdges_congr {t : DTree α} {pool : List (FreeMonoid α)}
 
 theorem settle_congr {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : List Bool → α → Option (List Bool × FreeMonoid α)} {st un : ℕ}
-    {bd ds hd : List (FreeMonoid α)} (h : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
-    settle K (rd B F f₁) t pool edges st un bd ds hd
-      = settle K (rd B F f₂) t pool edges st un bd ds hd := by
+    {bd hd : List (FreeMonoid α)} (h : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
+    settle K (rd B F f₁) t pool edges st un bd hd
+      = settle K (rd B F f₂) t pool edges st un bd hd := by
   simp only [settle, closeEdges_congr h, PassState.mk.injEq, true_and, and_true]
   congr 1
   refine List.flatMap_congr fun p _ => List.flatMap_congr fun c _ => ?_
@@ -545,9 +545,9 @@ def PoolIn (Bs : Set (FreeMonoid α)) (s : PassState α) : Prop :=
 
 theorem settle_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : List Bool → α → Option (List Bool × FreeMonoid α)} {st un : ℕ}
-    {bd ds hd : List (FreeMonoid α)} (hp : ∀ b ∈ pool, b ∈ Bs)
+    {bd hd : List (FreeMonoid α)} (hp : ∀ b ∈ pool, b ∈ Bs)
     (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
-    PoolIn Bs (settle K R t pool edges st un bd ds hd) := by
+    PoolIn Bs (settle K R t pool edges st un bd hd) := by
   refine ⟨hp, fun p c q y h => ?_⟩
   simp only [settle, closeEdges] at h
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩

@@ -20,8 +20,9 @@
   2. a population the next gate must act on;
   3. the pass halving the indecision limit;
   4. its bisection population forcing the next gate;
-  5. a state its family reads badly; or
-  6. a visited string's extension read off the hypothesis's edge more often than not.
+  5. a state its family reads badly;
+  6. a visited string's extension read off the hypothesis's edge more often than not; or
+  7. the pass running out of probes before a patience streak.
 
   `Pass.lean` states the pass, with its bisection population, and `Automaton.lean` the target.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
@@ -33,7 +34,7 @@ Everything under `OrthoDFA/Proofs/` is checked by Lean and need not be read to t
 
 This proves the clustering step (`sample_suffix_family` and its gate) correct, that a round
 either passes the DFA/DT agreement gate or leaves a harvest that yields and is spread, and that a
-round ends in one of the six outcomes above. It does not prove that the E-L\* learner outputs the
+round ends in one of the seven outcomes above. It does not prove that the E-L\* learner outputs the
 target DFA.
 
 ## Building

@@ -659,7 +659,7 @@ theorem round_progress_holds : RoundProgress := by
   have hD : IsProbabilityMeasure S.D := hv.2.1
   refine le_trans (measureReal_mono ?_)
     (gate_flip_bound S hε hφ hlen hV hflip (η := 2 * (S.N + 1) * φ) (by linarith))
-  rintro θ' ⟨hfail, -, -, -, hbad, hedge⟩
+  rintro θ' ⟨hfail, -, -, -, hbad, hedge, -⟩
   have hall : ∀ q, stateIndecision S.A S.O S.B S.F q < uHi := fun q =>
     not_le.1 fun h => hbad ⟨q, h⟩
   have hdepth := roundEnd_depth_le S.K S.O S.B S.F S.seed θ'

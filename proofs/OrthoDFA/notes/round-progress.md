@@ -150,8 +150,10 @@ D·τ²/(4(u* − τ)).
 
 ## `RoundProgress`: the provable statement, and paring it down
 
-`RoundProgress` (`Round.lean`, proved as `round_progress`) models #410 at 2dd6e04 in `Pass.lean`:
+`RoundProgress` (`Round.lean`, proved as `round_progress`) models #410 at 2dd6e04 and #412 in `Pass.lean`:
 - the walk from the gate's start, restarting from the anchor where they part;
+- a NO_SPLIT verdict keeps probing as UNDECIDED does (#412), so the pass ends only through
+  patience or by running out of probes;
 - the bisection population: the search's first undecided read, the prefix before a placeholder
   edge the search lands on, the in-band reads of the gate's reading of an unplaceable probe that
   leaves the walk, and the in-band reads of the gate's reading of `ε`.
@@ -169,4 +171,5 @@ and `MidFlipPremise uHi φ`. Bound: `(L+1)(N+1)φ/ε + passReadBound·φ`.
 | (3) halving, as #407 counts it | kept | |
 | (4) the bisection population forces the next gate at τ | kept | the target the catch-alls are to be pared into |
 | (5) some state read badly, u ≥ uHi | catch-all | `gate_flip_bound` needs every state clean; paring needs the forcing argument, (5) ⇒ (4) |
-| (6) a visited edge read off more often than not | catch-all | with every state clean, a wrong edge by the majority reading; paring needs the pass's split dynamics |
+| (6) a visited edge read off more often than not | catch-all | with every state clean, a wrong edge by the majority reading. NO_SPLIT dismissals are gone (#412) and placeholder drops are held (#410); still needed for searches blocked by undecided reads within the limit, which stay quiet until #411 |
+| (7) the pass runs out of probes before a patience streak | kept | the only other way a pass ends now |
