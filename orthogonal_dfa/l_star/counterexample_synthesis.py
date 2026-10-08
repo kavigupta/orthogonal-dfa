@@ -148,19 +148,16 @@ def _read_round(resolver, *, patience, acc_threshold):
         first = gate.disagreements
 
 
-def _hold_harvests(resolver, gate, state, *, acc_threshold) -> None:
-    """Hold the middles of the triples the gate's disagreements came down to,
-    and the undecided reads below the root at its draws' ends where those were
-    too many, each as a population grown by replaying the gate's reading."""
-    for kind, found, replay in (
-        ("triple", gate.triples, partial(resolver.replay, gate.learned)),
-        ("ends", gate.ends, resolver.replay_ends),
-    ):
-        if found:
-            source = HarvestSource(
-                replay, known=state.seen, acc_threshold=acc_threshold
-            )
-            state.hold_found(kind, found, source)
+def _hold_triples(resolver, gate, state, *, acc_threshold) -> None:
+    """Hold the middles of the triples the gate's disagreements came down to, as
+    a population grown by replaying the gate's reading."""
+    if gate.triples:
+        source = HarvestSource(
+            partial(resolver.replay, gate.learned),
+            known=state.seen,
+            acc_threshold=acc_threshold,
+        )
+        state.hold_found("triple", gate.triples, source)
 
 
 #: The share of the gate's tolerance two adjacent undecided reads may take.
@@ -408,7 +405,7 @@ def counterexample_driven_synthesis(
             return best
         if _halve(pst, resolver, gate, acc_threshold=acc_threshold):
             print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
-        _hold_harvests(resolver, gate, state, acc_threshold=acc_threshold)
+        _hold_triples(resolver, gate, state, acc_threshold=acc_threshold)
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)

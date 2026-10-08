@@ -15,18 +15,11 @@ class Sifter:
     def __init__(self, tree, family):
         self.tree = tree
         self.family = family
-        #: Node reads every sift so far has made.
-        self.reads = 0
 
     def sift_and_boundary(self, seq) -> Tuple[Optional[int], Optional[bytes]]:
         """Route ``seq`` to a leaf: ``(state, None)``, or ``(None, boundary)``
         when some node cannot place it."""
-
-        def decide(s, midfix):
-            self.reads += 1
-            return self.family.is_accept(s, midfix)
-
-        return self.tree.sift(seq, decide)
+        return self.tree.sift(seq, self.family.is_accept)
 
     def known_sift(self, seq) -> Optional[int]:
         """The leaf ``seq`` sifts to without a new query, or ``None`` when some
