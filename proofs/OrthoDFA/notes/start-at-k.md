@@ -277,4 +277,11 @@ proved for the hypothesis the gate reads (`runPassK_learned`).
 **Continuation.** The theorem is per reading. The round's continuation loop re-gates after each
 continuation, so the round's error is the sum over the gates it runs.
 
+**Split soundness is not needed.** A split can be false only at a highly indecisive state, whose
+selected strings were picked by the full-family read at the split's node. A round reading such a
+state harvests heavily (blocked draws, halving), so it is not the round that finishes. Every round
+rebuilds the tree from the root, so a false split dies with its round. In the finishing round a
+duplicate leaf makes the DFA non-minimal, not wrong. The gate and the certificate judge the end
+state, and the pass is bounded by its probe budget, not by its leaf count.
+
 **Not yet stated:** the export lemma (F4–F6).
