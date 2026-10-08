@@ -18,18 +18,8 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import (
-    Read,
-    ReadBlocked,
-    Sifted,
-    WalkBlocked,
-    Walked,
-)
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
-
-#: Where these tests' strings came from, which they never read.
-_DRAW = Read(None, b"")
 
 
 class _Tree:
@@ -86,7 +76,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
             harvest=lambda _boundary, _read: None,
         )
         for prefix in resting:
-            population.add(prefix, at=(True,), draw=_DRAW)
+            population.add(prefix, at=(True,))
         return StateSource(_Resolver(population), 1, _lands(), wanted=20)
 
     def test_what_already_rests_there_is_served_first(self):
@@ -131,7 +121,7 @@ class TestAStateSourceServesWhatIsAlreadyThere(unittest.TestCase):
         )
         resting = [bytes([1, i, 0, 0, 0, 0, 0, 0]) for i in range(20)]
         for prefix in resting:
-            population.add(prefix, at=(True,), draw=_DRAW)
+            population.add(prefix, at=(True,))
         source = state_source(
             _Resolver(population), 1, aim_at(_Pst(8), reachable, 1), wanted=20
         )
@@ -238,168 +228,36 @@ class TestALeafWithNothingToDrawGetsNoSource(unittest.TestCase):
         self.assertIsNone(self._made(even, _ONE_WAY_IN, 1, lands=False))
 
 
-class _Walk:
-    """A tree that places strings by a rule the test chooses."""
-
-    def __init__(self, places):
-        self._places = places
-
-    def sift_and_boundary(self, seq):
-        leaf = self._places(seq)
-        return (leaf, None) if leaf is not None else (None, seq + b"?")
-
-    def halfway(self, seq):
-        """The middle of the band places everything at 0."""
-        return 0, [seq + b"?"]
-
-    def prefill(self, seqs):
-        pass
+_FIND = b"found"
 
 
-class _Fixed:
-    """A distribution handing out ``string`` every time."""
-
-    def __init__(self, string):
-        self._string = string
-
-    def draw(self):
-        return self._string
+def _source(finds, *, known):
+    """A source whose reads turn up ``finds()``."""
+    return HarvestSource(finds, known=known, acc_threshold=0.98)
 
 
-class _Dry:
-    def draw(self):
-        raise SourceDry("nothing left")
-
-
-#: Walks end at 1 where the tree says 0, so every probe is bisected.
-_STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
-_LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
-_PROBE = bytes([0, 1, 0, 1])
-
-
-def _walked(places, k=0):
-    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, k)
-
-
-class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
-    def test_a_walk_keeps_what_the_tree_cannot_place_on_the_way(self):
-        self.assertEqual([_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS).sample())
-
-    def test_a_walk_from_past_what_the_tree_cannot_place_keeps_nothing(self):
-        self.assertEqual([], _walked(_LONG_ONE_FAILS, k=3).sample())
-
-    def test_a_walk_the_tree_places_throughout_keeps_nothing(self):
-        self.assertEqual([], _walked(lambda seq: 0).sample())
-
-    def test_a_sift_reads_the_draw_with_its_extension(self):
-        sifted = Sifted(_Fixed(bytes([0])), _Walk(_LONG_ONE_FAILS), bytes([1]))
-        self.assertEqual([bytes([0, 1]) + b"?"], sifted.sample())
-
-    def test_a_sift_the_tree_places_keeps_nothing(self):
-        sifted = Sifted(_Fixed(bytes([0])), _Walk(_LONG_ONE_FAILS), b"")
-        self.assertEqual([], sifted.sample())
-
-    def test_a_distribution_run_dry_gives_nothing(self):
-        self.assertEqual([], Sifted(_Dry(), _Walk(lambda seq: None), b"").sample())
-
-
-#: Nothing is learned out of state 1 on a 0.
-_OPEN_AT_ONE = {0: {0: 1, 1: 1}, 1: {1: 1}}
-
-
-class TestABlockedReadingLeavesWhatBlockedIt(unittest.TestCase):
-    def _blocked(self, kind, places, transitions, k):
-        return kind(_Fixed(_PROBE), _Walk(places), transitions, k).sample()
-
-    def test_a_start_the_cut_cannot_place_is_left(self):
-        self.assertEqual(
-            [_PROBE[:2]],
-            self._blocked(WalkBlocked, lambda seq: None, _STEPS_TO_ONE, 2),
-        )
-
-    def test_an_open_edge_leaves_the_prefix_before_it_as_a_member(self):
-        places = lambda seq: 1 if len(seq) == 2 else 0
-        self.assertEqual(
-            [_PROBE[:2]], self._blocked(WalkBlocked, places, _OPEN_AT_ONE, 1)
-        )
-
-    def test_an_open_edge_from_a_prefix_sifting_elsewhere_leaves_nothing(self):
-        self.assertEqual([], self._blocked(WalkBlocked, lambda seq: 0, _OPEN_AT_ONE, 1))
-
-    def test_the_walk_alone_does_not_sift_the_whole_draw(self):
-        places = lambda seq: None if len(seq) == 4 else 0
-        self.assertEqual([], self._blocked(WalkBlocked, places, _STEPS_TO_ONE, 2))
-        self.assertEqual(
-            [_PROBE + b"?"], self._blocked(ReadBlocked, places, _STEPS_TO_ONE, 2)
-        )
-
-    def test_a_disagreement_is_not_a_block(self):
-        self.assertEqual(
-            [], self._blocked(ReadBlocked, lambda seq: 0, _STEPS_TO_ONE, 2)
-        )
-
-    def test_a_source_of_them_serves_each_string_once(self):
-        source = HarvestSource(
-            {WalkBlocked(_Fixed(_PROBE), _Walk(lambda seq: None), _STEPS_TO_ONE, 2): 1},
-            np.random.default_rng(0),
-            known=(),
-            acc_threshold=0.98,
-        )
-
-        self.assertEqual(_PROBE[:2], source.draw())
-        with self.assertRaises(SourceDry):
-            source.draw()
-
-
-class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
-    def _source(self, places, *, known):
-        return HarvestSource(
-            {_walked(places): 1},
-            np.random.default_rng(0),
-            known=known,
-            acc_threshold=0.98,
-        )
-
+class TestAHarvestSourceKeepsWhatItsReadsTurnUp(unittest.TestCase):
     def test_a_find_is_served(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
+        source = _source(lambda: [_FIND], known=())
 
         self.assertTrue(source.attempt_draw())
-        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+        self.assertEqual(_FIND, source.draw())
 
     def test_keeping_the_same_string_again_is_not_a_find(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
+        source = _source(lambda: [_FIND], known=())
 
         self.assertTrue(source.attempt_draw())
-        self.assertFalse(source.attempt_draw(), "the second probe found nothing new")
+        self.assertFalse(source.attempt_draw(), "the second read found nothing new")
 
     def test_what_the_caller_already_holds_is_not_a_find(self):
-        source = self._source(_LONG_ONE_FAILS, known=[_PROBE[:2] + b"?"])
+        self.assertFalse(_source(lambda: [_FIND], known=[_FIND]).attempt_draw())
 
-        self.assertFalse(source.attempt_draw())
+    def test_a_source_that_finds_nothing_new_stops_rather_than_reading_forever(self):
+        source = _source(lambda: [_FIND], known=())
 
-    def test_a_source_that_finds_nothing_new_stops_rather_than_probing_forever(self):
-        source = self._source(_LONG_ONE_FAILS, known=())
-
-        self.assertEqual(_PROBE[:2] + b"?", source.draw())
-
+        self.assertEqual(_FIND, source.draw())
         with self.assertRaisesRegex(SourceDry, "found no new samples"):
             source.draw()
-
-    def test_provenances_are_drawn_in_proportion_to_what_they_found(self):
-        drawn = itertools.count()
-        fresh = SimpleNamespace(draw=lambda: next(drawn).to_bytes(4, "big"))
-        never = lambda seq: None
-        often = Sifted(fresh, _Walk(never), b"a")
-        rarely = Sifted(fresh, _Walk(never), b"b")
-        source = HarvestSource(
-            {often: 3, rarely: 1},
-            np.random.default_rng(0),
-            known=(),
-            acc_threshold=0.98,
-        )
-        ends = [source.draw()[-2:-1] for _ in range(400)]
-
-        self.assertAlmostEqual(ends.count(b"a") / len(ends), 3 / 4, delta=0.06)
 
 
 if __name__ == "__main__":

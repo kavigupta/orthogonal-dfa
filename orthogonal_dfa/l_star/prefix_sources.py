@@ -7,14 +7,11 @@ one.  Only the tree's answer counts.
 
 from math import isqrt
 
-import numpy as np
-
 from .dfa_utils import (
     count_paths_to_state,
     sample_string_reaching_state,
     uniform_weights,
 )
-from .provenance import Aimed, Read
 from .rejection_source import RejectionSource, proving_attempts
 
 #: A leaf landing at least this share of its aims is one worth asking again.
@@ -42,37 +39,25 @@ class UniformSource:
 
 
 class HarvestSource(RejectionSource):
-    """More of a round's boundary population, found the way its strings were:
-    each attempt reads a fresh draw by one of their provenances, chosen in
-    proportion to how many of them it found."""
+    """More of a blocked round's population: each attempt reads a fresh draw the
+    way the round read the draws that blocked it."""
 
-    def __init__(self, provenances, rng, *, known, acc_threshold):
-        """``provenances`` maps each provenance to how many strings it found.
-        Worth drawing on where an attempt turns up a boundary string at least
-        ``1 - acc_threshold`` of the time, and not at half that: only a read that
-        disagrees or cannot be placed turns one up, and a round the gate refuses
-        can disagree on no more than that share of them."""
+    def __init__(self, read, *, known, acc_threshold):
+        """``read()`` reads a fresh draw and returns what it leaves.  Worth
+        drawing on where an attempt turns up a new string at least
+        ``1 - acc_threshold`` of the time, and not at half that."""
         super().__init__()
         assert acc_threshold < 1, acc_threshold
         self._good = 1 - acc_threshold
         self._served.update(known)
         self._seen = set(known)
-        self._provenances = list(provenances)
-        counts = np.array([provenances[p] for p in self._provenances], dtype=float)
-        self._weights = counts / counts.sum()
-        self._rng = rng
+        self._read = read
 
     def attempt_draw(self) -> bool:
-        provenance = self._provenances[
-            self._rng.choice(len(self._provenances), p=self._weights)
-        ]
-        found = False
-        for string in provenance.sample():
-            if string not in self._seen:
-                self._seen.add(string)
-                self._pool.append(string)
-                found = True
-        return found
+        fresh = [string for string in self._read() if string not in self._seen]
+        self._seen.update(fresh)
+        self._pool.extend(fresh)
+        return bool(fresh)
 
     @property
     def proving(self) -> tuple:
@@ -83,7 +68,7 @@ class HarvestSource(RejectionSource):
         return self._good / 2
 
     def source_repr(self) -> str:
-        return "boundary"
+        return "blocked"
 
 
 def aim_at(pst, dfa, leaf):
@@ -135,7 +120,6 @@ class StateSource(RejectionSource):
     def __init__(self, resolver, leaf, aim, *, wanted):
         super().__init__()
         self._population = resolver.population
-        self._aimed = Read(Aimed(aim), b"")
         self._path = resolver.tree.path_of(leaf)
         # A split replaces a leaf with a node holding both ids, so every id the
         # tree reports has a path to it.
@@ -154,7 +138,7 @@ class StateSource(RejectionSource):
         """
         aimed = self._aim()
         # Where it rests, not where it was aimed.
-        if self._population.settle(aimed, self._path, draw=self._aimed):
+        if self._population.settle(aimed, self._path):
             self._pool.append(aimed)
             return True
         return False

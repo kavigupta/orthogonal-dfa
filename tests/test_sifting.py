@@ -4,25 +4,13 @@ disagree."""
 import unittest
 
 from orthogonal_dfa.l_star.midfix_tree import MidfixTree
-from orthogonal_dfa.l_star.sifting import (
-    ANCHOR,
-    EDGE,
-    END,
-    Block,
-    Sifter,
-    check_from,
-    first_disagreeing_edge,
-    read_from,
-    walk_from,
-)
+from orthogonal_dfa.l_star.sifting import Block, Sifter, first_disagreeing_edge, walk
 
 #: Every state steps to 1, so a walk of any non-empty probe ends there.
 _STEPS_TO_ONE = {0: {0: 1, 1: 1}, 1: {0: 1, 1: 1}}
 #: Nothing is learned out of state 1 on a 0.
 _OPEN_AT_ONE = {0: {0: 1, 1: 1}, 1: {1: 1}}
 _PROBE = bytes([0, 1, 0, 1])
-
-_PLACES_EVERYTHING = lambda seq: 0
 
 
 def _sift(places):
@@ -36,78 +24,53 @@ def _sift(places):
     return sift
 
 
+def _walk(places, transitions, k, *, whole=True):
+    return walk(_PROBE, _sift(places), transitions, k, whole=whole)
+
+
 class TestWalkingFromTheStart(unittest.TestCase):
-    def test_it_follows_the_learned_edges_from_where_the_start_sifts(self):
-        states, block = walk_from(_PROBE, _sift(lambda seq: 0), _STEPS_TO_ONE, 2)
-
-        self.assertEqual([None, None, 0, 1, 1], states)
-        self.assertIsNone(block)
-
-    def test_a_start_the_cut_cannot_place_blocks_and_is_left(self):
-        states, block = walk_from(_PROBE, _sift(lambda seq: None), _STEPS_TO_ONE, 2)
-
-        self.assertIsNone(states)
-        self.assertEqual(Block(ANCHOR, 2, _PROBE[:2], True), block)
-
-    def test_an_open_edge_into_a_prefix_the_cut_cannot_place_leaves_that_prefix(
-        self,
-    ):
-        places = lambda seq: None if len(seq) == 3 else 0
-        states, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
-
-        # 0 -1-> 1 -0-> open: blocked at the edge out of index 2.
-        self.assertEqual([None, 0, 1], states)
-        self.assertEqual(Block(EDGE, 3, _PROBE[:3], True), block)
-
-    def test_an_open_edge_from_a_prefix_sifting_to_its_state_leaves_a_member(self):
-        places = lambda seq: 1 if len(seq) == 2 else 0
-        _, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
-
-        self.assertEqual(Block(EDGE, 3, _PROBE[:2], False), block)
-
-    def test_an_open_edge_from_a_prefix_the_cut_cannot_place_leaves_that_prefix(
-        self,
-    ):
-        places = lambda seq: None if len(seq) == 2 else 0
-        _, block = walk_from(_PROBE, _sift(places), _OPEN_AT_ONE, 1)
-
-        self.assertEqual(Block(EDGE, 3, _PROBE[:2], True), block)
-
-    def test_an_open_edge_from_a_prefix_sifting_elsewhere_leaves_nothing(self):
-        _, block = walk_from(_PROBE, _sift(lambda seq: 0), _OPEN_AT_ONE, 1)
-
-        self.assertEqual(Block(EDGE, 3, None, False), block)
-
-
-class TestReadingFromTheStart(unittest.TestCase):
-    def test_a_whole_probe_the_cut_cannot_place_leaves_its_boundary(self):
-        places = lambda seq: None if len(seq) == 4 else 0
-        _, block, disagrees = read_from(_PROBE, _sift(places), _STEPS_TO_ONE, 2)
-
-        self.assertEqual(Block(END, 4, _PROBE + b"?", True), block)
-        self.assertFalse(disagrees)
-
-    def test_it_says_where_the_walk_and_the_sift_disagree(self):
-        _, block, disagrees = read_from(
-            _PROBE, _sift(_PLACES_EVERYTHING), _STEPS_TO_ONE, 2
+    def test_it_follows_the_learned_edges_and_sifts_the_whole_probe(self):
+        self.assertEqual(
+            ([None, None, 0, 1, 1], None, 0), _walk(lambda seq: 0, _STEPS_TO_ONE, 2)
         )
 
-        self.assertIsNone(block)
-        self.assertTrue(disagrees)
+    def test_a_walk_alone_does_not_sift_the_whole_probe(self):
+        places = lambda seq: None if seq == _PROBE else 0
+        self.assertEqual(
+            ([None, None, 0, 1, 1], None, None),
+            _walk(places, _STEPS_TO_ONE, 2, whole=False),
+        )
 
-    def test_a_search_places_what_the_cut_cannot_at_the_middle(self):
-        # The walk reads 0, 0, 1, 1, 1 and the cut 0 throughout but for the
-        # two-symbol prefix, which only the middle places; where it sends that
-        # prefix decides which edge the search lands on.
-        places = lambda seq: None if len(seq) == 2 else 0
-        delta = {0: {0: 0, 1: 1}, 1: {0: 1, 1: 1}}
+    def test_a_start_the_cut_cannot_place_is_left(self):
+        self.assertEqual(
+            (None, Block(2, _PROBE[:2], True), None),
+            _walk(lambda seq: None, _STEPS_TO_ONE, 2),
+        )
 
-        for middle, edge in ((1, 3), (0, 2)):
-            _, block, fd = check_from(
-                _PROBE, _sift(places), lambda seq, m=middle: m, delta, 0
-            )
-            self.assertIsNone(block)
-            self.assertEqual(edge, fd)
+    def test_an_open_edge_into_a_prefix_the_cut_cannot_place_leaves_it(self):
+        # 0 -1-> 1 -0-> open: blocked at the edge out of index 2.
+        states, block, _ = _walk(
+            lambda seq: None if len(seq) == 3 else 0, _OPEN_AT_ONE, 1
+        )
+
+        self.assertEqual([None, 0, 1], states)
+        self.assertEqual(Block(3, _PROBE[:3], True), block)
+
+    def test_an_open_edge_leaves_the_prefix_before_it_by_where_it_sifts(self):
+        for places, found, undecided in (
+            (lambda seq: 1 if len(seq) == 2 else 0, _PROBE[:2], False),
+            (lambda seq: None if len(seq) == 2 else 0, _PROBE[:2], True),
+            (lambda seq: 0, None, False),
+        ):
+            _, block, _ = _walk(places, _OPEN_AT_ONE, 1)
+            self.assertEqual(Block(3, found, undecided), block)
+
+    def test_a_whole_probe_the_cut_cannot_place_leaves_its_boundary(self):
+        places = lambda seq: None if len(seq) == 4 else 0
+
+        self.assertEqual(
+            Block(4, _PROBE + b"?", True), _walk(places, _STEPS_TO_ONE, 2)[1]
+        )
 
 
 class TestNarrowingToTheEdge(unittest.TestCase):
@@ -115,20 +78,13 @@ class TestNarrowingToTheEdge(unittest.TestCase):
         # The tree says 0 throughout; the walk says 1 from index 1 on, so the
         # edge they part over is the first.
         self.assertEqual(
-            1,
-            first_disagreeing_edge(_PROBE, [0, 1, 1, 1, 1], _PLACES_EVERYTHING, 0, 4),
+            1, first_disagreeing_edge(_PROBE, [0, 1, 1, 1, 1], lambda seq: 0, 0, 4)
         )
 
     def test_an_edge_already_narrowed_to_is_returned_as_is(self):
         self.assertEqual(
-            3,
-            first_disagreeing_edge(_PROBE, [0, 0, 0, 0, 1], _PLACES_EVERYTHING, 2, 3),
+            3, first_disagreeing_edge(_PROBE, [0, 0, 0, 0, 1], lambda seq: 0, 2, 3)
         )
-
-    def test_a_prefix_the_tree_cannot_place_gives_no_edge(self):
-        places = lambda seq: None if len(seq) == 2 else 0
-
-        self.assertIsNone(first_disagreeing_edge(_PROBE, [0, 0, 1, 1, 1], places, 0, 4))
 
 
 class _Middle:
@@ -145,17 +101,17 @@ class _Middle:
         return self.side
 
 
-class TestTheGatesReading(unittest.TestCase):
+class TestTheMiddleReading(unittest.TestCase):
     def _sifter(self, side):
         tree = MidfixTree([b""])
         tree.split(0, b"x")
         return Sifter(tree, _Middle(side))
 
     def test_it_takes_the_middles_side_past_a_node_the_cut_cannot_place(self):
-        self.assertEqual((0, [b"sx"]), self._sifter(True).halfway(b"s"))
-        self.assertEqual((2, [b"sx"]), self._sifter(False).halfway(b"s"))
+        self.assertEqual(0, self._sifter(True).halfway(b"s"))
+        self.assertEqual(2, self._sifter(False).halfway(b"s"))
 
-    def test_its_reads_are_not_the_passs(self):
+    def test_its_reads_are_not_the_cuts(self):
         sifter = self._sifter(True)
         sifter.halfway(b"s")
         self.assertEqual(0, sifter.reads)

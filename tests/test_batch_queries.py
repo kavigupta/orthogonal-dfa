@@ -4,11 +4,9 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.lstar import _batch_before_possible_stop
 from orthogonal_dfa.l_star.mask_table import UNOBSERVED, MaskTable
 from orthogonal_dfa.l_star.memoized_oracle import MemoizedOracle
-from orthogonal_dfa.l_star.midfix_tree import MidfixTree, oracle_decider
-from orthogonal_dfa.l_star.statistics import binomial_side_of_boundary
+from orthogonal_dfa.l_star.midfix_tree import MidfixTree
 from orthogonal_dfa.l_star.structures import Oracle
 
 
@@ -42,6 +40,21 @@ def random_midfix_tree(rng, num_splits):
     return tree
 
 
+def _decider(oracle, base, accept, reject):
+    """Reads one string, or a level of them in one call, by its mean over
+    ``base``: above ``accept`` accepts, below ``reject`` rejects."""
+
+    def decide_level(pairs):
+        bits = oracle.membership_queries([s + m + v for s, m in pairs for v in base])
+        means = [
+            sum(bits[i : i + len(base)]) / len(base)
+            for i in range(0, len(bits), len(base))
+        ]
+        return [True if m > accept else False if m < reject else None for m in means]
+
+    return (lambda s, m: decide_level([(s, m)])[0]), decide_level
+
+
 class TestClassifyMany(unittest.TestCase):
     def test_matches_per_string_classify(self):
         rng = np.random.default_rng(0)
@@ -53,8 +66,8 @@ class TestClassifyMany(unittest.TestCase):
             accept, reject = (0.5, 0.5) if rng.random() < 0.5 else (0.7, 0.3)
             strings = [_word(rng, int(rng.integers(0, 8))) for _ in range(40)]
             per_string, batched = HashOracle(), HashOracle()
-            decide, _ = oracle_decider(per_string, tree.base_family, accept, reject)
-            _, decide_level = oracle_decider(batched, tree.base_family, accept, reject)
+            decide, _ = _decider(per_string, tree.base_family, accept, reject)
+            _, decide_level = _decider(batched, tree.base_family, accept, reject)
             expected = [tree.classify(s, decide) for s in strings]
             self.assertEqual(expected, tree.classify_many(strings, decide_level))
             # Same work, far fewer calls: one per tree level rather than per string.
@@ -66,7 +79,7 @@ class TestClassifyMany(unittest.TestCase):
     def test_empty(self):
         tree = random_midfix_tree(np.random.default_rng(0), 3)
         oracle = HashOracle()
-        _, decide_level = oracle_decider(oracle, tree.base_family, 0.5, 0.5)
+        _, decide_level = _decider(oracle, tree.base_family, 0.5, 0.5)
         self.assertEqual([], tree.classify_many([], decide_level))
         self.assertEqual([], oracle.calls)
 
@@ -135,88 +148,6 @@ class TestMaskTableBatching(unittest.TestCase):
         filled = np.array([table._masks[r] for r in rows])
         self.assertNotEqual(filled.min(), filled.max(), "fixture is order-blind")
         self._assert_cells_correct(oracle, table)
-
-
-class TestBatchBeforePossibleStop(unittest.TestCase):
-    """The look-ahead chunk must never span the sequential early-stop: below the
-    returned size the binomial test provably cannot fire, so batching that many is
-    identical to drawing them one at a time."""
-
-    boundary = 0.98
-    min_valid = 30
-    remaining = 2000
-    states = [(0, 0), (30, 30), (29, 30), (98, 100), (490, 500), (1900, 1950)]
-
-    def _fires(self, agreements, valid, k):
-        return (
-            binomial_side_of_boundary(agreements + k, valid + k, self.boundary) is True
-            or binomial_side_of_boundary(agreements, valid + k, self.boundary) is False
-        )
-
-    def test_never_spans_the_stop(self):
-        # No k strictly inside the chunk (at or above the min_valid floor) can fire.
-        for a, n in self.states:
-            k = _batch_before_possible_stop(
-                a,
-                n,
-                self.boundary,
-                self.min_valid,
-                self.remaining,
-                failure_prob=1e-5,
-                most_per_draw=1,
-            )
-            self.assertGreaterEqual(n + k, self.min_valid)  # respects the floor
-            floor = max(self.min_valid - n, 1)
-            for kp in range(floor, k):
-                self.assertFalse(self._fires(a, n, kp), (a, n, kp))
-
-    def test_chunk_is_maximal(self):
-        # It is the *largest* safe chunk: firing is possible exactly at k (unless we
-        # ran out of budget), so stopping one sooner would have left batching on table.
-        for a, n in self.states:
-            k = _batch_before_possible_stop(
-                a,
-                n,
-                self.boundary,
-                self.min_valid,
-                self.remaining,
-                failure_prob=1e-5,
-                most_per_draw=1,
-            )
-            if k < self.remaining:
-                self.assertTrue(self._fires(a, n, k), (a, n, k))
-
-    def test_never_spans_the_stop_when_a_draw_adds_several_trials(self):
-        # A draw of up to three trials can push the 'below' tail three at a time.
-        for a, n in self.states:
-            k = _batch_before_possible_stop(
-                a,
-                n,
-                self.boundary,
-                1,
-                self.remaining,
-                failure_prob=1e-5,
-                most_per_draw=3,
-            )
-            for kp in range(1, k):
-                self.assertFalse(self._fires(a, n, kp), (a, n, kp))
-                self.assertIsNot(
-                    False, binomial_side_of_boundary(a, n + 3 * kp, self.boundary)
-                )
-
-    def test_capped_by_remaining(self):
-        self.assertEqual(
-            5,
-            _batch_before_possible_stop(
-                0,
-                0,
-                self.boundary,
-                self.min_valid,
-                5,
-                failure_prob=1e-5,
-                most_per_draw=1,
-            ),
-        )
 
 
 class TestMemoizedOracle(unittest.TestCase):

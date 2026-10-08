@@ -1,10 +1,6 @@
 """
-Shared classification and accuracy machinery.
-
-``read_fresh_draws`` reads the termination test -- how well a round's
-hypothesis agrees with its tree on fresh draws -- and ``denoise_accept_labels`` corrects
-noise-flipped accept labels at the end of a run.  The synthesis loop that drives
-them lives in ``counterexample_synthesis``.
+``denoise_accept_labels`` corrects noise-flipped accept labels at the end of a
+run.  The synthesis loop that drives it lives in ``counterexample_synthesis``.
 """
 
 from automata.fa.dfa import DFA
@@ -15,7 +11,6 @@ from .dfa_utils import (
     states_intermediate,
     uniform_weights,
 )
-from .progress import counter
 from .statistics import (
     DENOISE_FAILURE_PROB,
     binomial_side_of_boundary,
@@ -117,121 +112,3 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
         final_states=new_final,
         allow_partial=False,
     )
-
-
-def _batch_before_possible_stop(
-    agreements, valid, boundary, min_valid, remaining, *, failure_prob, most_per_draw
-):
-    """The largest number of further draws that provably cannot let the
-    early-stop test fire -- so drawing this many and batching them changes nothing
-    the sequential loop would have decided, and never draws a sample past the stop.
-
-    The test needs ``min_valid`` trials and then significance against ``boundary``
-    at ``failure_prob``.  A draw adds one trial to ``most_per_draw`` of them, and
-    a hit only with its first.  The soonest the test *could* fire after ``k`` more
-    draws is the best case: each adds one trial and a hit (pushes the 'above'
-    tail) or ``most_per_draw`` trials and none (the 'below' tail).  ``possible``
-    is monotonic in ``k``, so binary search finds the smallest firing ``k``; below
-    it, batching is free."""
-    lo = max(-(-(min_valid - valid) // most_per_draw), 1)
-
-    def possible(k):
-        return (
-            binomial_side_of_boundary(
-                agreements + k, valid + k, boundary, failure_prob=failure_prob
-            )
-            is True
-            or binomial_side_of_boundary(
-                agreements,
-                valid + k * most_per_draw,
-                boundary,
-                failure_prob=failure_prob,
-            )
-            is False
-        )
-
-    if lo >= remaining or not possible(remaining):
-        return remaining
-    hi = remaining
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if possible(mid):
-            hi = mid
-        else:
-            lo = mid + 1
-    return lo
-
-
-class SequentialRate:
-    """Hits over trials, read a draw at a time and tested against ``threshold``
-    at ``failure_prob``.  ``side`` is True above it and False below once the test
-    settles, which ends the reading: ``rate`` stays what it settled at.  A draw
-    adds one trial to ``most_per_draw`` of them."""
-
-    def __init__(self, threshold, *, min_trials, failure_prob, most_per_draw):
-        self.threshold = threshold
-        self._min_trials = min_trials
-        self._failure_prob = failure_prob
-        self._most_per_draw = most_per_draw
-        self.hits = self.trials = 0
-        self.side = None
-
-    def add(self, hit, trials) -> None:
-        assert self.side is None and 1 <= trials <= self._most_per_draw
-        self.hits += bool(hit)
-        self.trials += trials
-        if self.trials >= self._min_trials:
-            self.side = binomial_side_of_boundary(
-                self.hits, self.trials, self.threshold, failure_prob=self._failure_prob
-            )
-
-    def quiet_for(self, remaining) -> int:
-        """How many more draws the test provably cannot settle within."""
-        return _batch_before_possible_stop(
-            self.hits,
-            self.trials,
-            self.threshold,
-            self._min_trials,
-            remaining,
-            failure_prob=self._failure_prob,
-            most_per_draw=self._most_per_draw,
-        )
-
-    @property
-    def rate(self) -> float:
-        return self.hits / self.trials if self.trials else 0.0
-
-    @property
-    def above(self) -> bool:
-        """The settled side, or, where the draws ran out first, whether the rate
-        exceeds the threshold."""
-        return self.rate > self.threshold if self.side is None else self.side
-
-
-def read_fresh_draws(pst, check, *, num_samples) -> None:
-    """
-    Read fresh draws with ``check`` until the rates it still needs are settled or
-    ``num_samples`` are drawn.
-
-    The rates are consumed only to decide which side of their thresholds they
-    lie, so settling that is all the precision required.  When a rate is far from
-    its threshold a few dozen samples settle it, but near it the reading can run
-    to the full *num_samples* budget, which is why that budget caps the cost.
-
-    Each chunk is exactly the span in which no rate still open can settle
-    (``_batch_before_possible_stop``), so batching draws no sample past the
-    stopping point and needs no chunk-size constant.
-    """
-    drawn = 0
-    with counter(num_samples, "Reading fresh draws") as pbar:
-        while drawn < num_samples:
-            still = check.open_rates()
-            if not still:
-                break
-            size = min(rate.quiet_for(num_samples - drawn) for rate in still)
-            ys = [pst.sampler.sample(pst.rng, pst.alphabet_size) for _ in range(size)]
-            drawn += size
-            check.prefill(ys)
-            for y in ys:
-                check.observe(y)
-            pbar.update(size)

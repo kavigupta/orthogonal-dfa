@@ -8,8 +8,6 @@ string and each suffix, hence the name. Leaves are DFA state ids.
 
 from typing import Callable, Iterator, List, Optional, Tuple
 
-from .sequential_decide import sequential_decisions
-
 # A leaf is an int state id; an internal node is
 # (midfix, {True: accept_child, False: reject_child}).
 Node = object
@@ -68,19 +66,17 @@ class MidfixTree:
 
     def route_halfway(
         self, seq, decide: Decide, halfway: Callable[[bytes, bytes], bool]
-    ) -> Tuple[int, List[bytes]]:
-        """Route ``seq`` to a leaf, taking ``halfway``'s side at each node
-        ``decide`` cannot place it, and the strings read at those nodes."""
+    ) -> int:
+        """The leaf ``seq`` reaches taking ``halfway``'s side at each node
+        ``decide`` cannot place it."""
         node = self._root
-        in_band = []
         while not isinstance(node, int):
             midfix, lookup = node
             decision = decide(seq, midfix)
             if decision is None:
-                in_band.append(seq + midfix)
                 decision = halfway(seq, midfix)
             node = lookup[decision]
-        return node, in_band
+        return node
 
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
         """The branches from the root to leaf ``state`` (True = accept child); a
@@ -238,36 +234,6 @@ class MidfixTree:
             return lines
 
         return recurse(self._root, indent)
-
-
-def oracle_decider(oracle, base_family: List[bytes], accept: float, reject: float):
-    """
-    A (decide, decide_level) pair that classifies a midfix node by the accept-rate
-    of s + midfix + v over base_family (> accept accepts, < reject rejects, the band
-    between abstains); decide scores one string, decide_level a whole level.
-
-    The rate is read sequentially (see :func:`sequential_decisions`): a string far
-    from the threshold -- the common case for the accuracy estimate's random samples
-    -- settles in the first block rather than spending the whole family.
-    """
-
-    def decide_level(pairs) -> List[Optional[bool]]:
-        strings = [seq + midfix for seq, midfix in pairs]
-        return sequential_decisions(
-            strings,
-            base_family,
-            oracle.membership_queries,
-            accept=accept,
-            reject=reject,
-        )
-
-    def decide(seq, midfix) -> Optional[bool]:
-        # Reuse the level path for one string, so the single and batched readers
-        # early-stop identically -- callers that mix them (the accuracy estimate's
-        # batched s_end plus its per-y binary search) must never disagree.
-        return decide_level([(seq, midfix)])[0]
-
-    return decide, decide_level
 
 
 def fmt_seq(seq) -> str:

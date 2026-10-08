@@ -15,7 +15,7 @@ in the next round.
 import math
 import time
 import warnings
-from collections import Counter, deque
+from collections import deque
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -24,15 +24,14 @@ from automata.fa.dfa import DFA
 
 from .certificate import certifies, look_level
 from .cluster import sample_suffix_family
-from .lstar import denoise_accept_labels, read_fresh_draws
+from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
+from .prefix_sources import HarvestSource, aim_at, state_source
 from .progress import track
-from .provenance import provenance
 from .tracker import SynthesisTracker
-from .transition_resolver import FrozenCheck, TransitionResolver
+from .transition_resolver import TransitionResolver
 
 
 @dataclass
@@ -82,9 +81,6 @@ def _round_classifier(pst, vs) -> RoundClassifier:
 #: Probes drawn per counterexample pass.
 COUNTEREXAMPLE_PROBES = 4000
 
-#: Most fresh draws the walk check, or a gate, reads.
-GATE_DRAWS = 2000
-
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
@@ -112,16 +108,8 @@ def _accumulate_indecisive(resolver, state, wanted) -> int:
     taken = sorted(set(resolver.indecisive) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(string, resolver.indecisive[string])
+        state.take(string)
     return min(wanted, len(taken))
-
-
-def _blocked_at_limit(resolver, fnr_limit) -> bool:
-    """Whether the pass's quiet probes went unchecked as often as a family
-    indecisive at the limit could leave them: a probe goes unchecked when any of
-    its reads is undecided, so that is up to ``fnr_limit`` times their reads, and
-    at half of it only a lower limit gets a later round past them."""
-    return 2 * resolver.unchecked_quiet_probes > fnr_limit * resolver.quiet_reads
 
 
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
@@ -141,79 +129,43 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
-def _boundary_source(pst, resolver, state, *, acc_threshold) -> None:
-    """Hands the round's boundary population a source that draws more the way
-    its strings were found, proved only when a family search first asks it for
-    more: otherwise the only population the counterexample pass fills for free is
-    the one a later round has nothing to draw with."""
-    if state.harvesting is None:
-        return
-    learned = resolver.learned()
-    state.sources[state.harvesting] = HarvestSource(
-        Counter(
-            {
-                provenance(read, resolver.sifter, learned, resolver.k): count
-                for read, count in state.harvest_reads.items()
-            }
-        ),
-        pst.rng,
-        known=state.seen,
-        acc_threshold=acc_threshold,
-    )
-
-
-def _blocked_populations(pst, check, state, *, acc_threshold) -> None:
-    """Hold what the round's blocked reads left as populations of their own, each
-    grown by replaying the reading that met it."""
-    for blocked in check.outcome():
-        source = HarvestSource(
-            {blocked.replay: 1},
-            pst.rng,
-            known=state.seen,
-            acc_threshold=acc_threshold,
-        )
-        state.hold_found(blocked.kind, blocked.found, source)
-
-
-def _gated_pass(pst, resolver, *, patience, acc_threshold) -> FrozenCheck:
-    """The walk check on the round's first hypothesis; unless it blocks, the pass,
-    then the gate on the hypothesis it leaves.  A refusal that is not blocked
-    goes back to the pass with the gate's disagreeing draws as its first probes
-    and is gated again, until a gate passes, a pass so continued splits nothing,
-    or the round's probes run out."""
-    walk = FrozenCheck(
-        resolver, acc_threshold=acc_threshold, fnr_limit=pst.fnr_limit, whole=False
-    )
-    read_fresh_draws(pst, walk, num_samples=GATE_DRAWS)
+def _read_round(resolver, *, patience, acc_threshold):
+    """The walk check on the round's first hypothesis; unless it blocks, the pass;
+    then the gate on the hypothesis the round ends with.  A refusal goes back to
+    the pass with the gate's decided disagreements as its first probes and is
+    gated again, until a gate passes, a pass so continued splits nothing, or the
+    round's probes run out."""
+    walk = resolver.read_fresh(whole=False, acc_threshold=acc_threshold)
     if walk.blocks:
         resolver.recent = deque(walk.draws, maxlen=patience)
-        return walk
+        return walk, resolver.read_fresh(whole=True, acc_threshold=acc_threshold)
     first, probes = [], COUNTEREXAMPLE_PROBES
     while True:
         states = resolver.num_states
         probes -= resolver.counterexample_pass(
             max_probes=probes, patience=patience, first=first
         )
-        check = FrozenCheck(
-            resolver, acc_threshold=acc_threshold, fnr_limit=pst.fnr_limit, whole=True
-        )
-        read_fresh_draws(pst, check, num_samples=GATE_DRAWS)
-        stalled = first and resolver.num_states == states
-        if check.blocks or check.agreement.rate >= acc_threshold or stalled:
-            return check
-        if not check.disagreements or probes <= 0:
-            return check
-        first = check.disagreements
+        gate = resolver.read_fresh(whole=True, acc_threshold=acc_threshold)
+        if gate.agreement >= acc_threshold or not gate.disagreements or probes <= 0:
+            return walk, gate
+        if first and resolver.num_states == states:
+            return walk, gate
+        first = gate.disagreements
 
 
-def _report_gate(check, index, tracker) -> None:
-    print(
-        f"[round {index}] DFA/DT consistency on fresh samples: "
-        f"{check.agreement.rate:.4f} over {check.agreement.trials} draws; "
-        f"{check.blocked.hits} of {len(check.draws)} blocked over "
-        f"{check.blocked.trials} reads"
-    )
-    tracker.on_consistency_estimated(check.agreement.rate, index)
+def _hold_blocked(resolver, walk, gate, state, *, acc_threshold) -> None:
+    """Hold what each blocked reading left, and beside the gate's what the pass's
+    split attempts could not place, as populations grown by replaying it."""
+    for kind, reading, dropped in (
+        ("walk", walk, {}),
+        ("check", gate, resolver.dropped),
+    ):
+        found = {**dict.fromkeys(reading.found if reading.blocks else ()), **dropped}
+        if found:
+            source = HarvestSource(
+                reading.replay, known=state.seen, acc_threshold=acc_threshold
+            )
+            state.hold_found(kind, found, source)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -379,12 +331,12 @@ def counterexample_driven_synthesis(
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs, state.draws(UniformSource(pst)))
+        resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
-        check = _gated_pass(
-            pst, resolver, patience=patience, acc_threshold=acc_threshold
+        walk, gate = _read_round(
+            resolver, patience=patience, acc_threshold=acc_threshold
         )
-        true_acc = check.agreement.rate
+        true_acc = gate.agreement
         dfa, dt = resolver.to_dfa_and_tree()
         print(
             f"[round {index}] resolved {dt.num_states} states over a family of "
@@ -394,10 +346,11 @@ def counterexample_driven_synthesis(
         assert dt.num_states >= 2
         tracker.on_initial_dfa_found(dfa, dt, index)
         print(dfa)
-        _report_gate(check, index, tracker)
+        print(f"[round {index}] DFA/DT consistency on fresh samples: {true_acc:.4f}")
+        tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
         output = None
-        if not check.blocks and true_acc >= acc_threshold:
+        if true_acc >= acc_threshold:
             output = _certified(pst, dfa, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since
@@ -414,14 +367,10 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if check.blocks or _blocked_at_limit(resolver, pst.fnr_limit):
+        if walk.blocks or gate.blocks:
             pst.fnr_limit /= 2
-            print(
-                f"[round {index}] {resolver.unchecked_quiet_probes} of the "
-                f"{resolver.quiet_probes} probes since the last split unchecked, "
-                f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
-            )
-        _blocked_populations(pst, check, state, acc_threshold=acc_threshold)
+            print(f"[round {index}] blocked; FNR limit now {pst.fnr_limit:.4f}")
+        _hold_blocked(resolver, walk, gate, state, acc_threshold=acc_threshold)
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
@@ -444,7 +393,6 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _boundary_source(pst, resolver, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

@@ -10,16 +10,14 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
-    _blocked_at_limit,
     _publish_pool,
     _StallDetector,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
-from orthogonal_dfa.l_star.provenance import Read
 
 
 def _resolver(*strings):
-    return SimpleNamespace(indecisive={string: Read(None, b"") for string in strings})
+    return SimpleNamespace(indecisive=set(strings))
 
 
 def _state(held=()):
@@ -199,16 +197,3 @@ class TestWhatARoundPublishes(unittest.TestCase):
         _publish_pool(pst, state)
 
         self.assertNotIn(("state", 0), pst.table.populations)
-
-
-class TestTheLimitHalvesWhenProbesAreBlockedAtIt(unittest.TestCase):
-    def _pass(self, unchecked, reads):
-        return SimpleNamespace(unchecked_quiet_probes=unchecked, quiet_reads=reads)
-
-    def test_a_minority_of_probes_unchecked_can_still_be_the_limits_rate(self):
-        # 149 probes of 8 reads each at a 0.1 limit can leave ~119 unchecked;
-        # 70 is more than half of that, though fewer than half the probes.
-        self.assertTrue(_blocked_at_limit(self._pass(70, 149 * 8), 0.1))
-
-    def test_fewer_than_half_the_limits_rate_does_not_halve(self):
-        self.assertFalse(_blocked_at_limit(self._pass(50, 149 * 8), 0.1))
