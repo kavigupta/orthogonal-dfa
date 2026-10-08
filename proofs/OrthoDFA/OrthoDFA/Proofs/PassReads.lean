@@ -1,4 +1,5 @@
 import OrthoDFA.Round
+import OrthoDFA.Proofs.Replay
 import Mathlib.Data.List.Basic
 
 /-!
@@ -31,6 +32,17 @@ theorem route_congr_mids {c₁ c₂ : FreeMonoid α → Option Bool} :
     have hr := route_congr_mids r x fun m' hm' => h m' (by simp [mids, hm'])
     have ha := route_congr_mids a x fun m' hm' => h m' (by simp [mids, hm'])
     simp only [route, hm, hr, ha]
+
+theorem halfway_congr {c₁ c₂ : FreeMonoid α → Option Bool} {m₁ m₂ : FreeMonoid α → Bool} :
+    ∀ (t : DTree α) (x : FreeMonoid α),
+      (∀ m ∈ t.mids, c₁ (x * m) = c₂ (x * m) ∧ m₁ (x * m) = m₂ (x * m)) →
+        t.halfway c₁ m₁ x = t.halfway c₂ m₂ x
+  | .leaf, _, _ => rfl
+  | .node m r a, x, h => by
+    obtain ⟨hc, hm⟩ := h m (by simp [mids])
+    have hr := halfway_congr r x fun m' hm' => h m' (by simp [mids, hm'])
+    have ha := halfway_congr a x fun m' hm' => h m' (by simp [mids, hm'])
+    simp only [halfway, hc, hm, hr, ha]
 
 theorem mids_splitAt (d : FreeMonoid α) :
     ∀ (t : DTree α) (p : List Bool) (m : FreeMonoid α),
@@ -222,9 +234,9 @@ theorem closeEdges_congr {t : DTree α} {pool : List (FreeMonoid α)}
 
 theorem settle_congr {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : List Bool → α → Option (List Bool × FreeMonoid α)} {st un : ℕ}
-    {bd ds : List (FreeMonoid α)} (h : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
-    settle K (rd B F f₁) t pool edges st un bd ds
-      = settle K (rd B F f₂) t pool edges st un bd ds := by
+    {bd ds hd : List (FreeMonoid α)} (h : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
+    settle K (rd B F f₁) t pool edges st un bd ds hd
+      = settle K (rd B F f₂) t pool edges st un bd ds hd := by
   simp only [settle, closeEdges_congr h, PassState.mk.injEq, true_and, and_true]
   congr 1
   refine List.flatMap_congr fun p _ => List.flatMap_congr fun c _ => ?_
@@ -293,12 +305,12 @@ theorem prefixOf_length (w : FreeMonoid α) : prefixOf w w.toList.length = w := 
   simp [prefixOf]
 
 theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → List Bool}
-    {pool boundary : List (FreeMonoid α)} {fd : ℕ}
+    {pool boundary held : List (FreeMonoid α)} {fd : ℕ}
     (hpool : ∀ b ∈ pool, AgreeDeep K F f₁ f₂ s.tree b)
     (hwit : ∀ p c q y, s.edges p c = some (q, y) → AgreeDeep K F f₁ f₂ s.tree y)
     (hw : ∀ i, AgreeDeep K F f₁ f₂ s.tree (prefixOf w i)) :
-    onEdge K (rd B F f₁) s w walkAt pool boundary fd
-      = onEdge K (rd B F f₂) s w walkAt pool boundary fd := by
+    onEdge K (rd B F f₁) s w walkAt pool boundary held fd
+      = onEdge K (rd B F f₂) s w walkAt pool boundary held fd := by
   have hone : ∀ b ∈ pool, AgreeOne K F f₁ f₂ s.tree b := fun b hb => (hpool b hb).one
   simp only [onEdge]
   rcases hc : w.toList[fd - 1]? with _ | c
@@ -339,6 +351,30 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
             · exact hsp.one
             · exact hone b (List.mem_of_mem_filter hb)
 
+theorem mid_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
+    (rd B F f₁).mid y = (rd B F f₂).mid y := by
+  simp only [CutReads.mid, rd, acceptsOn_congr Finset.subset_union_left h]
+
+theorem halfway_congr' {t : DTree α} {x : FreeMonoid α}
+    (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
+    t.halfway (rd B F f₁).cut (rd B F f₁).mid x = t.halfway (rd B F f₂).cut (rd B F f₂).mid x :=
+  DTree.halfway_congr t x fun m hm => ⟨cut_congr (h m hm), mid_congr (h m hm)⟩
+
+theorem midLeaf_congr {t : DTree α} {x : FreeMonoid α}
+    (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
+    midLeaf (rd B F f₁) t x = midLeaf (rd B F f₂) t x := by
+  have := DTree.route_congr_mids (c₁ := fun y => some ((rd B F f₁).mid y))
+    (c₂ := fun y => some ((rd B F f₂).mid y)) t x fun m hm => by simp only [mid_congr (h m hm)]
+  simp only [midLeaf, DTree.sift, this]
+
+theorem probeWalk_congr {s : PassState α} {w : FreeMonoid α}
+    (h : ∀ i, ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (prefixOf w i * m)) :
+    probeWalk (rd B F f₁) s w = probeWalk (rd B F f₂) s w := by
+  have h1 : ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (1 * m) := by
+    simpa [prefixOf_zero] using h 0
+  unfold probeWalk
+  rw [anchoredWalk_congr (B := B) h, midLeaf_congr (B := B) (by simpa using h1)]
+
 theorem probeStep_congr {s : PassState α} {w : FreeMonoid α}
     (hpool : ∀ b ∈ s.pool, AgreeDeep K F f₁ f₂ s.tree b)
     (hwit : ∀ p c q y, s.edges p c = some (q, y) → AgreeDeep K F f₁ f₂ s.tree y)
@@ -346,32 +382,39 @@ theorem probeStep_congr {s : PassState α} {w : FreeMonoid α}
     probeStep K (rd B F f₁) s w = probeStep K (rd B F f₂) s w := by
   have hpw : ∀ i, ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (prefixOf w i * m) :=
     fun i => (hw i).one.tree
+  have hwhole : ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (w * m) := by
+    simpa [prefixOf_length] using hpw w.toList.length
+  have h1 : ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (1 * m) := by
+    simpa [prefixOf_zero] using hpw 0
   simp only [probeStep]
-  rw [anchoredWalk_congr (B := B) hpw, anchorMisses_congr (B := B) hpw]
-  rcases ha : anchoredWalk (rd B F f₂) s.tree s.edges w with _ | ⟨start, walk⟩
-  · exact settle_congr fun b hb => (hpool b hb).one
-  · simp only []
-    have hpool' : ∀ b ∈ (if prefixOf w start ∈ s.pool then s.pool
-        else s.pool ++ [prefixOf w start]), AgreeDeep K F f₁ f₂ s.tree b := by
-      intro b hb
+  rw [show probePool (rd B F f₁) s w = probePool (rd B F f₂) s w by
+      unfold probePool; rw [anchoredWalk_congr (B := B) hpw],
+    anchorMisses_congr (B := B) hpw, probeWalk_congr (B := B) hpw, halfway_congr' (B := B) h1, halfway_congr' (B := B) hwhole,
+    sift_congr (B := B) hwhole, firstDisagreeingEdge_congr (B := B) hpw]
+  have hpool' : ∀ b ∈ probePool (rd B F f₂) s w, AgreeDeep K F f₁ f₂ s.tree b := by
+    intro b hb
+    unfold probePool at hb
+    rcases ha : anchoredWalk (rd B F f₂) s.tree s.edges w with _ | ⟨start, walk⟩ <;>
+      rw [ha] at hb
+    · exact hpool b hb
+    · simp only [] at hb
       split_ifs at hb
       · exact hpool b hb
       · rcases List.mem_append.1 hb with hb | hb
         · exact hpool b hb
         · rw [List.mem_singleton.1 hb]; exact hw start
-    have hwhole : ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (w * m) := by
-      simpa [prefixOf_length] using hpw w.toList.length
-    rw [sift_congr (B := B) hwhole]
-    generalize (if prefixOf w start ∈ s.pool then s.pool else s.pool ++ [prefixOf w start])
-      = pool at hpool' ⊢
-    rcases hs : s.tree.sift (rd B F f₂).cut w with actual | b
-    · simp only []
-      split_ifs
+  generalize probePool (rd B F f₂) s w = pool at hpool' ⊢
+  generalize probeWalk (rd B F f₂) s w = pw
+  rcases hs : s.tree.sift (rd B F f₂).cut w with actual | b
+  · simp only []
+    split_ifs
+    · exact settle_congr fun b hb => (hpool' b hb).one
+    · rcases hf : firstDisagreeingEdge (rd B F f₂) s.tree w _ _ _ _ with b | fd
       · exact settle_congr fun b hb => (hpool' b hb).one
-      · rw [firstDisagreeingEdge_congr (B := B) hpw]
-        rcases hf : firstDisagreeingEdge (rd B F f₂) s.tree w _ _ _ _ with b | fd
-        · exact settle_congr fun b hb => (hpool' b hb).one
-        · exact onEdge_congr hpool' hwit hw
+      · exact onEdge_congr hpool' hwit hw
+  · simp only []
+    split_ifs
+    · exact settle_congr fun b hb => (hpool' b hb).one
     · exact settle_congr fun b hb => (hpool' b hb).one
 
 theorem siftReads_congr {t : DTree α} {x : FreeMonoid α}
@@ -393,30 +436,27 @@ theorem probeReads_congr {s : PassState α} {w : FreeMonoid α}
   have hwhole : ∀ m ∈ s.tree.mids, Agree K F f₁ f₂ (w * m) := by
     simpa [prefixOf_length] using hpw w.toList.length
   simp only [probeReads]
-  rw [anchoredWalk_congr (B := B) hpw]
+  rw [probeWalk_congr (B := B) hpw]
   simp only [hsift, hreads]
-  rcases ha : anchoredWalk (rd B F f₂) s.tree s.edges w with _ | ⟨start, walk⟩
-  · rfl
+  rw [sift_congr (B := B) hwhole, siftReads_congr (B := B) hwhole, bisect_congr (B := B) hpw]
+  generalize probeWalk (rd B F f₂) s w = pw
+  rcases hs : s.tree.sift (rd B F f₂).cut w with actual | b
   · simp only []
-    rw [sift_congr (B := B) hwhole, siftReads_congr (B := B) hwhole]
-    rcases hs : s.tree.sift (rd B F f₂).cut w with actual | b
-    · simp only []
-      split_ifs
+    split_ifs
+    · rfl
+    · rcases hb : (bisect (rd B F f₂) s.tree w pw.2 w.toList.length pw.1 w.toList.length).2
+          with b | fd
       · rfl
-      · rw [bisect_congr (B := B) hpw]
-        rcases hb : (bisect (rd B F f₂) s.tree w (fun j => walk.getD (j - start) [])
-            w.toList.length start w.toList.length).2 with b | fd
+      · simp only []
+        rcases hc : w.toList[fd - 1]? with _ | c
         · rfl
         · simp only []
-          rcases hc : w.toList[fd - 1]? with _ | c
+          rcases he : s.edges (pw.2 (fd - 1)) c with _ | ⟨s2, x⟩
           · rfl
           · simp only []
-            rcases he : s.edges (walk.getD (fd - 1 - start) []) c with _ | ⟨s2, x⟩
-            · rfl
-            · simp only []
-              have hx := (hwit _ _ _ _ he).one.tree
-              rw [sift_congr (B := B) hx, siftReads_congr (B := B) hx]
-    · rfl
+            have hx := (hwit _ _ _ _ he).one.tree
+            rw [sift_congr (B := B) hx, siftReads_congr (B := B) hx]
+  · rfl
 
 /-- One step of the pass, as `runPass` takes it. -/
 noncomputable def runStep (K : StageKnobs α) (R : CutReads α) (s : PassState α)
@@ -504,9 +544,9 @@ def PoolIn (Bs : Set (FreeMonoid α)) (s : PassState α) : Prop :=
 
 theorem settle_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : List Bool → α → Option (List Bool × FreeMonoid α)} {st un : ℕ}
-    {bd ds : List (FreeMonoid α)} (hp : ∀ b ∈ pool, b ∈ Bs)
+    {bd ds hd : List (FreeMonoid α)} (hp : ∀ b ∈ pool, b ∈ Bs)
     (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
-    PoolIn Bs (settle K R t pool edges st un bd ds) := by
+    PoolIn Bs (settle K R t pool edges st un bd ds hd) := by
   refine ⟨hp, fun p c q y h => ?_⟩
   simp only [settle, closeEdges] at h
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩
@@ -516,21 +556,30 @@ theorem settle_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (Fr
     obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj (by simpa using h))
     exact hp _ (members_mem (decisiveTarget_mem K R hd))
 
+theorem probePool_in {Bs : Set (FreeMonoid α)} {s : PassState α} {w : FreeMonoid α}
+    (hp : ∀ b ∈ s.pool, b ∈ Bs) (hw : ∀ i, prefixOf w i ∈ Bs) :
+    ∀ b ∈ probePool R s w, b ∈ Bs := by
+  unfold probePool
+  split
+  · exact hp
+  · split
+    · exact hp
+    · exact mem_append_single hp (hw _)
+
 theorem probeStep_poolIn {Bs : Set (FreeMonoid α)} {s : PassState α} {w : FreeMonoid α}
     (hs : PoolIn Bs s) (hw : ∀ i, prefixOf w i ∈ Bs) : PoolIn Bs (probeStep K R s w) := by
   obtain ⟨hp, he⟩ := hs
+  have hP := probePool_in R hp hw
   simp only [probeStep, onEdge]
+  generalize probePool R s w = pool at hP ⊢
   repeat' split
   all_goals (try have hx := he _ _ _ _ ‹s.edges _ _ = some (_, _)›)
   all_goals refine settle_poolIn K R (fun b hb => ?_) (fun p c q y hy => ?_)
   all_goals first
-    | exact hp b hb
+    | exact hP b hb
     | exact he _ _ _ _ hy
-    | exact mem_append_single hp (hw _) b hb
-    | exact mem_cons_filter (hw _) hp b hb
-    | exact mem_cons_filter (hw _) (mem_append_single hp (hw _)) b hb
-    | exact mem_append_filter hp (mem_pair hx (hw _)) b hb
-    | exact mem_append_filter (mem_append_single hp (hw _)) (mem_pair hx (hw _)) b hb
+    | exact mem_cons_filter (hw _) hP b hb
+    | exact mem_append_filter hP (mem_pair hx (hw _)) b hb
     | (rcases hE : s.edges p c with _ | ⟨q', y'⟩ <;> simp [hE] at hy
        obtain ⟨-, rfl, rfl⟩ := hy
        exact he _ _ _ _ hE)
@@ -544,7 +593,7 @@ theorem runStep_poolIn {Bs : Set (FreeMonoid α)} {s : PassState α} {w : FreeMo
 
 theorem probeStep_tree_cases (s : PassState α) (w : FreeMonoid α) :
     (probeStep K R s w).tree = s.tree ∨ ∃ d p, (probeStep K R s w).tree = s.tree.splitAt d p := by
-  simp only [probeStep, onEdge, settle]
+  simp only [probeStep, onEdge, settle, probePool]
   repeat' split
   all_goals first | exact .inl rfl | exact .inr ⟨_, _, rfl⟩
 

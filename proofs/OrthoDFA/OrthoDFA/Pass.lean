@@ -5,8 +5,9 @@ import OrthoDFA.Automaton
 # The counterexample pass
 
 `TransitionResolver.counterexample_pass` over a round's cut: probes walked through the hypothesis
-and re-sifted, leaves split where the evidence confirms a disagreement, and what the cut cannot
-place harvested.
+from where the gate places `ε` and re-sifted, leaves split where the evidence confirms a
+disagreement, and what the cut cannot place harvested: into the bisection population when the
+probe disagrees, else into the boundary population.
 -/
 
 namespace OrthoDFA
@@ -42,7 +43,22 @@ def firstDisagreement (cut : FreeMonoid α → Option Bool) (x y pre : FreeMonoi
     | some _, some _ => some (pre * m)
     | _, _ => none
 
+/-- `x`'s way down the tree as the gate reads it, the middle of the band `mid` deciding wherever
+`cut` cannot: its leaf, and the strings read in the band on the way. -/
+def halfway (cut : FreeMonoid α → Option Bool) (mid : FreeMonoid α → Bool) :
+    DTree α → FreeMonoid α → List Bool × List (FreeMonoid α)
+  | .leaf, _ => ([], [])
+  | .node m r a, x =>
+    let band := if (cut (x * m)).isNone then [x * m] else []
+    match (cut (x * m)).getD (mid (x * m)) with
+    | true => (true :: (a.halfway cut mid x).1, band ++ (a.halfway cut mid x).2)
+    | false => (false :: (r.halfway cut mid x).1, band ++ (r.halfway cut mid x).2)
+
 end DTree
+
+/-- The gate's read of `y`: past the middle of the band. -/
+noncomputable def CutReads.mid (R : CutReads α) (y : FreeMonoid α) : Bool :=
+  decide (R.B.lo + R.B.hi < 2 * acceptsOn R.F R.f y)
 
 /-- `SplitEvidence`'s verdicts. -/
 inductive Verdict
@@ -63,8 +79,9 @@ structure StageKnobs (α : Type*) where
 
 /-- What the pass carries from probe to probe: the tree, the population in the order its strings
 arrived, each edge's target and witness, the probes since the last split, how many of those a
-read the cut could not place kept from being checked, the strings the cut could not place, and
-the shorter string of each disagreement the evidence said was no split. -/
+read the cut could not place kept from being checked, the strings the cut could not place, the
+shorter string of each disagreement the evidence said was no split, and the bisection
+population. -/
 structure PassState (α : Type*) where
   tree : DTree α
   pool : List (FreeMonoid α)
@@ -75,8 +92,16 @@ structure PassState (α : Type*) where
   reads : ℕ
   boundary : List (FreeMonoid α)
   disagreements : List (FreeMonoid α)
+  /-- What disagreeing probes could not place: the first read the search for the disagreeing
+  edge meets undecided, or every read in the band on the gate's reading of a probe the cut cannot
+  place that it sends off the walk; and every read in the band on the gate's reading of `ε`. -/
+  bisected : List (FreeMonoid α)
 
 variable (K : StageKnobs α) (R : CutReads α)
+
+/-- Where the gate's reading sends `x`: down the tree by the middle of the band. -/
+noncomputable def midLeaf (t : DTree α) (x : FreeMonoid α) : List Bool :=
+  (t.sift (fun y => some (R.mid y)) x).elim id fun _ => []
 
 /-- A leaf's members: the first `memberLimit` of the population the tree sends to it. -/
 noncomputable def members (t : DTree α) (pool : List (FreeMonoid α)) (path : List Bool) :
@@ -186,21 +211,21 @@ noncomputable def verdict (t : DTree α) (pool : List (FreeMonoid α)) (path : L
 /-- Re-vote every edge, harvesting what that cannot place, and carry the streak. -/
 noncomputable def settle (t : DTree α) (pool : List (FreeMonoid α))
     (edges : List Bool → α → Option (List Bool × FreeMonoid α)) (streak unchecked : ℕ)
-    (boundary disagreements : List (FreeMonoid α)) : PassState α :=
+    (boundary disagreements bisected : List (FreeMonoid α)) : PassState α :=
   { tree := t, pool := pool, edges := closeEdges K R t pool edges, streak := streak,
     unchecked := unchecked, reads := 0,
     boundary := boundary ++ t.paths.flatMap fun p =>
       (Finset.univ : Finset α).toList.flatMap fun c => edgeMisses R t c (members K R t pool p),
-    disagreements := disagreements }
+    disagreements := disagreements, bisected := bisected }
 
 /-- After a probe's walk and sift part at `fd`: the disagreement on the edge into `fd`.  The edge
 the walk took splits its leaf when the evidence confirms it, and the two strings that exhibited it
 join the population; otherwise the probe's own string at the leaf joins it ahead of the rest, so
 it is a member however many the leaf holds, and is harvested when the evidence says no split. -/
 noncomputable def onEdge (s : PassState α) (w : FreeMonoid α) (walkAt : ℕ → List Bool)
-    (pool boundary : List (FreeMonoid α)) (fd : ℕ) : PassState α :=
+    (pool boundary held : List (FreeMonoid α)) (fd : ℕ) : PassState α :=
   let t := s.tree
-  let clean := settle K R t pool s.edges (s.streak + 1) s.unchecked boundary s.disagreements
+  let clean := settle K R t pool s.edges (s.streak + 1) s.unchecked boundary s.disagreements held
   match w.toList[fd - 1]? with
   | none => clean
   | some c =>
@@ -221,74 +246,92 @@ noncomputable def onEdge (s : PassState α) (w : FreeMonoid α) (walkAt : ℕ �
             | some (q, y) => if p = s1 ∨ q = s1 then none else some (q, y)
             | none => none
           settle K R (t.splitAt d s1) (pool ++ ([x, sprime].filter (· ∉ pool))) cleared 0 0
-            boundary s.disagreements
+            boundary s.disagreements held
         | .noSplit =>
           settle K R t kept s.edges (s.streak + 1) s.unchecked boundary
-            (s.disagreements ++ [sprime])
-        | .undecided => settle K R t kept s.edges 0 0 boundary s.disagreements
+            (s.disagreements ++ [sprime]) held
+        | .undecided => settle K R t kept s.edges 0 0 boundary s.disagreements held
+
+/-- The walk a probe is checked against, and the index the sift is known to agree with it at:
+from where the gate places `ε`, unless that start already parts from the leaf the cut places the
+shortest prefix it can at, in which case from that prefix. -/
+noncomputable def probeWalk (s : PassState α) (w : FreeMonoid α) : ℕ × (ℕ → List Bool) :=
+  let fromStart := fun j =>
+    (w.toList.scanl (stepPath s.tree s.edges) (midLeaf R s.tree 1)).getD j []
+  match anchoredWalk R s.tree s.edges w with
+  | none => (0, fromStart)
+  | some (start, walk) =>
+    if walk.head? = some (fromStart start) then (start, fromStart)
+    else (start, fun j => walk.getD (j - start) [])
+
+/-- The population with the probe's anchor, if the tree places any prefix of it. -/
+noncomputable def probePool (s : PassState α) (w : FreeMonoid α) : List (FreeMonoid α) :=
+  match anchoredWalk R s.tree s.edges w with
+  | none => s.pool
+  | some (start, _) => if prefixOf w start ∈ s.pool then s.pool else s.pool ++ [prefixOf w start]
 
 /-- What one probe does: `_process` and `_act_on_disagreement`.  The anchor joins the
-population.  A probe with no prefix the tree places, whose own sift cannot be placed, or whose
-search for the disagreeing edge meets a read it cannot place, goes unchecked, and what could not
-be placed is harvested; one whose walk ends where it sifts is clean.  Then every edge is
-re-voted. -/
+population, and the gate's reading of `ε` holds its reads in the band.  A probe whose own sift
+cannot be placed, or whose search for the disagreeing edge meets a read it cannot place, goes
+unchecked: the read joins the bisection population if the probe disagrees, the gate's reading of
+a probe the cut cannot place holding every read it meets in the band when it leaves the walk, and
+the boundary population otherwise.  One whose walk ends where it sifts is clean.  Then every edge
+is re-voted. -/
 noncomputable def probeStep (s : PassState α) (w : FreeMonoid α) : PassState α :=
   let t := s.tree
   let boundary := s.boundary ++ anchorMisses R t w
-  match anchoredWalk R t s.edges w with
-  | none =>
-    settle K R t s.pool s.edges (s.streak + 1) (s.unchecked + 1) boundary s.disagreements
-  | some (start, walk) =>
-    let pool := if prefixOf w start ∈ s.pool then s.pool else s.pool ++ [prefixOf w start]
-    let n := w.toList.length
-    let walkAt := fun j => walk.getD (j - start) []
-    let unchecked := fun b =>
-      settle K R t pool s.edges (s.streak + 1) (s.unchecked + 1) (boundary ++ [b])
-        s.disagreements
-    match t.sift R.cut w with
-    | .inr b => unchecked b
-    | .inl actual =>
-      if actual = walkAt n then
-        settle K R t pool s.edges (s.streak + 1) s.unchecked boundary s.disagreements
-      else
-      match firstDisagreeingEdge R t w walkAt n start n with
-      | .inl b => unchecked b
-      | .inr fd => onEdge K R s w walkAt pool boundary fd
+  let held := s.bisected ++ (t.halfway R.cut R.mid 1).2
+  let pool := probePool R s w
+  let n := w.toList.length
+  let lo := (probeWalk R s w).1
+  let walkAt := (probeWalk R s w).2
+  let unchecked := fun bd hd =>
+    settle K R t pool s.edges (s.streak + 1) (s.unchecked + 1) bd s.disagreements hd
+  match t.sift R.cut w with
+  | .inr b =>
+    if (t.halfway R.cut R.mid w).1 ≠ walkAt n then
+      unchecked boundary (held ++ (t.halfway R.cut R.mid w).2)
+    else unchecked (boundary ++ [b]) held
+  | .inl actual =>
+    if actual = walkAt n then
+      settle K R t pool s.edges (s.streak + 1) s.unchecked boundary s.disagreements held
+    else
+    match firstDisagreeingEdge R t w walkAt n lo n with
+    | .inl b => unchecked boundary (held ++ [b])
+    | .inr fd => onEdge K R s w walkAt pool boundary held fd
 
 /-- How many node reads `x`'s sift makes, the one that fails included. -/
 noncomputable def siftReads (t : DTree α) (x : FreeMonoid α) : ℕ := (t.route R.cut x).1.length
 
 /-- The node reads a probe's sifts make, as `Sifter.reads` counts them around `_process`: the
-anchor search's, the probe's own, the bisection's, and the witness's and `sprime`'s re-sifts. -/
+anchor search's, the probe's own, the bisection's, and the witness's and `sprime`'s re-sifts.
+The gate's readings of `ε` and of the probe are not the pass's sifts. -/
 noncomputable def probeReads (s : PassState α) (w : FreeMonoid α) : ℕ :=
   let t := s.tree
   let n := w.toList.length
   let anchors := ((List.range (n + 1)).map fun i => t.sift R.cut (prefixOf w i)).findIdx (·.isLeft)
   let anchorReads := ((List.range (min (anchors + 1) (n + 1))).map
     fun i => siftReads R t (prefixOf w i)).sum
-  match anchoredWalk R t s.edges w with
-  | none => anchorReads
-  | some (start, walk) =>
-    let walkAt := fun j => walk.getD (j - start) []
-    let own := anchorReads + siftReads R t w
-    match t.sift R.cut w with
-    | .inr _ => own
-    | .inl actual =>
-      if actual = walkAt n then own else
-      let found := bisect R t w walkAt n start n
-      let bisected := own + (found.1.map fun i => siftReads R t (prefixOf w i)).sum
-      match found.2 with
-      | .inl _ => bisected
-      | .inr fd =>
-        match w.toList[fd - 1]? with
+  let walkAt := (probeWalk R s w).2
+  let own := anchorReads + siftReads R t w
+  match t.sift R.cut w with
+  | .inr _ => own
+  | .inl actual =>
+    if actual = walkAt n then own else
+    let found := bisect R t w walkAt n (probeWalk R s w).1 n
+    let bisected := own + (found.1.map fun i => siftReads R t (prefixOf w i)).sum
+    match found.2 with
+    | .inl _ => bisected
+    | .inr fd =>
+      match w.toList[fd - 1]? with
+      | none => bisected
+      | some c =>
+        match s.edges (walkAt (fd - 1)) c with
         | none => bisected
-        | some c =>
-          match s.edges (walkAt (fd - 1)) c with
-          | none => bisected
-          | some (s2, x) =>
-            if s2 ≠ walkAt fd then bisected
-            else if t.sift R.cut x ≠ .inl (walkAt (fd - 1)) then bisected + siftReads R t x
-            else bisected + siftReads R t x + siftReads R t (prefixOf w (fd - 1))
+        | some (s2, x) =>
+          if s2 ≠ walkAt fd then bisected
+          else if t.sift R.cut x ≠ .inl (walkAt (fd - 1)) then bisected + siftReads R t x
+          else bisected + siftReads R t x + siftReads R t (prefixOf w (fd - 1))
 
 /-- The pass: probes in order until `patience` in a row have neither split a leaf nor left the
 evidence undecided, counting the node reads of the probes since the last split. -/
@@ -302,7 +345,7 @@ noncomputable def runPass (s : PassState α) (probes : List (FreeMonoid α)) : P
 /-- The first state: the root reads at `ε`, the population is the table's prefixes, and the
 edges are closed once. -/
 noncomputable def initialState (seed : List (FreeMonoid α)) : PassState α :=
-  settle K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 0 [] []
+  settle K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 0 [] [] []
 
 /-- `_blocked_at_limit`: the probes since the pass's last split went unchecked more than half as
 often as a family undecided at `τ` per read could leave them, so the round halves the limits

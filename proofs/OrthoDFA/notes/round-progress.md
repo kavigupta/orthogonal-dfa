@@ -147,3 +147,26 @@ on every draw. The chance of this is up to Σ u over ε's low-u path reads, whic
 Keeping every in-band read on ε's middle path costs only ε's path reads, once per tree. Its low
 reads are independent of the bad flip, so Markov turns the failure into the contamination term
 D·τ²/(4(u* − τ)).
+
+## `RoundProgress`: the provable statement, and paring it down
+
+`RoundProgress` (`Round.lean`, proved as `round_progress`) models #410 at 954011e in `Pass.lean`:
+- the walk from the gate's start, restarting from the anchor where they part;
+- the bisection population: the search's first undecided read, the in-band reads of the gate's
+  reading of an unplaceable probe that leaves the walk, and the in-band reads of the gate's
+  reading of `ε`.
+
+The gate's reads are not counted in `probeReads`. The population is stated over its distinct
+strings.
+
+Premises: `Valid`, `0 < ε`, `0 ≤ φ`, `4(N+1)φ < 1`, draws of length `L`, a suffix-free vote family,
+and `MidFlipPremise uHi φ`. Bound: `(L+1)(N+1)φ/ε + passReadBound·φ`.
+
+| outcome | status | reason |
+|---|---|---|
+| (1) agreement within ε | kept | |
+| (2) the existing populations force the next gate | kept | |
+| (3) halving, as #407 counts it | kept | |
+| (4) the bisection population forces the next gate at τ | kept | the target the catch-alls are to be pared into |
+| (5) some state read badly, u ≥ uHi | catch-all | `gate_flip_bound` needs every state clean; paring needs the forcing argument, (5) ⇒ (4) |
+| (6) a visited edge read off more often than not | catch-all | with every state clean, a wrong edge by the majority reading; paring needs the pass's split dynamics |

@@ -7,7 +7,7 @@ import OrthoDFA.Proofs.GateFlip
 # The theorem
 
 `ClusteringGuarantee`, stated in `OrthoDFA.Clustering`, `ClusteringQualityGuarantee`, stated in
-`OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, and `RoundTetrachotomy`,
+`OrthoDFA.ClusteringQuality`, `RoundOutcome`, stated in `OrthoDFA.Stage`, and `RoundProgress`,
 stated in `OrthoDFA.Round`, hold.
 -/
 
@@ -26,8 +26,8 @@ theorem round_outcome : RoundOutcome := round_outcome_holds
 
 #print axioms round_outcome
 
-theorem round_tetrachotomy : RoundTetrachotomy := round_tetrachotomy_holds
+theorem round_progress : RoundProgress := round_progress_holds
 
-#print axioms round_tetrachotomy
+#print axioms round_progress
 
 end OrthoDFA

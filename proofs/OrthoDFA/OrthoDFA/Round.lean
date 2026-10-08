@@ -2,12 +2,12 @@ import OrthoDFA.Pass
 import OrthoDFA.ClusteringQuality
 
 /-!
-# The round's tetrachotomy
+# The round's outcomes
 
 A round reads its family through the oracle, runs the counterexample pass on fresh sampler draws,
 and either the DFA and tree it ends with agree, or it leaves a population the next gate must act
-on, or the pass halves the indecision limit, or some chain's odds of reading a state badly or an
-edge wrongly grow by a fixed factor.
+on, or the pass halves the indecision limit, or its family reads some state badly, or the
+hypothesis takes some visited edge wrongly.
 
 `ν(y)` is how often a uniformly random position of a draw from `D` has the prefix `y`, and `V(q)`
 how often it reaches the target state `q`.
@@ -139,39 +139,12 @@ def EdgeSelected (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R 
     Prop :=
   f * a * r < ∫ x, stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c)) ∂(D[|settlesAt R H s])
 
-/-- The `ν` root: a draw from `D` cut at a position drawn uniformly below `L`, so a string `y`
-comes out with chance `ν(y)` (up to the cut `L`).  Every round tests its edges alongside the
-per-state populations'. -/
-noncomputable def nuRoot (D : Measure (FreeMonoid α)) (L : ℕ) : Measure (FreeMonoid α) :=
-  (D.prod (anchorLaw L)).map fun q => prefixOf q.1 q.2
-
 /-- The chance, over fresh noise, that the middle reading of `x·c` lands off the hypothesis's edge
 out of where the middle reading puts `x`. -/
 noncomputable def edgeDisagreeProb (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (H : Hypothesis α) (x : FreeMonoid α) (c : α) : ℝ :=
   μ.real {ω | midPath (readsAt O B F ω) H (x * FreeMonoid.of c)
     ≠ H.step (midPath (readsAt O B F ω) H x) c}
-
-/-- A chain on source `X`, filtered by a link that keeps `x` with chance `g x`, has its odds of
-`g ≥ hi` multiplied by at least `β`: `X` holds strings with `g ≥ hi`, and the link multiplies their
-mass by at least `hi` and the rest's by at most `hi / β`. -/
-def ChainAdvancesBy (X : Measure (FreeMonoid α)) (g : FreeMonoid α → ℝ) (β hi : ℝ) : Prop :=
-  0 < X.real {x | hi ≤ g x}
-    ∧ hi * X.real {x | hi ≤ g x}
-        ≤ (X.withDensity fun x => ENNReal.ofReal (g x)).real {x | hi ≤ g x}
-    ∧ (X.withDensity fun x => ENNReal.ofReal (g x)).real {x | hi ≤ g x}ᶜ
-        ≤ hi / β * X.real {x | hi ≤ g x}ᶜ
-
-/-- (4) Some chain's odds multiply by at least `β`: on a source `X` (a live chain's law, or a
-per-state population's) and letter `c`, filtered by `x·c`'s indecision with `hi` a rung
-`uHi / β^i` of the ladder, or by `x·c`'s disagreement with the hypothesis's edge with `hi = wHi`. -/
-def ChainAdvances [Fintype Q] (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
-    (R : CutReads α) (H : Hypothesis α) (sources : List (Measure (FreeMonoid α)))
-    (β uHi wHi : ℝ) : Prop :=
-  ∃ X ∈ sources, ∃ c : α,
-    (∃ i ≤ Fintype.card Q, ChainAdvancesBy X
-        (fun x => stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) β (uHi / β ^ i))
-      ∨ ChainAdvancesBy X (fun x => edgeDisagreeProb O R.B R.F H x c) β wHi
 
 /-- A node read of `z` at the middle of the band: the family's vote on `z` past the middle. -/
 def midRead (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (ω : Ω)
@@ -190,30 +163,30 @@ different strings. -/
 def SuffixFree (V : Finset (FreeMonoid α)) : Prop :=
   ∀ v ∈ V, ∀ v' ∈ V, ∀ u : FreeMonoid α, v = u * v' → u = 1
 
-/-- Every badly read state is reached by a letter from a string read before position `L`. -/
-def BadVisited (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
-    (F : Finset (FreeMonoid α)) (D : Measure (FreeMonoid α)) (L : ℕ) (uHi : ℝ) : Prop :=
-  ∀ q, uHi ≤ stateIndecision A O B F q →
-    ∃ y c, y.toList.length < L ∧ 0 < D.real {p | y.toList <+: p.toList}
-      ∧ A.state (y * FreeMonoid.of c) = q
-
 /-- A bound on the node reads a pass makes: every string it sifts is the seed or a probe's prefix,
 extended by at most a letter, and every midfix it reads at is the final tree's, of which there are
 at most `N + 2`, preceded by at most a letter. -/
 def passReadBound (S : RoundSetting α μ Q) : ℕ :=
   (S.seed.length + S.N * (S.L + 1)) * (1 + Fintype.card α) * ((S.N + 2) * (1 + Fintype.card α))
 
-/-- `RoundTetrachotomy`: but for the chance the gate's node reads flip, a round ends with (1)
-agreement within `ε`, (2) a population the next gate must act on, (3) halving, or (4) a chain's
-odds multiplied by at least `β`.  `live` are the chains carried into the round; the round also
-starts one from the `ν` root and from every per-state population. -/
-def RoundTetrachotomy : Prop :=
+/-- (4) The bisection population forces the next gate: averaged over its distinct strings, the
+round's family leaves them undecided more than `τ` of the time. -/
+def BisectionForces (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α)
+    (P : Finset (FreeMonoid α)) (τ : ℝ) : Prop :=
+  τ * P.card < ∑ t ∈ P, stateIndecision A O R.B R.F (A.state t)
+
+/-- `RoundProgress`: but for the chance the gate's node reads flip, a round ends with (1) agreement
+within `ε`, (2) a population the next gate must act on, (3) halving, (4) a bisection population
+that forces the next gate, (5) a state its family reads badly, or (6) a string the round's draws
+reach before position `L` whose extension by some letter is read off the hypothesis's edge more
+often than not. -/
+def RoundProgress : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
-    (nH nS : ℕ) (σ f a : ℝ) (r : ℕ) (live : List (Measure (FreeMonoid α))) (β uHi φ : ℝ),
-    S.Valid → 0 < ε → 1 < β → 0 ≤ φ → 2 * (β + 1) * (S.N + 1) * φ ≤ 1 →
+    (nH nS : ℕ) (σ f a : ℝ) (r : ℕ) (uHi φ : ℝ),
+    S.Valid → 0 < ε → 0 ≤ φ → 4 * (S.N + 1) * φ < 1 →
     (∀ᵐ x ∂S.D, x.toList.length = S.L) → SuffixFree (S.F ∪ S.K.train S.F) →
-    MidFlipPremise S.A S.O S.B S.F uHi φ → BadVisited S.A S.O S.B S.F S.D S.L uHi →
+    MidFlipPremise S.A S.O S.B S.F uHi φ →
     (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
         let R := readsAt S.O S.B S.F θ.1
         let s := roundEnd S.K S.O S.B S.F S.seed θ
@@ -224,9 +197,11 @@ def RoundTetrachotomy : Prop :=
               ∨ ∃ l ∈ s.hyp.tree.paths, ∃ c : α, EdgeSelected S.A S.O R s.hyp S.D l c f a r
                   ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
           ∧ ¬ s.halves S.τ
-          ∧ ¬ ChainAdvances S.A S.O R s.hyp
-              (nuRoot S.D S.L :: live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l])
-              β uHi (1 - 2 * (S.N + 1) * φ)}
+          ∧ ¬ BisectionForces S.A S.O R s.bisected.toFinset S.τ
+          ∧ ¬ (∃ q, uHi ≤ stateIndecision S.A S.O S.B S.F q)
+          ∧ ¬ (∃ (y : FreeMonoid α) (c : α), y.toList.length < S.L
+              ∧ 0 < S.D.real {p | y.toList <+: p.toList}
+              ∧ 1 / 2 < edgeDisagreeProb S.O S.B S.F s.hyp y c)}
       ≤ (S.L + 1) * (S.N + 1) * φ / ε + passReadBound S * φ
 
 end OrthoDFA

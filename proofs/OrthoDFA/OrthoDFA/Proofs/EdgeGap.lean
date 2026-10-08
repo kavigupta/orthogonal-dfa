@@ -1,4 +1,5 @@
-import OrthoDFA.Proofs.Round
+import OrthoDFA.Round
+import OrthoDFA.Proofs.Replay
 
 /-!
 # The edge gap holds or a chain advances
@@ -242,108 +243,31 @@ theorem edgeDisagreeProb_bimodal [IsProbabilityMeasure μ] {A : DFA (FreeMonoid 
     unfold edgeDisagreeProb
     linarith
 
-/-- Every edge read lands off its edge rarely, at most `η`, or often, at least `wHi`. -/
-def EdgeGapPremise (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (H : Hypothesis α) (η wHi : ℝ) : Prop :=
-  ∀ x c, edgeDisagreeProb O B F H x c ≤ η ∨ wHi ≤ edgeDisagreeProb O B F H x c
-
-/-- An antitone ladder with more rungs than states has a rung no state's value falls strictly
-below. -/
-theorem exists_rung_gap [Fintype Q] (u : Q → ℝ) {θ : ℕ → ℝ} (hθ : Antitone θ) {K : ℕ}
-    (hK : Fintype.card Q < K) : ∃ i < K, ∀ q, u q ≤ θ (i + 1) ∨ θ i ≤ u q := by
-  classical
-  by_contra h
-  simp only [not_exists, not_and, not_forall, not_or, not_le] at h
-  choose f hf using h
-  have hinj : Set.InjOn (fun i : ℕ => if hi : i < K then f i hi else f 0 (by omega))
-      (Finset.range K) := by
-    intro i hi j hj hij
-    simp only [Finset.coe_range, Set.mem_Iio] at hi hj
-    simp only [hi, hj, dite_true] at hij
-    by_contra hne
-    rcases lt_or_gt_of_ne hne with hlt | hlt
-    · have := hθ (show i + 1 ≤ j by omega)
-      have h1 := (hf i hi).1
-      have h2 := (hf j hj).2
-      rw [hij] at h1
-      linarith
-    · have := hθ (show j + 1 ≤ i by omega)
-      have h1 := (hf j hj).1
-      have h2 := (hf i hi).2
-      rw [← hij] at h1
-      linarith
-  have := Finset.card_le_card_of_injOn _ (fun i _ => Finset.mem_univ _) hinj
-  simp only [Finset.card_range, Finset.card_univ] at this
-  omega
-
-/-- A visited string whose successor is read badly advances an indecision chain by `β` at some
-rung. -/
-theorem chainAdvances_of_visited [IsProbabilityMeasure μ] [Fintype Q]
-    (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (H : Hypothesis α)
-    (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (L : ℕ)
-    (others : List (Measure (FreeMonoid α))) {β uHi wHi : ℝ} (hβ : 1 < β)
-    {x : FreeMonoid α} {c : α} (hx : x.toList.length < L)
-    (hD : 0 < D.real {p | x.toList <+: p.toList})
-    (hbad : uHi ≤ stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) :
-    ChainAdvances A O R H (nuRoot D L :: others) β uHi wHi := by
-  have : IsFiniteMeasure (nuRoot D L) := by unfold nuRoot; infer_instance
-  have hβ0 : 0 < β := by linarith
-  obtain ⟨i, hi, hgap, hhi⟩ : ∃ i ≤ Fintype.card Q,
-      (∀ q, stateIndecision A O R.B R.F q ≤ uHi / β ^ i / β
-        ∨ uHi / β ^ i ≤ stateIndecision A O R.B R.F q) ∧ uHi / β ^ i ≤ uHi := by
-    rcases le_or_gt 0 uHi with h0 | h0
-    · obtain ⟨i, hi, hgap⟩ := exists_rung_gap (stateIndecision A O R.B R.F)
-        (θ := fun i => uHi / β ^ i)
-        (fun i j hij => div_le_div_of_nonneg_left h0 (by positivity) (pow_le_pow_right₀ hβ.le hij))
-        (Nat.lt_succ_self _)
-      refine ⟨i, Nat.lt_succ_iff.1 hi, fun q => ?_, div_le_self h0 (one_le_pow₀ hβ.le)⟩
-      simpa only [pow_succ, div_div] using hgap q
-    · exact ⟨0, Nat.zero_le _, fun q => .inr (by
-        simpa using h0.le.trans (stateIndecision_nonneg A O _ _ _)), by simp⟩
-  exact ⟨nuRoot D L, List.mem_cons_self .., c, .inl ⟨i, hi, chainAdvancesBy_of_mass _ _
-    (fun _ => stateIndecision_nonneg A O _ _ _) (fun _ => stateIndecision_le_one A O _ _ _)
-    (fun _ => hgap _) (nuRoot_pos D hx hD (S := {y | uHi / β ^ i ≤ _}) (hhi.trans hbad))⟩⟩
-
-/-- The round's hypothesis meets the edge gap, or a chain advances: with every state read cleanly
-an edge reads off its edge rarely or nearly always, and `BadVisited` reaches a badly read state
-from a visited string. -/
-theorem edgeGap_or_advances [IsProbabilityMeasure μ] [Fintype Q]
-    (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (H : Hypothesis α)
-    (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] (L : ℕ)
-    (others : List (Measure (FreeMonoid α))) {β uHi η wHi φ : ℝ} {d : ℕ} (hβ : 1 < β)
-    (hflip : MidFlipPremise A O R.B R.F uHi φ) (hbad : BadVisited A O R.B R.F D L uHi)
-    (hdepth : H.tree.depth ≤ d) (hηφ : 2 * d * φ ≤ η) (hwφ : wHi ≤ 1 - 2 * d * φ) :
-    EdgeGapPremise O R.B R.F H η wHi
-      ∨ ChainAdvances A O R H (nuRoot D L :: others) β uHi wHi := by
-  by_cases hall : ∀ q, stateIndecision A O R.B R.F q < uHi
-  · -- `edgeGap_or_advances`'s first branch uses neither the gap premise nor its chain.
-    refine .inl fun x c => ?_
-    have hφ : 0 ≤ φ := by
-      rcases hflip 1 (hall _) with h | h
-      · exact measureReal_nonneg.trans h
-      · linarith [measureReal_le_one (μ := μ) (s := {ω | midRead O R.B R.F ω 1})]
-    have h1 := (DTree.route_length_le_depth (fun y => some (majRead O R.B R.F y)) H.tree
-      x).trans hdepth
-    have h2 := (DTree.route_length_le_depth (fun y => some (majRead O R.B R.F y)) H.tree
-      (x * FreeMonoid.of c)).trans hdepth
-    have hl : (((majRoute O R.B R.F H x).length
-        + (majRoute O R.B R.F H (x * FreeMonoid.of c)).length : ℕ) : ℝ) ≤ 2 * d := by
-      unfold majRoute
-      push_cast
-      have : ((H.tree.route (fun y => some (majRead O R.B R.F y)) x).1.length : ℝ) ≤ d := by
-        exact_mod_cast h1
-      have : ((H.tree.route (fun y => some (majRead O R.B R.F y))
-          (x * FreeMonoid.of c)).1.length : ℝ) ≤ d := by exact_mod_cast h2
-      linarith
-    have hlφ := mul_le_mul_of_nonneg_right hl hφ
-    push_cast at hlφ
-    rcases edgeDisagreeProb_bimodal hflip H x c (fun z => hall _) with h | h
-    · exact .inl (h.trans (hlφ.trans hηφ))
-    · exact .inr (hwφ.trans (by linarith))
-  · simp only [not_forall, not_lt] at hall
-    obtain ⟨q, hq⟩ := hall
-    obtain ⟨y, c, hy, hy', rfl⟩ := hbad q hq
-    exact .inr (chainAdvances_of_visited A O R H D L others hβ hy hy' hq)
-
+/-- With every state read cleanly, an edge read off its edge no more often than not is read off
+it at most `2dφ` of the time, `d` the tree's depth. -/
+theorem edgeDisagreeProb_le_of_clean [IsProbabilityMeasure μ] {A : DFA (FreeMonoid α) Q}
+    {O : Oracle μ (FreeMonoid α)} {B : State} {F : Finset (FreeMonoid α)} {uHi φ : ℝ} {d : ℕ}
+    (hflip : MidFlipPremise A O B F uHi φ) (hall : ∀ q, stateIndecision A O B F q < uHi)
+    {H : Hypothesis α} (hdepth : H.tree.depth ≤ d) (hφ : 0 ≤ φ) (hd : 4 * d * φ < 1)
+    {x : FreeMonoid α} {c : α} (hhalf : edgeDisagreeProb O B F H x c ≤ 1 / 2) :
+    edgeDisagreeProb O B F H x c ≤ 2 * d * φ := by
+  have h1 := (DTree.route_length_le_depth (fun y => some (majRead O B F y)) H.tree
+    x).trans hdepth
+  have h2 := (DTree.route_length_le_depth (fun y => some (majRead O B F y)) H.tree
+    (x * FreeMonoid.of c)).trans hdepth
+  have hl : (((majRoute O B F H x).length
+      + (majRoute O B F H (x * FreeMonoid.of c)).length : ℕ) : ℝ) ≤ 2 * d := by
+    unfold majRoute
+    push_cast
+    have : ((H.tree.route (fun y => some (majRead O B F y)) x).1.length : ℝ) ≤ d := by
+      exact_mod_cast h1
+    have : ((H.tree.route (fun y => some (majRead O B F y))
+        (x * FreeMonoid.of c)).1.length : ℝ) ≤ d := by exact_mod_cast h2
+    linarith
+  have hlφ := mul_le_mul_of_nonneg_right hl hφ
+  push_cast at hlφ
+  rcases edgeDisagreeProb_bimodal hflip H x c (fun z => hall _) with h | h
+  · linarith
+  · linarith
 
 end OrthoDFA
