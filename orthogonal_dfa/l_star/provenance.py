@@ -134,7 +134,7 @@ class Bisected(Provenance):
             lo = start
             if anchored[start] != states[start]:
                 states = anchored
-        landed, boundary = self.sifter.sift_and_boundary(drawn)
+        landed, _ = self.sifter.sift_and_boundary(drawn)
         if landed is None:
             leaf, in_band = self.sifter.halfway(drawn)
             if leaf is not None and leaf != states[-1]:
