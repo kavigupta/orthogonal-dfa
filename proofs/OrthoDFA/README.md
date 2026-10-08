@@ -27,7 +27,7 @@
   `Pass.lean` states the pass, with its bisection population, and `Automaton.lean` the target.
 - `OrthoDFA/StartAtK.lean` — the round walked from position `k` along learned edges only.
   `RoundAtK`: with the round's reads fixed, whatever probes the pass draws, the round's readings
-  are right but for `nw·a + exp(−2·nw·δ²) + 2(ng·a + exp(−2·ng·δ²))`. Each reading is the exact
+  are right but for `nw·a + exp(−2·nw·δ²) + 2(ng·a + exp(−2·ng·δ²)) + exp(−min(n₀, ng)·δ)`. Each reading is the exact
   binomial test at failure chance `a`, read one draw at a time and stopping early.
   - A tripped walk check means the walk is blocked on at least `θw − δ` of draws. It adds a walk
     source, halves the limit, and skips the pass.
@@ -36,6 +36,8 @@
   - A passing gate means the gate's reading disagrees on at most `1 − acc + δ` of draws.
   - A refusing gate means it disagrees on at least `1 − acc − δ`. Every decided disagreement in its
     batch, run again, splits a leaf, adds a member, or stops at a string the cut cannot place.
+    Where none of its first `n₀` draws can be carried, it adds the check source and halves the
+    limit, and that source outputs a string on at least the disagreement less `δ`.
 
   These are not exclusive: a round can add a source and pass. `WalkYield`: the walk source yields
   its blocked share less the draws that reached an unlearned edge through a wrong earlier one.

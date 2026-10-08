@@ -256,6 +256,18 @@ def gateDisagrees (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α
   | .inl ps => ps.getLast? ≠ some (place R t x x.toList.length)
   | .inr _ => True
 
+/-- What the check source outputs for a draw: what a blocked probe of the check leaves. -/
+noncomputable def checkOutput (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    Option (FreeMonoid α) :=
+  match kCheck R t edges k x with
+  | .blocked out => out
+  | _ => none
+
+/-- A draw a refusal can carry: its check disagrees, decided, or its walk reached an unlearned
+edge through a wrong earlier one, so that its prefix before that edge disagrees, decided. -/
+def Carried (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Prop :=
+  (∃ ps, kCheck R t edges k x = .disagree ps) ∨ wrongEarlier R t edges k x
+
 open scoped Classical in
 /-- What a round's readings claim. The walk check reads batch `bw` against the first hypothesis
 `s₀`. The gate reads batch `bg` against `s₁`, the pass's frozen hypothesis, or `s₀` where the walk
@@ -265,7 +277,9 @@ check tripped and the pass was skipped. Then:
 * a passing gate: the gate's reading disagrees on at most `1 − acc + δ` of draws;
 * a refusing gate: on at least `1 − acc − δ` of draws, and every probe of the batch whose check
   disagrees, run again, splits a leaf, adds a member, or stops at a string the cut cannot
-  place. -/
+  place; and where none of the batch's first `n₀` draws can be carried, the check source, which
+  the round then adds as it halves the limit, outputs a string on at least the gate's
+  disagreement less `δ`. -/
 def RoundAtKHolds (s₀ s₁ : KState α) (D : Measure (FreeMonoid α)) (k : ℕ)
     (θw θc acc a δ : ℝ) (n₀ : ℕ) {nw ng : ℕ} (bw : Fin nw → FreeMonoid α)
     (bg : Fin ng → FreeMonoid α) : Prop :=
@@ -279,12 +293,15 @@ def RoundAtKHolds (s₀ s₁ : KState α) (D : Measure (FreeMonoid α)) (k : ℕ
       D.real {x | gateDisagrees R sg.tree sg.edges k x} ≤ 1 - acc + δ)
     ∧ (¬ seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R sg.tree sg.edges k x) →
       1 - acc - δ ≤ D.real {x | gateDisagrees R sg.tree sg.edges k x}
-        ∧ ∀ i ps, kCheck R sg.tree sg.edges k (bg i) = .disagree ps →
+        ∧ (∀ i ps, kCheck R sg.tree sg.edges k (bg i) = .disagree ps →
           seedStep K R sg.tree sg.pool sg.edges k (bg i) ps ≠ .dropped)
+        ∧ ((∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Carried R sg.tree sg.edges k (bg i)) →
+          D.real {x | gateDisagrees R sg.tree sg.edges k x} - δ
+            ≤ D.real {x | (checkOutput R sg.tree sg.edges k x).isSome}))
 
 /-- `RoundAtK`: for any reads of the round's family and whatever probes the pass draws, a round's
-readings are right but for `nw·α + exp(−2·nw·δ²)` on the walk check's batch and twice
-`ng·α + exp(−2·ng·δ²)` on the gate's. -/
+readings are right but for `nw·a + exp(−2·nw·δ²)` on the walk check's batch, and twice
+`ng·a + exp(−2·ng·δ²)` plus `exp(−min(n₀, ng)·δ)` on the gate's. -/
 def RoundAtK : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] (K : StageKnobs α) (R : CutReads α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k nw ng n₀ : ℕ)
@@ -294,7 +311,8 @@ def RoundAtK : Prop :=
     let s₁ := runPassK K R k s₀ probes
     ((Measure.pi fun _ : Fin nw => D).prod (Measure.pi fun _ : Fin ng => D)).real
       {b | ¬ RoundAtKHolds K R s₀ s₁ D k θw θc acc a δ n₀ b.1 b.2}
-      ≤ nw * a + Real.exp (-2 * nw * δ ^ 2) + 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2))
+      ≤ nw * a + Real.exp (-2 * nw * δ ^ 2)
+        + (2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ))
 
 /-- `WalkYield`: the walk source outputs a string on exactly the blocked draws that did not reach
 their unlearned edge through a wrong earlier one. -/

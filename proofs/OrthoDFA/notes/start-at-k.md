@@ -257,6 +257,18 @@ reading by the test's own failure chance at every look, plus Hoeffding at the la
 **Not exclusive.** A tripped check only adds its source and halves the limit, so a round can both
 add a source and pass. The theorem claims each reading's consequence, and its bound sums them.
 
+**Seedless refusal.** A refusal none of whose first `n₀` draws can be carried adds the check
+source and halves the limit. Carried means a decided disagreement, or an unlearned edge reached
+through a wrong earlier one.
+- The source's yield is at least the gate's disagreement less `δ`, but for `exp(−min(n₀, ng)·δ)`.
+- That holds because every draw the gate counts is output by the check source or can be carried
+  (`gateDisagrees_cover`), and a batch missing a set of mass above `δ` in its first `n₀` draws is
+  that unlikely (`miss_first_le`).
+- The Python reads at least `n₀` draws before refusing, so "none of its read draws can be
+  carried" implies the Lean hypothesis. But only once the Python also carries a wrong-earlier-edge
+  draw: its prefix `x[:j]` disagrees, decided. Until then, such draws count against the gate
+  while the source outputs nothing for them.
+
 **Refusal.** The refusal claim rests on the pass keeping its edges learned. That invariant is
 proved for both hypotheses the gate can read (`initialK_learned`, `runPassK_learned`).
 

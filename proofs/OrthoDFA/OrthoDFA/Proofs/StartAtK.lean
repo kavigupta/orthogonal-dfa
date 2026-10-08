@@ -287,6 +287,121 @@ theorem not_seqAbove_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
 
 end Batch
 
+section Sources
+
+variable (R : CutReads α)
+
+theorem walkOutput_isSome_iff (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    (walkOutput R t edges k x).isSome
+      ↔ (kWalk R t edges k x).isBlocked ∧ ¬ wrongEarlier R t edges k x := by
+  unfold walkOutput wrongEarlier
+  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps
+  · simp [KWalk.isBlocked]
+  · have key : (∃ s' c' j' p, KWalk.edge s c j = KWalk.edge s' c' j'
+        ∧ (t.sift R.cut (prefixOf x (j' + 1))).isLeft
+        ∧ t.sift R.cut (prefixOf x j') = .inl p ∧ p ≠ s')
+        ↔ (t.sift R.cut (prefixOf x (j + 1))).isLeft
+          ∧ ∃ p, t.sift R.cut (prefixOf x j) = .inl p ∧ p ≠ s :=
+      ⟨fun ⟨_, _, _, p, he, h1, h2, h3⟩ => by cases he; exact ⟨h1, p, h2, h3⟩,
+        fun ⟨h1, p, h2, h3⟩ => ⟨s, c, j, p, rfl, h1, h2, h3⟩⟩
+    rw [key]
+    simp only [KWalk.isBlocked, true_and]
+    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1
+    · rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2
+      · by_cases hp : p2 = s
+        · simp [hp]
+        · simp [hp]
+      · simp
+    · simp
+  · simp [KWalk.isBlocked]
+
+theorem walk_yield_holds : WalkYield := by
+  intro α _ _ R D _ t edges k
+  have hsub : {x | wrongEarlier R t edges k x} ⊆ {x | (kWalk R t edges k x).isBlocked} := by
+    rintro x ⟨s, c, j, p, hw, -⟩
+    simp [hw, KWalk.isBlocked]
+  have heq : {x | (walkOutput R t edges k x).isSome}
+      = {x | (kWalk R t edges k x).isBlocked} \ {x | wrongEarlier R t edges k x} := by
+    ext x
+    simp only [Set.mem_ofPred_eq, Set.mem_sdiff]
+    exact walkOutput_isSome_iff R t edges k x
+  rw [heq, measureReal_sdiff hsub MeasurableSpace.measurableSet_top]
+
+theorem route_inr {cut : FreeMonoid α → Option Bool} :
+    ∀ (t : DTree α) (x b : FreeMonoid α), (t.route cut x).2 = .inr b → ∃ m, b = x * m
+  | .leaf, _, _, h => by simp [DTree.route] at h
+  | .node m r a, x, b, h => by
+    simp only [DTree.route] at h
+    split at h
+    · exact ⟨m, (Sum.inr.inj h).symm⟩
+    · rcases ha : (a.route cut x).2 with p | b' <;> rw [ha] at h
+      · simp at h
+      · exact route_inr a x b' ha |>.imp fun m hm => by simp at h; rw [← h, hm]
+    · rcases hr : (r.route cut x).2 with p | b' <;> rw [hr] at h
+      · simp at h
+      · exact route_inr r x b' hr |>.imp fun m hm => by simp at h; rw [← h, hm]
+
+theorem take_prefixOf {x : FreeMonoid α} {i k : ℕ} (hk : k ≤ i) :
+    (prefixOf x i).toList.take k = x.toList.take k := by
+  simp [prefixOf, List.take_take, min_eq_left hk]
+
+theorem walkOutput_prefix {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoid α}
+    (h : walkOutput R t edges k x = some u) : u.toList.take k = x.toList.take k := by
+  unfold walkOutput at h
+  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at h
+  · simp only [Option.some.injEq] at h
+    rw [← h, take_prefixOf le_rfl]
+  · have hj : k ≤ j := by
+      unfold kWalk at hw
+      split at hw
+      · simp at hw
+      · split at hw
+        · simp at hw
+        · simp only [KWalk.edge.injEq] at hw
+          omega
+    simp only [] at h
+    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1 <;> rw [h1] at h
+    · simp only [] at h
+      rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2 <;> rw [h2] at h
+      · simp only [] at h
+        split_ifs at h
+        simp only [Option.some.injEq] at h
+        rw [← h, take_prefixOf hj]
+      · simp only [Option.some.injEq] at h
+        rw [← h, take_prefixOf hj]
+    · simp only [Option.some.injEq] at h
+      rw [← h, take_prefixOf (by omega)]
+  · simp at h
+
+theorem source_spread_holds : SourceSpread := by
+  intro α _ _ R D _ t edges k L u hkL hlen
+  rw [measureReal_def, measureReal_def]
+  refine ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae ?_)
+  filter_upwards [hlen] with x hx hu
+  change walkOutput R t edges k x = some u ∨ kCheck R t edges k x = .blocked (some u) at hu
+  change u.toList.take k <+: x.toList
+  have hpre : ∀ v : FreeMonoid α, walkOutput R t edges k x = some v →
+      v.toList.take k <+: x.toList := fun v hv => by
+    rw [walkOutput_prefix R hv]; exact List.take_prefix _ _
+  rcases hu with hu | hu
+  · exact hpre u hu
+  · unfold kCheck at hu
+    rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at hu
+    · exact hpre u (by simpa using hu)
+    · exact hpre u (by simpa using hu)
+    · simp only [] at hu
+      rcases hs : t.sift R.cut x with a | b <;> rw [hs] at hu
+      · simp only [] at hu
+        split_ifs at hu
+      · simp only [KCheck.blocked.injEq, Option.some.injEq] at hu
+        subst hu
+        obtain ⟨m, rfl⟩ := route_inr _ _ _ hs
+        simp only [FreeMonoid.toList_mul]
+        rw [List.take_append_of_le_length (by omega)]
+        exact List.take_prefix _ _
+
+end Sources
+
 section Learned
 
 variable (K : StageKnobs α) (R : CutReads α)
@@ -586,15 +701,99 @@ def GateOk (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMonoid α)) (
       D.real {x | gateDisagrees R sg.tree sg.edges k x} ≤ 1 - acc + δ)
     ∧ (¬ seqAbove acc a n₀ bg (fun x => ¬ gateDisagrees R sg.tree sg.edges k x) →
       1 - acc - δ ≤ D.real {x | gateDisagrees R sg.tree sg.edges k x}
-        ∧ ∀ i ps, kCheck R sg.tree sg.edges k (bg i) = .disagree ps →
+        ∧ (∀ i ps, kCheck R sg.tree sg.edges k (bg i) = .disagree ps →
           seedStep K R sg.tree sg.pool sg.edges k (bg i) ps ≠ .dropped)
+        ∧ ((∀ i : Fin ng, (i : ℕ) < n₀ → ¬ Carried R sg.tree sg.edges k (bg i)) →
+          D.real {x | gateDisagrees R sg.tree sg.edges k x} - δ
+            ≤ D.real {x | (checkOutput R sg.tree sg.edges k x).isSome}))
+
+/-- A draw the gate counts against the hypothesis is one the check source outputs a string for,
+or one a refusal can carry. -/
+theorem gateDisagrees_cover {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMonoid α}
+    (h : gateDisagrees R t edges k x) :
+    (checkOutput R t edges k x).isSome ∨ Carried R t edges k x := by
+  unfold checkOutput Carried
+  unfold kCheck
+  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps
+  · left
+    have : walkOutput R t edges k x = some (prefixOf x k) := by simp [walkOutput, hw]
+    simp [this]
+  · by_cases hwe : wrongEarlier R t edges k x
+    · exact .inr (.inr hwe)
+    · left
+      have := (walkOutput_isSome_iff R t edges k x).2 ⟨by simp [hw, KWalk.isBlocked], hwe⟩
+      simpa using this
+  · simp only []
+    rcases hs : t.sift R.cut x with a | b
+    · simp only []
+      split_ifs with ha
+      · exfalso
+        unfold kWalk at hw
+        rcases hk : t.sift R.cut (prefixOf x k) with p₀ | b <;> rw [hk] at hw
+        · simp only [] at hw
+          rcases hf : follow edges p₀ (x.toList.drop k) with ps' | r <;> rw [hf] at hw
+          · simp only [KWalk.reached.injEq] at hw
+            subst hw
+            unfold gateDisagrees at h
+            have hp0 : place R t x k = p₀ := by simp [place, hk]
+            have hpn : place R t x x.toList.length = a := by
+              simp [place, prefixOf_length, hs]
+            rw [hp0, hf, hpn] at h
+            exact h ha.symm
+          · simp at hw
+        · simp at hw
+      · exact .inr (.inl ⟨ps, rfl⟩)
+    · left; simp
+
+omit [DecidableEq α] in
+open scoped Classical in
+/-- A batch whose first `n₀` draws all miss a set of mass above `δ` comes up with chance at most
+`exp(−min(n₀, n)·δ)`. -/
+theorem miss_first_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (C : FreeMonoid α → Prop) (n n₀ : ℕ) {δ : ℝ} (hδ : 0 ≤ δ) :
+    (Measure.pi fun _ : Fin n => D).real
+      {b | (∀ i : Fin n, (i : ℕ) < n₀ → ¬ C (b i)) ∧ δ < D.real {x | C x}}
+      ≤ Real.exp (-(min n₀ n : ℕ) * δ) := by
+  by_cases h : δ < D.real {x | C x}
+  · have hset : {b : Fin n → FreeMonoid α | (∀ i : Fin n, (i : ℕ) < n₀ → ¬ C (b i))
+        ∧ δ < D.real {x | C x}}
+        = Set.univ.pi fun i : Fin n => if (i : ℕ) < n₀ then {x | ¬ C x} else Set.univ := by
+      ext b
+      simp only [Set.mem_ofPred_eq, Set.mem_pi, Set.mem_univ, true_implies, h, and_true]
+      refine forall_congr' fun i => ?_
+      split_ifs <;> simp_all
+    rw [hset, measureReal_def, Measure.pi_pi]
+    have hc : D {x | ¬ C x} = ENNReal.ofReal (1 - D.real {x | C x}) := by
+      rw [show {x | ¬ C x} = {x | C x}ᶜ from rfl, ← ENNReal.ofReal_toReal (measure_ne_top D _),
+        ← measureReal_def, measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
+    have hp1 : D.real {x | C x} ≤ 1 := measureReal_le_one
+    have hterm : ∀ i : Fin n, D (if (i : ℕ) < n₀ then {x | ¬ C x} else Set.univ)
+        = if (i : ℕ) < n₀ then ENNReal.ofReal (1 - D.real {x | C x}) else 1 := by
+      intro i; split_ifs <;> simp [hc]
+    simp only [hterm]
+    rw [      Finset.prod_ite, Finset.prod_const_one, mul_one, Finset.prod_const,
+      ENNReal.toReal_pow, ENNReal.toReal_ofReal (by linarith)]
+    have hcard : (Finset.univ.filter fun i : Fin n => (i : ℕ) < n₀).card = min n₀ n := by
+      rw [Fin.card_filter_val_lt, min_comm]
+    rw [hcard]
+    calc (1 - D.real {x | C x}) ^ min n₀ n ≤ Real.exp (-D.real {x | C x}) ^ min n₀ n :=
+          pow_le_pow_left₀ (by linarith) (by linarith [Real.add_one_le_exp (-D.real {x | C x})]) _
+      _ = Real.exp (-(min n₀ n : ℕ) * D.real {x | C x}) := by
+          rw [← Real.exp_nat_mul]; ring_nf
+      _ ≤ Real.exp (-(min n₀ n : ℕ) * δ) := Real.exp_le_exp.2 (by
+          have : (0 : ℝ) ≤ (min n₀ n : ℕ) := Nat.cast_nonneg _
+          nlinarith)
+  · rw [show {b : Fin n → FreeMonoid α | (∀ i : Fin n, (i : ℕ) < n₀ → ¬ C (b i))
+        ∧ δ < D.real {x | C x}} = ∅ from Set.eq_empty_of_forall_notMem fun b hb => h hb.2]
+    simp only [measureReal_empty]
+    positivity
 
 theorem gate_bad_le (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (k ng n₀ : ℕ) (sg : KState α) (hl : Learned R sg.tree sg.edges)
     {θc acc a δ : ℝ} (hθc1 : θc ≤ 1) (hacc0 : 0 ≤ acc) (hacc1 : acc ≤ 1) (ha : 0 ≤ a)
     (hδ : 0 ≤ δ) :
     (Measure.pi fun _ : Fin ng => D).real {bg | ¬ GateOk K R D k θc acc a δ n₀ sg bg}
-      ≤ 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) := by
+      ≤ 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ) := by
   classical
   set ν := Measure.pi fun _ : Fin ng => D
   set Pc := fun x => (kCheck R sg.tree sg.edges k x).isBlocked
@@ -604,18 +803,25 @@ theorem gate_bad_le (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMono
     seqAbove acc a n₀ bg (fun x => ¬ Pd x) ∧ 1 - acc + δ < D.real {x | Pd x}}
   set B3 := {bg : Fin ng → FreeMonoid α |
     ¬ seqAbove acc a n₀ bg (fun x => ¬ Pd x) ∧ D.real {x | Pd x} < 1 - acc - δ}
-  have hsub : {bg | ¬ GateOk K R D k θc acc a δ n₀ sg bg} ⊆ B1 ∪ (B2 ∪ B3) := by
+  set C := fun x => Carried R sg.tree sg.edges k x
+  set B4 := {bg : Fin ng → FreeMonoid α |
+    (∀ i : Fin ng, (i : ℕ) < n₀ → ¬ C (bg i)) ∧ δ < D.real {x | C x}}
+  have hcov : D.real {x | Pd x}
+      ≤ D.real {x | (checkOutput R sg.tree sg.edges k x).isSome} + D.real {x | C x} :=
+    (measureReal_mono fun x hx => gateDisagrees_cover hx).trans (measureReal_union_le _ _)
+  have hsub : {bg | ¬ GateOk K R D k θc acc a δ n₀ sg bg} ⊆ (B1 ∪ (B2 ∪ B3)) ∪ B4 := by
     intro bg hb
-    simp only [Set.mem_ofPred_eq, GateOk, not_and_or, _root_.not_imp] at hb
+    simp only [Set.mem_ofPred_eq, GateOk, not_and_or, Classical.not_imp] at hb
     rcases hb with ⟨h1, h2⟩ | ⟨h1, h2⟩ | ⟨h1, h2⟩
-    · exact .inl ⟨h1, not_le.1 h2⟩
-    · exact .inr (.inl ⟨h1, not_le.1 h2⟩)
-    · rcases h2 with h2 | h2
-      · exact .inr (.inr ⟨h1, not_le.1 h2⟩)
+    · exact .inl (.inl ⟨h1, not_le.1 h2⟩)
+    · exact .inl (.inr (.inl ⟨h1, not_le.1 h2⟩))
+    · rcases h2 with h2 | h2 | ⟨h3, h4⟩
+      · exact .inl (.inr (.inr ⟨h1, not_le.1 h2⟩))
       · exfalso
         simp only [not_forall, not_not] at h2
         obtain ⟨i, ps, hc, hd⟩ := h2
         exact seedStep_ne_dropped K R hl hc hd
+      · exact .inr ⟨h3, by linarith [not_le.1 h4]⟩
   have hcomp : D.real {x | ¬ Pd x} = 1 - D.real {x | Pd x} := by
     rw [show {x | ¬ Pd x} = {x | Pd x}ᶜ from rfl,
       measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
@@ -640,7 +846,9 @@ theorem gate_bad_le (K : StageKnobs α) (R : CutReads α) (D : Measure (FreeMono
       · rw [show B3 = ∅ from Set.eq_empty_of_forall_notMem fun b hb => h3 hb.2]
         simp only [measureReal_empty]
         positivity
+  have hB4 := miss_first_le D C ng n₀ hδ
   refine (measureReal_mono hsub).trans ((measureReal_union_le _ _).trans ?_)
+  have := measureReal_union_le (μ := ν) B1 (B2 ∪ B3)
   linarith
 
 theorem initialK_learned (K : StageKnobs α) (R : CutReads α) (seed : List (FreeMonoid α)) :
@@ -660,7 +868,7 @@ theorem round_at_k_holds : RoundAtK := by
   set Tw := {bw : Fin nw → FreeMonoid α | seqAbove θw a n₀ bw Pw}
   set Aw := {bw : Fin nw → FreeMonoid α | seqAbove θw a n₀ bw Pw ∧ D.real {x | Pw x} < θw - δ}
   set G := fun sg : KState α => {bg : Fin ng → FreeMonoid α | ¬ GateOk K R D k θc acc a δ n₀ sg bg}
-  set M := 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2))
+  set M := 2 * (ng * a + Real.exp (-2 * ng * δ ^ 2)) + Real.exp (-(min n₀ ng : ℕ) * δ)
   have hG₀ : νg.real (G s₀) ≤ M := gate_bad_le K R D k ng n₀ s₀ (initialK_learned K R seed)
     hθc1 hacc0 hacc1 ha hδ
   have hG₁ : νg.real (G s₁) ≤ M := gate_bad_le K R D k ng n₀ s₁
@@ -701,119 +909,6 @@ theorem round_at_k_holds : RoundAtK := by
   refine (measureReal_mono hsub).trans ?_
   nlinarith [mul_le_mul_of_nonneg_left hG₀ hT0, mul_le_mul_of_nonneg_left hG₁ (by linarith : (0:ℝ) ≤ 1 - νw.real Tw)]
 
-section Sources
 
-variable (R : CutReads α)
-
-theorem walkOutput_isSome_iff (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
-    (walkOutput R t edges k x).isSome
-      ↔ (kWalk R t edges k x).isBlocked ∧ ¬ wrongEarlier R t edges k x := by
-  unfold walkOutput wrongEarlier
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps
-  · simp [KWalk.isBlocked]
-  · have key : (∃ s' c' j' p, KWalk.edge s c j = KWalk.edge s' c' j'
-        ∧ (t.sift R.cut (prefixOf x (j' + 1))).isLeft
-        ∧ t.sift R.cut (prefixOf x j') = .inl p ∧ p ≠ s')
-        ↔ (t.sift R.cut (prefixOf x (j + 1))).isLeft
-          ∧ ∃ p, t.sift R.cut (prefixOf x j) = .inl p ∧ p ≠ s :=
-      ⟨fun ⟨_, _, _, p, he, h1, h2, h3⟩ => by cases he; exact ⟨h1, p, h2, h3⟩,
-        fun ⟨h1, p, h2, h3⟩ => ⟨s, c, j, p, rfl, h1, h2, h3⟩⟩
-    rw [key]
-    simp only [KWalk.isBlocked, true_and]
-    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1
-    · rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2
-      · by_cases hp : p2 = s
-        · simp [hp]
-        · simp [hp]
-      · simp
-    · simp
-  · simp [KWalk.isBlocked]
-
-theorem walk_yield_holds : WalkYield := by
-  intro α _ _ R D _ t edges k
-  have hsub : {x | wrongEarlier R t edges k x} ⊆ {x | (kWalk R t edges k x).isBlocked} := by
-    rintro x ⟨s, c, j, p, hw, -⟩
-    simp [hw, KWalk.isBlocked]
-  have heq : {x | (walkOutput R t edges k x).isSome}
-      = {x | (kWalk R t edges k x).isBlocked} \ {x | wrongEarlier R t edges k x} := by
-    ext x
-    simp only [Set.mem_ofPred_eq, Set.mem_sdiff]
-    exact walkOutput_isSome_iff R t edges k x
-  rw [heq, measureReal_sdiff hsub MeasurableSpace.measurableSet_top]
-
-theorem route_inr {cut : FreeMonoid α → Option Bool} :
-    ∀ (t : DTree α) (x b : FreeMonoid α), (t.route cut x).2 = .inr b → ∃ m, b = x * m
-  | .leaf, _, _, h => by simp [DTree.route] at h
-  | .node m r a, x, b, h => by
-    simp only [DTree.route] at h
-    split at h
-    · exact ⟨m, (Sum.inr.inj h).symm⟩
-    · rcases ha : (a.route cut x).2 with p | b' <;> rw [ha] at h
-      · simp at h
-      · exact route_inr a x b' ha |>.imp fun m hm => by simp at h; rw [← h, hm]
-    · rcases hr : (r.route cut x).2 with p | b' <;> rw [hr] at h
-      · simp at h
-      · exact route_inr r x b' hr |>.imp fun m hm => by simp at h; rw [← h, hm]
-
-theorem take_prefixOf {x : FreeMonoid α} {i k : ℕ} (hk : k ≤ i) :
-    (prefixOf x i).toList.take k = x.toList.take k := by
-  simp [prefixOf, List.take_take, min_eq_left hk]
-
-theorem walkOutput_prefix {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoid α}
-    (h : walkOutput R t edges k x = some u) : u.toList.take k = x.toList.take k := by
-  unfold walkOutput at h
-  rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at h
-  · simp only [Option.some.injEq] at h
-    rw [← h, take_prefixOf le_rfl]
-  · have hj : k ≤ j := by
-      unfold kWalk at hw
-      split at hw
-      · simp at hw
-      · split at hw
-        · simp at hw
-        · simp only [KWalk.edge.injEq] at hw
-          omega
-    simp only [] at h
-    rcases h1 : t.sift R.cut (prefixOf x (j + 1)) with p1 | b1 <;> rw [h1] at h
-    · simp only [] at h
-      rcases h2 : t.sift R.cut (prefixOf x j) with p2 | b2 <;> rw [h2] at h
-      · simp only [] at h
-        split_ifs at h
-        simp only [Option.some.injEq] at h
-        rw [← h, take_prefixOf hj]
-      · simp only [Option.some.injEq] at h
-        rw [← h, take_prefixOf hj]
-    · simp only [Option.some.injEq] at h
-      rw [← h, take_prefixOf (by omega)]
-  · simp at h
-
-theorem source_spread_holds : SourceSpread := by
-  intro α _ _ R D _ t edges k L u hkL hlen
-  rw [measureReal_def, measureReal_def]
-  refine ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae ?_)
-  filter_upwards [hlen] with x hx hu
-  change walkOutput R t edges k x = some u ∨ kCheck R t edges k x = .blocked (some u) at hu
-  change u.toList.take k <+: x.toList
-  have hpre : ∀ v : FreeMonoid α, walkOutput R t edges k x = some v →
-      v.toList.take k <+: x.toList := fun v hv => by
-    rw [walkOutput_prefix R hv]; exact List.take_prefix _ _
-  rcases hu with hu | hu
-  · exact hpre u hu
-  · unfold kCheck at hu
-    rcases hw : kWalk R t edges k x with _ | ⟨s, c, j⟩ | ps <;> rw [hw] at hu
-    · exact hpre u (by simpa using hu)
-    · exact hpre u (by simpa using hu)
-    · simp only [] at hu
-      rcases hs : t.sift R.cut x with a | b <;> rw [hs] at hu
-      · simp only [] at hu
-        split_ifs at hu
-      · simp only [KCheck.blocked.injEq, Option.some.injEq] at hu
-        subst hu
-        obtain ⟨m, rfl⟩ := route_inr _ _ _ hs
-        simp only [FreeMonoid.toList_mul]
-        rw [List.take_append_of_le_length (by omega)]
-        exact List.take_prefix _ _
-
-end Sources
 
 end OrthoDFA
