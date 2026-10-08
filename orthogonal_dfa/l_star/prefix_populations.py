@@ -62,8 +62,8 @@ class PoolState:
         self.harvest_reads = Counter()
 
     def take(self, string, read) -> None:
-        """Take a string this round could not place into its boundary population,
-        with the read that met it."""
+        """Take a string this round harvested into its boundary population, with
+        the read that met it."""
         self.seen.add(string)
         self.harvest().append(string)
         self.harvest_reads[read] += 1

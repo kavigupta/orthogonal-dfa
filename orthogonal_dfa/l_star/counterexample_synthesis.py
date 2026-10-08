@@ -5,7 +5,8 @@ Each round builds a DFA from the current prefix pool and splits it in place on
 DFA-vs-tree disagreements (the counterexample pass).
 
 When the estimate still falls short, the representative pool is rebuilt to add
-    - boundary strings the family could not place
+    - boundary strings the family could not place, and the prefixes of
+      disagreements the split test would not split on
     - per-state balanced sample
 
 These drive the suffix-family FNR gate to re-cluster and resolve them
@@ -99,17 +100,17 @@ def _default_patience(acc_threshold: float) -> int:
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
-def _accumulate_indecisive(resolver, state, wanted) -> int:
-    """Take up to ``wanted`` of the round's boundary strings ``state`` does not
+def _accumulate_harvest(resolver, state, wanted) -> int:
+    """Take up to ``wanted`` of the round's harvested strings ``state`` does not
     already hold, returning how many.
 
     Sorted then shuffled with a fixed rng, so the cap picks the same unbiased
     sample every run.
     """
-    taken = sorted(set(resolver.indecisive) - state.seen)
+    taken = sorted(set(resolver.harvested) - state.seen)
     np.random.default_rng(0).shuffle(taken)
     for string in taken[:wanted]:
-        state.take(string, resolver.indecisive[string])
+        state.take(string, resolver.harvested[string])
     return min(wanted, len(taken))
 
 
@@ -373,7 +374,7 @@ def counterexample_driven_synthesis(
                 f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
             )
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
-        taken = _accumulate_indecisive(resolver, state, target)
+        taken = _accumulate_harvest(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
         # Asked after the aims, which are what fill the leaves it reads.  A
         # leaf nothing aims at is not one the round waits on.  Rounds after a
@@ -393,7 +394,7 @@ def counterexample_driven_synthesis(
             return best
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
-        _accumulate_indecisive(resolver, state, target - taken)
+        _accumulate_harvest(resolver, state, target - taken)
         _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(

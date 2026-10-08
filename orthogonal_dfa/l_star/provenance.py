@@ -3,7 +3,8 @@
 A round's boundary strings are the reads its tree could not place.  Each read was
 of a string drawn from some distribution -- a population's prefixes, a state
 source's aims, the sampler's probes -- and made in one of two ways: sifted from
-the root, extended or not by a letter, or met along a probe's walk.  A
+the root, extended or not by a letter, or met along a probe's walk, which also
+keeps the prefix before the edge where the walk and its sift part.  A
 provenance holds the distribution and the way, and ``sample`` draws afresh and
 makes the same read through the same tree.
 """
@@ -76,6 +77,8 @@ class Sifted(Provenance):
 class Walked(Provenance):
     """A probe walked as the counterexample pass walks one: anchored, sifted at
     its end, and searched for the disagreeing edge where walk and sift part.
+    Where every read on the way places, the prefix before that edge is what it
+    keeps.
 
     Anchored no earlier than a uniformly drawn point, even for a read the pass
     made from the start: walks from the start all meet the same few early
@@ -98,7 +101,9 @@ class Walked(Provenance):
         if start is not None:
             landed = sift(drawn)
             if landed is not None and landed != states[-1]:
-                first_disagreeing_edge(drawn, states, sift, start, len(drawn))
+                fd = first_disagreeing_edge(drawn, states, sift, start, len(drawn))
+                if fd is not None:
+                    met.append(drawn[: fd - 1])
         return met
 
 

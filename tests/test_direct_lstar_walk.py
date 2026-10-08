@@ -12,9 +12,11 @@ import unittest
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.provenance import Read
+from orthogonal_dfa.l_star.split_evidence import NO_SPLIT, UNDECIDED
 from orthogonal_dfa.l_star.transition_resolver import (
     _RESOLVED,
     _UNCHECKED,
+    _UNDECIDED,
     TransitionResolver,
 )
 
@@ -51,7 +53,7 @@ class _Learner(TransitionResolver):
         self.population = _StubPopulation()
         self.tree = SimpleNamespace(path_of=lambda s: s)
         self.dfa = SimpleNamespace(access={})
-        self.indecisive = {}
+        self.harvested = {}
         self._walked = Read(None, None)
         self.acted = None
 
@@ -87,7 +89,7 @@ class TestProcessAnchor(unittest.TestCase):
         learner = _Learner(_StubSifter(places_at=2))
         learner._process([0, 1, 0, 1], DELTA)
 
-        self.assertEqual(set(learner.indecisive), {("bail",), (0, "bail")})
+        self.assertEqual(set(learner.harvested), {("bail",), (0, "bail")})
 
     def test_walks_from_the_empty_string_when_it_places(self):
         learner = _Learner(_StubSifter(places_at=0))
@@ -105,3 +107,43 @@ class TestProcessAnchor(unittest.TestCase):
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])
+
+
+class _Disagreeing(TransitionResolver):
+    """Walks stay at 7 while the tree moves prefixes of three or more symbols to
+    8, so a four-symbol probe disagrees at its third edge, 7 -(0)-> 7."""
+
+    # pylint: disable=super-init-not-called
+    def __init__(self, verdict):
+        self.sifter = SimpleNamespace(
+            sift_and_boundary=lambda seq: (7 if len(seq) < 3 else 8, None),
+            disagreement=lambda s, sprime, prefix: b"d",
+        )
+        self.population = SimpleNamespace(add_first=lambda *_a, **_k: None)
+        self.tree = SimpleNamespace(path_of=lambda s: s)
+        self.dfa = SimpleNamespace(
+            target=lambda s, c: 7, witness=lambda s, c: bytes([1])
+        )
+        self.splits = SimpleNamespace(verdict=lambda s, d: verdict)
+        self.harvested = {}
+        self._walked = Read(None, None)
+
+
+class TestANonSplitIsHarvested(unittest.TestCase):
+    _PROBE = bytes([0, 1, 0, 1])
+
+    def test_a_disagreement_the_test_will_not_split_keeps_its_prefix(self):
+        learner = _Disagreeing(NO_SPLIT)
+
+        status = learner._act_on_disagreement(self._PROBE, [7] * 5, 0)
+
+        self.assertEqual(_RESOLVED, status)
+        self.assertEqual({self._PROBE[:2]: learner._walked}, learner.harvested)
+
+    def test_an_undecided_one_is_left_to_the_next_probe(self):
+        learner = _Disagreeing(UNDECIDED)
+
+        self.assertEqual(
+            _UNDECIDED, learner._act_on_disagreement(self._PROBE, [7] * 5, 0)
+        )
+        self.assertEqual({}, learner.harvested)
