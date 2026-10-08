@@ -36,7 +36,7 @@ from .prefix_sources import UniformSource
 from .progress import counter, write
 from .provenance import Read
 from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
-from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
+from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
 # Outcome of processing one probe (see TransitionResolver.counterexample_pass).
@@ -230,15 +230,14 @@ class TransitionResolver:
         distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
             return _RESOLVED
-        verdict = self.splits.verdict(s1, distinguisher)
-        if verdict == SPLIT:
+        if self.splits.verdict(s1, distinguisher) == SPLIT:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
-        # The leaf may hold too few members of sprime's state to split on; keeping
-        # sprime, ahead of the member limit, lets the next probe through that state
-        # weigh one more.
+        # The leaf may hold too few members of sprime's state to split on, even
+        # where they rule a split out; keeping sprime, ahead of the member limit,
+        # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1), draw=self._walked)
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        return _UNDECIDED
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
