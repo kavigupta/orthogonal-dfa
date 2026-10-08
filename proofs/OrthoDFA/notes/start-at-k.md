@@ -443,3 +443,85 @@ It fails with chance at most `prefixMax(k)/ε²`. The proof chain:
 - the best-start gate, with agreement read from the root read only;
 - the ends test run only on refusal, on 480 fresh draws plus the quiet window;
 - certification of the chosen start alone.
+
+## One theorem: the round's trichotomy (on paper, #413 at 9f9facb)
+
+**The round as it stands.**
+- **Gate:** each draw is sifted once, and its label is the middle side of its root read. Every
+  start `q` is scored by whether the DFA from `q` matches that label. The best start's rate is
+  tested at doubling looks, Bonferroni over `|Q|`.
+- **Processing:** a draw that the best start *so far* disagrees on gets the seven-outcome read.
+- **Refusal:**
+  - the searched draws are rerun;
+  - the triples are held;
+  - the pair test runs once, over the searched draws;
+  - a refusal with no searched draw halves the limit;
+  - the ends are read: the end half on 480 fresh draws, the start half on the pass's last quiet
+    probes.
+- **The loop stops** when the gate passes, when there is nothing searched, when the budget runs
+  out, or when a continued pass splits nothing.
+
+**Draft statement.** Except with small probability, at least one of:
+1. **Consistent.** The gate passes, and the DFA from `q̂` disagrees with the labels on at most
+   `1 − acc + δ` of `D`.
+   - Fold: `D(DFA from q̂ ≠ target) ≤ 1 − acc + δ + labelErr`, where `labelErr = D(the root
+     read's middle side ≠ target)`.
+   - Contrapositive on refusal: every start disagrees on at least `1 − acc − δ`. By
+     `StartExists`, no `(S, h)` on which `H` matches the target then has coverage
+     `η < 1 − acc − δ − labelErr`.
+   - This is the cleanest join because the gate measures the DFA against the labels and
+     `StartExists` measures it against the target. They meet through one triangle inequality
+     in `labelErr`, with no new premise.
+   - An "argmax within `2δ` of the best start" form would need uniform Hoeffding over `|Q|` at a
+     look that can be as early as 30, so it is weak.
+2. **Good harvest.** A held population has mass at least `M₀` and bad share at least `q₀`, where
+   bad means `u > c·f`.
+3. **Halving.** Plus a separate claim: below `τ*`, halving without a good harvest is unlikely.
+
+**Why it is not provable for 9f9facb.** On refusal the disagreeing mass splits across outcome
+classes. Each large class has to force outcome 2 or 3, and several cannot:
+- **(a1) Edges left over when a continued pass splits nothing.** Each leftover edge produced a
+  member (`add_first sprime`) or stopped at a string the cut cannot place. Neither one is a
+  harvest or a halving.
+- **(a2) Unlearned edges.** The gate neither reruns nor holds them. Only the pass adds members.
+- **(a3) The start region.** A draw the best start gets wrong but whose walk from `k` agrees
+  disagrees only within its first `k` letters: the DFA from `q̂` is not at the anchor after `k`
+  letters.
+  - Nothing searches there, and the pass never tests those edges either.
+  - A target whose states early in the string are not reached again after position `k` is
+    refused every round. Each refusal has nothing to rerun and halves the limit, at any `f`.
+- **(a4) Adaptive processing.** Which draws are processed depends on the best start so far, which
+  depends on the other draws' full agreement vectors.
+  - So the pair test's exact conditional-binomial argument fails.
+  - What remains is a stochastic-dominance argument costing `ng·a`, about some start rather than
+    `q̂`.
+- **(a5) No power.** "A large class forces its test" needs enough draws. A clear refusal can stop
+  at 30, which leaves the pair test about `30·(1 − acc)` searched draws.
+- **(b) `τ*` fails as stated.**
+  - Halving on nothing-to-rerun fires on the structural classes (a2) and (a3) at any `f`.
+  - Pairs are first-order, not `(depth·τ)²`. A split's midfix is `c·m` with `m` already a midfix,
+    so `x[:j]·(c·m) = x[:j+1]·m`. When the middle's read fails there, the neighbour's read of the
+    same string fails too, and P(pair | middle undecided) can be near 1. Pairs from well-read
+    states are only bounded by about `visits·depth·u_good`.
+  - Pairs from bad states could only be tied to `f` through a population at their node. Interior
+    lengths have none: the gate covers the root at lengths `k` and `L`, and node `m` only where an
+    earlier ends test fired. The weakest honest premise is occupancy domination: at each midfix,
+    the states at interior lengths are dominated, up to a factor `κ`, by those at lengths `k` and
+    `L`. It would also need start and end populations held at every midfix, every round.
+
+**Proposed changes (for decision; nothing changed yet).**
+- **R1.** On refusal, read one fixed fresh sample (the ends' 480), and classify each draw against
+  the final `q̂`. Every refusal test and harvest uses that sample. This fixes (a4) and (a5).
+- **R2.** Hold pairs (both reads) and unlearned-edge members as harvests, replayed like triples.
+  - Pairs then become "excess over contamination", like triples and ends.
+  - A pair trip with a pair harvest whose bad share is below `q₀` then implies
+    `f > τ* ≈ θp·(1 − q₀)/(c·depth·(log₂L + 1))`. That is the `τ*` claim, with no occupancy
+    premise.
+- **R3.** Leftover edges: count the members the continued pass added as a harvest of split
+  evidence. Their good property is different in kind (decided parting evidence at `s1`). The
+  alternative, stopping only once the measured edge rate on the R1 sample is small, has an
+  unclear termination.
+- **R4.** The start region: either extend the search into `[0, k]` from `q̂`, or take as premise
+  that no target state is transient (each state seen before `k` recurs after `k` with mass at
+  least `κ` times its early mass). The premise is (a3) and F6 again.
+- **R5.** Drop "nothing to rerun ⇒ halve". With R1–R4 every class has its own test or harvest.
