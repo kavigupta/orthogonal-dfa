@@ -147,7 +147,8 @@ class TransitionResolver:
 
         A blocked draw counts once against the node reads it made, and the
         draws block the round where they come to more than ``fnr_limit`` of the
-        reads: as many as a family undecided at the limit could leave.  Where
+        reads: as many as a family undecided at the limit could leave, or where
+        the agreement falls short with no decided disagreement among them.  Where
         ``whole``, a draw agrees where the learned edges, from where the middle of
         the band places its start, take it where the middle places it whole; an
         open edge on the way disagrees.  Reading stops once each test it makes settles,
@@ -167,9 +168,8 @@ class TransitionResolver:
             reads += self.sifter.reads - before
             if block is not None:
                 blocked += 1
-                if block.found is not None:
-                    found[block.found] = None
-            elif whole and end != states[-1]:
+                found[block.found] = None
+            elif end is not None and end != states[-1]:
                 disagreements.append(w)
             blocks = binomial_side_of_boundary(
                 blocked, reads, fnr_limit, failure_prob=READING_FAILURE_PROB
@@ -185,6 +185,9 @@ class TransitionResolver:
                 break
         if blocks is None:
             blocks = blocked > fnr_limit * reads
+        # A refusal with no decided disagreement for the pass to rerun.
+        if whole and agreed < acc_threshold * len(draws) and not disagreements:
+            blocks = True
         return Reading(
             blocks,
             agreed / len(draws),
@@ -211,7 +214,7 @@ class TransitionResolver:
                 self.k,
                 whole=whole,
             )
-            return [] if block is None or block.found is None else [block.found]
+            return [] if block is None else [block.found]
 
         return replay
 
@@ -253,12 +256,14 @@ class TransitionResolver:
             w, self.sifter.sift_and_boundary, self.dfa.transitions, self.k, whole=True
         )
         if block is not None:
-            if not block.undecided and block.found is not None:
+            if not block.undecided:
                 self.population.add(block.found, at=self.tree.path_of(states[-1]))
             return False
         if end == states[-1]:
             return False
-        fd = first_disagreeing_edge(w, states, self.sifter.halfway, self.k, len(w))
+        fd = first_disagreeing_edge(
+            w, states, self.sifter.halfway, self.k, len(states) - 1
+        )
         return self._act_on_disagreement(w, states, fd)
 
     def _act_on_disagreement(self, w, states, fd) -> bool:

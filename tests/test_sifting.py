@@ -43,7 +43,7 @@ class TestWalkingFromTheStart(unittest.TestCase):
 
     def test_a_start_the_cut_cannot_place_is_left(self):
         self.assertEqual(
-            (None, Block(2, _PROBE[:2], True), None),
+            ([None, None], Block(2, _PROBE[:2], True), None),
             _walk(lambda seq: None, _STEPS_TO_ONE, 2),
         )
 
@@ -56,14 +56,17 @@ class TestWalkingFromTheStart(unittest.TestCase):
         self.assertEqual([None, 0, 1], states)
         self.assertEqual(Block(3, _PROBE[:3], True), block)
 
-    def test_an_open_edge_leaves_the_prefix_before_it_by_where_it_sifts(self):
-        for places, found, undecided in (
-            (lambda seq: 1 if len(seq) == 2 else 0, _PROBE[:2], False),
-            (lambda seq: None if len(seq) == 2 else 0, _PROBE[:2], True),
-            (lambda seq: 0, None, False),
+    def test_an_open_edge_leaves_the_prefix_before_it_where_it_sifts_there(self):
+        for places, undecided in (
+            (lambda seq: 1 if len(seq) == 2 else 0, False),
+            (lambda seq: None if len(seq) == 2 else 0, True),
         ):
             _, block, _ = _walk(places, _OPEN_AT_ONE, 1)
-            self.assertEqual(Block(3, found, undecided), block)
+            self.assertEqual(Block(3, _PROBE[:2], undecided), block)
+
+    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_a_disagreement(self):
+        # The walk reaches 1 after two symbols, where the cut places them at 0.
+        self.assertEqual(([None, 0, 1], None, 0), _walk(lambda seq: 0, _OPEN_AT_ONE, 1))
 
     def test_a_whole_probe_the_cut_cannot_place_leaves_its_boundary(self):
         places = lambda seq: None if len(seq) == 4 else 0

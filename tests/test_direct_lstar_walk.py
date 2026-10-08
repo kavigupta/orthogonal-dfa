@@ -89,6 +89,16 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([(8, _PROBE[:3])], learner.population.recorded)
 
+    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_searched(self):
+        # The walk reaches 8 after 0, 1, 0, which the cut places at 7, and finds
+        # no edge out of 8; the search lands on the edge into 8.
+        sifter = _StubSifter(lambda seq: 7)
+        sifter.undecided_search = b"searched"
+        learner = _Learner(sifter, _OPEN_AT_8, 1)
+
+        self.assertFalse(learner._check(_PROBE))
+        self.assertEqual({b"searched": None}, learner.dropped)
+
     def test_a_disagreement_whose_prefix_the_cut_cannot_place_is_dropped(self):
         # The walk stays at 7 while the whole probe sifts to 8, and the prefix the
         # search lands on can only be placed by the middle.
@@ -135,6 +145,20 @@ class TestReadingFreshDraws(unittest.TestCase):
             self.assertEqual(agreement, reading.agreement)
             self.assertEqual([], reading.disagreements)
 
+    def test_a_refusal_with_nothing_decided_to_rerun_blocks(self):
+        # Half the draws block, over a quarter of the reads: under a 0.3 limit.
+        draws = [_PROBE, _PROBE[:3]]
+        for middle, blocks in ((7, False), (8, True)):
+            learner = _Learner(
+                _StubSifter(_ALL_BUT_PROBE, middle=middle),
+                _EVERYWHERE,
+                2,
+                fnr_limit=0.3,
+            )
+            learner.draws = iter(draws * 1000)
+            reading = learner.read_fresh(whole=True, acc_threshold=0.9)
+            self.assertEqual(blocks, reading.blocks)
+
     def test_the_walk_check_does_not_sift_the_whole_draw(self):
         reading = _read(_ALL_BUT_PROBE, [_PROBE], whole=False)
 
@@ -142,13 +166,23 @@ class TestReadingFreshDraws(unittest.TestCase):
         self.assertEqual([], reading.found)
 
     def test_an_open_edge_disagrees(self):
-        learner = _Learner(_StubSifter(lambda seq: 7), _OPEN_AT_8, 2)
+        places = lambda seq: 8 if seq == _PROBE[:3] else 7
+        learner = _Learner(_StubSifter(places), _OPEN_AT_8, 2)
         learner.draws = iter([_PROBE] * 2000)
 
         reading = learner.read_fresh(whole=True, acc_threshold=0.9)
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual([], reading.disagreements)
+
+    def test_an_open_edge_from_a_prefix_sifting_elsewhere_is_kept_for_the_pass(self):
+        learner = _Learner(_StubSifter(lambda seq: 7), _OPEN_AT_8, 1)
+        learner.draws = iter([_PROBE] * 2000)
+
+        reading = learner.read_fresh(whole=True, acc_threshold=0.9)
+
+        self.assertEqual(_PROBE, reading.disagreements[0])
+        self.assertFalse(reading.blocks)
 
     def test_a_decided_disagreement_is_kept_for_the_pass(self):
         reading = _read(lambda seq: 8 if len(seq) == 4 else 7, [_PROBE], whole=True)

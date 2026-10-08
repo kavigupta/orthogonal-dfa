@@ -90,9 +90,8 @@ def first_disagreeing_edge(probe, states, sift, lo, hi):
 #: Where a walk stopped, at ``probe[:at]``, what it leaves there, and whether
 #: that is a string the cut could not place.  A blocked start or edge leaves the
 #: prefix the cut could not place; at an open edge whose next prefix the cut
-#: places, the prefix before it where it sifts to the edge's state (a member),
-#: and nothing where it sifts elsewhere.  A blocked sift of the whole probe
-#: leaves its boundary string.
+#: places, the prefix before it, a member of the edge's state.  A blocked sift of
+#: the whole probe leaves its boundary string.
 Block = namedtuple("Block", "at found undecided")
 
 
@@ -100,17 +99,19 @@ def walk(probe, sift, transitions, k, *, whole):
     """``(states, block, end)``.  ``states[i]`` is the state the learned
     ``transitions`` reach after ``probe[:i]`` from where ``sift`` places
     ``probe[:k]``, ``None`` below ``k``, as far as the walk got; ``block`` is what
-    stopped it, or ``None``; ``end`` is where ``sift`` places the whole probe,
-    read where ``whole`` and nothing blocked.  ``sift`` answers as
-    :meth:`Sifter.sift_and_boundary` does."""
+    stopped it, or ``None``; ``end`` is where ``sift`` places the prefix the walk
+    ended on, read where ``whole`` and nothing blocked, or where an open edge
+    stopped the walk at a prefix that sifts to another state than the walk's.
+    ``sift`` answers as :meth:`Sifter.sift_and_boundary` does."""
+    states = [None] * k
     anchor = sift(probe[:k])[0]
     if anchor is None:
-        return None, Block(k, probe[:k], True), None
-    states = [None] * k + [anchor]
+        return states, Block(k, probe[:k], True), None
+    states.append(anchor)
     for j in range(k, len(probe)):
         target = transitions[states[-1]].get(probe[j])
         if target is None:
-            return states, _edge_block(probe, sift, states[-1], j), None
+            return (states, *_edge_block(probe, sift, states[-1], j))
         states.append(target)
     if not whole:
         return states, None, None
@@ -122,8 +123,10 @@ def walk(probe, sift, transitions, k, *, whole):
 
 def _edge_block(probe, sift, state, j):
     if sift(probe[: j + 1])[0] is None:
-        return Block(j + 1, probe[: j + 1], True)
+        return Block(j + 1, probe[: j + 1], True), None
     before = sift(probe[:j])[0]
     if before is None:
-        return Block(j + 1, probe[:j], True)
-    return Block(j + 1, probe[:j] if before == state else None, False)
+        return Block(j + 1, probe[:j], True), None
+    if before == state:
+        return Block(j + 1, probe[:j], False), None
+    return None, before
