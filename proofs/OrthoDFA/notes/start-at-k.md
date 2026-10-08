@@ -300,3 +300,57 @@ How it relates to `covered_accuracy_ceiling`, which drops the stay-in-`S` part:
   are all even, and runs from them leave on every odd step.
 - The matching check for `satisfies_preconditions` is the share of strings whose run from a
   covered start stays within the covered states and agrees.
+
+## The triple harvest (#413), on paper
+
+**Rule.** A decided disagreement on the frozen hypothesis is bisected over decided reads only. The
+final bracket `[a, b]` has the walk agreeing at `a`, a decided disagreement at `b`, and every read
+strictly between undecided:
+- `b − a = 1` is an edge, and the split test runs;
+- `b − a = 2` is a triple, and its middle is harvested;
+- `b − a ≥ 3` is a run, with no harvest; it feeds halving.
+
+**The harvested string must be the undecided read, not `x[:a+1]`.** A middle sift is undecided at
+its first undecided node `d`, so the read that failed is `x[:a+1]·d`, at state
+`δ(state(x[:a+1]), d)`. The state of `x[:a+1]` itself can be read well at the root while a deeper
+node of its route is read badly. Harvesting `x[:a+1]` would hand the FNR gate a string its family
+already decides.
+
+**Quality claim (relative, per gate batch).** Fix the frozen hypothesis. For each pair of
+consecutive edges, consider draws whose decided ends bracket it as above. Whether such a draw is a
+triple or lands on an edge depends only on its middle sift, which reads fresh strings when the
+pass did not read them. Its first undecided node has indecision `u_i`. So the draws whose
+harvested read comes from a state with `u < u*` satisfy:
+
+    D(triple, harvested state's u < u*) ≤ (S/(1 − S)) · D(edge-landing on those pairs)
+                                          + (middles the pass read) + fluctuation,
+    S = Σ_{nodes on the middle's route, u_i < u*} u_i ≤ depth · u*.
+
+The edge-landing draws are decided disagreements that reach the split test, so they are progress.
+Either they are few, and then a passing gate bounds them by `1 − acc + δ` (the absolute form
+`ε·u/(1 − u)`), or the refusal reruns them as seeds.
+
+This needs **no randomness in the pass's probes**. The pass stays a black box. The randomness is
+the gate batch's fresh draws, together with the fresh noise of middle strings the pass did not
+read, which is `gate_flip_bound`'s machinery (`cell_bound`). Concentration over distinct middle
+strings uses the spread: a middle has length `≥ k + 1`, so one string carries at most
+`p_max^(k+1)` of the draws.
+
+**`u_sift²` is not what quality needs.** Two adjacent undecided reads make a run, which is never
+harvested, so they cannot contaminate the harvest. Its mass, about `(L − k)·u_sift²`, is what keeps
+runs rare. That is a liveness condition, and it is what halving controls. The contamination term
+is the first-order `depth · u*` above.
+
+**Draws blocked at the ends never become triples.** A triple needs decided reads at the anchor
+`x[:k]` and at the end `x`. Halving on a refusal with nothing decided drives down only what the FNR
+gate measures:
+- **End, root read:** the uniform population is full-length draws, so the clustering guarantee
+  bounds the family's indecision there, averaged by state weight at length `L`. Derivable.
+- **Start, root read:** no population holds length-`k` strings. Cheap fix: add a population of
+  sampler draws cut to length `k`.
+- **Deeper nodes of either:** the reads `x·m` and `x[:k]·m` are strings no population holds, and
+  each round's midfixes are new. Not derivable. Either keep a source for the undecided reads of
+  end- and start-blocked draws (the removed blocked-draw source; the FNR gate then forces the next
+  family to decide them), or assume it: every state reachable from the start and end states, by
+  the strings the tree can append, is read undecided less than `u*`. That is a premise about the
+  family, not about the target.
