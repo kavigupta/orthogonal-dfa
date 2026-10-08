@@ -405,4 +405,72 @@ theorem integral_indicator_mul_mul [IsProbabilityMeasure μ] (O : Oracle μ (Fre
 
 end Cells
 
+section PassCells
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
+variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
+  (k : ℕ) (seed probes : List (FreeMonoid α))
+
+/-- The pass on noise `ω`. -/
+noncomputable def passK (ω : Ω) : KState α :=
+  runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes
+
+/-- The strings the pass on noise `ω` can read. -/
+noncomputable def passReads (ω : Ω) : Finset (FreeMonoid α) :=
+  passReadSet seed probes (passK O B F K k seed probes ω).tree
+
+/-- A pattern of the bits `vBits V c.1`, clean. -/
+def pcell (V : Finset (FreeMonoid α)) (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) :
+    Set Ω :=
+  {ω | noisePattern O (vBits V c.1) ω = c.2} ∩ noiseClean O (vBits V c.1)
+
+/-- The pass's cell: its read set `c.1`, with those reads' bits patterned `c.2`. -/
+def passCell (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) : Set Ω :=
+  pcell O (F ∪ K.train F) c ∩ cleanAll O ∩ {ω | passReads O B F K k seed probes ω = c.1}
+
+theorem passK_determined (ω ω' : Ω)
+    (h : ∀ y ∈ vBits (F ∪ K.train F) (passReads O B F K k seed probes ω),
+      O.noise y ω = O.noise y ω') :
+    passK O B F K k seed probes ω' = passK O B F K k seed probes ω :=
+  runPassK_determined O B F K k seed probes ω ω' h
+
+theorem passCell_const [IsProbabilityMeasure μ] {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
+    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (hω : ω ∈ pcell O (F ∪ K.train F) c)
+    (hcl : ω ∈ cleanAll O) :
+    passK O B F K k seed probes ω = passK O B F K k seed probes ω₀
+      ∧ ω ∈ passCell O B F K k seed probes c := by
+  obtain ⟨⟨⟨hp₀, hc₀⟩, -⟩, hT₀⟩ := h₀
+  have hT₀' : passReads O B F K k seed probes ω₀ = c.1 := hT₀
+  have hag : ∀ y ∈ vBits (F ∪ K.train F) (passReads O B F K k seed probes ω₀),
+      O.noise y ω₀ = O.noise y ω := by
+    rw [hT₀']
+    exact noise_eq_of_pattern O hc₀ hω.2 (hp₀.trans hω.1.symm)
+  have hs := passK_determined O B F K k seed probes ω₀ ω hag
+  refine ⟨hs, ⟨⟨hω, hcl⟩, ?_⟩⟩
+  change passReads O B F K k seed probes ω = c.1
+  rw [← hT₀']
+  simp only [passReads, hs]
+
+theorem cut_none_eq (z : FreeMonoid α) :
+    {ω | (readsAt O B F ω).cut z = none} = {ω | ¬ decided O.mq B.lo B.hi F z ω} := by
+  ext ω
+  simp only [Set.mem_ofPred_eq, CutReads.cut, readsAt, decided, voteCount]
+  change (if B.hi < acceptsOn F (fun w => O.mq w ω) z then some true
+    else if acceptsOn F (fun w => O.mq w ω) z ≤ B.lo then some false else none) = none ↔ _
+  have : acceptsOn F (fun w => O.mq w ω) z = (F.filter fun v => O.mq (z * v) ω = 1).card := by
+    unfold acceptsOn; congr
+  rw [this]
+  split_ifs <;> simp <;> omega
+
+theorem good_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGood : ℝ} (z : FreeMonoid α)
+    (hz : stateIndecision A O B F (A.state z) < uGood) :
+    μ {ω | (readsAt O B F ω).cut z = none} ≤ ENNReal.ofReal uGood := by
+  have hle : undecidedProb O B.lo B.hi F z ≤ stateIndecision A O B F (A.state z) :=
+    le_csSup ⟨1, by rintro _ ⟨s, -, rfl⟩; exact measureReal_le_one⟩ ⟨z, rfl, rfl⟩
+  rw [← ENNReal.ofReal_toReal (measure_ne_top μ _), ← measureReal_def, cut_none_eq]
+  exact ENNReal.ofReal_le_ofReal ((show μ.real {ω | ¬ decided O.mq B.lo B.hi F z ω}
+    = undecidedProb O B.lo B.hi F z from rfl) ▸ hle.trans hz.le)
+
+end PassCells
+
 end OrthoDFA
