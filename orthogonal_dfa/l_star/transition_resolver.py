@@ -55,8 +55,9 @@ class TransitionResolver:
         #: met it.
         self.indecisive = {}
         #: The strings disagreeing probes could not place, likewise: the first a
-        #: search for the disagreeing edge meets, or an undecided final read the
-        #: middle of the band sends away from the walk.
+        #: search for the disagreeing edge meets, an undecided final read the
+        #: middle of the band sends away from the walk, or the empty string's
+        #: read where the walk's start parts from the cut.
         self.bisected = {}
         #: The tree size `_initial` last read at, and what it read.
         self._initial_at = (None, None)
@@ -203,16 +204,24 @@ class TransitionResolver:
     def _process(self, w, delta):
         """Walk the total delta from where the middle of the band places the
         empty string, as the gate does, then act on where the walk and a fresh
-        sift disagree."""
+        sift disagree.  Where that start already parts from the leaf the cut
+        places the shortest prefix it can, the gate counts the probe against the
+        hypothesis on the empty string's read alone; that read is held, and the
+        walk starts again from the prefix."""
         start, anchored = anchored_walk(w, self._sift, delta, 0)
-        if start is not None:
-            # Seed the anchor leaf's population. The prefix pool is length-L, so
-            # it only reaches deep leaves; short anchor prefixes are what give the
-            # shallow leaves enough members for the one-state test to settle them.
-            self.population.add(
-                w[:start], at=self.tree.path_of(anchored[start]), draw=self._walked
-            )
-        return self._act_on_disagreement(w, walk(w, self._initial(), delta), 0)
+        states = walk(w, self._initial(), delta)
+        if start is None:
+            return self._act_on_disagreement(w, states, 0)
+        # Seed the anchor leaf's population. The prefix pool is length-L, so it
+        # only reaches deep leaves; short anchor prefixes are what give the
+        # shallow leaves enough members for the one-state test to settle them.
+        self.population.add(
+            w[:start], at=self.tree.path_of(anchored[start]), draw=self._walked
+        )
+        if anchored[start] != states[start]:
+            self._bisect_sift(b"")
+            return self._act_on_disagreement(w, anchored, start)
+        return self._act_on_disagreement(w, states, start)
 
     def _initial(self):
         """The leaf the middle of the band places the empty string at, as the

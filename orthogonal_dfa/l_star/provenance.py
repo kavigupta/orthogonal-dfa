@@ -106,21 +106,14 @@ class Walked(Provenance):
 class Bisected(Provenance):
     """A probe walked as the counterexample pass walks one, from where the middle
     of the band places the empty string, keeping only what the pass puts in its
-    bisection population: an undecided final read the middle of the band sends
-    away from the walk, or the first read the search for the disagreeing edge
-    cannot place."""
+    bisection population: the empty string's read where that start parts from
+    the cut, an undecided final read the middle of the band sends away from the
+    walk, or the first read the search for the disagreeing edge cannot place."""
 
     transitions: dict = field(repr=False)
     initial: int
 
     def _read(self, drawn) -> List[bytes]:
-        states = walk(drawn, self.initial, self.transitions)
-        landed, boundary = self.sifter.sift_and_boundary(drawn)
-        if landed is None:
-            departs = self.sifter.middle_departs(drawn, states[-1])
-            return [boundary] if departs else []
-        if landed == states[-1]:
-            return []
         met = []
 
         def sift(seq):
@@ -129,7 +122,25 @@ class Bisected(Provenance):
                 met.append(boundary)
             return leaf
 
-        first_disagreeing_edge(drawn, states, sift, 0, len(drawn))
+        start, anchored = anchored_walk(
+            drawn,
+            lambda seq: self.sifter.sift_and_boundary(seq)[0],
+            self.transitions,
+            0,
+        )
+        states = walk(drawn, self.initial, self.transitions)
+        lo = 0
+        if start is not None:
+            lo = start
+            if anchored[start] != states[start]:
+                sift(b"")
+                states = anchored
+        landed, boundary = self.sifter.sift_and_boundary(drawn)
+        if landed is None:
+            if self.sifter.middle_departs(drawn, states[-1]):
+                met.append(boundary)
+        elif landed != states[-1]:
+            first_disagreeing_edge(drawn, states, sift, lo, len(drawn))
         return met
 
 

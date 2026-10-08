@@ -363,6 +363,10 @@ if __name__ == "__main__":
     unittest.main()
 
 
+#: Walks never leave where they start.
+_STAYS = {0: {0: 0, 1: 0}, 1: {0: 1, 1: 1}}
+
+
 def _bisected(places, departs=False, initial=0):
     return Bisected(_Fixed(_PROBE), _Walk(places, departs), _STEPS_TO_ONE, initial)
 
@@ -387,3 +391,8 @@ class TestABisectedReplayKeepsOnlyWhatADisagreementCannotPlace(unittest.TestCase
 
     def test_a_walk_from_where_the_middle_places_the_empty_string(self):
         self.assertEqual([], _bisected(lambda seq: 1, initial=1).sample())
+
+    def test_a_start_the_cut_parts_from_keeps_the_empty_strings_read(self):
+        unplaced_start = lambda seq: None if len(seq) == 0 else 1
+        bisected = Bisected(_Fixed(_PROBE), _Walk(unplaced_start), _STAYS, 0)
+        self.assertEqual([b"?"], bisected.sample())
