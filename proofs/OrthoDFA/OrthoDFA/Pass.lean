@@ -71,6 +71,8 @@ structure PassState (α : Type*) where
   edges : List Bool → α → Option (List Bool × FreeMonoid α)
   streak : ℕ
   unchecked : ℕ
+  /-- The node reads the probes since the last split made. -/
+  reads : ℕ
   boundary : List (FreeMonoid α)
   disagreements : List (FreeMonoid α)
 
@@ -186,7 +188,7 @@ noncomputable def settle (t : DTree α) (pool : List (FreeMonoid α))
     (edges : List Bool → α → Option (List Bool × FreeMonoid α)) (streak unchecked : ℕ)
     (boundary disagreements : List (FreeMonoid α)) : PassState α :=
   { tree := t, pool := pool, edges := closeEdges K R t pool edges, streak := streak,
-    unchecked := unchecked,
+    unchecked := unchecked, reads := 0,
     boundary := boundary ++ t.paths.flatMap fun p =>
       (Finset.univ : Finset α).toList.flatMap fun c => edgeMisses R t c (members K R t pool p),
     disagreements := disagreements }
@@ -253,19 +255,59 @@ noncomputable def probeStep (s : PassState α) (w : FreeMonoid α) : PassState �
       | .inl b => unchecked b
       | .inr fd => onEdge K R s w walkAt pool boundary fd
 
+/-- How many node reads `x`'s sift makes, the one that fails included. -/
+noncomputable def siftReads (t : DTree α) (x : FreeMonoid α) : ℕ := (t.route R.cut x).1.length
+
+/-- The node reads a probe's sifts make, as `Sifter.reads` counts them around `_process`: the
+anchor search's, the probe's own, the bisection's, and the witness's and `sprime`'s re-sifts. -/
+noncomputable def probeReads (s : PassState α) (w : FreeMonoid α) : ℕ :=
+  let t := s.tree
+  let n := w.toList.length
+  let anchors := ((List.range (n + 1)).map fun i => t.sift R.cut (prefixOf w i)).findIdx (·.isLeft)
+  let anchorReads := ((List.range (min (anchors + 1) (n + 1))).map
+    fun i => siftReads R t (prefixOf w i)).sum
+  match anchoredWalk R t s.edges w with
+  | none => anchorReads
+  | some (start, walk) =>
+    let walkAt := fun j => walk.getD (j - start) []
+    let own := anchorReads + siftReads R t w
+    match t.sift R.cut w with
+    | .inr _ => own
+    | .inl actual =>
+      if actual = walkAt n then own else
+      let found := bisect R t w walkAt n start n
+      let bisected := own + (found.1.map fun i => siftReads R t (prefixOf w i)).sum
+      match found.2 with
+      | .inl _ => bisected
+      | .inr fd =>
+        match w.toList[fd - 1]? with
+        | none => bisected
+        | some c =>
+          match s.edges (walkAt (fd - 1)) c with
+          | none => bisected
+          | some (s2, x) =>
+            if s2 ≠ walkAt fd then bisected
+            else if t.sift R.cut x ≠ .inl (walkAt (fd - 1)) then bisected + siftReads R t x
+            else bisected + siftReads R t x + siftReads R t (prefixOf w (fd - 1))
+
 /-- The pass: probes in order until `patience` in a row have neither split a leaf nor left the
-evidence undecided. -/
+evidence undecided, counting the node reads of the probes since the last split. -/
 noncomputable def runPass (s : PassState α) (probes : List (FreeMonoid α)) : PassState α :=
-  probes.foldl (fun s w => if K.patience ≤ s.streak then s else probeStep K R s w) s
+  probes.foldl (fun s w =>
+    if K.patience ≤ s.streak then s
+    else
+      let s' := probeStep K R s w
+      { s' with reads := if s'.streak = 0 then 0 else s.reads + probeReads R s w }) s
 
 /-- The first state: the root reads at `ε`, the population is the table's prefixes, and the
 edges are closed once. -/
 noncomputable def initialState (seed : List (FreeMonoid α)) : PassState α :=
   settle K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 0 [] []
 
-/-- The pass ran out of patience, and most of the probes since its last split went unchecked:
-the round halves the limits every later family is held to. -/
-def PassState.halves (s : PassState α) : Prop := K.patience ≤ s.streak ∧ s.streak < 2 * s.unchecked
+/-- `_blocked_at_limit`: the probes since the pass's last split went unchecked more than half as
+often as a family undecided at `τ` per read could leave them, so the round halves the limits
+every later family is held to. -/
+def PassState.halves (τ : ℝ) (s : PassState α) : Prop := τ * s.reads < 2 * s.unchecked
 
 
 /-- The hypothesis a pass state names: its tree and the targets of its edges. -/

@@ -118,7 +118,7 @@ def RoundTrichotomy : Prop :=
         let s := roundEnd S.K S.O S.B S.F S.seed θ
         ¬ S.D.real {x | DFAandDTDisagree R s.hyp x} ≤ ε
           ∧ ¬ (HarvestSpread S.A R s.hyp S.D S.L S.κ ∧ HarvestBad S.A S.O R s.hyp S.D S.L S.τ)
-          ∧ ¬ s.halves S.K}
+          ∧ ¬ s.halves S.τ}
       ≤ (1 - ε) ^ S.K.patience
 
 /-- Walked from where the middle-of-band reading puts `x`'s first `e` letters, the hypothesis
