@@ -234,10 +234,33 @@ Ways to close it:
 
 `OrthoDFA/StartAtK.lean` states `RoundAtK`, `WalkYield` and `SourceSpread`, and
 `Proofs/StartAtK.lean` proves all three with no sorry.
-- The pass is modelled with #411 and #412: `probeStepK`, `runPassK`.
-- `k`, `θw`, `θc`, `ε`, `δ` and both batch sizes are parameters.
-- The gate is a fixed batch of `ng` draws. Its sequential early stop is not modelled yet.
-- `RoundAtK` is conditional on the round's reads, which covers every noise draw at once.
-- Its refusal claim rests on the pass keeping its edges learned (`runPassK_learned`). That
-  invariant is proved, not assumed.
-- The export lemma (F4–F6) is not stated yet.
+
+**The model.**
+- The pass is #411 and #412: `probeStepK`, `runPassK`.
+- Each check is `SequentialRate`: `binomial_side_of_boundary` at failure chance `a` from `n₀`
+  draws on, read one draw at a time, falling back to the batch's rate if it never settles.
+- A tripped walk check skips the pass, and the gate reads the first hypothesis.
+- The gate's agreement is over all draws, with the start and the whole draw placed by the cut
+  where it can and at the middle where it cannot. A walk that meets an unlearned edge counts as
+  disagreeing. That is the reading the Python is moving to; the edge-block case is my choice and is
+  to be confirmed.
+- `θw`, `θc` (`reads × fnr_limit` in the Python), `acc`, `a`, `n₀` and both batch caps are
+  parameters, with `θw, θc, acc ∈ [0, 1]` and `a, δ ≥ 0`.
+
+**The sequential test.** A fixed-batch bound does not cover early stopping. The proof bounds each
+reading by the test's own failure chance at every look, plus Hoeffding at the last draw:
+`N·a + exp(−2Nδ²)`.
+- The count of a batch's first `n` draws is exactly binomial (`pi_count_ge`, `Proofs/BinomLaw.lean`).
+- `binomSfGe` grows with the rate (`binomSfGe_mono`).
+- So a look against `θ` at a rate `≤ θ` fires with chance `< a` (`look_above_le`, `look_below_le`).
+
+**Not exclusive.** A tripped check only adds its source and halves the limit, so a round can both
+add a source and pass. The theorem claims each reading's consequence, and its bound sums them.
+
+**Refusal.** The refusal claim rests on the pass keeping its edges learned. That invariant is
+proved for both hypotheses the gate can read (`initialK_learned`, `runPassK_learned`).
+
+**Continuation.** The theorem is per reading. The round's continuation loop re-gates after each
+continuation, so the round's error is the sum over the gates it runs.
+
+**Not yet stated:** the export lemma (F4–F6).

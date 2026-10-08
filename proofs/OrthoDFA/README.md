@@ -26,17 +26,20 @@
 
   `Pass.lean` states the pass, with its bisection population, and `Automaton.lean` the target.
 - `OrthoDFA/StartAtK.lean` — the round walked from position `k` along learned edges only.
-  `RoundAtK`: with the round's reads fixed, whatever probes the pass draws, the round's decision
-  is right but for `exp(−2·nw·δ²) + 2·exp(−2·ng·δ²)` over its two batches. That decision is one of:
-  - a walk source, where the walk is blocked on at least `θw − δ` of draws;
-  - a boundary source, where the check is blocked on at least `θc − δ`;
-  - a pass, where the check disagrees on at most `ε + δ`;
-  - a refusal, where every disagreeing probe, rerun, splits a leaf, adds a member, or stops at a
-    string the cut cannot place.
+  `RoundAtK`: with the round's reads fixed, whatever probes the pass draws, the round's readings
+  are right but for `nw·a + exp(−2·nw·δ²) + 2(ng·a + exp(−2·ng·δ²))`. Each reading is the exact
+  binomial test at failure chance `a`, read one draw at a time and stopping early.
+  - A tripped walk check means the walk is blocked on at least `θw − δ` of draws. It adds a walk
+    source, halves the limit, and skips the pass.
+  - A tripped blocked check means the check is blocked on at least `θc − δ` of draws. It adds a
+    boundary source and halves the limit.
+  - A passing gate means the gate's reading disagrees on at most `1 − acc + δ` of draws.
+  - A refusing gate means it disagrees on at least `1 − acc − δ`. Every decided disagreement in its
+    batch, run again, splits a leaf, adds a member, or stops at a string the cut cannot place.
 
-  `WalkYield`: the walk source yields its blocked share less the draws that reached an unlearned
-  edge through a wrong earlier one. `SourceSpread`: no string takes more of a source than the
-  draws sharing its first `k` letters.
+  These are not exclusive: a round can add a source and pass. `WalkYield`: the walk source yields
+  its blocked share less the draws that reached an unlearned edge through a wrong earlier one.
+  `SourceSpread`: no string takes more of a source than the draws sharing its first `k` letters.
 - `OrthoDFA/Verify.lean` — names the proofs of the claims and prints their axioms, which should
   be only `propext`, `Classical.choice` and `Quot.sound`.
 
