@@ -1,0 +1,277 @@
+import OrthoDFA.Pass
+
+/-!
+# The round, walked from position `k`
+
+A probe is walked from where the cut places its first `k` letters, along learned edges only, and
+checked against where the cut places the whole probe.  A walk check on the round's first
+hypothesis decides whether the round ends with a walk source.  Otherwise the counterexample pass
+runs; its hypothesis is then frozen and the gate's batch decides whether the round ends with a
+boundary source, passes, or refuses with its decided disagreements as the next pass's first
+probes.
+
+`RoundAtK`: given the round's reads, every decision the round makes on a batch is right about the
+hypothesis it was made on but for Hoeffding's tails, and every probe a refusal seeds splits a
+leaf, adds a member, or stops at a string the cut cannot place.
+-/
+
+namespace OrthoDFA
+
+open MeasureTheory
+
+variable {α : Type*} [Fintype α] [DecidableEq α]
+
+/-- Learned edges: each leaf's edge by a letter, its target and the member that voted for it. -/
+abbrev Edges (α : Type*) := List Bool → α → Option (List Bool × FreeMonoid α)
+
+/-- Following only learned edges from `p` along `cs`: the leaves visited, `p` first, or the leaf,
+the letter and the step at which an edge is not learned. -/
+def follow (edges : Edges α) : List Bool → List α → List (List Bool) ⊕ (List Bool × α × ℕ)
+  | p, [] => .inl [p]
+  | p, c :: cs =>
+    match edges p c with
+    | some (q, _) =>
+      match follow edges q cs with
+      | .inl ps => .inl (p :: ps)
+      | .inr (s, c', i) => .inr (s, c', i + 1)
+    | none => .inr (p, c, 0)
+
+/-- How a walk from position `k` ends: the cut cannot place the first `k` letters, an edge out of
+leaf `s` by the letter at position `j` is not learned, or the walk reaches the end, the leaves it
+visits listed from position `k`. -/
+inductive KWalk (α : Type*)
+  | anchor
+  | edge (s : List Bool) (c : α) (j : ℕ)
+  | reached (ps : List (List Bool))
+
+/-- What one probe of the counterexample check finds: agreement, a block with what the boundary
+source outputs for it, or a decided disagreement with the walk's leaves. -/
+inductive KCheck (α : Type*)
+  | agree
+  | blocked (out : Option (FreeMonoid α))
+  | disagree (ps : List (List Bool))
+
+/-- What the pass does with a disagreeing probe: split a leaf, add `sprime` as a member, stop at
+a string the cut cannot place, or drop it. -/
+inductive SeedResult (α : Type*)
+  | split (d : FreeMonoid α) (s1 : List Bool) (y sprime : FreeMonoid α)
+  | member (s1 : List Bool) (sprime : FreeMonoid α)
+  | stopped (b : FreeMonoid α)
+  | dropped
+
+namespace DTree
+
+/-- `first_disagreement`, saying why it finds none: the midfix where `x·pre` and `y·pre` part,
+the first string on the way the cut cannot place, or `none` where they reach a leaf together. -/
+def parting (cut : FreeMonoid α → Option Bool) (x y pre : FreeMonoid α) :
+    DTree α → Option (FreeMonoid α ⊕ FreeMonoid α)
+  | .leaf => none
+  | .node m r a =>
+    match cut (x * (pre * m)), cut (y * (pre * m)) with
+    | some true, some true => a.parting cut x y pre
+    | some false, some false => r.parting cut x y pre
+    | some _, some _ => some (.inl (pre * m))
+    | none, _ => some (.inr (x * (pre * m)))
+    | _, none => some (.inr (y * (pre * m)))
+
+end DTree
+
+/-- `first_disagreeing_edge` between an index where `place` agrees with `walk` and one where it
+does not. -/
+def bisectAt (place walk : ℕ → List Bool) : ℕ → ℕ → ℕ → ℕ
+  | 0, _, hi => hi
+  | fuel + 1, lo, hi =>
+    if lo + 1 < hi then
+      if place ((lo + hi) / 2) = walk ((lo + hi) / 2) then
+        bisectAt place walk fuel ((lo + hi) / 2) hi
+      else bisectAt place walk fuel lo ((lo + hi) / 2)
+    else hi
+
+variable (K : StageKnobs α) (R : CutReads α)
+
+/-- The walk of `x` from position `k`, along `edges`. -/
+noncomputable def kWalk (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : KWalk α :=
+  match t.sift R.cut (prefixOf x k) with
+  | .inr _ => .anchor
+  | .inl p =>
+    match follow edges p (x.toList.drop k) with
+    | .inl ps => .reached ps
+    | .inr (s, c, i) => .edge s c (k + i)
+
+/-- What the walk source outputs for `x`: the first `k` letters where the cut cannot place them;
+at an unlearned edge out of `s` at position `j`, the prefix through it where the cut cannot place
+that, else the prefix before it where the cut places it at `s` or cannot place it; else nothing. -/
+noncomputable def walkOutput (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    Option (FreeMonoid α) :=
+  match kWalk R t edges k x with
+  | .anchor => some (prefixOf x k)
+  | .edge s _ j =>
+    match t.sift R.cut (prefixOf x (j + 1)) with
+    | .inr _ => some (prefixOf x (j + 1))
+    | .inl _ =>
+      match t.sift R.cut (prefixOf x j) with
+      | .inl p => if p = s then some (prefixOf x j) else none
+      | .inr _ => some (prefixOf x j)
+  | .reached _ => none
+
+/-- One probe of the counterexample check: a walk that does not reach the end is blocked, with
+the walk source's output; so is one whose whole probe the cut cannot place, with that string. -/
+noncomputable def kCheck (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : KCheck α :=
+  match kWalk R t edges k x with
+  | .reached ps =>
+    match t.sift R.cut x with
+    | .inr b => .blocked (some b)
+    | .inl a => if some a = ps.getLast? then .agree else .disagree ps
+  | _ => .blocked (walkOutput R t edges k x)
+
+/-- Where the bisection places `x`'s first `i` letters: where the cut does, else where the gate's
+reading does. -/
+noncomputable def place (t : DTree α) (x : FreeMonoid α) (i : ℕ) : List Bool :=
+  (t.sift R.cut (prefixOf x i)).elim id fun _ => (t.halfway R.cut R.mid (prefixOf x i)).1
+
+/-- `_act_on_disagreement` on a probe whose walk from `k` visits `ps` and whose sift disagrees:
+bisect to the edge where they part, placing what the cut cannot at the middle of the band (#411),
+then the guards and the split test, a no-split answered as undecided is (#412). -/
+noncomputable def seedStep (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α) (k : ℕ)
+    (x : FreeMonoid α) (ps : List (List Bool)) : SeedResult α :=
+  let walkAt := fun j => ps.getD (j - k) []
+  let n := x.toList.length
+  let fd := bisectAt (place R t x) walkAt (n - k) k n
+  match x.toList[fd - 1]? with
+  | none => .dropped
+  | some c =>
+    let s1 := walkAt (fd - 1)
+    let sprime := prefixOf x (fd - 1)
+    match edges s1 c with
+    | none => .dropped
+    | some (s2, y) =>
+      if s2 ≠ walkAt fd then .dropped
+      else
+      match t.sift R.cut sprime with
+      | .inr b => .stopped b
+      | .inl p =>
+        if p ≠ s1 ∨ t.sift R.cut y ≠ .inl s1 then .dropped
+        else
+        match t.parting R.cut y sprime (FreeMonoid.of c) with
+        | none => .dropped
+        | some (.inr b) => .stopped b
+        | some (.inl d) =>
+          match verdict K R t pool s1 d (t.paths.length * Fintype.card α) with
+          | .split => .split d s1 y sprime
+          | _ => .member s1 sprime
+
+/-- What the pass carries: the tree, the population, the learned edges, and the probes since the
+last split or evidence weighed. -/
+structure KState (α : Type*) where
+  tree : DTree α
+  pool : List (FreeMonoid α)
+  edges : Edges α
+  streak : ℕ
+
+/-- Every edge re-voted, as after every probe. -/
+noncomputable def closeK (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α)
+    (streak : ℕ) : KState α :=
+  ⟨t, pool, closeEdges K R t pool edges, streak⟩
+
+/-- One probe of the counterexample pass. -/
+noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KState α :=
+  let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1)
+  match kCheck R s.tree s.edges k x with
+  | .disagree ps =>
+    match seedStep K R s.tree s.pool s.edges k x ps with
+    | .split d s1 y sprime =>
+      let cleared : Edges α := fun p c' =>
+        match s.edges p c' with
+        | some (q, w) => if p = s1 ∨ q = s1 then none else some (q, w)
+        | none => none
+      closeK K R (s.tree.splitAt d s1) (s.pool ++ ([y, sprime].filter (· ∉ s.pool))) cleared 0
+    | .member _ sprime => closeK K R s.tree (sprime :: s.pool.filter (· ≠ sprime)) s.edges 0
+    | _ => quiet
+  | _ => quiet
+
+/-- The pass: probes in order until `patience` in a row are quiet. -/
+noncomputable def runPassK (k : ℕ) (s : KState α) (probes : List (FreeMonoid α)) : KState α :=
+  probes.foldl (fun s x => if K.patience ≤ s.streak then s else probeStepK K R k s x) s
+
+/-- The first state: the root reads at `ε`, the population is the table's prefixes, and the
+edges are voted once. -/
+noncomputable def initialK (seed : List (FreeMonoid α)) : KState α :=
+  closeK K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0
+
+/-- The walk is blocked: it does not reach the end. -/
+def KWalk.isBlocked : KWalk α → Prop
+  | .reached _ => False
+  | _ => True
+
+/-- The probe is blocked. -/
+def KCheck.isBlocked : KCheck α → Prop
+  | .blocked _ => True
+  | _ => False
+
+/-- The probe disagrees, decided. -/
+def KCheck.isDisagreement : KCheck α → Prop
+  | .disagree _ => True
+  | _ => False
+
+/-- The walk reached an unlearned edge through a wrong earlier one: the prefix through the edge
+is placed, and the prefix before it is placed at some other leaf. -/
+def wrongEarlier (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) : Prop :=
+  ∃ s c j p, kWalk R t edges k x = .edge s c j ∧ (t.sift R.cut (prefixOf x (j + 1))).isLeft
+    ∧ t.sift R.cut (prefixOf x j) = .inl p ∧ p ≠ s
+
+open scoped Classical in
+/-- The share of a batch satisfying `P`. -/
+noncomputable def share {n : ℕ} (b : Fin n → FreeMonoid α) (P : FreeMonoid α → Prop) : ℝ :=
+  ((Finset.univ.filter fun i => P (b i)).card : ℝ) / n
+
+open scoped Classical in
+/-- What a round's decisions claim, the walk check on batch `bw` against the first hypothesis and
+the gate on batch `bg` against the frozen one:
+* a walk source: the walk is blocked on at least `θw − δ` of draws;
+* else a boundary source: the check is blocked on at least `θc − δ` of draws;
+* else a pass: the check disagrees on at most `ε + δ` of draws;
+* else a refusal: every probe of the batch that disagrees, run again, splits a leaf, adds a
+  member, or stops at a string the cut cannot place. -/
+def RoundAtKHolds (t₀ : DTree α) (e₀ : Edges α) (s : KState α) (D : Measure (FreeMonoid α))
+    (k : ℕ) (θw θc ε δ : ℝ) {nw ng : ℕ} (bw : Fin nw → FreeMonoid α)
+    (bg : Fin ng → FreeMonoid α) : Prop :=
+  if θw < share bw (fun x => (kWalk R t₀ e₀ k x).isBlocked) then
+    θw - δ ≤ D.real {x | (kWalk R t₀ e₀ k x).isBlocked}
+  else if θc < share bg (fun x => (kCheck R s.tree s.edges k x).isBlocked) then
+    θc - δ ≤ D.real {x | (kCheck R s.tree s.edges k x).isBlocked}
+  else if share bg (fun x => (kCheck R s.tree s.edges k x).isDisagreement) ≤ ε then
+    D.real {x | (kCheck R s.tree s.edges k x).isDisagreement} ≤ ε + δ
+  else
+    ∀ i ps, kCheck R s.tree s.edges k (bg i) = .disagree ps →
+      seedStep K R s.tree s.pool s.edges k (bg i) ps ≠ .dropped
+
+/-- `RoundAtK`: for any reads of the round's family, whatever probes the pass draws, the round's
+decision is right but for Hoeffding's tails over its two batches. -/
+def RoundAtK : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (K : StageKnobs α) (R : CutReads α)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k nw ng : ℕ)
+    (seed probes : List (FreeMonoid α)) (θw θc ε δ : ℝ), 0 ≤ δ →
+    let s₀ := initialK K R seed
+    let s := runPassK K R k s₀ probes
+    ((Measure.pi fun _ : Fin nw => D).prod (Measure.pi fun _ : Fin ng => D)).real
+      {b | ¬ RoundAtKHolds K R s₀.tree s₀.edges s D k θw θc ε δ b.1 b.2}
+      ≤ Real.exp (-2 * nw * δ ^ 2) + 2 * Real.exp (-2 * ng * δ ^ 2)
+
+/-- `WalkYield`: the walk source outputs a string on exactly the blocked draws that did not reach
+their unlearned edge through a wrong earlier one. -/
+def WalkYield : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (D : Measure (FreeMonoid α))
+    [IsFiniteMeasure D] (t : DTree α) (edges : Edges α) (k : ℕ),
+    D.real {x | (walkOutput R t edges k x).isSome}
+      = D.real {x | (kWalk R t edges k x).isBlocked} - D.real {x | wrongEarlier R t edges k x}
+
+/-- `SourceSpread`: every draw a source outputs `t` on begins with `t`'s first `k` letters, so no
+string takes more of a source than the draws with one prefix of length `k`. -/
+def SourceSpread : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] (R : CutReads α) (D : Measure (FreeMonoid α))
+    [IsFiniteMeasure D] (t : DTree α) (edges : Edges α) (k L : ℕ) (u : FreeMonoid α),
+    k ≤ L → (∀ᵐ x ∂D, x.toList.length = L) →
+    D.real {x | walkOutput R t edges k x = some u ∨ kCheck R t edges k x = .blocked (some u)}
+      ≤ D.real {x | u.toList.take k <+: x.toList}
+
+end OrthoDFA
