@@ -18,10 +18,12 @@ from .suffix_groups import nearest_to_anchor_group
 def identify_cluster_around(
     pst, seed: int, count: int, decision_boundary: float
 ) -> Tuple[List[int], float]:
-    """Seed, then the first count - 1 of the rest of the pool in
-    nearest_to_anchor_group's order, anchored on seed's reads.  Sets
-    ``pst.suffix_group``: seed and the anchor group's rows in that order, which
-    may run past the family."""
+    """The first count of the rest of the pool in nearest_to_anchor_group's
+    order, anchored on seed's reads.  The seed anchors but does not vote: with
+    the empty seed voting, reading z at a midfix m would read the very string
+    the read of z·m reads at the root, so node reads would share noise.  Sets
+    ``pst.suffix_group``: the anchor group's rows in that order, which may run
+    past the family."""
     # Restrict to representative prefix columns: the suffix family and the
     # decision boundary are global calibration, and a caller that has re-scoped
     # them means that scope to be what calibration reads.
@@ -32,8 +34,8 @@ def identify_cluster_around(
     seed_local = pst.suffix_pool.index(seed)
     signal = pst.config.min_signal_strength
     others = np.flatnonzero(np.arange(len(reads)) != seed_local)
-    cluster = [seed_local]
-    pst.suffix_group = [seed]
+    cluster = []
+    pst.suffix_group = []
     if len(others):
         order, members = nearest_to_anchor_group(
             reads[others],
@@ -47,8 +49,10 @@ def identify_cluster_around(
             alpha=pst.config.screening_alpha,
             rng=pst.rng,
         )
-        cluster += others[order[: count - 1]].tolist()
-        pst.suffix_group = candidate[[seed_local, *others[order[:members]]]].tolist()
+        cluster += others[order[:count]].tolist()
+        pst.suffix_group = candidate[others[order[:members]]].tolist()
+    if not cluster:
+        return [], decision_boundary
 
     # Estimate decision boundary from the prefix separation
     prefix_means = reads[cluster].mean(0)
