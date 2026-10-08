@@ -382,3 +382,36 @@ gate measures:
 settled. `seqAbove` instead takes each test's first settled side. The claims survive any stopping
 rule, since a settled side at the stop is a settled side at some look, and the union over looks
 already pays `ng·a`. The Lean definition should still follow the joint rule.
+
+## Planned: the best-start gate (waiting on Python)
+
+**Agreement.** Sift `x` once and score each start `q` by whether the DFA from `q` accepts `x`
+as the tree's label does.
+- Each start gets its own sequential test at the doubling looks. With a Bonferroni split over `|Q|`,
+  each test costs `|Q|·(looks)·a` in failure chance.
+- Passing at `q̂` gives `D(DFA from q̂ misjudges) ≤ 1 − acc + δ`. That is `StartExists`'s `η`, so
+  the gate and the export measure the same thing.
+- Refusing gives the same error `≥ 1 − acc − δ` for every `q`.
+- The selection term is the union over `q`. It needs the stopping rule for several tests, which
+  Python has not fixed yet.
+
+**Processing only disagreeing draws.**
+- `probeOutcome` runs only where `q̂` disagrees, so each per-outcome mass becomes the mass of that
+  outcome *and* gate disagreement.
+- The pair test's trials are the searched draws among those, and its proof is unchanged.
+- The triple bound reads `D(disagree ∧ triple, well-read) ≤ uGood·depth·E[visits·1(disagree)]`,
+  with the same fresh-read core.
+
+**Ends from the pass's quiet window.** The start half is read from the last `patience` probes.
+- That window ends the pass because all its probes are quiet, and a start-undecided probe is
+  always quiet. Given a fixed tree and edges, the window's draws are independent draws from
+  `D | quiet`. The first run of quiet probes depends only on which probes are quiet.
+- So the start rate it measures is `D(SU)/D(quiet) ≥ D(SU)`.
+  - Firing gives `D(SU) ≥ (θ − δ)·D(quiet)`.
+  - Not firing gives `D(SU) ≤ D(SU)/D(quiet) ≤ θ + δ`, which errs in the safe direction.
+- Members added inside the window re-vote edges. That changes `D(quiet)` from probe to probe, so
+  the firing claim takes the smallest `D(quiet)` over the window.
+- `δ` here comes from `patience` samples, not `ng`.
+- This needs the pass's probes to be random draws from `D`. Today the model takes any probes.
+
+**Certificate** tests only `q̂`; no change to the Lean, since the certificate is not modelled.
