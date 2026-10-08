@@ -145,6 +145,34 @@ class TestALinkReadsRowsNoEarlierLinkRead(unittest.TestCase):
         self.assertIsNone(self._rows([0, 1, 2, 3], vs=[0, 1, 2], used={1, 2}))
 
 
+class TestOneDrawServesEveryEdgeOutOfASource(unittest.TestCase):
+    def test_each_draw_is_read_by_every_open_test(self):
+        source = _Counting()
+        seen = {b"a": [], b"b": []}
+
+        def measure(letter):
+            def read(drawn):
+                seen[letter].append(drawn)
+                return False, 1, []
+
+            return read
+
+        tests = [
+            ec.EdgeTest(
+                measure(letter),
+                promote_above=0.5,
+                keep_above=0.1,
+                failure_prob=0.01,
+                cap=20,
+            )
+            for letter in (b"a", b"b")
+        ]
+        ec.judge_edges(source, tests)
+
+        self.assertEqual(seen[b"a"], seen[b"b"])
+        self.assertTrue(all(test.verdict == DROP for test in tests))
+
+
 class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
     def _verdict(self, undecided, reads):
         return edge_verdict(

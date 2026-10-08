@@ -34,9 +34,11 @@ from .edge_chains import (
     ROLL_OVER,
     UNDECIDED_EDGE,
     EdgeChain,
+    EdgeTest,
     fresh_sifter,
-    judge_edge,
+    judge_edges,
     midpoint_disagreement,
+    separating_reads,
     undecided_measure,
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
@@ -179,58 +181,82 @@ def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
     roots = [state.sources[label] for label in state.held if label[0] == "state"]
     roots.append(PrefixSource(pst))
     letters = [bytes([c]) for c in range(pst.alphabet_size)]
-    candidates = [
-        (root, letter, kind, None)
-        for root in roots
-        for letter in letters
-        for kind in (UNDECIDED_EDGE, DISAGREEMENT_EDGE)
-    ] + [(chain, chain.letter, chain.kind, chain) for chain in state.chains]
-    failure_prob = EDGE_MISJUDGE / max(len(candidates), 1)
+    chains, state.chains = state.chains, []
+    failure_prob = EDGE_MISJUDGE / max(2 * len(roots) * len(letters) + len(chains), 1)
     boundary = pst.decision_boundary
-    state.chains = []
-    for source, letter, kind, chain in candidates:
-        used = frozenset()
-        if kind == DISAGREEMENT_EDGE:
-            measure = midpoint_disagreement(
+    undecided_promote = EDGE_FACTOR * pst.acceptable_fnr
+
+    def disagreement_test(letter, keep_rate):
+        return EdgeTest(
+            midpoint_disagreement(
                 resolver.family, resolver.tree, dfa.transitions, boundary, letter
-            )
-            promote_above = _MIN_DETECTABLE_SPLIT
-            keep_above = EDGE_RISE * (CLEAN_FLIP if chain is None else chain.rate)
-        else:
-            promote_above = EDGE_FACTOR * pst.acceptable_fnr
-            if chain is None:
-                sifter, used = resolver.sifter, frozenset(resolver.family.vs)
-                keep_above = EDGE_RISE * clean
-            else:
-                fresh = fresh_sifter(pst, resolver.tree, resolver.family.vs, chain.used)
-                if fresh is None:
-                    state.chains.append(chain)
-                    continue
-                sifter, used = fresh[0], fresh[1] | chain.used
-                keep_above = EDGE_RISE * chain.rate
-            measure = undecided_measure(sifter, letter)
-        verdict, found, rate = judge_edge(
-            source,
-            measure,
-            promote_above=promote_above,
-            keep_above=keep_above,
+            ),
+            promote_above=_MIN_DETECTABLE_SPLIT,
+            keep_above=EDGE_RISE * keep_rate,
             failure_prob=failure_prob,
+            cap=separating_reads(
+                EDGE_RISE * keep_rate, _MIN_DETECTABLE_SPLIT, failure_prob
+            ),
         )
-        if verdict == ROLL_OVER:
+
+    def undecided_test(sifter, letter, keep_rate):
+        return EdgeTest(
+            undecided_measure(sifter, letter),
+            promote_above=undecided_promote,
+            keep_above=EDGE_RISE * keep_rate,
+            failure_prob=failure_prob,
+            cap=separating_reads(
+                EDGE_RISE * keep_rate, undecided_promote, failure_prob
+            ),
+        )
+
+    # (source, letter, kind, sifter, used, test) for every edge judged
+    judged = []
+    for root in roots:
+        tests = []
+        for letter in letters:
+            test = undecided_test(resolver.sifter, letter, clean)
+            used = frozenset(resolver.family.vs)
+            judged.append((root, letter, UNDECIDED_EDGE, resolver.sifter, used, test))
+            tests.append(test)
+            test = disagreement_test(letter, CLEAN_FLIP)
+            judged.append((root, letter, DISAGREEMENT_EDGE, None, frozenset(), test))
+            tests.append(test)
+        judge_edges(root, tests)
+    for chain in chains:
+        if chain.kind == DISAGREEMENT_EDGE:
+            test = disagreement_test(chain.letter, chain.rate)
+            sifter, used = None, frozenset()
+        else:
+            fresh = fresh_sifter(pst, resolver.tree, resolver.family.vs, chain.used)
+            if fresh is None:
+                state.chains.append(chain)
+                continue
+            sifter, used = fresh[0], fresh[1] | chain.used
+            test = undecided_test(sifter, chain.letter, chain.rate)
+        judge_edges(chain, [test])
+        judged.append((chain, chain.letter, chain.kind, sifter, used, test))
+
+    for source, letter, kind, sifter, used, test in judged:
+        if test.verdict == ROLL_OVER:
             state.chains.append(
-                EdgeChain(source, letter, measure, kind=kind, used=used, rate=rate)
+                EdgeChain(
+                    source, letter, test.measure, kind=kind, used=used, rate=test.rate
+                )
             )
-        elif verdict == PROMOTE and kind == DISAGREEMENT_EDGE:
+        elif test.verdict == PROMOTE and kind == DISAGREEMENT_EDGE:
             # The draws, not their extensions: the split test reads members of
             # the leaf that exhibit the disagreement.
             state.add_edge(
-                found,
-                EdgeChain(source, letter, measure, kind=kind, used=used, rate=rate),
+                test.found,
+                EdgeChain(
+                    source, letter, test.measure, kind=kind, used=used, rate=test.rate
+                ),
             )
-        elif verdict == PROMOTE:
+        elif test.verdict == PROMOTE:
             replay = provenance(Read(source, letter), sifter, dfa.transitions, pst.rng)
             state.add_edge(
-                found,
+                test.found,
                 HarvestSource(
                     Counter({replay: 1}),
                     pst.rng,

@@ -12,7 +12,7 @@ keyed by the string and a clean survivor would otherwise survive every link.
 """
 
 from math import ceil, log
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 from .cluster import read_rates, readable_size_and_margin, smallest_readable_family
 from .rejection_source import RejectionSource, SourceDry, proving_attempts
@@ -106,42 +106,59 @@ def midpoint_disagreement(family, tree, transitions, boundary, letter):
     return measure
 
 
-def judge_edge(
-    source, measure, *, promote_above, keep_above, failure_prob
-) -> Tuple[str, List[bytes], float]:
-    """Replay draws of ``source`` through ``measure`` until `edge_verdict` settles,
-    or until `separating_reads` have been made: the verdict, what the replays
-    found, and the hit rate per unit ``measure`` weighs a replay at."""
-    cap = separating_reads(keep_above, promote_above, failure_prob)
-    found, hits, weight = [], 0, 0
-    while weight < cap:
+class EdgeTest:
+    """One edge's running tally against its two rates, settled by `edge_verdict`
+    or at ``cap`` units of what ``measure`` weighs a replay at."""
+
+    def __init__(self, measure, *, promote_above, keep_above, failure_prob, cap):
+        self.measure = measure
+        self.promote_above = promote_above
+        self.keep_above = keep_above
+        self.failure_prob = failure_prob
+        self.cap = cap
+        self.hits = 0
+        self.weight = 0
+        self.found = []
+        self.verdict = None
+
+    @property
+    def rate(self) -> float:
+        return self.hits / max(self.weight, 1)
+
+    def record(self, drawn) -> None:
+        hit, cost, got = self.measure(drawn)
+        self.hits += hit
+        self.weight += cost
+        self.found += got
+        self.settle(final=self.weight >= self.cap)
+
+    def settle(self, *, final) -> None:
+        self.verdict = edge_verdict(
+            self.hits,
+            self.weight,
+            promote_above=self.promote_above,
+            keep_above=self.keep_above,
+            failure_prob=self.failure_prob,
+            final=final,
+        )
+
+
+def judge_edges(source, tests) -> None:
+    """Replay draws of ``source`` until every test of ``tests`` has a verdict,
+    each draw read by every test still open: one draw serves every letter and
+    kind of edge out of the source."""
+    while True:
+        open_tests = [test for test in tests if test.verdict is None]
+        if not open_tests:
+            return
         try:
             drawn = source.draw()
         except SourceDry:
-            break
-        hit, cost, got = measure(drawn)
-        hits += hit
-        weight += cost
-        found += got
-        verdict = edge_verdict(
-            hits,
-            weight,
-            promote_above=promote_above,
-            keep_above=keep_above,
-            failure_prob=failure_prob,
-            final=weight >= cap,
-        )
-        if verdict is not None:
-            return verdict, found, hits / weight
-    verdict = edge_verdict(
-        hits,
-        weight,
-        promote_above=promote_above,
-        keep_above=keep_above,
-        failure_prob=failure_prob,
-        final=True,
-    )
-    return verdict, found, hits / max(weight, 1)
+            for test in open_tests:
+                test.settle(final=True)
+            return
+        for test in open_tests:
+            test.record(drawn)
 
 
 def fresh_sifter(pst, tree, vs, used) -> Optional[Tuple[Sifter, frozenset]]:
