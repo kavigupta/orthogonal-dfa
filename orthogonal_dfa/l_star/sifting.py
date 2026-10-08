@@ -95,13 +95,13 @@ def first_disagreeing_edge(probe, states, sift, lo, hi):
 Block = namedtuple("Block", "at found undecided")
 
 
-def walk(probe, sift, transitions, k, *, whole):
+def walk(probe, sift, transitions, k):
     """``(states, block, end)``.  ``states[i]`` is the state the learned
     ``transitions`` reach after ``probe[:i]`` from where ``sift`` places
     ``probe[:k]``, ``None`` below ``k``, as far as the walk got; ``block`` is what
     stopped it, or ``None``; ``end`` is where ``sift`` places the prefix the walk
-    ended on, read where ``whole`` and nothing blocked, or where an open edge
-    stopped the walk at a prefix that sifts to another state than the walk's.
+    ended on: the whole probe where nothing blocked, or the prefix before an open
+    edge that sifts to another state than the walk's.
     ``sift`` answers as :meth:`Sifter.sift_and_boundary` does."""
     states = [None] * k
     anchor = sift(probe[:k])[0]
@@ -113,8 +113,6 @@ def walk(probe, sift, transitions, k, *, whole):
         if target is None:
             return (states, *_edge_block(probe, sift, states[-1], j))
         states.append(target)
-    if not whole:
-        return states, None, None
     end, boundary = sift(probe)
     if end is None:
         return states, Block(len(probe), boundary, True), None

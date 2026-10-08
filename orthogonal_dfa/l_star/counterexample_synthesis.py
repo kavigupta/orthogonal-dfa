@@ -15,8 +15,8 @@ in the next round.
 import math
 import time
 import warnings
-from collections import deque
 from dataclasses import dataclass
+from functools import partial
 from typing import List, Optional
 
 import numpy as np
@@ -130,42 +130,36 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _read_round(resolver, *, patience, acc_threshold):
-    """The walk check on the round's first hypothesis; unless it blocks, the pass;
-    then the gate on the hypothesis the round ends with.  A refusal goes back to
-    the pass with the gate's decided disagreements as its first probes and is
+    """The pass, then the gate on the hypothesis it leaves.  A refusal goes back
+    to the pass with the gate's decided disagreements as its first probes and is
     gated again, until a gate passes, a pass so continued splits nothing, or the
     round's probes run out."""
-    walk = resolver.read_fresh(whole=False, acc_threshold=acc_threshold)
-    if walk.blocks:
-        resolver.recent = deque(walk.draws, maxlen=patience)
-        return walk, resolver.read_fresh(whole=True, acc_threshold=acc_threshold)
     first, probes = [], COUNTEREXAMPLE_PROBES
     while True:
         states = resolver.num_states
         probes -= resolver.counterexample_pass(
             max_probes=probes, patience=patience, first=first
         )
-        gate = resolver.read_fresh(whole=True, acc_threshold=acc_threshold)
+        gate = resolver.read_fresh(acc_threshold=acc_threshold)
         if gate.agreement >= acc_threshold or not gate.disagreements or probes <= 0:
-            return walk, gate
+            return gate
         if first and resolver.num_states == states:
-            return walk, gate
+            return gate
         first = gate.disagreements
 
 
-def _hold_blocked(resolver, walk, gate, state, *, acc_threshold) -> None:
-    """Hold what each blocked reading left, and beside the gate's what the pass's
-    split attempts could not place, as populations grown by replaying it."""
-    for kind, reading, dropped in (
-        ("walk", walk, {}),
-        ("check", gate, resolver.dropped),
-    ):
-        found = {**dict.fromkeys(reading.found if reading.blocks else ()), **dropped}
-        if found:
-            source = HarvestSource(
-                reading.replay, known=state.seen, acc_threshold=acc_threshold
-            )
-            state.hold_found(kind, found, source)
+def _hold_blocked(resolver, gate, state, *, acc_threshold) -> None:
+    """Hold what the gate's blocked draws left where they block the round, and
+    what the pass's split attempts could not place, as a population grown by
+    replaying the gate's reading."""
+    found = {**dict.fromkeys(gate.found if gate.blocks else ()), **resolver.dropped}
+    if found:
+        source = HarvestSource(
+            partial(resolver.replay, gate.learned),
+            known=state.seen,
+            acc_threshold=acc_threshold,
+        )
+        state.hold_found("check", found, source)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -333,9 +327,7 @@ def counterexample_driven_synthesis(
         sampled = time.monotonic()
         resolver = TransitionResolver(pst, vs)
         resolver.close_edges()
-        walk, gate = _read_round(
-            resolver, patience=patience, acc_threshold=acc_threshold
-        )
+        gate = _read_round(resolver, patience=patience, acc_threshold=acc_threshold)
         true_acc = gate.agreement
         dfa, dt = resolver.to_dfa_and_tree()
         print(
@@ -367,10 +359,10 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if walk.blocks or gate.blocks:
+        if gate.blocks:
             pst.fnr_limit /= 2
             print(f"[round {index}] blocked; FNR limit now {pst.fnr_limit:.4f}")
-        _hold_blocked(resolver, walk, gate, state, acc_threshold=acc_threshold)
+        _hold_blocked(resolver, gate, state, acc_threshold=acc_threshold)
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)

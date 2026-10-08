@@ -121,10 +121,10 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
         self.assertEqual({b"stuck": None}, learner.dropped)
 
 
-def _read(places, draws, *, whole, middle=7, acc_threshold=0.9):
+def _read(places, draws, *, middle=7, acc_threshold=0.9):
     learner = _Learner(_StubSifter(places, middle=middle), _EVERYWHERE, 2)
     learner.draws = iter(draws * 2000)
-    return learner.read_fresh(whole=whole, acc_threshold=acc_threshold)
+    return learner.read_fresh(acc_threshold=acc_threshold)
 
 
 #: Places every string but the whole probe at 7.
@@ -134,14 +134,14 @@ _ALL_BUT_PROBE = lambda seq: None if seq == _PROBE else 7
 class TestReadingFreshDraws(unittest.TestCase):
     def test_draws_blocking_at_more_than_the_limits_share_of_reads_block(self):
         # Every other draw blocks over two reads each: a quarter of the reads.
-        reading = _read(_ALL_BUT_PROBE, [_PROBE, _PROBE[:3]], whole=True)
+        reading = _read(_ALL_BUT_PROBE, [_PROBE, _PROBE[:3]])
 
         self.assertTrue(reading.blocks)
         self.assertEqual([_PROBE + b"?"], reading.found)
 
     def test_a_blocked_draw_is_read_at_the_middle_for_the_agreement(self):
         for middle, agreement in ((7, 1.0), (8, 0.0)):
-            reading = _read(_ALL_BUT_PROBE, [_PROBE], whole=True, middle=middle)
+            reading = _read(_ALL_BUT_PROBE, [_PROBE], middle=middle)
             self.assertEqual(agreement, reading.agreement)
             self.assertEqual([], reading.disagreements)
 
@@ -156,21 +156,15 @@ class TestReadingFreshDraws(unittest.TestCase):
                 fnr_limit=0.3,
             )
             learner.draws = iter(draws * 1000)
-            reading = learner.read_fresh(whole=True, acc_threshold=0.9)
+            reading = learner.read_fresh(acc_threshold=0.9)
             self.assertEqual(blocks, reading.blocks)
-
-    def test_the_walk_check_does_not_sift_the_whole_draw(self):
-        reading = _read(_ALL_BUT_PROBE, [_PROBE], whole=False)
-
-        self.assertFalse(reading.blocks)
-        self.assertEqual([], reading.found)
 
     def test_an_open_edge_disagrees(self):
         places = lambda seq: 8 if seq == _PROBE[:3] else 7
         learner = _Learner(_StubSifter(places), _OPEN_AT_8, 2)
         learner.draws = iter([_PROBE] * 2000)
 
-        reading = learner.read_fresh(whole=True, acc_threshold=0.9)
+        reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual([], reading.disagreements)
@@ -179,19 +173,19 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner = _Learner(_StubSifter(lambda seq: 7), _OPEN_AT_8, 1)
         learner.draws = iter([_PROBE] * 2000)
 
-        reading = learner.read_fresh(whole=True, acc_threshold=0.9)
+        reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual(_PROBE, reading.disagreements[0])
         self.assertFalse(reading.blocks)
 
     def test_a_decided_disagreement_is_kept_for_the_pass(self):
-        reading = _read(lambda seq: 8 if len(seq) == 4 else 7, [_PROBE], whole=True)
+        reading = _read(lambda seq: 8 if len(seq) == 4 else 7, [_PROBE])
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
 
     def test_a_clean_gate_reads_until_both_its_tests_settle(self):
-        reading = _read(lambda seq: 7, [_PROBE], whole=True, acc_threshold=0.5)
+        reading = _read(lambda seq: 7, [_PROBE], acc_threshold=0.5)
 
         # Two clean reads a draw settle the block test below 0.1 at the 66th
         # read, since 0.9 ** 66 < 1e-3 < 0.9 ** 65, after the agreement's 30
@@ -200,21 +194,11 @@ class TestReadingFreshDraws(unittest.TestCase):
         self.assertFalse(reading.blocks)
         self.assertEqual(1.0, reading.agreement)
 
-    def test_the_walk_check_stops_once_its_block_test_settles(self):
-        reading = _read(lambda seq: None, [_PROBE], whole=False)
-
-        # One blocked read a draw settles above 0.1 at the fourth.
-        self.assertEqual(4, len(reading.draws))
-        self.assertTrue(reading.blocks)
-        self.assertEqual([_PROBE[:2]], reading.found)
-
     def test_a_replay_reads_a_fresh_draw_for_what_it_leaves(self):
         learner = _Learner(_StubSifter(lambda seq: None), _EVERYWHERE, 2)
-        learner.draws = iter([_PROBE] * 4)
-        reading = learner.read_fresh(whole=False, acc_threshold=0.9)
+        learner.draws = iter([_PROBE])
 
-        learner.draws = iter([_PROBE[::-1]])
-        self.assertEqual([_PROBE[::-1][:2]], reading.replay())
+        self.assertEqual([_PROBE[:2]], learner.replay(_EVERYWHERE))
 
 
 class TestTheExportedStart(unittest.TestCase):

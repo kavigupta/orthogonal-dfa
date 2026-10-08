@@ -54,9 +54,8 @@ READING_FAILURE_PROB = 1e-3
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): whether
 #: they blocked the round, the share of them the hypothesis agrees on, what the
 #: blocked ones left, the ones whose walk and sift disagree decidedly, every
-#: draw, and a callable reading one more fresh draw the same way for what it
-#: leaves.
-Reading = namedtuple("Reading", "blocks agreement found disagreements draws replay")
+#: draw, and the learned edges they were read against.
+Reading = namedtuple("Reading", "blocks agreement found disagreements draws learned")
 
 
 def start_length(length: int) -> int:
@@ -141,18 +140,17 @@ class TransitionResolver:
 
     # -- reading fresh draws -------------------------------------------------
 
-    def read_fresh(self, *, whole, acc_threshold) -> Reading:
-        """Read fresh draws against the hypothesis as it stands, walking each from
-        ``k`` and, where ``whole``, sifting it whole too.
+    def read_fresh(self, *, acc_threshold) -> Reading:
+        """Read fresh draws against the hypothesis as it stands, walking each
+        from ``k`` and sifting it whole.
 
         A blocked draw counts once against the node reads it made, and the
         draws block the round where they come to more than ``fnr_limit`` of the
         reads: as many as a family undecided at the limit could leave, or where
-        the agreement falls short with no decided disagreement among them.  Where
-        ``whole``, a draw agrees where the learned edges, from where the middle of
-        the band places its start, take it where the middle places it whole; an
-        open edge on the way disagrees.  Reading stops once each test it makes settles,
-        or the block test settles where it is all there is."""
+        the agreement falls short with no decided disagreement among them.  A
+        draw agrees where the learned edges, from where the middle of the band
+        places its start, take it where the middle places it whole; an open edge
+        on the way disagrees.  Reading stops once both tests settle."""
         learned = self.learned()
         fnr_limit = self.pst.fnr_limit
         blocked = reads = agreed = 0
@@ -162,39 +160,31 @@ class TransitionResolver:
             w = self._draw()
             draws.append(w)
             before = self.sifter.reads
-            states, block, end = walk(
-                w, self.sifter.sift_and_boundary, learned, self.k, whole=whole
-            )
+            states, block, end = walk(w, self.sifter.sift_and_boundary, learned, self.k)
             reads += self.sifter.reads - before
             if block is not None:
                 blocked += 1
                 found[block.found] = None
-            elif end is not None and end != states[-1]:
+            elif end != states[-1]:
                 disagreements.append(w)
+            agreed += self._ends_at_middle(w, learned)
             blocks = binomial_side_of_boundary(
                 blocked, reads, fnr_limit, failure_prob=READING_FAILURE_PROB
             )
-            if whole:
-                agreed += self._ends_at_middle(w, learned)
             # As the gate always has, before an early run of agreements can stop it.
-            if whole and len(draws) >= 30:
+            if len(draws) >= 30:
                 agrees = binomial_side_of_boundary(
                     agreed, len(draws), acc_threshold, failure_prob=READING_FAILURE_PROB
                 )
-            if blocks is not None and (not whole or agrees is not None):
+            if blocks is not None and agrees is not None:
                 break
         if blocks is None:
             blocks = blocked > fnr_limit * reads
         # A refusal with no decided disagreement for the pass to rerun.
-        if whole and agreed < acc_threshold * len(draws) and not disagreements:
+        if agreed < acc_threshold * len(draws) and not disagreements:
             blocks = True
         return Reading(
-            blocks,
-            agreed / len(draws),
-            list(found),
-            disagreements,
-            draws,
-            self._replay(learned, whole),
+            blocks, agreed / len(draws), list(found), disagreements, draws, learned
         )
 
     def _ends_at_middle(self, w, learned) -> bool:
@@ -205,18 +195,11 @@ class TransitionResolver:
                 return False
         return state == self.sifter.halfway(w)
 
-    def _replay(self, learned, whole):
-        def replay():
-            _, block, _ = walk(
-                self._draw(),
-                self.sifter.sift_and_boundary,
-                learned,
-                self.k,
-                whole=whole,
-            )
-            return [] if block is None else [block.found]
-
-        return replay
+    def replay(self, learned):
+        """Read a fresh draw against the ``learned`` edges as ``read_fresh``
+        does, for what it leaves where it blocks."""
+        _, block, _ = walk(self._draw(), self.sifter.sift_and_boundary, learned, self.k)
+        return [] if block is None else [block.found]
 
     # -- counterexamples ----------------------------------------------------
 
@@ -253,7 +236,7 @@ class TransitionResolver:
     def _check(self, w) -> bool:
         """Whether the probe split a leaf or asks for more of its members."""
         states, block, end = walk(
-            w, self.sifter.sift_and_boundary, self.dfa.transitions, self.k, whole=True
+            w, self.sifter.sift_and_boundary, self.dfa.transitions, self.k
         )
         if block is not None:
             if not block.undecided:

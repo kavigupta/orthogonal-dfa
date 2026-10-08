@@ -24,21 +24,14 @@ def _sift(places):
     return sift
 
 
-def _walk(places, transitions, k, *, whole=True):
-    return walk(_PROBE, _sift(places), transitions, k, whole=whole)
+def _walk(places, transitions, k):
+    return walk(_PROBE, _sift(places), transitions, k)
 
 
 class TestWalkingFromTheStart(unittest.TestCase):
     def test_it_follows_the_learned_edges_and_sifts_the_whole_probe(self):
         self.assertEqual(
             ([None, None, 0, 1, 1], None, 0), _walk(lambda seq: 0, _STEPS_TO_ONE, 2)
-        )
-
-    def test_a_walk_alone_does_not_sift_the_whole_probe(self):
-        places = lambda seq: None if seq == _PROBE else 0
-        self.assertEqual(
-            ([None, None, 0, 1, 1], None, None),
-            _walk(places, _STEPS_TO_ONE, 2, whole=False),
         )
 
     def test_a_start_the_cut_cannot_place_is_left(self):
