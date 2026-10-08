@@ -105,3 +105,39 @@ class TestProcessAnchor(unittest.TestCase):
         self.assertIsNone(learner.acted)
         # It tried every prefix before giving up, rather than only the empty one.
         self.assertEqual(sifter.asked, [(), (0,), (0, 1)])
+
+
+class _BlockedSearch(TransitionResolver):
+    """Walks stay at 7 while the tree moves four-symbol strings to 8 and cannot
+    place two-symbol ones, which the middle of the band sends to 7."""
+
+    # pylint: disable=super-init-not-called
+    def __init__(self):
+        def sift(seq):
+            if len(seq) == 2:
+                return None, bytes(seq) + b"?"
+            return (8, None) if len(seq) == 4 else (7, None)
+
+        self.sifter = SimpleNamespace(
+            sift_and_boundary=sift, halfway=lambda seq: (7, [bytes(seq) + b"?"])
+        )
+        self.indecisive = {}
+        self._walked = Read(None, None)
+        # No edge out of 7 is held, so the search's edge goes no further.
+        self.dfa = SimpleNamespace(target=lambda s, c: None)
+
+
+class TestABlockedSearchFinishesAtTheMiddle(unittest.TestCase):
+    def test_it_lands_on_an_edge_rather_than_leaving_the_probe_unchecked(self):
+        learner = _BlockedSearch()
+
+        status = learner._act_on_disagreement(bytes([0, 1, 0, 1]), [7] * 5, 0)
+
+        self.assertEqual(_RESOLVED, status)
+
+    def test_what_it_could_not_place_is_still_harvested(self):
+        learner = _BlockedSearch()
+
+        learner._act_on_disagreement(bytes([0, 1, 0, 1]), [7] * 5, 0)
+
+        self.assertEqual({bytes([0, 1]) + b"?": learner._walked}, learner.indecisive)
