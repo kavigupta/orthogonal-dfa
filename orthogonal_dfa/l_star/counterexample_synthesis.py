@@ -30,9 +30,8 @@ from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
-from .statistics import binomial_side_of_boundary
 from .tracker import SynthesisTracker
-from .transition_resolver import READING_FAILURE_PROB, TransitionResolver, start_length
+from .transition_resolver import TransitionResolver, start_length
 
 
 @dataclass
@@ -174,26 +173,15 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
         state.hold_found("triple", gate.triples, source)
 
 
-#: The share of the gate's tolerance two adjacent undecided reads may take.
-PAIR_SHARE = 0.1
-
-
 def _halve(pst, gate, *, acc_threshold) -> bool:
-    """Halve the FNR limit where the gate's searches came down to a pair
-    significantly more often than ``PAIR_SHARE`` of its tolerance, or it refused
-    with nothing decided to rerun.  Says whether it halved."""
+    """Halve the FNR limit where the gate's refusal sample came down to a pair
+    too often, or the gate refused with nothing decided to rerun.  Says whether
+    it halved."""
     refused = gate.agreement < acc_threshold and not gate.disagreements
-    halved = refused or bool(
-        binomial_side_of_boundary(
-            gate.pairs,
-            len(gate.disagreements),
-            PAIR_SHARE * (1 - acc_threshold),
-            failure_prob=READING_FAILURE_PROB,
-        )
-    )
-    if halved:
+    if refused or gate.pairs:
         pst.fnr_limit /= 2
-    return halved
+        return True
+    return False
 
 
 def _aimed_at(pst, resolver, dfa) -> set:

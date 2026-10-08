@@ -11,7 +11,6 @@ up as a state count that also moves for unrelated reasons.
 # pylint: disable=protected-access
 
 import unittest
-from collections import deque
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.transition_resolver import TransitionResolver
@@ -129,7 +128,6 @@ def _gate(places, transitions, *, k=2, label=True):
     learner = _Learner(_StubSifter(places), transitions, k)
     learner.tree.accepting_leaves = lambda: {1}
     learner.family = SimpleNamespace(middle_side=lambda seq, midfix: label)
-    learner.window = deque()
     learner.draws = iter([_PROBE] * 4000)
     return learner
 
@@ -174,13 +172,22 @@ class TestReadingFreshDraws(unittest.TestCase):
         reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual([], reading.triples)
-        self.assertEqual(len(reading.disagreements), reading.pairs)
+        self.assertTrue(reading.pairs)
+        # The gate's 30 draws, then the refusal sample's: the pairs settle above
+        # their rate at its first look and the clean ends below theirs at its
+        # third, since 0.9 ** 60 > 1e-3 > 0.9 ** 120.
+        self.assertEqual(30 + 120, learner.drawn)
+
+    def test_a_refusal_sample_with_no_searches_to_test_reads_to_its_end(self):
+        learner = _gate(lambda seq: None if len(seq) == 2 else 0, _TO_REJECT)
+        learner.read_fresh(acc_threshold=0.9)
+
+        self.assertEqual(30 + 480, learner.drawn)
 
     def test_a_passing_gate_stops_once_the_agreement_settles_and_reads_no_ends(
         self,
     ):
         learner = _gate(lambda seq: None if seq == _PROBE else 0, _STAYS)
-        learner.window = deque([b"?"] * 149)
 
         reading = learner.read_fresh(acc_threshold=0.5)
 
@@ -194,9 +201,8 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertIn(("end", b"?"), reading.ends)
 
-    def test_a_refusing_gate_keeps_the_passs_starts_cut_short_too_often(self):
-        learner = _gate(lambda seq: 0, _TO_REJECT)
-        learner.window = deque([b"?"] * 20 + [None] * 129)
+    def test_a_refusing_gate_keeps_starts_cut_short_too_often_by_midfix(self):
+        learner = _gate(lambda seq: None if len(seq) == 2 else 0, _TO_REJECT)
 
         self.assertEqual([("start", b"?")], learner.read_fresh(acc_threshold=0.9).ends)
 
