@@ -57,8 +57,8 @@ READING_FAILURE_PROB = 1e-3
 #: that agrees on most of them and the share it agrees on, per harvested outcome
 #: the strings a refusal sample's disagreements left (see ``_harvested``),
 #: whether too many came down to a pair, the ends and midfixes the cut stopped
-#: below the root at where it did so too often, the disagreements searched, and
-#: the learned and exported edges they were read against.
+#: below the root at where it did so too often, the draws searched down to an
+#: edge, and the learned and exported edges they were read against.
 Reading = namedtuple(
     "Reading", "start agreement harvests pairs ends disagreements learned transitions"
 )
@@ -300,7 +300,7 @@ class TransitionResolver:
             },
             pairs=pairs,
             ends=[(end, m) for end, m in held if m is not None],
-            disagreements=[w for w, _ in searched],
+            disagreements=[w for w, o in searched if o.kind == EDGE],
             learned=learned,
         )
 

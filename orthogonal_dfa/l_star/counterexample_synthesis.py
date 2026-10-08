@@ -131,19 +131,16 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 def _read_round(resolver, *, patience, acc_threshold):
     """The pass, then the gate on the hypothesis it leaves.  A refusal goes back
-    to the pass with the gate's decided disagreements as its first probes and is
-    gated again, until a gate passes, a pass so continued splits nothing, or the
-    round's probes run out."""
+    to the pass with the edges its refusal sample's searches ended at as its
+    first probes, and is gated again, until a gate passes, a refusal sample ends
+    at no edge, or the round's probes run out."""
     first, probes = [], COUNTEREXAMPLE_PROBES
     while True:
-        states = resolver.num_states
         probes -= resolver.counterexample_pass(
             max_probes=probes, patience=patience, first=first
         )
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
         if gate.agreement >= acc_threshold or not gate.disagreements or probes <= 0:
-            return gate
-        if first and resolver.num_states == states:
             return gate
         first = gate.disagreements
 
@@ -176,7 +173,7 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
 
 def _halve(pst, gate, *, acc_threshold) -> bool:
     """Halve the FNR limit where the gate's refusal sample came down to a pair
-    too often, or the gate refused with nothing decided to rerun.  Says whether
+    too often, or the gate refused with no edge to rerun.  Says whether
     it halved."""
     refused = gate.agreement < acc_threshold and not gate.disagreements
     if refused or gate.pairs:
