@@ -9,7 +9,18 @@ open scoped ENNReal
 variable {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω]
 variable {μ : Measure Ω} {Q : Type*}
 
-/-- Believed true: `RoundOutcome`'s yield gives `d ≤ L · P(harvest)`, its harvest spread gives
+omit [Fintype α] [DecidableEq α] in
+theorem take_eq_iff_prefix {x t : FreeMonoid α} {i : ℕ} (hi : i ≤ t.toList.length) :
+    x.toList.take i = t.toList.take i ↔ t.toList.take i <+: x.toList := by
+  constructor
+  · intro h; rw [← h]; exact List.take_prefix _ _
+  · intro h
+    have hlen : (t.toList.take i).length = i := List.length_take_of_le hi
+    have := List.prefix_iff_eq_take.1 h
+    rw [hlen] at this
+    exact this.symm
+
+/-- `RoundOutcome`'s yield gives `d ≤ L · P(harvest)`, its harvest spread gives
 `P(t harvested) ≤ ∑ min(i+1,L)/L · D(first i letters are t's)`, and for `i ≤ |t|` that last chance
 is `L · ν(t's first i letters) ≤ L · κ · V(its state)`. -/
 theorem harvestSpread_of (A : DFA (FreeMonoid α) Q) (R : CutReads α) (H : Hypothesis α)
@@ -17,7 +28,47 @@ theorem harvestSpread_of (A : DFA (FreeMonoid α) Q) (R : CutReads α) (H : Hypo
     (hb : R.B.lo ≤ R.B.hi)
     (hκ : ∀ y, prefixWeight D L y ≤ κ * stateWeight A D L (A.state y)) :
     HarvestSpread A R H D L κ := by
-  sorry
+  intro t
+  rcases Nat.eq_zero_or_pos L with hL | hL
+  · subst hL
+    simp [anchorLaw]
+  obtain ⟨hy, hs, -⟩ := round_outcome_holds R H D L hb
+  have hLr : (0 : ℝ) < L := by exact_mod_cast hL
+  set Y := (D.prod (anchorLaw L)).real {q | (replay R H q.1 q.2).2 ≠ []}
+  set d := D.real {x | DFAandDTDisagree R H x}
+  set Pt := (D.prod (anchorLaw L)).real {q | t ∈ (replay R H q.1 q.2).2}
+  set X := κ * ∑ i ∈ Finset.range (t.toList.length + 1),
+    ((min (i + 1) L : ℕ) : ℝ) * stateWeight A D L (A.state (prefixOf t i))
+  have hterm : ∀ i ∈ Finset.range (t.toList.length + 1),
+      ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | p.toList.take i = t.toList.take i}
+        ≤ κ * (((min (i + 1) L : ℕ) : ℝ) * stateWeight A D L (A.state (prefixOf t i))) := by
+    intro i hi
+    have hi' : i ≤ t.toList.length := Nat.lt_succ_iff.1 (Finset.mem_range.1 hi)
+    have hset : {p : FreeMonoid α | p.toList.take i = t.toList.take i}
+        = {p | (prefixOf t i).toList <+: p.toList} := by
+      ext p; exact take_eq_iff_prefix hi'
+    have hν := hκ (prefixOf t i)
+    rw [prefixWeight, div_le_iff₀ hLr] at hν
+    rw [hset]
+    have hm : (0 : ℝ) ≤ ((min (i + 1) L : ℕ) : ℝ) := Nat.cast_nonneg _
+    calc ((min (i + 1) L : ℕ) : ℝ) / L * D.real {p | (prefixOf t i).toList <+: p.toList}
+        ≤ ((min (i + 1) L : ℕ) : ℝ) / L * (κ * stateWeight A D L (A.state (prefixOf t i)) * L) :=
+          mul_le_mul_of_nonneg_left hν (div_nonneg hm hLr.le)
+      _ = κ * (((min (i + 1) L : ℕ) : ℝ) * stateWeight A D L (A.state (prefixOf t i))) := by
+          field_simp
+  have hPt : Pt ≤ X := by
+    refine le_trans (hs t) ?_
+    simp only [X, Finset.mul_sum]
+    exact Finset.sum_le_sum hterm
+  have hPt0 : 0 ≤ Pt := measureReal_nonneg
+  have hd : d ≤ L * Y := by
+    have := hy; rw [div_le_iff₀ hLr] at this; linarith
+  have hd0 : 0 ≤ d := measureReal_nonneg
+  have hX0 : 0 ≤ X := le_trans hPt0 hPt
+  calc d * Pt ≤ d * X := mul_le_mul_of_nonneg_left hPt hd0
+    _ ≤ (L * Y) * X := mul_le_mul_of_nonneg_right hd hX0
+    _ = L * κ * (∑ i ∈ Finset.range (t.toList.length + 1),
+          ((min (i + 1) L : ℕ) : ℝ) * stateWeight A D L (A.state (prefixOf t i))) * Y := by ring
 
 variable (R : CutReads α)
 
