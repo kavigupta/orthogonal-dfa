@@ -1,12 +1,16 @@
 """An edge into a badly read state is held apart, rolled over, or dropped."""
 
+# The tests drive the round's edge judging directly.
+# pylint: disable=protected-access
+
 import itertools
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import numpy as np
 
-from orthogonal_dfa.l_star.counterexample_synthesis import _split_edges
+from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.edge_chains import (
     DROP,
     PROMOTE,
@@ -15,6 +19,7 @@ from orthogonal_dfa.l_star.edge_chains import (
     edge_verdict,
 )
 from orthogonal_dfa.l_star.prefix_populations import PoolState
+from orthogonal_dfa.l_star.prefix_sources import PrefixSource
 
 
 class _Sifter:
@@ -32,7 +37,7 @@ class _Sifter:
 
 
 class _EveryFiftieth(_Sifter):
-    """Undecided on every fiftieth string ending in 1: twice a 0.01 clean rate."""
+    """Undecided on every fiftieth string ending in 1."""
 
     def __init__(self):
         super().__init__(set())
@@ -48,14 +53,13 @@ class _EveryFiftieth(_Sifter):
 
 
 class _Counting:
-    """A source drawing fresh strings 0, 1, 2, ..., each ending in ``last``."""
+    """A source drawing fresh strings 0, 1, 2, ..., each ending in 0."""
 
-    def __init__(self, last=0):
+    def __init__(self):
         self._next = itertools.count()
-        self._last = last
 
     def draw(self):
-        return next(self._next).to_bytes(4, "big") + bytes([self._last])
+        return next(self._next).to_bytes(4, "big") + b"\x00"
 
 
 class TestAChainKeepsWhatItsRoundCouldNotPlace(unittest.TestCase):
@@ -64,66 +68,89 @@ class TestAChainKeepsWhatItsRoundCouldNotPlace(unittest.TestCase):
         sifter = SimpleNamespace(
             sift_and_boundary=lambda seq: (None, b"") if seq == b"y\x01" else (0, None)
         )
-        chain = EdgeChain(parent, b"\x01", sifter, good=0.03, poor=0.01)
+        chain = EdgeChain(parent, b"\x01", sifter, used=frozenset(), rate=0.01)
 
         self.assertFalse(chain.attempt_draw())
         self.assertTrue(chain.attempt_draw())
         self.assertEqual([b"y"], chain.found())
 
 
-class TestAnEdgeIsJudgedAgainstTheCleanRate(unittest.TestCase):
-    def test_far_above_the_factor_promotes(self):
-        self.assertEqual(
-            PROMOTE, edge_verdict(30, 100, 0.01, failure_prob=1e-4, final=False)
+class TestThePrefixRootDrawsWhatReadsPassThrough(unittest.TestCase):
+    def test_it_draws_a_prefix_of_a_sampler_draw(self):
+        rng = np.random.default_rng(0)
+        pst = SimpleNamespace(
+            rng=rng,
+            alphabet_size=2,
+            sampler=SimpleNamespace(sample=lambda rng, alphabet_size: b"abcdefgh"),
+        )
+        drawn = {PrefixSource(pst).draw() for _ in range(200)}
+
+        self.assertTrue(all(b"abcdefgh".startswith(d) and len(d) < 8 for d in drawn))
+        self.assertGreater(len(drawn), 4)
+
+
+class TestAnEdgeIsJudgedAgainstTwoRates(unittest.TestCase):
+    def _verdict(self, undecided, reads):
+        return edge_verdict(
+            undecided,
+            reads,
+            promote_above=0.03,
+            keep_above=0.015,
+            failure_prob=1e-4,
+            final=False,
         )
 
-    def test_none_undecided_over_many_reads_drops(self):
-        self.assertEqual(
-            DROP, edge_verdict(0, 2000, 0.01, failure_prob=1e-4, final=False)
-        )
+    def test_far_above_the_promotion_rate_promotes(self):
+        self.assertEqual(PROMOTE, self._verdict(30, 100))
 
-    def test_between_the_clean_rate_and_the_factor_rolls_over(self):
-        self.assertEqual(
-            ROLL_OVER, edge_verdict(200, 10000, 0.01, failure_prob=1e-4, final=False)
-        )
+    def test_far_below_the_keeping_rate_drops(self):
+        self.assertEqual(DROP, self._verdict(0, 2000))
+
+    def test_between_the_two_rolls_over(self):
+        self.assertEqual(ROLL_OVER, self._verdict(220, 10000))
 
     def test_too_few_reads_to_say_waits(self):
-        self.assertIsNone(edge_verdict(1, 20, 0.01, failure_prob=1e-4, final=False))
+        self.assertIsNone(self._verdict(1, 20))
 
 
 class TestARoundSortsItsEdges(unittest.TestCase):
     def _round(self, state, sifter):
         pst = SimpleNamespace(
-            acceptable_fnr=0.01, alphabet_size=2, rng=np.random.default_rng(0)
+            acceptable_fnr=0.01,
+            alphabet_size=2,
+            rng=np.random.default_rng(0),
+            sampler=SimpleNamespace(sample=lambda rng, alphabet_size: bytes(8)),
         )
-        resolver = SimpleNamespace(sifter=sifter)
-        dfa = SimpleNamespace(transitions={})
-        _split_edges(pst, resolver, dfa, state, acc_threshold=0.98)
+        # A clean rate of about 0.011 per read, so edges are kept above ~0.017.
+        resolver = SimpleNamespace(
+            sifter=sifter,
+            family=SimpleNamespace(vs=[1, 2]),
+            tree=None,
+            unchecked_quiet_probes=10,
+            quiet_reads=999,
+        )
+        cs._split_edges(
+            pst, resolver, SimpleNamespace(transitions={}), state, acc_threshold=0.98
+        )
 
-    def _state(self):
+    def _state(self, chains=()):
         state = PoolState([])
         state.held[("state", 0)] = []
         state.sources[("state", 0)] = _Counting()
+        state.chains = list(chains)
         return state
+
+    def _chain(self):
+        return EdgeChain(
+            _Counting(), b"\x01", _Sifter({1}), used=frozenset({1}), rate=0.02
+        )
 
     def test_an_edge_into_a_badly_read_state_becomes_a_population(self):
         state = self._state()
 
         self._round(state, _Sifter({1}))
 
-        self.assertIn(("edge", 1), state.held)
         self.assertTrue(state.held[("edge", 1)])
-        self.assertEqual([], state.chains)
-
-    def test_a_clean_edge_is_dropped_and_a_dropped_chain_forgotten(self):
-        state = self._state()
-        state.chains = [
-            EdgeChain(_Counting(), b"\x01", _Sifter(set()), good=0.03, poor=0.01)
-        ]
-
-        self._round(state, _Sifter(set()))
-
-        self.assertNotIn(("edge", 1), state.held)
         self.assertEqual([], state.chains)
 
     def test_an_edge_between_the_two_rates_rolls_over_onto_its_source(self):
@@ -132,9 +159,28 @@ class TestARoundSortsItsEdges(unittest.TestCase):
         self._round(state, _EveryFiftieth())
 
         self.assertNotIn(("edge", 1), state.held)
-        self.assertEqual(1, len(state.chains))
-        self.assertIs(state.sources[("state", 0)], state.chains[0].parent)
-        self.assertEqual(b"\x01", state.chains[0].letter)
+        rolled = [c for c in state.chains if c.parent is state.sources[("state", 0)]]
+        self.assertEqual([b"\x01"], [c.letter for c in rolled])
+
+    def test_a_chain_that_does_not_rise_on_fresh_suffixes_is_forgotten(self):
+        chain = self._chain()
+        state = self._state([chain])
+
+        with mock.patch.object(
+            cs, "fresh_sifter", return_value=(_Sifter(set()), frozenset({2}))
+        ):
+            self._round(state, _Sifter(set()))
+
+        self.assertEqual([], state.chains)
+
+    def test_a_chain_with_no_fresh_suffixes_left_waits_unchanged(self):
+        chain = self._chain()
+        state = self._state([chain])
+
+        with mock.patch.object(cs, "fresh_sifter", return_value=None):
+            self._round(state, _Sifter(set()))
+
+        self.assertEqual([chain], state.chains)
 
 
 if __name__ == "__main__":

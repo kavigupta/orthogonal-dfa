@@ -41,6 +41,15 @@ class UniformSource:
         return True
 
 
+class PrefixSource(UniformSource):
+    """A sampler draw cut at a uniformly drawn position: the prefixes reads pass
+    through, each as often as they do."""
+
+    def draw(self) -> bytes:
+        drawn = super().draw()
+        return drawn[: int(self._pst.rng.integers(len(drawn)))]
+
+
 class HarvestSource(RejectionSource):
     """More of a round's boundary population, found the way its strings were:
     each attempt reads a fresh draw by one of their provenances, chosen in

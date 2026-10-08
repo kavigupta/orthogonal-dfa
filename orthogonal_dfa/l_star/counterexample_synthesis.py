@@ -27,16 +27,24 @@ from .cluster import sample_suffix_family
 from .edge_chains import (
     EDGE_FACTOR,
     EDGE_MISJUDGE,
+    EDGE_RISE,
     PROMOTE,
     ROLL_OVER,
     EdgeChain,
+    fresh_sifter,
     judge_edge,
 )
 from .lstar import denoise_accept_labels, estimate_agreement_rate
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
 from .prefix_populations import PoolState
-from .prefix_sources import HarvestSource, UniformSource, aim_at, state_source
+from .prefix_sources import (
+    HarvestSource,
+    PrefixSource,
+    UniformSource,
+    aim_at,
+    state_source,
+)
 from .progress import track
 from .provenance import Read, provenance
 from .tracker import SynthesisTracker
@@ -147,36 +155,46 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    """Judge every per-state source and every chain rolled over to this round,
-    each extended by every letter (`judge_edge`): promote it to a population of
-    its own, roll it over into a chain, or drop it."""
-    clean = pst.acceptable_fnr
+    """Judge every per-state source, the prefixes reads pass through, and every
+    chain rolled over to this round, each extended by its letters (`judge_edge`):
+    promote it to a population of its own above EDGE_FACTOR times the clean
+    bound, roll it over into a chain where its rate rises over what it is compared
+    with, or drop it.
+
+    An edge new this round is compared with the pass's own clean rate, a chain
+    with the rate that rolled it over, read on suffixes none of its links read."""
+    # Laplace-smoothed: a pass that met no undecided read has not shown a rate of 0.
+    clean = (resolver.unchecked_quiet_probes + 1) / (resolver.quiet_reads + 2)
+    roots = [state.sources[label] for label in state.held if label[0] == "state"]
+    roots.append(PrefixSource(pst))
     candidates = [
-        (state.sources[label], bytes([c]))
-        for label in state.held
-        if label[0] == "state"
-        for c in range(pst.alphabet_size)
-    ] + [(chain, chain.letter) for chain in state.chains]
+        (root, bytes([c]), None) for root in roots for c in range(pst.alphabet_size)
+    ] + [(chain, chain.letter, chain) for chain in state.chains]
     failure_prob = EDGE_MISJUDGE / max(len(candidates), 1)
     state.chains = []
-    for source, letter in candidates:
-        verdict, met = judge_edge(
-            source, letter, resolver.sifter, clean=clean, failure_prob=failure_prob
+    for source, letter, chain in candidates:
+        if chain is None:
+            sifter, used = resolver.sifter, frozenset(resolver.family.vs)
+            keep_above = EDGE_RISE * clean
+        else:
+            fresh = fresh_sifter(pst, resolver.tree, resolver.family.vs, chain.used)
+            if fresh is None:
+                state.chains.append(chain)
+                continue
+            sifter, used = fresh[0], fresh[1] | chain.used
+            keep_above = EDGE_RISE * chain.rate
+        verdict, met, rate = judge_edge(
+            source,
+            letter,
+            sifter,
+            promote_above=EDGE_FACTOR * pst.acceptable_fnr,
+            keep_above=keep_above,
+            failure_prob=failure_prob,
         )
         if verdict == ROLL_OVER:
-            state.chains.append(
-                EdgeChain(
-                    source,
-                    letter,
-                    resolver.sifter,
-                    good=EDGE_FACTOR * clean,
-                    poor=clean,
-                )
-            )
+            state.chains.append(EdgeChain(source, letter, sifter, used=used, rate=rate))
         elif verdict == PROMOTE:
-            found = provenance(
-                Read(source, letter), resolver.sifter, dfa.transitions, pst.rng
-            )
+            found = provenance(Read(source, letter), sifter, dfa.transitions, pst.rng)
             state.add_edge(
                 met,
                 HarvestSource(
