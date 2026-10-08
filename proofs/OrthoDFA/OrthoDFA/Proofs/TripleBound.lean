@@ -652,4 +652,51 @@ theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGoo
 
 end PassCells
 
+section Words
+
+/-- The strings of length `L`. -/
+noncomputable def wordsOf (L : ℕ) : Finset (FreeMonoid α) :=
+  Finset.univ.image fun f : Fin L → α => FreeMonoid.ofList (List.ofFn f)
+
+theorem mem_wordsOf {L : ℕ} {x : FreeMonoid α} : x ∈ wordsOf (α := α) L ↔ x.toList.length = L := by
+  constructor
+  · intro h
+    obtain ⟨f, -, rfl⟩ := Finset.mem_image.1 h
+    simp
+  · intro h
+    refine Finset.mem_image.2 ⟨fun i : Fin L => x.toList[i.1]'(by have := i.2; omega),
+      Finset.mem_univ _, ?_⟩
+    apply FreeMonoid.toList.injective
+    simp only [FreeMonoid.toList_ofList]
+    exact List.ext_get (by simp [h]) fun n h1 h2 => by simp
+
+omit [Fintype α] [DecidableEq α] in
+theorem length_prefixOf {x : FreeMonoid α} {k : ℕ} (h : k ≤ x.toList.length) :
+    (prefixOf x k).toList.length = k := by
+  simp [prefixOf, h]
+
+/-- Draws of length `L` sharing `x`'s first `k` letters carry at most `prefixMax D k`. -/
+theorem sum_same_prefix_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ}
+    (hkL : k ≤ L) {x : FreeMonoid α} (hx : x.toList.length = L) :
+    ∑ y ∈ wordsOf (α := α) L, (if prefixOf y k = prefixOf x k then D.real {y} else 0)
+      ≤ prefixMax D k := by
+  classical
+  rw [← Finset.sum_filter]
+  calc ∑ y ∈ (wordsOf (α := α) L).filter (fun y => prefixOf y k = prefixOf x k), D.real {y}
+      = D.real (↑((wordsOf (α := α) L).filter fun y => prefixOf y k = prefixOf x k)) := by
+        rw [sum_measureReal_singleton]
+    _ ≤ D.real {y | (prefixOf x k).toList <+: y.toList} := by
+        refine measureReal_mono (fun y hy => ?_) (measure_ne_top _ _)
+        simp only [Finset.coe_filter, Set.mem_ofPred_eq, mem_wordsOf] at hy
+        rw [Set.mem_ofPred_eq, ← hy.2]
+        exact List.take_prefix _ _
+    _ ≤ prefixMax D k := by
+        refine le_trans (le_of_eq ?_) (le_ciSup (f := fun p : FreeMonoid α =>
+          if p.toList.length = k then D.real {x | p.toList <+: x.toList} else 0)
+          ⟨1, by rintro _ ⟨p, rfl⟩; simp only []; split_ifs <;> simp [measureReal_le_one]⟩
+          (prefixOf x k))
+        rw [if_pos (length_prefixOf (by omega))]
+
+end Words
+
 end OrthoDFA
