@@ -138,6 +138,41 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
         state.hold(("state", leaf), source, per_state)
 
 
+#: Replays of an edge drawn to judge whether its harvest stands apart, and the
+#: fewest strings an edge must have harvested to be worth judging.
+EDGE_PROBES = 32
+EDGE_MIN_HARVEST = 3
+
+
+def _split_edges(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    """Hold apart each edge (a population's draws extended by a letter) whose
+    replays come out undecided at more than twice the pass's own per-read rate.
+    Most of what such an edge finds is then a badly read state, which mixed into
+    the boundary population would be diluted below what the FNR gate can see."""
+    if state.harvesting is None:
+        return
+    baseline = resolver.unchecked_quiet_probes / max(resolver.quiet_reads, 1)
+    for read, count in list(state.harvest_reads.items()):
+        if not read.extension or count < EDGE_MIN_HARVEST:
+            continue
+        found = provenance(read, resolver.sifter, dfa.transitions, pst.rng)
+        reads, met = resolver.sifter.reads, 0
+        for _ in range(EDGE_PROBES):
+            met += bool(found.sample())
+        if met <= 2 * baseline * (resolver.sifter.reads - reads):
+            continue
+        state.split_harvest(
+            read,
+            [s for s in state.harvest() if resolver.indecisive.get(s) == read],
+            HarvestSource(
+                Counter({found: count}),
+                pst.rng,
+                known=state.seen,
+                acc_threshold=acc_threshold,
+            ),
+        )
+
+
 def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
     """Hands the round's boundary population a source that draws more the way
     its strings were found, proved only when a family search first asks it for
@@ -156,6 +191,11 @@ def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
         known=state.seen,
         acc_threshold=acc_threshold,
     )
+
+
+def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold) -> None:
+    _split_edges(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+    _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
 
 
 def _aimed_at(pst, resolver, dfa) -> set:
@@ -394,7 +434,7 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+        _harvest_sources(pst, resolver, dfa, state, acc_threshold=acc_threshold)
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "
