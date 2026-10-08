@@ -1086,4 +1086,65 @@ theorem touched_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (R : C
 
 end Draws
 
+section Fail
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
+
+open scoped Classical in
+/-- Where the triples' claim fails, the draws' shares sum past the fluctuation allowed. -/
+theorem triple_fail_sum (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) {uGood ε : ℝ} (hu : 0 ≤ uGood) (R : CutReads α) (t : DTree α)
+    (edges : Edges α) (Tp : Finset (FreeMonoid α)) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (k L : ℕ) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
+    (h : ¬ D.real {x | ∃ j b, probeOutcome R t edges k x = .triple j
+        ∧ tripleRead R t x j = some b ∧ stateIndecision A O B F (A.state b) < uGood}
+      ≤ uGood * t.depth * ∫ x, (visits R t edges k x : ℝ) ∂D
+        + Tp.card * prefixMax D (k + 1) + ε * (1 + uGood * t.depth * L)) :
+    ε * (1 + uGood * t.depth * L)
+      < ∑ x ∈ wordsOf (α := α) L, D.real {x} * contrib A O B F uGood R t edges Tp k x := by
+  set X := wordsOf (α := α) L
+  have h1 : D.real {x | ∃ j b, probeOutcome R t edges k x = .triple j
+      ∧ tripleRead R t x j = some b ∧ stateIndecision A O B F (A.state b) < uGood}
+      ≤ D.real {x | FreshTriple A O B F uGood R t edges Tp k x}
+        + D.real {x | ∃ j b, probeOutcome R t edges k x = .triple j
+          ∧ tripleRead R t x j = some b ∧ b ∈ Tp} := by
+    refine (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)).trans
+      (measureReal_union_le _ _)
+    obtain ⟨j, b, hj, hb, hg⟩ := hx
+    by_cases hT : b ∈ Tp
+    · exact .inr ⟨j, b, hj, hb, hT⟩
+    · exact .inl ⟨j, b, hj, hb, hg, hT⟩
+  have h2 := touched_le D R t edges Tp k
+  have h3 : D.real {x | FreshTriple A O B F uGood R t edges Tp k x}
+      = ∑ x ∈ X, D.real {x} * (if FreshTriple A O B F uGood R t edges Tp k x then 1 else 0) := by
+    rw [real_eq_sum_words D hlen]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    simp only [Set.mem_ofPred_eq]
+    split_ifs <;> simp
+  have h4 := integral_eq_sum_words D hlen fun x => (visits R t edges k x : ℝ)
+  have h5 : ∑ x ∈ X, D.real {x} * (tagCount R t edges k x : ℝ)
+      ≤ t.depth * ∑ x ∈ X, D.real {x} * (visits R t edges k x : ℝ) := by
+    rw [Finset.mul_sum]
+    refine Finset.sum_le_sum fun x _ => ?_
+    have := qProbe_countP R t edges k x
+    have h' : (tagCount R t edges k x : ℝ) ≤ t.depth * visits R t edges k x := by
+      exact_mod_cast this
+    nlinarith [measureReal_nonneg (μ := D) (s := {x})]
+  have h6 : ∑ x ∈ X, D.real {x} * contrib A O B F uGood R t edges Tp k x
+      = ∑ x ∈ X, D.real {x} * (if FreshTriple A O B F uGood R t edges Tp k x then 1 else 0)
+        - uGood * ∑ x ∈ X, D.real {x} * (tagCount R t edges k x : ℝ) := by
+    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    simp only [contrib]
+    ring
+  rw [h6, ← h3]
+  rw [h4] at h
+  have h7 : uGood * ∑ x ∈ X, D.real {x} * (tagCount R t edges k x : ℝ)
+      ≤ uGood * t.depth * ∑ x ∈ X, D.real {x} * (visits R t edges k x : ℝ) := by
+    rw [mul_assoc]; exact mul_le_mul_of_nonneg_left h5 hu
+  push Not at h
+  linarith
+
+end Fail
+
 end OrthoDFA
