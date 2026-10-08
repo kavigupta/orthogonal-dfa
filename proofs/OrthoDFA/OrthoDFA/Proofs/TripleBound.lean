@@ -99,6 +99,66 @@ theorem qProbe_asksIn_ge (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMo
         · trivial
     · trivial
 
+omit [Fintype α] [DecidableEq α] in
+theorem visited_le (agrees : ℕ → Option Bool) : ∀ fuel lo hi, visited agrees fuel lo hi ≤ fuel
+  | 0, _, _ => le_rfl
+  | fuel + 1, lo, hi => by
+    simp only [visited]
+    by_cases hlh : lo + 1 < hi
+    swap
+    · rw [if_neg hlh]; omega
+    rw [if_pos hlh]
+    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
+      else agrees ((lo + hi) / 2)) = v
+    generalize (if (lo + hi) / 2 - 1 = lo then some true
+      else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = l
+    generalize (if (lo + hi) / 2 + 1 = lo then some true
+      else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = r
+    have h1 := visited_le agrees fuel ((lo + hi) / 2) hi
+    have h2 := visited_le agrees fuel lo ((lo + hi) / 2)
+    have h3 := visited_le agrees fuel ((lo + hi) / 2 + 1) hi
+    have h4 := visited_le agrees fuel lo ((lo + hi) / 2 - 1)
+    rcases v with _ | _ | _ <;> rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;>
+      simp only [] <;> omega
+
+theorem visits_le (R : CutReads α) (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoid α) :
+    visits R t edges k x ≤ x.toList.length := by
+  unfold visits
+  rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩
+  · simp
+  · obtain ⟨-, -, -, -, hhi, -⟩ := walkCheck_inr R hw
+    exact (visited_le _ _ _ _).trans (by simp only []; omega)
+
+omit [Fintype α] [DecidableEq α] in
+theorem bracketAt_triple_gt (agrees : ℕ → Option Bool) (ps : List (List Bool)) :
+    ∀ fuel lo hi j, bracketAt (α := α) agrees ps fuel lo hi = .triple j → lo < j
+  | 0, _, _, _, h => by simp [bracketAt] at h
+  | fuel + 1, lo, hi, j, h => by
+    simp only [bracketAt] at h
+    by_cases hlh : lo + 1 < hi
+    swap
+    · rw [if_neg hlh] at h; simp at h
+    rw [if_pos hlh] at h
+    generalize (if (lo + hi) / 2 = lo then some true else if (lo + hi) / 2 = hi then some false
+      else agrees ((lo + hi) / 2)) = v at h
+    generalize (if (lo + hi) / 2 - 1 = lo then some true
+      else if (lo + hi) / 2 - 1 = hi then some false else agrees ((lo + hi) / 2 - 1)) = l at h
+    generalize (if (lo + hi) / 2 + 1 = lo then some true
+      else if (lo + hi) / 2 + 1 = hi then some false else agrees ((lo + hi) / 2 + 1)) = r at h
+    rcases v with _ | _ | _
+    · rcases l with _ | _ | _ <;> rcases r with _ | _ | _ <;> simp only [reduceCtorEq] at h
+      · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
+      · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
+      · obtain rfl := Outcome.triple.inj h; omega
+      · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
+    · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
+    · have := bracketAt_triple_gt agrees ps fuel _ _ j h; omega
+
+theorem probeOutcome_triple_gt {R : CutReads α} {t : DTree α} {edges : Edges α} {k : ℕ}
+    {x : FreeMonoid α} {j : ℕ} (h : probeOutcome R t edges k x = .triple j) : k < j := by
+  obtain ⟨ps, hi, -, hb⟩ := probeOutcome_search R h trivial
+  exact bracketAt_triple_gt _ ps _ _ _ _ hb
+
 section Cells
 
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
@@ -184,6 +244,134 @@ theorem measurableSet_cellCut [IsProbabilityMeasure μ] (O : Oracle μ (FreeMono
     exact ⟨Finset.mem_coe.2 (Finset.mem_image_of_mem _ hv.1), hv.2⟩)
     (fun U : Finset (FreeMonoid α) => (if B.hi < n₁ + U.card then some true
       else if n₁ + U.card ≤ B.lo then some false else none) = o)
+
+variable {Q : Type*}
+
+/-- The triple of `x` harvests a read at a state read undecided less than `uGood` of the time,
+of a string off `Tp`. -/
+def FreshTriple (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (uGood : ℝ) (R : CutReads α) (t : DTree α) (edges : Edges α)
+    (Tp : Finset (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) : Prop :=
+  ∃ j b, probeOutcome R t edges k x = .triple j ∧ tripleRead R t x j = some b
+    ∧ stateIndecision A O B F (A.state b) < uGood ∧ b ∉ Tp
+
+/-- How many of a probe's reads are of the search's middles. -/
+noncomputable def tagCount (R : CutReads α) (t : DTree α) (edges : Edges α) (k : ℕ)
+    (x : FreeMonoid α) : ℕ :=
+  ((qProbe t edges k x).trace R.cut).countP fun e => e.2
+
+open scoped Classical in
+/-- A draw's share of the triples' fluctuation. -/
+noncomputable def contrib (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (uGood : ℝ) (R : CutReads α) (t : DTree α) (edges : Edges α)
+    (Tp : Finset (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) : ℝ :=
+  (if FreshTriple A O B F uGood R t edges Tp k x then 1 else 0) - uGood * tagCount R t edges k x
+
+/-- The strings beginning with `x`'s first `k` letters, off the cell's bits. -/
+def drawBits (V : Finset (FreeMonoid α)) (c : Finset (FreeMonoid α) × Finset (FreeMonoid α))
+    (k : ℕ) (x : FreeMonoid α) : Set (FreeMonoid α) :=
+  {z | (prefixOf x k).toList <+: z.toList} \ ↑(vBits V c.1)
+
+theorem cellCut_drawBits [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F V : Finset (FreeMonoid α)) (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) (k : ℕ)
+    (x : FreeMonoid α) {w : FreeMonoid α} (hw : ∃ i, k ≤ i ∧ ∃ m, w = prefixOf x i * m)
+    (o : Option Bool) :
+    MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | (cellReads O B F V c ω).cut w = o} := by
+  refine noiseAlg_mono O ?_ _ (measurableSet_cellCut O B F V c w o)
+  rintro z ⟨hz, hzv⟩
+  refine ⟨?_, hzv⟩
+  obtain ⟨i, hi, m, rfl⟩ := hw
+  simp only [Finset.coe_image, Set.mem_image, Finset.mem_coe] at hz
+  obtain ⟨v, -, rfl⟩ := hz
+  simp only [Set.mem_ofPred_eq, FreeMonoid.toList_mul, prefixOf, FreeMonoid.toList_ofList]
+  exact (List.take_prefix_take_left hi).trans (List.prefix_append _ _ |>.trans
+    (List.prefix_append _ _))
+
+/-- Under the cell's reads, a draw's share depends only on the bits beginning with its first `k`
+letters. -/
+theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F V : Finset (FreeMonoid α)) (uGood : ℝ)
+    (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) (t : DTree α) (edges : Edges α)
+    (Tp : Finset (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) :
+    Measurable[noiseAlg O (drawBits V c k x)]
+      fun ω => contrib A O B F uGood (cellReads O B F V c ω) t edges Tp k x := by
+  classical
+  set cut : Ω → FreeMonoid α → Option Bool := fun ω => (cellReads O B F V c ω).cut
+  have hS : ∀ w, (∃ i, k ≤ i ∧ ∃ m ∈ t.mids, w = prefixOf x i * m) →
+      ∀ o, MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | cut ω w = o} := fun w ⟨i, hi, m', _, he⟩ o =>
+    cellCut_drawBits O B F V c k x ⟨i, hi, m', he⟩ o
+  have hrt : ∀ A' : Set (Outcome α × List (FreeMonoid α × Bool)),
+      MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | ((qProbe t edges k x).run (cut ω),
+        (qProbe t edges k x).trace (cut ω)) ∈ A'} :=
+    Qry.measurableSet_run_trace cut hS _ (qProbe_asksIn_ge t edges k x)
+  have hsift : ∀ j, k ≤ j → ∀ A' : Set ((List Bool ⊕ FreeMonoid α) × List (FreeMonoid α × Bool)),
+      MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | ((qSift (prefixOf x j) true t).run (cut ω),
+        (qSift (prefixOf x j) true t).trace (cut ω)) ∈ A'} := fun j hj =>
+    Qry.measurableSet_run_trace cut (S := fun w => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, w = prefixOf x i * m)
+      hS _ (Qry.asksIn_mono (fun y ⟨m', hm, he⟩ => ⟨j, hj, m', hm, he⟩) _ (qSift_asksIn _ _ t))
+  have hFT : MeasurableSet[noiseAlg O (drawBits V c k x)] {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x} := by
+    have hset : {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x}
+        = ⋃ j : ℕ, if k ≤ j then
+            {ω | ((qProbe t edges k x).run (cut ω), (qProbe t edges k x).trace (cut ω))
+              ∈ {p | p.1 = .triple j}}
+            ∩ {ω | ((qSift (prefixOf x j) true t).run (cut ω),
+              (qSift (prefixOf x j) true t).trace (cut ω))
+              ∈ {p | ∃ b, p.1 = .inr b ∧ stateIndecision A O B F (A.state b) < uGood ∧ b ∉ Tp}}
+          else ∅ := by
+      ext ω
+      simp only [FreshTriple, Set.mem_ofPred_eq, Set.mem_iUnion]
+      constructor
+      · rintro ⟨j, b, hj, hb, hg, hT⟩
+        have hkj := probeOutcome_triple_gt hj
+        refine ⟨j, ?_⟩
+        rw [if_pos hkj.le]
+        refine ⟨by simpa [cut, qProbe_run] using hj, b, ?_, hg, hT⟩
+        simp only [cut, qSift_run]
+        simp only [tripleRead] at hb
+        rcases hs : DTree.sift (cellReads O B F V c ω).cut t (prefixOf x j) with _ | b' <;>
+          rw [hs] at hb <;> simp_all
+      · rintro ⟨j, hj⟩
+        split_ifs at hj with hkj
+        · obtain ⟨h1, b, h2, hg, hT⟩ := hj
+          refine ⟨j, b, by simpa [cut, qProbe_run] using h1, ?_, hg, hT⟩
+          simp only [cut, qSift_run] at h2
+          simp [tripleRead, h2]
+        · exact hj.elim
+    rw [hset]
+    refine MeasurableSet.iUnion fun j => ?_
+    split_ifs with hkj
+    · exact (hrt _).inter (hsift j hkj _)
+    · exact @MeasurableSet.empty Ω (noiseAlg O (drawBits V c k x))
+  have hcount : ∀ n, MeasurableSet[noiseAlg O (drawBits V c k x)]
+      {ω | tagCount (cellReads O B F V c ω) t edges k x = n} := fun n =>
+    hrt {p | p.2.countP (fun e => e.2) = n}
+  have hpair : Measurable[noiseAlg O (drawBits V c k x)] fun ω =>
+      (decide (FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x),
+        tagCount (cellReads O B F V c ω) t edges k x) := by
+    refine @measurable_to_countable' _ _ _ _ (noiseAlg O (drawBits V c k x)) _ fun y => ?_
+    have : (fun ω => (decide (FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x),
+        tagCount (cellReads O B F V c ω) t edges k x)) ⁻¹' {y}
+        = {ω | decide (FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x) = y.1}
+          ∩ {ω | tagCount (cellReads O B F V c ω) t edges k x = y.2} := by
+      ext ω; simp [Prod.ext_iff]
+    rw [this]
+    refine MeasurableSet.inter ?_ (hcount y.2)
+    obtain ⟨b, n⟩ := y
+    cases b
+    · have h' : {ω | decide (FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x)
+          = false} = {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x}ᶜ := by
+        ext ω; simp
+      rw [h']; exact hFT.compl
+    · have h' : {ω | decide (FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x)
+          = true} = {ω | FreshTriple A O B F uGood (cellReads O B F V c ω) t edges Tp k x} := by
+        ext ω; simp
+      rw [h']; exact hFT
+  have hg : Measurable fun p : Bool × ℕ => (if p.1 then (1 : ℝ) else 0) - uGood * p.2 :=
+    measurable_of_countable _
+  have := hg.comp hpair
+  convert this using 1
+  ext ω
+  simp [contrib]
 
 end Cells
 
