@@ -699,4 +699,173 @@ theorem sum_same_prefix_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D
 
 end Words
 
+section Tail
+
+variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} {Q : Type*}
+variable (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
+  (k : ℕ) (seed probes : List (FreeMonoid α))
+
+theorem disjoint_drawBits {V : Finset (FreeMonoid α)}
+    {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {x y : FreeMonoid α}
+    (hx : k ≤ x.toList.length) (hy : k ≤ y.toList.length) (hxy : prefixOf x k ≠ prefixOf y k) :
+    Disjoint (drawBits V c k x) (drawBits V c k y) := by
+  rw [Set.disjoint_left]
+  rintro z ⟨hzx, -⟩ ⟨hzy, -⟩
+  apply hxy
+  apply FreeMonoid.toList.injective
+  exact List.prefix_of_prefix_length_le hzx hzy (by rw [length_prefixOf hx, length_prefixOf hy])
+    |>.eq_of_length (by rw [length_prefixOf hx, length_prefixOf hy])
+
+/-- Chebyshev inside a cell of the pass. -/
+theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ} (hkL : k ≤ L) {uGood ε : ℝ}
+    (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (F ∪ K.train F))
+    {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
+    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) :
+    μ.real (passCell O B F K k seed probes c ∩ {ω | ε * (1 + uGood
+        * (passK O B F K k seed probes ω).tree.depth * L) < ∑ x ∈ wordsOf (α := α) L, D.real {x}
+          * contrib A O B F uGood (readsAt O B F ω) (passK O B F K k seed probes ω).tree
+            (passK O B F K k seed probes ω).edges (passReads O B F K k seed probes ω) k x})
+      ≤ μ.real (passCell O B F K k seed probes c) * prefixMax D k / ε ^ 2 := by
+  classical
+  set V := F ∪ K.train F
+  set s₀ := passK O B F K k seed probes ω₀
+  set P := pcell O V c
+  set C := passCell O B F K k seed probes c
+  set d₀ : ℝ := (s₀.tree.depth : ℝ)
+  set R : ℝ := 1 + uGood * d₀ * L
+  set X := wordsOf (α := α) L
+  set h : FreeMonoid α → Ω → ℝ := fun x ω =>
+    contrib A O B F uGood (cellReads O B F V c ω) s₀.tree s₀.edges c.1 k x
+  have hle := noiseAlg_le O
+  have hd₀ : 0 ≤ d₀ := Nat.cast_nonneg _
+  have hR : 0 < R := by positivity
+  have hhm : ∀ x, Measurable[noiseAlg O (drawBits V c k x)] (h x) := fun x =>
+    (measurable_contrib A O B F V uGood c s₀.tree s₀.edges c.1 k x).2.2
+  have hhm' : ∀ x, Measurable (h x) := fun x => (hhm x).mono (hle _) le_rfl
+  have hhb : ∀ x ∈ X, ∀ ω, -(uGood * d₀ * L) ≤ h x ω ∧ h x ω ≤ 1 := by
+    intro x hx ω
+    have hl := mem_wordsOf.1 hx
+    have ht : (tagCount (cellReads O B F V c ω) s₀.tree s₀.edges k x : ℝ) ≤ d₀ * L := by
+      have := tagCount_le k (cellReads O B F V c ω) s₀.tree s₀.edges x
+      rw [hl] at this; simp only [d₀]; exact_mod_cast this
+    have ht0 : (0 : ℝ) ≤ tagCount (cellReads O B F V c ω) s₀.tree s₀.edges k x := Nat.cast_nonneg _
+    simp only [h, contrib]
+    split_ifs <;> constructor <;> nlinarith
+  have hudL : 0 ≤ uGood * d₀ * L := by positivity
+  have hhi : ∀ x ∈ X, Integrable (h x) μ := fun x hx =>
+    Integrable.of_bound (hhm' x).aestronglyMeasurable R (ae_of_all _ fun ω => by
+      obtain ⟨h1, h2⟩ := hhb x hx ω
+      rw [Real.norm_eq_abs, abs_le]; constructor <;> nlinarith)
+  set m : FreeMonoid α → ℝ := fun x => ∫ ω, h x ω ∂μ
+  have hmb : ∀ x ∈ X, -(uGood * d₀ * L) ≤ m x ∧ m x ≤ 1 := fun x hx =>
+    ⟨by have := integral_mono (integrable_const _) (hhi x hx) fun ω => (hhb x hx ω).1
+        simpa using this,
+     by have := integral_mono (hhi x hx) (integrable_const _) fun ω => (hhb x hx ω).2
+        simpa using this⟩
+  have hdev : ∀ x ∈ X, ∀ ω, |h x ω - m x| ≤ R := fun x hx ω => by
+    obtain ⟨h1, h2⟩ := hhb x hx ω; obtain ⟨h3, h4⟩ := hmb x hx
+    rw [abs_le]; constructor <;> nlinarith
+  -- the cell agrees with the pattern off a null set
+  have hcl := measure_cleanAll_compl O (μ := μ)
+  have hcla : ∀ᵐ ω ∂μ, ω ∈ cleanAll O := ae_iff.2 hcl
+  have hPm : MeasurableSet[noiseAlg O ↑(vBits V c.1)] P :=
+    (measurableSet_noisePattern O _ c.2).inter (measurableSet_noiseClean O _)
+  have hPm' : MeasurableSet P := hle _ _ hPm
+  have hCeq : C = P ∩ cleanAll O := by
+    ext ω; constructor
+    · intro (hω : ω ∈ C); exact ⟨hω.1.1, hω.1.2⟩
+    · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
+  have hCm : MeasurableSet C := by rw [hCeq]; exact hPm'.inter (measurableSet_cleanAll O)
+  have hCP : μ.real C = μ.real P := by
+    rw [hCeq, measureReal_def, measure_inter_conull hcl, ← measureReal_def]
+  rcases eq_or_lt_of_le (measureReal_nonneg : 0 ≤ μ.real P) with hP0 | hP0
+  · have : μ.real C = 0 := by rw [hCP, ← hP0]
+    refine (measureReal_mono Set.inter_subset_left (measure_ne_top _ _)).trans ?_
+    rw [this]; simp
+  -- the means are at most zero
+  have hm0 : ∀ x, m x ≤ 0 := fun x => by
+    have := cell_mean_le O B F K k seed probes A hu hV h₀ x
+    exact nonpos_of_mul_nonpos_right this hP0
+  set W : Ω → ℝ := fun ω => ∑ x ∈ X, D.real {x} * h x ω
+  set M : ℝ := ∑ x ∈ X, D.real {x} * m x
+  have hM : M ≤ 0 := Finset.sum_nonpos fun x _ => mul_nonpos_of_nonneg_of_nonpos measureReal_nonneg
+    (hm0 x)
+  -- on the cell, the true sum is `W`
+  have hon : ∀ ω ∈ C, (∑ x ∈ X, D.real {x} * contrib A O B F uGood (readsAt O B F ω)
+      (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
+      (passReads O B F K k seed probes ω) k x) = W ω
+      ∧ (passK O B F K k seed probes ω).tree.depth = s₀.tree.depth := by
+    intro ω hω
+    have hr := cellReads_eq O B F V c hω.1.1.1 hω.1.2
+    have hs := (passCell_const O B F K k seed probes h₀ hω.1.1 hω.1.2).1
+    have hT : passReads O B F K k seed probes ω = c.1 := hω.2
+    refine ⟨Finset.sum_congr rfl fun x _ => ?_, by rw [hs]⟩
+    simp only [h, hr, hs, hT, s₀]
+  set Z : Ω → ℝ := fun ω => C.indicator (fun ω => (W ω - M) ^ 2) ω
+  have hsub : C ∩ {ω | ε * (1 + uGood * (passK O B F K k seed probes ω).tree.depth * L)
+      < ∑ x ∈ X, D.real {x} * contrib A O B F uGood (readsAt O B F ω)
+        (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
+        (passReads O B F K k seed probes ω) k x} ⊆ {ω | (ε * R) ^ 2 ≤ Z ω} := by
+    rintro ω ⟨hω, hlt⟩
+    obtain ⟨hsum, hdep⟩ := hon ω hω
+    simp only [Set.mem_ofPred_eq, hsum, hdep] at hlt
+    simp only [Set.mem_ofPred_eq, Z, Set.indicator_of_mem hω]
+    have : ε * R < W ω - M := by simp only [R, d₀]; linarith
+    have hεR : 0 < ε * R := mul_pos hε hR
+    nlinarith
+  -- the second moment
+  have hWm : Measurable W := Finset.measurable_sum _ fun x _ => (hhm' x).const_mul _
+  have hZm : Measurable Z := ((hWm.sub_const M).pow_const 2).indicator hCm
+  have hZb : ∀ ω, |Z ω| ≤ R ^ 2 := by
+    intro ω
+    have hsumD : ∑ x ∈ X, D.real {x} ≤ 1 := by
+      rw [sum_measureReal_singleton]; exact measureReal_le_one
+    have hWM : |W ω - M| ≤ R := by
+      have : W ω - M = ∑ x ∈ X, D.real {x} * (h x ω - m x) := by
+        simp only [W, M, ← Finset.sum_sub_distrib, mul_sub]
+      rw [this]
+      refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+      calc ∑ x ∈ X, |D.real {x} * (h x ω - m x)| ≤ ∑ x ∈ X, D.real {x} * R :=
+            Finset.sum_le_sum fun x hx => by
+              rw [abs_mul, abs_of_nonneg measureReal_nonneg]
+              exact mul_le_mul_of_nonneg_left (hdev x hx ω) measureReal_nonneg
+        _ = (∑ x ∈ X, D.real {x}) * R := by rw [Finset.sum_mul]
+        _ ≤ 1 * R := by gcongr
+        _ = R := one_mul R
+    simp only [Z, Set.indicator]
+    split_ifs
+    · rw [abs_of_nonneg (sq_nonneg _)]
+      exact (sq_le_sq₀ (abs_nonneg _) hR.le).2 hWM |>.trans' (by rw [sq_abs])
+    · simp; positivity
+  have hZi : Integrable Z μ := Integrable.of_bound hZm.aestronglyMeasurable (R ^ 2)
+    (ae_of_all _ fun ω => by rw [Real.norm_eq_abs]; exact hZb ω)
+  have hmarkov := mul_meas_ge_le_integral_of_nonneg (ae_of_all _ fun ω =>
+    Set.indicator_nonneg (fun ω _ => sq_nonneg (W ω - M)) ω) hZi ((ε * R) ^ 2)
+  -- the integral, pair by pair
+  have hpair : ∀ x ∈ X, ∀ y ∈ X, ∫ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y)) ∂μ
+      ≤ if prefixOf x k = prefixOf y k then μ.real P * R ^ 2 else 0 := by
+    intro x hx y hy
+    split_ifs with hxy
+    · calc ∫ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y)) ∂μ
+          ≤ ∫ ω, P.indicator (fun _ => R ^ 2) ω ∂μ := by
+            refine integral_mono_of_nonneg (ae_of_all _ fun ω => ?_) ?_ (ae_of_all _ fun ω => ?_)
+            · sorry
+            · exact (integrable_const _).indicator hPm'
+            · sorry
+        _ = μ.real P * R ^ 2 := by rw [integral_indicator_const _ hPm', smul_eq_mul]
+    · have hxl := mem_wordsOf.1 hx; have hyl := mem_wordsOf.1 hy
+      have hdis := disjoint_drawBits k (V := V) (c := c) (by omega) (by omega) hxy
+      have hd1 : Disjoint (↑(vBits V c.1) : Set (FreeMonoid α)) (drawBits V c k x) :=
+        Set.disjoint_left.2 fun z hz hz' => hz'.2 hz
+      have hd2 : Disjoint (↑(vBits V c.1) : Set (FreeMonoid α)) (drawBits V c k y) :=
+        Set.disjoint_left.2 fun z hz hz' => hz'.2 hz
+      have := integral_indicator_mul_mul O hd1 hd2 hdis hPm ((hhm x).sub_const _)
+        ((hhm y).sub_const _) (hdev x hx) (hdev y hy)
+      rw [this, integral_sub (hhi x hx) (integrable_const _), integral_const]
+      simp [m]
+  sorry
+
+end Tail
+
 end OrthoDFA
