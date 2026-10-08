@@ -19,15 +19,18 @@ _PROBE = bytes([0, 1, 0, 1])
 
 
 class _StubSifter:
-    """A one-node tree placing a string by ``places``, with ``seq + b"?"`` as the
-    boundary of what it cannot place, and the middle of the band at ``middle``."""
+    """A two-level tree placing a string by ``places``, every sift reading the
+    root and a node below it, which is where it is undecided, with
+    ``seq + b"?"`` as the boundary; and the middle of the band at ``middle``."""
 
     def __init__(self, places, middle=None):
         self.places = places
         self.middle = middle
         self.searched = []
+        self.reads = 0
 
     def sift_and_boundary(self, seq):
+        self.reads += 2
         leaf = self.places(bytes(seq))
         return (leaf, None) if leaf is not None else (None, bytes(seq) + b"?")
 
@@ -52,9 +55,10 @@ class _Learner(TransitionResolver):
     def __init__(self, sifter, transitions, k):
         self.sifter = sifter
         self.population = _StubPopulation()
-        self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2)
+        self.tree = SimpleNamespace(path_of=lambda s: s, num_states=2, depth=2)
         self.dfa = SimpleNamespace(transitions=transitions, witness=lambda s, c: b"")
         self.k = k
+        self.pst = SimpleNamespace(fnr_limit=0.1)
         self.draws = iter(())
 
     def _draw(self):
@@ -148,12 +152,26 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual(0.0, reading.agreement)
 
-    def test_reading_stops_once_the_agreement_settles(self):
+    def test_reading_stops_once_both_its_tests_settle(self):
         reading = _read(lambda seq: 7, acc_threshold=0.5)
 
-        # 0.5 ** 10 < 1e-3, but the agreement is not tested before 30 draws.
-        self.assertEqual(30, len(reading.draws))
+        # The agreement settles at 30 draws, its least; the ends' reads below the
+        # root, two a draw and none undecided, settle below 0.1 at the 66th, since
+        # 0.9 ** 66 < 1e-3 < 0.9 ** 65.
+        self.assertEqual(33, len(reading.draws))
         self.assertEqual(1.0, reading.agreement)
+        self.assertEqual([], reading.ends)
+
+    def test_ends_undecided_below_the_root_too_often_are_held(self):
+        reading = _read(lambda seq: None)
+
+        self.assertEqual({_PROBE[:2] + b"?", _PROBE + b"?"}, set(reading.ends))
+
+    def test_a_replay_of_the_ends_reads_a_fresh_draw_for_them(self):
+        learner = _Learner(_StubSifter(lambda seq: None), _EVERYWHERE, 2)
+        learner.draws = iter([_PROBE])
+
+        self.assertEqual([_PROBE[:2] + b"?", _PROBE + b"?"], learner.replay_ends())
 
     def test_a_replay_reads_a_fresh_draw_for_its_triples_middle(self):
         learner = _Learner(_StubSifter(_parting({3})), _EVERYWHERE, 2)

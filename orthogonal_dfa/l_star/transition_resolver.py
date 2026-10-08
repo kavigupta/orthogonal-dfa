@@ -53,10 +53,13 @@ READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the share
 #: of them the hypothesis agrees on, the boundary strings of the triples their
-#: disagreements were searched down to, how many came down to a pair, the ones
-#: whose walk and sift disagree decidedly, every draw, and the learned edges
-#: they were read against.
-Reading = namedtuple("Reading", "agreement triples pairs disagreements draws learned")
+#: disagreements were searched down to, how many came down to a pair, the
+#: undecided reads below the root at their ends where those were too many, the
+#: ones whose walk and sift disagree decidedly, every draw, and the learned
+#: edges they were read against.
+Reading = namedtuple(
+    "Reading", "agreement triples pairs ends disagreements draws learned"
+)
 
 
 def start_length(length: int) -> int:
@@ -143,12 +146,16 @@ class TransitionResolver:
 
         A draw agrees where the learned edges, from where the middle of the band
         places its start, take it where the middle places it whole; an open edge
-        on the way disagrees.  Reading stops once the agreement's test settles.
-        Each decided disagreement is searched for where it parts (see
-        ``bracket``)."""
+        on the way disagrees.  Each decided disagreement is searched for where it
+        parts (see ``bracket``).  Apart from that, a draw's start and whole are
+        sifted at their ends, and the reads there below the root that the cut
+        cannot place are tested against ``fnr_limit`` of those reads.  Reading
+        stops once both tests settle."""
         learned = self.learned()
-        agreed = pairs = 0
-        triples, disagreements, draws = {}, [], []
+        fnr_limit = self.pst.fnr_limit
+        agreed = pairs = deep = below = 0
+        triples, ends, disagreements, draws = {}, {}, [], []
+        agrees = trips = None
         while len(draws) < READING_DRAWS:
             w = self._draw()
             draws.append(w)
@@ -159,18 +166,46 @@ class TransitionResolver:
                 triples[string] = None
             pairs += kind == PAIR
             agreed += self._ends_at_middle(w, learned)
+            for reads, boundary in self._deep_ends(w):
+                below += reads
+                if boundary is not None:
+                    deep += 1
+                    ends[boundary] = None
+            trips = binomial_side_of_boundary(
+                deep, below, fnr_limit, failure_prob=READING_FAILURE_PROB
+            )
             # As the gate always has, before an early run of agreements can stop it.
-            if (
-                len(draws) >= 30
-                and binomial_side_of_boundary(
+            if len(draws) >= 30:
+                agrees = binomial_side_of_boundary(
                     agreed, len(draws), acc_threshold, failure_prob=READING_FAILURE_PROB
                 )
-                is not None
-            ):
+            if agrees is not None and (trips is not None or self.tree.depth <= 1):
                 break
+        if trips is None:
+            trips = deep > fnr_limit * below
         return Reading(
-            agreed / len(draws), list(triples), pairs, disagreements, draws, learned
+            agreed / len(draws),
+            list(triples),
+            pairs,
+            list(ends) if trips else [],
+            disagreements,
+            draws,
+            learned,
         )
+
+    def _deep_ends(self, w):
+        """Per end of ``w``, its start and itself: the reads below the root its
+        sift makes, and the boundary string where one of them is undecided."""
+        for seq in (w[: self.k], w):
+            before = self.sifter.reads
+            boundary = self.sifter.sift_and_boundary(seq)[1]
+            deep = boundary is not None and boundary != seq
+            yield self.sifter.reads - before - 1, boundary if deep else None
+
+    def replay_ends(self):
+        """Read a fresh draw's ends as ``read_fresh`` does, for the undecided
+        reads below the root."""
+        return [b for _, b in self._deep_ends(self._draw()) if b is not None]
 
     def _part(self, w, learned):
         """``(kind, string)``: how the search for where the walk of ``w`` along
