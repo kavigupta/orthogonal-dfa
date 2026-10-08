@@ -146,6 +146,19 @@ def _blocked_at_limit(resolver, fnr_limit) -> bool:
     return 2 * resolver.unchecked_quiet_probes > fnr_limit * resolver.quiet_reads
 
 
+def _halve_if_blocked(pst, resolver, index) -> bool:
+    """Halve the FNR limit where `_blocked_at_limit`, and say whether it did."""
+    if not _blocked_at_limit(resolver, pst.fnr_limit):
+        return False
+    pst.fnr_limit /= 2
+    print(
+        f"[round {index}] {resolver.unchecked_quiet_probes} of the "
+        f"{resolver.quiet_probes} probes since the last split unchecked, "
+        f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
+    )
+    return True
+
+
 def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
     """``("state", leaf) -> members``, ``per_state`` of them resting at each
     state that has a source."""
@@ -293,8 +306,11 @@ def _boundary_source(pst, resolver, dfa, state, *, acc_threshold) -> None:
     )
 
 
-def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold) -> None:
-    _split_edges(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+def _harvest_sources(pst, resolver, dfa, state, *, acc_threshold, halved) -> None:
+    # A round that halves the limit has made progress already, so its edges are
+    # not judged and every chain carries over unchanged.
+    if not halved:
+        _split_edges(pst, resolver, dfa, state, acc_threshold=acc_threshold)
     _boundary_source(pst, resolver, dfa, state, acc_threshold=acc_threshold)
 
 
@@ -505,13 +521,7 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, uncertified_since):
             return best
-        if _blocked_at_limit(resolver, pst.fnr_limit):
-            pst.fnr_limit /= 2
-            print(
-                f"[round {index}] {resolver.unchecked_quiet_probes} of the "
-                f"{resolver.quiet_probes} probes since the last split unchecked, "
-                f"over {resolver.quiet_reads} reads; FNR limit now {pst.fnr_limit:.4f}"
-            )
+        halved = _halve_if_blocked(pst, resolver, index)
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)
@@ -534,7 +544,9 @@ def counterexample_driven_synthesis(
         # Last, so what the draws and the check strand lands in the pool the
         # round they were found rather than the round after.
         _accumulate_indecisive(resolver, state, target - taken)
-        _harvest_sources(pst, resolver, dfa, state, acc_threshold=acc_threshold)
+        _harvest_sources(
+            pst, resolver, dfa, state, acc_threshold=acc_threshold, halved=halved
+        )
         pool = _publish_pool(pst, state)
         print(
             f"[round {index}] pool now {pool} representative prefixes, "

@@ -335,5 +335,21 @@ class TestARoundSortsItsEdges(unittest.TestCase):
         self.assertEqual([chain], state.chains)
 
 
+class TestAHalvingRoundJudgesNoEdges(unittest.TestCase):
+    def test_its_chains_carry_over_and_nothing_is_judged(self):
+        chain = SimpleNamespace(parent=None, letter=b"\x01")
+        state = PoolState([])
+        state.chains = [chain]
+        with mock.patch.object(cs, "_split_edges") as split, mock.patch.object(
+            cs, "_boundary_source"
+        ):
+            cs._harvest_sources(
+                None, None, None, state, acc_threshold=0.98, halved=True
+            )
+
+        split.assert_not_called()
+        self.assertEqual([chain], state.chains)
+
+
 if __name__ == "__main__":
     unittest.main()
