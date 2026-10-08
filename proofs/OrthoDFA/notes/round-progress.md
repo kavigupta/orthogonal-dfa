@@ -93,3 +93,57 @@ region (e.g. a mod-3 counter) at an offset set by the pre-trigger state.  Predic
 refuses repeatedly with d just above ε, no halving, harvest ≈ 20% bad, and progresses only when
 a re-clustered family moves those states' votes; with the fix, the bisection population is
 ≈ 70%+ bad and binds the next gate.
+
+## The six-outcome statement: where it fails as specified
+
+The specified outcomes are (1) pass, (2) the existing populations force the next gate, (3) halve,
+(4) the bisection population forces the next gate at τ, (5) decided disagreements, and
+(6) depth > D. The bisection population is #410 at 1f287c5:
+- the bisection's first undecided read;
+- an undecided final read whose middle-of-band side leaves the walk (the cheap check, with no
+  read below it);
+- the empty string's first undecided read, where the gate's start parts from the cut at the
+  anchor.
+
+Its growth law is `Bisected`.
+
+**What the gate reads.** The gate reads ε's path and the draw's own path, and nothing else. Take
+P the majority reading (each node read on its likelier side; it depends only on states). A
+counted draw x has at least one of:
+- E1: ε's middle path ≠ P(ε);
+- E2(x): H walked from P(ε) along x ≠ P(x);
+- E3(x): x's middle path ≠ P(x).
+
+E2 depends on the noise only through H.
+
+**(5) has to be E2's mass, not "bisections that complete decided".** Take a decided wrong edge
+into a clean state, carrying mass m ≈ 3ε. Its bisection reads R node strings of states with
+u ≈ τ/2. Then:
+- At R = 40 and τ = 0.1, 87% of these bisections stop at an undecided read with u ≈ 0.05 < τ.
+- So the population sits at ≈ 0.05 average indecision and is not forced.
+- Completed bisections carry 0.13·m ≈ 0.4ε, under any ε₅ ≥ ε/2.
+- Unchecked/reads ≈ 0.004 < τ/2, so (3) fails; the Walked harvest is low too, so (2) fails.
+
+With (5) = D{E2} > ε₅, that round is (5).
+
+**The cheap final-read check loses "deep" flips.** Suppose x's first undecided read is in the band
+on its majority side, and a deeper bad read below it flips. The gate counts x; the pass keeps
+nothing.
+- Spread over many strings this costs only a constant factor of the kept bad mass.
+- Concentrated on a few heavy strings it costs everything. Take one string of mass 2ε whose root
+  read is in the band on its majority side with chance 0.5, and whose node below flips with
+  chance 0.5:
+  - with chance ≈ 0.25 the round refuses with an empty bisection contribution;
+  - unchecked/reads ≈ ε/r, so (3) does not halve;
+  - the Walked harvest is diluted below 2τ, so (2a) fails.
+
+Closing it needs either an anti-concentration term, about max_x D{x}/ε, or reading on at the
+middle below the first undecided node.
+
+**ε's first undecided read can be cheap and wrong.** If ε's first undecided read has u < τ and a
+deeper bad read on ε's path flips, every draw is counted. The population holds that low read
+on every draw. The chance of this is up to Σ u over ε's low-u path reads, which is ≤ D·τ.
+
+Keeping every in-band read on ε's middle path costs only ε's path reads, once per tree. Its low
+reads are independent of the bad flip, so Markov turns the failure into the contamination term
+D·τ²/(4(u* − τ)).
