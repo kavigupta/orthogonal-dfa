@@ -512,3 +512,68 @@ bound:
 - **With a capped test** (n replays), a rising chain whose rise `Var(u)/E[u]` is below the
   resolution `≈ √(p·ln(K/δ_e)/n)` can be dropped. That adds a residual `π ≲ p·ln(K/δ_e)/(n·u_q²)`
   at the start of a chain.
+
+## The ν root (`nuRoot`): the coin-read residual is gone
+
+**The source.** `nuRoot D L` draws x from D and i uniformly below L, and returns x[:i]. So y comes
+out with chance ν(y) = D(x starts with y)/L, for |y| < L. `RoundTetrachotomy` now quantifies over
+`nuRoot S.D S.L :: live ++ per-state populations`.
+
+**Proved** (only `propext`, `Classical.choice` and `Quot.sound`):
+- `nuRoot_pos`: a string x with |x| < L that D begins with has positive ν-root mass.
+- `chainAdvances_of_visited`: under the gap premise, outcome (4) holds whenever some string read
+  before position L leads by some letter c to a badly read state. The ν root then has positive
+  `badAlong c` mass, and `chainAdvances_of_mass` applies.
+
+The old residual (a) periodic predecessors and (b) misplaced predecessors is gone. Neither
+condition matters to the ν root: it holds every prefix that reads pass through.
+
+**A badly read state behind the gate's failure has a visited predecessor.** The gate's walk starts
+where the middle reading puts ε, so it is in sync at position 0 by definition. A disagreement needs
+the middle reading of some x[:j], j ≥ 1, to leave the walk. If that comes from a coin-read state
+(vote near the middle, so u ≥ uHi), then x[:j−1] is a visited predecessor with j − 1 < L, and
+`chainAdvances_of_visited` gives (4).
+
+A state reached only at position 0 (the initial state, never re-entered) cannot cause a
+disagreement. It is also transient, which the premises exclude.
+
+**What still is not covered: decided wrong edges.** A middle reading leaves the walk in one of
+three ways:
+- **(i) A coin-read state.** Covered: (4).
+- **(ii) A clean state's middle reading flipped.** It needs the vote to cross the middle, a full
+  margin beyond the band. Its chance η is negligible (~1e-14 per read by the family's sizing), and
+  charged to δ as `L·η` per draw.
+- **(iii) A decided wrong edge.** Two clean states p1 and p2 share a leaf, and p2's c-successor
+  differs from the edge's target.
+
+(iii) is outside (4), because `badAlong` is about indecision, and clean successors have u ≤ uLo.
+It is outside (2b) whenever p2's disagreement prefixes are under σ of what the round's populations
+place at the leaf. The pass meets the edge, the split test answers `NO_SPLIT` (p2 is under about 10%
+of the members), and #403 harvests the prefix. It is outside (3) when the crossings are checked.
+
+So `RoundTetrachotomy` is false in exactly this regime:
+- d > ε arises only through decided wrong edges;
+- each wrong-edge state is under σ of its leaf's population strings;
+- no halving.
+
+It stays a definition.
+
+**What would close it: a disagreement chain from the same ν root.** It keeps x when the middle
+reading of x·c lands off the hypothesis's edge from x's leaf. For p2-strings that happens with
+chance about 1; for p1-strings with chance about η. So one link enriches p2's odds by about 1/η,
+and the promoted population is almost pure p2. As a population it puts p2 at its leaf at its own
+size, so (2b) holds once that size is at least σ/(1 − σ) of the leaf's other members, at most
+`_MEMBER_LIMIT`. A `RoundTetrachotomy` whose (4) also counts this chain is then true modulo the η
+term. Its (4) would be "a chain with bad or wrong-edge mass advances", proved like
+`chainAdvances_of_mass`, with the edge-disagreement chance in place of u.
+
+**R in terms of V.** The ν root's starting share for edge c is its `badAlong c` mass:
+
+    π_0 = Σ_{|y|<L, y·c → badly read} ν(y) = V_{<L}(pred_c(badly read states)),
+
+V restricted to positions below L. So the stretch bound is
+
+    R = rolloverRounds f a uHi (V_{<L}(pred_c(Q_bad))) r,
+
+with the largest V over letters c. The ν root's level-0 rate is about the pass's baseline, so it
+relies on the rise test, not the f·a bar, to be kept.

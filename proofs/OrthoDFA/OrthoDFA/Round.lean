@@ -274,6 +274,12 @@ def badAlong (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R : Cu
     (uHi : ℝ) : Set (FreeMonoid α) :=
   {x | uHi ≤ stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))}
 
+/-- The `ν` root: a draw from `D` cut at a position drawn uniformly below `L`, so a string `y`
+comes out with chance `ν(y)` (up to the cut `L`).  Every round tests its edges alongside the
+per-state populations'. -/
+noncomputable def nuRoot (D : Measure (FreeMonoid α)) (L : ℕ) : Measure (FreeMonoid α) :=
+  (D.prod (anchorLaw L)).map fun q => prefixOf q.1 q.2
+
 /-- (4) The round advances a chain: some chain source `X` (a live chain's law, or a per-state
 population's) holds predecessors of a badly read state, and the chain carried past this round's
 link has their mass multiplied by at least `uHi` and the rest's by at most `a`, so their odds by
@@ -289,8 +295,8 @@ def ChainAdvances (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (R
 
 /-- `RoundTetrachotomy`: but for `δ`, a round ends with (1) agreement within `ε`, (2) a population
 the next gate must act on, including a promoted edge population, (3) halving, or (4) a chain
-advanced.  `live` are the chains carried into the round; the round also starts one from every
-per-state population. -/
+advanced.  `live` are the chains carried into the round; the round also starts one from the `ν`
+root and from every per-state population. -/
 def RoundTetrachotomy (f a uHi δ : ℝ) (r : ℕ) : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
@@ -307,7 +313,8 @@ def RoundTetrachotomy (f a uHi δ : ℝ) (r : ℕ) : Prop :=
                   ∧ EdgePopulationIndecisive S.A S.O R (S.D[|settlesAt R s.hyp l]) c S.τ))
           ∧ ¬ s.halves S.τ
           ∧ ¬ ChainAdvances S.A S.O R
-              (live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l]) uHi a}
+              (nuRoot S.D S.L :: live ++ s.hyp.tree.paths.map fun l => S.D[|settlesAt R s.hyp l])
+              uHi a}
       ≤ δ
 
 /-- How many strings an attempt asks the cut about. -/

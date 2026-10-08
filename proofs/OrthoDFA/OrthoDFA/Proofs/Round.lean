@@ -222,4 +222,53 @@ theorem chainAdvances_of_mass [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α)
     withDensity_real_eq X g hm (fun x => stateIndecision_nonneg A O R.B R.F _) hbad.compl]
   exact hodds
 
+theorem anchorLaw_singleton {L k : ℕ} (hk : k < L) : anchorLaw L {k} = (L : ℝ≥0∞)⁻¹ := by
+  simp only [anchorLaw, Measure.smul_apply, Measure.coe_finsetSum, Finset.sum_apply,
+    Measure.dirac_apply, Set.indicator_apply, Set.mem_singleton_iff, Pi.one_apply, smul_eq_mul]
+  rw [Finset.sum_ite_eq' (Finset.range L) k fun _ => (1 : ℝ≥0∞), if_pos (Finset.mem_range.2 hk),
+    mul_one]
+
+/-- A string `x` shorter than `L` that `D` begins with is in the `ν` root with chance at least
+`ν(x) = D(x is a prefix) / L`. -/
+theorem nuRoot_pos (D : Measure (FreeMonoid α)) [IsFiniteMeasure D] {L : ℕ} {x : FreeMonoid α}
+    (hx : x.toList.length < L) (hD : 0 < D.real {p | x.toList <+: p.toList})
+    {S : Set (FreeMonoid α)} (hS : x ∈ S) : 0 < (nuRoot D L).real S := by
+  have hm : Measurable fun q : FreeMonoid α × ℕ => prefixOf q.1 q.2 := measurable_of_countable _
+  have hsub : {p : FreeMonoid α | x.toList <+: p.toList} ×ˢ ({x.toList.length} : Set ℕ)
+      ⊆ (fun q : FreeMonoid α × ℕ => prefixOf q.1 q.2) ⁻¹' S := by
+    rintro ⟨p, k⟩ ⟨hp, hk⟩
+    simp only [Set.mem_singleton_iff] at hk
+    subst hk
+    obtain ⟨t, ht⟩ := hp
+    show prefixOf p x.toList.length ∈ S
+    have : prefixOf p x.toList.length = x := by
+      simp [prefixOf, ← ht]
+    rwa [this]
+  have hpos : 0 < (D.prod (anchorLaw L))
+      ({p : FreeMonoid α | x.toList <+: p.toList} ×ˢ ({x.toList.length} : Set ℕ)) := by
+    rw [Measure.prod_prod, anchorLaw_singleton hx]
+    refine ENNReal.mul_pos ?_ (ENNReal.inv_ne_zero.2 (ENNReal.natCast_ne_top L))
+    intro h0
+    rw [measureReal_def, h0, ENNReal.toReal_zero] at hD
+    exact lt_irrefl _ hD
+  rw [measureReal_def, nuRoot, Measure.map_apply hm (Set.to_countable S).measurableSet]
+  exact ENNReal.toReal_pos (lt_of_lt_of_le hpos (measure_mono hsub)).ne'
+    (measure_ne_top _ _)
+
+/-- With the `ν` root among the sources, a round advances a chain whenever some string read
+before position `L` leads by `c` to a badly read state. -/
+theorem chainAdvances_of_visited [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
+    (O : Oracle μ (FreeMonoid α)) (R : CutReads α) (D : Measure (FreeMonoid α)) [IsFiniteMeasure D]
+    (L : ℕ) (others : List (Measure (FreeMonoid α))) (hfin : ∀ X ∈ others, IsFiniteMeasure X)
+    {a uHi : ℝ} (hHi0 : 0 ≤ uHi) (hgap : GapPremise A O R.B R.F a uHi) {x : FreeMonoid α}
+    {c : α} (hx : x.toList.length < L) (hD : 0 < D.real {p | x.toList <+: p.toList})
+    (hbad : uHi ≤ stateIndecision A O R.B R.F (A.state (x * FreeMonoid.of c))) :
+    ChainAdvances A O R (nuRoot D L :: others) uHi a := by
+  refine chainAdvances_of_mass A O R _ ?_ hHi0 hgap ⟨nuRoot D L, List.mem_cons_self .., c,
+    nuRoot_pos D hx hD (S := badAlong A O R c uHi) hbad⟩
+  intro X hX
+  rcases List.mem_cons.1 hX with rfl | h
+  · unfold nuRoot; infer_instance
+  · exact hfin X h
+
 end OrthoDFA
