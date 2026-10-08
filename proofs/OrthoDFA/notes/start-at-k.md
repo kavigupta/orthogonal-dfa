@@ -357,12 +357,17 @@ gate measures:
 
 **The ends test as #413 runs it is not a valid sequential test.** `binomial_side_of_boundary(deep,
 below, fnr_limit)` treats each below-root read as an independent trial. Given the persistent
-noise, though, draws are the independent unit, and their read counts vary. Counterexample: 48% of
-draws have one end undecided at the first node below the root (one read, one hit). The rest read
-decided through 9 levels at both ends (18 reads, no hit). Then `ρ = 0.0488`, yet the first 7 draws
-are all light with chance `0.48^7 ≈ 0.006`. At `f = 0.1` those 7 draws trip the test at any
-`a ≥ 1e-7`, so `P(trip ∧ ρ < f − 0.05)` exceeds `ng·a + exp(−2·ng·0.05²)` once `a = 1e-6` and
+noise, though, draws are the independent unit, and their read counts vary. Counterexample: 90% of draws have one end undecided at the first node below the root (one read,
+one hit). The rest read decided through 86 levels at both ends (172 reads, no hit). Then
+`ρ = 0.9/18.1 < 0.05`, yet all of the first 30 draws are light with chance `0.9^30 ≈ 0.042`. At
+`f = 0.1` the test then reads above, at the first look the agreement test can stop at. So
+`P(trip ∧ ρ < f − 0.05) ≈ 0.042`, more than `ng·a + exp(−2·ng·0.05²) ≈ 0.002` at `a = 1e-6` and
 `ng = 2000`. A valid version with no extra queries thins to one read per end: draw a level `j`
 uniformly among the `depth − 1` below the root. The end is a trial when its sift read level `j`,
 and a hit when that read was the undecided one. Trials are then i.i.d. `Bernoulli(ρ)`, so the
 exact binomial test and `pi_count_ge` apply.
+
+`read_fresh` also stops jointly: each test is re-read every draw, and reading stops once both have
+settled. `seqAbove` instead takes each test's first settled side. The claims survive any stopping
+rule, since a settled side at the stop is a settled side at some look, and the union over looks
+already pays `ng·a`. The Lean definition should still follow the joint rule.
