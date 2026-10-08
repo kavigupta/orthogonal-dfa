@@ -195,4 +195,350 @@ theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
 
 end Congr
 
+section Shapes
+
+variable (K : StageKnobs α) (R : CutReads α)
+
+theorem seedStep_split_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α} {k : ℕ}
+    {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {d : FreeMonoid α} {s1 : List Bool}
+    {y sprime : FreeMonoid α} (h : seedStep K R t pool edges k x ps fd = .split d s1 y sprime) :
+    (∃ c s2, edges s1 c = some (s2, y)) ∧ sprime = prefixOf x (fd - 1) := by
+  unfold seedStep at h
+  simp only [] at h
+  split at h
+  · simp at h
+  rename_i c _
+  split at h
+  · simp at h
+  rename_i s2 y' he
+  split_ifs at h
+  split at h
+  · simp at h
+  split_ifs at h
+  split at h
+  · simp at h
+  · simp at h
+  split at h
+  · simp only [SeedResult.split.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    exact ⟨⟨c, s2, he⟩, rfl⟩
+  · simp at h
+
+theorem seedStep_member_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
+    {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {s1 : List Bool}
+    {sprime : FreeMonoid α} (h : seedStep K R t pool edges k x ps fd = .member s1 sprime) :
+    sprime = prefixOf x (fd - 1) := by
+  unfold seedStep at h
+  simp only [] at h
+  split at h
+  · simp at h
+  split at h
+  · simp at h
+  split_ifs at h
+  split at h
+  · simp at h
+  split_ifs at h
+  split at h
+  · simp at h
+  · simp at h
+  split at h
+  · simp at h
+  · simp only [SeedResult.member.injEq] at h
+    exact h.2.symm
+
+theorem probeOutcome_member {t : DTree α} {edges : Edges α} {k : ℕ} {x u : FreeMonoid α}
+    (h : probeOutcome R t edges k x = .member u) : ∃ j, u = prefixOf x j := by
+  unfold probeOutcome at h
+  rcases hw : walkCheck R t edges k x with o | ⟨ps, hi⟩ <;> rw [hw] at h
+  swap
+  · have := bracketAt_isSearch (α := α) (agreesAt R t x fun j => ps.getD (j - k) []) ps (hi - k) k hi
+    simp only [Sum.elim_inr] at h
+    rw [h] at this
+    exact this.elim
+  simp only [Sum.elim_inl, id] at h
+  subst h
+  unfold walkCheck at hw
+  split at hw
+  · simp at hw
+  · split at hw
+    · simp at hw
+    · split at hw
+      · simp at hw
+      · split_ifs at hw
+        · exact ⟨_, (Outcome.member.inj (Sum.inl.inj hw)).symm⟩
+  · split at hw
+    · simp at hw
+    · split_ifs at hw <;> simp at hw
+
+/-- The pool and every edge's witness lie in `Bs`. -/
+def KPoolIn (Bs : Set (FreeMonoid α)) (s : KState α) : Prop :=
+  (∀ b ∈ s.pool, b ∈ Bs) ∧ ∀ p c q y, s.edges p c = some (q, y) → y ∈ Bs
+
+theorem closeK_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
+    {edges : Edges α} {st : ℕ} (hp : ∀ b ∈ pool, b ∈ Bs)
+    (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
+    KPoolIn Bs (closeK K R t pool edges st) := by
+  refine ⟨hp, fun p c q y h => ?_⟩
+  simp only [closeK, closeEdges] at h
+  rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩
+  · rw [hd] at h
+    exact he _ _ _ _ (by simpa using h)
+  · rw [hd] at h
+    obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj (by simpa using h))
+    exact hp _ (members_mem (decisiveTarget_mem K R hd))
+
+theorem probeStepK_poolIn {Bs : Set (FreeMonoid α)} {k : ℕ} {s : KState α} {x : FreeMonoid α}
+    (hs : KPoolIn Bs s) (hw : ∀ i, prefixOf x i ∈ Bs) : KPoolIn Bs (probeStepK K R k s x) := by
+  obtain ⟨hp, he⟩ := hs
+  unfold probeStepK
+  simp only []
+  split
+  · rename_i ps fd _
+    split
+    · rename_i d s1 y sprime hss
+      obtain ⟨⟨c, s2, hy⟩, rfl⟩ := seedStep_split_spec K R hss
+      refine closeK_poolIn K R (mem_append_filter hp (mem_pair (he _ _ _ _ hy) (hw _)))
+        fun p c' q w hq => ?_
+      rcases hE : s.edges p c' with _ | ⟨q', w'⟩ <;> simp only [hE] at hq
+      · simp at hq
+      · split_ifs at hq
+        have : w' = w := by simp_all
+        exact this ▸ he _ _ _ _ hE
+    · rename_i s1 sprime hss
+      rw [seedStep_member_spec K R hss]
+      exact closeK_poolIn K R (mem_cons_filter (hw _) hp) he
+    · exact closeK_poolIn K R hp he
+  · rename_i u hu
+    obtain ⟨j, rfl⟩ := probeOutcome_member R hu
+    refine closeK_poolIn K R ?_ he
+    split_ifs
+    · exact hp
+    · exact mem_append_single hp (hw j)
+  · exact closeK_poolIn K R hp he
+
+theorem probeStepK_tree_cases (k : ℕ) (s : KState α) (x : FreeMonoid α) :
+    (probeStepK K R k s x).tree = s.tree
+      ∨ ∃ d p, (probeStepK K R k s x).tree = s.tree.splitAt d p := by
+  unfold probeStepK
+  simp only []
+  repeat' split
+  all_goals first | exact .inl rfl | exact .inr ⟨_, _, rfl⟩
+
+end Shapes
+
+section StepCongr
+
+variable {K : StageKnobs α} {B : State} {F : Finset (FreeMonoid α)} {f₁ f₂ : FreeMonoid α → ℝ}
+
+theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTree α)
+    (hT : ∀ m ∈ s.tree.mids, m ∈ Tf.mids)
+    (hT' : ∀ m ∈ (probeStepK K (rd B F f₁) k s x).tree.mids, m ∈ Tf.mids)
+    (hpool : ∀ b ∈ s.pool, AgreeOne K F f₁ f₂ Tf b)
+    (hwit : ∀ p c q y, s.edges p c = some (q, y) → AgreeOne K F f₁ f₂ Tf y)
+    (hw : ∀ i, AgreeOne K F f₁ f₂ Tf (prefixOf x i)) :
+    probeStepK K (rd B F f₁) k s x = probeStepK K (rd B F f₂) k s x := by
+  have hpool' : ∀ b ∈ s.pool, AgreeOne K F f₁ f₂ s.tree b := fun b hb => (hpool b hb).mono' hT
+  have hwit' : ∀ p c q y, s.edges p c = some (q, y) → AgreeOne K F f₁ f₂ s.tree y :=
+    fun p c q y h => (hwit p c q y h).mono' hT
+  have hw' : ∀ i, AgreeOne K F f₁ f₂ s.tree (prefixOf x i) := fun i => (hw i).mono' hT
+  have hpo : probeOutcome (rd B F f₁) s.tree s.edges k x
+      = probeOutcome (rd B F f₂) s.tree s.edges k x :=
+    probeOutcome_congr fun i m hm => (hw' i).tree m hm
+  have hss : ∀ ps fd, seedStep K (rd B F f₁) s.tree s.pool s.edges k x ps fd
+      = seedStep K (rd B F f₂) s.tree s.pool s.edges k x ps fd :=
+    fun ps fd => seedStep_congr hpool' hwit' hw'
+  unfold probeStepK at hT' ⊢
+  simp only [] at hT' ⊢
+  rw [hpo] at hT' ⊢
+  split
+  · rename_i ps fd heq
+    simp only [heq] at hT'
+    rw [hss ps fd] at hT' ⊢
+    split
+    · rename_i d s1 y sprime hsd
+      simp only [hsd, closeK] at hT'
+      obtain ⟨⟨c, s2, hy⟩, rfl⟩ := seedStep_split_spec K _ hsd
+      simp only [closeK]
+      rw [closeEdges_congr fun b hb => ?_]
+      refine AgreeOne.mono' ?_ hT'
+      rcases List.mem_append.1 hb with hb | hb
+      · exact hpool b hb
+      · rcases List.mem_cons.1 (List.mem_of_mem_filter hb) with rfl | hb
+        · exact hwit _ _ _ _ hy
+        · rw [List.mem_singleton.1 hb]; exact hw _
+    · rename_i s1 sprime hsd
+      rw [seedStep_member_spec K _ hsd]
+      simp only [closeK]
+      rw [closeEdges_congr fun b hb => ?_]
+      rcases List.mem_cons.1 hb with rfl | hb
+      · exact hw' _
+      · exact hpool' b (List.mem_of_mem_filter hb)
+    · simp only [closeK]
+      rw [closeEdges_congr hpool']
+  · rename_i u hu
+    obtain ⟨j, rfl⟩ := probeOutcome_member _ hu
+    simp only [closeK]
+    rw [closeEdges_congr fun b hb => ?_]
+    split_ifs at hb
+    · exact hpool' b hb
+    · rcases List.mem_append.1 hb with hb | hb
+      · exact hpool' b hb
+      · rw [List.mem_singleton.1 hb]; exact hw' j
+  · simp only [closeK]
+    rw [closeEdges_congr hpool']
+
+end StepCongr
+
+section PhasesK
+
+variable (K : StageKnobs α) (R : CutReads α) (k : ℕ)
+
+/-- One step of `runPassK`. -/
+noncomputable def stepK (s : KState α) (x : FreeMonoid α) : KState α :=
+  if K.patience ≤ s.streak then s else probeStepK K R k s x
+
+/-- The pass's state after the first `n` probes. -/
+noncomputable def phaseK (seed probes : List (FreeMonoid α)) (n : ℕ) : KState α :=
+  runPassK K R k (initialK K R seed) (probes.take n)
+
+theorem phaseK_succ (seed probes : List (FreeMonoid α)) {n : ℕ} (hn : n < probes.length) :
+    phaseK K R k seed probes (n + 1) = stepK K R k (phaseK K R k seed probes n) probes[n] := by
+  simp only [phaseK, runPassK, List.take_succ, List.getElem?_eq_getElem hn, Option.toList_some,
+    List.foldl_append, List.foldl_cons, List.foldl_nil, stepK]
+  rfl
+
+theorem phaseK_of_le (seed probes : List (FreeMonoid α)) {n : ℕ} (hn : probes.length ≤ n) :
+    phaseK K R k seed probes n = phaseK K R k seed probes probes.length := by
+  simp only [phaseK, List.take_of_length_le hn, List.take_length]
+
+theorem stepK_mids_mono (s : KState α) (x : FreeMonoid α) :
+    ∀ m ∈ s.tree.mids, m ∈ (stepK K R k s x).tree.mids := fun m hm => by
+  unfold stepK
+  split
+  · exact hm
+  · rcases probeStepK_tree_cases K R k s x with h | ⟨d, p, h⟩
+    · rw [h]; exact hm
+    · rw [h]; exact DTree.mem_mids_splitAt hm
+
+theorem phaseK_mids_mono (seed probes : List (FreeMonoid α)) (n : ℕ) :
+    ∀ m ∈ (phaseK K R k seed probes n).tree.mids, m ∈ (phaseK K R k seed probes (n + 1)).tree.mids := by
+  by_cases hn : n < probes.length
+  · rw [phaseK_succ K R k seed probes hn]; exact stepK_mids_mono K R k _ _
+  · rw [phaseK_of_le K R k seed probes (n := n + 1) (by omega),
+      phaseK_of_le K R k seed probes (n := n) (by omega)]
+    exact fun m hm => hm
+
+theorem phaseK_mids_le (seed probes : List (FreeMonoid α)) {n n' : ℕ} (h : n ≤ n') :
+    ∀ m ∈ (phaseK K R k seed probes n).tree.mids, m ∈ (phaseK K R k seed probes n').tree.mids := by
+  induction h with
+  | refl => exact fun m hm => hm
+  | step _ ih => exact fun m hm => phaseK_mids_mono K R k seed probes _ m (ih m hm)
+
+theorem phaseK_final_mids (seed probes : List (FreeMonoid α)) (n : ℕ) :
+    ∀ m ∈ (phaseK K R k seed probes n).tree.mids,
+      m ∈ (runPassK K R k (initialK K R seed) probes).tree.mids := by
+  have hfin : runPassK K R k (initialK K R seed) probes = phaseK K R k seed probes probes.length := by
+    simp [phaseK]
+  rw [hfin]
+  rcases le_total n probes.length with h | h
+  · exact phaseK_mids_le K R k seed probes h
+  · rw [phaseK_of_le K R k seed probes h]; exact fun m hm => hm
+
+theorem phaseK_poolIn {Bs : Set (FreeMonoid α)} {seed probes : List (FreeMonoid α)}
+    (hseed : ∀ b ∈ seed, b ∈ Bs) (hws : ∀ w ∈ probes, ∀ i, prefixOf w i ∈ Bs) :
+    ∀ n, KPoolIn Bs (phaseK K R k seed probes n)
+  | 0 => by
+    simp only [phaseK, List.take_zero, runPassK, List.foldl_nil]
+    exact closeK_poolIn K R hseed fun _ _ _ _ h => by simp at h
+  | n + 1 => by
+    by_cases hn : n < probes.length
+    · rw [phaseK_succ K R k seed probes hn]
+      unfold stepK
+      split
+      · exact phaseK_poolIn hseed hws n
+      · exact probeStepK_poolIn K R (phaseK_poolIn hseed hws n) (hws _ (List.getElem_mem hn))
+    · rw [phaseK_of_le K R k seed probes (n := n + 1) (by omega)]
+      rw [← phaseK_of_le K R k seed probes (n := n) (by omega)]
+      exact phaseK_poolIn hseed hws n
+
+end PhasesK
+
+section Determined
+
+variable {K : StageKnobs α} {B : State} {F : Finset (FreeMonoid α)} {f₁ f₂ : FreeMonoid α → ℝ}
+
+theorem phaseK_congr (k : ℕ) {Bs : Set (FreeMonoid α)} {seed probes : List (FreeMonoid α)}
+    (hseed : ∀ b ∈ seed, b ∈ Bs) (hws : ∀ w ∈ probes, ∀ i, prefixOf w i ∈ Bs) (Tf : DTree α)
+    (hTf : ∀ n, ∀ m ∈ (phaseK K (rd B F f₁) k seed probes n).tree.mids, m ∈ Tf.mids)
+    (hB : ∀ b ∈ Bs, AgreeOne K F f₁ f₂ Tf b) :
+    ∀ n, phaseK K (rd B F f₁) k seed probes n = phaseK K (rd B F f₂) k seed probes n
+  | 0 => by
+    have h0 := hTf 0
+    simp only [phaseK, List.take_zero, runPassK, List.foldl_nil, initialK, closeK] at h0 ⊢
+    rw [closeEdges_congr fun b hb => (hB b (hseed b hb)).mono' h0]
+  | n + 1 => by
+    by_cases hn : n < probes.length
+    · rw [phaseK_succ K _ k seed probes hn, phaseK_succ K _ k seed probes hn,
+        ← phaseK_congr k hseed hws Tf hTf hB n]
+      have hT' := hTf (n + 1)
+      rw [phaseK_succ K _ k seed probes hn] at hT'
+      unfold stepK at hT' ⊢
+      split
+      · rfl
+      · rename_i hst
+        simp only [hst, if_false] at hT'
+        obtain ⟨hp, he⟩ := phaseK_poolIn K (rd B F f₁) k hseed hws n
+        exact probeStepK_congr Tf (hTf n) hT' (fun b hb => hB b (hp b hb))
+          (fun p c q y hy => hB y (he p c q y hy))
+          (fun i => hB _ (hws _ (List.getElem_mem hn) i))
+    · rw [phaseK_of_le K _ k seed probes (n := n + 1) (by omega),
+        phaseK_of_le K _ k seed probes (n := n + 1) (by omega),
+        ← phaseK_of_le K _ k seed probes (n := n) (by omega),
+        ← phaseK_of_le K _ k seed probes (n := n) (by omega)]
+      exact phaseK_congr k hseed hws Tf hTf hB n
+
+theorem prefixOf_mem_bases {seed probes : List (FreeMonoid α)} {p : FreeMonoid α}
+    (hp : p ∈ probes) (i : ℕ) :
+    prefixOf p i ∈ seed ++ probes.flatMap fun p => (List.range (p.toList.length + 1)).map (prefixOf p) := by
+  refine List.mem_append_right _ (List.mem_flatMap.2 ⟨p, hp, List.mem_map.2
+    ⟨min i p.toList.length, List.mem_range.2 (by omega), ?_⟩⟩)
+  unfold prefixOf
+  rcases le_total i p.toList.length with h | h
+  · rw [min_eq_left h]
+  · rw [min_eq_right h, List.take_of_length_le le_rfl, List.take_of_length_le h]
+
+/-- The pass walked from `k` is decided by the oracle's bits at what it reads against the tree it
+ends with. -/
+theorem runPassK_determined {Ω : Type*} [MeasurableSpace Ω] {μ : MeasureTheory.Measure Ω}
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
+    (k : ℕ) (seed probes : List (FreeMonoid α)) (ω ω' : Ω)
+    (h : ∀ y ∈ vBits (F ∪ K.train F) (passReadSet seed probes
+        (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes).tree),
+      O.noise y ω = O.noise y ω') :
+    runPassK K (readsAt O B F ω') k (initialK K (readsAt O B F ω') seed) probes
+      = runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes := by
+  set Bs : Set (FreeMonoid α) := {b | b ∈ seed ++ probes.flatMap fun p =>
+    (List.range (p.toList.length + 1)).map (prefixOf p)}
+  set Tf := (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes).tree
+  have hseed : ∀ b ∈ seed, b ∈ Bs := fun b hb => List.mem_append_left _ hb
+  have hws : ∀ w ∈ probes, ∀ i, prefixOf w i ∈ Bs := fun w hw i => prefixOf_mem_bases hw i
+  have hB : ∀ b ∈ Bs, AgreeOne K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b := by
+    intro b hb e m hm
+    refine agree_of_noise K O F fun v hv => h _ ?_
+    simp only [vBits, Finset.mem_biUnion, Finset.mem_image]
+    refine ⟨b * ext e * m, ?_, v, hv, rfl⟩
+    simp only [passReadSet, Finset.mem_image, Finset.mem_product, Prod.exists]
+    refine ⟨b, ext e, m, ⟨⟨List.mem_toFinset.2 hb, ?_⟩, ?_⟩, rfl⟩
+    · rcases e with _ | c
+      · exact Finset.mem_insert_self _ _
+      · exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨c, Finset.mem_univ _, rfl⟩)
+    · exact Finset.mem_insert_of_mem ((DTree.mem_midfixes_iff _).2 hm)
+  have hTf : ∀ n, ∀ m ∈ (phaseK K (rd B F fun w => O.mq w ω) k seed probes n).tree.mids,
+      m ∈ Tf.mids := fun n => phaseK_final_mids K _ k seed probes n
+  have := phaseK_congr k hseed hws Tf hTf hB probes.length
+  simp only [phaseK, List.take_length] at this
+  exact this.symm
+
+end Determined
+
 end OrthoDFA
