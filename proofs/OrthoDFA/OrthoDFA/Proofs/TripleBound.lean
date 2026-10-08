@@ -847,12 +847,30 @@ theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
       ≤ if prefixOf x k = prefixOf y k then μ.real P * R ^ 2 else 0 := by
     intro x hx y hy
     split_ifs with hxy
-    · calc ∫ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y)) ∂μ
-          ≤ ∫ ω, P.indicator (fun _ => R ^ 2) ω ∂μ := by
-            refine integral_mono_of_nonneg (ae_of_all _ fun ω => ?_) ?_ (ae_of_all _ fun ω => ?_)
-            · sorry
-            · exact (integrable_const _).indicator hPm'
-            · sorry
+    · have hpt : ∀ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y))
+          ≤ P.indicator (fun _ => R ^ 2) ω := by
+        intro ω
+        by_cases hω : ω ∈ P
+        · rw [Set.indicator_of_mem hω, Set.indicator_of_mem hω, Pi.one_apply, one_mul]
+          calc (h x ω - m x) * (h y ω - m y) ≤ |h x ω - m x| * |h y ω - m y| := by
+                rw [← abs_mul]; exact le_abs_self _
+            _ ≤ R * R := mul_le_mul (hdev x hx ω) (hdev y hy ω) (abs_nonneg _) hR.le
+            _ = R ^ 2 := by ring
+        · rw [Set.indicator_of_notMem hω, Set.indicator_of_notMem hω, zero_mul]
+      have hint : Integrable (fun ω => P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y))) μ :=
+        Integrable.of_bound ((((measurable_const.indicator hPm').mul
+          (((hhm' x).sub_const _).mul ((hhm' y).sub_const _)))).aestronglyMeasurable) (R ^ 2)
+          (ae_of_all _ fun ω => by
+            rw [Real.norm_eq_abs, abs_mul, abs_mul]
+            have h1 : |P.indicator (1 : Ω → ℝ) ω| ≤ 1 := by
+              by_cases hω : ω ∈ P <;> simp [Set.indicator, hω]
+            calc |P.indicator (1 : Ω → ℝ) ω| * (|h x ω - m x| * |h y ω - m y|)
+                ≤ 1 * (R * R) := mul_le_mul h1 (mul_le_mul (hdev x hx ω) (hdev y hy ω)
+                  (abs_nonneg _) hR.le) (by positivity) zero_le_one
+              _ = R ^ 2 := by ring)
+      calc ∫ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y)) ∂μ
+          ≤ ∫ ω, P.indicator (fun _ => R ^ 2) ω ∂μ :=
+            integral_mono hint ((integrable_const _).indicator hPm') hpt
         _ = μ.real P * R ^ 2 := by rw [integral_indicator_const _ hPm', smul_eq_mul]
     · have hxl := mem_wordsOf.1 hx; have hyl := mem_wordsOf.1 hy
       have hdis := disjoint_drawBits k (V := V) (c := c) (by omega) (by omega) hxy
@@ -864,7 +882,82 @@ theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
         ((hhm y).sub_const _) (hdev x hx) (hdev y hy)
       rw [this, integral_sub (hhi x hx) (integrable_const _), integral_const]
       simp [m]
-  sorry
+  have hcov : ∫ ω, Z ω ∂μ ≤ μ.real P * R ^ 2 * prefixMax D k := by
+    have hZP : ∫ ω, Z ω ∂μ = ∫ ω, P.indicator (fun ω => (W ω - M) ^ 2) ω ∂μ := by
+      refine integral_congr_ae (hcla.mono fun ω hω => ?_)
+      change C.indicator (fun ω => (W ω - M) ^ 2) ω = P.indicator (fun ω => (W ω - M) ^ 2) ω
+      by_cases hP : ω ∈ P
+      · rw [Set.indicator_of_mem hP, Set.indicator_of_mem (hCeq ▸ ⟨hP, hω⟩ : ω ∈ C)]
+      · rw [Set.indicator_of_notMem hP, Set.indicator_of_notMem fun h' => hP h'.1.1]
+    have hexp : ∀ ω, P.indicator (fun ω => (W ω - M) ^ 2) ω = ∑ x ∈ X, ∑ y ∈ X,
+        D.real {x} * D.real {y} * (P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y))) := by
+      intro ω
+      have hWM : W ω - M = ∑ x ∈ X, D.real {x} * (h x ω - m x) := by
+        simp only [W, M, ← Finset.sum_sub_distrib, mul_sub]
+      by_cases hω : ω ∈ P
+      · rw [Set.indicator_of_mem hω, hWM, sq, Finset.sum_mul_sum]
+        refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun y _ => ?_
+        rw [Set.indicator_of_mem hω, Pi.one_apply]
+        ring
+      · rw [Set.indicator_of_notMem hω]
+        simp [Set.indicator_of_notMem hω]
+    have hint2 : ∀ x ∈ X, ∀ y ∈ X, Integrable
+        (fun ω => D.real {x} * D.real {y} * (P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y))))
+        μ := by
+      intro x hx y hy
+      refine Integrable.const_mul ?_ _
+      exact Integrable.of_bound ((((measurable_const.indicator hPm').mul
+          (((hhm' x).sub_const _).mul ((hhm' y).sub_const _)))).aestronglyMeasurable) (R ^ 2)
+          (ae_of_all _ fun ω => by
+            rw [Real.norm_eq_abs, abs_mul, abs_mul]
+            have h1 : |P.indicator (1 : Ω → ℝ) ω| ≤ 1 := by
+              by_cases hω : ω ∈ P <;> simp [Set.indicator, hω]
+            calc |P.indicator (1 : Ω → ℝ) ω| * (|h x ω - m x| * |h y ω - m y|)
+                ≤ 1 * (R * R) := mul_le_mul h1 (mul_le_mul (hdev x hx ω) (hdev y hy ω)
+                  (abs_nonneg _) hR.le) (by positivity) zero_le_one
+              _ = R ^ 2 := by ring)
+    rw [hZP, integral_congr_ae (ae_of_all _ hexp), integral_finset_sum _ fun x hx =>
+      integrable_finset_sum _ fun y hy => hint2 x hx y hy]
+    calc ∑ x ∈ X, ∫ ω, ∑ y ∈ X, D.real {x} * D.real {y}
+          * (P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y))) ∂μ
+        = ∑ x ∈ X, ∑ y ∈ X, D.real {x} * D.real {y}
+          * ∫ ω, P.indicator 1 ω * ((h x ω - m x) * (h y ω - m y)) ∂μ := by
+          refine Finset.sum_congr rfl fun x hx => ?_
+          rw [integral_finset_sum _ fun y hy => hint2 x hx y hy]
+          exact Finset.sum_congr rfl fun y _ => integral_const_mul _ _
+      _ ≤ ∑ x ∈ X, ∑ y ∈ X, D.real {x} * D.real {y}
+          * (if prefixOf x k = prefixOf y k then μ.real P * R ^ 2 else 0) :=
+          Finset.sum_le_sum fun x hx => Finset.sum_le_sum fun y hy =>
+            mul_le_mul_of_nonneg_left (hpair x hx y hy)
+              (mul_nonneg measureReal_nonneg measureReal_nonneg)
+      _ = μ.real P * R ^ 2 * ∑ x ∈ X, D.real {x}
+          * ∑ y ∈ X, (if prefixOf y k = prefixOf x k then D.real {y} else 0) := by
+          rw [Finset.mul_sum]
+          refine Finset.sum_congr rfl fun x _ => ?_
+          rw [Finset.mul_sum, Finset.mul_sum]
+          refine Finset.sum_congr rfl fun y _ => ?_
+          by_cases hxy : prefixOf x k = prefixOf y k
+          · rw [if_pos hxy, if_pos hxy.symm]; ring
+          · rw [if_neg hxy, if_neg fun h' => hxy h'.symm]; ring
+      _ ≤ μ.real P * R ^ 2 * ∑ x ∈ X, D.real {x} * prefixMax D k := by
+          refine mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun x hx =>
+            mul_le_mul_of_nonneg_left (sum_same_prefix_le D hkL (mem_wordsOf.1 hx))
+              measureReal_nonneg) (by positivity)
+      _ ≤ μ.real P * R ^ 2 * prefixMax D k := by
+          rw [← Finset.sum_mul, sum_measureReal_singleton]
+          refine mul_le_mul_of_nonneg_left (mul_le_of_le_one_left ?_ measureReal_le_one)
+            (by positivity)
+          exact Real.iSup_nonneg fun p => by split_ifs <;> simp [measureReal_nonneg]
+  have hεR : 0 < (ε * R) ^ 2 := by positivity
+  calc μ.real (C ∩ {ω | ε * (1 + uGood * (passK O B F K k seed probes ω).tree.depth * L)
+        < ∑ x ∈ X, D.real {x} * contrib A O B F uGood (readsAt O B F ω)
+          (passK O B F K k seed probes ω).tree (passK O B F K k seed probes ω).edges
+          (passReads O B F K k seed probes ω) k x})
+      ≤ μ.real {ω | (ε * R) ^ 2 ≤ Z ω} := measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ μ.real P * R ^ 2 * prefixMax D k / (ε * R) ^ 2 := by
+        rw [le_div_iff₀ hεR, mul_comm]; exact hmarkov.trans hcov
+    _ = μ.real C * prefixMax D k / ε ^ 2 := by
+        rw [hCP]; field_simp
 
 end Tail
 
