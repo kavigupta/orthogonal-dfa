@@ -373,6 +373,36 @@ theorem measurable_contrib [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
   ext ω
   simp [contrib]
 
+theorem indepFun_of_noiseAlg [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α))
+    {T T' : Set (FreeMonoid α)} (h : Disjoint T T') {f g : Ω → ℝ}
+    (hf : Measurable[noiseAlg O T] f) (hg : Measurable[noiseAlg O T'] g) : f ⟂ᵢ[μ] g := by
+  rw [IndepFun_iff_Indep]
+  exact indep_of_indep_of_le_right (indep_of_indep_of_le_left (indep_noiseAlg O h) hf.comap_le)
+    hg.comap_le
+
+/-- A set decided by `T₀`'s bits and functions of `S₁`'s and `S₂`'s, the three disjoint, factor. -/
+theorem integral_indicator_mul_mul [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α))
+    {T₀ S₁ S₂ : Set (FreeMonoid α)} (h01 : Disjoint T₀ S₁) (h02 : Disjoint T₀ S₂)
+    (h12 : Disjoint S₁ S₂) {P : Set Ω} (hP : MeasurableSet[noiseAlg O T₀] P) {f g : Ω → ℝ}
+    (hf : Measurable[noiseAlg O S₁] f) (hg : Measurable[noiseAlg O S₂] g)
+    {Cf Cg : ℝ} (hfb : ∀ ω, |f ω| ≤ Cf) (hgb : ∀ ω, |g ω| ≤ Cg) :
+    ∫ ω, P.indicator 1 ω * (f ω * g ω) ∂μ = μ.real P * ((∫ ω, f ω ∂μ) * ∫ ω, g ω ∂μ) := by
+  have hle := noiseAlg_le O
+  have hPm : Measurable[noiseAlg O T₀] (P.indicator (1 : Ω → ℝ)) :=
+    Measurable.indicator measurable_const hP
+  have hfg : Measurable[noiseAlg O (S₁ ∪ S₂)] fun ω => f ω * g ω :=
+    (hf.mono (noiseAlg_mono O Set.subset_union_left) le_rfl).mul
+      (hg.mono (noiseAlg_mono O Set.subset_union_right) le_rfl)
+  have h1 : (P.indicator (1 : Ω → ℝ)) ⟂ᵢ[μ] fun ω => f ω * g ω :=
+    indepFun_of_noiseAlg O (Set.disjoint_union_right.2 ⟨h01, h02⟩) hPm hfg
+  have h2 : f ⟂ᵢ[μ] g := indepFun_of_noiseAlg O h12 hf hg
+  have e1 := h1.integral_mul_eq_mul_integral ((hPm.mono (hle _) le_rfl).aestronglyMeasurable)
+    ((hfg.mono (hle _) le_rfl).aestronglyMeasurable)
+  have e2 := h2.integral_mul_eq_mul_integral ((hf.mono (hle _) le_rfl).aestronglyMeasurable)
+    ((hg.mono (hle _) le_rfl).aestronglyMeasurable)
+  simp only [Pi.mul_apply] at e1 e2
+  rw [e1, e2, integral_indicator_one ((hle _) _ hP)]
+
 end Cells
 
 end OrthoDFA
