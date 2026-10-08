@@ -47,6 +47,18 @@ class PoolState:
         self.held[label] = sorted(source.draw() for _ in range(count))
         self.sources[label] = source
 
+    def hold_found(self, kind, found, source) -> None:
+        """Hold the strings in ``found`` not yet seen as a new population of
+        ``kind``, which ``source`` grows."""
+        fresh = sorted(set(found) - self.seen)
+        if not fresh:
+            return
+        self.named += 1
+        label = (kind, self.named)
+        self.seen.update(fresh)
+        self.held[label] = fresh
+        self.sources[label] = source
+
     def harvest(self) -> list:
         """This round's boundary population, named on the first string to reach
         it."""

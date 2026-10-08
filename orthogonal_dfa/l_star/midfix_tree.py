@@ -66,6 +66,25 @@ class MidfixTree:
     def leaves(self) -> Iterator[int]:
         return _leaves(self._root)
 
+    def route_halfway(
+        self, seq, decide: Decide, halfway: Decide
+    ) -> Tuple[Optional[int], List[bytes]]:
+        """Route ``seq`` to a leaf, taking ``halfway``'s side at each node
+        ``decide`` cannot place it, and the strings read at those nodes; the leaf
+        is ``None`` where ``halfway`` abstains too."""
+        node = self._root
+        in_band = []
+        while not isinstance(node, int):
+            midfix, lookup = node
+            decision = decide(seq, midfix)
+            if decision is None:
+                in_band.append(seq + midfix)
+                decision = halfway(seq, midfix)
+                if decision is None:
+                    return None, in_band
+            node = lookup[decision]
+        return node, in_band
+
     def path_of(self, state: int) -> Optional[Tuple[bool, ...]]:
         """The branches from the root to leaf ``state`` (True = accept child); a
         stable node key, unlike the node objects a split rebuilds."""
@@ -156,27 +175,31 @@ class MidfixTree:
         """
         return self.sift(seq, decide)[0]
 
-    def first_disagreement(self, s, sprime, decide: Decide, prefix) -> Optional[bytes]:
+    def first_disagreement(
+        self, s, sprime, decide: Decide, prefix
+    ) -> Tuple[Optional[bytes], Optional[bytes]]:
         """
-        The midfix separating s and sprime, or None.
+        ``(midfix, undecided)``: the midfix separating s and sprime, or the string
+        a needed classification could not place; both None where they agree all
+        the way to a leaf.
 
         s and sprime currently sift to the same leaf, but s + prefix and
         sprime + prefix are known to reach different leaves. Walk down the branch
         where they still agree; the first node where they disagree yields the
-        separating midfix prefix + node midfix. None when a needed classification
-        is indecisive, or when they agree all the way to a leaf.
+        separating midfix prefix + node midfix.
         """
         node = self._root
         while not isinstance(node, int):
             midfix, lookup = node
             full = prefix + midfix
-            d, dprime = decide(s, full), decide(sprime, full)
-            if d is None or dprime is None:
-                return None
-            if d != dprime:
-                return full
+            for seq in (s, sprime):
+                if decide(seq, full) is None:
+                    return None, seq + full
+            d = decide(s, full)
+            if d != decide(sprime, full):
+                return full, None
             node = lookup[d]
-        return None
+        return None, None
 
     def classify_many(self, seqs, decide_level) -> List[Optional[int]]:
         """

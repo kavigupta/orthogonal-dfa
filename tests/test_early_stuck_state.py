@@ -1,8 +1,8 @@
 """A state the family cannot place one symbol in, ahead of the rest of the probe.
 
-Every walk that starts at the empty string and disagrees from its first edge
-bisects down to that state and stops there, so a replay of the pass's walks
-that also started there would never find a string it has not already seen.
+Every walk that started at the empty string and disagreed from its first edge
+would bisect down to that state and stop there, so a replay of the pass's walks
+would never find a string it has not already seen.  Walks start past it.
 """
 
 # pylint: disable=protected-access
@@ -39,6 +39,9 @@ class _Sifter:
             return None, bytes(seq) + b"?"
         return 0, None
 
+    def halfway(self, _seq):
+        return 0, []
+
     def prefill(self, seqs):
         pass
 
@@ -58,8 +61,7 @@ class TestReplayingTheWalksDoesNotRunDry(unittest.TestCase):
         state.take(b"\x00?", Read(UniformSource(pst), None))
         _boundary_source(
             pst,
-            SimpleNamespace(sifter=_Sifter()),
-            SimpleNamespace(transitions=_TRANSITIONS),
+            SimpleNamespace(sifter=_Sifter(), learned=lambda: _TRANSITIONS, k=8),
             state,
             acc_threshold=0.9,
         )

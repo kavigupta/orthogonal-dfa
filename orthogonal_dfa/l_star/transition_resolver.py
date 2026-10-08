@@ -8,16 +8,20 @@ prefix pool into accept / reject -- two leaves, the initial two states.  Each
 symbol: the first one the tree places, and every later one it can place from reads
 already made, vote, and the edge points where most of them land, with a member that
 landed there as its witness.  A leaf every one of whose members is indecisive, or
-that no prefix reaches, leaves its edge open; the export totalises those --
-self-looping them and feeding their boundary strings back so the next round's family resolves them (see EdgeResolver).
+that no prefix reaches, leaves its edge open.
 
-States beyond the initial two are found by the counterexample pass: random probe
-strings are walked through a *totalised* copy of the transition function and
-re-sifted, and where the walk and the sift disagree the probe has exhibited two
-prefixes that reach one leaf yet behave differently under one more symbol -- a
-Myhill-Nerode counterexample -- so that leaf is split (see SplitEvidence).  A
-split drops the edges it made ambiguous; both they and the new leaf's edges then
-read as unresolved and are refilled on the next resolve pass.
+States beyond the initial two are found by the counterexample pass.  A probe is
+anchored where the cut sifts its first ``k`` symbols and walked along the learned
+edges only; where the walk's end and a fresh sift of the probe disagree, the
+probe has exhibited two prefixes that reach one leaf yet behave differently under
+one more symbol -- a Myhill-Nerode counterexample -- so that leaf is split (see
+SplitEvidence).  A split drops the edges it made ambiguous; both they and the new
+leaf's edges then read as unresolved and are refilled on the next resolve pass.
+
+A probe the cut cannot anchor, whose walk meets an open edge, or whose sift the
+cut cannot place, is blocked.  After the pass the hypothesis is frozen and read on
+the gate's draws; a round whose draws are blocked often enough leaves what they
+met to a population that replays the reading (see FrozenCheck).
 
 Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
 :class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`.  The split keeps
@@ -26,24 +30,135 @@ MidfixTree.split), so state ids stay a dense range(num_states) and need no
 remapping on export.
 """
 
+import math
+from collections import deque
+from dataclasses import dataclass
+from typing import List
+
 from automata.fa.dfa import DFA
 
 from .edge_resolver import EdgeResolver
 from .leaf_population import LeafPopulation
-from .midfix_tree import MidfixTree, fmt_seq, oracle_decider
+from .lstar import SequentialRate
+from .midfix_tree import MidfixTree, fmt_seq
 from .partial_dfa import PartialDFA
 from .prefix_sources import UniformSource
 from .progress import counter, write
-from .provenance import Read
-from .sifting import PROBE_BLOCK, Sifter, anchored_walk, first_disagreeing_edge
-from .split_evidence import _MEMBER_LIMIT, NO_SPLIT, SPLIT, SplitEvidence
+from .provenance import Provenance, Read, ReadBlocked, WalkBlocked
+from .sifting import END, PROBE_BLOCK, Sifter, check_from, read_from, walk_from
+from .split_evidence import _MEMBER_LIMIT, SPLIT, SplitEvidence
 from .suffix_family import SuffixFamily
 
 # Outcome of processing one probe (see TransitionResolver.counterexample_pass).
-_RESOLVED = 0  # clean probe, or the leaf is a single state at this distinguisher
+_RESOLVED = 0  # clean probe, or one no read left undecided the check passed by
 _SPLIT = 1  # the leaf bifurcated decisively; a split was applied
 _UNDECIDED = 2  # evidence not yet conclusive -- keep sifting to accumulate members
 _UNCHECKED = 3  # counted clean, but indecision kept the probe from being checked
+
+#: Which reading blocked a round, naming the population it leaves.
+WALK, CHECK = "walk", "check"
+
+
+def start_length(length: int) -> int:
+    """k, where the pass anchors a probe of ``length``: a uniform draw's first k
+    symbols are as many strings as `aim_at` asks a leaf to hold at full length,
+    and the rest of the probe is at least as long for the walk."""
+    return math.ceil(length / 2)
+
+
+@dataclass
+class Blocked:
+    """The ``kind`` of reading that blocked a round, the distinct strings its
+    blocked draws left, and the replay that draws more of them."""
+
+    kind: str
+    found: List[bytes]
+    replay: Provenance
+
+
+def prefill_walks(sifter, probes, transitions, k) -> None:
+    """Warm the cache for the starts of ``probes`` and then for the whole of each
+    whose walk from ``k`` already goes through on what the cache holds."""
+    sifter.prefill([w[:k] for w in probes])
+
+    def known(seq):
+        return sifter.known_sift(seq), None
+
+    sifter.prefill(
+        [w for w in probes if walk_from(w, known, transitions, k)[1] is None]
+    )
+
+
+class FrozenCheck:
+    """A round's hypothesis, frozen after its pass, reading the gate's draws.
+
+    Each draw is walked from ``k`` and sifted whole.  Three rates are read, each
+    tested as the gate tests its agreement: the share of draws the walk blocks
+    and the share it or the sift blocks, both against ``1 - acc_threshold``, and
+    the share of the rest whose walk ends where the sift lands, against
+    ``acc_threshold``.  The draws whose walk and sift disagree are kept."""
+
+    def __init__(self, resolver, *, acc_threshold):
+        self._resolver = resolver
+        self._transitions = resolver.learned()
+        self.agreement = SequentialRate(acc_threshold, min_draws=30)
+        self.walk_blocked = SequentialRate(1 - acc_threshold, min_draws=1)
+        self.blocked = SequentialRate(1 - acc_threshold, min_draws=1)
+        self.rates = (self.agreement, self.walk_blocked, self.blocked)
+        self._found = {WALK: {}, CHECK: {}}
+        self.disagreements = []
+
+    def prefill(self, draws) -> None:
+        prefill_walks(self._resolver.sifter, draws, self._transitions, self._resolver.k)
+
+    def observe(self, draw) -> None:
+        _, block, disagrees = read_from(
+            draw, self._resolver.sift_and_harvest, self._transitions, self._resolver.k
+        )
+        if disagrees:
+            self.disagreements.append(draw)
+        walked = block is not None and block.kind != END
+        for rate, hit in (
+            (self.walk_blocked, walked),
+            (self.blocked, block is not None),
+        ):
+            if rate.side is None:
+                rate.add(hit)
+        if block is None and self.agreement.side is None:
+            self.agreement.add(not disagrees)
+        if block is not None and block.found is not None:
+            self._found[WALK if walked else CHECK][block.found] = None
+
+    def outcome(self) -> List[Blocked]:
+        """The populations the round leaves: the walk's finds where the walk
+        blocked the draws; and the walk's and the sift's where they did, with
+        what the pass's split attempts could not place either way."""
+        held = []
+        if self.walk_blocked.above:
+            held.append(self._blocked(WALK, self._found[WALK], WalkBlocked))
+        check = dict(self._resolver.dropped)
+        if self.blocked.above and not self.walk_blocked.above:
+            check.update({**self._found[WALK], **self._found[CHECK]})
+        if check:
+            held.append(self._blocked(CHECK, check, ReadBlocked))
+        return held
+
+    @property
+    def blocks(self) -> bool:
+        return self.walk_blocked.above or self.blocked.above
+
+    def _blocked(self, kind, found, replay) -> Blocked:
+        resolver = self._resolver
+        return Blocked(
+            kind,
+            list(found),
+            replay(
+                UniformSource(resolver.pst),
+                resolver.sifter,
+                self._transitions,
+                resolver.k,
+            ),
+        )
 
 
 class TransitionResolver:
@@ -62,6 +177,11 @@ class TransitionResolver:
         self.quiet_probes = 0
         self.unchecked_quiet_probes = 0
         self.quiet_reads = 0
+        self.k = start_length(pst.sampler.length)
+        #: The pass's last fresh probes, for the export to pick its start on.
+        self.recent = deque()
+        #: What the pass's split attempts could not place.
+        self.dropped = {}
         self.family = SuffixFamily(pst, vs)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
@@ -109,16 +229,21 @@ class TransitionResolver:
         )
         return {s: rep for s, rep in reps if rep is not None}
 
-    def _sift(self, seq):
-        """The leaf ``seq`` sifts to, or ``None`` when a node cannot place it.
-
-        Every string the tree cannot place is harvested into ``indecisive``: it is
-        a boundary string the current family straddles, and the driver feeds these
-        back so the next family is forced to resolve them."""
+    def sift_and_harvest(self, seq):
+        """``(leaf, boundary)`` as the sifter gives them, harvesting the boundary:
+        a string the tree cannot place is one the current family straddles, and
+        the driver feeds these back so the next family is forced to resolve
+        them."""
         leaf, boundary = self.sifter.sift_and_boundary(seq)
         if leaf is None:
             self._harvest(boundary, self._walked)
-        return leaf
+        return leaf, boundary
+
+    def _sift(self, seq):
+        return self.sift_and_harvest(seq)[0]
+
+    def _middle(self, seq):
+        return self.sifter.halfway(seq)[0]
 
     def _split(self, state_id, midfix):
         # The population re-sifts state_id's prefixes on the next members() call.
@@ -131,20 +256,18 @@ class TransitionResolver:
 
     # -- counterexamples ----------------------------------------------------
 
-    def counterexample_pass(self, *, max_probes, patience):
-        """Split in place on DFA-vs-tree disagreements until they dry up.
-
-        Each probe is walked through a totalised delta and re-sifted; where they
-        disagree, the probe has exhibited two prefixes reaching one leaf that
-        behave differently under one more symbol, so the leaf is split -- the same
-        counterexample the outer loop used to defer by adding a prefix and
-        rebuilding. Stops after ``patience`` consecutive clean probes."""
+    def counterexample_pass(self, *, max_probes, patience, first):
+        """Split in place on the disagreements probes find until ``patience``
+        probes in a row go without one, starting with the probes ``first``;
+        returns how many it probed."""
+        self.recent = deque(self.recent, maxlen=patience)
         self.quiet_probes = self.unchecked_quiet_probes = self.quiet_reads = 0
-        delta = self._total_delta()
+        probed = 0
         with counter(max_probes, "Probing for counterexamples") as pbar:
-            for w in self._probe_blocks(max_probes):
+            for w in self._probes(first, max_probes):
+                probed += 1
                 reads = self.sifter.reads
-                status = self._process(w, delta)
+                status = self._check(w)
                 if status in (_SPLIT, _UNDECIDED):
                     self.quiet_probes = self.unchecked_quiet_probes = 0
                     self.quiet_reads = 0
@@ -155,7 +278,6 @@ class TransitionResolver:
                 # A split drops edges and rewrites the state set, and any probe may
                 # have read successors a re-vote counts.
                 self.edges.close()
-                delta = self._total_delta()
                 pbar.set_postfix(
                     states=self.tree.num_states,
                     clean=f"{self.quiet_probes}/{patience}",
@@ -164,81 +286,76 @@ class TransitionResolver:
                 pbar.update(1)
                 if self.quiet_probes >= patience:
                     break
+        return probed
 
-    def _total_delta(self):
-        """A total transition function to walk.  Edge resolution cannot always
-        close an edge -- a leaf every one of whose members is indecisive has no
-        successor the family can name -- so the remainder is filled here, once,
-        rather than every probe that passes through it re-sifting."""
-        delta, _ = self.dfa.totalise(
-            range(self.tree.num_states),
-            lambda s, c: self.edges.decisive_target(s, c)[0],
-        )
-        return delta
-
-    def _probe_blocks(self, max_probes):
-        drawn = 0
-        while drawn < max_probes:
-            block = [
-                self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
-                for _ in range(min(PROBE_BLOCK, max_probes - drawn))
-            ]
-            drawn += len(block)
-            self.sifter.prefill(block)
+    def _probes(self, first, count):
+        pending = list(first[:count])
+        while count > 0:
+            fresh = not pending
+            if fresh:
+                pending = [
+                    self.pst.sampler.sample(self.pst.rng, self.pst.alphabet_size)
+                    for _ in range(min(PROBE_BLOCK, count))
+                ]
+            block, pending = pending[:PROBE_BLOCK], pending[PROBE_BLOCK:]
+            prefill_walks(self.sifter, block, self.dfa.transitions, self.k)
+            if fresh:
+                self.recent.extend(block)
+            count -= len(block)
             yield from block
 
-    def _process(self, w, delta):
-        """Anchor at the shortest prefix the tree places, follow the total delta,
-        then act on where the walk and a fresh sift disagree."""
-        start, states = anchored_walk(w, self._sift, delta, 0)
-        if start is None:
-            return _UNCHECKED
-        # Seed the anchor leaf's population. The prefix pool is length-L, so it
-        # only reaches deep leaves; short anchor prefixes are what give the shallow
-        # leaves enough members for the one-state test to settle them.
-        self.population.add(
-            w[:start], at=self.tree.path_of(states[start]), draw=self._walked
-        )
-        return self._act_on_disagreement(w, states, start)
+    def learned(self) -> dict:
+        """A copy of the edges learned so far."""
+        return {s: dict(edges) for s, edges in self.dfa.transitions.items()}
 
-    def _act_on_disagreement(self, w, states, agree_point):
-        state = states[-1]
-        actual = self._sift(w)
-        if actual is None:
-            return _UNCHECKED
-        if state is None or actual == state:
-            return _RESOLVED
-        fd = first_disagreeing_edge(w, states, self._sift, agree_point, len(w))
+    def _check(self, w):
+        states, block, fd = check_from(
+            w, self.sift_and_harvest, self._middle, self.dfa.transitions, self.k
+        )
+        if states is not None:
+            # The prefix pool is length-L, so it only reaches deep leaves; anchor
+            # prefixes give the leaves they reach members of length k.
+            self.population.add(
+                w[: self.k], at=self.tree.path_of(states[self.k]), draw=self._walked
+            )
+        if block is not None:
+            if block.member is not None:
+                self.population.add(
+                    block.member,
+                    at=self.tree.path_of(states[block.at - 1]),
+                    draw=self._walked,
+                )
+            return _UNCHECKED if block.boundary is not None else _RESOLVED
         if fd is None:
-            return _UNCHECKED
-        s1, c, s2 = states[fd - 1], w[fd - 1], states[fd]
-        if s1 is None or s2 is None:
             return _RESOLVED
-        # The walk follows a totalised delta, so the followed edge s1 -(c)-> s2 can
-        # be a gap the totaliser self-looped rather than a resolved DFA edge -- then
-        # the DFA holds no such edge, there is no witness to separate on, and the
-        # re-sifts need not reach s1.  Any of those means the disagreement is not
-        # one we can act on.
-        if self.dfa.target(s1, c) != s2:
-            return _RESOLVED
+        return self._act_on_disagreement(w, states, fd)
+
+    def _act_on_disagreement(self, w, states, fd):
+        s1, c = states[fd - 1], w[fd - 1]
         witness = self.dfa.witness(s1, c)
-        if witness is None:
-            return _RESOLVED
         sprime = w[: fd - 1]
-        if self._sift(witness) != s1 or self._sift(sprime) != s1:
+        if self._sift(witness) != s1:
             return _RESOLVED
-        distinguisher = self.sifter.disagreement(witness, sprime, bytes([c]))
+        landed, boundary = self.sift_and_harvest(sprime)
+        if landed != s1:
+            self._drop(boundary)
+            return _RESOLVED
+        distinguisher, undecided = self.sifter.disagreement(witness, sprime, bytes([c]))
         if distinguisher is None:
+            self._drop(undecided)
             return _RESOLVED
-        verdict = self.splits.verdict(s1, distinguisher)
-        if verdict == SPLIT:
+        if self.splits.verdict(s1, distinguisher) == SPLIT:
             self._apply_split(s1, distinguisher, witness, sprime)
             return _SPLIT
-        # The leaf may hold too few members of sprime's state to split on; keeping
-        # sprime, ahead of the member limit, lets the next probe through that state
-        # weigh one more.
+        # The leaf may hold too few members of sprime's state to split on, even
+        # where they rule a split out; keeping sprime, ahead of the member limit,
+        # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1), draw=self._walked)
-        return _RESOLVED if verdict == NO_SPLIT else _UNDECIDED
+        return _UNDECIDED
+
+    def _drop(self, undecided) -> None:
+        if undecided is not None:
+            self.dropped[undecided] = None
 
     def _apply_split(self, s1, distinguisher, witness, sprime):
         self._split(s1, distinguisher)
@@ -255,7 +372,6 @@ class TransitionResolver:
     # -- output -------------------------------------------------------------
 
     def to_dfa_and_tree(self):
-        pst = self.pst
         n = self.tree.num_states
 
         transitions, unresolved = self.dfa.totalise(
@@ -268,21 +384,31 @@ class TransitionResolver:
             )
 
         accepting = self.tree.accepting_leaves()
-
-        boundary = pst.decision_boundary
-        decide, _ = oracle_decider(
-            pst.oracle, self.tree.base_family, boundary, boundary
-        )
-        initial = self.tree.classify(b"", decide)
-        if initial is None:
-            initial = 0
+        initial = self._best_start(transitions, accepting)
 
         dfa = DFA(
             states=set(range(n)),
-            input_symbols=set(range(pst.alphabet_size)),
+            input_symbols=set(range(self.pst.alphabet_size)),
             transitions=transitions,
             initial_state=initial,
             final_states=accepting,
             allow_partial=False,
         )
         return dfa, self.tree
+
+    def _best_start(self, transitions, accepting) -> int:
+        """The state from which the hypothesis accepts the pass's last probes
+        most often where the middle of the band at the root does; the lowest
+        such id."""
+        n = self.tree.num_states
+        agree = [0] * n
+        for w in self.recent:
+            label = self.family.middle_side(w, b"")
+            if label is None:
+                continue
+            ends = list(range(n))
+            for symbol in w:
+                ends = [transitions[q][symbol] for q in ends]
+            for q, end in enumerate(ends):
+                agree[q] += (end in accepting) == label
+        return max(range(n), key=lambda q: (agree[q], -q))

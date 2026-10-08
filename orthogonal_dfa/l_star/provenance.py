@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from .rejection_source import SourceDry
-from .sifting import Sifter, anchored_walk, first_disagreeing_edge
+from .sifting import Sifter, check_from, read_from, walk_from
 
 
 @dataclass(frozen=True)
@@ -73,16 +73,21 @@ class Sifted(Provenance):
 
 
 @dataclass(frozen=True, eq=False)
-class Walked(Provenance):
-    """A probe walked as the counterexample pass walks one: anchored, sifted at
-    its end, and searched for the disagreeing edge where walk and sift part.
-
-    Anchored no earlier than a uniformly drawn point, even for a read the pass
-    made from the start: walks from the start all meet the same few early
-    strings, so replaying them finds nothing new."""
+class _FromStart(Provenance):
+    """A probe read as the round's pass reads one: from where the cut places its
+    first ``k`` symbols, along the learned ``transitions``."""
 
     transitions: dict = field(repr=False)
-    rng: Any = field(repr=False)
+    k: int
+
+    def _middle(self, seq):
+        return self.sifter.halfway(seq)[0]
+
+
+@dataclass(frozen=True, eq=False)
+class Walked(_FromStart):
+    """Every read the counterexample check makes of a probe that the cut cannot
+    place."""
 
     def _read(self, drawn) -> List[bytes]:
         met = []
@@ -91,20 +96,41 @@ class Walked(Provenance):
             leaf, boundary = self.sifter.sift_and_boundary(seq)
             if leaf is None:
                 met.append(boundary)
-            return leaf
+            return leaf, boundary
 
-        earliest = int(self.rng.integers(len(drawn)))
-        start, states = anchored_walk(drawn, sift, self.transitions, earliest)
-        if start is not None:
-            landed = sift(drawn)
-            if landed is not None and landed != states[-1]:
-                first_disagreeing_edge(drawn, states, sift, start, len(drawn))
+        check_from(drawn, sift, self._middle, self.transitions, self.k)
         return met
 
 
-def provenance(read: Read, sifter, transitions, rng) -> Provenance:
-    """The provenance of a read the round made with ``sifter``, walking
-    ``transitions``."""
+@dataclass(frozen=True, eq=False)
+class WalkBlocked(_FromStart):
+    """What the walk of a probe leaves where it is blocked."""
+
+    def _read(self, drawn) -> List[bytes]:
+        _, block = walk_from(
+            drawn, self.sifter.sift_and_boundary, self.transitions, self.k
+        )
+        return _found(block)
+
+
+@dataclass(frozen=True, eq=False)
+class ReadBlocked(_FromStart):
+    """What the walk and the sift of a probe leave where they are blocked."""
+
+    def _read(self, drawn) -> List[bytes]:
+        _, block, _ = read_from(
+            drawn, self.sifter.sift_and_boundary, self.transitions, self.k
+        )
+        return _found(block)
+
+
+def _found(block) -> List[bytes]:
+    return [] if block is None or block.found is None else [block.found]
+
+
+def provenance(read: Read, sifter, transitions, k) -> Provenance:
+    """The provenance of a read the round made with ``sifter``, its pass walking
+    the learned ``transitions`` from ``k``."""
     if read.extension is None:
-        return Walked(read.distribution, sifter, transitions, rng)
+        return Walked(read.distribution, sifter, transitions, k)
     return Sifted(read.distribution, sifter, read.extension)

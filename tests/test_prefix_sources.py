@@ -18,7 +18,13 @@ from orthogonal_dfa.l_star.prefix_sources import (
     aim_at,
     state_source,
 )
-from orthogonal_dfa.l_star.provenance import Read, Sifted, Walked
+from orthogonal_dfa.l_star.provenance import (
+    Read,
+    ReadBlocked,
+    Sifted,
+    WalkBlocked,
+    Walked,
+)
 from orthogonal_dfa.l_star.rejection_source import SourceDry
 from orthogonal_dfa.l_star.sampler import UniformSampler
 
@@ -242,6 +248,10 @@ class _Walk:
         leaf = self._places(seq)
         return (leaf, None) if leaf is not None else (None, seq + b"?")
 
+    def halfway(self, seq):
+        """The middle of the band places everything at 0."""
+        return 0, [seq + b"?"]
+
     def prefill(self, seqs):
         pass
 
@@ -267,26 +277,16 @@ _LONG_ONE_FAILS = lambda seq: None if len(seq) == 2 else 0
 _PROBE = bytes([0, 1, 0, 1])
 
 
-class _Always:
-    """An rng whose every integer draw is ``value``."""
-
-    def __init__(self, value):
-        self._value = value
-
-    def integers(self, _high):
-        return self._value
-
-
-def _walked(places, earliest=0):
-    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, _Always(earliest))
+def _walked(places, k=0):
+    return Walked(_Fixed(_PROBE), _Walk(places), _STEPS_TO_ONE, k)
 
 
 class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
     def test_a_walk_keeps_what_the_tree_cannot_place_on_the_way(self):
         self.assertEqual([_PROBE[:2] + b"?"], _walked(_LONG_ONE_FAILS).sample())
 
-    def test_a_walk_anchored_past_what_the_tree_cannot_place_keeps_nothing(self):
-        self.assertEqual([], _walked(_LONG_ONE_FAILS, earliest=3).sample())
+    def test_a_walk_from_past_what_the_tree_cannot_place_keeps_nothing(self):
+        self.assertEqual([], _walked(_LONG_ONE_FAILS, k=3).sample())
 
     def test_a_walk_the_tree_places_throughout_keeps_nothing(self):
         self.assertEqual([], _walked(lambda seq: 0).sample())
@@ -301,6 +301,54 @@ class TestAProvenanceReadsAFreshDrawTheWayItWasRead(unittest.TestCase):
 
     def test_a_distribution_run_dry_gives_nothing(self):
         self.assertEqual([], Sifted(_Dry(), _Walk(lambda seq: None), b"").sample())
+
+
+#: Nothing is learned out of state 1 on a 0.
+_OPEN_AT_ONE = {0: {0: 1, 1: 1}, 1: {1: 1}}
+
+
+class TestABlockedReadingLeavesWhatBlockedIt(unittest.TestCase):
+    def _blocked(self, kind, places, transitions, k):
+        return kind(_Fixed(_PROBE), _Walk(places), transitions, k).sample()
+
+    def test_a_start_the_cut_cannot_place_leaves_its_boundary(self):
+        self.assertEqual(
+            [_PROBE[:2] + b"?"],
+            self._blocked(WalkBlocked, lambda seq: None, _STEPS_TO_ONE, 2),
+        )
+
+    def test_an_open_edge_leaves_the_prefix_before_it_as_a_member(self):
+        places = lambda seq: 1 if len(seq) == 2 else 0
+        self.assertEqual(
+            [_PROBE[:2]], self._blocked(WalkBlocked, places, _OPEN_AT_ONE, 1)
+        )
+
+    def test_an_open_edge_from_a_prefix_sifting_elsewhere_leaves_nothing(self):
+        self.assertEqual([], self._blocked(WalkBlocked, lambda seq: 0, _OPEN_AT_ONE, 1))
+
+    def test_the_walk_alone_does_not_sift_the_whole_draw(self):
+        places = lambda seq: None if len(seq) == 4 else 0
+        self.assertEqual([], self._blocked(WalkBlocked, places, _STEPS_TO_ONE, 2))
+        self.assertEqual(
+            [_PROBE + b"?"], self._blocked(ReadBlocked, places, _STEPS_TO_ONE, 2)
+        )
+
+    def test_a_disagreement_is_not_a_block(self):
+        self.assertEqual(
+            [], self._blocked(ReadBlocked, lambda seq: 0, _STEPS_TO_ONE, 2)
+        )
+
+    def test_a_source_of_them_serves_each_string_once(self):
+        source = HarvestSource(
+            {WalkBlocked(_Fixed(_PROBE), _Walk(lambda seq: None), _STEPS_TO_ONE, 2): 1},
+            np.random.default_rng(0),
+            known=(),
+            acc_threshold=0.98,
+        )
+
+        self.assertEqual(_PROBE[:2] + b"?", source.draw())
+        with self.assertRaises(SourceDry):
+            source.draw()
 
 
 class TestAHarvestSourceDrawsByProvenance(unittest.TestCase):
