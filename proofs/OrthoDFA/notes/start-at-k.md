@@ -31,7 +31,70 @@ Fix `k < L`. Draws `x ~ D` have length `L`. A round runs three steps.
 
 Populations are sets of distinct strings.
 
-## (a) The round theorem
+## Decided: F1–F3
+
+**F1.** On an edge block at `(s₁, c)`, position `j`:
+1. If `x[:j]·c` sifts undecided, output it.
+2. Otherwise, if `x[:j]` sifts to `s₁`, output `x[:j]` as a new member of `s₁`. An unlearned edge is an
+   empty leaf, or a leaf all of whose members are undecided at `·c`, so this is what edge resolution
+   lacks.
+3. Otherwise output nothing.
+
+So the walk source's yield is its blocked share minus case 3.
+
+One gap is left in case 3: `x[:j]` sifting *undecided* is not a wrong earlier edge. It is an
+undecided string of length `≥ k`, of the same kind as an anchor block's, and could be output too.
+Then case 3 is exactly "`x[:j]` sifts decided to a leaf other than `s₁`": an earlier wrong edge.
+
+**F2/F3.** Everything is measured on the gate's fresh batch, against a hypothesis frozen after
+patience: no splits, no re-votes, no new members. The batch is up to 2000 draws with an early stop.
+- On that batch: the blocked share, the decided disagreements, and agreement. The walk trigger is
+  measured the same way, on its own frozen batch.
+- Patience only ends the pass; it certifies nothing.
+- Decided disagreements seed the next pass.
+
+The outcomes:
+- a walk source;
+- a boundary source;
+- the gate passes;
+- the gate refuses, with its decided disagreements seeding the next pass.
+
+Every probability bound is now Hoeffding, or the gate's sequential test, on a frozen hypothesis.
+The F2 and F3 problems are gone.
+
+**The fourth outcome is concrete progress only if two things hold.**
+1. **The gate's disagreement is the k-walk check's:** the walk from `x[:k]`'s sift along `x[k:]`,
+   against `x`'s decided sift.
+2. **The seeded probes are rerun against the same frozen hypothesis**, in the same round, before the
+   family changes.
+
+Given both, by persistent noise each seeded probe disagrees decided again. The walk uses learned
+edges only, so it was not blocked. With #411 the bisection over `[k, |x|]` always lands on an edge,
+except at an exact tie with the middle. Then:
+- the placeholder guard cannot fire, since the walk took only learned edges;
+- a learned edge has a witness;
+- the witness sifts to `s₁`, since the tree is frozen;
+- so the probe reaches the split test unless one of two reads is undecided:
+  - `sprime` itself, placed by the middle in the bisection;
+  - a read of `sprime·c·m` or `witness·c·m` in the search for the distinguisher.
+
+The split test either splits, or answers UNDECIDED and adds `sprime` as a member.
+
+So each seeded probe:
+- splits a leaf;
+- adds a member;
+- meets an undecided string at a guard, which is not kept today and should go to the boundary
+  source; or
+- meets a decided wrong read, which is bounded by the clustering guarantee's `crossLimit`.
+
+**If either condition fails, it is not progress.**
+- If the gate scores the exported DFA from its chosen start over all of `x`, a refusal's
+  disagreements can vanish when walked from `k`. That is F5: an error in the first `k` steps, or in
+  the start, that the k-walk never sees.
+- If the next pass belongs to a new round, the family and so the reads have changed, and a seeded
+  probe need not disagree at all.
+
+## (a) The round theorem (before F1–F3)
 
 **Claim.** Except with small probability, a round ends with
 - (W) a walk source of yield `≥ θ_w − δ`, or
