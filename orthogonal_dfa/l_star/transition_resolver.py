@@ -120,10 +120,12 @@ def _fires(hits, trials, rate) -> bool:
     return hits > rate * trials if side is None else side
 
 
-def _settled(hits, trials, rate) -> bool:
-    if not 0 < rate < 1:
-        return True
-    return bool(trials) and _side(hits, trials, rate, 1) is not None
+def _fires_now(hits, trials, rate) -> bool:
+    """Whether ``hits`` of ``trials`` are significantly over ``rate``; any hit is
+    over a rate of 0."""
+    if rate <= 0:
+        return hits > 0
+    return rate < 1 and bool(trials) and _side(hits, trials, rate, 1) is True
 
 
 def _refusal_tests(sample, rates):
@@ -295,9 +297,9 @@ class TransitionResolver:
         Each draw is read from ``k`` (see ``read``), and its start and whole
         sifted.  Each class of what the sample leaves is tested against what a
         family undecided at ``fnr_limit`` could leave by chance (see
-        ``_incidental``), at each of ``_REFUSAL_LOOKS`` until all settle, and
-        held where it fires.  Edges given up on (see ``given_up``) are not
-        rerun."""
+        ``_incidental``), and held where it fires.  The sample stops at the first
+        of ``_REFUSAL_LOOKS`` where a test fires or an edge not given up on (see
+        ``given_up``) has been met, to rerun."""
         learned = self.learned()
         rates = self._incidental()
         sample = []
@@ -309,15 +311,20 @@ class TransitionResolver:
             sample.append(
                 (w, self._below_root(w[: self.k]), self._below_root(w), outcome)
             )
-            if len(sample) in _REFUSAL_LOOKS and all(
-                _settled(*test) for test in _refusal_tests(sample, rates).values()
-            ):
-                break
-        fired = {
-            name
-            for name, test in _refusal_tests(sample, rates).items()
-            if _fires(*test)
-        }
+            if len(sample) in _REFUSAL_LOOKS and len(sample) < REFUSAL_DRAWS:
+                fired = {
+                    name
+                    for name, test in _refusal_tests(sample, rates).items()
+                    if _fires_now(*test)
+                }
+                if fired or any(self._live(w, o) for w, *_, o in sample):
+                    break
+        else:
+            fired = {
+                name
+                for name, test in _refusal_tests(sample, rates).items()
+                if _fires(*test)
+            }
         ends = [
             (end, m)
             for i, end in ((1, "start"), (2, "end"))
@@ -340,11 +347,7 @@ class TransitionResolver:
             },
             fired=fired,
             ends=ends,
-            disagreements=[
-                w
-                for w, *_, o in sample
-                if o.kind == EDGE and not self.given_up(o.state, w[o.at - 1])
-            ],
+            disagreements=[w for w, *_, o in sample if self._live(w, o)],
             learned=learned,
         )
 
@@ -363,6 +366,12 @@ class TransitionResolver:
             MEMBERS: 0,
             OPEN_EDGES: 2 * depth * limit,
         }
+
+    def _live(self, w, outcome) -> bool:
+        """Whether reading ``w`` ended at an edge not given up on."""
+        return outcome.kind == EDGE and not self.given_up(
+            outcome.state, w[outcome.at - 1]
+        )
 
     def given_up(self, state, c) -> bool:
         """Whether the edge ``(state, c)`` has had ``give_up_after`` attempts to

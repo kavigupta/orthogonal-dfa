@@ -173,8 +173,11 @@ def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
 
 def _halve(pst, gate) -> bool:
     """Halve the FNR limit on a refusal whose sample came down to pairs too
-    often, or held nothing.  Says whether it halved."""
-    halve = gate.fired is not None and (PAIRS in gate.fired or not gate.fired)
+    often, or read through holding nothing and meeting no edge to rerun.  Says
+    whether it halved."""
+    halve = gate.fired is not None and (
+        PAIRS in gate.fired or not (gate.fired or gate.disagreements)
+    )
     if halve:
         pst.fnr_limit /= 2
     return halve

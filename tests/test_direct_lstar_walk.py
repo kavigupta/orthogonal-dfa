@@ -204,16 +204,16 @@ class TestReadingFreshDraws(unittest.TestCase):
             [_PROBE[:2] + b"?", _PROBE[:3] + b"?"], reading.harvests[PAIRS]
         )
         self.assertIn(PAIRS, reading.fired)
-        # The gate's 30 draws, then the refusal sample's: the pairs settle above
-        # their rate at its first look and the clean ends below theirs at its
-        # third, since 0.9 ** 60 > 1e-3 > 0.9 ** 120.
-        self.assertEqual(30 + 120, learner.drawn)
+        # The gate's 30 draws, then the refusal sample's, which stops at its
+        # first look, where the pairs fire.
+        self.assertEqual(30 + 30, learner.drawn)
 
-    def test_a_refusal_sample_with_no_searches_to_test_reads_to_its_end(self):
-        learner = _gate(lambda seq: None if len(seq) == 2 else 0, _TO_REJECT)
-        learner.read_fresh(acc_threshold=0.9)
+    def test_a_refusal_sample_with_nothing_to_hold_or_rerun_reads_to_its_end(self):
+        learner = _gate(lambda seq: 0, _TO_REJECT)
+        reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual(30 + 480, learner.drawn)
+        self.assertEqual((set(), []), (reading.fired, reading.disagreements))
 
     def test_a_passing_gate_stops_once_the_agreement_settles_and_reads_no_ends(
         self,

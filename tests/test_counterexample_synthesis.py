@@ -117,16 +117,20 @@ class TestWhatARoundTakes(unittest.TestCase):
 
 
 class TestWhenTheLimitHalves(unittest.TestCase):
-    def _halves(self, fired):
+    def _halves(self, fired, disagreements=()):
         pst = SimpleNamespace(fnr_limit=0.1)
-        cs._halve(pst, SimpleNamespace(fired=fired))  # pylint: disable=protected-access
+        gate = SimpleNamespace(fired=fired, disagreements=list(disagreements))
+        cs._halve(pst, gate)  # pylint: disable=protected-access
         return pst.fnr_limit < 0.1
 
     def test_a_passing_gate_does_not_halve(self):
         self.assertFalse(self._halves(None))
 
-    def test_a_refusal_that_holds_nothing_halves(self):
+    def test_a_refusal_that_holds_nothing_and_reruns_nothing_halves(self):
         self.assertTrue(self._halves(set()))
+
+    def test_a_refusal_with_an_edge_to_rerun_does_not(self):
+        self.assertFalse(self._halves(set(), [b"w"]))
 
     def test_a_refusal_with_too_many_pairs_halves(self):
         self.assertTrue(self._halves({"pair", "triple"}))
