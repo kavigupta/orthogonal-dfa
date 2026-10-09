@@ -739,7 +739,7 @@ theorem strongReading_certs (j : ℕ) (Ac : RoundAcc α) (first : List (FreeMono
   split_ifs <;> simp_all [strongPass_certs]
 
 variable (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-  (CertGood : KState α → Prop)
+  (CertGood : DTree α → Edges α → Prop)
 
 /-- A reading's failure chance but for the certificate's. -/
 noncomputable def strongBound (ν : ℝ) (j : ℕ) : ℝ :=
@@ -750,8 +750,8 @@ open scoped Classical in
 `strongBound`, and the certificate's failure chance where its gate settles above. -/
 theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i t e (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i t e cs (fun j => g (cs j)) = true ∧ ¬ CertGood t e} ≤ αs i)
     {Ac : RoundAcc α} {first : List (FreeMonoid α)}
     (j Rmax : ℕ) (pr : Fin C.np → FreeMonoid α) :
     ((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
@@ -773,7 +773,7 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
     ∧ ∀ i, ¬ NAOff R s.tree s.edges C.k gu (br i)}
   set Called := {bg | CallsCert C R j Ac first pr bg}
   set CB := {cs : Fin C.nc → FreeMonoid α |
-    C.cert Ac.certs s cs (fun i => R.f (cs i)) = true ∧ ¬ CertGood s}
+    C.cert Ac.certs s.tree s.edges cs (fun i => R.f (cs i)) = true ∧ ¬ CertGood s.tree s.edges}
   have hsub : {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
       ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first (pr, z)).1
         e}
@@ -827,7 +827,7 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
   set ν₂ := Measure.pi fun _ : Fin C.nr => D
   set ν₃ := Measure.pi fun _ : Fin C.nc => D
   have hMiss := miss_all_le D (NAOff R s.tree s.edges C.k gu) C.nr hν
-  have hCB : ν₃.real CB ≤ αs Ac.certs := hcert Ac.certs s R.f
+  have hCB : ν₃.real CB ≤ αs Ac.certs := hcert Ac.certs s.tree s.edges R.f
   calc (ν₁.prod (ν₂.prod ν₃)).real {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
         ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
           (strongReading C R j Ac first (pr, z)).1 e}
@@ -884,15 +884,15 @@ open scoped Classical in
 certificate's failure chance on the calls it makes. -/
 theorem strong_reading_bad_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc)
     (hacc1 : C.acc ≤ 1) (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i t e (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i t e cs (fun j => g (cs j)) = true ∧ ¬ CertGood t e} ≤ αs i)
     {Ac : RoundAcc α} {first : List (FreeMonoid α)} (j Rmax : ℕ) :
     C.drawMeasure D {y | ∃ e, (strongReading C R j Ac first y).2 = .inl e
         ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first y).1 e}
       ≤ ENNReal.ofReal (strongBound C ν j)
         + ∫⁻ y, certCost αs Ac.certs (strongReading C R j Ac first y).1.certs
           ∂C.drawMeasure D := by
-  have hα : 0 ≤ αs Ac.certs := measureReal_nonneg.trans (hcert Ac.certs Ac.s R.f)
+  have hα : 0 ≤ αs Ac.certs := measureReal_nonneg.trans (hcert Ac.certs Ac.s.tree Ac.s.edges R.f)
   have hβ : 0 ≤ strongBound C ν j := by
     unfold strongBound
     have := pow_nonneg (by linarith : (0 : ℝ) ≤ 1 - ν) C.nr
@@ -937,8 +937,8 @@ expected sum of `strongBound` over the readings it makes, and the certificate's 
 the calls it makes. -/
 theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i t e (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i t e cs (fun j => g (cs j)) = true ∧ ¬ CertGood t e} ≤ αs i)
     (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) (Rmax : ℕ) :
     ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)), Entry C R Ac j →
       j + n = Rmax →
@@ -949,7 +949,8 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
               ENNReal.ofReal (strongBound C ν (j + i)))
             + certCost αs Ac.certs (strongRound C R n j Ac first d).2.1.certs
           ∂(Measure.pi fun _ : Fin n => C.drawMeasure D) := by
-  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i (startAcc C R []).s R.f)
+  have hα : ∀ i, 0 ≤ αs i := fun i =>
+    measureReal_nonneg.trans (hcert i .leaf (fun _ _ => none) R.f)
   intro n
   induction n with
   | zero =>
@@ -1060,7 +1061,8 @@ end StrongReading
 
 theorem round_strong_trichotomy : RoundStrongTrichotomy := by
   intro α _ _ Q C A D _ seed CertGood αs η minCov ν Rmax hacc0 hacc1 hf ha hν hp hb hcert R
-  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i (startAcc C R seed).s R.f)
+  have hα : ∀ i, 0 ≤ αs i := fun i =>
+    measureReal_nonneg.trans (hcert i .leaf (fun _ _ => none) R.f)
   set P := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
   set N : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.2.length
   set M : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.1.certs

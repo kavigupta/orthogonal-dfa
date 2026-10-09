@@ -48,7 +48,7 @@ structure StrongCfg (α : Type*) where
   acc : ℝ
   a : ℝ
   budget : ℕ → ℕ
-  cert : ℕ → KState α → (Fin nc → FreeMonoid α) → (Fin nc → ℝ) → Bool
+  cert : ℕ → DTree α → Edges α → (Fin nc → FreeMonoid α) → (Fin nc → ℝ) → Bool
 
 /-- One reading's draws: probes, gate batch, refusal sample, certificate sample. -/
 abbrev StrongCfg.Draws (C : StrongCfg α) : Type _ :=
@@ -140,7 +140,8 @@ noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (
   let side := gateSide R s.tree s.edges y.2.1 C.acc aj (gateStop R s.tree s.edges y.2.1 C.acc aj)
   let A₀ := if side = some true then { A' with certs := A'.certs + 1 } else A'
   let A'' := { A₀ with reads := A₀.reads ∪ readingReads C R.F s.tree y }
-  if side = some true ∧ C.cert A'.certs s y.2.2.2 (fun i => R.f (y.2.2.2 i)) = true then
+  if side = some true ∧ C.cert A'.certs s.tree s.edges y.2.2.2 (fun i => R.f (y.2.2.2 i)) = true
+  then
     (A'', .inl (.consistent (gateStart R s.tree s.edges y.2.1 C.acc aj)))
   else
     let tests := harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM
@@ -287,9 +288,10 @@ halving, as `RoundEndHolds` with no edge given up, every covering start's residu
 where the gate settled below; exhausted, nothing; out of readings, `patience` times the readings
 within the budget. -/
 def StrongEndHolds (C : StrongCfg α) (R : CutReads α) (A : DFA (FreeMonoid α) Q)
-    (D : Measure (FreeMonoid α)) (CertGood : KState α → Prop) (η minCov ν : ℝ) (Rmax : ℕ)
+    (D : Measure (FreeMonoid α)) (CertGood : DTree α → Edges α → Prop) (η minCov ν : ℝ) (Rmax : ℕ)
     (Ac : RoundAcc α) : StrongEnd → Prop
-  | .consistent q => D.real {x | StartDis R Ac.s.edges q x} ≤ 1 - C.acc ∧ CertGood Ac.s
+  | .consistent q => D.real {x | StartDis R Ac.s.edges q x} ≤ 1 - C.acc
+    ∧ CertGood Ac.s.tree Ac.s.edges
   | .harvest _ => True
   | .halve gr =>
     let s := Ac.s
@@ -310,12 +312,13 @@ expectation. Ending exhausted claims nothing. -/
 def RoundStrongTrichotomy : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Q : Type*} (C : StrongCfg α)
     (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
-    (seed : List (FreeMonoid α)) (CertGood : KState α → Prop) (αs : ℕ → ℝ) (η minCov ν : ℝ)
+    (seed : List (FreeMonoid α)) (CertGood : DTree α → Edges α → Prop) (αs : ℕ → ℝ)
+    (η minCov ν : ℝ)
     (Rmax : ℕ),
     0 ≤ C.acc → C.acc ≤ 1 → 0 ≤ C.f → 0 ≤ C.a → ν ≤ 1 →
     C.K.patience ≤ C.np → Monotone C.budget →
-    (∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i) →
+    (∀ i t e (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i t e cs (fun j => g (cs j)) = true ∧ ¬ CertGood t e} ≤ αs i) →
     ∀ R : CutReads α,
       (Measure.pi fun _ : Fin Rmax => C.drawMeasure D).real
           {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongRun C R seed Rmax d).2.1
