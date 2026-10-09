@@ -57,11 +57,19 @@
   leaves some `x·m` undecided, so these populations are left undecided at least as often as the
   ends are. `BadShare`: a population left undecided `ā` of the time has at least
   `(ā − f)/(umax − f)` of its mass at states read undecided more than `f` of the time.
-- `OrthoDFA/Trichotomy.lean` — `RoundTrichotomy` (stated, not yet proved): one reading of the
-  round. Off a noise set of measure at most `5·prefixMax/ε²`, every harvest class is at most its
-  incidental rate plus slack; there, the gate and refusal samples fail with small chance to end
-  in one of: the best start passes and disagrees on at most `1 − acc + δ`; live edges remain to
-  rerun; some class fires; or no class fires, it halves, and `f ≥ τ*` for any covering start.
+- `OrthoDFA/Trichotomy.lean` — `RoundTrichotomy`: one reading of the round. Off a noise set of
+  measure at most `5·prefixMax/ε²`, every harvest class is at most its incidental rate plus slack.
+  There, but for the gate tests' failure chance per look, a binomial tail for a gate left
+  unsettled at its batch's end, and `(1 − ν)^nr`, the reading ends in one of: the gate passes and
+  its start disagrees on at most `1 − acc + δc`; live edges turn up to rerun; some class fires;
+  or the limit halves, and then `f ≥ τ₀`, or members do not fire on a first hit, or every
+  covering start leaves the classes and live edges at most `ν`.
+- `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
+  the classes' quality. Each class is a computation whose harvest is a first undecided read,
+  tagged; `HarvestBound` is the triples' fresh-read and Chebyshev argument for any such class.
+- `OrthoDFA/Proofs/TrichotomyBatch.lean`, `Trichotomy.lean` — the batch claims. A refusal leaves
+  every start disagreeing on more than `1 − acc`; a covering start's disagreements off its own
+  start region fall in the walk's classes; below `τ₀` each class fires on its first hit.
 - `OrthoDFA/Proofs/Query.lean`, `Triple.lean`, `PassReadsK.lean`, `TripleBound.lean`,
   `RoundAtK.lean` — the triples' claim. A probe's processing is a computation asking the cut one
   string at a time; a triple's harvest is a middle's first undecided read; the pass is decided by

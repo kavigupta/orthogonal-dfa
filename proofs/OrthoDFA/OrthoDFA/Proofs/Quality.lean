@@ -54,9 +54,11 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
   have hP := harvest_holds_le (μ := μ) (pair_spec k) (fun t n => t.depth * n)
     (fun R t e x => (qProbeH_countP R t e k x).trans (Nat.mul_le_mul_left _ (visits_le R t e k x)))
     A O B F K D seed probes hu hε hkL hlen hV
-  have hS := harvest_holds_le (μ := μ) (ends_spec k (prefixOf · k) fun x => ⟨k, le_rfl, rfl⟩) (fun t _ => t.depth - 1)
+  have hS := harvest_holds_le (μ := μ) (ends_spec k (prefixOf · k) fun x => ⟨k, le_rfl, rfl⟩)
+    (fun t _ => t.depth - 1)
     (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes hu hε hkL hlen hV
-  have hE := harvest_holds_le (μ := μ) (ends_spec k id fun x => ⟨max k x.toList.length, le_max_left _ _,
+  have hE := harvest_holds_le (μ := μ)
+    (ends_spec k id fun x => ⟨max k x.toList.length, le_max_left _ _,
     (prefixOf_max x k).symm⟩) (fun t _ => t.depth - 1)
     (fun R t e x => qSiftDeep_countP R.cut _ t) A O B F K D seed probes hu hε hkL hlen hV
   have hB := harvest_holds_le (μ := μ) (blocked_spec k) (fun t _ => 2 * t.depth)
@@ -159,7 +161,8 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
       simp only [Set.mem_ofPred_eq]
       rw [qSiftDeep_of_deep R.cut _ b s.tree hb hl]
       exact ⟨by simp, by simpa [WellRead] using hw⟩
-    have hint : ∫ x, (gTags (fun t (_ : Edges α) x => qSiftDeep (prefixOf x k) t) R.cut s.tree s.edges x : ℝ) ∂D ≤ ((s.tree.depth - 1 : ℕ) : ℝ) := by
+    have hint : ∫ x, (gTags (fun t (_ : Edges α) x => qSiftDeep (prefixOf x k) t) R.cut s.tree
+        s.edges x : ℝ) ∂D ≤ ((s.tree.depth - 1 : ℕ) : ℝ) := by
       refine (integral_le_words D hlen (g := fun _ => ((s.tree.depth - 1 : ℕ) : ℝ))
         fun x _ => ?_).trans (by simp)
       exact_mod_cast qSiftDeep_countP R.cut _ s.tree
@@ -175,7 +178,8 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
       simp only [Set.mem_ofPred_eq]
       rw [id, qSiftDeep_of_deep R.cut _ b s.tree hb hl]
       exact ⟨by simp, by simpa [WellRead] using hw⟩
-    have hint : ∫ x, (gTags (fun t (_ : Edges α) x => qSiftDeep (id x) t) R.cut s.tree s.edges x : ℝ) ∂D ≤ ((s.tree.depth - 1 : ℕ) : ℝ) := by
+    have hint : ∫ x, (gTags (fun t (_ : Edges α) x => qSiftDeep (id x) t) R.cut s.tree
+        s.edges x : ℝ) ∂D ≤ ((s.tree.depth - 1 : ℕ) : ℝ) := by
       refine (integral_le_words D hlen (g := fun _ => ((s.tree.depth - 1 : ℕ) : ℝ))
         fun x _ => ?_).trans (by simp)
       exact_mod_cast qSiftDeep_countP R.cut _ s.tree

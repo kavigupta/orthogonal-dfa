@@ -708,15 +708,26 @@ Splits are not capped, so budget exhaustion stays a fallback outcome unless the 
 is bounded. Every non-split result (undecided, no split, stopped) has to count toward the cap,
 otherwise "stopped" reruns are not bounded.
 
-## Lean status: `RoundTrichotomy` stated
+## Lean status: `RoundTrichotomy` proved
 
-`OrthoDFA/Trichotomy.lean` states the trichotomy for one reading, in the nested shape: a noise
-set `E` with `μ E ≤ 5·prefixMax(k)/ε²`; off it, `QualityHolds` bounds the five noise-driven
-classes (triples, pairs, start-deep, end-deep, blocked) by `c·f·(their multiplier)` plus slack;
-and over the gate sample (`ng` draws) and refusal sample (`nr` draws) the trichotomy fails with
-chance at most `2(log₂(ng/30)+2)a + |paths|e^{−2ngδ²} + 6(log₂(nr/30)+2)a + 6e^{−nrδ²/2}
-+ 2e^{−min(30,nr)δ}`.
+`OrthoDFA/Trichotomy.lean` states the trichotomy for one reading in the pooled form (D8–D14), and
+`round_trichotomy` proves it with only `propext`, `Classical.choice` and `Quot.sound`.
 
-Open in the proof: a `visited ≤ clog₂(L−k)+1` lemma for the triple and pair multipliers (only
-`visited ≤ fuel` is proved); members carry no quality claim, so `θM` is a parameter; the
-round-level claim unions over at most `1 + splits + capped reruns` readings.
+- **Noise set:** `μ E ≤ 5·prefixMax(k)/ε²`. Off it, the triples, pairs, start-deep, end-deep and
+  blocked classes are at most `c·f` times their tagged reads plus `|passReadSet|·prefixMax(k)` and
+  `ε(1 + c·f·M)`, `M` the most tagged reads a draw makes in the class (`depth·L`, `depth − 1` or
+  `2·depth`).
+- **Batch failure:** `2(log₂(ng/30)+2)a + |paths|·Bin(ng, acc − δc) ≥ gateCut + (1 − ν)^nr`.
+- **Halving:** `f ≥ τ₀ = (1 − a)/(nr·max(depth − 1, 2c·depth, c·depth·searchSteps))`, or
+  `θM·nr ≥ 1 − a`, or every covering start with `h q₀` a leaf has
+  `need = 1 − acc − η − labelErr − Mask − Root − Dead ≤ ν`.
+
+The proof:
+- A refusal settles below `acc` for the best start, so for every start, which has fewer hits.
+  Validity costs `a` per look over the starts.
+- A covering start's disagreements are off `CoverGood`, misread labels, masked, or in the walk's
+  non-agree classes. So those carry more than `need`.
+- Below `τ₀` every class's rate times its trials is under `1 − a`, so a test with one hit fires.
+  A halving therefore reads to the cap with no draw in a class or at a live edge.
+- `searchSteps` is `log₂(L − k) + 1`, as the Python uses. A search visits at most `⌈log₂(hi − lo)⌉`
+  middles.

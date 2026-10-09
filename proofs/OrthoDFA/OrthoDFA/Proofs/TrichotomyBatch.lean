@@ -351,9 +351,10 @@ theorem logb_steps_nonneg (L k : ℕ) : 0 ≤ searchSteps L k := by
       Real.logb_nonneg (by norm_num) (by exact_mod_cast h)
     linarith
 
-theorem tau_rate {t : DTree α} {k L nr : ℕ} {c a f coef : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c)
+omit [Fintype α] [DecidableEq α] in
+theorem tau_rate {t : DTree α} {k L nr : ℕ} {c a f coef : ℝ} (hf : 0 ≤ f)
     (htau : f < tauZero t k L nr c a) (hcoef : coef ≤ max ((t.depth - 1 : ℕ) : ℝ)
-      (max (2 * c * t.depth) (c * t.depth * searchSteps L k))) (hcoef0 : 0 ≤ coef) :
+      (max (2 * c * t.depth) (c * t.depth * searchSteps L k))) :
     f * coef * nr < 1 - a := by
   set M := max ((t.depth - 1 : ℕ) : ℝ) (max (2 * c * t.depth) (c * t.depth * searchSteps L k))
   have hM : 0 ≤ M := (Nat.cast_nonneg _).trans (le_max_left _ _)
@@ -371,7 +372,7 @@ theorem tau_rate {t : DTree α} {k L nr : ℕ} {c a f coef : ℝ} (hf : 0 ≤ f)
 
 /-- Below `τ₀`, with members firing on their first hit, every harvest class does. -/
 theorem harvest_fires (R : CutReads α) (t : DTree α) (edges : Edges α) (k L : ℕ) {f c θM a : ℝ}
-    (hf : 0 ≤ f) (hc : 0 ≤ c) (ha : 0 ≤ a) {nr : ℕ} (htau : f < tauZero t k L nr c a)
+    (hf : 0 ≤ f) (ha : 0 ≤ a) {nr : ℕ} (htau : f < tauZero t k L nr c a)
     (hM : θM * nr < 1 - a) (br : Fin nr → FreeMonoid α) :
     ∀ T ∈ harvestTests R t edges k L f c θM, (∀ x, T.hits x → T.trials x) →
       1 ≤ hitsIn br T.hits nr → T.fires br a nr := by
@@ -392,22 +393,293 @@ theorem harvest_fires (R : CutReads α) (t : DTree α) (edges : Edges α) (k L :
   refine lt_of_le_of_lt (mul_le_mul_of_nonneg_left hmr hθ.le) ?_
   simp only [harvestTests, List.mem_cons, List.not_mem_nil, or_false] at hT
   rcases hT with rfl | rfl | rfl | rfl | rfl | rfl
-  · have := tau_rate hf hc htau (le_max_left _ _) (Nat.cast_nonneg _)
+  · have := tau_rate hf htau (le_max_left _ _)
     simp only []; linarith [mul_comm ((t.depth - 1 : ℕ) : ℝ) f]
-  · have := tau_rate hf hc htau (le_max_left _ _) (Nat.cast_nonneg _)
+  · have := tau_rate hf htau (le_max_left _ _)
     simp only []; linarith [mul_comm ((t.depth - 1 : ℕ) : ℝ) f]
-  · have := tau_rate hf hc htau ((le_max_right _ _).trans (le_max_right _ _))
-      (by positivity)
+  · have := tau_rate hf htau ((le_max_right _ _).trans (le_max_right _ _))
     simp only []; linarith [show c * f * t.depth * searchSteps L k
       = f * (c * t.depth * searchSteps L k) by ring]
-  · have := tau_rate hf hc htau ((le_max_right _ _).trans (le_max_right _ _))
-      (by positivity)
+  · have := tau_rate hf htau ((le_max_right _ _).trans (le_max_right _ _))
     simp only []; linarith [show c * f * t.depth * searchSteps L k
       = f * (c * t.depth * searchSteps L k) by ring]
-  · have := tau_rate hf hc htau ((le_max_left _ _).trans (le_max_right _ _)) (by positivity)
+  · have := tau_rate hf htau ((le_max_left _ _).trans (le_max_right _ _))
     simp only []; linarith [show 2 * c * f * t.depth = f * (2 * c * t.depth) by ring]
   · simp only []; exact hM
 
 end Rates
+
+section Batch
+
+/-- A sample missing every draw of `C`, when `C` carries more than `ν`. -/
+theorem miss_all_le (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (C : FreeMonoid α → Prop) (n : ℕ) {ν : ℝ} (hν : ν ≤ 1) :
+    (Measure.pi fun _ : Fin n => D).real {b | ν < D.real {x | C x} ∧ ∀ i, ¬ C (b i)}
+      ≤ (1 - ν) ^ n := by
+  by_cases h : ν < D.real {x | C x}
+  · have hset : {b : Fin n → FreeMonoid α | ν < D.real {x | C x} ∧ ∀ i, ¬ C (b i)}
+        = Set.univ.pi fun _ : Fin n => {x | ¬ C x} := by
+      ext b
+      simp [h]
+    rw [hset, measureReal_def, Measure.pi_pi]
+    have hc : D {x | ¬ C x} = ENNReal.ofReal (1 - D.real {x | C x}) := by
+      rw [show {x | ¬ C x} = {x | C x}ᶜ from rfl, ← ENNReal.ofReal_toReal (measure_ne_top D _),
+        ← measureReal_def, measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
+    have hp1 : D.real {x | C x} ≤ 1 := measureReal_le_one
+    simp only [hc, Finset.prod_const, Finset.card_univ, Fintype.card_fin, ENNReal.toReal_pow,
+      ENNReal.toReal_ofReal (by linarith : (0 : ℝ) ≤ 1 - D.real {x | C x})]
+    exact pow_le_pow_left₀ (by linarith) (by linarith) _
+  · rw [show {b : Fin n → FreeMonoid α | ν < D.real {x | C x} ∧ ∀ i, ¬ C (b i)} = ∅ from
+      Set.eq_empty_of_forall_notMem fun b hb => h hb.1]
+    simp only [measureReal_empty]
+    exact pow_nonneg (by linarith) _
+
+variable (R : CutReads α) {Q : Type*}
+
+theorem gate_look_above (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) {ng n : ℕ} (hn : n ≤ ng) {acc a : ℝ} (hacc1 : acc ≤ 1)
+    (hp : D.real {x | P x} ≤ acc) (ha : 0 ≤ a) :
+    (Measure.pi fun _ : Fin ng => D).real {bg | binomSfGe n acc (hitsIn bg P n) < a} ≤ a := by
+  classical
+  refine le_of_eq_of_le ?_ (look_above_le D P (Finset.univ.filter fun i : Fin ng => (i : ℕ) < n)
+    hacc1 hp ha)
+  congr 1
+  ext bg
+  simp only [Set.mem_ofPred_eq, (look_set hn bg P).1, (look_set hn bg P).2]
+
+theorem gate_look_below (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) {ng n : ℕ} (hn : n ≤ ng) {acc a : ℝ} (hacc0 : 0 ≤ acc)
+    (hp : acc ≤ D.real {x | P x}) (ha : 0 ≤ a) :
+    (Measure.pi fun _ : Fin ng => D).real {bg | 1 - binomSfGe n acc (hitsIn bg P n + 1) < a}
+      ≤ a := by
+  classical
+  refine le_of_eq_of_le ?_ (look_below_le D P (Finset.univ.filter fun i : Fin ng => (i : ℕ) < n)
+    hacc0 hp ha)
+  congr 1
+  ext bg
+  simp only [Set.mem_ofPred_eq, (look_set hn bg P).1, (look_set hn bg P).2]
+
+theorem gate_tail (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D]
+    (P : FreeMonoid α → Prop) (ng j : ℕ) {θ : ℝ} (hθ1 : θ ≤ 1) (hp : D.real {x | P x} ≤ θ) :
+    (Measure.pi fun _ : Fin ng => D).real {bg | j ≤ hitsIn bg P ng} ≤ binomSfGe ng θ j := by
+  classical
+  have h := pi_count_ge D P (Finset.univ.filter fun i : Fin ng => (i : ℕ) < ng) j
+  rw [(look_set le_rfl (fun _ => (1 : FreeMonoid α)) P).2] at h
+  refine le_of_eq_of_le ?_ ((le_of_eq h).trans
+    (binomSfGe_mono measureReal_nonneg hθ1 hp _ _))
+  congr 1
+  ext bg
+  simp only [Set.mem_ofPred_eq, (look_set le_rfl bg P).1]
+
+open scoped Classical in
+theorem trichotomy_batch (A : DFA (FreeMonoid α) Q) (s : KState α) (D : Measure (FreeMonoid α))
+    [IsProbabilityMeasure D] (k L ng nr : ℕ) {f c θM acc a δc η minCov ν : ℝ}
+    (gu : List Bool × α → Prop) (hacc0 : 0 ≤ acc) (hacc1 : acc ≤ 1) (hf : 0 ≤ f) (ha : 0 ≤ a)
+    (hδc0 : 0 ≤ δc) (hδc : δc ≤ acc) (hν : ν ≤ 1) :
+    ((Measure.pi fun _ : Fin ng => D).prod (Measure.pi fun _ : Fin nr => D)).real
+        {b | ¬ TrichotomyHolds R A s D k L f c θM acc a δc η minCov ν gu b.1 b.2}
+      ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a
+        + max 1 s.tree.paths.length
+          * binomSfGe ng (acc - δc) (gateCut ng acc (a / s.tree.paths.length))
+        + (1 - ν) ^ nr := by
+  set t := s.tree with ht
+  set e := s.edges with he
+  set P := t.paths with hP
+  set a' := a / P.length with ha'
+  have hP0 : 0 < P.length := List.length_pos_of_ne_nil (paths_ne_nil t)
+  have ha'0 : 0 ≤ a' := div_nonneg ha (Nat.cast_nonneg _)
+  set pq : List Bool → ℝ := fun q => D.real {x | ¬ StartDis R e q x} with hpq
+  have hpq_compl : ∀ q, pq q = 1 - D.real {x | StartDis R e q x} := fun q => by
+    simp only [hpq]
+    rw [show {x | ¬ StartDis R e q x} = {x | StartDis R e q x}ᶜ from rfl,
+      measureReal_compl (Set.to_countable _).measurableSet, probReal_univ]
+  set looks := lookSet 30 ng
+  set Gab := ⋃ q ∈ P.toFinset.filter (fun q => pq q < acc), ⋃ n ∈ looks,
+    {bg : Fin ng → FreeMonoid α | binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n) < a'}
+  set Gbe := ⋃ q ∈ P.toFinset.filter (fun q => acc ≤ pq q), ⋃ n ∈ looks,
+    {bg : Fin ng → FreeMonoid α |
+      1 - binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n + 1) < a'}
+  set Gun := ⋃ q ∈ P.toFinset.filter (fun q => pq q < acc - δc),
+    {bg : Fin ng → FreeMonoid α | gateCut ng acc a' ≤ hitsIn bg (fun x => ¬ StartDis R e q x) ng}
+  set NA := {x | NAOff R t e k gu x}
+  set Miss := {br : Fin nr → FreeMonoid α | ν < D.real {x | NAOff R t e k gu x}
+    ∧ ∀ i, ¬ NAOff R t e k gu (br i)}
+  have hsub : {b : (Fin ng → FreeMonoid α) × (Fin nr → FreeMonoid α) |
+      ¬ TrichotomyHolds R A s D k L f c θM acc a δc η minCov ν gu b.1 b.2}
+      ⊆ (Gab ∪ Gbe ∪ Gun) ×ˢ Set.univ ∪ Set.univ ×ˢ Miss := by
+    rintro ⟨bg, br⟩ hb
+    simp only [Set.mem_ofPred_eq, TrichotomyHolds, not_or] at hb
+    obtain ⟨hA, hB, hC, hD⟩ := hb
+    by_cases hbad : bg ∈ Gab ∪ Gbe ∪ Gun
+    · exact .inl ⟨hbad, trivial⟩
+    refine .inr ⟨trivial, ?_⟩
+    simp only [Set.mem_union, not_or] at hbad
+    obtain ⟨⟨hab, hbe⟩, hun⟩ := hbad
+    obtain ⟨hstop, hside⟩ := gateStop_spec R t e bg acc a
+    set stop := gateStop R t e bg acc a
+    have hstopN : stop ≤ ng := (mem_lookSet hstop).1
+    set qh := gateStart R t e bg acc a
+    have hqh : qh ∈ P := bestOf_mem (paths_ne_nil t) _
+    have hgs : gateSide R t e bg acc a stop
+        = rateSide acc a' 0 stop (hitsIn bg (fun x => ¬ StartDis R e qh x) stop) := rfl
+    by_cases hpass : GatePasses R t e bg acc a
+    · exfalso
+      have hlt : pq qh < acc - δc := by
+        have := not_le.1 ((not_and.1 hA) hpass)
+        rw [hpq_compl]; linarith
+      rcases hside with hs | ⟨hs, hN⟩
+      · have hv : gateSide R t e bg acc a stop = some true := by
+          rcases hv : gateSide R t e bg acc a stop with _ | _ | _
+          · rw [hv] at hs; exact absurd hs (by simp)
+          · exact absurd hv hpass
+          · rfl
+        rw [hgs] at hv
+        unfold rateSide at hv
+        rw [if_pos (Nat.zero_le _)] at hv
+        split_ifs at hv with h1 h2
+        · exact hab (Set.mem_biUnion (Finset.mem_filter.2 ⟨List.mem_toFinset.2 hqh, by linarith⟩)
+            (Set.mem_biUnion hstop h1))
+        · simp at hv
+      · rw [hgs] at hs
+        unfold rateSide at hs
+        rw [if_pos (Nat.zero_le _)] at hs
+        split_ifs at hs with h1 h2
+        refine hun (Set.mem_biUnion (Finset.mem_filter.2 ⟨List.mem_toFinset.2 hqh, hlt⟩) ?_)
+        simp only [Set.mem_ofPred_eq]
+        have : gateCut stop acc a' ≤ hitsIn bg (fun x => ¬ StartDis R e qh x) stop :=
+          Nat.sInf_le (show hitsIn bg (fun x => ¬ StartDis R e qh x) stop
+            ∈ {h | ¬ 1 - binomSfGe stop acc (h + 1) < a'} from h2)
+        rwa [hN] at this
+    -- a refusal: every start falls short of `acc`
+    have hfalse : gateSide R t e bg acc a stop = some false := by
+      unfold GatePasses at hpass; push Not at hpass; exact hpass
+    have hall : ∀ q ∈ P, pq q < acc := by
+      intro q hq
+      by_contra hge
+      push Not at hge
+      have hle : hitsIn bg (fun x => ¬ StartDis R e q x) stop
+          ≤ hitsIn bg (fun x => ¬ StartDis R e qh x) stop :=
+        bestOf_max P (fun q => hitsIn bg (fun x => ¬ StartDis R e q x) stop) hq
+      have := rateSide_false_mono hacc0 hacc1 (hgs.symm.trans hfalse) hle
+      exact hbe (Set.mem_biUnion (Finset.mem_filter.2 ⟨List.mem_toFinset.2 hq, hge⟩)
+        (Set.mem_biUnion hstop this))
+    have hclaim := (not_and.1 hD) hpass
+    simp only [not_or, not_forall, not_le] at hclaim
+    obtain ⟨htau, hM, q₀, h, hq₀, hhq, hcov, hh, hneed⟩ := hclaim
+    have herr : 1 - acc < D.real {x | StartDis R e (h q₀) x} := by
+      have := hall _ hhq; rw [hpq_compl] at this; linarith
+    have hNA := need_lt R A D _ h t e k q₀ gu hcov hh herr
+    refine ⟨by linarith, fun i hi => ?_⟩
+    -- the sample reads to its end, and the draw `i` fires its class
+    set tests := harvestTests R t e k L f c θM
+    set Tr := refusalStop br a tests (LiveEdge R t e k gu)
+    have hB' := (not_and.1 hB) hpass
+    have hC' := (not_and.1 hC) hpass
+    have hTr : Tr = nr := by
+      rcases refusalStop_spec br a tests (LiveEdge R t e k gu) with h1 | h1 | h1
+      · exact h1
+      · exact absurd h1 hC'
+      · exact absurd h1 hB'
+    have hfire : ∀ T ∈ tests, T.hits (br i) → (∀ x, T.hits x → T.trials x) → False := by
+      intro T hT hx hht
+      have h1 : 1 ≤ hitsIn br T.hits nr :=
+        Finset.card_pos.2 ⟨i, Finset.mem_filter.2 ⟨Finset.mem_univ _, i.2, hx⟩⟩
+      exact hC' ⟨T, hT, by rw [hTr]; exact harvest_fires R t e k L hf ha htau hM br T hT hht h1⟩
+    have hsearch : ∀ x, (∃ j, probeOutcome R t e k x = .triple j)
+        ∨ (∃ j, probeOutcome R t e k x = .pair j) → Searched R t e k x := by
+      rintro x (⟨j, hj⟩ | ⟨j, hj⟩)
+      · obtain ⟨ps, hi', hw, -⟩ := probeOutcome_search R hj trivial
+        simp [Searched, hw]
+      · obtain ⟨ps, hi', hw, -⟩ := probeOutcome_search R hj trivial
+        simp [Searched, hw]
+    rcases naOff_cases R hi with hl | hc' | hc' | hc' | hc' | hc' | hc'
+    · exact hB' ⟨i, by rw [hTr]; exact i.2, hl⟩
+    · exact hfire ⟨StartDeep R t k, fun _ => True, (t.depth - 1 : ℕ) * f⟩
+        (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+    · exact hfire ⟨EndDeep R t, fun _ => True, (t.depth - 1 : ℕ) * f⟩
+        (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+    · exact hfire ⟨IsTriple R t e k, Searched R t e k, c * f * t.depth * searchSteps L k⟩
+        (by simp [tests, harvestTests]) hc' fun x hx => hsearch x (.inl hx)
+    · exact hfire ⟨IsPair R t e k, Searched R t e k, c * f * t.depth * searchSteps L k⟩
+        (by simp [tests, harvestTests]) hc' fun x hx => hsearch x (.inr hx)
+    · exact hfire ⟨IsBlocked R t e k, fun _ => True, 2 * c * f * t.depth⟩
+        (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+    · exact hfire ⟨IsMember R t e k, fun _ => True, θM⟩
+        (by simp [tests, harvestTests]) hc' fun _ _ => trivial
+  -- the measures
+  set ν₁ := Measure.pi fun _ : Fin ng => D
+  set ν₂ := Measure.pi fun _ : Fin nr => D
+  have hfil : ∀ p : List Bool → Prop, ((P.toFinset.filter p).card : ℝ) * a' ≤ a := by
+    intro p
+    have h1 : ((P.toFinset.filter p).card : ℝ) ≤ P.length := by
+      exact_mod_cast (Finset.card_filter_le _ _).trans (List.toFinset_card_le _)
+    rw [ha', mul_div_assoc']
+    rw [div_le_iff₀ (by exact_mod_cast hP0)]
+    nlinarith
+  have hlooks : (looks.card : ℝ) ≤ Nat.log 2 (ng / 30) + 2 := by
+    exact_mod_cast lookSet_card 30 ng
+  have hGab : ν₁.real Gab ≤ (Nat.log 2 (ng / 30) + 2) * a := by
+    refine (measureReal_biUnion_finset_le _ _).trans ?_
+    calc ∑ q ∈ P.toFinset.filter (fun q => pq q < acc), ν₁.real (⋃ n ∈ looks,
+          {bg : Fin ng → FreeMonoid α |
+            binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n) < a'})
+        ≤ ∑ _q ∈ P.toFinset.filter (fun q => pq q < acc), (looks.card : ℝ) * a' := by
+          refine Finset.sum_le_sum fun q hq => (measureReal_biUnion_finset_le _ _).trans ?_
+          rw [← nsmul_eq_mul, ← Finset.sum_const]
+          exact Finset.sum_le_sum fun n hn => gate_look_above D _ (mem_lookSet hn).1 hacc1
+            (Finset.mem_filter.1 hq).2.le ha'0
+      _ = (looks.card : ℝ) * ((P.toFinset.filter (fun q => pq q < acc)).card * a') := by
+          rw [Finset.sum_const, nsmul_eq_mul]; ring
+      _ ≤ (Nat.log 2 (ng / 30) + 2) * a :=
+          mul_le_mul hlooks (hfil _) (by positivity) (by positivity)
+  have hGbe : ν₁.real Gbe ≤ (Nat.log 2 (ng / 30) + 2) * a := by
+    refine (measureReal_biUnion_finset_le _ _).trans ?_
+    calc ∑ q ∈ P.toFinset.filter (fun q => acc ≤ pq q), ν₁.real (⋃ n ∈ looks,
+          {bg : Fin ng → FreeMonoid α |
+            1 - binomSfGe n acc (hitsIn bg (fun x => ¬ StartDis R e q x) n + 1) < a'})
+        ≤ ∑ _q ∈ P.toFinset.filter (fun q => acc ≤ pq q), (looks.card : ℝ) * a' := by
+          refine Finset.sum_le_sum fun q hq => (measureReal_biUnion_finset_le _ _).trans ?_
+          rw [← nsmul_eq_mul, ← Finset.sum_const]
+          exact Finset.sum_le_sum fun n hn => gate_look_below D _ (mem_lookSet hn).1 hacc0
+            (Finset.mem_filter.1 hq).2 ha'0
+      _ = (looks.card : ℝ) * ((P.toFinset.filter (fun q => acc ≤ pq q)).card * a') := by
+          rw [Finset.sum_const, nsmul_eq_mul]; ring
+      _ ≤ (Nat.log 2 (ng / 30) + 2) * a :=
+          mul_le_mul hlooks (hfil _) (by positivity) (by positivity)
+  have htail0 : 0 ≤ binomSfGe ng (acc - δc) (gateCut ng acc a') :=
+    binomSfGe_nonneg (by linarith) (by linarith) _
+  have hGun : ν₁.real Gun
+      ≤ ((max 1 P.length : ℕ) : ℝ) * binomSfGe ng (acc - δc) (gateCut ng acc a') := by
+    refine (measureReal_biUnion_finset_le _ _).trans ?_
+    calc ∑ q ∈ P.toFinset.filter (fun q => pq q < acc - δc), ν₁.real
+          {bg : Fin ng → FreeMonoid α |
+            gateCut ng acc a' ≤ hitsIn bg (fun x => ¬ StartDis R e q x) ng}
+        ≤ ∑ _q ∈ P.toFinset.filter (fun q => pq q < acc - δc),
+            binomSfGe ng (acc - δc) (gateCut ng acc a') :=
+          Finset.sum_le_sum fun q hq => gate_tail D _ ng _ (by linarith)
+            (Finset.mem_filter.1 hq).2.le
+      _ = (P.toFinset.filter (fun q => pq q < acc - δc)).card
+            * binomSfGe ng (acc - δc) (gateCut ng acc a') := by
+          rw [Finset.sum_const, nsmul_eq_mul]
+      _ ≤ ((max 1 P.length : ℕ) : ℝ) * binomSfGe ng (acc - δc) (gateCut ng acc a') := by
+          refine mul_le_mul_of_nonneg_right ?_ htail0
+          have : ((P.toFinset.filter (fun q => pq q < acc - δc)).card : ℝ) ≤ P.length := by
+            exact_mod_cast (Finset.card_filter_le _ _).trans (List.toFinset_card_le _)
+          exact this.trans (by exact_mod_cast le_max_right _ _)
+  have hMiss := miss_all_le D (NAOff R t e k gu) nr hν
+  calc (ν₁.prod ν₂).real {b | ¬ TrichotomyHolds R A s D k L f c θM acc a δc η minCov ν gu b.1 b.2}
+      ≤ (ν₁.prod ν₂).real ((Gab ∪ Gbe ∪ Gun) ×ˢ Set.univ ∪ Set.univ ×ˢ Miss) :=
+        measureReal_mono hsub (measure_ne_top _ _)
+    _ ≤ (ν₁.prod ν₂).real ((Gab ∪ Gbe ∪ Gun) ×ˢ Set.univ)
+        + (ν₁.prod ν₂).real (Set.univ ×ˢ Miss) := measureReal_union_le _ _
+    _ = ν₁.real (Gab ∪ Gbe ∪ Gun) + ν₂.real Miss := by
+        rw [measureReal_prod_prod, measureReal_prod_prod, probReal_univ, probReal_univ, mul_one,
+          one_mul]
+    _ ≤ (ν₁.real Gab + ν₁.real Gbe + ν₁.real Gun) + ν₂.real Miss := by
+        gcongr
+        exact (measureReal_union_le _ _).trans (add_le_add (measureReal_union_le _ _) le_rfl)
+    _ ≤ _ := by linarith
+
+end Batch
 
 end OrthoDFA

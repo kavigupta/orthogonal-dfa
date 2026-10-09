@@ -400,7 +400,7 @@ theorem qBracket_pair (t : DTree α) (x : FreeMonoid α) (walkAt : ℕ → List 
         refine ⟨b, .inl hb, [], (qGuard t x walkAt lo hi ((lo + hi) / 2) true).trace cut,
           (qGuard t x walkAt lo hi ((lo + hi) / 2 - 1) false).trace cut
             ++ (qGuard t x walkAt lo hi ((lo + hi) / 2 + 1) false).trace cut,
-          by rcases lv <;> simp [hrv, Qry.trace], by simp, hmid, hbm⟩
+          by rcases lv <;> simp [Qry.trace], by simp, hmid, hbm⟩
       have hT : ∀ e ∈ (qGuard t x walkAt lo hi ((lo + hi) / 2) true).trace cut
           ++ ((qGuard t x walkAt lo hi ((lo + hi) / 2 - 1) false).trace cut
             ++ (qGuard t x walkAt lo hi ((lo + hi) / 2 + 1) false).trace cut),
@@ -545,7 +545,6 @@ theorem triple_spec (k : ℕ) :
       harvTriple k where
   asks t edges x := qProbeH_asksIn t edges k x
   first R t edges x h := by
-    beta_reduce at h ⊢
     rcases hr : (qProbeH t edges k x).run R.cut with ⟨o, b₁, b₂⟩
     rw [hr] at h
     rcases o <;> rcases b₁ with _ | b <;> simp [harvTriple] at h ⊢
@@ -575,7 +574,6 @@ theorem pair_spec (k : ℕ) :
       harvPair k where
   asks t edges x := qProbeH_asksIn t edges k x
   first R t edges x h := by
-    beta_reduce at h ⊢
     rcases hr : (qProbeH t edges k x).run R.cut with ⟨o, b₁, b₂⟩
     rw [hr] at h
     rcases o <;> rcases b₁ with _ | b₁ <;> rcases b₂ with _ | b₂ <;> simp [harvPair] at h ⊢
