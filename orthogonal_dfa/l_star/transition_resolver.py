@@ -257,7 +257,7 @@ class TransitionResolver:
         start and halving its chance of error with each reading in the round,
         at each of ``_LOOKS`` until it settles; one still unsettled at the
         last passes.  Where it falls short, a sample is read against that start
-        (see ``_refused``)."""
+        (see ``refusal_sample``)."""
         transitions = self._totalised()[0]
         n = self.tree.num_states
         # The round's i-th reading at 2 ** -i of the chance, so a round's
@@ -294,7 +294,7 @@ class TransitionResolver:
         )
         if passed:
             return reading
-        return self._refused(reading, transitions)
+        return self.refusal_sample(reading)
 
     def _ends_at(self, w, transitions):
         """Where the exported DFA ends on ``w`` from each state."""
@@ -308,8 +308,8 @@ class TransitionResolver:
         ``w``."""
         return (end in self.tree.accepting_leaves()) == self.family.middle_side(w, b"")
 
-    def _refused(self, gate, transitions) -> Reading:
-        """``gate`` with what a refusal sample holds.
+    def refusal_sample(self, gate) -> Reading:
+        """``gate`` with what a refusal sample read against its start holds.
 
         Each draw is read from ``k`` (see ``read``), and its start and whole
         sifted.  Each class of what the sample leaves is tested against what a
@@ -323,7 +323,7 @@ class TransitionResolver:
         agreed = 0
         while len(sample) < REFUSAL_DRAWS:
             w = self._draw()
-            agreed += self._accepts(self._ends_at(w, transitions)[gate.start], w)
+            agreed += self._accepts(self._ends_at(w, gate.transitions)[gate.start], w)
             outcome = self._read(w, learned)
             sample.append(
                 (w, self._below_root(w[: self.k]), self._below_root(w), outcome)
