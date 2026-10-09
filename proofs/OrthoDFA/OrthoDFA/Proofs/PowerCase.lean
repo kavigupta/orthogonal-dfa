@@ -17,47 +17,6 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
-section Defs
-
-variable (C : StrongCfg α)
-
-/-- The split test the step of `x` from `A` reaches: its key and the strings it counts. -/
-noncomputable def stepTest (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
-    Option (TestKey α × List (FreeMonoid α × Bool)) :=
-  match probeOutcome R A.s.tree A.s.edges C.k x with
-  | .edge ps fd =>
-    (seedStep C.K R A.s.tree A.s.pool A.s.edges (stepSkip C.K R C.k A.s x) C.K.forced C.k x ps
-      fd).key.map fun κ => (κ, testStrings C.K R A.s.tree A.s.pool κ.1 κ.2
-        (stepSkip C.K R C.k A.s x κ))
-  | _ => none
-
-/-- The split test's threshold against `A`'s tree. -/
-noncomputable def testThreshold (A : RoundAcc α) : ℝ :=
-  Real.log (2 * ((A.s.tree.paths.length * Fintype.card α : ℕ) : ℝ) / C.K.splitFpr)
-
-/-- A test at `κ` from `A` on `x`, counting `ts`: none of its strings read before but by `κ`'s
-tests, and its sides' mean answers apart by `τ` beyond its threshold. -/
-def FreshCase (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ)
-    (κ : TestKey α) (A : RoundAcc α) (x : FreeMonoid α) (ts : List (FreeMonoid α × Bool)) :
-    Prop :=
-  (∀ p ∈ ts, p.1 ∉ A.s.log ∧ p.1 ∉ A.reads ∧ p.1 ∉ stepPre C F A x
-      ∧ ∀ κ', (p.1, κ') ∈ A.s.tested → κ' = κ)
-    ∧ PowerCase O (testThreshold C A) τ ts
-
-/-- The step reaches a test at `κ` in the power case. -/
-def CaseAt (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ) (κ : TestKey α)
-    (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) : Prop :=
-  ∃ ts, stepTest C R A x = some (κ, ts) ∧ FreshCase C O F τ κ A x ts
-
-/-- The step reaches a test at `κ` in the power case or one that splits. -/
-def Decisive (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : ℝ) (κ : TestKey α)
-    (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) : Prop :=
-  ∃ ts, stepTest C R A x = some (κ, ts) ∧ (FreshCase C O F τ κ A x ts
-    ∨ verdict C.K R A.s.tree A.s.pool κ.1 κ.2 (A.s.tree.paths.length * Fintype.card α)
-      (stepSkip C.K R C.k A.s x κ) = .split)
-
-end Defs
-
 section Force
 
 variable (C : StrongCfg α) (R : CutReads α) (O : Oracle μ (FreeMonoid α))

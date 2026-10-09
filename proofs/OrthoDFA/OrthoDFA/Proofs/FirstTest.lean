@@ -1,4 +1,5 @@
 import OrthoDFA.Proofs.Masking
+import OrthoDFA.Exhausted
 
 /-!
 # The round's first step of a kind, and what decides it
@@ -17,32 +18,6 @@ variable {α : Type*} [Fintype α] [DecidableEq α]
 section Find
 
 variable (C : StrongCfg α) (R : CutReads α)
-
-/-- The accumulator a pass starts from. -/
-def passStart (A : RoundAcc α) : RoundAcc α :=
-  { A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } }
-
-open scoped Classical in
-/-- The first step of the pass at which `P` holds, and the accumulator before it. -/
-noncomputable def passFind (P : RoundAcc α → FreeMonoid α → Prop) :
-    RoundAcc α → List (FreeMonoid α) → Option (RoundAcc α × FreeMonoid α)
-  | _, [] => none
-  | A, x :: xs =>
-    if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then none
-    else if P A x then some (A, x) else passFind P (strongStep C R A x) xs
-
-/-- The first step of the round at which `P` holds, and the accumulator before it. -/
-noncomputable def roundFind (P : RoundAcc α → FreeMonoid α → Prop) :
-    (n : ℕ) → ℕ → RoundAcc α → List (FreeMonoid α) → (Fin n → C.Draws)
-      → Option (RoundAcc α × FreeMonoid α)
-  | 0, _, _, _, _ => none
-  | n + 1, j, A, first, d =>
-    match passFind C R P (passStart A) (first ++ List.ofFn (d 0).1) with
-    | some r => some r
-    | none =>
-      match strongReading C R j A first (d 0) with
-      | (_, .inl _) => none
-      | (A', .inr lv) => roundFind P n (j + 1) A' lv (Fin.tail d)
 
 theorem strongPass_start (A : RoundAcc α) (probes : List (FreeMonoid α)) :
     strongPass C R A probes = probes.foldl (passBody C R) (passStart A) :=
@@ -77,11 +52,6 @@ end Find
 section Pre
 
 variable (C : StrongCfg α)
-
-/-- What a step reads before its test. -/
-noncomputable def stepPre (F : Finset (FreeMonoid α)) (A : RoundAcc α) (x : FreeMonoid α) :
-    Finset (FreeMonoid α) :=
-  stepReads C.K F A.s.tree A.s.tree A.s.pool C.k x
 
 theorem stepReads_mono {K : StageKnobs α} {F : Finset (FreeMonoid α)} {t t' : DTree α}
     {pool pool' : List (FreeMonoid α)} {k : ℕ} {x : FreeMonoid α} :

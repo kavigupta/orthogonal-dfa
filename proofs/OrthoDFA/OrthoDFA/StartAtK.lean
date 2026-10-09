@@ -204,6 +204,12 @@ noncomputable def visits (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMo
 /-- A split test's key: the leaf's path and the distinguisher. -/
 abbrev TestKey (α : Type*) := List Bool × FreeMonoid α
 
+/-- The key of the split test a probe's step reaches, if any. -/
+def SeedResult.key : SeedResult α → Option (TestKey α)
+  | .split d s1 _ _ => some (s1, d)
+  | .member s1 _ d => some (s1, d)
+  | _ => none
+
 /-- Each block string a split test has counted, with the key of the first test that counted it. -/
 abbrev Tested (α : Type*) := List (FreeMonoid α × TestKey α)
 

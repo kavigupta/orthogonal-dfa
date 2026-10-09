@@ -1,5 +1,6 @@
 import OrthoDFA.Proofs.SplitPower
 import OrthoDFA.Proofs.FreshSelect
+import OrthoDFA.Exhausted
 
 /-!
 # A split test on fresh strings misses with chance at most `e^{−τ²}`
@@ -14,32 +15,12 @@ open MeasureTheory ProbabilityTheory Real
 variable {α : Type*} [Fintype α] [DecidableEq α]
 variable {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
 
-open scoped Classical in
-/-- The counted strings on the side `b`. -/
-noncomputable def sideOf (ts : List (FreeMonoid α × Bool)) (b : Bool) : Finset (FreeMonoid α) :=
-  ((ts.filter fun p => p.2 = b).map Prod.fst).toFinset
-
-/-- The mean of the oracle's answers over `S`. -/
-noncomputable def meanBit (O : Oracle μ (FreeMonoid α)) (S : Finset (FreeMonoid α)) : ℝ :=
-  (∑ w ∈ S, μ[O.mq w]) / S.card
-
-/-- `2ab/(a + b)`. -/
-noncomputable def harm (a b : ℕ) : ℝ := 2 * a * b / (a + b)
-
 /-- The two-sample statistic of the answers at `ω` on the sides of `ts`. -/
 noncomputable def sideStat (O : Oracle μ (FreeMonoid α)) (ts : List (FreeMonoid α × Bool))
     (ω : Ω) : ℝ :=
   harm (sideOf ts true).card (sideOf ts false).card
     * ((∑ w ∈ sideOf ts true, O.mq w ω) / (sideOf ts true).card
       - (∑ w ∈ sideOf ts false, O.mq w ω) / (sideOf ts false).card) ^ 2
-
-/-- The test of the sides of `ts` at threshold `θ`, with both sides read, misses by a margin `τ`
-of signal: `√H` times the gap of the sides' mean answers is at least `√θ + τ`. -/
-def PowerCase (O : Oracle μ (FreeMonoid α)) (θ τ : ℝ) (ts : List (FreeMonoid α × Bool)) :
-    Prop :=
-  (sideOf ts true).Nonempty ∧ (sideOf ts false).Nonempty
-    ∧ √θ + τ ≤ √(harm (sideOf ts true).card (sideOf ts false).card)
-      * (meanBit O (sideOf ts true) - meanBit O (sideOf ts false))
 
 /-- The answers on the strings of `ts` fall short of `θ`. -/
 def Misses (O : Oracle μ (FreeMonoid α)) (θ : ℝ) (ts : List (FreeMonoid α × Bool)) : Set Ω :=

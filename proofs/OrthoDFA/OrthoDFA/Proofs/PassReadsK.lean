@@ -286,12 +286,6 @@ theorem agreeTests_of_blk {t t' : DTree α} {pool : List (FreeMonoid α)}
   rw [he]
   exact h b (members_mem hb) c m (ht m hm) v hv
 
-/-- The key of the split test a probe's step reaches, if any. -/
-def SeedResult.key : SeedResult α → Option (TestKey α)
-  | .split d s1 _ _ => some (s1, d)
-  | .member s1 _ d => some (s1, d)
-  | _ => none
-
 theorem seedStep_key {R : CutReads α} {t : DTree α} {pool : List (FreeMonoid α)}
     {edges : Edges α} {skip : TestKey α → FreeMonoid α → Prop} {forced : Set (TestKey α)} {k : ℕ}
     {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {c : α} {s2 p : List Bool}

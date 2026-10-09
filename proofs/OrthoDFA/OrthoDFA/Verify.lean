@@ -10,6 +10,7 @@ import OrthoDFA.Proofs.RoundLevel
 import OrthoDFA.Proofs.RoundStrong
 import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
+import OrthoDFA.Proofs.Power
 
 /-!
 # The theorem
@@ -112,6 +113,12 @@ theorem spurious_draw' : SpuriousDraw := spurious_draw
 theorem round_strong_spurious' : RoundStrongSpurious := round_strong_spurious
 
 #print axioms round_strong_spurious'
+
+theorem round_strong_power' : RoundStrongPower := by
+  intro α _ _ Ω _ μ _ C O B F seed τ Rmax d h0 hτ
+  exact power_tail C O B F seed τ Rmax d h0 hτ
+
+#print axioms round_strong_power'
 
 
 end OrthoDFA
