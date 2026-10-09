@@ -240,27 +240,28 @@ def WellRead (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : St
 
 /-- What the harvest classes claim of the hypothesis `s` that reads `R`: in each, the draws whose
 harvested read is at a well-read state are at most the incidental rate over the class's trials,
-but for the draws whose harvested read the pass may have read and the fluctuation `ε`. So a class
-with rate `r` has a bad share of at least `1 − (incidental + slack)/r`. -/
+but for the draws whose harvested read the pass may have read and the fluctuation `ε`, in units of
+the most tagged reads a draw makes. So a class with rate `r` has a bad share of at least
+`1 − (incidental + slack)/r`. -/
 def QualityHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (s : KState α) (D : Measure (FreeMonoid α)) (k L : ℕ)
     (seed probes : List (FreeMonoid α)) (f c ε : ℝ) : Prop :=
   let t := s.tree
   let e := s.edges
-  let slack := (passReadSet seed probes t).card * prefixMax D k + ε * (1 + c * f * t.depth * L)
+  let slack := fun M : ℝ => (passReadSet seed probes t).card * prefixMax D k + ε * (1 + c * f * M)
   let wr := WellRead A O B F (c * f)
   D.real {x | ∃ j b, probeOutcome R t e k x = .triple j ∧ tripleRead R t x j = some b ∧ wr b}
-      ≤ c * f * t.depth * searchSteps L k * D.real {x | Searched R t e k x} + slack
+      ≤ c * f * t.depth * searchSteps L k * D.real {x | Searched R t e k x} + slack (t.depth * L)
     ∧ D.real {x | ∃ j b b', probeOutcome R t e k x = .pair j ∧ tripleRead R t x j = some b
         ∧ tripleRead R t x (j + 1) = some b' ∧ wr b ∧ wr b'}
-      ≤ c * f * t.depth * searchSteps L k * D.real {x | Searched R t e k x} + slack
+      ≤ c * f * t.depth * searchSteps L k * D.real {x | Searched R t e k x} + slack (t.depth * L)
     ∧ D.real {x | ∃ b, t.sift R.cut (prefixOf x k) = .inr b ∧ StartDeep R t k x ∧ wr b}
-      ≤ c * f * (t.depth - 1 : ℕ) + slack
+      ≤ c * f * (t.depth - 1 : ℕ) + slack (t.depth - 1 : ℕ)
     ∧ D.real {x | ∃ b, t.sift R.cut x = .inr b ∧ EndDeep R t x ∧ wr b}
-      ≤ c * f * (t.depth - 1 : ℕ) + slack
+      ≤ c * f * (t.depth - 1 : ℕ) + slack (t.depth - 1 : ℕ)
     ∧ D.real {x | ∃ w b, IsBlocked R t e k x ∧ probeOutcome R t e k x = .endUndecided w
         ∧ t.sift R.cut w = .inr b ∧ wr b}
-      ≤ 2 * c * f * t.depth + slack
+      ≤ 2 * c * f * t.depth + slack (2 * t.depth)
 
 /-- `RoundTrichotomy`: for any probes, outside a set of the oracle's noise of measure at most
 `5·prefixMax D k / ε²`, where the classes' quality may fail, the gate's batch and the refusal

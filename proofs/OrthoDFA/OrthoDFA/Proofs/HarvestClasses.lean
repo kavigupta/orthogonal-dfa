@@ -122,14 +122,13 @@ theorem prefixOf_max (x : FreeMonoid α) (k : ℕ) : prefixOf x (max k x.toList.
   apply FreeMonoid.toList.injective
   simp [prefixOf, List.take_of_length_le (le_max_right _ _)]
 
-/-- The ends' classes: a draw's first `k` letters, and the whole draw. -/
-theorem ends_spec (k : ℕ) (start : Bool) :
-    HarvestSpec (fun t (_ : Edges α) x =>
-      qSiftDeep (if start then prefixOf x k else x) t) Option.toList k where
+/-- The ends' classes: the sift of a prefix `w x` of each draw at least `k` long. -/
+theorem ends_spec (k : ℕ) (w : FreeMonoid α → FreeMonoid α)
+    (hw : ∀ x, ∃ i, k ≤ i ∧ w x = prefixOf x i) :
+    HarvestSpec (fun t (_ : Edges α) x => qSiftDeep (w x) t) Option.toList k where
   asks t _ x := Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => by
-      refine ⟨if start then k else max k x.toList.length, ?_, m, hm, ?_⟩
-      · split_ifs <;> simp
-      · rw [he]; split_ifs <;> simp [prefixOf_max]) _ (qSiftDeep_asksIn _ t)
+      obtain ⟨i, hi, hwx⟩ := hw x
+      exact ⟨i, hi, m, hm, by rw [he, hwx]⟩) _ (qSiftDeep_asksIn _ t)
   first R t _ x h := by
     obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.1 (by simpa using h)
     obtain ⟨-, hcut, pre, blk, htr, hpre, hblk, hmem⟩ := qSiftDeep_some R.cut _ b t hb
@@ -137,11 +136,9 @@ theorem ends_spec (k : ℕ) (start : Bool) :
     rw [htr]
     exact first_of_split R.cut hpre hblk hmem hcut
   form R t _ x b hb := by
-    have hb' : (qSiftDeep (if start then prefixOf x k else x) t).run R.cut = some b := by
-      simpa using hb
-    obtain ⟨m, rfl⟩ := qSiftDeep_form R.cut _ b t hb'
-    refine ⟨if start then k else max k x.toList.length, by split_ifs <;> simp, m, ?_⟩
-    split_ifs <;> simp [prefixOf_max]
+    obtain ⟨m, rfl⟩ := qSiftDeep_form R.cut _ b t (by simpa using hb)
+    obtain ⟨i, hi, hwx⟩ := hw x
+    exact ⟨i, hi, m, by rw [hwx]⟩
 
 end Ends
 

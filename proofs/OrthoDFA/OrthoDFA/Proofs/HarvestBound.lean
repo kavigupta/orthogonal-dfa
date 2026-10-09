@@ -19,11 +19,11 @@ variable {α : Type*} [Fintype α] [DecidableEq α] {β : Type*}
 structure HarvestSpec (G : DTree α → Edges α → FreeMonoid α → Qry α β)
     (harv : β → List (FreeMonoid α)) (k : ℕ) : Prop where
   asks : ∀ t e x, (G t e x).AsksIn fun y => ∃ i, k ≤ i ∧ ∃ m ∈ t.mids, y = prefixOf x i * m
-  first : ∀ (cut : FreeMonoid α → Option Bool) t e x, harv ((G t e x).run cut) ≠ [] →
-    ∃ b ∈ harv ((G t e x).run cut), cut b = none
-      ∧ ∃ r, ∃ hr : r < ((G t e x).trace cut).length, ((G t e x).trace cut)[r] = (b, true)
-        ∧ ∀ i, ∀ hi : i < r, (((G t e x).trace cut)[i]'(hi.trans hr)).1 ≠ b
-  form : ∀ (cut : FreeMonoid α → Option Bool) t e x b, b ∈ harv ((G t e x).run cut) →
+  first : ∀ (R : CutReads α) t e x, harv ((G t e x).run R.cut) ≠ [] →
+    ∃ b ∈ harv ((G t e x).run R.cut), R.cut b = none
+      ∧ ∃ r, ∃ hr : r < ((G t e x).trace R.cut).length, ((G t e x).trace R.cut)[r] = (b, true)
+        ∧ ∀ i, ∀ hi : i < r, (((G t e x).trace R.cut)[i]'(hi.trans hr)).1 ≠ b
+  form : ∀ (R : CutReads α) t e x b, b ∈ harv ((G t e x).run R.cut) →
     ∃ i, k ≤ i ∧ ∃ m, b = prefixOf x i * m
 
 omit [Fintype α] [DecidableEq α] in
@@ -230,12 +230,12 @@ variable {G harv} {k : ℕ}
 
 theorem gFresh_firstBad (hG : HarvestSpec G harv k) (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) {u : ℝ}
-    {cut : FreeMonoid α → Option Bool} {t : DTree α} {edges : Edges α}
+    {R : CutReads α} {t : DTree α} {edges : Edges α}
     {Tp : Finset (FreeMonoid α)} {x : FreeMonoid α}
-    (h : GFresh G harv A O B F u cut t edges Tp x) :
-    FirstBad ((G t edges x).trace cut) Tp cut
+    (h : GFresh G harv A O B F u R.cut t edges Tp x) :
+    FirstBad ((G t edges x).trace R.cut) Tp R.cut
       fun z => stateIndecision A O B F (A.state z) < u := by
-  obtain ⟨b, hb, hcut, r, hr, hrb, hfirst⟩ := hG.first cut t edges x h.1
+  obtain ⟨b, hb, hcut, r, hr, hrb, hfirst⟩ := hG.first R t edges x h.1
   obtain ⟨hg, hT⟩ := h.2 b hb
   refine ⟨r, hr, by rw [hrb], by rw [hrb]; exact hT, fun i hi => by rw [hrb]; exact hfirst i hi,
     by rw [hrb]; exact hcut, by rw [hrb]; exact hg⟩
@@ -308,7 +308,8 @@ variable {G : DTree α → Edges α → FreeMonoid α → Qry α β} {harv : β 
 /-- Inside a cell of the pass, a draw's share is pulled down on average: its fresh harvests are
 outnumbered by `uGood` times its tagged reads. -/
 theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
-    (bnd : DTree α → ℕ → ℕ) (hbnd : ∀ cut t e x, gTags G cut t e x ≤ bnd t x.toList.length)
+    (bnd : DTree α → ℕ → ℕ)
+    (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q) {uGood : ℝ}
     (hu : 0 ≤ uGood) (hV : SuffixFree (F ∪ K.train F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
@@ -475,7 +476,8 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
 
 /-- Chebyshev inside a cell of the pass. -/
 theorem cell_tail_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
-    (bnd : DTree α → ℕ → ℕ) (hbnd : ∀ cut t e x, gTags G cut t e x ≤ bnd t x.toList.length)
+    (bnd : DTree α → ℕ → ℕ)
+    (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ} (hkL : k ≤ L) {uGood ε : ℝ}
     (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (F ∪ K.train F))
@@ -507,7 +509,7 @@ theorem cell_tail_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     intro x hx ω
     have hl := mem_wordsOf.1 hx
     have ht : (gTags G (cellReads O B F V c ω).cut s₀.tree s₀.edges x : ℝ) ≤ d₀ := by
-      have := hbnd (cellReads O B F V c ω).cut s₀.tree s₀.edges x
+      have := hbnd (cellReads O B F V c ω) s₀.tree s₀.edges x
       rw [hl] at this; simp only [d₀]; exact_mod_cast this
     have ht0 : (0 : ℝ) ≤ gTags G (cellReads O B F V c ω).cut s₀.tree s₀.edges x :=
       Nat.cast_nonneg _
@@ -731,11 +733,11 @@ variable {G : DTree α → Edges α → FreeMonoid α → Qry α β} {harv : β 
 /-- Draws harvesting a string the pass may have read share their first `k` letters with it. -/
 theorem gen_touched_le (hG : HarvestSpec G harv k) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] {L : ℕ} (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
-    (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : Edges α)
+    (R : CutReads α) (t : DTree α) (edges : Edges α)
     (Tp : Finset (FreeMonoid α)) :
-    D.real {x | ∃ b ∈ harv ((G t edges x).run cut), b ∈ Tp} ≤ Tp.card * prefixMax D k := by
+    D.real {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp} ≤ Tp.card * prefixMax D k := by
   classical
-  have hsub : {x | ∃ b ∈ harv ((G t edges x).run cut), b ∈ Tp}
+  have hsub : {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp}
       ⊆ (⋃ w ∈ Tp.filter (fun w => k ≤ w.toList.length),
           {x | (prefixOf w k).toList <+: x.toList}) ∪ {x | ¬ x.toList.length = L} := by
     rintro x ⟨b, hb, hT⟩
@@ -743,7 +745,7 @@ theorem gen_touched_le (hG : HarvestSpec G harv k) (D : Measure (FreeMonoid α))
     swap
     · exact .inr hx
     left
-    obtain ⟨i, hi, m, rfl⟩ := hG.form cut t edges x b hb
+    obtain ⟨i, hi, m, rfl⟩ := hG.form R t edges x b hb
     have hlen' : k ≤ (prefixOf x i).toList.length := by simp [prefixOf]; omega
     have hbk : k ≤ (prefixOf x i * m).toList.length := by
       simp only [FreeMonoid.toList_mul, List.length_append]; omega
@@ -779,37 +781,37 @@ open scoped Classical in
 /-- Where the class's claim fails, the draws' shares sum past the fluctuation allowed. -/
 theorem gen_fail_sum (hG : HarvestSpec G harv k) (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) {u ε M : ℝ}
-    (cut : FreeMonoid α → Option Bool) (t : DTree α) (edges : Edges α)
+    (R : CutReads α) (t : DTree α) (edges : Edges α)
     (Tp : Finset (FreeMonoid α)) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
     (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
-    (h : ¬ D.real {x | harv ((G t edges x).run cut) ≠ []
-          ∧ ∀ b ∈ harv ((G t edges x).run cut), stateIndecision A O B F (A.state b) < u}
-      ≤ u * ∫ x, (gTags G cut t edges x : ℝ) ∂D + Tp.card * prefixMax D k + ε * (1 + u * M)) :
+    (h : ¬ D.real {x | harv ((G t edges x).run R.cut) ≠ []
+          ∧ ∀ b ∈ harv ((G t edges x).run R.cut), stateIndecision A O B F (A.state b) < u}
+      ≤ u * ∫ x, (gTags G R.cut t edges x : ℝ) ∂D + Tp.card * prefixMax D k + ε * (1 + u * M)) :
     ε * (1 + u * M)
-      < ∑ x ∈ wordsOf (α := α) L, D.real {x} * gContrib G harv A O B F u cut t edges Tp x := by
+      < ∑ x ∈ wordsOf (α := α) L, D.real {x} * gContrib G harv A O B F u R.cut t edges Tp x := by
   set X := wordsOf (α := α) L
-  have h1 : D.real {x | harv ((G t edges x).run cut) ≠ []
-      ∧ ∀ b ∈ harv ((G t edges x).run cut), stateIndecision A O B F (A.state b) < u}
-      ≤ D.real {x | GFresh G harv A O B F u cut t edges Tp x}
-        + D.real {x | ∃ b ∈ harv ((G t edges x).run cut), b ∈ Tp} := by
+  have h1 : D.real {x | harv ((G t edges x).run R.cut) ≠ []
+      ∧ ∀ b ∈ harv ((G t edges x).run R.cut), stateIndecision A O B F (A.state b) < u}
+      ≤ D.real {x | GFresh G harv A O B F u R.cut t edges Tp x}
+        + D.real {x | ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp} := by
     refine (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)).trans
       (measureReal_union_le _ _)
     obtain ⟨hne, hg⟩ := hx
-    by_cases hT : ∃ b ∈ harv ((G t edges x).run cut), b ∈ Tp
+    by_cases hT : ∃ b ∈ harv ((G t edges x).run R.cut), b ∈ Tp
     · exact .inr hT
     · push Not at hT
       exact .inl ⟨hne, fun b hb => ⟨hg b hb, hT b hb⟩⟩
-  have h2 := gen_touched_le hG D hkL hlen cut t edges Tp
-  have h3 : D.real {x | GFresh G harv A O B F u cut t edges Tp x}
-      = ∑ x ∈ X, D.real {x} * (if GFresh G harv A O B F u cut t edges Tp x then 1 else 0) := by
+  have h2 := gen_touched_le hG D hkL hlen R t edges Tp
+  have h3 : D.real {x | GFresh G harv A O B F u R.cut t edges Tp x}
+      = ∑ x ∈ X, D.real {x} * (if GFresh G harv A O B F u R.cut t edges Tp x then 1 else 0) := by
     rw [real_eq_sum_words D hlen]
     refine Finset.sum_congr rfl fun x _ => ?_
     simp only [Set.mem_ofPred_eq]
     split_ifs <;> simp
-  have h4 := integral_eq_sum_words D hlen fun x => (gTags G cut t edges x : ℝ)
-  have h6 : ∑ x ∈ X, D.real {x} * gContrib G harv A O B F u cut t edges Tp x
-      = ∑ x ∈ X, D.real {x} * (if GFresh G harv A O B F u cut t edges Tp x then 1 else 0)
-        - u * ∑ x ∈ X, D.real {x} * (gTags G cut t edges x : ℝ) := by
+  have h4 := integral_eq_sum_words D hlen fun x => (gTags G R.cut t edges x : ℝ)
+  have h6 : ∑ x ∈ X, D.real {x} * gContrib G harv A O B F u R.cut t edges Tp x
+      = ∑ x ∈ X, D.real {x} * (if GFresh G harv A O B F u R.cut t edges Tp x then 1 else 0)
+        - u * ∑ x ∈ X, D.real {x} * (gTags G R.cut t edges x : ℝ) := by
     rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun x _ => ?_
     simp only [gContrib]
@@ -829,7 +831,8 @@ variable {G : DTree α → Edges α → FreeMonoid α → Qry α β} {harv : β 
 
 /-- A class's claim over the oracle's noise. -/
 theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
-    (bnd : DTree α → ℕ → ℕ) (hbnd : ∀ cut t e x, gTags G cut t e x ≤ bnd t x.toList.length)
+    (bnd : DTree α → ℕ → ℕ)
+    (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B : State)
     (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] {L : ℕ} (seed probes : List (FreeMonoid α)) {u ε : ℝ}
