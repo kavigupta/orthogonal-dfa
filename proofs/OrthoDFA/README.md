@@ -1,5 +1,60 @@
 # Machine-checked correctness of the E-L\* clustering algorithm
 
+## The theorems
+
+Every theorem below is proved in Lean with no `sorry`, using only `propext`, `Classical.choice`
+and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
+
+- `ClusteringGuarantee`: with probability at least `1 − δ` the clustering loop stops, and the
+  family it returns cuts all but `εcov` of the uniform pool as the noiseless oracle does, at a
+  polynomial number of queries.
+- `ClusteringQualityGuarantee`: averaged over a population, the returned family decides a prefix
+  wrongly, or leaves it undecided, only a bounded share of the time.
+- `RoundOutcome`: if the DFA/DT check fails on a share `d` of strings, the harvest sampler finds a
+  string on at least a `d/L` share of attempts, and harvests no single string too often.
+- `RoundProgress`: but for a small chance of flipped node reads, a round ends in one of seven
+  outcomes, each of which moves the learner forward.
+- `RoundAtK`: a round walked from position `k` makes one claim per probe outcome, each holding for
+  any reads but for the gate tests' failure chances.
+- `StartExists`: a DFA that agrees with the target on a set of states misjudges few draws when
+  started at the image of a covering state.
+- `StartRootCovered`, `EndsCovered`, `BadShare`: the FNR gate's population bounds how often the
+  walk's start is undecided at the root, the populations below the root are undecided at least as
+  often as the walk's ends, and an often-undecided population has much mass at badly read states.
+- `RoundTrichotomy`: one reading ends consistent (the gate settles above `acc` and its start
+  disagrees on at most `1 − acc`), with live edges to rerun, holding a class that fired, or
+  halving only above `τ₀` or with little mass left, but for `2(log₂(ng/30)+2)a + (1−ν)^nr`; off
+  a small noise set every harvest class is close to its incidental rate.
+- `RoundTrichotomyLevel`: the same over all of a round's readings, with the gate's chance spent
+  as `a·2⁻ʲ` and a certificate of failure chance `α`, but for `4(log₂(ng/30)+2)a` plus
+  `(1−ν)^nr + α` per reading in expectation.
+- `RoundQualityLevel`: off a noise set of measure `δ`, the hypothesis a round ends with has every
+  harvest class close to its incidental rate, at a fluctuation set by the readings it made.
+- `RoundStrongBudget`: in the round as Python runs it (attempts counted, edges given up, a fresh
+  quiet streak per pass), the probe budget is never reached, so the round never ends exhausted.
+- `RoundStrongReadings`: that round makes at most `readStar(leaves)` readings.
+- `RoundStrongLeaves`: it ends with at most `|Q| + 2` leaves plus its noisy splits, those with one
+  of their at most `2·depth + 2` sifting or parting reads off a reference placement's side.
+- `RoundStrongSameState`: a split between two strings of one state is noisy.
+- `RoundStrongLeafPaths`: its learned edges join leaves.
+- `RoundStrongTrichotomy`: it ends consistent, holding a class, halving with the edges actually
+  given up, or out of readings only past `readStar`, but for `4(log₂(ng/30)+2)a`,
+  `(1−ν)^nr` per reading and the certificate's failure chance per call, in expectation.
+- `RoundStrongQuality`: `RoundQualityLevel` for that round.
+
+## Open
+
+Two claims are not proved, and are not assumed or sorried anywhere:
+
+1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
+   noisy split needs one specific decided read on the minority side, but the witness it reads is
+   picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
+   union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
+2. Split power on edges with margin: that an edge whose two successor states sit outside the band
+   by a margin, and that is wrong, splits within `m*` decided attempts but for a binomial tail.
+   This would bound the given-up residue in the halving claim for such edges; edges whose states
+   sit in the band are left to the stopped harvest.
+
 ## What to read
 
 - `OrthoDFA/Clustering.lean` — the oracle, the algorithm, and `ClusteringGuarantee`, the claim.
@@ -60,11 +115,11 @@
 - `OrthoDFA/Trichotomy.lean` — `RoundTrichotomy`: one reading of the round. Off a noise set of
   measure at most `5·exp(−2ε²/prefixMax)`, every harvest class is at most its incidental rate plus
   slack: the draws sharing their first `k` letters with a string the pass read, and `ε`.
-  There, but for the gate tests' failure chance per look, a binomial tail for a gate left
-  unsettled at its batch's end, and `(1 − ν)^nr`, the reading ends in one of: the gate passes and
-  its start disagrees on at most `1 − acc + δc`; live edges turn up to rerun; some class fires;
-  or the limit halves, and then `f ≥ τ₀`, or members do not fire on a first hit, or every
-  covering start leaves the classes and live edges at most `ν`.
+  There, but for the gate tests' failure chance per look and `(1 − ν)^nr`, the reading ends in
+  one of: the gate settles above `acc` and its start disagrees on at most `1 − acc`; live edges
+  turn up to rerun; some class fires; or the limit halves, and then `f ≥ τ₀`, or members do not
+  fire on a first hit, or the walk's non-agreeing mass is at most `ν` and, where the gate settled
+  below, every covering start leaves the classes and live edges at most `ν`.
 - `OrthoDFA/RoundLevel.lean` — `RoundTrichotomyLevel`: the round over its readings. Each reading
   runs the pass with the previous reading's live-edge draws first, then the gate (at failure chance
   `a·2⁻ʲ`) and, where its test settles above, a certificate taken as a black box with failure

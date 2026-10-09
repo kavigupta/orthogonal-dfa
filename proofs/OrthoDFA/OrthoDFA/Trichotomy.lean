@@ -6,10 +6,10 @@ import Mathlib.Analysis.SpecialFunctions.Log.Base
 # The round's trichotomy
 
 The gate runs the hypothesis's DFA from every start on each draw and scores it against the draw's
-root read; it passes where the best start's agreement reaches `acc`. A gate whose test never
-settles passes. On a refusal a fresh sample is read, every draw to one outcome, until a harvest
-class's test against the rate incidental indecision alone would give it fires or an edge still
-live turns up, else to its end: a class that fires is held, live edges rerun the pass, and
+root read; it passes where its test of the best start's agreement settles above `acc`, and a
+gate whose test never settles refuses. On a refusal a fresh sample is read, every draw to one
+outcome, until a harvest class's test against the rate incidental indecision alone would give it
+fires or an edge still live turns up, else to its end: a class that fires is held, live edges rerun the pass, and
 otherwise the limit halves.
 
 `RoundTrichotomy`: outside a set of the oracle's noise of measure at most `β₁`, the gate's batch
@@ -69,14 +69,9 @@ noncomputable def gateStop (acc a : ℝ) : ℕ :=
 noncomputable def gateStart (acc a : ℝ) : List Bool :=
   gateBest R t edges bg (gateStop R t edges bg acc a)
 
-/-- The gate passes unless its test settles below `acc`. -/
-def GatePasses (acc a : ℝ) : Prop :=
-  gateSide R t edges bg acc a (gateStop R t edges bg acc a) ≠ some false
-
-/-- The fewest hits of `n` at which a test against `θ` at failure chance `a` does not settle
-below. -/
-noncomputable def gateCut (n : ℕ) (θ a : ℝ) : ℕ :=
-  sInf {h | ¬ 1 - binomSfGe n θ (h + 1) < a}
+/-- The gate's test settles on the side `b`: above `acc` where `b` is true. -/
+def GateSettles (acc a : ℝ) (b : Bool) : Prop :=
+  gateSide R t edges bg acc a (gateStop R t edges bg acc a) = some b
 
 end Gate
 
@@ -214,27 +209,30 @@ noncomputable def tauZero (t : DTree α) (k L nr : ℕ) (c a : ℝ) : ℝ :=
 
 open scoped Classical in
 /-- What a reading of the round against the hypothesis `s` claims: the gate passes and its
-chosen start disagrees on at most `1 − acc + δc` of draws; or it refuses and the refusal sample
-turns up live edges to rerun; or some harvest class fires; or the limit halves, and then, below
-`τ₀` with members firing on their first hit, every covering start leaves at most `ν`. -/
+chosen start disagrees on at most `1 − acc` of draws; or it refuses and the refusal sample turns
+up live edges to rerun; or some harvest class fires; or the limit halves, and then, below `τ₀`
+with members firing on their first hit, the walk's non-agreeing mass is at most `ν` and, where the
+gate settled below, every covering start leaves at most `ν`. -/
 def TrichotomyHolds (A : DFA (FreeMonoid α) Q) (s : KState α) (D : Measure (FreeMonoid α))
-    (k L : ℕ) (f c θM acc a δc η minCov ν : ℝ) (gu : List Bool × α → Prop) {ng nr : ℕ}
+    (k L : ℕ) (f c θM acc a η minCov ν : ℝ) (gu : List Bool × α → Prop) {ng nr : ℕ}
     (bg : Fin ng → FreeMonoid α) (br : Fin nr → FreeMonoid α) : Prop :=
   let t := s.tree
   let e := s.edges
   let tests := harvestTests R t e k L f c θM
   let Tr := refusalStop br a tests (LiveEdge R t e k gu)
   let S := Covered A D k L minCov
-  (GatePasses R t e bg acc a
-      ∧ D.real {x | StartDis R e (gateStart R t e bg acc a) x} ≤ 1 - acc + δc)
-    ∨ (¬ GatePasses R t e bg acc a ∧ ∃ i : Fin nr, (i : ℕ) < Tr ∧ LiveEdge R t e k gu (br i))
-    ∨ (¬ GatePasses R t e bg acc a ∧ ∃ T ∈ tests, T.fires br a Tr)
-    ∨ (¬ GatePasses R t e bg acc a
+  (GateSettles R t e bg acc a true
+      ∧ D.real {x | StartDis R e (gateStart R t e bg acc a) x} ≤ 1 - acc)
+    ∨ (¬ GateSettles R t e bg acc a true
+      ∧ ∃ i : Fin nr, (i : ℕ) < Tr ∧ LiveEdge R t e k gu (br i))
+    ∨ (¬ GateSettles R t e bg acc a true ∧ ∃ T ∈ tests, T.fires br a Tr)
+    ∨ (¬ GateSettles R t e bg acc a true
       ∧ (tauZero t k L nr c a ≤ f ∨ 1 - a ≤ θM * nr
-        ∨ ∀ (q₀ : Q) (h : Q → List Bool), q₀ ∈ S → h q₀ ∈ t.paths →
-          1 - η ≤ D.real (CoverGood A S q₀) →
-          (∀ q ∈ S, leafAccepts (h q) = decide (q ∈ A.accept)) →
-          need R A D S h t e k q₀ gu acc η ≤ ν))
+        ∨ (D.real {x | NAOff R t e k gu x} ≤ ν
+          ∧ (GateSettles R t e bg acc a false → ∀ (q₀ : Q) (h : Q → List Bool), q₀ ∈ S →
+            h q₀ ∈ t.paths → 1 - η ≤ D.real (CoverGood A S q₀) →
+            (∀ q ∈ S, leafAccepts (h q) = decide (q ∈ A.accept)) →
+            need R A D S h t e k q₀ gu acc η ≤ ν))))
 
 /-- The draws whose class's harvested read is at a well-read state: a state the family leaves
 undecided less than `c·f` of the time. -/
@@ -270,16 +268,15 @@ def QualityHolds (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α)) (B 
 
 /-- `RoundTrichotomy`: for any probes, outside a set of the oracle's noise of measure at most
 `5·exp(−2ε²/prefixMax D k)`, where the classes' quality may fail, the gate's batch and the refusal
-sample break the trichotomy with chance at most the gate tests' failure chances at each look,
-the chance a start far below `acc` leaves its test unsettled at the batch's end, and the chance
-the refusal sample misses mass `ν`. -/
+sample break the trichotomy with chance at most the gate tests' failure chances at each look and
+the chance the refusal sample misses mass `ν`. -/
 def RoundTrichotomy : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} (A : DFA (FreeMonoid α) Q) (O : Oracle μ (FreeMonoid α))
     (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α) (D : Measure (FreeMonoid α))
     [IsProbabilityMeasure D] (L ng nr : ℕ) (seed probes : List (FreeMonoid α))
-    (f c θM acc a δc η minCov ν ε : ℝ) (gu : List Bool × α → Prop),
-    0 ≤ acc → acc ≤ 1 → 0 ≤ f → 0 ≤ c → 0 ≤ a → 0 ≤ δc → δc ≤ acc → ν ≤ 1 → 0 < ε →
+    (f c θM acc a η minCov ν ε : ℝ) (gu : List Bool × α → Prop),
+    0 ≤ acc → acc ≤ 1 → 0 ≤ f → 0 ≤ c → 0 ≤ a → ν ≤ 1 → 0 < ε →
     (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (F ∪ K.train F) →
     let k := (L + 1) / 2
     ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
@@ -287,11 +284,8 @@ def RoundTrichotomy : Prop :=
       let s := runPassK K R k (initialK K R seed) probes
       QualityHolds R A O B F s D k L seed probes f c ε
         ∧ ((Measure.pi fun _ : Fin ng => D).prod (Measure.pi fun _ : Fin nr => D)).real
-            {b | ¬ TrichotomyHolds R A s D k L f c θM acc a δc η minCov ν gu b.1 b.2}
-          ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a
-            + max 1 s.tree.paths.length
-              * binomSfGe ng (acc - δc) (gateCut ng acc (a / s.tree.paths.length))
-            + (1 - ν) ^ nr
+            {b | ¬ TrichotomyHolds R A s D k L f c θM acc a η minCov ν gu b.1 b.2}
+          ≤ 2 * (Nat.log 2 (ng / 30) + 2) * a + (1 - ν) ^ nr
 
 end Round
 
