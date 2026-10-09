@@ -10,6 +10,7 @@ from orthogonal_dfa.l_star import counterexample_synthesis as cs
 from orthogonal_dfa.l_star.counterexample_synthesis import (
     STALL_PATIENCE,
     _accumulate_indecisive,
+    _after_refusal,
     _Certificate,
     _publish_pool,
     _read_round,
@@ -120,13 +121,18 @@ class TestWhatARoundTakes(unittest.TestCase):
 
 class TestWhenTheLimitHalves(unittest.TestCase):
     def _halves(self, fired, disagreements=()):
-        pst = SimpleNamespace(fnr_limit=0.1)
-        gate = SimpleNamespace(fired=fired, disagreements=list(disagreements))
-        cs._halve(pst, gate)  # pylint: disable=protected-access
-        return pst.fnr_limit < 0.1
-
-    def test_a_passing_gate_does_not_halve(self):
-        self.assertFalse(self._halves(None))
+        pst = SimpleNamespace(fnr_limit=0.1, sampler=SimpleNamespace(length=4))
+        gate = SimpleNamespace(
+            fired=fired, disagreements=list(disagreements), harvests={}
+        )
+        return _after_refusal(
+            pst,
+            SimpleNamespace(k=2, stopped=[]),
+            gate,
+            PoolState([]),
+            per_state=1,
+            acc_threshold=0.9,
+        )
 
     def test_a_refusal_that_holds_nothing_and_reruns_nothing_halves(self):
         self.assertTrue(self._halves(set()))
@@ -194,6 +200,7 @@ class TestWhenTheTargetIsReached(unittest.TestCase):
                 passed=passed, start=0, disagreements=[]
             ),
             to_dfa_and_tree=lambda start: (None, None),
+            refusal_sample=lambda gate: gate,
         )
         certificate = _Certificate(pst=None, tracker=None)
         _read_round(resolver, certificate, patience=10, acc_threshold=0.9, index=3)

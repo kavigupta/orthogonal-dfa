@@ -27,7 +27,6 @@ from .cluster import sample_suffix_family
 from .lstar import denoise_accept_labels
 from .mask_table import UNIFORM
 from .midfix_tree import MidfixTree
-from .preconditions import start_length
 from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
@@ -128,65 +127,54 @@ def _per_state_members(pst, resolver, dfa, state, per_state) -> None:
 
 
 def _read_round(resolver, certificate, *, patience, acc_threshold, index):
-    """The pass, then the gate on the hypothesis it leaves, then the certificate
-    on one the gate passes.  A refusal by either is sampled (see
-    ``refusal_sample``) and goes back to the pass with the edges its sample's
-    searches ended at, but those given up on, as its first probes, until the
-    certificate passes, a refusal sample ends at no such edge, or the round's
-    probes run out.  Returns the last reading, its DFA, and the certified DFA if
-    any."""
+    """The pass, then the gate, then the certificate on a hypothesis the gate
+    passes.  A refusal by either is sampled (see ``refusal_sample``) and reruns
+    the pass from the live edges it met, until the certificate passes, a sample
+    meets none, or the round's probes run out.  Returns the last reading, its
+    DFA, and the certified DFA if any."""
     first = []
     while True:
         resolver.counterexample_pass(patience=patience, first=first)
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
-        if gate.passed is None:
-            certificate.reached_target(index)
-        dfa = resolver.to_dfa_and_tree(gate.start)[0]
+        dfa = None
         if gate.passed:
+            dfa = resolver.to_dfa_and_tree(gate.start)[0]
             output = certificate.certify(dfa, index=index)
             if output is not None:
                 return gate, dfa, output
-            gate = resolver.refusal_sample(gate)
+        elif gate.passed is None:
+            certificate.reached_target(index)
+        gate = resolver.refusal_sample(gate)
+        if dfa is None:
+            dfa = resolver.to_dfa_and_tree(gate.start)[0]
         if not gate.disagreements or resolver.probed >= resolver.probe_budget(patience):
             return gate, dfa, None
         first = gate.disagreements
 
 
-def _hold_ends(pst, state, ends, count) -> None:
-    """``(end, m)`` -> ``count`` of the sampler's draws, cut to the start length
-    for ``"start"`` or whole for ``"end"``, followed by the midfix m: what the
-    next family reads at node m when it sifts a walk's start or a probe whole."""
-    lengths = {"start": start_length(pst.sampler.length), "end": pst.sampler.length}
+def _after_refusal(pst, resolver, gate, state, *, per_state, acc_threshold) -> bool:
+    """Halve the FNR limit where the sample came down to pairs too often, or held
+    nothing and met no live edge, saying whether it did; and hold what each
+    class that fired left, and what stopped the pass's guards.  A start or end
+    class holds draws cut to ``k`` or whole and followed by each midfix it
+    stopped at; the others, their strings, grown by replaying the sample."""
+    halve = PAIR_TRIP in gate.fired or not (gate.fired or gate.disagreements)
+    if halve:
+        pst.fnr_limit /= 2
+    lengths = {"start": resolver.k, "end": pst.sampler.length}
     for end in lengths:
         state.retire(end)
-    for end, midfix in ends:
-        state.hold((end, midfix), MidfixSource(pst, lengths[end], midfix), count)
-
-
-def _hold_harvests(pst, resolver, gate, state, *, per_state, acc_threshold):
-    """Hold what the gate's refusal sample's outcomes and the pass's stopped
-    guards left, a population per kind grown by replaying that reading, and the
-    start and end populations at the midfixes the sample's ends stopped at."""
-    _hold_ends(pst, state, gate.ends, per_state)
-    for kind, found in {**gate.harvests, STOPPED: resolver.stopped}.items():
-        if found:
+    for name, found in {**gate.harvests, STOPPED: resolver.stopped}.items():
+        if name in lengths:
+            for m in found:
+                state.hold((name, m), MidfixSource(pst, lengths[name], m), per_state)
+        elif found:
             source = HarvestSource(
-                partial(resolver.replay, gate, kind),
+                partial(resolver.replay, gate, name),
                 known=state.seen,
                 acc_threshold=acc_threshold,
             )
-            state.hold_found(kind, found, source)
-
-
-def _halve(pst, gate) -> bool:
-    """Halve the FNR limit on a refusal whose sample came down to pairs too
-    often, or read through holding nothing and meeting no edge to rerun.  Says
-    whether it halved."""
-    halve = gate.fired is not None and (
-        PAIR_TRIP in gate.fired or not (gate.fired or gate.disagreements)
-    )
-    if halve:
-        pst.fnr_limit /= 2
+            state.hold_found(name, found, source)
     return halve
 
 
@@ -401,11 +389,10 @@ def counterexample_driven_synthesis(
             return best
         if _uncertified_too_long(index, certificate.first_round):
             return best
-        if _halve(pst, gate):
-            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
-        _hold_harvests(
+        if _after_refusal(
             pst, resolver, gate, state, per_state=per_state, acc_threshold=acc_threshold
-        )
+        ):
+            print(f"[round {index}] FNR limit now {pst.fnr_limit:.4f}")
         target = max(int(indecisive_fraction * pst.num_prefixes), min_indecisive)
         taken = _accumulate_indecisive(resolver, state, target)
         _per_state_members(pst, resolver, dfa, state, per_state)

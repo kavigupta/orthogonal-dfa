@@ -1,32 +1,12 @@
 """Incremental, transition-driven DFA discovery.
 
-Builds the discrimination tree (states) and the transition function together.
-
-The tree starts as the initial distinguisher family v_eps, partitioning the
-prefix pool into accept / reject -- two leaves, the initial two states.  Each
-(state, symbol) edge is resolved by sifting the state's members extended by the
-symbol: the first one the tree places, and every later one it can place from reads
-already made, vote, and the edge points where most of them land, with a member that
-landed there as its witness.  A leaf every one of whose members is indecisive, or
-that no prefix reaches, leaves its edge open.
-
-States beyond the initial two are found by the counterexample pass.  A probe is
-read (see ``sifting.read``): anchored where the cut sifts its first ``k``
-symbols, walked along the learned edges only, and sifted whole; where the walk
-and the sift part over an edge, the probe has exhibited two prefixes that reach
-one leaf yet behave differently under one more symbol -- a Myhill-Nerode
-counterexample -- so that leaf is split (see SplitEvidence).  A split drops the
-edges it made ambiguous; both they and the new leaf's edges then read as
-unresolved and are refilled on the next resolve pass.
-
-After the pass the hypothesis is read on fresh draws (see ``read_fresh``), the
-round's gate.
-
-Each state's prefixes -- the pool prefixes that sift to its leaf -- live in a
-:class:`~orthogonal_dfa.l_star.leaf_population.LeafPopulation`.  The split keeps
-the accept side as s itself and gives the reject side a fresh id (see
-MidfixTree.split), so state ids stay a dense range(num_states) and need no
-remapping on export.
+The tree starts as the initial family's cut, two leaves.  Each (state, symbol)
+edge points where most of the state's members land under the symbol (see
+EdgeResolver).  The counterexample pass reads probes from ``k`` (see
+``sifting.read``) and splits a leaf where a probe exhibits two of its prefixes
+that one more symbol tells apart (see SplitEvidence); the gate then reads the
+exported DFA on fresh draws (see ``read_fresh``).  A split keeps the accept side
+as the old id and gives the reject side a fresh one, so ids stay dense.
 """
 
 import math
@@ -47,134 +27,88 @@ from .suffix_family import SuffixFamily
 
 #: Most fresh draws one reading takes.
 READING_DRAWS = 2000
-#: Most fresh draws a refused gate reads against its start.
+#: Most fresh draws a refusal sample takes.
 REFUSAL_DRAWS = 480
 #: Fewest probes a round may spend.
 MIN_PROBES = 4000
-#: The share of a refusal sample's searches that may end in a pair.
-PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
 #: A reading of fresh draws (see ``TransitionResolver.read_fresh``): whether it
 #: passed (None where its test was still unsettled at the last look), the start
-#: that agrees on most of them and the share it agrees on, and on a refusal
-#: sample, per harvest whose test fired the strings it left, the classes whose
-#: tests fired, the ends and midfixes the cut stopped
-#: below the root at where it did so too often, the draws searched down to an
-#: edge, and the learned and exported edges they were read against.
+#: that agrees on most draws and the share it agrees on; and once refused, what
+#: its sample left per class whose test fired, those classes, the draws it
+#: searched down to a live edge, and the edges they were read against.
 Reading = namedtuple(
     "Reading",
-    "passed start agreement sample_agreement harvests fired ends disagreements"
-    " learned transitions",
+    "passed start agreement transitions harvests fired disagreements learned",
+    defaults=({}, None, [], None),
 )
 
-#: The populations a refusal sample's outcomes may be held as.
+#: A refusal sample's draw: the midfixes the cut stops its start and its whole
+#: below the root at, if any, and its read from k.
+Row = namedtuple("Row", "w start end outcome")
+
 TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
-#: The test that a refusal sample's searches came down to pairs too often.
-PAIR_TRIP = "pairs over half"
-#: The population of undecided reads that stopped the pass short of a split test.
-STOPPED = "stopped"
+PAIR_TRIP, STOPPED = "pairs over half", "stopped"
 
 
-def _harvest(w, outcome):
-    """The population an outcome of reading ``w`` is held in, if any: a
-    triple's, a pair's, an unlearned edge's member, or a read an unlearned edge
-    left undecided."""
-    if outcome.kind == END_UNDECIDED:
-        return OPEN_EDGES if outcome.at < len(w) else None
-    return {TRIPLE: TRIPLES, PAIR: PAIRS, UNLEARNED_EDGE: MEMBERS}.get(outcome.kind)
+def _some(x) -> tuple:
+    return () if x is None else (x,)
 
 
-def _harvested(outcome):
-    """The strings an outcome leaves: a pair's two reads, or its one."""
-    return outcome.string if outcome.kind == PAIR else (outcome.string,)
+def _ended(kind):
+    def left(r):
+        o = r.outcome
+        return () if o.kind != kind else o.string if kind == PAIR else (o.string,)
+
+    return left
 
 
-#: The outcomes of a search for where a decided disagreement parts.
-_SEARCHED = (PAIR, EDGE, TRIPLE)
+def _open_edge(r) -> tuple:
+    o = r.outcome
+    return (o.string,) if o.kind == END_UNDECIDED and o.at < len(r.w) else ()
 
 
-#: The draw counts the gate's tests are read at, so their failure chances add
-#: over a handful of looks rather than every draw.  The first, as the gate always
-#: has, waits out an early run of agreements.
+#: Per class of what a refusal sample leaves: what a row leaves for it (a hit
+#: where anything), whether only searched rows are trials, the rate a family
+#: undecided at ``fnr_limit`` f could reach by chance at tree depth d over s
+#: sifts a search reads, and whether a firing class's hits are held.
+Class = namedtuple("Class", "name left searched rate held")
+CLASSES = (
+    Class("start", lambda r: _some(r.start), False, lambda d, f, s: (d - 1) * f, True),
+    Class("end", lambda r: _some(r.end), False, lambda d, f, s: (d - 1) * f, True),
+    Class(TRIPLES, _ended(TRIPLE), True, lambda d, f, s: f * d * s, True),
+    Class(PAIRS, _ended(PAIR), True, lambda d, f, s: f * d * s, True),
+    Class(PAIR_TRIP, _ended(PAIR), True, lambda d, f, s: 0.5, False),
+    Class(MEMBERS, _ended(UNLEARNED_EDGE), False, lambda d, f, s: 0, True),
+    Class(OPEN_EDGES, _open_edge, False, lambda d, f, s: 2 * d * f, True),
+)
+
+
+def _searched(r) -> bool:
+    return r.outcome.kind in (PAIR, EDGE, TRIPLE)
+
+
+#: The draw counts the tests are read at, so their failure chances add over a
+#: handful of looks rather than every draw.
 _REFUSAL_LOOKS = {30 * 2**i for i in range(5)}
-_LOOKS = {
-    *(
-        30 * 2**i
-        for i in range(READING_DRAWS.bit_length())
-        if 30 * 2**i < READING_DRAWS
-    ),
-    READING_DRAWS,
-}
+_LOOKS = {30 * 2**i for i in range(16) if 30 * 2**i < READING_DRAWS} | {READING_DRAWS}
 
 
 def _side(hits, trials, rate, failure_prob):
     return binomial_side_of_boundary(hits, trials, rate, failure_prob=failure_prob)
 
 
-def _fires(hits, trials, rate) -> bool:
-    """Whether ``hits`` of ``trials`` are significantly over ``rate``, or, where
-    the test has not settled, over it at all.  Any hit is over a rate of 0, and
-    none is over a rate of 1."""
+def _fires(hits, trials, rate, final) -> bool:
+    """Whether ``hits`` of ``trials`` are significantly over ``rate``, or, at the
+    ``final`` look, over it at all where the test has not settled."""
     if rate <= 0:
         return hits > 0
     if rate >= 1 or not trials:
         return False
     side = _side(hits, trials, rate, READING_FAILURE_PROB)
-    return hits > rate * trials if side is None else side
-
-
-def _fires_now(hits, trials, rate) -> bool:
-    """Whether ``hits`` of ``trials`` are significantly over ``rate``; any hit is
-    over a rate of 0."""
-    if rate <= 0:
-        return hits > 0
-    return (
-        rate < 1
-        and bool(trials)
-        and _side(hits, trials, rate, READING_FAILURE_PROB) is True
-    )
-
-
-def _refusal_tests(sample, rates):
-    """Per class, ``(hits, trials, rate)`` on ``sample``: its starts and its
-    wholes the cut stops below the root at, over its draws; its triples and
-    pairs, over its searches; and its other harvests, over its draws."""
-    harvests = [_harvest(w, o) for w, *_, o in sample]
-    searched = sum(o.kind in _SEARCHED for *_, o in sample)
-    return {
-        "start": (sum(s[1] is not None for s in sample), len(sample), rates["start"]),
-        "end": (sum(s[2] is not None for s in sample), len(sample), rates["end"]),
-        **{
-            name: (
-                harvests.count(PAIRS if name == PAIR_TRIP else name),
-                searched if name in (TRIPLES, PAIRS, PAIR_TRIP) else len(sample),
-                rate,
-            )
-            for name, rate in rates.items()
-            if name not in ("start", "end")
-        },
-    }
-
-
-def give_up_after(pst, *, edges, test_suffixes) -> int:
-    """Three times the members a split test needs on a real wrong edge: each
-    decided member moves the log Bayes factor by about ``test_suffixes`` times
-    KL(1/2 + s || 1/2) at the promised signal s, against the threshold
-    log(2T / split_pval) over the T ``edges``."""
-    gain = test_suffixes * _kl_from_half(pst.config.min_signal_strength)
-    threshold = math.log(2 * edges / pst.config.split_pval)
-    return 3 * math.ceil(threshold / gain)
-
-
-def _kl_from_half(signal) -> float:
-    p = 0.5 + signal
-    return p * math.log(2 * p) + (1 - p) * math.log(2 * (1 - p))
-
-
-def _best(agree) -> int:
-    return max(range(len(agree)), key=lambda q: (agree[q], -q))
+    return final and hits > rate * trials if side is None else side
 
 
 class TransitionResolver:
@@ -257,14 +191,10 @@ class TransitionResolver:
     # -- reading fresh draws -------------------------------------------------
 
     def read_fresh(self, *, acc_threshold) -> Reading:
-        """Read fresh draws against the hypothesis as it stands.
-
-        The exported DFA is run on each draw from every state: a start agrees on
-        it where it accepts it as the middle of the band at the root does.  The
-        best start's agreement is tested against ``acc_threshold``, over every
-        start and halving its chance of error with each reading in the round,
-        at each of ``_LOOKS`` until it settles above.  Where it does not, a
-        sample is read against that start (see ``refusal_sample``)."""
+        """Run the exported DFA from every start over fresh draws, a start agreeing
+        on a draw where it accepts it as the middle of the band at the root does,
+        and test the best start's agreement against ``acc_threshold`` at each of
+        ``_LOOKS`` until it settles."""
         transitions = self._totalised()[0]
         n = self.tree.num_states
         # The round's i-th reading at 2 ** -i of the chance, so a round's
@@ -277,30 +207,14 @@ class TransitionResolver:
         while drawn < READING_DRAWS:
             w = self._draw()
             drawn += 1
-            ends_at = self._ends_at(w, transitions)
-            for q, end in enumerate(ends_at):
+            for q, end in enumerate(self._ends_at(w, transitions)):
                 agree[q] += self._accepts(end, w)
             if drawn in _LOOKS:
-                side = _side(agree[_best(agree)], drawn, acc_threshold, failure_prob)
+                side = _side(max(agree), drawn, acc_threshold, failure_prob)
                 if side is not None:
                     break
-        start = _best(agree)
-        passed = side
-        reading = Reading(
-            passed,
-            start,
-            agree[start] / drawn,
-            None,
-            {},
-            None,
-            [],
-            [],
-            None,
-            transitions,
-        )
-        if passed:
-            return reading
-        return self.refusal_sample(reading)
+        start = max(range(n), key=lambda q: (agree[q], -q))
+        return Reading(side, start, agree[start] / drawn, transitions)
 
     def _ends_at(self, w, transitions):
         """Where the exported DFA ends on ``w`` from each state."""
@@ -310,112 +224,77 @@ class TransitionResolver:
         return ends_at
 
     def _accepts(self, end, w) -> bool:
-        """Whether a run ending at ``end`` agrees with the root's reading of
-        ``w``."""
         return (end in self.tree.accepting_leaves()) == self.family.middle_side(w, b"")
 
     def refusal_sample(self, gate) -> Reading:
-        """``gate`` with what a refusal sample read against its start holds.
-
-        Each draw is read from ``k`` (see ``read``), and its start and whole
-        sifted.  Each class of what the sample leaves is tested against what a
-        family undecided at ``fnr_limit`` could leave by chance (see
-        ``_incidental``), and held where it fires.  The sample stops at the first
-        of ``_REFUSAL_LOOKS`` where a test fires or an edge not given up on (see
-        ``given_up``) has been met, to rerun."""
+        """``gate`` with what a sample of fresh draws, each read from ``k`` with its
+        start and whole sifted, leaves per class whose test fires (see
+        ``CLASSES``).  It stops at the first of ``_REFUSAL_LOOKS`` where a test
+        fires or a live edge (see ``_live``) has been met."""
         learned = self.learned()
-        rates = self._incidental()
+        rates = (
+            self.tree.depth,
+            self.pst.fnr_limit,
+            math.log2(self.pst.sampler.length - self.k) + 1,
+        )
         sample = []
-        agreed = 0
-        while len(sample) < REFUSAL_DRAWS:
+        while True:
             w = self._draw()
-            agreed += self._accepts(self._ends_at(w, gate.transitions)[gate.start], w)
             outcome = self._read(w, learned)
             sample.append(
-                (w, self._below_root(w[: self.k]), self._below_root(w), outcome)
+                Row(w, self._below_root(w[: self.k]), self._below_root(w), outcome)
             )
-            if len(sample) in _REFUSAL_LOOKS and len(sample) < REFUSAL_DRAWS:
-                fired = {
-                    name
-                    for name, test in _refusal_tests(sample, rates).items()
-                    if _fires_now(*test)
-                }
-                if fired or any(self._live(w, o) for w, *_, o in sample):
-                    break
-        else:
+            final = len(sample) == REFUSAL_DRAWS
+            if not final and len(sample) not in _REFUSAL_LOOKS:
+                continue
+            searched = sum(map(_searched, sample))
             fired = {
-                name
-                for name, test in _refusal_tests(sample, rates).items()
-                if _fires(*test)
-            }
-        ends = [
-            (end, m)
-            for i, end in ((1, "start"), (2, "end"))
-            if end in fired
-            for m in dict.fromkeys(s[i] for s in sample)
-            if m is not None
-        ]
-        return gate._replace(
-            sample_agreement=agreed / len(sample),
-            harvests={
-                name: list(
-                    dict.fromkeys(
-                        string
-                        for w, *_, o in sample
-                        if _harvest(w, o) == name
-                        for string in _harvested(o)
-                    )
+                c.name
+                for c in CLASSES
+                if _fires(
+                    sum(bool(c.left(r)) for r in sample),
+                    searched if c.searched else len(sample),
+                    c.rate(*rates),
+                    final,
                 )
-                for name in fired - {"start", "end", PAIR_TRIP}
+            }
+            if final or fired or any(map(self._live, sample)):
+                break
+        return gate._replace(
+            harvests={
+                c.name: list(dict.fromkeys(x for r in sample for x in c.left(r)))
+                for c in CLASSES
+                if c.held and c.name in fired
             },
             fired=fired,
-            ends=ends,
-            disagreements=[w for w, *_, o in sample if self._live(w, o)],
+            disagreements=[r.w for r in sample if self._live(r)],
             learned=learned,
         )
 
-    def _incidental(self):
-        """Per class, the share a family undecided at ``fnr_limit`` at each node
-        could leave by chance: a sift reads at most ``depth`` nodes, one below
-        the root fewer, a search sifts about log2(L - k) + 1 prefixes, and an
-        unlearned edge two.  An unlearned edge's member is never chance.  Apart
-        from those, pairs coming to ``PAIR_SHARE`` of the searches is tested."""
-        depth, limit = self.tree.depth, self.pst.fnr_limit
-        search = math.log2(self.pst.sampler.length - self.k) + 1
-        return {
-            "start": (depth - 1) * limit,
-            "end": (depth - 1) * limit,
-            TRIPLES: limit * depth * search,
-            PAIRS: limit * depth * search,
-            PAIR_TRIP: PAIR_SHARE,
-            MEMBERS: 0,
-            OPEN_EDGES: 2 * depth * limit,
-        }
-
-    def _live(self, w, outcome) -> bool:
-        """Whether reading ``w`` ended at an edge not given up on."""
-        return outcome.kind == EDGE and not self.given_up(
-            outcome.state, w[outcome.at - 1]
+    def _live(self, row) -> bool:
+        """Whether ``row`` was searched down to an edge with fewer than
+        ``give_up_after`` attempts in the round ended other than in a split."""
+        o = row.outcome
+        return (
+            o.kind == EDGE
+            and self.unsplit[o.state, row.w[o.at - 1]] < self._give_up_after()
         )
-
-    def given_up(self, state, c) -> bool:
-        """Whether the edge ``(state, c)`` has had ``give_up_after`` attempts to
-        split on it in the round end other than in a split."""
-        return self.unsplit[state, c] >= self._give_up_after()
 
     def _give_up_after(self) -> int:
-        return give_up_after(
-            self.pst,
-            edges=self.num_states * self.pst.alphabet_size,
-            test_suffixes=len(self.family.test_idx),
-        )
+        """Three times the members a split test needs on a real wrong edge: each
+        decided member moves the log Bayes factor by about |test suffixes| times
+        KL(1/2 + s || 1/2) at the promised signal s, against the threshold
+        log(2T / split_pval) over the T edges."""
+        p = 0.5 + self.pst.config.min_signal_strength
+        kl = p * math.log(2 * p) + (1 - p) * math.log(2 * (1 - p))
+        edges = self.num_states * self.pst.alphabet_size
+        threshold = math.log(2 * edges / self.pst.config.split_pval)
+        return 3 * math.ceil(threshold / (len(self.family.test_idx) * kl))
 
     def probe_budget(self, patience) -> int:
-        """Probes the round may spend, more than its passes can: a pass's
-        ``patience`` and a refusal sample for each of the splits so far and for
-        ``give_up_after`` attempts on every edge out of the 2 (leaves - 1) + 1
-        leaves they have made, and ``patience`` more for each split a pass
-        runs on past."""
+        """More probes than the round's passes can spend: a pass and a refusal
+        sample per split and per attempt on each edge the splits can make, and
+        a pass more per split."""
         leaves = self.num_states
         edges = self.pst.alphabet_size * (2 * (leaves - 1) + 1)
         readings = leaves - 1 + self._give_up_after() * edges
@@ -429,16 +308,16 @@ class TransitionResolver:
 
     def replay(self, gate, name):
         """Read a fresh draw as the ``gate``'s refusal sample did, for what it
-        leaves the harvest ``name``; for ``STOPPED``, what stops the pass's
-        guards on the edge it ends at."""
+        leaves the class ``name``; for ``STOPPED``, what stops the pass's guards
+        on the edge it ends at."""
         w = self._draw()
-        outcome = self._read(w, gate.learned)
+        row = Row(w, None, None, self._read(w, gate.learned))
         if name == STOPPED:
-            if outcome.kind != EDGE:
+            if row.outcome.kind != EDGE:
                 return []
-            boundary = self._parting(w, outcome.state, outcome.at)[1]
+            boundary = self._parting(w, row.outcome.state, row.outcome.at)[1]
             return [] if boundary is None else [boundary]
-        return list(_harvested(outcome)) if _harvest(w, outcome) == name else []
+        return list(next(c for c in CLASSES if c.name == name).left(row))
 
     # -- counterexamples ----------------------------------------------------
 
@@ -481,9 +360,8 @@ class TransitionResolver:
         )
 
     def _parting(self, w, s1, fd):
-        """(A midfix the edge into ``w[:fd]``'s witness and ``w[:fd - 1]`` part
-        at, None), or (None, the boundary string of the read that stopped the
-        search for one, if undecided)."""
+        """As ``Sifter.disagreement``, for the witness of the edge into ``w[:fd]``
+        and ``w[:fd - 1]``, once both sift to ``s1``."""
         c = w[fd - 1]
         witness, sprime = self.dfa.witness(s1, c), w[: fd - 1]
         for p in (witness, sprime):
@@ -493,13 +371,9 @@ class TransitionResolver:
         return self.sifter.disagreement(witness, sprime, bytes([c]))
 
     def _act_on_disagreement(self, w, s1, fd) -> bool:
-        """Weigh splitting ``s1`` on the edge into ``w[:fd]``: whether it split
-        or asks for more members on an edge not given up on.  Any other end
-        counts against the edge (see ``given_up``), and an undecided read that
-        stopped it is kept."""
-        c = w[fd - 1]
-        witness = self.dfa.witness(s1, c)
-        sprime = w[: fd - 1]
+        """Whether weighing a split of ``s1`` on the edge into ``w[:fd]`` split it
+        or asks for more members on an edge not given up on (see ``_live``)."""
+        c, witness, sprime = w[fd - 1], self.dfa.witness(s1, w[fd - 1]), w[: fd - 1]
         distinguisher, boundary = self._parting(w, s1, fd)
         if (
             distinguisher is not None
@@ -539,8 +413,6 @@ class TransitionResolver:
         )
 
     def to_dfa_and_tree(self, initial):
-        n = self.tree.num_states
-
         transitions, unresolved = self._totalised()
         for state, c in unresolved:
             print(
@@ -548,14 +420,12 @@ class TransitionResolver:
                 "falling back to a self-loop"
             )
 
-        accepting = self.tree.accepting_leaves()
-
         dfa = DFA(
-            states=set(range(n)),
+            states=set(range(self.tree.num_states)),
             input_symbols=set(range(self.pst.alphabet_size)),
             transitions=transitions,
             initial_state=initial,
-            final_states=accepting,
+            final_states=self.tree.accepting_leaves(),
             allow_partial=False,
         )
         return dfa, self.tree

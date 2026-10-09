@@ -233,6 +233,10 @@ def _disagreeing(undecided):
     return places
 
 
+def _refused(learner):
+    return learner.refusal_sample(learner.read_fresh(acc_threshold=0.9))
+
+
 class TestReadingFreshDraws(unittest.TestCase):
     def test_the_start_agreeing_on_most_draws_is_the_readings(self):
         learner = _gate(lambda seq: 0, _STAYS)
@@ -240,12 +244,10 @@ class TestReadingFreshDraws(unittest.TestCase):
         reading = learner.read_fresh(acc_threshold=0.9)
 
         self.assertEqual((1, 1.0), (reading.start, reading.agreement))
-        # Only the first draw, before start 1 led, was read from k.
-        self.assertEqual([], reading.disagreements)
 
     def test_a_refusal_samples_edges_are_rerun_until_given_up(self):
         learner = _gate(_disagreeing(set()), _TO_REJECT)
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
 
         self.assertEqual(0.0, reading.agreement)
         self.assertEqual(_PROBE, reading.disagreements[0])
@@ -256,16 +258,16 @@ class TestReadingFreshDraws(unittest.TestCase):
         # split tests on it without a split give it up at the signal stubbed.
         learner.unsplit[0, _PROBE[-1]] = 6
         learner.draws = iter([_PROBE] * 4000)
-        self.assertEqual([], learner.read_fresh(acc_threshold=0.9).disagreements)
+        self.assertEqual([], _refused(learner).disagreements)
 
     def test_a_triple_leaves_its_middles_boundary_string(self):
-        reading = _gate(_disagreeing({3}), _TO_REJECT).read_fresh(acc_threshold=0.9)
+        reading = _refused(_gate(_disagreeing({3}), _TO_REJECT))
 
         self.assertEqual([_PROBE[:3] + b"?"], reading.harvests[TRIPLES])
 
     def test_a_pair_leaves_nothing_but_is_counted(self):
         learner = _gate(_disagreeing({2, 3}), _TO_REJECT, k=1)
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
 
         self.assertNotIn(TRIPLES, reading.harvests)
         self.assertEqual(
@@ -276,47 +278,40 @@ class TestReadingFreshDraws(unittest.TestCase):
         # first look, where the pairs fire.
         self.assertEqual(30 + 30, learner.drawn)
 
-    def test_a_gate_unsettled_at_its_last_look_is_refused(self):
+    def test_a_gate_unsettled_at_its_last_look_does_not_pass(self):
         # Each start agrees on every other draw, exactly the threshold.
         learner = _gate(lambda seq: 0, _STAYS)
         learner.family.middle_side = lambda seq, midfix: seq == _PROBE
-        learner.draws = iter([_PROBE, _PROBE[::-1]] * 1240)
+        learner.draws = iter([_PROBE, _PROBE[::-1]] * 1000)
 
         reading = learner.read_fresh(acc_threshold=0.5)
 
+        self.assertEqual(2000, learner.drawn)
         self.assertIsNone(reading.passed)
-        # Past the gate's 2000 draws, the refusal sample read.
-        self.assertGreater(learner.drawn, 2000)
-        self.assertIsNotNone(reading.fired)
 
     def test_a_refusal_sample_with_nothing_to_hold_or_rerun_reads_to_its_end(self):
         learner = _gate(lambda seq: 0, _TO_REJECT)
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
 
         self.assertEqual(30 + 480, learner.drawn)
         self.assertEqual((set(), []), (reading.fired, reading.disagreements))
 
-    def test_a_passing_gate_stops_once_the_agreement_settles_and_reads_no_ends(
-        self,
-    ):
+    def test_a_passing_gate_stops_once_the_agreement_settles(self):
         learner = _gate(lambda seq: None if seq == _PROBE else 0, _STAYS)
 
-        reading = learner.read_fresh(acc_threshold=0.5)
-
-        # Read at 30 draws, its first look, and no more drawn for the ends.
+        self.assertTrue(learner.read_fresh(acc_threshold=0.5).passed)
         self.assertEqual(30, learner.drawn)
-        self.assertEqual([], reading.ends)
 
     def test_a_refusing_gate_keeps_wholes_cut_short_too_often_by_midfix(self):
         places = lambda seq: None if seq == _PROBE else 0
-        reading = _gate(places, _TO_REJECT).read_fresh(acc_threshold=0.9)
+        reading = _refused(_gate(places, _TO_REJECT))
 
-        self.assertIn(("end", b"?"), reading.ends)
+        self.assertEqual([b"?"], reading.harvests["end"])
 
     def test_a_refusing_gate_keeps_starts_cut_short_too_often_by_midfix(self):
         learner = _gate(lambda seq: None if len(seq) == 2 else 0, _TO_REJECT)
 
-        self.assertEqual([("start", b"?")], learner.read_fresh(acc_threshold=0.9).ends)
+        self.assertEqual([b"?"], _refused(learner).harvests["start"])
 
     def test_a_read_an_unlearned_edge_left_undecided_is_held(self):
         # Start 1 has no edge on the probe's second symbol, and the cut cannot
@@ -325,7 +320,7 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner = _gate(places, {0: {0: 0, 1: 0}, 1: {0: 1}}, k=1)
         learner.tree.accepting_leaves = set
 
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
 
         self.assertEqual([_PROBE[:2] + b"?"], reading.harvests[OPEN_EDGES])
 
@@ -334,13 +329,13 @@ class TestReadingFreshDraws(unittest.TestCase):
         learner = _gate(places, {0: {0: 0, 1: 0}, 1: {0: 1}}, k=1)
         learner.tree.accepting_leaves = set
 
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
 
         self.assertEqual([_PROBE[:1]], reading.harvests[MEMBERS])
 
     def test_a_replay_reads_a_fresh_draw_as_the_gate_did(self):
         learner = _gate(_disagreeing({3}), _TO_REJECT)
-        reading = learner.read_fresh(acc_threshold=0.9)
+        reading = _refused(learner)
         learner.draws = iter([_PROBE])
 
         self.assertEqual([_PROBE[:3] + b"?"], learner.replay(reading, TRIPLES))
