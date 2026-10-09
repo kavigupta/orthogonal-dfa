@@ -1,7 +1,8 @@
 import Mathlib.Probability.Martingale.Basic
+import Mathlib.Probability.Moments.Basic
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
-/-! # Bennett's tail for adapted increments in `[0, b]` -/
+/-! # Bennett's tail for increments in `[0, b]`, adapted or independent -/
 
 namespace OrthoDFA
 
@@ -187,5 +188,65 @@ theorem bennett_tail (ℱ : Filtration ℕ m0) (X m : ℕ → Ω → ℝ) {b A s
     _ = (exp (l * s - k * A))⁻¹ * (exp (l * s - k * A) * μ.real F) := by field_simp
     _ ≤ (exp (l * s - k * A))⁻¹ * 1 := by gcongr; exact hmarkov.trans hZ1
     _ = _ := mul_one _
+
+theorem bennett_indep {ι : Type*} (Y : ι → Ω → ℝ) (m : ι → ℝ) {b A s : ℝ} (S : Finset ι)
+    (hind : iIndepFun Y μ) (hY : ∀ i, Measurable (Y i))
+    (hY0 : ∀ i ω, 0 ≤ Y i ω) (hYb : ∀ i ω, Y i ω ≤ b) (hmean : ∀ i ∈ S, μ[Y i] ≤ m i)
+    (hmA : ∑ i ∈ S, m i ≤ A) (hA : 0 < A) (hs : A ≤ s) :
+    μ.real {ω | s ≤ ∑ i ∈ S, Y i ω} ≤ exp (-(s * log (s / A) - s + A) / b) := by
+  have hc := le_xlogx A s hA hs
+  rcases le_or_gt b 0 with hb | hb
+  · refine measureReal_le_one.trans (one_le_exp ?_)
+    exact div_nonneg_of_nonpos (neg_nonpos.2 hc) hb
+  set l := log (s / A) / b with hl
+  set k := (s / A - 1) / b with hk
+  have hsA : 1 ≤ s / A := (one_le_div hA).2 hs
+  have hl0 : 0 ≤ l := div_nonneg (log_nonneg hsA) hb.le
+  have hk0 : 0 ≤ k := div_nonneg (by linarith) hb.le
+  have hlb : exp (l * b) = s / A := by
+    rw [hl, div_mul_cancel₀ _ hb.ne', exp_log (by linarith)]
+  have hYi : ∀ i, Integrable (Y i) μ := fun i =>
+    Integrable.of_bound (hY i).aestronglyMeasurable b (ae_of_all _ fun ω => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hY0 i ω)]; exact hYb i ω)
+  have hmgf : ∀ i ∈ S, mgf (Y i) μ l ≤ exp (k * m i) := by
+    intro i hi
+    have hle : ∀ ω, exp (l * Y i ω) ≤ 1 + Y i ω * k := by
+      intro ω
+      have := exp_mul_le_chord (l := l) hb (hY0 i ω) (hYb i ω)
+      rwa [hlb, ← hk] at this
+    calc mgf (Y i) μ l ≤ ∫ ω, 1 + Y i ω * k ∂μ :=
+          integral_mono (Integrable.of_bound
+            (measurable_exp.comp ((hY i).const_mul l)).aestronglyMeasurable (exp (l * b))
+            (ae_of_all _ fun ω => by
+              rw [Real.norm_eq_abs, abs_of_nonneg (exp_pos _).le]
+              exact exp_le_exp.2 (mul_le_mul_of_nonneg_left (hYb i ω) hl0)))
+            ((integrable_const 1).add ((hYi i).mul_const k)) hle
+      _ = 1 + k * μ[Y i] := by
+          rw [integral_add (integrable_const 1) ((hYi i).mul_const k), integral_mul_const]
+          simp [mul_comm]
+      _ ≤ 1 + k * m i := by gcongr; exact hmean i hi
+      _ ≤ exp (k * m i) := by linarith [add_one_le_exp (k * m i)]
+  have hsum : mgf (∑ i ∈ S, Y i) μ l ≤ exp (k * A) := by
+    rw [hind.mgf_sum hY]
+    calc ∏ i ∈ S, mgf (Y i) μ l ≤ ∏ i ∈ S, exp (k * m i) :=
+          Finset.prod_le_prod (fun i _ => mgf_nonneg) hmgf
+      _ = exp (k * ∑ i ∈ S, m i) := by rw [← exp_sum, Finset.mul_sum]
+      _ ≤ exp (k * A) := exp_le_exp.2 (mul_le_mul_of_nonneg_left hmA hk0)
+  have hSm : Measurable (∑ i ∈ S, Y i) := by
+    rw [show (∑ i ∈ S, Y i) = fun ω => ∑ i ∈ S, Y i ω from funext fun ω => Finset.sum_apply ..]
+    exact Finset.measurable_sum S fun i _ => hY i
+  have hint : Integrable (fun ω => exp (l * (∑ i ∈ S, Y i) ω)) μ := by
+    refine Integrable.of_bound (measurable_exp.comp (hSm.const_mul l)).aestronglyMeasurable
+      (exp (l * (S.card * b))) (ae_of_all _ fun ω => ?_)
+    rw [Real.norm_eq_abs, abs_of_nonneg (exp_pos _).le]
+    refine exp_le_exp.2 (mul_le_mul_of_nonneg_left ?_ hl0)
+    rw [Finset.sum_apply]
+    simpa using Finset.sum_le_sum fun i (_ : i ∈ S) => hYb i ω
+  have hmk := measure_ge_le_exp_mul_mgf (X := ∑ i ∈ S, Y i) s hl0 hint
+  simp only [Finset.sum_apply] at hmk
+  have hexp : -(s * log (s / A) - s + A) / b = -l * s + k * A := by
+    rw [hl, hk]; field_simp; ring
+  rw [hexp, exp_add]
+  exact hmk.trans (mul_le_mul_of_nonneg_left hsum (exp_pos _).le)
 
 end OrthoDFA
