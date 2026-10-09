@@ -125,7 +125,8 @@ theorem prefixOf_max (x : FreeMonoid α) (k : ℕ) : prefixOf x (max k x.toList.
 /-- The ends' classes: the sift of a prefix `w x` of each draw at least `k` long. -/
 theorem ends_spec (k : ℕ) (w : FreeMonoid α → FreeMonoid α)
     (hw : ∀ x, ∃ i, k ≤ i ∧ w x = prefixOf x i) :
-    HarvestSpec (fun t (_ : Edges α) x => qSiftDeep (w x) t) Option.toList k where
+    HarvestSpec (fun _ o => o = none)
+      (fun t (_ : Edges α) x => qSiftDeep (w x) t) Option.toList k where
   asks t _ x := Qry.asksIn_mono (fun y ⟨m, hm, he⟩ => by
       obtain ⟨i, hi, hwx⟩ := hw x
       exact ⟨i, hi, m, hm, by rw [he, hwx]⟩) _ (qSiftDeep_asksIn _ t)
@@ -293,7 +294,8 @@ theorem qWalkB_asksIn (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMonoi
 
 /-- The class of the reads an unlearned edge leaves undecided. -/
 theorem blocked_spec (k : ℕ) :
-    HarvestSpec (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qWalkB t edges k x)
+    HarvestSpec (fun _ o => o = none)
+      (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qWalkB t edges k x)
       Option.toList k where
   asks t edges x := qWalkB_asksIn t edges k x
   first R t edges x h := by
@@ -541,7 +543,8 @@ theorem qProbeH_harv {R : CutReads α} {t : DTree α} {edges : Edges α} {k : �
 
 /-- The triples' class. -/
 theorem triple_spec (k : ℕ) :
-    HarvestSpec (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qProbeH t edges k x)
+    HarvestSpec (fun _ o => o = none)
+      (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qProbeH t edges k x)
       harvTriple k where
   asks t edges x := qProbeH_asksIn t edges k x
   first R t edges x h := by
@@ -570,7 +573,8 @@ theorem triple_spec (k : ℕ) :
 
 /-- The pairs' class. -/
 theorem pair_spec (k : ℕ) :
-    HarvestSpec (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qProbeH t edges k x)
+    HarvestSpec (fun _ o => o = none)
+      (fun (t : DTree α) (edges : Edges α) (x : FreeMonoid α) => qProbeH t edges k x)
       harvPair k where
   asks t edges x := qProbeH_asksIn t edges k x
   first R t edges x h := by
