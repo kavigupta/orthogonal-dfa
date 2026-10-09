@@ -11,19 +11,20 @@ from typing import Dict, List, Optional
 
 class SuffixFamily:
     """The round's suffixes ``vs`` (rows into ``pst.table``), and confident
-    classification of a string against a midfix node through their mean."""
+    classification of a string against a midfix node through their mean;
+    ``held_out``, rows only the split test reads."""
 
-    def __init__(self, pst, vs: List[int]):
+    def __init__(self, pst, vs: List[int], held_out: List[int]):
         self.pst = pst
         self.vs = list(vs)
+        self.held_out = list(held_out)
         # A later round moves pst's boundary; this round's tree was cut at these.
         self.accept_thresh = pst.accept_thresh
         self.reject_thresh = pst.reject_thresh
         #: The middle of the band, where the gate reads.
         self.middle = (self.accept_thresh + self.reject_thresh) / 2
-        # train/test halves for the split test
+        # The half a split test groups members on.
         self.train_idx = list(range(0, len(self.vs), 2))
-        self.test_idx = list(range(1, len(self.vs), 2))
         # keyed by seq + midfix, which is all a mean depends on
         self._means: Dict[bytes, float] = {}
 
@@ -32,6 +33,14 @@ class SuffixFamily:
         shared memo so cells the mask already holds cost no new query."""
         table = self.pst.table
         return table.memo.membership_queries([base + table.suffix(v) for v in self.vs])
+
+    def held_out_bits(self, strings) -> List[int]:
+        """Membership of each of ``strings``, which are bases followed by
+        held-out suffixes."""
+        return self.pst.table.memo.membership_queries(strings)
+
+    def held_out_strings(self, base) -> List[bytes]:
+        return [base + self.pst.table.suffix(v) for v in self.held_out]
 
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs

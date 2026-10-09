@@ -154,9 +154,7 @@ def _gate(places, transitions, *, k=2, label=True):
     every draw as ``label``."""
     learner = _Learner(_StubSifter(places), transitions, k)
     learner.tree.accepting_leaves = lambda: {1}
-    learner.family = SimpleNamespace(
-        middle_side=lambda seq, midfix: label, test_idx=range(31)
-    )
+    learner.family = SimpleNamespace(middle_side=lambda seq, midfix: label)
     learner.draws = iter([_PROBE] * 4000)
     return learner
 

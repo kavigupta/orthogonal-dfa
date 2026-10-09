@@ -359,13 +359,15 @@ def counterexample_driven_synthesis(
     while True:
         print(f"[round {index}] starting with {pst.num_prefixes} prefixes")
         started = time.monotonic()
-        vs, boundary = sample_suffix_family(pst, pst.table.intern_suffix(b""), state)
+        vs, held_out, boundary = sample_suffix_family(
+            pst, pst.table.intern_suffix(b""), state
+        )
         pst.decision_boundary = boundary
         tracker.on_family_resolved([pst.table.suffix(i) for i in vs], boundary, index)
         classifier = _round_classifier(pst, vs)
         tracker.on_round_classified(classifier, index)
         sampled = time.monotonic()
-        resolver = TransitionResolver(pst, vs)
+        resolver = TransitionResolver(pst, vs, held_out)
         resolver.close_edges()
         gate, dfa, output = _read_round(
             resolver,

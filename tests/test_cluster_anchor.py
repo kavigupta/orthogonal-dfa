@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from orthogonal_dfa.l_star.cluster import identify_cluster_around
+from orthogonal_dfa.l_star.cluster import _hold_out, identify_cluster_around
 from tests.lstar_common import cluster_pst
 
 PREFIXES = 1200
@@ -41,6 +41,15 @@ class TestClusterAnchor(unittest.TestCase):
         )
         # The family asks for more than the keepers, so the rest pad it after them.
         self.assertGreater(np.mean(shifts[vs[:KEEPERS]] == 0), 0.9)
+
+
+class TestHoldingOut(unittest.TestCase):
+    def test_a_random_share_is_held_out_and_the_rest_keeps_its_rank(self):
+        family, held = _hold_out(list(range(30)), 10, np.random.default_rng(0))
+
+        self.assertEqual(10, len(held))
+        self.assertEqual(list(range(30)), sorted(family + held))
+        self.assertEqual(sorted(family), family)
 
 
 if __name__ == "__main__":

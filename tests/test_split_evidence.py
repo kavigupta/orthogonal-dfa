@@ -15,19 +15,21 @@ from orthogonal_dfa.l_star.split_evidence import (
 class _StubFamily:
     """Classifies by caller-supplied rules, so no oracle is involved.
 
-    The two halves are driven independently, because that is the whole point of
-    the partition: ``side_of(prefix)`` groups a member on the train half
-    (``None`` = indecisive there, contributing no evidence), and
-    ``accept_rate(prefix)`` sets the fraction of TEST bits that score it.
+    The train half and the held-out suffixes are driven independently, because
+    that is the whole point of the partition: ``side_of(prefix)`` groups a
+    member on the train half (``None`` = indecisive there, contributing no
+    evidence), and ``accept_rate(prefix)`` sets the fraction of held-out bits
+    that score it.
     """
 
-    test_idx = list(range(1, 20, 2))
     train_idx = list(range(0, 20, 2))
+    held_out = list(range(10))
 
     def __init__(self, side_of=lambda p, d: True, accept_rate=None):
         self.side_of = side_of
         self.accept_rate = accept_rate
         self.prefilled = []
+        self._rates = {}
 
     def prefill(self, bases):
         self.prefilled.extend(bases)
@@ -35,15 +37,23 @@ class _StubFamily:
     def votes(self, prefix, distinguisher):
         side = self.side_of(list(prefix), distinguisher)
         rate = self.accept_rate(list(prefix)) if self.accept_rate else float(bool(side))
+        self._rates[prefix + distinguisher] = rate
         votes = [0] * 20
         for i in self.train_idx:
             votes[i] = 0 if side is None else (1 if side else 0)
         if side is None:  # straddle the train thresholds
             for i in self.train_idx[: len(self.train_idx) // 2]:
                 votes[i] = 1
-        for n, i in enumerate(self.test_idx):
-            votes[i] = 1 if n < round(rate * len(self.test_idx)) else 0
         return votes
+
+    def held_out_strings(self, base):
+        return [(base, n) for n in self.held_out]
+
+    def held_out_bits(self, strings):
+        return [
+            int(n < round(self._rates[base] * len(self.held_out)))
+            for base, n in strings
+        ]
 
     def train_side(self, votes):
         mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
@@ -200,9 +210,9 @@ class TestVerdict(unittest.TestCase):
             _StubFamily(side_of=lambda p, d: True),
             members=[bytes([i]) for i in range(200)],
         )
-        a1, a2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
+        a1, t1, a2, t2, n_a, n_b = ev._tally(ev._members(0), bytes([1]))
         self.assertEqual((200, 0), (n_a, n_b))
-        self.assertFalse(ev._splits(a1, a2, n_a, n_b, tests=2))
+        self.assertFalse(ev._splits(a1, t1, a2, t2, tests=2))
         self.assertEqual(NO_SPLIT, ev.verdict(0, bytes([1])))
 
     def test_a_small_one_sided_population_is_not_yet_conclusive(self):

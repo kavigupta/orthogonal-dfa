@@ -5,7 +5,8 @@ A proposed distinguisher is weighed against the leaf's members until one of two
 tests fires.
 
 1. split. We group the sides on the train half, and check if they differ in accept rate
-  on the held-out test half by more than Hoeffding allows, Bonferroni-corrected.
+  on the held-out suffixes, which nothing else reads, by more than Hoeffding
+  allows, Bonferroni-corrected.
 2. no split. The members agree closely enough to rule out a split of at least
   _MIN_DETECTABLE_SPLIT at the tolerated miss rate. This is a binomial test
   on the minority count.
@@ -72,9 +73,8 @@ class SplitEvidence:
         return self._tree.num_states * self.pst.alphabet_size
 
     def _weigh(self, members, distinguisher: bytes, tests: int) -> str:
-        assert self.family.test_idx  # vs is sized to the family size, never empty
-        a1, a2, n_a, n_b = self._tally(members, distinguisher)
-        if self._splits(a1, a2, n_a, n_b, tests=tests):
+        a1, t1, a2, t2, n_a, n_b = self._tally(members, distinguisher)
+        if self._splits(a1, t1, a2, t2, tests=tests):
             return SPLIT
         if self._agrees_as_one_state(n_a, n_b):
             return NO_SPLIT
@@ -105,29 +105,36 @@ class SplitEvidence:
 
     def _tally(self, members, distinguisher: bytes):
         """
-        Group ``members`` by the train half and count the disjoint
-        test half per side:
+        Group ``members`` by the train half and count the held-out reads per
+        side, each string once:
 
-        Returns (A_true, A_false, n_true, n_false), the test-half accepts and
-        the member counts, where true/false is the grouping into each side of
-        the distinguisher.
+        Returns (A_true, T_true, A_false, T_false, n_true, n_false), the
+        held-out accepts and reads and the member counts, where true/false is the
+        grouping into each side of the distinguisher.
 
         Indecisive members contribute nothing.
         """
         self.family.prefill([member + distinguisher for member in members])
-        a1 = a2 = n_a = n_b = 0
-        test = self.family.test_idx
+        seen = set()
+        reads = []
         for member in members:
-            votes = self.family.votes(member, distinguisher)
-            group = self.family.train_side(votes)
+            group = self.family.train_side(self.family.votes(member, distinguisher))
             if group is None:
                 continue
-            accepts = sum(votes[i] for i in test)
-            if group:
-                a1, n_a = a1 + accepts, n_a + 1
-            else:
-                a2, n_b = a2 + accepts, n_b + 1
-        return a1, a2, n_a, n_b
+            strings = [
+                s
+                for s in self.family.held_out_strings(member + distinguisher)
+                if s not in seen
+            ]
+            seen.update(strings)
+            reads.append((group, strings))
+        bits = iter(self.family.held_out_bits([s for _, ss in reads for s in ss]))
+        accepts, trials, count = [0, 0], [0, 0], [0, 0]
+        for group, strings in reads:
+            accepts[group] += sum(next(bits) for _ in strings)
+            trials[group] += len(strings)
+            count[group] += 1
+        return accepts[1], trials[1], accepts[0], trials[0], count[1], count[0]
 
     def _agrees_as_one_state(self, n_a: int, n_b: int) -> bool:
         """
@@ -141,16 +148,14 @@ class SplitEvidence:
             <= self._split_miss_rate
         )
 
-    def _splits(self, a1: int, a2: int, n_a: int, n_b: int, *, tests: int) -> bool:
-        """Whether the sides' held-out rates differ by more than Hoeffding allows
-        at the false positive rate over ``tests`` tests, with E test suffixes:
+    def _splits(self, a1: int, t1: int, a2: int, t2: int, *, tests: int) -> bool:
+        """Whether the sides' held-out rates, ``a`` accepts of ``t`` reads each,
+        differ by more than Hoeffding allows at the false positive rate over
+        ``tests`` tests:
 
-            2 E n_a n_b / (n_a + n_b) (a1 / (n_a E) - a2 / (n_b E))^2
-                >= log(2 tests / split_fpr)
+            2 t1 t2 / (t1 + t2) (a1 / t1 - a2 / t2)^2 >= log(2 tests / split_fpr)
         """
-        e = len(self.family.test_idx)
-        if not (n_a and n_b):
+        if not (t1 and t2):
             return False
-        gap = a1 / (n_a * e) - a2 / (n_b * e)
-        statistic = 2 * e * n_a * n_b / (n_a + n_b) * gap**2
+        statistic = 2 * t1 * t2 / (t1 + t2) * (a1 / t1 - a2 / t2) ** 2
         return statistic >= math.log(2 * tests / self._split_fpr)

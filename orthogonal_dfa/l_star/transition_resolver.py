@@ -114,7 +114,7 @@ def _fires(hits, trials, rate, final) -> bool:
 
 
 class TransitionResolver:
-    def __init__(self, pst, vs):
+    def __init__(self, pst, vs, held_out):
         self.pst = pst
         #: Boundary strings the family could not place.
         self.indecisive = set()
@@ -125,7 +125,7 @@ class TransitionResolver:
         #: Probes this round.
         self.probed = 0
         self.k = start_length(pst.sampler.length)
-        self.family = SuffixFamily(pst, vs)
+        self.family = SuffixFamily(pst, vs, held_out)
         self.tree = MidfixTree([pst.table.suffix(i) for i in vs])
         self.sifter = Sifter(self.tree, self.family)
         self.population = LeafPopulation(
