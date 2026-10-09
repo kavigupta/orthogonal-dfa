@@ -186,7 +186,7 @@ def RoundProgress : Prop :=
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (S : RoundSetting α μ Q) (ε : ℝ)
     (nH nS : ℕ) (σ f a : ℝ) (r : ℕ) (uHi φ : ℝ),
     S.Valid → 0 < ε → 0 ≤ φ → 4 * (S.N + 1) * φ < 1 →
-    (∀ᵐ x ∂S.D, x.toList.length = S.L) → SuffixFree (S.F ∪ S.K.train S.F) →
+    (∀ᵐ x ∂S.D, x.toList.length = S.L) → SuffixFree (S.K.suffixes S.F) →
     MidFlipPremise S.A S.O S.B S.F uHi φ →
     (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
         let R := readsAt S.O S.B S.F θ.1

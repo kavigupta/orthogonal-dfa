@@ -642,7 +642,7 @@ ends with. -/
 theorem runPassK_determined {Ω : Type*} [MeasurableSpace Ω] {μ : MeasureTheory.Measure Ω}
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
     (k : ℕ) (seed probes : List (FreeMonoid α)) (ω ω' : Ω)
-    (h : ∀ y ∈ vBits (F ∪ K.train F) (passReadSet k seed probes
+    (h : ∀ y ∈ vBits (K.suffixes F) (passReadSet k seed probes
         (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes).tree),
       O.noise y ω = O.noise y ω') :
     runPassK K (readsAt O B F ω') k (initialK K (readsAt O B F ω') seed) probes

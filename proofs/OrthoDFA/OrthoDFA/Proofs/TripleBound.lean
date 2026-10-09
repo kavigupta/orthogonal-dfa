@@ -403,23 +403,23 @@ def pcell (V : Finset (FreeMonoid α)) (c : Finset (FreeMonoid α) × Finset (Fr
 
 /-- The pass's cell: its read set `c.1`, with those reads' bits patterned `c.2`. -/
 def passCell (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) : Set Ω :=
-  pcell O (F ∪ K.train F) c ∩ cleanAll O ∩ {ω | passReads O B F K k seed probes ω = c.1}
+  pcell O (K.suffixes F) c ∩ cleanAll O ∩ {ω | passReads O B F K k seed probes ω = c.1}
 
 theorem passK_determined (ω ω' : Ω)
-    (h : ∀ y ∈ vBits (F ∪ K.train F) (passReads O B F K k seed probes ω),
+    (h : ∀ y ∈ vBits (K.suffixes F) (passReads O B F K k seed probes ω),
       O.noise y ω = O.noise y ω') :
     passK O B F K k seed probes ω' = passK O B F K k seed probes ω :=
   runPassK_determined O B F K k seed probes ω ω' h
 
 theorem passCell_const [IsProbabilityMeasure μ]
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
-    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (hω : ω ∈ pcell O (F ∪ K.train F) c)
+    (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (hω : ω ∈ pcell O (K.suffixes F) c)
     (hcl : ω ∈ cleanAll O) :
     passK O B F K k seed probes ω = passK O B F K k seed probes ω₀
       ∧ ω ∈ passCell O B F K k seed probes c := by
   obtain ⟨⟨⟨hp₀, hc₀⟩, -⟩, hT₀⟩ := h₀
   have hT₀' : passReads O B F K k seed probes ω₀ = c.1 := hT₀
-  have hag : ∀ y ∈ vBits (F ∪ K.train F) (passReads O B F K k seed probes ω₀),
+  have hag : ∀ y ∈ vBits (K.suffixes F) (passReads O B F K k seed probes ω₀),
       O.noise y ω₀ = O.noise y ω := by
     rw [hT₀']
     exact noise_eq_of_pattern O hc₀ hω.2 (hp₀.trans hω.1.symm)
@@ -466,15 +466,15 @@ theorem tagCount_le (R : CutReads α) (t : DTree α) (edges : Edges α) (x : Fre
 /-- Inside a cell of the pass, a draw's share is pulled down on average: its fresh triples are
 outnumbered by `uGood` times its tagged reads. -/
 theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGood : ℝ}
-    (hu : 0 ≤ uGood) (hV : SuffixFree (F ∪ K.train F))
+    (hu : 0 ≤ uGood) (hV : SuffixFree (K.suffixes F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
     (h₀ : ω₀ ∈ passCell O B F K k seed probes c) (x : FreeMonoid α) :
-    μ.real (pcell O (F ∪ K.train F) c)
-      * ∫ ω, contrib A O B F uGood (cellReads O B F (F ∪ K.train F) c ω)
+    μ.real (pcell O (K.suffixes F) c)
+      * ∫ ω, contrib A O B F uGood (cellReads O B F (K.suffixes F) c ω)
           (passK O B F K k seed probes ω₀).tree (passK O B F K k seed probes ω₀).edges c.1 k x ∂μ
       ≤ 0 := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   set s₀ := passK O B F K k seed probes ω₀
   set P := pcell O V c
   set C := passCell O B F K k seed probes c
@@ -558,7 +558,7 @@ theorem cell_mean_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q) {uGoo
         exact forall₂_congr fun y hy => by rw [hag y hy]
       simp only [C₀, P, pcell, Set.mem_inter_iff, Set.mem_ofPred_eq, hpat, hcln, hT]
     · simp only [C₀, Set.mem_inter_iff, Set.mem_ofPred_eq, hT, hω, and_false]
-  have hfresh := fresh_first_le O B F V hV Finset.subset_union_left st
+  have hfresh := fresh_first_le O B F V hV (K.family_sub F) st
     (passReads O B F K k seed probes) hst C₀ hC₀ k x
     (fun z => stateIndecision A O B F (A.state z) < uGood) (u := ENNReal.ofReal uGood)
     fun z hz => good_le O B F A z hz
@@ -694,7 +694,7 @@ theorem disjoint_drawBits {V : Finset (FreeMonoid α)}
 /-- Chebyshev inside a cell of the pass. -/
 theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ} (hkL : k ≤ L) {uGood ε : ℝ}
-    (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (F ∪ K.train F))
+    (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (K.suffixes F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
     (h₀ : ω₀ ∈ passCell O B F K k seed probes c) :
     μ.real (passCell O B F K k seed probes c ∩ {ω | ε * (1 + uGood
@@ -703,7 +703,7 @@ theorem cell_tail_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
             (passK O B F K k seed probes ω).edges (passReads O B F K k seed probes ω) k x})
       ≤ μ.real (passCell O B F K k seed probes c) * prefixMax D k / ε ^ 2 := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   set s₀ := passK O B F K k seed probes ω₀
   set P := pcell O V c
   set C := passCell O B F K k seed probes c

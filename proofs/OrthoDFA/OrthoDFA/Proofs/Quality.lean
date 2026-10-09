@@ -41,7 +41,7 @@ theorem quality_holds_of [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} (hkL : k ≤ L)
     (seed probes : List (FreeMonoid α)) (Pf : CutReads α → KState α)
     (hD : PassDetermined O B F K k seed probes Pf) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c)
-    (hε : 0 < ε) (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
+    (hε : 0 < ε) (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (K.suffixes F)) :
     ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
       QualityHolds (readsAt O B F ω) A O B F (Pf (readsAt O B F ω)) D k L seed probes f c ε := by
   classical
@@ -206,7 +206,7 @@ theorem quality_holds [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {k L : ℕ} (hkL : k ≤ L)
     (seed probes : List (FreeMonoid α)) {f c ε : ℝ} (hf : 0 ≤ f) (hc : 0 ≤ c) (hε : 0 < ε)
-    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
+    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (K.suffixes F)) :
     ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
       QualityHolds (readsAt O B F ω) A O B F
         (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes)

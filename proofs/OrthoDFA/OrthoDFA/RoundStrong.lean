@@ -321,7 +321,7 @@ def RoundStrongQuality : Prop :=
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (seed : List (FreeMonoid α)) (δ : ℝ)
     (Rmax : ℕ) (d : Fin Rmax → C.Draws),
     0 ≤ C.f → 0 ≤ C.c → 0 < δ → δ ≤ 1 → C.k ≤ C.L → (∀ᵐ x ∂D, x.toList.length = C.L) →
-    SuffixFree (F ∪ C.K.train F) →
+    SuffixFree (C.K.suffixes F) →
     ∃ E : Set Ω, μ.real E ≤ δ ∧ ∀ ω ∉ E,
       let R := readsAt O B F ω
       let r := strongRun C R seed Rmax d

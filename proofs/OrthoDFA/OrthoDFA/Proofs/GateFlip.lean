@@ -323,7 +323,7 @@ variable [IsProbabilityMeasure μ]
 chance at most `(N + 1)·|bases|·(|α| + 1)²·φ`: probe by probe, the strings the pass first reads
 against the tree after `k` probes are chosen by the bits it read before, and are fresh. -/
 theorem passFlip_le (S : RoundSetting α μ Q) {uHi φ : ℝ}
-    (hV : SuffixFree (S.F ∪ S.K.train S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
+    (hV : SuffixFree (S.K.suffixes S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
     (hclean : ∀ z, stateIndecision S.A S.O S.B S.F (S.A.state z) < uHi)
     (p : Fin S.N → FreeMonoid α) (hp : ∀ i, (p i).toList.length ≤ S.L) :
     μ {ω | ∃ z ∈ nodeReads (passBases S.seed (List.ofFn p) S.L)
@@ -354,14 +354,14 @@ theorem passFlip_le (S : RoundSetting α μ Q) {uHi φ : ℝ}
     split_ifs with hk0
     · simp
     · exact Nat.find_min hex (show k - 1 < k by omega)
-  have hTZ : ∀ k ω ω', (∀ x ∈ vBits (S.F ∪ S.K.train S.F) (T k ω), S.O.noise x ω = S.O.noise x ω') →
+  have hTZ : ∀ k ω ω', (∀ x ∈ vBits (S.K.suffixes S.F) (T k ω), S.O.noise x ω = S.O.noise x ω') →
       T k ω' = T k ω ∧ Z k ω' = Z k ω := by
     intro k ω ω' h
     rcases Nat.eq_zero_or_pos k with rfl | hk
     · refine ⟨by simp [hT], ?_⟩
       simp only [hZ, hph, phase_zero_tree]
     · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
-      have h' : ∀ x ∈ vBits (S.F ∪ S.K.train S.F) (nodeReads Bs (ph ω j).tree),
+      have h' : ∀ x ∈ vBits (S.K.suffixes S.F) (nodeReads Bs (ph ω j).tree),
           S.O.noise x ω = S.O.noise x ω' := by simpa [hT] using h
       have hd := phase_determined S.K S.O S.B S.F S.seed p hp ω ω' j (fun x hx => h' x hx)
       refine ⟨?_, ?_⟩
@@ -382,7 +382,7 @@ theorem passFlip_le (S : RoundSetting α μ Q) {uHi φ : ℝ}
         measure_biUnion_finset_le _ _
     _ ≤ ∑ _k ∈ Finset.range (S.N + 1), (M : ℝ≥0∞) * ENNReal.ofReal φ :=
         Finset.sum_le_sum fun k _ => cell_bound S.O hV (T k) (Z k) (hTZ k) (hM k)
-          Finset.subset_union_left (flipAt S.O S.B S.F) (measurableSet_flipAt S.O S.B S.F)
+          (S.K.family_sub S.F) (flipAt S.O S.B S.F) (measurableSet_flipAt S.O S.B S.F)
           (flipAt_le hflip hclean)
     _ = _ := by simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; push_cast; ring
 
@@ -396,7 +396,7 @@ noncomputable def drawRoute (S : RoundSetting α μ Q) (ω : Ω) (p : Fin S.N �
 side with chance at most `(|x| + 1)·(N + 1)·φ`: the pass and the hypothesis are decided by the
 bits it read, and the rest are fresh. -/
 theorem freshFlip_le (S : RoundSetting α μ Q) {uHi φ : ℝ}
-    (hV : SuffixFree (S.F ∪ S.K.train S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
+    (hV : SuffixFree (S.K.suffixes S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
     (hclean : ∀ z, stateIndecision S.A S.O S.B S.F (S.A.state z) < uHi)
     (p : Fin S.N → FreeMonoid α) (hp : ∀ i, (p i).toList.length ≤ S.L) (x : FreeMonoid α) :
     μ {ω | ∃ z ∈ drawRoute S ω p x,
@@ -407,7 +407,7 @@ theorem freshFlip_le (S : RoundSetting α μ Q) {uHi φ : ℝ}
   refine cell_bound S.O hV
     (fun ω => nodeReads (passBases S.seed (List.ofFn p) S.L)
       (roundEnd S.K S.O S.B S.F S.seed (ω, p)).tree)
-    (fun ω => drawRoute S ω p x) (fun ω ω' h => ?_) (fun ω => ?_) Finset.subset_union_left
+    (fun ω => drawRoute S ω p x) (fun ω ω' h => ?_) (fun ω => ?_) (S.K.family_sub S.F)
     (flipAt S.O S.B S.F) (measurableSet_flipAt S.O S.B S.F) (flipAt_le hflip hclean)
   · have := roundEnd_determined S.K S.O S.B S.F S.seed p hp ω ω' h
     constructor <;> simp only [drawRoute, this]
@@ -480,7 +480,7 @@ on its edge but for `η` and the DFA/DT check failing by more than `ε` has chan
 pass's flips plus Markov's bound on the draws with a fresh flip. -/
 theorem gate_flip_section (S : RoundSetting α μ Q) [IsProbabilityMeasure S.D] {ε η φ uHi : ℝ}
     (hε : 0 < ε) (hφ : 0 ≤ φ) (hlen : ∀ x, S.D {x} ≠ 0 → x.toList.length = S.L)
-    (hV : SuffixFree (S.F ∪ S.K.train S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
+    (hV : SuffixFree (S.K.suffixes S.F)) (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ)
     (hclean : ∀ z, stateIndecision S.A S.O S.B S.F (S.A.state z) < uHi)
     (hη : η < 1 - 2 * (S.N + 1) * φ) (p : Fin S.N → FreeMonoid α)
     (hp : ∀ i, (p i).toList.length ≤ S.L) :
@@ -583,7 +583,7 @@ for `η`.  Through a suffix-free vote family the readings the pass made flip wit
 with one. -/
 theorem gate_flip_bound (S : RoundSetting α μ Q) [IsProbabilityMeasure S.D] {ε η φ uHi : ℝ}
     (hε : 0 < ε) (hφ : 0 ≤ φ) (hlen : ∀ᵐ x ∂S.D, x.toList.length = S.L)
-    (hV : SuffixFree (S.F ∪ S.K.train S.F))
+    (hV : SuffixFree (S.K.suffixes S.F))
     (hflip : MidFlipPremise S.A S.O S.B S.F uHi φ) (hη : η < 1 - 2 * (S.N + 1) * φ) :
     (μ.prod (Measure.pi fun _ : Fin S.N => S.D)).real {θ |
         let R := readsAt S.O S.B S.F θ.1

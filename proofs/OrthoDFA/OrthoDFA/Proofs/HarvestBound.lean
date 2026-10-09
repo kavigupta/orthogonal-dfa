@@ -342,12 +342,12 @@ noncomputable def readsOf (ω : Ω) : Finset (FreeMonoid α) :=
 
 /-- The cell of the pass `Pf`: its read set `c.1`, with those reads' bits patterned `c.2`. -/
 def cellOf (c : Finset (FreeMonoid α) × Finset (FreeMonoid α)) : Set Ω :=
-  pcell O (F ∪ K.train F) c ∩ cleanAll O ∩ {ω | readsOf O B F k seed probes Pf ω = c.1}
+  pcell O (K.suffixes F) c ∩ cleanAll O ∩ {ω | readsOf O B F k seed probes Pf ω = c.1}
 
 /-- The pass `Pf` is decided by the oracle's bits at what it can read against the tree it ends
 with. -/
 def PassDetermined : Prop :=
-  ∀ ω ω' : Ω, (∀ y ∈ vBits (F ∪ K.train F) (readsOf O B F k seed probes Pf ω),
+  ∀ ω ω' : Ω, (∀ y ∈ vBits (K.suffixes F) (readsOf O B F k seed probes Pf ω),
     O.noise y ω = O.noise y ω') → passOf O B F Pf ω' = passOf O B F Pf ω
 
 theorem runPassK_passDetermined :
@@ -359,12 +359,12 @@ variable {O B F K k seed probes Pf}
 
 theorem cellOf_const [IsProbabilityMeasure μ] (hD : PassDetermined O B F K k seed probes Pf)
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ ω : Ω}
-    (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) (hω : ω ∈ pcell O (F ∪ K.train F) c)
+    (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) (hω : ω ∈ pcell O (K.suffixes F) c)
     (hcl : ω ∈ cleanAll O) :
     passOf O B F Pf ω = passOf O B F Pf ω₀ ∧ ω ∈ cellOf O B F K k seed probes Pf c := by
   obtain ⟨⟨⟨hp₀, hc₀⟩, -⟩, hT₀⟩ := h₀
   have hT₀' : readsOf O B F k seed probes Pf ω₀ = c.1 := hT₀
-  have hag : ∀ y ∈ vBits (F ∪ K.train F) (readsOf O B F k seed probes Pf ω₀),
+  have hag : ∀ y ∈ vBits (K.suffixes F) (readsOf O B F k seed probes Pf ω₀),
       O.noise y ω₀ = O.noise y ω := by
     rw [hT₀']
     exact noise_eq_of_pattern O hc₀ hω.2 (hp₀.trans hω.1.symm)
@@ -379,7 +379,7 @@ theorem measurableSet_cellOf [IsProbabilityMeasure μ] (hD : PassDetermined O B 
     MeasurableSet (cellOf O B F K k seed probes Pf c) := by
   by_cases h : (cellOf O B F K k seed probes Pf c).Nonempty
   · obtain ⟨ω₀, h₀⟩ := h
-    have he : cellOf O B F K k seed probes Pf c = pcell O (F ∪ K.train F) c ∩ cleanAll O := by
+    have he : cellOf O B F K k seed probes Pf c = pcell O (K.suffixes F) c ∩ cleanAll O := by
       ext ω; constructor
       · intro hω; exact ⟨hω.1.1, hω.1.2⟩
       · rintro ⟨hP, hc'⟩; exact (cellOf_const hD h₀ hP hc').2
@@ -403,16 +403,16 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     (bnd : DTree α → ℕ → ℕ)
     (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q) {uGood : ℝ}
-    (hu : 0 ≤ uGood) (hV : SuffixFree (F ∪ K.train F))
+    (hu : 0 ≤ uGood) (hV : SuffixFree (K.suffixes F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
     (hD : PassDetermined O B F K k seed probes Pf)
     (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) (x : FreeMonoid α) :
-    μ.real (pcell O (F ∪ K.train F) c)
-      * ∫ ω, gContrib G harv A O B F uGood (cellReads O B F (F ∪ K.train F) c ω).cut
+    μ.real (pcell O (K.suffixes F) c)
+      * ∫ ω, gContrib G harv A O B F uGood (cellReads O B F (K.suffixes F) c ω).cut
           (passOf O B F Pf ω₀).tree (passOf O B F Pf ω₀).edges c.1 x ∂μ
       ≤ 0 := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   set s₀ := passOf O B F Pf ω₀
   set P := pcell O V c
   set C := cellOf O B F K k seed probes Pf c
@@ -497,7 +497,7 @@ theorem cell_mean_le_gen [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
         exact forall₂_congr fun y hy => by rw [hag y hy]
       simp only [C₀, P, pcell, Set.mem_inter_iff, Set.mem_ofPred_eq, hpat, hcln, hT]
     · simp only [C₀, Set.mem_inter_iff, Set.mem_ofPred_eq, hT, hω, and_false]
-  have hfresh := fresh_first_le_gen O B F V hV Finset.subset_union_left
+  have hfresh := fresh_first_le_gen O B F V hV (K.family_sub F)
     (fun p : DTree α × Edges α => G p.1 p.2 x) st (readsOf O B F k seed probes Pf) hst C₀ hC₀
     (fun z => stateIndecision A O B F (A.state z) < uGood) (u := ENNReal.ofReal uGood)
     fun z hz => good_le O B F A z hz
@@ -629,7 +629,7 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     (bnd : DTree α → ℕ → ℕ)
     (hbnd : ∀ (R : CutReads α) t e x, gTags G R.cut t e x ≤ bnd t x.toList.length)
     (A : DFA (FreeMonoid α) Q) (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] {L : ℕ}
-    (hkL : k ≤ L) {uGood ε : ℝ} (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (F ∪ K.train F))
+    (hkL : k ≤ L) {uGood ε : ℝ} (hu : 0 ≤ uGood) (hε : 0 < ε) (hV : SuffixFree (K.suffixes F))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
     (hD : PassDetermined O B F K k seed probes Pf)
     (h₀ : ω₀ ∈ cellOf O B F K k seed probes Pf c) :
@@ -640,7 +640,7 @@ theorem cell_tail_hoeff [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
             (readsOf O B F k seed probes Pf ω) x})
       ≤ μ.real (cellOf O B F K k seed probes Pf c) * Real.exp (-2 * ε ^ 2 / prefixMax D k) := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   set s₀ := passOf O B F Pf ω₀
   set P := pcell O V c
   set C := cellOf O B F K k seed probes Pf c
@@ -976,7 +976,7 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
     [IsProbabilityMeasure D] {L : ℕ} (seed probes : List (FreeMonoid α))
     (Pf : CutReads α → KState α) (hD : PassDetermined O B F K k seed probes Pf) {u ε : ℝ}
     (hu : 0 ≤ u) (hε : 0 < ε) (hkL : k ≤ L) (hlen : ∀ᵐ x ∂D, x.toList.length = L)
-    (hV : SuffixFree (F ∪ K.train F)) :
+    (hV : SuffixFree (K.suffixes F)) :
     μ.real {ω | ¬ D.real {x | harv ((G (passOf O B F Pf ω).tree
           (passOf O B F Pf ω).edges x).run (readsAt O B F ω).cut) ≠ []
         ∧ ∀ b ∈ harv ((G (passOf O B F Pf ω).tree
@@ -989,7 +989,7 @@ theorem harvest_holds_le [IsProbabilityMeasure μ] (hG : HarvestSpec G harv k)
         + ε * (1 + u * bnd (passOf O B F Pf ω).tree L)}
       ≤ Real.exp (-2 * ε ^ 2 / prefixMax D k) := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   have hr : 0 ≤ Real.exp (-2 * ε ^ 2 / prefixMax D k) := (Real.exp_pos _).le
   set Ev : Set Ω := {ω | ε * (1 + u * bnd (passOf O B F Pf ω).tree L)
     < ∑ x ∈ wordsOf (α := α) L, D.real {x} * gContrib G harv A O B F u (readsAt O B F ω).cut

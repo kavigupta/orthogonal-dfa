@@ -66,9 +66,11 @@ inductive Verdict
   | noSplit
   | undecided
 
-/-- The pass's knobs.  `train F` is the family's training half; the rest is its test half. -/
+/-- The pass's knobs.  `train F` is the family's training half; `block F` the suffixes held out
+from it, which only the split test reads. -/
 structure StageKnobs (α : Type*) where
   train : Finset (FreeMonoid α) → Finset (FreeMonoid α)
+  block : Finset (FreeMonoid α) → Finset (FreeMonoid α)
   memberLimit : ℕ
   patience : ℕ
   splitFpr : ℝ
@@ -76,6 +78,22 @@ structure StageKnobs (α : Type*) where
   missRate : ℝ
   /-- `BoundarySource` keeps only boundaries of prefixes at least this long. -/
   longEnough : ℕ
+
+/-- The suffixes read after a string: the family, its training half and the held-out block. -/
+def StageKnobs.suffixes (K : StageKnobs α) (F : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
+  F ∪ K.train F ∪ K.block F
+
+theorem StageKnobs.family_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
+    F ⊆ K.suffixes F :=
+  Finset.subset_union_left.trans Finset.subset_union_left
+
+theorem StageKnobs.train_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
+    K.train F ⊆ K.suffixes F :=
+  Finset.subset_union_right.trans Finset.subset_union_left
+
+theorem StageKnobs.block_sub (K : StageKnobs α) (F : Finset (FreeMonoid α)) :
+    K.block F ⊆ K.suffixes F :=
+  Finset.subset_union_right
 
 /-- What the pass carries from probe to probe: the tree, the population in the order its strings
 arrived, each edge's target and witness, the probes since the last split or undecided evidence,

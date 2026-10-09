@@ -408,7 +408,7 @@ def RoundAtK : Prop :=
     [IsProbabilityMeasure D] (k L ng n₀ : ℕ) (seed probes : List (FreeMonoid α))
     (acc θp f a δ uGood ε : ℝ),
     0 ≤ acc → acc ≤ 1 → 0 ≤ θp → θp ≤ 1 → 0 ≤ f → 0 ≤ a → 0 ≤ δ → 0 ≤ uGood → 0 < ε →
-    (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (F ∪ K.train F) →
+    (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (K.suffixes F) →
     (∀ R : CutReads α,
       (Measure.pi fun _ : Fin ng => D).real
           {bg | ¬ RoundAtKHolds K R (runPassK K R k (initialK K R seed) probes) D k acc θp f a δ

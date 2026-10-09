@@ -20,7 +20,7 @@ theorem passCell_eq [IsProbabilityMeasure μ] (O : Oracle μ (FreeMonoid α)) (B
     (F : Finset (FreeMonoid α)) (K : StageKnobs α) (k : ℕ) (seed probes : List (FreeMonoid α))
     {c : Finset (FreeMonoid α) × Finset (FreeMonoid α)} {ω₀ : Ω}
     (h₀ : ω₀ ∈ passCell O B F K k seed probes c) :
-    passCell O B F K k seed probes c = pcell O (F ∪ K.train F) c ∩ cleanAll O := by
+    passCell O B F K k seed probes c = pcell O (K.suffixes F) c ∩ cleanAll O := by
   ext ω; constructor
   · intro (hω : ω ∈ passCell O B F K k seed probes c); exact ⟨hω.1.1, hω.1.2⟩
   · rintro ⟨hP, hc'⟩; exact (passCell_const O B F K k seed probes h₀ hP hc').2
@@ -41,13 +41,13 @@ theorem triple_holds_le [IsProbabilityMeasure μ] (A : DFA (FreeMonoid α) Q)
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α)) (K : StageKnobs α)
     (D : Measure (FreeMonoid α)) [IsProbabilityMeasure D] (k L : ℕ)
     (seed probes : List (FreeMonoid α)) {uGood ε : ℝ} (hu : 0 ≤ uGood) (hε : 0 < ε)
-    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (F ∪ K.train F)) :
+    (hlen : ∀ᵐ x ∂D, x.toList.length = L) (hV : SuffixFree (K.suffixes F)) :
     μ.real {ω | ¬ TripleHolds (readsAt O B F ω) A O B F
         (runPassK K (readsAt O B F ω) k (initialK K (readsAt O B F ω) seed) probes) D k L seed
         probes uGood ε}
       ≤ prefixMax D k / ε ^ 2 := by
   classical
-  set V := F ∪ K.train F
+  set V := K.suffixes F
   have hpm : 0 ≤ prefixMax D k :=
     Real.iSup_nonneg fun p => by split_ifs <;> simp [measureReal_nonneg]
   have hr : 0 ≤ prefixMax D k / ε ^ 2 := by positivity

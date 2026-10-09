@@ -289,7 +289,7 @@ def RoundTrichotomy : Prop :=
     [IsProbabilityMeasure D] (L ng nr : ℕ) (seed probes : List (FreeMonoid α))
     (f c θM acc a η minCov ν ε : ℝ) (gu : List Bool × α → Prop),
     0 ≤ acc → acc ≤ 1 → 0 ≤ f → 0 ≤ c → 0 ≤ a → ν ≤ 1 → 0 < ε →
-    (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (F ∪ K.train F) →
+    (∀ᵐ x ∂D, x.toList.length = L) → SuffixFree (K.suffixes F) →
     let k := (L + 1) / 2
     ∃ E : Set Ω, μ.real E ≤ 5 * Real.exp (-2 * ε ^ 2 / prefixMax D k) ∧ ∀ ω ∉ E,
       let R := readsAt O B F ω

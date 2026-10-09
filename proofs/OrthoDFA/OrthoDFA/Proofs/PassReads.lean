@@ -122,9 +122,8 @@ variable (K : StageKnobs α) (B : State) (F : Finset (FreeMonoid α)) (f₁ f₂
 /-- The family `F` cut at `B`, read through `f`. -/
 abbrev rd (f : FreeMonoid α → ℝ) : CutReads α := ⟨B, F, f⟩
 
-/-- `f₁` and `f₂` agree on what a read of `y` asks: `y` followed by each suffix of the family or
-its training half. -/
-def Agree (y : FreeMonoid α) : Prop := ∀ v ∈ F ∪ K.train F, f₁ (y * v) = f₂ (y * v)
+/-- `f₁` and `f₂` agree on what a read of `y` asks: `y` followed by each of `K.suffixes F`. -/
+def Agree (y : FreeMonoid α) : Prop := ∀ v ∈ K.suffixes F, f₁ (y * v) = f₂ (y * v)
 
 /-- `e` as a string: empty, or the letter. -/
 def ext : Option α → FreeMonoid α
@@ -141,7 +140,7 @@ def AgreeDeep (t : DTree α) (b : FreeMonoid α) : Prop :=
 
 variable {K B F f₁ f₂}
 
-theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ F ∪ K.train F)
+theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ K.suffixes F)
     {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) : acceptsOn W f₁ y = acceptsOn W f₂ y := by
   classical
   unfold acceptsOn
@@ -150,7 +149,7 @@ theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ F ∪ K.train F
 
 theorem cut_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
     (rd B F f₁).cut y = (rd B F f₂).cut y := by
-  simp only [CutReads.cut, rd, acceptsOn_congr Finset.subset_union_left h]
+  simp only [CutReads.cut, rd, acceptsOn_congr (K.family_sub F) h]
 
 theorem sift_congr {t : DTree α} {x : FreeMonoid α}
     (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
@@ -291,8 +290,8 @@ theorem tally_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bo
   rw [members_congr h]
   refine foldl_congr_mem _ fun acc b hb => ?_
   have hb' := hd b (members_mem hb)
-  simp only [rd, acceptsOn_congr Finset.subset_union_right hb',
-    acceptsOn_congr (Finset.sdiff_subset.trans Finset.subset_union_left) hb']
+  simp only [rd, acceptsOn_congr (K.train_sub F) hb',
+    acceptsOn_congr (Finset.sdiff_subset.trans (K.family_sub F)) hb']
 
 theorem verdict_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
     {d : FreeMonoid α} {tests : ℕ} (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
@@ -354,7 +353,7 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
 
 theorem mid_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
     (rd B F f₁).mid y = (rd B F f₂).mid y := by
-  simp only [CutReads.mid, rd, acceptsOn_congr Finset.subset_union_left h]
+  simp only [CutReads.mid, rd, acceptsOn_congr (K.family_sub F) h]
 
 theorem halfway_congr' {t : DTree α} {x : FreeMonoid α}
     (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
@@ -783,7 +782,7 @@ theorem card_passBases (seed ws : List (FreeMonoid α)) (L : ℕ) :
 
 theorem agree_of_noise (K : StageKnobs α) (O : Oracle μ (FreeMonoid α))
     (F : Finset (FreeMonoid α)) {ω ω' : Ω} {y : FreeMonoid α}
-    (h : ∀ v ∈ F ∪ K.train F, O.noise (y * v) ω = O.noise (y * v) ω') :
+    (h : ∀ v ∈ K.suffixes F, O.noise (y * v) ω = O.noise (y * v) ω') :
     Agree K F (fun w => O.mq w ω) (fun w => O.mq w ω') y := fun v hv => by
   simp only [Oracle.mq, h v hv]
 
@@ -795,11 +794,10 @@ theorem roundEnd_eq_phase (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) (B
   simp only [roundEnd, phase, readsAt, rd]
   rw [List.take_of_length_le (by simp)]
 
-/-- The oracle's bits a pass reads at the strings `Y`: each followed by every suffix of the
-family or its training half. -/
+/-- The oracle's bits a pass reads at the strings `Y`: each followed by each of `K.suffixes F`. -/
 noncomputable def readBits (K : StageKnobs α) (F : Finset (FreeMonoid α))
     (Y : Finset (FreeMonoid α)) : Finset (FreeMonoid α) :=
-  Y.biUnion fun y => (F ∪ K.train F).image (y * ·)
+  Y.biUnion fun y => (K.suffixes F).image (y * ·)
 
 /-- After `k` probes, the round's state is decided by the oracle's bits at what the pass reads
 against the tree after `k`, and so is the state after `k + 1`. -/
