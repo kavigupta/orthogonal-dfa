@@ -299,7 +299,8 @@ theorem length_le_filters {β : Type*} {P₁ P₂ P₃ : β → Prop} [Decidable
     have ih := length_le_filters l fun e he => h e (List.mem_cons_of_mem _ he)
     have he := h e List.mem_cons_self
     simp only [List.filter_cons, List.length_cons]
-    split_ifs <;> (try simp only [List.length_cons] at *) <;> first | omega | (exfalso; simp only [decide_eq_true_eq] at *; tauto)
+    split_ifs <;> (try simp only [List.length_cons] at *) <;>
+      first | omega | (exfalso; simp only [decide_eq_true_eq] at *; tauto)
 
 open scoped Classical in
 theorem rerun_splits_count (h0 : C.K.forced = ∅) (hpat : 0 < C.K.patience) :

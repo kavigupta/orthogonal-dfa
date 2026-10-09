@@ -20,7 +20,9 @@ import OrthoDFA.Proofs.Exhausted
 in `OrthoDFA.Round`, `RoundAtK`, stated in `OrthoDFA.StartAtK`,
 `StartExists`, stated in `OrthoDFA.StartState`, `StartRootCovered`, `EndsCovered` and
 `BadShare`, stated in `OrthoDFA.Ends`, `RoundTrichotomy`, stated in `OrthoDFA.Trichotomy`, and
-`RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, hold.
+`RoundTrichotomyLevel` and `RoundQualityLevel`, stated in `OrthoDFA.RoundLevel`, the
+`RoundStrong` claims, stated in `OrthoDFA.RoundStrong`, `OrthoDFA.Spurious` and
+`OrthoDFA.Exhausted`, hold.
 -/
 
 namespace OrthoDFA

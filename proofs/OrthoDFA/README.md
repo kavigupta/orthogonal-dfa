@@ -43,7 +43,7 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   readings only where `Rmax × patience` is within the budget, but for `4(log₂(ng/30)+2)a`,
   `(1−ν)^nr` per reading and the certificate's failure chance per call, in expectation. Ending
   exhausted needs the refusal sample to find a live edge and no class firing at every reading
-  until the budget is spent; its chance is not yet bounded.
+  until the budget is spent; `RoundStrongExhausted` bounds its chance.
 - `RoundStrongQuality`: `RoundQualityLevel` for that round.
 - `EdgeCause`: a draw whose search ends at an edge has a prefix with a read, down its state's
   route by a reference placement, that the cut decides on the other side; or the edge it ends at
@@ -53,6 +53,18 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   over its prefixes and the midfixes up to length `n`) plus the chance it lies in `BadRoute` of
   the hypothesis's tree: routed through a midfix its state is misread at more than `ψ₀`, a state
   near the band there. For each reading of the round, for each refusal draw and fresh probe.
+- `RoundStrongPower`: in the round, at some key the first split test in the power case (counting
+  only strings no other key's tests or other reads have read, its sides' mean answers apart by
+  `τ` beyond its threshold) or splitting is in the power case and does not split, with chance at
+  most `e^{−τ²}` times the chances, summed over the keys, that there is such a test.
+- `RoundStrongExhausted`: where the budget at two leaves covers `|Q| + N₁ + N₂` readings of
+  `nr + np` probes, the round ends exhausted with chance at most `RoundStrongPower`'s bound
+  averaged over the draws, plus the chance that `N₁` readings rerun first a draw with a read off
+  its route, plus the chance that `N₂` rerun first a draw with no such read whose step reaches
+  no test in the power case or splitting (the stated residual: too few members on a side, too
+  few fresh strings, or too small a gap), plus the chance of a noisy split, which is open. A
+  rerun that adds a member is a test that did not split, so it falls in the power term or the
+  residual; it needs no term of its own.
 
 ## Open
 
@@ -62,11 +74,19 @@ Two claims are not proved, and are not assumed or sorried anywhere:
    noisy split needs one specific decided read on the minority side, but the witness it reads is
    picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
-2. The chance a round ends exhausted. Its parts: spurious live edges (`RoundStrongSpurious`,
-   proved, with `BadRoute` as the residual), and power failure on a wrong edge between well-read,
-   separated states (proved per key in `Proofs/Power.lean`: the round's first test at a key that
-   is in the power case or splits is a power-case test that does not split with chance at most
-   `e^{−τ²}` times the chance there is one), composed over the round.
+2. The chance a round ends exhausted is bounded by `RoundStrongExhausted` only through the
+   noisy-split chance above, the non-power residual, and the count of spurious reruns, which
+   `RoundStrongSpurious` bounds per draw but which is not yet summed over the round.
+
+Two gaps between the model and Python:
+
+- Each theorem is per round, with the family, the seed and the band fixed, and treats the noise
+  as fresh. Reads made in earlier rounds, which pin bits a later round reads again, are not
+  modelled.
+- The round's read log over-approximates its reads by every read a step or a reading could make,
+  while Python's memo holds exactly what was asked, including reads only Python makes (the
+  prefill, the table, `denoise_accept_labels`). The split tests' skip sets can therefore differ
+  in rare coincidences.
 
 ## What to read
 
@@ -167,6 +187,13 @@ Two claims are not proved, and are not assumed or sorried anywhere:
   hypothesis enters, or in `BadRoute` of the hypothesis's tree, which holds no noise; so the
   draw's independence from the noise is all the bound takes, however adaptively the hypothesis
   was chosen.
+- `OrthoDFA/Exhausted.lean` — `RoundStrongPower` and `RoundStrongExhausted`, proved in
+  `Proofs/Power.lean` and `Proofs/Exhausted.lean`. Power couples the round to one that takes the
+  key as not splitting: the two agree until a test there splits, and the coupled round's first
+  power-case test there is chosen by bits its strings are fresh from. Exhausted: each reading
+  after the first reruns a live draw first, from the tree it was drawn against, so that step
+  reaches a test that splits or adds a member; `Proofs/Trace.lean` lists the round's steps in
+  order, and no step tests at a key after its leaf splits.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class and any pass
