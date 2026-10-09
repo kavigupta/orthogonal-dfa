@@ -12,6 +12,7 @@ import OrthoDFA.Proofs.EdgeAttempts
 import OrthoDFA.Proofs.Spurious
 import OrthoDFA.Proofs.Exhausted
 import OrthoDFA.Proofs.TallyFix
+import OrthoDFA.Proofs.Freedman
 
 /-!
 # The theorem
@@ -130,6 +131,8 @@ theorem round_strong_exhausted' : RoundStrongExhausted := round_strong_exhausted
 #print axioms fix_in_time
 
 #print axioms tally_fix_in_time
+
+#print axioms bennett_tail
 
 
 end OrthoDFA
