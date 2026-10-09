@@ -86,14 +86,14 @@ noncomputable def startAcc (C : StrongCfg α) (R : CutReads α) (seed : List (Fr
 
 open scoped Classical in
 /-- What a reading's gate, refusal sample and certificate may read against `t`: a gate draw, or a
-refusal draw's prefix from `k` on and a midfix, then a suffix of the family; or a certificate
-draw. -/
+refusal draw's prefix from `k` on and a midfix, then a suffix of the family or its training half;
+or a certificate draw. -/
 noncomputable def readingReads (C : StrongCfg α) (F : Finset (FreeMonoid α)) (t : DTree α)
     (y : C.Draws) : Finset (FreeMonoid α) :=
-  (Finset.univ.biUnion fun i => F.image (y.2.1 i * ·))
+  (Finset.univ.biUnion fun i => (F ∪ C.K.train F).image (y.2.1 i * ·))
     ∪ (Finset.univ.biUnion fun i =>
       ((((List.range ((y.2.2.1 i).toList.length + 1)).map fun j =>
-        prefixOf (y.2.2.1 i) (max C.k j)).toFinset ×ˢ t.midfixes) ×ˢ F).image
+        prefixOf (y.2.2.1 i) (max C.k j)).toFinset ×ˢ t.midfixes) ×ˢ (F ∪ C.K.train F)).image
           fun z => z.1.1 * z.1.2 * z.2)
     ∪ Finset.univ.image y.2.2.2
 
