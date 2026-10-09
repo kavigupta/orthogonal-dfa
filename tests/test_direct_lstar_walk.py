@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from orthogonal_dfa.l_star.transition_resolver import (
     MEMBERS,
     OPEN_EDGES,
+    PAIR_TRIP,
     PAIRS,
     TRIPLES,
     TransitionResolver,
@@ -203,7 +204,7 @@ class TestReadingFreshDraws(unittest.TestCase):
         self.assertEqual(
             [_PROBE[:2] + b"?", _PROBE[:3] + b"?"], reading.harvests[PAIRS]
         )
-        self.assertIn(PAIRS, reading.fired)
+        self.assertLessEqual({PAIRS, PAIR_TRIP}, reading.fired)
         # The gate's 30 draws, then the refusal sample's, which stops at its
         # first look, where the pairs fire.
         self.assertEqual(30 + 30, learner.drawn)

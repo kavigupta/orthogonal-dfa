@@ -68,6 +68,8 @@ Reading = namedtuple(
 
 #: The populations a refusal sample's outcomes may be held as.
 TRIPLES, PAIRS, MEMBERS, OPEN_EDGES = "triple", "pair", "member", "open edge"
+#: The test that a refusal sample's searches came down to pairs too often.
+PAIR_TRIP = "pairs over half"
 
 
 def _harvest(w, outcome):
@@ -140,8 +142,8 @@ def _refusal_tests(sample, rates):
         "end": (sum(s[2] is not None for s in sample), len(sample), rates["end"]),
         **{
             name: (
-                harvests.count(name),
-                searched if name in (TRIPLES, PAIRS) else len(sample),
+                harvests.count(PAIRS if name == PAIR_TRIP else name),
+                searched if name in (TRIPLES, PAIRS, PAIR_TRIP) else len(sample),
                 rate,
             )
             for name, rate in rates.items()
@@ -356,7 +358,7 @@ class TransitionResolver:
                         for string in _harvested(o)
                     )
                 )
-                for name in fired - {"start", "end"}
+                for name in fired - {"start", "end", PAIR_TRIP}
             },
             fired=fired,
             ends=ends,
@@ -368,14 +370,16 @@ class TransitionResolver:
         """Per class, the share a family undecided at ``fnr_limit`` at each node
         could leave by chance: a sift reads at most ``depth`` nodes, one below
         the root fewer, a search sifts about log2(L - k) + 1 prefixes, and an
-        unlearned edge two.  An unlearned edge's member is never chance."""
+        unlearned edge two.  An unlearned edge's member is never chance.  Apart
+        from those, pairs coming to ``PAIR_SHARE`` of the searches is tested."""
         depth, limit = self.tree.depth, self.pst.fnr_limit
         search = math.log2(self.pst.sampler.length - self.k) + 1
         return {
             "start": (depth - 1) * limit,
             "end": (depth - 1) * limit,
             TRIPLES: limit * depth * search,
-            PAIRS: PAIR_SHARE,
+            PAIRS: limit * depth * search,
+            PAIR_TRIP: PAIR_SHARE,
             MEMBERS: 0,
             OPEN_EDGES: 2 * depth * limit,
         }

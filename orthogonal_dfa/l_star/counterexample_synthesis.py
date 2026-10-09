@@ -31,7 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import PAIRS, TransitionResolver, start_length
+from .transition_resolver import PAIR_TRIP, TransitionResolver, start_length
 
 
 @dataclass
@@ -176,7 +176,7 @@ def _halve(pst, gate) -> bool:
     often, or read through holding nothing and meeting no edge to rerun.  Says
     whether it halved."""
     halve = gate.fired is not None and (
-        PAIRS in gate.fired or not (gate.fired or gate.disagreements)
+        PAIR_TRIP in gate.fired or not (gate.fired or gate.disagreements)
     )
     if halve:
         pst.fnr_limit /= 2

@@ -133,10 +133,10 @@ class TestWhenTheLimitHalves(unittest.TestCase):
         self.assertFalse(self._halves(set(), [b"w"]))
 
     def test_a_refusal_with_too_many_pairs_halves(self):
-        self.assertTrue(self._halves({"pair", "triple"}))
+        self.assertTrue(self._halves({"pairs over half", "pair", "triple"}))
 
-    def test_a_refusal_that_holds_something_else_does_not(self):
-        self.assertFalse(self._halves({"triple"}))
+    def test_a_refusal_that_holds_something_does_not(self):
+        self.assertFalse(self._halves({"pair", "triple"}))
 
 
 class TestWhenARoundGivesUp(unittest.TestCase):
