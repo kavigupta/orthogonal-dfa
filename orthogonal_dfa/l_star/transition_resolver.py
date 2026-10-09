@@ -413,13 +413,17 @@ class TransitionResolver:
         )
 
     def probe_budget(self, patience) -> int:
-        """Probes the round may spend: room for ``give_up_after`` attempts, a
-        pass's ``patience`` and a refusal sample apart, on every edge out of the
-        2 (leaves - 1) + 1 leaves the splits so far have made."""
-        edges = self.pst.alphabet_size * (2 * (self.num_states - 1) + 1)
+        """Probes the round may spend, more than its passes can: a pass's
+        ``patience`` and a refusal sample for each of the splits so far and for
+        ``give_up_after`` attempts on every edge out of the 2 (leaves - 1) + 1
+        leaves they have made, and ``patience`` more for each split a pass
+        runs on past."""
+        leaves = self.num_states
+        edges = self.pst.alphabet_size * (2 * (leaves - 1) + 1)
+        readings = leaves - 1 + self._give_up_after() * edges
         return max(
             MIN_PROBES,
-            (1 + self._give_up_after() * edges) * (patience + REFUSAL_DRAWS),
+            readings * (patience + REFUSAL_DRAWS) + patience * (leaves - 2),
         )
 
     def _read(self, w, learned):
