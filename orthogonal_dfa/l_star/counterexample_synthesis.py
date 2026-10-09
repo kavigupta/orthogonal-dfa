@@ -140,7 +140,7 @@ def _read_round(resolver, *, patience, acc_threshold):
             max_probes=probes, patience=patience, first=first
         )
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
-        if gate.agreement >= acc_threshold or not gate.disagreements or probes <= 0:
+        if gate.passed or not gate.disagreements or probes <= 0:
             return gate
         first = gate.disagreements
 
@@ -363,7 +363,7 @@ def counterexample_driven_synthesis(
         tracker.on_consistency_estimated(true_acc, index)
         # Only a round that would otherwise return is worth the certificate's reads.
         output = None
-        if true_acc >= acc_threshold:
+        if gate.passed:
             output = _certified(pst, dfa, index=index, tracker=tracker)
             uncertified_since = (
                 index if uncertified_since is None else uncertified_since

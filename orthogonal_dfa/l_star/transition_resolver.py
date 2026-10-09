@@ -53,7 +53,8 @@ PAIR_SHARE = 0.5
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
-#: A reading of fresh draws (see ``TransitionResolver.read_fresh``): the start
+#: A reading of fresh draws (see ``TransitionResolver.read_fresh``): whether it
+#: passed, the start
 #: that agrees on most of them and the share it agrees on, and on a refusal
 #: sample, per harvest whose test fired the strings it left, the classes whose
 #: tests fired, the ends and midfixes the cut stopped
@@ -61,8 +62,8 @@ READING_FAILURE_PROB = 1e-3
 #: edge, and the learned and exported edges they were read against.
 Reading = namedtuple(
     "Reading",
-    "start agreement sample_agreement harvests fired ends disagreements learned"
-    " transitions",
+    "passed start agreement sample_agreement harvests fired ends disagreements"
+    " learned transitions",
 )
 
 #: The populations a refusal sample's outcomes may be held as.
@@ -254,28 +255,40 @@ class TransitionResolver:
         The exported DFA is run on each draw from every state: a start agrees on
         it where it accepts it as the middle of the band at the root does.  The
         best start's agreement is tested against ``acc_threshold``, over every
-        start, at each of ``_LOOKS`` until it settles.  Where it falls short, a
-        sample is read against that start (see ``_refused``)."""
+        start, at each of ``_LOOKS`` until it settles; one still unsettled at the
+        last passes.  Where it falls short, a sample is read against that start
+        (see ``_refused``)."""
         transitions = self._totalised()[0]
         n = self.tree.num_states
         agree = [0] * n
         drawn = 0
+        side = None
         while drawn < READING_DRAWS:
             w = self._draw()
             drawn += 1
             ends_at = self._ends_at(w, transitions)
             for q, end in enumerate(ends_at):
                 agree[q] += self._accepts(end, w)
-            if (
-                drawn in _LOOKS
-                and _side(agree[_best(agree)], drawn, acc_threshold, n) is not None
-            ):
-                break
+            if drawn in _LOOKS:
+                side = _side(agree[_best(agree)], drawn, acc_threshold, n)
+                if side is not None:
+                    break
         start = _best(agree)
+        # Unsettled at the last look passes.
+        passed = side is not False
         reading = Reading(
-            start, agree[start] / drawn, None, {}, None, [], [], None, transitions
+            passed,
+            start,
+            agree[start] / drawn,
+            None,
+            {},
+            None,
+            [],
+            [],
+            None,
+            transitions,
         )
-        if reading.agreement >= acc_threshold:
+        if passed:
             return reading
         return self._refused(reading, transitions)
 
