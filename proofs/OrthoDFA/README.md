@@ -41,19 +41,31 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   given up, or out of readings only past `readStar`, but for `4(log₂(ng/30)+2)a`,
   `(1−ν)^nr` per reading and the certificate's failure chance per call, in expectation.
 - `RoundStrongQuality`: `RoundQualityLevel` for that round.
+- `RoundStrongNoStop`: no attempt on an edge stops; the search ends between decided sifts and the
+  witness's paths are decided, so every attempt splits or adds a member.
+- `RoundStrongDeadEdge`: off a noise set of measure `δ`, the draws left at given-up edges are at
+  most those at edges the reads' likelier sides get wrong, plus `ρ` times the expected reads of
+  the walk, search and edge at strings read undecided at least `u` of the time, plus the chance a
+  string read undecided less than `u` of the time is decided on its less likely side times every
+  read, plus the classes' slack.
 
 ## Open
 
-Two claims are not proved, and are not assumed or sorried anywhere:
+Three claims are not proved. Only the last is stated, in `OrthoDFA/HalvingStrong.lean`, and
+sorried in `OrthoDFA/Proofs/OpenLemmas.lean`, which nothing in `Verify.lean` imports.
 
 1. The chance of a noisy split. `RoundStrongLeaves` bounds the leaves by the noisy splits, and a
    noisy split needs one specific decided read on the minority side, but the witness it reads is
    picked from the pool by earlier reads, so the per-string `depth·ρ` bound does not apply and a
    union over the pool is vacuous. Bounding the chance that a round makes any noisy split is open.
-2. Split power on edges with margin: that an edge whose two successor states sit outside the band
-   by a margin, and that is wrong, splits within `m*` decided attempts but for a binomial tail.
-   This would bound the given-up residue in the halving claim for such edges; edges whose states
-   sit in the band are left to the stopped harvest.
+2. Split power on wrong edges with margin, which would split `RoundStrongDeadEdge`'s residue at
+   wrong edges into a tail and the edges without margin. Not yet stated: a wrong edge whose leaf
+   holds a single witness-side member can be given up through that member's one, persistent read
+   with a chance of a few percent, so the claim needs at least `m*` members on each side as well
+   as the two halves' means outside their bands by a margin.
+3. `RoundCleanCrossing`: the chance that some string the round's passes can read, read undecided
+   less than `u` of the time, is decided on its less likely side is at most `crossWell u` times the
+   expected number of such strings.
 
 ## What to read
 

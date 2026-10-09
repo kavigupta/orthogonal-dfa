@@ -90,4 +90,22 @@ def RoundStrongDeadEdge : Prop :=
           + D.real {x | DeadEdge R s.tree s.edges C.k (givenUp C r.2.1) x
               ∧ WrongEdgeAt (majSide O B F) R s.tree s.edges C.k x}
 
+/-- `RoundCleanCrossing` (open, not proved): over the oracle's noise, the chance some string the
+round's passes can read, read undecided less than `u` of the time, is decided on its less likely
+side is at most `crossWell u` times the expected number of such strings. A string first read by
+the round is fresh, and one never read is independent of which strings the round can read. -/
+def RoundCleanCrossing : Prop :=
+  ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (C : StrongCfg α) (O : Oracle μ (FreeMonoid α)) (B : State)
+    (F : Finset (FreeMonoid α)) (seed : List (FreeMonoid α)) (u : ℝ) (Rmax : ℕ)
+    (d : Fin Rmax → C.Draws),
+    SuffixFree (F ∪ C.K.train F) →
+    μ {ω | ∃ w ∈ passReadSet C.k seed
+          (strongProbes C (readsAt O B F ω) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d)
+          (strongRun C (readsAt O B F ω) seed Rmax d).2.1.s.tree,
+        undecProb O B F w < u ∧ (readsAt O B F ω).cut w = some (!majSide O B F w)}
+      ≤ ENNReal.ofReal (crossWell O B F u) * ∫⁻ ω, ((passReadSet C.k seed
+          (strongProbes C (readsAt O B F ω) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d)
+          (strongRun C (readsAt O B F ω) seed Rmax d).2.1.s.tree).card : ENNReal) ∂μ
+
 end OrthoDFA

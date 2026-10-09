@@ -822,3 +822,21 @@ Open, not sorried:
   per-string `depth·ρ` does not apply to it, and a union over the pool is vacuous.
 - Split power, and with it the halving claim's given-up residue, only for edges whose successor
   states sit outside the band with margin. In-band edges are left to the stopped harvest.
+
+### Given-up edges (D63–D68)
+
+No attempt on an edge stops (`RoundStrongNoStop`): the search ends between decided sifts, and
+the witness sifts decided to the source and, followed by the letter, to the target, so the
+parting reads only decided paths. The stopped harvest is gone from Python (D66).
+
+`RoundStrongDeadEdge` splits the dead mass by whether the edge is right for every string the
+likelier sides place at its source. At a right edge a dead draw has a read off its likelier side
+among its walk's, search's and edge's reads; scanning those reads, split at undecided chance `u`,
+gives `ρ·E[reads at strings undecided ≥ u] + crossWell(u)·E[reads]` plus slack. At `u = cf = 0.1`
+a well-read string is decided on its less likely side about `1e-12` of the time.
+
+The witness side of a wrong edge without margin is not seen by any class. Its badly read part is
+absorbed across rounds: `closeEdges` re-reads every member followed by the letter after each
+probe, undecided ones join the boundary population, and the next round's FNR gate makes the
+family read that population well. With 10 members at `cf = 0.1`, about 0.65 catch chance per edge.
+
