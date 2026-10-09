@@ -8,6 +8,7 @@ import OrthoDFA.Proofs.Ends
 import OrthoDFA.Proofs.Trichotomy
 import OrthoDFA.Proofs.RoundLevel
 import OrthoDFA.Proofs.RoundStrong
+import OrthoDFA.Proofs.EdgeAttempts
 
 /-!
 # The theorem
@@ -98,5 +99,9 @@ theorem round_strong_trichotomy' : RoundStrongTrichotomy := round_strong_trichot
 theorem round_strong_quality' : RoundStrongQuality := round_strong_quality
 
 #print axioms round_strong_quality'
+
+theorem round_strong_no_stop' : RoundStrongNoStop := round_strong_no_stop
+
+#print axioms round_strong_no_stop'
 
 end OrthoDFA
