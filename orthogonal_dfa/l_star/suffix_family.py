@@ -79,11 +79,13 @@ class SuffixFamily:
 
     def train_side(self, votes) -> Optional[bool]:
         """
-        Which side of the distinguisher the votes fall on (on the training half only).
+        Which side of the distinguisher the votes fall on (on the training half
+        only): accept past ``accept_thresh``, reject at or below
+        ``reject_thresh``.
         """
-        mean = sum(votes[i] for i in self.train_idx) / len(self.train_idx)
-        if mean >= self.accept_thresh:
+        accepts = sum(votes[i] for i in self.train_idx)
+        if accepts > self.accept_thresh * len(self.train_idx):
             return True
-        if mean < self.reject_thresh:
+        if accepts <= self.reject_thresh * len(self.train_idx):
             return False
         return None
