@@ -11,7 +11,6 @@ up as a state count that also moves for unrelated reasons.
 # pylint: disable=protected-access
 
 import unittest
-from collections import Counter
 from types import SimpleNamespace
 
 from orthogonal_dfa.l_star.transition_resolver import (
@@ -75,7 +74,6 @@ class _Learner(TransitionResolver):
             sampler=SimpleNamespace(length=len(_PROBE)),
             config=SimpleNamespace(min_signal_strength=0.3, split_pval=0.001),
         )
-        self.unsplit = Counter()
         self.readings = 0
         self.draws = iter(())
         self.drawn = 0
@@ -129,30 +127,12 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
 
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([(b"", _PROBE[:3], _PROBE[3:])], sifter.searched)
-        # It found no distinguisher, which counts against the edge.
-        self.assertEqual(Counter({(7, _PROBE[3]): 1}), learner.unsplit)
-
-    def _asking_for_members(self, unsplit):
-        sifter = _StubSifter(_parting(set()), search=b"m")
-        learner = _Learner(sifter, _EVERYWHERE, 1)
-        learner.family = SimpleNamespace(test_idx=range(10))
-        learner.splits = SimpleNamespace(verdict=lambda s, m: "undecided")
-        learner.unsplit[7, _PROBE[3]] = unsplit
-        return learner
 
     def test_asking_for_members_resets_the_quiet_run(self):
-        learner = self._asking_for_members(0)
+        learner = _Learner(_StubSifter(_parting(set()), search=b"m"), _EVERYWHERE, 1)
+        learner.splits = SimpleNamespace(verdict=lambda s, m: "undecided")
 
         self.assertTrue(learner._check(_PROBE))
-        self.assertEqual(1, learner.unsplit[7, _PROBE[3]])
-
-    def test_asking_for_members_on_an_edge_given_up_on_is_quiet(self):
-        learner = self._asking_for_members(0)
-        given_up = learner._give_up_after()
-        learner.unsplit[7, _PROBE[3]] = given_up
-
-        self.assertFalse(learner._check(_PROBE))
-        self.assertEqual(given_up + 1, learner.unsplit[7, _PROBE[3]])
 
     def test_a_disagreement_down_to_a_triple_is_quiet(self):
         sifter = _StubSifter(_parting({3}))
@@ -160,18 +140,6 @@ class TestAProbeWalkedFromItsStart(unittest.TestCase):
 
         self.assertFalse(learner._check(_PROBE))
         self.assertEqual([], sifter.searched)
-
-
-class TestTheProbeBudget(unittest.TestCase):
-    @staticmethod
-    def _budget(leaves):
-        learner = _Learner(_StubSifter(lambda seq: 7), _EVERYWHERE, 1)
-        learner.tree = SimpleNamespace(num_states=leaves)
-        learner.family = SimpleNamespace(test_idx=range(10))
-        return learner.probe_budget(10)
-
-    def test_it_grows_with_the_leaves(self):
-        self.assertLess(self._budget(2), self._budget(3))
 
 
 #: Each state stays where it is; 1 accepts.
@@ -218,7 +186,7 @@ class TestReadingFreshDraws(unittest.TestCase):
 
         self.assertEqual((1, 1.0), (reading.start, reading.agreement))
 
-    def test_a_refusal_samples_edges_are_rerun_until_given_up(self):
+    def test_a_refusal_samples_edges_are_rerun(self):
         learner = _gate(_disagreeing(set()), _TO_REJECT)
         reading = _refused(learner)
 
@@ -226,12 +194,6 @@ class TestReadingFreshDraws(unittest.TestCase):
         self.assertEqual(_PROBE, reading.disagreements[0])
         self.assertEqual({}, reading.harvests)
         self.assertNotIn(PAIRS, reading.fired)
-
-        # The search lands on the edge out of 0 on the probe's last symbol; six
-        # split tests on it without a split give it up at the signal stubbed.
-        learner.unsplit[0, _PROBE[-1]] = 6
-        learner.draws = iter([_PROBE] * 4000)
-        self.assertEqual([], _refused(learner).disagreements)
 
     def test_a_triple_leaves_its_middles_boundary_string(self):
         reading = _refused(_gate(_disagreeing({3}), _TO_REJECT))

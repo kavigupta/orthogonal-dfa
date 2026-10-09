@@ -10,7 +10,7 @@ as the old id and gives the reject side a fresh one, so ids stay dense.
 """
 
 import math
-from collections import Counter, namedtuple
+from collections import namedtuple
 
 from automata.fa.dfa import DFA
 
@@ -29,8 +29,6 @@ from .suffix_family import SuffixFamily
 READING_DRAWS = 2000
 #: Most fresh draws a refusal sample takes.
 REFUSAL_DRAWS = 480
-#: Fewest probes a round may spend.
-MIN_PROBES = 4000
 #: Chance each of a reading's tests settles on the wrong side.
 READING_FAILURE_PROB = 1e-3
 
@@ -90,6 +88,10 @@ def _searched(r) -> bool:
     return r.outcome.kind in (PAIR, EDGE, TRIPLE)
 
 
+def _edge(r) -> bool:
+    return r.outcome.kind == EDGE
+
+
 #: The draw counts the tests are read at, so their failure chances add over a
 #: handful of looks rather than every draw.
 _REFUSAL_LOOKS = {30 * 2**i for i in range(5)}
@@ -120,8 +122,6 @@ class TransitionResolver:
         self.quiet_probes = 0
         #: Gate readings this round.
         self.readings = 0
-        #: Per edge, the split tests on it this round that did not split.
-        self.unsplit = Counter()
         #: Probes this round.
         self.probed = 0
         self.k = start_length(pst.sampler.length)
@@ -228,7 +228,7 @@ class TransitionResolver:
         """``gate`` with what a sample of fresh draws, each read from ``k`` with its
         start and whole sifted, leaves per class whose test fires (see
         ``CLASSES``).  It stops at the first of ``_REFUSAL_LOOKS`` where a test
-        fires or a live edge (see ``_live``) has been met."""
+        fires or an edge has been met."""
         learned = self.learned()
         rates = (
             self.tree.depth,
@@ -256,7 +256,7 @@ class TransitionResolver:
                     final,
                 )
             }
-            if final or fired or any(map(self._live, sample)):
+            if final or fired or any(map(_edge, sample)):
                 break
         return gate._replace(
             harvests={
@@ -265,40 +265,8 @@ class TransitionResolver:
                 if c.held and c.name in fired
             },
             fired=fired,
-            disagreements=[r.w for r in sample if self._live(r)],
+            disagreements=[r.w for r in sample if _edge(r)],
             learned=learned,
-        )
-
-    def _live(self, row) -> bool:
-        """Whether ``row`` was searched down to an edge with fewer than
-        ``give_up_after`` attempts in the round ended other than in a split."""
-        o = row.outcome
-        return (
-            o.kind == EDGE
-            and self.unsplit[o.state, row.w[o.at - 1]] < self._give_up_after()
-        )
-
-    def _give_up_after(self) -> int:
-        """Three times the members a split test needs on a real wrong edge: each
-        decided member moves the log Bayes factor by about |test suffixes| times
-        KL(1/2 + s || 1/2) at the promised signal s, against the threshold
-        log(2T / split_pval) over the T edges."""
-        p = 0.5 + self.pst.config.min_signal_strength
-        kl = p * math.log(2 * p) + (1 - p) * math.log(2 * (1 - p))
-        edges = self.num_states * self.pst.alphabet_size
-        threshold = math.log(2 * edges / self.pst.config.split_pval)
-        return 3 * math.ceil(threshold / (len(self.family.test_idx) * kl))
-
-    def probe_budget(self, patience) -> int:
-        """More probes than the round's passes can spend: a pass and a refusal
-        sample per split and per attempt on each edge the splits can make, and
-        a pass more per split."""
-        leaves = self.num_states
-        edges = self.pst.alphabet_size * (2 * (leaves - 1) + 1)
-        readings = leaves - 1 + self._give_up_after() * edges
-        return max(
-            MIN_PROBES,
-            readings * (patience + REFUSAL_DRAWS) + patience * (leaves - 2),
         )
 
     def _read(self, w, learned):
@@ -313,14 +281,14 @@ class TransitionResolver:
 
     # -- counterexamples ----------------------------------------------------
 
-    def counterexample_pass(self, *, patience, first):
+    def counterexample_pass(self, *, patience, first, budget):
         """Split in place on the disagreements probes find until ``patience``
-        probes in a row go without one or the round's ``probe_budget`` is spent,
+        probes in a row go without one or the round has drawn ``budget`` probes,
         starting with the probes ``first``."""
         self.quiet_probes = 0
         first = iter(first)
         with counter(None, "Probing for counterexamples") as pbar:
-            while self.probed < self.probe_budget(patience):
+            while self.probed < budget:
                 self.probed += 1
                 w = next(first, None)
                 w = self._draw() if w is None else w
@@ -353,7 +321,7 @@ class TransitionResolver:
 
     def _act_on_disagreement(self, w, s1, fd) -> bool:
         """Whether weighing a split of ``s1`` on the edge into ``w[:fd]`` split it
-        or asks for more members on an edge not given up on (see ``_live``)."""
+        or asks for more members."""
         c = w[fd - 1]
         witness, sprime = self.dfa.witness(s1, c), w[: fd - 1]
         distinguisher = None
@@ -363,23 +331,19 @@ class TransitionResolver:
             distinguisher is not None
             and self.splits.verdict(s1, distinguisher) == SPLIT
         ):
-            for edge in [e for e in self.unsplit if e[0] == s1]:
-                del self.unsplit[edge]
             self._split(s1, distinguisher)
             for p in (witness, sprime):
                 st = self._sift(p)
                 if st is not None:
                     self.population.add(p, at=self.tree.path_of(st))
             return True
-        self.unsplit[s1, c] += 1
         if distinguisher is None:
             return False
         # The leaf may hold too few members of sprime's state to split on, even
         # where they rule a split out; keeping sprime, ahead of the member limit,
         # lets the next probe through that state weigh one more.
         self.population.add_first(sprime, self.tree.path_of(s1))
-        # Quiet on an edge already given up on, or a pass could run on unbounded.
-        return self.unsplit[s1, c] <= self._give_up_after()
+        return True
 
     # -- edge closing -------------------------------------------------------
 

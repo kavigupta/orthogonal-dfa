@@ -31,7 +31,7 @@ from .prefix_populations import PoolState
 from .prefix_sources import HarvestSource, MidfixSource, aim_at, state_source
 from .progress import track
 from .tracker import SynthesisTracker
-from .transition_resolver import MIN_PROBES, PAIR_TRIP, TransitionResolver
+from .transition_resolver import PAIR_TRIP, TransitionResolver
 
 
 @dataclass
@@ -78,6 +78,9 @@ def _round_classifier(pst, vs) -> RoundClassifier:
     )
 
 
+#: Probes drawn per round.
+COUNTEREXAMPLE_PROBES = 4000
+
 #: P(some round certifies a DFA whose error is over certified_error), where the
 #: signal is stated exactly.
 CERTIFICATE_ALPHA = 1e-3
@@ -89,9 +92,9 @@ def _default_patience(acc_threshold: float) -> int:
     tolerated ``1 - acc_threshold``.
 
     A perfect-accuracy target tolerates no disagreement, so no finite clean run
-    rules it out -- wait out ``MIN_PROBES`` of them."""
+    rules it out -- never early-stop, run the whole probe budget."""
     if acc_threshold >= 1:
-        return MIN_PROBES
+        return COUNTEREXAMPLE_PROBES
     return math.ceil(math.log(0.05) / math.log(acc_threshold))
 
 
@@ -134,7 +137,9 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
     DFA, and the certified DFA if any."""
     first = []
     while True:
-        resolver.counterexample_pass(patience=patience, first=first)
+        resolver.counterexample_pass(
+            patience=patience, first=first, budget=COUNTEREXAMPLE_PROBES
+        )
         gate = resolver.read_fresh(acc_threshold=acc_threshold)
         dfa = None
         if gate.passed:
@@ -147,7 +152,7 @@ def _read_round(resolver, certificate, *, patience, acc_threshold, index):
         gate = resolver.refusal_sample(gate)
         if dfa is None:
             dfa = resolver.to_dfa_and_tree(gate.start)[0]
-        if not gate.disagreements or resolver.probed >= resolver.probe_budget(patience):
+        if not gate.disagreements or resolver.probed >= COUNTEREXAMPLE_PROBES:
             return gate, dfa, None
         first = gate.disagreements
 
