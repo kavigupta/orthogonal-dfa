@@ -122,8 +122,12 @@ variable (K : StageKnobs α) (B : State) (F : Finset (FreeMonoid α)) (f₁ f₂
 /-- The family `F` cut at `B`, read through `f`. -/
 abbrev rd (f : FreeMonoid α → ℝ) : CutReads α := ⟨B, F, f⟩
 
-/-- `f₁` and `f₂` agree on what a read of `y` asks: `y` followed by each of `K.suffixes F`. -/
-def Agree (y : FreeMonoid α) : Prop := ∀ v ∈ K.suffixes F, f₁ (y * v) = f₂ (y * v)
+/-- `f₁` and `f₂` agree on what a cut or a training-half read of `y` asks: `y` followed by each
+suffix of the family or its training half. -/
+def Agree (y : FreeMonoid α) : Prop := ∀ v ∈ F ∪ K.train F, f₁ (y * v) = f₂ (y * v)
+
+/-- They agree on `y` followed by each of `K.suffixes F`, the held-out block too. -/
+def AgreeAll (y : FreeMonoid α) : Prop := ∀ v ∈ K.suffixes F, f₁ (y * v) = f₂ (y * v)
 
 /-- `e` as a string: empty, or the letter. -/
 def ext : Option α → FreeMonoid α
@@ -134,13 +138,17 @@ def ext : Option α → FreeMonoid α
 def AgreeOne (t : DTree α) (b : FreeMonoid α) : Prop :=
   ∀ e : Option α, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * ext e * m)
 
-/-- They agree on every read of `b` extended by up to two letters, against `t`. -/
+/-- They agree on every read of `b` extended by up to two letters, against `t`, the held-out
+block's too. -/
 def AgreeDeep (t : DTree α) (b : FreeMonoid α) : Prop :=
-  ∀ e₁ e₂ : Option α, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * ext e₁ * ext e₂ * m)
+  ∀ e₁ e₂ : Option α, ∀ m ∈ t.mids, AgreeAll K F f₁ f₂ (b * ext e₁ * ext e₂ * m)
 
 variable {K B F f₁ f₂}
 
-theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ K.suffixes F)
+theorem AgreeAll.agree {y : FreeMonoid α} (h : AgreeAll K F f₁ f₂ y) : Agree K F f₁ f₂ y :=
+  fun v hv => h v (Finset.mem_union_left _ hv)
+
+theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ F ∪ K.train F)
     {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) : acceptsOn W f₁ y = acceptsOn W f₂ y := by
   classical
   unfold acceptsOn
@@ -149,7 +157,7 @@ theorem acceptsOn_congr {W : Finset (FreeMonoid α)} (hW : W ⊆ K.suffixes F)
 
 theorem cut_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
     (rd B F f₁).cut y = (rd B F f₂).cut y := by
-  simp only [CutReads.cut, rd, acceptsOn_congr (K.family_sub F) h]
+  simp only [CutReads.cut, rd, acceptsOn_congr Finset.subset_union_left h]
 
 theorem sift_congr {t : DTree α} {x : FreeMonoid α}
     (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
@@ -176,7 +184,7 @@ theorem AgreeOne.letter' {t : DTree α} {b : FreeMonoid α} (h : AgreeOne K F f�
 
 theorem AgreeDeep.one {t : DTree α} {b : FreeMonoid α} (h : AgreeDeep K F f₁ f₂ t b) :
     AgreeOne K F f₁ f₂ t b := fun e m hm => by
-  simpa [ext] using h e none m hm
+  simpa [ext] using (h e none m hm).agree
 
 /-- After a split on `ofc'·m'`, a midfix of `t` extended by a letter, the agreement against the
 new tree on `b` and `b` extended by a letter. -/
@@ -184,8 +192,8 @@ theorem AgreeDeep.split {t : DTree α} {b m' : FreeMonoid α} {c' : α} {p : Lis
     (h : AgreeDeep K F f₁ f₂ t b) (hm' : m' ∈ t.mids) :
     AgreeOne K F f₁ f₂ (t.splitAt (FreeMonoid.of c' * m') p) b := fun e m hm => by
   rcases DTree.mids_splitAt_cases hm with hm | rfl
-  · simpa [ext] using h e none m hm
-  · simpa [ext, mul_assoc] using h e (some c') m' hm'
+  · simpa [ext] using (h e none m hm).agree
+  · simpa [ext, mul_assoc] using (h e (some c') m' hm').agree
 
 theorem members_mem {R : CutReads α} {t : DTree α} {pool : List (FreeMonoid α)}
     {path : List Bool} {b : FreeMonoid α} (h : b ∈ members K R t pool path) : b ∈ pool :=
@@ -284,7 +292,7 @@ theorem bisect_congr {t : DTree α} {w : FreeMonoid α} {walk : ℕ → List Boo
 
 theorem trainSide_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
     trainSide K (rd B F f₁) y = trainSide K (rd B F f₂) y := by
-  simp only [trainSide, rd, acceptsOn_congr (K.train_sub F) h]
+  simp only [trainSide, rd, acceptsOn_congr Finset.subset_union_right h]
 
 theorem mem_foldl_keep {β : Type*} (c : List β → β → Prop) [∀ a b, Decidable (c a b)] :
     ∀ (l acc : List β) (x : β),
@@ -339,14 +347,10 @@ theorem sideCounts_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : Li
 theorem verdict_congr {t : DTree α} {pool : List (FreeMonoid α)} {path : List Bool}
     {d : FreeMonoid α} {tests : ℕ} {skip : FreeMonoid α → Prop}
     (h : ∀ b ∈ pool, ∀ m ∈ t.mids, Agree K F f₁ f₂ (b * m))
-    (hd : ∀ b ∈ pool, Agree K F f₁ f₂ (b * d)) :
+    (hd : ∀ b ∈ pool, Agree K F f₁ f₂ (b * d))
+    (hf : ∀ p ∈ testStrings K (rd B F f₂) t pool path d skip, f₁ p.1 = f₂ p.1) :
     verdict K (rd B F f₁) t pool path d tests skip
       = verdict K (rd B F f₂) t pool path d tests skip := by
-  have hf : ∀ p ∈ testStrings K (rd B F f₂) t pool path d skip, f₁ p.1 = f₂ p.1 := by
-    intro p hp
-    obtain ⟨m, hm, b, hb, he⟩ := mem_testStrings hp
-    rw [he]
-    exact hd m (members_mem hm) b (K.block_sub F hb)
   have e : ∀ b : Bool,
       ((testStrings K (rd B F f₂) t pool path d skip).filter fun p => decide (p.2 = b)).filter
         (fun p => decide (f₁ p.1 = 1))
@@ -389,7 +393,10 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
         · obtain ⟨m', hm', rfl⟩ := DTree.firstDisagreement_mids _ hd
           simp only []
           rw [verdict_congr (fun b hb => (hone b hb).tree)
-            (fun b hb => (hone b hb).letter' c m' hm')]
+            (fun b hb => (hone b hb).letter' c m' hm') (fun p hp => by
+              obtain ⟨b, hb, h, hh, he⟩ := mem_testStrings hp
+              have := hpool b (members_mem hb) (some c) none m' hm' h (K.block_sub F hh)
+              simpa [he, ext, mul_assoc] using this)]
           rcases hv : verdict K (rd B F f₂) s.tree pool (walkAt (fd - 1)) (FreeMonoid.of c * m')
               (s.tree.paths.length * Fintype.card α) (fun _ => False) with _ | _ | _
           · refine settle_congr fun b hb => ?_
@@ -410,7 +417,7 @@ theorem onEdge_congr {s : PassState α} {w : FreeMonoid α} {walkAt : ℕ → Li
 
 theorem mid_congr {y : FreeMonoid α} (h : Agree K F f₁ f₂ y) :
     (rd B F f₁).mid y = (rd B F f₂).mid y := by
-  simp only [CutReads.mid, rd, acceptsOn_congr (K.family_sub F) h]
+  simp only [CutReads.mid, rd, acceptsOn_congr Finset.subset_union_left h]
 
 theorem halfway_congr' {t : DTree α} {x : FreeMonoid α}
     (h : ∀ m ∈ t.mids, Agree K F f₁ f₂ (x * m)) :
@@ -840,7 +847,7 @@ theorem card_passBases (seed ws : List (FreeMonoid α)) (L : ℕ) :
 theorem agree_of_noise (K : StageKnobs α) (O : Oracle μ (FreeMonoid α))
     (F : Finset (FreeMonoid α)) {ω ω' : Ω} {y : FreeMonoid α}
     (h : ∀ v ∈ K.suffixes F, O.noise (y * v) ω = O.noise (y * v) ω') :
-    Agree K F (fun w => O.mq w ω) (fun w => O.mq w ω') y := fun v hv => by
+    AgreeAll K F (fun w => O.mq w ω) (fun w => O.mq w ω') y := fun v hv => by
   simp only [Oracle.mq, h v hv]
 
 theorem roundEnd_eq_phase (K : StageKnobs α) (O : Oracle μ (FreeMonoid α)) (B : State)

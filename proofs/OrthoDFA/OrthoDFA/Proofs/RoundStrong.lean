@@ -1336,11 +1336,13 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
     (hT' : ∀ m ∈ (strongStep C (rd B F f₁) A x).s.tree.mids, m ∈ Tf.mids)
     (hpool : ∀ b ∈ A.s.pool, AgreeOne C.K F f₁ f₂ Tf b)
     (hwit : ∀ p c q y, A.s.edges p c = some (q, y) → AgreeOne C.K F f₁ f₂ Tf y)
-    (hw : ∀ i, C.k ≤ i → AgreeOne C.K F f₁ f₂ Tf (prefixOf x i)) :
+    (hw : ∀ i, C.k ≤ i → AgreeOne C.K F f₁ f₂ Tf (prefixOf x i))
+    (htest : AgreeTests C.K B F f₁ f₂ A.s.tree A.s.pool (stepSkip C.K (rd B F f₂) C.k A.s x)
+      A.s.forced) :
     strongStep C (rd B F f₁) A x = strongStep C (rd B F f₂) A x := by
   have hT'p : ∀ m ∈ (probeStepK C.K (rd B F f₁) C.k A.s x).tree.mids, m ∈ Tf.mids := by
     rw [← (strongStep_state C _ A x).1]; exact hT'
-  have hps := probeStepK_congr Tf hT hT'p hpool hwit hw
+  have hps := probeStepK_congr Tf hT hT'p hpool hwit hw htest
   have hpool' : ∀ b ∈ A.s.pool, AgreeOne C.K F f₁ f₂ A.s.tree b :=
     fun b hb => (hpool b hb).mono' hT
   have hwit' : ∀ p c q y, A.s.edges p c = some (q, y) → AgreeOne C.K F f₁ f₂ A.s.tree y :=
@@ -1357,7 +1359,7 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
   split
   · rename_i ps fd heq
     have hfd : C.k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
-    rw [seedStep_congr hpool' hwit' (hw' _ hfd)]
+    rw [seedStep_congr hpool' hwit' (hw' _ hfd) htest]
   · rfl
 
 theorem strongStep_poolIn {Bs : Set (FreeMonoid α)} (R : CutReads α) {A : RoundAcc α}
@@ -1367,7 +1369,7 @@ theorem strongStep_poolIn {Bs : Set (FreeMonoid α)} (R : CutReads α) {A : Roun
   exact probeStepK_poolIn C.K R hs hw
 
 theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
-    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
+    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) (hBblk : ∀ b ∈ Bs, AgreeBlk C.K F f₁ f₂ Tf b) :
     ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), KPoolIn Bs A.s →
       (∀ x ∈ probes, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
       (∀ m ∈ (probes.foldl (passBody C (rd B F f₁)) A).s.tree.mids, m ∈ Tf.mids) →
@@ -1395,11 +1397,13 @@ theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
       have hstep := strongStep_congr C Tf (fun m hm => hTs m (strongStep_mids C _ A x m hm)) hTs
         (fun b hb => hB b (hA.1 b hb)) (fun p c q y h => hB y (hA.2 p c q y h))
         (fun i hi => hB _ (hx i hi))
+        (agreeTests_of_blk (fun m hm => hTs m (strongStep_mids C _ A x m hm))
+          fun b hb => hBblk b (hA.1 b hb))
       rw [h2, ← hstep]
       exact ih _ (strongStep_poolIn C _ hA hx) (fun y hy => hws y (List.mem_cons_of_mem _ hy)) hT
 
 theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
-    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
+    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) (hBblk : ∀ b ∈ Bs, AgreeBlk C.K F f₁ f₂ Tf b) :
     ∀ (segs : List (List (FreeMonoid α) × C.Draws)) (A : RoundAcc α), KPoolIn Bs A.s →
       (∀ x ∈ (segs.map Prod.fst).flatten, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
       (∀ m ∈ (segRun C (rd B F f₁) A segs).s.tree.mids, m ∈ Tf.mids) →
@@ -1411,7 +1415,7 @@ theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
       hws x (List.mem_flatten.2 ⟨seg.1, List.mem_cons_self .., hx⟩)
     have hpass : strongPass C (rd B F f₁) A seg.1 = strongPass C (rd B F f₂) A seg.1 := by
       rw [strongPass_eq, strongPass_eq]
-      exact fold_congr C Tf hB seg.1 _ hA hseg fun m hm =>
+      exact fold_congr C Tf hB hBblk seg.1 _ hA hseg fun m hm =>
         hT m (segRun_mids C _ rest _ m (by rw [strongPass_eq]; exact hm))
     have hA' : KPoolIn Bs (strongPass C (rd B F f₁) A seg.1).s := by
       rw [strongPass_eq]
@@ -1431,7 +1435,7 @@ theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
           · exact strongStep_poolIn C _ h (hl x (List.mem_cons_self ..))
       exact this seg.1 _ hA hseg
     rw [← hpass]
-    exact segRun_congr Tf hB rest _ hA'
+    exact segRun_congr Tf hB hBblk rest _ hA'
       (fun x hx => hws x (List.mem_flatten.2 (by
         obtain ⟨l, hl, hxl⟩ := List.mem_flatten.1 hx
         exact ⟨l, List.mem_cons_of_mem _ hl, hxl⟩))) hT
@@ -1453,7 +1457,8 @@ theorem segRun_determined {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   have hseed : ∀ b ∈ seed, b ∈ Bs := fun b hb => List.mem_append_left _ hb
   have hws : ∀ w ∈ probes, ∀ i, C.k ≤ i → prefixOf w i ∈ Bs := fun w hw i hi =>
     prefixOf_mem_bases hw hi
-  have hB : ∀ b ∈ Bs, AgreeOne C.K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b := by
+  have hAll : ∀ b ∈ Bs, ∀ e, ∀ m ∈ Tf.mids,
+      AgreeAll C.K F (fun w => O.mq w ω) (fun w => O.mq w ω') (b * ext e * m) := by
     intro b hb e m hm
     refine agree_of_noise C.K O F fun v hv => h _ ?_
     simp only [readsOf, passOf, vBits, Finset.mem_biUnion, Finset.mem_image]
@@ -1464,6 +1469,12 @@ theorem segRun_determined {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
       · exact Finset.mem_insert_self _ _
       · exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨c, Finset.mem_univ _, rfl⟩)
     · exact Finset.mem_insert_of_mem ((DTree.mem_midfixes_iff _).2 hm)
+  have hB : ∀ b ∈ Bs, AgreeOne C.K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b :=
+    fun b hb e m hm => (hAll b hb e m hm).agree
+  have hBblk : ∀ b ∈ Bs, AgreeBlk C.K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b := by
+    intro b hb c m hm v hv
+    have := hAll b hb (some c) m hm v (C.K.block_sub F hv)
+    simpa [ext, mul_assoc] using this
   have h0mids : ∀ m ∈ (startAcc C (readsAt O B F ω) seed).s.tree.mids, m ∈ Tf.mids :=
     fun m hm => segRun_mids C _ segs _ m hm
   have h0 : startAcc C (readsAt O B F ω) seed = startAcc C (readsAt O B F ω') seed := by
@@ -1474,7 +1485,7 @@ theorem segRun_determined {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
   have hpool0 : KPoolIn Bs (startAcc C (readsAt O B F ω) seed).s :=
     closeK_poolIn C.K _ hseed fun _ _ _ _ h => by simp at h
   have := segRun_congr C (B := B) (F := F) (f₁ := fun w => O.mq w ω) (f₂ := fun w => O.mq w ω')
-    Tf hB segs _ hpool0 hws fun m hm => hm
+    Tf hB hBblk segs _ hpool0 hws fun m hm => hm
   change (segRun C (readsAt O B F ω') (startAcc C (readsAt O B F ω') seed) segs).s
     = (segRun C (readsAt O B F ω) (startAcc C (readsAt O B F ω) seed) segs).s
   rw [← h0]
