@@ -263,9 +263,8 @@ class TransitionResolver:
         it where it accepts it as the middle of the band at the root does.  The
         best start's agreement is tested against ``acc_threshold``, over every
         start and halving its chance of error with each reading in the round,
-        at each of ``_LOOKS`` until it settles; one still unsettled at the
-        last passes.  Where it falls short, a sample is read against that start
-        (see ``refusal_sample``)."""
+        at each of ``_LOOKS`` until it settles above.  Where it does not, a
+        sample is read against that start (see ``refusal_sample``)."""
         transitions = self._totalised()[0]
         n = self.tree.num_states
         # The round's i-th reading at 2 ** -i of the chance, so a round's
@@ -286,8 +285,7 @@ class TransitionResolver:
                 if side is not None:
                     break
         start = _best(agree)
-        # Unsettled at the last look passes.
-        passed = side is not False
+        passed = side is True
         reading = Reading(
             passed,
             start,

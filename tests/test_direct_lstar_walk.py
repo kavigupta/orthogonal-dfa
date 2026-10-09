@@ -251,16 +251,18 @@ class TestReadingFreshDraws(unittest.TestCase):
         # first look, where the pairs fire.
         self.assertEqual(30 + 30, learner.drawn)
 
-    def test_a_gate_unsettled_at_its_last_look_passes(self):
+    def test_a_gate_unsettled_at_its_last_look_is_refused(self):
         # Each start agrees on every other draw, exactly the threshold.
         learner = _gate(lambda seq: 0, _STAYS)
         learner.family.middle_side = lambda seq, midfix: seq == _PROBE
-        learner.draws = iter([_PROBE, _PROBE[::-1]] * 1000)
+        learner.draws = iter([_PROBE, _PROBE[::-1]] * 1240)
 
         reading = learner.read_fresh(acc_threshold=0.5)
 
-        self.assertEqual(2000, learner.drawn)
-        self.assertTrue(reading.passed)
+        self.assertFalse(reading.passed)
+        # Past the gate's 2000 draws, the refusal sample read.
+        self.assertGreater(learner.drawn, 2000)
+        self.assertIsNotNone(reading.fired)
 
     def test_a_refusal_sample_with_nothing_to_hold_or_rerun_reads_to_its_end(self):
         learner = _gate(lambda seq: 0, _TO_REJECT)
