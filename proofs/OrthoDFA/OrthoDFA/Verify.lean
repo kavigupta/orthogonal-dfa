@@ -95,4 +95,8 @@ theorem round_strong_trichotomy' : RoundStrongTrichotomy := round_strong_trichot
 
 #print axioms round_strong_trichotomy'
 
+theorem round_strong_quality' : RoundStrongQuality := round_strong_quality
+
+#print axioms round_strong_quality'
+
 end OrthoDFA

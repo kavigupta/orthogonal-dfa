@@ -1515,3 +1515,420 @@ theorem round_strong_trichotomy : RoundStrongTrichotomy := by
   exact ENNReal.toReal_le_of_le_ofReal hrhs0 hle
 
 end OrthoDFA
+
+namespace OrthoDFA
+
+open MeasureTheory
+
+variable {α : Type*} [Fintype α] [DecidableEq α]
+
+section Segments
+
+variable (C : StrongCfg α)
+
+/-- The round's passes over its readings' probes, one segment each. -/
+noncomputable def segRun (R : CutReads α) : RoundAcc α → List (List (FreeMonoid α)) → RoundAcc α
+  | A, [] => A
+  | A, seg :: rest => segRun R (strongPass C R A seg) rest
+
+theorem strongStep_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (x : FreeMonoid α) :
+    strongStep C R { A with certs := c } x = { strongStep C R A x with certs := c } := by
+  unfold strongStep givenUp
+  simp only []
+  split
+  · split
+    · rfl
+    · split_ifs with h <;> simp [h]
+    · rfl
+  · rfl
+
+theorem passBody_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (x : FreeMonoid α) :
+    passBody C R { A with certs := c } x = { passBody C R A x with certs := c } := by
+  unfold passBody
+  split_ifs <;> first | rfl | exact strongStep_certs C R A c x
+
+theorem fold_certs (R : CutReads α) :
+    ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α) (c : ℕ),
+      probes.foldl (passBody C R) { A with certs := c }
+        = { probes.foldl (passBody C R) A with certs := c }
+  | [], _, _ => rfl
+  | x :: xs, A, c => by
+    simp only [List.foldl_cons, passBody_certs]
+    exact fold_certs R xs _ c
+
+theorem segRun_certs (R : CutReads α) :
+    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α) (c : ℕ),
+      segRun C R { A with certs := c } segs = { segRun C R A segs with certs := c }
+  | [], _, _ => rfl
+  | seg :: rest, A, c => by
+    simp only [segRun, strongPass_eq]
+    rw [show ({ ({ A with certs := c } : RoundAcc α) with
+        s := { A.s with streak := 0 } } : RoundAcc α)
+        = { ({ A with s := { A.s with streak := 0 } } : RoundAcc α) with certs := c } from rfl,
+      fold_certs]
+    exact segRun_certs R rest _ c
+
+theorem strongReading_acc (R : CutReads α) (j : ℕ) (A : RoundAcc α)
+    (first : List (FreeMonoid α)) (y : C.Draws) :
+    (strongReading C R j A first y).1 = { strongPass C R A (first ++ List.ofFn y.1) with
+      certs := (strongReading C R j A first y).1.certs } := by
+  unfold strongReading
+  simp only []
+  split_ifs <;> rfl
+
+open scoped Classical in
+/-- The rerun lists a refusal sample `br` can give: its draws picked by a set of positions. -/
+noncomputable def sublistsOfS (br : Fin C.nr → FreeMonoid α) : Finset (List (FreeMonoid α)) :=
+  (Finset.univ : Finset (Finset (Fin C.nr))).image fun S =>
+    ((List.finRange C.nr).filter fun i => decide (i ∈ S)).map br
+
+theorem card_sublistsOfS (br : Fin C.nr → FreeMonoid α) :
+    (sublistsOfS C br).card ≤ 2 ^ C.nr := by
+  unfold sublistsOfS
+  refine Finset.card_image_le.trans (le_of_eq ?_)
+  rw [Finset.card_univ, Fintype.card_finset, Fintype.card_fin]
+
+open scoped Classical in
+theorem mem_sublistsOfS (br : Fin C.nr → FreeMonoid α) (q : Fin C.nr → Bool) :
+    ((List.finRange C.nr).filter q).map br ∈ sublistsOfS C br :=
+  Finset.mem_image.2 ⟨Finset.univ.filter fun i => q i = true, Finset.mem_univ _, by
+    congr 1
+    exact List.filter_congr fun i _ => by simp⟩
+
+theorem strongReading_rerun_mem (R : CutReads α) {j : ℕ} {A : RoundAcc α}
+    {first lv : List (FreeMonoid α)} {y : C.Draws}
+    (h : (strongReading C R j A first y).2 = .inr lv) : lv ∈ sublistsOfS C y.2.2.1 := by
+  classical
+  unfold strongReading at h
+  simp only [] at h
+  split_ifs at h <;> simp only [Sum.inr.injEq] at h
+  all_goals
+    subst h
+    exact mem_sublistsOfS C _ _
+
+/-- The segment lists a round over the draws `d` can take in `r` readings, from first probes
+among `firsts`. -/
+noncomputable def candS : (n : ℕ) → (Fin n → C.Draws) → ℕ → Finset (List (FreeMonoid α))
+    → Finset (List (List (FreeMonoid α)))
+  | _, _, 0, _ => {[]}
+  | 0, _, _ + 1, _ => ∅
+  | n + 1, d, r + 1, firsts => firsts.biUnion fun f =>
+    insert [f ++ List.ofFn (d 0).1]
+      ((candS n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)).image
+        ((f ++ List.ofFn (d 0).1) :: ·))
+
+theorem card_candS :
+    ∀ (n : ℕ) (d : Fin n → C.Draws) (r : ℕ) (firsts : Finset (List (FreeMonoid α))),
+      (candS C n d r firsts).card ≤ max 1 firsts.card * 2 ^ ((C.nr + 1) * r)
+  | _, _, 0, firsts => by simp [candS]
+  | 0, _, _ + 1, firsts => by simp [candS]
+  | n + 1, d, r + 1, firsts => by
+    have ih := card_candS n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)
+    have hS : max 1 (sublistsOfS C (d 0).2.2.1).card ≤ 2 ^ C.nr :=
+      max_le (Nat.one_le_two_pow) (card_sublistsOfS C _)
+    have hone : ∀ f ∈ firsts, (insert [f ++ List.ofFn (d 0).1]
+        ((candS C n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)).image
+          ((f ++ List.ofFn (d 0).1) :: ·))).card ≤ 2 ^ ((C.nr + 1) * (r + 1)) := by
+      intro f _
+      refine (Finset.card_insert_le _ _).trans ?_
+      have h1 := (Finset.card_image_le (s := candS C n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1))
+        (f := ((f ++ List.ofFn (d 0).1) :: ·))).trans (ih.trans (Nat.mul_le_mul_right _ hS))
+      have h2 : 2 ^ ((C.nr + 1) * (r + 1)) = 2 * (2 ^ C.nr * 2 ^ ((C.nr + 1) * r)) := by ring
+      have h3 : 1 ≤ 2 ^ C.nr * 2 ^ ((C.nr + 1) * r) := Nat.one_le_iff_ne_zero.2 (by positivity)
+      omega
+    simp only [candS]
+    refine (Finset.card_biUnion_le).trans ((Finset.sum_le_sum hone).trans ?_)
+    rw [Finset.sum_const, smul_eq_mul]
+    exact Nat.mul_le_mul_right _ (le_max_right _ _)
+
+/-- The round's probes are its readings' segments in order, and it ends where the segments' passes
+do. -/
+theorem strongRound_segs (R : CutReads α) :
+    ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws)
+      (firsts : Finset (List (FreeMonoid α))), first ∈ firsts →
+      ∃ segs ∈ candS C n d (strongRound C R n j A first d).2.2.length firsts,
+        strongProbes C R n j A first d = segs.flatten
+          ∧ (strongRound C R n j A first d).2.1.s = (segRun C R A segs).s
+  | 0, _, _, _, _, _, _ => ⟨[], by simp [strongRound, candS], by simp [strongProbes],
+      by simp [strongRound, segRun]⟩
+  | n + 1, j, A, first, d, firsts, hf => by
+    have hacc := strongReading_acc C R j A first (d 0)
+    have hmem := fun lv (h : (strongReading C R j A first (d 0)).2 = .inr lv) =>
+      strongReading_rerun_mem C R h
+    rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩ <;>
+      rw [hR] at hacc hmem <;> dsimp only at hacc hmem <;>
+      simp only [strongRound, strongProbes, hR]
+    · refine ⟨[first ++ List.ofFn (d 0).1], ?_, by simp, ?_⟩
+      · simp only [List.length_singleton, candS]
+        exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_self _ _⟩
+      · rw [hacc]; rfl
+    · obtain ⟨segs, hs, hp, hst⟩ := strongRound_segs R n (j + 1) A'' lv (Fin.tail d)
+        (sublistsOfS C (d 0).2.2.1) (hmem lv rfl)
+      refine ⟨(first ++ List.ofFn (d 0).1) :: segs, ?_, ?_, ?_⟩
+      · simp only [List.length_cons, candS]
+        exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_of_mem
+          (Finset.mem_image.2 ⟨segs, hs, rfl⟩)⟩
+      · rw [hp, List.flatten_cons]
+      · rw [hst, hacc, segRun_certs]
+        rfl
+
+theorem strongStep_mids (R : CutReads α) (A : RoundAcc α) (x : FreeMonoid α) :
+    ∀ m ∈ A.s.tree.mids, m ∈ (strongStep C R A x).s.tree.mids := fun m hm => by
+  rw [(strongStep_state C R A x).1]
+  rcases probeStepK_tree_cases C.K R C.k A.s x with h | ⟨d, p, h⟩
+  · rw [h]; exact hm
+  · rw [h]; exact DTree.mem_mids_splitAt hm
+
+theorem fold_mids (R : CutReads α) :
+    ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α),
+      ∀ m ∈ A.s.tree.mids, m ∈ (probes.foldl (passBody C R) A).s.tree.mids
+  | [], _, _, hm => hm
+  | x :: xs, A, m, hm => by
+    simp only [List.foldl_cons]
+    refine fold_mids R xs _ m ?_
+    unfold passBody
+    split_ifs
+    · exact hm
+    · exact strongStep_mids C R A x m hm
+
+theorem segRun_mids (R : CutReads α) :
+    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α),
+      ∀ m ∈ A.s.tree.mids, m ∈ (segRun C R A segs).s.tree.mids
+  | [], _, _, hm => hm
+  | seg :: rest, A, m, hm => by
+    simp only [segRun]
+    refine segRun_mids R rest _ m ?_
+    rw [strongPass_eq]
+    exact fold_mids C R seg _ m hm
+
+section Congr
+
+variable {B : State} {F : Finset (FreeMonoid α)} {f₁ f₂ : FreeMonoid α → ℝ}
+
+theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
+    (hT : ∀ m ∈ A.s.tree.mids, m ∈ Tf.mids)
+    (hT' : ∀ m ∈ (strongStep C (rd B F f₁) A x).s.tree.mids, m ∈ Tf.mids)
+    (hpool : ∀ b ∈ A.s.pool, AgreeOne C.K F f₁ f₂ Tf b)
+    (hwit : ∀ p c q y, A.s.edges p c = some (q, y) → AgreeOne C.K F f₁ f₂ Tf y)
+    (hw : ∀ i, C.k ≤ i → AgreeOne C.K F f₁ f₂ Tf (prefixOf x i)) :
+    strongStep C (rd B F f₁) A x = strongStep C (rd B F f₂) A x := by
+  have hT'p : ∀ m ∈ (probeStepK C.K (rd B F f₁) C.k A.s x).tree.mids, m ∈ Tf.mids := by
+    rw [← (strongStep_state C _ A x).1]; exact hT'
+  have hps := probeStepK_congr Tf hT hT'p hpool hwit hw
+  have hpool' : ∀ b ∈ A.s.pool, AgreeOne C.K F f₁ f₂ A.s.tree b :=
+    fun b hb => (hpool b hb).mono' hT
+  have hwit' : ∀ p c q y, A.s.edges p c = some (q, y) → AgreeOne C.K F f₁ f₂ A.s.tree y :=
+    fun p c q y h => (hwit p c q y h).mono' hT
+  have hw' : ∀ i, C.k ≤ i → AgreeOne C.K F f₁ f₂ A.s.tree (prefixOf x i) :=
+    fun i hi => (hw i hi).mono' hT
+  have hpo : probeOutcome (rd B F f₁) A.s.tree A.s.edges C.k x
+      = probeOutcome (rd B F f₂) A.s.tree A.s.edges C.k x :=
+    probeOutcome_congr fun i hi m hm => (hw' i hi).tree m hm
+  have hea : edgeAt (rd B F f₁) A.s.tree A.s.edges C.k x
+      = edgeAt (rd B F f₂) A.s.tree A.s.edges C.k x := by
+    unfold edgeAt; rw [hpo]
+  unfold strongStep
+  simp only []
+  rw [hps, hpo, hea]
+  split
+  · rename_i ps fd heq
+    have hfd : C.k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
+    rw [seedStep_congr hpool' hwit' (hw' _ hfd)]
+  · rfl
+
+theorem strongStep_poolIn {Bs : Set (FreeMonoid α)} (R : CutReads α) {A : RoundAcc α}
+    {x : FreeMonoid α} (hs : KPoolIn Bs A.s) (hw : ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) :
+    KPoolIn Bs (strongStep C R A x).s := by
+  obtain ⟨-, hed, hpo, -⟩ := strongStep_state C R A x
+  obtain ⟨h1, h2⟩ := probeStepK_poolIn C.K R hs hw
+  exact ⟨by rw [hpo]; exact h1, by rw [hed]; exact h2⟩
+
+theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
+    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
+    ∀ (probes : List (FreeMonoid α)) (A : RoundAcc α), KPoolIn Bs A.s →
+      (∀ x ∈ probes, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
+      (∀ m ∈ (probes.foldl (passBody C (rd B F f₁)) A).s.tree.mids, m ∈ Tf.mids) →
+      probes.foldl (passBody C (rd B F f₁)) A = probes.foldl (passBody C (rd B F f₂)) A := by
+  intro probes
+  induction probes with
+  | nil => intro A _ _ _; simp only [List.foldl_nil]
+  | cons x xs ih =>
+    intro A hA hws hT
+    simp only [List.foldl_cons] at hT ⊢
+    have hx := hws x (List.mem_cons_self ..)
+    by_cases hg : C.K.patience ≤ A.s.streak ∨ budgetOf C A.s.tree.paths.length ≤ A.used
+    · have h1 : passBody C (rd B F f₁) A x = A := by unfold passBody; rw [if_pos hg]
+      have h2 : passBody C (rd B F f₂) A x = A := by unfold passBody; rw [if_pos hg]
+      rw [h1] at hT ⊢
+      rw [h2]
+      exact ih A hA (fun y hy => hws y (List.mem_cons_of_mem _ hy)) hT
+    · have h1 : passBody C (rd B F f₁) A x = strongStep C (rd B F f₁) A x := by
+        unfold passBody; rw [if_neg hg]
+      have h2 : passBody C (rd B F f₂) A x = strongStep C (rd B F f₂) A x := by
+        unfold passBody; rw [if_neg hg]
+      rw [h1] at hT ⊢
+      have hTs : ∀ m ∈ (strongStep C (rd B F f₁) A x).s.tree.mids, m ∈ Tf.mids :=
+        fun m hm => hT m (fold_mids C _ xs _ m hm)
+      have hstep := strongStep_congr C Tf (fun m hm => hTs m (strongStep_mids C _ A x m hm)) hTs
+        (fun b hb => hB b (hA.1 b hb)) (fun p c q y h => hB y (hA.2 p c q y h))
+        (fun i hi => hB _ (hx i hi))
+      rw [h2, ← hstep]
+      exact ih _ (strongStep_poolIn C _ hA hx) (fun y hy => hws y (List.mem_cons_of_mem _ hy)) hT
+
+theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
+    (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
+    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α), KPoolIn Bs A.s →
+      (∀ x ∈ segs.flatten, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
+      (∀ m ∈ (segRun C (rd B F f₁) A segs).s.tree.mids, m ∈ Tf.mids) →
+      segRun C (rd B F f₁) A segs = segRun C (rd B F f₂) A segs
+  | [], _, _, _, _ => by simp only [segRun]
+  | seg :: rest, A, hA, hws, hT => by
+    simp only [segRun] at hT ⊢
+    have hseg : ∀ x ∈ seg, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs := fun x hx =>
+      hws x (List.mem_flatten.2 ⟨seg, List.mem_cons_self .., hx⟩)
+    have hpass : strongPass C (rd B F f₁) A seg = strongPass C (rd B F f₂) A seg := by
+      rw [strongPass_eq, strongPass_eq]
+      exact fold_congr C Tf hB seg _ hA hseg fun m hm =>
+        hT m (segRun_mids C _ rest _ m (by rw [strongPass_eq]; exact hm))
+    have hA' : KPoolIn Bs (strongPass C (rd B F f₁) A seg).s := by
+      rw [strongPass_eq]
+      have : ∀ (l : List (FreeMonoid α)) (X : RoundAcc α), KPoolIn Bs X.s →
+          (∀ x ∈ l, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
+          KPoolIn Bs (l.foldl (passBody C (rd B F f₁)) X).s := by
+        intro l
+        induction l with
+        | nil => exact fun X h _ => h
+        | cons x xs ih =>
+          intro X h hl
+          simp only [List.foldl_cons]
+          refine ih _ ?_ fun y hy => hl y (List.mem_cons_of_mem _ hy)
+          unfold passBody
+          split_ifs
+          · exact h
+          · exact strongStep_poolIn C _ h (hl x (List.mem_cons_self ..))
+      exact this seg _ hA hseg
+    rw [← hpass]
+    exact segRun_congr Tf hB rest _ hA'
+      (fun x hx => hws x (List.mem_flatten.2 (by
+        obtain ⟨l, hl, hxl⟩ := List.mem_flatten.1 hx
+        exact ⟨l, List.mem_cons_of_mem _ hl, hxl⟩))) hT
+
+end Congr
+
+/-- The round's passes over the segments `segs` are decided by the oracle's bits at what they
+can read against the tree they end with. -/
+theorem segRun_determined {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
+    (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
+    (seed : List (FreeMonoid α)) (segs : List (List (FreeMonoid α))) :
+    PassDetermined O B F C.K C.k seed segs.flatten
+      fun R => (segRun C R (startAcc C R seed) segs).s := by
+  intro ω ω' h
+  set probes := segs.flatten
+  set Bs : Set (FreeMonoid α) := {b | b ∈ seed ++ probes.flatMap fun p =>
+    (List.range (p.toList.length + 1)).map fun i => prefixOf p (max C.k i)}
+  set Tf := (segRun C (readsAt O B F ω) (startAcc C (readsAt O B F ω) seed) segs).s.tree
+  have hseed : ∀ b ∈ seed, b ∈ Bs := fun b hb => List.mem_append_left _ hb
+  have hws : ∀ w ∈ probes, ∀ i, C.k ≤ i → prefixOf w i ∈ Bs := fun w hw i hi =>
+    prefixOf_mem_bases hw hi
+  have hB : ∀ b ∈ Bs, AgreeOne C.K F (fun w => O.mq w ω) (fun w => O.mq w ω') Tf b := by
+    intro b hb e m hm
+    refine agree_of_noise C.K O F fun v hv => h _ ?_
+    simp only [readsOf, passOf, vBits, Finset.mem_biUnion, Finset.mem_image]
+    refine ⟨b * ext e * m, ?_, v, hv, rfl⟩
+    simp only [passReadSet, Finset.mem_image, Finset.mem_product, Prod.exists]
+    refine ⟨b, ext e, m, ⟨⟨List.mem_toFinset.2 hb, ?_⟩, ?_⟩, rfl⟩
+    · rcases e with _ | c
+      · exact Finset.mem_insert_self _ _
+      · exact Finset.mem_insert_of_mem (Finset.mem_image.2 ⟨c, Finset.mem_univ _, rfl⟩)
+    · exact Finset.mem_insert_of_mem ((DTree.mem_midfixes_iff _).2 hm)
+  have h0mids : ∀ m ∈ (startAcc C (readsAt O B F ω) seed).s.tree.mids, m ∈ Tf.mids :=
+    fun m hm => segRun_mids C _ segs _ m hm
+  have h0 : startAcc C (readsAt O B F ω) seed = startAcc C (readsAt O B F ω') seed := by
+    simp only [startAcc, initialK, closeK] at h0mids ⊢
+    rw [show readsAt O B F ω = rd B F (fun w => O.mq w ω) from rfl,
+      show readsAt O B F ω' = rd B F (fun w => O.mq w ω') from rfl,
+      closeEdges_congr fun b hb => (hB b (hseed b hb)).mono' h0mids]
+  have hpool0 : KPoolIn Bs (startAcc C (readsAt O B F ω) seed).s :=
+    closeK_poolIn C.K _ hseed fun _ _ _ _ h => by simp at h
+  have := segRun_congr C (B := B) (F := F) (f₁ := fun w => O.mq w ω) (f₂ := fun w => O.mq w ω')
+    Tf hB segs _ hpool0 hws fun m hm => hm
+  change (segRun C (readsAt O B F ω') (startAcc C (readsAt O B F ω') seed) segs).s
+    = (segRun C (readsAt O B F ω) (startAcc C (readsAt O B F ω) seed) segs).s
+  rw [← h0]
+  exact (congrArg RoundAcc.s this).symm
+
+end Segments
+
+theorem round_strong_quality : RoundStrongQuality := by
+  intro α _ _ Ω _ μ _ Q C A O B F D _ seed δ Rmax d hf hc hδ hδ1 hkL hlen hV
+  have hpm := prefixMax_pos D hkL hlen
+  have hlog : 0 < Real.log (5 / δ) := Real.log_pos (by rw [lt_div_iff₀ hδ]; linarith)
+  have heps : ∀ r, 0 < strongEps C D δ r := fun r => by
+    unfold strongEps
+    refine Real.sqrt_pos.2 (div_pos (mul_pos hpm ?_) two_pos)
+    have : 0 ≤ (((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2 :=
+      mul_nonneg (Nat.cast_nonneg _) (Real.log_nonneg (by norm_num))
+    linarith
+  have hq := fun (r : ℕ) (segs : List (List (FreeMonoid α))) => quality_holds_of (μ := μ) A O B F
+    C.K D hkL seed segs.flatten _ (segRun_determined C O B F seed segs) hf hc (heps r) hlen hV
+  choose Ef hEf hgood using hq
+  set E : Set Ω := ⋃ r ∈ Finset.range (Rmax + 1), ⋃ p ∈ candS C Rmax d r {[]}, Ef r p
+  refine ⟨E, ?_, fun ω hω => ?_⟩
+  · have hterm : ∀ r, ∑ p ∈ candS C Rmax d r {[]}, μ.real (Ef r p) ≤ δ / 2 ^ (r + 1) := by
+      intro r
+      have hcard : ((candS C Rmax d r {[]}).card : ℝ) ≤ 2 ^ ((C.nr + 1) * r) := by
+        have := card_candS C Rmax d r {[]}
+        simp only [Finset.card_singleton, max_self, one_mul] at this
+        exact_mod_cast this
+      have hexp : 5 * Real.exp (-2 * strongEps C D δ r ^ 2 / prefixMax D C.k)
+          = δ / 2 ^ ((C.nr + 1) * r + r + 1) := by
+        unfold strongEps
+        rw [Real.sq_sqrt (by
+          have : 0 ≤ (((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2 :=
+            mul_nonneg (Nat.cast_nonneg _) (Real.log_nonneg (by norm_num))
+          positivity)]
+        rw [show -2 * (prefixMax D C.k * ((((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2
+            + Real.log (5 / δ)) / 2) / prefixMax D C.k
+            = -((((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2) - Real.log (5 / δ) by
+          field_simp; ring]
+        rw [Real.exp_sub, Real.exp_neg, ← Real.log_rpow two_pos, Real.exp_log (by positivity),
+          Real.exp_log (by positivity), Real.rpow_natCast]
+        field_simp
+      calc ∑ p ∈ candS C Rmax d r {[]}, μ.real (Ef r p)
+          ≤ ∑ _p ∈ candS C Rmax d r {[]}, δ / 2 ^ ((C.nr + 1) * r + r + 1) :=
+            Finset.sum_le_sum fun p _ => (hEf r p).trans (le_of_eq hexp)
+        _ = (candS C Rmax d r {[]}).card * (δ / 2 ^ ((C.nr + 1) * r + r + 1)) := by
+            rw [Finset.sum_const, nsmul_eq_mul]
+        _ ≤ 2 ^ ((C.nr + 1) * r) * (δ / 2 ^ ((C.nr + 1) * r + r + 1)) :=
+            mul_le_mul_of_nonneg_right hcard (by positivity)
+        _ = δ / 2 ^ (r + 1) := by
+            rw [pow_add, pow_add (2 : ℝ) ((C.nr + 1) * r)]
+            field_simp
+            ring
+    calc μ.real E ≤ ∑ r ∈ Finset.range (Rmax + 1), μ.real (⋃ p ∈ candS C Rmax d r {[]}, Ef r p) :=
+          measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ r ∈ Finset.range (Rmax + 1), δ / 2 ^ (r + 1) :=
+          Finset.sum_le_sum fun r _ => (measureReal_biUnion_finset_le _ _).trans (hterm r)
+      _ ≤ δ := by
+          have h := sum_geometric_two_le (Rmax + 1)
+          have : ∑ r ∈ Finset.range (Rmax + 1), δ / 2 ^ (r + 1)
+              = δ / 2 * ∑ r ∈ Finset.range (Rmax + 1), (1 / 2 : ℝ) ^ r := by
+            rw [Finset.mul_sum]
+            refine Finset.sum_congr rfl fun r _ => ?_
+            rw [one_div_pow, pow_succ]; ring
+          rw [this]
+          nlinarith
+  · simp only []
+    set R := readsAt O B F ω
+    obtain ⟨segs, hs, hp, hst⟩ := strongRound_segs C R Rmax 0 (startAcc C R seed) [] d {[]}
+      (Finset.mem_singleton_self _)
+    have hr : (strongRun C R seed Rmax d).2.2.length ∈ Finset.range (Rmax + 1) :=
+      Finset.mem_range.2 (Nat.lt_succ_of_le
+        (strongRound_len_certs C R Rmax 0 (startAcc C R seed) [] d).1)
+    simp only [E, Set.mem_iUnion, not_exists] at hω
+    have := hgood _ _ ω (hω _ hr _ hs)
+    unfold strongRun
+    rw [hst, hp]
+    exact this
+
+end OrthoDFA

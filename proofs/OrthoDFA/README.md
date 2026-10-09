@@ -93,12 +93,15 @@
   halving as in `RoundTrichotomyLevel` with the edges actually given up (every covering start's
   residue claimed only where the gate settled below), or out of readings only past `readStar`,
   but for `4(log₂(ng/30)+2)a`, `(1 − ν)^nr` per reading in expectation, and the certificate's
-  failure chances over its calls in expectation. Not yet proved: `RoundStrongQuality`. Open, not
+  failure chances over its calls in expectation. `RoundStrongQuality`, proved: the end state's
+  harvest quality at the realised readings' `ε_r`, the round's passes being decided by the bits
+  at what they can read, read segment by segment (`segRun_determined`). Open, not
   sorried (see `notes/start-at-k.md`): the chance of a noisy split, and split power for edges
   with margin.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
-  tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding
+  tagged; `HarvestBound` is the triples' fresh-read argument for any such class and any pass
+  decided by the bits at what it can read, with Hoeffding
   over the draws grouped by their first `k` letters, which are independent inside a cell of the
   pass.
 - `OrthoDFA/Proofs/TrichotomyBatch.lean`, `Trichotomy.lean` — the batch claims. A refusal leaves
