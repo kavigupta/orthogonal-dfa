@@ -68,11 +68,11 @@ EDGE = "edge"
 TRIPLE = "triple"
 UNLEARNED_EDGE = "unlearned edge"
 
-#: ``kind``; ``at``, the length of the prefix the outcome is at (the read cut
-#: short, the edge's head, a triple's middle, the first of a pair, or the prefix
-#: before an unlearned edge); ``string``, the boundary string of an undecided
-#: read, both a pair's, or the member an unlearned edge leaves; and ``state``, the walk's state
-#: before an edge, or the one an unlearned edge leaves its member to.
+#: ``at``: the length of the prefix the outcome is at (the read cut short, the
+#: edge's head, a triple's middle, a pair's first, or before an unlearned edge);
+#: ``string``: an undecided read's boundary string, both a pair's, or an
+#: unlearned edge's member; ``state``: the walk's state before an edge, or the
+#: one an unlearned edge's member reaches.
 Outcome = namedtuple("Outcome", "kind at string state")
 
 
@@ -80,13 +80,10 @@ def read(probe, sift, transitions, k):
     """The outcome of walking ``probe`` along the learned ``transitions`` from
     where ``sift`` places its first ``k`` symbols, and sifting it whole.
 
-    Where the walk meets an unlearned edge, the prefixes either side of it are
-    sifted: one the cut cannot place ends the walk there, and the prefix before
-    the edge sifting to the edge's state is a member of it.  Where the walk and
-    the sift disagree, decidedly, the search between them reads only decided
-    prefixes to narrow, and ends at an edge (agree, disagree), a triple (agree,
-    undecided, disagree) or a pair of adjacent undecided reads.  ``sift``
-    answers as :meth:`Sifter.sift_and_boundary` does."""
+    At an unlearned edge the prefixes either side of it are sifted.  Where the
+    walk and the sift disagree, the search between them narrows on decided reads
+    only, and ends at an edge (agree, disagree), a triple (agree, undecided,
+    disagree) or a pair of adjacent undecided reads."""
     anchor, boundary = sift(probe[:k])
     if anchor is None:
         return Outcome(START_UNDECIDED, k, boundary, None)

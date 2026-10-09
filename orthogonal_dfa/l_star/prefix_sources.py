@@ -55,8 +55,8 @@ class MidfixSource(UniformSource):
 
 
 class HarvestSource(RejectionSource):
-    """More of a blocked round's population: each attempt reads a fresh draw the
-    way the round read the draws that blocked it."""
+    """More of a population a refusal held: each attempt reads a fresh draw the
+    way the refusal sample read its draws."""
 
     def __init__(self, read, *, known, acc_threshold):
         """``read()`` reads a fresh draw and returns what it leaves.  Worth
@@ -84,7 +84,7 @@ class HarvestSource(RejectionSource):
         return self._good / 2
 
     def source_repr(self) -> str:
-        return "blocked"
+        return "harvest"
 
 
 def aim_at(pst, dfa, leaf):
