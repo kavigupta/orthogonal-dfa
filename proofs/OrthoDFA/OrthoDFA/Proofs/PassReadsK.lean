@@ -264,13 +264,14 @@ theorem AgreeOne.mono' {t t' : DTree α} {b : FreeMonoid α} (h : AgreeOne K F f
   fun e m hm => h e m (ht m hm)
 
 theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α} {k : ℕ}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)} {k : ℕ}
     {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b)
     (hwit : ∀ p c q y, edges p c = some (q, y) → AgreeOne K F f₁ f₂ t y)
     (hw : AgreeOne K F f₁ f₂ t (prefixOf x (fd - 1))) :
-    seedStep K (rd B F f₁) t pool edges T k x ps fd
-      = seedStep K (rd B F f₂) t pool edges T k x ps fd := by
+    seedStep K (rd B F f₁) t pool edges skip forced k x ps fd
+      = seedStep K (rd B F f₂) t pool edges skip forced k x ps fd := by
   unfold seedStep
   simp only []
   split
@@ -295,15 +296,25 @@ theorem seedStep_congr {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edg
   · rfl
   rename_i d hd
   obtain ⟨m, hm, rfl⟩ := parting_mids t hd
+  split_ifs
+  · rfl
   rw [verdict_congr (fun b hb => (hpool b hb).tree) fun b hb => (hpool b hb).letter' c m hm]
 
-theorem testedAfter_congr {t : DTree α} {pool : List (FreeMonoid α)} {T : Tested α}
-    {s1 : List Bool} {c : α} {m : FreeMonoid α} (hm : m ∈ t.mids)
-    (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
-    testedAfter K (rd B F f₁) t pool T s1 (FreeMonoid.of c * m)
-      = testedAfter K (rd B F f₂) t pool T s1 (FreeMonoid.of c * m) := by
-  unfold testedAfter
+theorem counted_congr {t : DTree α} {pool : List (FreeMonoid α)}
+    {skip : TestKey α → FreeMonoid α → Prop} {s1 : List Bool} {c : α} {m : FreeMonoid α}
+    (hm : m ∈ t.mids) (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
+    counted K (rd B F f₁) t pool skip s1 (FreeMonoid.of c * m)
+      = counted K (rd B F f₂) t pool skip s1 (FreeMonoid.of c * m) := by
+  unfold counted
   rw [testStrings_congr (fun b hb => (hpool b hb).tree) fun b hb => (hpool b hb).letter' c m hm]
+
+theorem testedAfter_congr {t : DTree α} {pool : List (FreeMonoid α)} {T : Tested α}
+    {skip : TestKey α → FreeMonoid α → Prop} {s1 : List Bool} {c : α} {m : FreeMonoid α}
+    (hm : m ∈ t.mids) (hpool : ∀ b ∈ pool, AgreeOne K F f₁ f₂ t b) :
+    testedAfter K (rd B F f₁) t pool T skip s1 (FreeMonoid.of c * m)
+      = testedAfter K (rd B F f₂) t pool T skip s1 (FreeMonoid.of c * m) := by
+  unfold testedAfter
+  rw [counted_congr hm hpool]
 
 end Congr
 
@@ -312,9 +323,11 @@ section Shapes
 variable (K : StageKnobs α) (R : CutReads α)
 
 theorem seedStep_split_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α} {k : ℕ}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)} {k : ℕ}
     {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {d : FreeMonoid α} {s1 : List Bool}
-    {y sprime : FreeMonoid α} (h : seedStep K R t pool edges T k x ps fd = .split d s1 y sprime) :
+    {y sprime : FreeMonoid α}
+    (h : seedStep K R t pool edges skip forced k x ps fd = .split d s1 y sprime) :
     (∃ c s2, edges s1 c = some (s2, y)) ∧ sprime = prefixOf x (fd - 1) := by
   unfold seedStep at h
   simp only [] at h
@@ -331,6 +344,8 @@ theorem seedStep_split_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges 
   split at h
   · simp at h
   · simp at h
+  split_ifs at h
+  all_goals try (simp at h; done)
   split at h
   · simp only [SeedResult.split.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
@@ -338,9 +353,11 @@ theorem seedStep_split_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges 
   · simp at h
 
 theorem seedStep_member_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)}
     {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ} {s1 : List Bool}
-    {sprime d : FreeMonoid α} (h : seedStep K R t pool edges T k x ps fd = .member s1 sprime d) :
+    {sprime d : FreeMonoid α}
+    (h : seedStep K R t pool edges skip forced k x ps fd = .member s1 sprime d) :
     sprime = prefixOf x (fd - 1) := by
   unfold seedStep at h
   simp only [] at h
@@ -355,6 +372,9 @@ theorem seedStep_member_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges
   split at h
   · simp at h
   · simp at h
+  split_ifs at h
+  · simp only [SeedResult.member.injEq] at h
+    exact h.2.1.symm
   split at h
   · simp at h
   · simp only [SeedResult.member.injEq] at h
@@ -362,12 +382,13 @@ theorem seedStep_member_spec {t : DTree α} {pool : List (FreeMonoid α)} {edges
 
 /-- A split test's distinguisher is a letter and then a midfix of the tree. -/
 theorem seedStep_dist {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α} {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)} {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     {d : FreeMonoid α}
-    (h : (∃ s1 y sprime, seedStep K R t pool edges T k x ps fd = .split d s1 y sprime)
-      ∨ ∃ s1 sprime, seedStep K R t pool edges T k x ps fd = .member s1 sprime d) :
+    (h : (∃ s1 y sprime, seedStep K R t pool edges skip forced k x ps fd = .split d s1 y sprime)
+      ∨ ∃ s1 sprime, seedStep K R t pool edges skip forced k x ps fd = .member s1 sprime d) :
     ∃ c, ∃ m ∈ t.mids, d = FreeMonoid.of c * m := by
-  have key : ∀ r : SeedResult α, seedStep K R t pool edges T k x ps fd = r →
+  have key : ∀ r : SeedResult α, seedStep K R t pool edges skip forced k x ps fd = r →
       (∃ s1 y sprime, r = .split d s1 y sprime) ∨ (∃ s1 sprime, r = .member s1 sprime d) →
       ∃ c, ∃ m ∈ t.mids, d = FreeMonoid.of c * m := by
     intro r hr hrd
@@ -390,6 +411,8 @@ theorem seedStep_dist {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edge
     rename_i d' hd'
     obtain ⟨m, hm, rfl⟩ := parting_mids t hd'
     refine ⟨c, m, hm, ?_⟩
+    split_ifs at hr
+    · subst hr; simp_all
     split at hr <;> subst hr <;> simp_all
   rcases h with ⟨s1, y, sp, h⟩ | ⟨s1, sp, h⟩
   · exact key _ h (.inl ⟨s1, y, sp, rfl⟩)
@@ -442,9 +465,10 @@ def KPoolIn (Bs : Set (FreeMonoid α)) (s : KState α) : Prop :=
   (∀ b ∈ s.pool, b ∈ Bs) ∧ ∀ p c q y, s.edges p c = some (q, y) → y ∈ Bs
 
 theorem closeK_poolIn {Bs : Set (FreeMonoid α)} {t : DTree α} {pool : List (FreeMonoid α)}
-    {edges : Edges α} {st : ℕ} {T : Tested α} (hp : ∀ b ∈ pool, b ∈ Bs)
+    {edges : Edges α} {st : ℕ} {T : Tested α} {lg : Set (FreeMonoid α)}
+    {fc : Set (TestKey α)} (hp : ∀ b ∈ pool, b ∈ Bs)
     (he : ∀ p c q y, edges p c = some (q, y) → y ∈ Bs) :
-    KPoolIn Bs (closeK K R t pool edges st T) := by
+    KPoolIn Bs (closeK K R t pool edges st T lg fc) := by
   refine ⟨hp, fun p c q y h => ?_⟩
   simp only [closeK, closeEdges] at h
   rcases hd : decisiveTarget K R t pool p c ((edges p c).map Prod.fst) with _ | ⟨q', y'⟩
@@ -517,9 +541,10 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
   have hpo : probeOutcome (rd B F f₁) s.tree s.edges k x
       = probeOutcome (rd B F f₂) s.tree s.edges k x :=
     probeOutcome_congr fun i hi m hm => (hw' i hi).tree m hm
+  have hsk : stepSkip K (rd B F f₁) k s x = stepSkip K (rd B F f₂) k s x := rfl
   unfold probeStepK at hT' ⊢
   simp only [] at hT' ⊢
-  rw [hpo] at hT' ⊢
+  rw [hpo, hsk] at hT' ⊢
   split
   · rename_i ps fd heq
     have hfd : k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
@@ -531,7 +556,7 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
       obtain ⟨c', m', hm', rfl⟩ := seedStep_dist K _ (.inl ⟨s1, y, sprime, hsd⟩)
       obtain ⟨⟨c, s2, hy⟩, rfl⟩ := seedStep_split_spec K _ hsd
       simp only [closeK]
-      rw [testedAfter_congr hm' hpool']
+      rw [testedAfter_congr hm' hpool', counted_congr hm' hpool']
       rw [closeEdges_congr fun b hb => ?_]
       refine AgreeOne.mono' ?_ hT'
       rcases List.mem_append.1 hb with hb | hb
@@ -543,7 +568,7 @@ theorem probeStepK_congr {k : ℕ} {s : KState α} {x : FreeMonoid α} (Tf : DTr
       obtain ⟨c', m', hm', rfl⟩ := seedStep_dist K _ (.inr ⟨s1, sprime, hsd⟩)
       rw [seedStep_member_spec K _ hsd]
       simp only [closeK]
-      rw [testedAfter_congr hm' hpool']
+      rw [testedAfter_congr hm' hpool', counted_congr hm' hpool']
       rw [closeEdges_congr fun b hb => ?_]
       rcases List.mem_cons.1 hb with rfl | hb
       · exact hw' _ hfd

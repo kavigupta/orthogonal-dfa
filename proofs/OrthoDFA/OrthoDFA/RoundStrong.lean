@@ -33,7 +33,7 @@ open MeasureTheory
 variable {α : Type*} [Fintype α] [DecidableEq α]
 
 /-- A round's settings: as `RoundCfg`, with the probes the round may spend by its leaf count, and
-the certificate by how many calls came before. -/
+the certificate by how many calls came before, reading the bits at its draws. -/
 structure StrongCfg (α : Type*) where
   K : StageKnobs α
   k : ℕ
@@ -48,7 +48,7 @@ structure StrongCfg (α : Type*) where
   acc : ℝ
   a : ℝ
   budget : ℕ → ℕ
-  cert : ℕ → CutReads α → KState α → (Fin nc → FreeMonoid α) → Bool
+  cert : ℕ → KState α → (Fin nc → FreeMonoid α) → (Fin nc → ℝ) → Bool
 
 /-- One reading's draws: probes, gate batch, refusal sample, certificate sample. -/
 abbrev StrongCfg.Draws (C : StrongCfg α) : Type _ :=
@@ -70,18 +70,28 @@ structure SplitRec (α : Type*) where
   y : FreeMonoid α
   sprime : FreeMonoid α
 
-/-- What the round carries: the pass's state, its splits, the probes spent and the certificate's
-calls. -/
+/-- What the round carries: the pass's state, its splits, the probes spent, the certificate's
+calls, and what the readings have read outside the passes. -/
 structure RoundAcc (α : Type*) where
   s : KState α
   splits : List (SplitRec α)
   used : ℕ
   certs : ℕ
+  reads : Set (FreeMonoid α)
 
 /-- The round's start. -/
 noncomputable def startAcc (C : StrongCfg α) (R : CutReads α) (seed : List (FreeMonoid α)) :
     RoundAcc α :=
-  ⟨initialK C.K R seed, [], 0, 0⟩
+  ⟨initialK C.K R seed, [], 0, 0, ∅⟩
+
+/-- What a reading's gate, refusal sample and certificate may read against `t`: a gate draw, or a
+refusal draw's prefix from `k` on and a midfix, then a suffix of the family; or a certificate
+draw. -/
+def readingReads (C : StrongCfg α) (F : Finset (FreeMonoid α)) (t : DTree α) (y : C.Draws) :
+    Set (FreeMonoid α) :=
+  {z | (∃ i, ∃ v ∈ F, z = y.2.1 i * v)
+    ∨ (∃ i j, C.k ≤ j ∧ ∃ m ∈ t.midfixes, ∃ v ∈ F, z = prefixOf (y.2.2.1 i) j * m * v)
+    ∨ ∃ i, z = y.2.2.2 i}
 
 /-- One probe: `probeStepK`, a split recorded with the tree it split. -/
 noncomputable def strongStep (C : StrongCfg α) (R : CutReads α) (A : RoundAcc α)
@@ -90,19 +100,19 @@ noncomputable def strongStep (C : StrongCfg α) (R : CutReads α) (A : RoundAcc 
   let A₁ := { A with s := probeStepK C.K R C.k s x, used := A.used + 1 }
   match probeOutcome R s.tree s.edges C.k x with
   | .edge ps fd =>
-    match seedStep C.K R s.tree s.pool s.edges s.tested C.k x ps fd with
+    match seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) s.forced C.k x ps fd with
     | .split d s1 y sp => { A₁ with splits := A.splits ++ [⟨s.tree, s1, d, y, sp⟩] }
     | _ => A₁
   | _ => A₁
 
-/-- `counterexample_pass`: from a fresh quiet streak, probes in order until `patience` in a row
-are quiet or the budget is spent. -/
+/-- `counterexample_pass`: from a fresh quiet streak, with the readings' reads logged, probes in
+order until `patience` in a row are quiet or the budget is spent. -/
 noncomputable def strongPass (C : StrongCfg α) (R : CutReads α) (A : RoundAcc α)
     (probes : List (FreeMonoid α)) : RoundAcc α :=
   probes.foldl (fun A x =>
       if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then A
       else strongStep C R A x)
-    { A with s := { A.s with streak := 0 } }
+    { A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } }
 
 /-- How a round ends: consistent at a start, holding the classes that fired and halving where
 pairs were over half, halving, with the budget spent, or out of readings. -/
@@ -124,8 +134,9 @@ noncomputable def strongReading (C : StrongCfg α) (R : CutReads α) (j : ℕ) (
   let s := A'.s
   let aj := C.a / 2 ^ j
   let side := gateSide R s.tree s.edges y.2.1 C.acc aj (gateStop R s.tree s.edges y.2.1 C.acc aj)
-  let A'' := if side = some true then { A' with certs := A'.certs + 1 } else A'
-  if side = some true ∧ C.cert A'.certs R s y.2.2.2 = true then
+  let A₀ := if side = some true then { A' with certs := A'.certs + 1 } else A'
+  let A'' := { A₀ with reads := A₀.reads ∪ readingReads C R.F s.tree y }
+  if side = some true ∧ C.cert A'.certs s y.2.2.2 (fun i => R.f (y.2.2.2 i)) = true then
     (A'', .inl (.consistent (gateStart R s.tree s.edges y.2.1 C.acc aj)))
   else
     let tests := harvestTests R s.tree s.edges C.k C.L C.f C.c C.θM
@@ -258,8 +269,11 @@ def RoundStrongNoStop : Prop :=
     (ps : List (List Bool)) (fd : ℕ),
     let s := (strongRun C R seed Rmax d).2.1.s
     probeOutcome R s.tree s.edges C.k x = .edge ps fd →
-      (∃ dd s1 y sp, seedStep C.K R s.tree s.pool s.edges s.tested C.k x ps fd = .split dd s1 y sp)
-        ∨ ∃ s1 sp dd, seedStep C.K R s.tree s.pool s.edges s.tested C.k x ps fd = .member s1 sp dd
+      let sk := stepSkip C.K R C.k s x
+      (∃ dd s1 y sp,
+          seedStep C.K R s.tree s.pool s.edges sk s.forced C.k x ps fd = .split dd s1 y sp)
+        ∨ ∃ s1 sp dd, seedStep C.K R s.tree s.pool s.edges sk s.forced C.k x ps fd
+          = .member s1 sp dd
 
 variable {Q : Type*}
 
@@ -296,8 +310,8 @@ def RoundStrongTrichotomy : Prop :=
     (Rmax : ℕ),
     0 ≤ C.acc → C.acc ≤ 1 → 0 ≤ C.f → 0 ≤ C.a → ν ≤ 1 →
     C.K.patience ≤ C.np → Monotone C.budget →
-    (∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i) →
+    (∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i) →
     ∀ R : CutReads α,
       (Measure.pi fun _ : Fin Rmax => C.drawMeasure D).real
           {d | ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongRun C R seed Rmax d).2.1

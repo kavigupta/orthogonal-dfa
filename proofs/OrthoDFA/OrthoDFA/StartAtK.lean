@@ -201,24 +201,23 @@ noncomputable def visits (t : DTree α) (edges : Edges α) (k : ℕ) (x : FreeMo
   (walkCheck R t edges k x).elim (fun _ => 0) fun d =>
     visited (agreesAt R t x fun j => d.1.getD (j - k) []) (d.2 - k) k d.2
 
-/-- Each block string a split test has read, with the leaf and distinguisher of the first test
-that read it. -/
-abbrev Tested (α : Type*) := List (FreeMonoid α × (List Bool × FreeMonoid α))
+/-- A split test's key: the leaf's path and the distinguisher. -/
+abbrev TestKey (α : Type*) := List Bool × FreeMonoid α
 
-/-- A block string a test at another leaf or distinguisher read first. -/
-def Tested.skip (T : Tested α) (key : List Bool × FreeMonoid α) (b : FreeMonoid α) : Prop :=
-  ∃ key', (b, key') ∈ T ∧ key' ≠ key
+/-- Each block string a split test has counted, with the key of the first test that counted it. -/
+abbrev Tested (α : Type*) := List (FreeMonoid α × TestKey α)
 
-/-- `T` with the strings `bs` a test at `key` read, those no test read before. -/
-def Tested.record (T : Tested α) (key : List Bool × FreeMonoid α) (bs : List (FreeMonoid α)) :
-    Tested α :=
+/-- `T` with the strings `bs` a test at `key` counted, those no test counted before. -/
+def Tested.record (T : Tested α) (key : TestKey α) (bs : List (FreeMonoid α)) : Tested α :=
   T ++ (bs.filter fun b => b ∉ T.map Prod.fst).map (·, key)
 
+open scoped Classical in
 /-- `_act_on_disagreement` at the edge into `fd` of a probe whose walk from `k` visits `ps`: the
-guards, then the split test, skipping the block strings `T` says a test elsewhere read first; a
-no-split answered as undecided is (#412). -/
+guards, then the split test, skipping the block strings `skip` holds at its key; a no-split
+answered as undecided is (#412). A key in `forced` is taken as not splitting, untested. -/
 noncomputable def seedStep (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α)
-    (T : Tested α) (k : ℕ) (x : FreeMonoid α) (ps : List (List Bool)) (fd : ℕ) : SeedResult α :=
+    (skip : TestKey α → FreeMonoid α → Prop) (forced : Set (TestKey α)) (k : ℕ)
+    (x : FreeMonoid α) (ps : List (List Bool)) (fd : ℕ) : SeedResult α :=
   let walkAt := fun j => ps.getD (j - k) []
   match x.toList[fd - 1]? with
   | none => .dropped
@@ -239,48 +238,89 @@ noncomputable def seedStep (t : DTree α) (pool : List (FreeMonoid α)) (edges :
         | none => .dropped
         | some (.inr b) => .stopped b
         | some (.inl d) =>
-          match verdict K R t pool s1 d (t.paths.length * Fintype.card α) (T.skip (s1, d)) with
+          if (s1, d) ∈ forced then .member s1 sprime d
+          else
+          match verdict K R t pool s1 d (t.paths.length * Fintype.card α) (skip (s1, d)) with
           | .split => .split d s1 y sprime
           | _ => .member s1 sprime d
 
+/-- The witnesses of `edges`. -/
+def witnesses (edges : Edges α) : Set (FreeMonoid α) := {y | ∃ p c q, edges p c = some (q, y)}
+
+/-- What a probe of `x` may read against the trees `t` and `t'`, the population `pool` and the
+witnesses `W`: a string of `pool` or `W` or a prefix of `x` from `k` on, then at most a letter,
+then a midfix, then a suffix of the family or its training half. -/
+def stepReads (K : StageKnobs α) (F : Finset (FreeMonoid α)) (t t' : DTree α)
+    (pool : List (FreeMonoid α)) (W : Set (FreeMonoid α)) (k : ℕ) (x : FreeMonoid α) :
+    Set (FreeMonoid α) :=
+  {z | ∃ b, (b ∈ pool ∨ b ∈ W ∨ ∃ i, k ≤ i ∧ b = prefixOf x i) ∧ ∃ e : Option α, ∃ m,
+    (m ∈ t.midfixes ∨ m ∈ t'.midfixes) ∧ ∃ v ∈ F ∪ K.train F,
+      z = b * e.elim 1 FreeMonoid.of * m * v}
+
 /-- What the pass carries: the tree, the population, the learned edges, the probes since the
-last split or evidence weighed, and the block strings the split tests have read. -/
+last split or evidence weighed, the block strings the split tests have counted and their owners,
+every string read, and the keys taken as not splitting, which in the round are none. -/
 structure KState (α : Type*) where
   tree : DTree α
   pool : List (FreeMonoid α)
   edges : Edges α
   streak : ℕ
   tested : Tested α
+  log : Set (FreeMonoid α)
+  forced : Set (TestKey α)
 
 /-- Every edge re-voted, as after every probe. -/
 noncomputable def closeK (t : DTree α) (pool : List (FreeMonoid α)) (edges : Edges α)
-    (streak : ℕ) (T : Tested α) : KState α :=
-  ⟨t, pool, closeEdges K R t pool edges, streak, T⟩
+    (streak : ℕ) (T : Tested α) (log : Set (FreeMonoid α)) (forced : Set (TestKey α)) :
+    KState α :=
+  ⟨t, pool, closeEdges K R t pool edges, streak, T, log, forced⟩
 
-/-- `T` once the test of `d` at `s1` against `t` and `pool` has read its block strings. -/
+/-- The block strings the test of `d` at `s1` against `t` and `pool` counts. -/
+noncomputable def counted (t : DTree α) (pool : List (FreeMonoid α))
+    (skip : TestKey α → FreeMonoid α → Prop) (s1 : List Bool) (d : FreeMonoid α) :
+    List (FreeMonoid α) :=
+  (testStrings K R t pool s1 d (skip (s1, d))).map Prod.fst
+
+/-- `T` once the test of `d` at `s1` against `t` and `pool` has counted its block strings. -/
 noncomputable def testedAfter (t : DTree α) (pool : List (FreeMonoid α)) (T : Tested α)
-    (s1 : List Bool) (d : FreeMonoid α) : Tested α :=
-  T.record (s1, d) ((testStrings K R t pool s1 d (T.skip (s1, d))).map Prod.fst)
+    (skip : TestKey α → FreeMonoid α → Prop) (s1 : List Bool) (d : FreeMonoid α) : Tested α :=
+  T.record (s1, d) (counted K R t pool skip s1 d)
+
+/-- What a split test on the probe `x` from `s` skips at a key: a block string read before that
+a test at the key has not counted first. -/
+def stepSkip (k : ℕ) (s : KState α) (x : FreeMonoid α) (κ : TestKey α) (b : FreeMonoid α) :
+    Prop :=
+  (b ∈ s.log ∨ b ∈ stepReads K R.F s.tree s.tree s.pool (witnesses s.edges) k x)
+    ∧ (b, κ) ∉ s.tested
 
 /-- One probe of the counterexample pass. -/
 noncomputable def probeStepK (k : ℕ) (s : KState α) (x : FreeMonoid α) : KState α :=
-  let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1) s.tested
+  let skip := stepSkip K R k s x
+  let post := fun (t' : DTree α) (pool' : List (FreeMonoid α)) =>
+    s.log ∪ stepReads K R.F s.tree t' (s.pool ++ pool') (witnesses s.edges) k x
+  let quiet := closeK K R s.tree s.pool s.edges (s.streak + 1) s.tested (post s.tree s.pool)
+    s.forced
   match probeOutcome R s.tree s.edges k x with
   | .edge ps fd =>
-      match seedStep K R s.tree s.pool s.edges s.tested k x ps fd with
+      match seedStep K R s.tree s.pool s.edges skip s.forced k x ps fd with
       | .split d s1 y sprime =>
         let cleared : Edges α := fun p c' =>
           match s.edges p c' with
           | some (q, w) => if p = s1 ∨ q = s1 then none else some (q, w)
           | none => none
-        closeK K R (s.tree.splitAt d s1) (s.pool ++ ([y, sprime].filter (· ∉ s.pool))) cleared 0
-          (testedAfter K R s.tree s.pool s.tested s1 d)
-      | .member s1 sprime d => closeK K R s.tree (sprime :: s.pool.filter (· ≠ sprime)) s.edges 0
-          (testedAfter K R s.tree s.pool s.tested s1 d)
+        let pool' := s.pool ++ ([y, sprime].filter (· ∉ s.pool))
+        closeK K R (s.tree.splitAt d s1) pool' cleared 0
+          (testedAfter K R s.tree s.pool s.tested skip s1 d)
+          (post (s.tree.splitAt d s1) pool' ∪ {b | b ∈ counted K R s.tree s.pool skip s1 d})
+          s.forced
+      | .member s1 sprime d =>
+        let pool' := sprime :: s.pool.filter (· ≠ sprime)
+        closeK K R s.tree pool' s.edges 0 (testedAfter K R s.tree s.pool s.tested skip s1 d)
+          (post s.tree pool' ∪ {b | b ∈ counted K R s.tree s.pool skip s1 d}) s.forced
       | _ => quiet
   | .member u =>
-    closeK K R s.tree (if u ∈ s.pool then s.pool else s.pool ++ [u]) s.edges (s.streak + 1)
-      s.tested
+    let pool' := if u ∈ s.pool then s.pool else s.pool ++ [u]
+    closeK K R s.tree pool' s.edges (s.streak + 1) s.tested (post s.tree pool') s.forced
   | _ => quiet
 
 /-- The pass: probes in order until `patience` in a row are quiet. -/
@@ -288,9 +328,10 @@ noncomputable def runPassK (k : ℕ) (s : KState α) (probes : List (FreeMonoid 
   probes.foldl (fun s x => if K.patience ≤ s.streak then s else probeStepK K R k s x) s
 
 /-- The first state: the root reads at `ε`, the population is the table's prefixes, and the
-edges are voted once. -/
+edges are voted once, reading the population. -/
 noncomputable def initialK (seed : List (FreeMonoid α)) : KState α :=
   closeK K R (.node 1 .leaf .leaf) seed (fun _ _ => none) 0 []
+    (stepReads K R.F (.node 1 .leaf .leaf) (.node 1 .leaf .leaf) seed ∅ 0 1) ∅
 
 open scoped Classical in
 /-- How many of a batch's first `n` draws satisfy `P`. -/
@@ -384,7 +425,7 @@ def RoundAtKHolds (s : KState α) (D : Measure (FreeMonoid α)) (k : ℕ) (acc �
     ∧ ((hitsIn bg agree T : ℝ) < acc * T → (∀ i : Fin ng, (i : ℕ) < T → ¬ Bisected R t e k (bg i)) →
       D.real {x | Bisected R t e k x} ≤ δ))
   ∧ (∀ i ps fd, probeOutcome R t e k (bg i) = .edge ps fd →
-      seedStep K R t s.pool e s.tested k (bg i) ps fd ≠ .dropped)
+      seedStep K R t s.pool e (fun _ _ => False) ∅ k (bg i) ps fd ≠ .dropped)
   ∧ (∀ i u, probeOutcome R t e k (bg i) = .member u →
       ∃ p c, e p c = none ∧ t.sift R.cut u = .inl p ∧ (t.sift R.cut (u * FreeMonoid.of c)).isLeft)
 

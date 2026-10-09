@@ -38,10 +38,11 @@ variable (K : StageKnobs α) (R : CutReads α)
 
 /-- An attempt on the edge a probe's search ends at never stops. -/
 theorem seedStep_ne_stopped {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)}
     (hl : Learned R t edges) {k : ℕ} {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     (h : probeOutcome R t edges k x = .edge ps fd) (b : FreeMonoid α) :
-    seedStep K R t pool edges T k x ps fd ≠ .stopped b := by
+    seedStep K R t pool edges skip forced k x ps fd ≠ .stopped b := by
   obtain ⟨ps₀, hi, hw, hb⟩ := probeOutcome_search R h trivial
   obtain ⟨p₀, hk, hf, hkh, hhn, hpn⟩ := walkCheck_inr R hw
   set walkAt : ℕ → List Bool := fun j => ps₀.getD (j - k) [] with hwalk
@@ -77,7 +78,9 @@ theorem seedStep_ne_stopped {t : DTree α} {pool : List (FreeMonoid α)} {edges 
       _ | d | b''
     · simp
     · simp only []
-      split <;> simp
+      split_ifs
+      · simp
+      · split <;> simp
     · exfalso
       have hs4 : ∃ p', t.sift R.cut (prefixOf x (fd - 1) * FreeMonoid.of x.toList[fd - 1])
           = .inl p' := by
@@ -96,12 +99,15 @@ theorem round_strong_no_stop : RoundStrongNoStop := by
   intro α _ _ C R seed Rmax d x ps fd s ho
   have hl := (strongRound_preserves C R (fun _ => True) (fun _ _ _ _ _ _ => trivial)
     (fun _ _ _ _ => trivial) Rmax 0 (startAcc C R seed) [] d (startAcc_inv C R seed) trivial).1.1
-  have hnd := seedStep_ne_dropped C.K R (pool := s.pool) (T := s.tested) hl ho
-  have hns := seedStep_ne_stopped C.K R (pool := s.pool) (T := s.tested) hl ho
-  rcases hs : seedStep C.K R s.tree s.pool s.edges s.tested C.k x ps fd with
+  have hnd := seedStep_ne_dropped C.K R (pool := s.pool) (skip := stepSkip C.K R C.k s x)
+    (forced := s.forced) hl ho
+  have hns := seedStep_ne_stopped C.K R (pool := s.pool) (skip := stepSkip C.K R C.k s x)
+    (forced := s.forced) hl ho
+  rcases hs : seedStep C.K R s.tree s.pool s.edges (stepSkip C.K R C.k s x) s.forced C.k x ps fd
+    with
     ⟨dd, s1, y, sp⟩ | ⟨s1, sp, dd⟩ | b | _
-  · exact .inl ⟨dd, s1, y, sp, rfl⟩
-  · exact .inr ⟨s1, sp, dd, rfl⟩
+  · exact .inl ⟨dd, s1, y, sp, hs⟩
+  · exact .inr ⟨s1, sp, dd, hs⟩
   · exact absurd hs (hns b)
   · exact absurd hs hnd
 

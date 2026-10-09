@@ -194,9 +194,10 @@ theorem parting_inl {cut : FreeMonoid α → Option Bool} {x y pre d : FreeMonoi
     · exact parting_inl a h
 
 theorem seedStep_split_facts (K : StageKnobs α) (R : CutReads α) {t : DTree α}
-    {pool : List (FreeMonoid α)} {edges : Edges α} {T : Tested α} {k : ℕ} {x : FreeMonoid α}
+    {pool : List (FreeMonoid α)} {edges : Edges α} {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)} {k : ℕ} {x : FreeMonoid α}
     {ps : List (List Bool)} {fd : ℕ} {d : FreeMonoid α} {s1 : List Bool} {y sprime : FreeMonoid α}
-    (h : seedStep K R t pool edges T k x ps fd = .split d s1 y sprime) :
+    (h : seedStep K R t pool edges skip forced k x ps fd = .split d s1 y sprime) :
     SplitOK R ⟨t, s1, d, y, sprime⟩ := by
   unfold seedStep at h
   simp only [] at h
@@ -215,6 +216,8 @@ theorem seedStep_split_facts (K : StageKnobs α) (R : CutReads α) {t : DTree α
   · simp at h
   · simp at h
   rename_i d' hpt
+  split_ifs at h
+  all_goals try (simp at h; done)
   split at h
   · simp only [SeedResult.split.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
@@ -278,10 +281,11 @@ section Step
 variable (C : StrongCfg α) (R : CutReads α)
 
 theorem split_leaf_mem {t : DTree α} {pool : List (FreeMonoid α)} {edges : Edges α}
-    {T : Tested α} {k : ℕ}
+    {skip : TestKey α → FreeMonoid α → Prop}
+    {forced : Set (TestKey α)} {k : ℕ}
     (hl : Learned R t edges) {x : FreeMonoid α} {ps : List (List Bool)} {fd : ℕ}
     {d y sp : FreeMonoid α} {s1 : List Bool}
-    (h : seedStep C.K R t pool edges T k x ps fd = .split d s1 y sp) : s1 ∈ t.paths := by
+    (h : seedStep C.K R t pool edges skip forced k x ps fd = .split d s1 y sp) : s1 ∈ t.paths := by
   obtain ⟨⟨c, s2, he⟩, -⟩ := seedStep_split_spec C.K R h
   exact DTree.sift_mem_paths t _ _ (hl _ _ _ _ he).1
 
@@ -326,7 +330,8 @@ theorem strongStep_cases (A : RoundAcc α) (x : FreeMonoid α)
     rw [hst]
     exact ⟨rfl, hp⟩
   obtain ⟨ps, fd, ho⟩ := hE
-  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges A.s.tested C.k x ps fd with
+  rcases hs : seedStep C.K R A.s.tree A.s.pool A.s.edges (stepSkip C.K R C.k A.s x) A.s.forced
+      C.k x ps fd with
     ⟨d, s1, y, sp⟩ | ⟨s1, sp⟩ | b | _
   · right
     refine ⟨⟨A.s.tree, s1, d, y, sp⟩, ?_, rfl, split_leaf_mem C R hl hs, ?_,
@@ -353,7 +358,8 @@ noncomputable def passBody (A : RoundAcc α) (x : FreeMonoid α) : RoundAcc α :
 
 theorem strongPass_eq (A : RoundAcc α) (probes : List (FreeMonoid α)) :
     strongPass C R A probes
-      = probes.foldl (passBody C R) { A with s := { A.s with streak := 0 } } :=
+      = probes.foldl (passBody C R)
+        { A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } } :=
   rfl
 
 theorem strongReading_fst (j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (y : C.Draws) :
@@ -507,7 +513,8 @@ theorem strongRound_preserves (P : RoundAcc α → Prop)
     intro j A first y h1 h2
     obtain ⟨hs, hsp, -⟩ := strongReading_fst C R j A first y
     rw [strongPass_eq] at hs hsp
-    obtain ⟨g1, g2⟩ := hfold (first ++ List.ofFn y.1) { A with s := { A.s with streak := 0 } } h1
+    obtain ⟨g1, g2⟩ := hfold (first ++ List.ofFn y.1)
+      { A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } } h1
       (hcongr A _ rfl rfl rfl h2)
     refine ⟨⟨?_, ?_⟩, hcongr _ _ (by rw [hs]) (by rw [hs]) (by rw [hsp]) g2⟩
     · rw [hs]; exact g1.1
@@ -549,7 +556,7 @@ theorem reading_entry (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) {A :
   have hrr := fun lv (h : (strongReading C R j A first y).2 = .inr lv) =>
     strongReading_rerun_budget C R h
   rw [strongPass_eq] at hs hsp hus hrr
-  set X : RoundAcc α := { A with s := { A.s with streak := 0 } }
+  set X : RoundAcc α := { A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } }
   have hIX : StrongInv R X := hI
   obtain ⟨i1, i2, i3, -⟩ := fold_inv C R hb (first ++ List.ofFn y.1) X hIX hu
   have hgain := fold_gain C R (first ++ List.ofFn y.1) X
@@ -743,8 +750,8 @@ open scoped Classical in
 `strongBound`, and the certificate's failure chance where its gate settles above. -/
 theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
     {Ac : RoundAcc α} {first : List (FreeMonoid α)}
     (j Rmax : ℕ) (pr : Fin C.np → FreeMonoid α) :
     ((Measure.pi fun _ : Fin C.ng => D).prod ((Measure.pi fun _ : Fin C.nr => D).prod
@@ -765,7 +772,8 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
   set Miss := {br : Fin C.nr → FreeMonoid α | ν < D.real {x | NAOff R s.tree s.edges C.k gu x}
     ∧ ∀ i, ¬ NAOff R s.tree s.edges C.k gu (br i)}
   set Called := {bg | CallsCert C R j Ac first pr bg}
-  set CB := {cs : Fin C.nc → FreeMonoid α | C.cert Ac.certs R s cs = true ∧ ¬ CertGood s}
+  set CB := {cs : Fin C.nc → FreeMonoid α |
+    C.cert Ac.certs s cs (fun i => R.f (cs i)) = true ∧ ¬ CertGood s}
   have hsub : {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
       ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first (pr, z)).1
         e}
@@ -819,7 +827,7 @@ theorem strong_section_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 �
   set ν₂ := Measure.pi fun _ : Fin C.nr => D
   set ν₃ := Measure.pi fun _ : Fin C.nc => D
   have hMiss := miss_all_le D (NAOff R s.tree s.edges C.k gu) C.nr hν
-  have hCB : ν₃.real CB ≤ αs Ac.certs := hcert Ac.certs R s
+  have hCB : ν₃.real CB ≤ αs Ac.certs := hcert Ac.certs s R.f
   calc (ν₁.prod (ν₂.prod ν₃)).real {z | ∃ e, (strongReading C R j Ac first (pr, z)).2 = .inl e
         ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax
           (strongReading C R j Ac first (pr, z)).1 e}
@@ -876,15 +884,15 @@ open scoped Classical in
 certificate's failure chance on the calls it makes. -/
 theorem strong_reading_bad_le {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc)
     (hacc1 : C.acc ≤ 1) (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
     {Ac : RoundAcc α} {first : List (FreeMonoid α)} (j Rmax : ℕ) :
     C.drawMeasure D {y | ∃ e, (strongReading C R j Ac first y).2 = .inl e
         ∧ ¬ StrongEndHolds C R A D CertGood η minCov ν Rmax (strongReading C R j Ac first y).1 e}
       ≤ ENNReal.ofReal (strongBound C ν j)
         + ∫⁻ y, certCost αs Ac.certs (strongReading C R j Ac first y).1.certs
           ∂C.drawMeasure D := by
-  have hα : 0 ≤ αs Ac.certs := measureReal_nonneg.trans (hcert Ac.certs R Ac.s)
+  have hα : 0 ≤ αs Ac.certs := measureReal_nonneg.trans (hcert Ac.certs Ac.s R.f)
   have hβ : 0 ≤ strongBound C ν j := by
     unfold strongBound
     have := pow_nonneg (by linarith : (0 : ℝ) ≤ 1 - ν) C.nr
@@ -929,8 +937,8 @@ expected sum of `strongBound` over the readings it makes, and the certificate's 
 the calls it makes. -/
 theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤ C.acc) (hacc1 : C.acc ≤ 1)
     (hf : 0 ≤ C.f) (ha : 0 ≤ C.a) (hν : ν ≤ 1)
-    (hcert : ∀ i R s, (Measure.pi fun _ : Fin C.nc => D).real
-      {cs | C.cert i R s cs = true ∧ ¬ CertGood s} ≤ αs i)
+    (hcert : ∀ i s (g : FreeMonoid α → ℝ), (Measure.pi fun _ : Fin C.nc => D).real
+      {cs | C.cert i s cs (fun j => g (cs j)) = true ∧ ¬ CertGood s} ≤ αs i)
     (hp : C.K.patience ≤ C.np) (hb : Monotone C.budget) (Rmax : ℕ) :
     ∀ (n j : ℕ) (Ac : RoundAcc α) (first : List (FreeMonoid α)), Entry C R Ac j →
       j + n = Rmax →
@@ -941,7 +949,7 @@ theorem strong_round_bad {αs : ℕ → ℝ} {η minCov ν : ℝ} (hacc0 : 0 ≤
               ENNReal.ofReal (strongBound C ν (j + i)))
             + certCost αs Ac.certs (strongRound C R n j Ac first d).2.1.certs
           ∂(Measure.pi fun _ : Fin n => C.drawMeasure D) := by
-  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i R (startAcc C R []).s)
+  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i (startAcc C R []).s R.f)
   intro n
   induction n with
   | zero =>
@@ -1052,7 +1060,7 @@ end StrongReading
 
 theorem round_strong_trichotomy : RoundStrongTrichotomy := by
   intro α _ _ Q C A D _ seed CertGood αs η minCov ν Rmax hacc0 hacc1 hf ha hν hp hb hcert R
-  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i R (startAcc C R seed).s)
+  have hα : ∀ i, 0 ≤ αs i := fun i => measureReal_nonneg.trans (hcert i (startAcc C R seed).s R.f)
   set P := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
   set N : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.2.length
   set M : (Fin Rmax → C.Draws) → ℕ := fun d => (strongRun C R seed Rmax d).2.1.certs
@@ -1134,10 +1142,16 @@ section Segments
 
 variable (C : StrongCfg α)
 
-/-- The round's passes over its readings' probes, one segment each. -/
-noncomputable def segRun (R : CutReads α) : RoundAcc α → List (List (FreeMonoid α)) → RoundAcc α
+/-- A reading's accumulator once its gate, refusal sample and certificate have read the draws
+`y`. -/
+def afterReads (R : CutReads α) (A : RoundAcc α) (y : C.Draws) : RoundAcc α :=
+  { A with reads := A.reads ∪ readingReads C R.F A.s.tree y }
+
+/-- The round's passes over its readings' probes, one segment each, with each reading's draws. -/
+noncomputable def segRun (R : CutReads α) :
+    RoundAcc α → List (List (FreeMonoid α) × C.Draws) → RoundAcc α
   | A, [] => A
-  | A, seg :: rest => segRun R (strongPass C R A seg) rest
+  | A, seg :: rest => segRun R (afterReads C R (strongPass C R A seg.1) seg.2) rest
 
 theorem strongStep_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (x : FreeMonoid α) :
     strongStep C R { A with certs := c } x = { strongStep C R A x with certs := c } := by
@@ -1161,22 +1175,26 @@ theorem fold_certs (R : CutReads α) :
     simp only [List.foldl_cons, passBody_certs]
     exact fold_certs R xs _ c
 
+theorem afterReads_certs (R : CutReads α) (A : RoundAcc α) (c : ℕ) (y : C.Draws) :
+    afterReads C R { A with certs := c } y = { afterReads C R A y with certs := c } := rfl
+
 theorem segRun_certs (R : CutReads α) :
-    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α) (c : ℕ),
+    ∀ (segs : List (List (FreeMonoid α) × C.Draws)) (A : RoundAcc α) (c : ℕ),
       segRun C R { A with certs := c } segs = { segRun C R A segs with certs := c }
   | [], _, _ => rfl
   | seg :: rest, A, c => by
     simp only [segRun, strongPass_eq]
     rw [show ({ ({ A with certs := c } : RoundAcc α) with
-        s := { A.s with streak := 0 } } : RoundAcc α)
-        = { ({ A with s := { A.s with streak := 0 } } : RoundAcc α) with certs := c } from rfl,
-      fold_certs]
+        s := { A.s with streak := 0, log := A.s.log ∪ A.reads } } : RoundAcc α)
+        = { ({ A with s := { A.s with streak := 0, log := A.s.log ∪ A.reads } } : RoundAcc α) with
+          certs := c } from rfl, fold_certs, afterReads_certs]
     exact segRun_certs R rest _ c
 
 theorem strongReading_acc (R : CutReads α) (j : ℕ) (A : RoundAcc α)
     (first : List (FreeMonoid α)) (y : C.Draws) :
-    (strongReading C R j A first y).1 = { strongPass C R A (first ++ List.ofFn y.1) with
-      certs := (strongReading C R j A first y).1.certs } := by
+    (strongReading C R j A first y).1
+      = { afterReads C R (strongPass C R A (first ++ List.ofFn y.1)) y
+      with certs := (strongReading C R j A first y).1.certs } := by
   unfold strongReading
   simp only []
   split_ifs <;> rfl
@@ -1211,17 +1229,19 @@ theorem strongReading_rerun_mem (R : CutReads α) {j : ℕ} {A : RoundAcc α}
     subst h
     exact mem_sublistsOfS C _ _
 
+open scoped Classical in
 /-- The segment lists a round over the draws `d` can take in `r` readings, from first probes
 among `firsts`. -/
 noncomputable def candS : (n : ℕ) → (Fin n → C.Draws) → ℕ → Finset (List (FreeMonoid α))
-    → Finset (List (List (FreeMonoid α)))
+    → Finset (List (List (FreeMonoid α) × C.Draws))
   | _, _, 0, _ => {[]}
   | 0, _, _ + 1, _ => ∅
   | n + 1, d, r + 1, firsts => firsts.biUnion fun f =>
-    insert [f ++ List.ofFn (d 0).1]
+    insert [(f ++ List.ofFn (d 0).1, d 0)]
       ((candS n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)).image
-        ((f ++ List.ofFn (d 0).1) :: ·))
+        ((f ++ List.ofFn (d 0).1, d 0) :: ·))
 
+open scoped Classical in
 theorem card_candS :
     ∀ (n : ℕ) (d : Fin n → C.Draws) (r : ℕ) (firsts : Finset (List (FreeMonoid α))),
       (candS C n d r firsts).card ≤ max 1 firsts.card * 2 ^ ((C.nr + 1) * r)
@@ -1231,13 +1251,13 @@ theorem card_candS :
     have ih := card_candS n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)
     have hS : max 1 (sublistsOfS C (d 0).2.2.1).card ≤ 2 ^ C.nr :=
       max_le (Nat.one_le_two_pow) (card_sublistsOfS C _)
-    have hone : ∀ f ∈ firsts, (insert [f ++ List.ofFn (d 0).1]
+    have hone : ∀ f ∈ firsts, (insert [(f ++ List.ofFn (d 0).1, d 0)]
         ((candS C n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1)).image
-          ((f ++ List.ofFn (d 0).1) :: ·))).card ≤ 2 ^ ((C.nr + 1) * (r + 1)) := by
+          ((f ++ List.ofFn (d 0).1, d 0) :: ·))).card ≤ 2 ^ ((C.nr + 1) * (r + 1)) := by
       intro f _
       refine (Finset.card_insert_le _ _).trans ?_
       have h1 := (Finset.card_image_le (s := candS C n (Fin.tail d) r (sublistsOfS C (d 0).2.2.1))
-        (f := ((f ++ List.ofFn (d 0).1) :: ·))).trans (ih.trans (Nat.mul_le_mul_right _ hS))
+        (f := ((f ++ List.ofFn (d 0).1, d 0) :: ·))).trans (ih.trans (Nat.mul_le_mul_right _ hS))
       have h2 : 2 ^ ((C.nr + 1) * (r + 1)) = 2 * (2 ^ C.nr * 2 ^ ((C.nr + 1) * r)) := by ring
       have h3 : 1 ≤ 2 ^ C.nr * 2 ^ ((C.nr + 1) * r) := Nat.one_le_iff_ne_zero.2 (by positivity)
       omega
@@ -1246,13 +1266,14 @@ theorem card_candS :
     rw [Finset.sum_const, smul_eq_mul]
     exact Nat.mul_le_mul_right _ (le_max_right _ _)
 
+open scoped Classical in
 /-- The round's probes are its readings' segments in order, and it ends where the segments' passes
 do. -/
 theorem strongRound_segs (R : CutReads α) :
     ∀ (n j : ℕ) (A : RoundAcc α) (first : List (FreeMonoid α)) (d : Fin n → C.Draws)
       (firsts : Finset (List (FreeMonoid α))), first ∈ firsts →
       ∃ segs ∈ candS C n d (strongRound C R n j A first d).2.2.length firsts,
-        strongProbes C R n j A first d = segs.flatten
+        strongProbes C R n j A first d = (segs.map Prod.fst).flatten
           ∧ (strongRound C R n j A first d).2.1.s = (segRun C R A segs).s
   | 0, _, _, _, _, _, _ => ⟨[], by simp [strongRound, candS], by simp [strongProbes],
       by simp [strongRound, segRun]⟩
@@ -1263,17 +1284,17 @@ theorem strongRound_segs (R : CutReads α) :
     rcases hR : strongReading C R j A first (d 0) with ⟨A'', e | lv⟩ <;>
       rw [hR] at hacc hmem <;> dsimp only at hacc hmem <;>
       simp only [strongRound, strongProbes, hR]
-    · refine ⟨[first ++ List.ofFn (d 0).1], ?_, by simp, ?_⟩
+    · refine ⟨[(first ++ List.ofFn (d 0).1, d 0)], ?_, by simp, ?_⟩
       · simp only [List.length_singleton, candS]
         exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_self _ _⟩
       · rw [hacc]; rfl
     · obtain ⟨segs, hs, hp, hst⟩ := strongRound_segs R n (j + 1) A'' lv (Fin.tail d)
         (sublistsOfS C (d 0).2.2.1) (hmem lv rfl)
-      refine ⟨(first ++ List.ofFn (d 0).1) :: segs, ?_, ?_, ?_⟩
+      refine ⟨(first ++ List.ofFn (d 0).1, d 0) :: segs, ?_, ?_, ?_⟩
       · simp only [List.length_cons, candS]
         exact Finset.mem_biUnion.2 ⟨first, hf, Finset.mem_insert_of_mem
           (Finset.mem_image.2 ⟨segs, hs, rfl⟩)⟩
-      · rw [hp, List.flatten_cons]
+      · rw [hp, List.map_cons, List.flatten_cons]
       · rw [hst, hacc, segRun_certs]
         rfl
 
@@ -1297,14 +1318,14 @@ theorem fold_mids (R : CutReads α) :
     · exact strongStep_mids C R A x m hm
 
 theorem segRun_mids (R : CutReads α) :
-    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α),
+    ∀ (segs : List (List (FreeMonoid α) × C.Draws)) (A : RoundAcc α),
       ∀ m ∈ A.s.tree.mids, m ∈ (segRun C R A segs).s.tree.mids
   | [], _, _, hm => hm
   | seg :: rest, A, m, hm => by
     simp only [segRun]
     refine segRun_mids R rest _ m ?_
     rw [strongPass_eq]
-    exact fold_mids C R seg _ m hm
+    exact fold_mids C R seg.1 _ m hm
 
 section Congr
 
@@ -1329,9 +1350,10 @@ theorem strongStep_congr {A : RoundAcc α} {x : FreeMonoid α} (Tf : DTree α)
   have hpo : probeOutcome (rd B F f₁) A.s.tree A.s.edges C.k x
       = probeOutcome (rd B F f₂) A.s.tree A.s.edges C.k x :=
     probeOutcome_congr fun i hi m hm => (hw' i hi).tree m hm
+  have hsk : stepSkip C.K (rd B F f₁) C.k A.s x = stepSkip C.K (rd B F f₂) C.k A.s x := rfl
   unfold strongStep
   simp only []
-  rw [hps, hpo]
+  rw [hps, hpo, hsk]
   split
   · rename_i ps fd heq
     have hfd : C.k ≤ fd - 1 := by have := probeOutcome_edge_gt _ heq; omega
@@ -1378,20 +1400,20 @@ theorem fold_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
 
 theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
     (hB : ∀ b ∈ Bs, AgreeOne C.K F f₁ f₂ Tf b) :
-    ∀ (segs : List (List (FreeMonoid α))) (A : RoundAcc α), KPoolIn Bs A.s →
-      (∀ x ∈ segs.flatten, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
+    ∀ (segs : List (List (FreeMonoid α) × C.Draws)) (A : RoundAcc α), KPoolIn Bs A.s →
+      (∀ x ∈ (segs.map Prod.fst).flatten, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
       (∀ m ∈ (segRun C (rd B F f₁) A segs).s.tree.mids, m ∈ Tf.mids) →
       segRun C (rd B F f₁) A segs = segRun C (rd B F f₂) A segs
   | [], _, _, _, _ => by simp only [segRun]
   | seg :: rest, A, hA, hws, hT => by
     simp only [segRun] at hT ⊢
-    have hseg : ∀ x ∈ seg, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs := fun x hx =>
-      hws x (List.mem_flatten.2 ⟨seg, List.mem_cons_self .., hx⟩)
-    have hpass : strongPass C (rd B F f₁) A seg = strongPass C (rd B F f₂) A seg := by
+    have hseg : ∀ x ∈ seg.1, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs := fun x hx =>
+      hws x (List.mem_flatten.2 ⟨seg.1, List.mem_cons_self .., hx⟩)
+    have hpass : strongPass C (rd B F f₁) A seg.1 = strongPass C (rd B F f₂) A seg.1 := by
       rw [strongPass_eq, strongPass_eq]
-      exact fold_congr C Tf hB seg _ hA hseg fun m hm =>
+      exact fold_congr C Tf hB seg.1 _ hA hseg fun m hm =>
         hT m (segRun_mids C _ rest _ m (by rw [strongPass_eq]; exact hm))
-    have hA' : KPoolIn Bs (strongPass C (rd B F f₁) A seg).s := by
+    have hA' : KPoolIn Bs (strongPass C (rd B F f₁) A seg.1).s := by
       rw [strongPass_eq]
       have : ∀ (l : List (FreeMonoid α)) (X : RoundAcc α), KPoolIn Bs X.s →
           (∀ x ∈ l, ∀ i, C.k ≤ i → prefixOf x i ∈ Bs) →
@@ -1407,7 +1429,7 @@ theorem segRun_congr {Bs : Set (FreeMonoid α)} (Tf : DTree α)
           split_ifs
           · exact h
           · exact strongStep_poolIn C _ h (hl x (List.mem_cons_self ..))
-      exact this seg _ hA hseg
+      exact this seg.1 _ hA hseg
     rw [← hpass]
     exact segRun_congr Tf hB rest _ hA'
       (fun x hx => hws x (List.mem_flatten.2 (by
@@ -1420,11 +1442,11 @@ end Congr
 can read against the tree they end with. -/
 theorem segRun_determined {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     (O : Oracle μ (FreeMonoid α)) (B : State) (F : Finset (FreeMonoid α))
-    (seed : List (FreeMonoid α)) (segs : List (List (FreeMonoid α))) :
-    PassDetermined O B F C.K C.k seed segs.flatten
+    (seed : List (FreeMonoid α)) (segs : List (List (FreeMonoid α) × C.Draws)) :
+    PassDetermined O B F C.K C.k seed (segs.map Prod.fst).flatten
       fun R => (segRun C R (startAcc C R seed) segs).s := by
   intro ω ω' h
-  set probes := segs.flatten
+  set probes := (segs.map Prod.fst).flatten
   set Bs : Set (FreeMonoid α) := {b | b ∈ seed ++ probes.flatMap fun p =>
     (List.range (p.toList.length + 1)).map fun i => prefixOf p (max C.k i)}
   set Tf := (segRun C (readsAt O B F ω) (startAcc C (readsAt O B F ω) seed) segs).s.tree
@@ -1470,8 +1492,9 @@ theorem round_strong_quality : RoundStrongQuality := by
     have : 0 ≤ (((C.nr + 1) * r + r + 1 : ℕ) : ℝ) * Real.log 2 :=
       mul_nonneg (Nat.cast_nonneg _) (Real.log_nonneg (by norm_num))
     linarith
-  have hq := fun (r : ℕ) (segs : List (List (FreeMonoid α))) => quality_holds_of (μ := μ) A O B F
-    C.K D hkL seed segs.flatten _ (segRun_determined C O B F seed segs) hf hc (heps r) hlen hV
+  have hq := fun (r : ℕ) (segs : List (List (FreeMonoid α) × C.Draws)) => quality_holds_of
+    (μ := μ) A O B F C.K D hkL seed (segs.map Prod.fst).flatten _
+    (segRun_determined C O B F seed segs) hf hc (heps r) hlen hV
   choose Ef hEf hgood using hq
   set E : Set Ω := ⋃ r ∈ Finset.range (Rmax + 1), ⋃ p ∈ candS C Rmax d r {[]}, Ef r p
   refine ⟨E, ?_, fun ω hω => ?_⟩
