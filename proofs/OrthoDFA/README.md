@@ -78,6 +78,17 @@
   with meets `QualityHolds` against every probe its passes took, at a fluctuation `ε_r` set by the
   number `r` of readings it made. The reruns' probes are picked by reads, so the set covers every
   choice of live-edge draws, `2^((nr+1)·r)` of them for `r` readings, each `r` at chance `δ·2^-(r+1)`.
+- `OrthoDFA/RoundStrong.lean` — statements only, not yet proved. The round with what Python carries
+  across readings: every end of the split test but a split counts against its edge, an edge with
+  `mmax` of them is given up, the strings stopping the test's guards are held, each pass starts a
+  fresh quiet streak, and probes are counted against `probe_budget`. A gate passes only where its
+  test settles above `acc`, and the certificate's failure chance is spent per call.
+  `RoundStrongBudget`: the budget is never reached, so there is no exhausted exit.
+  `RoundStrongReadings`: at most `readStar(leaves)` readings. `RoundStrongLeaves`: for any
+  reference placement of the target's states (ℓ\* places them by each read's more likely side),
+  at most `|Q| + 2` leaves plus the splits that separate no two states. `RoundStrongLeafPaths`:
+  edges join leaves. `RoundStrongTrichotomy`, `RoundStrongQuality`: the level theorems for this
+  round.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class, with Hoeffding
