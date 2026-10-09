@@ -6,7 +6,10 @@ mean lands decisively past a threshold. This owns that family: the suffix rows
 and the memo of the means computed from them.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
+
+#: Suffixes read at a time while a node's verdict is still open.
+READ_BLOCK = 8
 
 
 class SuffixFamily:
@@ -26,6 +29,9 @@ class SuffixFamily:
         self.test_idx = list(range(1, len(self.vs), 2))
         # keyed by seq + midfix, which is all a mean depends on
         self._means: Dict[bytes, float] = {}
+        #: Per base, its cut verdict and middle side, where those were fixed
+        #: before every suffix was read.
+        self._sides: Dict[bytes, Tuple[Optional[bool], bool]] = {}
 
     def bits(self, base) -> List[int]:
         """Membership of ``base`` under each family suffix, through the table's
@@ -53,23 +59,52 @@ class SuffixFamily:
         return value
 
     def knows(self, seq, midfix) -> bool:
-        return seq + midfix in self._means
+        return seq + midfix in self._means or seq + midfix in self._sides
 
     def is_accept(self, seq, midfix) -> Optional[bool]:
         """Confidently classify ``seq`` at ``midfix``: ``True`` / ``False`` when
         the family mean lands past ``accept_thresh`` / ``reject_thresh``, and
         ``None`` in the indecisive band between them."""
-        mean = self.mean(seq, midfix)
+        return self._sides_of(seq + midfix)[0]
+
+    def middle_side(self, seq, midfix) -> bool:
+        """Whether the family mean lands above the middle of the band; exactly on
+        it reads as reject."""
+        return self._sides_of(seq + midfix)[1]
+
+    def _cut(self, mean) -> Optional[bool]:
         if mean >= self.accept_thresh:
             return True
         if mean < self.reject_thresh:
             return False
         return None
 
-    def middle_side(self, seq, midfix) -> bool:
-        """Whether the family mean lands above the middle of the band; exactly on
-        it reads as reject."""
-        return self.mean(seq, midfix) > self.middle
+    def _sides_of(self, base) -> Tuple[Optional[bool], bool]:
+        """``base``'s cut verdict and middle side, reading its suffixes
+        ``READ_BLOCK`` at a time only until no rest of them could move
+        either."""
+        if base in self._means:
+            mean = self._means[base]
+            return self._cut(mean), mean > self.middle
+        if base in self._sides:
+            return self._sides[base]
+        table, n = self.pst.table, len(self.vs)
+        ones = read = 0
+        while True:
+            block = self.vs[read : read + READ_BLOCK]
+            ones += sum(
+                table.memo.membership_queries([base + table.suffix(v) for v in block])
+            )
+            read += len(block)
+            low, high = ones / n, (ones + n - read) / n
+            if self._cut(low) == self._cut(high) and (low > self.middle) == (
+                high > self.middle
+            ):
+                break
+        if read == n:
+            self._means[base] = low
+        sides = self._sides[base] = (self._cut(low), low > self.middle)
+        return sides
 
     def votes(self, seq, midfix) -> List[int]:
         """Per-suffix accept bits"""
