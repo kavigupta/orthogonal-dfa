@@ -10,7 +10,8 @@ accepts at `X(w) ≥ kh`, rejects at `X(w) ≤ kl`, and is undecided in between.
 Across strings the reads are independent draws when no member of `F` is a proper suffix of
 another, and a string's read law is fixed by how many members its DFA state sends into the
 language.  So whether every state's read is nearly never accept, nearly never reject, or often
-undecided comes down to a check on the parameters alone, `TrichotomyAt`.
+undecided comes down to a check on the parameters alone, `TrichotomyAt`, which the band selection
+rule makes.
 -/
 
 namespace OrthoDFA
@@ -72,6 +73,21 @@ def TrichotomyAt (N kl kh : ℕ) (ηIn ηOut ε : ℝ) : Prop :=
     ∨ readLaw N a (1 - ηIn) ηOut kl kh .reject ≤ ε
     ∨ 1 / 3 ≤ readLaw N a (1 - ηIn) ηOut kl kh .undecided
 
+/-! ## The band selection rule -/
+
+/-- `binom_cdf(k, N, q)`. -/
+noncomputable def binomCdf (N k : ℕ) (q : ℝ) : ℝ :=
+  ∑ j ∈ Finset.range (k + 1), (N.choose j : ℝ) * q ^ j * (1 - q) ^ (N - j)
+
+/-- The three criteria `evidence_margin_for_population_size` accepts a band on: the cross
+rate at the band's edges, the FNR at `center ± s`, and `reads_trichotomous`. -/
+def SelectedBand (N kl kh : ℕ) (center s crossLimit acceptableFnr : ℝ) : Prop :=
+  max (binomCdf N kl (((kh : ℝ) - 1) / N)) (1 - binomCdf N (kh - 1) ((kl : ℝ) / N))
+      ≤ crossLimit
+  ∧ max (binomCdf N (kh - 1) (center + s) - binomCdf N kl (center + s))
+      (binomCdf N (kh - 1) (center - s) - binomCdf N kl (center - s)) ≤ acceptableFnr
+  ∧ TrichotomyAt N kl kh (1 - (center + s)) (center - s) crossLimit
+
 /-! ## The claims -/
 
 /-- With the language a DFA's and the family suffix-free, the reads are independent across
@@ -90,20 +106,20 @@ def FamilyReadTrichotomy : Prop :=
     (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
     ∧ (law .accept ≤ ε ∨ law .reject ≤ ε ∨ 1 / 3 ≤ law .undecided)
 
-/-- `FamilyReadTrichotomy` at the shipped parameters: `N = 62`, `kl = 20`, `kh = 42`, both
-noise rates `1/5`, and `ε = 10⁻¹⁰`. -/
-def FamilyReadShipped : Prop :=
+/-- `FamilyReadTrichotomy` for any band `evidence_margin_for_population_size` selects, with
+the oracle's rates `center ± s` and `ε = cross_limit`. -/
+def FamilyReadSelected : Prop :=
   ∀ {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω} [IsProbabilityMeasure μ]
     {α σ : Type*} [Countable α] (O : Oracle μ (FreeMonoid α)) (M : DFA α σ)
-    (F : Finset (FreeMonoid α)),
+    (F : Finset (FreeMonoid α)) (kl kh : ℕ) (center s crossLimit acceptableFnr : ℝ),
   (∀ w, w ∈ O.L ↔ M.eval w.toList ∈ M.accept) →
   SuffixFree F →
-  F.card = 62 →
-  O.ηIn = 1 / 5 →
-  O.ηOut = 1 / 5 →
-  iIndepFun (fun w => familyRead O.mq F 20 42 w) μ
+  O.ηIn = 1 - (center + s) →
+  O.ηOut = center - s →
+  SelectedBand F.card kl kh center s crossLimit acceptableFnr →
+  iIndepFun (fun w => familyRead O.mq F kl kh w) μ
   ∧ ∀ q : σ, ∃ law : Read → ℝ,
-    (∀ w, M.eval w.toList = q → ∀ rd, readProb O F 20 42 w rd = law rd)
-    ∧ (law .accept ≤ 1 / 10 ^ 10 ∨ law .reject ≤ 1 / 10 ^ 10 ∨ 1 / 3 ≤ law .undecided)
+    (∀ w, M.eval w.toList = q → ∀ rd, readProb O F kl kh w rd = law rd)
+    ∧ (law .accept ≤ crossLimit ∨ law .reject ≤ crossLimit ∨ 1 / 3 ≤ law .undecided)
 
 end OrthoDFA

@@ -344,118 +344,48 @@ theorem family_read_trichotomy_holds : FamilyReadTrichotomy := by
     htri a (Finset.card_filter_le _ _)⟩
   rw [readProb_eq_readLaw, acceptCount_eq_state O M hL, hw]
 
-/-! ## The shipped parameters, computed exactly
+theorem family_read_selected_holds : FamilyReadSelected := by
+  intro Ω _ μ _ α σ _ O M F kl kh center s crossLimit acceptableFnr hL hF hIn hOut hsel
+  exact family_read_trichotomy_holds O M F kl kh crossLimit hL hF
+    (by rw [hIn, hOut]; exact hsel.2.2)
 
-Rates `4/5` and `1/5` are weights `(1, 4)` and `(4, 1)` over `5`, so `5⁶²·P[X = k]` is an
-integer and the whole law is one integer recurrence. -/
+/-! ## Why the rule checks `TrichotomyAt`
 
-def stepAux (u v : ℕ) : ℕ → List ℕ → List ℕ
-  | prev, [] => [v * prev]
-  | prev, x :: xs => (u * x + v * prev) :: stepAux u v x xs
+Its cross and FNR criteria alone admit a band some state reads badly: `(2, 15)` over 15 at
+`center = 17/30`, where the state with no accepting member reads as `Bin(15, 67/500)`. -/
 
-def dpList : List (ℕ × ℕ) → List ℕ
-  | [] => [1]
-  | (u, v) :: l => stepAux u v 0 (dpList l)
-
-lemma stepAux_getD (u v : ℕ) (L : List ℕ) :
-    ∀ (prev k : ℕ), (stepAux u v prev L).getD k 0 = u * L.getD k 0 + v * (prev :: L).getD k 0 := by
-  induction L with
-  | nil =>
-    intro prev k
-    cases k <;> simp [stepAux]
-  | cons x xs ih =>
-    intro prev k
-    cases k with
-    | zero => simp [stepAux]
-    | succ k =>
-      simp only [stepAux, List.getD_cons_succ]
-      exact ih x k
-
-lemma dpList_getD (l : List (ℕ × ℕ)) (hl : ∀ x ∈ l, x.1 + x.2 = 5) (k : ℕ) :
-    ((dpList l).getD k 0 : ℝ)
-      = 5 ^ l.length * (l.map (fun x => (x.2 : ℝ) / 5)).foldr pbStep pbBase k := by
-  induction l generalizing k with
-  | nil =>
-    cases k <;> simp [dpList, pbBase]
-  | cons x l ih =>
-    obtain ⟨u, v⟩ := x
-    have huv : (u : ℝ) = 5 - v := by
-      have := hl (u, v) List.mem_cons_self
-      have h' : ((u + v : ℕ) : ℝ) = 5 := by exact_mod_cast this
-      push_cast at h'
-      linarith
-    have ih' := fun k => ih (fun y hy => hl y (List.mem_cons_of_mem _ hy)) k
-    simp only [dpList, List.map_cons, List.foldr_cons, List.length_cons]
-    rw [stepAux_getD]
-    cases k with
-    | zero =>
-      simp only [List.getD_cons_zero, pbStep]
-      push_cast
-      rw [ih' 0, huv]
-      ring
-    | succ k =>
-      simp only [List.getD_cons_succ, pbStep]
-      push_cast
-      rw [ih' (k + 1), ih' k, huv]
-      ring
-
-def shippedVotes (a : ℕ) : List ℕ :=
-  dpList (List.replicate a (1, 4) ++ List.replicate (62 - a) (4, 1))
-
-def shippedMass (a : ℕ) (rd : Read) : ℕ :=
-  ∑ j ∈ Finset.range 63, if readOf 20 42 j = rd then (shippedVotes a).getD j 0 else 0
-
-set_option maxRecDepth 100000 in
-lemma shippedMass_check : ∀ a < 63,
-    shippedMass a .accept * 10 ^ 10 ≤ 5 ^ 62 ∨ shippedMass a .reject * 10 ^ 10 ≤ 5 ^ 62
-      ∨ 5 ^ 62 ≤ 3 * shippedMass a .undecided := by
-  decide +kernel
-
-
-lemma voteLaw_shipped {a : ℕ} (ha : a ≤ 62) (j : ℕ) :
-    voteLaw 62 a (1 - 1 / 5) (1 / 5) j = ((shippedVotes a).getD j 0 : ℝ) / 5 ^ 62 := by
-  have hl : ∀ x ∈ List.replicate a (1, 4) ++ List.replicate (62 - a) (4, 1), x.1 + x.2 = 5 := by
-    intro x hx
-    rcases List.mem_append.1 hx with h | h <;> rw [(List.mem_replicate.1 h).2]
-    · rfl
-    · rfl
-  have hlen : (List.replicate a (1, 4) ++ List.replicate (62 - a) ((4 : ℕ), (1 : ℕ))).length
-      = 62 := by simp; omega
-  rw [shippedVotes, dpList_getD _ hl j, hlen, voteLaw_eq_foldr]
-  simp only [List.map_append, List.map_replicate]
-  norm_num
-
-lemma readLaw_shipped {a : ℕ} (ha : a ≤ 62) (rd : Read) :
-    readLaw 62 a (1 - 1 / 5) (1 / 5) 20 42 rd = (shippedMass a rd : ℝ) / 5 ^ 62 := by
-  rw [readLaw, shippedMass, Nat.cast_sum, Finset.sum_div]
-  refine Finset.sum_congr rfl (fun j _ => ?_)
-  split_ifs
-  · rw [voteLaw_shipped ha]
+lemma voteLaw_zero (N : ℕ) (p r : ℝ) (k : ℕ) :
+    voteLaw N 0 p r k = (N.choose k : ℝ) * r ^ k * (1 - r) ^ (N - k) := by
+  rw [voteLaw, Finset.sum_eq_single (0, k)]
   · simp
+  · intro x hx hne
+    have h1 : x.1 ≠ 0 := by
+      intro h0
+      apply hne
+      have := Finset.mem_antidiagonal.1 hx
+      ext <;> simp_all
+    simp [Nat.choose_eq_zero_of_lt (Nat.pos_of_ne_zero h1)]
+  · intro h
+    exact absurd (Finset.mem_antidiagonal.2 (by simp)) h
 
-lemma shipped_trichotomy {a : ℕ} (ha : a ≤ 62) :
-    readLaw 62 a (1 - 1 / 5) (1 / 5) 20 42 .accept ≤ 1 / 10 ^ 10
-    ∨ readLaw 62 a (1 - 1 / 5) (1 / 5) 20 42 .reject ≤ 1 / 10 ^ 10
-    ∨ 1 / 3 ≤ readLaw 62 a (1 - 1 / 5) (1 / 5) 20 42 .undecided := by
-  simp only [readLaw_shipped ha]
-  have h5 : (0 : ℝ) < 5 ^ 62 := by positivity
-  rcases shippedMass_check a (by omega) with h | h | h
-  · left
-    rw [div_le_div_iff₀ h5 (by positivity)]
-    exact_mod_cast (by omega : shippedMass a .accept * 10 ^ 10 ≤ 1 * 5 ^ 62)
-  · right; left
-    rw [div_le_div_iff₀ h5 (by positivity)]
-    exact_mod_cast (by omega : shippedMass a .reject * 10 ^ 10 ≤ 1 * 5 ^ 62)
-  · right; right
-    rw [div_le_div_iff₀ (by norm_num) h5]
-    exact_mod_cast (by omega : 1 * 5 ^ 62 ≤ shippedMass a .undecided * 3)
-
-theorem trichotomyAt_shipped : TrichotomyAt 62 20 42 (1 / 5) (1 / 5) (1 / 10 ^ 10) :=
-  fun _ ha => shipped_trichotomy ha
-
-theorem family_read_shipped_holds : FamilyReadShipped := by
-  intro Ω _ μ _ α σ _ O M F hL hF hN hIn hOut
-  exact family_read_trichotomy_holds O M F 20 42 (1 / 10 ^ 10) hL hF
-    (by rw [hN, hIn, hOut]; exact trichotomyAt_shipped)
+theorem selection_not_trichotomy :
+    max (binomCdf 15 2 ((15 - 1) / 15)) (1 - binomCdf 15 (15 - 1) (2 / 15)) ≤ (2 / 15) ^ 15
+    ∧ max (binomCdf 15 (15 - 1) (17 / 30 + (17 / 30 - 67 / 500))
+          - binomCdf 15 2 (17 / 30 + (17 / 30 - 67 / 500)))
+        (binomCdf 15 (15 - 1) (17 / 30 - (17 / 30 - 67 / 500))
+          - binomCdf 15 2 (17 / 30 - (17 / 30 - 67 / 500))) ≤ 33 / 100
+    ∧ ¬ TrichotomyAt 15 2 15 (1 - (17 / 30 + (17 / 30 - 67 / 500)))
+        (17 / 30 - (17 / 30 - 67 / 500)) ((2 / 15) ^ 15) := by
+  refine ⟨?_, ?_, fun h => ?_⟩
+  · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
+    norm_num [Nat.choose]
+  · simp only [binomCdf, Finset.sum_range_succ, Finset.sum_range_zero]
+    norm_num [Nat.choose]
+  · rcases h 0 (by norm_num) with h | h | h <;>
+      simp only [readLaw, voteLaw_zero, Finset.sum_range_succ, Finset.sum_range_zero,
+        readOf] at h <;>
+      norm_num [Nat.choose] at h <;>
+      simp only [reduceCtorEq, ↓reduceIte] at h <;>
+      norm_num at h
 
 end OrthoDFA
