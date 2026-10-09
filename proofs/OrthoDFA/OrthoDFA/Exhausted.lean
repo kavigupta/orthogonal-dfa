@@ -10,11 +10,12 @@ tests has read, and its two sides' mean answers part by a margin `τ` beyond its
 the first test in the power case or splitting is in the power case and does not split is at most
 `e^{−τ²}` times the chances, summed over the keys, that there is such a test.
 
-`RoundStrongExhausted`: where the budget covers `|Q| + N₁ + N₂` readings of `nr + np` probes, the
-round ends exhausted with chance at most that power term, the misread chance `spurRate` and the
-`BadRoute` mass of every reading's refusal draws over `N₁`, the chance that `N₂` readings rerun
-first a draw with no read off its route whose test is not in the power case and does not split,
-and the chance of a noisy split, which is not bounded.
+`RoundStrongExhausted`: a pass ends after `patience` quiet steps in a row, and a step is quiet
+unless it reaches a split test. Where the budget covers `patience + 1` probes for each of
+`|Q| + N₁ + N₂` steps that are not quiet, the round ends exhausted with chance at most that power
+term, the misread chance `spurRate` and the `BadRoute` mass of every draw over `N₁`, the chance
+that `N₂` steps that are not quiet have no read off their route and reach no test in the power
+case or splitting, and the chance of a noisy split, which is not bounded.
 -/
 
 namespace OrthoDFA
@@ -122,10 +123,35 @@ def Decisive (O : Oracle μ (FreeMonoid α)) (F : Finset (FreeMonoid α)) (τ : 
 
 end Test
 
-/-- The readings that rerun live draws: what each starts from and the draw it reruns first. -/
-def rerunFirsts (es : List (RoundAcc α × List (FreeMonoid α))) :
-    List (RoundAcc α × FreeMonoid α) :=
-  es.filterMap fun e => e.2.head?.map (e.1, ·)
+section Trace
+
+variable (C : StrongCfg α) (R : CutReads α)
+
+/-- The steps a pass takes, each with the accumulator before it. -/
+noncomputable def passTrace : RoundAcc α → List (FreeMonoid α) → List (RoundAcc α × FreeMonoid α)
+  | _, [] => []
+  | A, x :: xs =>
+    if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then []
+    else (A, x) :: passTrace (strongStep C R A x) xs
+
+/-- The steps the round takes, each with the accumulator before it. -/
+noncomputable def roundTrace :
+    (n : ℕ) → ℕ → RoundAcc α → List (FreeMonoid α) → (Fin n → C.Draws)
+      → List (RoundAcc α × FreeMonoid α)
+  | 0, _, _, _, _ => []
+  | n + 1, j, A, first, d =>
+    passTrace C R (passStart A) (first ++ List.ofFn (d 0).1) ++
+      match strongReading C R j A first (d 0) with
+      | (_, .inl _) => []
+      | (A', .inr lv) => roundTrace n (j + 1) A' lv (Fin.tail d)
+
+end Trace
+
+/-- A reading's refusal draw or probe. -/
+def drawAt (C : StrongCfg α) {Rmax : ℕ} (d : Fin Rmax → C.Draws) :
+    Fin Rmax × (Fin C.nr ⊕ Fin C.np) → FreeMonoid α
+  | (j, .inl i) => (d j).2.2.1 i
+  | (j, .inr i) => (d j).1 i
 
 /-- `RoundStrongPower`: in the round, which takes no key as not splitting, at some key the first
 test in the power case or splitting is in the power case and does not split with chance at most
@@ -148,12 +174,12 @@ def RoundStrongPower : Prop :=
 
 open scoped Classical in
 /-- `RoundStrongExhausted`: with the noise and the draws drawn together, draws of length `L`, and
-the budget at two leaves covering `|Q| + N₁ + N₂` readings of `nr + np` probes, the round ends
-exhausted with chance at most `RoundStrongPower`'s bound averaged over the draws; `spurRate` and
-the chance of `BadRoute` in its tree, summed over every reading's refusal draws, over `N₁`; the
-chance that at least `N₂` readings rerun first a draw with no read off its route whose step
-reaches no test in the power case or splitting; and the chance of a noisy split. The last is not
-bounded. -/
+the budget at two leaves covering `patience + 1` probes for each of `|Q| + N₁ + N₂` steps that are
+not quiet, the round ends exhausted with chance at most `RoundStrongPower`'s bound averaged over
+the draws; over `N₁`, `spurRate` and the chance a step probes the draw in its tree's `BadRoute`,
+summed over every refusal draw and probe; the chance that at least `N₂` steps are not quiet, have
+no read off their route, and reach no test in the power case or splitting; and the chance of a
+noisy split. The last is not bounded. -/
 def RoundStrongExhausted : Prop :=
   ∀ {α : Type*} [Fintype α] [DecidableEq α] {Ω : Type*} [MeasurableSpace Ω] {μ : Measure Ω}
     [IsProbabilityMeasure μ] {Q : Type*} [Fintype Q] (C : StrongCfg α)
@@ -163,23 +189,22 @@ def RoundStrongExhausted : Prop :=
     (n : ℕ) (ψ₀ : ℝ) (N₁ N₂ Rmax : ℕ),
     C.K.forced = ∅ → 0 ≤ τ → 0 < C.K.patience → Monotone C.budget → 0 < N₁ →
     (∀ᵐ x ∂D, x.toList.length = C.L) →
-    (Fintype.card Q + N₁ + N₂) * (C.nr + C.np) ≤ C.budget 2 →
+    (C.K.patience + 1) * (Fintype.card Q + N₁ + N₂) ≤ C.budget 2 →
     let ν := Measure.pi fun _ : Fin Rmax => C.drawMeasure D
     let R := fun p : Ω × (Fin Rmax → C.Draws) => readsAt O B F p.1
-    let reruns := fun p : Ω × (Fin Rmax → C.Draws) =>
-      rerunFirsts (strongEntries C (R p) Rmax 0 (startAcc C (R p) seed) [] p.2)
+    let steps := fun p : Ω × (Fin Rmax → C.Draws) =>
+      roundTrace C (R p) Rmax 0 (startAcc C (R p) seed) [] p.2
     μ.prod ν {p | (strongRun C (R p) seed Rmax p.2).1 = .exhausted}
       ≤ ENNReal.ofReal (Real.exp (-τ ^ 2)) * ∑' κ, ∫⁻ d, μ {ω | roundFind C (readsAt O B F ω)
           (Decisive C O F τ κ (readsAt O B F ω)) Rmax 0 (startAcc C (readsAt O B F ω) seed) [] d
             ≠ none} ∂ν
-        + (∑ j : Fin Rmax, ∑ i : Fin C.nr,
+        + (∑ δ : Fin Rmax × (Fin C.nr ⊕ Fin C.np),
             (ENNReal.ofReal (spurRate A O B F side rep D C.k C.L n ψ₀)
-              + μ.prod ν {p | ∃ e ∈ (strongEntries C (R p) Rmax 0 (startAcc C (R p) seed) []
-                  p.2)[j]?, (p.2 j).2.2.1 i ∈ BadRoute A O B F side rep C.k n ψ₀
-                (strongPass C (R p) e.1 (e.2 ++ List.ofFn (p.2 j).1)).s.tree})) / N₁
-        + μ.prod ν {p | N₂ ≤ ((reruns p).filter fun e =>
-            ¬ SpuriousAt (R p) A side rep e.1.s.tree C.k e.2
-              ∧ ¬ ∃ κ, Decisive C O F τ κ (R p) (passStart e.1) e.2).length}
+              + μ.prod ν {p | ∃ s ∈ steps p, s.2 = drawAt C p.2 δ
+                ∧ drawAt C p.2 δ ∈ BadRoute A O B F side rep C.k n ψ₀ s.1.s.tree})) / N₁
+        + μ.prod ν {p | N₂ ≤ ((steps p).filter fun s => (stepTest C (R p) s.1 s.2).isSome
+            ∧ ¬ SpuriousAt (R p) A side rep s.1.s.tree C.k s.2
+            ∧ ¬ ∃ κ, Decisive C O F τ κ (R p) s.1 s.2).length}
         + μ.prod ν {p | noisySplits (R p) A side rep (strongRun C (R p) seed Rmax p.2).2.1.splits
             ≠ 0}
 

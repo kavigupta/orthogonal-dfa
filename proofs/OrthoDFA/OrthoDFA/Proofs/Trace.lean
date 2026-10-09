@@ -172,24 +172,6 @@ theorem treeLe_step (A : RoundAcc α) (x : FreeMonoid α) : TreeLe A (strongStep
   · rw [h]; exact hp
   · rw [h]; exact hp.splitAt d q
 
-/-- The steps a pass takes, each with the accumulator before it. -/
-noncomputable def passTrace : RoundAcc α → List (FreeMonoid α) → List (RoundAcc α × FreeMonoid α)
-  | _, [] => []
-  | A, x :: xs =>
-    if C.K.patience ≤ A.s.streak ∨ C.budget A.s.tree.paths.length ≤ A.used then []
-    else (A, x) :: passTrace (strongStep C R A x) xs
-
-/-- The steps the round takes, each with the accumulator before it. -/
-noncomputable def roundTrace :
-    (n : ℕ) → ℕ → RoundAcc α → List (FreeMonoid α) → (Fin n → C.Draws)
-      → List (RoundAcc α × FreeMonoid α)
-  | 0, _, _, _, _ => []
-  | n + 1, j, A, first, d =>
-    passTrace C R (passStart A) (first ++ List.ofFn (d 0).1) ++
-      match strongReading C R j A first (d 0) with
-      | (_, .inl _) => []
-      | (A', .inr lv) => roundTrace n (j + 1) A' lv (Fin.tail d)
-
 open scoped Classical in
 theorem passFind_eq (P : RoundAcc α → FreeMonoid α → Prop) :
     ∀ (A : RoundAcc α) (probes : List (FreeMonoid α)),

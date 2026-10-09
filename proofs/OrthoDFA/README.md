@@ -57,15 +57,18 @@ and `Quot.sound` (`OrthoDFA/Verify.lean` prints this).
   only strings no other key's tests or other reads have read, its sides' mean answers apart by
   `τ` beyond its threshold) or splitting is in the power case and does not split, with chance at
   most `e^{−τ²}` times the chances, summed over the keys, that there is such a test.
-- `RoundStrongExhausted`: for draws of length `L`, where the budget at two leaves covers
-  `|Q| + N₁ + N₂` readings of `nr + np` probes, the round ends exhausted with chance at most
-  `RoundStrongPower`'s bound averaged over the draws; plus, over `N₁`, `spurRate` and the
-  `BadRoute` mass summed over every reading's refusal draws (Markov on the reruns of draws with a
-  read off their route, each bounded by `RoundStrongSpurious`); plus the chance that `N₂`
-  readings rerun first a draw with no such read whose step reaches no test in the power case or
-  splitting (the stated residual: too few members on a side, too few fresh strings, or too small
-  a gap); plus the chance of a noisy split, which is open. A rerun that adds a member is a test
-  that did not split, so it falls in the power term or the residual; it needs no term of its own.
+- `RoundStrongExhausted`: a pass ends after `patience` quiet steps in a row, and a step is quiet
+  unless it reaches a split test (Python charges only the pass's probes to the budget). So the
+  round spends at most `patience + 1` probes per step that is not quiet, and `patience` more. For
+  draws of length `L`, where the budget at two leaves covers `patience + 1` probes for each of
+  `|Q| + N₁ + N₂` such steps, the round ends exhausted with chance at most `RoundStrongPower`'s
+  bound averaged over the draws; plus, over `N₁`, `spurRate` and the chance a step probes the draw
+  in its tree's `BadRoute`, summed over every refusal draw and probe (Markov on the steps with a
+  read off their probe's route); plus the chance that `N₂` steps that are not quiet have no such
+  read and reach no test in the power case or splitting (the stated residual: too few members on a
+  side, too few fresh strings, or too small a gap); plus the chance of a noisy split, which is
+  open. A step that is not quiet splits, at most `|Q|` times without a noisy split, or adds a
+  member after a test that did not split, which falls in the power term or the residual.
 
 ## Open
 
@@ -191,9 +194,9 @@ Two gaps between the model and Python:
   `Proofs/Power.lean` and `Proofs/Exhausted.lean`. Power couples the round to one that takes the
   key as not splitting: the two agree until a test there splits, and the coupled round's first
   power-case test there is chosen by bits its strings are fresh from. Exhausted: each reading
-  after the first reruns a live draw first, from the tree it was drawn against, so that step
-  reaches a test that splits or adds a member; `Proofs/Trace.lean` lists the round's steps in
-  order, and no step tests at a key after its leaf splits.
+  after the first reruns a live draw first, from the tree it was drawn against, so it starts with
+  a step that is not quiet; `Proofs/Trace.lean` lists the round's steps in order, and no step
+  tests at a key after its leaf splits.
 - `OrthoDFA/Proofs/Visits.lean`, `HarvestBound.lean`, `HarvestClasses.lean`, `Quality.lean` —
   the classes' quality. Each class is a computation whose harvest is a first undecided read,
   tagged; `HarvestBound` is the triples' fresh-read argument for any such class and any pass
