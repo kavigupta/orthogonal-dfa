@@ -58,7 +58,7 @@ class SplitEvidence:
         self._population = population
         self._tree = tree
         self._split_fpr = pst.config.split_pval
-        #: Held-out string -> the (leaf path, distinguisher) whose test first read it.
+        #: Held-out string -> the (leaf path, distinguisher) whose tests read it.
         self._first_read = {}
         self._split_miss_rate = DEFAULT_SPLIT_MISS_RATE
 
@@ -117,8 +117,8 @@ class SplitEvidence:
     def _tally(self, members, distinguisher: bytes, *, key):
         """
         Group ``members`` by the train half and count the held-out reads per
-        side, each string once and only where no test but ``key``'s (a leaf's
-        path and the distinguisher) read it first:
+        side, each string once, and only where ``key``'s tests (a leaf's path
+        and the distinguisher) read it first or no read in the run has:
 
         Returns (A_true, T_true, A_false, T_false, n_true, n_false), the
         held-out accepts and reads and the member counts, where true/false is the
@@ -136,10 +136,16 @@ class SplitEvidence:
             strings = [
                 s
                 for s in self.family.held_out_strings(member + distinguisher)
-                if s not in seen and self._first_read.setdefault(s, key) == key
+                if s not in seen
             ]
             seen.update(strings)
             reads.append((group, strings))
+        for s in self.family.unread([s for s in seen if s not in self._first_read]):
+            self._first_read[s] = key
+        reads = [
+            (group, [s for s in strings if self._first_read.get(s) == key])
+            for group, strings in reads
+        ]
         bits = iter(self.family.held_out_bits([s for _, ss in reads for s in ss]))
         accepts, trials, count = [0, 0], [0, 0], [0, 0]
         for group, strings in reads:

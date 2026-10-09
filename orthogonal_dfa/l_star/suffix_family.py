@@ -42,6 +42,11 @@ class SuffixFamily:
     def held_out_strings(self, base) -> List[bytes]:
         return [base + self.pst.table.suffix(v) for v in self.held_out]
 
+    def unread(self, strings) -> List[bytes]:
+        """Those of ``strings`` no read in the run has asked."""
+        known = self.pst.table.memo.known(strings) if strings else []
+        return [s for s, k in zip(strings, known) if not k]
+
     def prefill(self, bases) -> None:
         """Observe the whole family for every base at once, so a population costs
         one oracle call rather than one per member."""

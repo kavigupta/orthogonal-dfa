@@ -70,7 +70,7 @@ def denoise_accept_labels(pst, dfa, *, block_size=32):
                     continue  # need distinct strings for independent oracle draws
                 seen.add(string)
                 block.append(string)
-            for bit in pst.oracle.membership_queries(block):
+            for bit in pst.table.memo.membership_queries(block):
                 accepts += int(bit)
                 n += 1
                 decision = binomial_side_of_boundary(

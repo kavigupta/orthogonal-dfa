@@ -68,6 +68,10 @@ class MemoizedOracle(Oracle):
     def membership_query(self, string: bytes) -> bool:
         return bool(self.membership_queries([string])[0])
 
+    def known(self, strings: List[bytes]) -> List[bool]:
+        """Whether each of ``strings`` has been answered, asking nothing."""
+        return (self._table.get(_keys(strings)) != _EMPTY).tolist()
+
 
 #: A key as one row: the digest's two 64-bit halves.
 _KEY_ROW = np.dtype([("lo", np.uint64), ("hi", np.uint64)])

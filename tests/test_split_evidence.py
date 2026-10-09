@@ -30,6 +30,8 @@ class _StubFamily:
         self.accept_rate = accept_rate
         self.prefilled = []
         self._rates = {}
+        #: Held-out strings some other read in the run asked first.
+        self.read = set()
 
     def prefill(self, bases):
         self.prefilled.extend(bases)
@@ -48,6 +50,9 @@ class _StubFamily:
 
     def held_out_strings(self, base):
         return [(base, n) for n in self.held_out]
+
+    def unread(self, strings):
+        return [s for s in strings if s not in self.read]
 
     def held_out_bits(self, strings):
         return [
@@ -215,6 +220,15 @@ class TestVerdict(unittest.TestCase):
         ev._tally(ev._members(0), bytes([1]), key="edge")
 
         tally = ev._tally(ev._members(0), bytes([1]), key="another")
+        self.assertEqual((0, 0), (tally[1], tally[3]))
+
+    def test_a_held_out_string_another_read_asked_first_is_not_counted(self):
+        family = _StubFamily(side_of=lambda p, d: p[-1] == 0)
+        members = [bytes([i, i % 2]) for i in range(40)]
+        family.read = {(m + bytes([1]), n) for m in members for n in range(10)}
+        ev = _evidence(family, members=members)
+
+        tally = ev._tally(ev._members(0), bytes([1]), key="edge")
         self.assertEqual((0, 0), (tally[1], tally[3]))
 
     def test_a_one_sided_population_settles_the_leaf(self):
