@@ -1,9 +1,12 @@
+import functools
 import itertools
 import math
 from typing import Iterator, Optional, Tuple
 
+import numpy as np
 import scipy
 import scipy.special
+import scipy.stats
 
 
 def binom_cdf(k, n, p):
@@ -149,9 +152,50 @@ def evidence_margin_for_population_size(
             binom_cdf(k_high - 1, N, center + side) - binom_cdf(k_low, N, center + side)
             for side in (signal_strength, -signal_strength)
         )
-        if cross <= cross_limit and fnr <= acceptable_fnr:
+        if (
+            cross <= cross_limit
+            and fnr <= acceptable_fnr
+            and reads_trichotomous(
+                k_low,
+                k_high,
+                N,
+                accept_rate=center + signal_strength,
+                reject_rate=center - signal_strength,
+                limit=cross_limit,
+            )
+        ):
             return N, eps
     return None
+
+
+@functools.lru_cache(maxsize=8)
+def _state_counts(N, accept_rate, reject_rate):
+    """Row `a` is the state with `a` accepting members: the law of the count among
+    them, and the two tails of the count among the rest."""
+    a = np.arange(N + 1)[:, None]
+    count = np.arange(N + 1)[None, :]
+    members = scipy.stats.binom.pmf(count, a, accept_rate)
+    others = scipy.stats.binom.pmf(count, N - a, reject_rate)
+    others_le = np.cumsum(others, axis=1)
+    others_ge = np.cumsum(others[:, ::-1], axis=1)[:, ::-1]
+    return members, others_le, others_ge
+
+
+def reads_trichotomous(k_low, k_high, N, *, accept_rate, reject_rate, limit):
+    """Whether every state's read, over `a` members at `accept_rate` and `N - a` at
+    `reject_rate`, is accept at most `limit` of the time, or reject at most `limit`,
+    or undecided at least a third.  `TrichotomyAt` in proofs/OrthoDFA/FamilyRead.lean.
+
+    `evidence_margin_for_population_size`'s other two criteria do not imply it: a mean
+    just inside the band at a small count can sit at or below `k_low` more than 2/3 of
+    the time while its far tail is a hair above the band edge's.
+    """
+    members, others_le, others_ge = _state_counts(N, accept_rate, reject_rate)
+    count = np.arange(N + 1)
+    reject = (members[:, : k_low + 1] * others_le[:, k_low::-1]).sum(axis=1)
+    accept = (members * others_ge[:, np.maximum(k_high - count, 0)]).sum(axis=1)
+    undecided = 1 - accept - reject
+    return bool(np.all((accept <= limit) | (reject <= limit) | (undecided >= 1 / 3)))
 
 
 def compute_suffix_size_counterexample_gen(acceptable_misclassification, noise_level):
