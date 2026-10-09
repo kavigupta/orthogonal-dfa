@@ -125,6 +125,10 @@ def RootUndecided (x : FreeMonoid α) : Prop :=
   (∃ w, probeOutcome R t edges k x = .startUndecided w ∧ ¬ DeepUndecided R t w)
     ∨ (probeOutcome R t edges k x = .endUndecided x ∧ ¬ DeepUndecided R t x)
 
+/-- The draws whose walk from `k` does not agree, off the root's and the given-up edges'. -/
+def NAOff (gu : List Bool × α → Prop) (x : FreeMonoid α) : Prop :=
+  probeOutcome R t edges k x ≠ .agree ∧ ¬ RootUndecided R t edges k x ∧ ¬ DeadEdge R t edges k gu x
+
 end Classes
 
 /-- `_fires`: `binomial_side_of_boundary` of `h` hits in `m` trials against `θ`, then its count

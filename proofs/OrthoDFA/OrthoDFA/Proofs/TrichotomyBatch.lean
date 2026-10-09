@@ -169,11 +169,6 @@ theorem edgeAt_of_edge {t : DTree α} {edges : Edges α} {k : ℕ} {x : FreeMono
   rw [h]
   simp [List.getElem?_eq_getElem hlt]
 
-/-- The draws whose walk from `k` does not agree, off the root's and the given-up edges'. -/
-def NAOff (t : DTree α) (edges : Edges α) (k : ℕ) (gu : List Bool × α → Prop)
-    (x : FreeMonoid α) : Prop :=
-  probeOutcome R t edges k x ≠ .agree ∧ ¬ RootUndecided R t edges k x ∧ ¬ DeadEdge R t edges k gu x
-
 theorem naOff_cases {t : DTree α} {edges : Edges α} {k : ℕ} {gu : List Bool × α → Prop}
     {x : FreeMonoid α} (h : NAOff R t edges k gu x) :
     LiveEdge R t edges k gu x ∨ StartDeep R t k x ∨ EndDeep R t x ∨ IsTriple R t edges k x
